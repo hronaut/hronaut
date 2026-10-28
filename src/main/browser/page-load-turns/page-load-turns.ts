@@ -2,7 +2,7 @@
  * Starting a page's load costs the main process a few milliseconds. Tabs opened together, such as dozens an agent opens
  * at once, all wait for the same session's cookies and would start every load in the same task once they are back,
  * keeping the window and every IPC call waiting meanwhile. Each start takes its own turn of the event loop instead, in
- * the order the tabs were opened.
+ * the order the starts asked for one.
  */
 let lastTurn: Promise<void> = Promise.resolve()
 

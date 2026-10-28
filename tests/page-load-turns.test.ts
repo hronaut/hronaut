@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { nextPageLoadTurn } from '../src/main/browser/new-tabs/page-load-turns.js'
+import { nextPageLoadTurn } from '../src/main/browser/page-load-turns/page-load-turns.js'
 
 describe('nextPageLoadTurn', () => {
   it('gives each caller its own turn of the event loop, in the order they asked', async () => {

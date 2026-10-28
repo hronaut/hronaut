@@ -5,19 +5,25 @@ const pages = vi.hoisted(() => ({ loads: [] as string[] }))
 vi.mock('electron', () => {
   let nextWebContentsId = 100
   class WebContentsView {
+    // As in Electron, the address is the last committed one: a load that just started has none until it commits.
     webContents = (() => {
-      let url = ''
+      let committed = ''
+      let loading = false
       return {
         id: nextWebContentsId++,
         session: { partition: 'workspace' },
         isDestroyed: () => false,
         setAudioMuted: () => undefined,
-        getURL: () => url,
-        isLoading: () => url !== '',
+        getURL: () => committed,
+        isLoading: () => loading,
         loadURL: (next: string) => {
           pages.loads.push(next)
-          url = next
+          loading = true
           return Promise.resolve()
+        },
+        commit: (next: string) => {
+          committed = next
+          loading = false
         },
         navigationHistory: { restore: () => Promise.resolve() }
       }
@@ -28,11 +34,11 @@ vi.mock('electron', () => {
   return { session: {}, WebContentsView, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, powerMonitor: { on: () => undefined } }
 })
 import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
-import { nextPageLoadTurn } from '../src/main/browser/new-tabs/page-load-turns.js'
+import { nextPageLoadTurn } from '../src/main/browser/page-load-turns/page-load-turns.js'
 
 const AGENT = '01912345-6789-7abc-8def-0123456789ab'
 
-interface Tab { webContents: { loadURL(url: string): Promise<void> } }
+interface Tab { id: string; webContents: { loadURL(url: string): Promise<void>; commit(url: string): void } }
 
 /** A browser with one open workspace whose tabs are created for real, with their views faked. */
 function fixture() {
@@ -73,14 +79,13 @@ function fixture() {
     changed: vi.fn(),
     getState: () => ({})
   }) as BrowserTabsManager
-  return (options: Record<string, unknown>) => (
-    manager as unknown as { createTab(options: Record<string, unknown>): Promise<Tab> }
-  ).createTab(options)
+  const browser = manager as unknown as { tabs: Map<string, Tab>; createTab(options: Record<string, unknown>): Promise<Tab> }
+  return { tabs: browser.tabs, createTab: (options: Record<string, unknown>) => browser.createTab(options) }
 }
 
 it('starts the loads of tabs opened together one per turn, in the order they were opened', async () => {
   pages.loads.length = 0
-  const createTab = fixture()
+  const { createTab } = fixture()
   await Promise.all(['https://one.test/', 'https://two.test/', 'https://three.test/'].map((url) => (
     createTab({ url, mcpGroupId: AGENT, active: false })
   )))
@@ -90,12 +95,32 @@ it('starts the loads of tabs opened together one per turn, in the order they wer
   expect(pages.loads).toEqual(['https://one.test/', 'https://two.test/', 'https://three.test/'])
 })
 
-it('keeps a navigation that began before the tab’s turn instead of loading the address it opened with', async () => {
-  // An agent can open a tab and send it elsewhere before its first load started; the older address must not win.
+it('keeps a navigation still loading from before the tab’s turn instead of loading the address it opened with', async () => {
+  // An agent can open a tab and send it elsewhere before its turn; that load has committed no address yet.
   pages.loads.length = 0
-  const createTab = fixture()
+  const { createTab } = fixture()
   const tab = await createTab({ url: 'https://opened.test/', mcpGroupId: AGENT, active: false })
   void tab.webContents.loadURL('https://newer.test/')
   await nextPageLoadTurn()
   expect(pages.loads).toEqual(['https://newer.test/'])
+})
+
+it('keeps a page that already loaded before the tab’s turn', async () => {
+  pages.loads.length = 0
+  const { createTab } = fixture()
+  const tab = await createTab({ url: 'https://opened.test/', mcpGroupId: AGENT, active: false })
+  void tab.webContents.loadURL('https://newer.test/')
+  tab.webContents.commit('https://newer.test/')
+  await nextPageLoadTurn()
+  expect(pages.loads).toEqual(['https://newer.test/'])
+})
+
+it('loads nothing into a tab closed before its turn', async () => {
+  pages.loads.length = 0
+  const { tabs, createTab } = fixture()
+  const closed = await createTab({ url: 'https://closed.test/', mcpGroupId: AGENT, active: false })
+  await createTab({ url: 'https://kept.test/', mcpGroupId: AGENT, active: false })
+  tabs.delete(closed.id)
+  await nextPageLoadTurn()
+  expect(pages.loads).toEqual(['https://kept.test/'])
 })

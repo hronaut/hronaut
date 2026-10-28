@@ -245,7 +245,7 @@ import { safeNavigationHistorySnapshot, type NavigationHistorySnapshot } from '.
 import { historyAroundShownPage, savedHistoryPosition, savedTabHistories, savedTabHistory, TabHistoryStore, type SavedTabHistoryAccess } from './saved-tab-history/saved-tab-history.js'
 import { ClosedTabsStore, restoredClosedTabs, savedClosedTabs, type SavedClosedTabsAccess } from './saved-closed-tabs/saved-closed-tabs.js'
 import { keepSessionCookies } from './session-cookies/saved-session-cookies.js'
-import { nextPageLoadTurn } from './new-tabs/page-load-turns.js'
+import { nextPageLoadTurn } from './page-load-turns/page-load-turns.js'
 import { McpActivityFollowController, type FollowAgent } from './mcp-activity-follow-controller.js'
 import type { KeyboardDebugger } from './native-keyboard.js'
 import type { PointerDebugger } from './native-pointer.js'
@@ -5954,7 +5954,8 @@ export class BrowserTabsManager {
     const loading = options.adopt || asleep
       ? Promise.resolve()
       : cookiesBack.then(nextPageLoadTurn).then(() => {
-        if (view.webContents.isDestroyed()) return undefined
+        // A tab closed before its turn has nothing to load.
+        if (view.webContents.isDestroyed() || this.tabs.get(id) !== tab) return undefined
         // A navigation that began meanwhile, such as an agent's to the tab it just opened, is newer than its address.
         if (view.webContents.isLoading() || view.webContents.getURL() !== '') return undefined
         return options.navigationHistory
