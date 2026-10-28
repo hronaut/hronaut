@@ -205,7 +205,12 @@ release workflow builds from an immutable `v<package version>` tag and publishes
 only after validation and platform packaging succeed; do not hand-publish local
 artifacts. The Claude Code plugin and the VS Code extension live in their own
 repositories, hronaut/hronaut-claude-plugin and hronaut/hronaut-vscode, with
-their own versions.
+their own versions. They rely on the owner token file (`mcp-token` in the
+`Hronaut` profile folder) and its format, the default MCP port and the
+`HRONAUT_MCP_TOKEN`, `HRONAUT_MCP_PORT` and `HRONAUT_USER_DATA_DIR` variables,
+so a change to any of these needs a matching change there. The plugin also
+carries a copy of `skills/hronaut/SKILL.md`; update it there when the skill
+changes.
 
 The deployed commercial website is maintained separately in the sibling
 `../hronaut-page` repository. Changes there have independent tests, history,

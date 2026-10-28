@@ -236,7 +236,7 @@ Claude Code users can install the Hronaut MCP server and the Hronaut Agent Skill
 /plugin install hronaut@hronaut
 ```
 
-On Claude Code 2.1.275 or later, `/plugin install hronaut --marketplace hronaut/hronaut-claude-plugin` does both in one step. Start Hronaut first; `/mcp` then shows Hronaut as connected. The plugin's README covers the connection, its address option and the owner token.
+On Claude Code 2.1.275 or later, `/plugin install hronaut --marketplace hronaut/hronaut-claude-plugin` does both in one step. Start Hronaut first; `/mcp` then shows Hronaut as connected. The [plugin's README](https://github.com/hronaut/hronaut-claude-plugin#readme) covers the connection, its address option and the owner token.
 
 ### First successful run
 
