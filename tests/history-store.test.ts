@@ -325,8 +325,11 @@ describe('HistoryStore', () => {
     const reportError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const errorReported = new Promise<void>((resolve) => { reportError.mockImplementation(() => resolve()) })
     const { path, store } = await storeAt()
+    // The save flushes the file to disk, which a busy machine can take far longer than a few hundred event-loop turns
+    // to finish; only the timers are fake, so the wait is bounded by the real clock.
     const saved = async (): Promise<boolean> => {
-      for (let turn = 0; turn < 200; turn += 1) {
+      const deadline = Date.now() + 10_000
+      while (Date.now() < deadline) {
         if (await readFile(path, 'utf8').then(() => true, () => false)) return true
         await new Promise((resolve) => setImmediate(resolve))
       }
