@@ -185,7 +185,7 @@ turn on **Allow connections from other computers**, then fully quit and restart
 Hronaut. This listens on all IPv4 interfaces. Token authentication is on by default and
 controlled separately by **Require MCP authentication**.
 Use `http://YOUR-HRONAUT-COMPUTER-LAN-IP:47812/mcp` on the remote computer (replace
-the address and use your configured MCP port). If authentication is enabled, create a credential under
+the address and use your configured MCP port). With authentication on (the default), create a credential under
 **Capability profiles** in the same settings panel and configure your remote
 client to send `Authorization: Bearer YOUR-CREDENTIAL`. Allow the configured port
 through the host firewall. Local clients still use their existing loopback URL.
@@ -197,17 +197,22 @@ the browser profile and attach local files. Browser Origin restrictions
 remain in place; this option is for MCP clients, not arbitrary browser pages.
 
 
-Start Hronaut, then configure a Streamable HTTP client with the local endpoint:
+Start Hronaut, then copy your client's setup from Hronaut Home. A new profile requires the owner MCP token, so a Streamable HTTP client sends it as a bearer header:
 
 ```json
 {
   "mcpServers": {
     "hronaut": {
-      "url": "http://127.0.0.1:47812/mcp"
+      "url": "http://127.0.0.1:47812/mcp",
+      "headers": {
+        "Authorization": "Bearer <token from the file Hronaut Home shows>"
+      }
     }
   }
 }
 ```
+
+Hronaut Home shows the token file for your profile; keep the token out of chat, issues and source control. A profile whose **Require MCP authentication** is off connects with the `url` alone.
 
 The public [setup guide](https://hronaut.dev/setup) provides tested commands for Codex, Claude Code, Gemini CLI, Goose, Cursor, Cline, Zoo Code, Kilo Code, JetBrains Junie, Devin Local, Zed, Mistral Vibe, Grok Build, Qwen Code, Warp, Windsurf, VS Code/GitHub Copilot, OpenCode, and generic MCP clients. Hronaut Home contains the current profile-specific version for every built-in client, including the right endpoint and authentication settings.
 
@@ -313,11 +318,11 @@ Hronaut Home generates Windsurf Cascade's user-level `~/.codeium/windsurf/mcp_co
 The official Apache-2.0 [Grok Build CLI](https://github.com/xai-org/grok-build) can connect directly to Hronaut's local HTTP MCP endpoint:
 
 ```bash
-grok mcp add --transport http hronaut http://127.0.0.1:47812/mcp
+grok mcp add --transport http hronaut http://127.0.0.1:47812/mcp --header 'Authorization: Bearer ${HRONAUT_MCP_TOKEN}'
 grok mcp doctor hronaut
 ```
 
-For a protected profile, copy the authentication-aware command from Hronaut Home. It stores an `Authorization` header that references `HRONAUT_MCP_TOKEN`; Grok expands the environment variable when loading `~/.grok/config.toml`, so the owner token is not copied into the configuration file. See xAI's [official MCP server guide](https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-pager/docs/user-guide/07-mcp-servers.md).
+Copy the command from Hronaut Home: it reads the owner token into `HRONAUT_MCP_TOKEN` first. Grok expands the variable when loading `~/.grok/config.toml`, so the token is not copied into the file. With **Require MCP authentication** off, drop the `--header` argument. See xAI's [official MCP server guide](https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-pager/docs/user-guide/07-mcp-servers.md).
 
 This local integration is for Grok Build. Hosted Grok on the web and the X bot cannot reach a loopback-only Hronaut server; Hronaut does not recommend publishing its browser-control endpoint through a public tunnel.
 
