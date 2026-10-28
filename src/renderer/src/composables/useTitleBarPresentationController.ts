@@ -35,8 +35,9 @@ interface TitleBarPresentationEnvironment {
 interface ControlInsets {
   left: number
   right: number
-  /** The device pixel ratio the insets were measured at. */
+  /** The device pixel ratio and viewport width the room holds for: a zoom scales both, a move to another monitor only the ratio. */
   pixelRatio?: number
+  viewportWidth: number
 }
 
 /**
@@ -117,8 +118,9 @@ export function createTitleBarPresentationController(
    * new size for the controls counts only once reads keep finding it for `CONTROLS_CONFIRM_MS`, and a resize meanwhile
    * starts over; until then they keep their room. While the overlay is hidden its area says nothing about the
    * controls, so they keep the room they had then too. A zoom change, such as a new interface size, counts at once: the
-   * controls keep their size on screen, so their room in page pixels scales with the device pixel ratio, and a report
-   * that matches that scale is no resize race; waiting would move the toolbar again a quarter second after the zoom.
+   * controls keep their size on screen, so their room and the viewport in page pixels both scale with the device pixel
+   * ratio, and a report that matches that scale while the viewport does too is no resize race; waiting would move the
+   * toolbar again a quarter second after the zoom.
    */
   function applyGeometry(fromOverlay: boolean): void {
     const overlay = environment.windowControlsOverlay
@@ -127,19 +129,23 @@ export function createTitleBarPresentationController(
       return
     }
     const viewportWidth = environment.viewportWidth()
+    const pixelRatio = environment.pixelRatio?.()
     let area = normalizeTitleBarArea(overlay.getTitlebarAreaRect(), viewportWidth)
     const measured = { left: area.leftInset, right: area.rightInset }
+    if (!fromOverlay && lastControlInsets && lastControlInsets.pixelRatio === pixelRatio) {
+      // A resize at the same ratio keeps the controls' room, now for the new width.
+      lastControlInsets = { ...lastControlInsets, viewportWidth }
+    }
     if (fromOverlay && overlay.visible && (measured.left > 0 || measured.right > 0)) {
       const now = environment.now?.() ?? performance.now()
-      const pixelRatio = environment.pixelRatio?.()
       if (
         !lastControlInsets
         || !environment.requestFrame
         || sameInsets(measured, lastControlInsets)
-        || zoomedInsets(measured, lastControlInsets, pixelRatio)
+        || zoomedInsets(measured, viewportWidth, pixelRatio, lastControlInsets)
         || (candidateInsets && sameInsets(measured, candidateInsets.insets) && now - candidateInsets.since >= CONTROLS_CONFIRM_MS)
       ) {
-        lastControlInsets = { ...measured, pixelRatio }
+        lastControlInsets = { ...measured, pixelRatio, viewportWidth }
         candidateInsets = undefined
       } else {
         if (!candidateInsets || !sameInsets(measured, candidateInsets.insets)) candidateInsets = { insets: measured, since: now }
@@ -255,11 +261,21 @@ function sameInsets(a: { left: number, right: number }, b: { left: number, right
   return a.left === b.left && a.right === b.right
 }
 
-/** Whether `measured` is the room `last` gave the controls, seen at a new device pixel ratio (within a rounding pixel). */
-function zoomedInsets(measured: { left: number, right: number }, last: ControlInsets, pixelRatio: number | undefined): boolean {
+/**
+ * Whether `measured` is the room `last` gave the controls, seen after a zoom: at a new device pixel ratio, with the
+ * viewport and both insets scaled by it, each within the two pixels that rounding at either ratio can move it.
+ */
+function zoomedInsets(
+  measured: { left: number, right: number },
+  viewportWidth: number,
+  pixelRatio: number | undefined,
+  last: ControlInsets
+): boolean {
   if (!pixelRatio || !last.pixelRatio || pixelRatio === last.pixelRatio) return false
   const scale = last.pixelRatio / pixelRatio
-  return Math.abs(measured.left - last.left * scale) <= 1 && Math.abs(measured.right - last.right * scale) <= 1
+  return Math.abs(viewportWidth - last.viewportWidth * scale) <= 2
+    && Math.abs(measured.left - last.left * scale) <= 2
+    && Math.abs(measured.right - last.right * scale) <= 2
 }
 
 export function useTitleBarPresentationController(windowChrome: WindowChromeState) {

@@ -284,6 +284,11 @@ describe('title bar presentation controller', () => {
     overlay.dispatchEvent(new Event('geometrychange'))
     runFrames()
     expect(rightInset()).toBe('113px')
+    // Three pixels off the scaled room is more than rounding explains, so that report waits.
+    overlay.rect = new DOMRect(0, 0, 1_449, 44)
+    overlay.dispatchEvent(new Event('geometrychange'))
+    runFrames()
+    expect(rightInset()).toBe('113px')
     overlay.rect = new DOMRect(0, 0, 1_446, 44)
     overlay.dispatchEvent(new Event('geometrychange'))
     runFrames()
@@ -313,6 +318,53 @@ describe('title bar presentation controller', () => {
     time += 250
     runFrames()
     expect(rightInset()).toBe('200px')
+    expect(frames.size).toBe(0)
+    controller.stop()
+  })
+
+  it('keeps waiting out a resize race after the window moves to a monitor with another scale', () => {
+    const overlay = new FakeWindowControlsOverlay()
+    overlay.rect = new DOMRect(0, 0, 1_807, 44)
+    const resizeTarget = new EventTarget()
+    let viewportWidth = 1_920
+    let pixelRatio = 1.5
+    const frames = new Map<number, () => void>()
+    let nextFrame = 0
+    const runFrames = (): void => {
+      const pending = [...frames.values()]
+      frames.clear()
+      for (const callback of pending) callback()
+    }
+    const rightInset = (): string => document.documentElement.style.getPropertyValue('--titlebar-controls-right-runtime')
+    const controller = createTitleBarPresentationController(chrome(), {
+      documentElement: document.documentElement,
+      viewportWidth: () => viewportWidth,
+      windowControlsOverlay: overlay,
+      resizeTarget,
+      requestFrame: (callback) => {
+        nextFrame += 1
+        frames.set(nextFrame, callback)
+        return nextFrame
+      },
+      cancelFrame: (handle) => { frames.delete(handle) },
+      now: () => 0,
+      pixelRatio: () => pixelRatio
+    })
+    controller.start()
+    expect(rightInset()).toBe('113px')
+
+    // On a 100% monitor the controls keep their page-pixel size, so the overlay reports nothing new. Narrowing the
+    // window then, the area for the new width comes before the viewport, and read against the old width the controls
+    // seem 170 px wide: the 113 px scaled by the old ratio, but the viewport did not scale, so it is no zoom.
+    pixelRatio = 1
+    overlay.rect = new DOMRect(0, 0, 1_750, 44)
+    overlay.dispatchEvent(new Event('geometrychange'))
+    runFrames()
+    expect(rightInset()).toBe('113px')
+    viewportWidth = 1_863
+    resizeTarget.dispatchEvent(new Event('resize'))
+    runFrames()
+    expect(rightInset()).toBe('113px')
     expect(frames.size).toBe(0)
     controller.stop()
   })
