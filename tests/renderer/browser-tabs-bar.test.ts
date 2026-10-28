@@ -161,6 +161,28 @@ describe('BrowserTabsBar', () => {
     expect(measured).toBeGreaterThan(0)
   })
 
+  it('measures the rail again when a Stop button, a needs-you dot or a Following row changes what it holds', async () => {
+    const first = tab('first', { active: true })
+    const state = browserState({ tabs: [first, tab('second')], activeTabId: first.id })
+    const view = renderTabs(state, true, 'vertical')
+    await flushPromises()
+    const strip = screen.getByRole('group', { name: 'Browser tabs and workspaces' })
+    let measured = 0
+    Object.defineProperty(strip, 'scrollHeight', { configurable: true, get: () => { measured += 1; return 960 } })
+    const remeasured = async (props: Record<string, unknown>): Promise<number> => {
+      measured = 0
+      await view.rerender(props)
+      await flushPromises()
+      return measured
+    }
+
+    const capturing = { ...state, tabs: [first, tab('second', { pwaLifecycleActive: true })] }
+    expect(await remeasured({ state: capturing })).toBeGreaterThan(0)
+    expect(await remeasured({ userAttention: { id: 'attention-1', reason: 'Human decision required: provide-input', requestedAt: '2026-10-28T00:00:00.000Z', tabId: 'second' } })).toBeGreaterThan(0)
+    expect(await remeasured({ state: { ...capturing, agentFollow: { tabId: first.id, agentName: 'Claude Code' } } })).toBeGreaterThan(0)
+    expect(screen.getByTestId('workspace-following')).toBeTruthy()
+  })
+
   it.each(['horizontal', 'vertical'] as const)('normalizes wheel units in the %s tab strip', async orientation => {
     renderTabs(browserState(), true, orientation)
     const strip = screen.getByRole('group', { name: 'Browser tabs and workspaces' })
