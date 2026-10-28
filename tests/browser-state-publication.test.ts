@@ -1,14 +1,13 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { StatePublication, STATE_PUBLISH_MS } from '../src/main/browser/browser-state/state-publication.js'
+import { shownTabIds, StatePublication, STATE_DRAWN_TIMEOUT_MS, STATE_PUBLISH_MS } from '../src/main/browser/browser-state/state-publication.js'
 import type { BrowserState, BrowserTabState } from '../src/shared/types.js'
 
 // Pages loading together changed the browser state many times a second, and each change sent every tab to the shell,
 // which drew them all again: 45 tabs opened at once froze the window for up to 3.9 s.
 
-let now = 1_000
+// The fake clock also drives performance.now, so a state drawn while timers run is drawn at their time.
 beforeEach(() => {
-  vi.useFakeTimers()
-  vi.spyOn(performance, 'now').mockImplementation(() => now)
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
 })
 afterEach(() => {
   vi.useRealTimers()
@@ -16,12 +15,14 @@ afterEach(() => {
 })
 
 async function advance(ms: number): Promise<void> {
-  now += ms
   await vi.advanceTimersByTimeAsync(ms)
 }
 
-/** A publication of a state holding one tab, whose title and loading a test changes, sent to a fake shell. */
-function publication() {
+/**
+ * A publication of a state holding one tab, whose title and loading a test changes, sent to a fake shell. The shell
+ * says it drew each state right after it arrives, unless the test draws them itself; the tab is shown unless hidden.
+ */
+function publication(options: { drawsItself?: boolean; hidden?: boolean } = {}) {
   const sent: BrowserState[] = []
   const page = { title: 'Start', loading: false }
   let open = true
@@ -41,10 +42,11 @@ function publication() {
   const states = new StatePublication({
     canPublish: () => open,
     read,
-    loadingTabIds: () => page.loading ? ['tab'] : [],
+    shownLoadingTabIds: () => page.loading && !options.hidden ? ['tab'] : [],
     send: (state) => {
       if (failing) throw new Error('hook failed')
       sent.push(state)
+      if (!options.drawsItself) queueMicrotask(() => states.drawn())
     }
   })
   return {
@@ -150,4 +152,69 @@ it('logs a hook that fails without failing the change, and sends the state again
   await advance(100)
   shell.change({ title: 'First' })
   expect(shell.titles()).toEqual(['First'])
+})
+
+it('waits for the shell to draw a state before sending the next, then as long again as the drawing took', async () => {
+  // A shell slower than the changes fell seconds behind on a queue of older states while 45 pages loaded.
+  const shell = publication({ drawsItself: true })
+  shell.change({ title: 'First' })
+  await advance(40)
+  shell.change({ title: 'Second' })
+  await advance(100)
+  expect(shell.titles()).toEqual(['First'])
+  // Drawn 140 ms after it was sent: the next state waits another 140 ms, from the state as it is then.
+  shell.states.drawn()
+  shell.change({ title: 'Third' })
+  await advance(139)
+  expect(shell.titles()).toEqual(['First'])
+  await advance(1)
+  expect(shell.titles()).toEqual(['First', 'Third'])
+})
+
+it('sends again a while after a state the shell never said it drew', async () => {
+  // A shell that reloads, or a test window without one, does not hold the browser's state back for long.
+  const shell = publication({ drawsItself: true })
+  shell.change({ title: 'First' })
+  await advance(10)
+  shell.change({ title: 'Second' })
+  await advance(STATE_DRAWN_TIMEOUT_MS - 11)
+  expect(shell.titles()).toEqual(['First'])
+  await advance(1)
+  expect(shell.titles()).toEqual(['First', 'Second'])
+})
+
+it('sends a shown page that starts loading even while the shell draws, but not a page loading behind it', async () => {
+  const shown = publication({ drawsItself: true })
+  shown.change({ title: 'Before reload' })
+  shown.change({ loading: true })
+  expect(shown.loading()).toEqual([false, true])
+
+  const hidden = publication({ drawsItself: true, hidden: true })
+  hidden.change({ title: 'Before load' })
+  hidden.change({ loading: true })
+  expect(hidden.loading()).toEqual([false])
+  hidden.states.drawn()
+  await advance(STATE_PUBLISH_MS)
+  expect(hidden.loading()).toEqual([false, true])
+})
+
+it('ignores a drawn state it did not send, so a late answer does not let a burst through', async () => {
+  const shell = publication({ drawsItself: true })
+  shell.states.drawn()
+  shell.change({ title: 'First' })
+  shell.states.drawn()
+  shell.states.drawn()
+  shell.change({ title: 'Second' })
+  await advance(STATE_PUBLISH_MS)
+  expect(shell.titles()).toEqual(['First', 'Second'])
+  shell.change({ title: 'Third' })
+  await advance(STATE_PUBLISH_MS)
+  expect(shell.titles()).toEqual(['First', 'Second'])
+})
+
+it('counts the selected tab and the other half of its split view as shown', () => {
+  expect(shownTabIds(null, null)).toEqual([])
+  expect(shownTabIds('a', null)).toEqual(['a'])
+  expect(shownTabIds('b', { firstTabId: 'a', secondTabId: 'b' })).toEqual(['a', 'b'])
+  expect(shownTabIds('c', { firstTabId: 'a', secondTabId: 'b' })).toEqual(['c'])
 })

@@ -1,4 +1,4 @@
-import { nextTick } from 'vue'
+import { nextTick, watch } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import type { BrowserState, RendererSettingsState } from '../../src/shared/types.js'
 import { useBrowserStore } from '../../src/renderer/src/stores/browser.js'
@@ -95,8 +95,9 @@ function installBrowserApi(options: {
   getState: () => Promise<BrowserState>
   onStateChanged: (listener: (state: BrowserState) => void) => () => void
   selectTab?: (tabId: string) => Promise<BrowserState>
+  stateDrawn?: () => void
 }): void {
-  Object.defineProperty(window, 'hronaut', { configurable: true, value: options })
+  Object.defineProperty(window, 'hronaut', { configurable: true, value: { stateDrawn: () => undefined, ...options } })
 }
 
 function installSettingsApi(options: {
@@ -362,6 +363,31 @@ describe('browser Pinia store lifecycle', () => {
     await syncing
 
     expect(store.state.activeTabId).toBe('initial')
+  })
+
+  it('tells main once it drew each published state, so main sends the next only then', async () => {
+    let listener: ((state: BrowserState) => void) | undefined
+    const stateDrawn = vi.fn()
+    const selectTab = vi.fn(async (tabId: string) => browserState(tabId))
+    installBrowserApi({ getState: async () => browserState('initial'), onStateChanged: (next) => { listener = next; return vi.fn() }, selectTab, stateDrawn })
+    const store = useBrowserStore()
+    await store.initialize()
+    // The state read at start and an action's reply are answers, not publications.
+    await store.selectTab('selected')
+    await nextTick()
+    expect(stateDrawn).not.toHaveBeenCalled()
+
+    let drawnTitle: string | undefined
+    stateDrawn.mockImplementation(() => { drawnTitle = document.title })
+    const unwatch = watch(() => store.state.activeTabId, (id) => { document.title = id ?? '' })
+    listener?.(browserState('published'))
+    expect(stateDrawn).not.toHaveBeenCalled()
+    await nextTick()
+    expect(stateDrawn).toHaveBeenCalledTimes(1)
+    // It was drawn first: what follows the state had already run.
+    expect(drawnTitle).toBe('published')
+    unwatch()
+    store.dispose()
   })
 
   it('keeps the tabs that did not change, so only the changed tab draws again', async () => {

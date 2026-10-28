@@ -286,6 +286,7 @@ const api: HronautApi = {
     ipcRenderer.on('browser:state-changed', handler)
     return () => ipcRenderer.removeListener('browser:state-changed', handler)
   },
+  stateDrawn: () => ipcRenderer.send('browser:state-drawn'),
   onMcpTabActivity: (listener: (activity: McpTabActivity) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, activity: McpTabActivity): void => listener(activity)
     ipcRenderer.on('browser:mcp-tab-activity', handler)

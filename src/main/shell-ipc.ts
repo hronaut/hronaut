@@ -9,12 +9,14 @@ import { parseScrimColor, type ScrimColor } from '../shared/title-bar.js'
 
 type ShellIpcTabs = Pick<BrowserTabsManager,
   | 'setToolbarHeight' | 'setContentInsets' | 'setBrowserContentOccluded' | 'presentOcclusionSnapshot'
-  | 'setFollowAgentActivitySuspended'>
+  | 'setFollowAgentActivitySuspended' | 'stateDrawn'>
 
 interface ShellIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
   /** Admits only the main window's shell document, not a detached panel window. */
   assertMainShellSender(event: IpcMainInvokeEvent | IpcMainEvent): void
+  /** Whether a message came from the main window's shell document, not a detached panel window. */
+  isMainShellSender(event: IpcMainEvent): boolean
   /** Registers a handler that is refused while saved workspaces are still initializing or failed to start. */
   handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void
   /** Why saved workspaces could not start, if they could not; read on every check. */
@@ -99,6 +101,11 @@ export function registerShellIpc(ipcMain: Pick<IpcMain, 'handle' | 'on'>, host: 
     host.assertMainShellSender(event)
     if (!Number.isSafeInteger(id) || (id as number) < 1) throw new TypeError('Invalid occlusion snapshot')
     host.tabs()?.presentOcclusionSnapshot(id as number)
+  })
+  // Detached panel windows draw the same states, but only the main window's shell paces them.
+  ipcMain.on('browser:state-drawn', (event) => {
+    if (!host.isMainShellSender(event)) return
+    host.tabs()?.stateDrawn()
   })
   ipcMain.on('shell:window-controls-scrim', (event, color: unknown) => {
     if (host.workspaceStartupFailure()) return

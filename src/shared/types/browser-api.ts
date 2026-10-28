@@ -235,6 +235,8 @@ export interface HronautApi {
   show(): Promise<void>
   quit(): Promise<void>
   onStateChanged(listener: (state: BrowserState) => void): () => void
+  /** Tells main the shell drew the last state it was sent, so it can send the next. */
+  stateDrawn(): void
   onMcpTabActivity(listener: (activity: McpTabActivity) => void): () => void
   onUserAttentionRequested(listener: () => void): () => void
   onShortcutRequested(listener: (action: import('../browser-shortcuts.js').BrowserShortcutAction) => void): () => void

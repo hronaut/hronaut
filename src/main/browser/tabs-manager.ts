@@ -429,7 +429,7 @@ import type { PersistedStateAccess, WorkspaceBeingDeleted } from './browser-stat
 import { persistedState } from './browser-state/persisted-state.js'
 import type { BrowserStateAccess } from './browser-state/browser-state-access.js'
 import { getState } from './browser-state/browser-state.js'
-import { StatePublication } from './browser-state/state-publication.js'
+import { shownTabIds, StatePublication } from './browser-state/state-publication.js'
 import { normalizeTabTitle } from './tab-metadata.js'
 import { TabDiscoveryTitle } from './tab-discovery-title.js'
 import { isHronautHomeUrl, isWebUrl, normalizeAddress } from './url.js'
@@ -1213,7 +1213,7 @@ export class BrowserTabsManager {
   private readonly statePublication = new StatePublication({
     canPublish: () => !this.destroyed && !this.window.isDestroyed() && !this.restoringLayout,
     read: () => getState(this.browserStateAccess()),
-    loadingTabIds: () => [...this.tabs.values()].filter((tab) => tab.loading).map((tab) => tab.id),
+    shownLoadingTabIds: () => shownTabIds(this.activeTabId, this.splitView).filter((id) => this.tabs.get(id)?.loading === true),
     send: (state) => {
       if (!this.window.webContents.isDestroyed()) this.window.webContents.send('browser:state-changed', state)
       this.options.onStateChanged?.(state)
@@ -1693,6 +1693,11 @@ export class BrowserTabsManager {
       logpoints: () => this.logpoints,
       mcpTabGroups: () => this.mcpTabGroups
     }
+  }
+
+  /** The main window's shell drew the last browser state it was sent, so the next change can go out (see StatePublication). */
+  stateDrawn(): void {
+    this.statePublication.drawn()
   }
 
   /** The browser state as it is now. A change still waiting to be published goes out first (see StatePublication). */

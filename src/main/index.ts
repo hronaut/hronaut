@@ -832,6 +832,7 @@ function registerIpc(): void {
   registerShellIpc(hronautIpcMain, {
     assertTrustedSender: assertTrustedShellSender,
     assertMainShellSender,
+    isMainShellSender,
     handleBrowserIpc,
     workspaceStartupFailure: () => tabRuntime.startupFailure,
     copyTextToClipboard,
