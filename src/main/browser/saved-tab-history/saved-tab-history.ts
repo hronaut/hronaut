@@ -108,6 +108,31 @@ export function historyAroundShownPage(history: PageNavigationHistory): Navigati
   }
 }
 
+/** A tab whose history's position is checked. */
+export interface HistoryPositionTab {
+  url: string
+  title: string
+  sleepNavigationHistory?: NavigationHistorySnapshot
+  webContents: { isDestroyed(): boolean; navigationHistory: Pick<PageNavigationHistory, 'length' | 'getActiveIndex'> }
+}
+
+/**
+ * Where a tab's history stands, read without its pages: how many it holds, which one it shows, and the tab's address
+ * and title, or the history it sleeps with; undefined once the page is gone. A history whose position did not move
+ * holds the pages it held, though the page it shows can change its scroll and form state.
+ */
+export function savedHistoryPosition(tab: HistoryPositionTab): string | undefined {
+  if (tab.sleepNavigationHistory) return `asleep ${tab.sleepNavigationHistory.entries.length} ${tab.sleepNavigationHistory.index} ${tab.url}`
+  if (tab.webContents.isDestroyed()) return undefined
+  try {
+    const history = tab.webContents.navigationHistory
+    return `${history.length()} ${history.getActiveIndex()} ${tab.url} ${tab.title}`
+  } catch {
+    // Electron can destroy the page between the calls.
+    return undefined
+  }
+}
+
 /** A tab whose history a restart keeps. */
 export interface SavedTabHistoryTab {
   id: string
@@ -121,6 +146,11 @@ export interface SavedTabHistoryAccess<Tab extends SavedTabHistoryTab> {
   tabs(): Iterable<Tab>
   /** A tab's history around the page it shows, without the sleeping page, or undefined when it cannot be read. */
   navigationHistory(tab: Tab): NavigationHistorySnapshot | undefined
+  /**
+   * Whether the tab's history is as when it was last read, so the history saved then stands. Reading every tab's every
+   * few seconds took the main process a while with dozens of tabs.
+   */
+  unchanged(tab: Tab): boolean
   /** The Site access rules of an open workspace, or undefined when it is not open. */
   navigationPolicy(workspaceId: string): BrowserWorkspaceNavigationPolicy | undefined
 }
@@ -137,10 +167,16 @@ export function savedTabHistories<Tab extends SavedTabHistoryTab>(
   for (const tab of access.tabs()) {
     const policy = tab.mcpGroupId ? access.navigationPolicy(tab.mcpGroupId) : undefined
     if (!policy) continue
+    const before = previous.get(tab.id)
+    if (before && access.unchanged(tab)) {
+      histories.set(tab.id, before)
+      continue
+    }
     const live = access.navigationHistory(tab)
-    const shown = live?.entries[live.index]?.url === tab.url ? live : previous.get(tab.id)
+    const shown = live?.entries[live.index]?.url === tab.url ? live : before
     const history = savedTabHistory(shown, tab.url, policy)
-    if (history) histories.set(tab.id, history)
+    // A history read again that did not change stays the one saved, which tells the store there is nothing to write.
+    if (history) histories.set(tab.id, before && JSON.stringify(before) === JSON.stringify(history) ? before : history)
   }
   return histories
 }
@@ -175,6 +211,12 @@ function parsedTabHistory(value: unknown): NavigationHistorySnapshot | undefined
 export class TabHistoryStore {
   private saveQueue: Promise<void> = Promise.resolve()
   private written: string | undefined
+  /** The file holds `saved`, so a save that keeps every tab's saved history has nothing to write. */
+  private holdsSaved = false
+  /** How many times clearing the history forgot pages in `saved`, which a write that started before does not hold. */
+  private forgets = 0
+  /** What clearing the history forgot while the file is read, which the history read forgets too. */
+  private forgottenWhileLoading: Array<{ matches: (url: string) => boolean; tabIds: ReadonlySet<string> | undefined }> | undefined
   /** The history of each tab as last read or saved, which a tab whose history cannot be read keeps. */
   private saved: Map<string, NavigationHistorySnapshot> = new Map()
 
@@ -182,7 +224,26 @@ export class TabHistoryStore {
 
   /** The saved history of each tab, by tab. */
   async load(): Promise<Map<string, NavigationHistorySnapshot>> {
-    const histories = new Map<string, NavigationHistorySnapshot>()
+    this.forgottenWhileLoading = []
+    try {
+      const histories = await this.read()
+      if (!histories) return new Map()
+      for (const { matches, tabIds } of this.forgottenWhileLoading) {
+        for (const [tabId, history] of histories) {
+          if (!tabIds || tabIds.has(tabId)) histories.set(tabId, withoutForgottenPages(history, matches))
+        }
+      }
+      // The file holds the history read, unless clearing the history forgot some of its pages meanwhile.
+      this.saved = new Map(histories)
+      this.holdsSaved = this.forgottenWhileLoading.length === 0
+      return histories
+    } finally {
+      this.forgottenWhileLoading = undefined
+    }
+  }
+
+  /** The history the file holds, or undefined when it is missing or cannot be read. */
+  private async read(): Promise<Map<string, NavigationHistorySnapshot> | undefined> {
     let contents: string
     try {
       // lstat refuses a link, which the profile never holds here.
@@ -191,21 +252,22 @@ export class TabHistoryStore {
       contents = await readFile(this.path, 'utf8')
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') console.warn('[browser] The saved tab history could not be read; tabs open without Back and Forward history.')
-      return histories
+      return undefined
     }
     try {
       const data = JSON.parse(contents) as unknown
       if (!isRecord(data) || data.version !== TAB_HISTORY_VERSION || !isRecord(data.tabs)) throw new Error('Not a saved tab history')
+      const histories = new Map<string, NavigationHistorySnapshot>()
       for (const [tabId, value] of Object.entries(data.tabs)) {
         const history = parsedTabHistory(value)
         if (history && isUuidV7(tabId)) histories.set(tabId, history)
       }
       this.written = contents
-      this.saved = new Map(histories)
+      return histories
     } catch {
       console.warn('[browser] The saved tab history could not be read; tabs open without Back and Forward history.')
+      return undefined
     }
-    return histories
   }
 
   /**
@@ -216,11 +278,16 @@ export class TabHistoryStore {
     const operation = this.saveQueue.then(async () => {
       const current = histories(this.saved)
       if (!current) return
+      if (this.holdsSaved && current.size === this.saved.size && [...current].every(([tabId, history]) => this.saved.get(tabId) === history)) return
       this.saved = new Map(current)
+      this.holdsSaved = false
+      const forgets = this.forgets
       const contents = `${JSON.stringify({ version: TAB_HISTORY_VERSION, tabs: Object.fromEntries(current) })}\n`
-      if (contents === this.written) return
-      await writeTextFileAtomically(this.path, contents, 0o600)
-      this.written = contents
+      if (contents !== this.written) {
+        await writeTextFileAtomically(this.path, contents, 0o600)
+        this.written = contents
+      }
+      this.holdsSaved = this.forgets === forgets
     })
     this.saveQueue = operation.catch(() => undefined)
     return operation
@@ -231,8 +298,12 @@ export class TabHistoryStore {
    * whose history cannot be read when it is saved next does not bring them back.
    */
   forgetPages(matches: (url: string) => boolean, tabIds: ReadonlySet<string> | undefined): void {
+    this.forgottenWhileLoading?.push({ matches, tabIds })
     for (const [tabId, history] of this.saved) {
       if (!tabIds || tabIds.has(tabId)) this.saved.set(tabId, withoutForgottenPages(history, matches))
     }
+    // The file still holds the forgotten pages until the next save writes, also one written meanwhile.
+    this.forgets += 1
+    this.holdsSaved = false
   }
 }

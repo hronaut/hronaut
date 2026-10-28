@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events'
 import { expect, it, vi } from 'vitest'
 import type { IpcMain, WebContents } from 'electron'
 import { FixedDateController, type FixedDateTarget } from '../src/main/browser/fixed-date/fixed-date.js'
-import { registerFixedDateIpc } from '../src/main/fixed-date-ipc.js'
+import { registerPageBootstrapIpc } from '../src/main/page-bootstrap-ipc.js'
 
 const AT = Date.UTC(2026, 11, 31, 23, 59, 30)
 const ORIGIN = 'https://app.test'
@@ -144,22 +144,28 @@ it('does not track tabs that never had a fixed Date, and forgets a closed one', 
   expect(controller.bootstrap(page, ORIGIN)).toEqual({ enabled: false })
 })
 
-it('answers only the top-level frame of a tab', () => {
+it('answers only the top-level frame of a tab, with React inspection in the same answer', () => {
   let listener: ((event: unknown) => void) | undefined
+  let channel: string | undefined
   const fixedDateBootstrap = vi.fn(() => ({ enabled: true as const, epochMs: AT }))
-  let tabs: { fixedDateBootstrap: typeof fixedDateBootstrap } | null = null
-  registerFixedDateIpc({ ipcMain: { on: (_channel: string, handler: unknown) => { listener = handler as typeof listener } } as unknown as Pick<IpcMain, 'on'>, tabs: () => tabs as never })
+  const reactInspectionBootstrap = vi.fn(() => ({ enabled: false }))
+  let tabs: { fixedDateBootstrap: typeof fixedDateBootstrap; reactInspectionBootstrap: typeof reactInspectionBootstrap } | null = null
+  registerPageBootstrapIpc({ ipcMain: { on: (name: string, handler: unknown) => { channel = name; listener = handler as typeof listener } } as unknown as Pick<IpcMain, 'on'>, tabs: () => tabs as never })
+  expect(channel).toBe('page:bootstrap')
+  const nothing = { reactInspection: { enabled: false }, fixedDate: { enabled: false } }
   const mainFrame = { origin: ORIGIN }
   const ask = (senderFrame: unknown) => {
     const event = { sender: { mainFrame }, senderFrame, returnValue: undefined as unknown }
     listener!(event)
     return event.returnValue
   }
-  expect(ask(mainFrame)).toEqual({ enabled: false })
-  tabs = { fixedDateBootstrap }
-  expect(ask({ origin: ORIGIN })).toEqual({ enabled: false })
-  expect(ask(null)).toEqual({ enabled: false })
+  expect(ask(mainFrame)).toEqual(nothing)
+  tabs = { fixedDateBootstrap, reactInspectionBootstrap }
+  expect(ask({ origin: ORIGIN })).toEqual(nothing)
+  expect(ask(null)).toEqual(nothing)
   expect(fixedDateBootstrap).not.toHaveBeenCalled()
-  expect(ask(mainFrame)).toEqual({ enabled: true, epochMs: AT })
+  expect(reactInspectionBootstrap).not.toHaveBeenCalled()
+  expect(ask(mainFrame)).toEqual({ reactInspection: { enabled: false }, fixedDate: { enabled: true, epochMs: AT } })
   expect(fixedDateBootstrap).toHaveBeenCalledWith({ mainFrame }, ORIGIN)
+  expect(reactInspectionBootstrap).toHaveBeenCalledWith({ mainFrame })
 })

@@ -1,5 +1,5 @@
 import { installReactInspection } from './react-inspection-bootstrap.js'
-import type { ReactInspectionBootstrap } from '../shared/react-inspection.js'
+import type { PageBootstrap } from '../shared/page-bootstrap.js'
 import { contextBridge, ipcRenderer } from 'electron'
 import type { HomeWorkspaceAction } from '../shared/home-workspaces.js'
 import type { HronautHomeApi } from '../shared/home.js'
@@ -8,17 +8,17 @@ import type { AgentGuideId } from '../shared/agent-guides.js'
 import type { WalletProviderEvent, WalletProviderRequest } from '../shared/wallet.js'
 import { installHronautWalletProviders } from './wallet-provider-bootstrap.js'
 import { installFixedDate } from './fixed-date-bootstrap.js'
-import type { FixedDateBootstrap } from '../shared/fixed-date.js'
 import { PAGE_PRINT_DIALOG_CHANNEL } from '../shared/page-print-dialog.js'
 
-// Synchronous, main-owned opt-in is resolved before any page scripts execute.
-// Embedded frames never receive an installation authorization.
-if (location.protocol === 'http:' || location.protocol === 'https:') {
-  const bootstrap = ipcRenderer.sendSync('react-inspection:bootstrap') as ReactInspectionBootstrap
-  if (bootstrap?.enabled && typeof bootstrap.installationId === 'string') {
-    contextBridge.executeInMainWorld({ func: installReactInspection, args: [bootstrap.installationId] })
-    ipcRenderer.on('react-inspection:disable', () => window.dispatchEvent(new Event('hronaut:react-inspection:disable')))
-  }
+// Synchronous, main-owned opt-ins are resolved before any page scripts execute, in one answer, which the page waits
+// for. Embedded frames never receive an installation authorization.
+const bootstrap = location.protocol === 'http:' || location.protocol === 'https:'
+  ? ipcRenderer.sendSync('page:bootstrap') as PageBootstrap | undefined
+  : undefined
+const reactInspection = bootstrap?.reactInspection
+if (reactInspection?.enabled && typeof reactInspection.installationId === 'string') {
+  contextBridge.executeInMainWorld({ func: installReactInspection, args: [reactInspection.installationId] })
+  ipcRenderer.on('react-inspection:disable', () => window.dispatchEvent(new Event('hronaut:react-inspection:disable')))
 }
 
 
@@ -84,7 +84,7 @@ if (pageLocation?.protocol === 'hronaut:' && pageLocation.hostname === 'home') {
   })
   contextBridge.executeInMainWorld({ func: installHronautWalletProviders })
   // A fixed Date an agent staged for this tab and origin, decided by the main process before page scripts run.
-  const fixedDate = ipcRenderer.sendSync('fixed-date:bootstrap') as FixedDateBootstrap
+  const fixedDate = bootstrap?.fixedDate
   if (fixedDate?.enabled && Number.isSafeInteger(fixedDate.epochMs)) {
     contextBridge.executeInMainWorld({ func: installFixedDate, args: [fixedDate.epochMs] })
   }

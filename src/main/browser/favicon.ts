@@ -1,47 +1,131 @@
-import { nativeImage, type NativeImage, type WebContents } from 'electron'
-import { ISOLATED_WORLDS } from './isolated-worlds.js'
+import { nativeImage, WebContentsView, type NativeImage, type WebContents } from 'electron'
 
-const FAVICON_DECODER_WORLD_ID = ISOLATED_WORLDS.faviconDecoder
+/** Decodes an image as a 32 pixel PNG data URL, or answers null, also once the signal aborted before its turn. */
+export interface FaviconImageDecoder {
+  decodeImage(source: string, signal?: AbortSignal): Promise<unknown>
+}
 
 export async function decodeWebsiteFavicon(
   bytes: Buffer,
   mimeType: string,
-  trustedShell: WebContents
+  decoder: FaviconImageDecoder,
+  signal?: AbortSignal
 ): Promise<NativeImage> {
   const native = nativeImage.createFromBuffer(bytes)
   if (!native.isEmpty()) return native
 
   // Chromium supports website icon formats (including SVG and ICO) that
-  // nativeImage cannot decode on every platform. Decode only an image in the
-  // trusted shell, never SVG markup or scripts in the website's document.
+  // nativeImage cannot decode on every platform. Decode only an image, never
+  // SVG markup or scripts in a document.
   const type = bytes.subarray(0, 4).equals(Buffer.from([0, 0, 1, 0]))
     ? 'image/x-icon'
     : mimeType.split(';')[0]!.trim().toLowerCase()
   if (!/^image\/(svg\+xml|x-icon|vnd\.microsoft\.icon|webp|gif|avif)$/.test(type)) return native
-  const source = `data:${type};base64,${bytes.toString('base64')}`
-  const result: unknown = await trustedShell.executeJavaScriptInIsolatedWorld(FAVICON_DECODER_WORLD_ID, [{
-    code: `new Promise((resolve) => {
-      const image = new Image(32, 32);
-      const finish = (result) => {
-        clearTimeout(timer);
-        image.onload = image.onerror = null;
-        image.src = '';
-        resolve(result);
-      };
-      const timer = setTimeout(() => finish(null), 5000);
-      image.onerror = () => finish(null);
-      image.onload = () => {
-        try {
-          const canvas = document.createElement('canvas');
-          canvas.width = canvas.height = 32;
-          canvas.getContext('2d').drawImage(image, 0, 0, 32, 32);
-          finish(canvas.toDataURL('image/png'));
-        } catch { finish(null); }
-      };
-      image.src = ${JSON.stringify(source)};
-    })`
-  }], false)
+  const result = await decoder.decodeImage(`data:${type};base64,${bytes.toString('base64')}`, signal)
   return typeof result === 'string' && result.length <= 32 * 1024 && result.startsWith('data:image/png;base64,')
     ? nativeImage.createFromDataURL(result)
     : native
+}
+
+/** How long the decoding page stays after its last icon, for the icons of the other pages loading meanwhile. */
+export const FAVICON_DECODER_IDLE_MS = 30_000
+
+/** How many icons wait for the decoding page at most; one more is not decoded, as an icon that cannot be. */
+export const MAX_FAVICON_DECODES_WAITING = 32
+
+/**
+ * Decodes the website icons Electron's own decoder cannot, one at a time, in a page of its own: not in Hronaut's
+ * window, which draws the tabs while many pages load at once and should never take a website's image. The page holds
+ * nothing else, has its own empty session, and closes once no icon came for a while.
+ */
+export class FaviconDecoder implements FaviconImageDecoder {
+  private page: Promise<WebContents> | undefined
+  /** The decoding page's view, kept while the page is open. */
+  private view: WebContentsView | undefined
+  private queue: Promise<unknown> = Promise.resolve()
+  private waiting = 0
+  private idleTimer: ReturnType<typeof setTimeout> | undefined
+  private disposed = false
+
+  /** Decodes the image once the icons before it were; an icon whose page went on, which aborts it, is skipped. */
+  decodeImage(source: string, signal?: AbortSignal): Promise<unknown> {
+    if (this.waiting >= MAX_FAVICON_DECODES_WAITING) return Promise.resolve(null)
+    this.waiting += 1
+    const decoded = this.queue.then(() => {
+      this.waiting -= 1
+      return signal?.aborted ? null : this.decodeNow(source)
+    })
+    this.queue = decoded.catch(() => undefined)
+    return decoded
+  }
+
+  dispose(): void {
+    this.disposed = true
+    this.close()
+  }
+
+  private async decodeNow(source: string): Promise<unknown> {
+    if (this.disposed) return null
+    clearTimeout(this.idleTimer)
+    try {
+      const contents = await this.openPage()
+      return await contents.executeJavaScript(`new Promise((resolve) => {
+        const image = new Image(32, 32);
+        const finish = (result) => {
+          clearTimeout(timer);
+          image.onload = image.onerror = null;
+          image.src = '';
+          resolve(result);
+        };
+        const timer = setTimeout(() => finish(null), 5000);
+        image.onerror = () => finish(null);
+        image.onload = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = canvas.height = 32;
+            canvas.getContext('2d').drawImage(image, 0, 0, 32, 32);
+            finish(canvas.toDataURL('image/png'));
+          } catch { finish(null); }
+        };
+        image.src = ${JSON.stringify(source)};
+      })`, false)
+    } finally {
+      if (!this.disposed) {
+        this.idleTimer = setTimeout(() => this.close(), FAVICON_DECODER_IDLE_MS)
+        this.idleTimer.unref?.()
+      }
+    }
+  }
+
+  private openPage(): Promise<WebContents> {
+    if (this.page && this.view && !this.view.webContents.isDestroyed()) return this.page
+    const view = new WebContentsView({
+      webPreferences: {
+        partition: 'hronaut-favicon-decoder',
+        sandbox: true,
+        contextIsolation: true,
+        nodeIntegration: false,
+        backgroundThrottling: false,
+        spellcheck: false,
+        webgl: false
+      }
+    })
+    const contents = view.webContents
+    contents.setWindowOpenHandler(() => ({ action: 'deny' }))
+    contents.on('will-navigate', (event) => event.preventDefault())
+    // A decoding page that stopped working is replaced by the next icon's.
+    contents.once('render-process-gone', () => { if (this.view === view) this.close() })
+    this.view = view
+    this.page = contents.loadURL('about:blank').then(() => contents)
+    return this.page
+  }
+
+  private close(): void {
+    clearTimeout(this.idleTimer)
+    this.idleTimer = undefined
+    const contents = this.view?.webContents
+    this.view = undefined
+    this.page = undefined
+    if (contents && !contents.isDestroyed()) contents.close()
+  }
 }

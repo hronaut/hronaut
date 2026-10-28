@@ -110,7 +110,7 @@ function networkRequestByCdpId(
   requestId: string,
   includeCompleted = false
 ): BrowserNetworkRequestRecord | undefined {
-  return [...tab.networkRequests].reverse().find((candidate) => (
+  return tab.networkRequests.findLast((candidate) => (
     candidate.observationGeneration === tab.observationGeneration
     && candidate.cdpRequestId === requestId
     && (includeCompleted || candidate.completedAt === undefined)
@@ -339,7 +339,7 @@ export function recordNetworkDebuggerMessage(tab: BrowserNetworkRecordingState, 
       if (Number.isFinite(details.timestamp)) existingWebSocket.startedMonotonicSeconds = details.timestamp
       return
     }
-    const previous = [...tab.networkRequests].reverse().find((candidate) => (
+    const previous = tab.networkRequests.findLast((candidate) => (
       candidate.cdpRequestId === requestId && candidate.completedAt === undefined
     ))
     if (previous && details.redirectResponse) {
@@ -394,7 +394,7 @@ export function recordNetworkDebuggerMessage(tab: BrowserNetworkRecordingState, 
 
   const requestId = (params as { requestId?: string }).requestId
   if (!requestId) return
-  const request = [...tab.networkRequests].reverse().find((candidate) => (
+  const request = tab.networkRequests.findLast((candidate) => (
     candidate.observationGeneration === tab.observationGeneration
     && candidate.cdpRequestId === requestId
     && candidate.completedAt === undefined

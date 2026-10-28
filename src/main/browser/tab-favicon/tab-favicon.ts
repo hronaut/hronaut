@@ -46,7 +46,7 @@ async function loadFaviconCandidate<Tab extends TabFaviconTab>(access: TabFavico
     const response = await fetch(faviconUrl, { signal: cancellation })
     const bytes = Buffer.from(await response.arrayBuffer())
     if (bytes.length > MAX_FAVICON_BYTES) throw new Error('Favicon exceeds the safe size limit')
-    image = await decodeWebsiteFavicon(bytes, response.headers.get('content-type') ?? '', access.windowWebContents())
+    image = await decodeWebsiteFavicon(bytes, response.headers.get('content-type') ?? '', access.faviconDecoder(), cancellation)
   } else {
     const parsed = new URL(faviconUrl)
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error('Unsupported favicon URL')
@@ -74,7 +74,7 @@ async function loadFaviconCandidate<Tab extends TabFaviconTab>(access: TabFavico
       }
       chunks.push(Buffer.from(value))
     }
-    image = await decodeWebsiteFavicon(Buffer.concat(chunks), response.headers.get('content-type') ?? '', access.windowWebContents())
+    image = await decodeWebsiteFavicon(Buffer.concat(chunks), response.headers.get('content-type') ?? '', access.faviconDecoder(), cancellation)
   }
   if (image.isEmpty()) throw new Error('Favicon could not be decoded')
   return `data:image/png;base64,${image.resize({ width: 32, height: 32, quality: 'best' }).toPNG().toString('base64')}`

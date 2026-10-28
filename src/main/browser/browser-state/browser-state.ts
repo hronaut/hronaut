@@ -27,7 +27,7 @@ export function getState<Tab extends BrowserStateTab>(access: BrowserStateAccess
 
 /** One tab as the browser state shows it, from its fields and the manager's view of it. */
 function toState<Tab extends BrowserStateTab>(access: BrowserStateAccess<Tab>, tab: Tab): BrowserTabState {
-  const navigation = access.navigationHistorySnapshot(tab)
+  const navigation = access.navigationButtons(tab)
   const webContentsDestroyed = tab.webContents.isDestroyed()
   return {
     id: tab.id,
@@ -41,8 +41,8 @@ function toState<Tab extends BrowserStateTab>(access: BrowserStateAccess<Tab>, t
     observationGeneration: tab.observationGeneration,
     humanInteractionGeneration: tab.humanInteractionGeneration,
     browserSessionGeneration: tab.browserSessionGeneration,
-    canGoBack: navigation.index > 0,
-    canGoForward: navigation.index >= 0 && navigation.index < navigation.entries.length - 1,
+    canGoBack: navigation.canGoBack,
+    canGoForward: navigation.canGoForward,
     active: tab.id === access.activeTabId(),
     pinned: tab.pinned,
     sleeping: tab.sleeping,

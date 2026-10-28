@@ -36,7 +36,8 @@ describe('Hronaut Home page preload', () => {
     vi.stubGlobal('addEventListener', vi.fn())
     await import('../src/preload/page.js')
     expect(electron.exposeInMainWorld.mock.calls.some(([name]) => name === 'hronautHome')).toBe(false)
-    expect(electron.sendSync).toHaveBeenCalledWith('react-inspection:bootstrap')
+    // One synchronous answer before the page's scripts run, for every opt-in.
+    expect(electron.sendSync).toHaveBeenCalledExactlyOnceWith('page:bootstrap')
     expect(electron.executeInMainWorld.mock.calls.some(([options]) => options.func.name === 'installReactInspection')).toBe(false)
   })
 
