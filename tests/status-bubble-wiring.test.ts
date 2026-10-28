@@ -30,7 +30,7 @@ describe('the status bubble view\'s reports', () => {
     })
     const send = (event: unknown, value: unknown) => handlers.get('status-bubble:measured')!(event as IpcMainEvent, value)
     const measurement = { id: 2, width: 140, height: 22, shortened: false }
-    expect(() => send({ sender: {} }, measurement)).toThrow('Rejected IPC from a non-status-bubble renderer')
+    send({ sender: {} }, measurement)
     expect(bubble.measured).not.toHaveBeenCalled()
     send({ sender: view.webContents }, { ...measurement, width: -1 })
     expect(bubble.measured).not.toHaveBeenCalled()

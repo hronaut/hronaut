@@ -17,6 +17,7 @@ import { ElectronTraceRecorder } from './electron-tracing.js'
 import { startWorkerDisplay } from './worker-display.js'
 import { activityDiagnostics, attachActivityDiagnostics } from './activity-failure-diagnostics.js'
 import { collectsNativeCrashStacks, readNativeCrashStacks, trackNativeCrashStacks, untrackNativeCrashStacks, type TeardownAbort } from './native-crash-stacks.js'
+import { readMainUncaughtExceptions, trackMainUncaughtExceptions, untrackMainUncaughtExceptions } from './main-uncaught-exceptions.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 
 export function expectFixtureSuccess(result: CallToolResult, operation: string): void {
@@ -87,6 +88,8 @@ export interface HronautFixtures {
   standInHome: boolean
   /** Collects the native stack traces of the processes the test's launches crash, for a failure to attach. */
   nativeCrashStacks: void
+  /** Fails the test when one of its launches logged an uncaught exception in the main process, with that error. */
+  mainUncaughtExceptions: void
 }
 
 /** An empty home folder inside the test profile, with no agent's settings in it, as `launchHronaut` overrides. */
@@ -154,6 +157,7 @@ export async function launchHronaut(
   })
   const teardownAbort: TeardownAbort = { requested: false }
   if (testInfo) readNativeCrashStacks(testInfo, app.process().stderr, teardownAbort)
+  if (testInfo) readMainUncaughtExceptions(testInfo, app.process().stderr)
   // Electron dumps stacks whenever the variable is set, even to nothing.
   if (environment.ELECTRON_ENABLE_STACK_DUMPING !== undefined) stackDumpingApps.set(app, teardownAbort)
   try {
@@ -400,6 +404,15 @@ export const test = base.extend<HronautFixtures, { workerDisplay: void }>({
       if (testInfo.status !== testInfo.expectedStatus && stacks.length > 0) {
         await testInfo.attach('native-crash-stacks', { body: JSON.stringify(stacks), contentType: 'application/json' })
       }
+    }
+  }, { auto: true }],
+
+  mainUncaughtExceptions: [async ({}, use, testInfo) => {
+    const exceptions = trackMainUncaughtExceptions(testInfo)
+    try { await use() } finally { untrackMainUncaughtExceptions(testInfo) }
+    if (exceptions.length > 0) {
+      const logged = exceptions.map((exception) => exception.lines.join('\n')).join('\n')
+      throw new Error(`The main process logged ${exceptions.length === 1 ? 'an uncaught exception' : 'uncaught exceptions'}:\n${logged}`)
     }
   }, { auto: true }],
 

@@ -738,7 +738,7 @@ describe('sidebar overlay IPC', () => {
   }
 
   it('admits the view\'s reports only from the view, and the shell\'s requests only from the shell', () => {
-    const { overlay, send, fromView, fromShell, fromPage } = registered()
+    const { overlay, tooltips, send, fromView, fromShell, fromPage } = registered()
     for (const [channel, value] of [
       ['sidebar-overlay-view:rendered', { revision: 1 }],
       ['sidebar-overlay-view:pointer', { hovered: true, held: false }],
@@ -746,11 +746,16 @@ describe('sidebar overlay IPC', () => {
       ['sidebar-overlay-view:tooltip-show', { id: 1, text: 'Home', anchor: { x: 0, y: 0, width: 32, height: 32 }, placement: 'right', theme: 'dark' }],
       ['sidebar-overlay-view:tooltip-hide', 1]
     ] as const) {
-      expect(() => send(channel, fromPage, value)).toThrow('Rejected IPC from a non-sidebar renderer')
-      expect(() => send(channel, fromShell, value)).toThrow('Rejected IPC from a non-sidebar renderer')
+      // Dropped: nothing waits for an answer, and a throw would be an uncaught exception in main.
+      send(channel, fromPage, value)
+      send(channel, fromShell, value)
     }
     expect(overlay.rendered).not.toHaveBeenCalled()
+    expect(overlay.pointer).not.toHaveBeenCalled()
     expect(overlay.received).not.toHaveBeenCalled()
+    expect(overlay.tooltip).not.toHaveBeenCalled()
+    expect(tooltips.show).not.toHaveBeenCalled()
+    expect(tooltips.hide).not.toHaveBeenCalled()
     expect(() => send('sidebar-overlay:show', fromView, { id: 1, model: model() })).toThrow('Rejected IPC from a non-shell renderer')
     expect(() => send('sidebar-overlay:hide', fromPage, 1)).toThrow('Rejected IPC from a non-shell renderer')
     expect(overlay.show).not.toHaveBeenCalled()

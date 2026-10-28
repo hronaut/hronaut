@@ -26,6 +26,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- An unexpected error inside Hronaut no longer freezes every window, page and agent connection behind an error box that has to be dismissed first, which nobody could do while the window was hidden in the tray. Hronaut writes the error to its log and keeps working.
 - Clearing history also clears the steps agents took in that time from their cards and **All steps**, with the pictures of the pages, as it already did for Home's activity feed.
 - A page that crashes while it loads shows only the tab's **This page stopped working** notice, as in Chrome, without a **Navigation failed** toast quoting Electron's ERR_FAILED code. `browser_navigate` tells the agent that the page's renderer exited instead of reporting a network failure.
 - **Bookmark all tabs** with Bookmarks in its own window always asks for the collection's name. When that window was closed, the window it opened could miss the request and ask nothing.

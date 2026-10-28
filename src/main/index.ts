@@ -118,6 +118,9 @@ import { registerAddressOverlayIpc } from './address-overlay-ipc.js'
 import { registerAppLifecycle, type AppQuitState } from './app-lifecycle.js'
 import { createQuitRequest, createQuitWithDownloadsConfirmation } from './quit-with-downloads.js'
 import { createRuntimeShutdown } from './runtime-shutdown.js'
+import { logUncaughtExceptions } from './uncaught-exceptions.js'
+
+logUncaughtExceptions()
 
 const mcpRuntime: McpRuntimeState = {
   host: process.env.HRONAUT_MCP_HOST || '127.0.0.1',
