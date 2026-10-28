@@ -6,8 +6,10 @@ import type {
   BookmarkImportResult,
   BrowserBookmark,
   BrowserDownloadState,
+  BrowserHistoryChanges,
   BrowserHistoryEntry
 } from '../../../shared/types.js'
+import { withHistoryChanges } from '../../../shared/visit-history.js'
 import { disposeAll, registerDisposers } from './dispose-all.js'
 
 interface BrowserCollectionsControllerOptions {
@@ -29,6 +31,7 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
   let downloadsRequestSequence = 0
   let bookmarksRequestSequence = 0
   let historyRequestSequence = 0
+  let historyListed = false
   let initialized = false
   let initializePromise: Promise<void> | undefined
   let subscriptionsAttached = false
@@ -59,7 +62,14 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
   function acceptHistory(next: BrowserHistoryEntry[]): void {
     if (disposed) return
     historyRevision += 1
+    historyListed = true
     history.value = next
+  }
+
+  /** Puts in the pages visited or retitled lately. One that arrives before the first list is already in that list. */
+  function acceptHistoryChanges(changes: BrowserHistoryChanges): void {
+    if (disposed || !historyListed) return
+    acceptHistory(withHistoryChanges(history.value, changes))
   }
 
   async function resolveDownloads(operation: () => Promise<BrowserDownloadState[]>): Promise<BrowserDownloadState[]> {
@@ -91,7 +101,8 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
     unsubscribers = registerDisposers([
       () => options.downloadsApi.onChanged((next) => acceptDownloads(next, true)),
       () => options.bookmarksApi.onChanged(acceptBookmarks),
-      () => options.historyApi.onChanged(acceptHistory)
+      () => options.historyApi.onChanged(acceptHistory),
+      () => options.historyApi.onUpdated(acceptHistoryChanges)
     ])
     subscriptionsAttached = true
   }

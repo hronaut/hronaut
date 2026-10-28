@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
-import type { BrowserHistoryEntry } from '../shared/types.js'
+import type { BrowserHistoryChanges, BrowserHistoryEntry } from '../shared/types.js'
+import { compareHistoryEntries } from '../shared/visit-history.js'
 import { normalizeCollectionTitle } from './collection-title.js'
 import { writeTextFileAtomically } from './atomic-file.js'
 
@@ -13,6 +14,9 @@ const HISTORY_RETENTION_MS = 90 * 24 * 60 * 60 * 1_000
 // Last 4 weeks is the longest time range Settings clears but All time, so a page keeps the times of its visits from then.
 const RECENT_VISITS_MS = 28 * 24 * 60 * 60 * 1_000
 const MAX_RECENT_VISITS = 100
+// Visits and new titles are saved together at most once a second: saving the whole history for each one, while dozens of
+// pages loaded, kept the main process busy writing.
+const SAVE_DELAY_MS = 1_000
 
 /**
  * A page as the history file keeps it. As Chrome keeps each visit, it keeps the times of its visits from the last four
@@ -130,15 +134,19 @@ function validEntry(value: unknown, oldestAllowed: number): value is BrowserHist
 }
 
 function sortedHistory<Entry extends BrowserHistoryEntry>(entries: Iterable<Entry>): Entry[] {
-  return [...entries]
-    .sort((left, right) => right.visitedAt.localeCompare(left.visitedAt) || left.title.localeCompare(right.title))
-    .map((entry) => ({ ...entry }))
+  return [...entries].sort(compareHistoryEntries).map((entry) => ({ ...entry }))
 }
 
 export class HistoryStore {
   private readonly entries = new Map<string, StoredHistoryEntry>()
   private mutationQueue: Promise<void> = Promise.resolve()
   private saveQueue: Promise<void> = Promise.resolve()
+  private saveTimer: NodeJS.Timeout | undefined
+  /** Visits or new titles are not saved yet. */
+  private unsaved = false
+  /** The pages visited or retitled, and those that left the history, since the windows last heard. */
+  private readonly changedIds = new Set<string>()
+  private readonly removedIds = new Set<string>()
   private expiryTimer: NodeJS.Timeout | undefined
   private disposed = false
   /** The file holds history Hronaut could not read, such as a newer version's, which only replacing the file removes. */
@@ -154,6 +162,8 @@ export class HistoryStore {
     if (this.expiryTimer) clearTimeout(this.expiryTimer)
     this.expiryTimer = undefined
     this.entries.clear()
+    this.changedIds.clear()
+    this.removedIds.clear()
     this.unreadableFile = false
     try {
       const parsed = JSON.parse(await readFile(this.path, 'utf8')) as unknown
@@ -230,14 +240,37 @@ export class HistoryStore {
     return sortedHistory([...this.entries.values()].filter((entry) => Date.parse(entry.visitedAt) >= oldestAllowed)).map(listedEntry)
   }
 
-  flush(): Promise<void> {
-    return this.mutationQueue
+  /** Resolves once the changes made so far are saved, saving now the visits that wait for their save. */
+  async flush(): Promise<void> {
+    if (this.saveTimer) clearTimeout(this.saveTimer)
+    this.saveTimer = undefined
+    await this.queueMutation(() => this.saveUnsaved())
   }
 
+  /** Stops the timers; visits not saved yet wait for flush. */
   dispose(): void {
     this.disposed = true
     if (this.expiryTimer) clearTimeout(this.expiryTimer)
     this.expiryTimer = undefined
+    if (this.saveTimer) clearTimeout(this.saveTimer)
+    this.saveTimer = undefined
+  }
+
+  /**
+   * What visits and new titles changed since the last call, for the windows that list the history: the pages as they
+   * are now, and the ids of those that left it.
+   */
+  takeChanges(): BrowserHistoryChanges {
+    const entries: BrowserHistoryEntry[] = []
+    const removedIds = new Set(this.removedIds)
+    for (const id of this.changedIds) {
+      const entry = this.entries.get(id)
+      if (entry) entries.push(listedEntry(entry))
+      else removedIds.add(id)
+    }
+    this.changedIds.clear()
+    this.removedIds.clear()
+    return { entries, removedIds: [...removedIds] }
   }
 
   async pruneExpired(): Promise<number> {
@@ -265,9 +298,8 @@ export class HistoryStore {
     const url = normalizeHistoryUrl(value.url)
     if (!url) return null
     return this.queueMutation(async () => {
-      const nextEntries = new Map(this.entries)
-      this.prune(nextEntries)
-      const existing = [...nextEntries.values()].find((entry) => entry.url === url)
+      const removed = this.prune(this.entries)
+      const existing = this.entryAt(url)
       const now = this.now()
       const samePage = Boolean(existing && value.samePage)
       const entry: StoredHistoryEntry = {
@@ -278,11 +310,17 @@ export class HistoryStore {
         visitCount: samePage ? existing!.visitCount : Math.min((existing?.visitCount ?? 0) + 1, Number.MAX_SAFE_INTEGER),
         ...keptVisits([...existing?.recentVisits ?? [], ...samePage ? [] : [now]], existing?.earlierVisitAt, now)
       }
-      if (existing) nextEntries.delete(existing.id)
-      nextEntries.set(entry.id, entry)
-      this.prune(nextEntries)
-      await this.persist(nextEntries.values())
-      this.replaceEntries(nextEntries)
+      if (existing) this.entries.delete(existing.id)
+      this.entries.set(entry.id, entry)
+      removed.push(...this.prune(this.entries))
+      for (const id of removed) {
+        this.changedIds.delete(id)
+        this.removedIds.add(id)
+      }
+      this.changedIds.add(entry.id)
+      this.scheduleSave()
+      // A visit expires after the visits before it, so only a history that was empty has no expiry to wait for yet.
+      if (!this.expiryTimer) this.scheduleExpiry()
       return listedEntry(entry)
     })
   }
@@ -291,15 +329,14 @@ export class HistoryStore {
     const url = normalizeHistoryUrl(value.url)
     if (!url) return null
     return this.queueMutation(async () => {
-      const existing = [...this.entries.values()].find((entry) => entry.url === url)
+      const existing = this.entryAt(url)
       if (!existing) return null
       const title = normalizeTitle(value.title, url, value.url)
       if (title === existing.title) return listedEntry(existing)
-      const nextEntries = new Map(this.entries)
       const updated = { ...existing, title }
-      nextEntries.set(existing.id, updated)
-      await this.persist(nextEntries.values())
-      this.replaceEntries(nextEntries)
+      this.entries.set(existing.id, updated)
+      this.changedIds.add(existing.id)
+      this.scheduleSave()
       return listedEntry(updated)
     })
   }
@@ -380,13 +417,52 @@ export class HistoryStore {
     })
   }
 
-  private prune(entries: Map<string, StoredHistoryEntry>): void {
+  /** The page the history holds at the address. */
+  private entryAt(url: string): StoredHistoryEntry | undefined {
+    for (const entry of this.entries.values()) if (entry.url === url) return entry
+    return undefined
+  }
+
+  /** Removes the pages visited longer ago than the history keeps, and the last listed beyond its limit; their ids. */
+  private prune(entries: Map<string, StoredHistoryEntry>): string[] {
     const oldestAllowed = this.now() - HISTORY_RETENTION_MS
-    for (const entry of sortedHistory(entries.values())) {
-      if (Date.parse(entry.visitedAt) < oldestAllowed) entries.delete(entry.id)
+    const removed: string[] = []
+    for (const entry of entries.values()) {
+      if (Date.parse(entry.visitedAt) >= oldestAllowed) continue
+      entries.delete(entry.id)
+      removed.push(entry.id)
     }
-    const overflow = sortedHistory(entries.values()).slice(MAX_HISTORY_ENTRIES)
-    for (const entry of overflow) entries.delete(entry.id)
+    // A visit to a page the history does not hold yet puts it one over; sorting the whole history for that took a while.
+    while (entries.size > MAX_HISTORY_ENTRIES) {
+      let last: StoredHistoryEntry | undefined
+      for (const entry of entries.values()) if (!last || compareHistoryEntries(entry, last) > 0) last = entry
+      entries.delete(last!.id)
+      removed.push(last!.id)
+    }
+    return removed
+  }
+
+  /** Saves the visits and new titles of the next second together. */
+  private scheduleSave(): void {
+    this.unsaved = true
+    if (this.saveTimer || this.disposed) return
+    this.saveTimer = setTimeout(() => {
+      this.saveTimer = undefined
+      void this.queueMutation(() => this.saveUnsaved()).catch((error) => console.error('[history] Failed to save visits:', error))
+    }, SAVE_DELAY_MS)
+    this.saveTimer.unref()
+  }
+
+  /** Saves the history when visits or new titles wait for their save; one that fails leaves them for the next. */
+  private async saveUnsaved(): Promise<void> {
+    if (!this.unsaved) return
+    this.unsaved = false
+    try {
+      await this.persist()
+    } catch (error) {
+      this.unsaved = true
+      throw error
+    }
   }
 
   private queueMutation<T>(mutation: () => Promise<T>): Promise<T> {
@@ -420,7 +496,8 @@ export class HistoryStore {
   private persist(entries: Iterable<StoredHistoryEntry> = this.entries.values()): Promise<void> {
     const value: PersistedHistory = { version: HISTORY_VERSION, entries: sortedHistory(entries) }
     const operation = this.saveQueue.then(async () => {
-      await writeTextFileAtomically(this.path, `${JSON.stringify(value, null, 2)}\n`)
+      // Without indenting: the file is Hronaut's own, and indenting only made it larger to write.
+      await writeTextFileAtomically(this.path, `${JSON.stringify(value)}\n`)
       this.unreadableFile = false
     })
     this.saveQueue = operation.catch(() => undefined)

@@ -399,6 +399,11 @@ const historyApi: HronautHistoryApi = {
     const handler = (_event: Electron.IpcRendererEvent, entries: import('../shared/types.js').BrowserHistoryEntry[]): void => listener(entries)
     ipcRenderer.on('visit-history:changed', handler)
     return () => ipcRenderer.removeListener('visit-history:changed', handler)
+  },
+  onUpdated: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, changes: import('../shared/types.js').BrowserHistoryChanges): void => listener(changes)
+    ipcRenderer.on('visit-history:updated', handler)
+    return () => ipcRenderer.removeListener('visit-history:updated', handler)
   }
 }
 contextBridge.exposeInMainWorld('hronautHistory', historyApi)

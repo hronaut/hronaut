@@ -46,6 +46,7 @@ import type {
   BookmarkImportResult,
   BrowserBookmark,
   BrowserDownloadState,
+  BrowserHistoryChanges,
   BrowserHistoryEntry,
   BrowsingDataClearOptions,
   BrowsingDataSiteSummary,
@@ -130,6 +131,8 @@ export interface HronautHistoryApi {
   remove(id: string): Promise<BrowserHistoryEntry[]>
   clear(): Promise<BrowserHistoryEntry[]>
   onChanged(listener: (entries: BrowserHistoryEntry[]) => void): () => void
+  /** Pages visited or retitled, sent together a few times a second while pages load rather than the whole history. */
+  onUpdated(listener: (changes: BrowserHistoryChanges) => void): () => void
 }
 
 export interface HronautBrowsingDataApi {

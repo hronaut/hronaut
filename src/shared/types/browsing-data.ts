@@ -84,6 +84,15 @@ export interface BrowserHistoryEntry {
   visitCount: number
 }
 
+/**
+ * What changed in the history since the window last heard: the pages visited or retitled, as they are now, and the ids
+ * of the pages that left it.
+ */
+export interface BrowserHistoryChanges {
+  entries: BrowserHistoryEntry[]
+  removedIds: string[]
+}
+
 export interface BrowsingDataSummary {
   historyEntries: number
   historyVisits: number

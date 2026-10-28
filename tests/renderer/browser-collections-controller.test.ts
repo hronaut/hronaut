@@ -5,6 +5,7 @@ import type {
   HronautHistoryApi,
   BrowserBookmark,
   BrowserDownloadState,
+  BrowserHistoryChanges,
   BrowserHistoryEntry
 } from '../../src/shared/types.js'
 import { useBrowserCollectionsController } from '../../src/renderer/src/composables/useBrowserCollectionsController.js'
@@ -55,9 +56,11 @@ function createHarness() {
   let downloadsListener: (downloads: BrowserDownloadState[]) => void = () => undefined
   let bookmarksListener: (bookmarks: BrowserBookmark[]) => void = () => undefined
   let historyListener: (history: BrowserHistoryEntry[]) => void = () => undefined
+  let historyChangesListener: (changes: BrowserHistoryChanges) => void = () => undefined
   const unsubscribeDownloads = vi.fn()
   const unsubscribeBookmarks = vi.fn()
   const unsubscribeHistory = vi.fn()
+  const unsubscribeHistoryChanges = vi.fn()
   const listDownloads = vi.fn(async (): Promise<BrowserDownloadState[]> => [])
   const cancelDownload = vi.fn(async (): Promise<BrowserDownloadState[]> => [])
   const clearFinishedDownloads = vi.fn(async (): Promise<BrowserDownloadState[]> => [])
@@ -108,7 +111,11 @@ function createHarness() {
     list: listHistory,
     remove: removeHistoryEntry,
     clear: clearHistory,
-    onChanged: onHistoryChanged
+    onChanged: onHistoryChanged,
+    onUpdated: vi.fn((listener: (changes: BrowserHistoryChanges) => void): (() => void) => {
+      historyChangesListener = listener
+      return unsubscribeHistoryChanges
+    })
   }
   const shouldAutoOpenDownloads = vi.fn(() => true)
   const openDownloads = vi.fn()
@@ -137,9 +144,11 @@ function createHarness() {
     emitDownloads: (next: BrowserDownloadState[]) => downloadsListener(next),
     emitBookmarks: (next: BrowserBookmark[]) => bookmarksListener(next),
     emitHistory: (next: BrowserHistoryEntry[]) => historyListener(next),
+    emitHistoryChanges: (changes: BrowserHistoryChanges) => historyChangesListener(changes),
     unsubscribeDownloads,
     unsubscribeBookmarks,
-    unsubscribeHistory
+    unsubscribeHistory,
+    unsubscribeHistoryChanges
   }
 }
 
@@ -330,5 +339,34 @@ describe('useBrowserCollectionsController', () => {
     expect(harness.unsubscribeDownloads).toHaveBeenCalledOnce()
     expect(harness.unsubscribeBookmarks).toHaveBeenCalledOnce()
     expect(harness.unsubscribeHistory).toHaveBeenCalledOnce()
+    expect(harness.unsubscribeHistoryChanges).toHaveBeenCalledOnce()
+  })
+
+  it('puts in the pages visited or retitled lately in their place, without the whole history', async () => {
+    // Main sent both windows the whole history for each visit and title while dozens of pages loaded.
+    const harness = createHarness()
+    const at = (id: string, visitedAt: string, title = `History ${id}`) => ({ ...historyEntry(id), visitedAt, title })
+    harness.listHistory.mockResolvedValueOnce([at('newer', '2026-08-23T00:00:02.000Z'), at('older', '2026-08-23T00:00:01.000Z'), at('gone', '2026-08-23T00:00:00.000Z')])
+    await harness.controller.initialize()
+
+    harness.emitHistoryChanges({ entries: [at('older', '2026-08-23T00:00:03.000Z', 'Older, loaded'), at('new', '2026-08-23T00:00:02.000Z', 'A new page')], removedIds: ['gone'] })
+
+    expect(harness.controller.history.value.map(({ id, title }) => [id, title])).toEqual([
+      ['older', 'Older, loaded'], ['new', 'A new page'], ['newer', 'History newer']
+    ])
+    harness.controller.dispose()
+  })
+
+  it('leaves changes that arrive before the first list to that list, which holds them', async () => {
+    const harness = createHarness()
+    const listed = deferred<BrowserHistoryEntry[]>()
+    harness.listHistory.mockReturnValueOnce(listed.promise)
+    const initializing = harness.controller.initialize()
+    harness.emitHistoryChanges({ entries: [historyEntry('visited')], removedIds: [] })
+    listed.resolve([historyEntry('visited'), historyEntry('earlier')])
+    await initializing
+
+    expect(harness.controller.history.value.map((item) => item.id)).toEqual(['visited', 'earlier'])
+    harness.controller.dispose()
   })
 })

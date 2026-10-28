@@ -8,6 +8,9 @@ import type { BookmarkOperations, HistoryOperations, McpHttpServer } from './mcp
 import type { UndoableAction } from './undo-offers.js'
 import type { BrowserBookmark, BrowserHistoryEntry } from '../shared/types.js'
 
+/** How long visits and new titles gather before the windows hear of them together. */
+const VISIT_CHANGES_DELAY_MS = 200
+
 /**
  * The bookmarks and the visit history, created once by index.ts and opened when the main window opens. The shell, the
  * panel snapshot, the collection and browsing data IPC, site data and shutdown read the fields when they run, so they
@@ -63,6 +66,20 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
     return entries
   }
 
+  let visitChangesTimer: NodeJS.Timeout | undefined
+  /**
+   * Sends the windows the pages visited or retitled lately, together, rather than the whole history for each: dozens of
+   * pages loading sent thousands of entries to both windows for each visit and title.
+   */
+  function publishVisitChanges(): void {
+    if (visitChangesTimer) return
+    visitChangesTimer = setTimeout(() => {
+      visitChangesTimer = undefined
+      const changes = host.state.history?.takeChanges()
+      if (changes && (changes.entries.length || changes.removedIds.length)) host.sendToShellWindows('visit-history:updated', changes)
+    }, VISIT_CHANGES_DELAY_MS)
+  }
+
   /** Opens the bookmarks file; the returned promise is its load, which the window's startup waits for. */
   function openBookmarks(): Promise<BrowserBookmark[]> {
     host.state.bookmarks = new BookmarkStore(join(app.getPath('userData'), 'bookmarks.json'))
@@ -75,17 +92,17 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
     return host.state.history.load()
   }
 
-  /** Records a page a tab visited, or opened again, and publishes the history once the visit is saved. */
+  /** Records a page a tab visited, or opened again, and sends the windows the change. */
   function recordPageVisit({ url, title, samePage }: { url: string; title: string; samePage: boolean }): void {
     void host.state.history?.record({ url, title, samePage })
-      .then(() => publishVisitHistory())
+      .then(() => publishVisitChanges())
       .catch((error) => console.error('[history] Failed to record visit:', error))
   }
 
-  /** Gives a visited page its new title and publishes the history when the title changed. */
+  /** Gives a visited page its new title and sends the windows the change. */
   function updatePageTitle({ url, title }: { url: string; title: string }): void {
     void host.state.history?.updateTitle({ url, title })
-      .then((updated) => { if (updated) publishVisitHistory() })
+      .then(() => publishVisitChanges())
       .catch((error) => console.error('[history] Failed to update page title:', error))
   }
 
