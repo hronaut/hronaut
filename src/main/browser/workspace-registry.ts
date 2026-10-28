@@ -155,7 +155,7 @@ export class WorkspaceRegistry {
             }
             // The tabs open in the order they were saved, so the tab shown when it was archived is shown again.
             const tabs = host.tabs().filter(tab => tab.mcpGroupId === id)
-            const shown = tabs[saved.shownTabIndex ?? tabs.length - 1] ?? tabs[tabs.length - 1]
+            const shown = tabs[shownIndex] ?? tabs[tabs.length - 1]
             if (shown && show) host.selectTab(shown.id)
             else if (shown) restored.activeTabId = shown.id
             const result = host.requireActive(id)

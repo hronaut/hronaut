@@ -46,6 +46,11 @@ test('pages opened behind the shown one to load in their turn, as by Open all, l
     await expect.poll(() => requested).toEqual(paths)
     for (const path of ['/three', '/four', '/five']) release(path)
     await expect.poll(tabs).toEqual(paths.map((path) => ({ path, sleeping: false, loading: false })))
+    // Each page loaded in its turn is a visit, as when it loads at once.
+    await expect.poll(() => appWindow.evaluate(async (origin) => {
+      const history = (window as unknown as { hronautHistory: { list(): Promise<Array<{ url: string; title: string }>> } }).hronautHistory
+      return (await history.list()).filter((entry) => entry.url.startsWith(origin)).map((entry) => entry.title).sort()
+    }, origin)).toEqual(['Page five', 'Page four', 'Page one', 'Page three', 'Page two'])
   } finally {
     for (const path of [...held.keys()]) release(path)
     await closeFixtureServer(server)
@@ -83,6 +88,39 @@ test('a page waiting for its turn loads at once when it is shown', async ({ appW
       .find((tab) => tab.id === id), shown.id)).toMatchObject({ title: 'Shown', sleeping: false, loading: false, active: true })
   } finally {
     for (const response of held) { response.writeHead(204); response.end() }
+    await closeFixtureServer(server)
+  }
+})
+
+test('a page waiting for its turn and put to sleep stays asleep when its turn comes', async ({ appWindow }) => {
+  const requested: string[] = []
+  const held = new Map<string, ServerResponse>()
+  const server = createServer((request, response) => {
+    const path = request.url ?? '/'
+    request.resume()
+    if (path === '/favicon.ico') { response.writeHead(404); response.end(); return }
+    requested.push(path)
+    held.set(path, response)
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+  try {
+    for (const path of ['/one', '/two', '/three', '/slept', '/after']) {
+      await appWindow.evaluate((url) => (window as unknown as { hronaut: HronautApi }).hronaut.newTab({ url, active: false, focus: false, loadsInTurn: true }), `${origin}${path}`)
+    }
+    await expect.poll(() => requested).toEqual(['/one', '/two', '/three'])
+    const slept = await appWindow.evaluate(async (url) => (await (window as unknown as { hronaut: HronautApi }).hronaut.getState()).tabs
+      .find((tab) => tab.url === url)!.id, `${origin}/slept`)
+    await appWindow.evaluate((id) => (window as unknown as { hronaut: HronautApi }).hronaut.setTabSleeping(id, true), slept)
+    const response = held.get('/one')!
+    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' })
+    response.end('<!doctype html><title>One</title>')
+    // The tab after it took its turn.
+    await expect.poll(() => requested).toEqual(['/one', '/two', '/three', '/after'])
+    expect(await appWindow.evaluate(async (id) => (await (window as unknown as { hronaut: HronautApi }).hronaut.getState()).tabs
+      .find((tab) => tab.id === id), slept)).toMatchObject({ sleeping: true, loading: false })
+  } finally {
+    for (const [path, response] of held) if (path !== '/one') { response.writeHead(204); response.end() }
     await closeFixtureServer(server)
   }
 })

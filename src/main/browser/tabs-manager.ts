@@ -746,6 +746,8 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
   wakePromise?: Promise<void>
   /** What a tab created asleep waits for before it first wakes. */
   pageReady?: Promise<void>
+  /** Whether the tab waits asleep to load in its turn, among the tabs opened behind the one shown. */
+  waitsForTurn?: boolean
   humanInteractionLocked: boolean
   tabAgentPaused: boolean
   /** Runtime only: the tab as it was when the person took it over from its agent. */
@@ -2726,7 +2728,7 @@ export class BrowserTabsManager {
     this.backgroundTabLoads ??= new BackgroundLoads({
       waiting: (tabId) => {
         const tab = this.tabs.get(tabId)
-        return Boolean(!this.destroyed && tab?.sleeping && !tab.wakePromise && !tab.webContents.isDestroyed())
+        return Boolean(!this.destroyed && tab?.waitsForTurn && tab.sleeping && !tab.wakePromise && !tab.webContents.isDestroyed())
       },
       wake: (tabId) => this.wakeTab(tabId)
     })
@@ -5941,7 +5943,10 @@ export class BrowserTabsManager {
       this.changed()
       console.error(`[browser] Failed to load ${url}:`, error)
     })
-    if (asleep && options.loadsInTurn) this.backgroundLoads().add(tab.id)
+    if (asleep && options.loadsInTurn) {
+      tab.waitsForTurn = true
+      this.backgroundLoads().add(tab.id)
+    }
     options.onCreated?.(tab)
     this.changed()
     return tab
