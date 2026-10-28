@@ -81,13 +81,17 @@ for (const eventKind of ['focus', 'navigation', 'show', 'capture', 'close', 'pop
       await electronApp.evaluate(({ BrowserWindow }, humanId) => {
         const main = BrowserWindow.getAllWindows().find(window => window.id !== humanId)
         if (!main) throw new Error('Missing main window')
-        const state = globalThis as typeof globalThis & { __qaFocusRequests?: number; __qaRaiseRequests?: number; __qaRestoreFocusSpies?: () => void }
-        state.__qaFocusRequests = 0
+        const state = globalThis as typeof globalThis & { __qaFocusRequests?: string[]; __qaRaiseRequests?: number; __qaRestoreFocusSpies?: () => void }
+        state.__qaFocusRequests = []
         state.__qaRaiseRequests = 0
         const prototype = Object.getPrototypeOf(main.webContents) as Electron.WebContents
         const focus = prototype.focus
         const showInactive = main.showInactive
-        prototype.focus = function () { state.__qaFocusRequests! += 1; return focus.call(this) }
+        // Each request names its page, the window focused then and the caller, so a failure says which code moved the keyboard.
+        prototype.focus = function (this: Electron.WebContents) {
+          state.__qaFocusRequests!.push(`${this.getURL().slice(0, 100)} (focused window: ${BrowserWindow.getFocusedWindow()?.getTitle() ?? 'none'})\n${new Error().stack?.split('\n').slice(2, 14).join('\n')}`)
+          return focus.call(this)
+        }
         main.showInactive = function () { state.__qaRaiseRequests! += 1; return showInactive.call(this) }
         state.__qaRestoreFocusSpies = () => { prototype.focus = focus; main.showInactive = showInactive }
       }, humanId)
@@ -125,7 +129,7 @@ for (const eventKind of ['focus', 'navigation', 'show', 'capture', 'close', 'pop
       expect(result.isError, JSON.stringify(result.content.filter(part => part.type === 'text'))).not.toBe(true)
       if (eventKind === 'popup') await expect.poll(() => electronApp.evaluate(({ webContents }, url) =>
         webContents.getAllWebContents().some(contents => contents.getURL() === url), `${origin}/popup`)).toBe(true)
-      expect(await electronApp.evaluate(() => (globalThis as typeof globalThis & { __qaFocusRequests?: number }).__qaFocusRequests)).toBe(0)
+      expect(await electronApp.evaluate(() => (globalThis as typeof globalThis & { __qaFocusRequests?: string[] }).__qaFocusRequests)).toEqual([])
       if (eventKind === 'show') expect(await electronApp.evaluate(() =>
         (globalThis as typeof globalThis & { __qaRaiseRequests?: number }).__qaRaiseRequests)).toBe(0)
       if (eventKind === 'capture') {
