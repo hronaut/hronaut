@@ -1,6 +1,18 @@
 # Hronaut
 
-Hronaut is a visible, persistent Electron browser that exposes durable agent workspaces through MCP. It keeps the browser open independently of any individual AI session, so people can watch, pause, and take over while agents work in separate local browser profiles.
+**One browser per project. Never your own Chrome.**
+
+Hronaut is a separate, visible browser for every project your coding agent touches. It is for developers and agencies who let Codex, Claude Code, Cursor or another coding agent check signed-in web apps.
+
+**[Download](https://hronaut.dev/download)** · **[Setup guide](https://hronaut.dev/setup)** · **[Pricing](https://hronaut.dev/#pricing)**
+
+For Windows, macOS and Linux. 10-day free trial, no card. Then $4/month or $24/year per named user.
+
+[![Hronaut product tour: an agent checks a local cart, asks a person to confirm, and a second agent resumes the same workspace](https://raw.githubusercontent.com/hronaut/.github/main/profile/media/hronaut-tour-poster.jpg)](https://hronaut.dev/#demo)
+
+- **Your everyday Chrome stays out of it.** Agents work in Hronaut, not in the Chrome with your email and bank. They can use what you sign into in Hronaut.
+- **One workspace per project or client.** Each keeps its own cookies and sign-ins, and stays open after the chat ends.
+- **Watch it, pause it, take over.** Do the login or 2FA yourself, then hand the tab back.
 
 [![Latest release](https://img.shields.io/github/v/release/hronaut/hronaut?display_name=tag&sort=semver)](https://github.com/hronaut/hronaut/releases/latest)
 [![CI](https://github.com/hronaut/hronaut/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/hronaut/hronaut/actions/workflows/ci.yml)
@@ -9,31 +21,7 @@ Hronaut is a visible, persistent Electron browser that exposes durable agent wor
 [![License: Paid with 10-day trial](https://img.shields.io/badge/license-paid%20with%2010--day%20trial-4b5563)](LICENSE)
 [![skills.sh](https://skills.sh/b/hronaut/hronaut)](https://skills.sh/hronaut/hronaut)
 
-[Website](https://hronaut.dev) · [Setup](https://hronaut.dev/setup) · [Browser MCP decision guide](https://hronaut.dev/browser-mcp-guide) · [Downloads](https://github.com/hronaut/hronaut/releases/latest) · [Issues](https://github.com/hronaut/hronaut/issues) · [Detailed reference](REFERENCE.md)
-
-## Where Hronaut fits in your agent stack
-
-Hronaut is a local, visible MCP execution layer for agents that already have their own orchestration. The caller keeps workflow and orchestration state; Hronaut binds each browser command to a tool contract and a named local workspace with its own profile, account, origin, and tab context. People can watch, pause, approve, or take over, and the caller can require bounded browser evidence before it treats an external action as complete.
-
-| Responsibility | Owner |
-| --- | --- |
-| Plan the workflow and retain task state | Your SDK, agent framework, or application |
-| Define the requested browser operation | MCP tool contract and arguments |
-| Execute with a specific browser identity and site context | Hronaut workspace, profile, account, origin, and tab |
-| Approve or complete a consequential manual step | The person using visible Hronaut controls |
-| Decide whether the workflow may continue | The caller, using verified postcondition read-back |
-
-For example, a code-first agent can retain its own task state, ask Hronaut to submit a reviewed change in one named workspace, wait for human approval when required, and continue only after verified postcondition read-back confirms the external result.
-
-Hronaut is not an agent framework, hosted browser fleet, no-code platform, or universal production-safety guarantee. Use it when the browser should remain local, visible, and deliberately reusable; keep orchestration and final business decisions in the calling system.
-
-## See Hronaut in action
-
-[![Hronaut — the browser your coding agent can come back to](https://hronaut.dev/hronaut-social-card.png)](https://hronaut.dev/#demo)
-
-Watch the [product overview](https://hronaut.dev/#demo), then download Hronaut for Windows, macOS, or Linux.
-
-Not sure which browser model fits your workflow? Read the source-backed [Browser MCP decision guide](https://hronaut.dev/browser-mcp-guide), which compares Hronaut with Playwright MCP, Chrome DevTools MCP, and an extension-based Browser MCP without claiming persistence is unique.
+[Website](https://hronaut.dev) · [Browser MCP decision guide](https://hronaut.dev/browser-mcp-guide) · [Releases](https://github.com/hronaut/hronaut/releases/latest) · [Issues](https://github.com/hronaut/hronaut/issues) · [Detailed reference](REFERENCE.md)
 
 ## Start in three steps
 
@@ -97,7 +85,23 @@ Hronaut fits when you already have a coding agent and want the browser to remain
 
 Explore the source-backed workflows for [authenticated browser handoff](https://hronaut.dev/authenticated-browser-agents), [parallel agent workspaces](https://hronaut.dev/parallel-agent-browser-workspaces), [localhost QA](https://hronaut.dev/coding-agent-localhost-browser), [local Web3 wallets](https://hronaut.dev/local-web3-wallets-for-coding-agents), and [security and release trust](https://hronaut.dev/security).
 
-Use a task-owned headless browser or automation library when the browser should be disposable or embedded inside your own agent runtime. Use a hosted browser service when you need remote regions, managed proxies, stealth, or fleet-scale execution. The [decision guide](https://hronaut.dev/browser-mcp-guide) covers the tradeoffs in more detail.
+Use a task-owned headless browser or automation library when the browser should be disposable or embedded inside your own agent runtime. Use a hosted browser service when you need remote regions, managed proxies, stealth, or fleet-scale execution. The source-backed [Browser MCP decision guide](https://hronaut.dev/browser-mcp-guide) compares Hronaut with Playwright MCP, Chrome DevTools MCP, and an extension-based Browser MCP without claiming persistence is unique.
+
+## Where Hronaut fits in your agent stack
+
+Hronaut is a local, visible MCP execution layer for agents that already have their own orchestration. The caller keeps workflow and orchestration state; Hronaut binds each browser command to a tool contract and a named local workspace with its own profile, account, origin, and tab context. People can watch, pause, approve, or take over, and the caller can require bounded browser evidence before it treats an external action as complete.
+
+| Responsibility | Owner |
+| --- | --- |
+| Plan the workflow and retain task state | Your SDK, agent framework, or application |
+| Define the requested browser operation | MCP tool contract and arguments |
+| Execute with a specific browser identity and site context | Hronaut workspace, profile, account, origin, and tab |
+| Approve or complete a consequential manual step | The person using visible Hronaut controls |
+| Decide whether the workflow may continue | The caller, using verified postcondition read-back |
+
+For example, a code-first agent can retain its own task state, ask Hronaut to submit a reviewed change in one named workspace, wait for human approval when required, and continue only after verified postcondition read-back confirms the external result.
+
+Hronaut is not an agent framework, hosted browser fleet, no-code platform, or universal production-safety guarantee. Use it when the browser should remain local, visible, and deliberately reusable; keep orchestration and final business decisions in the calling system.
 
 ## Highlights
 
