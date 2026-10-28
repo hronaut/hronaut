@@ -71,6 +71,7 @@ export const esESAppErrors: AppErrorMessages = {
   "page": {
     "rendererExitedDuringAction": "La página se detuvo durante esta acción porque su proceso terminó; se desconocen sus efectos. Recarga o cierra la pestaña y comprueba su estado actual.",
     "rendererExitedBeforeAction": "La página no se está ejecutando porque su proceso terminó; no se le envió nada. Recarga o cierra la pestaña y comprueba su estado actual.",
+    "notLoadedYet": "La pestaña está suspendida y aún no ha cargado su página; no se le envió nada. Reactiva la pestaña y vuelve a intentarlo.",
     "printDialogOpenedDuringAction": "La página abrió su diálogo de impresión durante esta acción; el diálogo retiene la página hasta que la persona imprima o cancele, y se desconocen los efectos de la acción. Pide a la persona que cierre el diálogo y comprueba el estado actual.",
     "printDialogOpenBeforeAction": "La página muestra su diálogo de impresión, que la retiene hasta que la persona imprima o cancele; no se le envió nada. Pide a la persona que cierre el diálogo y vuelve a intentarlo.",
     "sourceViewRunsNoScripts": "Esta pestaña muestra el código fuente de una página (una dirección view-source:), donde los scripts de la página nunca terminan; no se le envió nada. Abre la propia página en la pestaña para inspeccionarla.",

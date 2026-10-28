@@ -36,8 +36,8 @@ export interface TabSleepTab extends Pick<BrowserProfilingState, 'codeCoverage' 
   walletPageUnloading?: boolean
   wakePromise?: Promise<void>
   /**
-   * What a tab created asleep, such as one restored behind the tab shown, waits for before it first wakes: its
-   * sleeping page, and the session cookies its workspace's pages wait for.
+   * What a tab created asleep, such as one restored behind the tab shown, waits for before it first wakes: the session
+   * cookies its workspace's pages wait for.
    */
   pageReady?: Promise<void>
   /**
@@ -126,6 +126,11 @@ export interface TabSleepAccess<Tab extends TabSleepTab> {
   mcpTabGroups(): ReadonlyMap<string, unknown>
   /** Runs a debugger operation on the page in its turn. */
   withDebugger<T>(webContents: WebContents, operation: () => Promise<T>): Promise<T>
+  /**
+   * Lets the page of a tab created asleep take calls as its first load starts, applies the input lock to it, and starts
+   * monitoring its dialogs and network then, as for a new tab.
+   */
+  firstLoadStarts(tab: Tab): void
   /** Publishes the browser state, and saves it unless persist is false. */
   changed(persist?: boolean): void
   /** The browser state. */

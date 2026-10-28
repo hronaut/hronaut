@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
-import { RendererExitedError } from '../src/main/browser/renderer-exit-guard.js'
+import { firstLoadStarts, holdUntilFirstLoad, RendererExitedError } from '../src/main/browser/renderer-exit-guard.js'
 import { ensureDialogMonitoring } from '../src/main/browser/website-dialogs/website-dialogs.js'
 import { guardPageCallsDuringPrintDialog } from '../src/main/browser/print-dialog-guard.js'
 import { PAGE_PRINT_DIALOG_CHANNEL } from '../src/shared/page-print-dialog.js'
@@ -95,5 +95,25 @@ describe('dialog monitoring on a page its print dialog holds', () => {
     } finally {
       error.mockRestore()
     }
+  })
+})
+
+describe('dialog monitoring on a page that has not loaded yet', () => {
+  // A tab restored asleep has no renderer until it wakes: its monitoring waited for one until then, and locking input
+  // or any debugger operation on the tab waited with it.
+  it('leaves the page alone until its first load starts, and is not waited for meanwhile', async () => {
+    const f = fixture()
+    f.state.crashed = false
+    holdUntilFirstLoad(f.webContents)
+    await ensureDialogMonitoring(f.access, f.tab as never)
+    expect(f.state.attached).toBe(false)
+    expect(f.commands).toEqual([])
+    expect(f.attachments.size).toBe(0)
+    expect(f.webContents.listenerCount('dom-ready')).toBe(0)
+
+    firstLoadStarts(f.webContents)
+    await ensureDialogMonitoring(f.access, f.tab as never)
+    expect(f.state.attached).toBe(true)
+    expect(f.commands).toEqual(['Page.enable', 'Page.getFrameTree', 'Runtime.enable', 'Runtime.setAsyncCallStackDepth', 'Log.enable', 'Audits.enable', 'Network.enable', 'Input.setIgnoreInputEvents'])
   })
 })

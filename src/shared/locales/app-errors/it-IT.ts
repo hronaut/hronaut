@@ -71,6 +71,7 @@ export const itITAppErrors: AppErrorMessages = {
   "page": {
     "rendererExitedDuringAction": "La pagina si è interrotta durante questa azione perché il suo renderer è terminato; gli effetti sono sconosciuti. Ricarica o chiudi la scheda, poi esamina lo stato aggiornato.",
     "rendererExitedBeforeAction": "La pagina non è in esecuzione perché il suo renderer è terminato; non le è stato inviato nulla. Ricarica o chiudi la scheda, poi esamina lo stato aggiornato.",
+    "notLoadedYet": "La scheda è sospesa e non ha ancora caricato la sua pagina; non le è stato inviato nulla. Riattiva la scheda, poi riprova.",
     "printDialogOpenedDuringAction": "La pagina ha aperto la finestra di stampa durante questa azione; la finestra blocca la pagina finché la persona non stampa o annulla, e gli effetti dell’azione sono sconosciuti. Chiedi alla persona di chiudere la finestra, poi esamina lo stato aggiornato.",
     "printDialogOpenBeforeAction": "La pagina mostra la finestra di stampa, che la blocca finché la persona non stampa o annulla; non le è stato inviato nulla. Chiedi alla persona di chiudere la finestra, poi riprova.",
     "sourceViewRunsNoScripts": "Questa scheda mostra il sorgente di una pagina (un indirizzo view-source:), dove gli script della pagina non vengono mai completati; non le è stato inviato nulla. Apri la pagina stessa nella scheda per ispezionarla.",

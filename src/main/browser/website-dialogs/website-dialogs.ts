@@ -1,6 +1,6 @@
 import type { WebContents } from 'electron'
 import type { BrowserDialogAction, BrowserDialogHandlingOptions } from '../../../shared/types.js'
-import { RendererExitedError } from '../renderer-exit-guard.js'
+import { heldUntilFirstLoad, RendererExitedError } from '../renderer-exit-guard.js'
 import { PrintDialogOpenError, whenPrintDialogCloses } from '../print-dialog-guard.js'
 import type { WebsiteDialogsAccess, WebsiteDialogsTab } from './website-dialogs-access.js'
 
@@ -116,6 +116,8 @@ export function ensureDialogMonitoring<Tab extends WebsiteDialogsTab>(access: We
       || webContents.isDestroyed()
       || webContents.isDevToolsOpened()
       || access.isDevToolsOpening(webContents.id)
+      // A page that has not loaded yet has no renderer to answer; monitoring starts as its first load does.
+      || heldUntilFirstLoad(webContents)
     ) return
     try {
       const attachedHere = !webContents.debugger.isAttached()

@@ -74,7 +74,7 @@ export async function navigate<Tab extends PageNavigationTab>(access: PageNaviga
     // does for a typed address.
     access.forgetTabsOpenedFrom(tab.mcpGroupId)
   }
-  // A tab restored asleep loads nothing before its sleeping page is in place, which would take the new page back. A
+  // A tab restored asleep loads nothing before its workspace's session cookies are back, and its wake loads first. A
   // sleeping tab wakes first, so the page the new one replaces is its own; one already waking is replaced, as a load
   // replaces the one before it in Chrome.
   if (tab.pageReady) await tab.pageReady

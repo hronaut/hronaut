@@ -71,6 +71,7 @@ export const ptBRAppErrors: AppErrorMessages = {
   "page": {
     "rendererExitedDuringAction": "A página parou durante esta ação porque o renderizador dela foi encerrado; os efeitos são desconhecidos. Recarregue ou feche a guia e inspecione o estado atualizado.",
     "rendererExitedBeforeAction": "A página não está em execução porque o renderizador dela foi encerrado; nada foi enviado a ela. Recarregue ou feche a guia e inspecione o estado atualizado.",
+    "notLoadedYet": "A guia está suspensa e ainda não carregou a página dela; nada foi enviado a ela. Reative a guia e tente novamente.",
     "printDialogOpenedDuringAction": "A página abriu a caixa de diálogo de impressão durante esta ação; a caixa de diálogo retém a página até que a pessoa imprima ou cancele, e os efeitos da ação são desconhecidos. Peça à pessoa que feche a caixa de diálogo e inspecione o estado atualizado.",
     "printDialogOpenBeforeAction": "A página está mostrando a caixa de diálogo de impressão, que a retém até que a pessoa imprima ou cancele; nada foi enviado a ela. Peça à pessoa que feche a caixa de diálogo e tente novamente.",
     "sourceViewRunsNoScripts": "Esta guia mostra o código-fonte de uma página (um endereço view-source:), onde os scripts da página nunca terminam; nada foi enviado a ela. Abra a própria página na guia para inspecioná-la.",
