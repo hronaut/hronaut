@@ -367,6 +367,8 @@ locally and copy its endpoint from Hronaut Home.
 
 Hronaut is source-available under the [Subscription and Trial License](LICENSE). The 10-day trial starts with the first agent tool call, with no credit card required. All ongoing use requires a subscription afterward: **$4/month or $24/year per named user (50% off $48)**, with up to three active devices per seat. Agent automation is blocked after expiry; existing local data remains accessible for recovery, export, and deletion. Earlier releases retain their original terms.
 
+The Claude Code and Codex plugins, the VS Code extension and the agent skill in [skills/hronaut](skills/hronaut/SKILL.md) are separate software under the MIT License; the app itself stays under [LICENSE](LICENSE). See [what you can do without paying](https://hronaut.dev/#free).
+
 Outside contributions are welcome under the terms in [CONTRIBUTING.md](CONTRIBUTING.md). Security reports should follow the [security policy](.github/SECURITY.md).
 
 For billing and licensing support, contact [support@hronaut.dev](mailto:support@hronaut.dev).
