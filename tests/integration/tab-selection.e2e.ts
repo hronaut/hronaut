@@ -62,6 +62,12 @@ test('selects tabs with Ctrl and a click, moves them together by drag and pins t
     await control('C').click()
     await expect.poll(order).toEqual(['a*', 'b*', 'c!', 'd'])
     await expect(control('A')).toHaveAttribute('aria-selected', 'false')
+
+    // Shift with Enter on a focused tab selects from the tab clicked last, as Shift with a click does.
+    await control('D').press('Shift+Enter')
+    await expect.poll(order).toEqual(['a*', 'b*', 'c', 'd!'])
+    await expect(control('C')).toHaveAttribute('aria-selected', 'true')
+    await expect(control('D')).toHaveAttribute('aria-current', 'page')
   } finally {
     await closeFixtureServer(server)
   }

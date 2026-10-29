@@ -7,6 +7,8 @@ interface TabSelectionOptions {
   /** The tabs the bar lists, in its order. */
   tabs: Readonly<Ref<readonly BrowserTabState[]>>
   activeTabId: () => string | null
+  /** Whether Settings is drawn over the page, so that no tab is shown. */
+  covered: () => boolean
   /** Command adds a tab on macOS, where Control with a click opens the menu; Control does elsewhere. */
   platform: () => string | undefined
   /** Shows the tab, as clicking it does. */
@@ -16,14 +18,25 @@ interface TabSelectionOptions {
 /**
  * Selecting several tabs of a workspace, as in Chrome's tab strip: Ctrl+click (Cmd+click on macOS) adds a tab to the
  * selection and shows it, or takes a selected tab out; Shift+click selects the tabs from the last one clicked to it
- * and shows it. A plain click, or a tab shown any other way, leaves only the shown tab selected again, and the
- * selection never spans workspaces. The tab menu and a drag act on every selected tab.
+ * and shows it. A plain click, a tab shown any other way, or Settings leaves only the shown tab selected again, and
+ * the selection never spans workspaces. The tab menu and a drag act on every selected tab.
  */
 export function useTabSelection(options: TabSelectionOptions) {
   /** The selected tabs in the bar's order while there are several, else none. */
   const selectedTabIds = ref<string[]>([])
   // Where a Shift+click selects from: the tab last clicked, or the one shown.
-  let anchorTabId: string | null = options.activeTabId()
+  let anchorTabId: string | null = options.covered() ? null : options.activeTabId()
+  // The tabs this bar asked to show that the state does not show yet, oldest first. A tab shown at the bar's request
+  // keeps the selection, and the next click counts from the tab it asked for, however soon it comes.
+  let pendingTabIds: string[] = []
+
+  function workspaceOf(tabId: string | null): string | undefined {
+    return options.tabs.value.find((candidate) => candidate.id === tabId)?.mcpGroupId
+  }
+
+  function listed(tabId: string | null): boolean {
+    return options.tabs.value.some((candidate) => candidate.id === tabId)
+  }
 
   function select(tabIds: ReadonlySet<string>): void {
     const ordered = options.tabs.value.filter((tab) => tabIds.has(tab.id)).map((tab) => tab.id)
@@ -34,61 +47,86 @@ export function useTabSelection(options: TabSelectionOptions) {
     if (selectedTabIds.value.length) selectedTabIds.value = []
   }
 
-  /** Handles a click that selects; a click it leaves alone, without Ctrl, Cmd or Shift, is the bar's plain click. */
-  function selectsOnClick(event: MouseEvent, tab: BrowserTabState): boolean {
+  function shownTabId(): string | null {
+    if (options.covered()) return null
+    return pendingTabIds[pendingTabIds.length - 1] ?? options.activeTabId()
+  }
+
+  function show(tabId: string): void {
+    // Showing the tab already shown changes no state, so nothing is waited for.
+    if (pendingTabIds.length || tabId !== options.activeTabId()) pendingTabIds.push(tabId)
+    options.activate(tabId)
+  }
+
+  /** Shows the clicked tab, or with Ctrl, Cmd or Shift changes the selection. */
+  function clickTab(event: MouseEvent, tab: BrowserTabState): void {
     const toggle = options.platform() === 'darwin' ? event.metaKey : event.ctrlKey
     const tabs = options.tabs.value
-    const workspaceOf = (tabId: string | null) => tabs.find((candidate) => candidate.id === tabId)?.mcpGroupId
-    const shown = options.activeTabId()
-    const current = selectedTabIds.value.length ? selectedTabIds.value : shown && tabs.some((candidate) => candidate.id === shown) ? [shown] : []
+    const shown = shownTabId()
+    const current = selectedTabIds.value.length ? selectedTabIds.value : shown !== null && listed(shown) ? [shown] : []
     // A tab of another workspace starts over, as a plain click does.
     if (!options.enabled() || (!toggle && !event.shiftKey) || current.some((tabId) => workspaceOf(tabId) !== tab.mcpGroupId)) {
       clearSelection()
       anchorTabId = tab.id
-      return false
+      show(tab.id)
+      return
     }
     if (event.shiftKey) {
-      const anchor = anchorTabId !== null && workspaceOf(anchorTabId) === tab.mcpGroupId && tabs.some((candidate) => candidate.id === anchorTabId)
-        ? anchorTabId
-        : current[0] ?? tab.id
+      const anchor = anchorTabId !== null && workspaceOf(anchorTabId) === tab.mcpGroupId ? anchorTabId : current[0] ?? tab.id
       const from = tabs.findIndex((candidate) => candidate.id === anchor)
       const to = tabs.findIndex((candidate) => candidate.id === tab.id)
       const range = tabs.slice(Math.min(from, to), Math.max(from, to) + 1).map((candidate) => candidate.id)
       // With Ctrl or Cmd too, the range adds to the selection.
       select(new Set(toggle ? [...current, ...range] : range))
-      options.activate(tab.id)
-      return true
+      show(tab.id)
+      return
     }
     anchorTabId = tab.id
     if (!current.includes(tab.id)) {
       select(new Set([...current, tab.id]))
-      options.activate(tab.id)
-      return true
+      show(tab.id)
+      return
     }
     // The only selected tab stays selected, as in Chrome.
     const remaining = current.filter((tabId) => tabId !== tab.id)
-    if (!remaining.length) return true
+    if (!remaining.length) return
     select(new Set(remaining))
-    if (tab.id === shown) {
-      // The selected tab nearest to it is shown instead.
-      const index = tabs.findIndex((candidate) => candidate.id === tab.id)
-      const distance = (tabId: string) => Math.abs(tabs.findIndex((candidate) => candidate.id === tabId) - index)
-      const nearest = remaining.reduce((best, tabId) => distance(tabId) < distance(best) ? tabId : best)
-      options.activate(nearest)
-    }
-    return true
+    // Taking out the shown tab shows the first selected tab instead, as in Chrome.
+    if (tab.id === shown) show(remaining[0])
   }
 
-  // A tab shown another way, as from the keyboard, tab search or an agent, leaves only that tab selected.
+  // A tab the bar asked for keeps the selection; one shown another way, as from the keyboard, tab search, the rail
+  // drawn over the page or an agent, leaves only that tab selected, even when it was one of them.
   watch(options.activeTabId, (tabId) => {
-    if (tabId !== null && selectedTabIds.value.includes(tabId)) return
+    const requested = tabId === null ? -1 : pendingTabIds.indexOf(tabId)
+    if (requested >= 0) {
+      pendingTabIds = pendingTabIds.slice(requested + 1)
+      return
+    }
+    pendingTabIds = []
     clearSelection()
     anchorTabId = tabId
   })
 
-  // A closed tab, or one hidden in a folded workspace, leaves the selection.
-  watch(() => options.tabs.value.map((tab) => tab.id).join('|'), () => {
-    if (selectedTabIds.value.length) select(new Set(selectedTabIds.value))
+  // Settings drawn over the page shows no tab, as a page of its own would.
+  watch(options.covered, (covered) => {
+    if (!covered) return
+    clearSelection()
+    anchorTabId = null
+  })
+
+  // A closed tab, one hidden in a folded workspace, or one moved to another workspace leaves the selection.
+  watch(() => options.tabs.value.map((tab) => `${tab.id}:${tab.mcpGroupId ?? ''}`).join('|'), () => {
+    pendingTabIds = pendingTabIds.filter(listed)
+    if (anchorTabId !== null && !listed(anchorTabId)) anchorTabId = null
+    const stillListed = selectedTabIds.value.filter(listed)
+    if (!stillListed.length) {
+      clearSelection()
+      return
+    }
+    const shown = shownTabId()
+    const workspace = workspaceOf(shown !== null && stillListed.includes(shown) ? shown : stillListed[0])
+    select(new Set(stillListed.filter((tabId) => workspaceOf(tabId) === workspace)))
   })
 
   watch(options.enabled, (enabled) => {
@@ -100,5 +138,5 @@ export function useTabSelection(options: TabSelectionOptions) {
     return selectedTabIds.value.includes(tabId) ? [...selectedTabIds.value] : []
   }
 
-  return { selectedTabIds, selectsOnClick, selectionWith, clearSelection }
+  return { selectedTabIds, clickTab, selectionWith, clearSelection }
 }

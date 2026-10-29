@@ -70,9 +70,11 @@ export function showSelectedTabsContextMenu<Tab extends TabContextMenuTab>(acces
     {
       id: 'duplicate-tabs',
       label: access.text('native.context.duplicateTabs'),
-      // One after another, so each copy opens beside its own tab.
+      // One after another, so each copy opens beside its own tab; a tab closed meanwhile is skipped.
       click: () => runAction('duplicate the tabs', async () => {
-        for (const candidate of open()) await access.duplicateTab(candidate.id)
+        for (const candidate of open()) {
+          if (access.findTab(candidate.id) === candidate) await access.duplicateTab(candidate.id)
+        }
       })
     },
     { type: 'separator' },
@@ -90,7 +92,10 @@ export function showSelectedTabsContextMenu<Tab extends TabContextMenuTab>(acces
       // when pinned first to last and unpinned last to first.
       click: () => runAction(allPinned ? 'unpin the tabs' : 'pin the tabs', async () => {
         const tabs = open().filter((candidate) => candidate.pinned === allPinned)
-        for (const candidate of allPinned ? tabs.reverse() : tabs) await access.setTabPinned(candidate.id, !allPinned)
+        for (const candidate of allPinned ? tabs.reverse() : tabs) {
+          // A tab closed, pinned or unpinned meanwhile is left as it is.
+          if (access.findTab(candidate.id) === candidate && candidate.pinned === allPinned) await access.setTabPinned(candidate.id, !allPinned)
+        }
       })
     },
     groupMenu,

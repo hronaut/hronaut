@@ -283,13 +283,18 @@ const allWorkspacesLabel = computed(() => {
 const visibleTabs = computed(() => railWorkspaces.value.flatMap((group) => (
   isTabGroupCollapsed(group.id) ? [] : tabGroupTabs(group.id)
 )))
-const { selectedTabIds, selectsOnClick, selectionWith } = useTabSelection({
+const { selectedTabIds, clickTab: clickTabWithSelection, selectionWith } = useTabSelection({
   enabled: () => props.tabSelection === true,
   tabs: visibleTabs,
   activeTabId: () => props.state.activeTabId,
+  covered: () => props.settingsActive === true,
   platform: () => props.platform ?? window.hronautShell?.windowChrome.platform,
   activate: activateTab
 })
+// The tab list holding several selected tabs says so to screen readers.
+const selectedWorkspaceId = computed(() => (
+  visibleTabs.value.find((tab) => tab.id === selectedTabIds.value[0])?.mcpGroupId
+))
 const keyboardTabId = computed(() => {
   const visibleIds = new Set(visibleTabs.value.map((tab) => tab.id))
   if (focusedTabId.value && visibleIds.has(focusedTabId.value)) return focusedTabId.value
@@ -326,8 +331,8 @@ function activateTab(tabId: string): void {
 // Ctrl, Cmd or Shift with a click selects tabs; a plain click shows the tab.
 function clickTab(tabId: string, event: MouseEvent): void {
   const tab = visibleTabs.value.find((candidate) => candidate.id === tabId)
-  if (tab && selectsOnClick(event, tab)) return
-  activateTab(tabId)
+  if (tab) clickTabWithSelection(event, tab)
+  else activateTab(tabId)
 }
 
 function handleTabKeyDown(event: KeyboardEvent, tab: BrowserTabState): void {
@@ -674,7 +679,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, toggleTabGroup, collapsedTa
         role="tablist"
         :aria-label="workspace.name"
         :aria-orientation="orientation"
-        :aria-multiselectable="tabSelection ? 'true' : undefined"
+        :aria-multiselectable="selectedWorkspaceId === workspace.id ? 'true' : undefined"
       >
         <BrowserTabRow
           v-for="tab in isTabGroupCollapsed(workspace.id) ? [] : tabGroupTabs(workspace.id)"

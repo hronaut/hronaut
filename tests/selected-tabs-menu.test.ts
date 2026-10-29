@@ -117,6 +117,34 @@ describe('the tab menu of several selected tabs', () => {
     expect(fake.calls).toEqual(['close a,c'])
   })
 
+  it('skips a tab closed, pinned or unpinned while the tabs before it are duplicated or pinned', async () => {
+    const tabs = [tab('a'), tab('b'), tab('c')]
+    const fake = access(tabs)
+    const duplicate = (fake.access as { duplicateTab: (id: string) => Promise<unknown> }).duplicateTab
+    Object.assign(fake.access, {
+      duplicateTab: async (id: string) => {
+        await duplicate(id)
+        // Closing the next tab while the first copy opens.
+        if (id === 'a') tabs.splice(1, 1)
+      },
+      setTabPinned: async (id: string, pinned: boolean) => {
+        fake.calls.push(`pin ${id} ${pinned}`)
+        tabs.find((candidate) => candidate.id === id)!.pinned = pinned
+        // Another window pins the last tab while the first is pinned.
+        if (id === 'a') tabs.find((candidate) => candidate.id === 'c')!.pinned = true
+      }
+    })
+    showTabContextMenu(fake.access, 'a', undefined, ['a', 'b', 'c'])
+    await click('duplicate-tabs')
+    expect(fake.calls).toEqual(['duplicate a', 'duplicate c'])
+
+    tabs.splice(1, 0, tab('b'))
+    fake.calls.length = 0
+    showTabContextMenu(fake.access, 'a', undefined, ['a', 'b', 'c'])
+    await click('pin-tabs')
+    expect(fake.calls).toEqual(['pin a true', 'pin b true'])
+  })
+
   it('is the tab\'s own menu when the tab is not selected, or fewer than two selected tabs are open in its workspace', async () => {
     const fake = access([tab('home', undefined), tab('a'), tab('b'), tab('x', 'other')])
     for (const [tabId, selected] of [['a', ['b', 'x']], ['a', ['a', 'x']], ['a', ['a', 'home']], ['a', ['a', 'gone']], ['a', undefined]] as const) {

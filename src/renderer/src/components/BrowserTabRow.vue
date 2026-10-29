@@ -109,6 +109,7 @@ const networkUnconfirmed = computed(() => Boolean(props.tab.networkConditionStat
     :data-tab-id="tab.id"
     draggable="true"
     :aria-selected="active || selected === true"
+    :aria-current="active && selected ? 'page' : undefined"
     :data-active-tab="active ? 'true' : undefined"
     @focus="emit('focused', tab.id)"
     @keydown="emit('tabKeydown', $event, tab)"

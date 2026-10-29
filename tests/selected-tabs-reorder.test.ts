@@ -55,12 +55,12 @@ describe('moving the selected tabs together', () => {
 
   it('refuses Home, another workspace and the other side of the pinned boundary, moving nothing', () => {
     const tabs = manager(['home', 'p*', 'a', 'b', 'other:x'])
-    expect(() => tabs.reorderTabs(['a', 'home'], 'b', 'after')).toThrow()
-    expect(() => tabs.reorderTabs(['a', 'b'], 'home', 'after')).toThrow()
-    expect(() => tabs.reorderTabs(['a', 'x'], 'b', 'after')).toThrow()
-    expect(() => tabs.reorderTabs(['a', 'b'], 'x', 'after')).toThrow()
-    expect(() => tabs.reorderTabs(['a', 'p'], 'b', 'after')).toThrow()
-    expect(() => tabs.reorderTabs(['a', 'gone'], 'b', 'after')).toThrow()
+    expect(() => tabs.reorderTabs(['a', 'home'], 'b', 'after')).toThrow('Hronaut Home cannot be reordered')
+    expect(() => tabs.reorderTabs(['a', 'b'], 'home', 'after')).toThrow('Hronaut Home cannot be reordered')
+    expect(() => tabs.reorderTabs(['a', 'x'], 'b', 'after')).toThrow('Tabs can only be reordered within the same workspace')
+    expect(() => tabs.reorderTabs(['a', 'b'], 'x', 'after')).toThrow('Tabs can only be reordered within the same workspace')
+    expect(() => tabs.reorderTabs(['a', 'p'], 'b', 'after')).toThrow('Pin or unpin a tab before moving it across the pinned boundary')
+    expect(() => tabs.reorderTabs(['a', 'gone'], 'b', 'after')).toThrow('Tab not found: gone')
     expect(order(tabs)).toEqual(['home', 'p', 'a', 'b', 'x'])
   })
 })

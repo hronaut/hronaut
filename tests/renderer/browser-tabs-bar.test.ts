@@ -2302,7 +2302,7 @@ describe('BrowserTabsBar dropped links', () => {
 // Ctrl or Shift with a click on a tab only showed it; as in Chrome, it selects several tabs, which the tab menu and a
 // drag then act on.
 describe('BrowserTabsBar selecting several tabs', () => {
-  function renderWithSelection(state: BrowserState, options: { tabSelection?: boolean; platform?: 'darwin' | 'linux' } = {}) {
+  function renderWithSelection(state: BrowserState, options: { tabSelection?: boolean; platform?: 'darwin' | 'linux'; settingsActive?: boolean } = {}) {
     return render(BrowserTabsBar, {
       global: { plugins: [createHronautI18n('en-US')] },
       props: {
@@ -2315,7 +2315,8 @@ describe('BrowserTabsBar selecting several tabs', () => {
         tabTooltip: (value: BrowserTabState) => value.title,
         describeEmulation: () => '',
         platform: options.platform ?? 'linux',
-        tabSelection: options.tabSelection ?? true
+        tabSelection: options.tabSelection ?? true,
+        settingsActive: options.settingsActive ?? false
       }
     })
   }
@@ -2336,13 +2337,15 @@ describe('BrowserTabsBar selecting several tabs', () => {
     expect(highlighted(view)).toEqual(['a', 'b'])
     expect(screen.getByRole('tablist', { name: 'Research' })).toHaveAttribute('aria-multiselectable', 'true')
 
-    // The shown tab moves to the tab added, and the selection stays.
+    // The shown tab moves to the tab added, and the selection stays; screen readers hear which selected tab is shown.
     await view.rerender({ state: stateShowing('b') })
+    expect(control('b')).toHaveAttribute('aria-current', 'page')
+    expect(control('a')).not.toHaveAttribute('aria-current')
     await fireEvent.click(control('d'), { ctrlKey: true })
     await view.rerender({ state: stateShowing('d') })
     expect(selected()).toEqual(['a', 'b', 'd'])
 
-    // A tab taken out that is not shown leaves the others; the shown one hands the view to the nearest selected tab.
+    // A tab taken out that is not shown leaves the others; the shown one hands the view to the first selected tab.
     await fireEvent.click(control('a'), { ctrlKey: true })
     expect(selected()).toEqual(['b', 'd'])
     await fireEvent.click(control('d'), { ctrlKey: true })
@@ -2351,10 +2354,26 @@ describe('BrowserTabsBar selecting several tabs', () => {
     expect(selected()).toEqual(['b'])
     expect(highlighted(view)).toEqual([])
 
+    expect(control('b')).not.toHaveAttribute('aria-current')
+    expect(screen.getByRole('tablist', { name: 'Research' })).not.toHaveAttribute('aria-multiselectable')
+
     // The only selected tab stays.
     await fireEvent.click(control('b'), { ctrlKey: true })
     expect(selected()).toEqual(['b'])
     expect(view.emitted().selectTab).toHaveLength(3)
+  })
+
+  it('shows the first selected tab when the shown one is taken out', async () => {
+    const view = renderWithSelection(stateShowing('c'))
+    await fireEvent.click(control('a'), { shiftKey: true })
+    await view.rerender({ state: stateShowing('a') })
+    await fireEvent.click(control('d'), { ctrlKey: true })
+    await view.rerender({ state: stateShowing('d') })
+    expect(selected()).toEqual(['a', 'b', 'c', 'd'])
+    await fireEvent.click(control('d'), { ctrlKey: true })
+    expect(view.emitted().selectTab?.at(-1)).toEqual(['a'])
+    await view.rerender({ state: stateShowing('a') })
+    expect(selected()).toEqual(['a', 'b', 'c'])
   })
 
   it('selects the tabs from the last one clicked with Shift, and adds them with Ctrl and Shift', async () => {
@@ -2376,12 +2395,87 @@ describe('BrowserTabsBar selecting several tabs', () => {
     expect(selected()).toEqual(['a', 'b', 'c', 'd'])
   })
 
+  it('selects with Shift from the tab clicked last, even when another tab is shown', async () => {
+    const view = renderWithSelection(stateShowing('a'))
+    await fireEvent.click(control('c'), { ctrlKey: true })
+    await view.rerender({ state: stateShowing('c') })
+    // Taking A out leaves C shown, and A is where Shift selects from.
+    await fireEvent.click(control('a'), { ctrlKey: true })
+    expect(selected()).toEqual(['c'])
+    await fireEvent.click(control('d'), { shiftKey: true })
+    await view.rerender({ state: stateShowing('d') })
+    expect(selected()).toEqual(['a', 'b', 'c', 'd'])
+  })
+
+  it('counts from the tabs it asked to show before the state shows them', async () => {
+    const view = renderWithSelection(stateShowing('a'))
+    // A plain click and a Ctrl+click before either tab is shown select both.
+    await fireEvent.click(control('b'))
+    await fireEvent.click(control('d'), { ctrlKey: true })
+    await view.rerender({ state: stateShowing('b') })
+    await view.rerender({ state: stateShowing('d') })
+    expect(selected()).toEqual(['b', 'd'])
+
+    // Adding a tab and taking it out again before it is shown shows the tab shown before.
+    await fireEvent.click(control('c'), { ctrlKey: true })
+    await fireEvent.click(control('c'), { ctrlKey: true })
+    expect(view.emitted().selectTab?.slice(-2)).toEqual([['c'], ['b']])
+    await view.rerender({ state: stateShowing('c') })
+    await view.rerender({ state: stateShowing('b') })
+    expect(selected()).toEqual(['b', 'd'])
+  })
+
+  it('leaves only the tab selected when a selected tab is shown another way', async () => {
+    const view = renderWithSelection(stateShowing('a'))
+    await fireEvent.click(control('b'), { ctrlKey: true })
+    await view.rerender({ state: stateShowing('b') })
+    expect(selected()).toEqual(['a', 'b'])
+    // Ctrl+Tab, tab search or an agent shows A.
+    await view.rerender({ state: stateShowing('a') })
+    expect(selected()).toEqual(['a'])
+    expect(highlighted(view)).toEqual([])
+  })
+
+  it('shows the clicked tab with Ctrl and a click while Settings covers the page, and opening Settings ends a selection', async () => {
+    const view = renderWithSelection(stateShowing('a'), { settingsActive: true })
+    await fireEvent.click(control('a'), { ctrlKey: true })
+    await fireEvent.click(control('b'), { ctrlKey: true })
+    expect(view.emitted().selectTab).toEqual([['a'], ['b']])
+    expect(highlighted(view)).toEqual([])
+
+    await view.rerender({ state: stateShowing('b'), settingsActive: false })
+    await fireEvent.click(control('c'), { ctrlKey: true })
+    await view.rerender({ state: stateShowing('c') })
+    expect(selected()).toEqual(['b', 'c'])
+    await view.rerender({ settingsActive: true })
+    expect(highlighted(view)).toEqual([])
+    expect(selected()).toEqual([])
+  })
+
+  it('drops a tab moved to another workspace from the selection', async () => {
+    const other = { ...workspace('workspace-2'), name: 'QA' }
+    const moved = (activeTabId: string) => browserState({
+      tabs: ['a', 'b', 'c', 'd'].map((id) => tab(id, { active: id === activeTabId, ...(id === 'b' ? { mcpGroupId: other.id, mcpGroupName: other.name } : {}) })),
+      activeTabId,
+      mcpTabGroups: [workspace(), other]
+    })
+    const view = renderWithSelection(stateShowing('a', undefined, [], [workspace(), other]))
+    await fireEvent.click(control('c'), { shiftKey: true })
+    await view.rerender({ state: stateShowing('c', undefined, [], [workspace(), other]) })
+    expect(selected()).toEqual(['a', 'b', 'c'])
+    await view.rerender({ state: moved('c') })
+    expect(highlighted(view)).toEqual(['a', 'c'])
+    expect(screen.getByRole('tablist', { name: 'QA' })).not.toHaveAttribute('aria-multiselectable')
+    expect(screen.getByRole('tablist', { name: 'Research' })).toHaveAttribute('aria-multiselectable', 'true')
+  })
+
   it('uses Cmd on macOS, where Control with a click opens the menu', async () => {
     const view = renderWithSelection(stateShowing('a'), { platform: 'darwin' })
     await fireEvent.click(control('b'), { ctrlKey: true })
     expect(selected()).toEqual(['a'])
+    await view.rerender({ state: stateShowing('b') })
     await fireEvent.click(control('c'), { metaKey: true })
-    expect(selected()).toEqual(['a', 'c'])
+    expect(selected()).toEqual(['b', 'c'])
     expect(view.emitted().selectTab).toEqual([['b'], ['c']])
   })
 
