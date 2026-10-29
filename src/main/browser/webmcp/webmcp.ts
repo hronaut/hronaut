@@ -7,7 +7,9 @@ import {
   type WebMcpPageListing,
   type WebMcpToolDescriptor
 } from '../webmcp-bridge.js'
-import type { WebMcpAccess, WebMcpTab } from './webmcp-access.js'
+import type { Browser } from '../browser.js'
+import { findTab, getTab } from '../browser-core.js'
+import type { BrowserTab } from '../browser-tab.js'
 
 /** Whether the tab's top-level document exposes WebMCP, with the origin and navigation generation it was read from. */
 export type WebMcpStatus = {
@@ -41,8 +43,8 @@ export type WebMcpToolCall = {
 }
 
 /** Reports whether the tab's top-level HTTP(S) document exposes WebMCP. */
-export async function webMcpStatus(access: WebMcpAccess, tabId?: string): Promise<WebMcpStatus> {
-  const tab = access.getTab(tabId)
+export async function webMcpStatus(browser: Browser, tabId?: string): Promise<WebMcpStatus> {
+  const tab = getTab(browser, tabId)
   const origin = webMcpHttpOrigin(tab.url)
   const generation = tab.navigationGeneration
   if (!origin) {
@@ -55,7 +57,7 @@ export async function webMcpStatus(access: WebMcpAccess, tabId?: string): Promis
     }
   }
   const result = await tab.webContents.executeJavaScript(webMcpStatusScript(), false) as WebMcpPageListing
-  requireUnchangedWebMcpTarget(access, tab.id, tab, origin, generation)
+  requireUnchangedWebMcpTarget(browser, tab.id, tab, origin, generation)
   return {
     supported: result.supported === true,
     ...(result.reason ? { reason: result.reason } : {}),
@@ -66,16 +68,16 @@ export async function webMcpStatus(access: WebMcpAccess, tabId?: string): Promis
 }
 
 /** Lists the page's WebMCP tools and remembers their descriptor for later calls on the same document. */
-export async function listWebMcpTools(access: WebMcpAccess, tabId?: string): Promise<WebMcpToolList> {
-  const tab = access.getTab(tabId)
+export async function listWebMcpTools(browser: Browser, tabId?: string): Promise<WebMcpToolList> {
+  const tab = getTab(browser, tabId)
   const origin = webMcpHttpOrigin(tab.url)
   const generation = tab.navigationGeneration
-  if (!origin) return webMcpStatus(access, tab.id)
+  if (!origin) return webMcpStatus(browser, tab.id)
   const result = await tab.webContents.executeJavaScript(webMcpListScript(), false) as WebMcpPageListing & {
     status?: string
     error?: string
   }
-  requireUnchangedWebMcpTarget(access, tab.id, tab, origin, generation)
+  requireUnchangedWebMcpTarget(browser, tab.id, tab, origin, generation)
   if (!result.supported || !result.descriptors || !result.descriptorJson) {
     return {
       supported: result.supported === true,
@@ -88,11 +90,11 @@ export async function listWebMcpTools(access: WebMcpAccess, tabId?: string): Pro
   }
   const descriptorDigest = webMcpDescriptorDigest(result.descriptorJson)
   const key = webMcpDescriptorKey(tab.id, origin, generation, descriptorDigest)
-  access.descriptorCache().set(key, result.descriptorJson)
-  while (access.descriptorCache().size > 128) {
-    const oldest = access.descriptorCache().keys().next().value as string | undefined
+  browser.webMcpDescriptorCache.set(key, result.descriptorJson)
+  while (browser.webMcpDescriptorCache.size > 128) {
+    const oldest = browser.webMcpDescriptorCache.keys().next().value as string | undefined
     if (!oldest) break
-    access.descriptorCache().delete(oldest)
+    browser.webMcpDescriptorCache.delete(oldest)
   }
   return {
     supported: true,
@@ -105,8 +107,8 @@ export async function listWebMcpTools(access: WebMcpAccess, tabId?: string): Pro
 }
 
 /** Calls one listed WebMCP tool on the unchanged document and reports what changed while it ran. */
-export async function callWebMcpTool(access: WebMcpAccess, input: WebMcpToolCall): Promise<Record<string, unknown>> {
-  const tab = access.getTab(input.tabId)
+export async function callWebMcpTool(browser: Browser, input: WebMcpToolCall): Promise<Record<string, unknown>> {
+  const tab = getTab(browser, input.tabId)
   const urlBefore = tab.url
   const origin = webMcpHttpOrigin(tab.url)
   if (!origin || origin !== input.expectedOrigin || tab.navigationGeneration !== input.navigationGeneration) {
@@ -117,7 +119,7 @@ export async function callWebMcpTool(access: WebMcpAccess, input: WebMcpToolCall
   }
   const argumentsJson = JSON.stringify(input.arguments)
   if (argumentsJson.length > WEBMCP_LIMITS.maxArgumentsChars) throw new TypeError('WebMCP arguments exceed the 64,000 character limit')
-  const descriptorJson = access.descriptorCache().get(webMcpDescriptorKey(
+  const descriptorJson = browser.webMcpDescriptorCache.get(webMcpDescriptorKey(
     tab.id, origin, input.navigationGeneration, input.descriptorDigest
   ))
   if (!descriptorJson) {
@@ -134,7 +136,7 @@ export async function callWebMcpTool(access: WebMcpAccess, input: WebMcpToolCall
       arguments: input.arguments
     }), false) as Record<string, unknown>
   } catch (error) {
-    const current = access.findTab(tab.id)
+    const current = findTab(browser, tab.id)
     const navigationChanged = !current || current !== tab || current.navigationGeneration !== input.navigationGeneration
       || webMcpHttpOrigin(current.url) !== origin
     return {
@@ -145,7 +147,7 @@ export async function callWebMcpTool(access: WebMcpAccess, input: WebMcpToolCall
       reason: navigationChanged ? 'NAVIGATION_DURING_EXECUTION' : String(error).slice(0, 500)
     }
   }
-  const current = access.findTab(tab.id)
+  const current = findTab(browser, tab.id)
   const currentOrigin = current ? webMcpHttpOrigin(current.url) : undefined
   const navigationChanged = !current || current !== tab || current.navigationGeneration !== input.navigationGeneration || currentOrigin !== origin
   const observation: Record<string, unknown> = {
@@ -158,7 +160,7 @@ export async function callWebMcpTool(access: WebMcpAccess, input: WebMcpToolCall
   }
   if (!navigationChanged && current) {
     try {
-      const snapshot = await access.snapshotDetails(current.id, 8_000)
+      const snapshot = await browser.snapshotDetails(current.id, 8_000)
       observation.snapshot = { formatVersion: snapshot.formatVersion, text: snapshot.text }
     } catch (error) {
       observation.snapshot = { unavailable: true, reason: String(error).slice(0, 300) }
@@ -187,8 +189,8 @@ function webMcpDescriptorKey(tabId: string, origin: string, navigationGeneration
   return `${tabId}\0${origin}\0${navigationGeneration}\0${digest}`
 }
 
-function requireUnchangedWebMcpTarget(access: WebMcpAccess, tabId: string, expected: WebMcpTab, origin: string, generation: number): void {
-  const current = access.findTab(tabId)
+function requireUnchangedWebMcpTarget(browser: Browser, tabId: string, expected: BrowserTab, origin: string, generation: number): void {
+  const current = findTab(browser, tabId)
   if (!current || current !== expected || current.navigationGeneration !== generation || webMcpHttpOrigin(current.url) !== origin) {
     throw new Error('The top-level page changed while WebMCP tools were being inspected. List them again on the current page.')
   }

@@ -1,4 +1,5 @@
-import type { NativeSelectionsAccess, NativeSelectionsTab } from './native-selections-access.js'
+import type { Browser } from '../browser.js'
+import type { BrowserTab } from '../browser-tab.js'
 
 /**
  * Ends the screenshot area selection and the element picker in progress on
@@ -7,21 +8,21 @@ import type { NativeSelectionsAccess, NativeSelectionsTab } from './native-selec
  * person's input is locked, the page's human input guard is applied again
  * without waiting for it.
  */
-export function cancelNativeSelectionSessions<Tab extends NativeSelectionsTab>(access: NativeSelectionsAccess<Tab>, tab: Tab): void {
+export function cancelNativeSelectionSessions(browser: Browser, tab: BrowserTab): void {
   const webContentsId = tab.webContents.id
-  const screenshotSession = access.screenshotAreaSessions().get(webContentsId)
+  const screenshotSession = browser.screenshotAreaSessions.get(webContentsId)
   if (screenshotSession) {
     screenshotSession.canceled = true
     screenshotSession.resolve({ canceled: true })
-    access.screenshotAreaSessions().delete(webContentsId)
+    browser.screenshotAreaSessions.delete(webContentsId)
   }
-  const elementPickerSession = access.elementPickerSessions().get(webContentsId)
+  const elementPickerSession = browser.elementPickerSessions.get(webContentsId)
   if (elementPickerSession) {
     elementPickerSession.canceled = true
     elementPickerSession.resolve({ canceled: true })
-    access.elementPickerSessions().delete(webContentsId)
+    browser.elementPickerSessions.delete(webContentsId)
   }
-  if ((screenshotSession || elementPickerSession) && access.isHumanInteractionLocked(tab)) {
-    void access.syncHumanInteractionInputGuard(tab).catch(() => undefined)
+  if ((screenshotSession || elementPickerSession) && browser.isHumanInteractionLocked(tab)) {
+    void browser.syncHumanInteractionInputGuard(tab).catch(() => undefined)
   }
 }

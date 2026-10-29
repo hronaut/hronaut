@@ -1,14 +1,15 @@
 import type { BrowserPerformanceEnvironment } from '../../../shared/types.js'
+import type { Browser } from '../browser.js'
+import type { BrowserTab } from '../browser-tab.js'
 import { performanceEnvironmentFingerprint } from '../performance-environment.js'
-import type { PerformanceEnvironmentAccess, PerformanceEnvironmentTab } from './performance-environment-access.js'
 
 /**
  * The tab's performance environment as a report shows it: its network and
  * CPU emulation, viewport, zoom, font size and which overrides are set. The
  * tab's emulation must be confirmed.
  */
-export function performanceEnvironment<Tab extends PerformanceEnvironmentTab>(access: PerformanceEnvironmentAccess<Tab>, tab: Tab): BrowserPerformanceEnvironment {
-  access.requireEmulationConfirmed(tab)
+export function performanceEnvironment(browser: Browser, tab: BrowserTab): BrowserPerformanceEnvironment {
+  browser.requireEmulationConfirmed(tab)
   const bounds = tab.view.getBounds()
   const viewport = tab.emulation.viewport
   return {
@@ -48,8 +49,8 @@ export function performanceEnvironment<Tab extends PerformanceEnvironmentTab>(ac
  * emulation, header, view size, zoom or font size change. The tab's emulation
  * must be confirmed.
  */
-export function tabPerformanceEnvironmentFingerprint<Tab extends PerformanceEnvironmentTab>(access: PerformanceEnvironmentAccess<Tab>, tab: Tab): string {
-  access.requireEmulationConfirmed(tab)
+export function tabPerformanceEnvironmentFingerprint(browser: Browser, tab: BrowserTab): string {
+  browser.requireEmulationConfirmed(tab)
   const bounds = tab.view.getBounds()
   return performanceEnvironmentFingerprint(
     tab.emulation,

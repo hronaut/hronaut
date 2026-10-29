@@ -1,7 +1,8 @@
 import type { WebContents } from 'electron'
+import { sendAuthorizedAgentInputCommand } from '../agent-input-authorization/agent-input-authorization.js'
+import type { Browser } from '../browser.js'
 import type { NativeInputDispatchObserver } from '../native-key-hold.js'
 import { ownedRightClickPress } from '../owned-right-click.js'
-import type { NativeClickAccess } from './native-click-access.js'
 
 /**
  * Moves the mouse to the point and clicks there with authorized native input:
@@ -12,7 +13,7 @@ import type { NativeClickAccess } from './native-click-access.js'
  * and release; no key events are sent, so nothing stays held afterwards.
  */
 export async function dispatchNativeClick(
-  access: NativeClickAccess,
+  browser: Browser,
   webContents: WebContents,
   point: { x: number; y: number },
   doubleClick: boolean,
@@ -23,12 +24,12 @@ export async function dispatchNativeClick(
   modifiers = 0
 ): Promise<void> {
   const inputDebugger = { sendCommand: (method: string, params: Record<string, unknown>) =>
-    access.sendAuthorizedAgentInputCommand(webContents, method, params, validateClick, observer,
+    sendAuthorizedAgentInputCommand(browser, webContents, method, params, validateClick, observer,
       params.type === 'mousePressed' && sample ? () => sample(point.x, point.y) : undefined) }
   // After a successful press, its matching release must still run if authority
   // changes. Reject subsequent presses without leaving a held mouse button.
   const releaseDebugger = { sendCommand: (method: string, params: Record<string, unknown>) =>
-    access.sendAuthorizedAgentInputCommand(webContents, method, params, undefined, observer) }
+    sendAuthorizedAgentInputCommand(browser, webContents, method, params, undefined, observer) }
   const modifierParams = modifiers ? { modifiers } : {}
   await inputDebugger.sendCommand('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
@@ -38,10 +39,10 @@ export async function dispatchNativeClick(
   })
   if (rightClick) {
     await ownedRightClickPress(
-      tracked => access.sendAuthorizedAgentInputCommand(webContents, 'Input.dispatchMouseEvent', {
+      tracked => sendAuthorizedAgentInputCommand(browser, webContents, 'Input.dispatchMouseEvent', {
         type: 'mousePressed', x: point.x, y: point.y, button: 'right', buttons: 2, clickCount: 1
       }, validateClick, tracked, sample ? () => sample(point.x, point.y) : undefined),
-      tracked => access.sendAuthorizedAgentInputCommand(webContents, 'Input.dispatchMouseEvent', {
+      tracked => sendAuthorizedAgentInputCommand(browser, webContents, 'Input.dispatchMouseEvent', {
         type: 'mouseReleased', x: point.x, y: point.y, button: 'right', buttons: 0, clickCount: 1
       }, undefined, tracked),
       observer

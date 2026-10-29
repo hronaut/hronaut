@@ -1,6 +1,9 @@
 import type { WebContents } from 'electron'
+import type { Browser } from '../browser.js'
+import type { BrowserTab } from '../browser-tab.js'
+import { findTab } from '../browser-core.js'
 import { isHronautHomeUrl } from '../url.js'
-import type { PageWheelZoomAccess, PageWheelZoomTab } from './page-wheel-zoom-access.js'
+import { setZoom } from './page-zoom.js'
 
 /**
  * Zooms a website one step in or out for each notch the person turns the
@@ -12,11 +15,11 @@ import type { PageWheelZoomAccess, PageWheelZoomTab } from './page-wheel-zoom-ac
  * agent is sending input to and a page with an area capture or element pick
  * in progress keep their zoom.
  */
-export function attachPageWheelZoom<Tab extends PageWheelZoomTab>(access: PageWheelZoomAccess<Tab>, tab: Tab, webContents: WebContents): void {
+export function attachPageWheelZoom(browser: Browser, tab: BrowserTab, webContents: WebContents): void {
   webContents.on('zoom-changed', (_event, direction) => {
-    if (webContents.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== webContents || isHronautHomeUrl(tab.url)) return
-    if (access.browserContentOccluded() || access.isHumanInteractionLocked(tab) || access.agentInputWebContents().has(webContents.id)
-      || access.nativeSelectionUnderWay(webContents.id)) return
-    access.zoom(tab.id, direction)
+    if (webContents.isDestroyed() || findTab(browser, tab.id) !== tab || tab.webContents !== webContents || isHronautHomeUrl(tab.url)) return
+    if (browser.browserContentOccluded || browser.isHumanInteractionLocked(tab) || browser.agentInputWebContents.has(webContents.id)
+      || browser.screenshotAreaSessions.has(webContents.id) || browser.elementPickerSessions.has(webContents.id)) return
+    setZoom(browser, { tabId: tab.id, action: direction })
   })
 }

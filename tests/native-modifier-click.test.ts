@@ -3,19 +3,27 @@ import { describe, expect, it, vi } from 'vitest'
 import type { AgentPageActionsAccess, AgentPageActionsTab, BrowserClickTarget } from '../src/main/browser/agent-page-actions/agent-page-actions-access.js'
 import { click } from '../src/main/browser/agent-page-actions/click.js'
 import { shouldBlockHumanMouseInput, type AuthorizedAgentMouseInput } from '../src/main/browser/agent-input-authorization/agent-input-authorization.js'
+import type { Browser } from '../src/main/browser/browser.js'
 import type { BrowserTab } from '../src/main/browser/browser-tab.js'
 import { dispatchNativeClick } from '../src/main/browser/native-click/native-click.js'
+
+// The commands a native click sends, recorded on the fake browser it sends them through.
+vi.mock('../src/main/browser/agent-input-authorization/agent-input-authorization.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/agent-input-authorization/agent-input-authorization.js')>(),
+  sendAuthorizedAgentInputCommand: (browser: { sendAuthorizedAgentInputCommand(...args: unknown[]): Promise<unknown> }, ...args: unknown[]) =>
+    browser.sendAuthorizedAgentInputCommand(...args)
+}))
 
 const webContents = {} as WebContents
 
 function recordedClick(modifiers?: number, doubleClick = false) {
   const commands: Array<Record<string, unknown>> = []
-  const access = {
+  const browser = {
     sendAuthorizedAgentInputCommand: vi.fn(async (_webContents: WebContents, _method: string, params?: Record<string, unknown>) => {
       commands.push(params ?? {})
     })
-  }
-  return { commands, run: () => dispatchNativeClick(access, webContents, { x: 10, y: 20 }, doubleClick, () => {}, undefined, undefined, false, modifiers) }
+  } as unknown as Browser
+  return { commands, run: () => dispatchNativeClick(browser, webContents, { x: 10, y: 20 }, doubleClick, () => {}, undefined, undefined, false, modifiers) }
 }
 
 describe('native modifier clicks', () => {

@@ -1,6 +1,7 @@
 import { LocalizedError } from '../../localized-error.js'
+import type { Browser } from '../browser.js'
+import type { BrowserTab } from '../browser-tab.js'
 import { isHronautHomeUrl } from '../url.js'
-import type { PagePrintAccess, PagePrintTab } from './page-print-access.js'
 
 /**
  * Opens the system's print dialog for the tab's page, as Chrome's Print does: the person picks a printer there, or
@@ -11,19 +12,20 @@ import type { PagePrintAccess, PagePrintTab } from './page-print-access.js'
  * since the agent's calls on it would fail until the dialog closed: taking it over or pausing its agents lets it print. Resolves once
  * the dialog closes, also when the person cancels it or the page goes away; a print that fails rejects.
  */
-export function printPage<Tab extends PagePrintTab>(access: PagePrintAccess<Tab>, tab: Tab): Promise<void> {
+export function printPage(browser: Browser, tab: BrowserTab): Promise<void> {
   const webContents = tab.webContents
   if (webContents.isDestroyed() || webContents.isCrashed() || tab.sleeping || isHronautHomeUrl(tab.url)) return Promise.resolve()
   if (
-    access.browserContentOccluded()
-    || access.isHumanInteractionLocked(tab)
-    || access.agentInputWebContents().has(webContents.id)
-    || access.nativeSelectionUnderWay(webContents.id)
+    browser.browserContentOccluded
+    || browser.isHumanInteractionLocked(tab)
+    || browser.agentInputWebContents.has(webContents.id)
+    || browser.screenshotAreaSessions.has(webContents.id)
+    || browser.elementPickerSessions.has(webContents.id)
   ) return Promise.resolve()
-  const printing = access.printingWebContents()
+  const printing = (browser.pagePrinting ??= new Set())
   const id = webContents.id
   if (printing.has(id)) return Promise.resolve()
-  if (access.agentWorkingOn(tab)) return Promise.reject(new LocalizedError('appErrors.page.printAgentWorking'))
+  if (browser.options.agentWorkingOnTab?.(tab.id, tab.mcpGroupId) === true) return Promise.reject(new LocalizedError('appErrors.page.printAgentWorking'))
   printing.add(id)
   return new Promise((resolve, reject) => {
     let settled = false
@@ -57,7 +59,7 @@ export function printPage<Tab extends PagePrintTab>(access: PagePrintAccess<Tab>
 }
 
 /** Prints the page the window shows, for Print in the menu and its key; see printPage. */
-export function printShownPage<Tab extends PagePrintTab>(access: PagePrintAccess<Tab>): Promise<void> {
-  const tab = access.shownTab()
-  return tab ? printPage(access, tab) : Promise.resolve()
+export function printShownPage(browser: Browser): Promise<void> {
+  const tab = browser.activeTabId ? browser.tabs.get(browser.activeTabId) : undefined
+  return tab ? printPage(browser, tab) : Promise.resolve()
 }

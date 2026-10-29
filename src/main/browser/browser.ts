@@ -12,11 +12,9 @@ import type { SiteStorageAccess } from './site-storage/site-storage-access.js'
 import { manageStorage } from './site-storage/manage-storage.js'
 import { inspectIndexedDb, inspectStorageUsage } from './site-storage/storage-inspection.js'
 import { storageChanges } from './site-storage/storage-changes.js'
-import type { PageWaitsAccess } from './page-waits/page-waits-access.js'
 import { waitForElement, waitForPage, waitForText, waitForUrlPattern } from './page-waits/page-waits.js'
 import type { VisualCompareAccess } from './visual-compare/visual-compare-access.js'
 import { visualCompare, visualDiff, type BrowserVisualCompareResult } from './visual-compare/visual-compare.js'
-import type { WebMcpAccess } from './webmcp/webmcp-access.js'
 import { callWebMcpTool, listWebMcpTools, webMcpStatus, type WebMcpStatus, type WebMcpToolCall, type WebMcpToolList } from './webmcp/webmcp.js'
 import { inspectPwa } from './pwa-inspection/pwa-inspection.js'
 import type { ElementInspectionAccess } from './element-inspection/element-inspection-access.js'
@@ -81,7 +79,6 @@ import { watchCredentialSubmission } from './credential-capture/credential-captu
 import type { BrowserNetworkRequestRecord } from './network-recording.js'
 import type { SessionHooksAccess } from './session-hooks/session-hooks-access.js'
 import { installSessionHooks } from './session-hooks/session-hooks.js'
-import type { PerformanceEnvironmentAccess } from './emulation/performance-environment-access.js'
 import { performanceEnvironment, tabPerformanceEnvironmentFingerprint } from './emulation/performance-environment.js'
 import type { EmulationAccess } from './emulation/emulation-access.js'
 import { emulate } from './emulation/emulation.js'
@@ -91,7 +88,6 @@ import type { BrowserElementPickerResult, BrowserElementPickerSession, ElementPi
 import { cancelElementPicker, captureElementScreenshot, pickElement, queueElementPickerMouseInput } from './element-picker/element-picker.js'
 import type { BrowserScreenshotAreaSession, ScreenshotAreaAccess } from './screenshot-area/screenshot-area-access.js'
 import { cancelScreenshotArea, captureScreenshotArea, queueScreenshotAreaMouseInput } from './screenshot-area/screenshot-area.js'
-import type { NativeSelectionsAccess } from './native-selections/native-selections-access.js'
 import { cancelNativeSelectionSessions } from './native-selections/native-selections.js'
 import { BrowserNetworkWaitController } from './network-wait-controller.js'
 import { PreviewCaptureQueue } from './preview-capture-queue.js'
@@ -168,7 +164,6 @@ import { reconcilePresentedViewVisibility, showResumedPresentedView, watchPresen
 import { resizeViewport } from './emulation/resize-viewport.js'
 import { setEmulationViewSize } from './emulation/emulation-view-size.js'
 import { createSplitDivider } from './split-view/split-divider.js'
-import type { TabFaviconAccess } from './tab-favicon/tab-favicon-access.js'
 import { loadFavicon } from './tab-favicon/tab-favicon.js'
 import { FaviconDecoder } from './favicon.js'
 import { createHash } from 'node:crypto'
@@ -189,7 +184,6 @@ import axe from 'axe-core'
 import {
   app,
   BrowserWindow,
-  dialog,
   Menu,
   net,
   powerMonitor,
@@ -443,17 +437,13 @@ import { controlPageLifecycle, pageLifecycle, setTabPageLifecycle } from './page
 import type { PageNavigationAccess } from './page-navigation/page-navigation-access.js'
 import { back, forward, goToHistoryEntry, navigate, reload, reloadIgnoringCache, stop, stopFocusedPageLoading } from './page-navigation/page-navigation.js'
 import { setZoom } from './page-zoom/page-zoom.js'
-import type { PageWheelZoomAccess } from './page-zoom/page-wheel-zoom-access.js'
 import { historyGesture } from './history-gesture/history-gesture.js'
-import type { HistoryGestureAccess } from './history-gesture/history-gesture-access.js'
 import { printPage, printShownPage } from './page-print/page-print.js'
 import { savePageAs, saveShownPage } from './page-save/page-save.js'
-import type { PageSaveAccess } from './page-save/page-save-access.js'
 import { viewFrameSource, viewPageSource, viewShownPageSource } from './page-source/page-source.js'
 import { openNavigationInNewTab } from './navigation-new-tab/navigation-new-tab.js'
 import { closeTabLeftEmptyByDownload, opensFromPage } from './download-tab-close/download-tab-close.js'
 import type { NavigationNewTabAccess } from './navigation-new-tab/navigation-new-tab-access.js'
-import type { PagePrintAccess } from './page-print/page-print-access.js'
 import { attachPageWheelZoom } from './page-zoom/page-wheel-zoom.js'
 import {
   normalizeWorkspaceNavigationPolicy,
@@ -552,7 +542,6 @@ import { setMemorySaverSettings, sleepInactiveTabs, sweepMemorySaver } from './t
 import { BackgroundLoads } from './tab-sleep/background-loads.js'
 import { evaluateWithAttachedDebugger, mainWorldContextId, releaseDebuggerEvaluationObjects } from './debugger-evaluation/debugger-evaluation.js'
 import { withDebugger } from './debugger-lease/debugger-lease.js'
-import type { NativeClickAccess } from './native-click/native-click-access.js'
 import { dispatchNativeClick } from './native-click/native-click.js'
 import type { RightClickEnvironmentAccess } from './native-click/right-click-environment-access.js'
 import { rightClickEnvironment } from './native-click/right-click-environment.js'
@@ -1368,7 +1357,7 @@ export class Browser {
     watchWindowFullScreen(this.pageFullscreenAccess())
   }
 
-  private text(key: MessageKey, parameters?: MessageParameters): string {
+  text(key: MessageKey, parameters?: MessageParameters): string {
     return translate(this.options.getLocale(), key, parameters)
   }
 
@@ -3233,24 +3222,8 @@ export class Browser {
     return this.getState()
   }
 
-  /**
-   * The narrow view ending a page's native selections gets of this manager's
-   * private screenshot area selections, element pickers and human input
-   * lock. It is a prototype method rather than a field, so managers created
-   * without the constructor (as unit tests do) still provide it. Each member
-   * reads the manager when called.
-   */
-  private nativeSelectionsAccess(): NativeSelectionsAccess<BrowserTab> {
-    return {
-      screenshotAreaSessions: () => this.screenshotAreaSessions,
-      elementPickerSessions: () => this.elementPickerSessions,
-      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
-      syncHumanInteractionInputGuard: (tab) => this.syncHumanInteractionInputGuard(tab)
-    }
-  }
-
   private cancelNativeSelectionSessions(tab: BrowserTab): void {
-    cancelNativeSelectionSessions(this.nativeSelectionsAccess(), tab)
+    cancelNativeSelectionSessions(this, tab)
   }
 
   /**
@@ -3430,29 +3403,12 @@ export class Browser {
 
   /** Goes back or forward in the shown tab for the person's Back or Forward key or mouse button, unless its page keeps its input. */
   historyGesture(direction: 'back' | 'forward'): Promise<void> {
-    return historyGesture(this.historyGestureAccess(), direction)
-  }
-
-  /**
-   * The narrow view going back or forward for the person's key or mouse button gets of this manager's shown tab,
-   * trusted chrome occlusion, human input lock, in-flight agent input, native selection sessions and history
-   * navigation. It is a prototype method rather than a field, so managers created without the constructor (as unit
-   * tests do) still provide it. Each member reads the manager when called.
-   */
-  private historyGestureAccess(): HistoryGestureAccess<BrowserTab> {
-    return {
-      shownTab: () => this.activeTabId ? this.tabs.get(this.activeTabId) : undefined,
-      browserContentOccluded: () => this.browserContentOccluded,
-      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
-      agentInputWebContents: () => this.agentInputWebContents,
-      nativeSelectionUnderWay: (webContentsId) => this.screenshotAreaSessions.has(webContentsId) || this.elementPickerSessions.has(webContentsId),
-      go: (tabId, direction) => direction === 'back' ? this.back(tabId) : this.forward(tabId)
-    }
+    return historyGesture(this, direction)
   }
 
   /** Opens the print dialog for the page the window shows, for Print in the menu and its key. */
   printShownPage(): Promise<void> {
-    return printShownPage(this.pagePrintAccess())
+    return printShownPage(this)
   }
 
   viewShownPageSource(): Promise<boolean> {
@@ -3461,49 +3417,12 @@ export class Browser {
 
   /** Save Page As for the page the window shows, for the menu and its key. */
   saveShownPage(): Promise<boolean> {
-    return saveShownPage(this.pageSaveAccess())
+    return saveShownPage(this)
   }
 
   pageSaving: Set<number> | undefined
 
-  /**
-   * The narrow view saving a page gets of this manager's shown tab, trusted chrome occlusion, human input lock, download
-   * folder, window and the pages being saved now. It is a prototype method rather than a field, so managers created
-   * without the constructor (as unit tests do) still provide it. Each member reads the manager when called.
-   */
-  private pageSaveAccess(): PageSaveAccess<BrowserTab> {
-    return {
-      shownTab: () => this.activeTabId ? this.tabs.get(this.activeTabId) : undefined,
-      browserContentOccluded: () => this.browserContentOccluded,
-      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
-      downloadDirectory: () => this.options.downloadDirectory,
-      showSaveDialog: (options) => this.window.isDestroyed()
-        ? Promise.resolve({ canceled: true, filePath: '' })
-        : dialog.showSaveDialog(this.window, options),
-      text: (key) => this.text(key),
-      savingWebContents: () => (this.pageSaving ??= new Set())
-    }
-  }
-
   pagePrinting: Set<number> | undefined
-
-  /**
-   * The narrow view printing a page gets of this manager's shown tab, trusted chrome occlusion, human input lock,
-   * in-flight agent input, native selection sessions and the pages printing now. It is a prototype method rather than
-   * a field, so managers created without the constructor (as unit tests do) still provide it. Each member reads the
-   * manager when called.
-   */
-  private pagePrintAccess(): PagePrintAccess<BrowserTab> {
-    return {
-      shownTab: () => this.activeTabId ? this.tabs.get(this.activeTabId) : undefined,
-      browserContentOccluded: () => this.browserContentOccluded,
-      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
-      agentInputWebContents: () => this.agentInputWebContents,
-      agentWorkingOn: (tab) => this.options.agentWorkingOnTab?.(tab.id, tab.mcpGroupId) === true,
-      nativeSelectionUnderWay: (webContentsId) => this.screenshotAreaSessions.has(webContentsId) || this.elementPickerSessions.has(webContentsId),
-      printingWebContents: () => (this.pagePrinting ??= new Set())
-    }
-  }
 
   reload(tabId?: string): Promise<BrowserState> {
     return reload(this.pageNavigationAccess(), tabId)
@@ -3549,24 +3468,6 @@ export class Browser {
 
   setZoom(options: { tabId?: string; action: 'in' | 'out' | 'reset' | 'set'; percent?: number }): BrowserState {
     return setZoom(this, options)
-  }
-
-  /**
-   * The narrow view zooming a page with Control and the mouse wheel gets of
-   * this manager's private tabs, trusted chrome occlusion, human input lock,
-   * in-flight agent input, native selection sessions and page zoom. It is a prototype method rather
-   * than a field, so managers created without the constructor (as unit tests
-   * do) still provide it. Each member reads the manager when called.
-   */
-  private pageWheelZoomAccess(): PageWheelZoomAccess<BrowserTab> {
-    return {
-      findTab: (tabId) => this.tabs.get(tabId),
-      browserContentOccluded: () => this.browserContentOccluded,
-      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
-      agentInputWebContents: () => this.agentInputWebContents,
-      nativeSelectionUnderWay: (webContentsId) => this.screenshotAreaSessions.has(webContentsId) || this.elementPickerSessions.has(webContentsId),
-      zoom: (tabId, direction) => { setZoom(this, { tabId, action: direction }) }
-    }
   }
 
   /**
@@ -4053,20 +3954,6 @@ export class Browser {
     assertClickTargetEnabled(result)
   }
 
-  /**
-   * The narrow view dispatching a native click gets of this manager's
-   * authorized agent input. It is a prototype method rather than a field, so
-   * managers created without the constructor (as unit tests do) still provide
-   * it. The delegate below returns the feature's promise directly, so callers
-   * see the same ticks as before.
-   */
-  private nativeClickAccess(): NativeClickAccess {
-    return {
-      sendAuthorizedAgentInputCommand: (webContents, method, commandParams, validateInput, observer, beforeRawDispatch) =>
-        this.sendAuthorizedAgentInputCommand(webContents, method, commandParams, validateInput, observer, beforeRawDispatch)
-    }
-  }
-
   private dispatchNativeClick(
     webContents: BrowserTab['view']['webContents'],
     point: { x: number; y: number },
@@ -4077,7 +3964,7 @@ export class Browser {
     rightClick?: boolean,
     modifiers?: number
   ): Promise<void> {
-    return dispatchNativeClick(this.nativeClickAccess(), webContents, point, doubleClick, validateClick, sample, observer, rightClick, modifiers)
+    return dispatchNativeClick(this, webContents, point, doubleClick, validateClick, sample, observer, rightClick, modifiers)
   }
 
   private showAgentPointer(
@@ -4191,7 +4078,7 @@ export class Browser {
     return hasEmulationOverrides(tab.emulation) ? { emulation: cloneEmulationState(tab.emulation) } : {}
   }
 
-  private requireEmulationConfirmed(tab: BrowserTab): void {
+  requireEmulationConfirmed(tab: BrowserTab): void {
     if (tab.emulationApplication !== 'confirmed') {
       // Agents keep the instruction not to replay the request; a person reads to restore the retained settings.
       throw new LocalizedError('appErrors.emulation.unconfirmed', undefined, {
@@ -4812,32 +4699,16 @@ export class Browser {
     return evaluate(this, script, tabId, dialog, deadline)
   }
 
-  /**
-   * The narrow view WebMCP gets of this manager's private tabs, snapshots and
-   * descriptor cache. It is a prototype method rather than a field, so
-   * managers created without the constructor (as unit tests do) still
-   * provide it. The delegates below return the feature's promise directly,
-   * so no extra ticks separate its final checks from the caller.
-   */
-  private webMcpAccess(): WebMcpAccess {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      findTab: (tabId) => this.tabs.get(tabId),
-      descriptorCache: () => this.webMcpDescriptorCache,
-      snapshotDetails: (tabId, maxChars) => this.snapshotDetails(tabId, maxChars)
-    }
-  }
-
   webMcpStatus(tabId?: string): Promise<WebMcpStatus> {
-    return webMcpStatus(this.webMcpAccess(), tabId)
+    return webMcpStatus(this, tabId)
   }
 
   listWebMcpTools(tabId?: string): Promise<WebMcpToolList> {
-    return listWebMcpTools(this.webMcpAccess(), tabId)
+    return listWebMcpTools(this, tabId)
   }
 
   callWebMcpTool(input: WebMcpToolCall): Promise<Record<string, unknown>> {
-    return callWebMcpTool(this.webMcpAccess(), input)
+    return callWebMcpTool(this, input)
   }
 
   handleDialog(action: BrowserDialogAction, tabId?: string): Promise<{
@@ -5008,23 +4879,8 @@ export class Browser {
     return saveScreenshot(this.screenshotExportAccess(), options, validateExport, deferExport)
   }
 
-  /**
-   * The narrow view page waits get of this manager's private tabs, target
-   * validation and renderer recovery. It is a prototype method rather than a
-   * field, so managers created without the constructor (as unit tests do)
-   * still provide it.
-   */
-  private pageWaitsAccess(): PageWaitsAccess {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      hasTab: (tabId) => this.tabs.has(tabId),
-      validateTarget: (target) => this.validateTarget(target),
-      rendererExpectsExit: (webContents) => this.rendererRecovery.expectsExit(webContents)
-    }
-  }
-
   waitForPage(tabId?: string, timeoutMs = 30_000): Promise<void> {
-    return waitForPage(this.pageWaitsAccess(), tabId, timeoutMs)
+    return waitForPage(this, tabId, timeoutMs)
   }
 
   waitForText(
@@ -5033,7 +4889,7 @@ export class Browser {
     timeoutMs = 30_000,
     state: 'visible' | 'hidden' = 'visible'
   ): Promise<string | null> {
-    return waitForText(this.pageWaitsAccess(), text, tabId, timeoutMs, state)
+    return waitForText(this, text, tabId, timeoutMs, state)
   }
 
   waitForElement(
@@ -5042,7 +4898,7 @@ export class Browser {
     timeoutMs = 30_000,
     state: 'attached' | 'detached' | 'visible' | 'hidden' = 'visible'
   ): Promise<boolean> {
-    return waitForElement(this.pageWaitsAccess(), target, tabId, timeoutMs, state)
+    return waitForElement(this, target, tabId, timeoutMs, state)
   }
 
   waitForUrlPattern(
@@ -5050,7 +4906,7 @@ export class Browser {
     tabId?: string,
     timeoutMs = 30_000
   ): Promise<string | null> {
-    return waitForUrlPattern(this.pageWaitsAccess(), urlPattern, tabId, timeoutMs)
+    return waitForUrlPattern(this, urlPattern, tabId, timeoutMs)
   }
 
   setToolbarHeight(height: number): void {
@@ -5871,7 +5727,7 @@ export class Browser {
     attachPageKeyboardEvents(this.pageKeyboardEventsAccess(), tab, webContents)
     attachPagePointerEvents(this.pagePointerEventsAccess(), tab, webContents)
     attachPageTargetUrlEvents(this.pageTargetUrlEventsAccess(), tab, webContents)
-    attachPageWheelZoom(this.pageWheelZoomAccess(), tab, webContents)
+    attachPageWheelZoom(this, tab, webContents)
     attachPageContextMenuEvents(this.pageContextMenuAccess(), tab, webContents)
     attachDevToolsEvents(this.devToolsAccess(), tab, webContents)
     this.frameObservation.track(webContents)
@@ -6205,10 +6061,10 @@ export class Browser {
       reloadIgnoringCache: (tabId) => this.reloadIgnoringCache(tabId),
       isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
       openDevTools: (tab) => this.openDevTools(tab),
-      print: (tab) => printPage(this.pagePrintAccess(), tab),
+      print: (tab) => printPage(this, tab),
       viewSource: (tab) => viewPageSource(this, tab),
       viewFrameSource: (tab, frameUrl) => viewFrameSource(this, tab, frameUrl),
-      savePage: (tab) => savePageAs(this.pageSaveAccess(), tab),
+      savePage: (tab) => savePageAs(this, tab),
       searchEngine: () => this.options.getSearchEngine?.() ?? DEFAULT_SEARCH_ENGINE,
       spellCheck: () => this.options.getSpellCheck?.() !== false,
       setSpellCheck: async (enabled) => { await this.options.setSpellCheck?.(enabled) },
@@ -6224,23 +6080,8 @@ export class Browser {
     }
   }
 
-  /**
-   * The narrow view loading a website's icon gets of this manager's destroyed
-   * flag, its icon decoder and state publication. It is a prototype method
-   * rather than a field, so managers created without the constructor (as unit
-   * tests do) still provide it. The delegate below returns the feature's
-   * promise directly.
-   */
-  private tabFaviconAccess(): TabFaviconAccess {
-    return {
-      isDestroyed: () => this.destroyed,
-      faviconDecoder: () => this.faviconDecoder,
-      changed: (persist) => this.changed(persist)
-    }
-  }
-
   private loadFavicon(tab: BrowserTab, favicons: string[]): Promise<void> {
-    return loadFavicon(this.tabFaviconAccess(), tab, favicons)
+    return loadFavicon(this, tab, favicons)
   }
 
   /**
@@ -6306,7 +6147,7 @@ export class Browser {
     }
   }
 
-  private validateTarget(target: { ref?: string; selector?: string }): void {
+  validateTarget(target: { ref?: string; selector?: string }): void {
     validateTarget(target)
   }
 
@@ -6495,24 +6336,12 @@ export class Browser {
     return withRenderableTab(this, tab, operation, mode)
   }
 
-  /**
-   * The narrow view describing a tab's performance environment gets of this
-   * manager's emulation confirmation check. It is a prototype method rather
-   * than a field, so managers created without the constructor (as unit tests
-   * do) still provide it.
-   */
-  private performanceEnvironmentAccess(): PerformanceEnvironmentAccess<BrowserTab> {
-    return {
-      requireEmulationConfirmed: (tab) => this.requireEmulationConfirmed(tab)
-    }
-  }
-
   private performanceEnvironment(tab: BrowserTab): BrowserPerformanceEnvironment {
-    return performanceEnvironment(this.performanceEnvironmentAccess(), tab)
+    return performanceEnvironment(this, tab)
   }
 
   private performanceEnvironmentFingerprint(tab: BrowserTab): string {
-    return tabPerformanceEnvironmentFingerprint(this.performanceEnvironmentAccess(), tab)
+    return tabPerformanceEnvironmentFingerprint(this, tab)
   }
 
   private applyNetworkEmulation(
