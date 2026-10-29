@@ -57,6 +57,7 @@ vi.mock('../src/main/browser/window-layout/window-layout.js', async (importOrigi
 const { Browser } = await import('../src/main/browser/browser.js')
 const { WorkspaceRegistry } = await import('../src/main/browser/workspace-registry.js')
 const { closeTabsForPerson } = await import('../src/main/browser/tab-close/close-tabs-for-person.js')
+const { reopenClosedTabEntry } = await import('../src/main/browser/tab-reopening/tab-reopening.js')
 
 const WORKSPACE = '01912345-6789-7abc-8def-0123456789ab'
 
@@ -71,9 +72,7 @@ interface Manager {
   isTabAgentPaused(tabId: string): boolean
   isHumanInteractionLocked(tab: Tab): boolean
   rememberClosedTab(tab: Tab): void
-  reopenClosedTabEntry(closedTabId: string | undefined, active: boolean): Promise<Tab>
   duplicateTabAfterLabelSave(tabId: string): Promise<unknown>
-  personTabCloseAccess(): never
   closeTabInternal(tabId: string): Promise<unknown>
 }
 
@@ -156,13 +155,16 @@ const GUARDED = { agentsPaused: true, tabAgentPaused: true, inputLocked: true, h
 const OPEN = { agentsPaused: false, tabAgentPaused: false, inputLocked: false, humanInteractionLocked: false }
 const findByUrl = (manager: Manager, url: string) => [...manager.tabs.values()].find((candidate) => candidate.url === url)
 
+/** Reopens the most recently closed tab in the background, as Reopen Closed Tab does before showing it. */
+const reopenLastClosed = async (manager: Manager): Promise<Tab> => await reopenClosedTabEntry(manager as never, undefined, false) as unknown as Tab
+
 describe('a paused and locked tab brought back', () => {
   it('stays paused and locked after Reopen Closed Tab', async () => {
     const { manager } = browser()
     const tab = await guardedTab(manager)
     await manager.closeTabInternal(tab.id)
 
-    const reopened = await manager.reopenClosedTabEntry(undefined, false)
+    const reopened = await reopenLastClosed(manager)
 
     expect(guards(manager, reopened)).toEqual(GUARDED)
   })
@@ -170,7 +172,7 @@ describe('a paused and locked tab brought back', () => {
   it('stays paused and locked after Undo of closing it', async () => {
     const { manager, offers } = browser()
     const tab = await guardedTab(manager)
-    await closeTabsForPerson(manager.personTabCloseAccess(), [tab.id])
+    await closeTabsForPerson(manager as never, [tab.id])
 
     await offers[0]!.undo()
 
@@ -203,7 +205,7 @@ describe('a paused and locked tab brought back', () => {
     const tab = await guardedTab(manager)
     manager.setAllAgentsPaused(true)
     await manager.closeTabInternal(tab.id)
-    const reopened = await manager.reopenClosedTabEntry(undefined, false)
+    const reopened = await reopenLastClosed(manager)
 
     manager.setAllAgentsPaused(false)
 
@@ -232,7 +234,7 @@ describe('a tab paused and locked only because every tab was', () => {
     await manager.closeTabInternal(tab.id)
     await uncover(manager)
 
-    expect(guards(manager, await manager.reopenClosedTabEntry(undefined, false))).toEqual(OPEN)
+    expect(guards(manager, await reopenLastClosed(manager))).toEqual(OPEN)
   })
 
   it('has an open duplicate', async () => {

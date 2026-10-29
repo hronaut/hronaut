@@ -1,5 +1,6 @@
 import type { BrowserState } from '../../../shared/types.js'
-import type { PersonTabCloseAccess, PersonTabCloseTab } from './close-tabs-for-person-access.js'
+import type { Browser } from '../browser.js'
+import { getTab } from '../browser-core.js'
 
 /**
  * Closes the tab once tab label saves have settled. Without
@@ -9,17 +10,17 @@ import type { PersonTabCloseAccess, PersonTabCloseTab } from './close-tabs-for-p
  * yieldsToNewerSelection, a shown tab stays open when another tab is selected
  * while the tab that replaces it wakes.
  */
-export function closeTabAfterLabelSave<Tab extends PersonTabCloseTab>(access: PersonTabCloseAccess<Tab>, tabId: string, ensureReplacement: boolean, respectBeforeUnload: boolean, yieldsToNewerSelection: boolean): Promise<BrowserState> {
+export function closeTabAfterLabelSave(browser: Browser, tabId: string, ensureReplacement: boolean, respectBeforeUnload: boolean, yieldsToNewerSelection: boolean): Promise<BrowserState> {
   if (!respectBeforeUnload) {
-    return access.performCloseTab(tabId, ensureReplacement, false, true, yieldsToNewerSelection)
+    return browser.performCloseTab(tabId, ensureReplacement, false, true, yieldsToNewerSelection)
   }
-  const tab = access.getTab(tabId)
-  const existing = access.pendingHumanTabCloses().get(tabId)
+  const tab = getTab(browser, tabId)
+  const existing = browser.pendingHumanTabCloses.get(tabId)
   if (existing?.tab === tab) return existing.operation
-  const operation = access.performCloseTab(tabId, ensureReplacement, true, false, yieldsToNewerSelection)
-  access.pendingHumanTabCloses().set(tabId, { tab, operation })
+  const operation = browser.performCloseTab(tabId, ensureReplacement, true, false, yieldsToNewerSelection)
+  browser.pendingHumanTabCloses.set(tabId, { tab, operation })
   void operation.finally(() => {
-    if (access.pendingHumanTabCloses().get(tabId)?.operation === operation) access.pendingHumanTabCloses().delete(tabId)
+    if (browser.pendingHumanTabCloses.get(tabId)?.operation === operation) browser.pendingHumanTabCloses.delete(tabId)
   }).catch(() => undefined)
   return operation
 }

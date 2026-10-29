@@ -42,7 +42,6 @@ import type { PendingPdfExport } from './pdf-export-publication.js'
 import { savePdf } from './pdf-export/pdf-export.js'
 import { saveScreenshot, type PendingScreenshotExport, type ScreenshotExport, type ScreenshotExportOptions } from './screenshot-export/screenshot-export.js'
 import { FrameObservationController } from './frame-observation.js'
-import type { TabContextMenuAccess } from './context-menus/tab-context-menu-access.js'
 import { showTabContextMenu } from './context-menus/tab-context-menu.js'
 import { showHistoryMenu } from './context-menus/history-menu.js'
 import { ReactInspectionController, type ReactInspectionAuthority } from './react-inspection.js'
@@ -273,7 +272,7 @@ import type { BrowserTabSelectionOptions, TabSelectionAccess } from './tab-selec
 import { selectAgentTabAndWait, selectTab, selectTabAndWait } from './tab-selection/tab-selection.js'
 import { EMULATION_FRAME_CAPTION_SPACE, emulatedViewBounds, type EmulationFrameGeometry } from '../../shared/emulation-frame.js'
 import type { PageCardGeometry } from '../../shared/page-card.js'
-import { getEmulationFrames, getPageCards, publishPageGeometry } from './page-geometry/page-geometry.js'
+import { getEmulationFrames, getPageCards } from './page-geometry/page-geometry.js'
 import type { BrowserTabGroupColor } from '../../shared/tab-groups.js'
 import {
   DEFAULT_MEMORY_SAVER_TIMEOUT_MINUTES,
@@ -391,7 +390,6 @@ import { shownTabIds, StatePublication } from './browser-state/state-publication
 import { normalizeTabTitle } from './tab-metadata.js'
 import { TabDiscoveryTitle } from './tab-discovery-title.js'
 import { isHronautHomeUrl, isWebUrl, normalizeAddress } from './url.js'
-import type { PersonTabCloseAccess } from './tab-close/close-tabs-for-person-access.js'
 import { closeTabsForPerson } from './tab-close/close-tabs-for-person.js'
 import type { DevToolsAccess } from './devtools/devtools-access.js'
 import { openDevTools, showDevToolsConsole, toggleDevTools } from './devtools/devtools.js'
@@ -470,9 +468,6 @@ import { attachWindowOpenHandler } from './tab-events/window-open-handler.js'
 import { withRenderableTab } from './renderable-tab/renderable-tab.js'
 import {
   setTabSleeping,
-  setTabSleepingFromContextMenu,
-  sleepBlockReason,
-  sleepFallbackTab,
   sleepBeforeFirstLoad,
   wakeTab,
   withoutSleepingPage
@@ -487,11 +482,10 @@ import { rightClickEnvironment } from './native-click/right-click-environment.js
 import { coordinateDragPointsOrValidateTargets, coordinatePointOrValidateTarget, validateTarget } from './input-targets/input-targets.js'
 import { assertClickTargetEnabled, assertNativeEditability, assertPointInsideVisibleViewport, assertRightClickViewport } from './input-targets/target-checks.js'
 import { attemptBeforeUnloadClose } from './tab-close/before-unload-close.js'
-import type { BeforeUnloadStagingAccess } from './tab-close/before-unload-staging-access.js'
 import { stageBeforeUnloadClose } from './tab-close/before-unload-staging.js'
 import { closeTabAfterLabelSave } from './tab-close/close-tab.js'
 import { saveTabLabel, withTabLabelLifecycle } from './tab-labels/tab-labels.js'
-import { closedTabHistory, duplicateTabAfterLabelSave, forgetClosedTabs, rememberClosedTab, rememberSavedClosedTabs, reopenClosedTabAfterLabelSave, reopenClosedTabEntry } from './tab-reopening/tab-reopening.js'
+import { closedTabHistory, duplicateTabAfterLabelSave, forgetClosedTabs, rememberClosedTab, rememberSavedClosedTabs, reopenClosedTabAfterLabelSave } from './tab-reopening/tab-reopening.js'
 import { forgetTabHistoryPages, holdTabHistory } from './tab-history-pages/forget-tab-history-pages.js'
 import { reorderTab, reorderTabs, setTabPinned } from './tab-arrangement/tab-arrangement.js'
 import { openDroppedLink } from './dropped-links/dropped-links.js'
@@ -504,7 +498,7 @@ import { dismissAgentPointer, showAgentPointer } from './agent-pointer/agent-poi
 import { visualCompareContext } from './visual-compare/visual-capture.js'
 import { currentNetworkRequests, matchingNetworkWaitRequest } from './network-inspection/network-request-records.js'
 import { setAllTabsMuted, setTabMuted } from './tab-muting/tab-muting.js'
-import { applySiteMuting, applySiteMutingToTabs, canMuteSite, isSiteMuted, setSiteMuted, type SiteSoundStore } from './site-muting/site-muting.js'
+import { applySiteMuting, applySiteMutingToTabs, setSiteMuted, type SiteSoundStore } from './site-muting/site-muting.js'
 import { captureAgentStepThumbnail } from './agent-step-thumbnail/agent-step-thumbnail.js'
 import { cancelFocusAfterTrustedChrome, focusTabOrTrustedChrome, withholdFocusAfterTrustedChrome, type PendingTrustedChromeFocus } from './trusted-chrome-focus/trusted-chrome-focus.js'
 import type { TrustedChromeOcclusionAccess } from './trusted-chrome-occlusion/trusted-chrome-occlusion-access.js'
@@ -2012,10 +2006,6 @@ export class Browser {
     void this.saveForNextStart(true)
   }
 
-  private reopenClosedTabEntry(closedTabId: string | undefined, active: boolean): Promise<BrowserTab | undefined> {
-    return reopenClosedTabEntry(this, closedTabId, active)
-  }
-
   duplicateTab(tabId: string): Promise<BrowserState> {
     return withTabLabelLifecycle(this, () => this.duplicateTabAfterLabelSave(tabId))
   }
@@ -2140,14 +2130,6 @@ export class Browser {
     return controlPageLifecycle(this.pageLifecycleAccess(), tabId, requestedState)
   }
 
-  private sleepFallbackTab(tab: BrowserTab): BrowserTab | undefined {
-    return sleepFallbackTab(this, tab)
-  }
-
-  private setTabSleepingFromContextMenu(tabId: string, sleeping: boolean): Promise<void> {
-    return setTabSleepingFromContextMenu(this, tabId, sleeping)
-  }
-
   sleepInactiveTabs(): Promise<BrowserState> {
     return sleepInactiveTabs(this)
   }
@@ -2177,55 +2159,9 @@ export class Browser {
     Menu.buildFromTemplate(this.workspaceContextMenuItems(group)).popup({ window: this.window, ...(onClosed ? { callback: onClosed } : {}) })
   }
 
-  /**
-   * The narrow view the tab context menu gets of this manager's private tabs,
-   * active tab, open workspaces, split view, recently closed tabs, window,
-   * options, localized text, React inspection and the tab commands the menu
-   * offers. It is a prototype method rather than a field, so managers created
-   * without the constructor (as unit tests do) still provide it. Each action
-   * calls through it when it runs, so it reaches the manager as it is then.
-   */
-  private tabContextMenuAccess(): TabContextMenuAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      orderedTabs: () => orderedTabs(this),
-      activeTabId: () => this.activeTabId,
-      findTab: (tabId) => this.tabs.get(tabId),
-      options: () => this.options,
-      mcpTabGroups: () => this.mcpTabGroups,
-      text: (key, parameters) => this.text(key, parameters),
-      workspaceContextMenuItems: (group) => this.workspaceContextMenuItems(group),
-      selectTabAndWait: (tabId) => this.selectTabAndWait(tabId),
-      openSplitViewAndWait: (tabId) => this.openSplitViewAndWait(tabId),
-      splitViewContains: (tabId) => this.splitViewContains(tabId),
-      splitView: () => this.splitView,
-      updateSplitView: (updates) => this.updateSplitView(updates),
-      closeSplitView: () => this.closeSplitView(),
-      reload: (tabId) => this.reload(tabId),
-      reloadIgnoringCache: (tabId) => this.reloadIgnoringCache(tabId),
-      duplicateTab: (tabId) => this.duplicateTab(tabId),
-      reactInspectionController: () => this.reactInspectionController,
-      reactInspection: (tabId, command, authority) => this.reactInspection(tabId, command, authority),
-      setTabMuted: (tabId, muted) => this.setTabMuted(tabId, muted),
-      canMuteSite: (tab) => canMuteSite(this, tab),
-      isSiteMuted: (tab) => isSiteMuted(this, tab),
-      setSiteMuted: (tabId, muted) => this.setSiteMuted(tabId, muted),
-      setTabPinned: (tabId, pinned) => this.setTabPinned(tabId, pinned),
-      setTabPageLifecycle: (tabId, state) => this.setTabPageLifecycle(tabId, state),
-      sleepBlockReason: (tab, allowActiveTab) => this.sleepBlockReason(tab, allowActiveTab),
-      sleepFallbackTab: (tab) => this.sleepFallbackTab(tab),
-      setTabSleepingFromContextMenu: (tabId, sleeping) => this.setTabSleepingFromContextMenu(tabId, sleeping),
-      reorderTab: (tabId, targetTabId, placement) => this.reorderTab(tabId, targetTabId, placement),
-      closeTabsForPerson: (tabIds) => this.closeTabsForPerson(tabIds),
-      closedTabs: () => this.closedTabs,
-      reopenClosedTab: () => this.reopenClosedTab(),
-      window: () => this.window
-    }
-  }
-
   /** Opens a tab's menu where the pointer is; `onClosed` runs once it closes, or at once when the tab has none. */
   showTabContextMenu(tabId: string, onClosed?: () => void, selectedTabIds?: readonly string[]): void {
-    showTabContextMenu(this.tabContextMenuAccess(), tabId, onClosed, selectedTabIds)
+    showTabContextMenu(this, tabId, onClosed, selectedTabIds)
   }
 
   /**
@@ -2357,63 +2293,8 @@ export class Browser {
     return this.closeTabInternal(tabId, true, respectBeforeUnload)
   }
 
-  /**
-   * The narrow view closing tabs for the person gets of this manager's
-   * private tabs, recently closed tabs, tab closing and reopening, closes in
-   * flight that let pages ask to stay, tab label saves, tab order, state
-   * publication and options. It is a prototype method rather than a field, so
-   * managers created without the constructor (as unit tests do) still provide
-   * it. The delegates below return the feature's promise directly, so callers
-   * see the same ticks as before.
-   */
-  private personTabCloseAccess(): PersonTabCloseAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      findTab: (tabId) => this.tabs.get(tabId),
-      orderedTabs: () => orderedTabs(this),
-      activeTabId: () => this.activeTabId,
-      closedTabs: () => this.closedTabs,
-      closeTabInternal: (tabId, ensureReplacement, respectBeforeUnload, yieldsToNewerSelection) => (
-        this.closeTabInternal(tabId, ensureReplacement, respectBeforeUnload, yieldsToNewerSelection)
-      ),
-      pendingHumanTabCloses: () => this.pendingHumanTabCloses,
-      performCloseTab: (tabId, ensureReplacement, respectBeforeUnload, forceClose, yieldsToNewerSelection) =>
-        this.performCloseTab(tabId, ensureReplacement, respectBeforeUnload, forceClose, yieldsToNewerSelection),
-      reopenClosedTabEntry: (closedTabId, active) => this.reopenClosedTabEntry(closedTabId, active),
-      withTabLabelLifecycle: (run) => withTabLabelLifecycle(this, run),
-      reorderTab: (tabId, targetTabId, placement) => this.reorderTab(tabId, targetTabId, placement),
-      getState: () => this.getState(),
-      options: () => this.options,
-      text: (key, parameters) => this.text(key, parameters)
-    }
-  }
-
   closeTabsForPerson(tabIds: readonly string[]): Promise<BrowserState> {
-    return closeTabsForPerson(this.personTabCloseAccess(), tabIds)
-  }
-
-  /**
-   * The narrow view staging a beforeunload close gets of this manager's
-   * private tabs, window, active tab, split view, close transition, view
-   * bounds, page corners, page geometry, layout and focus. It is a prototype
-   * method rather than a field, so managers created without the constructor
-   * (as unit tests do) still provide it.
-   */
-  private beforeUnloadStagingAccess(): BeforeUnloadStagingAccess<BrowserTab> {
-    return {
-      findTab: (tabId) => this.tabs.get(tabId),
-      activeTabId: () => this.activeTabId,
-      splitView: () => this.splitView,
-      splitViewContains: (tabId) => this.splitViewContains(tabId),
-      window: () => this.window,
-      closeTabTransition: (tab) => this.closeTabTransition(tab),
-      contentAreaBounds: () => contentAreaBounds(this),
-      tabViewBounds: (tab, space) => this.tabViewBounds(tab, space),
-      roundPageCorners: (view) => roundPageCorners(this, view),
-      publishPageGeometry: () => publishPageGeometry(this),
-      layout: () => this.layout(),
-      focusTabOrTrustedChrome: (tab) => this.focusTabOrTrustedChrome(tab)
-    }
+    return closeTabsForPerson(this, tabIds)
   }
 
   private stageBeforeUnloadClose(tab: BrowserTab): {
@@ -2421,14 +2302,14 @@ export class Browser {
     cleanup: () => void
     rollback: (focusPage: boolean) => void
   } {
-    return stageBeforeUnloadClose(this.beforeUnloadStagingAccess(), tab)
+    return stageBeforeUnloadClose(this, tab)
   }
 
   private attemptBeforeUnloadClose(webContents: WebContents): Promise<'closed' | 'prevented'> {
     return attemptBeforeUnloadClose(webContents)
   }
 
-  private closeTabTransition(tab: BrowserTab): { splitPartnerId: string | null; nextId: string | undefined } {
+  closeTabTransition(tab: BrowserTab): { splitPartnerId: string | null; nextId: string | undefined } {
     const splitPartnerId = this.splitViewContains(tab.id)
       ? (this.splitView!.firstTabId === tab.id ? this.splitView!.secondTabId : this.splitView!.firstTabId)
       : null
@@ -2500,16 +2381,16 @@ export class Browser {
     }
   }
 
-  private closeTabInternal(
+  closeTabInternal(
     tabId: string,
     ensureReplacement: boolean,
     respectBeforeUnload = false,
     yieldsToNewerSelection = false
   ): Promise<BrowserState> {
-    return withTabLabelLifecycle(this, () => closeTabAfterLabelSave(this.personTabCloseAccess(), tabId, ensureReplacement, respectBeforeUnload, yieldsToNewerSelection))
+    return withTabLabelLifecycle(this, () => closeTabAfterLabelSave(this, tabId, ensureReplacement, respectBeforeUnload, yieldsToNewerSelection))
   }
 
-  private async performCloseTab(
+  async performCloseTab(
     tabId: string,
     ensureReplacement: boolean,
     respectBeforeUnload: boolean,
@@ -4489,10 +4370,6 @@ export class Browser {
         return context ? () => suggestStrongPassword(this, tab, context) : null
       }
     }
-  }
-
-  private sleepBlockReason(tab: BrowserTab, allowActiveTab?: boolean): string | undefined {
-    return sleepBlockReason(this, tab, allowActiveTab)
   }
 
   private sweepMemorySaver(force: boolean): Promise<void> {

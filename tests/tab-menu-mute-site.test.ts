@@ -6,6 +6,23 @@ vi.mock('electron', () => ({
   Menu: { buildFromTemplate: (template: MenuItemConstructorOptions[]) => { built.templates.push(template); return { popup: () => undefined } } }
 }))
 
+// The browser below stubs workspaceContextMenuItems, sleepBlockReason, sleepFallbackTab, canMuteSite and isSiteMuted, which
+// the menu asks through these.
+vi.mock('../src/main/browser/context-menus/workspace-context-menu.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/context-menus/workspace-context-menu.js')>(),
+  workspaceContextMenuItems: (browser: { workspaceContextMenuItems: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.workspaceContextMenuItems(...args)
+}))
+vi.mock('../src/main/browser/tab-sleep/tab-sleep.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-sleep/tab-sleep.js')>(),
+  sleepBlockReason: (browser: { sleepBlockReason: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.sleepBlockReason(...args),
+  sleepFallbackTab: (browser: { sleepFallbackTab: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.sleepFallbackTab(...args)
+}))
+vi.mock('../src/main/browser/site-muting/site-muting.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/site-muting/site-muting.js')>(),
+  canMuteSite: (browser: { canMuteSite: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.canMuteSite(...args),
+  isSiteMuted: (browser: { isSiteMuted: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.isSiteMuted(...args)
+}))
+
 const { showTabContextMenu } = await import('../src/main/browser/context-menus/tab-context-menu.js')
 
 const tab = (id: string, mcpGroupId?: string, url = `https://${id}.test/`) => ({
@@ -13,33 +30,32 @@ const tab = (id: string, mcpGroupId?: string, url = `https://${id}.test/`) => ({
   pageLifecycleState: 'active' as const, webContents: { isDestroyed: () => false }
 })
 
-/** The menu's view of the tab manager, with the tab rail showing every workspace's tabs and the websites muted. */
-function access(tabs: ReturnType<typeof tab>[], activeTabId: string, mutedSites = new Set<string>()) {
+/** The browser as the menu sees it, with the tab rail showing every workspace's tabs and the websites muted. */
+function menuBrowser(tabs: ReturnType<typeof tab>[], activeTabId: string, mutedSites = new Set<string>()) {
   const send = vi.fn()
   const setSiteMuted = vi.fn(() => Promise.resolve({}))
   const groups = new Map(tabs.flatMap(({ mcpGroupId }) => mcpGroupId ? [[mcpGroupId, { id: mcpGroupId, name: mcpGroupId }] as const] : []))
   return {
     send,
     setSiteMuted,
-    access: {
-      getTab: (id?: string) => tabs.find((candidate) => candidate.id === (id ?? activeTabId))!,
-      orderedTabs: () => tabs,
-      activeTabId: () => activeTabId,
-      findTab: (id: string) => tabs.find((candidate) => candidate.id === id),
-      options: () => ({ getTabPosition: () => 'top', onActionFailed: vi.fn() }),
-      mcpTabGroups: () => groups,
+    browser: {
+      // The tabs as they are now, in the order the strip shows them.
+      get tabs() { return new Map(tabs.map((candidate) => [candidate.id, candidate])) },
+      activeTabId,
+      options: { getTabPosition: () => 'top', onActionFailed: vi.fn() },
+      mcpTabGroups: groups,
       text: (key: string) => key,
       workspaceContextMenuItems: () => [],
       splitViewContains: () => false,
-      splitView: () => null,
-      reactInspectionController: () => ({ status: () => ({ enabled: false, status: 'disabled' }) }),
+      splitView: null,
+      reactInspectionController: { status: () => ({ enabled: false, status: 'disabled' }) },
       sleepBlockReason: () => undefined,
       sleepFallbackTab: () => undefined,
       canMuteSite: (candidate: { url: string; mcpGroupId?: string }) => /^https?:/.test(candidate.url) && candidate.mcpGroupId !== undefined,
       isSiteMuted: (candidate: { url: string }) => mutedSites.has(new URL(candidate.url).origin),
       setSiteMuted,
-      closedTabs: () => [],
-      window: () => ({ webContents: { send } })
+      closedTabs: [],
+      window: { webContents: { send } }
     } as never
   }
 }
@@ -49,16 +65,16 @@ const items = () => built.templates.at(-1)!.filter((item) => item.type !== 'sepa
 
 describe('Mute Site in a tab\'s menu', () => {
   it('mutes the tab\'s website, and unmutes it once muted', async () => {
-    const { access: menuAccess, setSiteMuted } = access([tab('own', 'own'), tab('client', 'client')], 'own')
-    showTabContextMenu(menuAccess, 'client')
+    const { browser: menuBrowserFake, setSiteMuted } = menuBrowser([tab('own', 'own'), tab('client', 'client')], 'own')
+    showTabContextMenu(menuBrowserFake, 'client')
     expect(items().slice(items().indexOf('mute-tab'), items().indexOf('mute-tab') + 2)).toEqual(['mute-tab', 'mute-site'])
     const mute = built.templates.at(-1)!.find((candidate) => candidate.id === 'mute-site')!
     expect(mute.label).toBe('native.context.muteSite')
     ;(mute.click as () => void)()
     expect(setSiteMuted).toHaveBeenCalledExactlyOnceWith('client', true)
 
-    const muted = access([tab('client', 'client')], 'client', new Set(['https://client.test']))
-    showTabContextMenu(muted.access, 'client')
+    const muted = menuBrowser([tab('client', 'client')], 'client', new Set(['https://client.test']))
+    showTabContextMenu(muted.browser, 'client')
     const unmute = built.templates.at(-1)!.find((candidate) => candidate.id === 'unmute-site')!
     expect(unmute.label).toBe('native.context.unmuteSite')
     ;(unmute.click as () => void)()
@@ -66,10 +82,10 @@ describe('Mute Site in a tab\'s menu', () => {
   })
 
   it('is not there for Home, a page that is no website, or a tab in no workspace', () => {
-    const { access: menuAccess } = access([tab('home', undefined, 'hronaut://home/'), tab('data', 'client', 'data:text/html,a'), tab('loose')], 'loose')
+    const { browser: menuBrowserFake } = menuBrowser([tab('home', undefined, 'hronaut://home/'), tab('data', 'client', 'data:text/html,a'), tab('loose')], 'loose')
     for (const id of ['home', 'data', 'loose']) {
       built.templates.length = 0
-      showTabContextMenu(menuAccess, id)
+      showTabContextMenu(menuBrowserFake, id)
       // Home has no tab menu at all.
       expect(built.templates).toHaveLength(id === 'home' ? 0 : 1)
       for (const template of built.templates) {
