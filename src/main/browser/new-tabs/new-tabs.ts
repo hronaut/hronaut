@@ -10,7 +10,7 @@ import { assertWorkspaceNavigationAllowed } from '../workspace-navigation/worksp
 import type { BrowserTab } from '../browser-tab.js'
 import { browserState } from '../browser-state/browser-state.js'
 
-/** The tab manager's tab limit. */
+/** The browser's tab limit. */
 const MAX_TABS = MAX_BROWSER_TABS
 
 /**

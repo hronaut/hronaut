@@ -24,7 +24,7 @@ function tab(id: string, overrides: Partial<Tab> = {}): Tab {
 }
 
 /** The browser's tabs in display order, where a new tab opens last in its workspace, as createTab adds it. */
-function manager(initial: Tab[], options: { beforeCreated?: (tabs: Map<string, Tab>) => void } = {}) {
+function fakeBrowser(initial: Tab[], options: { beforeCreated?: (tabs: Map<string, Tab>) => void } = {}) {
   const tabs = new Map(initial.map((candidate) => [candidate.id, candidate]))
   const browser = {
     tabs,
@@ -45,7 +45,7 @@ function manager(initial: Tab[], options: { beforeCreated?: (tabs: Map<string, T
 
 describe('a link dropped on the tab strip or rail', () => {
   it('opens in the tab it was dropped on, as the person, without a new tab', async () => {
-    const { browser } = manager([tab('first'), tab('second')])
+    const { browser } = fakeBrowser([tab('first'), tab('second')])
 
     await expect(openDroppedLink(browser as never, 'https://example.com/dropped', { tabId: 'second', placement: 'onto' })).resolves.toBe(STATE)
 
@@ -57,7 +57,7 @@ describe('a link dropped on the tab strip or rail', () => {
     ['before', ['first', 'new', 'second', 'third']],
     ['after', ['first', 'second', 'new', 'third']]
   ] as const)('opens %s the tab near that edge in a new tab of its workspace', async (placement, order) => {
-    const view = manager([tab('first'), tab('second'), tab('third')])
+    const view = fakeBrowser([tab('first'), tab('second'), tab('third')])
 
     await openDroppedLink(view.browser as never, 'https://example.com/dropped', { tabId: 'second', placement })
 
@@ -67,7 +67,7 @@ describe('a link dropped on the tab strip or rail', () => {
   })
 
   it('opens in a new tab of the workspace the tab is in, beside it', async () => {
-    const view = manager([tab('first'), tab('elsewhere', { mcpGroupId: 'workspace-2' }), tab('last', { mcpGroupId: 'workspace-2' })])
+    const view = fakeBrowser([tab('first'), tab('elsewhere', { mcpGroupId: 'workspace-2' }), tab('last', { mcpGroupId: 'workspace-2' })])
 
     await openDroppedLink(view.browser as never, 'https://example.com/dropped', { tabId: 'elsewhere', placement: 'after' })
 
@@ -77,7 +77,7 @@ describe('a link dropped on the tab strip or rail', () => {
 
   // As Chrome keeps a tab that is not pinned after the pinned ones.
   it.each(['before', 'after'] as const)('opens a link dropped %s a pinned tab first among the tabs that are not pinned', async (placement) => {
-    const view = manager([tab('pinned-1', { pinned: true }), tab('pinned-2', { pinned: true }), tab('first'), tab('second')])
+    const view = fakeBrowser([tab('pinned-1', { pinned: true }), tab('pinned-2', { pinned: true }), tab('first'), tab('second')])
 
     await openDroppedLink(view.browser as never, 'https://example.com/dropped', { tabId: 'pinned-1', placement })
 
@@ -85,7 +85,7 @@ describe('a link dropped on the tab strip or rail', () => {
   })
 
   it('leaves the new tab last in its workspace when the tab it was dropped beside closed meanwhile', async () => {
-    const view = manager([tab('first'), tab('second'), tab('third')], { beforeCreated: (tabs) => { tabs.delete('second') } })
+    const view = fakeBrowser([tab('first'), tab('second'), tab('third')], { beforeCreated: (tabs) => { tabs.delete('second') } })
 
     await openDroppedLink(view.browser as never, 'https://example.com/dropped', { tabId: 'second', placement: 'before' })
 
@@ -93,7 +93,7 @@ describe('a link dropped on the tab strip or rail', () => {
   })
 
   it('opens at the end of the workspace whose New tab button it was dropped on, or of the person\'s own', async () => {
-    const view = manager([tab('first'), tab('second')])
+    const view = fakeBrowser([tab('first'), tab('second')])
 
     await openDroppedLink(view.browser as never, 'https://example.com/dropped', { workspaceId: 'workspace-1' })
     await openDroppedLink(view.browser as never, 'example.com', {})
@@ -103,19 +103,19 @@ describe('a link dropped on the tab strip or rail', () => {
   })
 
   it('reads the text as the address bar reads a paste, so an address split over lines opens whole and words search', async () => {
-    const { browser } = manager([tab('first')])
+    const { browser } = fakeBrowser([tab('first')])
 
     await openDroppedLink(browser as never, '  https://example.com/a\n  /b?c=1 ', { tabId: 'first', placement: 'onto' })
     await openDroppedLink(browser as never, 'spell check\nlanguages', { tabId: 'first', placement: 'onto' })
 
     expect(browser.navigate).toHaveBeenNthCalledWith(1, 'https://example.com/a/b?c=1', 'first', { byPerson: true })
-    // The tab manager's navigation searches for text that is no address, as for text typed in the address bar.
+    // The browser's navigation searches for text that is no address, as for text typed in the address bar.
     expect(browser.navigate).toHaveBeenNthCalledWith(2, 'spell check languages', 'first', { byPerson: true })
   })
 
   // As in Chrome, which refuses a dropped javascript: address, whatever follows the scheme.
   it.each(['javascript:alert(document.cookie)', '  JavaScript:example.com', 'java\nscript:alert(1)', '\u0001javascript:alert(1)'])('opens nothing for %j', async (text) => {
-    const { browser } = manager([tab('first')])
+    const { browser } = fakeBrowser([tab('first')])
 
     for (const target of [{ tabId: 'first', placement: 'onto' }, { tabId: 'first', placement: 'after' }, { workspaceId: 'workspace-1' }] as const) {
       await expect(openDroppedLink(browser as never, text, target)).resolves.toBe(STATE)
@@ -126,7 +126,7 @@ describe('a link dropped on the tab strip or rail', () => {
   })
 
   it('opens nothing for empty text or text longer than the longest address Chrome loads', async () => {
-    const { browser } = manager([tab('first')])
+    const { browser } = fakeBrowser([tab('first')])
 
     await openDroppedLink(browser as never, ' \n\t ', { tabId: 'first', placement: 'onto' })
     await openDroppedLink(browser as never, `https://example.com/${'a'.repeat(2 * 1024 * 1024)}`, { tabId: 'first', placement: 'onto' })
@@ -137,7 +137,7 @@ describe('a link dropped on the tab strip or rail', () => {
   })
 
   it('opens nothing on Home, and refuses a tab that is not open', async () => {
-    const { browser } = manager([tab('home', { url: 'hronaut://home', mcpGroupId: undefined })])
+    const { browser } = fakeBrowser([tab('home', { url: 'hronaut://home', mcpGroupId: undefined })])
 
     await expect(openDroppedLink(browser as never, 'https://example.com/', { tabId: 'home', placement: 'onto' })).resolves.toBe(STATE)
     await expect(openDroppedLink(browser as never, 'https://example.com/', { tabId: 'home', placement: 'after' })).resolves.toBe(STATE)
