@@ -1,15 +1,26 @@
-import type { BrowserWalletPageContext, WalletPagesAccess, WalletPagesTab } from './wallet-pages-access.js'
+import type { Browser } from '../browser.js'
+import { findTab } from '../browser-core.js'
+import { requireTabInMcpGroup } from '../workspace-scope/workspace-scope.js'
+
+/** The tab, workspace, navigation generation, top-level origin and address of the page a wallet request is for. */
+export interface BrowserWalletPageContext {
+  tabId: string
+  workspaceId: string
+  navigationGeneration: number
+  topLevelOrigin: string
+  url: string
+}
 
 /** The wallet context of the page that sent a wallet request, and whether that page is unloading. */
-export function walletPageContext<Tab extends WalletPagesTab>(access: WalletPagesAccess<Tab>, webContentsId: number): BrowserWalletPageContext & { pageUnloading: boolean } {
-  const context = walletContextForWebContents(access, webContentsId)
-  return { ...context, pageUnloading: access.findTab(context.tabId)?.walletPageUnloading === true }
+export function walletPageContext(browser: Browser, webContentsId: number): BrowserWalletPageContext & { pageUnloading: boolean } {
+  const context = walletContextForWebContents(browser, webContentsId)
+  return { ...context, pageUnloading: findTab(browser, context.tabId)?.walletPageUnloading === true }
 }
 
 /** The tab, workspace, navigation generation and HTTP or HTTPS top-level origin of a workspace tab's page; it throws for any other page. */
-function walletContextForWebContents<Tab extends WalletPagesTab>(access: WalletPagesAccess<Tab>, webContentsId: number): BrowserWalletPageContext {
-  const tabId = access.tabIdForWebContents(webContentsId)
-  const tab = tabId ? access.findTab(tabId) : undefined
+function walletContextForWebContents(browser: Browser, webContentsId: number): BrowserWalletPageContext {
+  const tabId = browser.webContentsToTab.get(webContentsId)
+  const tab = tabId ? findTab(browser, tabId) : undefined
   if (!tab || tab.webContents.isDestroyed() || tab.webContents.id !== webContentsId) {
     throw new Error('Wallet request did not originate from an active browser tab')
   }
@@ -34,16 +45,16 @@ function walletContextForWebContents<Tab extends WalletPagesTab>(access: WalletP
 }
 
 /** The wallet context of a workspace tab's page, for an agent's wallet request. */
-export function walletPageContextForMcpTab<Tab extends WalletPagesTab>(access: WalletPagesAccess<Tab>, workspaceId: string, tabId: string): BrowserWalletPageContext {
-  const resolvedTabId = access.requireTabInMcpGroup(workspaceId, tabId)
-  const tab = access.findTab(resolvedTabId)
+export function walletPageContextForMcpTab(browser: Browser, workspaceId: string, tabId: string): BrowserWalletPageContext {
+  const resolvedTabId = requireTabInMcpGroup(browser, workspaceId, tabId)
+  const tab = findTab(browser, resolvedTabId)
   if (!tab || tab.webContents.isDestroyed()) throw new Error('Wallet request target tab is unavailable')
-  return walletContextForWebContents(access, tab.webContents.id)
+  return walletContextForWebContents(browser, tab.webContents.id)
 }
 
 /** Sends a wallet provider event to the tab's page unless it is closed, gone or asleep. */
-export function sendWalletProviderEvent<Tab extends WalletPagesTab>(access: WalletPagesAccess<Tab>, tabId: string, event: import('../../../shared/wallet.js').WalletProviderEvent): void {
-  const tab = access.findTab(tabId)
+export function sendWalletProviderEvent(browser: Browser, tabId: string, event: import('../../../shared/wallet.js').WalletProviderEvent): void {
+  const tab = findTab(browser, tabId)
   if (!tab || tab.webContents.isDestroyed() || tab.sleeping) return
   tab.webContents.send('wallet-provider:event', structuredClone(event))
 }

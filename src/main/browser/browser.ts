@@ -19,7 +19,6 @@ import { callWebMcpTool, listWebMcpTools, webMcpStatus, type WebMcpStatus, type 
 import { inspectPwa } from './pwa-inspection/pwa-inspection.js'
 import type { ElementInspectionAccess } from './element-inspection/element-inspection-access.js'
 import { elementInspection, imageState, mediaState } from './element-inspection/element-inspection.js'
-import type { ConsoleMessagesAccess } from './console-messages/console-messages-access.js'
 import { appendConsoleMessage, consoleMessages, retainRuntimeConsoleMessage } from './console-messages/console-messages.js'
 import type { TabOverviewPreviewCaptureRequest, TabOverviewPreviewsAccess } from './tab-overview-previews/tab-overview-previews-access.js'
 import {
@@ -46,7 +45,6 @@ import { holdKey, press } from './agent-keys/agent-keys.js'
 import type { BrowserImageState, BrowserMediaState } from '../../shared/types.js'
 import type { PendingElementInspection } from './element-inspection-publication.js'
 import type { PendingPdfExport } from './pdf-export-publication.js'
-import type { PdfExportAccess } from './pdf-export/pdf-export-access.js'
 import { savePdf } from './pdf-export/pdf-export.js'
 import type { ScreenshotExportAccess } from './screenshot-export/screenshot-export-access.js'
 import { saveScreenshot, type PendingScreenshotExport, type ScreenshotExport, type ScreenshotExportOptions } from './screenshot-export/screenshot-export.js'
@@ -168,7 +166,6 @@ import { FaviconDecoder } from './favicon.js'
 import { createHash } from 'node:crypto'
 import { createRequire } from 'node:module'
 import { readFileSync } from 'node:fs'
-import type { FileUploadAccess } from './file-upload/file-upload-access.js'
 import { uploadFiles } from './file-upload/file-upload.js'
 import { dropFiles, type FileDropResult } from './file-drop/file-drop.js'
 import { insertText, type TextInsertionProgress, type TextInsertionResult } from './text-insertion/text-insertion.js'
@@ -201,7 +198,6 @@ import type { PageKeyboardEventsAccess } from './tab-events/page-keyboard-events
 import { attachPageKeyboardEvents } from './tab-events/page-keyboard-events.js'
 import { noteShellHeldKey, trackShellHeldKeys } from './tab-events/shell-held-keys.js'
 import { MAX_BROWSER_TABS } from '../../shared/types.js'
-import type { PageFindAccess } from './page-find/page-find-access.js'
 import { findInPage, stopFindInPage } from './page-find/page-find.js'
 import { translate, type MessageKey, type MessageParameters } from '../../shared/i18n.js'
 import { loadFailureProblem } from './page-load-problem.js'
@@ -271,7 +267,6 @@ import type { NormalizedBrowserNetworkWaitOptions } from '../../shared/network-w
 import type { ScreenshotAnnotationReport } from '../../shared/screenshot-annotations.js'
 import type { ScreenshotsAccess } from './screenshots/screenshots-access.js'
 import { screenshot } from './screenshots/screenshots.js'
-import type { InspectorIssuesAccess } from './inspector-issues/inspector-issues-access.js'
 import { addInspectorIssue, inspectorIssues, recordAuthChallenge } from './inspector-issues/inspector-issues.js'
 import { answerHttpAuth, followSignIns, type HttpAuthQuestion, type SignInAnswer } from './http-auth/http-auth.js'
 import {
@@ -535,7 +530,7 @@ import { SLEEPING_PAGE_URL } from './tab-sleep/sleeping-page.js'
 import type { MemorySaverAccess } from './tab-sleep/memory-saver-access.js'
 import { setMemorySaverSettings, sleepInactiveTabs, sweepMemorySaver } from './tab-sleep/memory-saver.js'
 import { BackgroundLoads } from './tab-sleep/background-loads.js'
-import { evaluateWithAttachedDebugger, mainWorldContextId, releaseDebuggerEvaluationObjects } from './debugger-evaluation/debugger-evaluation.js'
+import { evaluateWithAttachedDebugger, mainWorldContextId } from './debugger-evaluation/debugger-evaluation.js'
 import { withDebugger } from './debugger-lease/debugger-lease.js'
 import { dispatchNativeClick } from './native-click/native-click.js'
 import type { RightClickEnvironmentAccess } from './native-click/right-click-environment-access.js'
@@ -551,14 +546,12 @@ import { assertTabLabelAdmission, saveTabLabel, withTabLabelLifecycle } from './
 import type { TabReopeningAccess } from './tab-reopening/tab-reopening-access.js'
 import { closedTabHistory, duplicateTabAfterLabelSave, forgetClosedTabs, forgetWorkspaceClosedTabs, rememberClosedTab, rememberSavedClosedTabs, reopenClosedTabAfterLabelSave, reopenClosedTabEntry } from './tab-reopening/tab-reopening.js'
 import { forgetTabHistoryPages, holdTabHistory } from './tab-history-pages/forget-tab-history-pages.js'
-import type { TabArrangementAccess } from './tab-arrangement/tab-arrangement-access.js'
 import { reorderTab, reorderTabs, setTabPinned } from './tab-arrangement/tab-arrangement.js'
 import type { DroppedLinksAccess } from './dropped-links/dropped-links-access.js'
 import { openDroppedLink } from './dropped-links/dropped-links.js'
 import { placeTabOpenedFromPage } from './link-tab-placement/link-tab-placement.js'
 import { forgetTabsOpenedFrom, handOverTabsOpenedFrom, switchLeavesOpenedTabs, tabAfterClosingLinkTab } from './link-tab-placement/link-tab-openers.js'
-import type { BrowserWalletPageContext, WalletPagesAccess } from './wallet-pages/wallet-pages-access.js'
-import { sendWalletProviderEvent, walletPageContext, walletPageContextForMcpTab } from './wallet-pages/wallet-pages.js'
+import { sendWalletProviderEvent, walletPageContext, walletPageContextForMcpTab, type BrowserWalletPageContext } from './wallet-pages/wallet-pages.js'
 import { getMcpDiscoveryTabs, getMcpGroupState, requireTabInMcpGroup, tabBelongsToMcpGroup } from './workspace-scope/workspace-scope.js'
 import type { NewTabsAccess } from './new-tabs/new-tabs-access.js'
 import { createNewTab, newLabeledAgentTab } from './new-tabs/new-tabs.js'
@@ -569,10 +562,8 @@ import type { TabMutingAccess } from './tab-muting/tab-muting-access.js'
 import { setAllTabsMuted, setTabMuted } from './tab-muting/tab-muting.js'
 import type { SiteMutingAccess, SiteSoundStore } from './site-muting/site-muting-access.js'
 import { applySiteMuting, applySiteMutingToTabs, canMuteSite, isSiteMuted, setSiteMuted } from './site-muting/site-muting.js'
-import type { AgentStepThumbnailAccess } from './agent-step-thumbnail/agent-step-thumbnail-access.js'
 import { captureAgentStepThumbnail } from './agent-step-thumbnail/agent-step-thumbnail.js'
-import type { PendingTrustedChromeFocus, TrustedChromeFocusAccess } from './trusted-chrome-focus/trusted-chrome-focus-access.js'
-import { cancelFocusAfterTrustedChrome, focusTabOrTrustedChrome, withholdFocusAfterTrustedChrome } from './trusted-chrome-focus/trusted-chrome-focus.js'
+import { cancelFocusAfterTrustedChrome, focusTabOrTrustedChrome, withholdFocusAfterTrustedChrome, type PendingTrustedChromeFocus } from './trusted-chrome-focus/trusted-chrome-focus.js'
 import type { TrustedChromeOcclusionAccess } from './trusted-chrome-occlusion/trusted-chrome-occlusion-access.js'
 import { occlusionLayout, occlusionSnapshotPanes, setBrowserContentOccluded, setFollowAgentActivitySuspended } from './trusted-chrome-occlusion/trusted-chrome-occlusion.js'
 import type { AgentFollowAccess } from './agent-follow/agent-follow-access.js'
@@ -640,10 +631,6 @@ async function restoreHistoryOrLoad(webContents: WebContents, history: Navigatio
     if (webContents.isDestroyed() || webContents.navigationHistory.length() > 0) throw error
     await webContents.loadURL(url, loadOptions)
   }
-}
-
-function pdfFilename(requested: string | undefined, title: string): string {
-  return portableExportFilename(requested, title, 'pdf')
 }
 
 function screenshotFilename(requested: string | undefined, title: string): string {
@@ -1086,7 +1073,7 @@ export class Browser {
   occludedEmulationFrames: EmulationFrameGeometry[] = []
   occludedPageCards: PageCardGeometry[] = []
   /** A tab that should take keyboard focus once trusted chrome closes, such as one picked in the tab overview. */
-  focusAfterTrustedChrome: PendingTrustedChromeFocus<BrowserTab> | undefined
+  focusAfterTrustedChrome: PendingTrustedChromeFocus | undefined
   followAgentActivitySuspended = false
   readonly downloadController = new BrowserDownloadsController({
     getSettings: () => ({
@@ -1198,7 +1185,7 @@ export class Browser {
    * typed in it may take it again.
    */
   focusPageAfterQuestion(page: WebContents): void {
-    if (this.focusAfterTrustedChrome && !this.focusAfterTrustedChrome.tab) cancelFocusAfterTrustedChrome(this.trustedChromeFocusAccess())
+    if (this.focusAfterTrustedChrome && !this.focusAfterTrustedChrome.tab) cancelFocusAfterTrustedChrome(this)
     const tabId = this.webContentsToTab.get(page.id)
     const tab = tabId ? this.tabs.get(tabId) : undefined
     if (!tab || (tab.id !== this.activeTabId && !this.splitViewContains(tab.id))) return
@@ -1210,7 +1197,7 @@ export class Browser {
    * the person typed in it: the rest of their password would go to the page in view then.
    */
   withholdKeyboardAfterQuestion(): void {
-    withholdFocusAfterTrustedChrome(this.trustedChromeFocusAccess())
+    withholdFocusAfterTrustedChrome(this)
   }
 
   /**
@@ -1655,29 +1642,8 @@ export class Browser {
     return getTabOverviewPreviews(this.tabOverviewPreviewsAccess(), tabIds)
   }
 
-  /**
-   * The narrow view picturing a tab after an agent's step gets of this
-   * manager's private tabs, workspaces, window, occlusion, active tab, split
-   * view and native frame capture. It is a prototype method rather than a
-   * field, so managers created without the constructor (as unit tests do)
-   * still provide it. The delegate below returns the feature's promise
-   * directly, so callers see the same ticks as before.
-   */
-  private agentStepThumbnailAccess(): AgentStepThumbnailAccess<BrowserTab> {
-    return {
-      findTab: (tabId) => this.tabs.get(tabId),
-      tabBelongsToMcpGroup: (workspaceId, tabId) => this.tabBelongsToMcpGroup(workspaceId, tabId),
-      isDestroyed: () => this.destroyed,
-      window: () => this.window,
-      browserContentOccluded: () => this.browserContentOccluded,
-      activeTabId: () => this.activeTabId,
-      splitViewContains: (tabId) => this.splitViewContains(tabId),
-      nativePreviewCapture: () => this.nativePreviewCapture
-    }
-  }
-
   captureAgentStepThumbnail(tabId: string, workspaceId: string): Promise<AgentStepThumbnailImage | 'later' | undefined> {
-    return captureAgentStepThumbnail(this.agentStepThumbnailAccess(), tabId, workspaceId)
+    return captureAgentStepThumbnail(this, tabId, workspaceId)
   }
 
   private screenshotPixelRatio(tab: BrowserTab): number {
@@ -2002,30 +1968,16 @@ export class Browser {
     return getMcpDiscoveryTabs(this, groupId)
   }
 
-  /**
-   * The narrow view the wallet page bridge gets of this manager's private
-   * tabs, page tab ids and workspace tab lookup. It is a prototype method
-   * rather than a field, so managers created without the constructor (as unit
-   * tests do) still provide it.
-   */
-  private walletPagesAccess(): WalletPagesAccess<BrowserTab> {
-    return {
-      findTab: (tabId) => this.tabs.get(tabId),
-      tabIdForWebContents: (webContentsId) => this.webContentsToTab.get(webContentsId),
-      requireTabInMcpGroup: (groupId, tabId) => this.requireTabInMcpGroup(groupId, tabId)
-    }
-  }
-
   walletPageContext(webContentsId: number): BrowserWalletPageContext & { pageUnloading: boolean } {
-    return walletPageContext(this.walletPagesAccess(), webContentsId)
+    return walletPageContext(this, webContentsId)
   }
 
   walletPageContextForMcpTab(workspaceId: string, tabId: string): BrowserWalletPageContext {
-    return walletPageContextForMcpTab(this.walletPagesAccess(), workspaceId, tabId)
+    return walletPageContextForMcpTab(this, workspaceId, tabId)
   }
 
   sendWalletProviderEvent(tabId: string, event: import('../../shared/wallet.js').WalletProviderEvent): void {
-    sendWalletProviderEvent(this.walletPagesAccess(), tabId, event)
+    sendWalletProviderEvent(this, tabId, event)
   }
 
   closeMcpTabGroup(groupId: string, preserveStorage = false): Promise<BrowserTabGroupState[]> {
@@ -2414,26 +2366,8 @@ export class Browser {
     return saveTabLabel(this.tabLabelsAccess(), tabId, value, validateAuthority, onCommitted)
   }
 
-  /**
-   * The narrow view pinning and reordering tabs get of this manager's private
-   * tabs, their order, waking and state. It is a prototype method rather than
-   * a field, so managers created without the constructor (as unit tests do)
-   * still provide it. The delegates below return the feature's result
-   * directly, so callers see the same ticks as before.
-   */
-  private tabArrangementAccess(): TabArrangementAccess<BrowserTab> {
-    return {
-      tabs: () => this.tabs,
-      getTab: (tabId) => getTab(this, tabId),
-      orderedTabs: () => orderedTabs(this),
-      wakeTab: (tabId) => this.wakeTab(tabId),
-      changed: (persist) => this.changed(persist),
-      getState: () => this.getState()
-    }
-  }
-
   setTabPinned(tabId: string, pinned: boolean): Promise<BrowserState> {
-    return setTabPinned(this.tabArrangementAccess(), tabId, pinned)
+    return setTabPinned(this, tabId, pinned)
   }
 
   /**
@@ -2634,12 +2568,12 @@ export class Browser {
   }
 
   reorderTab(tabId: string, targetTabId: string, placement: 'before' | 'after'): BrowserState {
-    return reorderTab(this.tabArrangementAccess(), tabId, targetTabId, placement)
+    return reorderTab(this, tabId, targetTabId, placement)
   }
 
   /** Moves the tabs selected in the strip or rail together, before or after the target tab. */
   reorderTabs(tabIds: readonly string[], targetTabId: string, placement: 'before' | 'after'): BrowserState {
-    return reorderTabs(this.tabArrangementAccess(), tabIds, targetTabId, placement)
+    return reorderTabs(this, tabIds, targetTabId, placement)
   }
 
   /** Opens a link or other text the person dropped on the tab strip or rail, in a tab or beside one, as Chrome does. */
@@ -3428,38 +3362,15 @@ export class Browser {
     return reloadIgnoringCache(this.pageNavigationAccess(), tabId)
   }
 
-  /**
-   * The narrow view finding text in a page gets of this manager's private
-   * tabs, page find controller, trusted chrome occlusion, input locks,
-   * in-flight agent input, native selection sessions and the record of the
-   * person's input. It is a prototype method rather than a
-   * field, so managers created without the constructor (as unit tests do)
-   * still provide it. The delegates below return the feature's promise
-   * directly, so callers see the same ticks as before.
-   */
-  private pageFindAccess(): PageFindAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      searchPage: (webContents, query, options) => this.pageFind.search(webContents, query, options),
-      stopPageSearch: (webContents, action) => this.pageFind.stop(webContents, action),
-      browserContentOccluded: () => this.browserContentOccluded,
-      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
-      agentInputWebContents: () => this.agentInputWebContents,
-      nativeSelectionUnderWay: (webContentsId) => this.screenshotAreaSessions.has(webContentsId) || this.elementPickerSessions.has(webContentsId),
-      noteHumanInput: () => this.mcpActivityFollower.noteHumanInput(),
-      onUserInteraction: (touched) => this.options.onUserInteraction?.(touched)
-    }
-  }
-
   findInPage(
     query: string,
     options: { tabId?: string; forward?: boolean; findNext?: boolean; caseSensitive?: boolean } = {}
   ): Promise<{ activeMatchOrdinal: number; matches: number }> {
-    return findInPage(this.pageFindAccess(), query, options)
+    return findInPage(this, query, options)
   }
 
   stopFindInPage(tabId?: string, options?: { activateMatch?: boolean }): void {
-    stopFindInPage(this.pageFindAccess(), tabId, options)
+    stopFindInPage(this, tabId, options)
   }
 
   setZoom(options: { tabId?: string; action: 'in' | 'out' | 'reset' | 'set'; percent?: number }): BrowserState {
@@ -4105,19 +4016,8 @@ export class Browser {
     return scroll(this.agentPageActionsAccess(), options)
   }
 
-  /**
-   * The narrow view reading console messages gets of this manager's private
-   * tabs. It is a prototype method rather than a field, so managers created
-   * without the constructor (as unit tests do) still provide it.
-   */
-  private consoleMessagesAccess(): ConsoleMessagesAccess {
-    return {
-      getTab: (tabId) => getTab(this, tabId)
-    }
-  }
-
   consoleMessages(tabId?: string, clear = false): BrowserConsoleMessage[] {
-    return consoleMessages(this.consoleMessagesAccess(), tabId, clear)
+    return consoleMessages(this, tabId, clear)
   }
 
   /**
@@ -4367,24 +4267,8 @@ export class Browser {
     return this.getState()
   }
 
-  /**
-   * The narrow view inspector issues get of this manager's private tabs, the
-   * debugger that reports issues and state publication. It is a prototype
-   * method rather than a field, so managers created without the constructor
-   * (as unit tests do) still provide it. The delegates below return the
-   * feature's promise directly, so no extra ticks separate its final checks
-   * from the caller.
-   */
-  private inspectorIssuesAccess(): InspectorIssuesAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      ensureDialogMonitoring: (tab) => this.ensureDialogMonitoring(tab),
-      changed: (persist) => this.changed(persist)
-    }
-  }
-
   inspectorIssues(tabId?: string, clear = false): Promise<BrowserInspectorIssuesReport> {
-    return inspectorIssues(this.inspectorIssuesAccess(), tabId, clear)
+    return inspectorIssues(this, tabId, clear)
   }
 
   networkRequestDetails(
@@ -4537,36 +4421,12 @@ export class Browser {
     return this.downloadController.startDownloadDrag(downloadId, sender)
   }
 
-  /**
-   * The narrow view a file upload gets of this manager's private tabs,
-   * workspaces, inspection permissions, observation context, target
-   * validation, agent input admission and debugger lease. It is a prototype
-   * method rather than a field, so managers created without the constructor
-   * (as unit tests do) still provide it. The delegate below returns the
-   * feature's promise directly, so no extra ticks separate its final checks
-   * from the caller.
-   */
-  private fileUploadAccess(): FileUploadAccess<BrowserTab> {
-    return {
-      validateTarget: (target) => this.validateTarget(target),
-      getTab: (tabId) => getTab(this, tabId),
-      findTab: (tabId) => this.tabs.get(tabId),
-      findWorkspace: (workspaceId) => this.mcpTabGroups.get(workspaceId),
-      inspectionPermission: (workspace) => this.inspectionPermissions.get(workspace),
-      isDestroyed: () => this.destroyed,
-      snapshotDeltaContext: (tab) => this.snapshotDeltaContext(tab),
-      withAgentInput: (webContents, operation) => this.withAgentInput(webContents, operation),
-      withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
-      releaseDebuggerEvaluationObjects: (webContents, response) => releaseDebuggerEvaluationObjects(webContents, response)
-    }
-  }
-
   uploadFiles(
     target: { tabId?: string; ref?: string; selector?: string },
     paths: string[],
     validateUpload?: (validateContext: () => void) => void
   ): Promise<{ files: string[] }> {
-    return uploadFiles(this.fileUploadAccess(), target, paths, validateUpload)
+    return uploadFiles(this, target, paths, validateUpload)
   }
 
   dropFiles(
@@ -4755,30 +4615,8 @@ export class Browser {
     return trackedViewportScreenshot(this.trackedScreenshotAccess(), options)
   }
 
-  /**
-   * The narrow view a PDF export gets of this manager's private tabs,
-   * workspaces, inspection permissions, page presentation, agent pointer,
-   * download writing and export file name. It is a prototype method rather
-   * than a field, so managers created without the constructor (as unit tests
-   * do) still provide it. The delegate below returns the feature's promise
-   * directly, so no extra ticks separate its final checks from the caller.
-   */
-  private pdfExportAccess(): PdfExportAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      findTab: (tabId) => this.tabs.get(tabId),
-      findWorkspace: (workspaceId) => this.mcpTabGroups.get(workspaceId),
-      inspectionPermission: (workspace) => this.inspectionPermissions.get(workspace),
-      isDestroyed: () => this.destroyed,
-      withRenderableTab: (tab, operation, mode) => this.withRenderableTab(tab, operation, mode),
-      dismissAgentPointer: (webContents) => this.dismissAgentPointer(webContents),
-      writeUniqueDownload: (filename, data, validate) => this.writeUniqueDownload(filename, data, validate),
-      pdfFilename: (requested, title) => pdfFilename(requested, title)
-    }
-  }
-
   savePdf(options: BrowserPdfOptions = {}, validateExport?: () => void, deferExport?: (pending: PendingPdfExport) => void): Promise<BrowserPdfExport> {
-    return savePdf(this.pdfExportAccess(), options, validateExport, deferExport)
+    return savePdf(this, options, validateExport, deferExport)
   }
 
   /**
@@ -4891,26 +4729,8 @@ export class Browser {
     setBrowserContentOccluded(this.trustedChromeOcclusionAccess(), occluded, request)
   }
 
-  /**
-   * The narrow view focusing a page around trusted chrome gets of this
-   * manager's private window, human interaction lock, agent input, trusted
-   * chrome occlusion and pending focus. It is a prototype method rather than
-   * a field, so managers created without the constructor (as unit tests do)
-   * still provide it.
-   */
-  private trustedChromeFocusAccess(): TrustedChromeFocusAccess<BrowserTab> {
-    return {
-      window: () => this.window,
-      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
-      agentInputWebContents: () => this.agentInputWebContents,
-      browserContentOccluded: () => this.browserContentOccluded,
-      focusAfterTrustedChrome: () => this.focusAfterTrustedChrome,
-      setFocusAfterTrustedChrome: (pending) => { this.focusAfterTrustedChrome = pending }
-    }
-  }
-
   private cancelFocusAfterTrustedChrome(): BrowserTab | undefined {
-    return cancelFocusAfterTrustedChrome(this.trustedChromeFocusAccess())
+    return cancelFocusAfterTrustedChrome(this)
   }
 
   /** The shell shows the snapshot with this ID under trusted chrome, so the pages can leave the screen. */
@@ -5691,7 +5511,7 @@ export class Browser {
       browserContentOccluded: () => this.browserContentOccluded,
       dismissWebsiteDialogForTrustedChrome: (tab) => this.dismissWebsiteDialogForTrustedChrome(tab),
       changed: (persist) => this.changed(persist),
-      addInspectorIssue: (tab, value) => this.addInspectorIssue(tab, value),
+      addInspectorIssue: (tab, value) => addInspectorIssue(this, tab, value),
       profiling: () => this.profiling,
       cssStatePreview: () => this.cssStatePreview,
       setEmulationViewSize: (tab, viewport) => this.setEmulationViewSize(tab, viewport),
@@ -6112,7 +5932,7 @@ export class Browser {
   }
 
   private focusTabOrTrustedChrome(tab: BrowserTab): void {
-    focusTabOrTrustedChrome(this.trustedChromeFocusAccess(), tab)
+    focusTabOrTrustedChrome(this, tab)
   }
 
   private shouldBlockHumanMouseInput(tab: BrowserTab, mouse: Electron.MouseInputEvent): boolean {
@@ -6261,10 +6081,6 @@ export class Browser {
 
   private openDevTools(tab: BrowserTab): Promise<void> {
     return openDevTools(this.devToolsAccess(), tab)
-  }
-
-  private addInspectorIssue(tab: BrowserTab, value: unknown, notify = true): void {
-    addInspectorIssue(this.inspectorIssuesAccess(), tab, value, notify)
   }
 
   private queueNetworkRouteRequest(tab: BrowserTab, params: unknown): void {

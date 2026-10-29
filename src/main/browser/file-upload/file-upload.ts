@@ -2,7 +2,12 @@ import { stat } from 'node:fs/promises'
 import { isAbsolute } from 'node:path'
 import { snapshotDeltaInvalidationReason } from '../../../shared/snapshot-delta.js'
 import { targetExpression } from '../page-scripts.js'
-import type { FileUploadAccess, FileUploadTab } from './file-upload-access.js'
+import { withAgentInput } from '../agent-input-scope/agent-input-scope.js'
+import type { Browser } from '../browser.js'
+import { findTab, getTab } from '../browser-core.js'
+import { releaseDebuggerEvaluationObjects } from '../debugger-evaluation/debugger-evaluation.js'
+import { withDebugger } from '../debugger-lease/debugger-lease.js'
+import { validateTarget } from '../input-targets/input-targets.js'
 
 /**
  * Sets the files of a file input on the tab's page through the debugger, as
@@ -10,27 +15,27 @@ import type { FileUploadAccess, FileUploadTab } from './file-upload-access.js'
  * the page, the tab, its workspace's authority or its observation context
  * changed, and does not roll back an earlier effect.
  */
-export async function uploadFiles<Tab extends FileUploadTab>(
-  access: FileUploadAccess<Tab>,
+export async function uploadFiles(
+  browser: Browser,
   target: { tabId?: string; ref?: string; selector?: string },
   paths: string[],
   validateUpload?: (validateContext: () => void) => void
 ): Promise<{ files: string[] }> {
-  access.validateTarget(target)
+  validateTarget(target)
   if (!paths.length || paths.length > 20) throw new Error('Provide between 1 and 20 file paths')
-  const tab = access.getTab(target.tabId)
+  const tab = getTab(browser, target.tabId)
   const webContents = tab.webContents
-  const context = access.snapshotDeltaContext(tab)
-  const workspace = tab.mcpGroupId ? access.findWorkspace(tab.mcpGroupId) : undefined
-  const permissionGeneration = workspace ? access.inspectionPermission(workspace) ?? 0 : 0
+  const context = browser.snapshotDeltaContext(tab)
+  const workspace = tab.mcpGroupId ? browser.mcpTabGroups.get(tab.mcpGroupId) : undefined
+  const permissionGeneration = workspace ? browser.inspectionPermissions.get(workspace) ?? 0 : 0
   let documentCommitted = false
   const onCommitted = (): void => { documentCommitted = true }
   const assertContext = (): void => {
-    const currentWorkspace = tab.mcpGroupId ? access.findWorkspace(tab.mcpGroupId) : undefined
-    if (documentCommitted || access.isDestroyed() || currentWorkspace !== workspace
-      || (currentWorkspace ? access.inspectionPermission(currentWorkspace) ?? 0 : 0) !== permissionGeneration
-      || access.findTab(tab.id) !== tab || tab.webContents !== webContents || webContents.isDestroyed()
-      || snapshotDeltaInvalidationReason(context, access.snapshotDeltaContext(tab))) {
+    const currentWorkspace = tab.mcpGroupId ? browser.mcpTabGroups.get(tab.mcpGroupId) : undefined
+    if (documentCommitted || browser.destroyed || currentWorkspace !== workspace
+      || (currentWorkspace ? browser.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== permissionGeneration
+      || findTab(browser, tab.id) !== tab || tab.webContents !== webContents || webContents.isDestroyed()
+      || snapshotDeltaInvalidationReason(context, browser.snapshotDeltaContext(tab))) {
       throw new Error('File upload context changed; earlier effects are not rolled back')
     }
   }
@@ -43,7 +48,7 @@ export async function uploadFiles<Tab extends FileUploadTab>(
       if (!file.isFile()) throw new Error(`Path is not a file: ${path}`)
     }
     assertCurrent()
-    await access.withAgentInput(webContents, () => access.withDebugger(webContents, async () => {
+    await withAgentInput(browser, webContents, () => withDebugger(browser, webContents, async () => {
       assertCurrent()
       const evaluated = await webContents.debugger.sendCommand('Runtime.evaluate', {
         expression: targetExpression(target),
@@ -64,7 +69,7 @@ export async function uploadFiles<Tab extends FileUploadTab>(
         assertCurrent()
         await webContents.debugger.sendCommand('DOM.setFileInputFiles', { files: paths, objectId })
       } finally {
-        await access.releaseDebuggerEvaluationObjects(webContents, evaluated)
+        await releaseDebuggerEvaluationObjects(webContents, evaluated)
       }
     }))
     return { files: [...paths] }

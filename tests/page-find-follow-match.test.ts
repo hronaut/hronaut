@@ -4,7 +4,7 @@ import type { WebContents } from 'electron'
 vi.mock('electron', () => ({ app: { isPackaged: false } }))
 
 const { stopFindInPage } = await import('../src/main/browser/page-find/page-find.js')
-type PageFindAccess = import('../src/main/browser/page-find/page-find-access.js').PageFindAccess<PageTab>
+type Browser = import('../src/main/browser/browser.js').Browser
 type PageTab = {
   id: string
   mcpGroupId?: string
@@ -29,24 +29,24 @@ function pageSearch(options: { locked?: boolean; occluded?: boolean; agentInput?
   const stopPageSearch = vi.fn((_webContents: WebContents, action: 'clearSelection' | 'activateSelection') => action === 'activateSelection' && (options.matched ?? true))
   const noteHumanInput = vi.fn()
   const onUserInteraction = vi.fn()
-  const access: PageFindAccess = {
-    getTab: () => tab,
-    searchPage: vi.fn(),
-    stopPageSearch,
-    browserContentOccluded: () => options.occluded ?? false,
-    isHumanInteractionLocked: (candidate) => candidate.locked,
-    agentInputWebContents: () => new Map(options.agentInput ? [[4, 1]] : []),
-    nativeSelectionUnderWay: (webContentsId) => (options.selecting ?? false) && webContentsId === 4,
-    noteHumanInput,
-    onUserInteraction
-  }
-  return { tab, access, stopPageSearch, noteHumanInput, onUserInteraction }
+  const browser = {
+    tabs: new Map([[tab.id, tab]]),
+    pageFind: { search: vi.fn(), stop: stopPageSearch },
+    browserContentOccluded: options.occluded ?? false,
+    isHumanInteractionLocked: (candidate: PageTab) => candidate.locked,
+    agentInputWebContents: new Map(options.agentInput ? [[4, 1]] : []),
+    screenshotAreaSessions: new Map(options.selecting ? [[4, {}]] : []),
+    elementPickerSessions: new Map(),
+    mcpActivityFollower: { noteHumanInput },
+    options: { onUserInteraction }
+  } as unknown as Browser
+  return { tab, browser, stopPageSearch, noteHumanInput, onUserInteraction }
 }
 
 describe('ending a page search', () => {
   it('clears the selection by default', () => {
     const page = pageSearch()
-    stopFindInPage(page.access, 'tab')
+    stopFindInPage(page.browser, 'tab')
     expect(page.stopPageSearch).toHaveBeenCalledExactlyOnceWith(page.tab.webContents, 'clearSelection')
     expect(page.tab.humanInteractionGeneration).toBe(7)
     expect(page.noteHumanInput).not.toHaveBeenCalled()
@@ -54,7 +54,7 @@ describe('ending a page search', () => {
 
   it('clicks the active match when asked, as Ctrl+Enter in Chrome\'s find bar follows the link it is in, as the person\'s click', () => {
     const page = pageSearch()
-    stopFindInPage(page.access, 'tab', { activateMatch: true })
+    stopFindInPage(page.browser, 'tab', { activateMatch: true })
     expect(page.stopPageSearch).toHaveBeenCalledExactlyOnceWith(page.tab.webContents, 'activateSelection')
     // An agent's pending action and the take-over note see the person's click, as with their own click in the page.
     expect(page.tab.humanInteractionGeneration).toBe(8)
@@ -66,7 +66,7 @@ describe('ending a page search', () => {
 
   it('records no interaction when there was no match to click', () => {
     const page = pageSearch({ matched: false })
-    stopFindInPage(page.access, 'tab', { activateMatch: true })
+    stopFindInPage(page.browser, 'tab', { activateMatch: true })
     expect(page.stopPageSearch).toHaveBeenCalledExactlyOnceWith(page.tab.webContents, 'activateSelection')
     expect(page.tab.humanInteractionGeneration).toBe(7)
     expect(page.noteHumanInput).not.toHaveBeenCalled()
@@ -80,7 +80,7 @@ describe('ending a page search', () => {
     ['with an area capture or element pick in progress', { selecting: true }]
   ])('only ends the search of a page %s, as the person\'s Back key leaves it alone', (_case, options) => {
     const page = pageSearch(options)
-    stopFindInPage(page.access, 'tab', { activateMatch: true })
+    stopFindInPage(page.browser, 'tab', { activateMatch: true })
     expect(page.stopPageSearch).toHaveBeenCalledExactlyOnceWith(page.tab.webContents, 'clearSelection')
     expect(page.tab.humanInteractionGeneration).toBe(7)
     expect(page.onUserInteraction).not.toHaveBeenCalled()

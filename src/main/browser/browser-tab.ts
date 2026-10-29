@@ -15,7 +15,7 @@ import type {
   BrowserVisualCompareReport,
   BrowserVisualSnapshot
 } from '../../shared/types.js'
-import type { BrowserConsoleMessageRecord, ConsoleCapture } from './console-messages/console-messages-access.js'
+import type { BrowserConsoleMessageRecord, ConsoleCapture } from './console-messages/console-messages.js'
 import type { BrowserDomRecordingState } from './dom-recorder.js'
 import type { BrowserLiveRegionRecordingState } from './live-region-recorder.js'
 import type { BrowserNetworkRouteRecord } from './network-conditions/network-conditions-access.js'
