@@ -263,6 +263,7 @@ export function useAppShellInteractionFeatureController(
     closeHelpDialog: surfaces.help.close,
     showHelpDialog: surfaces.help.openDialog,
     showSupportSettings: () => surfaces.settings.openSection('support'),
+    showSettings: () => surfaces.settings.openSection('general'),
     navigate: (url) => options.syncState(options.browser.newTab({ url, active: true })),
     openPurchase: actions.openPurchase,
     runAction: uiActions.run

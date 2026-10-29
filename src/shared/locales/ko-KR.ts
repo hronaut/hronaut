@@ -950,6 +950,7 @@ export const koKR: MessageSchema = {
       "directTab": "웹사이트 탭 1–8로 이동",
       "lastTab": "마지막 웹사이트 탭으로 이동",
       "resetZoom": "페이지 확대/축소 재설정",
+      "settings": "설정 열기",
       "fullPage": "전체 페이지 보기 전환",
       "takeOver": "페이지에서 작업 중인 에이전트로부터 직접 제어",
       "switchWorkspace": "작업 공간 전환",
@@ -3642,7 +3643,16 @@ export const koKR: MessageSchema = {
       "viewSource": "페이지 소스 보기",
       "downloads": "다운로드",
       "savePage": "다른 이름으로 페이지 저장…",
-      "bookmarkAllTabs": "모든 탭을 북마크에 추가…"
+      "bookmarkAllTabs": "모든 탭을 북마크에 추가…",
+      "settings": "설정…",
+      "services": "서비스",
+      "hide": "Hronaut 가리기",
+      "hideOthers": "기타 가리기",
+      "showAll": "모두 보기",
+      "window": "윈도우",
+      "minimize": "최소화",
+      "zoom": "확대/축소",
+      "bringAllToFront": "모두 앞으로 가져오기"
     },
     "tray": {
       "show": "Hronaut 표시",

@@ -56,6 +56,7 @@ describe('help dialog controller', () => {
     // Chrome gives its Task manager no key on macOS.
     expect(mac.keys['runtime.shortcuts.taskManager']).toBeUndefined()
     expect(mac.keys['runtime.shortcuts.moveTabPrevious']).toBeUndefined()
+    expect(mac.keys['runtime.shortcuts.settings']).toEqual(['Cmd', ','])
     const linux = keysFor('linux')
     expect(linux.mac).toBe(false)
     expect(linux.keys['runtime.shortcuts.pick']).toEqual(['Ctrl', 'Shift', 'C'])
@@ -73,6 +74,7 @@ describe('help dialog controller', () => {
     expect(linux.keys['runtime.shortcuts.moveTabNext']).toEqual(['Ctrl', 'Shift', 'Page Down'])
     expect(linux.keys['runtime.shortcuts.nextPane']).toEqual(['F6'])
     expect(linux.keys['shell.home.open']).toEqual(['Alt', 'Home'])
+    expect(linux.keys['runtime.shortcuts.settings']).toBeUndefined()
     expect(linux.keys['runtime.shortcuts.stop']).toEqual(['Esc'])
     expect(linux.keys['runtime.shortcuts.moveTabPrevious']).toEqual(['Ctrl', 'Shift', 'Page Up'])
     // Every key is one key, so the dialog can write each in its platform's own way.

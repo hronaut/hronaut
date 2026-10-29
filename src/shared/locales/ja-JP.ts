@@ -950,6 +950,7 @@ export const jaJP: MessageSchema = {
       "directTab": "ウェブサイトのタブ 1～8 に移動",
       "lastTab": "最後のウェブサイトのタブに移動",
       "resetZoom": "ページのズームをリセット",
+      "settings": "設定を開く",
       "fullPage": "全画面表示の切り替え",
       "takeOver": "ページで作業中のエージェントから操作を引き継ぐ",
       "switchWorkspace": "ワークスペースを切り替え",
@@ -3642,7 +3643,16 @@ export const jaJP: MessageSchema = {
       "viewSource": "ページのソースを表示",
       "downloads": "ダウンロード",
       "savePage": "名前を付けてページを保存…",
-      "bookmarkAllTabs": "すべてのタブをブックマーク…"
+      "bookmarkAllTabs": "すべてのタブをブックマーク…",
+      "settings": "設定…",
+      "services": "サービス",
+      "hide": "Hronaut を隠す",
+      "hideOthers": "ほかを隠す",
+      "showAll": "すべてを表示",
+      "window": "ウインドウ",
+      "minimize": "しまう",
+      "zoom": "拡大／縮小",
+      "bringAllToFront": "すべてを手前に移動"
     },
     "tray": {
       "show": "Hronaut を表示",

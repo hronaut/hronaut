@@ -950,6 +950,7 @@ export const hiIN: MessageSchema = {
       "directTab": "वेबसाइट टैब 1–8 पर जाएं",
       "lastTab": "आखिरी वेबसाइट टैब पर जाएं",
       "resetZoom": "पेज का ज़ूम रीसेट करें",
+      "settings": "सेटिंग खोलें",
       "fullPage": "फ़ुल-पेज व्यू चालू/बंद करें",
       "takeOver": "पेज पर काम कर रहे एजेंट से काम खुद संभालें",
       "switchWorkspace": "वर्कस्पेस बदलें",
@@ -3642,7 +3643,16 @@ export const hiIN: MessageSchema = {
       "viewSource": "पेज का सोर्स देखें",
       "downloads": "डाउनलोड",
       "savePage": "पेज को इस रूप में सेव करें…",
-      "bookmarkAllTabs": "सभी टैब को बुकमार्क करें…"
+      "bookmarkAllTabs": "सभी टैब को बुकमार्क करें…",
+      "settings": "सेटिंग…",
+      "services": "सेवाएं",
+      "hide": "Hronaut छिपाएं",
+      "hideOthers": "अन्य छिपाएं",
+      "showAll": "सभी दिखाएं",
+      "window": "विंडो",
+      "minimize": "छोटा करें",
+      "zoom": "ज़ूम करें",
+      "bringAllToFront": "सभी को सामने लाएं"
     },
     "tray": {
       "show": "Hronaut दिखाएं",

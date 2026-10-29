@@ -950,6 +950,7 @@ export const idID: MessageSchema = {
       "directTab": "Pindah ke tab situs 1–8",
       "lastTab": "Pindah ke tab situs terakhir",
       "resetZoom": "Setel ulang zoom halaman",
+      "settings": "Buka Setelan",
       "fullPage": "Buka/tutup tampilan halaman penuh",
       "takeOver": "Ambil alih dari agen yang bekerja di halaman",
       "switchWorkspace": "Beralih ruang kerja",
@@ -3642,7 +3643,16 @@ export const idID: MessageSchema = {
       "viewSource": "Lihat sumber halaman",
       "downloads": "Download",
       "savePage": "Simpan halaman sebagai…",
-      "bookmarkAllTabs": "Bookmark semua tab…"
+      "bookmarkAllTabs": "Bookmark semua tab…",
+      "settings": "Setelan…",
+      "services": "Layanan",
+      "hide": "Sembunyikan Hronaut",
+      "hideOthers": "Sembunyikan yang lain",
+      "showAll": "Tampilkan semua",
+      "window": "Jendela",
+      "minimize": "Minimalkan",
+      "zoom": "Zoom",
+      "bringAllToFront": "Bawa semua ke depan"
     },
     "tray": {
       "show": "Tampilkan Hronaut",

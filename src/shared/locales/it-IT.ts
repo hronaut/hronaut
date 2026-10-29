@@ -950,6 +950,7 @@ export const itIT: MessageSchema = {
       "directTab": "Passa alla scheda di sito web 1–8",
       "lastTab": "Passa all’ultima scheda di sito web",
       "resetZoom": "Ripristina lo zoom della pagina",
+      "settings": "Apri Impostazioni",
       "fullPage": "Attiva/disattiva la visualizzazione a pagina intera",
       "takeOver": "Prendi il controllo dall’agente che lavora sulla pagina",
       "switchWorkspace": "Cambia area di lavoro",
@@ -3642,7 +3643,16 @@ export const itIT: MessageSchema = {
       "viewSource": "Visualizza sorgente pagina",
       "downloads": "Download",
       "savePage": "Salva pagina con nome…",
-      "bookmarkAllTabs": "Aggiungi tutte le schede ai preferiti…"
+      "bookmarkAllTabs": "Aggiungi tutte le schede ai preferiti…",
+      "settings": "Impostazioni…",
+      "services": "Servizi",
+      "hide": "Nascondi Hronaut",
+      "hideOthers": "Nascondi altre",
+      "showAll": "Mostra tutte",
+      "window": "Finestra",
+      "minimize": "Contrai",
+      "zoom": "Zoom",
+      "bringAllToFront": "Porta tutto in primo piano"
     },
     "tray": {
       "show": "Mostra Hronaut",

@@ -950,6 +950,7 @@ export const deDE: MessageSchema = {
       "directTab": "Zu Website-Tab 1–8 wechseln",
       "lastTab": "Zum letzten Website-Tab wechseln",
       "resetZoom": "Seitenzoom zurücksetzen",
+      "settings": "Einstellungen öffnen",
       "fullPage": "Ganzseitenansicht umschalten",
       "takeOver": "Vom Agenten auf der Seite übernehmen",
       "switchWorkspace": "Arbeitsbereich wechseln",
@@ -3642,7 +3643,16 @@ export const deDE: MessageSchema = {
       "viewSource": "Seitenquelltext anzeigen",
       "downloads": "Downloads",
       "savePage": "Seite speichern unter…",
-      "bookmarkAllTabs": "Alle Tabs als Lesezeichen speichern…"
+      "bookmarkAllTabs": "Alle Tabs als Lesezeichen speichern…",
+      "settings": "Einstellungen…",
+      "services": "Dienste",
+      "hide": "Hronaut ausblenden",
+      "hideOthers": "Andere ausblenden",
+      "showAll": "Alle einblenden",
+      "window": "Fenster",
+      "minimize": "Im Dock ablegen",
+      "zoom": "Zoomen",
+      "bringAllToFront": "Alle nach vorne bringen"
     },
     "tray": {
       "show": "Hronaut anzeigen",

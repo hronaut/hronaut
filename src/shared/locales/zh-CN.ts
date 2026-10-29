@@ -950,6 +950,7 @@ export const zhCN: MessageSchema = {
       "directTab": "切换到第 1–8 个网站标签页",
       "lastTab": "切换到最后一个网站标签页",
       "resetZoom": "重置页面缩放",
+      "settings": "打开设置",
       "fullPage": "切换全页视图",
       "takeOver": "从正在此页面上工作的智能体手中接管",
       "switchWorkspace": "切换工作区",
@@ -3642,7 +3643,16 @@ export const zhCN: MessageSchema = {
       "viewSource": "查看网页源代码",
       "downloads": "下载内容",
       "savePage": "网页另存为…",
-      "bookmarkAllTabs": "为所有标签页添加书签…"
+      "bookmarkAllTabs": "为所有标签页添加书签…",
+      "settings": "设置…",
+      "services": "服务",
+      "hide": "隐藏 Hronaut",
+      "hideOthers": "隐藏其他",
+      "showAll": "全部显示",
+      "window": "窗口",
+      "minimize": "最小化",
+      "zoom": "缩放",
+      "bringAllToFront": "前置全部窗口"
     },
     "tray": {
       "show": "显示 Hronaut",

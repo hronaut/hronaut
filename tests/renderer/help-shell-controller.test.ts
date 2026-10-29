@@ -11,6 +11,7 @@ function createController(overrides: Partial<Parameters<typeof useHelpShellContr
     closeHelpDialog: vi.fn(),
     showHelpDialog: vi.fn(),
     showSupportSettings: vi.fn(),
+    showSettings: vi.fn(),
     navigate: vi.fn(async () => undefined),
     openPurchase: vi.fn(async () => undefined),
     runAction: vi.fn(async (action: () => unknown) => {
@@ -43,11 +44,13 @@ describe('Help shell controller', () => {
 
     controller.handleRequested('about')
     controller.handleRequested('support')
+    controller.handleRequested('settings')
 
     expect(commandPaletteOpen.value).toBe(true)
     expect(options.closeSettings).not.toHaveBeenCalled()
     expect(options.showHelpDialog).not.toHaveBeenCalled()
     expect(options.showSupportSettings).not.toHaveBeenCalled()
+    expect(options.showSettings).not.toHaveBeenCalled()
   })
 
   it('closes Help before routing a support request to Support settings', () => {
@@ -58,6 +61,20 @@ describe('Help shell controller', () => {
     expect(commandPaletteOpen.value).toBe(false)
     expect(options.closeHelpDialog).toHaveBeenCalledOnce()
     expect(options.showSupportSettings).toHaveBeenCalledOnce()
+    expect(options.showHelpDialog).not.toHaveBeenCalled()
+  })
+
+  it('closes Help and the command palette before opening Settings for the macOS menu\'s Settings', () => {
+    const { commandPaletteOpen, options, controller } = createController()
+
+    controller.handleRequested('settings')
+
+    expect(commandPaletteOpen.value).toBe(false)
+    expect(options.closeHelpDialog).toHaveBeenCalledOnce()
+    expect(options.showSettings).toHaveBeenCalledOnce()
+    expect(vi.mocked(options.closeHelpDialog).mock.invocationCallOrder[0])
+      .toBeLessThan(vi.mocked(options.showSettings).mock.invocationCallOrder[0])
+    expect(options.showSupportSettings).not.toHaveBeenCalled()
     expect(options.showHelpDialog).not.toHaveBeenCalled()
   })
 
