@@ -80,8 +80,7 @@ function browser() {
     }]]),
     assertWorkspaceNavigationAllowed: vi.fn(), workspaceNavigationAllowed: () => true, workspaceObservationGeneration: () => 0,
     roundPageCorners: vi.fn(), installSessionHooks: vi.fn(), attachTabEvents: vi.fn(), layout: vi.fn(), changed: vi.fn(),
-    getState: () => ({}), text: (key: string) => key,
-    orderedTabs(this: Manager) { return [...this.tabs.values()] }
+    getState: () => ({}), text: (key: string) => key
   }) as Manager
   // Restoring a sleeping page takes until the test lets it finish, as loading a slow site does.
   manager.wakeTab = vi.fn(async (tabId: string) => {

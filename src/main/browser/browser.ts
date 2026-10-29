@@ -23,7 +23,7 @@ import type { PwaInspectionAccess } from './pwa-inspection/pwa-inspection-access
 import { inspectPwa } from './pwa-inspection/pwa-inspection.js'
 import type { ElementInspectionAccess } from './element-inspection/element-inspection-access.js'
 import { elementInspection, imageState, mediaState } from './element-inspection/element-inspection.js'
-import type { BrowserConsoleMessageRecord, ConsoleCapture, ConsoleMessagesAccess } from './console-messages/console-messages-access.js'
+import type { ConsoleMessagesAccess } from './console-messages/console-messages-access.js'
 import { appendConsoleMessage, consoleMessages, retainRuntimeConsoleMessage } from './console-messages/console-messages.js'
 import type { TabOverviewPreviewCaptureRequest, TabOverviewPreviewsAccess } from './tab-overview-previews/tab-overview-previews-access.js'
 import {
@@ -80,7 +80,7 @@ import { writeUniqueDownloadFile } from './unique-download-file.js'
 import { VIDEO_RECORDING_NOTICES, type BrowserVideoOptions, type BrowserVideoState } from '../../shared/video.js'
 import type { BrowserCredentialCandidate, CredentialCaptureAccess } from './credential-capture/credential-capture-access.js'
 import { watchCredentialSubmission } from './credential-capture/credential-capture.js'
-import type { BrowserNetworkRecordingState, BrowserNetworkRequestRecord } from './network-recording.js'
+import type { BrowserNetworkRequestRecord } from './network-recording.js'
 import type { SessionHooksAccess } from './session-hooks/session-hooks-access.js'
 import { installSessionHooks } from './session-hooks/session-hooks.js'
 import type { PerformanceEnvironmentAccess } from './emulation/performance-environment-access.js'
@@ -101,7 +101,7 @@ import { NativePreviewCapture } from './native-preview-capture.js'
 import { OCCLUSION_SNAPSHOT_TIMEOUT_MS, OcclusionSnapshot } from './occlusion-snapshot.js'
 import { HomeRefresh } from './home-refresh.js'
 import { BrowserDebuggerQueue } from './debugger-queue.js'
-import { BrowserDomRecorder, type BrowserDomRecordingState } from './dom-recorder.js'
+import { BrowserDomRecorder } from './dom-recorder.js'
 import { BrowserCssStatePreview } from './css-state-preview.js'
 import { VirtualPasskeyController, type VirtualPasskeyAuthority, type VirtualPasskeyOptions } from './virtual-passkey/virtual-passkey.js'
 import type { VirtualPasskeyAction, VirtualPasskeyReport } from '../../shared/virtual-passkey.js'
@@ -113,8 +113,8 @@ import { DomMutationSourceCaptures, type DomMutationSourceAuthority } from './do
 import { LogpointSets, type LogpointAuthority } from './logpoints/logpoints.js'
 import type { LogpointAction, LogpointReport, LogpointRequest, LogpointScriptsReport } from '../../shared/logpoint.js'
 import { normalizeDefaultFontSize } from '../../shared/default-font-size.js'
-import { BrowserLiveRegionRecorder, type BrowserLiveRegionRecordingState } from './live-region-recorder.js'
-import { BrowserReproRecorder, type BrowserReproRecordingInternal } from './repro-recorder.js'
+import { BrowserLiveRegionRecorder } from './live-region-recorder.js'
+import { BrowserReproRecorder } from './repro-recorder.js'
 import type { BrowserNetworkRouteRecord, NetworkConditionsAccess } from './network-conditions/network-conditions-access.js'
 import {
   addNetworkRoute,
@@ -135,7 +135,7 @@ import { BrowserDownloadsController } from './downloads-controller.js'
 import type { DownloadHistoryStore, SavedDownload } from './download-history/download-history.js'
 import type { DownloadCopyAccess } from './download-copy/download-copy-access.js'
 import { copyDownload, type DownloadCopyProgress, type DownloadCopyRequest, type DownloadCopyResult } from './download-copy/download-copy.js'
-import { BrowserProfilingController, type BrowserProfilingState } from './profiling-controller.js'
+import { BrowserProfilingController } from './profiling-controller.js'
 import { WorkspaceContinuityStore } from '../mcp/workspace-continuity-store.js'
 import { WorkspaceContinuityEvidenceFactory } from '../mcp/workspace-continuity-evidence.js'
 import type { BrowserPostcondition } from '../../shared/post-write-postcondition.js'
@@ -167,7 +167,6 @@ import {
 } from './workspace-data/workspace-data.js'
 import { ensureHumanWorkspace } from './workspace-creation/human-workspace.js'
 import { normalizeWorkspaceDescription } from '../../shared/workspace-description.js'
-import { pinnedWorkspacesFirst } from '../../shared/workspace-rail.js'
 import { reconcilePresentedViewVisibility, showResumedPresentedView, watchPresentedViewVisibility } from './presented-view-visibility.js'
 import { resizeViewport } from './emulation/resize-viewport.js'
 import { setEmulationViewSize } from './emulation/emulation-view-size.js'
@@ -284,7 +283,6 @@ import {
   waitForNetworkRequest
 } from './network-inspection/network-inspection.js'
 import type { NormalizedBrowserNetworkWaitOptions } from '../../shared/network-wait.js'
-import type { BrowserStorageSnapshot } from '../../shared/storage-changes.js'
 import type { ScreenshotAnnotationReport } from '../../shared/screenshot-annotations.js'
 import type { ScreenshotsAccess } from './screenshots/screenshots-access.js'
 import { screenshot } from './screenshots/screenshots.js'
@@ -363,8 +361,6 @@ import type {
   BrowserScreenshotOptions,
   BrowserScreenshotClip,
   BrowserVisualCompareOptions,
-  BrowserVisualCompareReport,
-  BrowserVisualSnapshot,
   BrowserVisualCompareContext,
   BrowserStorageOptions,
   BrowserStorageResult,
@@ -407,12 +403,8 @@ import type {
   BrowserHeldNetworkResponse,
   BrowserElementInspection,
   BrowserElementInspectionOptions,
-  BrowserInspectorIssue,
   BrowserInspectorIssuesReport,
-  BrowserAuthChallengeObservation,
   BrowserClosedTabState,
-  BrowserJavaScriptDialog,
-  BrowserPageProblem,
   BrowserPageLifecycleResult,
   BrowserPageLifecycleState,
   BrowserSavedTabGroupState,
@@ -509,7 +501,7 @@ import {
   withWorkspaceStorageOperation
 } from './workspace-operations/workspace-operations.js'
 import { OpenedTabObservation, type TabsOpenedDuringClick } from './click-opened-tabs.js'
-import { pageShortcut, type TakeOverMark } from './take-over.js'
+import { pageShortcut } from './take-over.js'
 import type { AgentPauseAccess } from './agent-pause/agent-pause-access.js'
 import { hasAgentPauseExceptions, isTabAgentPaused, isTabTakenOver, setAllAgentsPaused, setTabAgentPaused } from './agent-pause/agent-pause.js'
 import type { InteractionLockAccess } from './interaction-lock/interaction-lock-access.js'
@@ -694,183 +686,13 @@ function screenshotFilename(requested: string | undefined, title: string): strin
   return portableExportFilename(requested, title, 'png')
 }
 
-interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState {
-  /** The tab whose page opened this one's as a window and can reach it, as this page can reach it through window.opener. */
-  openerTabId?: string
-  /**
-   * The tab whose page opened this one, from a link or a window it asked for, which places it beside that tab and
-   * shows that tab again when it closes, until Hronaut forgets it as Chrome does.
-   */
-  openedFromTabId?: string
-  /** Set for a tab a download that is all it opens closes, as opensFromPage tells. */
-  openedFromPage?: boolean
-  /** Set as a download that was all the tab opened closes it, so Recently closed does not list it. */
-  leftEmptyByDownload?: boolean
-  /**
-   * For a new tab the person opened with + or Ctrl/Cmd+T: the tab shown before, which shows again when this tab closes
-   * before another tab shows, as in Chrome.
-   */
-  returnsToTabId?: string
-  label?: string
-  labelDurabilityUnconfirmed?: boolean
-  labelCommit?: symbol
-  id: string
-  title: string
-  /** Current-document title confirmed by an explicit native title event; never a restored/URL fallback. */
-  discoveryTitle: TabDiscoveryTitle
-  url: string
-  loading: boolean
-  navigationGeneration: number
-  /** Names of the controls this page's snapshots showed agents, by ref, for the shell's plain-words steps. */
-  /** The control names the latest snapshot of this document showed, for the shell's plain-words steps. */
-  agentStepNames?: { documentGeneration: number; names: Map<string, string> }
-  /**
-   * The navigation generation wallet requests are bound to. It advances when a
-   * navigation to another document starts, even one that never commits, such
-   * as a download. A dApp's own route change (a history API or fragment
-   * navigation in the same document) leaves it unchanged, so the page keeps
-   * its pending wallet requests and network.
-   */
-  walletNavigationGeneration: number
-  /**
-   * Advanced when the tab starts loading another document, again when that
-   * document commits or a failed load shows its error page, and never for a
-   * change within the page. Find in page ends its search on it.
-   */
-  documentGeneration: number
-  performanceDocumentRouted?: boolean
-  humanInteractionGeneration: number
-  nativeInputEnvironmentGeneration: number
-  browserSessionGeneration: number
-  overviewPreviewSequence: number
-  navigationPolicyDenialSequence: number
-  pinned: boolean
-  sleeping: boolean
-  /** Whether the page holds full screen for one of its elements, as a video player does. */
-  pageFullscreen?: boolean
-  /** Whether Hronaut already asked the page to leave full screen since it took it. */
-  pageFullscreenExitRequested?: boolean
-  /**
-   * Set while going to sleep replaces the page: the discarded page may still
-   * run until the sleeping page loads, and it cannot start a wallet call.
-   */
-  walletPageUnloading?: boolean
-  pageLifecycleState: BrowserPageLifecycleState
-  pageLifecycleUnknownRequest?: Exclude<BrowserPageLifecycleState, 'unknown'>
-  pageLifecycleOperation?: {
-    requestedState: Exclude<BrowserPageLifecycleState, 'unknown'>
-    promise: Promise<BrowserPageLifecycleResult>
-  }
-  pageLifecycleAnimations?: Array<{ currentTime: number | null; playbackRate: number }>
-  lastActiveAt: number
-  sleepNavigationHistory?: { entries: NavigationEntry[]; index: number }
-  wakePromise?: Promise<void>
-  /** What a tab created asleep waits for before it first wakes. */
-  pageReady?: Promise<void>
-  /** Whether the tab waits asleep to load in its turn, among the tabs opened behind the one shown. */
-  waitsForTurn?: boolean
-  /** Where the tab's history stood when it was last saved for the next start, to read it again only once it moved. */
-  savedHistoryPosition?: string
-  humanInteractionLocked: boolean
-  tabAgentPaused: boolean
-  /** Runtime only: the tab as it was when the person took it over from its agent. */
-  takeOver?: TakeOverMark
-  /** Runtime only: the person's latest hand back, with its note for the agent. */
-  handedBack?: { at: number; note: string; noteWithoutUrlDetail?: string }
-  zoomIsolated: boolean
-  /** Construction-time WebPreferences value; undefined is the browser default of 16. */
-  defaultFontSize?: number
-  preserveDiagnosticLogs: boolean
-  faviconDataUrl?: string
-  faviconRequestId: number
-  faviconAbortController?: AbortController
-  audible: boolean
-  tabMuted: boolean
-  muted: boolean
-  /** Muted because Mute Site muted its website, as Chrome's Sound setting; runtime only. */
-  mutedBySite: boolean
-  /** Whether its website was muted when that setting was last applied to the tab; runtime only. */
-  siteMuteApplied: boolean
-  view: WebContentsView
-  // Keep the WebContents handle independently from WebContentsView. Electron
-  // can invalidate the view's webContents getter during native-view teardown,
-  // while the original handle remains safe to query with isDestroyed().
-  webContents: WebContents
-  // Session cleanup must remain possible after the WebContents is destroyed.
-  browserSession: Session
-  consoleMessages: BrowserConsoleMessageRecord[]
-  pendingRuntimeConsoleMessages: ConsoleCapture[]
-  networkRoutes: BrowserNetworkRouteRecord[]
-  networkConditionApplication: 'confirmed' | 'pending' | 'unknown'
-  networkConditionEpoch: number
-  networkDebuggerEpoch: number
-  inspectorIssues: BrowserInspectorIssue[]
-  inspectorIssuesTruncated: boolean
-  authChallenges: BrowserAuthChallengeObservation[]
-  authChallengesTruncated: boolean
-  /** Between a main-frame document navigation start and its commit or failure. */
-  authNavigationPending: boolean
-  networkDebuggerEnabled: boolean
-  lastHumanInteractionAt: number
-  suppressInitialHistory: boolean
-  pendingHistoryUrl: string | null
-  /** Where the main frame's document navigation under way is headed, after redirects, until it commits or ends. */
-  pendingMainFrameUrl?: string
-  pageProblem?: BrowserPageProblem
-  dialog?: BrowserJavaScriptDialog
-  emulation: BrowserEmulationState
-  emulationApplication: 'confirmed' | 'pending' | 'unknown'
-  emulationRevision: number
-  emulationContextGeneration: number
-  emulationExtraHttpHeaders: Record<string, string>
-  /**
-   * The emulated viewport size the page's view is sized for. It is set just
-   * before the override that gives the page that viewport, and cleared when
-   * Hronaut no longer knows the page has it. Without one the view fills its
-   * space, since the page's real viewport is then the view itself.
-   */
-  emulationViewSize?: { width: number; height: number }
-  mcpGroupId?: string
-  snapshotBaselineGeneration: number
-  accessibilityBaseline?: BrowserAccessibilityAudit
-  accessibilityBaselineGeneration: number
-  performanceBaseline?: {
-    report: BrowserPerformanceReport
-    environment: BrowserPerformanceEnvironment
-    environmentFingerprint: string
-  }
-  performanceBaselineGeneration: number
-  reproRecording?: BrowserReproRecordingInternal
-  domChangesRecording?: BrowserDomRecordingState
-  liveRegionRecording?: BrowserLiveRegionRecordingState
-  visualComparison?: BrowserVisualComparisonInternal
-  visualComparisonGeneration: number
-  storageComparison?: {
-    baseline: BrowserStorageSnapshot
-    current?: BrowserStorageSnapshot
-  }
-  storageComparisonGeneration: number
-}
-
+import type { BrowserTab, BrowserVisualCapture } from './browser-tab.js'
+import { getTab, orderedTabs } from './browser-core.js'
 import { WorkspaceRegistry, type ActiveWorkspace as BrowserTabGroup } from './workspace-registry.js'
 
 export type { BrowserElementPickerResult } from './element-picker/element-picker-access.js'
 
 export type { BrowserScreenshotAreaResult } from './screenshot-area/screenshot-area-access.js'
-
-interface BrowserVisualCapture {
-  observationContext: BrowserSnapshotDeltaContext
-  navigationGeneration: number
-  snapshot: BrowserVisualSnapshot
-  png: Buffer
-  bitmap: Buffer
-}
-
-interface BrowserVisualComparisonInternal {
-  baseline: Pick<BrowserVisualCapture, 'snapshot' | 'png' | 'navigationGeneration'>
-  lastReport?: BrowserVisualCompareReport
-  diffPng?: Buffer
-}
 
 export type { BrowserVisualCompareResult }
 
@@ -993,29 +815,29 @@ export interface BrowserOptions {
 }
 
 export class Browser {
-  private nativeInputLockMutations = 0
-  private readonly activeNativeKeyHolds = new WeakSet<BrowserTab['webContents']>()
-  private readonly unconfirmedNativeKeyHolds = new WeakSet<BrowserTab['webContents']>()
+  nativeInputLockMutations = 0
+  readonly activeNativeKeyHolds = new WeakSet<BrowserTab['webContents']>()
+  readonly unconfirmedNativeKeyHolds = new WeakSet<BrowserTab['webContents']>()
   /** Pages where an agent's touch contact may still be down: neither its end nor a cancel was acknowledged. */
-  private readonly pageFind = new PageFindController()
-  private readonly faviconDecoder = new FaviconDecoder()
-  private readonly metadata = new PageMetadataController<BrowserTab>({
-    getTab: (tabId) => this.getTab(tabId),
+  readonly pageFind = new PageFindController()
+  readonly faviconDecoder = new FaviconDecoder()
+  readonly metadata = new PageMetadataController<BrowserTab>({
+    getTab: (tabId) => getTab(this, tabId),
     findTab: (tabId) => this.tabs.get(tabId)
   })
-  private readonly profiling = new BrowserProfilingController<BrowserTab>({
-    getTab: (tabId) => this.getTab(tabId),
+  readonly profiling = new BrowserProfilingController<BrowserTab>({
+    getTab: (tabId) => getTab(this, tabId),
     findTab: (tabId) => this.tabs.get(tabId),
     withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
     changed: () => this.changed(false),
     prepareNavigation: (tab) => this.prepareDiagnosticNavigation(tab)
   })
-  private readonly workspaceContinuity = new WorkspaceContinuityStore()
-  private readonly continuityMarkers = new Map<string, string>()
-  private readonly workspaceObservationGenerations = new Map<string, number>()
-  private continuityRevision = 0
-  private readonly continuityEvidence = new WorkspaceContinuityEvidenceFactory()
-  private readonly continuityActions = new Map<string, { reads: number; writes: number }>()
+  readonly workspaceContinuity = new WorkspaceContinuityStore()
+  readonly continuityMarkers = new Map<string, string>()
+  readonly workspaceObservationGenerations = new Map<string, number>()
+  continuityRevision = 0
+  readonly continuityEvidence = new WorkspaceContinuityEvidenceFactory()
+  readonly continuityActions = new Map<string, { reads: number; writes: number }>()
 
   /**
    * The narrow view workspace continuity gets of this manager's private tabs,
@@ -1028,7 +850,7 @@ export class Browser {
    */
   private workspaceContinuityAccess(): WorkspaceContinuityAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       tabs: () => this.tabs.values(),
       getMcpGroupState: (workspaceId) => this.getMcpGroupState(workspaceId),
       requireMcpTabGroup: (workspaceId) => this.requireMcpTabGroup(workspaceId),
@@ -1105,15 +927,15 @@ export class Browser {
     requireWorkspaceContinuityDispatch(this.workspaceContinuityAccess(), workspaceId)
   }
 
-  private readonly tabs = new Map<string, BrowserTab>()
-  private readonly domRecorder = new BrowserDomRecorder<BrowserTab>({
+  readonly tabs = new Map<string, BrowserTab>()
+  readonly domRecorder = new BrowserDomRecorder<BrowserTab>({
     isCurrent: tab => this.tabs.get(tab.id) === tab,
     changed: () => this.changed(false)
   })
-  private readonly liveRegionRecorder = new BrowserLiveRegionRecorder<BrowserTab>({
+  readonly liveRegionRecorder = new BrowserLiveRegionRecorder<BrowserTab>({
     isCurrent: tab => this.tabs.get(tab.id) === tab
   })
-  private readonly cssStatePreview: BrowserCssStatePreview<BrowserTab> = new BrowserCssStatePreview<BrowserTab>({
+  readonly cssStatePreview: BrowserCssStatePreview<BrowserTab> = new BrowserCssStatePreview<BrowserTab>({
     isCurrent: tab => this.tabs.get(tab.id) === tab,
     withDebugger: (tab, operation) => this.withDebugger(tab.webContents, operation),
     inDebuggerQueue: (tab, operation) => this.debuggerQueue.run(tab.webContents.id, operation),
@@ -1123,17 +945,17 @@ export class Browser {
     keepDomEnabled: tab => Boolean(tab.emulation.renderingDebug && Object.values(tab.emulation.renderingDebug).some(Boolean)),
     changed: () => this.changed(false)
   })
-  private readonly virtualPasskeys = new VirtualPasskeyController<BrowserTab>({
+  readonly virtualPasskeys = new VirtualPasskeyController<BrowserTab>({
     isCurrent: tab => this.tabs.get(tab.id) === tab,
     isDevToolsOpening: tab => this.devToolsOpening.has(tab.webContents.id),
     withDebugger: (tab, operation) => this.withDebugger(tab.webContents, operation),
     changed: () => this.changed(false)
   })
-  private readonly workerEvaluations = new WorkerEvaluations<BrowserTab>({
+  readonly workerEvaluations = new WorkerEvaluations<BrowserTab>({
     isCurrent: tab => this.tabs.get(tab.id) === tab,
     withDebugger: (tab, operation) => this.withDebugger(tab.webContents, operation)
   })
-  private readonly computedAccessibilityReader = new ComputedAccessibilityReader<BrowserTab>({
+  readonly computedAccessibilityReader = new ComputedAccessibilityReader<BrowserTab>({
     isCurrent: tab => this.tabs.get(tab.id) === tab,
     withDebugger: (tab, operation) => this.withDebugger(tab.webContents, operation),
     // Reading resets this session's DOM bindings, which would drop a CSS state preview, and disables the DOM
@@ -1143,7 +965,7 @@ export class Browser {
         : this.domMutationSource.active(tab) ? 'Cancel the DOM mutation source capture before reading computed accessibility' : undefined,
     keepDomEnabled: tab => Boolean(tab.emulation.renderingDebug && Object.values(tab.emulation.renderingDebug).some(Boolean))
   })
-  private readonly domMutationSource: DomMutationSourceCaptures<BrowserTab> = new DomMutationSourceCaptures<BrowserTab>({
+  readonly domMutationSource: DomMutationSourceCaptures<BrowserTab> = new DomMutationSourceCaptures<BrowserTab>({
     isCurrent: tab => this.tabs.get(tab.id) === tab,
     withDebugger: (tab, operation) => this.withDebugger(tab.webContents, operation),
     inDebuggerQueue: (tab, operation) => this.debuggerQueue.run(tab.webContents.id, operation),
@@ -1158,7 +980,7 @@ export class Browser {
     keepDebuggerEnabled: tab => Boolean(tab.codeCoverage?.recording) || this.logpoints.active(tab),
     isDevToolsOpening: tab => this.devToolsOpening.has(tab.webContents.id)
   })
-  private readonly logpoints: LogpointSets<BrowserTab> = new LogpointSets<BrowserTab>({
+  readonly logpoints: LogpointSets<BrowserTab> = new LogpointSets<BrowserTab>({
     isCurrent: tab => this.tabs.get(tab.id) === tab,
     withDebugger: (tab, operation) => this.withDebugger(tab.webContents, operation),
     inDebuggerQueue: (tab, operation) => this.debuggerQueue.run(tab.webContents.id, operation),
@@ -1171,13 +993,13 @@ export class Browser {
     isDevToolsOpening: tab => this.devToolsOpening.has(tab.webContents.id),
     changed: () => this.changed(false)
   })
-  private readonly reproRecorder = new BrowserReproRecorder<BrowserTab>({
+  readonly reproRecorder = new BrowserReproRecorder<BrowserTab>({
     isCurrent: tab => this.tabs.get(tab.id) === tab,
     isAgentInput: webContents => this.agentInputWebContents.has(webContents.id),
     changed: () => this.changed(false)
   })
-  private readonly pauseVideoForSuspend = (): void => { this.videoRecorder.pauseAll(VIDEO_RECORDING_NOTICES.sleep) }
-  private readonly videoRecorder = new BrowserVideoRecorder({
+  readonly pauseVideoForSuspend = (): void => { this.videoRecorder.pauseAll(VIDEO_RECORDING_NOTICES.sleep) }
+  readonly videoRecorder = new BrowserVideoRecorder({
     changed: () => this.changed(false),
     render: renderBrowserVideo,
     inspect: inspectVideoFrames,
@@ -1188,14 +1010,14 @@ export class Browser {
       return { filename: basename(path), path }
     }
   })
-  private readonly snapshotBaselines = new Map<string, BrowserSnapshotBaselineRecord>()
-  private readonly snapshotBaselineIdsByTab = new Map<string, string>()
-  private readonly webMcpDescriptorCache = new Map<string, string>()
-  private backgroundTabLoads?: BackgroundLoads
-  private readonly workspaceRegistry = new WorkspaceRegistry({
+  readonly snapshotBaselines = new Map<string, BrowserSnapshotBaselineRecord>()
+  readonly snapshotBaselineIdsByTab = new Map<string, string>()
+  readonly webMcpDescriptorCache = new Map<string, string>()
+  backgroundTabLoads?: BackgroundLoads
+  readonly workspaceRegistry = new WorkspaceRegistry({
     maxTabs: MAX_TABS,
     maxArchived: MAX_SAVED_TAB_GROUPS,
-    tabs: () => this.orderedTabs(),
+    tabs: () => orderedTabs(this),
     requireActive: id => this.requireMcpTabGroup(id),
     assertRestoreCapacity: (name, id) => {
       this.assertWorkspaceNameAvailable(name, undefined, id, true)
@@ -1209,51 +1031,51 @@ export class Browser {
     remapDownloads: (from, to) => this.remapDownloadWorkspaceOwnership(from, to),
     changed: () => this.changed()
   })
-  private readonly mcpTabGroups = this.workspaceRegistry.active
-  private readonly deletedWorkspaceStorageIds = new Set<string>()
+  readonly mcpTabGroups = this.workspaceRegistry.active
+  readonly deletedWorkspaceStorageIds = new Set<string>()
   /** Open workspaces whose deletion closed their tabs but has not committed, which the saved session keeps meanwhile. */
-  private readonly workspacesBeingDeleted = new Map<string, WorkspaceBeingDeleted>()
-  private workspaceStorageCleanupBlocked = false
-  private readonly savedTabGroups = this.workspaceRegistry.archived
-  private readonly workspaceOperations = new Map<string, BrowserWorkspaceOperation<OpenWorkspaceOperationAction>>()
-  private readonly savedWorkspaceOperations = new Map<string, BrowserWorkspaceOperation>()
+  readonly workspacesBeingDeleted = new Map<string, WorkspaceBeingDeleted>()
+  workspaceStorageCleanupBlocked = false
+  readonly savedTabGroups = this.workspaceRegistry.archived
+  readonly workspaceOperations = new Map<string, BrowserWorkspaceOperation<OpenWorkspaceOperationAction>>()
+  readonly savedWorkspaceOperations = new Map<string, BrowserWorkspaceOperation>()
   /** A workspace the person closed with Undo on offer: archived, and deleted when Undo is gone unless kept meanwhile. */
-  private closingWorkspace: { id: string; kept: boolean } | undefined
-  private readonly pendingWorkspaceOperationPromises = new Set<Promise<unknown>>()
-  private workspaceStorageOperation: BrowserWorkspaceOperation | null = null
-  private readonly store: TabStateStore
-  private activeTabId: string | null = null
-  private tabSelectionGeneration = 0
-  private splitView: BrowserSplitViewState | null = null
-  private splitViewGeneration = 0
-  private lastSplitDividerGeometry = ''
-  private lastEmulationFrames = '[]'
-  private lastPageCards = '[]'
-  private readonly splitDivider = createSplitDivider(this.splitViewAccess())
-  private allTabsMuted = false
-  private allHumanInteractionLocked = false
-  private allAgentsPaused = false
-  private agentPauseOverridesAllowed = true
-  private readonly globallyResumedAgentTabIds = new Set<string>()
-  private readonly globallyUnlockedTabIds = new Set<string>()
-  private readonly agentInputWebContents = new Map<number, number>()
-  private readonly authorizedAgentMouseInput = new Map<number, AuthorizedAgentMouseInput>()
-  private readonly authorizedAgentKeyboardInput = new Map<number, AuthorizedAgentKeyboardInput>()
-  private readonly agentInputFocusSnapshots = new Map<number, {
+  closingWorkspace: { id: string; kept: boolean } | undefined
+  readonly pendingWorkspaceOperationPromises = new Set<Promise<unknown>>()
+  workspaceStorageOperation: BrowserWorkspaceOperation | null = null
+  readonly store: TabStateStore
+  activeTabId: string | null = null
+  tabSelectionGeneration = 0
+  splitView: BrowserSplitViewState | null = null
+  splitViewGeneration = 0
+  lastSplitDividerGeometry = ''
+  lastEmulationFrames = '[]'
+  lastPageCards = '[]'
+  readonly splitDivider = createSplitDivider(this.splitViewAccess())
+  allTabsMuted = false
+  allHumanInteractionLocked = false
+  allAgentsPaused = false
+  agentPauseOverridesAllowed = true
+  readonly globallyResumedAgentTabIds = new Set<string>()
+  readonly globallyUnlockedTabIds = new Set<string>()
+  readonly agentInputWebContents = new Map<number, number>()
+  readonly authorizedAgentMouseInput = new Map<number, AuthorizedAgentMouseInput>()
+  readonly authorizedAgentKeyboardInput = new Map<number, AuthorizedAgentKeyboardInput>()
+  readonly agentInputFocusSnapshots = new Map<number, {
     mainWindowFocused: boolean
     focusedWebContentsId: number | null
   }>()
-  private readonly agentInputFocusGuardReleases = new Map<number, () => void>()
-  private backgroundAgentInputFocusGuardDepth = 0
-  private mainWindowFocusableBeforeAgentInput = true
-  private readonly elementPickerSessions = new Map<number, BrowserElementPickerSession>()
-  private readonly screenshotAreaSessions = new Map<number, BrowserScreenshotAreaSession>()
-  private readonly pendingHumanTabCloses = new Map<string, { tab: BrowserTab; operation: Promise<BrowserState> }>()
-  private readonly expectedTabClosures = new WeakSet<WebContents>()
-  private destroyed = false
-  private restoringLayout = false
-  private persistTimer: NodeJS.Timeout | null = null
-  private readonly statePublication = new StatePublication({
+  readonly agentInputFocusGuardReleases = new Map<number, () => void>()
+  backgroundAgentInputFocusGuardDepth = 0
+  mainWindowFocusableBeforeAgentInput = true
+  readonly elementPickerSessions = new Map<number, BrowserElementPickerSession>()
+  readonly screenshotAreaSessions = new Map<number, BrowserScreenshotAreaSession>()
+  readonly pendingHumanTabCloses = new Map<string, { tab: BrowserTab; operation: Promise<BrowserState> }>()
+  readonly expectedTabClosures = new WeakSet<WebContents>()
+  destroyed = false
+  restoringLayout = false
+  persistTimer: NodeJS.Timeout | null = null
+  readonly statePublication = new StatePublication({
     canPublish: () => !this.destroyed && !this.window.isDestroyed() && !this.restoringLayout,
     read: () => getState(this.browserStateAccess()),
     shownLoadingPages: () => shownTabIds(this.activeTabId, this.splitView).flatMap((id) => {
@@ -1265,42 +1087,42 @@ export class Browser {
       this.options.onStateChanged?.(state)
     }
   })
-  private tabHistoryStore: TabHistoryStore | undefined
-  private closedTabsStore: ClosedTabsStore | undefined
-  private tabHistoryTimer: NodeJS.Timeout | null = null
-  private stopPresentationWatcher: (() => void) | undefined
-  private memorySaverTimer: NodeJS.Timeout | null = null
-  private initialized = false
-  private readonly memorySaverSweeps = new MemorySaverSweepQueue()
-  private memorySaverSettingsGeneration = 0
-  private memorySaverEnabled: boolean
-  private memorySaverTimeoutMinutes: MemorySaverTimeoutMinutes
-  private readonly mcpActivitiesByTab = new Map<string, Set<string>>()
-  private readonly mcpActivityFollower: McpActivityFollowController
-  private followAgentActivity: boolean
+  tabHistoryStore: TabHistoryStore | undefined
+  closedTabsStore: ClosedTabsStore | undefined
+  tabHistoryTimer: NodeJS.Timeout | null = null
+  stopPresentationWatcher: (() => void) | undefined
+  memorySaverTimer: NodeJS.Timeout | null = null
+  initialized = false
+  readonly memorySaverSweeps = new MemorySaverSweepQueue()
+  memorySaverSettingsGeneration = 0
+  memorySaverEnabled: boolean
+  memorySaverTimeoutMinutes: MemorySaverTimeoutMinutes
+  readonly mcpActivitiesByTab = new Map<string, Set<string>>()
+  readonly mcpActivityFollower: McpActivityFollowController
+  followAgentActivity: boolean
   /**
    * The tab following last showed, the agent it followed there (its opaque presence key and cleaned
    * name) and the tab selection that showed it: any later selection means the person moved on.
    */
-  private agentFollow: { tabId: string; agentId: string; agentName: string; selectionGeneration: number } | undefined
+  agentFollow: { tabId: string; agentId: string; agentName: string; selectionGeneration: number } | undefined
   /**
    * Pages receiving an agent's wheel input, which is not the person scrolling: calls under way, and
    * until when the wheel events Chromium adds after the call count as the agent's.
    */
-  private readonly agentWheel = new Map<number, { pending: number; until: number }>()
-  private toolbarHeight: number
-  private contentInsets = { top: 0, right: 0, bottom: 0, left: 0 }
+  readonly agentWheel = new Map<number, { pending: number; until: number }>()
+  toolbarHeight: number
+  contentInsets = { top: 0, right: 0, bottom: 0, left: 0 }
   /** The corner radius each page view has now, so layout does not repeat the native call. */
-  private readonly pageCornerRadii = new WeakMap<WebContentsView, number>()
+  readonly pageCornerRadii = new WeakMap<WebContentsView, number>()
   /** Whether the person has the window in full screen apart from any page's, which ends with the page. */
-  private personFullScreen = false
-  private browserContentOccluded = false
-  private occludedEmulationFrames: EmulationFrameGeometry[] = []
-  private occludedPageCards: PageCardGeometry[] = []
+  personFullScreen = false
+  browserContentOccluded = false
+  occludedEmulationFrames: EmulationFrameGeometry[] = []
+  occludedPageCards: PageCardGeometry[] = []
   /** A tab that should take keyboard focus once trusted chrome closes, such as one picked in the tab overview. */
-  private focusAfterTrustedChrome: PendingTrustedChromeFocus<BrowserTab> | undefined
-  private followAgentActivitySuspended = false
-  private readonly downloadController = new BrowserDownloadsController({
+  focusAfterTrustedChrome: PendingTrustedChromeFocus<BrowserTab> | undefined
+  followAgentActivitySuspended = false
+  readonly downloadController = new BrowserDownloadsController({
     getSettings: () => ({
       downloadDirectory: this.options.downloadDirectory,
       askWhereToSaveDownloads: this.options.askWhereToSaveDownloads,
@@ -1336,24 +1158,24 @@ export class Browser {
       this.options.onDownloadsChanged?.(downloads)
     }
   })
-  private readonly networkHookSessions = new WeakSet<Session>()
-  private readonly browserSessionAuthorityHooks = new Map<Session, () => void>()
-  private readonly browserCookieImportSessions = new Set<Session>()
-  private readonly webContentsToTab = new Map<number, string>()
-  private readonly pwaLifecycleRecorder = new BrowserPwaLifecycle<BrowserTab>({
+  readonly networkHookSessions = new WeakSet<Session>()
+  readonly browserSessionAuthorityHooks = new Map<Session, () => void>()
+  readonly browserCookieImportSessions = new Set<Session>()
+  readonly webContentsToTab = new Map<number, string>()
+  readonly pwaLifecycleRecorder = new BrowserPwaLifecycle<BrowserTab>({
     isCurrent: tab => !this.destroyed && this.tabs.get(tab.id) === tab,
     changed: () => this.changed(false)
   })
-  private readonly debuggerQueue = new BrowserDebuggerQueue()
-  private readonly frameObservation = new FrameObservationController({
+  readonly debuggerQueue = new BrowserDebuggerQueue()
+  readonly frameObservation = new FrameObservationController({
     resolve: tabId => {
-      const tab = this.getTab(tabId)
+      const tab = getTab(this, tabId)
       if (tab.sleeping || tab.pageLifecycleState !== 'active') throw new Error('Frame observation requires an already active tab')
       return { page: tab.webContents, identity: tab, workspace: tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined, generation: tab.navigationGeneration, observationGeneration: tab.observationGeneration, permissionGeneration: tab.mcpGroupId ? this.inspectionPermissions.get(this.mcpTabGroups.get(tab.mcpGroupId)!) ?? 0 : 0 }
     },
     run: (id, operation) => this.debuggerQueue.run(id, operation),
     requireOwner: (tabId, page) => {
-      const tab = this.getTab(tabId)
+      const tab = getTab(this, tabId)
       if (tab.webContents !== page || page.isDestroyed() || !page.debugger.isAttached() || !tab.networkDebuggerEnabled
         || this.devToolsOpening.has(page.id) || page.isDevToolsOpened() || tab.codeCoverage?.recording
         || tab.cpuProfile?.recording || tab.memoryAllocation?.recording || tab.reproRecording?.active
@@ -1364,12 +1186,12 @@ export class Browser {
     return this.frameObservation.capture(tabId, selector, maxChars, authority)
   }
 
-  private readonly sizingInspectionSlots = new ImageInspectionSlots('Sizing inputs')
-  private readonly imageInspectionSlots = new ImageInspectionSlots()
-  private readonly inspectionPermissions = new WeakMap<object, number>()
-  private readonly reactInspectionController = new ReactInspectionController({
+  readonly sizingInspectionSlots = new ImageInspectionSlots('Sizing inputs')
+  readonly imageInspectionSlots = new ImageInspectionSlots()
+  readonly inspectionPermissions = new WeakMap<object, number>()
+  readonly reactInspectionController = new ReactInspectionController({
     resolve: tabId => {
-      const tab = this.getTab(tabId)
+      const tab = getTab(this, tabId)
       const workspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
       return {
         identity: tab, page: tab.webContents, workspaceId: tab.mcpGroupId, workspaceIdentity: workspace,
@@ -1379,12 +1201,12 @@ export class Browser {
     },
     run: (id, operation) => this.debuggerQueue.run(id, operation),
     requireDebuggerOwner: tabId => {
-      const tab = this.getTab(tabId)
+      const tab = getTab(this, tabId)
       if (this.devToolsOpening.has(tab.webContents.id) || tab.webContents.isDevToolsOpened()
         || tab.codeCoverage?.recording || tab.cpuProfile?.recording) throw new Error('React inspection debugger unavailable')
     },
     requireDebuggerCleanupOwner: (tabId, page) => {
-      const tab = this.getTab(tabId)
+      const tab = getTab(this, tabId)
       if (tab.webContents !== page || this.devToolsOpening.has(page.id) || page.isDevToolsOpened()) {
         throw new Error('React inspection debugger cleanup unavailable')
       }
@@ -1392,9 +1214,9 @@ export class Browser {
     mainWorldContextId: page => this.mainWorldContextId(page)
   })
 
-  private readonly fixedDateController = new FixedDateController({
+  readonly fixedDateController = new FixedDateController({
     resolve: tabId => {
-      const tab = this.getTab(tabId)
+      const tab = getTab(this, tabId)
       return {
         identity: tab, page: tab.webContents, url: tab.webContents.getURL(), workspaceId: tab.mcpGroupId,
         workspaceIdentity: tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
@@ -1467,37 +1289,37 @@ export class Browser {
     return this.reactInspectionController.run(tabId, command, authority)
   }
 
-  private interactionLockTail: Promise<void> = Promise.resolve()
-  private readonly networkRouteQueues = new Map<number, Promise<void>>()
-  private readonly networkWaitController = new BrowserNetworkWaitController<BrowserTab>({
+  interactionLockTail: Promise<void> = Promise.resolve()
+  readonly networkRouteQueues = new Map<number, Promise<void>>()
+  readonly networkWaitController = new BrowserNetworkWaitController<BrowserTab>({
     matchingRequest: (tab, options, minCaptureSequence) => {
       const request = this.matchingNetworkWaitRequest(tab, options, minCaptureSequence)
       return request ? this.networkRequestSummary(request) : undefined
     }
   })
-  private readonly networkRouteRefreshTimers = new Map<number, NodeJS.Timeout>()
-  private readonly heldNetworkResponseStates = new Map<number, HeldResponses>()
-  private readonly dialogMonitorAttachPromises = new Map<number, Promise<void>>()
-  private readonly defaultExecutionContexts = new Map<number, Map<string, { id: number; uniqueId?: string }>>()
-  private readonly devToolsOpening = new Set<number>()
-  private readonly rendererRecovery = new RendererRecovery()
+  readonly networkRouteRefreshTimers = new Map<number, NodeJS.Timeout>()
+  readonly heldNetworkResponseStates = new Map<number, HeldResponses>()
+  readonly dialogMonitorAttachPromises = new Map<number, Promise<void>>()
+  readonly defaultExecutionContexts = new Map<number, Map<string, { id: number; uniqueId?: string }>>()
+  readonly devToolsOpening = new Set<number>()
+  readonly rendererRecovery = new RendererRecovery()
   /** Pages whose process the person ended in the Task manager, until their exit arrives. */
-  private readonly endedByPerson = new EndedByPersonMarks()
-  private readonly renderQueues = new Map<number, Promise<void>>()
+  readonly endedByPerson = new EndedByPersonMarks()
+  readonly renderQueues = new Map<number, Promise<void>>()
   /** Tabs whose view is out of its place for an offscreen capture, which restores it. */
-  private readonly offscreenCaptureTabIds = new Set<string>()
-  private workspaceTemplateImporter?: WorkspaceTemplateImporter
-  private readonly tabOverviewPreviews = new Map<string, BrowserTabOverviewPreview>()
+  readonly offscreenCaptureTabIds = new Set<string>()
+  workspaceTemplateImporter?: WorkspaceTemplateImporter
+  readonly tabOverviewPreviews = new Map<string, BrowserTabOverviewPreview>()
   /** A sleeping tab's last frame from before it slept, shown in the overview until it wakes. */
-  private readonly tabOverviewSleepPreviews = new Map<string, BrowserTabOverviewPreview>()
-  private readonly tabOverviewPageCaptures = new Map<string, Promise<BrowserTabOverviewPreview>>()
-  private readonly tabOverviewPreviewTimers = new Map<string, NodeJS.Timeout>()
-  private readonly tabOverviewPreviewCaptures = new PreviewCaptureQueue<TabOverviewPreviewCaptureRequest<BrowserTab>>(
+  readonly tabOverviewSleepPreviews = new Map<string, BrowserTabOverviewPreview>()
+  readonly tabOverviewPageCaptures = new Map<string, Promise<BrowserTabOverviewPreview>>()
+  readonly tabOverviewPreviewTimers = new Map<string, NodeJS.Timeout>()
+  readonly tabOverviewPreviewCaptures = new PreviewCaptureQueue<TabOverviewPreviewCaptureRequest<BrowserTab>>(
     request => performTabOverviewPreviewCapture(this.tabOverviewPreviewsAccess(), request.tab, request.sequence, request.mode)
   )
-  private readonly nativePreviewCapture = new NativePreviewCapture(TAB_OVERVIEW_CAPTURE_TIMEOUT_MS)
-  private readonly shellHeldKeys: Set<string>
-  private readonly occlusionSnapshot = new OcclusionSnapshot({
+  readonly nativePreviewCapture = new NativePreviewCapture(TAB_OVERVIEW_CAPTURE_TIMEOUT_MS)
+  readonly shellHeldKeys: Set<string>
+  readonly occlusionSnapshot = new OcclusionSnapshot({
     panes: () => this.occlusionSnapshotPanes(),
     layout: () => this.occlusionLayout(),
     cssScale: () => this.window.webContents.getZoomFactor?.() ?? 1,
@@ -1511,19 +1333,19 @@ export class Browser {
     },
     timeoutMs: occlusionSnapshotTimeoutMs()
   })
-  private readonly tabOverviewPreviewableTabs = new Set<string>()
-  private tabOverviewLiveCaptureCursor = 0
-  private readonly closedTabs: BrowserClosedTabState[] = []
+  readonly tabOverviewPreviewableTabs = new Set<string>()
+  tabOverviewLiveCaptureCursor = 0
+  readonly closedTabs: BrowserClosedTabState[] = []
   /**
    * Recently closed tabs held out of closedTabs while a tab reopens or a workspace closes, until that puts them back.
    * Forgetting closed tabs with the history reaches these too.
    */
-  private readonly detachedClosedTabs = new Set<BrowserClosedTabState[]>()
-  private mcpUrl: string
+  readonly detachedClosedTabs = new Set<BrowserClosedTabState[]>()
+  mcpUrl: string
 
   constructor(
-    private readonly window: BrowserWindow,
-    private readonly options: BrowserOptions
+    readonly window: BrowserWindow,
+    readonly options: BrowserOptions
   ) {
     this.shellHeldKeys = trackShellHeldKeys(window)
     powerMonitor.on('suspend', this.pauseVideoForSuspend)
@@ -1724,7 +1546,7 @@ export class Browser {
   private browserStateAccess(): BrowserStateAccess<BrowserTab> {
     return {
       publishedAgentFollow: () => this.publishedAgentFollow(),
-      orderedTabs: () => this.orderedTabs(),
+      orderedTabs: () => orderedTabs(this),
       closedTabs: () => this.closedTabs,
       activeTabId: () => this.activeTabId,
       splitView: () => this.splitView,
@@ -1790,7 +1612,7 @@ export class Browser {
       mcpActivityFollower: () => this.mcpActivityFollower,
       changed: (persist) => this.changed(persist),
       window: () => this.window,
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       selectTab: (tabId, options) => this.selectTab(tabId, options)
     }
   }
@@ -1815,7 +1637,7 @@ export class Browser {
    */
   private agentWheelAccess(): AgentWheelAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       tabSelectionGeneration: () => this.tabSelectionGeneration,
       splitViewGeneration: () => this.splitViewGeneration,
       splitView: () => this.splitView,
@@ -1843,7 +1665,7 @@ export class Browser {
    */
   private agentTouchAccess(): AgentTouchAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       tabSelectionGeneration: () => this.tabSelectionGeneration,
       splitViewGeneration: () => this.splitViewGeneration,
       splitView: () => this.splitView,
@@ -1879,7 +1701,7 @@ export class Browser {
    */
   private tabOverviewPreviewsAccess(): TabOverviewPreviewsAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       findTab: (tabId) => this.tabs.get(tabId),
       tabs: () => this.tabs.values(),
       isDestroyed: () => this.destroyed,
@@ -1959,7 +1781,7 @@ export class Browser {
       mcpTabGroups: () => this.mcpTabGroups,
       savedTabGroups: () => this.savedTabGroups,
       tabs: () => this.tabs,
-      orderedTabs: () => this.orderedTabs(),
+      orderedTabs: () => orderedTabs(this),
       closedTabs: () => this.closedTabs,
       detachedClosedTabs: () => this.detachedClosedTabs,
       activeTabId: () => this.activeTabId,
@@ -2383,7 +2205,7 @@ export class Browser {
   }
 
   getActiveTab(): BrowserTab {
-    return this.getTab()
+    return getTab(this)
   }
 
   /** Whether the tab in view shows Hronaut Home. */
@@ -2395,15 +2217,6 @@ export class Browser {
   isHomeTab(tabId: string): boolean {
     const tab = this.tabs.get(tabId)
     return tab !== undefined && isHronautHomeUrl(tab.url)
-  }
-
-  getTab(tabId?: string): BrowserTab {
-    const resolvedId = tabId ?? this.activeTabId
-    const tab = resolvedId ? this.tabs.get(resolvedId) : undefined
-    // Agents read which tab is gone; a person reads that it is no longer available.
-    if (!tab && resolvedId) throw new LocalizedError('native.errors.tabUnavailable', undefined, { message: `Tab not found: ${resolvedId}` })
-    if (!tab) throw new LocalizedError('appErrors.tabs.noActiveTab')
-    return tab
   }
 
   /** Tells each open Home that what it shows changed, so it reads its status again. The message carries nothing. */
@@ -2423,7 +2236,7 @@ export class Browser {
     return this.getState()
   }
 
-  private readonly homeRefresh = new HomeRefresh()
+  readonly homeRefresh = new HomeRefresh()
 
   async reloadHome(): Promise<void> {
     const home = [...this.tabs.values()].find((tab) => isHronautHomeUrl(tab.url))
@@ -2442,7 +2255,7 @@ export class Browser {
    */
   private siteStorageAccess(): SiteStorageAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       findTab: (tabId) => this.tabs.get(tabId),
       findWorkspace: (workspaceId) => this.mcpTabGroups.get(workspaceId),
       inspectionPermission: (workspace) => this.inspectionPermissions.get(workspace),
@@ -2465,7 +2278,7 @@ export class Browser {
   }
 
   async pwaLifecycle(options: PwaLifecycleOptions, validate: (origin: string) => void = () => undefined) {
-    return this.pwaLifecycleRecorder.manage(this.getTab(options.tabId), options, validate)
+    return this.pwaLifecycleRecorder.manage(getTab(this, options.tabId), options, validate)
   }
 
   interruptPwaLifecycleWorkspace(workspaceId: string, reason: string): void {
@@ -2481,7 +2294,7 @@ export class Browser {
    */
   private pwaInspectionAccess(): PwaInspectionAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       findTab: (tabId) => this.tabs.get(tabId),
       withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
       isUnavailableCdpMethod: (error) => this.isUnavailableCdpMethod(error)
@@ -2511,7 +2324,7 @@ export class Browser {
    */
   private credentialFillAccess(): CredentialFillAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       activeTabId: () => this.activeTabId,
       tabSelectionGeneration: () => this.tabSelectionGeneration,
       withAgentInput: (webContents, operation) => this.withAgentInput(webContents, operation),
@@ -2639,8 +2452,8 @@ export class Browser {
       closedTabs: () => this.closedTabs,
       detachedClosedTabs: () => this.detachedClosedTabs,
       tabCount: () => this.tabs.size,
-      orderedTabs: () => this.orderedTabs(),
-      getTab: (tabId) => this.getTab(tabId),
+      orderedTabs: () => orderedTabs(this),
+      getTab: (tabId) => getTab(this, tabId),
       navigationHistorySnapshot: (tab) => this.navigationHistorySnapshot(tab),
       createTab: (options) => this.createTab(options),
       reorderTab: (tabId, targetTabId, placement) => this.reorderTab(tabId, targetTabId, placement),
@@ -2660,9 +2473,9 @@ export class Browser {
     return duplicateTabAfterLabelSave(this.tabReopeningAccess(), tabId)
   }
 
-  private readonly pendingTabLabels = new Set<Promise<unknown>>()
-  private tabLabelLifecycleHolds = 0
-  private tabLabelAdmissionClosed = false
+  readonly pendingTabLabels = new Set<Promise<unknown>>()
+  tabLabelLifecycleHolds = 0
+  tabLabelAdmissionClosed = false
 
   stopTabLabelEdits(): void { this.tabLabelAdmissionClosed = true }
 
@@ -2683,7 +2496,7 @@ export class Browser {
       tabLabelLifecycleHolds: () => this.tabLabelLifecycleHolds,
       setTabLabelLifecycleHolds: (holds) => { this.tabLabelLifecycleHolds = holds },
       pendingTabLabels: () => this.pendingTabLabels,
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       findTab: (tabId) => this.tabs.get(tabId),
       store: () => this.store,
       persistedState: () => this.persistedState(),
@@ -2718,8 +2531,8 @@ export class Browser {
   private tabArrangementAccess(): TabArrangementAccess<BrowserTab> {
     return {
       tabs: () => this.tabs,
-      getTab: (tabId) => this.getTab(tabId),
-      orderedTabs: () => this.orderedTabs(),
+      getTab: (tabId) => getTab(this, tabId),
+      orderedTabs: () => orderedTabs(this),
       wakeTab: (tabId) => this.wakeTab(tabId),
       changed: (persist) => this.changed(persist),
       getState: () => this.getState()
@@ -2782,11 +2595,11 @@ export class Browser {
    */
   private tabSleepAccess(): TabSleepAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       findTab: (tabId) => this.tabs.get(tabId),
       hasTab: (tabId) => this.tabs.has(tabId),
       tabs: () => this.tabs.values(),
-      orderedTabs: () => this.orderedTabs(),
+      orderedTabs: () => orderedTabs(this),
       activeTabId: () => this.activeTabId,
       splitViewContains: (tabId) => this.splitViewContains(tabId),
       selectTab: (tabId) => this.selectTab(tabId),
@@ -2855,7 +2668,7 @@ export class Browser {
    */
   private taskManagerAccess(): TaskManagerAccess<BrowserTab> {
     return {
-      tabs: () => this.orderedTabs().filter((tab) => !tab.webContents.isDestroyed()),
+      tabs: () => orderedTabs(this).filter((tab) => !tab.webContents.isDestroyed()),
       appMetrics: () => app.getAppMetrics(),
       allWebContents: () => electronWebContents.getAllWebContents(),
       isInterfacePage: (url) => this.options.isInterfacePage?.(url) === true,
@@ -2878,7 +2691,7 @@ export class Browser {
    */
   private pageLifecycleAccess(): PageLifecycleAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       findTab: (tabId) => this.tabs.get(tabId),
       isDestroyed: () => this.destroyed,
       inDebuggerQueue: (webContentsId, operation) => this.debuggerQueue.run(webContentsId, operation),
@@ -2948,9 +2761,9 @@ export class Browser {
    */
   private droppedLinksAccess(): DroppedLinksAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       tabs: () => this.tabs,
-      orderedTabs: () => this.orderedTabs(),
+      orderedTabs: () => orderedTabs(this),
       navigate: (address, tabId) => this.navigate(address, tabId, { byPerson: true }),
       newTab: (options, onCreated) => this.createNewTab(options, true, onCreated),
       getState: () => this.getState()
@@ -2999,8 +2812,8 @@ export class Browser {
    */
   private tabContextMenuAccess(): TabContextMenuAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
-      orderedTabs: () => this.orderedTabs(),
+      getTab: (tabId) => getTab(this, tabId),
+      orderedTabs: () => orderedTabs(this),
       activeTabId: () => this.activeTabId,
       findTab: (tabId) => this.tabs.get(tabId),
       options: () => this.options,
@@ -3051,7 +2864,7 @@ export class Browser {
    */
   private devToolsAccess(): DevToolsAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       findTab: (tabId) => this.tabs.get(tabId),
       isDestroyed: () => this.destroyed,
       wakeTab: (tabId) => this.wakeTab(tabId),
@@ -3099,7 +2912,7 @@ export class Browser {
    */
   private tabSelectionAccess(): TabSelectionAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       findTab: (tabId) => this.tabs.get(tabId),
       tabSelectionGeneration: () => this.tabSelectionGeneration,
       writeTabSelectionGeneration: (generation) => { this.tabSelectionGeneration = generation },
@@ -3162,7 +2975,7 @@ export class Browser {
   private splitViewAccess(): SplitViewAccess<BrowserTab> {
     return {
       getActiveTab: () => this.getActiveTab(),
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       findTab: (tabId) => this.tabs.get(tabId),
       splitView: () => this.splitView,
       writeSplitView: (splitView) => { this.splitView = splitView },
@@ -3214,9 +3027,9 @@ export class Browser {
    */
   private personTabCloseAccess(): PersonTabCloseAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       findTab: (tabId) => this.tabs.get(tabId),
-      orderedTabs: () => this.orderedTabs(),
+      orderedTabs: () => orderedTabs(this),
       activeTabId: () => this.activeTabId,
       closedTabs: () => this.closedTabs,
       closeTabInternal: (tabId, ensureReplacement, respectBeforeUnload, yieldsToNewerSelection) => (
@@ -3278,7 +3091,7 @@ export class Browser {
     const splitPartnerId = this.splitViewContains(tab.id)
       ? (this.splitView!.firstTabId === tab.id ? this.splitView!.secondTabId : this.splitView!.firstTabId)
       : null
-    const ordered = this.orderedTabs()
+    const ordered = orderedTabs(this)
     const ids = ordered.map((candidate) => candidate.id)
     const index = ids.indexOf(tab.id)
     // A website popup returns to the tab that opened it, as in Chrome, rather than to a tab of the next workspace.
@@ -3362,7 +3175,7 @@ export class Browser {
     forceClose: boolean,
     yieldsToNewerSelection: boolean
   ): Promise<BrowserState> {
-    const tab = this.getTab(tabId)
+    const tab = getTab(this, tabId)
     const webContents = tab.webContents
     // A WebContentsView may be destroyed independently (renderer failure,
     // devtools teardown, or an Electron close race). Purge those stale siblings
@@ -3375,7 +3188,7 @@ export class Browser {
       this.removeTabRecord(candidate)
     }
     if (!this.activeTabId) {
-      const replacement = this.orderedTabs().find(candidate => (
+      const replacement = orderedTabs(this).find(candidate => (
         candidate.id !== tab.id && !candidate.webContents.isDestroyed()
       ))
       if (replacement) this.selectTab(replacement.id)
@@ -3599,9 +3412,9 @@ export class Browser {
     if (opener && opener.mcpGroupId === tab.mcpGroupId && !opener.webContents.isDestroyed()) return opener.id
     const returnTo = tab.returnsToTabId ? this.tabs.get(tab.returnsToTabId) : undefined
     if (returnTo && returnTo.mcpGroupId === tab.mcpGroupId && !returnTo.webContents.isDestroyed()) return returnTo.id
-    const fromPage = tabAfterClosingLinkTab(this.orderedTabs(), tab, (candidate) => !candidate.webContents.isDestroyed())
+    const fromPage = tabAfterClosingLinkTab(orderedTabs(this), tab, (candidate) => !candidate.webContents.isDestroyed())
     if (fromPage) return fromPage.id
-    const siblings = this.orderedTabs().filter((candidate) => (
+    const siblings = orderedTabs(this).filter((candidate) => (
       candidate.mcpGroupId === tab.mcpGroupId && (candidate === tab || !candidate.webContents.isDestroyed())
     ))
     const index = siblings.indexOf(tab)
@@ -3619,7 +3432,7 @@ export class Browser {
    */
   private pageNavigationAccess(): PageNavigationAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       findTab: (tabId) => this.tabs.get(tabId),
       focusedTab: () => {
         const focused = electronWebContents.getFocusedWebContents()
@@ -3685,7 +3498,7 @@ export class Browser {
    */
   private navigationNewTabAccess(): NavigationNewTabAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       navigationHistorySnapshot: (tab) => this.navigationHistorySnapshot(tab),
       createTab: (options) => this.createTab(options),
       getState: () => this.getState()
@@ -3758,7 +3571,7 @@ export class Browser {
     return saveShownPage(this.pageSaveAccess())
   }
 
-  private pageSaving: Set<number> | undefined
+  pageSaving: Set<number> | undefined
 
   /**
    * The narrow view saving a page gets of this manager's shown tab, trusted chrome occlusion, human input lock, download
@@ -3792,7 +3605,7 @@ export class Browser {
     }
   }
 
-  private pagePrinting: Set<number> | undefined
+  pagePrinting: Set<number> | undefined
 
   /**
    * The narrow view printing a page gets of this manager's shown tab, trusted chrome occlusion, human input lock,
@@ -3831,7 +3644,7 @@ export class Browser {
    */
   private pageFindAccess(): PageFindAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       searchPage: (webContents, query, options) => this.pageFind.search(webContents, query, options),
       stopPageSearch: (webContents, action) => this.pageFind.stop(webContents, action),
       browserContentOccluded: () => this.browserContentOccluded,
@@ -3863,7 +3676,7 @@ export class Browser {
    */
   private pageZoomAccess(): PageZoomAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       changed: (persist) => this.changed(persist),
       getState: () => this.getState()
     }
@@ -3900,7 +3713,7 @@ export class Browser {
    */
   private agentPauseAccess(): AgentPauseAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       findTab: (tabId) => this.tabs.get(tabId),
       tabs: () => this.tabs.values(),
       allAgentsPaused: () => this.allAgentsPaused,
@@ -3946,7 +3759,7 @@ export class Browser {
    */
   private tabMutingAccess(): TabMutingAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       tabs: () => this.tabs.values(),
       allTabsMuted: () => this.allTabsMuted,
       setAllTabsMutedPreference: (muted) => { this.allTabsMuted = muted },
@@ -3966,7 +3779,7 @@ export class Browser {
   /** The narrow view muting websites gets of this manager's tabs and of the site permission store it was given. */
   private siteMutingAccess(): SiteMutingAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       tabs: () => this.tabs.values(),
       allTabsMuted: () => this.allTabsMuted,
       store: () => this.options.sitePermissionStore?.() ?? null,
@@ -4006,7 +3819,7 @@ export class Browser {
    */
   private interactionLockAccess(): InteractionLockAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       findTab: (tabId) => this.tabs.get(tabId),
       tabs: () => this.tabs.values(),
       findWorkspace: (workspaceId) => this.mcpTabGroups.get(workspaceId),
@@ -4049,7 +3862,7 @@ export class Browser {
    */
   private pageSnapshotsAccess(): PageSnapshotsAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       findTab: (tabId) => this.tabs.get(tabId),
       tabs: () => this.tabs.values(),
       findWorkspace: (workspaceId) => this.mcpTabGroups.get(workspaceId),
@@ -4076,7 +3889,7 @@ export class Browser {
    */
   private shadowSnapshotAccess(): ShadowSnapshotAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       findTab: (tabId) => this.tabs.get(tabId),
       snapshotDeltaContext: (tab) => this.snapshotDeltaContext(tab),
       omitUrlDetail: () => this.omitAgentUrlDetail()
@@ -4153,7 +3966,7 @@ export class Browser {
    */
   private pageAuditsAccess(): PageAuditsAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       findTab: (tabId) => this.tabs.get(tabId),
       axeSource: () => axe.source,
       webVitalsSource: () => webVitalsSource,
@@ -4191,13 +4004,13 @@ export class Browser {
   }
 
   codeCoverage(options: BrowserCodeCoverageOptions = {}): Promise<BrowserCodeCoverageResult> {
-    if (options.action === 'start' && this.cssStatePreview.active(this.getTab(options.tabId))) {
+    if (options.action === 'start' && this.cssStatePreview.active(getTab(this, options.tabId))) {
       return Promise.reject(new Error('Clear the CSS state preview before recording code coverage'))
     }
-    if (options.action === 'start' && this.domMutationSource.active(this.getTab(options.tabId))) {
+    if (options.action === 'start' && this.domMutationSource.active(getTab(this, options.tabId))) {
       return Promise.reject(new Error('Cancel the DOM mutation source capture before recording code coverage'))
     }
-    if (options.action === 'start' && this.logpoints.active(this.getTab(options.tabId))) {
+    if (options.action === 'start' && this.logpoints.active(getTab(this, options.tabId))) {
       return Promise.reject(new Error('Remove the logpoints before recording code coverage'))
     }
     return this.profiling.codeCoverage(options)
@@ -4220,7 +4033,7 @@ export class Browser {
    */
   private elementPickerAccess(): ElementPickerAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       elementPickerSessions: () => this.elementPickerSessions,
       isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
       syncHumanInteractionInputGuard: (tab) => this.syncHumanInteractionInputGuard(tab),
@@ -4246,7 +4059,7 @@ export class Browser {
    */
   private elementInspectionAccess(): ElementInspectionAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       findTab: (tabId) => this.tabs.get(tabId),
       findWorkspace: (workspaceId) => this.mcpTabGroups.get(workspaceId),
       inspectionPermission: (workspace) => this.inspectionPermissions.get(workspace),
@@ -4293,7 +4106,7 @@ export class Browser {
    */
   private screenshotAreaAccess(): ScreenshotAreaAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       screenshotAreaSessions: () => this.screenshotAreaSessions,
       isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
       syncHumanInteractionInputGuard: (tab) => this.syncHumanInteractionInputGuard(tab),
@@ -4323,7 +4136,7 @@ export class Browser {
    */
   private agentPageActionsAccess(): AgentPageActionsAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       unconfirmedSemanticClicks: () => this.unconfirmedSemanticClicks,
       observeOpenedTabs: (tab) => this.observeOpenedTabs(tab),
       stopObservingOpenedTabs: (tab, observation) => this.stopObservingOpenedTabs(tab, observation),
@@ -4503,7 +4316,7 @@ export class Browser {
    */
   private emulationAccess(): EmulationAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       findTab: (tabId) => this.tabs.get(tabId),
       isDestroyed: () => this.destroyed,
       withDebugger: (webContents, operation, validateAdmission) => this.withDebugger(webContents, operation, validateAdmission),
@@ -4579,7 +4392,7 @@ export class Browser {
    */
   private consoleMessagesAccess(): ConsoleMessagesAccess {
     return {
-      getTab: (tabId) => this.getTab(tabId)
+      getTab: (tabId) => getTab(this, tabId)
     }
   }
 
@@ -4598,7 +4411,7 @@ export class Browser {
    */
   private networkInspectionAccess(): NetworkInspectionAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       findTab: (tabId) => this.tabs.get(tabId),
       findWorkspace: (workspaceId) => this.mcpTabGroups.get(workspaceId),
       inspectionPermission: (workspace) => this.inspectionPermissions.get(workspace),
@@ -4642,7 +4455,7 @@ export class Browser {
    */
   private debugReportAccess(): DebugReportAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       emulationProjection: (tab) => this.emulationProjection(tab),
       consoleMessages: (tabId) => this.consoleMessages(tabId),
       currentNetworkRequests: (tab) => this.currentNetworkRequests(tab),
@@ -4688,7 +4501,7 @@ export class Browser {
    */
   private videoRecordingAccess(): VideoRecordingAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       findTab: (tabId) => this.tabs.get(tabId),
       isDestroyed: () => this.destroyed,
       window: () => this.window,
@@ -4711,15 +4524,15 @@ export class Browser {
   }
 
   async reproRecording(action: BrowserReproAction, tabId?: string, checkpoint?: unknown): Promise<BrowserReproRecording> {
-    return this.reproRecorder.manage(this.getTab(tabId), action, checkpoint)
+    return this.reproRecorder.manage(getTab(this, tabId), action, checkpoint)
   }
 
   async domChanges(action: BrowserDomChangesAction, tabId?: string): Promise<BrowserDomChangesReport> {
-    return this.domRecorder.manage(this.getTab(tabId), action)
+    return this.domRecorder.manage(getTab(this, tabId), action)
   }
 
   async liveRegion(action: BrowserLiveRegionAction, tabId?: string, selector?: string): Promise<BrowserLiveRegionReport> {
-    return this.liveRegionRecorder.manage(this.getTab(tabId), action, selector)
+    return this.liveRegionRecorder.manage(getTab(this, tabId), action, selector)
   }
 
   async cssStatePreviewAction(
@@ -4727,7 +4540,7 @@ export class Browser {
     tabId?: string,
     options: { selector?: string; states?: readonly string[]; durationMs?: number } = {}
   ): Promise<BrowserCssStatePreviewReport> {
-    return this.cssStatePreview.manage(this.getTab(tabId), action, options)
+    return this.cssStatePreview.manage(getTab(this, tabId), action, options)
   }
 
   domMutationSourceAction(
@@ -4735,7 +4548,7 @@ export class Browser {
     action: DomMutationSourceAction,
     options: { selector?: string; kind?: DomMutationSourceKind; durationMs?: number; authority?: DomMutationSourceAuthority } = {}
   ): Promise<DomMutationSourceReport> {
-    return this.domMutationSource.manage(this.getTab(tabId), action, options)
+    return this.domMutationSource.manage(getTab(this, tabId), action, options)
   }
 
   /** Marks screenshots and inspections taken while a forced CSS state was applied. */
@@ -4747,24 +4560,24 @@ export class Browser {
 
   /** The trusted address-bar reset. It works whatever the agent's state, including while paused. */
   async clearCssStatePreview(tabId: string): Promise<BrowserState> {
-    await this.cssStatePreview.clear(this.getTab(tabId), 'human-reset')
+    await this.cssStatePreview.clear(getTab(this, tabId), 'human-reset')
     return this.getState()
   }
 
   virtualPasskey(tabId: string, action: VirtualPasskeyAction, options: VirtualPasskeyOptions, authority: VirtualPasskeyAuthority): Promise<VirtualPasskeyReport> {
-    return this.virtualPasskeys.manage(this.getTab(tabId), action, options, authority)
+    return this.virtualPasskeys.manage(getTab(this, tabId), action, options, authority)
   }
 
   listWorkers(tabId: string, authority: WorkerEvaluationAuthority): Promise<WorkerListReport> {
-    return this.workerEvaluations.list(this.getTab(tabId), authority)
+    return this.workerEvaluations.list(getTab(this, tabId), authority)
   }
 
   evaluateInWorker(tabId: string, handle: string, script: string, deadline: WorkerEvaluationDeadline, authority: WorkerEvaluationAuthority): Promise<WorkerEvaluationReport> {
-    return this.workerEvaluations.evaluate(this.getTab(tabId), handle, script, deadline, authority)
+    return this.workerEvaluations.evaluate(getTab(this, tabId), handle, script, deadline, authority)
   }
 
   computedAccessibility(tabId: string, target: ComputedAccessibilityTarget, authority: ComputedAccessibilityAuthority): Promise<ComputedAccessibilityReport> {
-    return this.computedAccessibilityReader.read(this.getTab(tabId), target, authority)
+    return this.computedAccessibilityReader.read(getTab(this, tabId), target, authority)
   }
 
   logpoint(
@@ -4772,18 +4585,18 @@ export class Browser {
     action: LogpointAction,
     options: { probes?: LogpointRequest[]; maxHits?: number; durationMs?: number; authority?: LogpointAuthority } = {}
   ): Promise<LogpointReport | LogpointScriptsReport> {
-    return this.logpoints.manage(this.getTab(tabId), action, options)
+    return this.logpoints.manage(getTab(this, tabId), action, options)
   }
 
   /** The address bar's stop for a tab's logpoints. It works whatever the agent's state, including while paused. */
   stopLogpoints(tabId: string): BrowserState {
-    this.logpoints.stop(this.getTab(tabId), 'person-stopped')
+    this.logpoints.stop(getTab(this, tabId), 'person-stopped')
     return this.getState()
   }
 
   /** The trusted address-bar stop. It works whatever the agent's state, including while paused. */
   stopVirtualPasskey(tabId: string): BrowserState {
-    this.virtualPasskeys.stop(this.getTab(tabId), 'person-stopped')
+    this.virtualPasskeys.stop(getTab(this, tabId), 'person-stopped')
     return this.getState()
   }
 
@@ -4823,7 +4636,7 @@ export class Browser {
    * and opens it if they choose to, as Chrome's "Proceed (unsafe)". Only the shell asks for this, never an agent.
    */
   async proceedPastCertificateError(tabId: string): Promise<BrowserState> {
-    const tab = this.getTab(tabId)
+    const tab = getTab(this, tabId)
     const url = tab.pageProblem?.certificate?.canProceed ? tab.pageProblem.url : undefined
     if (url) {
       await proceedPastCertificateError({
@@ -4844,7 +4657,7 @@ export class Browser {
    */
   private inspectorIssuesAccess(): InspectorIssuesAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       ensureDialogMonitoring: (tab) => this.ensureDialogMonitoring(tab),
       changed: (persist) => this.changed(persist)
     }
@@ -4883,7 +4696,7 @@ export class Browser {
    */
   private networkConditionsAccess(): NetworkConditionsAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       findTab: (tabId) => this.tabs.get(tabId),
       isDestroyed: () => this.destroyed,
       withDebugger: (webContents, operation, validateAdmission) => this.withDebugger(webContents, operation, validateAdmission),
@@ -4957,7 +4770,7 @@ export class Browser {
    * as Chrome saves its QR code through its downloads.
    */
   downloadGeneratedFile(tabId: string, dataUrl: string, filename: string): void {
-    const tab = this.getTab(tabId)
+    const tab = getTab(this, tabId)
     if (tab.webContents.isDestroyed()) throw new LocalizedError('native.errors.tabUnavailable', undefined, { message: `Tab not found: ${tabId}` })
     this.downloadController.expectGeneratedFile(tab.webContents.id, dataUrl, filename)
     tab.webContents.downloadURL(dataUrl)
@@ -5020,7 +4833,7 @@ export class Browser {
   private fileUploadAccess(): FileUploadAccess<BrowserTab> {
     return {
       validateTarget: (target) => this.validateTarget(target),
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       findTab: (tabId) => this.tabs.get(tabId),
       findWorkspace: (workspaceId) => this.mcpTabGroups.get(workspaceId),
       inspectionPermission: (workspace) => this.inspectionPermissions.get(workspace),
@@ -5050,7 +4863,7 @@ export class Browser {
   private fileDropAccess(): FileDropAccess<BrowserTab> {
     return {
       validateTarget: (target) => this.validateTarget(target),
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       nativeInputAuthority: (tab, validateInput) => this.nativeInputAuthority(tab, validateInput),
       showAgentPointer: (webContents, point, effect, options) => this.showAgentPointer(webContents, point, effect, options),
       withAgentInput: (webContents, operation) => this.withAgentInput(webContents, operation),
@@ -5078,7 +4891,7 @@ export class Browser {
   private textInsertionAccess(): TextInsertionAccess<BrowserTab> {
     return {
       validateTarget: (target) => this.validateTarget(target),
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       nativeInputAuthority: (tab, validateInput) => this.nativeInputAuthority(tab, validateInput),
       withAgentInput: (webContents, operation) => this.withAgentInput(webContents, operation),
       withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
@@ -5098,7 +4911,7 @@ export class Browser {
   private textFileFillAccess(): TextFileFillAccess<BrowserTab> {
     return {
       validateTarget: (target) => this.validateTarget(target),
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       nativeInputAuthority: (tab, validateInput) => this.nativeInputAuthority(tab, validateInput),
       withAgentInput: (webContents, operation) => this.withAgentInput(webContents, operation)
     }
@@ -5126,7 +4939,7 @@ export class Browser {
    */
   private agentKeysAccess(): AgentKeysAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       activeNativeKeyHolds: () => this.activeNativeKeyHolds,
       unconfirmedNativeKeyHolds: () => this.unconfirmedNativeKeyHolds,
       tabSelectionGeneration: () => this.tabSelectionGeneration,
@@ -5169,7 +4982,7 @@ export class Browser {
    */
   private pageEvaluationAccess(): PageEvaluationAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       findTab: (tabId) => this.tabs.get(tabId),
       isDestroyed: () => this.destroyed,
       isWindowFocused: () => this.window.isFocused(),
@@ -5201,7 +5014,7 @@ export class Browser {
    */
   private webMcpAccess(): WebMcpAccess {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       findTab: (tabId) => this.tabs.get(tabId),
       descriptorCache: () => this.webMcpDescriptorCache,
       snapshotDetails: (tabId, maxChars) => this.snapshotDetails(tabId, maxChars)
@@ -5231,7 +5044,7 @@ export class Browser {
    */
   private websiteDialogsAccess(): WebsiteDialogsAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       findTab: (tabId) => this.tabs.get(tabId),
       isDestroyed: () => this.destroyed,
       withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
@@ -5286,7 +5099,7 @@ export class Browser {
    */
   private visualCompareAccess(): VisualCompareAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       findTab: (tabId) => this.tabs.get(tabId),
       snapshotDeltaContext: (tab) => this.snapshotDeltaContext(tab),
       captureVisual: (tab, settleMs, clip) => this.captureVisual(tab, settleMs, clip)
@@ -5313,7 +5126,7 @@ export class Browser {
    */
   private screenshotsAccess(): ScreenshotsAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       findTab: (tabId) => this.tabs.get(tabId),
       validateTarget: (target) => this.validateTarget(target),
       activeTabId: () => this.activeTabId,
@@ -5341,7 +5154,7 @@ export class Browser {
    */
   private trackedScreenshotAccess(): TrackedScreenshotAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       findTab: (tabId) => this.tabs.get(tabId),
       snapshotDeltaContext: (tab) => this.snapshotDeltaContext(tab),
       cssStatePreview: (tab) => {
@@ -5366,7 +5179,7 @@ export class Browser {
    */
   private pdfExportAccess(): PdfExportAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       findTab: (tabId) => this.tabs.get(tabId),
       findWorkspace: (workspaceId) => this.mcpTabGroups.get(workspaceId),
       inspectionPermission: (workspace) => this.inspectionPermissions.get(workspace),
@@ -5390,7 +5203,7 @@ export class Browser {
    */
   private screenshotExportAccess(): ScreenshotExportAccess<BrowserTab> {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       findTab: (tabId) => this.tabs.get(tabId),
       findWorkspace: (workspaceId) => this.mcpTabGroups.get(workspaceId),
       inspectionPermission: (workspace) => this.inspectionPermissions.get(workspace),
@@ -5420,7 +5233,7 @@ export class Browser {
    */
   private pageWaitsAccess(): PageWaitsAccess {
     return {
-      getTab: (tabId) => this.getTab(tabId),
+      getTab: (tabId) => getTab(this, tabId),
       hasTab: (tabId) => this.tabs.has(tabId),
       validateTarget: (target) => this.validateTarget(target),
       rendererExpectsExit: (webContents) => this.rendererRecovery.expectsExit(webContents)
@@ -6104,7 +5917,7 @@ export class Browser {
       forgetTabsOpenedFrom(this.tabs.values(), options.mcpGroupId)
     }
     this.tabs.set(id, tab)
-    const placed = options.openedFrom ? placeTabOpenedFromPage(this.orderedTabs(), tab, options.openedFrom.background) : undefined
+    const placed = options.openedFrom ? placeTabOpenedFromPage(orderedTabs(this), tab, options.openedFrom.background) : undefined
     if (placed) {
       this.tabs.clear()
       for (const placedTab of placed) this.tabs.set(placedTab.id, placedTab)
@@ -6354,7 +6167,7 @@ export class Browser {
       layout: () => this.layout(),
       focusTabOrTrustedChrome: (tab) => this.focusTabOrTrustedChrome(tab),
       changed: (persist) => this.changed(persist),
-      orderedTabs: () => this.orderedTabs(),
+      orderedTabs: () => orderedTabs(this),
       selectTab: (tabId) => this.selectTab(tabId),
       publishPageGeometry: () => this.publishPageGeometry(),
       createTab: (options) => this.createTab(options)
@@ -6873,8 +6686,8 @@ export class Browser {
     queueElementPickerMouseInput(this.elementPickerAccess(), tab, session, type, mouse)
   }
 
-  private readonly unconfirmedSemanticClicks = new WeakSet<BrowserTab['view']['webContents']>()
-  private readonly openedTabObservations = new Map<BrowserTab, Set<OpenedTabObservation>>()
+  readonly unconfirmedSemanticClicks = new WeakSet<BrowserTab['view']['webContents']>()
+  readonly openedTabObservations = new Map<BrowserTab, Set<OpenedTabObservation>>()
 
   private observeOpenedTabs(tab: BrowserTab): OpenedTabObservation {
     const observation = new OpenedTabObservation()
@@ -7142,22 +6955,6 @@ export class Browser {
     }, 250)
   }
 
-  private orderedTabs(): BrowserTab[] {
-    // Workspaces in the order the rail and strip show them, pinned ones first, and each workspace's pinned tabs
-    // before its other tabs, so tab shortcuts and the tab that follows a closed one go by what is on screen.
-    const groupOrder = new Map(pinnedWorkspacesFirst([...this.mcpTabGroups.values()]).map((group, index) => [group.id, index + 1]))
-    return [...this.tabs.values()].sort((first, second) => {
-      const firstIsHome = isHronautHomeUrl(first.url)
-      const secondIsHome = isHronautHomeUrl(second.url)
-      if (firstIsHome !== secondIsHome) return firstIsHome ? -1 : 1
-      const firstGroup = first.mcpGroupId ? groupOrder.get(first.mcpGroupId) ?? Number.MAX_SAFE_INTEGER : 0
-      const secondGroup = second.mcpGroupId ? groupOrder.get(second.mcpGroupId) ?? Number.MAX_SAFE_INTEGER : 0
-      if (firstGroup !== secondGroup) return firstGroup - secondGroup
-      if (first.pinned !== second.pinned) return first.pinned ? -1 : 1
-      return 0
-    })
-  }
-
   private splitViewContains(tabId: string): boolean {
     return this.splitView?.firstTabId === tabId || this.splitView?.secondTabId === tabId
   }
@@ -7222,7 +7019,7 @@ export class Browser {
       allHumanInteractionLocked: () => this.allHumanInteractionLocked,
       mcpTabGroups: () => this.mcpTabGroups,
       savedTabGroups: () => this.savedTabGroups,
-      orderedTabs: () => this.orderedTabs(),
+      orderedTabs: () => orderedTabs(this),
       workspacesBeingDeleted: () => this.workspacesBeingDeleted
     }
   }

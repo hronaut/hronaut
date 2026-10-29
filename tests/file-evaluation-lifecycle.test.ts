@@ -6,7 +6,7 @@ it('releases process admission and the timer when target capture throws', async 
   vi.useFakeTimers()
   try {
     const manager = Object.assign(Object.create(Browser.prototype), {
-      getTab: () => ({ webContents: { get mainFrame() { throw new Error('Synthetic unavailable frame') } } })
+      tabs: new Map([['tab', { webContents: { get mainFrame() { throw new Error('Synthetic unavailable frame') } } }]])
     }) as Browser
     const hooks = { validate: vi.fn(), submitted: vi.fn(), retainPublication: vi.fn(), retainCompletion: vi.fn() }
     for (let attempt = 0; attempt < 4; attempt++) {

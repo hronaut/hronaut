@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, Menu: {} }))
 import { Browser } from '../src/main/browser/browser.js'
+import { orderedTabs } from '../src/main/browser/browser-core.js'
 
 interface Tab { id: string; url: string; pinned: boolean; sleeping: boolean; mcpGroupId?: string; webContents: { isDestroyed: () => boolean } }
 interface Internals {
   tabs: Map<string, Tab>
   wakeTab: (tabId: string) => Promise<unknown>
-  orderedTabs(): Tab[]
   setTabPinned(tabId: string, pinned: boolean): Promise<unknown>
   reorderTab(tabId: string, targetTabId: string, placement: 'before' | 'after'): unknown
 }
@@ -31,7 +31,7 @@ function manager(ids: string[], pinnedWorkspaces: string[] = []): Internals {
   }) as unknown as Internals
 }
 
-const order = (tabs: Internals) => tabs.orderedTabs().map((tab) => `${tab.id}${tab.pinned ? '*' : ''}`)
+const order = (tabs: Internals) => orderedTabs(tabs as never).map((tab) => `${tab.id}${tab.pinned ? '*' : ''}`)
 
 describe('pinning a tab moves it to the pinned tabs\' edge, as in Chrome', () => {
   it('puts a newly pinned tab after the tabs pinned before it', async () => {

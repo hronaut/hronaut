@@ -75,7 +75,6 @@ function browser() {
     roundPageCorners: vi.fn(), installSessionHooks: vi.fn(), attachTabEvents: vi.fn(), layout: vi.fn(), changed: vi.fn(),
     selectTab: vi.fn(), reorderTab: vi.fn(), navigationHistorySnapshot: () => ({ entries: [], index: -1 }),
     withTabLabelLifecycle: (run: () => Promise<unknown>) => run(), getState: () => ({}), text: (key: string) => key,
-    orderedTabs(this: Manager) { return [...this.tabs.values()] },
     async closeTabInternal(this: Manager, tabId: string) {
       // The close bookkeeping of a real close: the tab is remembered, then removed.
       this.rememberClosedTab(this.tabs.get(tabId)!)

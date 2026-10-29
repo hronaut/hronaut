@@ -21,7 +21,7 @@ function fixture() {
   const manager = Object.assign(Object.create(Browser.prototype), {
     initialized: true, destroyed: false, tabLabelAdmissionClosed: false, tabLabelLifecycleHolds: 0,
     pendingTabLabels: pending, tabs: new Map([[tab.id, tab]]), mcpTabGroups: new Map([['workspace', {}]]), store: { save },
-    options: {}, followAgentActivity: false, createTab, changed: vi.fn(), getTab: () => tab,
+    options: {}, followAgentActivity: false, createTab, changed: vi.fn(),
     getState: () => ({ tabs: [tab] }), requireMcpTabGroup: vi.fn(), assertWorkspaceNavigationAllowed: vi.fn(),
     persistedState: () => ({ version: 3, tabs: [{ ...tab }] })
   }) as Browser

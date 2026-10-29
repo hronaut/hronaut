@@ -10,7 +10,7 @@ it.each(['validator', 'listener'])('releases sizing ownership after %s failure f
   const tab = { id: 'tab', url: 'https://example.test/', mcpGroupId: 'workspace', webContents: contents, pageLifecycleState: 'active' }
   const slots = new ImageInspectionSlots()
   const manager = Object.assign(Object.create(Browser.prototype), {
-    getTab: () => tab, snapshotDeltaContext: () => context,
+    snapshotDeltaContext: () => context,
     tabs: new Map([['tab', tab]]), mcpTabGroups: new Map([['workspace', {}]]), inspectionPermissions: new WeakMap(),
     sizingInspectionSlots: slots, destroyed: false
   }) as Browser
@@ -38,7 +38,7 @@ it('runs the parent flex context on the guarded sizing path, and only for one un
   const context = { tabId: 'tab', workspaceId: 'workspace', navigationGeneration: 1, observationGeneration: 1, humanInteractionGeneration: 0, snapshotFormatVersion: 1 }
   const tab = { id: 'tab', url: 'https://example.test/', title: 'Example', mcpGroupId: 'workspace', webContents: contents, pageLifecycleState: 'active' }
   const manager = Object.assign(Object.create(Browser.prototype), {
-    getTab: () => tab, snapshotDeltaContext: () => context, validateTarget: () => undefined,
+    snapshotDeltaContext: () => context, validateTarget: () => undefined,
     tabs: new Map([['tab', tab]]), mcpTabGroups: new Map([['workspace', {}]]), inspectionPermissions: new WeakMap(),
     sizingInspectionSlots: new ImageInspectionSlots(), destroyed: false
   }) as Browser

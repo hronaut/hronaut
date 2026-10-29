@@ -9,6 +9,7 @@ vi.mock('electron', () => ({
 
 const { showTabContextMenu } = await import('../src/main/browser/context-menus/tab-context-menu.js')
 const { Browser } = await import('../src/main/browser/browser.js')
+const { orderedTabs } = await import('../src/main/browser/browser-core.js')
 
 // A tab menu opened on one of several tabs selected with Ctrl or Shift and a click acted only on that tab; as in
 // Chrome, it acts on every selected tab.
@@ -167,11 +168,11 @@ describe('the tab menu of several selected tabs', () => {
       splitView: null,
       changed: () => undefined,
       getState: () => ({})
-    }) as { tabs: Map<string, Tab>; orderedTabs(): Tab[]; setTabPinned(id: string, pinned: boolean): Promise<unknown> }
-    const order = () => manager.orderedTabs().map((candidate) => `${candidate.id}${candidate.pinned ? '*' : ''}`)
+    }) as { tabs: Map<string, Tab>; setTabPinned(id: string, pinned: boolean): Promise<unknown> }
+    const order = () => orderedTabs(manager as never).map((candidate) => `${candidate.id}${candidate.pinned ? '*' : ''}`)
     const fake = access([], 'a')
     Object.assign(fake.access, {
-      orderedTabs: () => manager.orderedTabs(),
+      orderedTabs: () => orderedTabs(manager as never),
       getTab: (id: string) => manager.tabs.get(id),
       findTab: (id: string) => manager.tabs.get(id),
       setTabPinned: (id: string, pinned: boolean) => manager.setTabPinned(id, pinned)

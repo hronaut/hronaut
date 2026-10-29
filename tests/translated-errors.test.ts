@@ -15,6 +15,7 @@ const { LocalizedError, withTranslatedIpcErrors } = await import('../src/main/lo
 const { translate } = await import('../src/shared/i18n.js')
 const { MAX_BROWSER_TABS } = await import('../src/shared/types.js')
 const { Browser } = await import('../src/main/browser/browser.js')
+const { getTab } = await import('../src/main/browser/browser-core.js')
 const { RendererExitedError } = await import('../src/main/browser/renderer-exit-guard.js')
 const { WorkspaceMetadataError } = await import('../src/main/browser/tab-store.js')
 const { waitForPage } = await import('../src/main/browser/page-waits/page-waits.js')
@@ -111,10 +112,10 @@ describe('main-process failures people see in tabs, navigation and new tabs', ()
     ['a tab that closed while its page loads', () => waitForPage({ getTab: () => ({ webContents: destroyed }) } as never, 'tab'),
       'The tab closed while waiting for the page.',
       'Вкладку закрито під час очікування сторінки.'],
-    ['a tab that is gone', () => manager(null).getTab('019a0000-0000-7000-8000-000000000001'),
+    ['a tab that is gone', () => getTab(manager(null), '019a0000-0000-7000-8000-000000000001'),
       'Tab not found: 019a0000-0000-7000-8000-000000000001',
       'Вкладка більше недоступна.'],
-    ['no active tab', () => manager(null).getTab(),
+    ['no active tab', () => getTab(manager(null)),
       'There is no active tab',
       'Немає активної вкладки.'],
     // Address bar navigation

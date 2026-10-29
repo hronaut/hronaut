@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, Menu: {} }))
 import type { MenuItemConstructorOptions } from 'electron'
 import { Browser } from '../src/main/browser/browser.js'
+import { orderedTabs } from '../src/main/browser/browser-core.js'
 
 afterEach(() => {
   vi.useRealTimers()
@@ -16,7 +17,6 @@ interface Internals {
   activeTabId: string | null
   changed: ReturnType<typeof vi.fn>
   window: { webContents: { send: ReturnType<typeof vi.fn> } }
-  orderedTabs(): Tab[]
   closeTabTransition(tab: Tab): { splitPartnerId: string | null; nextId: string | undefined }
   workspaceContextMenuItems(group: Group): MenuItemConstructorOptions[]
 }
@@ -108,17 +108,17 @@ describe('tab order in main with pinned workspaces', () => {
       group('beta', '2026-10-17T12:00:00.000Z'),
       group('gamma', '2026-10-17T11:00:00.000Z')
     ], tabs)
-    expect(internals.orderedTabs().map((tab) => tab.id)).toEqual(['home', 'gamma-pinned', 'gamma-1', 'beta-1', 'alpha-1', 'alpha-2'])
+    expect(orderedTabs(internals as never).map((tab) => tab.id)).toEqual(['home', 'gamma-pinned', 'gamma-1', 'beta-1', 'alpha-1', 'alpha-2'])
   })
 
   it('returns an unpinned workspace to its stored place', () => {
     const { manager, internals } = fixture([group('alpha'), group('beta'), group('gamma')], tabs)
-    const stored = internals.orderedTabs().map((tab) => tab.id)
+    const stored = orderedTabs(internals as never).map((tab) => tab.id)
     expect(stored).toEqual(['home', 'alpha-1', 'alpha-2', 'beta-1', 'gamma-pinned', 'gamma-1'])
     manager.setWorkspacePinned('beta', true)
-    expect(internals.orderedTabs().map((tab) => tab.id)).toEqual(['home', 'beta-1', 'alpha-1', 'alpha-2', 'gamma-pinned', 'gamma-1'])
+    expect(orderedTabs(internals as never).map((tab) => tab.id)).toEqual(['home', 'beta-1', 'alpha-1', 'alpha-2', 'gamma-pinned', 'gamma-1'])
     manager.setWorkspacePinned('beta', false)
-    expect(internals.orderedTabs().map((tab) => tab.id)).toEqual(stored)
+    expect(orderedTabs(internals as never).map((tab) => tab.id)).toEqual(stored)
   })
 
   it('shows the next tab on screen after closing the last tab of a pinned workspace', () => {
@@ -142,7 +142,7 @@ describe('tab order in main with pinned workspaces', () => {
       { id: 'docs-2', url: 'https://docs.test/2', pinned: false, mcpGroupId: 'docs' },
       { id: 'docs-pinned', url: 'https://docs.test/pinned', pinned: true, mcpGroupId: 'docs' }
     ])
-    expect(internals.orderedTabs().map((tab) => tab.id)).toEqual(['work-1', 'work-2', 'docs-pinned', 'docs-2'])
+    expect(orderedTabs(internals as never).map((tab) => tab.id)).toEqual(['work-1', 'work-2', 'docs-pinned', 'docs-2'])
     internals.activeTabId = 'docs-pinned'
     expect(internals.closeTabTransition(internals.tabs.get('docs-pinned')!).nextId).toBe('docs-2')
   })
