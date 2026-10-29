@@ -95,6 +95,18 @@ test('opens, saves and copies an audio from the page menu, as Chrome does', asyn
       { id: 'copy-audio-address', label: 'Copy Audio Address', enabled: true }
     ])
 
+    // As in Chrome, an audio also offers Loop, and Show controls only as it is, since hiding an audio's controls would
+    // hide the audio; it has no Picture in picture.
+    expect(items.filter(item => item.id.startsWith('media-') || item.id === 'picture-in-picture')).toEqual([
+      { id: 'media-loop', label: 'Loop', enabled: true },
+      { id: 'media-controls', label: 'Show Controls', enabled: false }
+    ])
+    expect(await choose('media-loop')).toBe(true)
+    await expect.poll(() => electronApp.evaluate(({ webContents }, url) => webContents.getAllWebContents()
+      .find(contents => contents.getURL() === url)
+      ?.executeJavaScript('document.querySelector("#audio").loop'), url)).toBe(true)
+
+    await openMenu()
     expect(await choose('save-audio')).toBe(true)
     await expect.poll(() => existsSync(join(profileDirectory, 'tone.wav'))).toBe(true)
 
@@ -225,6 +237,131 @@ test('copies and saves the frame a video shows, in the page and in a frame of an
         const [blue, green, red] = image.crop({ x: Math.floor(size.width / 2), y: Math.floor(size.height / 2), width: 1, height: 1 }).toBitmap()
         return red! > 200 && green! < 60 && blue! < 60
       }, join(profileDirectory, frame))).toBe(true)
+    }
+  } finally {
+    await closeFixtureServer(server)
+  }
+})
+
+test('turns Loop, Show controls and Picture in picture on and off for a video in the zoomed page and in a frame of another site, as Chrome does', async ({ appWindow, electronApp }) => {
+  const video = '<video id="video" muted preload="auto" src="/clip.webm" style="display:block;width:160px;height:90px"></video>'
+  let frameUrl = ''
+  const server = createServer((request, response) => {
+    if (request.url === '/clip.webm') {
+      response.writeHead(200, { 'content-type': 'video/webm', 'content-length': RED_FIRST_FRAME.length }).end(RED_FIRST_FRAME)
+      return
+    }
+    // The frame sits past a margin, a border and padding, which the click passes on its way to the frame's video.
+    response.writeHead(200, { 'content-type': 'text/html' }).end(request.url === '/frame'
+      ? `<!doctype html><body style="margin:8px 0 0 20px">${video}</body>`
+      : `<!doctype html><title>Video player fixture</title><body style="margin:0">${video}<iframe id="frame" src="${frameUrl}" style="display:block;margin:10px 0 0 30px;border:4px solid #888;padding:6px;width:220px;height:130px"></iframe></body>`)
+  })
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('Missing fixture port')
+  const url = `http://127.0.0.1:${address.port}/play`
+  frameUrl = `http://localhost:${address.port}/frame`
+  type Target = 'page' | 'frame'
+  type PlayerItem = { id: string; label: string; enabled: boolean; checked: boolean }
+  // The video's center in the view, which the page's zoom scales, and what is on for it.
+  const videoState = (target: Target) => electronApp.evaluate(async ({ webContents }, { url, target }) => {
+    const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)
+    if (!page) return null
+    const frame = target === 'page' ? page.mainFrame : page.mainFrame.frames[0]
+    if (!frame) return null
+    const offset = target === 'page' ? { x: 0, y: 0 } : await page.executeJavaScript(`(() => {
+      const element = document.querySelector('#frame')
+      const bounds = element.getBoundingClientRect()
+      const style = getComputedStyle(element)
+      return { x: bounds.x + element.clientLeft + parseFloat(style.paddingLeft), y: bounds.y + element.clientTop + parseFloat(style.paddingTop) }
+    })()`) as { x: number; y: number }
+    const video = await frame.executeJavaScript(`(() => {
+      const video = document.querySelector('#video')
+      const bounds = video.getBoundingClientRect()
+      return { readyState: video.readyState, x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2, loop: video.loop, controls: video.controls, pictureInPicture: document.pictureInPictureElement === video }
+    })()`) as { readyState: number; x: number; y: number; loop: boolean; controls: boolean; pictureInPicture: boolean }
+    const zoom = page.getZoomFactor()
+    return { ...video, x: Math.round((offset.x + video.x) * zoom), y: Math.round((offset.y + video.y) * zoom) }
+  }, { url, target })
+  try {
+    await appWindow.evaluate(url => (window as unknown as { hronaut: { newTab(options: { url: string; active: boolean }): Promise<unknown> } }).hronaut.newTab({ url, active: true }), url)
+    await expect(appWindow.getByRole('tab', { name: /Video player fixture/ })).toBeVisible()
+    for (const target of ['page', 'frame'] as const) {
+      await expect.poll(async () => (await videoState(target))?.readyState ?? 0).toBeGreaterThanOrEqual(2)
+    }
+    expect(await electronApp.evaluate(({ webContents }, url) => {
+      const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)!
+      return page.mainFrame.frames[0]!.osProcessId !== page.mainFrame.osProcessId
+    }, url)).toBe(true)
+    // At 150%, the page's pixels are larger than the view's, which the menu's point is in.
+    await electronApp.evaluate(({ webContents }, url) => webContents.getAllWebContents().find(contents => contents.getURL() === url)!.setZoomFactor(1.5), url)
+    await expect.poll(() => electronApp.evaluate(({ webContents }, url) => webContents.getAllWebContents()
+      .find(contents => contents.getURL() === url)!.executeJavaScript('devicePixelRatio'), url)).toBe(1.5)
+    await electronApp.evaluate(({ Menu }) => {
+      Menu.prototype.popup = function (): void {
+        ;(globalThis as typeof globalThis & { __hronautContextMenu?: Electron.Menu }).__hronautContextMenu = this
+      }
+    })
+    // A real right-click on the screen, which reaches a frame of another site as a sent input event does not.
+    const openMenu = async (target: Target): Promise<PlayerItem[]> => {
+      const point = (await videoState(target))!
+      const screen = await electronApp.evaluate(({ BrowserWindow, WebContentsView }, { url, point }) => {
+        ;(globalThis as typeof globalThis & { __hronautContextMenu?: Electron.Menu }).__hronautContextMenu = undefined
+        const window = BrowserWindow.getAllWindows()[0]!
+        const view = window.contentView.children
+          .find((child): child is InstanceType<typeof WebContentsView> => child instanceof WebContentsView && child.webContents.getURL() === url)
+        if (!view) throw new Error('Video player fixture view was not found')
+        const origin = window.getContentBounds()
+        const bounds = view.getBounds()
+        return { x: origin.x + bounds.x + point.x, y: origin.y + bounds.y + point.y }
+      }, { url, point })
+      await exec('python3', [join(process.cwd(), 'tests/integration/x11-input.py'), String(screen.x), String(screen.y), '--right-click'])
+      let items: PlayerItem[] = []
+      await expect.poll(async () => {
+        items = await electronApp.evaluate(() => (globalThis as typeof globalThis & { __hronautContextMenu?: Electron.Menu }).__hronautContextMenu?.items
+          .filter(item => item.id === 'media-loop' || item.id === 'media-controls' || item.id === 'picture-in-picture')
+          .map(item => ({ id: item.id, label: item.label, enabled: item.enabled, checked: item.checked })) ?? [])
+        return items.length
+      }).toBe(3)
+      return items
+    }
+    const choose = (id: string): Promise<boolean> => electronApp.evaluate((_electron, id) => {
+      const item = (globalThis as typeof globalThis & { __hronautContextMenu?: Electron.Menu }).__hronautContextMenu?.getMenuItemById(id)
+      if (!item?.click) return false
+      ;(item.click as unknown as () => void)()
+      return true
+    }, id)
+    const turned = async (target: Target) => {
+      const state = (await videoState(target))!
+      return { loop: state.loop, controls: state.controls, pictureInPicture: state.pictureInPicture }
+    }
+
+    for (const target of ['page', 'frame'] as const) {
+      // A video's menu had neither, so a clip could not be looped, its controls shown or watched in a window of its own.
+      expect(await openMenu(target)).toEqual([
+        { id: 'media-loop', label: 'Loop', enabled: true, checked: false },
+        { id: 'media-controls', label: 'Show Controls', enabled: true, checked: false },
+        { id: 'picture-in-picture', label: 'Picture in Picture', enabled: true, checked: false }
+      ])
+      expect(await choose('media-loop')).toBe(true)
+      await expect.poll(() => turned(target)).toEqual({ loop: true, controls: false, pictureInPicture: false })
+      expect((await openMenu(target)).map(item => item.checked)).toEqual([true, false, false])
+      expect(await choose('media-controls')).toBe(true)
+      await expect.poll(() => turned(target)).toEqual({ loop: true, controls: true, pictureInPicture: false })
+      expect((await openMenu(target)).map(item => item.checked)).toEqual([true, true, false])
+      expect(await choose('picture-in-picture')).toBe(true)
+      await expect.poll(() => turned(target)).toEqual({ loop: true, controls: true, pictureInPicture: true })
+
+      // Each, chosen again, turns off.
+      expect((await openMenu(target)).map(item => item.checked)).toEqual([true, true, true])
+      expect(await choose('picture-in-picture')).toBe(true)
+      await expect.poll(() => turned(target)).toEqual({ loop: true, controls: true, pictureInPicture: false })
+      await openMenu(target)
+      expect(await choose('media-loop')).toBe(true)
+      await expect.poll(() => turned(target)).toEqual({ loop: false, controls: true, pictureInPicture: false })
+      await openMenu(target)
+      expect(await choose('media-controls')).toBe(true)
+      await expect.poll(() => turned(target)).toEqual({ loop: false, controls: false, pictureInPicture: false })
     }
   } finally {
     await closeFixtureServer(server)

@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- **Loop**, **Show Controls** and **Picture in Picture** when you right-click a video, and **Loop** for an audio, as in Chrome, also for one inside a frame of another site: each shows whether it is on for that video or audio and turns it off or on. Picture in Picture shows the video in a small window of its own that stays on top.
 - **Not secure** beside an HTTP page's address, as in Chrome, and Site controls now say first whether the connection to the website is secure. A page on this computer, such as `localhost` or `127.0.0.1`, shows the information icon without the warning, as in Chrome, and Site controls say that its connection does not leave the computer.
 - **Spell check languages** in **Settings → General**, as in Chrome: on Windows and Linux, websites' text fields can check spelling in several languages at once, chosen from Chromium's dictionaries, instead of only the one for the system language. A text field's **Spell check → Language settings** opens the setting.
 - Drag a link from a page or another app onto a tab to open it there, or near a tab's edge or onto a workspace's **New tab** button to open it in a new tab beside that tab or at the end of the workspace, as in Chrome. A marker shows where it will open; dropped text that is no address searches, and a `javascript:` address opens nothing.

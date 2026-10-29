@@ -74,4 +74,6 @@ export interface PageContextMenuAccess<Tab extends PageContextMenuTab> {
    * reports whether the page took the password.
    */
   passwordSuggestion(tab: Tab): (() => Promise<boolean>) | null
+  /** The size of the tab's view in the window, in the pixels a right-click's point is in. */
+  viewSize(tab: Tab): { width: number; height: number }
 }
