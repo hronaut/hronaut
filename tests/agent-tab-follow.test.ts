@@ -183,6 +183,15 @@ describe('a tab an agent opens or selects while Follow agents is on', () => {
     follower.dispose()
   })
 
+  it('names the agent\'s new tab as soon as it exists', async () => {
+    const { manager, internals } = fixture()
+    const before = new Set(internals.tabs.keys())
+    const created: string[] = []
+    const opening = manager.newAgentTab({ url: 'https://agent.test/named', mcpGroupId: 'Agent', focus: false }, (tabId) => { created.push(tabId) })
+    expect(created).toEqual([openedSince(internals, before)])
+    await opening
+  })
+
   it('marks the agent\'s tab active in its workspace once it wakes', async () => {
     const { manager, internals } = fixture()
     const wake = deferred()

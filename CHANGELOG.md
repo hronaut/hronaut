@@ -11,6 +11,8 @@ All notable changes to Hronaut are documented in this file.
 - When more than 100 agent sessions pile up, Hronaut lets go of one its client left, then one only waiting for messages, and of those the one used longest ago, instead of the oldest session, which could be an agent still at work.
 - Changing or resetting the MCP access token, or turning authentication on or off, ends the sessions on the old token at once: agents that can no longer act leave the toolbar and Home instead of staying listed while their stream stays open, and a call one of them had in progress fails at once instead of staying counted as running.
 
+- An agent's new tab no longer shows its activity on another tab opened at the same moment. The tab strip, **Follow agents** and the agent's steps could name a tab the person or another agent opened at the same time, even in another workspace, and **Follow agents** could switch the view there.
+
 ## [3.13.0] - 2026-10-29
 
 ### Added

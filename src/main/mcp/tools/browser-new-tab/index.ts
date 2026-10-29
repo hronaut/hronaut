@@ -43,13 +43,14 @@ export function registerBrowserNewTab(context: McpToolContext): void {
           ...(knownNotSaved ? { nextAction: 'The tab was created but its label was not saved. Inspect current state; do not repeat creation to retry the label.' } : {}) }
         return { ...textResult(outcome), structuredContent: { status: outcome.status }, ...(knownNotSaved ? { isError: true } : {}) }
       }
-      const existingTabIds = new Set(manager.getState().tabs.map((tab) => tab.id))
-      const next = await manager.newAgentTab({ url, active, mcpGroupId: workspaceId!, focus: false, ...construction })
-      const createdTab = next.tabs.find((tab) => !existingTabIds.has(tab.id))
-      if (createdTab) {
+      // The tab this call opened, named as it is made: before the call settles, another agent or the person can open
+      // tabs too, in this workspace or another.
+      let createdTabId: string | undefined
+      await manager.newAgentTab({ url, active, mcpGroupId: workspaceId!, focus: false, ...construction }, (tabId) => { createdTabId = tabId })
+      if (createdTabId && manager.tabBelongsToMcpGroup(workspaceId!, createdTabId)) {
         const activityId = randomUUID()
-        onTabActivity?.({ activityId, tabId: createdTab.id, toolName: 'browser_new_tab', phase: 'started', occurredAt: Date.now() }, workspaceId!)
-        onTabActivity?.({ activityId, tabId: createdTab.id, toolName: 'browser_new_tab', phase: 'finished', occurredAt: Date.now() }, workspaceId!)
+        onTabActivity?.({ activityId, tabId: createdTabId, toolName: 'browser_new_tab', phase: 'started', occurredAt: Date.now() }, workspaceId!)
+        onTabActivity?.({ activityId, tabId: createdTabId, toolName: 'browser_new_tab', phase: 'finished', occurredAt: Date.now() }, workspaceId!)
       }
       return textResult(mcpWorkspaceState(manager.getMcpGroupState(workspaceId!), urlDetailOmitted(manager)))
     }),

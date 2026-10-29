@@ -2493,10 +2493,12 @@ export class BrowserTabsManager {
   /**
    * Opens an agent's tab, which becomes its workspace's active tab without
    * being shown. Follow agents shows it through the agent's call on it, so it
-   * waits as for any call, such as while a page fills the window.
+   * waits as for any call, such as while a page fills the window. `onCreated`
+   * learns the tab's id as soon as it exists, since other tabs can open
+   * before this call settles.
    */
-  async newAgentTab(options: NewTabOptions): Promise<BrowserState> {
-    return this.newTab(options, false)
+  async newAgentTab(options: NewTabOptions, onCreated?: (tabId: string) => void): Promise<BrowserState> {
+    return this.createNewTab(options, false, onCreated && ((tab) => onCreated(tab.id)))
   }
 
   /**
