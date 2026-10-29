@@ -1,6 +1,6 @@
 /**
  * An evaluation that stopped waiting for its script because its deadline passed or its call was cancelled. It lives
- * apart from the evaluation, which imports Electron, so the MCP tool that catches it loads in plain Node too.
+ * apart from the evaluation, whose focus guard imports Electron, so the MCP tool that catches it loads in plain Node too.
  */
 export class EvaluationStoppedError extends Error {
   readonly reason: 'SCRIPT_TIMEOUT' | 'CANCELLED'

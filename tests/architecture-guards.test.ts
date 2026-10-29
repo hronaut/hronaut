@@ -84,8 +84,8 @@ describe('the architecture rules in AGENTS.md', () => {
 
 describe('the code the e2e tests load', () => {
   // Playwright lists the e2e tests by loading them in plain Node, where the electron package is only the path of its
-  // binary. One `import { BrowserWindow } from 'electron'` that a test's imports reach stopped every e2e shard of the
-  // 3.14.0 release rehearsal before a test ran.
+  // binary and has no subpaths. One `import { BrowserWindow } from 'electron'` that a test's imports reach stopped
+  // every e2e shard of the 3.14.0 release rehearsal before a test ran.
   it('reaches no named import from Electron, so Playwright can list the tests', () => {
     const starts = ['playwright.config.ts', ...readdirSync(join(ROOT, 'tests/integration')).filter(name => name.endsWith('.ts')).sort().map(name => `tests/integration/${name}`)]
     const importedBy = new Map(starts.map(file => [file, '']))
@@ -96,25 +96,28 @@ describe('the code the e2e tests load', () => {
     expect(importedBy.has('src/main/mcp/server.ts')).toBe(true)
     const problems: string[] = []
     for (const file of importedBy.keys()) {
-      const names = runtimeNamesFrom(readFileSync(join(ROOT, file), 'utf8'), 'electron', file)
-      if (names.length === 0) continue
+      const code = readFileSync(join(ROOT, file), 'utf8')
+      const names = runtimeNamesFrom(code, 'electron', file)
+      const subpaths = runtimeSpecifiers(code, file).filter(specifier => specifier.startsWith('electron/'))
+      if (names.length === 0 && subpaths.length === 0) continue
       const chain = [file]
       while (importedBy.get(chain[0]!)) chain.unshift(importedBy.get(chain[0]!)!)
-      problems.push(`${chain.join(' -> ')} imports { ${names.join(', ')} } from 'electron'`)
+      if (names.length > 0) problems.push(`${chain.join(' -> ')} imports { ${names.join(', ')} } from 'electron'`)
+      for (const subpath of subpaths) problems.push(`${chain.join(' -> ')} imports from '${subpath}'`)
     }
     expect(problems).toEqual([])
   })
 
-  it('counts the names a module takes from a package for its code, and leaves out types and other packages', () => {
+  it('counts the names a module takes from a package for its code, and leaves out types, its default and other packages', () => {
     const code = [
       "import { app, type App, BrowserWindow as Window } from 'electron'",
       "import type { WebContents } from 'electron'",
-      "import electron from 'electron'",
+      "import electron, { default as binary } from 'electron'",
       "import { dialog } from 'electron/main'",
       "export { shell, type Session } from 'electron'",
       "export * from 'electron'",
       "import { z } from 'zod'"
     ].join('\n')
-    expect(runtimeNamesFrom(code, 'electron')).toEqual(['app', 'BrowserWindow', 'shell', '*'])
+    expect(runtimeNamesFrom(code, 'electron')).toEqual(['app', 'BrowserWindow', 'shell'])
   })
 })
