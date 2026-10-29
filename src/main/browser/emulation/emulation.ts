@@ -162,7 +162,7 @@ async function applyEmulationState<Tab extends EmulationTab>(
   if (webContents.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== webContents || tab.networkConditionEpoch !== epoch || tab.networkRoutes !== routes) {
     throw new LocalizedError('appErrors.emulation.networkChanged', undefined, { message: 'Network emulation context changed before application' })
   }
-  // Emulation does not change the interception patterns a used-up rule's refresh removes it from.
+  // Emulation does not change the interception that a used-up rule's refresh settles.
   const settlement = tab.networkConditionApplication === 'pending' ? 'pending' : 'confirmed'
   tab.networkConditionApplication = 'pending'
   try {

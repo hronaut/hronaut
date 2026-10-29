@@ -63,7 +63,7 @@ test('emulation changes while a rule used up by a request waits for its refresh'
     await appWindow.evaluate(async id => (window as unknown as { hronaut: HronautApi }).hronaut.setTabViewport(id, { width: 900, height: 700, deviceScaleFactor: 1, mobile: false, touch: false, orientation: 'landscape' }), tabId)
     const tab = await appWindow.evaluate(async id => (await (window as unknown as { hronaut: HronautApi }).hronaut.getState()).tabs.find(t => t.id === id)!, tabId)
     expect(tab.emulation?.viewport?.width).toBe(900)
-    // The used-up rule still waits for the refresh that takes it out of the interception patterns.
+    // The used-up rule still waits for the refresh that takes it out of the rules' network conditions.
     expect(tab.networkConditionState?.application).toBe('pending')
   })
 })

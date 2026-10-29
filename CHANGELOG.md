@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- A page's request no longer fails at random with **Failed to fetch** (`net::ERR_FAILED`) just after a one-time request condition or a hold caught a request. Settling the rules a moment later sent the page's request interception to Chromium again, which could cut off a request the page was starting; Hronaut now leaves interception that still covers the rules in place, and ends it once nothing is left to intercept.
+
 ## [3.13.0] - 2026-10-29
 
 ### Added
