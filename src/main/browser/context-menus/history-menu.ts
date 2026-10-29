@@ -30,6 +30,7 @@ export function showHistoryMenu(browser: Browser, tabId: string,
     if (entry) pages.push({ index, url: entry.url, title: entry.title })
   }
   if (pages.length === 0) return false
+  // Each item reads the browser when it is picked, not when the list opens.
   const runAction = (action: string, callback: () => unknown): void => {
     try {
       callback()

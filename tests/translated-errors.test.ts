@@ -222,11 +222,11 @@ describe('main-process failures people see in tabs, navigation and new tabs', ()
     } satisfies Record<OpenWorkspaceOperationAction, true>
     const sentences = new Set<string>()
     for (const action of Object.keys(actions) as OpenWorkspaceOperationAction[]) {
-      const access = {
+      const browser = {
         workspaceOperations: new Map([['workspace', { action, blocksNewTabs: true, token: Symbol(action) }]]),
         mcpTabGroups: new Map([['workspace', { name: 'Research' }]])
       }
-      const error = (() => { try { assertWorkspaceIdle(access as never, 'workspace') } catch (caught) { return caught } })()
+      const error = (() => { try { assertWorkspaceIdle(browser as never, 'workspace') } catch (caught) { return caught } })()
       expect(error).toBeInstanceOf(LocalizedError)
       expect((error as Error).message).toBe(`Workspace "Research" is busy ${action}. Try again after that operation finishes.`)
       sentences.add(ukrainian((error as InstanceType<typeof LocalizedError>).key, { name: 'Research' }))

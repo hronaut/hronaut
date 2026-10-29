@@ -26,7 +26,7 @@ afterEach(async () => {
   await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })))
 })
 
-function recordingAccess(workspace: WorkspaceNavigationWorkspace): Browser {
+function recordingBrowser(workspace: WorkspaceNavigationWorkspace): Browser {
   return {
     mcpTabGroups: new Map([[WORKSPACE_ID, workspace]]),
     savedTabGroups: new Map(),
@@ -74,7 +74,7 @@ describe('workspace navigation audit persistence', () => {
     }
     const longSchemeAddress = `${'a'.repeat(600)}://example`
 
-    expect(workspaceNavigationAllowed(recordingAccess(workspace), WORKSPACE_ID, longSchemeAddress, 'direct')).toBe(false)
+    expect(workspaceNavigationAllowed(recordingBrowser(workspace), WORKSPACE_ID, longSchemeAddress, 'direct')).toBe(false)
     expect(workspace.navigationAudit).toHaveLength(1)
     expect(workspace.navigationAudit[0]).toMatchObject({ reason: 'unsupported-scheme', source: 'direct' })
     expect(workspace.navigationAudit[0]!.targetOrigin.length).toBeLessThanOrEqual(500)
@@ -97,7 +97,7 @@ describe('workspace navigation audit persistence', () => {
       navigationAudit: []
     }
 
-    expect(workspaceNavigationAllowed(recordingAccess(workspace), WORKSPACE_ID, `https://user@${'a'.repeat(600)}.example/`, 'direct')).toBe(false)
+    expect(workspaceNavigationAllowed(recordingBrowser(workspace), WORKSPACE_ID, `https://user@${'a'.repeat(600)}.example/`, 'direct')).toBe(false)
     expect(workspace.navigationAudit[0]).toMatchObject({ targetOrigin: 'invalid URL', reason: 'credentials' })
 
     const directory = await mkdtemp(join(tmpdir(), 'hronaut-navigation-audit-'))
@@ -113,7 +113,7 @@ describe('workspace navigation audit persistence', () => {
       navigationPolicy: { mode: 'unrestricted', rules: [] },
       navigationAudit: []
     }
-    expect(workspaceNavigationAllowed(recordingAccess(workspace), WORKSPACE_ID, 'file:///etc/hosts', 'direct')).toBe(false)
+    expect(workspaceNavigationAllowed(recordingBrowser(workspace), WORKSPACE_ID, 'file:///etc/hosts', 'direct')).toBe(false)
     expect(workspace.navigationAudit[0]).toMatchObject({ targetOrigin: 'file:', reason: 'unsupported-scheme' })
   })
 })

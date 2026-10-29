@@ -573,8 +573,7 @@ describe('an agent opening a page that asks the person to sign in', () => {
       tabs: new Map([[tab.id, tab]]),
       activeTabId: tab.id,
       options: {},
-      prepareDiagnosticNavigation: vi.fn(),
-      getState: () => ({ ok: true })
+      prepareDiagnosticNavigation: vi.fn()
     }
     return { tab, webContents, go: () => navigate(browser as never, PAGE, undefined, { byPerson: false }) }
   }

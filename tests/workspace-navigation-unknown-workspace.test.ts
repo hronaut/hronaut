@@ -19,10 +19,10 @@ type WorkspaceNavigationWorkspace = Pick<ActiveWorkspace, 'contextClass' | 'last
 
 const WORKSPACE_ID = '01912345-6789-7abc-8def-0123456789ab'
 
-function access(workspace: WorkspaceNavigationWorkspace | undefined) {
+function workspaceBrowser(workspace: WorkspaceNavigationWorkspace | undefined) {
   const onWorkspaceNavigationDecision = vi.fn()
   const changed = vi.fn()
-  const policyAccess = {
+  const browser = {
     mcpTabGroups: new Map(workspace ? [[WORKSPACE_ID, workspace]] : []),
     savedTabGroups: new Map(),
     inspectionPermissions: new WeakMap(),
@@ -31,22 +31,22 @@ function access(workspace: WorkspaceNavigationWorkspace | undefined) {
     changed,
     getState: () => ({}) as BrowserState
   } as unknown as Browser
-  return { policyAccess, onWorkspaceNavigationDecision, changed }
+  return { browser, onWorkspaceNavigationDecision, changed }
 }
 
 describe('a navigation in a workspace that is gone', () => {
   it('is refused without an error, reporting and recording nothing', () => {
-    const { policyAccess, onWorkspaceNavigationDecision, changed } = access(undefined)
+    const { browser, onWorkspaceNavigationDecision, changed } = workspaceBrowser(undefined)
     for (const source of ['page', 'redirect', 'popup', 'history'] as const) {
-      expect(workspaceNavigationAllowed(policyAccess, WORKSPACE_ID, 'https://example.com/', source), source).toBe(false)
+      expect(workspaceNavigationAllowed(browser, WORKSPACE_ID, 'https://example.com/', source), source).toBe(false)
     }
     expect(onWorkspaceNavigationDecision).not.toHaveBeenCalled()
     expect(changed).not.toHaveBeenCalled()
   })
 
   it('still fails a navigation Hronaut was asked for, naming the workspace', () => {
-    const { policyAccess } = access(undefined)
-    expect(() => assertWorkspaceNavigationAllowed(policyAccess, WORKSPACE_ID, 'https://example.com/', 'direct')).toThrow(`Unknown workspace: ${WORKSPACE_ID}.`)
+    const { browser } = workspaceBrowser(undefined)
+    expect(() => assertWorkspaceNavigationAllowed(browser, WORKSPACE_ID, 'https://example.com/', 'direct')).toThrow(`Unknown workspace: ${WORKSPACE_ID}.`)
   })
 
   it('is decided by the policy while the workspace exists', () => {
@@ -56,8 +56,8 @@ describe('a navigation in a workspace that is gone', () => {
       navigationPolicy: { mode: 'unrestricted', rules: [] },
       navigationAudit: []
     }
-    const { policyAccess, onWorkspaceNavigationDecision } = access(workspace)
-    expect(workspaceNavigationAllowed(policyAccess, WORKSPACE_ID, 'https://example.com/', 'page')).toBe(true)
+    const { browser, onWorkspaceNavigationDecision } = workspaceBrowser(workspace)
+    expect(workspaceNavigationAllowed(browser, WORKSPACE_ID, 'https://example.com/', 'page')).toBe(true)
     expect(onWorkspaceNavigationDecision).toHaveBeenCalledOnce()
   })
 })
