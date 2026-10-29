@@ -231,7 +231,7 @@ async function launchedWithFakeProcess() {
   const child = Object.assign(new EventEmitter(), { exitCode: null as number | null, signalCode: null, stderr, stdout: null })
   const app = {
     evaluate: vi.fn(async () => undefined),
-    firstWindow: vi.fn(async () => ({ on: vi.fn(), waitForLoadState: vi.fn(async () => undefined) })),
+    firstWindow: vi.fn(async () => ({ on: vi.fn(), waitForLoadState: vi.fn(async () => undefined), evaluate: vi.fn(async () => undefined) })),
     close: vi.fn(async () => undefined),
     process: () => child
   } as unknown as ElectronApplication

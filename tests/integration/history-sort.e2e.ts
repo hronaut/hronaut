@@ -2,7 +2,7 @@ import { createServer } from 'node:http'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { HronautApi, HronautHistoryApi } from '../../src/shared/types.js'
-import { closeFixtureServer, closeHronaut, expect, launchHronaut, test, waitForSavedWorkspaces } from './fixtures.js'
+import { closeFixtureServer, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
 
 test('sorts retained visits within History filters and preserves focus through a real background revisit', async ({ profileDirectory, mcpPort }, testInfo) => {
   const server = createServer((_request, response) => {
@@ -25,8 +25,6 @@ test('sorts retained visits within History filters and preserves focus through a
     let instance = await launchHronaut(profileDirectory, mcpPort)
     try {
       const page = instance.window
-      // Opening a tab before saved workspaces load fails with "still initializing" on slow runners.
-      await waitForSavedWorkspaces(page)
       await page.evaluate(() => (window as unknown as { hronaut: HronautApi }).hronaut.newTab({ url: 'about:blank', active: true }))
       const before = await page.evaluate(() => (window as unknown as { hronaut: HronautApi }).hronaut.getState())
       await page.getByRole('button', { name: 'Browsing history', exact: true }).click()
