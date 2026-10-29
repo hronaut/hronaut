@@ -146,6 +146,10 @@ export class McpHttpServer {
   private toolSet: McpToolSet
   private readonly clients = new Map<string, McpClientActivity>()
   private readonly transportSessions = new Map<string, McpTransportSession>()
+  /** Each client's open event streams, which keep its session connected but are no requests in progress. */
+  private readonly eventStreams = new WeakMap<McpClientActivity, number>()
+  /** Each client's requests and streams not yet answered or ended, which closing its session ends. */
+  private readonly openResponses = new WeakMap<McpClientActivity, Set<Response>>()
   private readonly walletSessions: WalletAgentSessionRegistry
   private readonly workspaceLeases = new WorkspaceWriteLeaseRegistry()
   private readonly actionTracker: McpActionTracker
@@ -178,10 +182,11 @@ export class McpHttpServer {
     this.fullAccessAuthorityGeneration = randomUUID()
     this.actionTracker.invalidatePendingDispatches()
     this.workspaceLeases.clear()
-    // Sessions on the old token can no longer act, so they leave the toolbar
-    // (a request for you still shows until it is answered).
-    for (const [sessionId, session] of this.transportSessions) {
-      if (session.authorization.kind === 'full-access') this.agentPresence.removeClient(sessionId)
+    // Sessions on the old token can no longer act, so they close: their agents leave the toolbar and Home at once and
+    // their event streams end (a request for you still shows until it is answered).
+    const stale = [...this.transportSessions].filter(([, session]) => session.authorization.kind === 'full-access')
+    for (const [sessionId] of stale) {
+      void this.closeTransportSession(sessionId).catch((error) => console.error('[mcp] Failed to close a session on the old token:', error))
     }
     this.agentPresenceChanged()
   }
@@ -340,23 +345,37 @@ export class McpHttpServer {
         return
       }
 
-      const client = this.beginRequest(request, transportSession?.client, requestAuthorization)
+      // A client keeps its event stream open as long as it is connected, waiting for messages from Hronaut. The stream
+      // keeps its session connected, but it is no request in progress: it never holds up a password fill or a cookie
+      // import, which wait for agents' requests to end, nor takes one of the slots for requests.
+      const eventStream = request.method === 'GET'
+      const client = this.beginRequest(request, transportSession?.client, requestAuthorization, eventStream)
       const createdTransportSession = !transportSession
       let completed = false
       const completeRequest = (): void => {
         if (completed) return
         completed = true
-        this.activeRequests = Math.max(0, this.activeRequests - 1)
-        client.activeRequests = Math.max(0, client.activeRequests - 1)
-        if (client.activeRequests === 0 && client.initializedAt) {
+        this.openResponses.get(client)?.delete(response)
+        if (eventStream) {
+          const streams = (this.eventStreams.get(client) ?? 1) - 1
+          if (streams > 0) this.eventStreams.set(client, streams)
+          else this.eventStreams.delete(client)
+        } else {
+          this.activeRequests = Math.max(0, this.activeRequests - 1)
+          client.activeRequests = Math.max(0, client.activeRequests - 1)
+        }
+        if (!this.hasOpenRequest(client) && client.initializedAt) {
           // A long-held stream closing is the last sign of a session whose window already passed.
-          if (!McpHttpServer.sessionLive(client, Date.now())) this.agentPresenceChanged()
+          if (!this.sessionLive(client, Date.now())) this.agentPresenceChanged()
           // Otherwise its window now runs out without a request, as when the client quits without closing its session.
           else this.wakeForAgentPresence(true)
         }
       }
       response.once('finish', completeRequest)
       response.once('close', completeRequest)
+      const openResponses = this.openResponses.get(client) ?? new Set<Response>()
+      openResponses.add(response)
+      this.openResponses.set(client, openResponses)
 
       try {
         if (!transportSession) {
@@ -372,8 +391,8 @@ export class McpHttpServer {
               this.clients.set(sessionId, client)
               this.transportSessions.set(sessionId, session as McpTransportSession)
               while (this.transportSessions.size > McpHttpServer.MAX_CLIENTS) {
-                const oldestSessionId = this.transportSessions.keys().next().value as string | undefined
-                if (oldestSessionId) await this.closeTransportSession(oldestSessionId)
+                const evicted = this.sessionToEvict(sessionId)
+                if (evicted) await this.closeTransportSession(evicted)
                 else break
               }
               // A newly connected agent changes what the status says, before it does anything.
@@ -505,7 +524,7 @@ export class McpHttpServer {
     }
     const agents: ConnectedAgent[] = []
     for (const [sessionId, { client }] of this.transportSessions) {
-      if (!client.initializedAt || !McpHttpServer.sessionLive(client, now)) continue
+      if (!client.initializedAt || !this.sessionLive(client, now)) continue
       const key = this.agentPresence.clientKey(sessionId)
       const known = seen.get(key)
       const name = known?.avatar.name ?? sanitizeAgentName(client.name)
@@ -575,16 +594,37 @@ export class McpHttpServer {
     if (this.homeFeed.revision !== feedRevision || this.agentPresence.historyRevision !== stepsRevision) this.agentPresenceChanged()
   }
 
-  /** Whether a session still counts as connected: a request open, or one within the presence window. */
-  private static sessionLive(client: McpClientActivity, now: number): boolean {
-    return client.activeRequests > 0 || now - Date.parse(client.lastSeenAt) < AGENT_PRESENCE_WINDOW_MS
+  /** Whether a session still counts as connected: a request or its event stream open, or a request within the presence window. */
+  private sessionLive(client: McpClientActivity, now: number): boolean {
+    return this.hasOpenRequest(client) || now - Date.parse(client.lastSeenAt) < AGENT_PRESENCE_WINDOW_MS
+  }
+
+  /** Whether a client has a request in progress or its event stream open. */
+  private hasOpenRequest(client: McpClientActivity): boolean {
+    return client.activeRequests > 0 || this.eventStreams.has(client)
+  }
+
+  /**
+   * The session to let go when there are too many: preferably one with nothing open, as a client that quit without
+   * closing its session leaves, then one only waiting on its event stream, and last one with a call in progress; of
+   * those, the one whose last request is oldest. Never `kept`, the session just started.
+   */
+  private sessionToEvict(kept: string): string | undefined {
+    let chosen: { sessionId: string; use: number; seenAt: number } | undefined
+    for (const [sessionId, { client }] of this.transportSessions) {
+      if (sessionId === kept) continue
+      const use = client.activeRequests > 0 ? 2 : this.eventStreams.has(client) ? 1 : 0
+      const seenAt = Date.parse(client.lastSeenAt)
+      if (!chosen || use < chosen.use || (use === chosen.use && seenAt < chosen.seenAt)) chosen = { sessionId, use, seenAt }
+    }
+    return chosen?.sessionId
   }
 
   /** When an idle session next stops counting as connected, so the status changes without a request. */
   private nextSessionExpiry(now: number): number | undefined {
     let next: number | undefined
     for (const { client } of this.transportSessions.values()) {
-      if (!client.initializedAt || client.activeRequests > 0) continue
+      if (!client.initializedAt || this.hasOpenRequest(client)) continue
       const at = Date.parse(client.lastSeenAt) + AGENT_PRESENCE_WINDOW_MS
       if (at > now && (next === undefined || at < next)) next = at
     }
@@ -653,7 +693,8 @@ export class McpHttpServer {
   private beginRequest(
     request: Request,
     sessionClient: McpClientActivity | undefined,
-    authorization: McpRequestAuthorization
+    authorization: McpRequestAuthorization,
+    eventStream: boolean
   ): McpClientActivity {
     const body = (request.body ?? {}) as {
       method?: unknown
@@ -672,7 +713,7 @@ export class McpHttpServer {
       : existing?.name ?? userAgent).slice(0, 128)
     const version = typeof suppliedInfo?.version === 'string' ? sanitizeAgentVersion(suppliedInfo.version) : undefined
     // A session past its window counts as connected again from this request on.
-    const lapsed = existing?.initializedAt !== undefined && !McpHttpServer.sessionLive(existing, Date.now())
+    const lapsed = existing?.initializedAt !== undefined && !this.sessionLive(existing, Date.now())
     const now = new Date().toISOString()
     if (!existing && this.clients.size >= McpHttpServer.MAX_CLIENTS) {
       const oldestId = this.clients.keys().next().value as string | undefined
@@ -691,7 +732,8 @@ export class McpHttpServer {
     client.lastSeenAt = now
     if (body.method === 'tools/list') client.toolsListedAt = now
     client.requestCount += 1
-    client.activeRequests += 1
+    if (eventStream) this.eventStreams.set(client, (this.eventStreams.get(client) ?? 0) + 1)
+    else client.activeRequests += 1
     if (authorization.kind === 'capability-profile') {
       client.capabilityProfileId = authorization.grant.profileId
       client.capabilityProfileRevision = authorization.grant.revision
@@ -699,7 +741,7 @@ export class McpHttpServer {
     }
     if (existing) this.clients.delete(id)
     this.clients.set(id, client)
-    this.activeRequests += 1
+    if (!eventStream) this.activeRequests += 1
     if (lapsed) this.agentPresenceChanged()
     this.totalRequests += 1
     return client
@@ -714,6 +756,12 @@ export class McpHttpServer {
     this.removeAgentPresence(sessionId)
     await this.walletSessions.clearOwner(sessionId)
     await Promise.allSettled([session.transport.close(), session.server.close()])
+    // The transport leaves a call it was still answering without a response. Its client learns the session is gone, as
+    // from any request it makes now, and the call stops counting as in progress.
+    for (const response of [...this.openResponses.get(session.client) ?? []]) {
+      if (!response.headersSent) response.status(404).json({ error: 'MCP session not found' })
+      else if (!response.writableEnded) response.end()
+    }
   }
 
   private trackTabActivity(activity: McpTabActivity, client: McpClientActivity, workspaceId: string): void {
