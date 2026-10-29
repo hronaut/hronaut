@@ -109,7 +109,7 @@ describe('main-process failures people see in tabs, navigation and new tabs', ()
     ['unreadable workspace metadata', () => { throw new WorkspaceMetadataError('invalid-json') },
       'Saved workspace metadata is unavailable (invalid-json). Startup stopped to preserve recovery options.',
       'Метадані збережених робочих просторів недоступні (invalid-json). Запуск зупинено, щоб зберегти можливість відновлення.'],
-    ['a tab that closed while its page loads', () => waitForPage({ getTab: () => ({ webContents: destroyed }) } as never, 'tab'),
+    ['a tab that closed while its page loads', () => waitForPage({ tabs: new Map([['tab', { webContents: destroyed }]]) } as never, 'tab'),
       'The tab closed while waiting for the page.',
       'Вкладку закрито під час очікування сторінки.'],
     ['a tab that is gone', () => getTab(manager(null), '019a0000-0000-7000-8000-000000000001'),

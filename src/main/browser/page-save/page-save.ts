@@ -1,11 +1,12 @@
 import { stat } from 'node:fs/promises'
 import { extname, join } from 'node:path'
-import type { WebContents } from 'electron'
+import { dialog, type SaveDialogOptions, type SaveDialogReturnValue, type WebContents } from 'electron'
 import { LocalizedError } from '../../localized-error.js'
 import { portableExportFilename } from '../../../shared/portable-filename.js'
+import type { Browser } from '../browser.js'
+import type { BrowserTab } from '../browser-tab.js'
 import { isAddressTitle } from '../tab-events/untitled-page-title.js'
 import { isHronautHomeUrl } from '../url.js'
-import type { PageSaveAccess, PageSaveTab } from './page-save-access.js'
 
 /**
  * The name the save dialog suggests, as Chrome's Save Page As does: the page's title, or its site's name when it has
@@ -71,11 +72,11 @@ function savePageFile(webContents: WebContents, filePath: string): Promise<void>
  * page changing its own address, as a web app does, still is. Says whether it saved the page; a save that fails
  * rejects.
  */
-export async function savePageAs<Tab extends PageSaveTab>(access: PageSaveAccess<Tab>, tab: Tab): Promise<boolean> {
+export async function savePageAs(browser: Browser, tab: BrowserTab): Promise<boolean> {
   const webContents = tab.webContents
   if (webContents.isDestroyed() || webContents.isCrashed() || tab.sleeping || isHronautHomeUrl(tab.url)) return false
-  if (access.browserContentOccluded() || access.isHumanInteractionLocked(tab)) return false
-  const saving = access.savingWebContents()
+  if (browser.browserContentOccluded || browser.isHumanInteractionLocked(tab)) return false
+  const saving = (browser.pageSaving ??= new Set())
   const id = webContents.id
   if (saving.has(id)) return false
   saving.add(id)
@@ -89,12 +90,12 @@ export async function savePageAs<Tab extends PageSaveTab>(access: PageSaveAccess
   webContents.on('did-navigate', onNavigated)
   webContents.on('render-process-gone', onGone)
   try {
-    const choice = await access.showSaveDialog({
-      title: access.text('native.dialog.savePageTitle'),
-      defaultPath: join(access.downloadDirectory(), savedPageFilename(webContents.getTitle(), webContents.getURL())),
+    const choice = await showSaveDialog(browser, {
+      title: browser.text('native.dialog.savePageTitle'),
+      defaultPath: join(browser.options.downloadDirectory, savedPageFilename(webContents.getTitle(), webContents.getURL())),
       filters: [
-        { name: access.text('native.dialog.webpageComplete'), extensions: ['html', 'htm'] },
-        { name: access.text('native.dialog.webpageSingleFile'), extensions: ['mhtml'] }
+        { name: browser.text('native.dialog.webpageComplete'), extensions: ['html', 'htm'] },
+        { name: browser.text('native.dialog.webpageSingleFile'), extensions: ['mhtml'] }
       ],
       properties: ['showOverwriteConfirmation', 'createDirectory']
     })
@@ -118,7 +119,14 @@ export async function savePageAs<Tab extends PageSaveTab>(access: PageSaveAccess
 }
 
 /** Save Page As for the page the window shows, for the menu and its key; see savePageAs. */
-export function saveShownPage<Tab extends PageSaveTab>(access: PageSaveAccess<Tab>): Promise<boolean> {
-  const tab = access.shownTab()
-  return tab ? savePageAs(access, tab) : Promise.resolve(false)
+export function saveShownPage(browser: Browser): Promise<boolean> {
+  const tab = browser.activeTabId ? browser.tabs.get(browser.activeTabId) : undefined
+  return tab ? savePageAs(browser, tab) : Promise.resolve(false)
+}
+
+/** Asks where to save, over the browser's window; a window that is gone saves nothing. */
+function showSaveDialog(browser: Browser, options: SaveDialogOptions): Promise<SaveDialogReturnValue> {
+  return browser.window.isDestroyed()
+    ? Promise.resolve({ canceled: true, filePath: '' })
+    : dialog.showSaveDialog(browser.window, options)
 }

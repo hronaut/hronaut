@@ -2,9 +2,8 @@ import { EventEmitter } from 'node:events'
 import type { WebContents } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
 import type { Browser } from '../src/main/browser/browser.js'
+import type { BrowserTab } from '../src/main/browser/browser-tab.js'
 import { attachPageWheelZoom } from '../src/main/browser/page-zoom/page-wheel-zoom.js'
-import type { PageWheelZoomAccess, PageWheelZoomTab } from '../src/main/browser/page-zoom/page-wheel-zoom-access.js'
-import { setZoom } from '../src/main/browser/page-zoom/page-zoom.js'
 
 // The state publication a zoom ends with, recorded on the fake browser it publishes for.
 vi.mock('../src/main/browser/browser-state/browser-state.js', () => ({
@@ -12,8 +11,15 @@ vi.mock('../src/main/browser/browser-state/browser-state.js', () => ({
   publishChange: (browser: { changed(persist: boolean): void }, persist: boolean) => { browser.changed(persist) }
 }))
 
-interface ZoomTab extends PageWheelZoomTab {
-  nativeInputEnvironmentGeneration: number
+type ZoomTab = Pick<BrowserTab, 'id' | 'url' | 'webContents' | 'nativeInputEnvironmentGeneration'>
+
+/** What the browser around the page says; each case below changes one thing. */
+interface ZoomState {
+  occluded?: boolean
+  locked?: boolean
+  agentInput?: boolean
+  selecting?: boolean
+  closed?: boolean
 }
 
 function page(): WebContents & EventEmitter {
@@ -26,21 +32,21 @@ function page(): WebContents & EventEmitter {
   }) as unknown as WebContents & EventEmitter
 }
 
-function attached(url: string, overrides: Partial<PageWheelZoomAccess<ZoomTab>> = {}) {
+function attached(url: string, state: ZoomState = {}) {
   const webContents = page()
   const tab: ZoomTab = { id: 'tab', url, webContents, nativeInputEnvironmentGeneration: 0 }
   const changed = vi.fn()
-  const access: PageWheelZoomAccess<ZoomTab> = {
-    findTab: (tabId) => tabId === tab.id ? tab : undefined,
-    browserContentOccluded: () => false,
-    isHumanInteractionLocked: () => false,
-    agentInputWebContents: () => new Map(),
-    nativeSelectionUnderWay: () => false,
-    // The same step the zoom bar and Ctrl/Cmd with + or - take.
-    zoom: (tabId, direction) => { setZoom({ tabs: new Map([[tab.id, tab]]), changed } as unknown as Browser, { tabId, action: direction }) },
-    ...overrides
-  }
-  attachPageWheelZoom(access, tab, webContents)
+  const browser = {
+    tabs: new Map(state.closed ? [] : [[tab.id, tab]]),
+    browserContentOccluded: state.occluded === true,
+    isHumanInteractionLocked: () => state.locked === true,
+    agentInputWebContents: new Map(state.agentInput ? [[41, 1]] : []),
+    screenshotAreaSessions: new Map(state.selecting ? [[41, {}]] : []),
+    elementPickerSessions: new Map(),
+    // The state publication the zoom ends with, as the zoom bar and Ctrl/Cmd with + or - publish it.
+    changed
+  } as unknown as Browser
+  attachPageWheelZoom(browser, tab as BrowserTab, webContents)
   const turn = (direction: 'in' | 'out') => { webContents.emit('zoom-changed', {}, direction) }
   return { tab, webContents, changed, turn, percent: () => Math.round(webContents.getZoomFactor() * 100) }
 }
@@ -68,13 +74,13 @@ describe('Control with the mouse wheel', () => {
   })
 
   it.each([
-    ['behind trusted chrome', { browserContentOccluded: () => true }],
-    ['while the tab is locked', { isHumanInteractionLocked: () => true }],
-    ['while an agent sends input to the page', { agentInputWebContents: () => new Map([[41, 1]]) }],
-    ['during an area capture or element pick on the page', { nativeSelectionUnderWay: (id: number) => id === 41 }],
-    ['after the tab closed', { findTab: () => undefined }]
-  ])('leaves the zoom alone %s', (_case, overrides: Partial<PageWheelZoomAccess<ZoomTab>>) => {
-    const { turn, percent } = attached('https://maps.example/', overrides)
+    ['behind trusted chrome', { occluded: true }],
+    ['while the tab is locked', { locked: true }],
+    ['while an agent sends input to the page', { agentInput: true }],
+    ['during an area capture or element pick on the page', { selecting: true }],
+    ['after the tab closed', { closed: true }]
+  ])('leaves the zoom alone %s', (_case, state: ZoomState) => {
+    const { turn, percent } = attached('https://maps.example/', state)
     turn('in')
     expect(percent()).toBe(100)
   })
