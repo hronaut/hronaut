@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
-import type { CommercialLicenseProviderResult, CommercialLicenseState } from '../shared/types.js'
-import { writeTextFileAtomically } from './atomic-file.js'
+import type { CommercialLicenseProviderResult, CommercialLicenseState } from '../../shared/types.js'
+import { writeTextFileAtomically } from '../atomic-file.js'
 
 interface PersistedCommercialLicense {
   version: 1

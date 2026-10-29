@@ -9,15 +9,15 @@ than the entire browser runtime.
   with the handler and read index state through a small host object. The checks
   themselves, which shell document sent a message and whether saved workspaces are
   ready, come from `main/ipc-guards.ts`. Home's dashboard state comes from
-  `main/home-dashboard.ts`, and index.ts supplies it through
+  `main/home/home-dashboard.ts`, and index.ts supplies it through
   `platform/home-protocol.ts`; that protocol owns its assets, MIME types, CSP, and
   status response in Home's separate application session.
   Startup features are controllers built from the same kind of host:
   `main/windows/application-menu.ts`, `main/windows/window-state-persistence.ts`,
-  `main/tray-attention.ts`, `main/commercial-license-runtime.ts` and `main/app-updates.ts`.
+  `main/tray-attention.ts`, `main/license/commercial-license-runtime.ts` and `main/updates/app-updates.ts`.
   Browser sessions, clipboard copies, saved passwords, overlay view surfaces and the
   detached panel window are built the same way: `main/browser-session.ts`,
-  `main/clipboard-operations.ts`, `main/credential-runtime.ts`,
+  `main/clipboard-operations.ts`, `main/credentials/credential-runtime.ts`,
   `main/windows/overlay-surfaces.ts` and `main/windows/panel-window.ts`. So are site
   data summaries and clearing, the MCP status and pause, agent presence, the main
   window's chrome and the address suggestions overlay: `main/site-data.ts`,
@@ -29,14 +29,14 @@ than the entire browser runtime.
   `main/agent-services.ts`. Showing the shell windows, sending them messages and
   asking on the main window, changing the interface language, routing browser
   shortcuts pressed in pages and enabling Chromium's native WebMCP come from
-  `main/windows/shell-windows.ts`, `main/interface-language.ts`,
+  `main/windows/shell-windows.ts`, `main/settings/interface-language.ts`,
   `main/browser-shortcut-routing.ts` and `main/native-webmcp-switch.ts`. The shell's
   tooltip, agent card and toast overlays and the runtime's orderly shutdown come from
   `main/windows/shell-overlays.ts` and `main/runtime-shutdown.ts`. State that several
   features read or change is one record that index.ts creates once, typed beside its
   owner: `McpRuntimeState` in
   `main/mcp-runtime.ts`, which starts, moves and resets the listener, `SettingsState`
-  in `main/settings-runtime.ts`, which loads, commits and publishes settings,
+  in `main/settings/settings-runtime.ts`, which loads, commits and publishes settings,
   translates into the interface language and creates the manager of the operating
   system's launch at login setting, `WalletRuntimeState` in
   `main/wallet/runtime.ts`, which starts wallets and admits page and agent requests,
@@ -62,7 +62,7 @@ than the entire browser runtime.
   What the MCP server offers agents is built by the feature that owns it: agents'
   wallets in `main/wallet/runtime.ts`, site data in `main/site-data.ts`, bookmarks
   and history in `main/bookmarks-and-history.ts`, the automation license checks in
-  `main/commercial-license-runtime.ts` and agents' view of the attention request in
+  `main/license/commercial-license-runtime.ts` and agents' view of the attention request in
   `main/tray-attention.ts`; index.ts's `createRuntimeMcpServer` only hands them to
   the server. `main/app-lifecycle.ts` registers the application's events and runs
   index.ts's `startRuntime` once Electron is ready.

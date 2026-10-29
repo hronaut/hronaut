@@ -7,7 +7,7 @@ import type { AppSettings } from '../src/shared/types.js'
 vi.mock('electron', () => ({ app: { getPath: () => '' }, nativeTheme: {} }))
 
 const { registerSiteSearchIpc } = await import('../src/main/site-search-ipc.js')
-const { DEFAULT_SETTINGS } = await import('../src/main/settings-store.js')
+const { DEFAULT_SETTINGS } = await import('../src/main/settings/settings-store.js')
 
 // Settings had no Site search list to keep, so main had nothing to check or save. Main now adds, edits and deletes the
 // shortcuts, checks each one with the rules the form shows, and makes quick changes one after another.

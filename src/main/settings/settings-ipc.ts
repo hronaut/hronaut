@@ -1,22 +1,22 @@
 import type { IpcMain, IpcMainInvokeEvent, OpenDialogReturnValue } from 'electron'
 import { resolve } from 'node:path'
-import type { BrowserTabsManager } from './browser/tabs-manager.js'
-import type { McpCapabilityProfileStore } from './mcp/capability-profile-store.js'
-import { mcpCapabilityProfileInputFromPreset, type McpHttpServer } from './mcp/server.js'
-import { createDownloadFolder } from './download-folder.js'
-import { LocalizedError } from './localized-error.js'
-import type { McpTokenConfiguration } from './mcp-token-store.js'
+import type { BrowserTabsManager } from '../browser/tabs-manager.js'
+import type { McpCapabilityProfileStore } from '../mcp/capability-profile-store.js'
+import { mcpCapabilityProfileInputFromPreset, type McpHttpServer } from '../mcp/server.js'
+import { createDownloadFolder } from '../download-folder.js'
+import { LocalizedError } from '../localized-error.js'
+import type { McpTokenConfiguration } from '../mcp-token-store.js'
 import { DEFAULT_SETTINGS, isThemeName } from './settings-store.js'
-import type { StartupLaunchManager } from './startup-launch.js'
+import type { StartupLaunchManager } from '../startup-launch.js'
 import {
   DEFAULT_MEMORY_SAVER_TIMEOUT_MINUTES,
   isMemorySaverTimeoutMinutes
-} from '../shared/memory-saver.js'
-import { isInterfaceScale } from '../shared/interface-scale.js'
-import { isTabPosition } from '../shared/tab-position.js'
-import { isMcpToolSet } from '../shared/mcp-tool-sets.js'
-import { isLanguagePreference } from '../shared/locale.js'
-import { isSearchEngineName } from '../shared/search-engine.js'
+} from '../../shared/memory-saver.js'
+import { isInterfaceScale } from '../../shared/interface-scale.js'
+import { isTabPosition } from '../../shared/tab-position.js'
+import { isMcpToolSet } from '../../shared/mcp-tool-sets.js'
+import { isLanguagePreference } from '../../shared/locale.js'
+import { isSearchEngineName } from '../../shared/search-engine.js'
 import {
   isAttentionSoundCue,
   type AppSettings,
@@ -24,7 +24,7 @@ import {
   type McpCapabilityProfileCreateInput,
   type RendererSettingsState,
   type ThemeName
-} from '../shared/types.js'
+} from '../../shared/types.js'
 
 type SettingsIpcCapabilityProfiles = Pick<McpCapabilityProfileStore, 'list' | 'create' | 'derive' | 'update' | 'rotate' | 'revoke'>
 

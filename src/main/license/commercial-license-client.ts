@@ -1,4 +1,4 @@
-import type { CommercialLicenseProviderResult } from '../shared/types.js'
+import type { CommercialLicenseProviderResult } from '../../shared/types.js'
 
 export class CommercialLicenseError extends Error {
   constructor(

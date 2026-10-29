@@ -1,5 +1,5 @@
-import type { AppReleaseHistoryEntry, AppReleaseHistoryPage } from '../shared/types.js'
-import { LocalizedError } from './localized-error.js'
+import type { AppReleaseHistoryEntry, AppReleaseHistoryPage } from '../../shared/types.js'
+import { LocalizedError } from '../localized-error.js'
 
 const RELEASES_PER_PAGE = 10
 const MAX_PAGE = 20

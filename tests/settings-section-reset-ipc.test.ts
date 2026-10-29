@@ -4,9 +4,9 @@ import type { AppSettings } from '../src/shared/types.js'
 
 vi.mock('electron', () => ({ app: { getPath: () => '' }, nativeTheme: {} }))
 
-const { registerSettingsIpc } = await import('../src/main/settings-ipc.js')
-const { DEFAULT_SETTINGS } = await import('../src/main/settings-store.js')
-const { commitRuntimeSetting } = await import('../src/main/runtime-setting-commit.js')
+const { registerSettingsIpc } = await import('../src/main/settings/settings-ipc.js')
+const { DEFAULT_SETTINGS } = await import('../src/main/settings/settings-store.js')
+const { commitRuntimeSetting } = await import('../src/main/settings/runtime-setting-commit.js')
 
 // Reset to default in Appearance also set back the language, startup and tray, and agent activity rows, which moved to
 // General; each section's reset now sets back only the settings it shows.

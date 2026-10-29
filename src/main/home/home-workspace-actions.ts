@@ -1,5 +1,5 @@
-import type { BrowserTabsManager } from './browser/tabs-manager.js'
-import { HOME_CARD_ICON_MAX_LENGTH, HOME_CARD_TAB_LIMIT, type HomeWorkspaceAction, type HomeWorkspaceEditorRequest, type HomeWorkspaceState } from '../shared/home-workspaces.js'
+import type { BrowserTabsManager } from '../browser/tabs-manager.js'
+import { HOME_CARD_ICON_MAX_LENGTH, HOME_CARD_TAB_LIMIT, type HomeWorkspaceAction, type HomeWorkspaceEditorRequest, type HomeWorkspaceState } from '../../shared/home-workspaces.js'
 
 export function homeWorkspaceState(manager: Pick<BrowserTabsManager, 'getState'>): HomeWorkspaceState {
   const state = manager.getState()

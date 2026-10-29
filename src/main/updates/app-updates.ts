@@ -2,15 +2,15 @@ import { app, type BrowserWindow } from 'electron'
 import type { AppUpdater } from 'electron-updater'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { updateErrorMessage, type UpdateOperation } from '../shared/update-errors.js'
-import { canStartUpdateOperation, replacedPackageVersion } from '../shared/update-runtime.js'
+import { updateErrorMessage, type UpdateOperation } from '../../shared/update-errors.js'
+import { canStartUpdateOperation, replacedPackageVersion } from '../../shared/update-runtime.js'
 import {
   linuxUpdateExecutable,
   scheduleLinuxUpdateRelaunch,
   updaterShouldAutoRunAfterInstall
 } from './linux-update-relaunch.js'
-import type { MessageKey, MessageParameters } from '../shared/i18n.js'
-import type { AppUpdateState } from '../shared/types.js'
+import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
+import type { AppUpdateState } from '../../shared/types.js'
 
 /**
  * The update state the shell shows, created once by index.ts and changed only by this module. Each change replaces the

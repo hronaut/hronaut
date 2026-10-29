@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { runHomeWorkspaceAction } from '../src/main/home-workspace-actions.js'
+import { runHomeWorkspaceAction } from '../src/main/home/home-workspace-actions.js'
 import type { BrowserState } from '../src/shared/types.js'
 
 function harness() {

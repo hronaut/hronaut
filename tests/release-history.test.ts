@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ReleaseHistoryService } from '../src/main/release-history.js'
+import { ReleaseHistoryService } from '../src/main/updates/release-history.js'
 
 function release(overrides: Record<string, unknown> = {}) {
   return {

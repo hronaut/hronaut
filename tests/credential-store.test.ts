@@ -2,7 +2,7 @@ import { chmod, mkdir, mkdtemp, open, readdir, readFile, rename, rm, stat, symli
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { CredentialStore, type CredentialEncryption } from '../src/main/credential-store.js'
+import { CredentialStore, type CredentialEncryption } from '../src/main/credentials/credential-store.js'
 
 vi.mock('node:fs/promises', async importOriginal => {
   const fs = await importOriginal<typeof import('node:fs/promises')>()

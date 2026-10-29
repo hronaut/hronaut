@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { translate } from '../src/shared/i18n.js'
-import type { AppUpdatesState } from '../src/main/app-updates.js'
+import type { AppUpdatesState } from '../src/main/updates/app-updates.js'
 
 const electron = vi.hoisted(() => ({
   app: { isPackaged: true, getVersion: () => '3.3.1', getAppPath: () => '/opt/Hronaut/resources/app.asar', quit: vi.fn() }
@@ -10,13 +10,13 @@ const relaunch = vi.hoisted(() => ({ scheduleLinuxUpdateRelaunch: vi.fn() }))
 vi.mock('electron', () => electron)
 // The package manager replaced Hronaut 3.3.1 with 3.4.0 while it ran.
 vi.mock('node:fs/promises', () => ({ readFile: vi.fn(async () => JSON.stringify({ version: '3.4.0' })) }))
-vi.mock('../src/main/linux-update-relaunch.js', () => ({
+vi.mock('../src/main/updates/linux-update-relaunch.js', () => ({
   linuxUpdateExecutable: () => '/opt/Hronaut/hronaut',
   scheduleLinuxUpdateRelaunch: relaunch.scheduleLinuxUpdateRelaunch,
   updaterShouldAutoRunAfterInstall: () => false
 }))
 
-const { createAppUpdates } = await import('../src/main/app-updates.js')
+const { createAppUpdates } = await import('../src/main/updates/app-updates.js')
 
 // After the package manager updated Hronaut on Linux, checking for updates restarted it at once, which cancelled the
 // downloads in progress and deleted their files without the question Hronaut's own Quit asks.

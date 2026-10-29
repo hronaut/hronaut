@@ -3,7 +3,7 @@ import type { TrustedDialogOptions } from '../src/main/trusted-dialogs/trusted-d
 
 vi.mock('electron', () => ({ app: { getPath: () => '/profile' }, safeStorage: {} }))
 
-const { createCredentialRuntime } = await import('../src/main/credential-runtime.js')
+const { createCredentialRuntime } = await import('../src/main/credentials/credential-runtime.js')
 const { translate } = await import('../src/shared/i18n.js')
 
 /** A runtime with an open store that already holds a password for `saved`, answering every question with `response`. */

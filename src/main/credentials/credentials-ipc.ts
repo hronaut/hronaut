@@ -8,13 +8,13 @@ import type {
 import { CredentialImportError, parseCredentialImportCsv } from './credential-import.js'
 import { readCredentialImportFile } from './credential-import-file.js'
 import { fillCredentialWhileMcpPaused } from './credential-fill-pause.js'
-import type { BrowserTabsManager } from './browser/tabs-manager.js'
+import type { BrowserTabsManager } from '../browser/tabs-manager.js'
 import type { CredentialStore } from './credential-store.js'
-import type { McpActionTracker } from './mcp/action-tracker.js'
-import type { McpHttpServer } from './mcp/server.js'
-import type { TrustedDialogOptions } from './trusted-dialogs/trusted-dialogs.js'
-import type { MessageKey, MessageParameters } from '../shared/i18n.js'
-import type { CredentialImportResult, CredentialStorageStatus } from '../shared/types.js'
+import type { McpActionTracker } from '../mcp/action-tracker.js'
+import type { McpHttpServer } from '../mcp/server.js'
+import type { TrustedDialogOptions } from '../trusted-dialogs/trusted-dialogs.js'
+import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
+import type { CredentialImportResult, CredentialStorageStatus } from '../../shared/types.js'
 
 interface CredentialsIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void

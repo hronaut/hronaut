@@ -3,7 +3,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { LATEST_PROTOCOL_VERSION } from '@modelcontextprotocol/sdk/types.js'
 import { afterEach, describe, expect, it } from 'vitest'
-import { fillCredentialWhileMcpPaused } from '../src/main/credential-fill-pause.js'
+import { fillCredentialWhileMcpPaused } from '../src/main/credentials/credential-fill-pause.js'
 import { AGENT_PRESENCE_WINDOW_MS } from '../src/main/mcp/agent-presence.js'
 import { McpHttpServer } from '../src/main/mcp/server.js'
 

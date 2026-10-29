@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { HomePageOptions } from '../../shared/home.js'
-import { renderHomePage } from '../home-page.js'
+import { renderHomePage } from '../home/home-page.js'
 
 interface HomeProtocolPorts {
   rendererDirectory: string

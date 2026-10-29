@@ -1,5 +1,5 @@
 import type { IpcMain, IpcMainInvokeEvent, Session } from 'electron'
-import type { AppSettings, SpellCheckLanguages } from '../shared/types.js'
+import type { AppSettings, SpellCheckLanguages } from '../../shared/types.js'
 
 type SpellCheckSession = Pick<Session, 'setSpellCheckerEnabled' | 'getSpellCheckerLanguages' | 'setSpellCheckerLanguages'>
 

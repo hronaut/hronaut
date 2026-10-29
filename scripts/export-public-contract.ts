@@ -18,9 +18,9 @@ const legacy = process.argv.includes('--legacy')
 const packaging = parse(await readFile(resolve(root, 'electron-builder.yml'), 'utf8')) as Record<string, { target: { target: string; arch: string[] }[] }>
 const bundled = await build({ absWorkingDir: root, bundle: true, write: false, platform: 'node', format: 'esm',
   stdin: { resolveDir: root, contents: `${legacy
-    ? `import { renderHomePage } from './src/main/home-page.ts'; export function configurations(options) { const html = renderHomePage({ ...options, initialState: { version: '${version}' } }); return JSON.parse(html.match(/const guides = (.+);\\n {4}const messages =/)[1]); }`
+    ? `import { renderHomePage } from './src/main/home/home-page.ts'; export function configurations(options) { const html = renderHomePage({ ...options, initialState: { version: '${version}' } }); return JSON.parse(html.match(/const guides = (.+);\\n {4}const messages =/)[1]); }`
     : `export { clientConfigurations as configurations } from './src/shared/client-configuration.ts';`}
-     export { CommercialLicenseClient } from './src/main/commercial-license-client.ts';
+     export { CommercialLicenseClient } from './src/main/license/commercial-license-client.ts';
      export { BROWSER_TOOL_CATALOG as tools } from './src/main/mcp/tool-catalog.ts';` } })
 const module = await import(`data:text/javascript;base64,${Buffer.from(bundled.outputFiles[0]!.text).toString('base64')}`) as {
   configurations(options: object): { id: string; name: string; note: string; location: string; code: string; setupCommand?: string; verifyCommand?: string }[]

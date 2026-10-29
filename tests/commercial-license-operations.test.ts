@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { CommercialLicenseOperationCoordinator } from '../src/main/commercial-license-operations.js'
+import { CommercialLicenseOperationCoordinator } from '../src/main/license/commercial-license-operations.js'
 
 function deferred<Value>() {
   let resolve!: (value: Value) => void

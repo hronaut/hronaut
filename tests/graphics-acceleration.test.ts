@@ -9,7 +9,7 @@ vi.mock('electron', () => ({ app: { getPath: () => '' }, nativeTheme: {} }))
 
 const { applySavedGraphicsAcceleration, readSavedGraphicsAcceleration, registerGraphicsAccelerationIpc } =
   await import('../src/main/graphics-acceleration.js')
-const { DEFAULT_SETTINGS, SettingsStore } = await import('../src/main/settings-store.js')
+const { DEFAULT_SETTINGS, SettingsStore } = await import('../src/main/settings/settings-store.js')
 
 // Hronaut always drew with the graphics card, with no way to turn that off when a driver left windows black or blank.
 // As in Chrome's Use graphics acceleration when available, the saved setting is read before Electron is ready, and a

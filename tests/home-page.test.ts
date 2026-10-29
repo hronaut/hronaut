@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { renderHomePage } from '../src/main/home-page.js'
+import { renderHomePage } from '../src/main/home/home-page.js'
 import type { McpDashboardState } from '../src/main/mcp/server.js'
 import { buildMcpReadinessDiagnostic } from '../src/main/mcp/readiness.js'
 

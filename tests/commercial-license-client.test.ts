@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { CommercialLicenseClient } from '../src/main/commercial-license-client.js'
+import { CommercialLicenseClient } from '../src/main/license/commercial-license-client.js'
 
 describe('CommercialLicenseClient', () => {
   it('activates through the Hronaut server and parses the sanitized result', async () => {

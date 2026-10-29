@@ -1,4 +1,4 @@
-import { LocalizedError } from './localized-error.js'
+import { LocalizedError } from '../localized-error.js'
 
 export interface CredentialFillPauseOptions<T> {
   pausePersistently: () => void

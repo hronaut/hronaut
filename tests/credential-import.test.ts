@@ -3,7 +3,7 @@ import {
   CredentialImportError,
   MAX_CREDENTIAL_IMPORT_ROWS,
   parseCredentialImportCsv
-} from '../src/main/credential-import.js'
+} from '../src/main/credentials/credential-import.js'
 
 describe('browser password CSV import', () => {
   afterEach(() => {

@@ -175,5 +175,5 @@ For focused static feedback, run content-cached ESLint and only the TypeScript
 projects that own the edited files:
 
 ```bash
-npm run validate:focused -- src/main/home-page.ts tests/home-page.test.ts
+npm run validate:focused -- src/main/home/home-page.ts tests/home-page.test.ts
 ```

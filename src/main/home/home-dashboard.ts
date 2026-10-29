@@ -1,13 +1,13 @@
 import { app } from 'electron'
-import { mcpToolCatalogForSet } from './mcp/server.js'
-import { buildMcpReadinessDiagnostic } from './mcp/readiness.js'
-import type { BrowserTabsManager } from './browser/tabs-manager.js'
-import type { McpPauseState } from './mcp-pause-state.js'
-import type { McpRuntimeState } from './mcp-runtime.js'
-import type { AgentPresenceSnapshot } from '../shared/agent-presence.js'
-import type { ConnectedAgent } from '../shared/agent-status.js'
-import type { HomeDashboard } from '../shared/home.js'
-import type { AppSettings, McpControlState, ThemeName } from '../shared/types.js'
+import { mcpToolCatalogForSet } from '../mcp/server.js'
+import { buildMcpReadinessDiagnostic } from '../mcp/readiness.js'
+import type { BrowserTabsManager } from '../browser/tabs-manager.js'
+import type { McpPauseState } from '../mcp-pause-state.js'
+import type { McpRuntimeState } from '../mcp-runtime.js'
+import type { AgentPresenceSnapshot } from '../../shared/agent-presence.js'
+import type { ConnectedAgent } from '../../shared/agent-status.js'
+import type { HomeDashboard } from '../../shared/home.js'
+import type { AppSettings, McpControlState, ThemeName } from '../../shared/types.js'
 
 interface HomeDashboardHost {
   /** The MCP listener, whose server, endpoint and startup error Home shows; the server is null while it is not running. */

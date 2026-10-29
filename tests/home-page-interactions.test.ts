@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { renderHomePage } from '../src/main/home-page.js'
+import { renderHomePage } from '../src/main/home/home-page.js'
 import { mountHome } from '../src/renderer/src/home/controller.js'
 import type { HomeBootstrap, HronautHomeApi } from '../src/shared/home.js'
 import type { McpDashboardState } from '../src/main/mcp/server.js'

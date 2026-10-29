@@ -4,10 +4,10 @@ import type { AppSettings } from '../src/shared/types.js'
 
 vi.mock('electron', () => ({ app: { getPath: () => '' }, nativeTheme: {}, session: { fromPartition: vi.fn() } }))
 
-const { automaticSpellCheckLanguages, createSpellCheck, registerSpellCheckIpc } = await import('../src/main/spell-check.js')
+const { automaticSpellCheckLanguages, createSpellCheck, registerSpellCheckIpc } = await import('../src/main/settings/spell-check.js')
 const { createBrowserSession } = await import('../src/main/browser-session.js')
-const { DEFAULT_SETTINGS } = await import('../src/main/settings-store.js')
-const { commitRuntimeSetting } = await import('../src/main/runtime-setting-commit.js')
+const { DEFAULT_SETTINGS } = await import('../src/main/settings/settings-store.js')
+const { commitRuntimeSetting } = await import('../src/main/settings/runtime-setting-commit.js')
 
 // Websites' text fields always checked spelling: Hronaut had no way to turn it off, as Chrome's Spell check switch
 // does. Every browser session now follows one setting, from Settings or a text field's menu.
