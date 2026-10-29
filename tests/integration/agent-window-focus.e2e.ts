@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { createServer } from 'node:http'
+import { join } from 'node:path'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
@@ -111,6 +112,20 @@ for (const eventKind of ['focus', 'navigation', 'show', 'capture', 'close', 'pop
           const page = webContents.getAllWebContents().find(contents => contents.getURL().startsWith(url))
           return page?.executeJavaScript('window.__qaFocusPending === true')
         }, origin)).toBe(true)
+        if (process.env.HRONAUT_TEST_WAYLAND !== '1') {
+          // With no window manager, X gives the keyboard to the window under the pointer once the focused window hides,
+          // and Hronaut's window kept it when the pointer was over it, where the person's window or an earlier test's
+          // click left it. A desktop leaves that to its window manager, so the pointer goes where no window is.
+          const outside = await electronApp.evaluate(({ BrowserWindow, screen }) => {
+            const { width, height } = screen.getPrimaryDisplay().bounds
+            const windows = BrowserWindow.getAllWindows().filter(window => window.isVisible()).map(window => window.getBounds())
+            return [[1, 1], [width - 2, 1], [1, height - 2], [width - 2, height - 2]].find(([x, y]) => windows.every(bounds => (
+              x! < bounds.x || x! >= bounds.x + bounds.width || y! < bounds.y || y! >= bounds.y + bounds.height
+            )))
+          })
+          if (!outside) throw new Error('Every corner of the screen is in a window')
+          execFileSync('python3', [join(process.cwd(), 'tests/integration/x11-input.py'), String(outside[0]), String(outside[1]), '--move'])
+        }
         await electronApp.evaluate(({ BrowserWindow }, id) => {
           const human = BrowserWindow.fromId(id)!
           const state = globalThis as typeof globalThis & { __qaStaleFocusRequests?: number }
