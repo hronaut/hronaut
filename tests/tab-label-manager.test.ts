@@ -1,6 +1,18 @@
 import { expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' } }))
+// The prototype-built browser below stubs changed, getState and persistedState, which saving a label publishes and
+// saves through.
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist),
+  browserState: (browser: { getState: () => unknown }) => browser.getState()
+}))
+vi.mock('../src/main/browser/browser-state/persisted-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/persisted-state.js')>(),
+  persistedState: (browser: { persistedState: () => unknown }) => browser.persistedState()
+}))
 import { Browser } from '../src/main/browser/browser.js'
+import { withTabLabelLifecycle } from '../src/main/browser/tab-labels/tab-labels.js'
 import type { PersistedBrowserState } from '../src/main/browser/tab-store.js'
 
 function fixture() {
@@ -53,7 +65,7 @@ it('holds lifecycle copies until rejected edits settle and rejects new edits dur
   const edit = manager.setTabLabel(tab.id, 'Rejected role')
   const rejected = expect(edit).rejects.toThrow('synthetic write failure')
   const copy = vi.fn(async () => tab.label)
-  const lifecycle = (manager as unknown as { withTabLabelLifecycle<T>(run: () => Promise<T>): Promise<T> }).withTabLabelLifecycle(copy)
+  const lifecycle = withTabLabelLifecycle(manager, copy)
   expect(copy).not.toHaveBeenCalled()
   await expect(manager.setTabLabel(tab.id, 'During close')).rejects.toThrow('Wait for the tab operation')
   reject(new Error('synthetic write failure'))

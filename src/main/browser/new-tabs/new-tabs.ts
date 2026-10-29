@@ -3,7 +3,12 @@ import { normalizeTabLabel } from '../../../shared/tab-label.js'
 import { MAX_BROWSER_TABS, type BrowserState, type NewTabOptions } from '../../../shared/types.js'
 import { LocalizedError } from '../../localized-error.js'
 import { isHronautHomeUrl, normalizeAddress } from '../url.js'
-import type { NewTabsAccess, NewTabsTab } from './new-tabs-access.js'
+import type { Browser } from '../browser.js'
+import { assertTabLabelAdmission, saveTabLabel } from '../tab-labels/tab-labels.js'
+import { ensureHumanWorkspace } from '../workspace-creation/human-workspace.js'
+import { assertWorkspaceNavigationAllowed } from '../workspace-navigation/workspace-navigation.js'
+import type { BrowserTab } from '../browser-tab.js'
+import { browserState } from '../browser-state/browser-state.js'
 
 /** The tab manager's tab limit. */
 const MAX_TABS = MAX_BROWSER_TABS
@@ -15,20 +20,20 @@ const MAX_TABS = MAX_BROWSER_TABS
  * not shown: Follow agents shows it through the agent's call on it, so it
  * waits as for any call, such as while a page fills the window.
  */
-export async function newLabeledAgentTab<Tab extends NewTabsTab>(access: NewTabsAccess<Tab>, options: NewTabOptions, value: string, validateAuthority: () => void, onCreated: (id: string) => void, onCreationAttempt: () => void): Promise<{ createdTabId: string; labelPersistence: 'saved' | 'durability-unconfirmed' | 'not-saved' }> {
+export async function newLabeledAgentTab(browser: Browser, options: NewTabOptions, value: string, validateAuthority: () => void, onCreated: (id: string) => void, onCreationAttempt: () => void): Promise<{ createdTabId: string; labelPersistence: 'saved' | 'durability-unconfirmed' | 'not-saved' }> {
   const label = normalizeTabLabel(value)
-  access.assertTabLabelAdmission()
-  if (!options.mcpGroupId || isHronautHomeUrl(normalizeAddress(options.url ?? 'about:blank', access.options().getSearchEngine?.()))) throw new Error('Labeled agent tabs require an agent workspace and a website address.')
+  assertTabLabelAdmission(browser)
+  if (!options.mcpGroupId || isHronautHomeUrl(normalizeAddress(options.url ?? 'about:blank', browser.options.getSearchEngine?.()))) throw new Error('Labeled agent tabs require an agent workspace and a website address.')
   validateAuthority()
   let createdTabId: string | undefined
   let committed = false
   let saving: Promise<'saved' | 'durability-unconfirmed' | 'not-saved'> | undefined
   try {
-    await createNewTab(access, options, false, tab => {
+    await createNewTab(browser, options, false, tab => {
       createdTabId = tab.id
       // Admit before createTab yields, so later edits and lifecycle copies see
       // this save on the same queue. The label is staged, not yet visible.
-      saving = access.saveTabLabel(tab.id, label ?? '', validateAuthority, () => { committed = true })
+      saving = saveTabLabel(browser, tab.id, label ?? '', validateAuthority, () => { committed = true })
         .then(result => result.status, () => committed ? 'durability-unconfirmed' as const : 'not-saved' as const)
       onCreated(tab.id)
     }, onCreationAttempt)
@@ -46,22 +51,22 @@ export async function newLabeledAgentTab<Tab extends NewTabsTab>(access: NewTabs
  * opens as the application page instead. A workspace created only for this tab
  * is closed again when the tab fails.
  */
-export async function createNewTab<Tab extends NewTabsTab>(access: NewTabsAccess<Tab>, options: NewTabOptions, selectVisible: boolean, onCreated?: (tab: Tab) => void, onCreationAttempt?: () => void): Promise<BrowserState> {
-  const url = normalizeAddress(options.url ?? 'about:blank', access.options().getSearchEngine?.())
+export async function createNewTab(browser: Browser, options: NewTabOptions, selectVisible: boolean, onCreated?: (tab: BrowserTab) => void, onCreationAttempt?: () => void): Promise<BrowserState> {
+  const url = normalizeAddress(options.url ?? 'about:blank', browser.options.getSearchEngine?.())
   if (isHronautHomeUrl(url)) {
     if (options.mcpGroupId) throw new LocalizedError('appErrors.tabs.homeInAgentWorkspace')
-    return access.openHome()
+    return browser.openHome()
   }
-  if (access.tabs().size >= MAX_TABS) throw new LocalizedError('appErrors.tabs.limit', { max: MAX_TABS })
+  if (browser.tabs.size >= MAX_TABS) throw new LocalizedError('appErrors.tabs.limit', { max: MAX_TABS })
   if (options.defaultFontSize !== undefined && !isDefaultFontSize(options.defaultFontSize)) {
     throw new Error(`defaultFontSize must be an integer from ${DEFAULT_FONT_SIZE_LIMITS.min} to ${DEFAULT_FONT_SIZE_LIMITS.max} CSS pixels`)
   }
-  const createsWorkspace = !options.mcpGroupId && access.mcpTabGroups().size === 0
-  const groupId = options.mcpGroupId ?? access.ensureHumanWorkspace()
-  access.requireMcpTabGroup(groupId)
-  access.assertWorkspaceNavigationAllowed(groupId, url, 'direct')
+  const createsWorkspace = !options.mcpGroupId && browser.mcpTabGroups.size === 0
+  const groupId = options.mcpGroupId ?? ensureHumanWorkspace(browser)
+  browser.requireMcpTabGroup(groupId)
+  assertWorkspaceNavigationAllowed(browser, groupId, url, 'direct')
   try {
-    await access.createTab({
+    await browser.createTab({
       url,
       active: options.active ?? true,
       selectVisible,
@@ -75,11 +80,11 @@ export async function createNewTab<Tab extends NewTabsTab>(access: NewTabsAccess
     })
   } catch (error) {
     if (createsWorkspace) {
-      try { await access.closeMcpTabGroup(groupId) } catch (cleanupError) {
+      try { await browser.closeMcpTabGroup(groupId) } catch (cleanupError) {
         throw new LocalizedError('appErrors.tabs.workspaceCleanupFailed', undefined, { cause: new AggregateError([error, cleanupError]) })
       }
     }
     throw error
   }
-  return access.getState()
+  return browserState(browser)
 }

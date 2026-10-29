@@ -3,32 +3,34 @@ import type { WorkspaceTemplateImportResult } from '../../../shared/workspace-te
 import { LocalizedError } from '../../localized-error.js'
 import { RetainedBrowserWorkspaceError } from '../workspace-errors.js'
 import { WorkspaceTemplateImporter } from '../workspace-template-import.js'
-import type { WorkspaceCreationAccess } from './workspace-creation-access.js'
+import type { Browser } from '../browser.js'
+import { openWorkspaceRoom } from './workspace-capacity.js'
+import { browserState } from '../browser-state/browser-state.js'
 
 /**
  * Creates the workspaces a template describes, each without agent access
  * and with its start pages open in the background, using one importer for
  * every template.
  */
-export async function importWorkspaceTemplate(access: WorkspaceCreationAccess, text: string): Promise<WorkspaceTemplateImportResult> {
-  access.setWorkspaceTemplateImporter(access.workspaceTemplateImporter() ?? new WorkspaceTemplateImporter({
-    existingWorkspaces: () => [...access.mcpTabGroups().values(), ...access.savedTabGroups().values()]
+export async function importWorkspaceTemplate(browser: Browser, text: string): Promise<WorkspaceTemplateImportResult> {
+  browser.workspaceTemplateImporter ??= new WorkspaceTemplateImporter({
+    existingWorkspaces: () => [...browser.mcpTabGroups.values(), ...browser.savedTabGroups.values()]
       .map(({ id, name }) => ({ id, name })),
-    room: () => ({ tabs: MAX_BROWSER_TABS - access.tabs().size, workspaces: access.openWorkspaceRoom() }),
+    room: () => ({ tabs: MAX_BROWSER_TABS - browser.tabs.size, workspaces: openWorkspaceRoom(browser) }),
     create: async (entry) => {
-      const workspace = await access.createMcpTabGroup(entry.name, entry.color, 'scratch', undefined, false, undefined, undefined, entry.description)
-      access.updateMcpTabGroup(workspace.id, { agentAccess: false })
+      const workspace = await browser.createMcpTabGroup(entry.name, entry.color, 'scratch', undefined, false, undefined, undefined, entry.description)
+      browser.updateMcpTabGroup(workspace.id, { agentAccess: false })
       return workspace.id
     },
     openStartPages: async (workspaceId, urls) => {
       // A template can open many pages at once; they load a few at a time.
       for (const url of urls) {
-        await access.createTab({ url, active: false, focus: false, mcpGroupId: workspaceId, loadsInTurn: true })
+        await browser.createTab({ url, active: false, focus: false, mcpGroupId: workspaceId, loadsInTurn: true })
       }
     },
-    remove: async (workspaceId) => { await access.closeMcpTabGroup(workspaceId) }
-  }))
-  return access.workspaceTemplateImporter()!.import(text)
+    remove: async (workspaceId) => { await browser.closeMcpTabGroup(workspaceId) }
+  })
+  return browser.workspaceTemplateImporter.import(text)
 }
 
 /**
@@ -37,9 +39,9 @@ export async function importWorkspaceTemplate(access: WorkspaceCreationAccess, t
  * closed again; when closing fails too, it stays listed so its isolated data
  * can be deleted.
  */
-export async function createWorkspace(access: WorkspaceCreationAccess, options: BrowserWorkspaceCreateOptions): Promise<BrowserState> {
+export async function createWorkspace(browser: Browser, options: BrowserWorkspaceCreateOptions): Promise<BrowserState> {
   if (!options.name.trim()) throw new LocalizedError('appErrors.workspace.nameEmpty')
-  const workspace = await access.createMcpTabGroup(
+  const workspace = await browser.createMcpTabGroup(
     options.name,
     options.color,
     options.storage,
@@ -50,15 +52,15 @@ export async function createWorkspace(access: WorkspaceCreationAccess, options: 
     options.description,
     options.contextClass
   )
-  if (options.agentAccess !== undefined) access.updateMcpTabGroup(workspace.id, { agentAccess: options.agentAccess })
+  if (options.agentAccess !== undefined) browser.updateMcpTabGroup(workspace.id, { agentAccess: options.agentAccess })
   try {
-    if (workspace.activeTabId) access.selectTab(workspace.activeTabId)
-    else await access.createTab({ url: 'about:blank', active: true, mcpGroupId: workspace.id })
-    access.updateMcpTabGroup(workspace.id, { hiddenFromSidebar: options.hiddenFromSidebar === true, deletionProtected: options.deletionProtected === true })
-    return access.getState()
+    if (workspace.activeTabId) browser.selectTab(workspace.activeTabId)
+    else await browser.createTab({ url: 'about:blank', active: true, mcpGroupId: workspace.id })
+    browser.updateMcpTabGroup(workspace.id, { hiddenFromSidebar: options.hiddenFromSidebar === true, deletionProtected: options.deletionProtected === true })
+    return browserState(browser)
   } catch (error) {
     try {
-      await access.closeMcpTabGroup(workspace.id)
+      await browser.closeMcpTabGroup(workspace.id)
     } catch (cleanupError) {
       throw new RetainedBrowserWorkspaceError(
         [error, cleanupError],

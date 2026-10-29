@@ -2,24 +2,27 @@ import { normalizeTabLabel } from '../../../shared/tab-label.js'
 import type { BrowserState } from '../../../shared/types.js'
 import { LocalizedError } from '../../localized-error.js'
 import { isHronautHomeUrl } from '../url.js'
-import type { TabLabelsAccess, TabLabelsTab } from './tab-labels-access.js'
+import type { Browser } from '../browser.js'
+import { findTab, getTab } from '../browser-core.js'
+import { browserState, publishChange } from '../browser-state/browser-state.js'
+import { persistedState } from '../browser-state/persisted-state.js'
 
 /** Runs a label-bearing tab operation after the pending label saves settle, refusing new label edits until it ends. */
-export async function withTabLabelLifecycle<Tab extends TabLabelsTab, T>(access: TabLabelsAccess<Tab>, run: () => Promise<T>): Promise<T> {
+export async function withTabLabelLifecycle<T>(browser: Browser, run: () => Promise<T>): Promise<T> {
   // Acquire before yielding, so no new edit can race a label-bearing copy.
-  access.setTabLabelLifecycleHolds(access.tabLabelLifecycleHolds() + 1)
+  browser.tabLabelLifecycleHolds += 1
   try {
-    if (access.pendingTabLabels().size) await Promise.allSettled([...access.pendingTabLabels()])
+    if (browser.pendingTabLabels.size) await Promise.allSettled([...browser.pendingTabLabels])
     return await run()
   } finally {
-    access.setTabLabelLifecycleHolds(access.tabLabelLifecycleHolds() - 1)
+    browser.tabLabelLifecycleHolds -= 1
   }
 }
 
 /** Throws unless a label edit may start now: restored, not shutting down, no label-bearing operation held and fewer than eight saves pending. */
-export function assertTabLabelAdmission<Tab extends TabLabelsTab>(access: TabLabelsAccess<Tab>): void {
-  if (!access.initialized() || access.isDestroyed() || access.tabLabelAdmissionClosed() || access.tabLabelLifecycleHolds()) throw new LocalizedError('appErrors.tabs.labelBusy')
-  if (access.pendingTabLabels().size >= 8) throw new LocalizedError('appErrors.tabs.labelsPending')
+export function assertTabLabelAdmission(browser: Browser): void {
+  if (!browser.initialized || browser.destroyed || browser.tabLabelAdmissionClosed || browser.tabLabelLifecycleHolds) throw new LocalizedError('appErrors.tabs.labelBusy')
+  if (browser.pendingTabLabels.size >= 8) throw new LocalizedError('appErrors.tabs.labelsPending')
 }
 
 /**
@@ -27,20 +30,20 @@ export function assertTabLabelAdmission<Tab extends TabLabelsTab>(access: TabLab
  * the store commits it; a failure after the commit keeps the label but
  * reports its durability as unconfirmed.
  */
-export async function saveTabLabel<Tab extends TabLabelsTab>(access: TabLabelsAccess<Tab>, tabId: string, value: string, validateAuthority?: () => void, onCommitted?: () => void): Promise<{ state: BrowserState; status: 'saved' | 'durability-unconfirmed' }> {
+export async function saveTabLabel(browser: Browser, tabId: string, value: string, validateAuthority?: () => void, onCommitted?: () => void): Promise<{ state: BrowserState; status: 'saved' | 'durability-unconfirmed' }> {
   const label = normalizeTabLabel(value)
-  assertTabLabelAdmission(access)
-  const tab = access.getTab(tabId)
+  assertTabLabelAdmission(browser)
+  const tab = getTab(browser, tabId)
   if (isHronautHomeUrl(tab.url)) throw new LocalizedError('appErrors.tabs.homeNotLabeled')
   const validate = (): void => {
-    if (access.isDestroyed() || access.findTab(tabId) !== tab) throw new LocalizedError('native.errors.tabUnavailable')
+    if (browser.destroyed || findTab(browser, tabId) !== tab) throw new LocalizedError('native.errors.tabUnavailable')
     validateAuthority?.()
   }
   let committed = false
   const commit = Symbol()
-  const operation = access.store().save(() => {
+  const operation = browser.store.save(() => {
     validate()
-    const state = access.persistedState()
+    const state = persistedState(browser)
     const target = state.tabs.find(candidate => candidate.id === tabId)!
     if (label) target.label = label
     else delete target.label
@@ -52,21 +55,21 @@ export async function saveTabLabel<Tab extends TabLabelsTab>(access: TabLabelsAc
       onCommitted?.()
       tab.label = label
       tab.labelCommit = commit
-      access.changed(false)
+      publishChange(browser, false)
     }
   })
-  access.pendingTabLabels().add(operation)
+  browser.pendingTabLabels.add(operation)
   try {
     await operation
-    if (tab.labelCommit === commit) { tab.labelDurabilityUnconfirmed = false; access.changed(false) }
-    return { state: access.getState(), status: 'saved' }
+    if (tab.labelCommit === commit) { tab.labelDurabilityUnconfirmed = false; publishChange(browser, false) }
+    return { state: browserState(browser), status: 'saved' }
   } catch (error) {
     if (!committed) throw error
     // Rename committed; a failed directory flush cannot truthfully roll back
     // the visible file. Keep that label, but never acknowledge durability.
-    if (tab.labelCommit === commit) { tab.labelDurabilityUnconfirmed = true; access.changed(false) }
-    return { state: access.getState(), status: 'durability-unconfirmed' }
+    if (tab.labelCommit === commit) { tab.labelDurabilityUnconfirmed = true; publishChange(browser, false) }
+    return { state: browserState(browser), status: 'durability-unconfirmed' }
   } finally {
-    access.pendingTabLabels().delete(operation)
+    browser.pendingTabLabels.delete(operation)
   }
 }

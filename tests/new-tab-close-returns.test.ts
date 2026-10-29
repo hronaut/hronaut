@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, Menu: {} }))
+// The prototype-built browser below stubs createNewTab, which opening a new tab goes through.
+vi.mock('../src/main/browser/new-tabs/new-tabs.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/new-tabs/new-tabs.js')>(),
+  createNewTab: (browser: { createNewTab: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.createNewTab(...args)
+}))
 import { Browser } from '../src/main/browser/browser.js'
 
 // A new tab from + or Ctrl/Cmd+T, closed right away, showed the tab beside it (the workspace's last tab), where Chrome

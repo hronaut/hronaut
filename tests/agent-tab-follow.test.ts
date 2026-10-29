@@ -18,6 +18,23 @@ vi.mock('electron', () => {
   }
   return { session: {}, WebContentsView, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, powerMonitor: { on: () => undefined } }
 })
+// The prototype-built browser below stubs getState, assertWorkspaceNavigationAllowed, assertTabLabelAdmission and
+// saveTabLabel, which opening an agent's tab publishes, checks the workspace's sites and saves its label through.
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  browserState: (browser: { getState: () => unknown }) => browser.getState()
+}))
+vi.mock('../src/main/browser/workspace-navigation/workspace-navigation.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-navigation/workspace-navigation.js')>(),
+  assertWorkspaceNavigationAllowed: (browser: { assertWorkspaceNavigationAllowed: (...args: unknown[]) => void }, ...args: unknown[]) => (
+    browser.assertWorkspaceNavigationAllowed(...args)
+  )
+}))
+vi.mock('../src/main/browser/tab-labels/tab-labels.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-labels/tab-labels.js')>(),
+  assertTabLabelAdmission: (browser: { assertTabLabelAdmission: () => void }) => browser.assertTabLabelAdmission(),
+  saveTabLabel: (browser: { saveTabLabel: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.saveTabLabel(...args)
+}))
 import type { WebContents } from 'electron'
 import { Browser } from '../src/main/browser/browser.js'
 import { McpActivityFollowController } from '../src/main/browser/mcp-activity-follow-controller.js'
