@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [3.13.0] - 2026-10-29
+
 ### Added
 
 - On macOS, Hronaut's menus have a Mac app's own items, as in Chrome there: **About Hronaut** and **Settings…** (**Cmd+,**) at the top of the Hronaut menu and, before **Quit**, **Services**, **Hide Hronaut** (**Cmd+H**), **Hide Others** (**Cmd+Option+H**) and **Show All**, and a **Window** menu with **Minimize** (**Cmd+M**), **Zoom** and **Bring All to Front**. The Help menu has the system's search of the menus and leaves About to the Hronaut menu, and Help's **Keyboard shortcuts** lists **Cmd+,**.
