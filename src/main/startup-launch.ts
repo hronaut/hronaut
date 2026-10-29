@@ -175,7 +175,7 @@ export class StartupLaunchManager {
       'Type=Application',
       'Version=1.0',
       'Name=Hronaut',
-      'Comment=Visible local browser for coding agents',
+      'Comment=A visible desktop browser for coding agents, with a separate workspace for each project.',
       `TryExec=${desktopStringValue(executable)}`,
       `Exec=${desktopExecArgument(executable)} ${STARTUP_LAUNCH_ARGUMENT}`,
       'Terminal=false',
