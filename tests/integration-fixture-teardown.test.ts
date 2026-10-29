@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron, type ElectronApplication } from '@playwright/test'
 import { describe, expect, it, vi } from 'vitest'
-import { closeFixtureServer, closeHronaut, collectRendererDiagnostics, launchHronaut } from './integration/fixtures.js'
+import { closeFixtureServer, closeHronaut, collectRendererDiagnostics, launchHronaut, pageAt } from './integration/fixtures.js'
 
 describe('integration fixture teardown', () => {
   it.each(['monitor', 'window', 'renderer'] as const)('closes a launched app when %s initialization fails', async (stage) => {
@@ -87,6 +87,30 @@ describe('integration fixture teardown', () => {
     expect(directCloseSites).toEqual([])
     expect(fixtureSource).toContain('export async function closeFixtureServer')
     expect(fixtureSource).toContain('server.closeAllConnections?.()')
+  })
+
+  // Playwright learns a page's address from its own connection to the app, which can lag behind an MCP result saying
+  // the page loaded: a test that looked the page up at once got undefined in CI.
+  it('looks website pages up by address only through pageAt, which waits for Playwright to know them', async () => {
+    const integrationDirectory = 'tests/integration'
+    const files = (await readdir(integrationDirectory))
+      .filter((file) => file.endsWith('.ts') && file !== 'fixtures.ts')
+    const immediateLookups = (await Promise.all(files.map(async (file) => ({
+      file,
+      source: await readFile(`${integrationDirectory}/${file}`, 'utf8')
+    }))))
+      .flatMap(({ file, source }) => [...source.matchAll(/\.pages\(\)\.find\([^\n]*\.url\(\)\s*===[^\n]*\)!/gu)]
+        .map((match) => `${file}:${source.slice(0, match.index).split('\n').length}`))
+
+    expect(immediateLookups).toEqual([])
+  })
+
+  it('finds a page once Playwright knows its address', async () => {
+    const pages = [{ url: () => 'about:blank' }]
+    const ready = { url: () => 'http://127.0.0.1/ready' }
+    const app = { context: () => ({ pages: () => [...pages] }) } as unknown as ElectronApplication
+    setTimeout(() => pages.push(ready), 50)
+    await expect(pageAt(app, 'http://127.0.0.1/ready')).resolves.toBe(ready)
   })
 
   it('allows recovery cleanup to close an already stopped fixture server', async () => {

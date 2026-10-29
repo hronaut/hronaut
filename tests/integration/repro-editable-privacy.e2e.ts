@@ -6,7 +6,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
 import type { BrowserReproRecording, HronautApi } from '../../src/shared/types.js'
-import { closeFixtureServer, expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, test, pageAt } from './fixtures.js'
 
 const marker = /draft-(direct|nested|plain|mixed|label|native)-canary/
 function text(result: CallToolResult): string {
@@ -42,8 +42,7 @@ test('excludes editable drafts from real Repro labels, timeline, MCP and reviewe
     const opened = JSON.parse(text(await client.callTool({ name: 'browser_new_tab', arguments: { url, active: true } }) as CallToolResult)) as { activeTabId: string }
     const tabId = opened.activeTabId
     await appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.selectTab(tabId), tabId)
-    await expect.poll(() => electronApp.context().pages().some(page => page.url() === url)).toBe(true)
-    const page = electronApp.context().pages().find(page => page.url() === url)!
+    const page = await pageAt(electronApp, url)
     await expect(page.locator('#direct')).toBeVisible()
     const original = await page.locator('body').innerHTML()
     await appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.manageRepro('start', tabId), tabId)

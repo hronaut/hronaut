@@ -2,7 +2,7 @@ import { createServer } from 'node:http'
 import type { Page } from '@playwright/test'
 import { formatReproAsPlaywright } from '../../src/shared/repro-export.js'
 import type { BrowserReproRecording, HronautApi } from '../../src/shared/types.js'
-import { closeFixtureServer, expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, test, pageAt } from './fixtures.js'
 
 test('requires an outcome checkpoint after the last recorded action before an export can pass', async ({ appWindow, electronApp }) => {
   let fixed = false
@@ -16,8 +16,7 @@ test('requires an outcome checkpoint after the last recorded action before an ex
   try {
     const state = await appWindow.evaluate(url => (window as unknown as { hronaut: HronautApi }).hronaut.newTab({ url, active: true }), url)
     const tabId = state.activeTabId!
-    await expect.poll(() => electronApp.context().pages().some(page => page.url() === url)).toBe(true)
-    const page = electronApp.context().pages().find(page => page.url() === url)!
+    const page = await pageAt(electronApp, url)
     await expect(page.locator('p')).toHaveText('Ready')
     const start = await appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.manageRepro('start', tabId), tabId)
     const checkpoint = (text: string) => appWindow.evaluate(({ tabId, context, text }) => (window as unknown as { hronaut: HronautApi }).hronaut.manageRepro('checkpoint', tabId, {

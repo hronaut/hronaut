@@ -1,6 +1,6 @@
 import type { ReactInspectionResult } from '../../src/shared/react-inspection.js'
 import type { BrowserTabState, HronautApi } from '../../src/shared/types.js'
-import { closeFixtureServer, closeHronaut, launchHronaut } from './fixtures.js'
+import { closeFixtureServer, closeHronaut, launchHronaut, pageAt } from './fixtures.js'
 import { createServer } from 'node:http'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
@@ -35,15 +35,13 @@ test(`archive/restore and delete interrupt reads and never restore prior activat
     })
     react.releaseDocument()
   }
-  await expect.poll(() => electronApp.context().pages().some(page => page.url() === react.origin + '/lifecycle-armed')).toBe(true)
-  const reopenedPage = electronApp.context().pages().find(page => page.url() === react.origin + '/lifecycle-armed')!
+  const reopenedPage = await pageAt(electronApp, react.origin + '/lifecycle-armed')
   await expect(reopenedPage.locator('span')).toHaveCount(1)
   expect(await reopenedPage.evaluate('fixtureSawHook')).toBe(false)
   expect((await react.success<ReactInspectionResult>(request('enable'))).status).toBe('reload-required')
   await react.success(react.call('browser_navigate', { workspaceId: react.workspace.id, tabId, url: react.origin + '/restored' }))
   // Navigation completion does not guarantee that React has committed its fixture tree.
-  await expect.poll(() => electronApp.context().pages().some(page => page.url() === react.origin + '/restored')).toBe(true)
-  const restoredPage = electronApp.context().pages().find(page => page.url() === react.origin + '/restored')!
+  const restoredPage = await pageAt(electronApp, react.origin + '/restored')
   await expect(restoredPage.locator('span')).toHaveCount(1)
   const restored = await react.success<ReactInspectionResult>(request('tree'))
   expect(restored.status).toBe('ready')
@@ -71,8 +69,7 @@ test('failed deletion rollback recreates the tab with inspection off', async ({ 
     await react.success(react.call('browser_select_tab', { workspaceId: react.workspace.id, tabId: react.tabId }))
     expect((await react.success<ReactInspectionResult>(react.react('status'))).status).toBe('disabled')
     expect(rejected(await react.react('tree', first.nodes[0]!.id))).toBe(true)
-    await expect.poll(() => electronApp.context().pages().some(page => page.url() === react.origin + '/delete-rollback')).toBe(true)
-    const restored = electronApp.context().pages().find(page => page.url() === react.origin + '/delete-rollback')!
+    const restored = await pageAt(electronApp, react.origin + '/delete-rollback')
     await expect(restored.locator('span')).toHaveCount(1)
     expect(await restored.evaluate('fixtureSawHook')).toBe(false)
   } finally {

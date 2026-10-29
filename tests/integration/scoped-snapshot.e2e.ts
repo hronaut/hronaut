@@ -4,7 +4,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { BrowserState } from '../../src/shared/types.js'
 import type { BrowserSnapshot } from '../../src/shared/snapshot.js'
-import { closeFixtureServer, expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, test, pageAt } from './fixtures.js'
 
 test('captures and searches a component through MCP without unrelated content or silent scope fallback', async ({ electronApp, mcpPort, mcpToken }) => {
   const server = createServer((_request, response) => {
@@ -28,8 +28,7 @@ test('captures and searches a component through MCP without unrelated content or
     const workspace = parse<{ id: string }>(await call('browser_workspaces', { action: 'create', name: 'Scoped snapshot', storage: 'scratch' }))
     const state = parse<BrowserState>(await call('browser_new_tab', { workspaceId: workspace.id, url }))
     const args = { workspaceId: workspace.id, tabId: state.activeTabId! }
-    await expect.poll(() => electronApp.context().pages().some(page => page.url() === url)).toBe(true)
-    const page = electronApp.context().pages().find(page => page.url() === url)!
+    const page = await pageAt(electronApp, url)
     await expect(page.locator('#target')).toBeVisible()
     await page.evaluate(() => {
       const audit = { count: 0, observer: new MutationObserver(records => { audit.count += records.length }) }

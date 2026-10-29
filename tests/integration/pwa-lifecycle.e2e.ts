@@ -2,7 +2,7 @@ import { CallToolResultSchema, type CallToolResult } from '@modelcontextprotocol
 import type { PwaLifecycleReport } from '../../src/shared/pwa-lifecycle.js'
 import { createServer } from 'node:http'
 import { test, expect, text } from './capability-fixtures.js'
-import { closeFixtureServer } from './fixtures.js'
+import { closeFixtureServer, pageAt } from './fixtures.js'
 
 test('observes bounded worker versions and late registrations without lifecycle mutations', async ({ capabilities, electronApp, appWindow }) => {
   let version = 'A'
@@ -29,8 +29,7 @@ test('observes bounded worker versions and late registrations without lifecycle 
 
   try {
     await call('browser_navigate', { url })
-    await expect.poll(() => electronApp.context().pages().some(p => p.url() === url)).toBe(true)
-    const page = electronApp.context().pages().find(p => p.url() === url)!
+    const page = await pageAt(electronApp, url)
     await expect.poll(() => page.evaluate(() => navigator.serviceWorker.controller?.state)).toBe('activated')
     await page.locator('#focus').focus()
     const before = await page.evaluate(() => ({ html: document.documentElement.outerHTML, focus: document.activeElement?.id, x: scrollX, y: scrollY }))

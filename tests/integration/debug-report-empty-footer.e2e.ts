@@ -1,5 +1,5 @@
 import { createServer } from 'node:http'
-import { closeFixtureServer, expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, test, pageAt } from './fixtures.js'
 
 // In a window 760 px high, a debug report with nothing to show kept its full height and pushed Refresh and Copy report
 // partly out of the panel, and in a shorter one a report's list of messages could shrink to nothing.
@@ -50,7 +50,7 @@ test('keeps the actions and messages of a debug report in view in a short window
     // In the smallest window, a report with a message keeps the message in reach above the footer.
     await windowSize(760, 520)
     const url = `http://127.0.0.1:${address.port}/`
-    const page = electronApp.context().pages().find(candidate => candidate.url() === url)!
+    const page = await pageAt(electronApp, url)
     await page.evaluate(() => console.error('quiet-page-failure'))
     await report.locator(':scope > footer').getByRole('button', { name: 'Refresh', exact: true }).click()
     const message = report.getByText('quiet-page-failure')

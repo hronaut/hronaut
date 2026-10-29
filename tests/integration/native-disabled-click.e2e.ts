@@ -2,7 +2,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { BrowserState, HronautApi, HronautSettingsApi } from '../../src/shared/types.js'
-import { expect, test } from './fixtures.js'
+import { expect, test, pageAt } from './fixtures.js'
 
 const modes = {
   ordinary: {},
@@ -64,7 +64,7 @@ for (const [mode, options] of Object.entries(modes)) {
         const args = { workspaceId: workspace.id, tabId: state.activeTabId }
         await ok('browser_wait', { ...args, selector: '#disabled' })
         await appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.selectTab(id!), state.activeTabId)
-        const page = electronApp.context().pages().find(page => page.url() === url)!
+        const page = await pageAt(electronApp, url)
         const snapshot = await ok('browser_snapshot', args)
         expect(snapshot).toContain('Disabled submit')
         expect(snapshot).toContain('input "Selected checkbox" disabled checked')
