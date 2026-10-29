@@ -3,7 +3,6 @@ import type { Browser } from '../src/main/browser/browser.js'
 import type { BrowserTab } from '../src/main/browser/browser-tab.js'
 import { closeTabLeftEmptyByDownload, opensFromPage } from '../src/main/browser/download-tab-close/download-tab-close.js'
 import { rememberClosedTab } from '../src/main/browser/tab-reopening/tab-reopening.js'
-import type { TabReopeningAccess, TabReopeningTab } from '../src/main/browser/tab-reopening/tab-reopening-access.js'
 import type { BrowserClosedTabState } from '../src/shared/types.js'
 
 type Tab = Pick<BrowserTab, 'id' | 'openedFromPage' | 'leftEmptyByDownload'> & {
@@ -113,16 +112,16 @@ describe('closing a tab a download left empty', () => {
 
   it('leaves the tab out of Recently closed, as reopening it would download the file again', () => {
     const closedTabs: BrowserClosedTabState[] = []
-    const access = {
-      closedTabs: () => closedTabs, orderedTabs: () => [], navigationHistorySnapshot: () => ({ entries: [], index: -1 })
-    } as unknown as TabReopeningAccess<TabReopeningTab>
-    const tab: TabReopeningTab = {
+    const browser = {
+      closedTabs, tabs: new Map(), mcpTabGroups: new Map(), navigationHistorySnapshot: () => ({ entries: [], index: -1 })
+    } as unknown as Browser
+    const tab = {
       id: 'opened', url: 'https://download.example/report.pdf', title: '', pinned: false, zoomIsolated: false,
       tabMuted: false, tabAgentPaused: false, humanInteractionLocked: false
-    }
-    rememberClosedTab(access, { ...tab, leftEmptyByDownload: true })
+    } as BrowserTab
+    rememberClosedTab(browser, { ...tab, leftEmptyByDownload: true })
     expect(closedTabs).toEqual([])
-    rememberClosedTab(access, tab)
+    rememberClosedTab(browser, tab)
     expect(closedTabs.map((closed) => closed.url)).toEqual(['https://download.example/report.pdf'])
   })
 })

@@ -1,6 +1,6 @@
 {
   "oversizedFiles": {
-    "src/main/browser/browser.ts": 5887,
+    "src/main/browser/browser.ts": 5808,
     "src/main/browser/downloads-controller.ts": 811,
     "src/main/index.ts": 1662,
     "src/main/mcp/http-server.ts": 856,
@@ -31,10 +31,8 @@
     "src/main/browser/page-geometry/page-geometry-access.ts",
     "src/main/browser/page-lifecycle/page-lifecycle-access.ts",
     "src/main/browser/page-navigation/page-navigation-access.ts",
-    "src/main/browser/quit-flush/quit-flush-access.ts",
     "src/main/browser/screenshots/screenshots-access.ts",
     "src/main/browser/session-hooks/session-hooks-access.ts",
-    "src/main/browser/site-muting/site-muting-access.ts",
     "src/main/browser/split-view/split-view-access.ts",
     "src/main/browser/suggested-password/suggested-password-access.ts",
     "src/main/browser/tab-close/before-unload-staging-access.ts",
@@ -49,9 +47,7 @@
     "src/main/browser/tab-events/renderer-health-events-access.ts",
     "src/main/browser/tab-events/window-open-handler-access.ts",
     "src/main/browser/tab-labels/tab-labels-access.ts",
-    "src/main/browser/tab-muting/tab-muting-access.ts",
     "src/main/browser/tab-overview-previews/tab-overview-previews-access.ts",
-    "src/main/browser/tab-reopening/tab-reopening-access.ts",
     "src/main/browser/tab-selection/tab-selection-access.ts",
     "src/main/browser/tab-sleep/memory-saver-access.ts",
     "src/main/browser/tab-sleep/tab-sleep-access.ts",

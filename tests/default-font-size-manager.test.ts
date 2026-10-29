@@ -1,5 +1,19 @@
 import { expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' } }))
+// The prototype-built browser below stubs getState and reorderTab; duplicating a tab reaches them through these.
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  browserState: (browser: { getState: () => unknown }) => browser.getState()
+}))
+vi.mock('../src/main/browser/tab-arrangement/tab-arrangement.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-arrangement/tab-arrangement.js')>(),
+  reorderTab: (
+    browser: { reorderTab: (tabId: string, targetTabId: string, placement: 'before' | 'after') => unknown },
+    tabId: string,
+    targetTabId: string,
+    placement: 'before' | 'after'
+  ) => browser.reorderTab(tabId, targetTabId, placement)
+}))
 import { Browser } from '../src/main/browser/browser.js'
 
 function fixture() {

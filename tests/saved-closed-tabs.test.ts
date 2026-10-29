@@ -6,7 +6,7 @@ import type { NavigationEntry } from 'electron'
 import { Browser } from '../src/main/browser/browser.js'
 import { ClosedTabsStore, restoredClosedTabs, savedClosedTabs, type SavedClosedTab, type SavedClosedTabsAccess } from '../src/main/browser/saved-closed-tabs/saved-closed-tabs.js'
 import { closedTabHistory, rememberClosedTab, rememberSavedClosedTabs, reopenClosedTabEntry } from '../src/main/browser/tab-reopening/tab-reopening.js'
-import type { TabReopeningAccess, TabReopeningCreation, TabReopeningTab } from '../src/main/browser/tab-reopening/tab-reopening-access.js'
+import type { BrowserTab } from '../src/main/browser/browser-tab.js'
 import type { NavigationHistorySnapshot } from '../src/main/browser/navigation-history.js'
 import type { BrowserClosedTabState, BrowserWorkspaceNavigationPolicy } from '../src/shared/types.js'
 
@@ -37,22 +37,19 @@ const page = (url: string): NavigationEntry => ({ url, title: url.slice(url.last
 /** Open tabs of workspaces that the test closes, as the tab manager remembers them. */
 function browser(policies: Record<string, BrowserWorkspaceNavigationPolicy> = { work: anywhere }) {
   const closedTabs: BrowserClosedTabState[] = []
-  const created: TabReopeningCreation[] = []
+  const created: Parameters<Browser['createTab']>[0][] = []
   let history: NavigationHistorySnapshot = { entries: [], index: 0 }
-  const access: TabReopeningAccess<TabReopeningTab> = {
-    closedTabs: () => closedTabs,
-    detachedClosedTabs: () => new Set(),
-    tabCount: () => 0,
-    orderedTabs: () => [],
-    getTab: () => { throw new Error('Not used to close or reopen a tab') },
+  const manager = {
+    closedTabs,
+    detachedClosedTabs: new Set(),
+    tabs: new Map(),
+    mcpTabGroups: new Map(),
     navigationHistorySnapshot: () => history,
-    createTab: async (options) => {
+    createTab: async (options: Parameters<Browser['createTab']>[0]) => {
       created.push(options)
       return { id: `reopened-${created.length}`, url: options.url, title: '', pinned: false, zoomIsolated: false, tabMuted: false, tabAgentPaused: false, humanInteractionLocked: false }
-    },
-    reorderTab: () => ({}) as never,
-    getState: () => ({}) as never
-  }
+    }
+  } as unknown as Browser
   const saving: SavedClosedTabsAccess = {
     closedTabs: () => closedTabs,
     closedTabHistory,
@@ -63,15 +60,15 @@ function browser(policies: Record<string, BrowserWorkspaceNavigationPolicy> = { 
     created,
     saving,
     /** Closes a tab of the workspace showing the page at index of these addresses. */
-    close(urls: string[], index: number, workspace = 'work', changes: Partial<TabReopeningTab> = {}) {
+    close(urls: string[], index: number, workspace = 'work', changes: Partial<BrowserTab> = {}) {
       history = { entries: urls.map(page), index }
-      rememberClosedTab(access, {
+      rememberClosedTab(manager, {
         id: 'tab', url: urls[index]!, title: `Title ${index}`, pinned: false, zoomIsolated: false, tabMuted: false,
         tabAgentPaused: false, humanInteractionLocked: false, mcpGroupId: workspace, ...changes
-      })
+      } as BrowserTab)
     },
     reopen: async () => {
-      await reopenClosedTabEntry(access, undefined, true)
+      await reopenClosedTabEntry(manager, undefined, true)
       return created.at(-1)!
     }
   }

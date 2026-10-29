@@ -3,7 +3,10 @@ import type { NavigationEntry } from 'electron'
 import type { BrowserClosedTabState } from '../src/shared/types.js'
 import { forgetClosedTabs, forgetWorkspaceClosedTabs, rememberClosedTab, reopenClosedTabEntry } from '../src/main/browser/tab-reopening/tab-reopening.js'
 import { withoutSleepingPage } from '../src/main/browser/tab-sleep/tab-sleep.js'
-import type { TabReopeningAccess, TabReopeningCreation, TabReopeningTab } from '../src/main/browser/tab-reopening/tab-reopening-access.js'
+import type { Browser } from '../src/main/browser/browser.js'
+import type { BrowserTab } from '../src/main/browser/browser-tab.js'
+
+type TabCreation = Parameters<Browser['createTab']>[0]
 
 const page = (name: string): NavigationEntry => ({ url: `https://example.test/${name}`, title: name, pageState: `state-${name}` })
 /** The page a sleeping tab shows in place of its own, as tab-sleep.ts loads it. */
@@ -11,37 +14,35 @@ const SLEEPING_PAGE_URL = 'data:text/html;charset=utf-8,%3C!doctype%20html%3E%3C
 const sleeping: NavigationEntry = { url: SLEEPING_PAGE_URL, title: 'Sleeping tab', pageState: '' }
 
 /** One open tab showing the page at index of these pages, which the test closes and reopens. */
-function browser(pages: string[], index: number, workspace?: string, changes: Partial<TabReopeningTab> = {}) {
+function browser(pages: string[], index: number, workspace?: string, changes: Partial<BrowserTab> = {}) {
   const closedTabs: BrowserClosedTabState[] = []
-  const created: TabReopeningCreation[] = []
+  const created: TabCreation[] = []
   const history = { entries: pages.map(page), index }
-  const open: TabReopeningTab = {
+  const open = {
     id: 'tab', url: history.entries[index]?.url ?? 'https://example.test/pending', title: '', pinned: false,
     zoomIsolated: false, tabMuted: false, tabAgentPaused: false, humanInteractionLocked: false,
     ...(workspace ? { mcpGroupId: workspace } : {}),
     ...changes
-  }
-  const access: TabReopeningAccess<TabReopeningTab> = {
-    closedTabs: () => closedTabs,
-    detachedClosedTabs: () => new Set(),
-    tabCount: () => 0,
-    orderedTabs: () => [],
-    getTab: () => open,
+  } as BrowserTab
+  const manager = {
+    closedTabs,
+    detachedClosedTabs: new Set(),
+    tabs: new Map(),
+    mcpTabGroups: new Map(),
     navigationHistorySnapshot: () => history,
-    createTab: async (options) => {
+    createTab: async (options: TabCreation) => {
       created.push(options)
       return { ...open, id: `reopened-${created.length}` }
-    },
-    reorderTab: () => ({}) as never,
-    getState: () => ({}) as never
-  }
+    }
+  } as unknown as Browser
   return {
-    access,
+    manager,
+    open,
     closedTabs,
     history,
-    close: () => rememberClosedTab(access, open),
+    close: () => rememberClosedTab(manager, open),
     reopen: async () => {
-      await reopenClosedTabEntry(access, undefined, true)
+      await reopenClosedTabEntry(manager, undefined, true)
       return created.at(-1)!
     }
   }
@@ -84,7 +85,7 @@ describe('reopening a closed tab with its history', () => {
     const taken = { entries: tabs.history.entries.map((entry) => ({ ...entry })), index: 1 }
     tabs.history.entries.splice(0)
     tabs.history.index = -1
-    rememberClosedTab(tabs.access, tabs.access.getTab(), taken)
+    rememberClosedTab(tabs.manager, tabs.open, taken)
     const reopened = await tabs.reopen()
     expect(reopened.navigationHistory).toEqual({ entries: ['a', 'b'].map(page), index: 1 })
   })
@@ -101,7 +102,7 @@ describe('reopening a closed tab with its history', () => {
   it('forgets the back and forward pages whose history was cleared, keeping the page it showed', async () => {
     const tabs = browser(['a', 'b', 'c', 'd'], 2)
     tabs.close()
-    expect(forgetClosedTabs(tabs.access, (url) => url.endsWith('/a') || url.endsWith('/d'))).toBe(false)
+    expect(forgetClosedTabs(tabs.manager, (url) => url.endsWith('/a') || url.endsWith('/d'))).toBe(false)
     expect(tabs.closedTabs).toHaveLength(1)
     const reopened = await tabs.reopen()
     expect(reopened.navigationHistory).toEqual({ entries: ['b', 'c'].map(page), index: 1 })
@@ -110,12 +111,12 @@ describe('reopening a closed tab with its history', () => {
   it('forgets the pages a workspace\'s Site access now denies from its closed tabs\' history', async () => {
     const otherWorkspace = browser(['denied', 'b'], 1, 'client')
     otherWorkspace.close()
-    forgetWorkspaceClosedTabs(otherWorkspace.access, 'other', (url) => url.endsWith('/denied'))
+    forgetWorkspaceClosedTabs(otherWorkspace.manager, 'other', (url) => url.endsWith('/denied'))
     expect((await otherWorkspace.reopen()).navigationHistory).toEqual({ entries: ['denied', 'b'].map(page), index: 1 })
 
     const tabs = browser(['denied', 'b'], 1, 'client')
     tabs.close()
-    forgetWorkspaceClosedTabs(tabs.access, 'client', (url) => url.endsWith('/denied'))
+    forgetWorkspaceClosedTabs(tabs.manager, 'client', (url) => url.endsWith('/denied'))
     const reopened = await tabs.reopen()
     expect(reopened.navigationHistory).toEqual({ entries: [page('b')], index: 0 })
   })

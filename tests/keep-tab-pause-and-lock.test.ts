@@ -24,11 +24,21 @@ vi.mock('electron', () => {
   }
   return { session: {}, WebContentsView, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, powerMonitor: { on: () => undefined }, Menu: {} }
 })
-// The prototype-built browsers below stub changed and getState; the pause functions publish through these.
+// The prototype-built browsers below stub changed, getState and reorderTab; the pause functions publish through
+// these, and reopening and duplicating tabs move them through reorderTab.
 vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
   publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist),
   browserState: (browser: { getState: () => unknown }) => browser.getState()
+}))
+vi.mock('../src/main/browser/tab-arrangement/tab-arrangement.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-arrangement/tab-arrangement.js')>(),
+  reorderTab: (
+    browser: { reorderTab: (tabId: string, targetTabId: string, placement: 'before' | 'after') => unknown },
+    tabId: string,
+    targetTabId: string,
+    placement: 'before' | 'after'
+  ) => browser.reorderTab(tabId, targetTabId, placement)
 }))
 
 const { Browser } = await import('../src/main/browser/browser.js')

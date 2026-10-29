@@ -445,7 +445,6 @@ import {
   normalizeWorkspaceStorageOrigins,
   workspacePartition
 } from './workspace-storage.js'
-import type { QuitFlushAccess } from './quit-flush/quit-flush-access.js'
 import { drainWorkspaceOperations, flushPersist, flushWorkspaceProfiles } from './quit-flush/quit-flush.js'
 import type { McpTabGroupsAccess } from './mcp-tab-groups/mcp-tab-groups-access.js'
 import { closeMcpTabGroup, closeMcpTabGroupInternal } from './mcp-tab-groups/close-mcp-tab-group.js'
@@ -536,7 +535,6 @@ import { stageBeforeUnloadClose } from './tab-close/before-unload-staging.js'
 import { closeTabAfterLabelSave } from './tab-close/close-tab.js'
 import type { TabLabelsAccess } from './tab-labels/tab-labels-access.js'
 import { assertTabLabelAdmission, saveTabLabel, withTabLabelLifecycle } from './tab-labels/tab-labels.js'
-import type { TabReopeningAccess } from './tab-reopening/tab-reopening-access.js'
 import { closedTabHistory, duplicateTabAfterLabelSave, forgetClosedTabs, forgetWorkspaceClosedTabs, rememberClosedTab, rememberSavedClosedTabs, reopenClosedTabAfterLabelSave, reopenClosedTabEntry } from './tab-reopening/tab-reopening.js'
 import { forgetTabHistoryPages, holdTabHistory } from './tab-history-pages/forget-tab-history-pages.js'
 import { reorderTab, reorderTabs, setTabPinned } from './tab-arrangement/tab-arrangement.js'
@@ -551,10 +549,8 @@ import { createNewTab, newLabeledAgentTab } from './new-tabs/new-tabs.js'
 import { dismissAgentPointer, showAgentPointer } from './agent-pointer/agent-pointer.js'
 import { visualCompareContext } from './visual-compare/visual-capture.js'
 import { currentNetworkRequests, matchingNetworkWaitRequest } from './network-inspection/network-request-records.js'
-import type { TabMutingAccess } from './tab-muting/tab-muting-access.js'
 import { setAllTabsMuted, setTabMuted } from './tab-muting/tab-muting.js'
-import type { SiteMutingAccess, SiteSoundStore } from './site-muting/site-muting-access.js'
-import { applySiteMuting, applySiteMutingToTabs, canMuteSite, isSiteMuted, setSiteMuted } from './site-muting/site-muting.js'
+import { applySiteMuting, applySiteMutingToTabs, canMuteSite, isSiteMuted, setSiteMuted, type SiteSoundStore } from './site-muting/site-muting.js'
 import { captureAgentStepThumbnail } from './agent-step-thumbnail/agent-step-thumbnail.js'
 import { cancelFocusAfterTrustedChrome, focusTabOrTrustedChrome, withholdFocusAfterTrustedChrome, type PendingTrustedChromeFocus } from './trusted-chrome-focus/trusted-chrome-focus.js'
 import type { TrustedChromeOcclusionAccess } from './trusted-chrome-occlusion/trusted-chrome-occlusion-access.js'
@@ -1764,7 +1760,7 @@ export class Browser {
       options: () => this.options,
       prepareDiagnosticNavigation: (tab) => this.prepareDiagnosticNavigation(tab),
       wakeTab: (tabId) => this.wakeTab(tabId),
-      forgetWorkspaceClosedTabs: (workspaceId, matches) => { forgetWorkspaceClosedTabs(this.tabReopeningAccess(), workspaceId, matches) },
+      forgetWorkspaceClosedTabs: (workspaceId, matches) => { forgetWorkspaceClosedTabs(this, workspaceId, matches) },
       changed: (persist) => this.changed(persist),
       getState: () => this.getState()
     }
@@ -2183,7 +2179,7 @@ export class Browser {
   }
 
   reopenClosedTab(closedTabId?: string): Promise<BrowserState> {
-    return this.withTabLabelLifecycle(() => reopenClosedTabAfterLabelSave(this.tabReopeningAccess(), closedTabId))
+    return this.withTabLabelLifecycle(() => reopenClosedTabAfterLabelSave(this, closedTabId))
   }
 
   /**
@@ -2192,7 +2188,7 @@ export class Browser {
    * tabs when one is named, as when an agent clears a website's history from its workspace.
    */
   forgetHistoryPages(matches: (url: string) => boolean, workspaceId?: string): void {
-    const closedTabsForgotten = forgetClosedTabs(this.tabReopeningAccess(), matches, workspaceId)
+    const closedTabsForgotten = forgetClosedTabs(this, matches, workspaceId)
     const tabs = [...this.tabs.values()].filter((tab) => workspaceId === undefined || tab.mcpGroupId === workspaceId)
     const openTabPagesForgotten = forgetTabHistoryPages(tabs, matches)
     if (closedTabsForgotten || openTabPagesForgotten) this.changed(false)
@@ -2204,30 +2200,8 @@ export class Browser {
     void this.saveForNextStart(true)
   }
 
-  /**
-   * The narrow view remembering, reopening and duplicating tabs gets of this
-   * manager's private recently closed tabs, tabs, tab creation, navigation
-   * history, tab order and state. It is a prototype method rather than a
-   * field, so managers created without the constructor (as unit tests do)
-   * still provide it. The delegates below return the feature's promise
-   * directly, so callers see the same ticks as before.
-   */
-  private tabReopeningAccess(): TabReopeningAccess<BrowserTab> {
-    return {
-      closedTabs: () => this.closedTabs,
-      detachedClosedTabs: () => this.detachedClosedTabs,
-      tabCount: () => this.tabs.size,
-      orderedTabs: () => orderedTabs(this),
-      getTab: (tabId) => getTab(this, tabId),
-      navigationHistorySnapshot: (tab) => this.navigationHistorySnapshot(tab),
-      createTab: (options) => this.createTab(options),
-      reorderTab: (tabId, targetTabId, placement) => this.reorderTab(tabId, targetTabId, placement),
-      getState: () => this.getState()
-    }
-  }
-
   private reopenClosedTabEntry(closedTabId: string | undefined, active: boolean): Promise<BrowserTab | undefined> {
-    return reopenClosedTabEntry(this.tabReopeningAccess(), closedTabId, active)
+    return reopenClosedTabEntry(this, closedTabId, active)
   }
 
   duplicateTab(tabId: string): Promise<BrowserState> {
@@ -2235,7 +2209,7 @@ export class Browser {
   }
 
   private duplicateTabAfterLabelSave(tabId: string): Promise<BrowserState> {
-    return duplicateTabAfterLabelSave(this.tabReopeningAccess(), tabId)
+    return duplicateTabAfterLabelSave(this, tabId)
   }
 
   readonly pendingTabLabels = new Set<Promise<unknown>>()
@@ -2579,8 +2553,8 @@ export class Browser {
       reactInspectionController: () => this.reactInspectionController,
       reactInspection: (tabId, command, authority) => this.reactInspection(tabId, command, authority),
       setTabMuted: (tabId, muted) => this.setTabMuted(tabId, muted),
-      canMuteSite: (tab) => canMuteSite(this.siteMutingAccess(), tab),
-      isSiteMuted: (tab) => isSiteMuted(this.siteMutingAccess(), tab),
+      canMuteSite: (tab) => canMuteSite(this, tab),
+      isSiteMuted: (tab) => isSiteMuted(this, tab),
       setSiteMuted: (tabId, muted) => this.setSiteMuted(tabId, muted),
       setTabPinned: (tabId, pinned) => this.setTabPinned(tabId, pinned),
       setTabPageLifecycle: (tabId, state) => this.setTabPageLifecycle(tabId, state),
@@ -3092,7 +3066,7 @@ export class Browser {
   }
 
   private rememberClosedTab(tab: BrowserTab, history?: NavigationHistorySnapshot): void {
-    rememberClosedTab(this.tabReopeningAccess(), tab, history)
+    rememberClosedTab(this, tab, history)
   }
 
   private removeTabRecord(tab: BrowserTab): void {
@@ -3304,51 +3278,21 @@ export class Browser {
     return hasAgentPauseExceptions(this)
   }
 
-  /**
-   * The narrow view muting tabs gets of this manager's private tabs, global
-   * mute preference and state publication. It is a prototype method rather
-   * than a field, so managers created without the constructor (as unit tests
-   * do) still provide it.
-   */
-  private tabMutingAccess(): TabMutingAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      tabs: () => this.tabs.values(),
-      allTabsMuted: () => this.allTabsMuted,
-      setAllTabsMutedPreference: (muted) => { this.allTabsMuted = muted },
-      changed: (persist) => this.changed(persist),
-      getState: () => this.getState()
-    }
-  }
-
   setTabMuted(tabId: string, muted: boolean): BrowserState {
-    return setTabMuted(this.tabMutingAccess(), tabId, muted)
+    return setTabMuted(this, tabId, muted)
   }
 
   setAllTabsMuted(muted: boolean): BrowserState {
-    return setAllTabsMuted(this.tabMutingAccess(), muted)
-  }
-
-  /** The narrow view muting websites gets of this manager's tabs and of the site permission store it was given. */
-  private siteMutingAccess(): SiteMutingAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      tabs: () => this.tabs.values(),
-      allTabsMuted: () => this.allTabsMuted,
-      store: () => this.options.sitePermissionStore?.() ?? null,
-      sitePermissionsChanged: () => this.options.onSitePermissionsChanged?.(),
-      changed: (persist) => this.changed(persist),
-      getState: () => this.getState()
-    }
+    return setAllTabsMuted(this, muted)
   }
 
   setSiteMuted(tabId: string, muted: boolean): Promise<BrowserState> {
-    return setSiteMuted(this.siteMutingAccess(), tabId, muted)
+    return setSiteMuted(this, tabId, muted)
   }
 
   /** Applies each tab's website sound setting once the saved site permissions changed, such as in Settings. */
   applySiteMutingToTabs(): void {
-    applySiteMutingToTabs(this.siteMutingAccess())
+    applySiteMutingToTabs(this)
   }
 
   stop(tabId?: string): BrowserState {
@@ -4671,31 +4615,8 @@ export class Browser {
     return { bounds, corner: this.pageCornerRadii.get(tab.view) ?? 0 }
   }
 
-  /**
-   * The narrow view settling the browser before quit gets of this manager's
-   * private save timer, downloads controller, store, persisted state,
-   * workspace operations, workspaces and options. It is a prototype method
-   * rather than a field, so managers created without the constructor (as unit
-   * tests do) still provide it. The delegates below return the feature's
-   * promise directly, so callers see the same ticks as before.
-   */
-  private quitFlushAccess(): QuitFlushAccess {
-    return {
-      persistTimer: () => this.persistTimer,
-      setPersistTimer: (timer) => { this.persistTimer = timer },
-      downloadController: () => this.downloadController,
-      initialized: () => this.initialized,
-      store: () => this.store,
-      persistedState: () => this.persistedState(),
-      pendingWorkspaceOperationPromises: () => this.pendingWorkspaceOperationPromises,
-      mcpTabGroups: () => this.mcpTabGroups,
-      savedTabGroups: () => this.savedTabGroups,
-      options: () => this.options
-    }
-  }
-
   async flushPersist(): Promise<void> {
-    await Promise.all([flushPersist(this.quitFlushAccess()), this.saveForNextStart(true), this.downloadController.saveHistory()])
+    await Promise.all([flushPersist(this), this.saveForNextStart(true), this.downloadController.saveHistory()])
   }
 
   /**
@@ -4747,11 +4668,11 @@ export class Browser {
   }
 
   drainWorkspaceOperations(): Promise<void> {
-    return drainWorkspaceOperations(this.quitFlushAccess())
+    return drainWorkspaceOperations(this)
   }
 
   flushWorkspaceProfiles(): Promise<void> {
-    return flushWorkspaceProfiles(this.quitFlushAccess())
+    return flushWorkspaceProfiles(this)
   }
 
   destroy(): void {
@@ -5008,7 +4929,7 @@ export class Browser {
       ...(opensFromPage(options) ? { openedFromPage: true } : {})
     }
     // A tab restored or reopened asleep shows its website's sound setting before its page loads.
-    applySiteMuting(this.siteMutingAccess(), tab)
+    applySiteMuting(this, tab)
     tab.webContents.setAudioMuted(tab.muted)
     // A page's tab opened in front starts a new task, so its workspace forgets which page opened its other tabs. A
     // window such as a sign-in popup leaves them, as in Chrome, where it opens beside the tabs rather than among them.
@@ -5396,7 +5317,7 @@ export class Browser {
       reproRecorder: () => this.reproRecorder,
       scheduleTabOverviewPreview: (tab, settleMs) => this.scheduleTabOverviewPreview(tab, settleMs),
       trackWorkspaceOrigin: (tab, url) => this.trackWorkspaceOrigin(tab, url),
-      applySiteMuting: (tab) => applySiteMuting(this.siteMutingAccess(), tab),
+      applySiteMuting: (tab) => applySiteMuting(this, tab),
       appendConsoleMessage: (tab, message, source) => appendConsoleMessage(tab, message, source),
       watchCredentialSubmission: (tab) => watchCredentialSubmission(this, tab),
       watchUnsavedFormEdits: (tab, frame) => watchUnsavedFormEdits(tab, frame),
