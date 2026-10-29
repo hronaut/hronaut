@@ -10,6 +10,7 @@ All notable changes to Hronaut are documented in this file.
 - Filling a saved password or importing a browser's cookies no longer fails with **an agent command was still running** while a coding agent such as Claude Code is merely connected. The stream an agent keeps open to hear from Hronaut counted as a command in progress, and with 32 agents connected every request was refused as **Too many active MCP requests**. Home's **active** count and each connection's **Active** label now count only requests in progress.
 - When more than 100 agent sessions pile up, Hronaut lets go of one its client left, then one only waiting for messages, and of those the one used longest ago, instead of the oldest session, which could be an agent still at work.
 - Changing or resetting the MCP access token, or turning authentication on or off, ends the sessions on the old token at once: agents that can no longer act leave the toolbar and Home instead of staying listed while their stream stays open, and a call one of them had in progress fails at once instead of staying counted as running.
+- Pinning a tab moves it to the end of its workspace's pinned tabs, and unpinning one moves it to the first place after them, as in Chrome. A tab kept the place it was opened in among the pinned or the other tabs, so pinning the last tab and then unpinning it sent it back to the far end, or, after a restart, left it first.
 
 ## [3.13.0] - 2026-10-29
 
