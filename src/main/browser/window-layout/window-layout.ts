@@ -36,7 +36,7 @@ export function getSplitDivider(browser: Browser): SplitDividerGeometry | null {
 }
 
 /** Sends the divider's geometry to the shell when it changed since it was last sent. */
-export function publishSplitDivider(browser: Browser): void {
+function publishSplitDivider(browser: Browser): void {
   const geometry = getSplitDivider(browser)
   const serialized = JSON.stringify(geometry)
   if (serialized === browser.lastSplitDividerGeometry) return

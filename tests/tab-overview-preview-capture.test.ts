@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { Browser } from '../src/main/browser/browser.js'
 
 vi.mock('electron', () => ({ nativeImage: {} }))
 
 const { NativePreviewCapture } = await import('../src/main/browser/native-preview-capture.js')
 const { performTabOverviewPreviewCapture } = await import('../src/main/browser/tab-overview-previews/tab-overview-previews.js')
-type FakeBrowser = Parameters<typeof performTabOverviewPreviewCapture>[0]
 type Tab = Parameters<typeof performTabOverviewPreviewCapture>[1]
 
 function deferred() {
@@ -31,7 +31,7 @@ function busyTab(overviewOpen = false) {
     nativePreviewCapture,
     tabOverviewPreviewTimers: new Map<string, NodeJS.Timeout>(),
     tabOverviewPreviewableTabs: new Set<string>([tab.id])
-  } as unknown as FakeBrowser
+  } as unknown as Browser
   // Such as the picture of an agent's step, which shares the page's capture.
   const other = deferred()
   void nativePreviewCapture.run(tab.webContents, () => other.promise, () => undefined, () => undefined)
