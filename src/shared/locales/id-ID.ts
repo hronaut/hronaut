@@ -462,7 +462,7 @@ export const idID: MessageSchema = {
       "allow": "Izinkan",
       "block": "Blokir",
       "forget": "Lupakan keputusan",
-      "help": "Jika keputusan dihapus, Hronaut akan bertanya lagi saat situs tersebut meminta izin itu berikutnya.",
+      "help": "Jika keputusan dihapus, Hronaut akan bertanya lagi saat situs tersebut meminta izin itu berikutnya. Jika keputusan Suara untuk situs yang dibisukan dihapus, situs itu akan memutar suara lagi.",
       "archivedWorkspace": "{name} (diarsipkan)",
       "removedWorkspace": "Ruang kerja yang dihapus {id}",
       "loadingWorkspace": "Memuat ruang kerja…",

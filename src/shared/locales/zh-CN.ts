@@ -462,7 +462,7 @@ export const zhCN: MessageSchema = {
       "allow": "允许",
       "block": "阻止",
       "forget": "忘记此决定",
-      "help": "移除某项决定后，该网站下次请求此权限时 Hronaut 会再次询问。",
+      "help": "移除某项决定后，该网站下次请求此权限时 Hronaut 会再次询问。移除已静音网站的“声音”决定后，该网站会再次播放声音。",
       "archivedWorkspace": "{name}（已归档）",
       "removedWorkspace": "已移除的工作区 {id}",
       "loadingWorkspace": "正在加载工作区…",

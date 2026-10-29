@@ -21,12 +21,13 @@ interface Tab {
   tabMuted: boolean
   muted: boolean
   mutedBySite: boolean
+  siteMuteApplied: boolean
   webContents: { audioMuted: boolean; isDestroyed(): boolean; setAudioMuted(muted: boolean): void }
 }
 
 function tab(id: string, url: string, mcpGroupId: string | undefined = WORK): Tab {
   return {
-    id, url, mcpGroupId, tabMuted: false, muted: false, mutedBySite: false,
+    id, url, mcpGroupId, tabMuted: false, muted: false, mutedBySite: false, siteMuteApplied: false,
     webContents: { audioMuted: false, isDestroyed: () => false, setAudioMuted(muted) { this.audioMuted = muted } }
   }
 }
@@ -110,6 +111,27 @@ describe('Mute Site', () => {
     expect([page.muted, page.mutedBySite, page.webContents.audioMuted]).toEqual([true, true, true])
   })
 
+  // Muting or unmuting another website, or any other change of the saved site permissions, muted it again.
+  it('keeps that tab unmuted when another website\'s sound or another permission changes', async () => {
+    const video = tab('video', 'https://video.test/')
+    const music = tab('music', 'https://music.test/')
+    const { access, store } = await browser([video, music])
+    await setSiteMuted(access, 'video', true)
+    setTabMuted(access as never, 'video', false)
+
+    await setSiteMuted(access, 'music', true)
+    expect([music.muted, music.webContents.audioMuted]).toEqual([true, true])
+    await setSiteMuted(access, 'music', false)
+    await store.set('https://video.test', 'notifications', 'allow', { workspaceId: WORK })
+    applySiteMutingToTabs(access)
+    await store.remove('https://video.test', 'notifications', { workspaceId: WORK })
+    applySiteMutingToTabs(access)
+
+    expect([video.muted, video.mutedBySite, video.webContents.audioMuted]).toEqual([false, false, false])
+    expect(navigate(access, video, 'https://video.test/next')).toBe(true)
+    expect([video.muted, video.webContents.audioMuted]).toEqual([true, true])
+  })
+
   it('gives sound back with Unmute Site only to tabs muted for their website', async () => {
     const video = tab('video', 'https://video.test/')
     const mutedByPerson = tab('person', 'https://video.test/talk')
@@ -147,7 +169,8 @@ describe('Mute Site', () => {
     await store.set('https://video.test', 'sound', 'deny', { workspaceId: WORK })
     applySiteMutingToTabs(access)
     expect([video.muted, video.webContents.audioMuted]).toEqual([true, true])
-    expect(changed).toHaveBeenCalledOnce()
+    // The tabs' saved mute preferences stay as they are, so there is nothing to save.
+    expect(changed).toHaveBeenCalledExactlyOnceWith(false)
 
     await store.set('https://video.test', 'sound', 'allow', { workspaceId: WORK })
     applySiteMutingToTabs(access)

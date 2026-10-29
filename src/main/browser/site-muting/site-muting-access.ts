@@ -4,7 +4,8 @@ import type { SitePermissionStore } from '../../site-permission-store.js'
 
 /**
  * The tab fields muting a website reads and writes: its address and workspace, its page, its own saved mute
- * preference, whether it is muted now, and whether that is for its website.
+ * preference, whether it is muted now, whether that is for its website, and whether its website was muted when that
+ * setting was last applied to it.
  */
 export interface SiteMutingTab {
   url: string
@@ -13,6 +14,7 @@ export interface SiteMutingTab {
   tabMuted: boolean
   muted: boolean
   mutedBySite: boolean
+  siteMuteApplied: boolean
 }
 
 /** The part of the site permission store that keeps the websites muted in each workspace. */

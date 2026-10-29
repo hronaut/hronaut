@@ -462,7 +462,7 @@ export const deDE: MessageSchema = {
       "allow": "Zulassen",
       "block": "Blockieren",
       "forget": "Entscheidung vergessen",
-      "help": "Nach dem Entfernen fragt Hronaut beim nächsten Berechtigungsbedarf erneut.",
+      "help": "Nach dem Entfernen fragt Hronaut beim nächsten Berechtigungsbedarf erneut. Wenn Sie die Ton-Entscheidung einer stummgeschalteten Website entfernen, spielt sie wieder Ton ab.",
       "archivedWorkspace": "{name} (archiviert)",
       "removedWorkspace": "Entfernter Arbeitsbereich {id}",
       "loadingWorkspace": "Arbeitsbereich wird geladen…",

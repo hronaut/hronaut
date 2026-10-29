@@ -462,7 +462,7 @@ export const ptBR: MessageSchema = {
       "allow": "Permitir",
       "block": "Bloquear",
       "forget": "Esquecer decisão",
-      "help": "Remover uma decisão faz o Hronaut perguntar novamente na próxima vez que o site solicitar essa permissão.",
+      "help": "Remover uma decisão faz o Hronaut perguntar novamente na próxima vez que o site solicitar essa permissão. Remover a decisão de Som de um site silenciado faz com que ele volte a reproduzir som.",
       "archivedWorkspace": "{name} (arquivado)",
       "removedWorkspace": "Espaço de trabalho removido {id}",
       "loadingWorkspace": "Carregando espaço de trabalho…",

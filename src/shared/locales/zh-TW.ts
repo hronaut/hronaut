@@ -462,7 +462,7 @@ export const zhTW: MessageSchema = {
       "allow": "允許",
       "block": "封鎖",
       "forget": "忘記決定",
-      "help": "移除決定後，網站下次要求該權限時，Hronaut 會再次詢問你。",
+      "help": "移除決定後，網站下次要求該權限時，Hronaut 會再次詢問你。移除已設為靜音網站的「音效」決定後，網站會再次播放聲音。",
       "archivedWorkspace": "{name}（已封存）",
       "removedWorkspace": "已移除的工作區 {id}",
       "loadingWorkspace": "正在載入工作區…",

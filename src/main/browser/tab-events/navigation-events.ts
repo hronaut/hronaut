@@ -253,7 +253,7 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     tab.pendingHistoryUrl = isWebUrl(url) ? url : null
     syncNavigation()
     // As in Chrome, each new document of a muted website starts muted, and one of another website has its sound back.
-    if (access.applySiteMuting(tab)) access.changed()
+    if (access.applySiteMuting(tab)) access.changed(false)
     access.reproRecorder().navigated(tab, url, false)
   })
   webContents.on('did-navigate-in-page', (_event, url, isMainFrame) => {

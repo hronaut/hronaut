@@ -462,7 +462,7 @@ export const itIT: MessageSchema = {
       "allow": "Consenti",
       "block": "Blocca",
       "forget": "Dimentica decisione",
-      "help": "Se rimuovi una decisione, Hronaut chiederà di nuovo la prossima volta che il sito web richiederà quell’autorizzazione.",
+      "help": "Se rimuovi una decisione, Hronaut chiederà di nuovo la prossima volta che il sito web richiederà quell’autorizzazione. Se rimuovi la decisione Audio di un sito web con l’audio disattivato, il sito riprodurrà di nuovo l’audio.",
       "archivedWorkspace": "{name} (archiviata)",
       "removedWorkspace": "Area di lavoro rimossa {id}",
       "loadingWorkspace": "Caricamento dell’area di lavoro…",

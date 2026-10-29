@@ -462,7 +462,7 @@ export const frFR: MessageSchema = {
       "allow": "Autoriser",
       "block": "Bloquer",
       "forget": "Oublier la décision",
-      "help": "Après suppression, Hronaut reposera la question lors de la prochaine demande du site.",
+      "help": "Après suppression, Hronaut reposera la question lors de la prochaine demande du site. Supprimer la décision Son d’un site dont le son est coupé lui rend le son.",
       "archivedWorkspace": "{name} (archivé)",
       "removedWorkspace": "Espace de travail supprimé {id}",
       "loadingWorkspace": "Chargement de l’espace de travail…",

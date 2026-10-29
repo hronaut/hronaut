@@ -462,7 +462,7 @@ export const koKR: MessageSchema = {
       "allow": "허용",
       "block": "차단",
       "forget": "결정 삭제",
-      "help": "결정을 삭제하면 다음에 웹사이트에서 해당 권한을 요청할 때 Hronaut에서 다시 묻습니다.",
+      "help": "결정을 삭제하면 다음에 웹사이트에서 해당 권한을 요청할 때 Hronaut에서 다시 묻습니다. 음소거한 웹사이트의 소리 결정을 삭제하면 다시 소리가 재생됩니다.",
       "archivedWorkspace": "{name}(보관처리됨)",
       "removedWorkspace": "삭제된 작업 공간 {id}",
       "loadingWorkspace": "작업 공간 로드 중…",

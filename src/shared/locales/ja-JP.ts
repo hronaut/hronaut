@@ -462,7 +462,7 @@ export const jaJP: MessageSchema = {
       "allow": "許可",
       "block": "ブロック",
       "forget": "判断を削除",
-      "help": "判断を削除すると、そのウェブサイトが次に同じ権限をリクエストしたときに Hronaut が再度確認します。",
+      "help": "判断を削除すると、そのウェブサイトが次に同じ権限をリクエストしたときに Hronaut が再度確認します。ミュートしたウェブサイトの音声の判断を削除すると、再び音声が再生されます。",
       "archivedWorkspace": "{name}（アーカイブ済み）",
       "removedWorkspace": "削除されたワークスペース {id}",
       "loadingWorkspace": "ワークスペースを読み込んでいます…",

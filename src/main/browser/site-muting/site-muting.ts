@@ -24,31 +24,38 @@ export function isSiteMuted<Tab extends SiteMutingTab>(access: SiteMutingAccess<
 }
 
 /**
- * As Chrome does when a page commits and when the setting changes: mutes a tab whose website is muted, even one the
- * person unmuted on its previous page, and gives sound back to a tab muted only for its website once it shows one that
- * is not. A tab the person muted, or with every tab muted, stays muted. Returns whether the tab changed.
+ * As Chrome does when a page commits: mutes a tab whose website is muted, even one the person unmuted on its previous
+ * page, and gives sound back to a tab muted only for its website once it shows one that is not. A tab the person muted,
+ * or with every tab muted, stays muted. Returns whether the tab's mute changed.
  */
 export function applySiteMuting<Tab extends SiteMutingTab>(access: SiteMutingAccess<Tab>, tab: Tab): boolean {
   if (tab.webContents.isDestroyed()) return false
+  const siteMuted = isSiteMuted(access, tab)
+  tab.siteMuteApplied = siteMuted
   const before = tab.muted
-  if (isSiteMuted(access, tab)) {
-    if (tab.mutedBySite && tab.muted) return false
+  if (siteMuted) {
     tab.mutedBySite = true
     tab.muted = true
-  } else {
-    if (!tab.mutedBySite) return false
+  } else if (tab.mutedBySite) {
     tab.mutedBySite = false
     tab.muted = access.allTabsMuted() || tab.tabMuted
   }
-  if (tab.muted !== before) tab.webContents.setAudioMuted(tab.muted)
+  if (tab.muted === before) return false
+  tab.webContents.setAudioMuted(tab.muted)
   return true
 }
 
-/** Applies each tab's website setting, and publishes the state when a tab changed. */
+/**
+ * As Chrome does when a website's Sound setting changes: applies it to each tab whose website's setting is not the one
+ * last applied to it, so a tab the person unmuted on a muted website keeps its sound when another setting changes.
+ * Publishes the state when a tab's mute changed; the tabs' saved preferences stay as they are.
+ */
 export function applySiteMutingToTabs<Tab extends SiteMutingTab>(access: SiteMutingAccess<Tab>): void {
   let changed = false
-  for (const tab of access.tabs()) changed = applySiteMuting(access, tab) || changed
-  if (changed) access.changed()
+  for (const tab of access.tabs()) {
+    if (isSiteMuted(access, tab) !== tab.siteMuteApplied) changed = applySiteMuting(access, tab) || changed
+  }
+  if (changed) access.changed(false)
 }
 
 /**

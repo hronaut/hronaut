@@ -773,6 +773,8 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
   muted: boolean
   /** Muted because Mute Site muted its website, as Chrome's Sound setting; runtime only. */
   mutedBySite: boolean
+  /** Whether its website was muted when that setting was last applied to the tab; runtime only. */
+  siteMuteApplied: boolean
   view: WebContentsView
   // Keep the WebContents handle independently from WebContentsView. Electron
   // can invalidate the view's webContents getter during native-view teardown,
@@ -5923,6 +5925,7 @@ export class BrowserTabsManager {
       tabMuted: options.muted === true,
       muted: (this.allTabsMuted || options.muted === true) && !isHronautHomeUrl(url),
       mutedBySite: false,
+      siteMuteApplied: false,
       view,
       webContents: view.webContents,
       browserSession: view.webContents.session,
@@ -5959,6 +5962,8 @@ export class BrowserTabsManager {
       ...(options.openedFrom ? { openedFromTabId: options.openedFrom.tabId } : {}),
       ...(opensFromPage(options) ? { openedFromPage: true } : {})
     }
+    // A tab restored or reopened asleep shows its website's sound setting before its page loads.
+    applySiteMuting(this.siteMutingAccess(), tab)
     tab.webContents.setAudioMuted(tab.muted)
     // A page's tab opened in front starts a new task, so its workspace forgets which page opened its other tabs. A
     // window such as a sign-in popup leaves them, as in Chrome, where it opens beside the tabs rather than among them.

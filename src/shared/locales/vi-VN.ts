@@ -462,7 +462,7 @@ export const viVN: MessageSchema = {
       "allow": "Cho phép",
       "block": "Chặn",
       "forget": "Quên quyết định",
-      "help": "Khi bạn xóa một quyết định, Hronaut sẽ hỏi lại vào lần tới trang web yêu cầu quyền đó.",
+      "help": "Khi bạn xóa một quyết định, Hronaut sẽ hỏi lại vào lần tới trang web yêu cầu quyền đó. Khi bạn xóa quyết định Âm thanh của một trang web đã tắt tiếng, trang web đó sẽ phát âm thanh trở lại.",
       "archivedWorkspace": "{name} (đã lưu trữ)",
       "removedWorkspace": "Không gian làm việc đã xóa {id}",
       "loadingWorkspace": "Đang tải không gian làm việc…",

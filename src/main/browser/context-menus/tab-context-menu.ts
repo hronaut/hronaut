@@ -7,7 +7,7 @@ import type { TabContextMenuAccess, TabContextMenuTab } from './tab-context-menu
 
 /**
  * Shows a website tab's context menu: attention, new tab, reload, duplicate,
- * split view, React inspection, mute, pin, freeze, sleep, the workspace's own
+ * split view, React inspection, mute, Mute Site, pin, freeze, sleep, the workspace's own
  * menu, moving and closing tabs, reopening a closed one and bookmarking all
  * tabs. Hronaut Home has no tab menu. A failed action is logged and reported, never thrown.
  */

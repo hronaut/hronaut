@@ -462,7 +462,7 @@ export const trTR: MessageSchema = {
       "allow": "İzin ver",
       "block": "Engelle",
       "forget": "Kararı unut",
-      "help": "Bir kararı kaldırırsanız web sitesi bu izni bir sonraki istediğinde Hronaut yeniden sorar.",
+      "help": "Bir kararı kaldırırsanız web sitesi bu izni bir sonraki istediğinde Hronaut yeniden sorar. Sesi kapatılmış bir web sitesinin Ses kararını kaldırırsanız site yeniden ses çalar.",
       "archivedWorkspace": "{name} (arşivlendi)",
       "removedWorkspace": "Kaldırılan çalışma alanı {id}",
       "loadingWorkspace": "Çalışma alanı yükleniyor…",

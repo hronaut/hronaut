@@ -462,7 +462,7 @@ export const plPL: MessageSchema = {
       "allow": "Zezwól",
       "block": "Zablokuj",
       "forget": "Zapomnij decyzję",
-      "help": "Po usunięciu decyzji Hronaut zapyta ponownie przy następnej prośbie witryny.",
+      "help": "Po usunięciu decyzji Hronaut zapyta ponownie przy następnej prośbie witryny. Po usunięciu decyzji Dźwięk wyciszonej witryny będzie ona znowu odtwarzać dźwięk.",
       "archivedWorkspace": "{name} (zarchiwizowany)",
       "removedWorkspace": "Usunięty obszar roboczy {id}",
       "loadingWorkspace": "Wczytywanie obszaru roboczego…",
