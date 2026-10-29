@@ -281,7 +281,7 @@ describe('main-process failures people see in page tools, workspace management a
     ['a PDF of a tab that closed', () => savePdf({
       activeTabId: 'site',
       tabs: new Map([['site', { ...websiteTab, title: 'Page', navigationGeneration: 0, webContents: { isDestroyed: () => true, removeListener: () => undefined } }]]),
-      mcpTabGroups: new Map(), destroyed: false
+      destroyed: false
     } as never),
     'The tab closed while exporting its PDF. Open the page and export again.',
     'Вкладку закрито під час експорту PDF. Відкрийте сторінку й експортуйте її знову.'],

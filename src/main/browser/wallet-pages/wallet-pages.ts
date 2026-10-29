@@ -1,5 +1,6 @@
 import type { Browser } from '../browser.js'
 import { findTab } from '../browser-core.js'
+import { requireTabInMcpGroup } from '../workspace-scope/workspace-scope.js'
 
 /** The tab, workspace, navigation generation, top-level origin and address of the page a wallet request is for. */
 export interface BrowserWalletPageContext {
@@ -45,7 +46,7 @@ function walletContextForWebContents(browser: Browser, webContentsId: number): B
 
 /** The wallet context of a workspace tab's page, for an agent's wallet request. */
 export function walletPageContextForMcpTab(browser: Browser, workspaceId: string, tabId: string): BrowserWalletPageContext {
-  const resolvedTabId = browser.requireTabInMcpGroup(workspaceId, tabId)
+  const resolvedTabId = requireTabInMcpGroup(browser, workspaceId, tabId)
   const tab = findTab(browser, resolvedTabId)
   if (!tab || tab.webContents.isDestroyed()) throw new Error('Wallet request target tab is unavailable')
   return walletContextForWebContents(browser, tab.webContents.id)

@@ -1,6 +1,6 @@
+import type { WebContents } from 'electron'
 import { normalizeInspectorIssue } from '../../../shared/browser-issues.js'
 import { redactNetworkUrl } from '../../../shared/network-details.js'
-import type { WebContents } from 'electron'
 import type { BrowserAuthChallengeObservation, BrowserInspectorIssue, BrowserInspectorIssuesReport } from '../../../shared/types.js'
 import { isHronautHomeUrl } from '../url.js'
 import type { Browser } from '../browser.js'

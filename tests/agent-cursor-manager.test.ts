@@ -4,6 +4,10 @@ vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage
 vi.mock('../src/main/browser/renderable-tab/renderable-tab.js', () => ({
   withRenderableTab: (browser: { withRenderableTab(...args: unknown[]): unknown }, ...args: unknown[]) => browser.withRenderableTab(...args)
 }))
+// The saved PDF goes nowhere; its name comes back as the path.
+vi.mock('../src/main/browser/unique-download-file.js', () => ({
+  writeUniqueDownloadFile: async (_directory: string, filename: string) => `/downloads/${filename}`
+}))
 import { Browser } from '../src/main/browser/browser.js'
 import { ISOLATED_WORLDS } from '../src/main/browser/isolated-worlds.js'
 import type { AgentPointerIdentity } from '../src/main/browser/page-scripts.js'
@@ -53,7 +57,6 @@ function fixture(showAgentCursor?: boolean, answer: () => Promise<unknown> = asy
     destroyed: false,
     cssStatePreview: { active: () => false },
     withRenderableTab: (_tab: unknown, run: () => Promise<unknown>) => run(),
-    writeUniqueDownload: async (filename: string) => `/downloads/${filename}`,
     snapshotDeltaContext: () => ({ tabId: tab.id, workspaceId: null, navigationGeneration: 1, observationGeneration: 0, humanInteractionGeneration: 0, snapshotFormatVersion: 1 })
   }) as unknown as PointerManager
   return { manager, tab, webContents, order, scripts }

@@ -8,6 +8,7 @@ import { dismissAgentPointer } from '../agent-pointer/agent-pointer.js'
 import type { Browser } from '../browser.js'
 import { findTab, getTab } from '../browser-core.js'
 import { withRenderableTab } from '../renderable-tab/renderable-tab.js'
+import { writeUniqueDownloadFile } from '../unique-download-file.js'
 
 /**
  * Prints the tab's page to a PDF in the downloads folder, without the agent's
@@ -71,7 +72,7 @@ export async function savePdf(browser: Browser, options: BrowserPdfOptions = {},
         throw new Error(`This PDF has more than ${CSS_PAGE_SIZE_PAGE_LIMIT.toLocaleString('en-US')} pages with preferCSSPageSize, so it was not saved. Check the page's CSS @page size, or export without preferCSSPageSize to use pageSize instead.`)
       }
     }
-    const path = await browser.writeUniqueDownload(filename, data, assertCurrent)
+    const path = await writeUniqueDownloadFile(browser.options.downloadDirectory, filename, data, assertCurrent)
     if (deferExport) {
       deferExport({ assertCurrent, discard })
       publicationDeferred = true

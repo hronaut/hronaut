@@ -2,6 +2,7 @@ import { boundedScreenshotSize } from '../../../shared/screenshot.js'
 import type { AgentStepThumbnailImage } from '../../mcp/agent-presence.js'
 import type { Browser } from '../browser.js'
 import { findTab } from '../browser-core.js'
+import { tabBelongsToMcpGroup } from '../workspace-scope/workspace-scope.js'
 
 /** The largest agent step thumbnail, in pixels and as JPEG bytes. */
 const MAX_AGENT_STEP_THUMBNAIL_WIDTH = 320
@@ -17,7 +18,7 @@ export async function captureAgentStepThumbnail(browser: Browser, tabId: string,
   const tab = findTab(browser, tabId)
   // Only a tab of the step's own workspace, before and after the capture: another workspace's page never shows in it.
   const eligible = (): boolean => Boolean(tab)
-    && browser.tabBelongsToMcpGroup(workspaceId, tabId)
+    && tabBelongsToMcpGroup(browser, workspaceId, tabId)
     && !browser.destroyed
     && !browser.window.isDestroyed()
     && browser.window.isVisible()

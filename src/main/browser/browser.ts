@@ -6121,8 +6121,7 @@ export class Browser {
     installSessionHooks(this.sessionHooksAccess(), browserSession)
   }
 
-  /** Writes the data to a file of its own in the downloads folder, checking validate just before it is written. */
-  writeUniqueDownload(filename: string, data: Buffer, validate: () => void = () => undefined): Promise<string> {
+  private writeUniqueDownload(filename: string, data: Buffer, validate: () => void = () => undefined): Promise<string> {
     return writeUniqueDownloadFile(this.options.downloadDirectory, filename, data, validate)
   }
 

@@ -4,6 +4,11 @@ vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage
 vi.mock('../src/main/browser/renderable-tab/renderable-tab.js', () => ({
   withRenderableTab: (browser: { withRenderableTab(...args: unknown[]): unknown }, ...args: unknown[]) => browser.withRenderableTab(...args)
 }))
+/** Each fixture's writer, by its downloads folder: files go to it instead of to disk. */
+const writers = vi.hoisted(() => new Map<string, (filename: string) => Promise<string>>())
+vi.mock('../src/main/browser/unique-download-file.js', () => ({
+  writeUniqueDownloadFile: (directory: string, filename: string) => writers.get(directory)!(filename)
+}))
 import { Browser } from '../src/main/browser/browser.js'
 import type { BrowserPdfOptions } from '../src/shared/types.js'
 
@@ -22,15 +27,16 @@ function exporter(output: Buffer = pages(1)) {
     removeListener: vi.fn()
   }
   const tab = { id: 'tab-1', title: 'Guide', navigationGeneration: 1, webContents }
+  const downloadDirectory = `/downloads-${writers.size}`
+  writers.set(downloadDirectory, writeUniqueDownload)
   const manager = Object.assign(Object.create(Browser.prototype), {
-    options: {},
+    options: { downloadDirectory },
     tabs: new Map([[tab.id, tab]]),
     activeTabId: tab.id,
     mcpTabGroups: new Map(),
     inspectionPermissions: new Map(),
     destroyed: false,
-    withRenderableTab: (_tab: unknown, run: () => Promise<unknown>) => run(),
-    writeUniqueDownload
+    withRenderableTab: (_tab: unknown, run: () => Promise<unknown>) => run()
   }) as Browser
   return {
     save: (options: BrowserPdfOptions) => manager.savePdf({ tabId: tab.id, ...options }),
