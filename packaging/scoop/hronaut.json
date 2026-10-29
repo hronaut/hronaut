@@ -1,6 +1,6 @@
 {
   "version": "3.12.0",
-  "description": "Visible desktop Chromium workspaces that persist across coding-agent tasks through a loopback MCP endpoint",
+  "description": "A visible desktop browser for coding agents, with a separate workspace for each project.",
   "homepage": "https://hronaut.dev",
   "license": "SEE LICENSE IN LICENSE",
   "notes": "Hronaut's current Windows binaries are not code-signed. Verify the release hash and review any Windows security warning before running it.",

@@ -80,7 +80,7 @@ linux:
   icon: build/icons
   syncDesktopName: true
   category: Network
-  description: Visible, persistent browser for coding agents
+  description: A visible desktop browser for coding agents, with a separate workspace for each project.
   desktop:
     entry:
       GenericName: Browser MCP
