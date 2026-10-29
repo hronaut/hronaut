@@ -267,7 +267,9 @@ browser started with another password store. KDE Wallet is asked only for the
 default wallet named in `kwalletrc` (else `kdewallet`) when its file exists, since
 opening a missing wallet offers to create it. Any keyring or wallet unlock prompt
 occurs after native read consent. A missing command is reported by name; a key
-neither store gives is reported as unreadable. Basic-storage v10 cookies are also
+neither store gives is reported as unreadable. The import panel then shows how to
+fix it: the install command for Ubuntu, Debian, Fedora and Arch, each with a Copy
+button, or where to unlock the keyring or wallet, then Continue again. Basic-storage v10 cookies are also
 supported. Windows, macOS, and Safari import are not supported in this version.
 Hronaut does not change source-browser encryption settings or create keyring or
 wallet entries.

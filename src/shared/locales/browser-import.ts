@@ -31,15 +31,24 @@ export const browserImportMessages = {
     "errors": {
       "unsupported": "Browser import currently supports Linux.",
       "readFailed": "The profile could not be read. Close the source browser and try again.",
-      "keyUnavailable": "The browser’s key could not be read from the Secret Service keyring or KDE Wallet. Unlock it if your system asks, then try again.",
-      "secretToolMissing": "Reading the browser’s key needs secret-tool. Install the libsecret-tools package, then try again.",
-      "kwalletQueryMissing": "Reading the browser’s key from KDE Wallet needs kwallet-query. Install it, then try again.",
+      "keyUnavailable": "The browser’s key could not be read from the Secret Service keyring or KDE Wallet. It may be locked.",
+      "secretToolMissing": "Reading the browser’s key needs secret-tool, which is not installed on this computer.",
+      "kwalletQueryMissing": "Reading the browser’s key from KDE Wallet needs kwallet-query, which is not installed on this computer.",
       "tooLarge": "This profile exceeds the import size limit.",
       "expired": "This preview expired or its workspace changed. Choose the profile again.",
       "busy": "An import is already running.",
       "workspaceBusy": "This workspace is busy changing browser data. Wait for that operation to finish, then choose the browser profile again.",
       "restricted": "These sites are outside the workspace site restrictions.",
       "failed": "Import could not finish. Choose the browser profile again and retry. Your open tabs stay open."
+    },
+    "fix": {
+      "title": "How to fix it",
+      "install": "Install {tool}. Open a terminal and run the command for your system:",
+      "unlock": "Unlock the keyring or wallet. On GNOME, open Passwords and Keys, right-click the Login keyring and choose Unlock. On KDE, open KDE Wallet Manager and open your wallet.",
+      "retry": "Click {button} again. If your system asks for the keyring or wallet password, enter it.",
+      "copy": "Copy",
+      "copied": "Copied",
+      "copyFailed": "The command could not be copied. Select it and copy it yourself."
     }
   },
   "uk-UA": {
@@ -74,15 +83,24 @@ export const browserImportMessages = {
     "errors": {
       "unsupported": "Імпорт наразі підтримується в Linux.",
       "readFailed": "Не вдалося прочитати профіль. Закрийте вихідний браузер і спробуйте знову.",
-      "keyUnavailable": "Не вдалося прочитати ключ браузера зі сховища Secret Service або KDE Wallet. Розблокуйте його, якщо система попросить, і спробуйте ще раз.",
-      "secretToolMissing": "Щоб прочитати ключ браузера, потрібен secret-tool. Встановіть пакет libsecret-tools і спробуйте ще раз.",
-      "kwalletQueryMissing": "Щоб прочитати ключ браузера з KDE Wallet, потрібен kwallet-query. Встановіть його і спробуйте ще раз.",
+      "keyUnavailable": "Не вдалося прочитати ключ браузера зі сховища Secret Service або KDE Wallet. Можливо, його заблоковано.",
+      "secretToolMissing": "Щоб прочитати ключ браузера, потрібен secret-tool, а його не встановлено на цьому комп’ютері.",
+      "kwalletQueryMissing": "Щоб прочитати ключ браузера з KDE Wallet, потрібен kwallet-query, а його не встановлено на цьому комп’ютері.",
       "tooLarge": "Профіль перевищує обмеження розміру імпорту.",
       "expired": "Перегляд прострочено або простір змінився. Виберіть профіль знову.",
       "busy": "Імпорт уже виконується.",
       "workspaceBusy": "У просторі вже змінюються дані браузера. Дочекайтеся завершення операції та знову виберіть профіль браузера.",
       "restricted": "Ці сайти не дозволені правилами простору.",
       "failed": "Імпорт не завершено. Знову виберіть профіль браузера та повторіть спробу. Відкриті вкладки залишаться відкритими."
+    },
+    "fix": {
+      "title": "Як це виправити",
+      "install": "Встановіть {tool}. Відкрийте термінал і виконайте команду для вашої системи:",
+      "unlock": "Розблокуйте сховище ключів або гаманець. У GNOME відкрийте «Паролі та ключі», клацніть правою кнопкою сховище входу (Login) і виберіть «Розблокувати». У KDE відкрийте KDE Wallet Manager і відкрийте свій гаманець.",
+      "retry": "Знову натисніть «{button}». Якщо система попросить пароль сховища ключів або гаманця, введіть його.",
+      "copy": "Копіювати",
+      "copied": "Скопійовано",
+      "copyFailed": "Не вдалося скопіювати команду. Виділіть її та скопіюйте самі."
     }
   },
   "ru-RU": {
@@ -117,15 +135,24 @@ export const browserImportMessages = {
     "errors": {
       "unsupported": "Импорт пока поддерживается в Linux.",
       "readFailed": "Не удалось прочитать профиль. Закройте исходный браузер и повторите попытку.",
-      "keyUnavailable": "Не удалось прочитать ключ браузера из хранилища Secret Service или KDE Wallet. Разблокируйте его, если система попросит, и попробуйте снова.",
-      "secretToolMissing": "Чтобы прочитать ключ браузера, нужен secret-tool. Установите пакет libsecret-tools и попробуйте снова.",
-      "kwalletQueryMissing": "Чтобы прочитать ключ браузера из KDE Wallet, нужен kwallet-query. Установите его и попробуйте снова.",
+      "keyUnavailable": "Не удалось прочитать ключ браузера из хранилища Secret Service или KDE Wallet. Возможно, оно заблокировано.",
+      "secretToolMissing": "Чтобы прочитать ключ браузера, нужен secret-tool, а он не установлен на этом компьютере.",
+      "kwalletQueryMissing": "Чтобы прочитать ключ браузера из KDE Wallet, нужен kwallet-query, а он не установлен на этом компьютере.",
       "tooLarge": "Профиль превышает ограничение размера импорта.",
       "expired": "Предпросмотр истёк или пространство изменилось. Выберите профиль заново.",
       "busy": "Импорт уже выполняется.",
       "workspaceBusy": "В пространстве уже изменяются данные браузера. Дождитесь завершения операции и снова выберите профиль браузера.",
       "restricted": "Эти сайты не разрешены правилами пространства.",
       "failed": "Импорт не завершён. Снова выберите профиль браузера и повторите попытку. Открытые вкладки останутся открытыми."
+    },
+    "fix": {
+      "title": "Как это исправить",
+      "install": "Установите {tool}. Откройте терминал и выполните команду для вашей системы:",
+      "unlock": "Разблокируйте связку ключей или бумажник. В GNOME откройте «Пароли и ключи», щёлкните правой кнопкой по связке входа (Login) и выберите «Разблокировать». В KDE откройте KDE Wallet Manager и откройте свой бумажник.",
+      "retry": "Снова нажмите «{button}». Если система попросит пароль связки ключей или бумажника, введите его.",
+      "copy": "Копировать",
+      "copied": "Скопировано",
+      "copyFailed": "Не удалось скопировать команду. Выделите её и скопируйте сами."
     }
   },
   "de-DE": {
@@ -160,15 +187,24 @@ export const browserImportMessages = {
     "errors": {
       "unsupported": "Der Browserimport unterstützt derzeit Linux.",
       "readFailed": "Das Profil konnte nicht gelesen werden. Schließen Sie den Quellbrowser und versuchen Sie es erneut.",
-      "keyUnavailable": "Der Schlüssel des Browsers konnte weder aus dem Secret-Service-Schlüsselbund noch aus KDE Wallet gelesen werden. Entsperren Sie ihn, wenn Ihr System danach fragt, und versuchen Sie es erneut.",
-      "secretToolMissing": "Zum Lesen des Browser-Schlüssels wird secret-tool benötigt. Installieren Sie das Paket libsecret-tools und versuchen Sie es erneut.",
-      "kwalletQueryMissing": "Zum Lesen des Browser-Schlüssels aus KDE Wallet wird kwallet-query benötigt. Installieren Sie es und versuchen Sie es erneut.",
+      "keyUnavailable": "Der Schlüssel des Browsers konnte weder aus dem Secret-Service-Schlüsselbund noch aus KDE Wallet gelesen werden. Möglicherweise ist er gesperrt.",
+      "secretToolMissing": "Zum Lesen des Browser-Schlüssels wird secret-tool benötigt, das auf diesem Computer nicht installiert ist.",
+      "kwalletQueryMissing": "Zum Lesen des Browser-Schlüssels aus KDE Wallet wird kwallet-query benötigt, das auf diesem Computer nicht installiert ist.",
       "tooLarge": "Dieses Profil überschreitet die Importgrößenbegrenzung.",
       "expired": "Die Vorschau ist abgelaufen oder der Arbeitsbereich wurde geändert. Wählen Sie das Profil erneut.",
       "busy": "Ein Import läuft bereits.",
       "workspaceBusy": "In diesem Arbeitsbereich werden gerade Browserdaten geändert. Warten Sie, bis der Vorgang abgeschlossen ist, und wählen Sie das Browserprofil erneut.",
       "restricted": "Diese Websites liegen außerhalb der Zugriffsregeln.",
       "failed": "Der Import konnte nicht abgeschlossen werden. Wählen Sie das Browserprofil erneut und versuchen Sie es noch einmal. Ihre Tabs bleiben geöffnet."
+    },
+    "fix": {
+      "title": "So beheben Sie das",
+      "install": "Installieren Sie {tool}. Öffnen Sie ein Terminal und führen Sie den Befehl für Ihr System aus:",
+      "unlock": "Entsperren Sie den Schlüsselbund oder die Brieftasche. Öffnen Sie unter GNOME „Passwörter und Schlüssel“, klicken Sie mit der rechten Maustaste auf den Anmelde-Schlüsselbund (Login) und wählen Sie „Entsperren“. Öffnen Sie unter KDE die KDE-Wallet-Verwaltung und öffnen Sie Ihre Brieftasche.",
+      "retry": "Klicken Sie erneut auf „{button}“. Wenn Ihr System nach dem Passwort des Schlüsselbunds oder der Brieftasche fragt, geben Sie es ein.",
+      "copy": "Kopieren",
+      "copied": "Kopiert",
+      "copyFailed": "Der Befehl konnte nicht kopiert werden. Markieren Sie ihn und kopieren Sie ihn selbst."
     }
   },
   "fr-FR": {
@@ -203,15 +239,24 @@ export const browserImportMessages = {
     "errors": {
       "unsupported": "L’import prend actuellement en charge Linux.",
       "readFailed": "Impossible de lire le profil. Fermez le navigateur source et réessayez.",
-      "keyUnavailable": "La clé du navigateur n’a pas pu être lue dans le trousseau Secret Service ni dans KDE Wallet. Déverrouillez-le si votre système le demande, puis réessayez.",
-      "secretToolMissing": "La lecture de la clé du navigateur nécessite secret-tool. Installez le paquet libsecret-tools, puis réessayez.",
-      "kwalletQueryMissing": "La lecture de la clé du navigateur dans KDE Wallet nécessite kwallet-query. Installez-le, puis réessayez.",
+      "keyUnavailable": "La clé du navigateur n’a pas pu être lue dans le trousseau Secret Service ni dans KDE Wallet. Il est peut-être verrouillé.",
+      "secretToolMissing": "La lecture de la clé du navigateur nécessite secret-tool, qui n’est pas installé sur cet ordinateur.",
+      "kwalletQueryMissing": "La lecture de la clé du navigateur dans KDE Wallet nécessite kwallet-query, qui n’est pas installé sur cet ordinateur.",
       "tooLarge": "Ce profil dépasse la taille maximale d’import.",
       "expired": "Cet aperçu a expiré ou l’espace a changé. Choisissez à nouveau le profil.",
       "busy": "Un import est déjà en cours.",
       "workspaceBusy": "Les données du navigateur de cet espace sont en cours de modification. Attendez la fin de l’opération, puis sélectionnez à nouveau le profil.",
       "restricted": "Ces sites ne sont pas autorisés dans cet espace.",
       "failed": "L’importation n’a pas abouti. Sélectionnez à nouveau le profil et réessayez. Vos onglets restent ouverts."
+    },
+    "fix": {
+      "title": "Comment corriger cela",
+      "install": "Installez {tool}. Ouvrez un terminal et exécutez la commande correspondant à votre système :",
+      "unlock": "Déverrouillez le trousseau ou le portefeuille. Sous GNOME, ouvrez « Mots de passe et clés », faites un clic droit sur le trousseau de connexion (Login) et choisissez « Déverrouiller ». Sous KDE, ouvrez le gestionnaire KDE Wallet et ouvrez votre portefeuille.",
+      "retry": "Cliquez à nouveau sur « {button} ». Si votre système demande le mot de passe du trousseau ou du portefeuille, saisissez-le.",
+      "copy": "Copier",
+      "copied": "Copié",
+      "copyFailed": "La commande n’a pas pu être copiée. Sélectionnez-la et copiez-la vous-même."
     }
   },
   "es-ES": {
@@ -246,15 +291,24 @@ export const browserImportMessages = {
     "errors": {
       "unsupported": "La importación admite Linux actualmente.",
       "readFailed": "No se pudo leer el perfil. Cierra el navegador de origen e inténtalo de nuevo.",
-      "keyUnavailable": "No se pudo leer la clave del navegador del llavero de Secret Service ni de KDE Wallet. Desbloquéalo si el sistema lo pide y vuelve a intentarlo.",
-      "secretToolMissing": "Para leer la clave del navegador se necesita secret-tool. Instala el paquete libsecret-tools y vuelve a intentarlo.",
-      "kwalletQueryMissing": "Para leer la clave del navegador desde KDE Wallet se necesita kwallet-query. Instálalo y vuelve a intentarlo.",
+      "keyUnavailable": "No se pudo leer la clave del navegador del llavero de Secret Service ni de KDE Wallet. Puede que esté bloqueado.",
+      "secretToolMissing": "Para leer la clave del navegador se necesita secret-tool, que no está instalado en este equipo.",
+      "kwalletQueryMissing": "Para leer la clave del navegador desde KDE Wallet se necesita kwallet-query, que no está instalado en este equipo.",
       "tooLarge": "Este perfil supera el límite de tamaño de importación.",
       "expired": "La vista previa caducó o el espacio cambió. Elige el perfil de nuevo.",
       "busy": "Ya hay una importación en curso.",
       "workspaceBusy": "Se están modificando los datos del navegador de este espacio. Espera a que termine la operación y vuelve a elegir el perfil.",
       "restricted": "Estos sitios están fuera de los permisos del espacio.",
       "failed": "No se pudo completar la importación. Vuelve a elegir el perfil e inténtalo de nuevo. Tus pestañas permanecen abiertas."
+    },
+    "fix": {
+      "title": "Cómo solucionarlo",
+      "install": "Instala {tool}. Abre una terminal y ejecuta el comando para tu sistema:",
+      "unlock": "Desbloquea el llavero o la cartera. En GNOME, abre «Contraseñas y claves», haz clic derecho en el llavero de inicio de sesión (Login) y elige «Desbloquear». En KDE, abre el gestor de KDE Wallet y abre tu cartera.",
+      "retry": "Vuelve a hacer clic en «{button}». Si el sistema pide la contraseña del llavero o de la cartera, escríbela.",
+      "copy": "Copiar",
+      "copied": "Copiado",
+      "copyFailed": "No se pudo copiar el comando. Selecciónalo y cópialo tú."
     }
   },
   "pl-PL": {
@@ -289,15 +343,24 @@ export const browserImportMessages = {
     "errors": {
       "unsupported": "Import obsługuje obecnie Linux.",
       "readFailed": "Nie można odczytać profilu. Zamknij przeglądarkę źródłową i spróbuj ponownie.",
-      "keyUnavailable": "Nie udało się odczytać klucza przeglądarki z pęku kluczy Secret Service ani z KDE Wallet. Odblokuj go, jeśli system o to poprosi, i spróbuj ponownie.",
-      "secretToolMissing": "Do odczytania klucza przeglądarki potrzebny jest secret-tool. Zainstaluj pakiet libsecret-tools i spróbuj ponownie.",
-      "kwalletQueryMissing": "Do odczytania klucza przeglądarki z KDE Wallet potrzebny jest kwallet-query. Zainstaluj go i spróbuj ponownie.",
+      "keyUnavailable": "Nie udało się odczytać klucza przeglądarki z pęku kluczy Secret Service ani z KDE Wallet. Może być zablokowany.",
+      "secretToolMissing": "Do odczytania klucza przeglądarki potrzebny jest secret-tool, który nie jest zainstalowany na tym komputerze.",
+      "kwalletQueryMissing": "Do odczytania klucza przeglądarki z KDE Wallet potrzebny jest kwallet-query, który nie jest zainstalowany na tym komputerze.",
       "tooLarge": "Profil przekracza limit rozmiaru importu.",
       "expired": "Podgląd wygasł lub przestrzeń się zmieniła. Wybierz profil ponownie.",
       "busy": "Import już trwa.",
       "workspaceBusy": "Dane przeglądarki w tej przestrzeni są właśnie zmieniane. Poczekaj na zakończenie operacji i ponownie wybierz profil.",
       "restricted": "Te witryny nie są dozwolone w tej przestrzeni.",
       "failed": "Nie udało się ukończyć importu. Ponownie wybierz profil i spróbuj jeszcze raz. Twoje karty pozostaną otwarte."
+    },
+    "fix": {
+      "title": "Jak to naprawić",
+      "install": "Zainstaluj {tool}. Otwórz terminal i uruchom polecenie dla swojego systemu:",
+      "unlock": "Odblokuj pęk kluczy lub portfel. W GNOME otwórz „Hasła i klucze”, kliknij prawym przyciskiem pęk kluczy logowania (Login) i wybierz „Odblokuj”. W KDE otwórz menedżer KDE Wallet i otwórz swój portfel.",
+      "retry": "Ponownie kliknij „{button}”. Jeśli system poprosi o hasło pęku kluczy lub portfela, wpisz je.",
+      "copy": "Kopiuj",
+      "copied": "Skopiowano",
+      "copyFailed": "Nie udało się skopiować polecenia. Zaznacz je i skopiuj samodzielnie."
     }
   },
   "it-IT": {
@@ -332,15 +395,24 @@ export const browserImportMessages = {
     "errors": {
       "unsupported": "Al momento l’importazione dal browser è supportata solo su Linux.",
       "readFailed": "Impossibile leggere il profilo. Chiudi il browser di origine e riprova.",
-      "keyUnavailable": "Impossibile leggere la chiave del browser dal portachiavi Secret Service o da KDE Wallet. Sbloccalo se il sistema lo chiede, poi riprova.",
-      "secretToolMissing": "Per leggere la chiave del browser serve secret-tool. Installa il pacchetto libsecret-tools, poi riprova.",
-      "kwalletQueryMissing": "Per leggere la chiave del browser da KDE Wallet serve kwallet-query. Installalo, poi riprova.",
+      "keyUnavailable": "Impossibile leggere la chiave del browser dal portachiavi Secret Service o da KDE Wallet. Potrebbe essere bloccato.",
+      "secretToolMissing": "Per leggere la chiave del browser serve secret-tool, che non è installato su questo computer.",
+      "kwalletQueryMissing": "Per leggere la chiave del browser da KDE Wallet serve kwallet-query, che non è installato su questo computer.",
       "tooLarge": "Questo profilo supera il limite di dimensioni per l’importazione.",
       "expired": "Questa anteprima è scaduta o la sua area di lavoro è cambiata. Scegli di nuovo il profilo.",
       "busy": "È già in corso un’importazione.",
       "workspaceBusy": "Quest’area di lavoro sta modificando i dati del browser. Attendi il termine dell’operazione, quindi scegli di nuovo il profilo del browser.",
       "restricted": "Questi siti sono esclusi dalle restrizioni dei siti dell’area di lavoro.",
       "failed": "Impossibile completare l’importazione. Scegli di nuovo il profilo del browser e riprova. Le schede aperte restano aperte."
+    },
+    "fix": {
+      "title": "Come risolvere",
+      "install": "Installa {tool}. Apri un terminale ed esegui il comando per il tuo sistema:",
+      "unlock": "Sblocca il portachiavi o il portafoglio. Su GNOME, apri «Password e chiavi», fai clic con il tasto destro sul portachiavi di accesso (Login) e scegli «Sblocca». Su KDE, apri il gestore di KDE Wallet e apri il tuo portafoglio.",
+      "retry": "Fai di nuovo clic su «{button}». Se il sistema chiede la password del portachiavi o del portafoglio, inseriscila.",
+      "copy": "Copia",
+      "copied": "Copiato",
+      "copyFailed": "Impossibile copiare il comando. Selezionalo e copialo tu."
     }
   },
   "pt-BR": {
@@ -375,15 +447,24 @@ export const browserImportMessages = {
     "errors": {
       "unsupported": "No momento, a importação de navegadores é compatível com o Linux.",
       "readFailed": "Não foi possível ler o perfil. Feche o navegador de origem e tente novamente.",
-      "keyUnavailable": "Não foi possível ler a chave do navegador do chaveiro do Secret Service nem do KDE Wallet. Desbloqueie-o se o sistema pedir e tente novamente.",
-      "secretToolMissing": "Para ler a chave do navegador é preciso o secret-tool. Instale o pacote libsecret-tools e tente novamente.",
-      "kwalletQueryMissing": "Para ler a chave do navegador no KDE Wallet é preciso o kwallet-query. Instale-o e tente novamente.",
+      "keyUnavailable": "Não foi possível ler a chave do navegador do chaveiro do Secret Service nem do KDE Wallet. Ele pode estar bloqueado.",
+      "secretToolMissing": "Para ler a chave do navegador é preciso o secret-tool, que não está instalado neste computador.",
+      "kwalletQueryMissing": "Para ler a chave do navegador no KDE Wallet é preciso o kwallet-query, que não está instalado neste computador.",
       "tooLarge": "Este perfil excede o limite de tamanho da importação.",
       "expired": "Esta visualização expirou ou o espaço de trabalho dela mudou. Escolha o perfil novamente.",
       "busy": "Uma importação já está em andamento.",
       "workspaceBusy": "Este espaço de trabalho está ocupado alterando dados do navegador. Aguarde essa operação terminar e escolha o perfil do navegador novamente.",
       "restricted": "Estes sites estão fora das restrições de sites do espaço de trabalho.",
       "failed": "Não foi possível concluir a importação. Escolha o perfil do navegador novamente e tente outra vez. Suas guias abertas continuam abertas."
+    },
+    "fix": {
+      "title": "Como corrigir",
+      "install": "Instale o {tool}. Abra um terminal e execute o comando do seu sistema:",
+      "unlock": "Desbloqueie o chaveiro ou a carteira. No GNOME, abra “Senhas e chaves”, clique com o botão direito no chaveiro de login (Login) e escolha “Desbloquear”. No KDE, abra o gerenciador do KDE Wallet e abra sua carteira.",
+      "retry": "Clique em “{button}” novamente. Se o sistema pedir a senha do chaveiro ou da carteira, digite-a.",
+      "copy": "Copiar",
+      "copied": "Copiado",
+      "copyFailed": "Não foi possível copiar o comando. Selecione-o e copie você mesmo."
     }
   },
   "tr-TR": {
@@ -418,15 +499,24 @@ export const browserImportMessages = {
     "errors": {
       "unsupported": "Tarayıcıdan içe aktarma şu anda Linux’u destekliyor.",
       "readFailed": "Profil okunamadı. Kaynak tarayıcıyı kapatıp tekrar deneyin.",
-      "keyUnavailable": "Tarayıcının anahtarı Secret Service anahtarlığından veya KDE Wallet'tan okunamadı. Sisteminiz isterse kilidini açın ve yeniden deneyin.",
-      "secretToolMissing": "Tarayıcının anahtarını okumak için secret-tool gerekir. libsecret-tools paketini kurun ve yeniden deneyin.",
-      "kwalletQueryMissing": "Tarayıcının anahtarını KDE Wallet'tan okumak için kwallet-query gerekir. Kurun ve yeniden deneyin.",
+      "keyUnavailable": "Tarayıcının anahtarı Secret Service anahtarlığından veya KDE Wallet'tan okunamadı. Kilitli olabilir.",
+      "secretToolMissing": "Tarayıcının anahtarını okumak için secret-tool gerekir ancak bu bilgisayarda kurulu değil.",
+      "kwalletQueryMissing": "Tarayıcının anahtarını KDE Wallet'tan okumak için kwallet-query gerekir ancak bu bilgisayarda kurulu değil.",
       "tooLarge": "Bu profil içe aktarma boyutu sınırını aşıyor.",
       "expired": "Bu önizlemenin süresi doldu veya çalışma alanı değişti. Profili yeniden seçin.",
       "busy": "Zaten bir içe aktarma çalışıyor.",
       "workspaceBusy": "Bu çalışma alanı şu anda tarayıcı verilerini değiştiriyor. Bu işlemin bitmesini bekleyin, ardından tarayıcı profilini yeniden seçin.",
       "restricted": "Bu siteler çalışma alanının site kısıtlamalarının dışında.",
       "failed": "İçe aktarma tamamlanamadı. Tarayıcı profilini yeniden seçip tekrar deneyin. Açık sekmeleriniz açık kalır."
+    },
+    "fix": {
+      "title": "Nasıl düzeltilir",
+      "install": "{tool} aracını kurun. Bir terminal açın ve sisteminize uygun komutu çalıştırın:",
+      "unlock": "Anahtarlığın veya cüzdanın kilidini açın. GNOME'da “Parolalar ve Anahtarlar” uygulamasını açın, oturum açma anahtarlığına (Login) sağ tıklayın ve “Kilidi Aç” seçeneğini seçin. KDE'de KDE Cüzdan Yöneticisi'ni açın ve cüzdanınızı açın.",
+      "retry": "“{button}” düğmesine yeniden tıklayın. Sisteminiz anahtarlık veya cüzdan parolasını sorarsa girin.",
+      "copy": "Kopyala",
+      "copied": "Kopyalandı",
+      "copyFailed": "Komut kopyalanamadı. Seçip kendiniz kopyalayın."
     }
   },
   "hi-IN": {
@@ -461,15 +551,24 @@ export const browserImportMessages = {
     "errors": {
       "unsupported": "ब्राउज़र से इंपोर्ट अभी सिर्फ़ Linux पर काम करता है।",
       "readFailed": "प्रोफ़ाइल पढ़ी नहीं जा सकी। सोर्स ब्राउज़र बंद करें और फिर से कोशिश करें।",
-      "keyUnavailable": "ब्राउज़र की कुंजी Secret Service कीरिंग या KDE Wallet से नहीं पढ़ी जा सकी। सिस्टम पूछे तो उसे अनलॉक करें, फिर दोबारा कोशिश करें।",
-      "secretToolMissing": "ब्राउज़र की कुंजी पढ़ने के लिए secret-tool चाहिए। libsecret-tools पैकेज इंस्टॉल करें, फिर दोबारा कोशिश करें।",
-      "kwalletQueryMissing": "KDE Wallet से ब्राउज़र की कुंजी पढ़ने के लिए kwallet-query चाहिए। इसे इंस्टॉल करें, फिर दोबारा कोशिश करें।",
+      "keyUnavailable": "ब्राउज़र की कुंजी Secret Service कीरिंग या KDE Wallet से नहीं पढ़ी जा सकी। हो सकता है वह लॉक हो।",
+      "secretToolMissing": "ब्राउज़र की कुंजी पढ़ने के लिए secret-tool चाहिए, जो इस कंप्यूटर पर इंस्टॉल नहीं है।",
+      "kwalletQueryMissing": "KDE Wallet से ब्राउज़र की कुंजी पढ़ने के लिए kwallet-query चाहिए, जो इस कंप्यूटर पर इंस्टॉल नहीं है।",
       "tooLarge": "यह प्रोफ़ाइल इंपोर्ट के साइज़ की सीमा से बड़ी है।",
       "expired": "इस झलक की समय-सीमा खत्म हो गई या इसका वर्कस्पेस बदल गया। प्रोफ़ाइल फिर से चुनें।",
       "busy": "एक इंपोर्ट पहले से चल रहा है।",
       "workspaceBusy": "यह वर्कस्पेस अभी ब्राउज़र डेटा बदल रहा है। उस कार्रवाई के पूरा होने का इंतज़ार करें, फिर ब्राउज़र प्रोफ़ाइल दोबारा चुनें।",
       "restricted": "ये साइटें वर्कस्पेस की साइट पाबंदियों से बाहर हैं।",
       "failed": "इंपोर्ट पूरा नहीं हो सका। ब्राउज़र प्रोफ़ाइल फिर से चुनें और दोबारा कोशिश करें। आपके खुले टैब खुले रहते हैं।"
+    },
+    "fix": {
+      "title": "इसे कैसे ठीक करें",
+      "install": "{tool} इंस्टॉल करें। टर्मिनल खोलें और अपने सिस्टम के लिए दी गई कमांड चलाएँ:",
+      "unlock": "कीरिंग या वॉलेट अनलॉक करें। GNOME में “Passwords and Keys” खोलें, लॉगिन कीरिंग (Login) पर राइट-क्लिक करें और “Unlock” चुनें। KDE में KDE Wallet Manager खोलें और अपना वॉलेट खोलें।",
+      "retry": "“{button}” पर फिर से क्लिक करें। अगर सिस्टम कीरिंग या वॉलेट का पासवर्ड पूछे, तो उसे दर्ज करें।",
+      "copy": "कॉपी करें",
+      "copied": "कॉपी हो गया",
+      "copyFailed": "कमांड कॉपी नहीं हो सकी। उसे चुनें और खुद कॉपी करें।"
     }
   },
   "ja-JP": {
@@ -504,15 +603,24 @@ export const browserImportMessages = {
     "errors": {
       "unsupported": "ブラウザからのインポートは現在 Linux でサポートされています。",
       "readFailed": "プロファイルを読み取れませんでした。ソースのブラウザを閉じて、もう一度お試しください。",
-      "keyUnavailable": "ブラウザーのキーを Secret Service のキーリングからも KDE Wallet からも読み取れませんでした。システムに求められたらロックを解除して、もう一度お試しください。",
-      "secretToolMissing": "ブラウザーのキーを読み取るには secret-tool が必要です。libsecret-tools パッケージをインストールして、もう一度お試しください。",
-      "kwalletQueryMissing": "KDE Wallet からブラウザーのキーを読み取るには kwallet-query が必要です。インストールして、もう一度お試しください。",
+      "keyUnavailable": "ブラウザーのキーを Secret Service のキーリングからも KDE Wallet からも読み取れませんでした。ロックされている可能性があります。",
+      "secretToolMissing": "ブラウザーのキーを読み取るには secret-tool が必要ですが、このコンピューターにインストールされていません。",
+      "kwalletQueryMissing": "KDE Wallet からブラウザーのキーを読み取るには kwallet-query が必要ですが、このコンピューターにインストールされていません。",
       "tooLarge": "このプロファイルはインポートのサイズ上限を超えています。",
       "expired": "このプレビューの有効期限が切れたか、ワークスペースが変更されました。もう一度プロファイルを選択してください。",
       "busy": "インポートはすでに実行中です。",
       "workspaceBusy": "このワークスペースはブラウザ データを変更中です。その操作が完了してから、もう一度ブラウザ プロファイルを選択してください。",
       "restricted": "これらのサイトはワークスペースのサイト制限の対象外です。",
       "failed": "インポートを完了できませんでした。ブラウザ プロファイルをもう一度選択して再試行してください。開いているタブはそのままです。"
+    },
+    "fix": {
+      "title": "解決方法",
+      "install": "{tool} をインストールします。ターミナルを開き、お使いのシステム用のコマンドを実行してください：",
+      "unlock": "キーリングまたはウォレットのロックを解除します。GNOME では「パスワードと鍵」を開き、ログインキーリング (Login) を右クリックして「ロック解除」を選びます。KDE では KDE ウォレットマネージャーを開き、ウォレットを開きます。",
+      "retry": "もう一度「{button}」をクリックします。キーリングまたはウォレットのパスワードを求められたら入力してください。",
+      "copy": "コピー",
+      "copied": "コピーしました",
+      "copyFailed": "コマンドをコピーできませんでした。選択して手動でコピーしてください。"
     }
   },
   "ko-KR": {
@@ -547,15 +655,24 @@ export const browserImportMessages = {
     "errors": {
       "unsupported": "현재 브라우저 가져오기는 Linux만 지원합니다.",
       "readFailed": "프로필을 읽을 수 없습니다. 원본 브라우저를 닫고 다시 시도하세요.",
-      "keyUnavailable": "Secret Service 키링이나 KDE Wallet에서 브라우저 키를 읽을 수 없습니다. 시스템에서 요청하면 잠금을 해제한 다음 다시 시도하세요.",
-      "secretToolMissing": "브라우저 키를 읽으려면 secret-tool이 필요합니다. libsecret-tools 패키지를 설치한 다음 다시 시도하세요.",
-      "kwalletQueryMissing": "KDE Wallet에서 브라우저 키를 읽으려면 kwallet-query가 필요합니다. 설치한 다음 다시 시도하세요.",
+      "keyUnavailable": "Secret Service 키링이나 KDE Wallet에서 브라우저 키를 읽을 수 없습니다. 잠겨 있을 수 있습니다.",
+      "secretToolMissing": "브라우저 키를 읽으려면 secret-tool이 필요하지만 이 컴퓨터에 설치되어 있지 않습니다.",
+      "kwalletQueryMissing": "KDE Wallet에서 브라우저 키를 읽으려면 kwallet-query가 필요하지만 이 컴퓨터에 설치되어 있지 않습니다.",
       "tooLarge": "이 프로필은 가져오기 크기 한도를 초과합니다.",
       "expired": "미리보기가 만료되었거나 작업 공간이 변경되었습니다. 프로필을 다시 선택하세요.",
       "busy": "이미 가져오기가 진행 중입니다.",
       "workspaceBusy": "이 작업 공간에서 브라우저 데이터를 변경하는 중입니다. 작업이 끝날 때까지 기다린 후 브라우저 프로필을 다시 선택하세요.",
       "restricted": "이 사이트는 작업 공간의 사이트 제한을 벗어납니다.",
       "failed": "가져오기를 완료할 수 없습니다. 브라우저 프로필을 다시 선택하고 다시 시도하세요. 열린 탭은 그대로 유지됩니다."
+    },
+    "fix": {
+      "title": "해결 방법",
+      "install": "{tool}을(를) 설치하세요. 터미널을 열고 사용 중인 시스템에 맞는 명령을 실행하세요:",
+      "unlock": "키링이나 지갑의 잠금을 해제하세요. GNOME에서는 ‘암호 및 키’를 열고 로그인 키링(Login)을 마우스 오른쪽 버튼으로 클릭한 다음 ‘잠금 해제’를 선택하세요. KDE에서는 KDE 지갑 관리자를 열고 지갑을 여세요.",
+      "retry": "‘{button}’을(를) 다시 클릭하세요. 시스템에서 키링이나 지갑 암호를 요청하면 입력하세요.",
+      "copy": "복사",
+      "copied": "복사됨",
+      "copyFailed": "명령을 복사할 수 없습니다. 직접 선택해서 복사하세요."
     }
   },
   "zh-CN": {
@@ -590,15 +707,24 @@ export const browserImportMessages = {
     "errors": {
       "unsupported": "浏览器导入目前仅支持 Linux。",
       "readFailed": "无法读取该配置文件。请关闭来源浏览器，然后重试。",
-      "keyUnavailable": "无法从 Secret Service 密钥环或 KDE Wallet 读取浏览器密钥。如果系统要求，请先解锁，然后重试。",
-      "secretToolMissing": "读取浏览器密钥需要 secret-tool。请安装 libsecret-tools 软件包，然后重试。",
-      "kwalletQueryMissing": "从 KDE Wallet 读取浏览器密钥需要 kwallet-query。请安装后重试。",
+      "keyUnavailable": "无法从 Secret Service 密钥环或 KDE Wallet 读取浏览器密钥。它可能已被锁定。",
+      "secretToolMissing": "读取浏览器密钥需要 secret-tool，但这台电脑上没有安装。",
+      "kwalletQueryMissing": "从 KDE Wallet 读取浏览器密钥需要 kwallet-query，但这台电脑上没有安装。",
       "tooLarge": "此配置文件超出了导入大小限制。",
       "expired": "此预览已过期，或其工作区已更改。请重新选择配置文件。",
       "busy": "已有一项导入正在进行。",
       "workspaceBusy": "此工作区正忙于更改浏览器数据。请等待该操作完成，然后重新选择浏览器配置文件。",
       "restricted": "这些网站超出了工作区的网站限制。",
       "failed": "导入未能完成。请重新选择浏览器配置文件并重试。打开的标签页会保持打开状态。"
+    },
+    "fix": {
+      "title": "如何解决",
+      "install": "安装 {tool}。打开终端，运行适用于您的系统的命令：",
+      "unlock": "解锁密钥环或钱包。在 GNOME 中，打开“密码和密钥”，右键点击登录密钥环（Login），然后选择“解锁”。在 KDE 中，打开 KDE 钱包管理器并打开您的钱包。",
+      "retry": "再次点击“{button}”。如果系统要求输入密钥环或钱包的密码，请输入。",
+      "copy": "复制",
+      "copied": "已复制",
+      "copyFailed": "无法复制该命令。请选中后自行复制。"
     }
   },
   "zh-TW": {
@@ -633,15 +759,24 @@ export const browserImportMessages = {
     "errors": {
       "unsupported": "瀏覽器匯入功能目前僅支援 Linux。",
       "readFailed": "無法讀取設定檔。請關閉來源瀏覽器，然後再試一次。",
-      "keyUnavailable": "無法從 Secret Service 鑰匙圈或 KDE Wallet 讀取瀏覽器金鑰。如果系統要求，請先解鎖，然後重試。",
-      "secretToolMissing": "讀取瀏覽器金鑰需要 secret-tool。請安裝 libsecret-tools 套件，然後重試。",
-      "kwalletQueryMissing": "從 KDE Wallet 讀取瀏覽器金鑰需要 kwallet-query。請安裝後重試。",
+      "keyUnavailable": "無法從 Secret Service 鑰匙圈或 KDE Wallet 讀取瀏覽器金鑰。它可能已被鎖定。",
+      "secretToolMissing": "讀取瀏覽器金鑰需要 secret-tool，但這部電腦上沒有安裝。",
+      "kwalletQueryMissing": "從 KDE Wallet 讀取瀏覽器金鑰需要 kwallet-query，但這部電腦上沒有安裝。",
       "tooLarge": "這個設定檔超出匯入大小上限。",
       "expired": "這項預覽已過期，或其工作區已變更。請重新選擇設定檔。",
       "busy": "已有匯入作業正在執行。",
       "workspaceBusy": "這個工作區正在變更瀏覽器資料。請等待該作業完成，然後重新選擇瀏覽器設定檔。",
       "restricted": "這些網站超出工作區的網站限制範圍。",
       "failed": "無法完成匯入。請重新選擇瀏覽器設定檔並重試。開啟中的分頁會保持開啟。"
+    },
+    "fix": {
+      "title": "如何解決",
+      "install": "安裝 {tool}。開啟終端機，執行適用於你的系統的指令：",
+      "unlock": "解鎖鑰匙圈或錢包。在 GNOME 中，開啟「密碼與金鑰」，在登入鑰匙圈（Login）上按右鍵，然後選擇「解鎖」。在 KDE 中，開啟 KDE 錢包管理員並開啟你的錢包。",
+      "retry": "再次點選「{button}」。如果系統要求輸入鑰匙圈或錢包的密碼，請輸入。",
+      "copy": "複製",
+      "copied": "已複製",
+      "copyFailed": "無法複製這個指令。請選取後自行複製。"
     }
   },
   "id-ID": {
@@ -676,15 +811,24 @@ export const browserImportMessages = {
     "errors": {
       "unsupported": "Impor browser saat ini mendukung Linux.",
       "readFailed": "Profil tidak dapat dibaca. Tutup browser sumber, lalu coba lagi.",
-      "keyUnavailable": "Kunci browser tidak dapat dibaca dari keyring Secret Service atau KDE Wallet. Buka kuncinya jika sistem meminta, lalu coba lagi.",
-      "secretToolMissing": "Membaca kunci browser memerlukan secret-tool. Instal paket libsecret-tools, lalu coba lagi.",
-      "kwalletQueryMissing": "Membaca kunci browser dari KDE Wallet memerlukan kwallet-query. Instal, lalu coba lagi.",
+      "keyUnavailable": "Kunci browser tidak dapat dibaca dari keyring Secret Service atau KDE Wallet. Mungkin sedang terkunci.",
+      "secretToolMissing": "Membaca kunci browser memerlukan secret-tool, yang belum terinstal di komputer ini.",
+      "kwalletQueryMissing": "Membaca kunci browser dari KDE Wallet memerlukan kwallet-query, yang belum terinstal di komputer ini.",
       "tooLarge": "Profil ini melebihi batas ukuran impor.",
       "expired": "Pratinjau ini sudah kedaluwarsa atau ruang kerjanya berubah. Pilih lagi profilnya.",
       "busy": "Impor sedang berjalan.",
       "workspaceBusy": "Ruang kerja ini sedang sibuk mengubah data browser. Tunggu hingga operasi tersebut selesai, lalu pilih lagi profil browser.",
       "restricted": "Situs ini berada di luar batasan situs ruang kerja.",
       "failed": "Impor tidak dapat diselesaikan. Pilih lagi profil browser dan coba ulang. Tab yang terbuka tetap terbuka."
+    },
+    "fix": {
+      "title": "Cara memperbaikinya",
+      "install": "Instal {tool}. Buka terminal dan jalankan perintah untuk sistem Anda:",
+      "unlock": "Buka kunci keyring atau dompet. Di GNOME, buka “Kata Sandi dan Kunci”, klik kanan keyring login (Login), lalu pilih “Buka Kunci”. Di KDE, buka KDE Wallet Manager dan buka dompet Anda.",
+      "retry": "Klik “{button}” lagi. Jika sistem meminta kata sandi keyring atau dompet, masukkan kata sandinya.",
+      "copy": "Salin",
+      "copied": "Disalin",
+      "copyFailed": "Perintah tidak dapat disalin. Pilih lalu salin sendiri."
     }
   },
   "vi-VN": {
@@ -719,15 +863,24 @@ export const browserImportMessages = {
     "errors": {
       "unsupported": "Tính năng nhập từ trình duyệt hiện chỉ hỗ trợ Linux.",
       "readFailed": "Không thể đọc hồ sơ. Hãy đóng trình duyệt nguồn rồi thử lại.",
-      "keyUnavailable": "Không thể đọc khóa của trình duyệt từ chùm khóa Secret Service hoặc KDE Wallet. Hãy mở khóa nếu hệ thống yêu cầu, rồi thử lại.",
-      "secretToolMissing": "Để đọc khóa của trình duyệt cần có secret-tool. Hãy cài gói libsecret-tools, rồi thử lại.",
-      "kwalletQueryMissing": "Để đọc khóa của trình duyệt từ KDE Wallet cần có kwallet-query. Hãy cài đặt, rồi thử lại.",
+      "keyUnavailable": "Không thể đọc khóa của trình duyệt từ chùm khóa Secret Service hoặc KDE Wallet. Có thể nó đang bị khóa.",
+      "secretToolMissing": "Để đọc khóa của trình duyệt cần có secret-tool, nhưng công cụ này chưa được cài trên máy tính này.",
+      "kwalletQueryMissing": "Để đọc khóa của trình duyệt từ KDE Wallet cần có kwallet-query, nhưng công cụ này chưa được cài trên máy tính này.",
       "tooLarge": "Hồ sơ này vượt quá giới hạn kích thước nhập.",
       "expired": "Bản xem trước này đã hết hạn hoặc không gian làm việc của nó đã thay đổi. Hãy chọn lại hồ sơ.",
       "busy": "Đang có một lượt nhập chạy.",
       "workspaceBusy": "Không gian làm việc này đang bận thay đổi dữ liệu trình duyệt. Hãy đợi thao tác đó hoàn tất, rồi chọn lại hồ sơ trình duyệt.",
       "restricted": "Các trang web này nằm ngoài giới hạn trang web của không gian làm việc.",
       "failed": "Không thể hoàn tất việc nhập. Hãy chọn lại hồ sơ trình duyệt và thử lại. Các thẻ đang mở vẫn mở."
+    },
+    "fix": {
+      "title": "Cách khắc phục",
+      "install": "Cài đặt {tool}. Mở terminal và chạy lệnh dành cho hệ thống của bạn:",
+      "unlock": "Mở khóa chùm khóa hoặc ví. Trên GNOME, mở “Mật khẩu và khóa”, nhấp chuột phải vào chùm khóa đăng nhập (Login) rồi chọn “Mở khóa”. Trên KDE, mở KDE Wallet Manager và mở ví của bạn.",
+      "retry": "Nhấp lại vào “{button}”. Nếu hệ thống hỏi mật khẩu của chùm khóa hoặc ví, hãy nhập mật khẩu đó.",
+      "copy": "Sao chép",
+      "copied": "Đã sao chép",
+      "copyFailed": "Không thể sao chép lệnh. Hãy chọn lệnh rồi tự sao chép."
     }
   },
 }
