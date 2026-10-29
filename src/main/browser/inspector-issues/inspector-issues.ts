@@ -1,8 +1,32 @@
 import { normalizeInspectorIssue } from '../../../shared/browser-issues.js'
 import { redactNetworkUrl } from '../../../shared/network-details.js'
-import type { BrowserAuthChallengeObservation, BrowserInspectorIssuesReport } from '../../../shared/types.js'
+import type { WebContents } from 'electron'
+import type { BrowserAuthChallengeObservation, BrowserInspectorIssue, BrowserInspectorIssuesReport } from '../../../shared/types.js'
 import { isHronautHomeUrl } from '../url.js'
-import type { InspectorIssuesAccess, InspectorIssuesTab } from './inspector-issues-access.js'
+import type { Browser } from '../browser.js'
+import { getTab } from '../browser-core.js'
+import { publishChange } from '../browser-state/browser-state.js'
+import { ensureDialogMonitoring } from '../website-dialogs/website-dialogs.js'
+
+/**
+ * The tab fields inspector issues and HTTP authentication challenges read and
+ * write. The retained issues and challenges belong to the tab, so the
+ * browser's navigation, observation and workspace control handling stay
+ * authoritative for clearing them.
+ */
+export interface InspectorIssuesTab {
+  id: string
+  title: string
+  url: string
+  sleeping: boolean
+  webContents: WebContents
+  inspectorIssues: BrowserInspectorIssue[]
+  inspectorIssuesTruncated: boolean
+  authChallenges: BrowserAuthChallengeObservation[]
+  authChallengesTruncated: boolean
+  /** Between a main-frame document navigation start and its commit or failure. */
+  authNavigationPending: boolean
+}
 
 /** How many inspector issues one tab retains; older ones are dropped. */
 const MAX_INSPECTOR_ISSUES = 200
@@ -50,18 +74,18 @@ export function recordAuthChallenge(tab: InspectorIssuesTab, details: Electron.A
  * are checked first. With clear, the retained issues and challenges are
  * dropped and the count cleared is reported.
  */
-export async function inspectorIssues<Tab extends InspectorIssuesTab>(access: InspectorIssuesAccess<Tab>, tabId?: string, clear = false): Promise<BrowserInspectorIssuesReport> {
-  const tab = access.getTab(tabId)
+export async function inspectorIssues(browser: Browser, tabId?: string, clear = false): Promise<BrowserInspectorIssuesReport> {
+  const tab = getTab(browser, tabId)
   if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before inspecting browser issues')
   if (!clear && !tab.webContents.isDevToolsOpened()) {
-    await access.ensureDialogMonitoring(tab)
+    await ensureDialogMonitoring(browser, tab)
     if (tab.webContents.debugger.isAttached()) {
       try {
         const checked = await tab.webContents.debugger.sendCommand('Audits.checkFormsIssues') as {
           formIssues?: unknown[]
         }
         for (const details of checked.formIssues ?? []) {
-          addInspectorIssue(access, tab, { code: 'GenericIssue', details: { genericIssueDetails: details } }, false)
+          addInspectorIssue(browser, tab, { code: 'GenericIssue', details: { genericIssueDetails: details } }, false)
         }
         await new Promise<void>((resolve) => setImmediate(resolve))
       } catch {
@@ -76,7 +100,7 @@ export async function inspectorIssues<Tab extends InspectorIssuesTab>(access: In
     tab.inspectorIssuesTruncated = false
     tab.authChallenges = []
     tab.authChallengesTruncated = false
-    access.changed(false)
+    publishChange(browser, false)
   }
   const issues = tab.inspectorIssues.map((issue) => ({
     ...issue,
@@ -111,7 +135,7 @@ export async function inspectorIssues<Tab extends InspectorIssuesTab>(access: In
 }
 
 /** Retains a normalized issue once by id, keeping the most recent ones up to the limit. */
-export function addInspectorIssue<Tab extends InspectorIssuesTab>(access: InspectorIssuesAccess<Tab>, tab: InspectorIssuesTab, value: unknown, notify = true): void {
+export function addInspectorIssue(browser: Browser, tab: InspectorIssuesTab, value: unknown, notify = true): void {
   const issue = normalizeInspectorIssue(value)
   if (!issue || tab.inspectorIssues.some((candidate) => candidate.id === issue.id)) return
   tab.inspectorIssues.push(issue)
@@ -119,5 +143,5 @@ export function addInspectorIssue<Tab extends InspectorIssuesTab>(access: Inspec
     tab.inspectorIssues.splice(0, tab.inspectorIssues.length - MAX_INSPECTOR_ISSUES)
     tab.inspectorIssuesTruncated = true
   }
-  if (notify) access.changed(false)
+  if (notify) publishChange(browser, false)
 }

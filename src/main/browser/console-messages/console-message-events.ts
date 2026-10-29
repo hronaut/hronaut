@@ -1,6 +1,6 @@
 import type { WebContents } from 'electron'
 import { normalizePageException, type PageExceptionPayload } from '../../../shared/console-exceptions.js'
-import type { ConsoleMessagesTab } from './console-messages-access.js'
+import type { ConsoleMessagesTab } from './console-messages.js'
 import { appendConsoleMessage, withPendingRuntimeConsoleMessage } from './console-messages.js'
 
 /**

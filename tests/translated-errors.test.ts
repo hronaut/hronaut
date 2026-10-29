@@ -129,7 +129,7 @@ describe('main-process failures people see in tabs, navigation and new tabs', ()
       'Unknown workspace: workspace-id.',
       'Робочий простір більше недоступний.'],
     // Tab actions
-    ['dragging Home', () => reorderTab({ getTab: (id: string) => id === 'home' ? homeTab : websiteTab } as never, 'home', 'site', 'after'),
+    ['dragging Home', () => reorderTab({ tabs: new Map([['home', homeTab], ['site', websiteTab]]) } as never, 'home', 'site', 'after'),
       'Hronaut Home cannot be reordered',
       'Домівку Hronaut не можна переміщати.'],
     ['zooming past the limit', () => setZoom({ activeTabId: 'site', tabs: new Map([['site', { ...websiteTab, webContents: { getZoomFactor: () => 1 } }]]) } as never, { action: 'set', percent: 401 }),
@@ -279,8 +279,9 @@ describe('main-process failures people see in page tools, workspace management a
     'Close Developer Tools for this tab before using this MCP action',
     'Закрийте інструменти розробника для цієї вкладки й спробуйте ще раз.'],
     ['a PDF of a tab that closed', () => savePdf({
-      getTab: () => ({ ...websiteTab, title: 'Page', navigationGeneration: 0, webContents: { isDestroyed: () => true, removeListener: () => undefined } }),
-      pdfFilename: () => 'Page.pdf', isDestroyed: () => false, findTab: () => undefined
+      activeTabId: 'site',
+      tabs: new Map([['site', { ...websiteTab, title: 'Page', navigationGeneration: 0, webContents: { isDestroyed: () => true, removeListener: () => undefined } }]]),
+      mcpTabGroups: new Map(), destroyed: false
     } as never),
     'The tab closed while exporting its PDF. Open the page and export again.',
     'Вкладку закрито під час експорту PDF. Відкрийте сторінку й експортуйте її знову.'],
