@@ -1,7 +1,7 @@
 import type { App } from 'electron'
 import { shouldStartMinimized } from './startup-launch.js'
 import type { BrowserTabsManager } from './browser/tabs-manager.js'
-import type { McpRuntimeState } from './mcp-runtime.js'
+import type { McpRuntimeState } from './mcp-runtime/mcp-runtime.js'
 import type { SavedWindowState } from './window-state.js'
 import type { MainWindowRefs } from './windows/main-window.js'
 import type { PanelWindowRefs } from './windows/panel-window.js'

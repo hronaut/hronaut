@@ -3,7 +3,7 @@ import { StorageComparisonInputError } from '../browser/storage-comparison-opera
 import { WebStorageInputError } from '../browser/web-storage-operation.js'
 import { NativeWheelOutcomeUnknownError } from '../browser/native-wheel.js'
 import { NativeInputCleanupError } from '../browser/native-input-cleanup.js'
-import type { UserAttentionLifecycle } from '../user-attention-lifecycle.js'
+import type { UserAttentionLifecycle } from '../attention/user-attention-lifecycle.js'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { requireTabAgentControl } from './tab-agent-control.js'
 import { BROWSER_SERVER_INSTRUCTIONS, BROWSER_TOOL_CATALOG, mcpToolCatalogForSet, type BrowserToolDefinition } from './tool-catalog.js'

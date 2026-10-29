@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach } from 'vitest'
-import { UserAttentionLifecycle } from '../src/main/user-attention-lifecycle.js'
+import { UserAttentionLifecycle } from '../src/main/attention/user-attention-lifecycle.js'
 const request = { id: 'request-1', workspaceId: 'workspace-1', tabId: 'tab-1', reason: 'Manual step', requestedAt: '2026-10-10T00:00:00Z' }
 const authorize = () => undefined
 

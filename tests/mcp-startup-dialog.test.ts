@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createMcpRuntime } from '../src/main/mcp-runtime.js'
+import { createMcpRuntime } from '../src/main/mcp-runtime/mcp-runtime.js'
 import { translate } from '../src/shared/i18n.js'
 import type { TrustedDialogOptions } from '../src/main/trusted-dialogs/trusted-dialogs.js'
 

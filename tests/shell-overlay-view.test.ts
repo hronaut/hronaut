@@ -28,7 +28,7 @@ class FakeView {
 
 vi.mock('electron', () => ({ WebContentsView: FakeView }))
 
-const { ShellOverlayView } = await import('../src/main/shell-overlay-view.js')
+const { ShellOverlayView } = await import('../src/main/overlays/shell-overlay-view.js')
 
 function fakeWindow() {
   const children: unknown[] = []

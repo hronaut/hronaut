@@ -5,7 +5,7 @@ import type { McpCapabilityProfileStore } from '../mcp/capability-profile-store.
 import { mcpCapabilityProfileInputFromPreset, type McpHttpServer } from '../mcp/server.js'
 import { createDownloadFolder } from '../download-folder.js'
 import { LocalizedError } from '../localized-error.js'
-import type { McpTokenConfiguration } from '../mcp-token-store.js'
+import type { McpTokenConfiguration } from '../mcp-runtime/mcp-token-store.js'
 import { DEFAULT_SETTINGS, isThemeName } from './settings-store.js'
 import type { StartupLaunchManager } from '../startup-launch.js'
 import {

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   createVsCodeMcpInstallUri,
   openVsCodeMcpInstall
-} from '../src/main/vscode-mcp-install.js'
+} from '../src/main/agents/vscode-mcp-install.js'
 
 function decodedInstallConfiguration(uri: string): unknown {
   const parsed = new URL(uri)

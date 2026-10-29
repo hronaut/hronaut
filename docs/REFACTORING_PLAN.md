@@ -5,10 +5,10 @@ per commit. Status is recorded under each boundary below.
 
 ## First: collection title sanitization
 
-`src/main/history-store.ts` and `src/main/bookmark-store.ts` duplicate credential
+`src/main/bookmarks-history/history-store.ts` and `src/main/bookmarks-history/bookmark-store.ts` duplicate credential
 detection, fallback-title repair, whitespace cleanup and Unicode truncation.
 The oversized credential URL title bug needed the same fix in both stores.
-Implemented the shared title policy in `src/main/collection-title.ts`, with
+Implemented the shared title policy in `src/main/bookmarks-history/collection-title.ts`, with
 explicit URL normalization and fallback policies supplied by each store. Keep
 history's fragment removal and bookmarks' fragment retention explicit, and
 retain the distinct storage limits, retention, deduplication and visit-count

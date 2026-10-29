@@ -1,6 +1,6 @@
 import { pinnedWorkspaceAt } from '../shared/workspace-shortcuts.js'
 import type { BrowserTabsManager } from './browser/tabs-manager.js'
-import type { TakeOverOffers } from './take-over-offers.js'
+import type { TakeOverOffers } from './agents/take-over-offers.js'
 import type { MainWindowRefs } from './windows/main-window.js'
 import type { AgentPresenceSnapshot } from '../shared/agent-presence.js'
 import type { BrowserShortcutAction } from '../shared/browser-shortcuts.js'

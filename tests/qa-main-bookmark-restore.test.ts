@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { BookmarkStore } from '../src/main/bookmark-store.js'
+import { BookmarkStore } from '../src/main/bookmarks-history/bookmark-store.js'
 
 const temporaryDirectories: string[] = []
 

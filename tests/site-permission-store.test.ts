@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promise
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { normalizeSitePermissionOrigin, SitePermissionStore } from '../src/main/site-permission-store.js'
+import { normalizeSitePermissionOrigin, SitePermissionStore } from '../src/main/site-data/site-permission-store.js'
 
 const temporaryDirectories: string[] = []
 const WORK = '01912345-6789-7abc-8def-0123456789ab'

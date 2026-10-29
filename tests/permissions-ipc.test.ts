@@ -5,8 +5,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({ app: { getPath: () => '' }, session: { fromPartition: vi.fn() } }))
 
-import { registerPermissionsIpc } from '../src/main/permissions-ipc.js'
-import { SitePermissionStore } from '../src/main/site-permission-store.js'
+import { registerPermissionsIpc } from '../src/main/site-data/permissions-ipc.js'
+import { SitePermissionStore } from '../src/main/site-data/site-permission-store.js'
 
 const WORK = '01912345-6789-7abc-8def-0123456789ab'
 const origin = 'https://widget.example'

@@ -2,7 +2,7 @@ import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import type { BrowserTabsManager } from './browser/tabs-manager.js'
 import type { McpHttpServer } from './mcp/server.js'
 import { LocalizedError } from './localized-error.js'
-import { tabAgentPauseOptions, type TakeOverOffers } from './take-over-offers.js'
+import { tabAgentPauseOptions, type TakeOverOffers } from './agents/take-over-offers.js'
 import { validateTabOverviewPreviewIds, type BrowserState, type DroppedLinkTarget } from '../shared/types.js'
 
 type TabsIpcTabs = Pick<BrowserTabsManager,

@@ -3,7 +3,7 @@
  * dashboard state the shell shows. Each client session gets its own browser MCP server (browser-mcp-server.ts).
  */
 
-import type { UserAttentionLifecycle } from '../user-attention-lifecycle.js'
+import type { UserAttentionLifecycle } from '../attention/user-attention-lifecycle.js'
 import { mcpLocalHost } from '../../shared/mcp-network.js'
 import { mcpToolCatalogForSet, type BrowserToolDefinition } from './tool-catalog.js'
 import { createServer, type Server } from 'node:http'

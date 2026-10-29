@@ -3,7 +3,7 @@ import type { IpcMainEvent } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp', isPackaged: true } }))
 const { BrowserTabsManager } = await import('../src/main/browser/tabs-manager.js')
-const { registerOverlayViewsIpc } = await import('../src/main/overlay-views-ipc.js')
+const { registerOverlayViewsIpc } = await import('../src/main/overlays/overlay-views-ipc.js')
 const { createOverlaySurfaces } = await import('../src/main/windows/overlay-surfaces.js')
 
 // Pointing at a link showed nothing of where it goes. Chrome shows its address at the bottom corner of the page in

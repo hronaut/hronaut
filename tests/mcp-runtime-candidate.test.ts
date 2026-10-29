@@ -3,7 +3,7 @@ import {
   stageMcpRuntimeCandidate,
   synchronizeMcpRuntimeCandidate,
   type MutableMcpRuntimeCandidate
-} from '../src/main/mcp-runtime-candidate.js'
+} from '../src/main/mcp-runtime/mcp-runtime-candidate.js'
 
 function candidateFixture() {
   const candidate = {

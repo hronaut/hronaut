@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MAX_IMPORTED_LINKS, bookmarksHtml, decodeBookmarksFile, parseBookmarksHtml } from '../src/main/bookmarks-html.js'
+import { MAX_IMPORTED_LINKS, bookmarksHtml, decodeBookmarksFile, parseBookmarksHtml } from '../src/main/bookmarks-history/bookmarks-html.js'
 import type { BrowserBookmark } from '../src/shared/types.js'
 
 function bookmark(id: string, url: string, title: string): BrowserBookmark {

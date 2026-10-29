@@ -1,6 +1,6 @@
 import type { IpcMainEvent } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
-import { registerOverlayViewsIpc } from '../src/main/overlay-views-ipc.js'
+import { registerOverlayViewsIpc } from '../src/main/overlays/overlay-views-ipc.js'
 
 // Closing the window closes the overlay views, and a view's last report could still arrive afterwards: its sender
 // check threw, an uncaught exception in main. Each report now counts only from the view that draws now, and one from

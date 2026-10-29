@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { IpcMainEvent } from 'electron'
-import { registerAddressOverlayIpc } from '../src/main/address-overlay-ipc.js'
+import { registerAddressOverlayIpc } from '../src/main/overlays/address-overlay-ipc.js'
 
 // A middle-click on a row of the suggestions view now opens it in a new tab behind, and gives the address field the
 // keyboard back afterwards.

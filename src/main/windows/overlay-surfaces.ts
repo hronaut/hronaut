@@ -1,14 +1,14 @@
 import { app } from 'electron'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import type { AgentCardOverlay, AgentCardSurface } from '../agent-card-overlay.js'
-import type { ShellOverlayView } from '../shell-overlay-view.js'
-import type { ShellTooltipSurface } from '../shell-tooltip-overlay.js'
-import type { StatusBubbleOverlay, StatusBubbleSurface } from '../status-bubble-overlay.js'
-import type { ToastOverlay, ToastOverlaySurface } from '../toast-overlay.js'
-import { SIDEBAR_OVERLAY_TOOLTIP_ID_OFFSET, type SidebarOverlay, type SidebarOverlaySurface } from '../sidebar-overlay.js'
-import { attachSidebarOverlayKeyboard, type SidebarOverlayKeyboardHost } from '../sidebar-overlay-keyboard.js'
-import type { ShellTooltipOverlay } from '../shell-tooltip-overlay.js'
+import type { AgentCardOverlay, AgentCardSurface } from '../overlays/agent-card-overlay.js'
+import type { ShellOverlayView } from '../overlays/shell-overlay-view.js'
+import type { ShellTooltipSurface } from '../overlays/shell-tooltip-overlay.js'
+import type { StatusBubbleOverlay, StatusBubbleSurface } from '../overlays/status-bubble-overlay.js'
+import type { ToastOverlay, ToastOverlaySurface } from '../overlays/toast-overlay.js'
+import { SIDEBAR_OVERLAY_TOOLTIP_ID_OFFSET, type SidebarOverlay, type SidebarOverlaySurface } from '../overlays/sidebar-overlay.js'
+import { attachSidebarOverlayKeyboard, type SidebarOverlayKeyboardHost } from '../overlays/sidebar-overlay-keyboard.js'
+import type { ShellTooltipOverlay } from '../overlays/shell-tooltip-overlay.js'
 
 interface OverlaySurfacesHost {
   /** The trusted shell document; the overlay documents are its siblings. */

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { AGENT_GUIDE_IDS, AGENT_GUIDE_NAMES } from '../src/shared/agent-guides.js'
-import { AGENT_GUIDE_URLS } from '../src/main/setup-feedback-links.js'
+import { AGENT_GUIDE_URLS } from '../src/main/agents/setup-feedback-links.js'
 
 interface PublicFacts {
   schemaVersion: number

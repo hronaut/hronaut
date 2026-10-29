@@ -2,9 +2,9 @@ import { chmod, link, mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, writ
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
-import { ClaudeCodeSetup, claudeCodeConfigPath, claudeCodeSetupStatus } from '../src/main/claude-code-setup.js'
+import { ClaudeCodeSetup, claudeCodeConfigPath, claudeCodeSetupStatus } from '../src/main/agents/claude-code-setup.js'
 import { claudeCodeSetupErrorCode } from '../src/shared/claude-code-setup.js'
-import { detectAgentClients } from '../src/main/agent-client-detection.js'
+import { detectAgentClients } from '../src/main/agents/agent-client-detection.js'
 
 const endpoint = 'http://127.0.0.1:47812/mcp'
 const TOKEN = 'setup-test-token-7f3a'

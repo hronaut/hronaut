@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest'
 import { McpHttpServer } from '../src/main/mcp/server.js'
-import { stageMcpRuntimeCandidate, synchronizeMcpRuntimeCandidate } from '../src/main/mcp-runtime-candidate.js'
+import { stageMcpRuntimeCandidate, synchronizeMcpRuntimeCandidate } from '../src/main/mcp-runtime/mcp-runtime-candidate.js'
 
 it('never lets existing tab exceptions bypass a staged listener or protected pause', async () => {
   const manager = {

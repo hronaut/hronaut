@@ -10,9 +10,9 @@ import { SUPPORTED_LOCALES, type SupportedLocale } from '../src/shared/locale.js
 vi.mock('electron', () => ({ app: { getPath: () => '' }, session: { fromPartition: vi.fn() } }))
 
 const { createBrowserSession } = await import('../src/main/browser-session.js')
-const { SitePermissionStore } = await import('../src/main/site-permission-store.js')
-const { registerPermissionsIpc } = await import('../src/main/permissions-ipc.js')
-const { registerBrowsingDataIpc } = await import('../src/main/browsing-data-ipc.js')
+const { SitePermissionStore } = await import('../src/main/site-data/site-permission-store.js')
+const { registerPermissionsIpc } = await import('../src/main/site-data/permissions-ipc.js')
+const { registerBrowsingDataIpc } = await import('../src/main/site-data/browsing-data-ipc.js')
 
 type RequestHandler = Parameters<Session['setPermissionRequestHandler']>[0] & {}
 type CheckHandler = Parameters<Session['setPermissionCheckHandler']>[0] & {}

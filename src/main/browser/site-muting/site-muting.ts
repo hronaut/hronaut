@@ -1,6 +1,6 @@
 import { SITE_SOUND_PERMISSION } from '../../../shared/site-permission-names.js'
 import type { BrowserState } from '../../../shared/types.js'
-import { normalizeSitePermissionOrigin } from '../../site-permission-store.js'
+import { normalizeSitePermissionOrigin } from '../../site-data/site-permission-store.js'
 import type { SiteMutingAccess, SiteMutingTab } from './site-muting-access.js'
 
 // Chrome's Sound site setting is a decision of the site permission store: deny mutes the website in every tab of its
