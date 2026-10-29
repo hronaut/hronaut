@@ -41,8 +41,8 @@ tab access.
   unrelated features is not. Shared contracts in `src/shared/` stay the one
   source of truth for data crossing a process boundary.
 - Keep functions autonomous and clearly on one layer (main, preload, renderer
-  or shared), and aim for files under about 800 lines. When a file grows past
-  that, split it by feature, not by technical layer.
+  or shared), and keep files within 800 lines. When a file grows past that,
+  split it by feature, not by technical layer.
 - Do not branch on MCP tool names in shared code. Behavior that one tool needs
   belongs in that tool's own module, even if another tool repeats it.
 - Keep `src/renderer/src/App.vue` focused on composition. Move cohesive state
@@ -55,6 +55,27 @@ tab access.
 - Keep public text privacy-safe. Diagnostic output must remain bounded and must
   not expose credentials, form values, complete page source, or private browser
   data unless an existing explicit opt-in contract permits it.
+
+## Architecture rules
+
+These hold for new code and for code you move; `tests/architecture-guards.test.ts`
+checks the first three.
+
+- Files stay within 800 lines, locale files aside. The few larger today, with
+  their budgets in `tests/architecture/budgets.json`, may only shrink: move code
+  out to a feature module rather than growing them, and lower a budget when its
+  file shrinks.
+- Feature functions import each other directly. Do not add access objects
+  (`*-access.ts`) or tab-manager methods that only pass a call on; the existing
+  ones go away as features move out of `tabs-manager.ts`, and the budgets file
+  lists those left.
+- Imports only go down the layers: page primitives (debugger use, page
+  evaluation, input authorization, workspace scope) come first, features use
+  them, and workflows (tab sleep, tab close, window layout, workspace archive)
+  use features. No file imports, directly or through others, a file that
+  imports it, types aside.
+- A feature keeps the tab state it owns in its own typed slice of the tab,
+  declared in its folder (`tab.network`, `tab.emulation`), not as loose fields.
 
 ## Verification
 
