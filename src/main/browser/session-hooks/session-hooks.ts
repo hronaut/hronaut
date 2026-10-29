@@ -79,6 +79,8 @@ export function installSessionHooks<Tab extends SessionHooksTab>(access: Session
     })
     browserSession.webRequest.onCompleted((details) => {
       const tab = requestTab(details)
+      // What a page loads counts for whether it is private; its own document counts once it shows.
+      if (tab && details.resourceType !== 'mainFrame') access.contentLoaded(tab, details.url)
       const request = tab && latestRecord(tab, details.id)
       if (!tab || !request || request.completedAt !== undefined) return
       request.completedAt = new Date().toISOString()

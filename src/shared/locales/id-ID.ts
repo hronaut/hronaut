@@ -1752,7 +1752,8 @@ export const idID: MessageSchema = {
   },
   "pageProblem": {
     "reload": "Muat ulang",
-    "tryAgain": "Coba lagi"
+    "tryAgain": "Coba lagi",
+    "proceed": "Lanjutkan ke {host}…"
   },
   "responsive": {
     "kicker": "Pengujian responsif",
@@ -3782,6 +3783,11 @@ export const idID: MessageSchema = {
       "savePage": "Simpan sebagai…"
     },
     "pageProblem": {
+      "certificateTitle": "Koneksi Anda tidak bersifat pribadi",
+      "certificateTabTitle": "Kesalahan privasi",
+      "certificate": "Seseorang mungkin mencoba mencuri informasi Anda dari {host}, seperti sandi, pesan, atau nomor kartu.",
+      "certificateStrict": "{host} hanya menerima koneksi aman, jadi Anda tidak dapat membukanya selama sertifikatnya tidak dipercaya.",
+      "certificateBlocked": "Anda tidak dapat membuka {host}: sertifikatnya telah dicabut, tidak dapat dibaca, atau diblokir.",
       "loadTitle": "Situs ini tidak dapat dijangkau",
       "loadTabTitle": "Situs tidak tersedia",
       "loadDefault": "Hronaut tidak dapat memuat alamat ini.",

@@ -461,6 +461,25 @@ describe('extracted shell components', () => {
     expect(view.emitted().retry).toHaveLength(1)
   })
 
+  it('offers to open a page anyway only when the certificate the tab refused allows it', async () => {
+    const problem = (canProceed: boolean) => tab({
+      kind: 'load-error',
+      title: 'Your connection is not private',
+      message: 'Someone might be trying to steal your information from staging.example.',
+      url: 'https://staging.example/login',
+      errorCode: -202,
+      errorDescription: 'ERR_CERT_AUTHORITY_INVALID',
+      certificate: { host: 'staging.example', canProceed }
+    })
+    const view = render(PageProblemBar, { global, props: { tab: problem(true), details: () => 'ERR_CERT_AUTHORITY_INVALID (-202)' } })
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Proceed to staging.example…' }))
+    expect(view.emitted().proceed).toHaveLength(1)
+    expect(view.emitted().retry).toBeUndefined()
+    await view.rerender({ tab: problem(false) })
+    expect(screen.queryByTestId('page-problem-proceed')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeVisible()
+  })
+
   it('owns the unavailable detached-panel state, docking, and close action', async () => {
     const view = render(DetachedPanelUnavailableState, {
       global,

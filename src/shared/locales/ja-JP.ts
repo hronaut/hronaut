@@ -1752,7 +1752,8 @@ export const jaJP: MessageSchema = {
   },
   "pageProblem": {
     "reload": "再読み込み",
-    "tryAgain": "再試行"
+    "tryAgain": "再試行",
+    "proceed": "{host} にアクセスする…"
   },
   "responsive": {
     "kicker": "レスポンシブ テスト",
@@ -3782,6 +3783,11 @@ export const jaJP: MessageSchema = {
       "savePage": "名前を付けて保存…"
     },
     "pageProblem": {
+      "certificateTitle": "この接続ではプライバシーが保護されません",
+      "certificateTabTitle": "プライバシー エラー",
+      "certificate": "第三者が {host} からパスワード、メッセージ、カード番号などの情報を盗み取ろうとしている可能性があります。",
+      "certificateStrict": "{host} は安全な接続しか受け付けないため、証明書が信頼されていない間は開けません。",
+      "certificateBlocked": "{host} は開けません。証明書が失効している、読み取れない、またはブロックされています。",
       "loadTitle": "このサイトにアクセスできません",
       "loadTabTitle": "サイトを利用できません",
       "loadDefault": "Hronaut はこのアドレスを読み込めませんでした。",

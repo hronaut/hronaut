@@ -36,6 +36,8 @@ export interface SessionHooksAccess<Tab extends SessionHooksTab> {
   networkHookSessions(): WeakSet<Session>
   /** Publishes the browser state, saving it unless persist is false. */
   changed(persist?: boolean): void
+  /** The tab's page loaded a frame or other content from this address. */
+  contentLoaded(tab: Tab, url: string): void
   /** Wakes the network waits of a tab whose requests changed. */
   networkWaitController(): { notify(tab: Tab): void }
   /** Tracks the downloads of a browser session. */

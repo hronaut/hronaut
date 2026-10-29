@@ -1,4 +1,5 @@
 import type { BrowserState, BrowserTabState } from '../../../shared/types.js'
+import { showsUntrustedCertificate } from '../certificate-errors/certificate-errors.js'
 import type { BrowserStateAccess, BrowserStateTab } from './browser-state-access.js'
 
 /**
@@ -102,6 +103,7 @@ function toState<Tab extends BrowserStateTab>(access: BrowserStateAccess<Tab>, t
       }
     } : {}),
     ...(tab.pageProblem ? { pageProblem: { ...tab.pageProblem } } : {}),
+    ...(!webContentsDestroyed && showsUntrustedCertificate(tab) ? { untrustedCertificate: true as const } : {}),
     ...(tab.dialog ? { dialog: { ...tab.dialog } } : {}),
     ...(tab.mcpGroupId ? {
       mcpGroupId: tab.mcpGroupId,

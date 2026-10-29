@@ -1,7 +1,8 @@
 /**
  * How the address bar describes a website's connection, as Chrome does: an HTTPS page is secure; an HTTP page on this
  * computer (`localhost`, a `.localhost` name, `127.0.0.0/8` or `[::1]`), which browsers treat as a secure context, is
- * local; any other HTTP page is not secure. Hronaut loads no HTTPS page whose certificate fails, so the scheme decides.
+ * local; any other HTTP page is not secure. A page not private because of a certificate Chromium does not trust, as the
+ * tab's state tells, is not secure either; from the address alone, the scheme decides.
  */
 export type AddressSecurity = 'secure' | 'local' | 'not-secure'
 

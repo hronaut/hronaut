@@ -1752,7 +1752,8 @@ export const zhCN: MessageSchema = {
   },
   "pageProblem": {
     "reload": "重新加载",
-    "tryAgain": "重试"
+    "tryAgain": "重试",
+    "proceed": "继续前往 {host}…"
   },
   "responsive": {
     "kicker": "响应式测试",
@@ -3782,6 +3783,11 @@ export const zhCN: MessageSchema = {
       "savePage": "另存为…"
     },
     "pageProblem": {
+      "certificateTitle": "您的连接不是私密连接",
+      "certificateTabTitle": "隐私设置错误",
+      "certificate": "有人可能正试图从 {host} 窃取您的信息，例如密码、消息或卡号。",
+      "certificateStrict": "{host} 只接受安全连接，因此在其证书不受信任时，您无法打开它。",
+      "certificateBlocked": "无法打开 {host}：其证书已被吊销、无法读取或已被屏蔽。",
       "loadTitle": "无法访问此网站",
       "loadTabTitle": "网站不可用",
       "loadDefault": "Hronaut 无法加载此地址。",

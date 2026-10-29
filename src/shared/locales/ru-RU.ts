@@ -1752,7 +1752,8 @@ export const ruRU: MessageSchema = {
   },
   "pageProblem": {
     "reload": "Перезагрузить",
-    "tryAgain": "Повторить"
+    "tryAgain": "Повторить",
+    "proceed": "Перейти на {host}…"
   },
   "responsive": {
     "kicker": "Адаптивное тестирование",
@@ -3782,6 +3783,11 @@ export const ruRU: MessageSchema = {
       "savePage": "Сохранить как…"
     },
     "pageProblem": {
+      "certificateTitle": "Подключение не защищено",
+      "certificateTabTitle": "Ошибка конфиденциальности",
+      "certificate": "Злоумышленники могут пытаться похитить ваши данные с {host}, например пароли, сообщения или номера карт.",
+      "certificateStrict": "{host} принимает только защищённые подключения, поэтому его нельзя открыть, пока его сертификат не считается надёжным.",
+      "certificateBlocked": "Открыть {host} нельзя: его сертификат отозван, не читается или заблокирован.",
       "loadTitle": "Не удалось открыть сайт",
       "loadTabTitle": "Сайт недоступен",
       "loadDefault": "Hronaut не удалось загрузить этот адрес.",

@@ -1752,7 +1752,8 @@ export const hiIN: MessageSchema = {
   },
   "pageProblem": {
     "reload": "फिर से लोड करें",
-    "tryAgain": "फिर से कोशिश करें"
+    "tryAgain": "फिर से कोशिश करें",
+    "proceed": "{host} पर जाएं…"
   },
   "responsive": {
     "kicker": "रिस्पॉन्सिव टेस्टिंग",
@@ -3782,6 +3783,11 @@ export const hiIN: MessageSchema = {
       "savePage": "इस रूप में सेव करें…"
     },
     "pageProblem": {
+      "certificateTitle": "आपका कनेक्शन निजी नहीं है",
+      "certificateTabTitle": "निजता से जुड़ी गड़बड़ी",
+      "certificate": "हो सकता है कि कोई {host} से आपकी जानकारी चुराने की कोशिश कर रहा हो, जैसे पासवर्ड, मैसेज या कार्ड नंबर।",
+      "certificateStrict": "{host} सिर्फ़ सुरक्षित कनेक्शन स्वीकार करता है, इसलिए जब तक उसके सर्टिफ़िकेट पर भरोसा नहीं होता, आप उसे नहीं खोल सकते।",
+      "certificateBlocked": "आप {host} नहीं खोल सकते: उसका सर्टिफ़िकेट रद्द कर दिया गया है, पढ़ा नहीं जा सकता या ब्लॉक है।",
       "loadTitle": "यह साइट नहीं खुल पा रही है",
       "loadTabTitle": "साइट उपलब्ध नहीं है",
       "loadDefault": "Hronaut यह पता लोड नहीं कर सका।",

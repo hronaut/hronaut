@@ -1752,7 +1752,8 @@ export const esES: MessageSchema = {
   },
   "pageProblem": {
     "reload": "Recargar",
-    "tryAgain": "Intentar de nuevo"
+    "tryAgain": "Intentar de nuevo",
+    "proceed": "Acceder a {host}…"
   },
   "responsive": {
     "kicker": "Pruebas adaptativas",
@@ -3782,6 +3783,11 @@ export const esES: MessageSchema = {
       "savePage": "Guardar como…"
     },
     "pageProblem": {
+      "certificateTitle": "La conexión no es privada",
+      "certificateTabTitle": "Error de privacidad",
+      "certificate": "Es posible que alguien esté intentando robar tu información de {host}, como contraseñas, mensajes o números de tarjeta.",
+      "certificateStrict": "{host} solo acepta conexiones seguras, así que no puedes abrirlo mientras su certificado no sea de confianza.",
+      "certificateBlocked": "No puedes abrir {host}: su certificado se ha revocado, no se puede leer o está bloqueado.",
       "loadTitle": "No se pudo acceder a este sitio",
       "loadTabTitle": "Sitio no disponible",
       "loadDefault": "Hronaut no pudo cargar esta dirección.",

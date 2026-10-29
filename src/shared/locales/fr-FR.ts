@@ -1752,7 +1752,8 @@ export const frFR: MessageSchema = {
   },
   "pageProblem": {
     "reload": "Recharger",
-    "tryAgain": "Réessayer"
+    "tryAgain": "Réessayer",
+    "proceed": "Continuer vers {host}…"
   },
   "responsive": {
     "kicker": "Test adaptatif",
@@ -3782,6 +3783,11 @@ export const frFR: MessageSchema = {
       "savePage": "Enregistrer sous…"
     },
     "pageProblem": {
+      "certificateTitle": "Votre connexion n’est pas privée",
+      "certificateTabTitle": "Erreur de confidentialité",
+      "certificate": "Quelqu’un tente peut-être de dérober vos informations sur {host}, comme vos mots de passe, messages ou numéros de carte.",
+      "certificateStrict": "{host} n’accepte que les connexions sécurisées : vous ne pouvez donc pas l’ouvrir tant que son certificat n’est pas approuvé.",
+      "certificateBlocked": "Vous ne pouvez pas ouvrir {host} : son certificat a été révoqué, est illisible ou est bloqué.",
       "loadTitle": "Impossible d’accéder à ce site",
       "loadTabTitle": "Site indisponible",
       "loadDefault": "Hronaut n’a pas pu charger cette adresse.",

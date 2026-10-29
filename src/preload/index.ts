@@ -217,6 +217,7 @@ const api: HronautApi = {
   showHistoryMenu: (options: { tabId: string; direction: 'back' | 'forward'; anchor?: { x: number; y: number } }) => ipcRenderer.invoke('browser:show-history-menu', options),
   openNavigationInNewTab: (options: { tabId: string; target: 'back' | 'forward' | 'reload'; active: boolean }) => ipcRenderer.invoke('browser:open-navigation-in-new-tab', options),
   reload: (tabId?: string) => ipcRenderer.invoke('browser:reload', tabId),
+  proceedPastCertificateError: (tabId: string) => ipcRenderer.invoke('browser:proceed-past-certificate', tabId),
   reloadIgnoringCache: (tabId?: string) => ipcRenderer.invoke('browser:reload-ignoring-cache', tabId),
   stop: (tabId?: string) => ipcRenderer.invoke('browser:stop', tabId),
   findInPage: (options: BrowserFindOptions) => ipcRenderer.invoke('browser:find-in-page', options),

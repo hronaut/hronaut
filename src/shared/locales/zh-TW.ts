@@ -1752,7 +1752,8 @@ export const zhTW: MessageSchema = {
   },
   "pageProblem": {
     "reload": "重新載入",
-    "tryAgain": "再試一次"
+    "tryAgain": "再試一次",
+    "proceed": "繼續前往 {host}…"
   },
   "responsive": {
     "kicker": "回應式測試",
@@ -3782,6 +3783,11 @@ export const zhTW: MessageSchema = {
       "savePage": "另存新檔…"
     },
     "pageProblem": {
+      "certificateTitle": "你的連線不是私人連線",
+      "certificateTabTitle": "隱私權錯誤",
+      "certificate": "有人可能正試圖從 {host} 竊取你的資訊，例如密碼、訊息或卡號。",
+      "certificateStrict": "{host} 只接受安全連線，因此在其憑證不受信任時，你無法開啟這個網站。",
+      "certificateBlocked": "無法開啟 {host}：其憑證已遭撤銷、無法讀取或已遭封鎖。",
       "loadTitle": "無法連上這個網站",
       "loadTabTitle": "網站無法使用",
       "loadDefault": "Hronaut 無法載入這個地址。",

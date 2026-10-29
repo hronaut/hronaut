@@ -56,6 +56,7 @@ function createHarness() {
     navigate: vi.fn(async (_options: { url: string; tabId?: string }) => state.value),
     newTab: vi.fn(async (_options?: NewTabOptions) => state.value),
     reload: vi.fn(async (_tabId?: string) => state.value),
+    proceedPastCertificateError: vi.fn(async (_tabId: string) => state.value),
     reorderTab: vi.fn(async (_tabId: string, _targetTabId: string, _placement: 'before' | 'after') => state.value),
     reorderTabs: vi.fn(async (_tabIds: readonly string[], _targetTabId: string, _placement: 'before' | 'after') => state.value),
     selectTab: vi.fn(async (_tabId: string) => state.value),
@@ -227,6 +228,30 @@ describe('browser tab actions controller', () => {
     } })
     await harness.controller.retryActivePageProblem()
     expect(harness.browser.reload).toHaveBeenCalledWith('active')
+  })
+
+  it('asks main to open the shown page anyway only when the certificate its tab refused allows it', async () => {
+    const harness = createHarness()
+    const refused = (canProceed: boolean) => tab({ pageProblem: {
+      kind: 'load-error',
+      title: 'Your connection is not private',
+      message: 'Someone might be trying to steal your information from staging.example.',
+      url: 'https://staging.example/',
+      certificate: { host: 'staging.example', canProceed }
+    } })
+    await harness.controller.proceedPastActiveCertificateError()
+    harness.activeTab.value = refused(false)
+    await harness.controller.proceedPastActiveCertificateError()
+    expect(harness.browser.proceedPastCertificateError).not.toHaveBeenCalled()
+    harness.activeTab.value = refused(true)
+    await harness.controller.proceedPastActiveCertificateError()
+    expect(harness.browser.proceedPastCertificateError).toHaveBeenCalledExactlyOnceWith('active')
+    expect(harness.syncState).toHaveBeenCalled()
+    // A failure is reported as a navigation's.
+    const failure = new Error('Tab not found')
+    harness.browser.proceedPastCertificateError.mockRejectedValueOnce(failure)
+    await harness.controller.proceedPastActiveCertificateError()
+    expect(harness.onNavigateError).toHaveBeenCalledExactlyOnceWith(failure)
   })
 
   it('keeps tab close available while preserving page interaction guards', async () => {

@@ -96,6 +96,17 @@ export interface HttpAuthDialogVariant {
   workspaceName?: string
 }
 
+/** Whether to open a page whose website presented a certificate the tab refused, as Chrome's "Proceed (unsafe)". */
+export interface CertificateDialogVariant {
+  kind: 'certificate'
+  /** The website's host, which the choice holds for. */
+  host: string
+  /** Chromium's error for the certificate, such as ERR_CERT_AUTHORITY_INVALID. */
+  error: string
+  /** The workspace of the tab, as the prompt names it, when Hronaut knows it. */
+  workspaceName?: string
+}
+
 /** What one of Hronaut's own questions is about, for the mark its dialog shows. */
 export type TrustedDialogTopic = 'unsaved-changes' | 'downloads' | 'browser-import' | 'passwords' | 'agent-connection'
 
@@ -113,6 +124,7 @@ export type TrustedDialogVariant =
   | WalletRecoveryDialogVariant
   | ClaudeSetupDialogVariant
   | HttpAuthDialogVariant
+  | CertificateDialogVariant
   | MessageDialogVariant
 
 /** The one dialog main shows a shell window, as that window draws it. */

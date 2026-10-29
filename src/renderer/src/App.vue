@@ -437,6 +437,7 @@ const {
 const {
   selectBrowserTab,
   retryActivePageProblem,
+  proceedPastActiveCertificateError,
   toggleDeveloperTools,
   showDeveloperToolsConsole
 } = browserTabActionsController
@@ -997,6 +998,7 @@ useAppLifecycleController({
       :tab="activeTab"
       :details="pageProblemDetails"
       @retry="runShellAction(retryActivePageProblem)"
+      @proceed="runShellAction(proceedPastActiveCertificateError)"
     />
     <AppTransientShellLayer
       ref="transientShellLayer"

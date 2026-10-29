@@ -19,6 +19,7 @@ import IconSelectWindowRounded from '~icons/material-symbols/select-window-round
 import IconScreenShareOutlineRounded from '~icons/material-symbols/screen-share-outline-rounded'
 import IconShieldQuestionOutlineRounded from '~icons/material-symbols/shield-question-outline-rounded'
 import IconGppMaybeOutlineRounded from '~icons/material-symbols/gpp-maybe-outline-rounded'
+import IconGppBadOutlineRounded from '~icons/material-symbols/gpp-bad-outline-rounded'
 import IconInfoOutlineRounded from '~icons/material-symbols/info-outline-rounded'
 import IconWarningOutlineRounded from '~icons/material-symbols/warning-outline-rounded'
 import IconErrorOutlineRounded from '~icons/material-symbols/error-outline-rounded'
@@ -36,6 +37,7 @@ import type { MessageKey, MessageParameters } from '../../../shared/i18n.js'
 import type {
   ClaudeSetupDialogVariant,
   HttpAuthDialogVariant,
+  CertificateDialogVariant,
   SavePasswordDialogVariant,
   SitePermissionDialogVariant,
   TrustedDialogRequest,
@@ -263,6 +265,25 @@ function httpAuthCopy(variant: HttpAuthDialogVariant, t: Translate): TrustedDial
   }
 }
 
+/** Why the certificate is not trusted, for each of Chromium's common errors, as Chrome's privacy error says it. */
+const CERTIFICATE_REASONS: Record<string, MessageKey> = {
+  ERR_CERT_AUTHORITY_INVALID: 'trustedDialogs.certificate.authority',
+  ERR_CERT_COMMON_NAME_INVALID: 'trustedDialogs.certificate.name',
+  ERR_CERT_DATE_INVALID: 'trustedDialogs.certificate.date'
+}
+
+function certificateCopy(variant: CertificateDialogVariant, t: Translate): TrustedDialogCopy {
+  const reason = Object.hasOwn(CERTIFICATE_REASONS, variant.error) ? CERTIFICATE_REASONS[variant.error]! : 'trustedDialogs.certificate.other'
+  return {
+    icon: IconGppBadOutlineRounded,
+    tone: 'warning',
+    eyebrow: t('trustedDialogs.certificate.eyebrow'),
+    headline: emphasized(t, 'trustedDialogs.certificate.headline', variant.host, {}, 'host'),
+    lines: [t(reason), t('trustedDialogs.certificate.risk'), ...(variant.workspaceName ? [] : [t('trustedDialogs.certificate.session')])],
+    ...(variant.workspaceName ? { workspaceLine: t('trustedDialogs.certificate.workspace', { workspace: variant.workspaceName }) } : {})
+  }
+}
+
 /** The words and mark of a dialog: its own design for a known variant, or its message and detail as given. */
 export function trustedDialogCopy(request: TrustedDialogRequest, t: Translate): TrustedDialogCopy {
   const { variant } = request
@@ -271,6 +292,7 @@ export function trustedDialogCopy(request: TrustedDialogRequest, t: Translate): 
   if (variant.kind === 'wallet-recovery') return walletRecoveryCopy(variant, t)
   if (variant.kind === 'claude-setup') return claudeSetupCopy(variant, t)
   if (variant.kind === 'http-auth') return httpAuthCopy(variant, t)
+  if (variant.kind === 'certificate') return certificateCopy(variant, t)
   if (variant.kind === 'protected-file-access') {
     const folder = variant.target === 'folder'
     return {

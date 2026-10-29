@@ -1752,7 +1752,8 @@ export const plPL: MessageSchema = {
   },
   "pageProblem": {
     "reload": "Odśwież",
-    "tryAgain": "Spróbuj ponownie"
+    "tryAgain": "Spróbuj ponownie",
+    "proceed": "Przejdź do {host}…"
   },
   "responsive": {
     "kicker": "Testowanie responsywności",
@@ -3782,6 +3783,11 @@ export const plPL: MessageSchema = {
       "savePage": "Zapisz jako…"
     },
     "pageProblem": {
+      "certificateTitle": "Połączenie nie jest prywatne",
+      "certificateTabTitle": "Błąd prywatności",
+      "certificate": "Ktoś może próbować wykraść Twoje dane z {host}, na przykład hasła, wiadomości lub numery kart.",
+      "certificateStrict": "{host} przyjmuje tylko bezpieczne połączenia, więc nie możesz otworzyć tej witryny, dopóki jej certyfikat nie jest zaufany.",
+      "certificateBlocked": "Nie możesz otworzyć {host}: certyfikat został unieważniony, nie da się go odczytać lub jest zablokowany.",
       "loadTitle": "Nie udało się otworzyć tej witryny",
       "loadTabTitle": "Witryna niedostępna",
       "loadDefault": "Hronaut nie mógł wczytać tego adresu.",

@@ -14,6 +14,8 @@ export interface BrowserPageProblem {
   errorDescription?: string
   reason?: string
   exitCode?: number
+  /** For a page whose website's certificate the tab refused: its host, and whether the person can open it anyway. */
+  certificate?: { host: string; canProceed: boolean }
 }
 
 export type BrowserJavaScriptDialogType = 'alert' | 'confirm' | 'prompt'

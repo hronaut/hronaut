@@ -1,4 +1,5 @@
-import type { AuthenticationResponseDetails, AuthInfo, Event, WebFrameMain } from 'electron'
+import type { AuthenticationResponseDetails, AuthInfo, Certificate, Event, WebFrameMain } from 'electron'
+import type { CertificateRefusal } from '../certificate-errors/certificate-errors.js'
 import type { CssStatePreviewEndReason } from '../../../shared/css-state-preview.js'
 import type { SupportedLocale } from '../../../shared/locale.js'
 import type {
@@ -101,6 +102,11 @@ export interface NavigationEventsAccess<Tab extends NavigationEventsTab> {
   /** Asks the person to sign in for a challenge the page received, or leaves Electron to cancel it. */
   answerHttpAuth(tab: Tab, event: Event, details: AuthenticationResponseDetails, authInfo: AuthInfo,
     callback: (username?: string, password?: string) => void): void
+  /** Accepts a certificate Chromium does not trust only when the person chose to trust it; see `answerCertificateError`. */
+  answerCertificateError(tab: Tab, event: Event, url: string, error: string, certificate: Certificate,
+    callback: (trusted: boolean) => void, isMainFrame: boolean): void
+  /** The certificate the tab refused for the page at this address, if that is the page it failed to open. */
+  certificateRefusal(tab: Tab, url: string): CertificateRefusal | undefined
   /** Repairs the tab's presentation after loading, unless its lifecycle is held. */
   reconcileTabPresentation(tab: Tab): void
   /** Repro recording, which follows scrolling and navigation. */

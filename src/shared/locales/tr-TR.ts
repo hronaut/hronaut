@@ -1752,7 +1752,8 @@ export const trTR: MessageSchema = {
   },
   "pageProblem": {
     "reload": "Yeniden yükle",
-    "tryAgain": "Tekrar dene"
+    "tryAgain": "Tekrar dene",
+    "proceed": "{host} sitesine ilerle…"
   },
   "responsive": {
     "kicker": "Duyarlı test",
@@ -3782,6 +3783,11 @@ export const trTR: MessageSchema = {
       "savePage": "Farklı kaydet…"
     },
     "pageProblem": {
+      "certificateTitle": "Bağlantınız gizli değil",
+      "certificateTabTitle": "Gizlilik hatası",
+      "certificate": "Birisi {host} üzerindeki bilgilerinizi, örneğin şifreleri, mesajları veya kart numaralarını çalmaya çalışıyor olabilir.",
+      "certificateStrict": "{host} yalnızca güvenli bağlantıları kabul ediyor, bu nedenle sertifikasına güvenilmediği sürece siteyi açamazsınız.",
+      "certificateBlocked": "{host} açılamaz: sertifikası iptal edilmiş, okunamıyor veya engellenmiş.",
       "loadTitle": "Bu siteye ulaşılamıyor",
       "loadTabTitle": "Site kullanılamıyor",
       "loadDefault": "Hronaut bu adresi yükleyemedi.",
