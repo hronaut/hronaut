@@ -17,10 +17,18 @@ const electron = vi.hoisted(() => {
   return { CaptureWindow }
 })
 vi.mock('electron', () => ({ BrowserWindow: electron.CaptureWindow }))
+// The page's debugger lease, as the tab in use answers it.
+const lease = vi.hoisted(() => ({ withDebugger: undefined as unknown as Lease }))
+vi.mock('../src/main/browser/debugger-lease/debugger-lease.js', () => ({
+  withDebugger: (_browser: unknown, page: unknown, operation: () => Promise<unknown>) => lease.withDebugger(page, operation)
+}))
 
 import { LocalizedError } from '../src/main/localized-error.js'
 import { withRenderableTab } from '../src/main/browser/renderable-tab/renderable-tab.js'
-import type { RenderableTab, RenderableTabAccess } from '../src/main/browser/renderable-tab/renderable-tab-access.js'
+import type { Browser } from '../src/main/browser/browser.js'
+import type { BrowserTab } from '../src/main/browser/browser-tab.js'
+
+type Lease = (page: unknown, operation: () => Promise<unknown>) => Promise<unknown>
 
 const REDRAW = ['Page.captureScreenshot', { format: 'jpeg', quality: 10, fromSurface: true }] as const
 
@@ -33,7 +41,7 @@ function minimizedTab(options: {
   presentsFrame?: boolean
   probeReturnsOnCall?: number
   redraw?: () => Promise<unknown>
-  withDebugger?: RenderableTabAccess<RenderableTab>['withDebugger']
+  withDebugger?: Lease
 } = {}) {
   let probes = 0
   const webContents = {
@@ -60,7 +68,7 @@ function minimizedTab(options: {
     getVisible: () => visible,
     setVisible: vi.fn((value: boolean) => { visible = value })
   }
-  const tab = { id: 'tab', view, webContents } as unknown as RenderableTab
+  const tab = { id: 'tab', view, webContents } as unknown as BrowserTab
   const windowChildren: unknown[] = [view]
   const shellWindow = {
     isDestroyed: () => false,
@@ -74,21 +82,21 @@ function minimizedTab(options: {
   }
   const renderQueues = new Map<number, Promise<void>>()
   const offscreenCaptureTabIds = new Set<string>()
-  const access: RenderableTabAccess<RenderableTab> = {
-    isDestroyed: () => false,
-    window: () => shellWindow as never,
-    findTab: (tabId) => tabId === tab.id ? tab : undefined,
-    renderQueues: () => renderQueues,
-    offscreenCaptureTabIds: () => offscreenCaptureTabIds,
-    activeTabId: () => tab.id,
+  const withDebugger = vi.fn<Lease>(options.withDebugger ?? (async (_webContents, operation) => await operation()))
+  lease.withDebugger = withDebugger
+  const browser = {
+    destroyed: false,
+    window: shellWindow,
+    tabs: new Map([[tab.id, tab]]),
+    renderQueues,
+    offscreenCaptureTabIds,
+    activeTabId: tab.id,
     splitViewContains: () => false,
     layout: vi.fn(),
     tabViewBounds: () => view.getBounds(),
-    contentAreaBounds: () => view.getBounds(),
-    reconcileTabPresentation: vi.fn(),
-    withDebugger: vi.fn(options.withDebugger ?? (async (_webContents, operation) => await operation())) as RenderableTabAccess<RenderableTab>['withDebugger']
-  }
-  return { access, tab, webContents }
+    reconcileTabPresentation: vi.fn()
+  } as unknown as Browser
+  return { browser, tab, webContents, withDebugger }
 }
 
 describe('presenting a hidden tab for a capture', () => {
@@ -96,35 +104,35 @@ describe('presenting a hidden tab for a capture', () => {
   afterEach(() => { vi.useRealTimers() })
 
   it('makes a page that sends no frame in its capture window draw again, and runs the capture once it has', async () => {
-    const { access, tab, webContents } = minimizedTab()
+    const { browser, tab, webContents, withDebugger } = minimizedTab()
     const operation = vi.fn(async () => 'captured')
-    const result = withRenderableTab(access, tab, operation)
+    const result = withRenderableTab(browser, tab, operation)
 
     await vi.advanceTimersByTimeAsync(999)
     expect(webContents.debugger.sendCommand).not.toHaveBeenCalled()
     await vi.advanceTimersByTimeAsync(1)
     // Soon after launch such a page stayed unpresented, and the capture waited 15 seconds and failed.
-    expect(access.withDebugger).toHaveBeenCalledWith(webContents, expect.any(Function))
+    expect(withDebugger).toHaveBeenCalledWith(webContents, expect.any(Function))
     expect(webContents.debugger.sendCommand).toHaveBeenCalledExactlyOnceWith(...REDRAW)
     expect(operation).toHaveBeenCalledOnce()
     await expect(result).resolves.toBe('captured')
   })
 
   it('never asks a page that sends a frame to draw again', async () => {
-    const { access, tab, webContents } = minimizedTab({ presentsFrame: true })
+    const { browser, tab, webContents, withDebugger } = minimizedTab({ presentsFrame: true })
 
-    await expect(withRenderableTab(access, tab, async () => 'captured')).resolves.toBe('captured')
-    expect(access.withDebugger).not.toHaveBeenCalled()
+    await expect(withRenderableTab(browser, tab, async () => 'captured')).resolves.toBe('captured')
+    expect(withDebugger).not.toHaveBeenCalled()
     expect(webContents.debugger.sendCommand).not.toHaveBeenCalled()
   })
 
   it('leaves a page that refuses to draw again, as while its Developer Tools are open, to the capture probes', async () => {
-    const { access, tab, webContents } = minimizedTab({
+    const { browser, tab, webContents } = minimizedTab({
       probeReturnsOnCall: 2,
       withDebugger: async () => { throw new Error('Close Developer Tools for this tab before using this MCP action') }
     })
     const operation = vi.fn(async () => 'captured')
-    const result = withRenderableTab(access, tab, operation)
+    const result = withRenderableTab(browser, tab, operation)
 
     await vi.advanceTimersByTimeAsync(1_000)
     expect(operation).not.toHaveBeenCalled()
@@ -135,7 +143,7 @@ describe('presenting a hidden tab for a capture', () => {
 
   it('does not ask the page to draw again once the capture has stopped waiting for the debugger', async () => {
     let release!: () => void
-    const { access, tab, webContents } = minimizedTab({
+    const { browser, tab, webContents } = minimizedTab({
       probeReturnsOnCall: 1,
       withDebugger: async (_webContents, operation) => {
         await new Promise<void>((resolve) => { release = resolve })
@@ -143,7 +151,7 @@ describe('presenting a hidden tab for a capture', () => {
       }
     })
     const operation = vi.fn(async () => 'captured')
-    const result = withRenderableTab(access, tab, operation)
+    const result = withRenderableTab(browser, tab, operation)
 
     await vi.advanceTimersByTimeAsync(1_000)
     await expect(result).resolves.toBe('captured')
@@ -155,7 +163,7 @@ describe('presenting a hidden tab for a capture', () => {
 
   it('gives the debugger back when the page does not answer, and does not ask it again until it does', async () => {
     let leased = false
-    const { access, tab, webContents } = minimizedTab({
+    const { browser, tab, webContents } = minimizedTab({
       redraw: () => new Promise(() => undefined),
       withDebugger: async (_webContents, operation) => {
         leased = true
@@ -166,7 +174,7 @@ describe('presenting a hidden tab for a capture', () => {
         }
       }
     })
-    const first = withRenderableTab(access, tab, async () => 'captured').catch((error: unknown) => error)
+    const first = withRenderableTab(browser, tab, async () => 'captured').catch((error: unknown) => error)
 
     await vi.advanceTimersByTimeAsync(1_000)
     expect(leased).toBe(true)
@@ -178,7 +186,7 @@ describe('presenting a hidden tab for a capture', () => {
     expect(error).toBeInstanceOf(LocalizedError)
     expect((error as LocalizedError).key).toBe('appErrors.pageTools.renderTimedOut')
 
-    const second = withRenderableTab(access, tab, async () => 'captured').catch((failure: unknown) => failure)
+    const second = withRenderableTab(browser, tab, async () => 'captured').catch((failure: unknown) => failure)
     await vi.advanceTimersByTimeAsync(15_000)
     expect(await second).toBeInstanceOf(LocalizedError)
     expect(webContents.debugger.sendCommand).toHaveBeenCalledOnce()

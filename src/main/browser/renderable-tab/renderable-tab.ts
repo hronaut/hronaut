@@ -1,7 +1,11 @@
 import { BrowserWindow, type WebContents } from 'electron'
 import { LocalizedError } from '../../localized-error.js'
 import { RendererExitedError } from '../renderer-exit-guard.js'
-import type { RenderableTab, RenderableTabAccess } from './renderable-tab-access.js'
+import type { Browser } from '../browser.js'
+import { findTab } from '../browser-core.js'
+import type { BrowserTab } from '../browser-tab.js'
+import { withDebugger } from '../debugger-lease/debugger-lease.js'
+import { contentAreaBounds } from '../window-layout/content-area.js'
 
 /** How long a hidden page's frame subscription waits before capture probes take over. */
 const OFFSCREEN_FRAME_SUBSCRIPTION_FALLBACK_MS = 1_000
@@ -21,25 +25,25 @@ const unansweredRedraws = new WeakSet<WebContents>()
  * closes meanwhile, and at once, without moving the view, when the page's
  * renderer has exited: a crashed page never presents a frame.
  */
-export async function withRenderableTab<Tab extends RenderableTab, T>(
-  access: RenderableTabAccess<Tab>,
-  tab: Tab,
+export async function withRenderableTab<T>(
+  browser: Browser,
+  tab: BrowserTab,
   operation: () => Promise<T>,
   mode: 'presented-frame' | 'surface' | 'print' = 'presented-frame'
 ): Promise<T> {
   const webContents = tab.webContents
   const webContentsId = webContents.id
   const tabIsLive = (): boolean => (
-    !access.isDestroyed()
-    && !access.window().isDestroyed()
-    && access.findTab(tab.id) === tab
+    !browser.destroyed
+    && !browser.window.isDestroyed()
+    && findTab(browser, tab.id) === tab
     && !webContents.isDestroyed()
   )
-  const previous = access.renderQueues().get(webContentsId) ?? Promise.resolve()
+  const previous = browser.renderQueues.get(webContentsId) ?? Promise.resolve()
   let releaseQueue!: () => void
   const gate = new Promise<void>((resolve) => { releaseQueue = resolve })
   const tail = previous.then(() => gate)
-  access.renderQueues().set(webContentsId, tail)
+  browser.renderQueues.set(webContentsId, tail)
   await previous
 
   try {
@@ -47,9 +51,9 @@ export async function withRenderableTab<Tab extends RenderableTab, T>(
     if (webContents.isCrashed()) throw new RendererExitedError(false)
     try {
       if (
-        access.window().isVisible()
-        && !access.window().isMinimized()
-        && (tab.id === access.activeTabId() || access.splitViewContains(tab.id))
+        browser.window.isVisible()
+        && !browser.window.isMinimized()
+        && (tab.id === browser.activeTabId || browser.splitViewContains(tab.id))
       ) return await operation()
 
       const originalBounds = tab.view.getBounds()
@@ -60,8 +64,8 @@ export async function withRenderableTab<Tab extends RenderableTab, T>(
       // native window. Wayland can activate even a non-focusable showInactive
       // window. Hidden screenshots still need a separate presented surface;
       // PDF printing can use an attached host without mapping its window.
-      const reuseHost = access.window().isVisible() && !access.window().isMinimized()
-      const captureWindow = reuseHost ? access.window() : new BrowserWindow({
+      const reuseHost = browser.window.isVisible() && !browser.window.isMinimized()
+      const captureWindow = reuseHost ? browser.window : new BrowserWindow({
         x: -32_000,
         y: -32_000,
         width: Math.max(1, originalBounds.width),
@@ -75,7 +79,7 @@ export async function withRenderableTab<Tab extends RenderableTab, T>(
       try {
         const width = Math.max(1, originalBounds.width)
         const height = Math.max(1, originalBounds.height)
-        access.offscreenCaptureTabIds().add(tab.id)
+        browser.offscreenCaptureTabIds.add(tab.id)
         tab.view.setBounds({ x: reuseHost ? -width : 0, y: 0, width, height })
         captureWindow.contentView.addChildView(tab.view, reuseHost ? 0 : undefined)
         // Layout hides the shown page while the window has no room for it, as a
@@ -90,17 +94,17 @@ export async function withRenderableTab<Tab extends RenderableTab, T>(
         // under renderer pressure even though PDF generation is ready.
         if (mode === 'presented-frame') {
           await waitForPresentation(webContents, (stillWaiting) => (
-            access.withDebugger(webContents, () => redrawPage(webContents, stillWaiting))
+            withDebugger(browser, webContents, () => redrawPage(webContents, stillWaiting))
           ))
         }
         return await operation()
       } finally {
-        access.offscreenCaptureTabIds().delete(tab.id)
+        browser.offscreenCaptureTabIds.delete(tab.id)
         let cleanupError: unknown
         // Human selection can make this the presented view while capture is
         // pending. Detaching it from the shared host would discard that focus.
         const keepPresented = reuseHost && tabIsLive()
-          && (tab.id === access.activeTabId() || access.splitViewContains(tab.id))
+          && (tab.id === browser.activeTabId || browser.splitViewContains(tab.id))
         try {
           if (!keepPresented && !captureWindow.isDestroyed()) captureWindow.contentView.removeChildView(tab.view)
         } catch (error) {
@@ -118,12 +122,12 @@ export async function withRenderableTab<Tab extends RenderableTab, T>(
             // Selection may change while an offscreen capture is pending.
             // Restore the current visible layout rather than stale ownership
             // or bounds from when the capture began.
-            if (tab.id === access.activeTabId() || access.splitViewContains(tab.id)) {
-              if (!access.window().contentView.children.includes(tab.view)) access.window().contentView.addChildView(tab.view)
-              access.layout()
+            if (tab.id === browser.activeTabId || browser.splitViewContains(tab.id)) {
+              if (!browser.window.contentView.children.includes(tab.view)) browser.window.contentView.addChildView(tab.view)
+              browser.layout()
             } else {
               // A viewport change during the capture left the view's size to this restore.
-              tab.view.setBounds(tab.emulationViewSize === viewSizeAtStart ? originalBounds : access.tabViewBounds(tab, access.contentAreaBounds()))
+              tab.view.setBounds(tab.emulationViewSize === viewSizeAtStart ? originalBounds : browser.tabViewBounds(tab, contentAreaBounds(browser.windowLayoutAccess())))
               tab.view.setVisible(visibleAtStart)
             }
           } catch (error) {
@@ -138,8 +142,8 @@ export async function withRenderableTab<Tab extends RenderableTab, T>(
     }
   } finally {
     releaseQueue()
-    if (access.renderQueues().get(webContentsId) === tail) access.renderQueues().delete(webContentsId)
-    if (tabIsLive()) access.reconcileTabPresentation(tab)
+    if (browser.renderQueues.get(webContentsId) === tail) browser.renderQueues.delete(webContentsId)
+    if (tabIsLive()) browser.reconcileTabPresentation(tab)
   }
 }
 

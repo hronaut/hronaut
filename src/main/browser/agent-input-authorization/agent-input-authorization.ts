@@ -3,21 +3,45 @@ import type { NativeInputDispatchObserver } from '../native-key-hold.js'
 import type { KeyboardDebugger } from '../native-keyboard.js'
 import { matchingNativeInputRelease, NativeInputCleanupError } from '../native-input-cleanup.js'
 import type { PointerDebugger } from '../native-pointer.js'
-import type {
-  AgentInputAuthorizationAccess,
-  AgentInputAuthorizationTab,
-  AuthorizedAgentKeyboardInput,
-  AuthorizedAgentMouseInput
-} from './agent-input-authorization-access.js'
+import type { Browser } from '../browser.js'
+import { findTab } from '../browser-core.js'
+import type { BrowserTab } from '../browser-tab.js'
+
+/**
+ * The one mouse event an agent's native input command is about to produce, in
+ * Electron's terms, so the page's input guard admits exactly that event while
+ * the person's input is locked.
+ */
+export interface AuthorizedAgentMouseInput {
+  type: Electron.MouseInputEvent['type']
+  x: number
+  y: number
+  button: Electron.MouseInputEvent['button'] | undefined
+  buttons: number
+  clickCount: number
+  modifiers: number
+}
+
+/**
+ * The one key event an agent's native input command is about to produce, in
+ * Electron's terms, so the page's input guard admits exactly that event.
+ */
+export interface AuthorizedAgentKeyboardInput {
+  type: Electron.Input['type']
+  key: string
+  code: string
+  modifiers: number
+  autoRepeat: boolean
+}
 
 /**
  * Whether the page's input guard blocks this mouse event: the person's input
  * to the tab is locked and the event is not the one an agent's command is
  * producing, which it admits once.
  */
-export function shouldBlockHumanMouseInput<Tab extends AgentInputAuthorizationTab>(access: AgentInputAuthorizationAccess<Tab>, tab: Tab, mouse: Electron.MouseInputEvent): boolean {
-  return access.isHumanInteractionLocked(tab)
-    && !isAuthorizedAgentMouseInput(access, tab.webContents.id, mouse)
+export function shouldBlockHumanMouseInput(browser: Browser, tab: BrowserTab, mouse: Electron.MouseInputEvent): boolean {
+  return browser.isHumanInteractionLocked(tab)
+    && !isAuthorizedAgentMouseInput(browser, tab.webContents.id, mouse)
 }
 
 /**
@@ -25,14 +49,14 @@ export function shouldBlockHumanMouseInput<Tab extends AgentInputAuthorizationTa
  * command through the authorized agent input path, checking the caller's
  * context first when given.
  */
-export function agentInputDebugger<Tab extends AgentInputAuthorizationTab>(
-  access: AgentInputAuthorizationAccess<Tab>,
+export function agentInputDebugger(
+  browser: Browser,
   webContents: WebContents,
   validateInput?: () => void
 ): PointerDebugger & KeyboardDebugger {
   return {
     sendCommand: (method, commandParams) => sendAuthorizedAgentInputCommand(
-      access,
+      browser,
       webContents,
       method,
       commandParams,
@@ -49,8 +73,8 @@ export function agentInputDebugger<Tab extends AgentInputAuthorizationTab>(
  * fails after dispatch, it sends one matching release and reports the cleanup
  * failure.
  */
-export async function sendAuthorizedAgentInputCommand<Tab extends AgentInputAuthorizationTab>(
-  access: AgentInputAuthorizationAccess<Tab>,
+export async function sendAuthorizedAgentInputCommand(
+  browser: Browser,
   webContents: WebContents,
   method: string,
   commandParams: Record<string, unknown> = {},
@@ -65,9 +89,9 @@ export async function sendAuthorizedAgentInputCommand<Tab extends AgentInputAuth
   const keyboard = method === 'Input.dispatchKeyEvent'
     ? authorizedKeyboardInputFromCommand(commandParams)
     : null
-  const tabId = access.tabIdForWebContents(webContents.id)
-  const tab = tabId ? access.findTab(tabId) : undefined
-  const temporarilyPermitNativeInput = Boolean((mouse || keyboard) && tab && access.isHumanInteractionLocked(tab))
+  const tabId = browser.webContentsToTab.get(webContents.id)
+  const tab = tabId ? findTab(browser, tabId) : undefined
+  const temporarilyPermitNativeInput = Boolean((mouse || keyboard) && tab && browser.isHumanInteractionLocked(tab))
   if (temporarilyPermitNativeInput) {
     await webContents.debugger.sendCommand('Input.setIgnoreInputEvents', { ignore: false })
   }
@@ -78,19 +102,19 @@ export async function sendAuthorizedAgentInputCommand<Tab extends AgentInputAuth
     if (beforeRawDispatch) await beforeRawDispatch()
     // Recheck after lifting the compositor barrier, immediately before input.
     validateInput?.()
-    if (mouse) access.authorizedAgentMouseInput().set(webContents.id, mouse)
-    if (keyboard) access.authorizedAgentKeyboardInput().set(webContents.id, keyboard)
+    if (mouse) browser.authorizedAgentMouseInput.set(webContents.id, mouse)
+    if (keyboard) browser.authorizedAgentKeyboardInput.set(webContents.id, keyboard)
     observer?.rawAttempted(commandParams)
     const result = await webContents.debugger.sendCommand(method, commandParams)
     rawDispatched = true
     observer?.rawAcknowledged(commandParams)
     return result
   } finally {
-    if (mouse && access.authorizedAgentMouseInput().get(webContents.id) === mouse) {
-      access.authorizedAgentMouseInput().delete(webContents.id)
+    if (mouse && browser.authorizedAgentMouseInput.get(webContents.id) === mouse) {
+      browser.authorizedAgentMouseInput.delete(webContents.id)
     }
-    if (keyboard && access.authorizedAgentKeyboardInput().get(webContents.id) === keyboard) {
-      access.authorizedAgentKeyboardInput().delete(webContents.id)
+    if (keyboard && browser.authorizedAgentKeyboardInput.get(webContents.id) === keyboard) {
+      browser.authorizedAgentKeyboardInput.delete(webContents.id)
     }
     if (temporarilyPermitNativeInput && !webContents.isDestroyed()) {
       // Lift the compositor barrier for this single CDP event only. The
@@ -107,7 +131,7 @@ export async function sendAuthorizedAgentInputCommand<Tab extends AgentInputAuth
           // Send one matching release through the same native input guard. Up
           // events cannot recurse into another release, even if re-lock fails.
           observer?.emergencyReleaseStarted()
-          await sendAuthorizedAgentInputCommand(access, webContents, method, release, undefined, observer).catch(() => undefined)
+          await sendAuthorizedAgentInputCommand(browser, webContents, method, release, undefined, observer).catch(() => undefined)
         }
         throw new NativeInputCleanupError(error)
       }
@@ -181,12 +205,12 @@ function authorizedKeyboardInputFromCommand(
 }
 
 /** Whether the mouse event is the one recorded for the page's agent command, consuming the record when it is. */
-function isAuthorizedAgentMouseInput<Tab extends AgentInputAuthorizationTab>(
-  access: AgentInputAuthorizationAccess<Tab>,
+function isAuthorizedAgentMouseInput(
+  browser: Browser,
   webContentsId: number,
   mouse: Electron.MouseInputEvent
 ): boolean {
-  const expected = access.authorizedAgentMouseInput().get(webContentsId)
+  const expected = browser.authorizedAgentMouseInput.get(webContentsId)
   // Electron's before-mouse-event omits modifiers, which also carry the held
   // buttons, so a pressed drag move or a modifier click is compared on the
   // fields it does report. It reports a move with no button as 'none', which
@@ -201,17 +225,17 @@ function isAuthorizedAgentMouseInput<Tab extends AgentInputAuthorizationTab>(
     && (!reported || electronButtonBits(mouse.modifiers) === expected.buttons)
     && (mouse.clickCount ?? 0) === expected.clickCount
     && (!reported || electronModifierBits(mouse.modifiers) === expected.modifiers)
-  if (matches) access.authorizedAgentMouseInput().delete(webContentsId)
+  if (matches) browser.authorizedAgentMouseInput.delete(webContentsId)
   return matches
 }
 
 /** Whether the key event is the one recorded for the page's agent command, consuming the record when it is. */
-export function consumeExpectedAgentKeyboardInput<Tab extends AgentInputAuthorizationTab>(
-  access: AgentInputAuthorizationAccess<Tab>,
+export function consumeExpectedAgentKeyboardInput(
+  browser: Browser,
   webContentsId: number,
   input: Electron.Input
 ): boolean {
-  const expected = access.authorizedAgentKeyboardInput().get(webContentsId)
+  const expected = browser.authorizedAgentKeyboardInput.get(webContentsId)
   if (!expected) return false
   const inputModifierBits = electronModifierBits(input.modifiers)
   const compatibleType = input.type === expected.type
@@ -221,7 +245,7 @@ export function consumeExpectedAgentKeyboardInput<Tab extends AgentInputAuthoriz
     && input.code === expected.code
     && inputModifierBits === expected.modifiers
     && input.isAutoRepeat === expected.autoRepeat
-  if (matches) access.authorizedAgentKeyboardInput().delete(webContentsId)
+  if (matches) browser.authorizedAgentKeyboardInput.delete(webContentsId)
   return matches
 }
 

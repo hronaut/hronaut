@@ -1,7 +1,8 @@
 import type { WebContents } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
-import type { AgentInputAuthorizationAccess, AgentInputAuthorizationTab, AuthorizedAgentMouseInput } from '../src/main/browser/agent-input-authorization/agent-input-authorization-access.js'
-import { shouldBlockHumanMouseInput } from '../src/main/browser/agent-input-authorization/agent-input-authorization.js'
+import { shouldBlockHumanMouseInput, type AuthorizedAgentMouseInput } from '../src/main/browser/agent-input-authorization/agent-input-authorization.js'
+import type { Browser } from '../src/main/browser/browser.js'
+import type { BrowserTab } from '../src/main/browser/browser-tab.js'
 import type { AgentPageActionsAccess, AgentPageActionsTab } from '../src/main/browser/agent-page-actions/agent-page-actions-access.js'
 import { type BrowserDragModifier, drag } from '../src/main/browser/agent-page-actions/hover-and-drag.js'
 import { coordinateDragPointsOrValidateTargets } from '../src/main/browser/input-targets/input-targets.js'
@@ -135,44 +136,44 @@ describe('browser_drag modifier input', () => {
 })
 
 describe('locked tab input guard for drags', () => {
-  const tab = { webContents: { id: 7 } as WebContents }
+  const tab = { webContents: { id: 7 } } as unknown as BrowserTab
   // A pressed drag move as the CDP command records it: the left button held, Shift on the event.
   const pressedMove: AuthorizedAgentMouseInput = { type: 'mouseMove', x: 30, y: 40, button: 'left', buttons: 1, clickCount: 0, modifiers: 8 }
-  function access(expected: AuthorizedAgentMouseInput): AgentInputAuthorizationAccess<AgentInputAuthorizationTab> {
-    const mouse = new Map([[7, expected]])
+  /** A browser whose locked tab's input guard expects this one mouse event from an agent. */
+  function browser(expected: AuthorizedAgentMouseInput): Browser {
     return {
-      findTab: () => tab,
-      tabIdForWebContents: () => 'tab-1',
+      tabs: new Map([['tab-1', tab]]),
+      webContentsToTab: new Map([[7, 'tab-1']]),
       isHumanInteractionLocked: () => true,
-      authorizedAgentMouseInput: () => mouse,
-      authorizedAgentKeyboardInput: () => new Map()
-    }
+      authorizedAgentMouseInput: new Map([[7, expected]]),
+      authorizedAgentKeyboardInput: new Map()
+    } as unknown as Browser
   }
   const move = (change: Partial<Electron.MouseInputEvent> = {}): Electron.MouseInputEvent =>
     ({ type: 'mouseMove', x: 30, y: 40, button: 'left', clickCount: 0, ...change }) as Electron.MouseInputEvent
 
   it('admits the agent pressed move once although Electron reports neither held buttons nor keys', () => {
-    const guard = access(pressedMove)
+    const guard = browser(pressedMove)
     expect(shouldBlockHumanMouseInput(guard, tab, move())).toBe(false)
     expect(shouldBlockHumanMouseInput(guard, tab, move())).toBe(true)
   })
 
   it('still compares held buttons and keys when Electron reports them', () => {
-    expect(shouldBlockHumanMouseInput(access(pressedMove), tab, move({ modifiers: ['leftbuttondown', 'shift'] }))).toBe(false)
-    expect(shouldBlockHumanMouseInput(access(pressedMove), tab, move({ modifiers: ['shift'] }))).toBe(true)
-    expect(shouldBlockHumanMouseInput(access(pressedMove), tab, move({ modifiers: ['leftbuttondown'] }))).toBe(true)
+    expect(shouldBlockHumanMouseInput(browser(pressedMove), tab, move({ modifiers: ['leftbuttondown', 'shift'] }))).toBe(false)
+    expect(shouldBlockHumanMouseInput(browser(pressedMove), tab, move({ modifiers: ['shift'] }))).toBe(true)
+    expect(shouldBlockHumanMouseInput(browser(pressedMove), tab, move({ modifiers: ['leftbuttondown'] }))).toBe(true)
   })
 
   it('blocks a move that is not the recorded one', () => {
-    expect(shouldBlockHumanMouseInput(access(pressedMove), tab, move({ y: 90 }))).toBe(true)
-    expect(shouldBlockHumanMouseInput(access(pressedMove), tab, move({ type: 'mouseDown' }))).toBe(true)
+    expect(shouldBlockHumanMouseInput(browser(pressedMove), tab, move({ y: 90 }))).toBe(true)
+    expect(shouldBlockHumanMouseInput(browser(pressedMove), tab, move({ type: 'mouseDown' }))).toBe(true)
     // A hover is what Electron reports for a move with no button held.
-    expect(shouldBlockHumanMouseInput(access(pressedMove), tab, move({ button: 'none' as 'left' }))).toBe(true)
+    expect(shouldBlockHumanMouseInput(browser(pressedMove), tab, move({ button: 'none' as 'left' }))).toBe(true)
   })
 
   it('admits the agent hover, which Electron reports with button none', () => {
     const hover: AuthorizedAgentMouseInput = { type: 'mouseMove', x: 30, y: 40, button: undefined, buttons: 0, clickCount: 0, modifiers: 0 }
-    const guard = access(hover)
+    const guard = browser(hover)
     expect(shouldBlockHumanMouseInput(guard, tab, move({ button: 'left' }))).toBe(true)
     expect(shouldBlockHumanMouseInput(guard, tab, move({ button: 'none' as 'left' }))).toBe(false)
     expect(shouldBlockHumanMouseInput(guard, tab, move({ button: 'none' as 'left' }))).toBe(true)
