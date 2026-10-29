@@ -1,29 +1,41 @@
 import { describe, expect, it, vi } from 'vitest'
+// The browser below stubs getState, reopenClosedTabEntry and reorderTab, which closing tabs and their Undo reach through these.
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  browserState: (browser: { getState: () => unknown }) => browser.getState()
+}))
+vi.mock('../src/main/browser/tab-reopening/tab-reopening.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-reopening/tab-reopening.js')>(),
+  reopenClosedTabEntry: (browser: { reopenClosedTabEntry: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.reopenClosedTabEntry(...args)
+}))
+vi.mock('../src/main/browser/tab-arrangement/tab-arrangement.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-arrangement/tab-arrangement.js')>(),
+  reorderTab: (browser: { reorderTab: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.reorderTab(...args)
+}))
 import { closeTabsForPerson } from '../src/main/browser/tab-close/close-tabs-for-person.js'
-import type { PersonTabCloseAccess, PersonTabCloseTab } from '../src/main/browser/tab-close/close-tabs-for-person-access.js'
 import type { UndoableAction } from '../src/main/undo-offers.js'
 import type { BrowserClosedTabState, BrowserState } from '../src/shared/types.js'
 
-type Tab = PersonTabCloseTab & { title: string; label?: string; sleeping?: boolean }
+type Tab = { id: string; url: string; mcpGroupId?: string; pinned: boolean; title: string; label?: string; sleeping?: boolean }
 
 /**
- * A tab manager with these tabs open, in a Ukrainian interface. Closing the shown tab shows the tab after it, or the
- * one before it when it was last, waking it when it sleeps, as the tab manager does; a tab listed as staying asks to
+ * A browser with these tabs open, in a Ukrainian interface. Closing the shown tab shows the tab after it, or the
+ * one before it when it was last, waking it when it sleeps, as the browser does; a tab listed as staying asks to
  * stay and is kept.
  */
-function manager(tabs: Tab[], options: { active?: string; staying?: string[] } = {}) {
+function openBrowser(tabs: Tab[], options: { active?: string; staying?: string[] } = {}) {
   const open = [...tabs]
   const closed: BrowserClosedTabState[] = []
   const offers: UndoableAction[] = []
   const woken: string[] = []
   let active = options.active ?? null
   const state = {} as BrowserState
-  const access = {
-    getTab: (tabId?: string) => open.find(tab => tab.id === tabId)!,
-    findTab: (tabId: string) => open.find(tab => tab.id === tabId),
-    orderedTabs: () => [...open],
-    activeTabId: () => active,
-    closedTabs: () => closed,
+  const browser = {
+    // The open tabs in the order the strip shows them.
+    get tabs() { return new Map(open.map(tab => [tab.id, tab])) },
+    mcpTabGroups: new Map(),
+    get activeTabId() { return active },
+    closedTabs: closed,
     closeTabInternal: vi.fn(async (tabId: string) => {
       if (options.staying?.includes(tabId)) return state
       const index = open.findIndex(tab => tab.id === tabId)
@@ -44,7 +56,8 @@ function manager(tabs: Tab[], options: { active?: string; staying?: string[] } =
       open.push(tab)
       return tab
     },
-    withTabLabelLifecycle: <T>(run: () => Promise<T>) => run(),
+    tabLabelLifecycleHolds: 0,
+    pendingTabLabels: new Set(),
     reorderTab: (tabId: string, targetTabId: string, placement: 'before' | 'after') => {
       const [tab] = open.splice(open.findIndex(candidate => candidate.id === tabId), 1)
       const target = open.findIndex(candidate => candidate.id === targetTabId)
@@ -52,11 +65,11 @@ function manager(tabs: Tab[], options: { active?: string; staying?: string[] } =
       return state
     },
     getState: () => state,
-    options: () => ({ offerUndo: (action: UndoableAction) => offers.push(action) }),
+    options: { offerUndo: (action: UndoableAction) => offers.push(action) },
     text: (key: string) => key === 'tabSearch.newTabTitle' ? 'Нова вкладка' : key
-  } as unknown as PersonTabCloseAccess<Tab>
-  const closedOrder = () => vi.mocked(access.closeTabInternal).mock.calls.map(([tabId]) => tabId)
-  return { access, offers, woken, closedOrder, active: () => active, openIds: () => open.map(tab => tab.id) }
+  }
+  const closedOrder = () => browser.closeTabInternal.mock.calls.map(([tabId]) => tabId)
+  return { browser, offers, woken, closedOrder, active: () => active, openIds: () => open.map(tab => tab.id) }
 }
 
 /** Website tabs with these IDs, sleeping when the ID says so. */
@@ -67,22 +80,22 @@ function sites(...ids: string[]): Tab[] {
 describe('closing tabs for the person', () => {
   it('names a closed blank tab in the interface language on its Undo offer', async () => {
     // Hronaut calls a blank tab "New tab" until a page names it; the Undo toast showed that English title in every language.
-    const { access, offers } = manager([
+    const { browser, offers } = openBrowser([
       { id: 'blank', title: 'New tab', url: 'about:blank', pinned: false },
       { id: 'site', title: 'New tab', url: 'https://example.test/new', pinned: false }
     ])
-    await closeTabsForPerson(access, ['blank'])
+    await closeTabsForPerson(browser as never, ['blank'])
     expect(offers.map(offer => offer.name)).toEqual(['Нова вкладка'])
     // A website that calls itself "New tab" keeps its own title.
-    await closeTabsForPerson(access, ['site'])
+    await closeTabsForPerson(browser as never, ['site'])
     expect(offers.map(offer => offer.name)).toEqual(['Нова вкладка', 'New tab'])
   })
 
   it('closes the shown tab last, so no sleeping tab wakes only to be closed next', async () => {
-    const tabs = manager(sites('shown', 'asleep-1', 'asleep-2', 'kept'), { active: 'shown' })
+    const tabs = openBrowser(sites('shown', 'asleep-1', 'asleep-2', 'kept'), { active: 'shown' })
 
     // Close other tabs on the last tab passes the others in order, the shown one first.
-    await closeTabsForPerson(tabs.access, ['shown', 'asleep-1', 'asleep-2'])
+    await closeTabsForPerson(tabs.browser as never, ['shown', 'asleep-1', 'asleep-2'])
 
     // The shown tab used to close first, so each sleeping tab after it was shown, and woke, before it closed.
     expect(tabs.closedOrder()).toEqual(['asleep-1', 'asleep-2', 'shown'])
@@ -93,18 +106,18 @@ describe('closing tabs for the person', () => {
   })
 
   it('closes tabs in their order when the shown tab is not among them', async () => {
-    const tabs = manager(sites('a', 'asleep-b', 'c', 'shown'), { active: 'shown' })
+    const tabs = openBrowser(sites('a', 'asleep-b', 'c', 'shown'), { active: 'shown' })
 
-    await closeTabsForPerson(tabs.access, ['a', 'asleep-b', 'c'])
+    await closeTabsForPerson(tabs.browser as never, ['a', 'asleep-b', 'c'])
 
     expect(tabs.closedOrder()).toEqual(['a', 'asleep-b', 'c'])
     expect(tabs.active()).toBe('shown')
   })
 
   it('stops at a page that asks to stay, which leaves the shown tab open too', async () => {
-    const tabs = manager(sites('shown', 'a', 'stays', 'kept'), { active: 'shown', staying: ['stays'] })
+    const tabs = openBrowser(sites('shown', 'a', 'stays', 'kept'), { active: 'shown', staying: ['stays'] })
 
-    await closeTabsForPerson(tabs.access, ['shown', 'a', 'stays'])
+    await closeTabsForPerson(tabs.browser as never, ['shown', 'a', 'stays'])
 
     expect(tabs.openIds()).toEqual(['shown', 'stays', 'kept'])
     expect(tabs.active()).toBe('shown')
@@ -112,9 +125,9 @@ describe('closing tabs for the person', () => {
   })
 
   it('puts every tab back in its place on Undo when the shown tab in the middle closed last', async () => {
-    const tabs = manager(sites('x1', 'shown', 'x2', 'kept'), { active: 'shown' })
+    const tabs = openBrowser(sites('x1', 'shown', 'x2', 'kept'), { active: 'shown' })
 
-    await closeTabsForPerson(tabs.access, ['x1', 'shown', 'x2'])
+    await closeTabsForPerson(tabs.browser as never, ['x1', 'shown', 'x2'])
     expect(tabs.closedOrder()).toEqual(['x1', 'x2', 'shown'])
     await tabs.offers[0]!.undo()
 
@@ -122,8 +135,8 @@ describe('closing tabs for the person', () => {
   })
 
   it('names a closed tab by its label first', async () => {
-    const { access, offers } = manager([{ id: 'blank', title: 'New tab', label: 'Checkout task', url: 'about:blank', pinned: false }])
-    await closeTabsForPerson(access, ['blank'])
+    const { browser, offers } = openBrowser([{ id: 'blank', title: 'New tab', label: 'Checkout task', url: 'about:blank', pinned: false }])
+    await closeTabsForPerson(browser as never, ['blank'])
     expect(offers).toMatchObject([{ kind: 'tabs-closed', name: 'Checkout task', count: 1 }])
   })
 })

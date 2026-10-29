@@ -13,6 +13,23 @@ vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOrigi
   browserState: (browser: { getState: () => unknown }) => browser.getState()
 }))
 
+// The browser below stubs workspaceContextMenuItems, sleepBlockReason, sleepFallbackTab, canMuteSite and isSiteMuted, which
+// the menu asks through these.
+vi.mock('../src/main/browser/context-menus/workspace-context-menu.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/context-menus/workspace-context-menu.js')>(),
+  workspaceContextMenuItems: (browser: { workspaceContextMenuItems: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.workspaceContextMenuItems(...args)
+}))
+vi.mock('../src/main/browser/tab-sleep/tab-sleep.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-sleep/tab-sleep.js')>(),
+  sleepBlockReason: (browser: { sleepBlockReason: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.sleepBlockReason(...args),
+  sleepFallbackTab: (browser: { sleepFallbackTab: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.sleepFallbackTab(...args)
+}))
+vi.mock('../src/main/browser/site-muting/site-muting.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/site-muting/site-muting.js')>(),
+  canMuteSite: (browser: { canMuteSite: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.canMuteSite(...args),
+  isSiteMuted: (browser: { isSiteMuted: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.isSiteMuted(...args)
+}))
+
 const { showTabContextMenu } = await import('../src/main/browser/context-menus/tab-context-menu.js')
 const { Browser } = await import('../src/main/browser/browser.js')
 const { orderedTabs } = await import('../src/main/browser/browser-core.js')
@@ -30,8 +47,8 @@ const tab = (id: string, mcpGroupId: string | undefined = 'work', options: Parti
   loading: false, muted: false, pageLifecycleState: 'active', webContents: { isDestroyed: () => false }, ...options
 })
 
-/** The menu's view of the tab manager, recording each tab command it runs in order. */
-function access(tabs: Tab[], activeTabId = tabs[0]!.id) {
+/** The browser as the menu sees it, recording each tab command it runs in order. */
+function menuBrowser(tabs: Tab[], activeTabId = tabs[0]!.id) {
   const calls: string[] = []
   const record = (name: string) => vi.fn(async (...args: unknown[]) => { calls.push(`${name} ${args.join(' ')}`); return {} })
   const send = vi.fn()
@@ -39,18 +56,17 @@ function access(tabs: Tab[], activeTabId = tabs[0]!.id) {
   return {
     calls,
     send,
-    access: {
-      getTab: (id?: string) => tabs.find((candidate) => candidate.id === (id ?? activeTabId))!,
-      orderedTabs: () => [...tabs],
-      activeTabId: () => activeTabId,
-      findTab: (id: string) => tabs.find((candidate) => candidate.id === id),
-      options: () => ({ getTabPosition: () => 'top', onActionFailed: vi.fn() }),
-      mcpTabGroups: () => groups,
+    browser: {
+      // The tabs as they are now, in the order the strip shows them.
+      get tabs() { return new Map(tabs.map((candidate) => [candidate.id, candidate])) },
+      activeTabId,
+      options: { getTabPosition: () => 'top', onActionFailed: vi.fn() },
+      mcpTabGroups: groups,
       text: (key: string) => key,
       workspaceContextMenuItems: () => [{ id: 'edit-workspace' }],
       splitViewContains: () => false,
-      splitView: () => null,
-      reactInspectionController: () => ({ status: () => ({ enabled: false, status: 'disabled' }) }),
+      splitView: null,
+      reactInspectionController: { status: () => ({ enabled: false, status: 'disabled' }) },
       sleepBlockReason: () => undefined,
       sleepFallbackTab: () => undefined,
       canMuteSite: () => false,
@@ -60,9 +76,9 @@ function access(tabs: Tab[], activeTabId = tabs[0]!.id) {
       setTabMuted: vi.fn((id: string, muted: boolean) => { calls.push(`mute ${id} ${muted}`); return {} }),
       setTabPinned: record('pin'),
       closeTabsForPerson: vi.fn(async (ids: readonly string[]) => { calls.push(`close ${ids.join(',')}`); return {} }),
-      closedTabs: () => [{}],
+      closedTabs: [{}],
       reopenClosedTab: record('reopen'),
-      window: () => ({ webContents: { send } })
+      window: { webContents: { send } }
     } as never
   }
 }
@@ -78,8 +94,8 @@ const click = async (id: string) => {
 describe('the tab menu of several selected tabs', () => {
   it('acts on every selected tab: reload, duplicate, mute, close, the other tabs and those after them', async () => {
     const tabs = [tab('a'), tab('b'), tab('c'), tab('d'), tab('e')]
-    const fake = access(tabs)
-    showTabContextMenu(fake.access, 'c', undefined, ['b', 'c'])
+    const fake = menuBrowser(tabs)
+    showTabContextMenu(fake.browser, 'c', undefined, ['b', 'c'])
     expect(ids()).toEqual([
       'new-tab', 'reload-tabs', 'duplicate-tabs', '|', 'mute-tabs', 'pin-tabs', 'workspace', '|',
       'close-tabs', 'close-other-tabs', 'close-tabs-to-right', '|', 'reopen-closed-tab', 'bookmark-all-tabs'
@@ -102,8 +118,8 @@ describe('the tab menu of several selected tabs', () => {
   })
 
   it('unmutes and unpins when every selected tab is muted or pinned, and new tab opens in their workspace', async () => {
-    const fake = access([tab('a', 'work', { muted: true, pinned: true }), tab('b', 'work', { muted: true, pinned: true }), tab('c')])
-    showTabContextMenu(fake.access, 'a', undefined, ['a', 'b'])
+    const fake = menuBrowser([tab('a', 'work', { muted: true, pinned: true }), tab('b', 'work', { muted: true, pinned: true }), tab('c')])
+    showTabContextMenu(fake.browser, 'a', undefined, ['a', 'b'])
     expect(ids()).toContain('unmute-tabs')
     expect(ids()).toContain('unpin-tabs')
     expect(item('unpin-tabs').label).toBe('native.context.unpinTabs')
@@ -117,8 +133,8 @@ describe('the tab menu of several selected tabs', () => {
 
   it('acts only on the selected tabs still open when an item is chosen', async () => {
     const tabs = [tab('a'), tab('b'), tab('c')]
-    const fake = access(tabs)
-    showTabContextMenu(fake.access, 'a', undefined, ['a', 'b', 'c'])
+    const fake = menuBrowser(tabs)
+    showTabContextMenu(fake.browser, 'a', undefined, ['a', 'b', 'c'])
     tabs.splice(1, 1)
     await click('close-tabs')
     expect(fake.calls).toEqual(['close a,c'])
@@ -126,9 +142,9 @@ describe('the tab menu of several selected tabs', () => {
 
   it('skips a tab closed, pinned or unpinned while the tabs before it are duplicated or pinned', async () => {
     const tabs = [tab('a'), tab('b'), tab('c')]
-    const fake = access(tabs)
-    const duplicate = (fake.access as { duplicateTab: (id: string) => Promise<unknown> }).duplicateTab
-    Object.assign(fake.access, {
+    const fake = menuBrowser(tabs)
+    const duplicate = (fake.browser as { duplicateTab: (id: string) => Promise<unknown> }).duplicateTab
+    Object.assign(fake.browser, {
       duplicateTab: async (id: string) => {
         await duplicate(id)
         // Closing the next tab while the first copy opens.
@@ -141,26 +157,26 @@ describe('the tab menu of several selected tabs', () => {
         if (id === 'a') tabs.find((candidate) => candidate.id === 'c')!.pinned = true
       }
     })
-    showTabContextMenu(fake.access, 'a', undefined, ['a', 'b', 'c'])
+    showTabContextMenu(fake.browser, 'a', undefined, ['a', 'b', 'c'])
     await click('duplicate-tabs')
     expect(fake.calls).toEqual(['duplicate a', 'duplicate c'])
 
     tabs.splice(1, 0, tab('b'))
     fake.calls.length = 0
-    showTabContextMenu(fake.access, 'a', undefined, ['a', 'b', 'c'])
+    showTabContextMenu(fake.browser, 'a', undefined, ['a', 'b', 'c'])
     await click('pin-tabs')
     expect(fake.calls).toEqual(['pin a true', 'pin b true'])
   })
 
   it('is the tab\'s own menu when the tab is not selected, or fewer than two selected tabs are open in its workspace', async () => {
-    const fake = access([tab('home', undefined), tab('a'), tab('b'), tab('x', 'other')])
+    const fake = menuBrowser([tab('home', undefined), tab('a'), tab('b'), tab('x', 'other')])
     for (const [tabId, selected] of [['a', ['b', 'x']], ['a', ['a', 'x']], ['a', ['a', 'home']], ['a', ['a', 'gone']], ['a', undefined]] as const) {
-      showTabContextMenu(fake.access, tabId, undefined, selected as readonly string[] | undefined)
+      showTabContextMenu(fake.browser, tabId, undefined, selected as readonly string[] | undefined)
       expect(ids()).toContain('close-tab')
       expect(ids()).not.toContain('close-tabs')
     }
     // Tabs of another workspace are left out of the selection's menu.
-    showTabContextMenu(fake.access, 'a', undefined, ['a', 'b', 'x'])
+    showTabContextMenu(fake.browser, 'a', undefined, ['a', 'b', 'x'])
     expect(ids()).toContain('close-tabs')
     await click('close-tabs')
     expect(fake.calls).toEqual(['close a,b'])
@@ -176,24 +192,21 @@ describe('the tab menu of several selected tabs', () => {
       getState: () => ({})
     }) as { tabs: Map<string, Tab>; setTabPinned(id: string, pinned: boolean): Promise<unknown> }
     const order = () => orderedTabs(manager as never).map((candidate) => `${candidate.id}${candidate.pinned ? '*' : ''}`)
-    const fake = access([], 'a')
-    Object.assign(fake.access, {
-      orderedTabs: () => orderedTabs(manager as never),
-      getTab: (id: string) => manager.tabs.get(id),
-      findTab: (id: string) => manager.tabs.get(id),
-      setTabPinned: (id: string, pinned: boolean) => manager.setTabPinned(id, pinned)
-    })
+    const fake = menuBrowser([], 'a')
+    // The menu reads the tabs of the browser that pins them.
+    Object.defineProperty(fake.browser, 'tabs', { get: () => manager.tabs })
+    Object.assign(fake.browser, { setTabPinned: (id: string, pinned: boolean) => manager.setTabPinned(id, pinned) })
 
-    showTabContextMenu(fake.access, 'b', undefined, ['b', 'd'])
+    showTabContextMenu(fake.browser, 'b', undefined, ['b', 'd'])
     await click('pin-tabs')
     expect(order()).toEqual(['p*', 'b*', 'd*', 'a', 'c'])
 
-    showTabContextMenu(fake.access, 'b', undefined, ['b', 'd'])
+    showTabContextMenu(fake.browser, 'b', undefined, ['b', 'd'])
     await click('unpin-tabs')
     expect(order()).toEqual(['p*', 'b', 'd', 'a', 'c'])
 
     // A selection of pinned and unpinned tabs pins the others.
-    showTabContextMenu(fake.access, 'p', undefined, ['p', 'a', 'c'])
+    showTabContextMenu(fake.browser, 'p', undefined, ['p', 'a', 'c'])
     await click('pin-tabs')
     expect(order()).toEqual(['p*', 'a*', 'c*', 'b', 'd'])
   })

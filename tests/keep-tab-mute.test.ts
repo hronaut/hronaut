@@ -58,6 +58,7 @@ vi.mock('../src/main/browser/window-layout/window-layout.js', async (importOrigi
 const { Browser } = await import('../src/main/browser/browser.js')
 const { WorkspaceRegistry } = await import('../src/main/browser/workspace-registry.js')
 const { closeTabsForPerson } = await import('../src/main/browser/tab-close/close-tabs-for-person.js')
+const { reopenClosedTabEntry } = await import('../src/main/browser/tab-reopening/tab-reopening.js')
 
 const WORKSPACE = '01912345-6789-7abc-8def-0123456789ab'
 
@@ -68,9 +69,7 @@ interface Manager {
   setTabMuted(tabId: string, muted: boolean): unknown
   setAllTabsMuted(muted: boolean): unknown
   rememberClosedTab(tab: Tab): void
-  reopenClosedTabEntry(closedTabId: string | undefined, active: boolean): Promise<Tab>
   duplicateTabAfterLabelSave(tabId: string): Promise<unknown>
-  personTabCloseAccess(): never
   closeTabInternal(tabId: string): Promise<unknown>
 }
 
@@ -139,19 +138,22 @@ const sound = (tab: Tab | undefined) => ({ muted: tab?.muted, tabMuted: tab?.tab
 const MUTED = { muted: true, tabMuted: true, pageMuted: true }
 const findByUrl = (manager: Manager, url: string) => [...manager.tabs.values()].find((candidate) => candidate.url === url)
 
+/** Reopens the most recently closed tab in the background, as Reopen Closed Tab does before showing it. */
+const reopenLastClosed = async (manager: Manager): Promise<Tab> => await reopenClosedTabEntry(manager as never, undefined, false) as unknown as Tab
+
 describe('a muted tab brought back', () => {
   it('stays muted after Reopen Closed Tab', async () => {
     const { manager } = browser()
     const tab = await mutedTab(manager)
     await manager.closeTabInternal(tab.id)
 
-    expect(sound(await manager.reopenClosedTabEntry(undefined, false))).toEqual(MUTED)
+    expect(sound(await reopenLastClosed(manager))).toEqual(MUTED)
   })
 
   it('stays muted after Undo of closing it', async () => {
     const { manager, offers } = browser()
     const tab = await mutedTab(manager)
-    await closeTabsForPerson(manager.personTabCloseAccess(), [tab.id])
+    await closeTabsForPerson(manager as never, [tab.id])
 
     await offers[0]!.undo()
 
@@ -196,7 +198,7 @@ describe('a tab muted only because every tab was muted', () => {
     await manager.closeTabInternal(tab.id)
     manager.setAllTabsMuted(false)
 
-    expect(sound(await manager.reopenClosedTabEntry(undefined, false))).toEqual(SOUND)
+    expect(sound(await reopenLastClosed(manager))).toEqual(SOUND)
   })
 
   it('has a duplicate with sound', async () => {

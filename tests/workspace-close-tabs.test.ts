@@ -7,6 +7,11 @@ vi.mock('../src/main/browser/workspace-storage.js', async (original) => ({
   ...await original<typeof import('../src/main/browser/workspace-storage.js')>(),
   destroyWorkspaceStorage: vi.fn(async () => undefined)
 }))
+// The prototype-built browser below stubs getState, which closing tabs for the person returns through this.
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  browserState: (browser: { getState: () => unknown }) => browser.getState()
+}))
 import { Browser } from '../src/main/browser/browser.js'
 import { MAX_TABS, TabStateStore, type PersistedBrowserState } from '../src/main/browser/tab-store.js'
 import { destroyWorkspaceStorage } from '../src/main/browser/workspace-storage.js'
