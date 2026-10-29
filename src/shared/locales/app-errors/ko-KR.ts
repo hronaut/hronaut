@@ -17,6 +17,7 @@ export const koKRAppErrors: AppErrorMessages = {
     "pageHold": "명시적으로 페이지를 유지하도록 설정된 탭은 활성 상태로 유지됩니다.",
     "loading": "로드 중인 탭은 절전 상태로 전환할 수 없습니다.",
     "audio": "오디오를 재생 중인 탭은 활성 상태로 유지됩니다.",
+    "pictureInPicture": "PIP 모드로 동영상을 표시 중인 탭은 활성 상태로 유지됩니다.",
     "dialog": "대화상자가 열려 있는 탭은 활성 상태로 유지됩니다.",
     "wallet": "지갑 요청을 기다리는 탭은 활성 상태로 유지됩니다.",
     "devTools": "개발자 도구가 열려 있는 탭은 활성 상태로 유지됩니다.",

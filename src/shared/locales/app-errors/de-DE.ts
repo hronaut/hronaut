@@ -17,6 +17,7 @@ export const deDEAppErrors: AppErrorMessages = {
     "pageHold": "Ein Tab, dessen Seite ausdrücklich gehalten wird, bleibt aktiv.",
     "loading": "Ein Tab, der noch lädt, kann nicht in den Ruhezustand wechseln.",
     "audio": "Ein Tab, der Audio abspielt, bleibt aktiv.",
+    "pictureInPicture": "Ein Tab, der ein Video im Bild-im-Bild-Modus zeigt, bleibt aktiv.",
     "dialog": "Ein Tab mit einem offenen Dialog bleibt aktiv.",
     "wallet": "Ein Tab, der auf eine Wallet-Anfrage wartet, bleibt aktiv.",
     "devTools": "Ein Tab mit geöffneten Entwicklertools bleibt aktiv.",

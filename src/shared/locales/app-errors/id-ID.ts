@@ -17,6 +17,7 @@ export const idIDAppErrors: AppErrorMessages = {
     "pageHold": "Tab dengan penahanan halaman eksplisit tetap aktif.",
     "loading": "Tab yang sedang dimuat tidak dapat ditidurkan.",
     "audio": "Tab yang memutar audio tetap aktif.",
+    "pictureInPicture": "Tab yang menampilkan video dalam mode gambar dalam gambar tetap aktif.",
     "dialog": "Tab dengan dialog terbuka tetap aktif.",
     "wallet": "Tab yang menunggu permintaan dompet tetap aktif.",
     "devTools": "Tab dengan Alat Developer terbuka tetap aktif.",

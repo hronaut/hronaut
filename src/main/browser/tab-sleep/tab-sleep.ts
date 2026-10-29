@@ -8,6 +8,7 @@ import type { NavigationHistorySnapshot } from '../navigation-history.js'
 import { settledWithin } from '../page-waits/page-load-limit.js'
 import { RendererExitedError } from '../renderer-exit-guard.js'
 import { holdTabHistory } from '../tab-history-pages/forget-tab-history-pages.js'
+import { ISOLATED_WORLDS } from '../isolated-worlds.js'
 import { isHronautHomeUrl, isWebUrl } from '../url.js'
 import { SLEEPING_PAGE_URL } from './sleeping-page.js'
 import type { TabSleepAccess, TabSleepTab } from './tab-sleep-access.js'
@@ -465,6 +466,30 @@ async function hasChangedFormState(tab: TabSleepTab): Promise<boolean> {
   return false
 }
 
+/** Whether a video of the document shows in Picture in picture; one in a shadow root shows as its root's host. */
+const PICTURE_IN_PICTURE_SCRIPT = 'document.pictureInPictureElement !== null'
+
+/**
+ * Whether a video of the page shows in Picture in picture, which the sleeping page would close, so Chrome never
+ * discards such a tab. The page's own frame answers in a world of its own, which the page cannot change. A frame inside
+ * it answers in its page's world, the only one Electron runs scripts in there, within the form check's time, so a busy
+ * frame cannot hold up sleeping. A page that cannot answer shows none.
+ */
+export async function showsPictureInPicture(tab: TabSleepTab): Promise<boolean> {
+  try {
+    const shown: unknown = await tab.webContents.executeJavaScriptInIsolatedWorld(ISOLATED_WORLDS.tabSleep, [{ code: PICTURE_IN_PICTURE_SCRIPT }])
+    if (shown === true) return true
+  } catch {
+    return false
+  }
+  if (tab.webContents.isDestroyed()) return false
+  for (const frame of tab.webContents.mainFrame.framesInSubtree) {
+    if (frame === tab.webContents.mainFrame || frame.isDestroyed() || frame.detached) continue
+    if (await frameAnswer(frame.executeJavaScript(PICTURE_IN_PICTURE_SCRIPT)) === true) return true
+  }
+  return false
+}
+
 /** The frame's answer, or undefined when it fails or does not answer in time. */
 async function frameAnswer(call: Promise<unknown>): Promise<unknown> {
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -544,6 +569,10 @@ export async function putTabToSleep<Tab extends TabSleepTab>(access: TabSleepAcc
   }
   if (await hasChangedFormState(tab)) {
     if (reportBlocked) throw new LocalizedError('appErrors.sleep.unsavedForm')
+    return false
+  }
+  if (await showsPictureInPicture(tab)) {
+    if (reportBlocked) throw new LocalizedError('appErrors.sleep.pictureInPicture')
     return false
   }
   if (!isCurrent()) return false

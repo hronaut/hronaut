@@ -17,6 +17,7 @@ export const plPLAppErrors: AppErrorMessages = {
     "pageHold": "Karta, której strona jest celowo podtrzymywana, pozostaje aktywna.",
     "loading": "Wczytującej się karty nie można uśpić.",
     "audio": "Karta odtwarzająca dźwięk pozostaje aktywna.",
+    "pictureInPicture": "Karta wyświetlająca film w trybie obraz w obrazie pozostaje aktywna.",
     "dialog": "Karta z otwartym oknem dialogowym pozostaje aktywna.",
     "wallet": "Karta czekająca na żądanie portfela pozostaje aktywna.",
     "devTools": "Karta z otwartymi narzędziami deweloperskimi pozostaje aktywna.",

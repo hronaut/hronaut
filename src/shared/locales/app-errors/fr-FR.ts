@@ -17,6 +17,7 @@ export const frFRAppErrors: AppErrorMessages = {
     "pageHold": "Un onglet dont la page est explicitement maintenue reste actif.",
     "loading": "Un onglet en cours de chargement ne peut pas être mis en veille.",
     "audio": "Un onglet qui lit du son reste actif.",
+    "pictureInPicture": "Un onglet qui affiche une vidéo en mode image dans l’image reste actif.",
     "dialog": "Un onglet avec une boîte de dialogue ouverte reste actif.",
     "wallet": "Un onglet qui attend une demande de portefeuille reste actif.",
     "devTools": "Un onglet avec les outils de développement ouverts reste actif.",

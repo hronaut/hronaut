@@ -17,6 +17,7 @@ export const zhTWAppErrors: AppErrorMessages = {
     "pageHold": "明確設定網頁保留的分頁會保持活動狀態。",
     "loading": "載入中的分頁無法休眠。",
     "audio": "正在播放音訊的分頁會保持活動狀態。",
+    "pictureInPicture": "正在以子母畫面顯示影片的分頁會保持活動狀態。",
     "dialog": "有開啟中對話方塊的分頁會保持活動狀態。",
     "wallet": "正在等待錢包要求的分頁會保持活動狀態。",
     "devTools": "已開啟開發人員工具的分頁會保持活動狀態。",

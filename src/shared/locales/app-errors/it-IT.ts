@@ -17,6 +17,7 @@ export const itITAppErrors: AppErrorMessages = {
     "pageHold": "Una scheda con una sospensione esplicita della pagina resta attiva.",
     "loading": "Una scheda in caricamento non può essere sospesa.",
     "audio": "Una scheda che riproduce audio resta attiva.",
+    "pictureInPicture": "Una scheda che mostra un video in Picture in picture resta attiva.",
     "dialog": "Una scheda con una finestra di dialogo aperta resta attiva.",
     "wallet": "Una scheda in attesa di una richiesta del wallet resta attiva.",
     "devTools": "Una scheda con gli Strumenti per sviluppatori aperti resta attiva.",
