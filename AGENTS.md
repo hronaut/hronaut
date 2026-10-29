@@ -66,16 +66,17 @@ checks the first three.
   out to a feature module rather than growing them, and lower a budget when its
   file shrinks.
 - Feature functions import each other directly. Do not add access objects
-  (`*-access.ts`) or tab-manager methods that only pass a call on; the existing
-  ones go away as features move out of `tabs-manager.ts`, and the budgets file
-  lists those left.
+  (`*-access.ts` files, or `...Access` interfaces of delegates) or tab-manager
+  methods that only pass a call on; the existing ones go away as features
+  move out of `tabs-manager.ts`, and the budgets file lists the files left.
 - Imports only go down the layers: page primitives (debugger use, page
   evaluation, input authorization, workspace scope) come first, features use
   them, and workflows (tab sleep, tab close, window layout, workspace archive)
-  use features. No file imports, directly or through others, a file that
-  imports it, types aside.
-- A feature keeps the tab state it owns in its own typed slice of the tab,
-  declared in its folder (`tab.network`, `tab.emulation`), not as loose fields.
+  use features. No file statically imports, directly or through others, a
+  file that imports it; imports of types only do not count.
+- A feature keeps the tab state it owns in one typed field of the tab, as
+  `tab.emulation` does, with its type declared beside the feature, not as
+  loose fields on the tab.
 
 ## Verification
 

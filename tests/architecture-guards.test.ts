@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { importCycles, lineCount, ROOT, runtimeImports, sourceFiles } from './architecture/source-files.js'
+import { importCycles, lineCount, ROOT, runtimeImports, runtimeSpecifiers, sourceFiles } from './architecture/source-files.js'
 
 const MAX_LINES = 800
 const BUDGETS_FILE = 'tests/architecture/budgets.json'
@@ -12,13 +12,14 @@ const BUDGETS_FILE = 'tests/architecture/budgets.json'
  */
 const budgets = JSON.parse(readFileSync(join(ROOT, BUDGETS_FILE), 'utf8')) as { oversizedFiles: Record<string, number>, accessFiles: string[] }
 
+const files = sourceFiles()
 // Locale files hold one translated string per line and grow with every string, in every language.
-const files = sourceFiles().filter(file => !file.startsWith('src/shared/locales/'))
+const sizedFiles = files.filter(file => !file.startsWith('src/shared/locales/'))
 
 describe('the architecture rules in AGENTS.md', () => {
   it(`keeps every source file within ${MAX_LINES} lines, and lets the larger ones only shrink`, () => {
     const problems: string[] = []
-    for (const file of files) {
+    for (const file of sizedFiles) {
       const lines = lineCount(file)
       const budget = budgets.oversizedFiles[file]
       if (budget === undefined && lines > MAX_LINES) problems.push(`${file} has ${lines} lines; split it by feature to keep it within ${MAX_LINES}`)
@@ -26,7 +27,7 @@ describe('the architecture rules in AGENTS.md', () => {
       else if (budget !== undefined && lines < budget) problems.push(`${file} shrank to ${lines} lines: lower its budget in ${BUDGETS_FILE} to ${lines > MAX_LINES ? lines : 'nothing, removing it'}`)
     }
     for (const file of Object.keys(budgets.oversizedFiles)) {
-      if (!files.includes(file)) problems.push(`${file} is gone: remove it from ${BUDGETS_FILE}`)
+      if (!sizedFiles.includes(file)) problems.push(`${file} is gone: remove it from ${BUDGETS_FILE}`)
     }
     expect(problems).toEqual([])
   })
@@ -39,11 +40,35 @@ describe('the architecture rules in AGENTS.md', () => {
 
   it('has no import cycles in the code Hronaut runs, so imports only go down the layers', () => {
     const graph = runtimeImports(files)
-    // The code's imports and re-exports count; imports of types only, which the build leaves out, do not.
-    expect(graph.get('src/main/browser/tabs-manager.ts')).toContain('src/main/browser/page-navigation/page-navigation.ts')
-    expect(graph.get('src/main/browser/tabs-manager.ts')).not.toContain('src/main/browser/screenshots/screenshots-access.ts')
-    expect(graph.get('src/shared/types.ts')).toContain('src/shared/types/license.ts')
+    expect(graph.get('src/shared/i18n.ts')).toContain('src/shared/locales/en-US.ts')
+    expect(graph.get('src/renderer/src/main.ts')).toContain('src/renderer/src/App.vue')
+    expect([...graph.values()].flat().length).toBeGreaterThan(2_000)
     expect(importCycles(graph)).toEqual([])
+  })
+
+  it('counts the imports and re-exports that the built code keeps, and leaves out those of types only', () => {
+    const code = [
+      "import './side-effect.js'",
+      "import value, { type Shape } from './default.js'",
+      "import * as everything from './namespace.js'",
+      'import {',
+      "  run, // the caller's entry",
+      "  type Options",
+      "} from './multi-line.js'",
+      "import type { Only } from './type-import.js'",
+      "import { type A, type B } from './inline-types.js'",
+      'export type { Foo }',
+      "export * from './star.js'",
+      'export type Handler = () => void',
+      "export { start } from './named.js'",
+      "export { type C } from './type-export.js'",
+      "export type * from './type-star.js'",
+      "export * as grouped from './grouped.js'",
+      "const later = import('./dynamic.js')"
+    ].join('\n')
+    expect(runtimeSpecifiers(code)).toEqual([
+      './side-effect.js', './default.js', './namespace.js', './multi-line.js', './star.js', './named.js', './grouped.js'
+    ])
   })
 
   it('finds import cycles of any length, a file importing itself included, and none where imports only go down', () => {
