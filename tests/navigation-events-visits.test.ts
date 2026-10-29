@@ -1,5 +1,10 @@
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
+// The browser below is a stand-in that answers every call; these functions ask it instead of reading its fields.
+vi.mock('../src/main/browser/site-muting/site-muting.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/site-muting/site-muting.js')>(),
+  applySiteMuting: (browser: { applySiteMuting: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.applySiteMuting(...args)
+}))
 import { attachNavigationEvents } from '../src/main/browser/tab-events/navigation-events.js'
 
 /** A stand-in for whatever the handlers call on the tab manager: any call or property gives another stand-in. */
@@ -19,18 +24,22 @@ function page(url: string) {
     getTitle: () => 'Router app',
     isLoading: () => false,
     isLoadingMainFrame: () => false,
-    isDestroyed: () => false
+    isDestroyed: () => false,
+    // The ready page's sign-in and form edit watchers, which find nothing.
+    executeJavaScript: async () => undefined,
+    executeJavaScriptInIsolatedWorld: async () => null
   })
   const tab = {
     id: 'tab', url: 'about:blank', title: 'New tab', loading: false, sleeping: false,
     discoveryTitle: anything(), navigationGeneration: 0, faviconRequestId: 0, pendingHistoryUrl: null as string | null,
-    suppressInitialHistory: false, navigationPolicyDenialSequence: 0, emulationContextGeneration: 0
+    suppressInitialHistory: false, navigationPolicyDenialSequence: 0, emulationContextGeneration: 0,
+    webContents: contents
   }
   const visits: string[] = []
   const recordVisit = vi.fn((visited: { url: string }) => { visits.push(visited.url) })
   const fallback = anything() as Record<string | symbol, unknown>
-  const access = new Proxy({}, { get: (_target, key) => key === 'recordVisit' ? recordVisit : key === 'isDestroyed' ? () => false : fallback[key] })
-  attachNavigationEvents(access as never, tab as never, contents as never)
+  const browser = new Proxy({}, { get: (_target, key) => key === 'recordVisit' ? recordVisit : key === 'destroyed' ? false : fallback[key] })
+  attachNavigationEvents(browser as never, tab as never, contents as never)
   const open = () => { contents.emit('did-navigate', {}, address) }
   const inPage = (next: string) => { address = next; contents.emit('did-navigate-in-page', {}, next, true) }
   const ready = () => { contents.emit('dom-ready') }

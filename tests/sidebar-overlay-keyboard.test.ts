@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp', isPackaged: true } }))
 import { Browser } from '../src/main/browser/browser.js'
 import { attachPageKeyboardEvents } from '../src/main/browser/tab-events/page-keyboard-events.js'
-import type { PageKeyboardEventsAccess, PageKeyboardEventsTab } from '../src/main/browser/tab-events/page-keyboard-events-access.js'
 import { createOverlaySurfaces } from '../src/main/windows/overlay-surfaces.js'
 
 type KeyInput = Partial<Electron.Input> & { type: Electron.Input['type'] }
@@ -50,24 +49,20 @@ async function railView() {
 /** A page whose keys the tab manager follows, with nothing else going on. */
 function page(held: Set<string>) {
   const contents = Object.assign(new EventEmitter(), { id: 7 })
-  const tab: PageKeyboardEventsTab = { id: 'tab-1', humanInteractionGeneration: 0, lastHumanInteractionAt: 0, lastActiveAt: 0 }
-  const access: PageKeyboardEventsAccess<PageKeyboardEventsTab> = {
-    browserContentOccluded: () => false,
-    agentInputWebContents: () => new Map(),
-    screenshotAreaSessions: () => new Map(),
-    cancelScreenshotArea: async () => false,
-    elementPickerSessions: () => new Map(),
-    cancelElementPicker: async () => false,
-    consumeExpectedAgentKeyboardInput: () => false,
-    pageShortcut: (requested) => requested,
+  const tab = { id: 'tab-1', humanInteractionGeneration: 0, lastHumanInteractionAt: 0, lastActiveAt: 0 }
+  const browser = {
+    browserContentOccluded: false,
+    agentInputWebContents: new Map(),
+    screenshotAreaSessions: new Map(),
+    elementPickerSessions: new Map(),
+    authorizedAgentKeyboardInput: new Map(),
     isHumanInteractionLocked: () => false,
-    shellHeldKeys: () => held,
-    reproRecorder: () => ({ observeReproKeyboard: vi.fn() }),
-    scheduleTabOverviewPreview: vi.fn(),
-    mcpActivityFollower: () => ({ noteHumanInput: vi.fn() }),
-    options: () => ({})
+    shellHeldKeys: held,
+    reproRecorder: { observeReproKeyboard: vi.fn() },
+    mcpActivityFollower: { noteHumanInput: vi.fn() },
+    options: {}
   }
-  attachPageKeyboardEvents(access, tab, contents as never)
+  attachPageKeyboardEvents(browser as never, tab as never, contents as never)
   return contents
 }
 

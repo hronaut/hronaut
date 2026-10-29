@@ -4,7 +4,19 @@ import { retireNetworkPriorityObservations } from '../network-recording.js'
 import { certificateProblem, loadFailureProblem } from '../page-load-problem.js'
 import { normalizeTabTitle } from '../tab-metadata.js'
 import { isWebUrl } from '../url.js'
-import type { NavigationEventsAccess, NavigationEventsTab } from './navigation-events-access.js'
+import type { Browser } from '../browser.js'
+import type { BrowserTab } from '../browser-tab.js'
+import { certificateRefusal } from '../certificate-errors/certificate-errors.js'
+import { appendConsoleMessage } from '../console-messages/console-messages.js'
+import { watchCredentialSubmission } from '../credential-capture/credential-capture.js'
+import { recordAuthChallenge } from '../inspector-issues/inspector-issues.js'
+import { cancelNativeSelectionSessions } from '../native-selections/native-selections.js'
+import { applySiteMuting } from '../site-muting/site-muting.js'
+import { loadFavicon } from '../tab-favicon/tab-favicon.js'
+import { invalidateTabOverviewPreview, scheduleTabOverviewPreview } from '../tab-overview-previews/tab-overview-previews.js'
+import { watchUnsavedFormEdits } from '../tab-sleep/unsaved-form-edits.js'
+import { workspaceNavigationAllowed } from '../workspace-navigation/workspace-navigation.js'
+import { publishChange } from '../browser-state/browser-state.js'
 import { isStaleAddressTitle, untitledPageTitle } from './untitled-page-title.js'
 
 /** Chromium's error code for a load that was aborted, which shows no load failure. */
@@ -29,12 +41,12 @@ const MAX_TAB_HISTORY_ENTRIES = 50
  * records history, starts credential and form watching and restores the
  * interaction lock in the page and its frames.
  */
-export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: NavigationEventsAccess<Tab>, tab: Tab, webContents: WebContents): void {
+export function attachNavigationEvents(browser: Browser, tab: BrowserTab, webContents: WebContents): void {
   const syncNavigation = (): void => {
-    if (access.isDestroyed() || webContents.isDestroyed()) return
+    if (browser.destroyed || webContents.isDestroyed()) return
     tab.url = webContents.getURL() || tab.url
     tab.loading = webContents.isLoading()
-    access.changed()
+    publishChange(browser)
   }
   // A wallet request belongs to the document that made it, so its requests and network end when another document,
   // a page or an error page, replaces it. A navigation that never commits, such as a download or a response with no
@@ -42,8 +54,8 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
   // has already started by then.
   const walletDocumentReplaced = (): void => {
     tab.walletNavigationGeneration += 1
-    access.runWalletLifecycleAction('cancel wallet requests after tab navigation', () => (
-      access.options().onWalletNavigation?.(tab.id, tab.walletNavigationGeneration)
+    browser.runWalletLifecycleAction('cancel wallet requests after tab navigation', () => (
+      browser.options.onWalletNavigation?.(tab.id, tab.walletNavigationGeneration)
     ))
   }
   // The history entry the page shows, and whether the document that committed last opened that entry again at its
@@ -94,7 +106,7 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
   const recordPendingHistory = (): void => {
     if (tab.suppressInitialHistory || tab.pendingHistoryUrl !== tab.url) return
     tab.title = normalizeTabTitle(webContents.getTitle(), tab.title)
-    access.recordVisit(tab, pendingHistoryReload)
+    browser.recordVisit(tab, pendingHistoryReload)
     tab.pendingHistoryUrl = null
   }
   webContents.on('page-title-updated', (_event, title, explicitSet) => {
@@ -106,12 +118,12 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     if (titleChanged && historyTitleChanges < HISTORY_TITLE_CHANGES
       && (mainFrameLoading || Date.now() < historyTitleWindowEnd)) {
       historyTitleChanges += 1
-      access.options().onPageTitleUpdated?.({
+      browser.options.onPageTitleUpdated?.({
         url: webContents.getURL() || tab.url,
         title: nextTitle
       })
     }
-    access.changed()
+    publishChange(browser)
   })
   webContents.on('did-start-loading', () => {
     // The sleeping page's load starts here too, so a tab woken while that page still loads keeps the page it wakes to.
@@ -121,7 +133,7 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     tab.sleeping = false
     tab.lastActiveAt = Date.now()
     tab.pageProblem = undefined
-    access.changed(false)
+    publishChange(browser, false)
   })
   webContents.on('will-frame-navigate', (details) => {
     if (!details.isMainFrame) return
@@ -132,16 +144,16 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
       return
     }
     if (tab.mcpGroupId
-      && !access.workspaceNavigationAllowed(tab.mcpGroupId, details.url, 'page')) {
+      && !workspaceNavigationAllowed(browser, tab.mcpGroupId, details.url, 'page')) {
       tab.navigationPolicyDenialSequence += 1
       details.preventDefault()
       return
     }
-    access.prepareDiagnosticNavigation(tab)
+    browser.prepareDiagnosticNavigation(tab)
   })
   webContents.on('will-redirect', (details) => {
     if (!details.isMainFrame) return
-    if (tab.mcpGroupId && !access.workspaceNavigationAllowed(tab.mcpGroupId, details.url, 'redirect')) {
+    if (tab.mcpGroupId && !workspaceNavigationAllowed(browser, tab.mcpGroupId, details.url, 'redirect')) {
       tab.navigationPolicyDenialSequence += 1
       details.preventDefault()
       return
@@ -158,7 +170,7 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     tab.pageLifecycleAnimations = undefined
     tab.navigationGeneration += 1
     retireNetworkPriorityObservations(tab)
-    access.invalidateTabOverviewPreview(tab)
+    invalidateTabOverviewPreview(browser, tab)
     if (!isSameDocument) tab.documentGeneration += 1
     if (isSameDocument) {
       tab.performanceDocumentRouted = true
@@ -166,12 +178,12 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     }
     tab.pendingMainFrameUrl = navigationUrl
     // Remove it now, not at commit: a navigation that never commits (a download or a 204) keeps the old document.
-    void access.cssStatePreview().clear(tab, 'navigation').catch(() => undefined)
+    void browser.cssStatePreview.clear(tab, 'navigation').catch(() => undefined)
     tab.discoveryTitle.clear()
     tab.faviconAbortController?.abort()
     tab.faviconAbortController = undefined
     tab.faviconRequestId += 1
-    access.cancelNativeSelectionSessions(tab)
+    cancelNativeSelectionSessions(browser, tab)
     tab.inspectorIssues = []
     tab.inspectorIssuesTruncated = false
     tab.authChallenges = []
@@ -180,27 +192,27 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     tab.securitySnapshot = undefined
     tab.domChangesRecording = undefined
     tab.liveRegionRecording = undefined
-    access.changed(false)
+    publishChange(browser, false)
   })
   webContents.on('page-favicon-updated', (_event, favicons) => {
     if (tab.sleeping) return
-    void access.loadFavicon(tab, favicons)
+    void loadFavicon(browser, tab, favicons)
   })
   // Records the challenge for browser_issues, then asks the person to sign in, as Chrome does; a challenge Hronaut does
   // not ask about, such as one from another website's frame, Electron cancels.
   webContents.on('login', (event, details, authInfo, callback) => {
-    access.recordAuthChallenge(tab, details, authInfo)
-    access.answerHttpAuth(tab, event, details, authInfo, callback)
+    recordAuthChallenge(tab, details, authInfo)
+    browser.answerHttpAuth(tab, event, details, authInfo, callback)
   })
   // A certificate Chromium does not trust is refused, as Chrome does, unless the person chose to trust it in the tab's
   // workspace; the tab keeps what it refused for its page, so the person can choose to open it anyway.
   webContents.on('certificate-error', (event, url, error, certificate, callback, isMainFrame) => {
-    access.answerCertificateError(tab, event, url, error, certificate, callback, isMainFrame)
+    browser.answerCertificateError(tab, event, url, error, certificate, callback, isMainFrame)
   })
   webContents.on('audio-state-changed', (event) => {
     tab.audible = event.audible
     tab.muted = webContents.isAudioMuted()
-    access.changed(false)
+    publishChange(browser, false)
   })
   webContents.on('did-stop-loading', () => {
     // An aborted provisional load still stops loading without a commit.
@@ -209,10 +221,10 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
       tab.pendingMainFrameUrl = undefined
     }
     if (tab.sleeping) return
-    access.reconcileTabPresentation(tab)
+    browser.reconcileTabPresentation(tab)
     syncNavigation()
-    access.reproRecorder().refreshReproScrollPosition(tab)
-    access.scheduleTabOverviewPreview(tab)
+    browser.reproRecorder.refreshReproScrollPosition(tab)
+    scheduleTabOverviewPreview(browser, tab)
     if (tab.suppressInitialHistory) {
       tab.suppressInitialHistory = false
       tab.pendingHistoryUrl = null
@@ -231,7 +243,7 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     tab.performanceDocumentRouted = false
     tab.documentGeneration += 1
     walletDocumentReplaced()
-    access.trackWorkspaceOrigin(tab, url)
+    browser.trackWorkspaceOrigin(tab, url)
     tab.memoryBaseline = undefined
     const previousUrl = tab.url
     try {
@@ -261,12 +273,12 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     tab.pendingHistoryUrl = isWebUrl(url) ? url : null
     syncNavigation()
     // As in Chrome, each new document of a muted website starts muted, and one of another website has its sound back.
-    if (access.applySiteMuting(tab)) access.changed(false)
-    access.reproRecorder().navigated(tab, url, false)
+    if (applySiteMuting(browser, tab)) publishChange(browser, false)
+    browser.reproRecorder.navigated(tab, url, false)
   })
   webContents.on('did-navigate-in-page', (_event, url, isMainFrame) => {
     if (tab.sleeping) return
-    access.trackWorkspaceOrigin(tab, url)
+    browser.trackWorkspaceOrigin(tab, url)
     // A frame's hash or history change does not represent another visit to
     // the tab's top-level page, though it can add an entry.
     const previousEntry = committedEntry
@@ -281,7 +293,7 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     tab.title = normalizeTabTitle(!pageTitle && isStaleAddressTitle(title, previousUrl, url) ? untitledPageTitle(url) : title, tab.title)
     tab.performanceDocumentRouted = true
     syncNavigation()
-    access.reproRecorder().navigated(tab, url, true)
+    browser.reproRecorder.navigated(tab, url, true)
     // A change within the page that keeps its address, such as `history.replaceState(state, '')` saving a router's
     // state or scroll position, is not another visit. Chrome skips it too unless it follows a click or key press
     // within a few seconds; Hronaut never counts it. The first visit is still recorded when the document is ready.
@@ -299,14 +311,14 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
         && withoutFragment(url) !== withoutFragment(previousUrl)) {
         tab.suppressInitialHistory = false
       }
-      if (!tab.suppressInitialHistory) access.recordVisit(tab, samePage)
+      if (!tab.suppressInitialHistory) browser.recordVisit(tab, samePage)
       tab.pendingHistoryUrl = null
       // A route of a single-page app is a page of its own, whose title the app sets once it has shown it, such as after
       // a slow request. As in Chrome, its titles count as set while it loads, until a document finishes loading.
       historyTitleChanges = 0
       mainFrameLoading = true
     }
-    access.scheduleTabOverviewPreview(tab)
+    scheduleTabOverviewPreview(browser, tab)
   })
   // Electron reports an error page that replaced the document here, before did-fail-load. did-fail-load also reports a
   // document that committed and then failed to receive the rest of its content, such as after a reset connection, and
@@ -330,14 +342,14 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     tab.loading = false
     if (previousUrl !== failedUrl) tab.faviconDataUrl = undefined
     tab.url = failedUrl
-    const locale = access.options().getLocale()
+    const locale = browser.options.getLocale()
     // A certificate the tab refused shows Chrome's privacy error, from which the person may open the page anyway.
-    const refusal = errorDescription.startsWith('ERR_CERT_') ? access.certificateRefusal(tab, failedUrl) : undefined
+    const refusal = errorDescription.startsWith('ERR_CERT_') ? certificateRefusal(tab.webContents, failedUrl) : undefined
     tab.title = translate(locale, refusal ? 'native.pageProblem.certificateTabTitle' : 'native.pageProblem.loadTabTitle')
     tab.pageProblem = refusal
       ? certificateProblem(locale, failedUrl, errorCode, errorDescription, refusal)
       : loadFailureProblem(locale, failedUrl, errorCode, errorDescription)
-    access.appendConsoleMessage(tab, {
+    appendConsoleMessage(tab, {
       timestamp: new Date().toISOString(),
       level: 'error',
       message: `Page load failed: ${errorDescription} (${errorCode})`,
@@ -345,8 +357,8 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
       sourceId: failedUrl,
       kind: 'lifecycle'
     }, 'lifecycle')
-    access.changed()
-    access.scheduleTabOverviewPreview(tab)
+    publishChange(browser)
+    scheduleTabOverviewPreview(browser, tab)
   })
   webContents.on('did-frame-navigate', (_event, _url, _httpResponseCode, _httpStatusText, isMainFrame) => {
     // A frame that loads another document after its first one adds an entry to the tab's history.
@@ -362,9 +374,9 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     // committed and usable, make it available to address suggestions rather
     // than waiting for did-stop-loading.
     recordPendingHistory()
-    access.watchCredentialSubmission(tab)
-    access.watchUnsavedFormEdits(tab)
-    void access.syncHumanInteractionInputGuard(tab).catch((error) => {
+    watchCredentialSubmission(browser, tab)
+    watchUnsavedFormEdits(tab)
+    void browser.syncHumanInteractionInputGuard(tab).catch((error) => {
       console.error('[browser] Could not synchronize the page interaction lock:', error)
     })
   })
@@ -375,13 +387,13 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
         const frame = webContents.mainFrame.framesInSubtree.find((candidate) => (
           candidate.processId === frameProcessId && candidate.routingId === frameRoutingId
         ))
-        if (frame) access.watchUnsavedFormEdits(tab, frame)
+        if (frame) watchUnsavedFormEdits(tab, frame)
       } catch {
         // The page's frames are already gone; there is nothing left to watch.
       }
     }
-    if (!access.isHumanInteractionLocked(tab)) return
-    void access.syncHumanInteractionInputGuard(tab).catch((error) => {
+    if (!browser.isHumanInteractionLocked(tab)) return
+    void browser.syncHumanInteractionInputGuard(tab).catch((error) => {
       console.error('[browser] Could not synchronize a frame interaction lock:', error)
     })
   })
