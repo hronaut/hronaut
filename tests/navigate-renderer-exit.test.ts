@@ -3,6 +3,12 @@ import { describe, expect, it, vi } from 'vitest'
 import { navigate } from '../src/main/browser/page-navigation/page-navigation.js'
 import { RendererExitedError } from '../src/main/browser/renderer-exit-guard.js'
 
+// The browser below stubs getState, which navigating publishes through.
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  browserState: (browser: { getState: () => unknown }) => browser.getState()
+}))
+
 // A page whose renderer exited while it loaded ended browser_navigate with Electron's bare "ERR_FAILED (-2) loading",
 // as a network failure would, and showed the person that error on top of the tab's notice that the page stopped working.
 
@@ -13,14 +19,13 @@ import { RendererExitedError } from '../src/main/browser/renderer-exit-guard.js'
 function navigationThatFails({ rendererExits = false, exitReportedAfterMs = 0, crashedBefore = false, closesTab = false,
   navigatesMeanwhile = false, error = "ERR_FAILED (-2) loading 'https://next.example/'" } = {}) {
   let crashed = crashedBefore
-  let open = true
   const webContents = Object.assign(new EventEmitter(), {
     isDestroyed: () => false,
     isCrashed: () => crashed,
     loadURL: vi.fn(async () => {
       if (rendererExits) {
         setTimeout(() => {
-          if (closesTab) open = false
+          if (closesTab) tabs.delete(tab.id)
           // Such as the person typing another address.
           if (navigatesMeanwhile) tab.navigationGeneration += 1
           crashed = true
@@ -31,15 +36,15 @@ function navigationThatFails({ rendererExits = false, exitReportedAfterMs = 0, c
     })
   })
   const tab = { id: 'tab', navigationGeneration: 0, documentGeneration: 0, navigationPolicyDenialSequence: 0, sleeping: false, webContents }
-  const access = {
-    getTab: () => tab,
-    findTab: (id: string) => (open && id === tab.id ? tab : undefined),
-    searchEngine: () => undefined,
+  const tabs = new Map([[tab.id, tab]])
+  const browser = {
+    tabs,
+    activeTabId: tab.id,
+    options: {},
     prepareDiagnosticNavigation: vi.fn(),
-    confirmLeavePage: vi.fn(),
     getState: () => ({ ok: true })
   }
-  return Object.assign((byPerson: boolean) => navigate(access as never, 'https://next.example/', undefined, { byPerson }), { webContents })
+  return Object.assign((byPerson: boolean) => navigate(browser as never, 'https://next.example/', undefined, { byPerson }), { webContents })
 }
 
 describe('a load that ends because the page renderer exited', () => {

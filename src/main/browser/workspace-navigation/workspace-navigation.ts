@@ -13,7 +13,12 @@ import {
   normalizeWorkspaceNavigationPolicy,
   type WorkspaceNavigationDecision
 } from '../workspace-navigation-policy.js'
-import type { WorkspaceNavigationAccess, WorkspaceNavigationTab } from './workspace-navigation-access.js'
+import type { Browser } from '../browser.js'
+import { assertWorkspaceIdle } from '../workspace-operations/workspace-operations.js'
+import { forgetWorkspaceClosedTabs } from '../tab-reopening/tab-reopening.js'
+import { findTab } from '../browser-core.js'
+import type { BrowserTab } from '../browser-tab.js'
+import { browserState, publishChange } from '../browser-state/browser-state.js'
 
 /** How many navigation denials one workspace's audit keeps; the oldest is dropped first. */
 const MAX_WORKSPACE_NAVIGATION_AUDIT_ENTRIES = 50
@@ -41,9 +46,9 @@ function unknownWorkspace(groupId: string): LocalizedError {
 }
 
 /** An active or archived workspace's recorded navigation denials, newest first. */
-export function listWorkspaceNavigationAudit<Tab extends WorkspaceNavigationTab>(access: WorkspaceNavigationAccess<Tab>, groupId: string): BrowserWorkspaceNavigationAuditEntry[] {
-  const audit = access.findWorkspace(groupId)?.navigationAudit
-    ?? access.findArchivedWorkspace(groupId)?.navigationAudit
+export function listWorkspaceNavigationAudit(browser: Browser, groupId: string): BrowserWorkspaceNavigationAuditEntry[] {
+  const audit = browser.mcpTabGroups.get(groupId)?.navigationAudit
+    ?? browser.savedTabGroups.get(groupId)?.navigationAudit
   if (!audit) throw unknownWorkspace(groupId)
   return [...audit].reverse().map((entry) => ({ ...entry }))
 }
@@ -57,40 +62,40 @@ export function listWorkspaceNavigationAudit<Tab extends WorkspaceNavigationTab>
  * reported after the others are checked. The workspace's recently closed tabs
  * on a page the policy denies are forgotten, since they could not reopen.
  */
-export async function updateWorkspaceNavigationPolicy<Tab extends WorkspaceNavigationTab>(
-  access: WorkspaceNavigationAccess<Tab>,
+export async function updateWorkspaceNavigationPolicy(
+  browser: Browser,
   groupId: string,
   value: BrowserWorkspaceNavigationPolicy
 ): Promise<BrowserState> {
-  const group = access.findWorkspace(groupId)
+  const group = browser.mcpTabGroups.get(groupId)
   if (!group) throw unknownWorkspace(groupId)
-  access.assertWorkspaceIdle(groupId)
+  assertWorkspaceIdle(browser, groupId)
   const policy = normalizeWorkspaceNavigationPolicy(value)
   if (group.contextClass === 'public-observer'
     && JSON.stringify(policy) !== JSON.stringify(group.navigationPolicy)) {
     throw new LocalizedError('appErrors.navigation.observerOrigin')
   }
   const policyChanged = JSON.stringify(policy) !== JSON.stringify(group.navigationPolicy)
-  if (policyChanged) access.setInspectionPermission(group, (access.inspectionPermission(group) ?? 0) + 1)
+  if (policyChanged) browser.inspectionPermissions.set(group, (browser.inspectionPermissions.get(group) ?? 0) + 1)
   group.navigationPolicy = policy
   group.lastUsedAt = new Date().toISOString()
-  forgetDeniedClosedTabs(access, groupId)
+  forgetDeniedClosedTabs(browser, groupId)
   const failures: unknown[] = []
   // A copy, since a page can open a tab beside another while one is replaced, which puts the tabs in a new order; a tab
   // closed meanwhile is skipped.
-  for (const tab of [...access.tabs()]) {
-    if (tab.mcpGroupId !== groupId || access.findTab(tab.id) !== tab) continue
+  for (const tab of [...browser.tabs.values()]) {
+    if (tab.mcpGroupId !== groupId || findTab(browser, tab.id) !== tab) continue
     try {
-      await applyPolicyToTab(access, groupId, tab, policyChanged)
+      await applyPolicyToTab(browser, groupId, tab, policyChanged)
     } catch (error) {
-      if (access.findTab(tab.id) === tab) failures.push(error)
+      if (findTab(browser, tab.id) === tab) failures.push(error)
     }
   }
   // A tab closed while the open ones were checked joined the recently closed tabs after the first pass.
-  forgetDeniedClosedTabs(access, groupId)
-  access.changed()
+  forgetDeniedClosedTabs(browser, groupId)
+  publishChange(browser)
   if (failures.length) throw failures[0]
-  return access.getState()
+  return browserState(browser)
 }
 
 /**
@@ -98,9 +103,9 @@ export async function updateWorkspaceNavigationPolicy<Tab extends WorkspaceNavig
  * tab, so one the policy denies would fail every time and hide the older ones; as with a denied page that is open, the
  * denied page does not come back. A workspace closed or archived meanwhile has already taken its closed tabs along.
  */
-function forgetDeniedClosedTabs<Tab extends WorkspaceNavigationTab>(access: WorkspaceNavigationAccess<Tab>, groupId: string): void {
-  if (!access.findWorkspace(groupId)) return
-  access.forgetWorkspaceClosedTabs(groupId, (url) => !workspaceNavigationDecision(access, groupId, url).allowed)
+function forgetDeniedClosedTabs(browser: Browser, groupId: string): void {
+  if (!browser.mcpTabGroups.get(groupId)) return
+  forgetWorkspaceClosedTabs(browser, groupId, (url) => !workspaceNavigationDecision(browser, groupId, url).allowed)
 }
 
 /**
@@ -111,23 +116,23 @@ function forgetDeniedClosedTabs<Tab extends WorkspaceNavigationTab>(access: Work
  * is denied, it is stopped and the allowed page it would replace stays. A page that asks before leaving is replaced
  * without asking, and a sleeping tab, which would otherwise wake to the denied page, wakes on the blank page instead.
  */
-async function applyPolicyToTab<Tab extends WorkspaceNavigationTab>(
-  access: WorkspaceNavigationAccess<Tab>,
+async function applyPolicyToTab(
+  browser: Browser,
   groupId: string,
-  tab: Tab,
+  tab: BrowserTab,
   policyChanged: boolean
 ): Promise<void> {
-  if (access.findTab(tab.id) !== tab || tab.webContents.isDestroyed()) return
-  const shown = workspaceNavigationDecision(access, groupId, tab.url)
+  if (findTab(browser, tab.id) !== tab || tab.webContents.isDestroyed()) return
+  const shown = workspaceNavigationDecision(browser, groupId, tab.url)
   // A navigation that started before the change was checked against the old policy. A download or an empty response
   // started while the page still loads keeps its target until loading stops, so it too can be stopped here.
   const headedTo = policyChanged && !tab.sleeping && tab.pendingMainFrameUrl && tab.webContents.isLoadingMainFrame()
-    ? workspaceNavigationDecision(access, groupId, tab.pendingMainFrameUrl)
+    ? workspaceNavigationDecision(browser, groupId, tab.pendingMainFrameUrl)
     : undefined
   const decision = shown.allowed && headedTo ? headedTo : shown
-  access.options().onWorkspaceNavigationDecision?.(groupId, decision, 'policy-change')
+  browser.options.onWorkspaceNavigationDecision?.(groupId, decision, 'policy-change')
   if (decision.allowed) return
-  recordWorkspaceNavigationDenied(access, groupId, decision, 'policy-change')
+  recordWorkspaceNavigationDenied(browser, groupId, decision, 'policy-change')
   if (shown.allowed) {
     tab.webContents.stop()
     return
@@ -139,10 +144,10 @@ async function applyPolicyToTab<Tab extends WorkspaceNavigationTab>(
     // page, so neither waking it nor archiving the workspace brings the denied page back.
     tab.url = 'about:blank'
     tab.sleepNavigationHistory = undefined
-    await access.wakeTab(tab.id)
+    await browser.wakeTab(tab.id)
     return
   }
-  access.prepareDiagnosticNavigation(tab)
+  browser.prepareDiagnosticNavigation(tab)
   await loadBlankPageWithoutUnloadPrompt(tab)
 }
 
@@ -151,7 +156,7 @@ async function applyPolicyToTab<Tab extends WorkspaceNavigationTab>(
  * would otherwise cancel the load and stay open on a site the policy no longer allows, so its question is skipped,
  * once: a later question, such as one the person's own close of the tab raises, is asked as usual.
  */
-async function loadBlankPageWithoutUnloadPrompt(tab: WorkspaceNavigationTab): Promise<void> {
+async function loadBlankPageWithoutUnloadPrompt(tab: BrowserTab): Promise<void> {
   const skipUnloadPrompt = (event: Electron.Event): void => event.preventDefault()
   tab.webContents.once('will-prevent-unload', skipUnloadPrompt)
   try {
@@ -167,8 +172,8 @@ async function loadBlankPageWithoutUnloadPrompt(tab: WorkspaceNavigationTab): Pr
  * The workspace policy's decision for a URL. A URL the policy allows is still
  * denied as an unsupported scheme unless agent workspaces may open it at all.
  */
-function workspaceNavigationDecision<Tab extends WorkspaceNavigationTab>(access: WorkspaceNavigationAccess<Tab>, groupId: string, url: string): WorkspaceNavigationDecision {
-  const group = access.findWorkspace(groupId)
+function workspaceNavigationDecision(browser: Browser, groupId: string, url: string): WorkspaceNavigationDecision {
+  const group = browser.mcpTabGroups.get(groupId)
   if (!group) throw unknownWorkspace(groupId)
   const decision = evaluateWorkspaceNavigation(group.navigationPolicy, url)
   if (isAgentWorkspaceNavigationUrl(url) || !decision.allowed) return decision
@@ -179,8 +184,8 @@ function workspaceNavigationDecision<Tab extends WorkspaceNavigationTab>(access:
  * Adds a denial to the workspace's audit, skipping a repeat of the latest
  * entry within a second and keeping the most recent entries up to the limit.
  */
-function recordWorkspaceNavigationDenied<Tab extends WorkspaceNavigationTab>(
-  access: WorkspaceNavigationAccess<Tab>,
+function recordWorkspaceNavigationDenied(
+  browser: Browser,
   groupId: string,
   decision: WorkspaceNavigationDecision,
   source: BrowserWorkspaceNavigationAuditSource
@@ -191,7 +196,7 @@ function recordWorkspaceNavigationDenied<Tab extends WorkspaceNavigationTab>(
     && decision.reason !== 'unsupported-scheme'
     && decision.reason !== 'no-match'
   )) return
-  const group = access.findWorkspace(groupId)
+  const group = browser.mcpTabGroups.get(groupId)
   if (!group) return
   const targetOrigin = decision.targetOrigin.length <= MAX_WORKSPACE_NAVIGATION_AUDIT_ORIGIN_LENGTH
     ? decision.targetOrigin
@@ -212,7 +217,7 @@ function recordWorkspaceNavigationDenied<Tab extends WorkspaceNavigationTab>(
     source
   })
   if (group.navigationAudit.length > MAX_WORKSPACE_NAVIGATION_AUDIT_ENTRIES) group.navigationAudit.shift()
-  access.changed()
+  publishChange(browser)
 }
 
 /**
@@ -220,17 +225,17 @@ function recordWorkspaceNavigationDenied<Tab extends WorkspaceNavigationTab>(
  * workspace that is gone, as its tabs' pages close while Hronaut quits, allows none: their events still arrive, and
  * they run where nothing catches an error.
  */
-export function workspaceNavigationAllowed<Tab extends WorkspaceNavigationTab>(
-  access: WorkspaceNavigationAccess<Tab>,
+export function workspaceNavigationAllowed(
+  browser: Browser,
   groupId: string,
   url: string,
   source: BrowserWorkspaceNavigationAuditSource
 ): boolean {
-  if (!access.findWorkspace(groupId)) return false
-  const decision = workspaceNavigationDecision(access, groupId, url)
-  access.options().onWorkspaceNavigationDecision?.(groupId, decision, source)
+  if (!browser.mcpTabGroups.get(groupId)) return false
+  const decision = workspaceNavigationDecision(browser, groupId, url)
+  browser.options.onWorkspaceNavigationDecision?.(groupId, decision, source)
   if (decision.allowed) return true
-  recordWorkspaceNavigationDenied(access, groupId, decision, source)
+  recordWorkspaceNavigationDenied(browser, groupId, decision, source)
   return false
 }
 
@@ -239,16 +244,16 @@ export function workspaceNavigationAllowed<Tab extends WorkspaceNavigationTab>(
  * it is denied. The error names the blocked origin only when a Site access
  * rule could allow it.
  */
-export function assertWorkspaceNavigationAllowed<Tab extends WorkspaceNavigationTab>(
-  access: WorkspaceNavigationAccess<Tab>,
+export function assertWorkspaceNavigationAllowed(
+  browser: Browser,
   groupId: string,
   url: string,
   source: BrowserWorkspaceNavigationAuditSource
 ): void {
-  const decision = workspaceNavigationDecision(access, groupId, url)
-  access.options().onWorkspaceNavigationDecision?.(groupId, decision, source)
+  const decision = workspaceNavigationDecision(browser, groupId, url)
+  browser.options.onWorkspaceNavigationDecision?.(groupId, decision, source)
   if (decision.allowed) return
-  recordWorkspaceNavigationDenied(access, groupId, decision, source)
+  recordWorkspaceNavigationDenied(browser, groupId, decision, source)
   // No Site access rule could allow a denial for any other reason.
   if (decision.reason !== 'no-match') throw new LocalizedError('appErrors.navigation.agentSchemes')
   throw new LocalizedError('appErrors.navigation.originBlocked', { origin: decision.targetOrigin })

@@ -1,11 +1,18 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { BrowserState } from '../src/shared/types.js'
 import { assertWorkspaceNavigationAllowed, workspaceNavigationAllowed } from '../src/main/browser/workspace-navigation/workspace-navigation.js'
-import type {
-  WorkspaceNavigationAccess,
-  WorkspaceNavigationTab,
-  WorkspaceNavigationWorkspace
-} from '../src/main/browser/workspace-navigation/workspace-navigation-access.js'
+import type { Browser } from '../src/main/browser/browser.js'
+import type { ActiveWorkspace } from '../src/main/browser/workspace-registry.js'
+
+// The browsers below stub changed and getState, which the navigation policy publishes through.
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist),
+  browserState: (browser: { getState: () => unknown }) => browser.getState()
+}))
+
+/** The workspace fields the navigation policy reads and writes: the policy itself and its audit of denials. */
+type WorkspaceNavigationWorkspace = Pick<ActiveWorkspace, 'contextClass' | 'lastUsedAt' | 'navigationPolicy' | 'navigationAudit'>
 
 // Regression: a page that refreshed itself as Hronaut quit, after its workspace was forgotten, threw "Unknown
 // workspace" out of the tab's will-frame-navigate listener, where nothing caught it.
@@ -15,21 +22,15 @@ const WORKSPACE_ID = '01912345-6789-7abc-8def-0123456789ab'
 function access(workspace: WorkspaceNavigationWorkspace | undefined) {
   const onWorkspaceNavigationDecision = vi.fn()
   const changed = vi.fn()
-  const policyAccess: WorkspaceNavigationAccess<WorkspaceNavigationTab> = {
-    findWorkspace: (id) => id === WORKSPACE_ID ? workspace : undefined,
-    findArchivedWorkspace: () => undefined,
-    assertWorkspaceIdle: () => undefined,
-    inspectionPermission: () => undefined,
-    setInspectionPermission: () => undefined,
-    tabs: () => [][Symbol.iterator](),
-    findTab: () => undefined,
-    options: () => ({ onWorkspaceNavigationDecision }),
-    prepareDiagnosticNavigation: () => undefined,
-    wakeTab: async () => undefined,
-    forgetWorkspaceClosedTabs: () => undefined,
+  const policyAccess = {
+    mcpTabGroups: new Map(workspace ? [[WORKSPACE_ID, workspace]] : []),
+    savedTabGroups: new Map(),
+    inspectionPermissions: new WeakMap(),
+    tabs: new Map(),
+    options: { onWorkspaceNavigationDecision },
     changed,
     getState: () => ({}) as BrowserState
-  }
+  } as unknown as Browser
   return { policyAccess, onWorkspaceNavigationDecision, changed }
 }
 

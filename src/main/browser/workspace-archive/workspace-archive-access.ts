@@ -2,7 +2,7 @@ import type { Session } from 'electron'
 import type { BrowserClosedTabState, BrowserSavedTabGroupState, BrowserState } from '../../../shared/types.js'
 import type { UndoableAction } from '../../undo-offers.js'
 import type { PersistedBrowserState, TabStateStore } from '../tab-store.js'
-import type { BrowserWorkspaceOperation, WorkspaceOperationAction } from '../workspace-operations/workspace-operations-access.js'
+import type { BrowserWorkspaceOperation, WorkspaceOperationAction } from '../workspace-operations/workspace-operations.js'
 import type { ActiveWorkspace, ArchivedWorkspace, WorkspaceRegistry } from '../workspace-registry.js'
 
 /**

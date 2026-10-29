@@ -45,7 +45,6 @@ import { saveScreenshot, type PendingScreenshotExport, type ScreenshotExport, ty
 import { FrameObservationController } from './frame-observation.js'
 import type { TabContextMenuAccess } from './context-menus/tab-context-menu-access.js'
 import { showTabContextMenu } from './context-menus/tab-context-menu.js'
-import type { HistoryMenuAccess } from './context-menus/history-menu-access.js'
 import { showHistoryMenu } from './context-menus/history-menu.js'
 import { ReactInspectionController, type ReactInspectionAuthority } from './react-inspection.js'
 import { FixedDateController, type FixedDateAuthority } from './fixed-date/fixed-date.js'
@@ -413,8 +412,7 @@ import { openDevTools, showDevToolsConsole, toggleDevTools } from './devtools/de
 import { attachDevToolsEvents } from './devtools/devtools-events.js'
 import type { PageLifecycleAccess } from './page-lifecycle/page-lifecycle-access.js'
 import { controlPageLifecycle, pageLifecycle, setTabPageLifecycle } from './page-lifecycle/page-lifecycle.js'
-import type { PageNavigationAccess } from './page-navigation/page-navigation-access.js'
-import { back, forward, goToHistoryEntry, navigate, reload, reloadIgnoringCache, stop, stopFocusedPageLoading } from './page-navigation/page-navigation.js'
+import { back, forward, navigate, reload, reloadIgnoringCache, stop, stopFocusedPageLoading } from './page-navigation/page-navigation.js'
 import { setZoom } from './page-zoom/page-zoom.js'
 import { historyGesture } from './history-gesture/history-gesture.js'
 import { printPage, printShownPage } from './page-print/page-print.js'
@@ -427,7 +425,6 @@ import {
   normalizeWorkspaceNavigationPolicy,
   type WorkspaceNavigationDecision
 } from './workspace-navigation-policy.js'
-import type { WorkspaceNavigationAccess } from './workspace-navigation/workspace-navigation-access.js'
 import {
   assertWorkspaceNavigationAllowed,
   listWorkspaceNavigationAudit,
@@ -444,15 +441,12 @@ import { closeMcpTabGroup, closeMcpTabGroupInternal } from './mcp-tab-groups/clo
 import { createMcpTabGroup } from './mcp-tab-groups/create-mcp-tab-group.js'
 import { listMcpTabGroups, renameMcpTabGroup, requireMcpTabGroup, updateMcpTabGroup } from './mcp-tab-groups/mcp-tab-groups.js'
 import { setWorkspacePinned } from './mcp-tab-groups/workspace-pinning.js'
-import type {
-  BrowserWorkspaceOperation,
-  OpenWorkspaceOperationAction,
-  WorkspaceOperationAction,
-  WorkspaceOperationsAccess
-} from './workspace-operations/workspace-operations-access.js'
 import {
   assertWorkspaceCanOpenTab,
   assertWorkspaceIdle,
+  type BrowserWorkspaceOperation,
+  type OpenWorkspaceOperationAction,
+  type WorkspaceOperationAction,
   withGlobalWorkspaceStorageOperation,
   withSavedWorkspaceOperation,
   withWorkspaceOperation,
@@ -524,7 +518,7 @@ import { stageBeforeUnloadClose } from './tab-close/before-unload-staging.js'
 import { closeTabAfterLabelSave } from './tab-close/close-tab.js'
 import type { TabLabelsAccess } from './tab-labels/tab-labels-access.js'
 import { assertTabLabelAdmission, saveTabLabel, withTabLabelLifecycle } from './tab-labels/tab-labels.js'
-import { closedTabHistory, duplicateTabAfterLabelSave, forgetClosedTabs, forgetWorkspaceClosedTabs, rememberClosedTab, rememberSavedClosedTabs, reopenClosedTabAfterLabelSave, reopenClosedTabEntry } from './tab-reopening/tab-reopening.js'
+import { closedTabHistory, duplicateTabAfterLabelSave, forgetClosedTabs, rememberClosedTab, rememberSavedClosedTabs, reopenClosedTabAfterLabelSave, reopenClosedTabEntry } from './tab-reopening/tab-reopening.js'
 import { forgetTabHistoryPages, holdTabHistory } from './tab-history-pages/forget-tab-history-pages.js'
 import { reorderTab, reorderTabs, setTabPinned } from './tab-arrangement/tab-arrangement.js'
 import type { DroppedLinksAccess } from './dropped-links/dropped-links-access.js'
@@ -1728,42 +1722,15 @@ export class Browser {
     return requireMcpTabGroup(this.mcpTabGroupsAccess(), groupId)
   }
 
-  /**
-   * The narrow view the workspace navigation policy gets of this manager's
-   * private tabs, active and archived workspaces, busy workspaces, inspection
-   * permissions, recently closed tabs, options and state publication. It is a prototype method
-   * rather than a field, so managers created without the constructor (as unit
-   * tests do) still provide it. The delegates below return the feature's
-   * value or promise directly, so no extra ticks separate its final checks
-   * from the caller.
-   */
-  private workspaceNavigationAccess(): WorkspaceNavigationAccess<BrowserTab> {
-    return {
-      findWorkspace: (workspaceId) => this.mcpTabGroups.get(workspaceId),
-      findArchivedWorkspace: (workspaceId) => this.savedTabGroups.get(workspaceId),
-      assertWorkspaceIdle: (workspaceId) => this.assertWorkspaceIdle(workspaceId),
-      inspectionPermission: (workspace) => this.inspectionPermissions.get(workspace),
-      setInspectionPermission: (workspace, generation) => { this.inspectionPermissions.set(workspace, generation) },
-      tabs: () => this.tabs.values(),
-      findTab: (tabId) => this.tabs.get(tabId),
-      options: () => this.options,
-      prepareDiagnosticNavigation: (tab) => this.prepareDiagnosticNavigation(tab),
-      wakeTab: (tabId) => this.wakeTab(tabId),
-      forgetWorkspaceClosedTabs: (workspaceId, matches) => { forgetWorkspaceClosedTabs(this, workspaceId, matches) },
-      changed: (persist) => this.changed(persist),
-      getState: () => this.getState()
-    }
-  }
-
   listWorkspaceNavigationAudit(groupId: string): BrowserWorkspaceNavigationAuditEntry[] {
-    return listWorkspaceNavigationAudit(this.workspaceNavigationAccess(), groupId)
+    return listWorkspaceNavigationAudit(this, groupId)
   }
 
   updateWorkspaceNavigationPolicy(
     groupId: string,
     value: BrowserWorkspaceNavigationPolicy
   ): Promise<BrowserState> {
-    return updateWorkspaceNavigationPolicy(this.workspaceNavigationAccess(), groupId, value)
+    return updateWorkspaceNavigationPolicy(this, groupId, value)
   }
 
   private workspaceNavigationAllowed(
@@ -1771,7 +1738,7 @@ export class Browser {
     url: string,
     source: BrowserWorkspaceNavigationAuditSource
   ): boolean {
-    return workspaceNavigationAllowed(this.workspaceNavigationAccess(), groupId, url, source)
+    return workspaceNavigationAllowed(this, groupId, url, source)
   }
 
   private assertWorkspaceNavigationAllowed(
@@ -1779,7 +1746,7 @@ export class Browser {
     url: string,
     source: BrowserWorkspaceNavigationAuditSource
   ): void {
-    assertWorkspaceNavigationAllowed(this.workspaceNavigationAccess(), groupId, url, source)
+    assertWorkspaceNavigationAllowed(this, groupId, url, source)
   }
 
   mcpWorkspaceResumeKey(workspaceId: string): string {
@@ -2961,66 +2928,21 @@ export class Browser {
     return (siblings[index + 1] ?? siblings[index - 1])?.id ?? null
   }
 
-  /**
-   * The narrow view navigation gets of this manager's private tabs, search
-   * engine setting, workspace navigation policy, diagnostic log reset,
-   * renderer recovery, waking, page waits and state publication. It is a
-   * prototype method rather than a field, so managers created without the
-   * constructor (as unit tests do) still provide it. The delegates below
-   * return the feature's results directly, so callers see the same ticks as
-   * before.
-   */
-  private pageNavigationAccess(): PageNavigationAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      findTab: (tabId) => this.tabs.get(tabId),
-      focusedTab: () => {
-        const focused = electronWebContents.getFocusedWebContents()
-        const tabId = focused ? this.webContentsToTab.get(focused.id) : undefined
-        return tabId ? this.tabs.get(tabId) : undefined
-      },
-      searchEngine: () => this.options.getSearchEngine?.(),
-      assertWorkspaceNavigationAllowed: (groupId, url, source) => this.assertWorkspaceNavigationAllowed(groupId, url, source),
-      workspaceNavigationAllowed: (groupId, url, source) => this.workspaceNavigationAllowed(groupId, url, source),
-      prepareDiagnosticNavigation: (tab) => this.prepareDiagnosticNavigation(tab),
-      forgetTabsOpenedFrom: (groupId) => forgetTabsOpenedFrom(this.tabs.values(), groupId),
-      isRendererRecovering: (webContents) => this.rendererRecovery.isRecovering(webContents),
-      recoverRenderer: (webContents, loadReplacement) => this.rendererRecovery.recover(webContents, loadReplacement),
-      wakeTab: (tabId) => this.wakeTab(tabId),
-      waitForPage: (tabId, timeoutMs) => this.waitForPage(tabId, timeoutMs),
-      changed: (persist) => this.changed(persist),
-      getState: () => this.getState(),
-      showTab: async (tab) => {
-        if (this.activeTabId !== tab.id) await this.selectTabForPerson(tab.id)
-      },
-      confirmLeavePage: async () => {
-        try {
-          return await (this.options.confirmBeforeUnloadLeave?.() ?? Promise.resolve(false))
-        } catch (error) {
-          console.error('[browser] Could not ask before leaving a page with unsaved changes:', error)
-          this.options.onActionFailed?.('confirm leaving a page', error)
-          return false
-        }
-      },
-      focusKeptPage: (tab) => this.focusPageAfterQuestion(tab.webContents)
-    }
-  }
-
   navigate(url: string, tabId?: string, options?: { byPerson?: boolean }): Promise<BrowserState> {
-    return navigate(this.pageNavigationAccess(), url, tabId, options)
+    return navigate(this, url, tabId, options)
   }
 
   back(tabId?: string): Promise<BrowserState> {
-    return back(this.pageNavigationAccess(), tabId)
+    return back(this, tabId)
   }
 
   forward(tabId?: string): Promise<BrowserState> {
-    return forward(this.pageNavigationAccess(), tabId)
+    return forward(this, tabId)
   }
 
   /** Shows the pages the tab's Back or Forward arrow goes through, for the person to pick one, as Chrome does. */
   showHistoryMenu(tabId: string, direction: 'back' | 'forward', anchor?: { x: number; y: number }): boolean {
-    return showHistoryMenu(this.historyMenuAccess(), tabId, direction, anchor)
+    return showHistoryMenu(this, tabId, direction, anchor)
   }
 
   /**
@@ -3029,21 +2951,6 @@ export class Browser {
    */
   openNavigationInNewTab(tabId: string, target: 'back' | 'forward' | 'reload', active: boolean): Promise<BrowserState> {
     return openNavigationInNewTab(this, tabId, target, active)
-  }
-
-  /**
-   * The narrow view the list of pages Back and Forward show gets of this manager's tabs, window, failed action reports,
-   * localized text and history navigation. It is a prototype method rather than a field, so managers created without
-   * the constructor (as unit tests do) still provide it.
-   */
-  private historyMenuAccess(): HistoryMenuAccess<BrowserTab> {
-    return {
-      findTab: (tabId) => this.tabs.get(tabId),
-      text: (key) => this.text(key),
-      onActionFailed: (action, error) => this.options.onActionFailed?.(action, error),
-      goToHistoryEntry: (tabId, entry) => goToHistoryEntry(this.pageNavigationAccess(), tabId, entry),
-      window: () => this.window
-    }
   }
 
   /** Goes back or forward in the shown tab for the person's Back or Forward key or mouse button, unless its page keeps its input. */
@@ -3070,11 +2977,11 @@ export class Browser {
   pagePrinting: Set<number> | undefined
 
   reload(tabId?: string): Promise<BrowserState> {
-    return reload(this.pageNavigationAccess(), tabId)
+    return reload(this, tabId)
   }
 
   reloadIgnoringCache(tabId?: string): Promise<BrowserState> {
-    return reloadIgnoringCache(this.pageNavigationAccess(), tabId)
+    return reloadIgnoringCache(this, tabId)
   }
 
   findInPage(
@@ -3131,11 +3038,11 @@ export class Browser {
   }
 
   stop(tabId?: string): BrowserState {
-    return stop(this.pageNavigationAccess(), tabId)
+    return stop(this, tabId)
   }
 
   stopFocusedPageLoading(): void {
-    stopFocusedPageLoading(this.pageNavigationAccess())
+    stopFocusedPageLoading(this)
   }
 
   /**
@@ -4843,32 +4750,12 @@ export class Browser {
     if (collision) throw new LocalizedError('appErrors.workspace.nameTaken', { name })
   }
 
-  /**
-   * The narrow view holding workspaces busy gets of this manager's private
-   * open and archived workspaces and the operations in flight. It is a
-   * prototype method rather than a field, so managers created without the
-   * constructor (as unit tests do) still provide it. The delegates below
-   * return the feature's promise directly, so callers see the same ticks as
-   * before.
-   */
-  private workspaceOperationsAccess(): WorkspaceOperationsAccess {
-    return {
-      mcpTabGroups: () => this.mcpTabGroups,
-      savedTabGroups: () => this.savedTabGroups,
-      workspaceOperations: () => this.workspaceOperations,
-      savedWorkspaceOperations: () => this.savedWorkspaceOperations,
-      workspaceStorageOperation: () => this.workspaceStorageOperation,
-      setWorkspaceStorageOperation: (operation) => { this.workspaceStorageOperation = operation },
-      pendingWorkspaceOperationPromises: () => this.pendingWorkspaceOperationPromises
-    }
-  }
-
   private assertWorkspaceIdle(workspaceId: string): void {
-    assertWorkspaceIdle(this.workspaceOperationsAccess(), workspaceId)
+    assertWorkspaceIdle(this, workspaceId)
   }
 
   private assertWorkspaceCanOpenTab(workspaceId: string): void {
-    assertWorkspaceCanOpenTab(this.workspaceOperationsAccess(), workspaceId)
+    assertWorkspaceCanOpenTab(this, workspaceId)
   }
 
   private withWorkspaceOperation<T>(
@@ -4877,7 +4764,7 @@ export class Browser {
     operation: () => Promise<T>,
     blocksNewTabs?: boolean
   ): Promise<T> {
-    return withWorkspaceOperation(this.workspaceOperationsAccess(), workspaceId, action, operation, blocksNewTabs)
+    return withWorkspaceOperation(this, workspaceId, action, operation, blocksNewTabs)
   }
 
   private withSavedWorkspaceOperation<T>(
@@ -4885,7 +4772,7 @@ export class Browser {
     action: WorkspaceOperationAction,
     operation: () => Promise<T>
   ): Promise<T> {
-    return withSavedWorkspaceOperation(this.workspaceOperationsAccess(), savedWorkspaceId, action, operation)
+    return withSavedWorkspaceOperation(this, savedWorkspaceId, action, operation)
   }
 
   private withWorkspaceStorageOperation<T>(
@@ -4894,14 +4781,14 @@ export class Browser {
     operation: () => Promise<T>,
     blocksNewTabs?: boolean
   ): Promise<T> {
-    return withWorkspaceStorageOperation(this.workspaceOperationsAccess(), workspaceId, action, operation, blocksNewTabs)
+    return withWorkspaceStorageOperation(this, workspaceId, action, operation, blocksNewTabs)
   }
 
   private withGlobalWorkspaceStorageOperation<T>(
     action: WorkspaceOperationAction,
     operation: () => Promise<T>
   ): Promise<T> {
-    return withGlobalWorkspaceStorageOperation(this.workspaceOperationsAccess(), action, operation)
+    return withGlobalWorkspaceStorageOperation(this, action, operation)
   }
 
   /** Follows the tab's page from before its first page starts; `openedBy` is the page that opened it as a window. */
@@ -5523,7 +5410,7 @@ export class Browser {
     queueNetworkRouteRequest(this.networkConditionsAccess(), tab, params)
   }
 
-  private prepareDiagnosticNavigation(tab: BrowserTab): void {
+  prepareDiagnosticNavigation(tab: BrowserTab): void {
     if (tab.preserveDiagnosticLogs) return
     tab.consoleMessages = []
     tab.pendingRuntimeConsoleMessages = []

@@ -3,11 +3,24 @@ import type { WebContents } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
 import type { BrowserState, BrowserWorkspaceNavigationPolicy } from '../src/shared/types.js'
 import { updateWorkspaceNavigationPolicy } from '../src/main/browser/workspace-navigation/workspace-navigation.js'
-import type {
-  WorkspaceNavigationAccess,
-  WorkspaceNavigationTab,
-  WorkspaceNavigationWorkspace
-} from '../src/main/browser/workspace-navigation/workspace-navigation-access.js'
+import type { Browser } from '../src/main/browser/browser.js'
+import type { ActiveWorkspace } from '../src/main/browser/workspace-registry.js'
+
+// The browser below stubs changed and getState, which the navigation policy publishes through, and keeps the
+// workspace's recently closed tabs by address, which forgetting them reaches through tab reopening.
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist),
+  browserState: (browser: { getState: () => unknown }) => browser.getState()
+}))
+vi.mock('../src/main/browser/tab-reopening/tab-reopening.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-reopening/tab-reopening.js')>(),
+  forgetWorkspaceClosedTabs: (
+    browser: { forgetWorkspaceClosedTabs: (workspaceId: string, matches: (url: string) => boolean) => void },
+    workspaceId: string,
+    matches: (url: string) => boolean
+  ) => browser.forgetWorkspaceClosedTabs(workspaceId, matches)
+}))
 
 const ALLOWED = 'https://allowed.example'
 const BLOCKED = 'https://blocked.example'
@@ -42,7 +55,19 @@ class FakePage extends EventEmitter {
   isDestroyed(): boolean { return this.destroyed }
 }
 
-interface FakeTab extends WorkspaceNavigationTab { page: FakePage }
+/** The tab fields the workspace navigation policy reads when the policy changes, and the tab's page. */
+interface FakeTab {
+  id: string
+  url: string
+  title: string
+  faviconDataUrl?: string
+  mcpGroupId?: string
+  webContents: WebContents
+  sleeping: boolean
+  sleepNavigationHistory?: unknown
+  pendingMainFrameUrl?: string
+  page: FakePage
+}
 
 function tab(id: string, url: string, options: { sleeping?: boolean } = {}): FakeTab {
   const page = new FakePage(options.sleeping ? 'data:text/html,sleeping' : url)
@@ -57,7 +82,7 @@ function tab(id: string, url: string, options: { sleeping?: boolean } = {}): Fak
 /** The workspace with these tabs open, in this order, and the policy it has before the change. */
 function access(tabs: FakeTab[], policy: BrowserWorkspaceNavigationPolicy = UNRESTRICTED) {
   const open = new Map(tabs.map((candidate) => [candidate.id, candidate]))
-  const workspace: WorkspaceNavigationWorkspace = { contextClass: 'standard', lastUsedAt: '', navigationPolicy: policy, navigationAudit: [] }
+  const workspace: Pick<ActiveWorkspace, 'contextClass' | 'lastUsedAt' | 'navigationPolicy' | 'navigationAudit'> = { contextClass: 'standard', lastUsedAt: '', navigationPolicy: policy, navigationAudit: [] }
   // The workspace's recently closed tabs, by address.
   const closedTabs: string[] = []
   const wakeTab = vi.fn(async (id: string) => {
@@ -66,23 +91,21 @@ function access(tabs: FakeTab[], policy: BrowserWorkspaceNavigationPolicy = UNRE
     await woken.page.loadURL(woken.url)
   })
   const decisions = vi.fn()
-  const port: WorkspaceNavigationAccess<FakeTab> = {
-    findWorkspace: (id) => id === 'workspace' ? workspace : undefined,
-    findArchivedWorkspace: () => undefined,
-    assertWorkspaceIdle: () => undefined,
-    inspectionPermission: () => undefined,
-    setInspectionPermission: () => undefined,
-    tabs: () => open.values(),
-    findTab: (id) => open.get(id),
-    options: () => ({ onWorkspaceNavigationDecision: decisions }),
+  const port = {
+    mcpTabGroups: new Map([['workspace', workspace]]),
+    savedTabGroups: new Map(),
+    workspaceOperations: new Map(),
+    inspectionPermissions: new WeakMap(),
+    tabs: open,
+    options: { onWorkspaceNavigationDecision: decisions },
     prepareDiagnosticNavigation: () => undefined,
     wakeTab,
-    forgetWorkspaceClosedTabs: (id, matches) => {
+    forgetWorkspaceClosedTabs: (id: string, matches: (url: string) => boolean) => {
       if (id === 'workspace') closedTabs.splice(0, closedTabs.length, ...closedTabs.filter((url) => !matches(url)))
     },
     changed: () => undefined,
     getState: () => ({}) as BrowserState
-  }
+  } as unknown as Browser
   const close = (closed: FakeTab) => {
     open.delete(closed.id)
     closed.page.destroyed = true
@@ -175,7 +198,7 @@ describe('restricting a workspace', () => {
     blocked.page.loadURL.mockImplementationOnce(async (url: string) => {
       // The closing workspace's closed tabs are held aside for Undo, where forgetting closed tabs still reaches them.
       closedTabs.push(`${BLOCKED}/held-for-undo`)
-      port.findWorkspace = () => undefined
+      port.mcpTabGroups.delete('workspace')
       blocked.page.shown = url
     })
 

@@ -1,11 +1,37 @@
 import type { MessageKey } from '../../../shared/i18n.js'
 import { LocalizedError } from '../../localized-error.js'
-import type {
-  BrowserWorkspaceOperation,
-  OpenWorkspaceOperationAction,
-  WorkspaceOperationAction,
-  WorkspaceOperationsAccess
-} from './workspace-operations-access.js'
+import type { Browser } from '../browser.js'
+
+/**
+ * What each operation that can hold an open workspace busy does, in the words
+ * of the busy message agents read. Every one has a sentence for the person.
+ */
+export type OpenWorkspaceOperationAction =
+  | 'archiving the workspace'
+  | 'closing the workspace'
+  | 'forking workspace data'
+  | 'restoring the archived workspace'
+  | 'clearing website data'
+  | 'moving workspace data'
+  | 'copying workspace data'
+  | 'importing browser cookies'
+
+/** What each operation that can hold a workspace, an archived workspace or the storage of every workspace busy does. */
+export type WorkspaceOperationAction = OpenWorkspaceOperationAction | 'deleting the archived workspace'
+
+/**
+ * An operation that holds a workspace, an archived workspace or the storage
+ * of every workspace busy: what it does, for the busy message, whether it
+ * also keeps new tabs out, and a token that tells it apart from a later
+ * operation of the same kind.
+ */
+export interface BrowserWorkspaceOperation<Action extends WorkspaceOperationAction = WorkspaceOperationAction> {
+  action: Action
+  blocksNewTabs: boolean
+  token: symbol
+  /** Settles when an archived workspace's operation ends. */
+  settled?: Promise<void>
+}
 
 /** The sentence for each operation that holds a workspace busy; a new action does not compile without one. */
 const BUSY_WORKSPACE_MESSAGES: Record<WorkspaceOperationAction, MessageKey> = {
@@ -37,8 +63,8 @@ const BUSY_STORAGE_MESSAGES: Record<WorkspaceOperationAction, MessageKey> = {
  * The error for an open workspace another operation holds busy. When its record is already gone, agents still read
  * its ID in place of the name; a person reads that the workspace is busy, without the ID.
  */
-function workspaceBusyError(access: WorkspaceOperationsAccess, workspaceId: string, action: OpenWorkspaceOperationAction): LocalizedError {
-  const name = access.mcpTabGroups().get(workspaceId)?.name
+function workspaceBusyError(browser: Browser, workspaceId: string, action: OpenWorkspaceOperationAction): LocalizedError {
+  const name = browser.mcpTabGroups.get(workspaceId)?.name
   if (name !== undefined) return new LocalizedError(BUSY_WORKSPACE_MESSAGES[action], { name })
   return new LocalizedError('appErrors.workspace.busyUnnamed', undefined, {
     message: `Workspace "${workspaceId}" is busy ${action}. Try again after that operation finishes.`
@@ -56,17 +82,17 @@ export function archivedWorkspaceBusyError(name: string, action: WorkspaceOperat
 }
 
 /** Throws while another operation holds the open workspace busy. */
-export function assertWorkspaceIdle(access: WorkspaceOperationsAccess, workspaceId: string): void {
-  const operation = access.workspaceOperations().get(workspaceId)
+export function assertWorkspaceIdle(browser: Browser, workspaceId: string): void {
+  const operation = browser.workspaceOperations.get(workspaceId)
   if (!operation) return
-  throw workspaceBusyError(access, workspaceId, operation.action)
+  throw workspaceBusyError(browser, workspaceId, operation.action)
 }
 
 /** Throws while an operation that keeps new tabs out holds the open workspace busy. */
-export function assertWorkspaceCanOpenTab(access: WorkspaceOperationsAccess, workspaceId: string): void {
-  const operation = access.workspaceOperations().get(workspaceId)
+export function assertWorkspaceCanOpenTab(browser: Browser, workspaceId: string): void {
+  const operation = browser.workspaceOperations.get(workspaceId)
   if (!operation?.blocksNewTabs) return
-  throw workspaceBusyError(access, workspaceId, operation.action)
+  throw workspaceBusyError(browser, workspaceId, operation.action)
 }
 
 /**
@@ -75,21 +101,21 @@ export function assertWorkspaceCanOpenTab(access: WorkspaceOperationsAccess, wor
  * unless a later operation holds it by then.
  */
 export async function withWorkspaceOperation<T>(
-  access: WorkspaceOperationsAccess,
+  browser: Browser,
   workspaceId: string,
   action: OpenWorkspaceOperationAction,
   operation: () => Promise<T>,
   blocksNewTabs = true
 ): Promise<T> {
-  if (!access.mcpTabGroups().has(workspaceId)) throw new LocalizedError('appErrors.workspace.unavailable', undefined, { message: `Unknown workspace: ${workspaceId}.` })
-  assertWorkspaceIdle(access, workspaceId)
+  if (!browser.mcpTabGroups.has(workspaceId)) throw new LocalizedError('appErrors.workspace.unavailable', undefined, { message: `Unknown workspace: ${workspaceId}.` })
+  assertWorkspaceIdle(browser, workspaceId)
   const current: BrowserWorkspaceOperation<OpenWorkspaceOperationAction> = { action, blocksNewTabs, token: Symbol(action) }
-  access.workspaceOperations().set(workspaceId, current)
+  browser.workspaceOperations.set(workspaceId, current)
   try {
-    return await trackWorkspaceOperation(access, operation)
+    return await trackWorkspaceOperation(browser, operation)
   } finally {
-    if (access.workspaceOperations().get(workspaceId)?.token === current.token) {
-      access.workspaceOperations().delete(workspaceId)
+    if (browser.workspaceOperations.get(workspaceId)?.token === current.token) {
+      browser.workspaceOperations.delete(workspaceId)
     }
   }
 }
@@ -100,68 +126,68 @@ export async function withWorkspaceOperation<T>(
  * deleting a closed workspace wait for it.
  */
 export async function withSavedWorkspaceOperation<T>(
-  access: WorkspaceOperationsAccess,
+  browser: Browser,
   savedWorkspaceId: string,
   action: WorkspaceOperationAction,
   operation: () => Promise<T>
 ): Promise<T> {
   // Read once, so a busy archive is always named, never by its internal ID.
-  const saved = access.savedTabGroups().get(savedWorkspaceId)
+  const saved = browser.savedTabGroups.get(savedWorkspaceId)
   if (!saved) {
     throw new LocalizedError('appErrors.workspace.archivedUnavailable', undefined, { message: `Unknown archived workspace: ${savedWorkspaceId}.` })
   }
-  const existing = access.savedWorkspaceOperations().get(savedWorkspaceId)
+  const existing = browser.savedWorkspaceOperations.get(savedWorkspaceId)
   if (existing) throw archivedWorkspaceBusyError(saved.name, existing.action)
   const current: BrowserWorkspaceOperation = { action, blocksNewTabs: true, token: Symbol(action) }
-  access.savedWorkspaceOperations().set(savedWorkspaceId, current)
+  browser.savedWorkspaceOperations.set(savedWorkspaceId, current)
   try {
-    const running = trackWorkspaceOperation(access, operation)
+    const running = trackWorkspaceOperation(browser, operation)
     current.settled = running.then(() => undefined, () => undefined)
     return await running
   } finally {
-    if (access.savedWorkspaceOperations().get(savedWorkspaceId)?.token === current.token) {
-      access.savedWorkspaceOperations().delete(savedWorkspaceId)
+    if (browser.savedWorkspaceOperations.get(savedWorkspaceId)?.token === current.token) {
+      browser.savedWorkspaceOperations.delete(savedWorkspaceId)
     }
   }
 }
 
 /** Runs an operation that holds the storage of every workspace and the open workspace busy. */
 export async function withWorkspaceStorageOperation<T>(
-  access: WorkspaceOperationsAccess,
+  browser: Browser,
   workspaceId: string,
   action: OpenWorkspaceOperationAction,
   operation: () => Promise<T>,
   blocksNewTabs = false
 ): Promise<T> {
-  return withGlobalWorkspaceStorageOperation(access, action, () => (
-    withWorkspaceOperation(access, workspaceId, action, operation, blocksNewTabs)
+  return withGlobalWorkspaceStorageOperation(browser, action, () => (
+    withWorkspaceOperation(browser, workspaceId, action, operation, blocksNewTabs)
   ))
 }
 
 /** Runs an operation that holds the storage of every workspace busy, refusing to start while another one does. */
 export async function withGlobalWorkspaceStorageOperation<T>(
-  access: WorkspaceOperationsAccess,
+  browser: Browser,
   action: WorkspaceOperationAction,
   operation: () => Promise<T>
 ): Promise<T> {
-  const busy = access.workspaceStorageOperation()
+  const busy = browser.workspaceStorageOperation
   if (busy) throw new LocalizedError(BUSY_STORAGE_MESSAGES[busy.action])
   const current: BrowserWorkspaceOperation = { action, blocksNewTabs: false, token: Symbol(action) }
-  access.setWorkspaceStorageOperation(current)
+  browser.workspaceStorageOperation = current
   try {
-    return await trackWorkspaceOperation(access, operation)
+    return await trackWorkspaceOperation(browser, operation)
   } finally {
-    if (access.workspaceStorageOperation()?.token === current.token) access.setWorkspaceStorageOperation(null)
+    if (browser.workspaceStorageOperation?.token === current.token) browser.workspaceStorageOperation = null
   }
 }
 
 /** Runs the operation, counting it as pending until it settles so quitting can wait for it. */
-async function trackWorkspaceOperation<T>(access: WorkspaceOperationsAccess, operation: () => Promise<T>): Promise<T> {
+async function trackWorkspaceOperation<T>(browser: Browser, operation: () => Promise<T>): Promise<T> {
   const pending = operation()
-  access.pendingWorkspaceOperationPromises().add(pending)
+  browser.pendingWorkspaceOperationPromises.add(pending)
   try {
     return await pending
   } finally {
-    access.pendingWorkspaceOperationPromises().delete(pending)
+    browser.pendingWorkspaceOperationPromises.delete(pending)
   }
 }

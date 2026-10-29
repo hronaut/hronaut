@@ -1,15 +1,22 @@
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { BrowserState, BrowserWorkspaceNavigationAuditEntry } from '../src/shared/types.js'
 import { TAB_STATE_VERSION, TabStateStore, type PersistedBrowserState } from '../src/main/browser/tab-store.js'
 import { workspaceNavigationAllowed } from '../src/main/browser/workspace-navigation/workspace-navigation.js'
-import type {
-  WorkspaceNavigationAccess,
-  WorkspaceNavigationTab,
-  WorkspaceNavigationWorkspace
-} from '../src/main/browser/workspace-navigation/workspace-navigation-access.js'
+import type { Browser } from '../src/main/browser/browser.js'
+import type { ActiveWorkspace } from '../src/main/browser/workspace-registry.js'
+
+// The browsers below stub changed and getState, which the navigation policy publishes through.
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist),
+  browserState: (browser: { getState: () => unknown }) => browser.getState()
+}))
+
+/** The workspace fields the navigation policy reads and writes: the policy itself and its audit of denials. */
+type WorkspaceNavigationWorkspace = Pick<ActiveWorkspace, 'contextClass' | 'lastUsedAt' | 'navigationPolicy' | 'navigationAudit'>
 
 const WORKSPACE_ID = '01912345-6789-7abc-8def-0123456789ab'
 const STORAGE_ID = '77777777-1111-4111-8111-111111111111'
@@ -19,22 +26,16 @@ afterEach(async () => {
   await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })))
 })
 
-function recordingAccess(workspace: WorkspaceNavigationWorkspace): WorkspaceNavigationAccess<WorkspaceNavigationTab> {
+function recordingAccess(workspace: WorkspaceNavigationWorkspace): Browser {
   return {
-    findWorkspace: (id) => id === WORKSPACE_ID ? workspace : undefined,
-    findArchivedWorkspace: () => undefined,
-    assertWorkspaceIdle: () => undefined,
-    inspectionPermission: () => undefined,
-    setInspectionPermission: () => undefined,
-    tabs: () => [][Symbol.iterator](),
-    findTab: () => undefined,
-    options: () => ({}),
-    prepareDiagnosticNavigation: () => undefined,
-    wakeTab: async () => undefined,
-    forgetWorkspaceClosedTabs: () => undefined,
+    mcpTabGroups: new Map([[WORKSPACE_ID, workspace]]),
+    savedTabGroups: new Map(),
+    inspectionPermissions: new WeakMap(),
+    tabs: new Map(),
+    options: {},
     changed: () => undefined,
     getState: () => ({}) as BrowserState
-  }
+  } as unknown as Browser
 }
 
 function stateWithAudit(navigationAudit: BrowserWorkspaceNavigationAuditEntry[]): PersistedBrowserState {
