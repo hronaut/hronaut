@@ -5,6 +5,7 @@ import type {
   HronautCredentialsApi,
   HronautPermissionsApi,
   HronautUpdatesApi,
+  CredentialStorageStatus,
   CredentialSummary,
   HelpMenuAction,
   SitePermissionEntry
@@ -26,7 +27,7 @@ export interface AppEventsControllerOptions {
     | 'onAddressPasteAndGo'
   >
   permissionsApi: Pick<HronautPermissionsApi, 'onChanged'>
-  credentialsApi: Pick<HronautCredentialsApi, 'onChanged'>
+  credentialsApi: Pick<HronautCredentialsApi, 'onChanged' | 'onStatusChanged'>
   updatesApi: Pick<HronautUpdatesApi, 'onOpenRequested'>
   shellApi: ShellEventsApi
   onUserAttention: () => unknown
@@ -43,6 +44,8 @@ export interface AppEventsControllerOptions {
   onAddressPasteAndGo: (text: string) => unknown
   onPermissionsChanged: (permissions: SitePermissionEntry[]) => unknown
   onCredentialsChanged: (credentials: CredentialSummary[]) => unknown
+  /** Secure storage answered after startup, as once the person unlocks a keyring that stayed locked at sign-in. */
+  onCredentialStorageChanged: (status: CredentialStorageStatus) => unknown
   onUpdateOpen: () => unknown
   onHelp: (action: HelpMenuAction) => unknown
   onClipboardFailure: (message: string) => unknown
@@ -79,6 +82,7 @@ export function useAppEventsController(options: AppEventsControllerOptions) {
     () => options.browserApi.onAddressPasteAndGo(active(options.onAddressPasteAndGo)),
     () => options.permissionsApi.onChanged(active(options.onPermissionsChanged)),
     () => options.credentialsApi.onChanged(active(options.onCredentialsChanged)),
+    () => options.credentialsApi.onStatusChanged(active(options.onCredentialStorageChanged)),
     () => options.updatesApi.onOpenRequested(active(options.onUpdateOpen)),
     () => options.shellApi.onHelpRequested(active(options.onHelp)),
     () => options.shellApi.onClipboardFailed(active(options.onClipboardFailure)),

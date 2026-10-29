@@ -34,6 +34,7 @@ export function useCredentialsController(options: CredentialsControllerOptions) 
   const errorMessage = ref('')
   let generation = 0
   let revision = 0
+  let storageRevision = 0
 
   const busy = computed(() => pendingIds.value.size > 0)
 
@@ -43,15 +44,22 @@ export function useCredentialsController(options: CredentialsControllerOptions) 
     errorMessage.value = ''
   }
 
+  /** Secure storage's status as main last told it, which can answer long after startup. */
+  function acceptStorage(next: CredentialStorageStatus): void {
+    storageRevision += 1
+    storage.value = { ...next }
+  }
+
   async function initialize(
     statusOperation: Promise<CredentialStorageStatus>,
     entriesOperation: Promise<CredentialSummary[]>
   ): Promise<void> {
     const startingGeneration = generation
     const startingRevision = revision
+    const startingStorageRevision = storageRevision
     const [nextStorage, nextEntries] = await Promise.all([statusOperation, entriesOperation])
     if (startingGeneration !== generation) return
-    storage.value = { ...nextStorage }
+    if (startingStorageRevision === storageRevision) storage.value = { ...nextStorage }
     if (startingRevision === revision) replace(nextEntries)
   }
 
@@ -100,6 +108,7 @@ export function useCredentialsController(options: CredentialsControllerOptions) 
     importFromCsv: options.api.importFromCsv,
     initialize,
     replace,
+    acceptStorage,
     isPending,
     remove,
     dispose

@@ -3,6 +3,7 @@ import { useAppEventsController } from '../../src/renderer/src/composables/useAp
 import type { BrowserShortcutAction } from '../../src/shared/browser-shortcuts.js'
 import type {
   BrowserActionFailure,
+  CredentialStorageStatus,
   CredentialSummary,
   HelpMenuAction,
   SitePermissionEntry
@@ -19,6 +20,7 @@ type EventListeners = {
   addressPasteAndGo?: (text: string) => void
   permissions?: (permissions: SitePermissionEntry[]) => void
   credentials?: (credentials: CredentialSummary[]) => void
+  credentialStorage?: (status: CredentialStorageStatus) => void
   updateOpen?: () => void
   help?: (action: HelpMenuAction) => void
   clipboardFailure?: (message: string) => void
@@ -27,7 +29,7 @@ type EventListeners = {
 
 function createHarness() {
   const listeners: EventListeners = {}
-  const unsubscribers = Array.from({ length: 14 }, () => vi.fn())
+  const unsubscribers = Array.from({ length: 15 }, () => vi.fn())
   const subscribe = <Key extends keyof EventListeners>(key: Key, index: number) => (
     listener: NonNullable<EventListeners[Key]>
   ) => {
@@ -46,7 +48,10 @@ function createHarness() {
       onAddressPasteAndGo: vi.fn(subscribe('addressPasteAndGo', 11))
     },
     permissionsApi: { onChanged: vi.fn(subscribe('permissions', 3)) },
-    credentialsApi: { onChanged: vi.fn(subscribe('credentials', 4)) },
+    credentialsApi: {
+      onChanged: vi.fn(subscribe('credentials', 4)),
+      onStatusChanged: vi.fn(subscribe('credentialStorage', 14))
+    },
     updatesApi: { onOpenRequested: vi.fn(subscribe('updateOpen', 5)) },
     shellApi: {
       onHelpRequested: vi.fn(subscribe('help', 6)),
@@ -65,6 +70,7 @@ function createHarness() {
     onAddressPasteAndGo: vi.fn(),
     onPermissionsChanged: vi.fn(),
     onCredentialsChanged: vi.fn(),
+    onCredentialStorageChanged: vi.fn(),
     onUpdateOpen: vi.fn(),
     onHelp: vi.fn(),
     onClipboardFailure: vi.fn(),
@@ -108,6 +114,7 @@ describe('app events controller', () => {
     harness.listeners.addressPasteAndGo?.('example.com')
     harness.listeners.permissions?.([permission])
     harness.listeners.credentials?.([credential])
+    harness.listeners.credentialStorage?.({ available: true, backend: 'gnome_libsecret' })
     harness.listeners.updateOpen?.()
     harness.listeners.help?.('shortcuts')
     harness.listeners.clipboardFailure?.('Clipboard unavailable')
@@ -123,6 +130,7 @@ describe('app events controller', () => {
     expect(harness.callbacks.onAddressPasteAndGo).toHaveBeenCalledWith('example.com')
     expect(harness.callbacks.onPermissionsChanged).toHaveBeenCalledWith([permission])
     expect(harness.callbacks.onCredentialsChanged).toHaveBeenCalledWith([credential])
+    expect(harness.callbacks.onCredentialStorageChanged).toHaveBeenCalledWith({ available: true, backend: 'gnome_libsecret' })
     expect(harness.callbacks.onUpdateOpen).toHaveBeenCalledOnce()
     expect(harness.callbacks.onHelp).toHaveBeenCalledWith('shortcuts')
     expect(harness.callbacks.onClipboardFailure).toHaveBeenCalledWith('Clipboard unavailable')
@@ -210,6 +218,7 @@ describe('app events controller', () => {
       onAddressPasteAndGo: vi.fn(),
       onPermissionsChanged: vi.fn(),
       onCredentialsChanged: vi.fn(),
+      onCredentialStorageChanged: vi.fn(),
       onUpdateOpen: vi.fn(),
       onHelp: vi.fn(),
       onClipboardFailure: vi.fn(),
@@ -229,7 +238,7 @@ describe('app events controller', () => {
         onAddressPasteAndGo: laterSubscription
       },
       permissionsApi: { onChanged: laterSubscription },
-      credentialsApi: { onChanged: laterSubscription },
+      credentialsApi: { onChanged: laterSubscription, onStatusChanged: laterSubscription },
       updatesApi: { onOpenRequested: laterSubscription },
       shellApi: {
         onHelpRequested: laterSubscription,

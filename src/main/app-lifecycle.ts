@@ -41,6 +41,8 @@ interface AppLifecycleHost {
   currentPanelWindowState(): SavedWindowState | null
   /** Everything startup does once Electron is ready: settings, the window, the tray, the MCP listener and licensing. */
   startRuntime(): Promise<void>
+  /** Tells the person Hronaut could not start, and quits once they read it. */
+  startupFailed(error: unknown): Promise<void>
   /** The tab runtime, which needs an orderly shutdown once it exists. */
   tabs(): BrowserTabsManager | null
   /** The MCP listener, which needs an orderly shutdown while it runs. */
@@ -89,7 +91,14 @@ export function registerAppLifecycle(app: Pick<App, 'on' | 'whenReady' | 'quit' 
       app.quit()
       return
     }
-    await host.startRuntime()
+    try {
+      await host.startRuntime()
+    } catch (error) {
+      // Without this, the process would stay without a window yet keep the profile: the next launch would only ask it
+      // to show that window. A start that quitting interrupted needs no notice.
+      if (host.quit.quitting) console.error('[startup] Startup ended while quitting:', error)
+      else await host.startupFailed(error)
+    }
   })
 
   app.on('will-quit', (event) => {

@@ -33,6 +33,11 @@ export interface MainWindowRefs {
   stateStore: WindowStateStore | null
   /** The bounds the main window last had, which before-quit records too. */
   lastState: SavedWindowState | null
+  /**
+   * Whether the person asked to see the window before it opened, as by opening Hronaut again while it starts: startup
+   * then shows it even when it starts hidden in the tray.
+   */
+  showRequested: boolean
 }
 
 interface MainWindowHost {

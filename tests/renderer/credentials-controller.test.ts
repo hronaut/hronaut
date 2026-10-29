@@ -57,6 +57,21 @@ describe('credentials controller', () => {
     controller.dispose()
   })
 
+  it('takes secure storage answering after startup, and keeps that answer over a slower startup status', async () => {
+    const loadingStatus = deferred<CredentialStorageStatus>()
+    const { controller } = createController()
+    expect(controller.storage.value).toEqual({ available: false, reason: 'Initializing secure storage' })
+
+    // The shell asked while the keyring still waited to be unlocked; it is unlocked before that answer arrives.
+    const initialization = controller.initialize(loadingStatus.promise, Promise.resolve([]))
+    controller.acceptStorage({ available: true, backend: 'gnome_libsecret' })
+    loadingStatus.resolve({ available: false, reason: 'Initializing secure storage' })
+    await initialization
+
+    expect(controller.storage.value).toEqual({ available: true, backend: 'gnome_libsecret' })
+    controller.dispose()
+  })
+
   it('does not let an older removal response erase a credential restored by a newer event', async () => {
     const removing = deferred<boolean>()
     const { api, controller } = createController()

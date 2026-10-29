@@ -46,7 +46,7 @@ import { BrowserTabsManager } from './browser/tabs-manager.js'
 import { TabStateStore, WorkspaceMetadataError } from './browser/tab-store.js'
 import { createTabRuntimeStartup, type TabRuntimeState } from './tab-runtime-startup.js'
 import { createWalletRuntime, type WalletRuntimeState } from './wallet/runtime.js'
-import { walletStartupFailureStatus } from './wallet/startup-status.js'
+import { walletStartingStatus } from './wallet/startup-status.js'
 import { createWalletLifecycleCallbacks } from './wallet/lifecycle-callbacks.js'
 import { workspacePartition } from './browser/workspace-storage.js'
 import { createBookmarksAndHistory, type BookmarksAndHistoryState } from './bookmarks-and-history.js'
@@ -159,7 +159,8 @@ const mainWindowRefs: MainWindowRefs = {
   controlsScrim: null,
   material: null,
   stateStore: null,
-  lastState: null
+  lastState: null,
+  showRequested: false
 }
 const panelWindowRefs: PanelWindowRefs = {
   window: null,
@@ -239,7 +240,7 @@ const {
 })
 const workspaceStartupReads = new WorkspaceStartupReads()
 let requireExistingWorkspaceMetadata = false
-const { runNativeBrowserAction, showWorkspaceRecoveryNotice } = createTabRuntimeStartup({
+const { runNativeBrowserAction, showWorkspaceRecoveryNotice, showStartupFailureNotice } = createTabRuntimeStartup({
   state: tabRuntime,
   text: (key, parameters) => text(key, parameters),
   showStartupNotice: (notice) => {
@@ -258,7 +259,7 @@ const agentServices: AgentServicesState = {
 const walletRuntime: WalletRuntimeState = {
   service: null,
   broker: null,
-  unavailableStatus: walletStartupFailureStatus(undefined)
+  unavailableStatus: walletStartingStatus()
 }
 const {
   startWallets,
@@ -400,7 +401,8 @@ const {
   deactivateCommercialLicense,
   authorizeAutomation,
   assertAutomationAccess,
-  startBackgroundLicenseRefresh
+  startBackgroundLicenseRefresh,
+  publishCommercialLicenseState
 } = createCommercialLicenseRuntime({
   text,
   credentialStorageStatus: () => credentialRuntime.storageStatus,
@@ -1165,13 +1167,27 @@ function registerIpc(): void {
   })
 }
 
+/**
+ * Opens saved passwords and wallets once the operating system's secure storage answers, and tells the shell the license
+ * state again, which says whether that storage is available. It never fails.
+ */
+async function openSecureStorageFeatures(): Promise<void> {
+  await Promise.all([
+    configureCredentialStore(),
+    startWallets().catch((error: unknown) => { console.error('[wallet] Wallet startup failed:', error) })
+  ])
+  if (!appQuitState.quitting) publishCommercialLicenseState()
+}
+
 async function createWindow(startMinimized = false): Promise<void> {
   await openBookmarks()
   await openVisitHistory()
   browserSessionState.persistentSession?.setDownloadPath(effectiveDownloadDirectory())
-  await configureCredentialStore()
   await configureCommercialLicenseStore()
-  await startWallets()
+  // Saved passwords and wallets wait for the operating system's secure storage, which waits as long as the person takes
+  // to unlock it, as a keyring that stayed locked at sign-in asks to. The window, the workspaces and the agents'
+  // listener start meanwhile.
+  void openSecureStorageFeatures()
   applyTheme(settingsState.current.theme)
   mainWindowRefs.stateStore = new WindowStateStore(join(app.getPath('userData'), 'window-state.json'))
   panelWindowRefs.stateStore = new WindowStateStore(join(app.getPath('userData'), 'panel-window-state.json'))
@@ -1490,7 +1506,7 @@ async function createWindow(startMinimized = false): Promise<void> {
   }
   if (savedWindowState?.maximized) mainWindowRefs.window.maximize()
   if (savedWindowState?.fullScreen) mainWindowRefs.window.setFullScreen(true)
-  if (!startMinimized) mainWindowRefs.window.show()
+  if (!startMinimized || mainWindowRefs.showRequested) mainWindowRefs.window.show()
 }
 
 const { releaseRuntimeResources } = createRuntimeShutdown({
@@ -1621,6 +1637,7 @@ registerAppLifecycle(app, {
   panelWindowRefs,
   currentPanelWindowState,
   startRuntime,
+  startupFailed: showStartupFailureNotice,
   tabs: () => tabRuntime.tabs,
   mcpRuntime,
   releaseRuntimeResources

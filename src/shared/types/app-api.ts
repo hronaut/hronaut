@@ -335,6 +335,8 @@ export interface HronautCredentialsApi {
   remove(id: string): Promise<boolean>
   clear(): Promise<void>
   onChanged(listener: (credentials: CredentialSummary[]) => void): () => void
+  /** Secure storage answered after startup, as it does once the person unlocks a keyring that stayed locked at sign-in. */
+  onStatusChanged(listener: (status: CredentialStorageStatus) => void): () => void
 }
 
 export interface HronautUpdatesApi {
