@@ -3,13 +3,15 @@ import type { BrowserState } from '../../../shared/types.js'
 
 /**
  * The tab fields muting reads and writes: its address, its page, its own
- * saved mute preference and whether it is muted now.
+ * saved mute preference, whether it is muted now, and whether that is for its
+ * website, as Mute Site keeps it.
  */
 export interface TabMutingTab {
   url: string
   webContents: WebContents
   tabMuted: boolean
   muted: boolean
+  mutedBySite: boolean
 }
 
 /**

@@ -6,6 +6,7 @@ import IconClose from '~icons/material-symbols/close-rounded'
 import IconHistory from '~icons/material-symbols/history-rounded'
 import IconPrivacy from '~icons/material-symbols/privacy-tip-rounded'
 import IconTune from '~icons/material-symbols/tune-rounded'
+import { SITE_SOUND_PERMISSION } from '../../../shared/site-permission-names'
 import { formatNumber } from '../../../shared/format'
 import type {
   BrowsingDataSiteSummary,
@@ -130,7 +131,7 @@ async function changePermission(entry: SitePermissionEntry, event: Event): Promi
             @change="changePermission(permission, $event)"
           >
             <option value="allow">{{ t('shell.siteControls.allow') }}</option>
-            <option value="deny">{{ t('shell.siteControls.block') }}</option>
+            <option value="deny">{{ permission.permission === SITE_SOUND_PERMISSION ? t('runtime.permissions.mute') : t('shell.siteControls.block') }}</option>
           </select>
           <UiButton appearance="application" type="button" :aria-label="controlLabel(permission, 'reset')" v-tooltip="t('shell.siteControls.reset')" :disabled="permissionPending(permission)" @click="resetPermission(permission)"><IconClose aria-hidden="true" /></UiButton>
         </div>

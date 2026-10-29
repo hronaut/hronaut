@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/vue'
+import { render, screen, within } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
@@ -214,6 +214,15 @@ it('reacts to the localized permission label and keeps raw permission-name searc
   await user.clear(search)
   await user.type(search, 'idle-detection')
   expect(screen.getAllByRole('combobox')).toHaveLength(1)
+  controller.dispose()
+})
+
+it('names a website muted with Mute Site as Sound, muted', () => {
+  // Chrome's Sound setting reads Allow or Mute, not Block.
+  const { controller } = renderPanel([{ ...locationPermission, permission: 'sound', decision: 'deny' }])
+  const sound = screen.getByRole('combobox', { name: 'Sound permission for https://example.test (Client A)' })
+  expect(sound).toHaveValue('deny')
+  expect(within(sound).getAllByRole('option').map((option) => option.textContent)).toEqual(['Allow', 'Mute'])
   controller.dispose()
 })
 

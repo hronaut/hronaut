@@ -7,7 +7,7 @@ import type { TabContextMenuAccess, TabContextMenuTab } from './tab-context-menu
 
 /**
  * Shows a website tab's context menu: attention, new tab, reload, duplicate,
- * split view, React inspection, mute, pin, freeze, sleep, the workspace's own
+ * split view, React inspection, mute, Mute Site, pin, freeze, sleep, the workspace's own
  * menu, moving and closing tabs, reopening a closed one and bookmarking all
  * tabs. Hronaut Home has no tab menu. A failed action is logged and reported, never thrown.
  */
@@ -41,6 +41,7 @@ export function showTabContextMenu<Tab extends TabContextMenuTab>(access: TabCon
       reportError(action)(error)
     }
   }
+  const siteMuted = access.isSiteMuted(tab)
   const currentGroup = tab.mcpGroupId ? access.mcpTabGroups().get(tab.mcpGroupId) : undefined
   const groupMenu: MenuItemConstructorOptions = currentGroup
     ? {
@@ -157,6 +158,12 @@ export function showTabContextMenu<Tab extends TabContextMenuTab>(access: TabCon
       label: access.text(tab.muted ? 'native.context.unmuteTab' : 'native.context.muteTab'),
       click: () => runAction(tab.muted ? 'unmute the tab' : 'mute the tab', () => access.setTabMuted(tab.id, !tab.muted))
     },
+    // Chrome's Mute Site, for every tab of the website in the tab's workspace and its later pages.
+    ...(access.canMuteSite(tab) ? [{
+      id: siteMuted ? 'unmute-site' : 'mute-site',
+      label: access.text(siteMuted ? 'native.context.unmuteSite' : 'native.context.muteSite'),
+      click: () => runAction(siteMuted ? 'unmute the site' : 'mute the site', () => access.setSiteMuted(tab.id, !siteMuted))
+    }] : []),
     { type: 'separator' },
     {
       id: tab.pinned ? 'unpin-tab' : 'pin-tab',

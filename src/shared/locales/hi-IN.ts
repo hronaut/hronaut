@@ -462,7 +462,7 @@ export const hiIN: MessageSchema = {
       "allow": "अनुमति दें",
       "block": "ब्लॉक करें",
       "forget": "फ़ैसला भूल जाएं",
-      "help": "कोई फ़ैसला हटाने पर, अगली बार वेबसाइट के वह अनुमति मांगने पर Hronaut फिर से पूछेगा।",
+      "help": "कोई फ़ैसला हटाने पर, अगली बार वेबसाइट के वह अनुमति मांगने पर Hronaut फिर से पूछेगा। किसी म्यूट की गई वेबसाइट का ध्वनि फ़ैसला हटाने पर उसमें फिर से आवाज़ चलेगी।",
       "archivedWorkspace": "{name} (संग्रहित)",
       "removedWorkspace": "हटाया गया वर्कस्पेस {id}",
       "loadingWorkspace": "वर्कस्पेस लोड हो रहा है…",
@@ -1206,7 +1206,9 @@ export const hiIN: MessageSchema = {
       "persistentStorage": "स्थायी स्टोरेज",
       "keyboardLock": "कीबोर्ड लॉक",
       "pointerLock": "माउस पॉइंटर लॉक",
-      "screenAwake": "स्क्रीन चालू रखना"
+      "screenAwake": "स्क्रीन चालू रखना",
+      "sound": "ध्वनि",
+      "mute": "म्यूट करें"
     },
     "license": {
       "enterKey": "अपनी Creem रसीद में दी गई लाइसेंस कुंजी डालें।"
@@ -3673,6 +3675,8 @@ export const hiIN: MessageSchema = {
       "duplicateTab": "टैब का डुप्लीकेट बनाएं",
       "muteTab": "टैब म्यूट करें",
       "unmuteTab": "टैब अनम्यूट करें",
+      "muteSite": "साइट म्यूट करें",
+      "unmuteSite": "साइट अनम्यूट करें",
       "pinTab": "टैब पिन करें",
       "unpinTab": "टैब अनपिन करें",
       "freezePage": "समीक्षा के लिए पेज फ़्रीज़ करें",

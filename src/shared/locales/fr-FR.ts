@@ -462,7 +462,7 @@ export const frFR: MessageSchema = {
       "allow": "Autoriser",
       "block": "Bloquer",
       "forget": "Oublier la décision",
-      "help": "Après suppression, Hronaut reposera la question lors de la prochaine demande du site.",
+      "help": "Après suppression, Hronaut reposera la question lors de la prochaine demande du site. Supprimer la décision Son d’un site dont le son est coupé lui rend le son.",
       "archivedWorkspace": "{name} (archivé)",
       "removedWorkspace": "Espace de travail supprimé {id}",
       "loadingWorkspace": "Chargement de l’espace de travail…",
@@ -1206,7 +1206,9 @@ export const frFR: MessageSchema = {
       "persistentStorage": "Stockage persistant",
       "keyboardLock": "Verrouillage du clavier",
       "pointerLock": "Verrouillage du pointeur",
-      "screenAwake": "Garder l’écran allumé"
+      "screenAwake": "Garder l’écran allumé",
+      "sound": "Son",
+      "mute": "Couper le son"
     },
     "license": {
       "enterKey": "Saisissez la clé de licence commerciale figurant sur votre reçu Creem."
@@ -3673,6 +3675,8 @@ export const frFR: MessageSchema = {
       "duplicateTab": "Dupliquer l’onglet",
       "muteTab": "Couper le son de l’onglet",
       "unmuteTab": "Réactiver le son de l’onglet",
+      "muteSite": "Couper le son du site",
+      "unmuteSite": "Réactiver le son du site",
       "pinTab": "Épingler l’onglet",
       "unpinTab": "Désépingler l’onglet",
       "freezePage": "Figer la page pour vérification",

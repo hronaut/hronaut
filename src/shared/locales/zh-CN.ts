@@ -462,7 +462,7 @@ export const zhCN: MessageSchema = {
       "allow": "允许",
       "block": "阻止",
       "forget": "忘记此决定",
-      "help": "移除某项决定后，该网站下次请求此权限时 Hronaut 会再次询问。",
+      "help": "移除某项决定后，该网站下次请求此权限时 Hronaut 会再次询问。移除已静音网站的“声音”决定后，该网站会再次播放声音。",
       "archivedWorkspace": "{name}（已归档）",
       "removedWorkspace": "已移除的工作区 {id}",
       "loadingWorkspace": "正在加载工作区…",
@@ -1206,7 +1206,9 @@ export const zhCN: MessageSchema = {
       "persistentStorage": "永久存储",
       "keyboardLock": "键盘锁定",
       "pointerLock": "鼠标指针锁定",
-      "screenAwake": "保持屏幕常亮"
+      "screenAwake": "保持屏幕常亮",
+      "sound": "声音",
+      "mute": "静音"
     },
     "license": {
       "enterKey": "请输入 Creem 收据中的许可证密钥。"
@@ -3673,6 +3675,8 @@ export const zhCN: MessageSchema = {
       "duplicateTab": "复制标签页",
       "muteTab": "将标签页静音",
       "unmuteTab": "取消标签页静音",
+      "muteSite": "将网站静音",
+      "unmuteSite": "取消网站静音",
       "pinTab": "固定标签页",
       "unpinTab": "取消固定标签页",
       "freezePage": "冻结页面以供审核",

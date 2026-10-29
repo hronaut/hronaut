@@ -77,6 +77,12 @@ export interface TabContextMenuAccess<Tab extends TabContextMenuTab> {
   reactInspection(tabId: string, command: ReactInspectionCommand, authority: ReactInspectionAuthority): ReturnType<ReactInspectionController['run']>
   /** Mutes or unmutes the tab. */
   setTabMuted(tabId: string, muted: boolean): BrowserState
+  /** Whether the tab shows a website Mute Site can mute. */
+  canMuteSite(tab: Tab): boolean
+  /** Whether the tab's website is muted in its workspace. */
+  isSiteMuted(tab: Tab): boolean
+  /** Mutes or unmutes the tab's website in every tab of its workspace. */
+  setSiteMuted(tabId: string, muted: boolean): Promise<BrowserState>
   /** Pins or unpins the tab. */
   setTabPinned(tabId: string, pinned: boolean): Promise<BrowserState>
   /** Freezes or resumes the tab's page. */

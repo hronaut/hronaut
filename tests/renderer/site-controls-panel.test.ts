@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/vue'
+import { render, screen, within } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import SiteControlsPanel from '../../src/renderer/src/components/SiteControlsPanel.vue'
@@ -42,7 +42,7 @@ function renderPanel(options: {
       message: '',
       permissions: options.permissions ?? [cameraPermission],
       locale: options.locale ?? 'en-US',
-      permissionLabel: (permission: string) => permission === 'geolocation' ? 'Location' : 'Camera',
+      permissionLabel: (permission: string) => ({ geolocation: 'Location', sound: 'Sound' })[permission] ?? 'Camera',
       permissionPending: options.permissionPending ?? (() => false),
       setPermission,
       resetPermission,
@@ -116,6 +116,13 @@ describe('SiteControlsPanel', () => {
     expect(screen.getByRole('button', { name: 'Reset Location permission for https://widget.test (on https://example.test)' })).toBeVisible()
     await user.selectOptions(widgetLocation, 'deny')
     expect(setPermission).toHaveBeenCalledWith(embedded, 'deny')
+  })
+
+  it('names a website muted with Mute Site as Sound, muted', () => {
+    renderPanel({ permissions: [{ origin: 'https://example.test', permission: 'sound', decision: 'deny', workspaceId: WORKSPACE }] })
+    const sound = screen.getByRole('combobox', { name: 'Sound permission for https://example.test' })
+    expect(sound).toHaveValue('deny')
+    expect(within(sound).getAllByRole('option').map((option) => option.textContent)).toEqual(['Allow', 'Mute'])
   })
 
   it('counts the custom decisions in the interface language', () => {

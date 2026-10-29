@@ -462,7 +462,7 @@ export const ptBR: MessageSchema = {
       "allow": "Permitir",
       "block": "Bloquear",
       "forget": "Esquecer decisão",
-      "help": "Remover uma decisão faz o Hronaut perguntar novamente na próxima vez que o site solicitar essa permissão.",
+      "help": "Remover uma decisão faz o Hronaut perguntar novamente na próxima vez que o site solicitar essa permissão. Remover a decisão de Som de um site silenciado faz com que ele volte a reproduzir som.",
       "archivedWorkspace": "{name} (arquivado)",
       "removedWorkspace": "Espaço de trabalho removido {id}",
       "loadingWorkspace": "Carregando espaço de trabalho…",
@@ -1206,7 +1206,9 @@ export const ptBR: MessageSchema = {
       "persistentStorage": "Armazenamento persistente",
       "keyboardLock": "Bloqueio do teclado",
       "pointerLock": "Bloqueio do ponteiro do mouse",
-      "screenAwake": "Manter a tela ligada"
+      "screenAwake": "Manter a tela ligada",
+      "sound": "Som",
+      "mute": "Desativar som"
     },
     "license": {
       "enterKey": "Insira a chave de licença do seu recibo da Creem."
@@ -3673,6 +3675,8 @@ export const ptBR: MessageSchema = {
       "duplicateTab": "Duplicar guia",
       "muteTab": "Desativar som da guia",
       "unmuteTab": "Ativar som da guia",
+      "muteSite": "Desativar som do site",
+      "unmuteSite": "Ativar som do site",
       "pinTab": "Fixar guia",
       "unpinTab": "Liberar guia",
       "freezePage": "Congelar página para revisão",

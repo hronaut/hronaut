@@ -462,7 +462,7 @@ export const viVN: MessageSchema = {
       "allow": "Cho phép",
       "block": "Chặn",
       "forget": "Quên quyết định",
-      "help": "Khi bạn xóa một quyết định, Hronaut sẽ hỏi lại vào lần tới trang web yêu cầu quyền đó.",
+      "help": "Khi bạn xóa một quyết định, Hronaut sẽ hỏi lại vào lần tới trang web yêu cầu quyền đó. Khi bạn xóa quyết định Âm thanh của một trang web đã tắt tiếng, trang web đó sẽ phát âm thanh trở lại.",
       "archivedWorkspace": "{name} (đã lưu trữ)",
       "removedWorkspace": "Không gian làm việc đã xóa {id}",
       "loadingWorkspace": "Đang tải không gian làm việc…",
@@ -1206,7 +1206,9 @@ export const viVN: MessageSchema = {
       "persistentStorage": "Bộ nhớ liên tục",
       "keyboardLock": "Khóa bàn phím",
       "pointerLock": "Khóa con trỏ chuột",
-      "screenAwake": "Giữ màn hình luôn bật"
+      "screenAwake": "Giữ màn hình luôn bật",
+      "sound": "Âm thanh",
+      "mute": "Tắt tiếng"
     },
     "license": {
       "enterKey": "Nhập khóa giấy phép có trong biên nhận Creem của bạn."
@@ -3673,6 +3675,8 @@ export const viVN: MessageSchema = {
       "duplicateTab": "Nhân bản thẻ",
       "muteTab": "Tắt tiếng thẻ",
       "unmuteTab": "Bật tiếng thẻ",
+      "muteSite": "Tắt tiếng trang web",
+      "unmuteSite": "Bật tiếng trang web",
       "pinTab": "Ghim thẻ",
       "unpinTab": "Bỏ ghim thẻ",
       "freezePage": "Đóng băng trang để xem xét",

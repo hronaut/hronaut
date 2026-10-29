@@ -462,7 +462,7 @@ export const zhTW: MessageSchema = {
       "allow": "允許",
       "block": "封鎖",
       "forget": "忘記決定",
-      "help": "移除決定後，網站下次要求該權限時，Hronaut 會再次詢問你。",
+      "help": "移除決定後，網站下次要求該權限時，Hronaut 會再次詢問你。移除已設為靜音網站的「音效」決定後，網站會再次播放聲音。",
       "archivedWorkspace": "{name}（已封存）",
       "removedWorkspace": "已移除的工作區 {id}",
       "loadingWorkspace": "正在載入工作區…",
@@ -1206,7 +1206,9 @@ export const zhTW: MessageSchema = {
       "persistentStorage": "永久儲存空間",
       "keyboardLock": "鍵盤鎖定",
       "pointerLock": "滑鼠游標鎖定",
-      "screenAwake": "讓螢幕保持開啟"
+      "screenAwake": "讓螢幕保持開啟",
+      "sound": "音效",
+      "mute": "靜音"
     },
     "license": {
       "enterKey": "請輸入 Creem 收據中的授權金鑰。"
@@ -3673,6 +3675,8 @@ export const zhTW: MessageSchema = {
       "duplicateTab": "複製分頁",
       "muteTab": "將分頁設為靜音",
       "unmuteTab": "將分頁取消靜音",
+      "muteSite": "將網站設為靜音",
+      "unmuteSite": "將網站取消靜音",
       "pinTab": "固定分頁",
       "unpinTab": "取消固定分頁",
       "freezePage": "凍結網頁以供檢查",

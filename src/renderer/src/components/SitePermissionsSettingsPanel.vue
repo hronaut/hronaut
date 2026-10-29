@@ -10,6 +10,7 @@ import IconPrivacy from '~icons/material-symbols/privacy-tip-rounded'
 import IconSearch from '~icons/material-symbols/search-rounded'
 import IconWarning from '~icons/material-symbols/warning-rounded'
 import { formatNumber } from '../../../shared/format'
+import { SITE_SOUND_PERMISSION } from '../../../shared/site-permission-names'
 import type { SitePermissionDecision, SitePermissionEntry, SupportedLocale } from '../../../shared/types'
 import type { SitePermissionsController } from '../composables/useSitePermissionsController'
 
@@ -170,7 +171,7 @@ async function changePermission(entry: SitePermissionEntry, event: Event): Promi
             @change="changePermission(permission, $event)"
           >
             <option value="allow">{{ t('settings.permissions.allow') }}</option>
-            <option value="deny">{{ t('settings.permissions.block') }}</option>
+            <option value="deny">{{ permission.permission === SITE_SOUND_PERMISSION ? t('runtime.permissions.mute') : t('settings.permissions.block') }}</option>
           </select>
           <UiIconButton variant="danger"
             class="permission-remove"

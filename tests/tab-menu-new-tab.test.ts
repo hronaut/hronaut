@@ -33,6 +33,8 @@ function access(tabs: ReturnType<typeof tab>[], activeTabId: string) {
       reactInspectionController: () => ({ status: () => ({ enabled: false, status: 'disabled' }) }),
       sleepBlockReason: () => undefined,
       sleepFallbackTab: () => undefined,
+      canMuteSite: () => false,
+      isSiteMuted: () => false,
       closedTabs: () => [],
       window: () => ({ webContents: { send } })
     } as never

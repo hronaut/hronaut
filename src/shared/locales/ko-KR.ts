@@ -462,7 +462,7 @@ export const koKR: MessageSchema = {
       "allow": "허용",
       "block": "차단",
       "forget": "결정 삭제",
-      "help": "결정을 삭제하면 다음에 웹사이트에서 해당 권한을 요청할 때 Hronaut에서 다시 묻습니다.",
+      "help": "결정을 삭제하면 다음에 웹사이트에서 해당 권한을 요청할 때 Hronaut에서 다시 묻습니다. 음소거한 웹사이트의 소리 결정을 삭제하면 다시 소리가 재생됩니다.",
       "archivedWorkspace": "{name}(보관처리됨)",
       "removedWorkspace": "삭제된 작업 공간 {id}",
       "loadingWorkspace": "작업 공간 로드 중…",
@@ -1206,7 +1206,9 @@ export const koKR: MessageSchema = {
       "persistentStorage": "영구 저장소",
       "keyboardLock": "키보드 잠금",
       "pointerLock": "마우스 포인터 잠금",
-      "screenAwake": "화면 켜짐 유지"
+      "screenAwake": "화면 켜짐 유지",
+      "sound": "소리",
+      "mute": "음소거"
     },
     "license": {
       "enterKey": "Creem 영수증에 있는 라이선스 키를 입력하세요."
@@ -3673,6 +3675,8 @@ export const koKR: MessageSchema = {
       "duplicateTab": "탭 복제",
       "muteTab": "탭 음소거",
       "unmuteTab": "탭 음소거 해제",
+      "muteSite": "사이트 음소거",
+      "unmuteSite": "사이트 음소거 해제",
       "pinTab": "탭 고정",
       "unpinTab": "탭 고정 해제",
       "freezePage": "검토를 위해 페이지 정지",
