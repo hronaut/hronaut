@@ -1,21 +1,67 @@
 <script setup lang="ts">
+import IconClose from '~icons/material-symbols/close-rounded'
 import UiButton from "../ui/UiButton.vue"
 import UiCheckbox from "../ui/UiCheckbox.vue"
-import { computed, ref } from 'vue'
+import UiIconButton from '../ui/UiIconButton.vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
-import { ATTENTION_SOUND_CUES, type AttentionSoundCue, type LanguagePreference } from '../../../shared/types.js'
+import { ATTENTION_SOUND_CUES, type AttentionSoundCue, type LanguagePreference, type SpellCheckLanguages } from '../../../shared/types.js'
 import { LOCALE_NATIVE_NAMES, SUPPORTED_LOCALES } from '../../../shared/locale.js'
+import { ignoreHeldEnter } from '../held-enter.js'
 import { useSettingsStore } from '../stores/settings.js'
 
 const emit = defineEmits<{
   testSound: []
   settingError: [error: unknown]
 }>()
-const { t } = useI18n({ useScope: 'global' })
+const { t, locale } = useI18n({ useScope: 'global' })
 const store = useSettingsStore()
 const { settings, systemLocale, languageChangeError } = storeToRefs(store)
 const savingLanguage = ref(false)
+// None until main says which dictionaries there are, and none on macOS, where the system picks the language.
+const spellCheckLanguageOptions = ref<SpellCheckLanguages>({ available: [], automatic: [] })
+const savingSpellCheckLanguages = ref(false)
+const spellCheckLanguageList = ref<HTMLUListElement | null>(null)
+
+onMounted(async () => {
+  try {
+    spellCheckLanguageOptions.value = await window.hronautSettings.getSpellCheckLanguages()
+  } catch {
+    // Without the list there is nothing to choose from, so the row stays hidden.
+  }
+})
+
+/** The languages checked now: the chosen ones Hronaut has dictionaries for, or the automatic one. */
+const spellCheckLanguages = computed(() => {
+  const { available, automatic } = spellCheckLanguageOptions.value
+  const chosen = settings.value.spellCheckLanguages.filter((language) => available.includes(language))
+  return chosen.length ? chosen : automatic
+})
+
+/** Every other language with a dictionary, by its name in the interface language. */
+const addableSpellCheckLanguages = computed(() => spellCheckLanguageOptions.value.available
+  .filter((language) => !spellCheckLanguages.value.includes(language))
+  .map((language) => ({ language, name: spellCheckLanguageName(language) }))
+  .sort((first, second) => first.name.localeCompare(second.name, locale.value)))
+
+const languageNames = computed(() => {
+  try {
+    return new Intl.DisplayNames([locale.value], { type: 'language' })
+  } catch {
+    return undefined
+  }
+})
+
+/** The language's name in the interface language, starting with a capital as a list item does. */
+function spellCheckLanguageName(language: string): string {
+  try {
+    const name = languageNames.value?.of(language)
+    return name ? name.charAt(0).toLocaleUpperCase(locale.value) + name.slice(1) : language
+  } catch {
+    return language
+  }
+}
 
 const attentionSoundOptions = computed(() => ATTENTION_SOUND_CUES.map((cue) => ({
   cue,
@@ -87,6 +133,36 @@ async function setSpellCheck(event: Event): Promise<void> {
   if (!(await runSetting(store.setSpellCheck(input.checked)))) input.checked = settings.value.spellCheck
 }
 
+async function saveSpellCheckLanguages(languages: string[]): Promise<void> {
+  savingSpellCheckLanguages.value = true
+  try {
+    await runSetting(store.setSpellCheckLanguages(languages))
+  } finally {
+    savingSpellCheckLanguages.value = false
+  }
+}
+
+async function addSpellCheckLanguage(event: Event): Promise<void> {
+  const input = event.target as HTMLSelectElement
+  const language = input.value
+  // The select only adds: it goes back to its prompt whether or not the change saves.
+  input.value = ''
+  if (!language) return
+  await saveSpellCheckLanguages([...spellCheckLanguages.value, language])
+  // Chromium takes focus off the select while the save disables it; it goes back there, where the person was.
+  await nextTick()
+  if (input.isConnected && (!document.activeElement || document.activeElement === document.body)) input.focus()
+}
+
+async function removeSpellCheckLanguage(language: string): Promise<void> {
+  if (!settings.value.spellCheck || savingSpellCheckLanguages.value || spellCheckLanguages.value.length < 2) return
+  await saveSpellCheckLanguages(spellCheckLanguages.value.filter((checked) => checked !== language))
+  // Focus that was on the removed language's button stays with the list rather than dropping out of the dialog; the
+  // list takes no key, so a held Enter removes nothing more.
+  await nextTick()
+  if (!document.activeElement || document.activeElement === document.body) spellCheckLanguageList.value?.focus()
+}
+
 async function setPinAgentLiveStatus(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement
   if (!(await runSetting(store.setPinAgentLiveStatus(input.checked)))) input.checked = settings.value.pinAgentLiveStatus
@@ -126,6 +202,37 @@ async function setPinAgentLiveStatus(event: Event): Promise<void> {
         </span>
         <UiCheckbox bare appearance="switch" id="setting-spell-check" :checked="settings.spellCheck" @change="setSpellCheck" />
       </label>
+      <template v-if="spellCheckLanguageOptions.available.length">
+        <div class="settings-row spell-check-languages-row">
+          <span>
+            <strong id="spell-check-languages-label">{{ t('appearance.spellCheckLanguages.label') }}</strong>
+            <small>{{ t('appearance.spellCheckLanguages.description') }}</small>
+          </span>
+          <select
+            :aria-label="t('appearance.spellCheckLanguages.add')"
+            value=""
+            :disabled="!settings.spellCheck || savingSpellCheckLanguages"
+            @keydown="ignoreHeldEnter"
+            @change="addSpellCheckLanguage"
+          >
+            <option value="" disabled>{{ t('appearance.spellCheckLanguages.add') }}</option>
+            <option v-for="option in addableSpellCheckLanguages" :key="option.language" :value="option.language">{{ option.name }}</option>
+          </select>
+        </div>
+        <ul ref="spellCheckLanguageList" class="spell-check-language-list" tabindex="-1" aria-labelledby="spell-check-languages-label">
+          <li v-for="language in spellCheckLanguages" :key="language" class="spell-check-language" :data-spell-check-language="language">
+            <span>{{ spellCheckLanguageName(language) }}</span>
+            <UiIconButton
+              :label="t('appearance.spellCheckLanguages.remove', { language: spellCheckLanguageName(language) })"
+              :aria-disabled="!settings.spellCheck || savingSpellCheckLanguages || spellCheckLanguages.length < 2 || undefined"
+              @keydown="ignoreHeldEnter"
+              @click="removeSpellCheckLanguage(language)"
+            >
+              <IconClose aria-hidden="true" />
+            </UiIconButton>
+          </li>
+        </ul>
+      </template>
     </div>
     <h4 class="settings-group-heading">{{ t('settingsSections.generalGroups.startup') }}</h4>
     <div class="settings-rows grouped">

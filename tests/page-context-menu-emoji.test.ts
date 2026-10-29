@@ -44,7 +44,9 @@ function menu(params: Partial<ContextMenuParams>, tabOpen = true) {
     isHumanInteractionLocked: () => false,
     searchEngine: () => 'google',
     spellCheck: () => true,
-    setSpellCheck: async () => undefined
+    setSpellCheck: async () => undefined,
+    offersSpellCheckLanguages: () => true,
+    openSpellCheckSettings: () => undefined
   } as unknown as PageContextMenuAccess
   showContextMenu(access, tab, {
     x: 10, y: 20, linkURL: '', srcURL: '', selectionText: '', isEditable: false, mediaType: 'none', editFlags: {},

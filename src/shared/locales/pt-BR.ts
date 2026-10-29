@@ -279,6 +279,12 @@ export const ptBR: MessageSchema = {
       "label": "Verificação ortográfica",
       "description": "Verificar erros de ortografia ao digitar texto em sites."
     },
+    "spellCheckLanguages": {
+      "label": "Idiomas da verificação ortográfica",
+      "description": "Verificar a ortografia nestes idiomas.",
+      "add": "Adicionar idioma",
+      "remove": "Remover {language}"
+    },
     "interfaceSize": {
       "label": "Tamanho da interface",
       "description": "Aumente os controles e o texto do Hronaut sem alterar o zoom dos sites.",
@@ -3726,6 +3732,7 @@ export const ptBR: MessageSchema = {
       "addDictionary": "Adicionar “{word}” ao dicionário",
       "spellCheck": "Verificação ortográfica",
       "checkSpelling": "Verificar a ortografia dos campos de texto",
+      "spellCheckLanguageSettings": "Configurações de idioma",
       "undo": "Desfazer",
       "redo": "Refazer",
       "cut": "Recortar",

@@ -105,7 +105,8 @@ describe('SettingsStore', () => {
       graphicsAcceleration: false,
       checkForUpdatesOnStartup: false,
       languagePreference: 'uk-UA',
-      spellCheck: false
+      spellCheck: false,
+      spellCheckLanguages: ['uk', 'en-US']
     })
     expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({
       theme: 'matrix',
@@ -138,7 +139,8 @@ describe('SettingsStore', () => {
       graphicsAcceleration: false,
       checkForUpdatesOnStartup: false,
       languagePreference: 'uk-UA',
-      spellCheck: false
+      spellCheck: false,
+      spellCheckLanguages: ['uk', 'en-US']
     })
     expect(await store.load()).toEqual({
       theme: 'matrix',
@@ -171,7 +173,8 @@ describe('SettingsStore', () => {
       graphicsAcceleration: false,
       checkForUpdatesOnStartup: false,
       languagePreference: 'uk-UA',
-      spellCheck: false
+      spellCheck: false,
+      spellCheckLanguages: ['uk', 'en-US']
     })
   })
 
@@ -244,7 +247,8 @@ describe('SettingsStore', () => {
       graphicsAcceleration: true,
       checkForUpdatesOnStartup: true,
       languagePreference: 'system',
-      spellCheck: true
+      spellCheck: true,
+      spellCheckLanguages: []
     })
   })
 
@@ -375,6 +379,26 @@ describe('SettingsStore', () => {
     await mkdir(join(path, '..'), { recursive: true })
     await writeFile(path, JSON.stringify({ spellCheck }), 'utf8')
     expect((await store.load()).spellCheck).toBe(expected)
+  })
+
+  /** As many different valid language codes. */
+  const codes = (count: number) => Array.from({ length: count }, (_, index) => `x${String.fromCharCode(97 + (index % 26))}-${String(index).padStart(2, '0')}`)
+
+  it.each([
+    { spellCheckLanguages: ['uk', 'en-US', 'en-GB-oxendict'], expected: ['uk', 'en-US', 'en-GB-oxendict'] },
+    { spellCheckLanguages: [], expected: [] },
+    { spellCheckLanguages: undefined, expected: [] },
+    { spellCheckLanguages: 'uk', expected: [] },
+    { spellCheckLanguages: ['uk', 'uk'], expected: [] },
+    { spellCheckLanguages: ['uk', 7], expected: [] },
+    { spellCheckLanguages: ['../uk'], expected: [] },
+    { spellCheckLanguages: codes(64), expected: codes(64) },
+    { spellCheckLanguages: codes(65), expected: [] }
+  ])('keeps saved spell check languages only as different language codes: $spellCheckLanguages', async ({ spellCheckLanguages, expected }) => {
+    const { path, store } = await createStore()
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, JSON.stringify({ spellCheckLanguages }), 'utf8')
+    expect((await store.load()).spellCheckLanguages).toEqual(expected)
   })
 
   it('accepts only absolute download directories', () => {

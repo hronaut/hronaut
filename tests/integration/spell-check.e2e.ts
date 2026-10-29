@@ -64,7 +64,10 @@ test('turns spell checking off from a text field menu and back on in Settings, f
     })
     expect(await spellCheck()).toEqual({
       label: 'Spell check',
-      items: [{ id: 'check-spelling', label: 'Check the spelling of text fields', checked: true }]
+      items: [
+        { id: 'check-spelling', label: 'Check the spelling of text fields', checked: true },
+        { id: 'spell-check-language-settings', label: 'Language settings', checked: false }
+      ]
     })
 
     // Choosing the item flips its checkbox, as the menu does when it is clicked.
@@ -83,6 +86,86 @@ test('turns spell checking off from a text field menu and back on in Settings, f
     await setting.check()
     await expect.poll(checking).toEqual({ page: true, home: true })
     await expect.poll(async () => JSON.parse(await readFile(join(profileDirectory, 'settings.json'), 'utf8')).spellCheck).toBe(true)
+  } finally {
+    await closeFixtureServer(server)
+  }
+})
+
+// Chromium checked only the language for the system locale, with no way to add one, as Chrome's spell check languages
+// allow. Settings → General now lists them, and a text field's Spell check → Language settings opens it.
+
+test('checks spelling in the languages chosen in Settings, for every website, from a text field menu\'s Language settings', async ({ appWindow, electronApp, profileDirectory }) => {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end('<!doctype html><title>Spell check languages fixture</title><textarea id="note" rows="4" cols="40">Ths note</textarea>')
+  })
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('Missing fixture port')
+  const url = `http://127.0.0.1:${address.port}/compose`
+  try {
+    await appWindow.evaluate(url => (window as unknown as { hronaut: { newTab(options: { url: string; active: boolean }): Promise<unknown> } }).hronaut.newTab({ url, active: true }), url)
+    await expect(appWindow.getByRole('tab', { name: /Spell check languages fixture/ })).toBeVisible()
+    // The languages of the website's session and of Home's, which belong to different workspaces.
+    const languages = (): Promise<{ page?: string[]; home?: string[] }> => electronApp.evaluate(({ webContents }, url) => {
+      const contents = webContents.getAllWebContents()
+      return {
+        page: contents.find(candidate => candidate.getURL() === url)?.session.getSpellCheckerLanguages(),
+        home: contents.find(candidate => candidate.getURL().startsWith('hronaut://home'))?.session.getSpellCheckerLanguages()
+      }
+    }, url)
+    // Hronaut runs in American English here, so that is the language checked while none is chosen.
+    expect(await electronApp.evaluate(({ app }) => app.getLocale())).toBe('en-US')
+    expect(await languages()).toEqual({ page: ['en-US'], home: ['en-US'] })
+
+    await electronApp.evaluate(({ Menu }) => {
+      Menu.prototype.popup = function (): void {
+        ;(globalThis as typeof globalThis & { __hronautContextMenu?: Electron.Menu }).__hronautContextMenu = this
+      }
+    })
+    // A real right-click on the screen, at the text field.
+    const point = await electronApp.evaluate(async ({ BrowserWindow, WebContentsView }, url) => {
+      ;(globalThis as typeof globalThis & { __hronautContextMenu?: Electron.Menu }).__hronautContextMenu = undefined
+      const window = BrowserWindow.getAllWindows()[0]!
+      const view = window.contentView.children
+        .find((child): child is InstanceType<typeof WebContentsView> => child instanceof WebContentsView && child.webContents.getURL() === url)
+      if (!view) throw new Error('Spell check languages fixture view was not found')
+      const center = await view.webContents.executeJavaScript(`(() => {
+        const bounds = document.querySelector('#note').getBoundingClientRect()
+        return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
+      })()`) as { x: number; y: number }
+      const origin = window.getContentBounds()
+      const bounds = view.getBounds()
+      return { x: Math.round(origin.x + bounds.x + center.x), y: Math.round(origin.y + bounds.y + center.y) }
+    }, url)
+    await exec('python3', [join(process.cwd(), 'tests/integration/x11-input.py'), String(point.x), String(point.y), '--right-click'])
+    await expect.poll(() => electronApp.evaluate(() => Boolean((globalThis as typeof globalThis & { __hronautContextMenu?: Electron.Menu })
+      .__hronautContextMenu?.getMenuItemById('spell-check-language-settings')))).toBe(true)
+    await electronApp.evaluate(() => {
+      const item = (globalThis as typeof globalThis & { __hronautContextMenu?: Electron.Menu }).__hronautContextMenu!.getMenuItemById('spell-check-language-settings')!
+      ;(item.click as unknown as () => void)()
+    })
+
+    // Settings opens on General, with the automatic language listed.
+    const list = appWindow.getByRole('list', { name: 'Spell check languages' })
+    await expect(list).toBeVisible()
+    await expect(list.getByRole('listitem')).toHaveText(['American English'])
+    // Chosen from the keyboard: focus stays on the select, which the save disables for a moment.
+    const add = appWindow.getByRole('combobox', { name: 'Add language' })
+    await add.focus()
+    await add.selectOption({ label: 'Ukrainian' })
+    await expect(list.getByRole('listitem')).toHaveText(['American English', 'Ukrainian'])
+    await expect(add).toBeFocused()
+    await expect.poll(languages).toEqual({ page: ['en-US', 'uk'], home: ['en-US', 'uk'] })
+    const saved = async (): Promise<unknown> => JSON.parse(await readFile(join(profileDirectory, 'settings.json'), 'utf8')).spellCheckLanguages
+    await expect.poll(saved).toEqual(['en-US', 'uk'])
+
+    await appWindow.getByRole('button', { name: 'Remove American English' }).click()
+    await expect(list.getByRole('listitem')).toHaveText(['Ukrainian'])
+    await expect.poll(languages).toEqual({ page: ['uk'], home: ['uk'] })
+    await expect.poll(saved).toEqual(['uk'])
+    // The last language stays.
+    await expect(appWindow.getByRole('button', { name: 'Remove Ukrainian' })).toHaveAttribute('aria-disabled', 'true')
   } finally {
     await closeFixtureServer(server)
   }

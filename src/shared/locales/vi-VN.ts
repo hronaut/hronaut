@@ -279,6 +279,12 @@ export const viVN: MessageSchema = {
       "label": "Kiểm tra chính tả",
       "description": "Kiểm tra lỗi chính tả khi bạn nhập văn bản trên trang web."
     },
+    "spellCheckLanguages": {
+      "label": "Ngôn ngữ kiểm tra chính tả",
+      "description": "Kiểm tra chính tả bằng các ngôn ngữ này.",
+      "add": "Thêm ngôn ngữ",
+      "remove": "Xóa {language}"
+    },
     "interfaceSize": {
       "label": "Kích thước giao diện",
       "description": "Phóng to các nút điều khiển và văn bản của Hronaut mà không thay đổi mức thu phóng của trang web.",
@@ -3726,6 +3732,7 @@ export const viVN: MessageSchema = {
       "addDictionary": "Thêm “{word}” vào từ điển",
       "spellCheck": "Kiểm tra chính tả",
       "checkSpelling": "Kiểm tra chính tả của trường văn bản",
+      "spellCheckLanguageSettings": "Cài đặt ngôn ngữ",
       "undo": "Hoàn tác",
       "redo": "Làm lại",
       "cut": "Cắt",

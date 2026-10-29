@@ -60,6 +60,10 @@ export interface PageContextMenuAccess<Tab extends PageContextMenuTab> {
   spellCheck(): boolean
   /** Turns spell checking on or off for every website and saves it, as Settings does. */
   setSpellCheck(enabled: boolean): Promise<void>
+  /** Whether Settings offers spell check languages; not on macOS, where the system's spell checker picks the language. */
+  offersSpellCheckLanguages(): boolean
+  /** Opens Settings where the spell check languages are chosen, as Chrome's Language settings. */
+  openSpellCheckSettings(): void
   /** Whether trusted chrome, such as one of Hronaut's dialogs, covers the page, which a new tab in front would change. */
   browserContentOccluded(): boolean
   /** Names the download Save Link As starts for this address in this page with the link's `download` name. */

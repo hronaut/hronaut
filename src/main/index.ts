@@ -357,7 +357,14 @@ const {
   persistentSession: () => browserSessionState.persistentSession,
   tabs: () => tabRuntime.tabs
 })
-const spellCheck = createSpellCheck({ settings: () => settingsState.current, updateSettings, publishSettings })
+const spellCheck = createSpellCheck({
+  settings: () => settingsState.current,
+  updateSettings,
+  publishSettings,
+  // On macOS the system's spell checker picks the language, so Chromium's dictionaries are not used there.
+  availableLanguages: () => process.platform === 'darwin' ? [] : session.defaultSession.availableSpellCheckerLanguages,
+  locale: () => app.getLocale()
+})
 const {
   configureBrowserSession,
   configurePersistentSession,
@@ -1050,6 +1057,7 @@ function registerIpc(): void {
     applyMainWindowTitleBarOverlay,
     applyMainWindowBackground,
     applySpellCheck: (enabled) => spellCheck.apply(enabled),
+    applySpellCheckLanguages: (languages) => spellCheck.applyLanguages(languages),
     startupLaunchManager: () => settingsState.startupLaunchManager,
     defaultDownloadDirectory,
     effectiveDownloadDirectory: () => effectiveDownloadDirectory(),
@@ -1078,7 +1086,12 @@ function registerIpc(): void {
     updateSettings,
     publishSettings
   })
-  registerSpellCheckIpc(hronautIpcMain, { assertTrustedSender: assertTrustedShellSender, setEnabled: spellCheck.setEnabled })
+  registerSpellCheckIpc(hronautIpcMain, {
+    assertTrustedSender: assertTrustedShellSender,
+    setEnabled: spellCheck.setEnabled,
+    languages: spellCheck.languages,
+    setLanguages: spellCheck.setLanguages
+  })
   registerSecureDnsIpc(hronautIpcMain, {
     assertTrustedSender: assertTrustedShellSender,
     app,
@@ -1191,6 +1204,12 @@ async function createWindow(startMinimized = false): Promise<void> {
     getSearchEngine: () => settingsState.current.searchEngine,
     getSpellCheck: () => spellCheck.isEnabled(),
     setSpellCheck: (enabled) => spellCheck.setEnabled(enabled),
+    offersSpellCheckLanguages: () => spellCheck.languages().available.length > 0,
+    openSpellCheckSettings: () => {
+      showWindow()
+      const window = mainWindowRefs.window
+      if (window && !window.webContents.isDestroyed()) window.webContents.send('help:open', 'settings')
+    },
     sitePermissionStore: () => browserSessionState.sitePermissionStore,
     onSitePermissionsChanged: publishSitePermissions,
     getLocale: () => settingsState.resolvedLocale,

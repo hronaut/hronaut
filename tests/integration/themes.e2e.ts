@@ -402,7 +402,8 @@ test('resets every General preference including the language, and only those', a
     showAgentCursor: true,
     pinAgentLiveStatus: false,
     languagePreference: 'system',
-    spellCheck: true
+    spellCheck: true,
+    spellCheckLanguages: []
   })
   await expect(appWindow.locator('html')).toHaveAttribute('data-theme', 'matrix')
 })

@@ -313,8 +313,8 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
     ])
     const search = searchSelection()
     if (search.length) groups.push(search)
-    // Chrome's Spell check submenu turns checking on or off for every website, as Settings does. A password field is
-    // never checked, so its menu has none.
+    // Chrome's Spell check submenu turns checking on or off for every website, as Settings does, and, where Settings has
+    // spell check languages, opens them. A password field is never checked, so its menu has none.
     if (params.formControlType !== 'input-password') {
       groups.push([{
         id: 'spell-check',
@@ -327,7 +327,13 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
           click: (item) => {
             void access.setSpellCheck(item.checked).catch((error) => reportActionFailure('change spell check', error))
           }
-        }]
+        }, ...(access.offersSpellCheckLanguages()
+          ? [{
+              id: 'spell-check-language-settings',
+              label: access.text('native.context.spellCheckLanguageSettings'),
+              click: () => access.openSpellCheckSettings()
+            }]
+          : [])]
       }])
     }
   } else if (params.selectionText) {

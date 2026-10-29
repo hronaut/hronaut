@@ -279,6 +279,12 @@ export const ruRU: MessageSchema = {
       "label": "Проверка правописания",
       "description": "Проверять орфографию при вводе текста на сайтах."
     },
+    "spellCheckLanguages": {
+      "label": "Языки проверки правописания",
+      "description": "Проверять правописание на этих языках.",
+      "add": "Добавить язык",
+      "remove": "Удалить {language}"
+    },
     "interfaceSize": {
       "label": "Размер интерфейса",
       "description": "Увеличьте элементы управления и текст Hronaut, не меняя масштаб сайтов.",
@@ -3726,6 +3732,7 @@ export const ruRU: MessageSchema = {
       "addDictionary": "Добавить «{word}» в словарь",
       "spellCheck": "Проверка правописания",
       "checkSpelling": "Проверять правописание в текстовых полях",
+      "spellCheckLanguageSettings": "Настройки языка",
       "undo": "Отменить",
       "redo": "Повторить",
       "cut": "Вырезать",

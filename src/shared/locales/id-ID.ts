@@ -279,6 +279,12 @@ export const idID: MessageSchema = {
       "label": "Pemeriksaan ejaan",
       "description": "Periksa kesalahan ejaan saat mengetik teks di situs web."
     },
+    "spellCheckLanguages": {
+      "label": "Bahasa pemeriksaan ejaan",
+      "description": "Periksa ejaan dalam bahasa-bahasa ini.",
+      "add": "Tambahkan bahasa",
+      "remove": "Hapus {language}"
+    },
     "interfaceSize": {
       "label": "Ukuran antarmuka",
       "description": "Perbesar kontrol dan teks Hronaut tanpa mengubah zoom situs.",
@@ -3726,6 +3732,7 @@ export const idID: MessageSchema = {
       "addDictionary": "Tambahkan “{word}” ke kamus",
       "spellCheck": "Pemeriksaan ejaan",
       "checkSpelling": "Periksa ejaan kolom teks",
+      "spellCheckLanguageSettings": "Setelan bahasa",
       "undo": "Urungkan",
       "redo": "Ulangi",
       "cut": "Potong",

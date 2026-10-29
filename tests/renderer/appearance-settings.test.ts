@@ -39,7 +39,8 @@ function snapshot(locale: 'en-US' | 'uk-UA'): RendererSettingsState {
       graphicsAcceleration: true,
       checkForUpdatesOnStartup: true,
       languagePreference: locale,
-      spellCheck: true
+      spellCheck: true,
+      spellCheckLanguages: []
     },
     systemTheme: 'light',
     systemLocale: locale,

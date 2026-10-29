@@ -36,6 +36,7 @@ import type {
   SitePermissionDecision,
   SitePermissionEntry,
   SitePermissionScope,
+  SpellCheckLanguages,
   ThemeName
 } from './settings.js'
 import type { CredentialImportResult, CredentialStorageStatus, CredentialSummary } from './credentials.js'
@@ -168,6 +169,9 @@ export interface HronautSettingsApi {
   setShowAgentCursor(enabled: boolean): Promise<AppSettings>
   setPinAgentLiveStatus(enabled: boolean): Promise<AppSettings>
   setSpellCheck(enabled: boolean): Promise<AppSettings>
+  /** The spell check languages Hronaut has dictionaries for, and the one checked while none is chosen. */
+  getSpellCheckLanguages(): Promise<SpellCheckLanguages>
+  setSpellCheckLanguages(languages: string[]): Promise<AppSettings>
   setChallengeDetectionEnabled(enabled: boolean): Promise<AppSettings>
   setOmitAgentUrlDetail(enabled: boolean): Promise<AppSettings>
   setAllowWebsiteFileSaving(enabled: boolean): Promise<AppSettings>

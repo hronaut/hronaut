@@ -279,6 +279,12 @@ export const zhTW: MessageSchema = {
       "label": "拼字檢查",
       "description": "在網站上輸入文字時檢查拼字錯誤。"
     },
+    "spellCheckLanguages": {
+      "label": "拼字檢查語言",
+      "description": "以這些語言檢查拼字。",
+      "add": "新增語言",
+      "remove": "移除{language}"
+    },
     "interfaceSize": {
       "label": "介面大小",
       "description": "放大 Hronaut 的控制項和文字，而不變更網站的縮放比例。",
@@ -3726,6 +3732,7 @@ export const zhTW: MessageSchema = {
       "addDictionary": "將「{word}」新增至字典",
       "spellCheck": "拼字檢查",
       "checkSpelling": "檢查文字欄位的拼字",
+      "spellCheckLanguageSettings": "語言設定",
       "undo": "復原",
       "redo": "重做",
       "cut": "剪下",

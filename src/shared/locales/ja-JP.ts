@@ -279,6 +279,12 @@ export const jaJP: MessageSchema = {
       "label": "スペルチェック",
       "description": "ウェブサイトで文字を入力するときにスペルミスをチェックします。"
     },
+    "spellCheckLanguages": {
+      "label": "スペルチェックの言語",
+      "description": "これらの言語でスペルをチェックします。",
+      "add": "言語を追加",
+      "remove": "{language} を削除"
+    },
     "interfaceSize": {
       "label": "インターフェースのサイズ",
       "description": "ウェブサイトのズームを変えずに、Hronaut のコントロールとテキストを拡大します。",
@@ -3726,6 +3732,7 @@ export const jaJP: MessageSchema = {
       "addDictionary": "「{word}」を辞書に追加",
       "spellCheck": "スペルチェック",
       "checkSpelling": "テキスト フィールドのスペルをチェック",
+      "spellCheckLanguageSettings": "言語設定",
       "undo": "元に戻す",
       "redo": "やり直し",
       "cut": "切り取り",
