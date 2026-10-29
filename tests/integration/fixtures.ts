@@ -18,7 +18,7 @@ import { startWorkerDisplay } from './worker-display.js'
 import { activityDiagnostics, attachActivityDiagnostics } from './activity-failure-diagnostics.js'
 import { collectsNativeCrashStacks, readNativeCrashStacks, trackNativeCrashStacks, untrackNativeCrashStacks, type TeardownAbort } from './native-crash-stacks.js'
 import { readMainUncaughtExceptions, trackMainUncaughtExceptions, untrackMainUncaughtExceptions } from './main-uncaught-exceptions.js'
-import { mainProcessEnd, trackMainProcessEnd, type MainProcessEnd } from './main-process-end.js'
+import { mainProcessEnd, mainProcessExit, trackMainProcessEnd, type MainProcessEnd } from './main-process-end.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 
 export function expectFixtureSuccess(result: CallToolResult, operation: string): void {
@@ -262,7 +262,11 @@ export async function collectRendererDiagnostics(app: ElectronApplication): Prom
       }
     }))
     return { rendererExits: scope.__hronautQaRendererExits?.exits ?? [], nativeContents }
-  }).catch(() => ({ unavailable: 'Main process closed before diagnostics could be collected', ...mainProcessDiagnostics(app) }))
+  }).catch(async () => {
+    // The connection closes just before the process exits, and its exit code is what says how it ended.
+    await mainProcessExit(app, 500)
+    return { unavailable: 'Main process closed before diagnostics could be collected', ...mainProcessDiagnostics(app) }
+  })
   let diagnostics: unknown
   await settleWithin(pending.then(result => { diagnostics = result }), 2_000)
   return diagnostics ?? { unavailable: 'Main process did not respond to diagnostics within 2000ms', ...mainProcessDiagnostics(app) }
