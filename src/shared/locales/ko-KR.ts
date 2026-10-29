@@ -3540,7 +3540,7 @@ export const koKR: MessageSchema = {
       "feedbackPrivacy": "사용자 인증 정보, 토큰, 비공개 URL, 페이지 콘텐츠는 절대 포함하지 마세요.",
       "feedbackUnavailable": "설정 의견 링크를 사용할 수 없습니다.",
       "recommend": "Hronaut 추천",
-      "recommendMessage": "코딩 에이전트에게 계속 유지되는 브라우저를 제공하려고 Hronaut을 사용하고 있습니다: https://hronaut.dev/go/desktop-first-run-share",
+      "recommendMessage": "내 코딩 에이전트에게 전용 브라우저를 주고 내 브라우저는 그대로 지키려고 Hronaut을 사용하고 있습니다: https://hronaut.dev/go/desktop-first-run-share",
       "recommendPrivacy": "이 공개 메시지만 복사됩니다. 브라우저, 작업 공간, 에이전트 데이터는 포함되지 않습니다."
     },
     "tools": {

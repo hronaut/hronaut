@@ -3540,7 +3540,7 @@ export const idID: MessageSchema = {
       "feedbackPrivacy": "Jangan pernah menyertakan kredensial, token, URL pribadi, atau konten halaman.",
       "feedbackUnavailable": "Link masukan penyiapan tidak tersedia.",
       "recommend": "Rekomendasikan Hronaut",
-      "recommendMessage": "Saya menggunakan Hronaut untuk memberi agen coding browser yang persisten: https://hronaut.dev/go/desktop-first-run-share",
+      "recommendMessage": "Saya menggunakan Hronaut untuk memberi agen coding saya browser sendiri dan tetap memakai browser saya: https://hronaut.dev/go/desktop-first-run-share",
       "recommendPrivacy": "Hanya menyalin pesan publik ini. Tidak ada data browser, ruang kerja, atau agen yang disertakan."
     },
     "tools": {

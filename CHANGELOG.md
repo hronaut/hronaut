@@ -27,6 +27,7 @@ All notable changes to Hronaut are documented in this file.
 - The Claude Code plugin moved to its own repository, [hronaut/hronaut-claude-plugin](https://github.com/hronaut/hronaut-claude-plugin), with its own versions. To keep it updated, add that marketplace instead of hronaut/hronaut: `/plugin marketplace remove hronaut`, then `/plugin marketplace add hronaut/hronaut-claude-plugin` and `/plugin install hronaut@hronaut`.
 - The VS Code extension moved to its own repository, [hronaut/hronaut-vscode](https://github.com/hronaut/hronaut-vscode), with its own versions. Install it from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=hronaut.hronaut).
 - The Official MCP Registry entry, Hronaut's Windows shortcuts and installed-apps entry, its Linux packages, app menu entry and the launch-at-sign-in entry it writes, and its Scoop manifest now describe it as hronaut.dev does: "A visible desktop browser for coding agents, with a separate workspace for each project."
+- Home's Recommend Hronaut copies "I use Hronaut to give my coding agent its own browser and keep mine", with the same link, in every language.
 
 ### Fixed
 

@@ -3540,7 +3540,7 @@ export const zhCN: MessageSchema = {
       "feedbackPrivacy": "切勿包含凭据、令牌、私密网址或页面内容。",
       "feedbackUnavailable": "设置反馈链接不可用。",
       "recommend": "推荐 Hronaut",
-      "recommendMessage": "我用 Hronaut 为编程智能体提供一个持久的浏览器：https://hronaut.dev/go/desktop-first-run-share",
+      "recommendMessage": "我用 Hronaut 让编程智能体拥有自己的浏览器，我的浏览器留给我自己：https://hronaut.dev/go/desktop-first-run-share",
       "recommendPrivacy": "仅复制这条公开消息，不包含任何浏览器、工作区或智能体数据。"
     },
     "tools": {

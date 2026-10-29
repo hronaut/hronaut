@@ -3540,7 +3540,7 @@ export const deDE: MessageSchema = {
       "feedbackPrivacy": "Geben Sie niemals Anmeldedaten, Token, private URLs oder Seiteninhalte an.",
       "feedbackUnavailable": "Der Link für Einrichtungsfeedback ist nicht verfügbar.",
       "recommend": "Hronaut empfehlen",
-      "recommendMessage": "Ich verwende Hronaut, um Coding-Agenten einen dauerhaften Browser zu geben: https://hronaut.dev/go/desktop-first-run-share",
+      "recommendMessage": "Ich verwende Hronaut, um meinem Coding-Agenten einen eigenen Browser zu geben und meinen zu behalten: https://hronaut.dev/go/desktop-first-run-share",
       "recommendPrivacy": "Kopiert nur diese öffentliche Nachricht. Browser-, Arbeitsbereichs- oder Agentendaten werden nicht einbezogen."
     },
     "tools": {

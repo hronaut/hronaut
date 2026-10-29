@@ -3540,7 +3540,7 @@ export const hiIN: MessageSchema = {
       "feedbackPrivacy": "क्रेडेंशियल, टोकन, निजी URL या पेज का कॉन्टेंट कभी शामिल न करें।",
       "feedbackUnavailable": "सेटअप पर सुझाव देने का लिंक उपलब्ध नहीं है।",
       "recommend": "Hronaut का सुझाव दें",
-      "recommendMessage": "मैं कोडिंग एजेंट को स्थायी ब्राउज़र देने के लिए Hronaut का इस्तेमाल करता/करती हूं: https://hronaut.dev/go/desktop-first-run-share",
+      "recommendMessage": "मैं अपने कोडिंग एजेंट को उसका अपना ब्राउज़र देने और अपना ब्राउज़र अपने पास रखने के लिए Hronaut का इस्तेमाल करता/करती हूं: https://hronaut.dev/go/desktop-first-run-share",
       "recommendPrivacy": "सिर्फ़ यह सार्वजनिक मैसेज कॉपी होता है। ब्राउज़र, वर्कस्पेस या एजेंट का कोई डेटा शामिल नहीं होता।"
     },
     "tools": {

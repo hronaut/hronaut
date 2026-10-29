@@ -772,7 +772,7 @@ export const ukUA: MessageSchema = {
       reportTrouble: 'Повідомити про проблему ↗', helpPrivacy: 'Посібник відкриється у типовому браузері й не отримає даних браузера чи агента.',
       feedback: 'Поділитися результатом налаштування ↗', feedbackPrivacy: 'Ніколи не додавайте облікові дані, токени, приватні URL або вміст сторінок.',
       feedbackUnavailable: 'Посилання для відгуку про налаштування недоступне.', recommend: 'Порадити Hronaut',
-      recommendMessage: 'Я використовую Hronaut, щоб надати агентам програмування постійний браузер: https://hronaut.dev/go/desktop-first-run-share',
+      recommendMessage: 'Я використовую Hronaut, щоб дати своєму агенту програмування власний браузер, а свій залишити собі: https://hronaut.dev/go/desktop-first-run-share',
       recommendPrivacy: 'Копіюється лише це публічне повідомлення. Дані браузера, робочого простору чи агента не додаються.'
     },
     tools: { heading: 'Інструменти браузера', description: 'Актуальний каталог MCP, доступний кожному під’єднаному агенту.' },

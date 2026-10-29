@@ -3540,7 +3540,7 @@ export const ruRU: MessageSchema = {
       "feedbackPrivacy": "Никогда не указывайте учётные данные, токены, приватные URL или содержимое страниц.",
       "feedbackUnavailable": "Ссылка для отзыва о настройке недоступна.",
       "recommend": "Порекомендовать Hronaut",
-      "recommendMessage": "Я использую Hronaut, чтобы предоставить агентам программирования постоянный браузер: https://hronaut.dev/go/desktop-first-run-share",
+      "recommendMessage": "Я использую Hronaut, чтобы дать своему агенту программирования собственный браузер, а свой оставить себе: https://hronaut.dev/go/desktop-first-run-share",
       "recommendPrivacy": "Копируется только это публичное сообщение. Данные браузера, рабочего пространства или агента не добавляются."
     },
     "tools": {
