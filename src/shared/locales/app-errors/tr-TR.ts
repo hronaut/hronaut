@@ -17,6 +17,7 @@ export const trTRAppErrors: AppErrorMessages = {
     "pageHold": "Sayfası açıkça tutulan bir sekme etkin kalır.",
     "loading": "Yüklenmekte olan bir sekme uyutulamaz.",
     "audio": "Ses çalan bir sekme etkin kalır.",
+    "pictureInPicture": "Pencere içinde pencere modunda video gösteren bir sekme etkin kalır.",
     "dialog": "Açık bir iletişim kutusu olan sekme etkin kalır.",
     "wallet": "Bir cüzdan isteğini bekleyen sekme etkin kalır.",
     "devTools": "Geliştirici araçları açık olan bir sekme etkin kalır.",

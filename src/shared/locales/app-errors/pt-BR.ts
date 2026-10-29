@@ -17,6 +17,7 @@ export const ptBRAppErrors: AppErrorMessages = {
     "pageHold": "Uma guia com retenção explícita da página continua ativa.",
     "loading": "Uma guia que está carregando não pode ser suspensa.",
     "audio": "Uma guia reproduzindo áudio continua ativa.",
+    "pictureInPicture": "Uma guia mostrando um vídeo em picture-in-picture continua ativa.",
     "dialog": "Uma guia com uma caixa de diálogo aberta continua ativa.",
     "wallet": "Uma guia aguardando uma solicitação de carteira continua ativa.",
     "devTools": "Uma guia com as Ferramentas do desenvolvedor abertas continua ativa.",

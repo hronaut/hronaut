@@ -17,6 +17,7 @@ export const viVNAppErrors: AppErrorMessages = {
     "pageHold": "Thẻ có lệnh giữ trang rõ ràng luôn hoạt động.",
     "loading": "Thẻ đang tải không thể ngủ.",
     "audio": "Thẻ đang phát âm thanh luôn hoạt động.",
+    "pictureInPicture": "Thẻ đang hiển thị video ở chế độ hình trong hình luôn hoạt động.",
     "dialog": "Thẻ đang mở hộp thoại luôn hoạt động.",
     "wallet": "Thẻ đang chờ yêu cầu từ ví luôn hoạt động.",
     "devTools": "Thẻ đang mở Công cụ cho nhà phát triển luôn hoạt động.",

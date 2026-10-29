@@ -17,6 +17,7 @@ export const zhCNAppErrors: AppErrorMessages = {
     "pageHold": "设置了明确页面保持的标签页会保持活动状态。",
     "loading": "正在加载的标签页无法休眠。",
     "audio": "正在播放音频的标签页会保持活动状态。",
+    "pictureInPicture": "正在以画中画模式显示视频的标签页会保持活动状态。",
     "dialog": "打开了对话框的标签页会保持活动状态。",
     "wallet": "正在等待钱包请求的标签页会保持活动状态。",
     "devTools": "打开了开发者工具的标签页会保持活动状态。",

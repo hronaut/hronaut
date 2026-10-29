@@ -21,6 +21,7 @@ export const enUSAppErrors = {
     "pageHold": "A tab with an explicit page hold stays active.",
     "loading": "A loading tab cannot sleep.",
     "audio": "A tab playing audio stays active.",
+    "pictureInPicture": "A tab showing a video in picture-in-picture stays active.",
     "dialog": "A tab with an open dialog stays active.",
     "wallet": "A tab waiting on a wallet request stays active.",
     "devTools": "A tab with Developer Tools open stays active.",
