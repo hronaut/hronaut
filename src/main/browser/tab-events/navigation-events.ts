@@ -14,7 +14,7 @@ import { cancelNativeSelectionSessions } from '../native-selections/native-selec
 import { applySiteMuting } from '../site-muting/site-muting.js'
 import { loadFavicon } from '../tab-favicon/tab-favicon.js'
 import { invalidateTabOverviewPreview, scheduleTabOverviewPreview } from '../tab-overview-previews/tab-overview-previews.js'
-import { watchUnsavedFormEdits } from '../tab-sleep/tab-sleep.js'
+import { watchUnsavedFormEdits } from '../tab-sleep/unsaved-form-edits.js'
 import { workspaceNavigationAllowed } from '../workspace-navigation/workspace-navigation.js'
 import { publishChange } from '../browser-state/browser-state.js'
 import { isStaleAddressTitle, untitledPageTitle } from './untitled-page-title.js'

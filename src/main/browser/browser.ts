@@ -3417,11 +3417,13 @@ export class Browser {
     return this.getState()
   }
 
+  /** Asks the person to sign in for a challenge the tab's page received, or leaves Electron to cancel it. */
   answerHttpAuth(tab: BrowserTab, event: Electron.Event, details: Electron.AuthenticationResponseDetails,
     authInfo: Electron.AuthInfo, callback: (username?: string, password?: string) => void): void {
     answerHttpAuth({ askToSignIn: async (question) => this.options.askToSignIn?.(question) ?? null }, tab, event, details, authInfo, callback)
   }
 
+  /** Accepts a certificate Chromium does not trust only when the person chose to trust it, as certificate-errors.ts decides. */
   answerCertificateError(tab: BrowserTab, event: Electron.Event, url: string, error: string, certificate: Electron.Certificate,
     callback: (trusted: boolean) => void, isMainFrame: boolean): void {
     answerCertificateError({
@@ -4429,12 +4431,17 @@ export class Browser {
     attachWindowOpenHandler(this, tab, webContents)
   }
 
+  /**
+   * Records a visit to the tab's web page in history and its workspace's origins; samePage when the tab opened the page
+   * it showed again, by a reload or a change of only its fragment, which is not another visit.
+   */
   recordVisit(tab: BrowserTab, samePage: boolean): void {
     if (!isWebUrl(tab.url)) return
     this.trackWorkspaceOrigin(tab, tab.url)
     this.options.onPageVisited?.({ url: tab.url, title: tab.title, samePage })
   }
 
+  /** Adds the address's origin to the tab's workspace origins. */
   trackWorkspaceOrigin(tab: BrowserTab, url: string): void {
     if (!tab.mcpGroupId || !isWebUrl(url)) return
     const workspace = this.mcpTabGroups.get(tab.mcpGroupId)

@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
-// The certificate the tab refused, which the case gives each page and the browser would keep when it answered Chromium.
+// The certificate each case says the tab refused for its page, which the browser keeps when it answers Chromium.
 const { certificateRefusal } = vi.hoisted(() => ({ certificateRefusal: vi.fn<(webContents: object, url: string) => unknown>() }))
 vi.mock('../src/main/browser/certificate-errors/certificate-errors.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/certificate-errors/certificate-errors.js')>(),
@@ -32,7 +32,7 @@ function tabWithRefusal(refusal?: { host: string; canProceed?: boolean; locked?:
     id: 'tab', url: 'about:blank', title: 'New tab', loading: true, sleeping: false,
     discoveryTitle: anything(), navigationGeneration: 0, documentGeneration: 0, faviconRequestId: 0, pendingHistoryUrl: null as string | null,
     suppressInitialHistory: false, navigationPolicyDenialSequence: 0, emulationContextGeneration: 0,
-    pageProblem: undefined as unknown, consoleMessages: []
+    pageProblem: undefined as unknown, consoleMessages: [], webContents: contents
   }
   certificateRefusal.mockReset().mockImplementation((_webContents, url) => (refusal && url === PAGE ? refusal : undefined))
   const answerCertificateError = vi.fn()
@@ -47,7 +47,7 @@ function tabWithRefusal(refusal?: { host: string; canProceed?: boolean; locked?:
   const fail = (errorCode: number, errorDescription: string, isMainFrame = true) => {
     contents.emit('did-fail-load', {}, errorCode, errorDescription, PAGE, isMainFrame)
   }
-  return { tab, contents, fail, certificateRefusal, answerCertificateError }
+  return { tab, contents, fail, answerCertificateError }
 }
 
 describe('a page whose website presented a certificate the tab refused', () => {
@@ -86,12 +86,12 @@ describe('a page whose website presented a certificate the tab refused', () => {
       [{ host: 'staging.example', canProceed: true }, -105, 'ERR_NAME_NOT_RESOLVED'],
       [undefined, -202, 'ERR_CERT_AUTHORITY_INVALID']
     ] as const) {
-      const { tab, fail, certificateRefusal } = tabWithRefusal(refusal)
+      const { tab, contents, fail } = tabWithRefusal(refusal)
       fail(errorCode, description)
       expect(tab.title, description).toBe('Site unavailable')
       expect(tab.pageProblem, description).toMatchObject({ title: 'This site could not be reached', errorDescription: description })
       expect(tab.pageProblem, description).not.toHaveProperty('certificate')
-      if (description !== 'ERR_NAME_NOT_RESOLVED') expect(certificateRefusal).toHaveBeenCalled()
+      if (description !== 'ERR_NAME_NOT_RESOLVED') expect(certificateRefusal).toHaveBeenCalledWith(contents, PAGE)
     }
   })
 })
