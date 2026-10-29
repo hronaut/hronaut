@@ -14,18 +14,18 @@ than the entire browser runtime.
   status response in Home's separate application session.
   Startup features are controllers built from the same kind of host:
   `main/windows/application-menu.ts`, `main/windows/window-state-persistence.ts`,
-  `main/tray-attention.ts`, `main/license/commercial-license-runtime.ts` and `main/updates/app-updates.ts`.
+  `main/attention/tray-attention.ts`, `main/license/commercial-license-runtime.ts` and `main/updates/app-updates.ts`.
   Browser sessions, clipboard copies, saved passwords, overlay view surfaces and the
   detached panel window are built the same way: `main/browser-session.ts`,
   `main/clipboard-operations.ts`, `main/credentials/credential-runtime.ts`,
   `main/windows/overlay-surfaces.ts` and `main/windows/panel-window.ts`. So are site
   data summaries and clearing, the MCP status and pause, agent presence, the main
-  window's chrome and the address suggestions overlay: `main/site-data.ts`,
-  `main/mcp-control-state.ts`, `main/agent-presence.ts`, `main/windows/main-window.ts`
+  window's chrome and the address suggestions overlay: `main/site-data/site-data.ts`,
+  `main/mcp-runtime/mcp-control-state.ts`, `main/agents/agent-presence.ts`, `main/windows/main-window.ts`
   and `main/windows/address-suggestion-overlay.ts`, whose messages
-  `main/address-overlay-ipc.ts` checks. Both windows' theme and interface scale,
+  `main/overlays/address-overlay-ipc.ts` checks. Both windows' theme and interface scale,
   bookmarks and visit history, and the services agents use beside the browser come
-  from `main/windows/appearance.ts`, `main/bookmarks-and-history.ts` and
+  from `main/windows/appearance.ts`, `main/bookmarks-history/bookmarks-and-history.ts` and
   `main/agent-services.ts`. Showing the shell windows, sending them messages and
   asking on the main window, changing the interface language, routing browser
   shortcuts pressed in pages and enabling Chromium's native WebMCP come from
@@ -35,16 +35,16 @@ than the entire browser runtime.
   `main/windows/shell-overlays.ts` and `main/runtime-shutdown.ts`. State that several
   features read or change is one record that index.ts creates once, typed beside its
   owner: `McpRuntimeState` in
-  `main/mcp-runtime.ts`, which starts, moves and resets the listener, `SettingsState`
+  `main/mcp-runtime/mcp-runtime.ts`, which starts, moves and resets the listener, `SettingsState`
   in `main/settings/settings-runtime.ts`, which loads, commits and publishes settings,
   translates into the interface language and creates the manager of the operating
   system's launch at login setting, `WalletRuntimeState` in
   `main/wallet/runtime.ts`, which starts wallets and admits page and agent requests,
-  `UserAttentionState` in `main/tray-attention.ts`, which shows and ends the request
+  `UserAttentionState` in `main/attention/tray-attention.ts`, which shows and ends the request
   for the person's attention, `AppQuitState` in `main/app-lifecycle.ts`, whether the
   app is quitting, which the tray, the application menu, the shell IPC, the lifecycle
   events and the main window's close set and the license runtime reads,
-  `FollowSuspensionState` in `main/agent-card-overlay.ts`, the shell's request and an
+  `FollowSuspensionState` in `main/overlays/agent-card-overlay.ts`, the shell's request and an
   open agent card, either of which keeps Follow from switching tabs,
   `TabRuntimeState` in `main/tab-runtime-startup.ts`, the
   tab runtime and how far its saved workspaces got in starting, whose module skips
@@ -60,10 +60,10 @@ than the entire browser runtime.
   any window, session or MCP server opens and its `createWindow` reads; no other
   feature touches it.
   What the MCP server offers agents is built by the feature that owns it: agents'
-  wallets in `main/wallet/runtime.ts`, site data in `main/site-data.ts`, bookmarks
-  and history in `main/bookmarks-and-history.ts`, the automation license checks in
+  wallets in `main/wallet/runtime.ts`, site data in `main/site-data/site-data.ts`, bookmarks
+  and history in `main/bookmarks-history/bookmarks-and-history.ts`, the automation license checks in
   `main/license/commercial-license-runtime.ts` and agents' view of the attention request in
-  `main/tray-attention.ts`; index.ts's `createRuntimeMcpServer` only hands them to
+  `main/attention/tray-attention.ts`; index.ts's `createRuntimeMcpServer` only hands them to
   the server. `main/app-lifecycle.ts` registers the application's events and runs
   index.ts's `startRuntime` once Electron is ready.
 - `browser/tabs-manager.ts` remains the **TabRuntime** host: Electron contents,

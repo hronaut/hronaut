@@ -2,7 +2,7 @@ import { chmod, mkdir, mkdtemp, open, readdir, readFile, rename, rm, stat, write
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { BookmarkStore, normalizeBookmarkUrl } from '../src/main/bookmark-store.js'
+import { BookmarkStore, normalizeBookmarkUrl } from '../src/main/bookmarks-history/bookmark-store.js'
 
 vi.mock('node:fs/promises', async importOriginal => {
   const fs = await importOriginal<typeof import('node:fs/promises')>()

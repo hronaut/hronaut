@@ -4,7 +4,7 @@ import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/
 import { z } from 'zod'
 import type { McpTabActivity, UserAttentionInput, UserAttentionRequest } from '../../../shared/types.js'
 import type { BrowserTabsManager } from '../../browser/tabs-manager.js'
-import type { UserAttentionLifecycle } from '../../user-attention-lifecycle.js'
+import type { UserAttentionLifecycle } from '../../attention/user-attention-lifecycle.js'
 import { McpActionTracker } from '../action-tracker.js'
 import type { AuditReceiptService } from '../audit-receipt-service.js'
 import type { AuditReceiptAuthorization } from '../audit-receipt-store.js'

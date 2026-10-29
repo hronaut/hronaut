@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { applySiteMuting, applySiteMutingToTabs, canMuteSite, isSiteMuted, setSiteMuted } from '../src/main/browser/site-muting/site-muting.js'
 import type { SiteMutingAccess } from '../src/main/browser/site-muting/site-muting-access.js'
 import { setAllTabsMuted, setTabMuted } from '../src/main/browser/tab-muting/tab-muting.js'
-import { SitePermissionStore } from '../src/main/site-permission-store.js'
+import { SitePermissionStore } from '../src/main/site-data/site-permission-store.js'
 import type { BrowserState } from '../src/shared/types.js'
 
 // Chrome's Mute Site mutes a website in every tab and on its later pages, and Unmute Site forgets that. Hronaut keeps it

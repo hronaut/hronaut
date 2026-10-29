@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { AgentPresence } from '../src/shared/agent-presence.js'
-import { TAKE_OVER_OFFER_INTERVAL_MS, TakeOverOffers, tabAgentPauseOptions } from '../src/main/take-over-offers.js'
+import { TAKE_OVER_OFFER_INTERVAL_MS, TakeOverOffers, tabAgentPauseOptions } from '../src/main/agents/take-over-offers.js'
 
 function agent(name: string, overrides: Partial<AgentPresence> = {}): AgentPresence {
   return { clientKey: `key-${name}`, name, initial: name.slice(0, 1), colorIndex: 0, state: 'working', step: 'click', recentSteps: [], lastTabId: 'tab-a', ...overrides }

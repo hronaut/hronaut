@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, rename, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
-import { BookmarkStore } from '../src/main/bookmark-store.js'
+import { BookmarkStore } from '../src/main/bookmarks-history/bookmark-store.js'
 
 const directories: string[] = []
 afterEach(async () => { await Promise.all(directories.splice(0).map(path => rm(path, { recursive: true, force: true }))) })

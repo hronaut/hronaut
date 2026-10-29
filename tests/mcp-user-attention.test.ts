@@ -1,4 +1,4 @@
-import { UserAttentionLifecycle } from '../src/main/user-attention-lifecycle.js'
+import { UserAttentionLifecycle } from '../src/main/attention/user-attention-lifecycle.js'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'

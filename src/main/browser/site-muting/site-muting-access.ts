@@ -1,6 +1,6 @@
 import type { WebContents } from 'electron'
 import type { BrowserState } from '../../../shared/types.js'
-import type { SitePermissionStore } from '../../site-permission-store.js'
+import type { SitePermissionStore } from '../../site-data/site-permission-store.js'
 
 /**
  * The tab fields muting a website reads and writes: its address and workspace, its page, its own saved mute

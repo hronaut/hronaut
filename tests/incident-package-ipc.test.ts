@@ -1,6 +1,6 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import { expect, it, vi } from 'vitest'
-import { registerIncidentPackageIpc } from '../src/main/incident-package-ipc.js'
+import { registerIncidentPackageIpc } from '../src/main/incident/incident-package-ipc.js'
 import type { IncidentDraft, IncidentPreview } from '../src/shared/incident-package.js'
 
 function fixture() {

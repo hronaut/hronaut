@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ShellTooltipOverlay, type ShellTooltipSurface } from '../src/main/shell-tooltip-overlay.js'
+import { ShellTooltipOverlay, type ShellTooltipSurface } from '../src/main/overlays/shell-tooltip-overlay.js'
 import type { ShellTooltipRequest } from '../src/shared/shell-tooltip.js'
 
 function deferred<T>() {

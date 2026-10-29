@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { afterEach, expect, it, vi } from 'vitest'
-import { IncidentPackages } from '../src/main/incident-package.js'
+import { IncidentPackages } from '../src/main/incident/incident-package.js'
 import type { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
 
 const now = Date.parse('2026-10-01T01:00:00Z')

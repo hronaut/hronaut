@@ -1,6 +1,6 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
-import type { BookmarkStore, RemovedBookmark } from './bookmark-store.js'
-import type { HistoryStore } from './history-store.js'
+import type { BookmarkStore, RemovedBookmark } from './bookmarks-history/bookmark-store.js'
+import type { HistoryStore } from './bookmarks-history/history-store.js'
 import type { BrowserTabsManager } from './browser/tabs-manager.js'
 import type { BookmarkTabsOutcome, BrowserBookmark, BrowserHistoryEntry } from '../shared/types.js'
 import { isHronautHomeUrl } from '../shared/home-url.js'

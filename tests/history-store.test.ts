@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promise
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { HistoryStore, normalizeHistoryUrl } from '../src/main/history-store.js'
+import { HistoryStore, normalizeHistoryUrl } from '../src/main/bookmarks-history/history-store.js'
 
 const directories: string[] = []
 

@@ -7,7 +7,7 @@ import {
   agentGuideHandler,
   setupHelpHandler,
   setupFeedbackHandler
-} from '../src/main/setup-feedback-links.js'
+} from '../src/main/agents/setup-feedback-links.js'
 
 describe('setup feedback links', () => {
   it('opens only fixed Hronaut-owned documentation for every supported client ID', async () => {

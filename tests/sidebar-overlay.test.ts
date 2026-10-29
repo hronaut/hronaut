@@ -7,8 +7,8 @@ import {
   type SidebarOverlayLayout,
   type SidebarOverlayMenu,
   type SidebarOverlaySurface
-} from '../src/main/sidebar-overlay.js'
-import { registerOverlayViewsIpc } from '../src/main/overlay-views-ipc.js'
+} from '../src/main/overlays/sidebar-overlay.js'
+import { registerOverlayViewsIpc } from '../src/main/overlays/overlay-views-ipc.js'
 import {
   parseSidebarOverlayIntent,
   parseSidebarOverlayPointer,

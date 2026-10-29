@@ -2,8 +2,8 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { BookmarkStore } from '../src/main/bookmark-store.js'
-import { createBookmarksAndHistory } from '../src/main/bookmarks-and-history.js'
+import { BookmarkStore } from '../src/main/bookmarks-history/bookmark-store.js'
+import { createBookmarksAndHistory } from '../src/main/bookmarks-history/bookmarks-and-history.js'
 
 vi.mock('electron', () => ({ app: { getPath: () => tmpdir() } }))
 

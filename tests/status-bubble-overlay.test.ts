@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { StatusBubbleOverlay, type StatusBubblePane, type StatusBubbleSurface } from '../src/main/status-bubble-overlay.js'
+import { StatusBubbleOverlay, type StatusBubblePane, type StatusBubbleSurface } from '../src/main/overlays/status-bubble-overlay.js'
 import type { StatusBubbleState } from '../src/shared/status-bubble.js'
 
 // Pointing at a link showed nothing of where it goes. Chrome shows its address at the page's bottom left corner, after

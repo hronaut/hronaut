@@ -7,7 +7,7 @@ import type { McpActionTracker } from './mcp/action-tracker.js'
 import type { WorkspaceNavigationDecision } from './browser/workspace-navigation-policy.js'
 import type { HumanWaitingService } from './mcp/human-waiting-service.js'
 import type { TaskRunService } from './mcp/task-run-service.js'
-import type { UserAttentionState } from './tray-attention.js'
+import type { UserAttentionState } from './attention/tray-attention.js'
 import { humanWaitingDecisionOpen } from '../shared/human-waiting.js'
 import type { BrowserWorkspaceNavigationAuditSource } from '../shared/types.js'
 
