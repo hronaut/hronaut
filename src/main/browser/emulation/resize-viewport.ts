@@ -4,7 +4,7 @@ import { findTab, getTab } from '../browser-core.js'
 
 /**
  * Gives the tab's page an emulated desktop viewport of the given size, or
- * removes the viewport override, through the manager's emulation. It returns
+ * removes the viewport override, through the browser's emulate. It returns
  * the page's viewport size: the override's size, or after a reset the size the
  * page settles at in its view.
  */
