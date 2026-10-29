@@ -79,6 +79,7 @@ export const esESAppErrors: AppErrorMessages = {
     "closedWhileWaiting": "La pestaña se cerró mientras se esperaba la página.",
     "rendererLostWhileWaiting": "La pestaña dejó de responder mientras se esperaba la página.",
     "loadTimedOut": "Se agotó el tiempo de espera para que la página terminara de cargarse.",
+    "signInAsked": "El sitio web pide un nombre de usuario y una contraseña, y Hronaut pidió a la persona que inicie sesión; la página se abre en cuanto lo haga. Pide a la persona que inicie sesión y vuelve a comprobar la pestaña.",
     "zoomPercent": "El zoom de la página debe ser un número entero entre 50 y 400 por ciento.",
     "findQuery": "La búsqueda debe tener entre 1 y 1000 caracteres.",
     "printFailed": "Hronaut no pudo imprimir esta página.",

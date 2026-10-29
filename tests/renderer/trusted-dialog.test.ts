@@ -601,3 +601,92 @@ describe('Hronaut’s Claude Code setup dialog', () => {
     expect(dialog).toHaveTextContent('Hronaut запише справжній токен MCP на місце •••.')
   })
 })
+
+function httpAuth(id: string, overrides: Partial<Extract<TrustedDialogRequest['variant'], { kind: 'http-auth' }>> = {}): TrustedDialogRequest {
+  return {
+    id,
+    type: 'question',
+    title: 'Sign in',
+    message: 'Sign in to https://intranet.example',
+    buttons: ['Cancel', 'Sign in'],
+    defaultId: 0,
+    cancelId: 0,
+    primaryId: 1,
+    variant: { kind: 'http-auth', origin: 'https://intranet.example', secure: true, workspaceName: 'Client A', ...overrides }
+  }
+}
+
+describe('Hronaut’s sign-in dialog for a website', () => {
+  it('names the website and the workspace, with the focus in Username and fields that take no typing until it takes answers', async () => {
+    const { show, settle } = mountDialog()
+    await show(httpAuth('one'))
+    const dialog = screen.getByRole('alertdialog', { name: 'Sign in to https://intranet.example' })
+    expect(dialog).toHaveAttribute('data-variant', 'http-auth')
+    expect(dialog).toHaveTextContent('You stay signed in to this website in the “Client A” workspace until Hronaut quits.')
+    expect(dialog).toHaveTextContent('Hronaut sends your username and password only to this website. Agents never see them.')
+    expect(dialog).not.toHaveTextContent('not private')
+    const username = screen.getByLabelText('Username')
+    expect(screen.getByLabelText('Password')).toHaveAttribute('type', 'password')
+    expect(username).toHaveFocus()
+    expect(username).toHaveAttribute('readonly')
+    await settle()
+    expect(username).not.toHaveAttribute('readonly')
+    expect(username).toHaveFocus()
+    expect(screen.getByRole('button', { name: 'Sign in' })).toHaveClass('ui-button--primary')
+  })
+
+  it('warns that anyone on the network can read what is sent over an unencrypted connection', async () => {
+    const { show } = mountDialog()
+    await show(httpAuth('one', { origin: 'http://intranet.example', secure: false, workspaceName: undefined }))
+    const dialog = screen.getByRole('alertdialog', { name: 'Sign in to http://intranet.example' })
+    expect(dialog).toHaveClass('trusted-dialog--warning')
+    expect(dialog).toHaveTextContent('Your connection to this site is not private. Anyone on the network can read your username and password.')
+    expect(dialog).not.toHaveTextContent('workspace')
+  })
+
+  it('signs in with what the person typed, by Enter or the button, and cancels without sending any of it', async () => {
+    const { api, show, settle } = mountDialog()
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTimeAsync })
+    await show(httpAuth('one'))
+    await settle()
+    await user.type(screen.getByLabelText('Username'), 'ada')
+    await user.type(screen.getByLabelText('Password'), 's3cret{Enter}')
+    expect(api.respond).toHaveBeenCalledExactlyOnceWith('one', 1, { username: 'ada', password: 's3cret' })
+    expect(screen.getByLabelText('Password')).toHaveValue('')
+
+    await show(httpAuth('two'))
+    await settle()
+    expect(screen.getByLabelText('Username')).toHaveValue('')
+    await user.type(screen.getByLabelText('Password'), 'typed')
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(api.respond).toHaveBeenLastCalledWith('two', 0)
+
+    await show(httpAuth('three'))
+    await settle()
+    expect(screen.getByLabelText('Password')).toHaveValue('')
+    await user.type(screen.getByLabelText('Username'), 'grace')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+    expect(api.respond).toHaveBeenLastCalledWith('three', 1, { username: 'grace', password: '' })
+  })
+
+  it('takes no Enter before it takes answers, nor one held since before it opened, nor one that ends a composed word', async () => {
+    const { api, show, settle } = mountDialog()
+    await show(httpAuth('one'))
+    const username = screen.getByLabelText('Username')
+    await fireEvent.keyDown(username, { key: 'Enter' })
+    await settle()
+    username.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true }))
+    await fireEvent.keyDown(username, { key: 'Enter', isComposing: true })
+    expect(api.respond).not.toHaveBeenCalled()
+    await fireEvent.keyDown(username, { key: 'Enter' })
+    expect(api.respond).toHaveBeenCalledExactlyOnceWith('one', 1, { username: '', password: '' })
+  })
+
+  it('keeps the field the person moved to while it was opening', async () => {
+    const { show, settle } = mountDialog()
+    await show(httpAuth('one'))
+    screen.getByLabelText('Password').focus()
+    await settle()
+    expect(screen.getByLabelText('Password')).toHaveFocus()
+  })
+})

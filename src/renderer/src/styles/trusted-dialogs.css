@@ -41,6 +41,8 @@
 .trusted-dialog__details .trusted-dialog__change-note { @apply m-0 [font-size:var(--type-micro-size)]; }
 .trusted-dialog__change pre { @apply m-0 max-h-48 overflow-auto rounded-1 text-copy [font-family:var(--font-code)] [font-size:var(--type-small-size)] leading-[1.45] whitespace-pre-wrap [overflow-wrap:anywhere]; }
 .trusted-dialog .ui-dialog__footer { @apply mt-2; }
+/* A website's sign-in: its two fields, which take no typing until the dialog takes answers. */
+.trusted-dialog__sign-in { @apply m-0 grid gap-2.5; }
 
 @media (max-width: 520px) {
   .trusted-dialog .ui-dialog__body { @apply pl-5; }

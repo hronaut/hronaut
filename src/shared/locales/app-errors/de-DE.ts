@@ -79,6 +79,7 @@ export const deDEAppErrors: AppErrorMessages = {
     "closedWhileWaiting": "Der Tab wurde geschlossen, während auf die Seite gewartet wurde.",
     "rendererLostWhileWaiting": "Der Tab reagierte nicht mehr, während auf die Seite gewartet wurde.",
     "loadTimedOut": "Zeitüberschreitung beim Warten auf das Laden der Seite.",
+    "signInAsked": "Die Website verlangt einen Benutzernamen und ein Passwort, und Hronaut hat die Person gebeten, sich anzumelden; die Seite öffnet sich, sobald sie das tut. Bitten Sie die Person, sich anzumelden, und prüfen Sie den Tab dann erneut.",
     "zoomPercent": "Der Seitenzoom muss eine ganze Zahl zwischen 50 und 400 Prozent sein.",
     "findQuery": "Der Suchbegriff muss zwischen 1 und 1.000 Zeichen lang sein.",
     "printFailed": "Hronaut konnte diese Seite nicht drucken.",

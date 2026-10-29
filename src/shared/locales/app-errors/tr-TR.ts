@@ -79,6 +79,7 @@ export const trTRAppErrors: AppErrorMessages = {
     "closedWhileWaiting": "Sayfa beklenirken sekme kapandı.",
     "rendererLostWhileWaiting": "Sayfa beklenirken sekmenin oluşturucusu kullanılamaz hâle geldi.",
     "loadTimedOut": "Sayfanın yüklenmesi beklenirken zaman aşımı oluştu.",
+    "signInAsked": "Web sitesi bir kullanıcı adı ve şifre istiyor ve Hronaut kişiden oturum açmasını istedi; kişi oturum açınca sayfa açılır. Kişiden oturum açmasını isteyin, ardından sekmeyi yeniden kontrol edin.",
     "zoomPercent": "Sayfa yakınlaştırma yüzdesi 50 ile 400 arasında bir tam sayı olmalıdır",
     "findQuery": "Arama sorgusu 1 ile 1.000 arasında karakter içermelidir",
     "printFailed": "Hronaut bu sayfayı yazdıramadı.",

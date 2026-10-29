@@ -764,7 +764,10 @@ contextBridge.exposeInMainWorld('hronautAgentCard', agentCardApi)
 // Hronaut's own dialogs, such as a website's permission request; main checks that this shell document answers.
 const trustedDialogsApi: HronautTrustedDialogsApi = {
   ready: () => ipcRenderer.send(TRUSTED_DIALOG_CHANNELS.ready),
-  respond: (id, response) => ipcRenderer.send(TRUSTED_DIALOG_CHANNELS.respond, id, response),
+  // Main takes what the person typed to sign in only with the answer that signs in to the sign-in dialog it shows.
+  respond: (id, response, credentials) => credentials
+    ? ipcRenderer.send(TRUSTED_DIALOG_CHANNELS.respond, id, response, { username: credentials.username, password: credentials.password })
+    : ipcRenderer.send(TRUSTED_DIALOG_CHANNELS.respond, id, response),
   onChanged: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, request: TrustedDialogRequest | null): void => listener(request)
     ipcRenderer.on(TRUSTED_DIALOG_CHANNELS.changed, handler)

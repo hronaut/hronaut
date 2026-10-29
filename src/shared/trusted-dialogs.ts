@@ -82,6 +82,20 @@ export interface ClaudeSetupDialogVariant {
   backupName: string
 }
 
+/**
+ * A website asks for a username and password before it shows a page, as HTTP authentication does. The person signs in
+ * here, in Hronaut's own dialog, never in anything the website draws; only main and this dialog see what they type.
+ */
+export interface HttpAuthDialogVariant {
+  kind: 'http-auth'
+  /** The website that asks, as an origin such as https://example.com. */
+  origin: string
+  /** False when the connection is not encrypted, so the password can be read on the way. */
+  secure: boolean
+  /** The workspace whose tab asks, as the prompt names it, when Hronaut knows it. */
+  workspaceName?: string
+}
+
 /** What one of Hronaut's own questions is about, for the mark its dialog shows. */
 export type TrustedDialogTopic = 'unsaved-changes' | 'downloads' | 'browser-import' | 'passwords' | 'agent-connection'
 
@@ -98,6 +112,7 @@ export type TrustedDialogVariant =
   | SavePasswordDialogVariant
   | WalletRecoveryDialogVariant
   | ClaudeSetupDialogVariant
+  | HttpAuthDialogVariant
   | MessageDialogVariant
 
 /** The one dialog main shows a shell window, as that window draws it. */
@@ -119,10 +134,19 @@ export interface TrustedDialogRequest {
   variant: TrustedDialogVariant
 }
 
+/** What the person typed to sign in to a website, sent with the answer that signs in and only for that dialog. */
+export interface TrustedDialogCredentials {
+  username: string
+  password: string
+}
+
+/** The most characters of a username or of a password a sign-in answer carries. */
+export const MAX_CREDENTIAL_LENGTH = 4_096
+
 export const TRUSTED_DIALOG_CHANNELS = {
   /** Shell → main: the shell can draw dialogs now, and wants the current one. */
   ready: 'trusted-dialogs:ready',
-  /** Shell → main: the person chose a button of a request. */
+  /** Shell → main: the person chose a button of a request, with what they typed to sign in when they sign in. */
   respond: 'trusted-dialogs:respond',
   /** Main → shell: the dialog to show, or null for none. */
   changed: 'trusted-dialogs:changed'
@@ -131,6 +155,6 @@ export const TRUSTED_DIALOG_CHANNELS = {
 /** The bridge the trusted shell uses; websites never get it. */
 export interface HronautTrustedDialogsApi {
   ready(): void
-  respond(id: string, response: number): void
+  respond(id: string, response: number, credentials?: TrustedDialogCredentials): void
   onChanged(listener: (request: TrustedDialogRequest | null) => void): () => void
 }

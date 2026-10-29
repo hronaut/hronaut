@@ -1,5 +1,5 @@
 import { computed, ref, shallowRef } from 'vue'
-import type { HronautTrustedDialogsApi, TrustedDialogRequest } from '../../../shared/trusted-dialogs.js'
+import type { HronautTrustedDialogsApi, TrustedDialogCredentials, TrustedDialogRequest } from '../../../shared/trusted-dialogs.js'
 
 /**
  * Mirrors the one dialog main asks this shell window to show, such as a website's permission request, and reports
@@ -20,13 +20,17 @@ export function useTrustedDialogController(api: HronautTrustedDialogsApi | undef
   // Only now can main show dialogs here; until then it asks with the system dialog instead.
   api?.ready()
 
-  /** Answers the request with this id, if it is still the one shown and not answered yet. */
-  function respond(id: string, response: number): void {
+  /**
+   * Answers the request with this id, if it is still the one shown and not answered yet; signing in to a website
+   * sends what the person typed with it.
+   */
+  function respond(id: string, response: number, credentials?: TrustedDialogCredentials): void {
     const current = request.value
     if (!current || current.id !== id || answeredId.value === id) return
     if (!Number.isInteger(response) || response < 0 || response >= current.buttons.length) return
     answeredId.value = id
-    api?.respond(id, response)
+    if (credentials) api?.respond(id, response, credentials)
+    else api?.respond(id, response)
   }
 
   /** Answers the shown request as Escape does. */

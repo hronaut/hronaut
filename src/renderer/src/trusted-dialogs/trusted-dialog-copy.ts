@@ -30,10 +30,12 @@ import IconMoveToInboxOutlineRounded from '~icons/material-symbols/move-to-inbox
 import IconLanOutlineRounded from '~icons/material-symbols/lan-outline-rounded'
 import IconAccountBalanceWalletOutlineRounded from '~icons/material-symbols/account-balance-wallet-outline-rounded'
 import IconTerminalRounded from '~icons/material-symbols/terminal-rounded'
+import IconLoginRounded from '~icons/material-symbols/login-rounded'
 import { sitePermissionName } from '../../../shared/site-permission-names.js'
 import type { MessageKey, MessageParameters } from '../../../shared/i18n.js'
 import type {
   ClaudeSetupDialogVariant,
+  HttpAuthDialogVariant,
   SavePasswordDialogVariant,
   SitePermissionDialogVariant,
   TrustedDialogRequest,
@@ -70,6 +72,8 @@ export interface TrustedDialogCopy {
   lines: string[]
   /** The line naming the workspace a choice is remembered in, shown with its own mark. */
   workspaceLine?: string
+  /** The fields a website's sign-in asks the person to fill, by their labels. */
+  signIn?: { username: string, password: string }
 }
 
 /** The headline message of each permission, by Chromium's name; any other permission uses `other`. */
@@ -240,6 +244,25 @@ function claudeSetupCopy(variant: ClaudeSetupDialogVariant, t: Translate): Trust
   }
 }
 
+/**
+ * Asks the person to sign in to a website: the website stands out, an unencrypted connection is called out, and the
+ * workspace the sign-in holds for is named.
+ */
+function httpAuthCopy(variant: HttpAuthDialogVariant, t: Translate): TrustedDialogCopy {
+  return {
+    icon: IconLoginRounded,
+    tone: variant.secure ? 'question' : 'warning',
+    eyebrow: t('trustedDialogs.httpAuth.eyebrow'),
+    headline: emphasized(t, 'trustedDialogs.httpAuth.headline', variant.origin),
+    lines: [
+      ...(variant.secure ? [] : [t('trustedDialogs.httpAuth.notPrivate')]),
+      t('trustedDialogs.httpAuth.sent')
+    ],
+    ...(variant.workspaceName ? { workspaceLine: t('trustedDialogs.httpAuth.workspace', { workspace: variant.workspaceName }) } : {}),
+    signIn: { username: t('trustedDialogs.httpAuth.username'), password: t('trustedDialogs.httpAuth.password') }
+  }
+}
+
 /** The words and mark of a dialog: its own design for a known variant, or its message and detail as given. */
 export function trustedDialogCopy(request: TrustedDialogRequest, t: Translate): TrustedDialogCopy {
   const { variant } = request
@@ -247,6 +270,7 @@ export function trustedDialogCopy(request: TrustedDialogRequest, t: Translate): 
   if (variant.kind === 'save-password') return savePasswordCopy(variant, t)
   if (variant.kind === 'wallet-recovery') return walletRecoveryCopy(variant, t)
   if (variant.kind === 'claude-setup') return claudeSetupCopy(variant, t)
+  if (variant.kind === 'http-auth') return httpAuthCopy(variant, t)
   if (variant.kind === 'protected-file-access') {
     const folder = variant.target === 'folder'
     return {

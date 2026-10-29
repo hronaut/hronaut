@@ -79,6 +79,7 @@ export const koKRAppErrors: AppErrorMessages = {
     "closedWhileWaiting": "페이지를 기다리는 동안 탭이 닫혔습니다.",
     "rendererLostWhileWaiting": "페이지를 기다리는 동안 탭 렌더러를 사용할 수 없게 되었습니다.",
     "loadTimedOut": "페이지 로드가 끝나기를 기다리는 중 시간이 초과되었습니다.",
+    "signInAsked": "웹사이트가 사용자 이름과 비밀번호를 요구하여 Hronaut이 사용자에게 로그인을 요청했습니다. 로그인하면 페이지가 열립니다. 사용자에게 로그인을 요청한 다음 탭을 다시 확인하세요.",
     "zoomPercent": "페이지 확대/축소 비율은 50에서 400 사이의 정수여야 합니다",
     "findQuery": "찾기 검색어는 1~1,000자여야 합니다",
     "printFailed": "Hronaut에서 이 페이지를 인쇄할 수 없습니다.",

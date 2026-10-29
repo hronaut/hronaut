@@ -79,6 +79,7 @@ export const viVNAppErrors: AppErrorMessages = {
     "closedWhileWaiting": "Thẻ đã đóng trong khi đang chờ trang.",
     "rendererLostWhileWaiting": "Trình kết xuất của thẻ không còn khả dụng trong khi đang chờ trang.",
     "loadTimedOut": "Đã hết thời gian chờ trang tải xong.",
+    "signInAsked": "Trang web yêu cầu tên người dùng và mật khẩu, và Hronaut đã yêu cầu người dùng đăng nhập; trang sẽ mở ngay khi họ đăng nhập. Hãy yêu cầu người dùng đăng nhập, rồi kiểm tra lại thẻ.",
     "zoomPercent": "Phần trăm thu phóng trang phải là số nguyên từ 50 đến 400",
     "findQuery": "Truy vấn tìm kiếm phải có từ 1 đến 1.000 ký tự",
     "printFailed": "Hronaut không thể in trang này.",

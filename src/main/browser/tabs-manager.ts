@@ -5,6 +5,7 @@ import { assertRightClickPlatform } from './owned-right-click.js'
 import type { PageEvaluationAccess } from './page-evaluation/page-evaluation-access.js'
 import { evaluateFile } from './page-evaluation/evaluate-file.js'
 import type { FileEvaluationSource, FileEvaluationHooks } from '../../shared/file-evaluation.js'
+import type { TrustedDialogCredentials } from '../../shared/trusted-dialogs.js'
 import type { StorageComparisonHooks } from './storage-comparison-operation.js'
 import { acquireNativeClickAdmission, type NativeClickProgress } from './native-click-admission.js'
 import type { StorageInspectionHooks } from './storage-inspection-operation.js'
@@ -289,6 +290,7 @@ import type { ScreenshotsAccess } from './screenshots/screenshots-access.js'
 import { screenshot } from './screenshots/screenshots.js'
 import type { InspectorIssuesAccess } from './inspector-issues/inspector-issues-access.js'
 import { addInspectorIssue, inspectorIssues, recordAuthChallenge } from './inspector-issues/inspector-issues.js'
+import { answerHttpAuth, type HttpAuthQuestion } from './http-auth/http-auth.js'
 import type {
   SplitDividerGeometry,
   SplitDividerSession,
@@ -956,6 +958,11 @@ export interface TabsManagerOptions {
   confirmBeforeUnloadClose?: () => Promise<boolean>
   /** Asks the person whether to leave a page that asked to confirm before it is left, for a load they started. */
   confirmBeforeUnloadLeave?: () => Promise<boolean>
+  /**
+   * Asks the person to sign in to a website that asks for a username and password, in Hronaut's own dialog; resolves
+   * with what they typed, or null when they cancel. Without it, Hronaut cancels the website's sign-in.
+   */
+  askToSignIn?: (question: HttpAuthQuestion) => Promise<TrustedDialogCredentials | null>
   /**
    * A page took the keyboard while trusted chrome covers it, and gave it back to the shell, as when the person comes
    * back to the window they left with the keyboard in that page.
@@ -4759,6 +4766,11 @@ export class BrowserTabsManager {
     recordAuthChallenge(tab, details, authInfo)
   }
 
+  private answerHttpAuth(tab: BrowserTab, event: Electron.Event, details: Electron.AuthenticationResponseDetails,
+    authInfo: Electron.AuthInfo, callback: (username?: string, password?: string) => void): void {
+    answerHttpAuth({ askToSignIn: async (question) => this.options.askToSignIn?.(question) ?? null }, tab, event, details, authInfo, callback)
+  }
+
   /**
    * The narrow view inspector issues get of this manager's private tabs, the
    * debugger that reports issues and state publication. It is a prototype
@@ -6412,6 +6424,7 @@ export class BrowserTabsManager {
       cancelNativeSelectionSessions: (tab) => this.cancelNativeSelectionSessions(tab),
       loadFavicon: (tab, favicons) => this.loadFavicon(tab, favicons),
       recordAuthChallenge: (tab, details, authInfo) => this.recordAuthChallenge(tab, details, authInfo),
+      answerHttpAuth: (tab, event, details, authInfo, callback) => this.answerHttpAuth(tab, event, details, authInfo, callback),
       reconcileTabPresentation: (tab) => this.reconcileTabPresentation(tab),
       reproRecorder: () => this.reproRecorder,
       scheduleTabOverviewPreview: (tab, settleMs) => this.scheduleTabOverviewPreview(tab, settleMs),

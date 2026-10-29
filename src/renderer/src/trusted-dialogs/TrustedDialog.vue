@@ -4,7 +4,10 @@ import { useI18n } from 'vue-i18n'
 import IconWorkspacesOutline from '~icons/material-symbols/workspaces-outline'
 import UiButton from '../ui/UiButton.vue'
 import UiDialog from '../ui/UiDialog.vue'
+import UiField from '../ui/UiField.vue'
+import UiInput from '../ui/UiInput.vue'
 import type { MessageKey, MessageParameters } from '../../../shared/i18n.js'
+import { MAX_CREDENTIAL_LENGTH } from '../../../shared/trusted-dialogs.js'
 import { pageViewsHidden } from '../composables/overlay-motion.js'
 import { trustedDialogCopy } from './trusted-dialog-copy.js'
 import type { TrustedDialogController } from './useTrustedDialogController.js'
@@ -43,6 +46,23 @@ function setButtonRef(index: number, element: unknown): void {
   if (index === request.value?.defaultId) defaultButton.value = element as typeof defaultButton.value
 }
 
+/**
+ * What the person types to sign in to a website. It stays in this dialog until they sign in, and is gone once they
+ * answer or the next dialog replaces this one.
+ */
+const username = ref('')
+const password = ref('')
+const usernameField = ref<{ $el?: HTMLElement } | null>(null)
+
+/**
+ * Where the focus goes when a dialog opens or takes answers: the safe button, or for a sign-in, Username, where a key
+ * the person still holds from the page presses nothing.
+ */
+function focusSafeControl(): void {
+  if (copy.value?.signIn) usernameField.value?.$el?.focus({ preventScroll: true })
+  else defaultButton.value?.focus({ preventScroll: true })
+}
+
 function disarm(): void {
   if (armTimer !== undefined) clearTimeout(armTimer)
   armTimer = undefined
@@ -56,20 +76,23 @@ watch(presentedId, (id) => {
     armTimer = undefined
     if (presentedId.value !== id) return
     armedId.value = id
-    // A key meant for the page, such as Tab, may have moved the focus to another answer meanwhile; the safe one takes
-    // it back, so the next key meant for the page does not press that answer either.
+    // A key meant for the page, such as Tab, may have moved the focus to another answer meanwhile; the safe control
+    // takes it back, so the next key meant for the page does not press that answer either. A field of a sign-in the
+    // person moved to keeps it, since a key there presses nothing.
     const dialog = document.querySelector('.trusted-dialog')
-    if (!document.activeElement || document.activeElement === document.body || dialog?.contains(document.activeElement)) {
-      defaultButton.value?.focus({ preventScroll: true })
-    }
+    const active = document.activeElement
+    const inField = active instanceof HTMLInputElement && Boolean(dialog?.contains(active))
+    if (!inField && (!active || active === document.body || dialog?.contains(active))) focusSafeControl()
   }, ARM_DELAY_MS)
 }, { immediate: true })
 
 watch(() => request.value?.id, async (id) => {
+  username.value = ''
+  password.value = ''
   if (!id) return
-  // The next dialog in the queue replaces this one in place, so the focus moves to its safe button too.
+  // The next dialog in the queue replaces this one in place, so the focus moves to its safe control too.
   await nextTick()
-  if (request.value?.id === id) defaultButton.value?.focus({ preventScroll: true })
+  if (request.value?.id === id) focusSafeControl()
 }, { immediate: true })
 
 function visibilityChanged(): void {
@@ -101,7 +124,24 @@ function ignoreHeldKeys(event: KeyboardEvent): void {
 function choose(index: number): void {
   const current = request.value
   if (!current || !armed.value) return
-  props.controller.respond(current.id, index)
+  // Signing in sends what the person typed; any other answer sends none of it.
+  const signingIn = current.variant.kind === 'http-auth' && index === current.primaryId
+  props.controller.respond(current.id, index, signingIn ? { username: username.value, password: password.value } : undefined)
+  username.value = ''
+  password.value = ''
+}
+
+/** Signs in with what the person typed, once the dialog takes answers. */
+function signIn(): void {
+  const primaryId = request.value?.primaryId
+  if (primaryId !== undefined) choose(primaryId)
+}
+
+/** Enter in a sign-in's field signs in, unless it ends a word the person composes, as in Japanese input. */
+function enterSignsIn(event: KeyboardEvent): void {
+  if (event.isComposing) return
+  event.preventDefault()
+  signIn()
 }
 
 function openChanged(open: boolean): void {
@@ -137,7 +177,7 @@ function buttonVariant(index: number): 'primary' | 'secondary' {
     <template #title>
       <template v-if="copy">{{ copy.headline.before }}<strong v-if="copy.headline.emphasis" class="trusted-dialog__origin">{{ copy.headline.emphasis }}</strong>{{ copy.headline.after }}</template>
     </template>
-    <div v-if="copy && (copy.quoted || copy.phrase || copy.change || copy.lines.length || copy.workspaceLine)" class="trusted-dialog__details">
+    <div v-if="copy && (copy.quoted || copy.phrase || copy.change || copy.signIn || copy.lines.length || copy.workspaceLine)" class="trusted-dialog__details">
       <!-- The phrase leaves the screen as soon as the person answers, before main closes the dialog. -->
       <ol v-if="copy.phrase && !controller.answering.value" class="trusted-dialog__phrase" :aria-label="copy.phrase.label" data-testid="trusted-dialog-phrase">
         <li v-for="(word, index) in copy.phrase.words" :key="index">
@@ -157,6 +197,32 @@ function buttonVariant(index: number): 'primary' | 'secondary' {
           <p v-if="entry.note" class="trusted-dialog__change-note">{{ entry.note }}</p>
         </div>
       </figure>
+      <!-- The fields take no typing until the dialog takes answers, so keys meant for the page do not land in them. -->
+      <form v-if="copy.signIn" class="trusted-dialog__sign-in" data-testid="trusted-dialog-sign-in" @submit.prevent="signIn" @keydown.enter="enterSignsIn">
+        <UiField :label="copy.signIn.username" for-id="trusted-dialog-username">
+          <UiInput
+            ref="usernameField"
+            v-model="username"
+            autofocus
+            autocomplete="off"
+            autocapitalize="off"
+            spellcheck="false"
+            :maxlength="MAX_CREDENTIAL_LENGTH"
+            :readonly="!armed || controller.answering.value"
+            data-testid="trusted-dialog-username"
+          />
+        </UiField>
+        <UiField :label="copy.signIn.password" for-id="trusted-dialog-password">
+          <UiInput
+            v-model="password"
+            type="password"
+            autocomplete="off"
+            :maxlength="MAX_CREDENTIAL_LENGTH"
+            :readonly="!armed || controller.answering.value"
+            data-testid="trusted-dialog-password"
+          />
+        </UiField>
+      </form>
       <figure v-if="copy.quoted" class="trusted-dialog__quoted">
         <figcaption v-if="copy.quotedLabel">{{ copy.quotedLabel }}</figcaption>
         <code data-testid="trusted-dialog-quoted">{{ copy.quoted }}</code>
@@ -173,7 +239,7 @@ function buttonVariant(index: number): 'primary' | 'secondary' {
         :key="`${request?.id}:${index}`"
         :ref="(element) => setButtonRef(index, element)"
         :variant="buttonVariant(index)"
-        :autofocus="index === request?.defaultId || undefined"
+        :autofocus="(index === request?.defaultId && !copy?.signIn) || undefined"
         :aria-disabled="!armed || controller.answering.value || undefined"
         :data-response="index"
         @click="choose(index)"

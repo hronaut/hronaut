@@ -70,7 +70,9 @@ function harness() {
     keyboard,
     returnKeyboard,
     ready: (window: { contents: unknown } = main) => send(window, TRUSTED_DIALOG_CHANNELS.ready),
-    respond: (window: { contents: unknown }, id: unknown, response: unknown) => send(window, TRUSTED_DIALOG_CHANNELS.respond, id, response)
+    respond: (window: { contents: unknown }, id: unknown, response: unknown, ...credentials: unknown[]) => (
+      send(window, TRUSTED_DIALOG_CHANNELS.respond, id, response, ...credentials)
+    )
   }
 }
 
@@ -424,5 +426,74 @@ describe('Hronaut’s own dialogs', () => {
     expect(main.shown()).toMatchObject({ type: 'none', defaultId: 0, cancelId: 0, variant: { kind: 'message' } })
     // The cancel button is never drawn as the main action.
     expect(main.shown()).not.toHaveProperty('primaryId')
+  })
+})
+
+describe('a website’s sign-in in Hronaut’s own dialog', () => {
+  const signIn = {
+    type: 'question' as const,
+    title: 'Sign in',
+    message: 'Sign in to https://intranet.example',
+    buttons: ['Cancel', 'Sign in'],
+    defaultId: 0,
+    cancelId: 0,
+    primaryId: 1,
+    variant: { kind: 'http-auth' as const, origin: 'https://intranet.example', secure: true, workspaceName: 'Client' }
+  }
+
+  it('resolves Sign in with what the person typed, which the request the shell draws never carries', async () => {
+    const { dialogs, main, ready, respond } = harness()
+    ready()
+    const answer = dialogs.show(signIn)
+    const shown = main.shown()!
+    expect(shown.variant).toEqual(signIn.variant)
+    expect(JSON.stringify(main.sent)).not.toMatch(/password/i)
+    respond(main, shown.id, 1, { username: 'ada', password: 's3cret' })
+    await expect(answer).resolves.toEqual({ response: 1, checkboxChecked: false, credentials: { username: 'ada', password: 's3cret' } })
+  })
+
+  it('takes Sign in only with a username and a password of bounded text, and drops anything sent with another answer', async () => {
+    const { dialogs, main, ready, respond } = harness()
+    ready()
+    const answer = dialogs.show(signIn)
+    const id = main.shown()!.id
+    for (const credentials of [undefined, null, 'ada:s3cret', { username: 'ada' }, { username: 'ada', password: 7 }, { username: 'a'.repeat(4_097), password: '' }, { username: '', password: 'p'.repeat(4_097) }]) {
+      respond(main, id, 1, credentials)
+      expect(main.shown()?.id).toBe(id)
+    }
+    respond(main, id, 0, { username: 'ada', password: 's3cret' })
+    await expect(answer).resolves.toEqual({ response: 0, checkboxChecked: false })
+  })
+
+  it('takes an empty username and password, as Chrome sends them', async () => {
+    const { dialogs, main, ready, respond } = harness()
+    ready()
+    const answer = dialogs.show(signIn)
+    respond(main, main.shown()!.id, 1, { username: '', password: '' })
+    await expect(answer).resolves.toMatchObject({ response: 1, credentials: { username: '', password: '' } })
+  })
+
+  it('never passes typed text on from another dialog', async () => {
+    const { dialogs, main, ready, respond } = harness()
+    ready()
+    const answer = dialogs.show(permission)
+    respond(main, main.shown()!.id, 1, { username: 'ada', password: 's3cret' })
+    await expect(answer).resolves.toEqual({ response: 1, checkboxChecked: false })
+  })
+
+  it('cancels a sign-in no shell window can show, since no system dialog takes a password', async () => {
+    const { dialogs, main, showNativeMessageBox } = harness()
+    main.window.minimized = true
+    await expect(dialogs.show(signIn)).resolves.toEqual({ response: 0, checkboxChecked: false })
+    expect(showNativeMessageBox).not.toHaveBeenCalled()
+  })
+
+  it('cancels a sign-in the shell showed once its document goes away', async () => {
+    const { dialogs, main, ready, showNativeMessageBox } = harness()
+    ready()
+    const answer = dialogs.show(signIn)
+    main.contents.emit('destroyed')
+    await expect(answer).resolves.toEqual({ response: 0, checkboxChecked: false })
+    expect(showNativeMessageBox).not.toHaveBeenCalled()
   })
 })
