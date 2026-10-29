@@ -2,7 +2,9 @@ import { validateHeaderValue } from 'node:http'
 import type { BrowserWindowConstructorOptions, LoadURLOptions, PostBody, Referrer, WebContents } from 'electron'
 import type { OpenedTabCreation } from '../click-opened-tabs.js'
 import { isHronautHomeUrl } from '../url.js'
-import type { WindowOpenHandlerAccess, WindowOpenHandlerTab } from './window-open-handler-access.js'
+import type { Browser } from '../browser.js'
+import type { BrowserTab } from '../browser-tab.js'
+import { workspaceNavigationAllowed } from '../workspace-navigation/workspace-navigation.js'
 
 /**
  * The load options that carry a page's requested referrer and form post into
@@ -39,23 +41,23 @@ function interceptedWindowLoadOptions(postBody: PostBody | undefined, referrer: 
  * agents shows it through the agent's calls on it, so it waits as for any
  * call, such as while a page fills the window.
  */
-export function attachWindowOpenHandler<Tab extends WindowOpenHandlerTab>(access: WindowOpenHandlerAccess<Tab>, tab: Tab, webContents: WebContents): void {
+export function attachWindowOpenHandler(browser: Browser, tab: BrowserTab, webContents: WebContents): void {
   webContents.setWindowOpenHandler(({ url, disposition, postBody, referrer }) => {
-    const observations = [...(access.openedTabObservations().get(tab) ?? [])]
+    const observations = [...(browser.openedTabObservations.get(tab) ?? [])]
     const blocked = (): { action: 'deny' } => {
       for (const observation of observations) observation.blockedRequest()
       return { action: 'deny' }
     }
     if (tab.mcpGroupId && isHronautHomeUrl(url)) return blocked()
     if (tab.mcpGroupId
-      && !access.workspaceNavigationAllowed(tab.mcpGroupId, url, 'popup')) return blocked()
+      && !workspaceNavigationAllowed(browser, tab.mcpGroupId, url, 'popup')) return blocked()
     const active = disposition !== 'background-tab'
     // Decided now: Chromium creates the page for the window later, when the agent's input may have ended.
-    const selectVisible = !access.agentInputWebContents().has(webContents.id)
+    const selectVisible = !browser.agentInputWebContents.has(webContents.id)
     const failed = (creations: OpenedTabCreation[], error: unknown): void => {
       for (const creation of creations) creation.failed()
       console.error(`[browser] Could not open requested page ${url}:`, error)
-      access.options().onActionFailed?.('open page in new tab', error)
+      browser.options.onActionFailed?.('open page in new tab', error)
     }
 
     if (!tab.mcpGroupId) {
@@ -64,12 +66,12 @@ export function attachWindowOpenHandler<Tab extends WindowOpenHandlerTab>(access
         loadOptions = interceptedWindowLoadOptions(postBody, referrer)
       } catch (error) {
         console.error(`[browser] Could not preserve the requested page navigation to ${url}:`, error)
-        access.options().onActionFailed?.('open page in new tab', error)
+        browser.options.onActionFailed?.('open page in new tab', error)
         for (const observation of observations) observation.failedRequest()
         return { action: 'deny' }
       }
       const creations = observations.map(observation => observation.creationStarted())
-      void access.createTab({
+      void browser.createTab({
         url,
         active,
         selectVisible,
@@ -85,7 +87,7 @@ export function attachWindowOpenHandler<Tab extends WindowOpenHandlerTab>(access
     const creations = observations.map(observation => observation.creationStarted())
     // Checked before Chromium creates the window, so window.open() returns no window, as for a blocked popup.
     try {
-      access.assertCanOpenTab(tab.mcpGroupId)
+      browser.assertCanCreateTab(tab.mcpGroupId, false)
     } catch (error) {
       failed(creations, error)
       return { action: 'deny' }
@@ -97,7 +99,7 @@ export function attachWindowOpenHandler<Tab extends WindowOpenHandlerTab>(access
       // These apply after window.open()'s features, which could otherwise turn off the page's JavaScript.
       overrideBrowserWindowOptions: {
         webPreferences: {
-          ...access.pageWebPreferences(),
+          ...browser.pageWebPreferences(),
           javascript: true,
           webviewTag: false,
           nodeIntegrationInSubFrames: false,
@@ -109,7 +111,7 @@ export function attachWindowOpenHandler<Tab extends WindowOpenHandlerTab>(access
         // typings leave out; it requires this page back.
         const guest = (options as BrowserWindowConstructorOptions & { webContents: WebContents }).webContents
         let adopted = false
-        void access.createTab({
+        void browser.createTab({
           url,
           active,
           selectVisible,

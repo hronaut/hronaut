@@ -2,7 +2,14 @@ import type { WebContents } from 'electron'
 import { translate, type MessageKey } from '../../../shared/i18n.js'
 import type { SupportedLocale } from '../../../shared/locale.js'
 import type { BrowserPageProblem } from '../../../shared/types.js'
-import type { RendererHealthEventsAccess, RendererHealthEventsTab } from './renderer-health-events-access.js'
+import type { Browser } from '../browser.js'
+import type { BrowserTab } from '../browser-tab.js'
+import { appendConsoleMessage } from '../console-messages/console-messages.js'
+import { setEmulationViewSize } from '../emulation/emulation-view-size.js'
+import { cancelNativeSelectionSessions } from '../native-selections/native-selections.js'
+import { markNetworkConditionsUnknown } from '../network-conditions/network-conditions.js'
+import { invalidateTabOverviewPreview } from '../tab-overview-previews/tab-overview-previews.js'
+import { publishChange } from '../browser-state/browser-state.js'
 
 /** The message explaining each reason Electron gives for a renderer exit. */
 const RENDERER_FAILURE_MESSAGES: Record<string, MessageKey> = {
@@ -35,31 +42,31 @@ function rendererFailureProblem(locale: SupportedLocale, url: string, reason: st
  * shows the problem and logs it. A hang shows a problem that responding
  * clears.
  */
-export function attachRendererHealthEvents<Tab extends RendererHealthEventsTab>(access: RendererHealthEventsAccess<Tab>, tab: Tab, webContents: WebContents): void {
+export function attachRendererHealthEvents(browser: Browser, tab: BrowserTab, webContents: WebContents): void {
   webContents.on('render-process-gone', (_event, details) => {
     // Ended from the Task manager, the page was terminated as the person asked rather than crashed, as Chrome says.
-    const reason = access.takeEndedByPerson(webContents) ? 'killed' : details.reason
-    if (tab.networkConditionApplication === 'pending') access.markNetworkConditionsUnknown(tab)
+    const reason = browser.endedByPerson.take(webContents) ? 'killed' : details.reason
+    if (tab.networkConditionApplication === 'pending') markNetworkConditionsUnknown(tab)
     tab.emulationContextGeneration++
     tab.emulationRevision++
     tab.emulationApplication = 'unknown'
     tab.nativeInputEnvironmentGeneration++
-    access.changed(false)
-    access.setEmulationViewSize(tab, undefined)
-    access.invalidateTabOverviewPreview(tab)
-    access.tabOverviewPreviewCaptures().cancelPending(tab.id)
-    access.tabOverviewPreviewableTabs().delete(tab.id)
-    if (access.rendererRecovery().expectsExit(webContents)) return
-    access.networkWaitController().reject(tab.id, 'The tab renderer became unavailable while waiting for network activity.')
-    access.cancelNativeSelectionSessions(tab)
+    publishChange(browser, false)
+    setEmulationViewSize(browser, tab, undefined)
+    invalidateTabOverviewPreview(browser, tab)
+    browser.tabOverviewPreviewCaptures.cancelPending(tab.id)
+    browser.tabOverviewPreviewableTabs.delete(tab.id)
+    if (browser.rendererRecovery.expectsExit(webContents)) return
+    browser.networkWaitController.reject(tab.id, 'The tab renderer became unavailable while waiting for network activity.')
+    cancelNativeSelectionSessions(browser, tab)
     if (tab.pageLifecycleState !== 'active') {
       tab.pageLifecycleState = 'unknown'
       tab.pageLifecycleUnknownRequest ??= 'frozen'
     }
     tab.loading = false
-    tab.title = access.text('native.dialog.pageUnavailable')
-    tab.pageProblem = rendererFailureProblem(access.options().getLocale(), tab.url, reason, details.exitCode)
-    access.appendConsoleMessage(tab, {
+    tab.title = browser.text('native.dialog.pageUnavailable')
+    tab.pageProblem = rendererFailureProblem(browser.options.getLocale(), tab.url, reason, details.exitCode)
+    appendConsoleMessage(tab, {
       timestamp: new Date().toISOString(),
       level: 'error',
       message: `Renderer process exited: ${reason} (exit code ${details.exitCode})`,
@@ -67,20 +74,20 @@ export function attachRendererHealthEvents<Tab extends RendererHealthEventsTab>(
       sourceId: tab.url,
       kind: 'lifecycle'
     }, 'lifecycle')
-    access.changed()
+    publishChange(browser)
   })
   webContents.on('unresponsive', () => {
     tab.pageProblem = {
       kind: 'unresponsive',
-      title: access.text('native.dialog.unresponsiveTitle'),
-      message: access.text('native.dialog.unresponsiveMessage'),
+      title: browser.text('native.dialog.unresponsiveTitle'),
+      message: browser.text('native.dialog.unresponsiveMessage'),
       url: tab.url
     }
-    access.changed(false)
+    publishChange(browser, false)
   })
   webContents.on('responsive', () => {
     if (tab.pageProblem?.kind !== 'unresponsive') return
     tab.pageProblem = undefined
-    access.changed(false)
+    publishChange(browser, false)
   })
 }

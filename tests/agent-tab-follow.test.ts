@@ -18,8 +18,9 @@ vi.mock('electron', () => {
   }
   return { session: {}, WebContentsView, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, powerMonitor: { on: () => undefined } }
 })
-// The prototype-built browser below stubs getState, assertWorkspaceNavigationAllowed, assertTabLabelAdmission and
-// saveTabLabel, which opening an agent's tab publishes, checks the workspace's sites and saves its label through.
+// The prototype-built browser below stubs getState, assertWorkspaceNavigationAllowed, workspaceNavigationAllowed,
+// assertTabLabelAdmission and saveTabLabel, which opening an agent's tab or window publishes, checks the workspace's
+// sites and saves its label through.
 vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
   browserState: (browser: { getState: () => unknown }) => browser.getState()
@@ -28,6 +29,9 @@ vi.mock('../src/main/browser/workspace-navigation/workspace-navigation.js', asyn
   ...await importOriginal<typeof import('../src/main/browser/workspace-navigation/workspace-navigation.js')>(),
   assertWorkspaceNavigationAllowed: (browser: { assertWorkspaceNavigationAllowed: (...args: unknown[]) => void }, ...args: unknown[]) => (
     browser.assertWorkspaceNavigationAllowed(...args)
+  ),
+  workspaceNavigationAllowed: (browser: { workspaceNavigationAllowed: (...args: unknown[]) => boolean }, ...args: unknown[]) => (
+    browser.workspaceNavigationAllowed(...args)
   )
 }))
 vi.mock('../src/main/browser/tab-labels/tab-labels.js', async (importOriginal) => ({
@@ -44,7 +48,6 @@ vi.mock('../src/main/browser/window-layout/window-layout.js', async (importOrigi
 import { Browser } from '../src/main/browser/browser.js'
 import { McpActivityFollowController } from '../src/main/browser/mcp-activity-follow-controller.js'
 import { attachWindowOpenHandler } from '../src/main/browser/tab-events/window-open-handler.js'
-import type { WindowOpenHandlerAccess, WindowOpenHandlerTab } from '../src/main/browser/tab-events/window-open-handler-access.js'
 
 /** The manager's private state these cases set up and read. */
 interface ManagerInternals {
@@ -65,7 +68,6 @@ interface ManagerInternals {
   saveTabLabel: (tabId: string, value: string, validateAuthority?: () => void, onCommitted?: () => void) => Promise<{ state: unknown; status: 'saved' }>
   pageFullscreenShown(): boolean
   selectTabPassively(tabId: string): boolean
-  windowOpenHandlerAccess(): WindowOpenHandlerAccess<WindowOpenHandlerTab>
 }
 
 function workspace(id: string, activeTabId: string | null = null) {
@@ -279,7 +281,7 @@ describe('a tab an agent opens or selects while Follow agents is on', () => {
     type Response = { createWindow(options: { webContents: WebContents }): WebContents }
     let openWindow!: (details: { url: string; disposition: string; referrer: { url: string; policy: string } }) => Response
     const webContents = { id: agentTab.webContents.id, setWindowOpenHandler: (handler: typeof openWindow) => { openWindow = handler } }
-    attachWindowOpenHandler(internals.windowOpenHandlerAccess(), agentTab as unknown as WindowOpenHandlerTab, webContents as unknown as WebContents)
+    attachWindowOpenHandler(internals as never, agentTab as never, webContents as unknown as WebContents)
     const details = { url: 'https://agent.test/child', disposition: 'foreground-tab', referrer: { url: '', policy: 'default' } }
     const guest = { isDestroyed: () => false } as unknown as WebContents
 

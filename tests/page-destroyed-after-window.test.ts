@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import type { BrowserWindow } from 'electron'
 import { publishPageGeometry } from '../src/main/browser/page-geometry/page-geometry.js'
 import type { Browser } from '../src/main/browser/browser.js'
+import type { BrowserTab } from '../src/main/browser/browser-tab.js'
 import { recoverFromDestroyedPage } from '../src/main/browser/tab-events/page-destroyed-events.js'
-import type { PageDestroyedEventsAccess, PageDestroyedEventsTab } from '../src/main/browser/tab-events/page-destroyed-events-access.js'
 
 // When Hronaut exited at once, Electron destroyed the window before the tabs' pages, and each page's recovery read the
 // window's webContents: "Object has been destroyed" was an uncaught exception in the main process.
@@ -19,22 +19,21 @@ function destroyedWindow(): BrowserWindow {
 
 describe('a tab\'s page destroyed after the window', () => {
   it('leaves the tab alone, with no recovery and no new Home tab', () => {
-    const tab = { id: 'tab', url: 'https://example.test/', loading: true, lastActiveAt: 0, view: {}, webContents: { isDestroyed: () => true } } as unknown as PageDestroyedEventsTab
+    const tab = { id: 'tab', url: 'https://example.test/', loading: true, lastActiveAt: 0, view: {}, webContents: { isDestroyed: () => true } } as unknown as BrowserTab
     const createTab = vi.fn(async () => undefined)
     const runWalletLifecycleAction = vi.fn()
-    const access = new Proxy({
-      isDestroyed: () => false,
-      window: destroyedWindow,
-      findTab: () => tab,
-      activeTabId: () => null,
+    const browser = new Proxy({
+      destroyed: false,
+      window: destroyedWindow(),
+      tabs: new Map([[tab.id, tab]]),
+      mcpTabGroups: new Map(),
+      activeTabId: null,
       splitViewContains: () => false,
-      orderedTabs: () => [tab],
       createTab,
-      runWalletLifecycleAction,
-      publishPageGeometry: () => publishPageGeometry({ window: destroyedWindow() } as unknown as Browser)
-    }, { get: (target, key) => (target as Record<PropertyKey, unknown>)[key] ?? vi.fn() }) as unknown as PageDestroyedEventsAccess<PageDestroyedEventsTab>
+      runWalletLifecycleAction
+    }, { get: (target, key) => (target as Record<PropertyKey, unknown>)[key] ?? vi.fn() }) as unknown as Browser
 
-    expect(() => recoverFromDestroyedPage(access, tab)).not.toThrow()
+    expect(() => recoverFromDestroyedPage(browser, tab)).not.toThrow()
     expect(createTab).not.toHaveBeenCalled()
     expect(runWalletLifecycleAction).not.toHaveBeenCalled()
     expect(tab.loading).toBe(true)

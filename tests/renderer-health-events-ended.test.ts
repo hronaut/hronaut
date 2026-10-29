@@ -1,35 +1,54 @@
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
 import type { WebContents } from 'electron'
+// The browser below stubs changed, setEmulationViewSize, invalidateTabOverviewPreview and
+// cancelNativeSelectionSessions, which a page process exit runs through; its console keeps plain text.
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist)
+}))
+vi.mock('../src/main/browser/emulation/emulation-view-size.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/emulation/emulation-view-size.js')>(),
+  setEmulationViewSize: (browser: { setEmulationViewSize: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.setEmulationViewSize(...args)
+}))
+vi.mock('../src/main/browser/tab-overview-previews/tab-overview-previews.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-overview-previews/tab-overview-previews.js')>(),
+  invalidateTabOverviewPreview: (browser: { invalidateTabOverviewPreview: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.invalidateTabOverviewPreview(...args)
+}))
+vi.mock('../src/main/browser/native-selections/native-selections.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/native-selections/native-selections.js')>(),
+  cancelNativeSelectionSessions: (browser: { cancelNativeSelectionSessions: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.cancelNativeSelectionSessions(...args)
+}))
+vi.mock('../src/main/browser/console-messages/console-messages.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/console-messages/console-messages.js')>(),
+  appendConsoleMessage: (target: { consoleMessages: string[] }, message: { message: string }) => { target.consoleMessages.push(message.message) }
+}))
 import { attachRendererHealthEvents } from '../src/main/browser/tab-events/renderer-health-events.js'
-import type { RendererHealthEventsAccess, RendererHealthEventsTab } from '../src/main/browser/tab-events/renderer-health-events-access.js'
 
 // Ended from the Task manager, the tab said its page process crashed.
 
 function harness(endedByPerson: boolean) {
   const page = new EventEmitter() as unknown as WebContents
-  const tab: RendererHealthEventsTab & { consoleMessages: string[] } = {
-    id: 'tab', title: 'Fixture', url: 'https://example.com/', loading: true, networkConditionApplication: 'confirmed',
+  const tab = {
+    id: 'tab', title: 'Fixture', url: 'https://example.com/', loading: true, networkConditionApplication: 'confirmed', networkConditionEpoch: 0,
     emulationApplication: 'confirmed', emulationRevision: 0, emulationContextGeneration: 0, nativeInputEnvironmentGeneration: 0,
-    pageLifecycleState: 'active', consoleMessages: []
+    pageLifecycleState: 'active', consoleMessages: [] as string[], pageProblem: undefined as unknown
   }
   const taken: WebContents[] = []
-  const access: RendererHealthEventsAccess<typeof tab> = {
-    markNetworkConditionsUnknown: vi.fn(),
+  const browser = {
     changed: vi.fn(),
     setEmulationViewSize: vi.fn(),
     invalidateTabOverviewPreview: vi.fn(),
-    tabOverviewPreviewCaptures: () => ({ cancelPending: vi.fn() }),
-    tabOverviewPreviewableTabs: () => new Set(),
-    rendererRecovery: () => ({ expectsExit: () => false }),
-    takeEndedByPerson: (contents) => { taken.push(contents); return endedByPerson },
-    networkWaitController: () => ({ reject: vi.fn() }),
+    tabOverviewPreviewCaptures: { cancelPending: vi.fn() },
+    tabOverviewPreviewableTabs: new Set(),
+    rendererRecovery: { expectsExit: () => false },
+    endedByPerson: { take: (contents: WebContents) => { taken.push(contents); return endedByPerson } },
+    networkWaitController: { reject: vi.fn() },
     cancelNativeSelectionSessions: vi.fn(),
-    text: (key) => key,
-    options: () => ({ getLocale: () => 'en-US' }),
-    appendConsoleMessage: (target, message) => { target.consoleMessages.push(message.message) }
+    text: (key: string) => key,
+    options: { getLocale: () => 'en-US' }
   }
-  attachRendererHealthEvents(access, tab, page)
+  attachRendererHealthEvents(browser as never, tab as never, page)
   return { page, tab, taken }
 }
 

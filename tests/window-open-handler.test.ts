@@ -1,8 +1,12 @@
 import type { WebContents } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
+// The browser below stubs workspaceNavigationAllowed, which checks the workspace's sites before a window opens.
+vi.mock('../src/main/browser/workspace-navigation/workspace-navigation.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-navigation/workspace-navigation.js')>(),
+  workspaceNavigationAllowed: (browser: { workspaceNavigationAllowed: (...args: unknown[]) => boolean }, ...args: unknown[]) => browser.workspaceNavigationAllowed(...args)
+}))
 import { OpenedTabObservation } from '../src/main/browser/click-opened-tabs.js'
 import { attachWindowOpenHandler } from '../src/main/browser/tab-events/window-open-handler.js'
-import type { WindowOpenHandlerAccess, WindowOpenHandlerTab } from '../src/main/browser/tab-events/window-open-handler-access.js'
 
 // A website's sign-in popup got no window: Hronaut denied every new window and loaded its address in a new tab, so
 // window.open() returned null and the new page had no window.opener to send the result back to.
@@ -15,6 +19,9 @@ interface Response {
   createWindow?: (options: { webContents: WebContents; webPreferences?: Record<string, unknown> }) => WebContents
 }
 
+/** How the browser creates a tab for the new page, which it hands over as soon as the tab exists. */
+type CreateTab = (tabOptions: { onCreated?: (tab: { id: string; sleeping: boolean }) => void }) => Promise<unknown>
+
 const PAGE_PREFERENCES = { preload: '/app/preload/page.cjs', contextIsolation: true, nodeIntegration: false, sandbox: true }
 
 /** The page Chromium created for the window; window.open() gives it an opener, a target="_blank" link does not. */
@@ -22,27 +29,27 @@ function guestPage(options: { opener?: boolean } = {}): WebContents & { close: R
   return { isDestroyed: vi.fn(() => false), close: vi.fn(), opener: options.opener === false ? null : { url: 'https://app.example/' } } as unknown as WebContents & { close: ReturnType<typeof vi.fn> }
 }
 
-function fixture(options: { mcpGroupId?: string; allowed?: boolean; canOpenTab?: () => void; createTab?: WindowOpenHandlerAccess<WindowOpenHandlerTab>['createTab'] } = {}) {
+function fixture(options: { mcpGroupId?: string; allowed?: boolean; canOpenTab?: () => void; createTab?: CreateTab } = {}) {
   const agentInput = new Map<number, number>()
-  const tab: WindowOpenHandlerTab = { id: 'opener', sleeping: false, ...('mcpGroupId' in options ? { mcpGroupId: options.mcpGroupId } : { mcpGroupId: 'client' }) }
+  const tab = { id: 'opener', sleeping: false, ...('mcpGroupId' in options ? { mcpGroupId: options.mcpGroupId } : { mcpGroupId: 'client' }) }
   const observation = new OpenedTabObservation()
   const onActionFailed = vi.fn()
-  const createTab = vi.fn(options.createTab ?? (async (tabOptions) => {
+  const createTab = vi.fn<CreateTab>(options.createTab ?? (async (tabOptions) => {
     const created = { id: 'popup', sleeping: false }
     tabOptions.onCreated?.(created)
     return created
   }))
-  const access: WindowOpenHandlerAccess<WindowOpenHandlerTab> = {
+  const browser = {
     pageWebPreferences: () => PAGE_PREFERENCES,
-    openedTabObservations: () => new Map([[tab, new Set([observation])]]),
+    openedTabObservations: new Map([[tab, new Set([observation])]]),
     workspaceNavigationAllowed: () => options.allowed ?? true,
-    options: () => ({ onActionFailed }),
-    assertCanOpenTab: vi.fn(options.canOpenTab ?? (() => undefined)),
+    options: { onActionFailed },
+    assertCanCreateTab: vi.fn(options.canOpenTab ?? (() => undefined)),
     createTab,
-    agentInputWebContents: () => agentInput
+    agentInputWebContents: agentInput
   }
   let handler!: (details: Details) => Response
-  attachWindowOpenHandler(access, tab, { id: 7, setWindowOpenHandler: (registered: typeof handler) => { handler = registered } } as unknown as WebContents)
+  attachWindowOpenHandler(browser as never, tab as never, { id: 7, setWindowOpenHandler: (registered: typeof handler) => { handler = registered } } as unknown as WebContents)
   return { tab, open: (details: Details) => handler(details), createTab, observation, onActionFailed, agentInput }
 }
 

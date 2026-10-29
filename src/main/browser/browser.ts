@@ -104,7 +104,6 @@ import {
   addNetworkRoute,
   applyNetworkRoutes,
   clearNetworkRoutes,
-  markNetworkConditionsUnknown,
   moveNetworkRoute,
   networkConditionPublication,
   networkConditionState,
@@ -468,22 +467,17 @@ import {
 import { withAgentInput } from './agent-input-scope/agent-input-scope.js'
 import { nativeInputAuthority } from './native-input-authority/native-input-authority.js'
 import { withBackgroundAgentFocusGuard } from './agent-input-scope/focus-isolation.js'
-import type { PageDestroyedEventsAccess } from './tab-events/page-destroyed-events-access.js'
-import { attachPageDestroyedEvents, recoverFromDestroyedPage } from './tab-events/page-destroyed-events.js'
-import type { PageCloseEventsAccess } from './tab-events/page-close-events-access.js'
+import { attachPageDestroyedEvents } from './tab-events/page-destroyed-events.js'
 import { attachPageCloseEvents } from './tab-events/page-close-events.js'
 import type { DebuggerEventsAccess } from './tab-events/debugger-events-access.js'
 import { attachDebuggerEvents } from './tab-events/debugger-events.js'
 import type { NavigationEventsAccess } from './tab-events/navigation-events-access.js'
 import { attachNavigationEvents } from './tab-events/navigation-events.js'
-import type { PageFocusEventsAccess } from './tab-events/page-focus-events-access.js'
 import { attachPageFocusEvents } from './tab-events/page-focus-events.js'
 import type { PagePointerEventsAccess } from './tab-events/page-pointer-events-access.js'
 import { attachPagePointerEvents } from './tab-events/page-pointer-events.js'
 import { attachPageTargetUrlEvents } from './tab-events/page-target-url-events.js'
-import type { RendererHealthEventsAccess } from './tab-events/renderer-health-events-access.js'
 import { attachRendererHealthEvents } from './tab-events/renderer-health-events.js'
-import type { WindowOpenHandlerAccess } from './tab-events/window-open-handler-access.js'
 import { attachWindowOpenHandler } from './tab-events/window-open-handler.js'
 import { withRenderableTab } from './renderable-tab/renderable-tab.js'
 import {
@@ -4115,7 +4109,7 @@ export class Browser {
    * The web preferences of every website tab: Hronaut's page script in an isolated world, a sandboxed renderer without
    * Node, and the web's own security. A page a tab opens for a window gets them too.
    */
-  private pageWebPreferences(): WebPreferences {
+  pageWebPreferences(): WebPreferences {
     return {
       preload: join(__dirname, '../preload/page.cjs'),
       contextIsolation: true,
@@ -4127,7 +4121,7 @@ export class Browser {
   }
 
   /** Refuses a new tab past the tab limit, in an unknown workspace, or in a workspace that cannot take one now. */
-  private assertCanCreateTab(mcpGroupId: string | undefined, allowBusyWorkspace: boolean): void {
+  assertCanCreateTab(mcpGroupId: string | undefined, allowBusyWorkspace: boolean): void {
     if (this.tabs.size >= MAX_TABS) throw new LocalizedError('appErrors.tabs.limit', { max: MAX_TABS })
     if (mcpGroupId && !this.mcpTabGroups.has(mcpGroupId)) {
       throw new LocalizedError('appErrors.workspace.unavailable', undefined, { message: `Unknown workspace: ${mcpGroupId}` })
@@ -4322,7 +4316,7 @@ export class Browser {
     this.attachTabEvents(tab, openedBy?.webContents)
     // A page opened for a window closes its tab when it closes itself. Other tabs keep their recovery from a page
     // destroyed under them, as tests and Electron destroy pages for other reasons.
-    if (options.adopt) attachPageCloseEvents(this.pageCloseEventsAccess(), tab, view.webContents)
+    if (options.adopt) attachPageCloseEvents(this, tab, view.webContents)
     // Restore all tabs before selecting the saved global tab. Selecting the first
     // recreated tab here would overwrite its workspace's remembered selection.
     if ((options.active && options.selectVisible !== false) || (!this.activeTabId && !this.restoringLayout)) {
@@ -4438,8 +4432,8 @@ export class Browser {
     guardPageCallsAcrossRendererExit(webContents)
     guardPageCallsDuringPrintDialog(webContents)
     runPageScriptsOnceDocumentReady(webContents)
-    attachPageDestroyedEvents(this.pageDestroyedEventsAccess(), tab, webContents)
-    attachPageFocusEvents(this.pageFocusEventsAccess(), tab, webContents)
+    attachPageDestroyedEvents(this, tab, webContents)
+    attachPageFocusEvents(this, tab, webContents)
     attachPageKeyboardEvents(this.pageKeyboardEventsAccess(), tab, webContents)
     attachPagePointerEvents(this.pagePointerEventsAccess(), tab, webContents)
     attachPageTargetUrlEvents(this, tab, webContents)
@@ -4452,8 +4446,8 @@ export class Browser {
     attachNavigationEvents(this.navigationEventsAccess(), tab, webContents)
     attachPageFullscreenEvents(this, tab, webContents)
     attachConsoleMessageEvents(tab, webContents)
-    attachRendererHealthEvents(this.rendererHealthEventsAccess(), tab, webContents)
-    attachWindowOpenHandler(this.windowOpenHandlerAccess(), tab, webContents)
+    attachRendererHealthEvents(this, tab, webContents)
+    attachWindowOpenHandler(this, tab, webContents)
   }
 
   /**
@@ -4483,73 +4477,6 @@ export class Browser {
       hasTab: (tabId) => this.tabs.has(tabId),
       devToolsOpening: () => this.devToolsOpening,
       ensureDialogMonitoring: (tab) => this.ensureDialogMonitoring(tab)
-    }
-  }
-
-  /**
-   * The narrow view a page's destroyed listener gets of this manager's
-   * private tab overview previews, network waits, native selection sessions,
-   * expected closures, dialog monitoring, execution contexts, destroyed flag,
-   * tabs, wallet requests, options, localized text, split view, window, active
-   * tab, workspace activation, layout, focus, tab order, selection, page
-   * geometry, tab creation and state publication. It is a prototype method
-   * rather than a field, so managers created without the constructor (as
-   * unit tests do) still provide it. Each member reads the manager when
-   * called.
-   */
-  private pageDestroyedEventsAccess(): PageDestroyedEventsAccess<BrowserTab> {
-    return {
-      invalidateTabOverviewPreview: (tab) => invalidateTabOverviewPreview(this, tab),
-      tabOverviewPreviewCaptures: () => this.tabOverviewPreviewCaptures,
-      tabOverviewPreviewableTabs: () => this.tabOverviewPreviewableTabs,
-      networkWaitController: () => this.networkWaitController,
-      cancelNativeSelectionSessions: (tab) => this.cancelNativeSelectionSessions(tab),
-      expectedTabClosures: () => this.expectedTabClosures,
-      dialogMonitorAttachPromises: () => this.dialogMonitorAttachPromises,
-      defaultExecutionContexts: () => this.defaultExecutionContexts,
-      isDestroyed: () => this.destroyed,
-      findTab: (tabId) => this.tabs.get(tabId),
-      runWalletLifecycleAction: (action, callback) => this.runWalletLifecycleAction(action, callback),
-      options: () => this.options,
-      text: (key, parameters) => this.text(key, parameters),
-      splitViewContains: (tabId) => this.splitViewContains(tabId),
-      splitView: () => this.splitView,
-      writeSplitView: (splitView) => { this.splitView = splitView },
-      window: () => this.window,
-      activeTabId: () => this.activeTabId,
-      writeActiveTabId: (tabId) => this.writeActiveTabId(tabId),
-      markTabActiveInGroup: (tab) => this.markTabActiveInGroup(tab),
-      layout: () => this.layout(),
-      focusTabOrTrustedChrome: (tab) => this.focusTabOrTrustedChrome(tab),
-      changed: (persist) => this.changed(persist),
-      orderedTabs: () => orderedTabs(this),
-      selectTab: (tabId) => this.selectTab(tabId),
-      publishPageGeometry: () => publishPageGeometry(this),
-      createTab: (options) => this.createTab(options)
-    }
-  }
-
-  /**
-   * The narrow view a page's focus listener gets of this manager's private
-   * layout restoration, trusted chrome occlusion, in-flight agent input,
-   * window, tab waking, split view, active tab, workspace activation and state
-   * publication. It is a prototype method rather than a field, so managers
-   * created without the constructor (as unit tests do) still provide it. Each
-   * member reads the manager when called.
-   */
-  private pageFocusEventsAccess(): PageFocusEventsAccess<BrowserTab> {
-    return {
-      restoringLayout: () => this.restoringLayout,
-      browserContentOccluded: () => this.browserContentOccluded,
-      agentInputWebContents: () => this.agentInputWebContents,
-      window: () => this.window,
-      wakeTab: (tabId) => this.wakeTab(tabId),
-      splitViewContains: (tabId) => this.splitViewContains(tabId),
-      activeTabId: () => this.activeTabId,
-      writeActiveTabId: (tabId) => this.writeActiveTabId(tabId),
-      markTabActiveInGroup: (tab) => this.markTabActiveInGroup(tab),
-      changed: (persist) => this.changed(persist),
-      coveredPageTookKeyboard: (page) => this.options.onCoveredPageKeyboard?.(page)
     }
   }
 
@@ -4658,70 +4585,6 @@ export class Browser {
       watchUnsavedFormEdits: (tab, frame) => watchUnsavedFormEdits(tab, frame),
       syncHumanInteractionInputGuard: (tab) => this.syncHumanInteractionInputGuard(tab),
       isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab)
-    }
-  }
-
-  /**
-   * The narrow view a page's renderer exit and hang listeners get of this
-   * manager's private request conditions, emulation sizing, tab overview
-   * previews, renderer recovery, network waits, native selection sessions,
-   * localized text, options, console messages and state publication. It is a
-   * prototype method rather than a field, so managers created without the
-   * constructor (as unit tests do) still provide it. Each member reads the
-   * manager when called.
-   */
-  private rendererHealthEventsAccess(): RendererHealthEventsAccess<BrowserTab> {
-    return {
-      markNetworkConditionsUnknown: (tab) => markNetworkConditionsUnknown(tab),
-      changed: (persist) => this.changed(persist),
-      setEmulationViewSize: (tab, viewport) => setEmulationViewSize(this, tab, viewport),
-      invalidateTabOverviewPreview: (tab) => invalidateTabOverviewPreview(this, tab),
-      tabOverviewPreviewCaptures: () => this.tabOverviewPreviewCaptures,
-      tabOverviewPreviewableTabs: () => this.tabOverviewPreviewableTabs,
-      rendererRecovery: () => this.rendererRecovery,
-      takeEndedByPerson: (contents) => this.endedByPerson.take(contents),
-      networkWaitController: () => this.networkWaitController,
-      cancelNativeSelectionSessions: (tab) => this.cancelNativeSelectionSessions(tab),
-      text: (key, parameters) => this.text(key, parameters),
-      options: () => this.options,
-      appendConsoleMessage: (tab, message, source) => appendConsoleMessage(tab, message, source)
-    }
-  }
-
-  /**
-   * The narrow view a page closing itself gets of this manager's private
-   * destroyed flag, tabs, expected closures, tab closing and recovery from a
-   * destroyed page. It is a prototype method rather than a field, so managers
-   * created without the constructor (as unit tests do) still provide it. Each
-   * member reads the manager when called.
-   */
-  private pageCloseEventsAccess(): PageCloseEventsAccess<BrowserTab> {
-    return {
-      isDestroyed: () => this.destroyed,
-      findTab: (tabId) => this.tabs.get(tabId),
-      expectedTabClosures: () => this.expectedTabClosures,
-      closeTab: (tabId) => this.closeTab(tabId),
-      recoverDestroyedPage: (tab) => recoverFromDestroyedPage(this.pageDestroyedEventsAccess(), tab)
-    }
-  }
-
-  /**
-   * The narrow view a page's window open handler gets of this manager's
-   * private web preferences of website tabs, opened tab observations,
-   * workspace navigation policy, options, tab creation and in-flight agent
-   * input. It is a prototype method rather than a field, so managers created
-   * without the constructor (as unit tests do) still provide it. Each member
-   * reads the manager when called.
-   */
-  private windowOpenHandlerAccess(): WindowOpenHandlerAccess<BrowserTab> {
-    return {
-      pageWebPreferences: () => this.pageWebPreferences(),
-      openedTabObservations: () => this.openedTabObservations,
-      workspaceNavigationAllowed: (groupId, url, source) => this.workspaceNavigationAllowed(groupId, url, source),
-      options: () => this.options,
-      assertCanOpenTab: (groupId) => this.assertCanCreateTab(groupId, false),
-      createTab: (options) => this.createTab(options),
-      agentInputWebContents: () => this.agentInputWebContents
     }
   }
 
@@ -5063,12 +4926,12 @@ export class Browser {
   }
 
   /** Records the tab shown. A new tab that stops showing returns nowhere when it later closes, as in Chrome. */
-  private writeActiveTabId(tabId: string | null): void {
+  writeActiveTabId(tabId: string | null): void {
     if (this.activeTabId && this.activeTabId !== tabId) delete this.tabs.get(this.activeTabId)?.returnsToTabId
     this.activeTabId = tabId
   }
 
-  private markTabActiveInGroup(tab: BrowserTab): void {
+  markTabActiveInGroup(tab: BrowserTab): void {
     if (!tab.mcpGroupId) return
     const group = this.mcpTabGroups.get(tab.mcpGroupId)
     if (!group) return
@@ -5076,7 +4939,7 @@ export class Browser {
     group.lastUsedAt = new Date().toISOString()
   }
 
-  private runWalletLifecycleAction(action: string, callback: () => unknown): void {
+  runWalletLifecycleAction(action: string, callback: () => unknown): void {
     void runBackgroundAction(action, callback, (failedAction, error) => {
       console.error(`[wallet] Could not ${failedAction}:`, error)
       this.options.onActionFailed?.(failedAction, error)
