@@ -68,9 +68,7 @@ import { watchCredentialSubmission, type BrowserCredentialCandidate } from './cr
 import type { BrowserNetworkRequestRecord } from './network-recording.js'
 import { installSessionHooks } from './session-hooks/session-hooks.js'
 import { performanceEnvironment, tabPerformanceEnvironmentFingerprint } from './emulation/performance-environment.js'
-import type { EmulationAccess } from './emulation/emulation-access.js'
 import { emulate } from './emulation/emulation.js'
-import { applyNetworkEmulation } from './emulation/network-emulation.js'
 import { DEFAULT_EMULATION, cloneEmulationState, hasEmulationOverrides } from './emulation-state.js'
 import {
   cancelElementPicker,
@@ -102,7 +100,6 @@ import type { LogpointAction, LogpointReport, LogpointRequest, LogpointScriptsRe
 import { normalizeDefaultFontSize } from '../../shared/default-font-size.js'
 import { BrowserLiveRegionRecorder } from './live-region-recorder.js'
 import { BrowserReproRecorder } from './repro-recorder.js'
-import type { BrowserNetworkRouteRecord, NetworkConditionsAccess } from './network-conditions/network-conditions-access.js'
 import {
   addNetworkRoute,
   applyNetworkRoutes,
@@ -2270,7 +2267,7 @@ export class Browser {
       isDestroyed: () => this.destroyed,
       wakeTab: (tabId) => this.wakeTab(tabId),
       isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
-      requireNetworkConditionsKnown: (tab) => this.requireNetworkConditionsKnown(tab),
+      requireNetworkConditionsKnown: (tab) => requireNetworkConditionsKnown(tab),
       applyNetworkRoutes: (tab, validate, recovery, mutate) => this.applyNetworkRoutes(tab, validate, recovery, mutate),
       devToolsOpening: () => this.devToolsOpening,
       dialogMonitorAttach: (webContentsId) => this.dialogMonitorAttachPromises.get(webContentsId),
@@ -3238,47 +3235,11 @@ export class Browser {
     return drag(this.agentPageActionsAccess(), options, validateInput, agent)
   }
 
-  /**
-   * The narrow view emulation and sizing a page for its emulated viewport get
-   * of this manager's private tabs, debugger lease, state publication,
-   * emulation result and confirmation check, network condition checks, view
-   * sizing, native network throttling, window, offscreen captures, active
-   * tab, split view, layout and page geometry. It is a prototype method
-   * rather than a field, so managers created without the constructor (as
-   * unit tests do) still provide it, and the layout they stub is reached
-   * through it. The delegates below return the feature's promise directly,
-   * so no extra ticks separate its final checks from the caller.
-   */
-  private emulationAccess(): EmulationAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      findTab: (tabId) => this.tabs.get(tabId),
-      isDestroyed: () => this.destroyed,
-      withDebugger: (webContents, operation, validateAdmission) => this.withDebugger(webContents, operation, validateAdmission),
-      emulationResult: (tab) => this.emulationResult(tab),
-      requireEmulationConfirmed: (tab) => this.requireEmulationConfirmed(tab),
-      requireNetworkConditionsKnown: (tab) => this.requireNetworkConditionsKnown(tab),
-      markNetworkConditionsUnknown: (tab) => this.markNetworkConditionsUnknown(tab),
-      setEmulationViewSize: (tab, viewport) => this.setEmulationViewSize(tab, viewport),
-      applyNetworkEmulation: (webContents, preset, routes, send) => this.applyNetworkEmulation(webContents, preset, routes, send),
-      changed: (persist) => this.changed(persist),
-      emulate: (options) => this.emulate(options),
-      window: () => this.window,
-      offscreenCaptureTabIds: () => this.offscreenCaptureTabIds,
-      activeTabId: () => this.activeTabId,
-      splitViewContains: (tabId) => this.splitViewContains(tabId),
-      layout: () => this.layout(),
-      publishPageGeometry: () => publishPageGeometry(this),
-      tabViewBounds: (tab, space) => this.tabViewBounds(tab, space),
-      contentAreaBounds: () => contentAreaBounds(this)
-    }
-  }
-
   resizeViewport(width: number | undefined, height: number | undefined, reset: boolean, tabId?: string): Promise<unknown> {
-    return resizeViewport(this.emulationAccess(), width, height, reset, tabId)
+    return resizeViewport(this, width, height, reset, tabId)
   }
 
-  private emulationResult(tab: BrowserTab): BrowserEmulationResult {
+  emulationResult(tab: BrowserTab): BrowserEmulationResult {
     return tab.emulationApplication === 'confirmed'
       ? cloneEmulationState(tab.emulation)
       : { application: tab.emulationApplication, retainedSettings: cloneEmulationState(tab.emulation), recovery: 'restore-committed' }
@@ -3299,7 +3260,7 @@ export class Browser {
   }
 
   emulate(options: BrowserEmulationOptions = {}, validate: () => void = () => {}, markSubmitted: () => void = () => {}, retainPublication?: (assert: () => void) => void): Promise<BrowserEmulationResult> {
-    return emulate(this.emulationAccess(), options, validate, markSubmitted, retainPublication)
+    return emulate(this, options, validate, markSubmitted, retainPublication)
   }
 
   wheel(input: NativeWheelInput, validateInput: (validateContext: () => void) => void, markAttempted: () => void): Promise<unknown> {
@@ -3548,84 +3509,53 @@ export class Browser {
     return replayNetworkRequest(this, tabId, requestId, confirmSideEffects)
   }
 
-  /**
-   * The narrow view request conditions get of this manager's private tabs,
-   * destroyed flag, debugger queue, native network emulation, paused request
-   * queues, rule refresh timers and state publication. It is a prototype
-   * method rather than a field, so managers created without the constructor
-   * (as unit tests do) still provide it. The delegates below return the
-   * feature's value or promise directly, so no extra ticks separate its final
-   * checks from the caller.
-   */
-  private networkConditionsAccess(): NetworkConditionsAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      findTab: (tabId) => this.tabs.get(tabId),
-      isDestroyed: () => this.destroyed,
-      withDebugger: (webContents, operation, validateAdmission) => this.withDebugger(webContents, operation, validateAdmission),
-      applyNetworkEmulation: (webContents, preset, routes, send) => this.applyNetworkEmulation(webContents, preset, routes, send),
-      networkRouteQueues: () => this.networkRouteQueues,
-      networkRouteRefreshTimers: () => this.networkRouteRefreshTimers,
-      heldNetworkResponses: () => this.heldNetworkResponseStates,
-      changed: (persist) => this.changed(persist)
-    }
-  }
-
   networkConditionState(tabId?: string): import('../../shared/types.js').BrowserNetworkConditionState {
-    return networkConditionState(this.networkConditionsAccess(), tabId)
+    return networkConditionState(this, tabId)
   }
 
   networkRoutes(tabId?: string): BrowserNetworkRouteSummary[] {
-    return networkRoutes(this.networkConditionsAccess(), tabId)
+    return networkRoutes(this, tabId)
   }
 
   networkConditionPublication(tabId: string | undefined, expected: BrowserNetworkRouteSummary[]): () => void {
-    return networkConditionPublication(this.networkConditionsAccess(), tabId, expected)
-  }
-
-  private markNetworkConditionsUnknown(tab: BrowserTab): void {
-    markNetworkConditionsUnknown(tab)
-  }
-
-  private requireNetworkConditionsKnown(tab: BrowserTab): void {
-    requireNetworkConditionsKnown(tab)
+    return networkConditionPublication(this, tabId, expected)
   }
 
   addNetworkRoute(tabId: string | undefined, input: BrowserNetworkRouteInput, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
-    return addNetworkRoute(this.networkConditionsAccess(), tabId, input, validate, markSubmitted)
+    return addNetworkRoute(this, tabId, input, validate, markSubmitted)
   }
 
   setNetworkRouteEnabled(tabId: string | undefined, routeId: string, enabled: boolean, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
-    return setNetworkRouteEnabled(this.networkConditionsAccess(), tabId, routeId, enabled, validate, markSubmitted)
+    return setNetworkRouteEnabled(this, tabId, routeId, enabled, validate, markSubmitted)
   }
 
   removeNetworkRoute(tabId: string | undefined, routeId: string, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
-    return removeNetworkRoute(this.networkConditionsAccess(), tabId, routeId, validate, markSubmitted)
+    return removeNetworkRoute(this, tabId, routeId, validate, markSubmitted)
   }
 
   moveNetworkRoute(tabId: string | undefined, routeId: string, direction: BrowserNetworkRouteMoveDirection, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
-    return moveNetworkRoute(this.networkConditionsAccess(), tabId, routeId, direction, validate, markSubmitted)
+    return moveNetworkRoute(this, tabId, routeId, direction, validate, markSubmitted)
   }
 
   clearNetworkRoutes(tabId?: string, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
-    return clearNetworkRoutes(this.networkConditionsAccess(), tabId, validate, markSubmitted)
+    return clearNetworkRoutes(this, tabId, validate, markSubmitted)
   }
 
   heldNetworkResponses(tabId?: string): BrowserHeldNetworkResponse[] {
-    return heldResponseSummaries(this.networkConditionsAccess(), tabId)
+    return heldResponseSummaries(this, tabId)
   }
 
   releaseHeldNetworkResponse(tabId: string | undefined, routeId: string, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<void> {
-    return releaseHeldResponse(this.networkConditionsAccess(), tabId, routeId, validate, markSubmitted)
+    return releaseHeldResponse(this, tabId, routeId, validate, markSubmitted)
   }
 
   cancelHeldNetworkResponse(tabId: string | undefined, routeId: string, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<void> {
-    return cancelHeldResponse(this.networkConditionsAccess(), tabId, routeId, validate, markSubmitted)
+    return cancelHeldResponse(this, tabId, routeId, validate, markSubmitted)
   }
 
   /** Fails every held request as Hronaut starts to quit. */
   failHeldNetworkResponses(): void {
-    failAllHeldResponses(this.networkConditionsAccess(), [...this.tabs.values()].map(tab => tab.webContents))
+    failAllHeldResponses(this, [...this.tabs.values()].map(tab => tab.webContents))
   }
 
   /**
@@ -4021,10 +3951,6 @@ export class Browser {
     // Rounded up, so the space is never less than the caption needs in shell pixels.
     const captionSpace = Math.ceil(EMULATION_FRAME_CAPTION_SPACE * (this.window.webContents.getZoomFactor?.() ?? 1))
     return emulatedViewBounds(space, tab.emulationViewSize, captionSpace)
-  }
-
-  private setEmulationViewSize(tab: BrowserTab, viewport: { width: number; height: number } | undefined): void {
-    setEmulationViewSize(this.emulationAccess(), tab, viewport)
   }
 
   reconcileTabPresentation(tab: BrowserTab): void {
@@ -4552,7 +4478,7 @@ export class Browser {
       addInspectorIssue: (tab, value) => addInspectorIssue(this, tab, value),
       profiling: () => this.profiling,
       cssStatePreview: () => this.cssStatePreview,
-      setEmulationViewSize: (tab, viewport) => this.setEmulationViewSize(tab, viewport),
+      setEmulationViewSize: (tab, viewport) => setEmulationViewSize(this, tab, viewport),
       isDestroyed: () => this.destroyed,
       hasTab: (tabId) => this.tabs.has(tabId),
       devToolsOpening: () => this.devToolsOpening,
@@ -4746,9 +4672,9 @@ export class Browser {
    */
   private rendererHealthEventsAccess(): RendererHealthEventsAccess<BrowserTab> {
     return {
-      markNetworkConditionsUnknown: (tab) => this.markNetworkConditionsUnknown(tab),
+      markNetworkConditionsUnknown: (tab) => markNetworkConditionsUnknown(tab),
       changed: (persist) => this.changed(persist),
-      setEmulationViewSize: (tab, viewport) => this.setEmulationViewSize(tab, viewport),
+      setEmulationViewSize: (tab, viewport) => setEmulationViewSize(this, tab, viewport),
       invalidateTabOverviewPreview: (tab) => invalidateTabOverviewPreview(this, tab),
       tabOverviewPreviewCaptures: () => this.tabOverviewPreviewCaptures,
       tabOverviewPreviewableTabs: () => this.tabOverviewPreviewableTabs,
@@ -4955,7 +4881,7 @@ export class Browser {
   }
 
   private applyNetworkRoutes(tab: BrowserTab, validate: () => void = () => {}, recovery = false, mutate?: () => void, markSubmitted: () => void = () => {}, admission?: () => void): Promise<void> {
-    return applyNetworkRoutes(this.networkConditionsAccess(), tab, validate, recovery, mutate, markSubmitted, admission)
+    return applyNetworkRoutes(this, tab, validate, recovery, mutate, markSubmitted, admission)
   }
 
   isHumanInteractionLocked(tab: BrowserTab): boolean {
@@ -5073,15 +4999,6 @@ export class Browser {
     return tabPerformanceEnvironmentFingerprint(this, tab)
   }
 
-  private applyNetworkEmulation(
-    webContents: BrowserTab['view']['webContents'],
-    preset: BrowserEmulationState['network'],
-    routes?: BrowserNetworkRouteRecord[],
-    send?: (method: string, params?: Record<string, unknown>) => Promise<unknown>
-  ): Promise<void> {
-    return applyNetworkEmulation(webContents, preset, routes, send)
-  }
-
   isUnavailableCdpMethod(error: unknown): boolean {
     return /(?:method not found|wasn't found|-32601)/i.test(String(error))
   }
@@ -5119,7 +5036,7 @@ export class Browser {
   }
 
   private queueNetworkRouteRequest(tab: BrowserTab, params: unknown): void {
-    queueNetworkRouteRequest(this.networkConditionsAccess(), tab, params)
+    queueNetworkRouteRequest(this, tab, params)
   }
 
   prepareDiagnosticNavigation(tab: BrowserTab): void {

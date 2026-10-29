@@ -3,21 +3,28 @@ import type { BrowserEmulationOptions, BrowserEmulationResult, BrowserEmulationS
 import { LocalizedError } from '../../localized-error.js'
 import { prepareBrowserEmulation } from '../emulation-state.js'
 import { isHronautHomeUrl } from '../url.js'
-import type { EmulationAccess, EmulationTab } from './emulation-access.js'
+import type { Browser } from '../browser.js'
+import { findTab, getTab } from '../browser-core.js'
+import type { BrowserTab } from '../browser-tab.js'
+import { markNetworkConditionsUnknown, requireNetworkConditionsKnown } from '../network-conditions/network-conditions.js'
+import { setEmulationViewSize } from './emulation-view-size.js'
+import { applyNetworkEmulation } from './network-emulation.js'
+import { publishChange } from '../browser-state/browser-state.js'
+import { withDebugger } from '../debugger-lease/debugger-lease.js'
 
 /**
  * Captures the tab's emulation revision, context and result, and returns a
  * check that throws once any of them changed, so only the result the caller
  * received is published.
  */
-function emulationPublication<Tab extends EmulationTab>(access: EmulationAccess<Tab>, tabId: string | undefined, expected: BrowserEmulationResult): () => void {
-  const tab = access.getTab(tabId)
+function emulationPublication(browser: Browser, tabId: string | undefined, expected: BrowserEmulationResult): () => void {
+  const tab = getTab(browser, tabId)
   const revision = tab.emulationRevision
   const contextGeneration = tab.emulationContextGeneration
   const navigationGeneration = tab.navigationGeneration
   const serialized = JSON.stringify(expected)
   const assert = (): void => {
-    if (access.findTab(tab.id) !== tab || tab.webContents.isDestroyed() || tab.emulationRevision !== revision || tab.emulationContextGeneration !== contextGeneration || tab.navigationGeneration !== navigationGeneration || JSON.stringify(access.emulationResult(tab)) !== serialized) throw new Error('Emulation state changed before publication')
+    if (findTab(browser, tab.id) !== tab || tab.webContents.isDestroyed() || tab.emulationRevision !== revision || tab.emulationContextGeneration !== contextGeneration || tab.navigationGeneration !== navigationGeneration || JSON.stringify(browser.emulationResult(tab)) !== serialized) throw new Error('Emulation state changed before publication')
   }
   assert()
   return assert
@@ -31,31 +38,31 @@ function emulationPublication<Tab extends EmulationTab>(access: EmulationAccess<
  * until it is explicitly restored. Its failures keep the messages agents read,
  * while Hronaut's own pages say what changed in the interface language.
  */
-export async function emulate<Tab extends EmulationTab>(access: EmulationAccess<Tab>, options: BrowserEmulationOptions = {}, validate: () => void = () => {}, markSubmitted: () => void = () => {}, retainPublication?: (assert: () => void) => void): Promise<BrowserEmulationResult> {
-  const tab = access.getTab(options.tabId)
+export async function emulate(browser: Browser, options: BrowserEmulationOptions = {}, validate: () => void = () => {}, markSubmitted: () => void = () => {}, retainPublication?: (assert: () => void) => void): Promise<BrowserEmulationResult> {
+  const tab = getTab(browser, options.tabId)
   validate()
   if (isHronautHomeUrl(tab.url)) throw new LocalizedError('appErrors.emulation.homeTab')
   // Validation and reads never attach a debugger or repair native state.
   if (!prepareBrowserEmulation(tab.emulation, tab.emulationExtraHttpHeaders, options)) {
-    const result = access.emulationResult(tab)
-    retainPublication?.(emulationPublication(access, tab.id, result))
+    const result = browser.emulationResult(tab)
+    retainPublication?.(emulationPublication(browser, tab.id, result))
     return result
   }
-  if (!options.recover && tab.emulationApplication === 'unknown') access.requireEmulationConfirmed(tab)
-  access.requireNetworkConditionsKnown(tab)
+  if (!options.recover && tab.emulationApplication === 'unknown') browser.requireEmulationConfirmed(tab)
+  requireNetworkConditionsKnown(tab)
   const webContents = tab.webContents
   const generation = tab.navigationGeneration
   const observation = tab.observationGeneration
   const contextGeneration = tab.emulationContextGeneration
   const debuggerEpoch = tab.networkDebuggerEpoch
   const context = (): void => {
-    if (access.isDestroyed() || webContents.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== webContents
+    if (browser.destroyed || webContents.isDestroyed() || findTab(browser, tab.id) !== tab || tab.webContents !== webContents
       || tab.navigationGeneration !== generation || tab.observationGeneration !== observation || tab.emulationContextGeneration !== contextGeneration || tab.networkDebuggerEpoch !== debuggerEpoch) {
       throw new LocalizedError('appErrors.emulation.targetChanged', undefined, { message: 'Emulation target changed' })
     }
   }
   const admission = (): void => { validate(); context() }
-  return access.withDebugger(webContents, async () => {
+  return withDebugger(browser, webContents, async () => {
     admission()
     // Changes to the rules apply in this queue too, so a pending application here is a rule a request used up, which
     // waits for its refresh. Emulation applies the remaining rules' conditions and leaves that refresh to come.
@@ -64,9 +71,9 @@ export async function emulate<Tab extends EmulationTab>(access: EmulationAccess<
         message: 'Network application must be confirmed before changing or restoring emulation. Recover Network conditions separately.'
       })
     }
-    if (!options.recover) access.requireEmulationConfirmed(tab)
+    if (!options.recover) browser.requireEmulationConfirmed(tab)
     const prepared = prepareBrowserEmulation(tab.emulation, tab.emulationExtraHttpHeaders, options)
-    if (!prepared) return access.emulationResult(tab)
+    if (!prepared) return browser.emulationResult(tab)
     const { state: next, headers: nextHeaders } = prepared
     const networkEpoch = tab.networkConditionEpoch
     const routes = tab.networkRoutes
@@ -84,15 +91,15 @@ export async function emulate<Tab extends EmulationTab>(access: EmulationAccess<
     tab.emulationApplication = 'pending'
     const previousViewSize = tab.emulationViewSize
     try {
-      access.changed(false)
+      publishChange(browser, false)
       // The view takes its new size before the override changes. Chromium
       // sizes captures of an emulated page by the view it had when the
       // override arrived, so a view resized afterwards would cut a viewport
       // larger than the window down to the window. Removing the override
       // hands the page the view's own size, so the view also fills its
       // space first, while the override still pins the page.
-      access.setEmulationViewSize(tab, next.viewport)
-      networkSettlement = await applyEmulationState(access, tab, next, nextHeaders, async (method, params) => {
+      setEmulationViewSize(browser, tab, next.viewport)
+      networkSettlement = await applyEmulationState(browser, tab, next, nextHeaders, async (method, params) => {
         admission()
         networkContext()
         submitted = true
@@ -110,9 +117,9 @@ export async function emulate<Tab extends EmulationTab>(access: EmulationAccess<
         tab.emulationRevision += 1
         // Native Network may contain the proposed throttle. If it differs
         // from the retained configuration, it needs its own recovery.
-        if (submitted && networkChanged) access.markNetworkConditionsUnknown(tab)
-        access.changed(false)
-        access.setEmulationViewSize(tab, submitted ? undefined : previousViewSize)
+        if (submitted && networkChanged) markNetworkConditionsUnknown(tab)
+        publishChange(browser, false)
+        setEmulationViewSize(browser, tab, submitted ? undefined : previousViewSize)
       }
       throw error
     }
@@ -121,11 +128,11 @@ export async function emulate<Tab extends EmulationTab>(access: EmulationAccess<
     tab.emulationExtraHttpHeaders = nextHeaders
     tab.emulationApplication = 'confirmed'
     tab.networkConditionApplication = networkSettlement
-    access.changed(false)
-    access.setEmulationViewSize(tab, next.viewport)
+    publishChange(browser, false)
+    setEmulationViewSize(browser, tab, next.viewport)
     validate()
-    const result = access.emulationResult(tab)
-    retainPublication?.(emulationPublication(access, tab.id, result))
+    const result = browser.emulationResult(tab)
+    retainPublication?.(emulationPublication(browser, tab.id, result))
     return result
   }, admission)
 }
@@ -139,14 +146,14 @@ export async function emulate<Tab extends EmulationTab>(access: EmulationAccess<
  * Returns how the network conditions stand once the state commits: still
  * pending when a rule a request used up waits for its refresh.
  */
-async function applyEmulationState<Tab extends EmulationTab>(
-  access: EmulationAccess<Tab>,
-  tab: Tab,
+async function applyEmulationState(
+  browser: Browser,
+  tab: BrowserTab,
   state: BrowserEmulationState,
   extraHttpHeaders: Record<string, string>,
   send: (method: string, params?: Record<string, unknown>) => Promise<unknown>
 ): Promise<'confirmed' | 'pending'> {
-  access.requireNetworkConditionsKnown(tab)
+  requireNetworkConditionsKnown(tab)
   const webContents = tab.webContents
   const routes = tab.networkRoutes
   const epoch = tab.networkConditionEpoch
@@ -158,30 +165,30 @@ async function applyEmulationState<Tab extends EmulationTab>(
   await send('Network.setBypassServiceWorker', {
     bypass: state.bypassServiceWorker
   })
-  access.requireNetworkConditionsKnown(tab)
-  if (webContents.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== webContents || tab.networkConditionEpoch !== epoch || tab.networkRoutes !== routes) {
+  requireNetworkConditionsKnown(tab)
+  if (webContents.isDestroyed() || findTab(browser, tab.id) !== tab || tab.webContents !== webContents || tab.networkConditionEpoch !== epoch || tab.networkRoutes !== routes) {
     throw new LocalizedError('appErrors.emulation.networkChanged', undefined, { message: 'Network emulation context changed before application' })
   }
   // Emulation does not change the interception that a used-up rule's refresh settles.
   const settlement = tab.networkConditionApplication === 'pending' ? 'pending' : 'confirmed'
   tab.networkConditionApplication = 'pending'
   try {
-    await access.applyNetworkEmulation(webContents, state.network, projection, async (method, params) => {
-      access.requireNetworkConditionsKnown(tab)
-      if (webContents.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== webContents || tab.networkConditionEpoch !== epoch || tab.networkRoutes !== routes) {
+    await applyNetworkEmulation(webContents, state.network, projection, async (method, params) => {
+      requireNetworkConditionsKnown(tab)
+      if (webContents.isDestroyed() || findTab(browser, tab.id) !== tab || tab.webContents !== webContents || tab.networkConditionEpoch !== epoch || tab.networkRoutes !== routes) {
         throw new LocalizedError('appErrors.emulation.networkChanged', undefined, { message: 'Network emulation context changed' })
       }
       return send(method, params)
     })
-    if (webContents.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== webContents || tab.networkConditionEpoch !== epoch || tab.networkRoutes !== routes) {
+    if (webContents.isDestroyed() || findTab(browser, tab.id) !== tab || tab.webContents !== webContents || tab.networkConditionEpoch !== epoch || tab.networkRoutes !== routes) {
       throw new LocalizedError('appErrors.emulation.networkChanged', undefined, { message: 'Network emulation acknowledgement was superseded' })
     }
     // A proposed throttle is not yet the retained throttle. Keep Network
     // pending until the entire emulation configuration commits atomically.
     tab.networkConditionApplication = state.network === tab.emulation.network ? settlement : 'pending'
   } catch (error) {
-    access.markNetworkConditionsUnknown(tab)
-    access.changed(false)
+    markNetworkConditionsUnknown(tab)
+    publishChange(browser, false)
     throw error
   }
   await send(

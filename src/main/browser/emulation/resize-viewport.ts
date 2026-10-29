@@ -1,5 +1,6 @@
 import { settledViewportSize, type PageViewportSize } from '../viewport-settle.js'
-import type { EmulationAccess, EmulationTab } from './emulation-access.js'
+import type { Browser } from '../browser.js'
+import { findTab, getTab } from '../browser-core.js'
 
 /**
  * Gives the tab's page an emulated desktop viewport of the given size, or
@@ -7,13 +8,13 @@ import type { EmulationAccess, EmulationTab } from './emulation-access.js'
  * the page's viewport size: the override's size, or after a reset the size the
  * page settles at in its view.
  */
-export async function resizeViewport<Tab extends EmulationTab>(access: EmulationAccess<Tab>, width: number | undefined, height: number | undefined, reset: boolean, tabId?: string): Promise<unknown> {
-  const tab = access.getTab(tabId)
+export async function resizeViewport(browser: Browser, width: number | undefined, height: number | undefined, reset: boolean, tabId?: string): Promise<unknown> {
+  const tab = getTab(browser, tabId)
   const webContents = tab.webContents
-  if (reset) await access.emulate({ tabId: tab.id, viewport: null })
+  if (reset) await browser.emulate({ tabId: tab.id, viewport: null })
   else {
     if (width === undefined || height === undefined) throw new Error('width and height are required unless reset is true')
-    await access.emulate({
+    await browser.emulate({
       tabId: tab.id,
       viewport: { width, height, deviceScaleFactor: 1, mobile: false, touch: false, orientation: 'portrait' }
     })
@@ -25,7 +26,7 @@ export async function resizeViewport<Tab extends EmulationTab>(access: Emulation
   const revision = tab.emulationRevision
   return settledViewportSize(read, () => {
     // A newer emulation change owns the view's size, so the wait ends with the page as it is.
-    if (webContents.isDestroyed() || access.findTab(tab.id) !== tab || tab.emulationRevision !== revision) return null
+    if (webContents.isDestroyed() || findTab(browser, tab.id) !== tab || tab.emulationRevision !== revision) return null
     const { width: viewWidth, height: viewHeight } = tab.view.getBounds()
     const zoom = webContents.getZoomFactor()
     return { width: viewWidth / zoom, height: viewHeight / zoom }

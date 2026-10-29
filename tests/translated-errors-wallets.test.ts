@@ -6,6 +6,11 @@ import { join } from 'node:path'
 import type { WalletPolicy } from '../src/shared/wallet.js'
 
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, Menu: {} }))
+// The emulation browsers below stub withDebugger, which emulation waits for the page's debugger with.
+vi.mock('../src/main/browser/debugger-lease/debugger-lease.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/debugger-lease/debugger-lease.js')>(),
+  withDebugger: (browser: { withDebugger: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.withDebugger(...args)
+}))
 vi.mock('node:fs/promises', async (importOriginal) => {
   const fs = await importOriginal<typeof import('node:fs/promises')>()
   return { ...fs, open: vi.fn(fs.open) }
@@ -84,9 +89,10 @@ const emulationTab = {
   ...websiteTab, emulation: DEFAULT_EMULATION, emulationExtraHttpHeaders: {}, emulationApplication: 'unknown', networkConditionApplication: 'confirmed',
   navigationGeneration: 0, observationGeneration: 0, emulationContextGeneration: 0, networkDebuggerEpoch: 0, webContents: { isDestroyed: () => false }
 }
-const emulationAccess = (tab: object, findTab: () => unknown = () => tab) => ({
-  getTab: () => tab, findTab, isDestroyed: () => false, requireEmulationConfirmed: () => undefined, requireNetworkConditionsKnown: () => undefined,
-  withDebugger: (_webContents: unknown, run: () => unknown) => run()
+/** A browser holding the tab, whose debugger runs an operation once `meanwhile` changed the tab, as work queued before it may. */
+const emulationBrowser = (tab: { id: string }, meanwhile: () => void) => ({
+  tabs: new Map([[tab.id, tab]]), destroyed: false, requireEmulationConfirmed: () => undefined,
+  withDebugger: (_webContents: unknown, run: () => unknown) => { meanwhile(); return run() }
 })
 const confirmedEmulation = Browser.prototype as unknown as { requireEmulationConfirmed(tab: object): void }
 
@@ -132,13 +138,19 @@ describe('main-process failures people see in password fill, wallets and emulati
     'Saved credential changed during access',
     'Збережений пароль змінився під час читання. Спробуйте ще раз.'],
     // Emulation
-    ['changing emulation on Home', () => emulate({ getTab: () => homeTab } as never, { reset: true }),
+    ['changing emulation on Home', () => emulate({ tabs: new Map([[homeTab.id, homeTab]]), activeTabId: homeTab.id } as never, { reset: true }),
       'Open a website tab before changing browser emulation',
       'Відкрийте вкладку з вебсайтом, щоб змінити емуляцію браузера.'],
-    ['restoring emulation after the page navigated', () => emulate(emulationAccess(emulationTab, () => undefined) as never, { tabId: 'site', recover: true }),
+    ['restoring emulation after the page navigated', () => {
+      const tab = { ...emulationTab }
+      return emulate(emulationBrowser(tab, () => { tab.navigationGeneration += 1 }) as never, { tabId: 'site', recover: true })
+    },
       'Emulation target changed',
       'Сторінка змінилася під час застосування емуляції. Спробуйте ще раз.'],
-    ['restoring emulation before Network conditions are recovered', () => emulate(emulationAccess({ ...emulationTab, networkConditionApplication: 'unknown' }) as never, { tabId: 'site', recover: true }),
+    ['restoring emulation before Network conditions are recovered', () => {
+      const tab = { ...emulationTab }
+      return emulate(emulationBrowser(tab, () => { tab.networkConditionApplication = 'unknown' }) as never, { tabId: 'site', recover: true })
+    },
       'Network application must be confirmed before changing or restoring emulation. Recover Network conditions separately.',
       'Спочатку відновіть мережеві умови в Умовах запитів, а потім змініть або відновіть емуляцію.'],
     ['a new change while the last emulation is unconfirmed', () => confirmedEmulation.requireEmulationConfirmed({ emulationApplication: 'unknown' }),

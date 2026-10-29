@@ -1,6 +1,10 @@
 import type { WebContents } from 'electron'
 import type { BrowserHeldNetworkResponse } from '../../../shared/types.js'
-import type { BrowserNetworkRouteRecord, NetworkConditionsAccess, NetworkConditionsTab } from './network-conditions-access.js'
+import type { Browser } from '../browser.js'
+import { findTab, getTab } from '../browser-core.js'
+import type { BrowserTab } from '../browser-tab.js'
+import type { BrowserNetworkRouteRecord } from './network-conditions.js'
+import { publishChange } from '../browser-state/browser-state.js'
 
 /** How many requests one tab can hold, counting hold rules that have not matched yet. */
 export const MAX_HELD_RESPONSES = 4
@@ -57,8 +61,8 @@ function holdEnded(routeId: string, ending: HoldEnding): HoldUnavailableError {
 const guarded = new WeakSet<WebContents>()
 
 /** The page's held-request state, created with its listeners on first use. */
-function heldResponsesFor<Tab extends NetworkConditionsTab>(access: NetworkConditionsAccess<Tab>, webContents: WebContents): HeldResponses {
-  const all = access.heldNetworkResponses()
+function heldResponsesFor(browser: Browser, webContents: WebContents): HeldResponses {
+  const all = browser.heldNetworkResponseStates
   let state = all.get(webContents.id)
   if (state) return state
   state = { held: new Map(), ended: new Map() }
@@ -70,15 +74,15 @@ function heldResponsesFor<Tab extends NetworkConditionsTab>(access: NetworkCondi
     // held requests first, in the same protocol session, without waiting.
     const detach = webContents.debugger.detach.bind(webContents.debugger)
     webContents.debugger.detach = () => {
-      endHeldResponses(access, webContents, 'detached', true)
+      endHeldResponses(browser, webContents, 'detached', true)
       detach()
     }
-    webContents.debugger.on('detach', () => endHeldResponses(access, webContents, 'detached', false))
-    webContents.on('did-navigate', () => endHeldResponses(access, webContents, 'navigated', true))
-    webContents.on('render-process-gone', () => endHeldResponses(access, webContents, 'renderer-gone', false))
+    webContents.debugger.on('detach', () => endHeldResponses(browser, webContents, 'detached', false))
+    webContents.on('did-navigate', () => endHeldResponses(browser, webContents, 'navigated', true))
+    webContents.on('render-process-gone', () => endHeldResponses(browser, webContents, 'renderer-gone', false))
     webContents.once('destroyed', () => {
-      endHeldResponses(access, webContents, 'closed', false)
-      access.heldNetworkResponses().delete(webContents.id)
+      endHeldResponses(browser, webContents, 'closed', false)
+      browser.heldNetworkResponseStates.delete(webContents.id)
     })
   }
   return state
@@ -100,28 +104,28 @@ function forget(state: HeldResponses, held: HeldResponse, ending: HoldEnding): v
 }
 
 /** Ends every hold of the page, failing their requests when asked and the session can still send. */
-export function endHeldResponses<Tab extends NetworkConditionsTab>(access: NetworkConditionsAccess<Tab>, webContents: WebContents, ending: HoldEnding, fail: boolean): void {
-  const state = access.heldNetworkResponses().get(webContents.id)
+export function endHeldResponses(browser: Browser, webContents: WebContents, ending: HoldEnding, fail: boolean): void {
+  const state = browser.heldNetworkResponseStates.get(webContents.id)
   if (!state?.held.size) return
   for (const held of [...state.held.values()]) {
     forget(state, held, ending)
     if (fail) failQuietly(webContents, held.requestId, 'Aborted')
   }
-  if (!access.isDestroyed()) access.changed(false)
+  if (!browser.destroyed) publishChange(browser, false)
 }
 
 /** How many requests the page holds now. */
-export function heldResponseCount<Tab extends NetworkConditionsTab>(access: NetworkConditionsAccess<Tab>, webContents: WebContents): number {
-  return access.heldNetworkResponses().get(webContents.id)?.held.size ?? 0
+export function heldResponseCount(browser: Browser, webContents: WebContents): number {
+  return browser.heldNetworkResponseStates.get(webContents.id)?.held.size ?? 0
 }
 
 /**
  * Holds a paused request the hold rule matched, without answering it, so the
  * page stays in its loading state. The request fails when the hold times out.
  */
-export function holdNetworkResponse<Tab extends NetworkConditionsTab>(access: NetworkConditionsAccess<Tab>, tab: Tab, route: BrowserNetworkRouteRecord, requestId: string): void {
+export function holdNetworkResponse(browser: Browser, tab: BrowserTab, route: BrowserNetworkRouteRecord, requestId: string): void {
   const webContents = tab.webContents
-  const state = heldResponsesFor(access, webContents)
+  const state = heldResponsesFor(browser, webContents)
   const seconds = route.hold?.seconds ?? 30
   const heldAt = new Date()
   const timer = setTimeout(() => {
@@ -129,7 +133,7 @@ export function holdNetworkResponse<Tab extends NetworkConditionsTab>(access: Ne
     if (held?.requestId !== requestId) return
     forget(state, held, 'timed-out')
     failQuietly(webContents, requestId, 'TimedOut')
-    if (!access.isDestroyed()) access.changed(false)
+    if (!browser.destroyed) publishChange(browser, false)
   }, seconds * 1000)
   timer.unref()
   state.held.set(route.id, {
@@ -147,9 +151,9 @@ export function holdNetworkResponse<Tab extends NetworkConditionsTab>(access: Ne
 }
 
 /** The tab's held requests, without their URLs, headers, bodies or Chromium ids. */
-export function heldResponseSummaries<Tab extends NetworkConditionsTab>(access: NetworkConditionsAccess<Tab>, tabId?: string): BrowserHeldNetworkResponse[] {
-  const tab = access.getTab(tabId)
-  const state = access.heldNetworkResponses().get(tab.webContents.id)
+export function heldResponseSummaries(browser: Browser, tabId?: string): BrowserHeldNetworkResponse[] {
+  const tab = getTab(browser, tabId)
+  const state = browser.heldNetworkResponseStates.get(tab.webContents.id)
   return [...(state?.held.values() ?? [])].map(held => ({ routeId: held.routeId, urlPattern: held.urlPattern, heldAt: held.heldAt, expiresAt: held.expiresAt }))
 }
 
@@ -158,8 +162,8 @@ export function heldResponseSummaries<Tab extends NetworkConditionsTab>(access: 
  * leaves the page's state before anything is sent, so a second call can never
  * answer the request twice.
  */
-function takeHeldResponse<Tab extends NetworkConditionsTab>(access: NetworkConditionsAccess<Tab>, tab: Tab, routeId: string, validate: () => void): { state: HeldResponses; held: HeldResponse } {
-  const state = access.heldNetworkResponses().get(tab.webContents.id)
+function takeHeldResponse(browser: Browser, tab: BrowserTab, routeId: string, validate: () => void): { state: HeldResponses; held: HeldResponse } {
+  const state = browser.heldNetworkResponseStates.get(tab.webContents.id)
   const held = state?.held.get(routeId)
   if (!state || !held) {
     const ending = state?.ended.get(routeId)
@@ -170,7 +174,7 @@ function takeHeldResponse<Tab extends NetworkConditionsTab>(access: NetworkCondi
     throw new HoldUnavailableError('not-held', `No request is held for route ${routeId}.`, 'Check action held for the routeId of a captured request.')
   }
   validate()
-  if (access.isDestroyed() || tab.webContents.isDestroyed() || access.findTab(tab.id) !== tab || tab.networkDebuggerEpoch !== held.debuggerEpoch) {
+  if (browser.destroyed || tab.webContents.isDestroyed() || findTab(browser, tab.id) !== tab || tab.networkDebuggerEpoch !== held.debuggerEpoch) {
     failQuietly(tab.webContents, held.requestId, 'Aborted')
     forget(state, held, 'detached')
     throw holdEnded(routeId, 'detached')
@@ -179,11 +183,11 @@ function takeHeldResponse<Tab extends NetworkConditionsTab>(access: NetworkCondi
 }
 
 /** Answers one held request with its rule's mock response, exactly once. */
-export async function releaseHeldResponse<Tab extends NetworkConditionsTab>(access: NetworkConditionsAccess<Tab>, tabId: string | undefined, routeId: string, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<void> {
-  const tab = access.getTab(tabId)
-  const { state, held } = takeHeldResponse(access, tab, routeId, validate)
+export async function releaseHeldResponse(browser: Browser, tabId: string | undefined, routeId: string, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<void> {
+  const tab = getTab(browser, tabId)
+  const { state, held } = takeHeldResponse(browser, tab, routeId, validate)
   forget(state, held, 'release-failed')
-  access.changed(false)
+  publishChange(browser, false)
   markSubmitted()
   await tab.webContents.debugger.sendCommand('Fetch.fulfillRequest', {
     requestId: held.requestId,
@@ -195,11 +199,11 @@ export async function releaseHeldResponse<Tab extends NetworkConditionsTab>(acce
 }
 
 /** Fails one held request instead of answering it. */
-export async function cancelHeldResponse<Tab extends NetworkConditionsTab>(access: NetworkConditionsAccess<Tab>, tabId: string | undefined, routeId: string, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<void> {
-  const tab = access.getTab(tabId)
-  const { state, held } = takeHeldResponse(access, tab, routeId, validate)
+export async function cancelHeldResponse(browser: Browser, tabId: string | undefined, routeId: string, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<void> {
+  const tab = getTab(browser, tabId)
+  const { state, held } = takeHeldResponse(browser, tab, routeId, validate)
   forget(state, held, 'cancelled')
-  access.changed(false)
+  publishChange(browser, false)
   markSubmitted()
   await tab.webContents.debugger.sendCommand('Fetch.failRequest', { requestId: held.requestId, errorReason: 'Aborted' })
 }
@@ -208,8 +212,8 @@ export async function cancelHeldResponse<Tab extends NetworkConditionsTab>(acces
  * Fails every held request of these pages as Hronaut starts to quit, before
  * its tabs close, so no page closes with a request still paused.
  */
-export function failAllHeldResponses<Tab extends NetworkConditionsTab>(access: NetworkConditionsAccess<Tab>, pages: Iterable<WebContents>): void {
-  for (const webContents of pages) if (!webContents.isDestroyed()) endHeldResponses(access, webContents, 'closed', true)
+export function failAllHeldResponses(browser: Browser, pages: Iterable<WebContents>): void {
+  for (const webContents of pages) if (!webContents.isDestroyed()) endHeldResponses(browser, webContents, 'closed', true)
 }
 
 /** Stops every hold timer when the browser closes; tabs fail their held requests as their debuggers detach. */

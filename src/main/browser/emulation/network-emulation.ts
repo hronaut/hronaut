@@ -1,6 +1,6 @@
 import type { WebContents } from 'electron'
 import type { BrowserEmulationState } from '../../../shared/types.js'
-import type { BrowserNetworkRouteRecord } from '../network-conditions/network-conditions-access.js'
+import type { BrowserNetworkRouteRecord } from '../network-conditions/network-conditions.js'
 
 // A copy of the tab manager's own check, which its other debugger features keep using.
 function isUnavailableCdpMethod(error: unknown): boolean {

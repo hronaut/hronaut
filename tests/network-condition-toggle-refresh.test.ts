@@ -1,8 +1,23 @@
 import { EventEmitter } from 'node:events'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+// The browser below stubs withDebugger and changed, which request conditions run through and publish with; the
+// network emulation they reapply is a stub of its own.
+const { applyNetworkEmulation } = vi.hoisted(() => ({
+  applyNetworkEmulation: vi.fn<(contents: unknown, network: unknown, routes: unknown, send?: (method: string) => Promise<unknown>) => Promise<void>>()
+}))
+vi.mock('../src/main/browser/emulation/network-emulation.js', () => ({ applyNetworkEmulation }))
+vi.mock('../src/main/browser/debugger-lease/debugger-lease.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/debugger-lease/debugger-lease.js')>(),
+  withDebugger: (browser: { withDebugger: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.withDebugger(...args)
+}))
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist)
+}))
 import type { WebContents } from 'electron'
 import { applyNetworkRoutes, clearNetworkRoutes, queueNetworkRouteRequest, removeNetworkRoute, setNetworkRouteEnabled } from '../src/main/browser/network-conditions/network-conditions.js'
-import type { NetworkConditionsAccess, NetworkConditionsTab } from '../src/main/browser/network-conditions/network-conditions-access.js'
+import type { Browser } from '../src/main/browser/browser.js'
+import type { BrowserTab } from '../src/main/browser/browser-tab.js'
 import { normalizeNetworkRouteInput } from '../src/main/browser/network-route-input.js'
 
 beforeEach(() => { vi.useFakeTimers() })
@@ -31,7 +46,7 @@ function conditions() {
     id,
     createdAt: '2026-10-26T12:00:00.000Z'
   })
-  const tab: NetworkConditionsTab = {
+  const tab = {
     id: 'tab-1',
     url: 'https://app.test/page',
     webContents: contents,
@@ -41,42 +56,43 @@ function conditions() {
     networkDebuggerEpoch: 0,
     mainFrameId: 'main',
     emulation: { network: 'none' as never }
-  }
+  } as unknown as BrowserTab
   let queue: Promise<unknown> = Promise.resolve()
   const queues = new Map<number, Promise<void>>()
   const timers = new Map<number, NodeJS.Timeout>()
-  const access: NetworkConditionsAccess<NetworkConditionsTab> = {
-    getTab: () => tab,
-    findTab: id => id === tab.id ? tab : undefined,
-    isDestroyed: () => false,
-    withDebugger: (_contents, operation, admission) => {
-      const run = queue.catch(() => undefined).then(() => { admission?.(); return operation() })
-      queue = run
-      return run
-    },
-    applyNetworkEmulation: async (_contents, _network, _routes, send) => { await send?.('Network.emulateNetworkConditionsByRule') },
-    networkRouteQueues: () => queues,
-    networkRouteRefreshTimers: () => timers,
-    heldNetworkResponses: () => new Map(),
-    changed: () => {}
+  applyNetworkEmulation.mockImplementation(async (_contents, _network, _routes, send) => { await send?.('Network.emulateNetworkConditionsByRule') })
+  const withDebugger = <T>(_contents: unknown, operation: () => Promise<T>, admission?: () => void): Promise<T> => {
+    const run = queue.catch(() => undefined).then(() => { admission?.(); return operation() })
+    queue = run
+    return run
   }
+  const browser = {
+    tabs: new Map([[tab.id, tab]]),
+    activeTabId: tab.id,
+    destroyed: false,
+    withDebugger,
+    networkRouteQueues: queues,
+    networkRouteRefreshTimers: timers,
+    heldNetworkResponseStates: new Map(),
+    changed: () => {}
+  } as unknown as Browser
   /** A page request, which uses up the first rule unless it asks for another address, then the paused-request queue drains. */
   const request = async (url = 'https://app.test/once') => {
-    queueNetworkRouteRequest(access, tab, { requestId: `request-${commands.length}`, request: { url, method: 'GET' }, frameId: 'main', resourceType: 'Fetch' })
+    queueNetworkRouteRequest(browser, tab, { requestId: `request-${commands.length}`, request: { url, method: 'GET' }, frameId: 'main', resourceType: 'Fetch' })
     await vi.advanceTimersByTimeAsync(0)
   }
   /** Another debugger operation, such as emulation, that holds the queue until released. */
   const occupyQueue = () => {
     let free!: () => void
-    void access.withDebugger(contents, () => new Promise<void>(resolve => { free = resolve }))
+    void withDebugger(contents, () => new Promise<void>(resolve => { free = resolve }))
     return () => free()
   }
-  return { access, tab, commands, timers, useUpRule: () => request(), request, occupyQueue, holdNext: (method: string) => { holdNext = method }, release: () => held?.() }
+  return { browser, tab, commands, timers, useUpRule: () => request(), request, occupyQueue, holdNext: (method: string) => { holdNext = method }, release: () => held?.() }
 }
 
 it('toggles a rule while the refresh after a used-up rule is applying', async () => {
-  const { access, tab, commands, useUpRule, holdNext, release } = conditions()
-  await applyNetworkRoutes(access, tab)
+  const { browser, tab, commands, useUpRule, holdNext, release } = conditions()
+  await applyNetworkRoutes(browser, tab)
   await useUpRule()
   expect(tab.networkConditionApplication).toBe('pending')
   // The refresh leaves interception in effect, which covers the kept rule, and settles the network conditions.
@@ -84,59 +100,59 @@ it('toggles a rule while the refresh after a used-up rule is applying', async ()
   await vi.advanceTimersByTimeAsync(250)
   expect(commands.at(-1)).toBe('Network.emulateNetworkConditionsByRule')
   // Refused as "must be confirmed" before, as if the rules had become unknown.
-  const toggled = setNetworkRouteEnabled(access, 'tab-1', 'kept', false)
+  const toggled = setNetworkRouteEnabled(browser, 'tab-1', 'kept', false)
   release()
   await expect(toggled).resolves.toEqual([expect.objectContaining({ id: 'kept', enabled: false })])
   expect(tab.networkConditionApplication).toBe('confirmed')
 })
 
 it('toggles a rule before the refresh after a used-up rule, and settles the rules itself', async () => {
-  const { access, tab, timers, useUpRule } = conditions()
+  const { browser, tab, timers, useUpRule } = conditions()
   await useUpRule()
   expect(timers.size).toBe(1)
-  await expect(setNetworkRouteEnabled(access, 'tab-1', 'kept', false)).resolves.toEqual([expect.objectContaining({ id: 'kept', enabled: false })])
+  await expect(setNetworkRouteEnabled(browser, 'tab-1', 'kept', false)).resolves.toEqual([expect.objectContaining({ id: 'kept', enabled: false })])
   expect(tab.networkConditionApplication).toBe('confirmed')
   expect(timers.size).toBe(0)
 })
 
 it('keeps the refresh after a used-up rule when a change is refused before it applies', async () => {
-  const { access, tab, timers, useUpRule } = conditions()
+  const { browser, tab, timers, useUpRule } = conditions()
   await useUpRule()
   // The used-up rule is gone; removing it again is refused in the queue and must not take the refresh with it.
-  await expect(removeNetworkRoute(access, 'tab-1', 'once')).rejects.toThrow('Network route not found: once')
+  await expect(removeNetworkRoute(browser, 'tab-1', 'once')).rejects.toThrow('Network route not found: once')
   expect(timers.size).toBe(1)
   await vi.advanceTimersByTimeAsync(250)
   expect(tab.networkConditionApplication).toBe('confirmed')
 })
 
 it('still refuses a toggle at once while another change is applying', async () => {
-  const { access, tab, commands, holdNext, release } = conditions()
+  const { browser, tab, commands, holdNext, release } = conditions()
   holdNext('Fetch.enable')
-  const first = setNetworkRouteEnabled(access, 'tab-1', 'kept', false)
+  const first = setNetworkRouteEnabled(browser, 'tab-1', 'kept', false)
   await vi.advanceTimersByTimeAsync(0)
   const sent = commands.length
-  await expect(setNetworkRouteEnabled(access, 'tab-1', 'once', false)).rejects.toThrow('Another request-condition change is still applying')
+  await expect(setNetworkRouteEnabled(browser, 'tab-1', 'once', false)).rejects.toThrow('Another request-condition change is still applying')
   expect(commands).toHaveLength(sent)
   release()
   await first
   expect(tab.networkConditionApplication).toBe('confirmed')
-  await expect(setNetworkRouteEnabled(access, 'tab-1', 'once', false)).resolves.toHaveLength(2)
+  await expect(setNetworkRouteEnabled(browser, 'tab-1', 'once', false)).resolves.toHaveLength(2)
 })
 
 it('still refuses a toggle while the application is unknown', async () => {
-  const { access, tab, commands } = conditions()
+  const { browser, tab, commands } = conditions()
   tab.networkConditionApplication = 'unknown'
-  await expect(setNetworkRouteEnabled(access, 'tab-1', 'kept', false)).rejects.toThrow('Explicitly clear unknown conditions to recover')
+  await expect(setNetworkRouteEnabled(browser, 'tab-1', 'kept', false)).rejects.toThrow('Explicitly clear unknown conditions to recover')
   expect(commands).toEqual([])
 })
 
 it('applies nothing more for a refresh that fires while a change waits in the queue', async () => {
-  const { access, tab, commands, timers, request, occupyQueue } = conditions()
+  const { browser, tab, commands, timers, request, occupyQueue } = conditions()
   // A request no rule matches still leaves a refresh scheduled for when the page's paused requests drain.
   await request('https://app.test/other')
   expect(timers.size).toBe(1)
   const free = occupyQueue()
-  const toggled = setNetworkRouteEnabled(access, 'tab-1', 'kept', false)
+  const toggled = setNetworkRouteEnabled(browser, 'tab-1', 'kept', false)
   await vi.advanceTimersByTimeAsync(250)
   const sent = commands.length
   free()
@@ -148,9 +164,9 @@ it('applies nothing more for a refresh that fires while a change waits in the qu
 })
 
 it('applies nothing more for a refresh queued while a change applies', async () => {
-  const { access, tab, commands, timers, request, holdNext, release } = conditions()
+  const { browser, tab, commands, timers, request, holdNext, release } = conditions()
   holdNext('Fetch.enable')
-  const toggled = setNetworkRouteEnabled(access, 'tab-1', 'kept', false)
+  const toggled = setNetworkRouteEnabled(browser, 'tab-1', 'kept', false)
   await vi.advanceTimersByTimeAsync(0)
   // A request while the change applies schedules a refresh, which fires and waits behind the change.
   await request('https://app.test/other')
@@ -166,12 +182,12 @@ it('applies nothing more for a refresh queued while a change applies', async () 
 })
 
 it('schedules the refresh again when a change it replaced fails before sending anything', async () => {
-  const { access, tab, commands, timers, useUpRule } = conditions()
+  const { browser, tab, commands, timers, useUpRule } = conditions()
   await useUpRule()
   const sent = commands.length
   // Refuses once the change is made, at the first command, as when the caller lost its authority meanwhile.
   const validate = () => { if (tab.networkRoutes.some(route => route.id === 'kept' && !route.enabled)) throw new Error('Controlled late refusal') }
-  await expect(setNetworkRouteEnabled(access, 'tab-1', 'kept', false, validate)).rejects.toThrow('Controlled late refusal')
+  await expect(setNetworkRouteEnabled(browser, 'tab-1', 'kept', false, validate)).rejects.toThrow('Controlled late refusal')
   expect(commands).toHaveLength(sent)
   expect(tab.networkRoutes.find(route => route.id === 'kept')?.enabled).toBe(true)
   expect(tab.networkConditionApplication).toBe('pending')
@@ -179,16 +195,16 @@ it('schedules the refresh again when a change it replaced fails before sending a
   await vi.advanceTimersByTimeAsync(250)
   expect(tab.networkConditionApplication).toBe('confirmed')
   // Nothing is left counted as applying.
-  await expect(setNetworkRouteEnabled(access, 'tab-1', 'kept', false)).resolves.toEqual([expect.objectContaining({ id: 'kept', enabled: false })])
+  await expect(setNetworkRouteEnabled(browser, 'tab-1', 'kept', false)).resolves.toEqual([expect.objectContaining({ id: 'kept', enabled: false })])
 })
 
 it('counts nothing as applying after a change that failed once sent', async () => {
-  const { access, tab } = conditions()
-  access.applyNetworkEmulation = async (_contents, _network, _routes, send) => { await send?.('Network.emulateNetworkConditionsByRule') }
+  const { browser, tab } = conditions()
+  applyNetworkEmulation.mockImplementation(async (_contents, _network, _routes, send) => { await send?.('Network.emulateNetworkConditionsByRule') })
   let sends = 0
   const validate = () => { if (tab.networkRoutes.some(route => route.id === 'kept' && !route.enabled) && ++sends > 1) throw new Error('Controlled failure after sending') }
-  await expect(setNetworkRouteEnabled(access, 'tab-1', 'kept', false, validate)).rejects.toThrow('Controlled failure after sending')
+  await expect(setNetworkRouteEnabled(browser, 'tab-1', 'kept', false, validate)).rejects.toThrow('Controlled failure after sending')
   expect(tab.networkConditionApplication).toBe('unknown')
-  await expect(clearNetworkRoutes(access, 'tab-1')).resolves.toEqual([])
+  await expect(clearNetworkRoutes(browser, 'tab-1')).resolves.toEqual([])
   expect(tab.networkConditionApplication).toBe('confirmed')
 })
