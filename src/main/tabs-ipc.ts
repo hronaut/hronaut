@@ -3,10 +3,10 @@ import type { BrowserTabsManager } from './browser/tabs-manager.js'
 import type { McpHttpServer } from './mcp/server.js'
 import { LocalizedError } from './localized-error.js'
 import { tabAgentPauseOptions, type TakeOverOffers } from './take-over-offers.js'
-import { validateTabOverviewPreviewIds } from '../shared/types.js'
+import { validateTabOverviewPreviewIds, type BrowserState } from '../shared/types.js'
 
 type TabsIpcTabs = Pick<BrowserTabsManager,
-  | 'getState' | 'getTabOverviewPreviews' | 'getTabOverviewPagePreview'
+  | 'getState' | 'beforeStateReply' | 'getTabOverviewPreviews' | 'getTabOverviewPagePreview'
   | 'openHome' | 'newTab' | 'reopenClosedTab' | 'selectTabForPerson' | 'closeTabsForPerson'
   | 'openSplitViewAndWait' | 'updateSplitView' | 'closeSplitView'
   | 'setTabLabel' | 'setTabPinned' | 'setTabSleeping' | 'setTabPageLifecycle' | 'sleepInactiveTabs'
@@ -29,10 +29,20 @@ interface TabsIpcHost {
   takeOvers(): Pick<TakeOverOffers, 'paused'>
 }
 
+/**
+ * Replies to a shell action with the browser state it returned. The shell drops a reply if a state arrived meanwhile,
+ * which a state it has not drawn yet always does, so a change waiting for that draw is sent first, before the reply.
+ */
+async function stateReply(host: { tabs(): Pick<BrowserTabsManager, 'beforeStateReply'> | null }, reply: Promise<BrowserState>): Promise<BrowserState> {
+  const state = await reply
+  host.tabs()?.beforeStateReply()
+  return state
+}
+
 /** Dependencies stay lazy because handlers are registered before the window loads. */
 export function registerTabsIpc(host: TabsIpcHost): void {
   host.handleBrowserIpc('browser:get-state', async (event) => {
-    return host.runWorkspaceRead(event, host.assertTrustedSender, () => host.tabs()!.getState())
+    return stateReply(host, host.runWorkspaceRead(event, host.assertTrustedSender, () => host.tabs()!.getState()))
   })
   host.handleBrowserIpc('browser:get-tab-overview-previews', async (event, value: unknown) => {
     host.assertTrustedSender(event)
@@ -44,18 +54,18 @@ export function registerTabsIpc(host: TabsIpcHost): void {
     const [tabId] = validateTabOverviewPreviewIds([value])
     return host.runWorkspaceRead(event, host.assertTrustedSender, () => host.tabs()!.getTabOverviewPagePreview(tabId!))
   })
-  host.handleBrowserIpc('browser:open-home', (event) => { host.assertTrustedSender(event); return host.tabs()!.openHome() })
-  host.handleBrowserIpc('browser:new-tab', (event, options) => { host.assertTrustedSender(event); return host.tabs()!.newTab(options) })
+  host.handleBrowserIpc('browser:open-home', (event) => { host.assertTrustedSender(event); return stateReply(host, host.tabs()!.openHome()) })
+  host.handleBrowserIpc('browser:new-tab', (event, options) => { host.assertTrustedSender(event); return stateReply(host, host.tabs()!.newTab(options)) })
   host.handleBrowserIpc('browser:reopen-closed-tab', (event, closedTabId: unknown) => {
     host.assertTrustedSender(event)
     if (closedTabId !== undefined && typeof closedTabId !== 'string') throw new TypeError('Invalid closed tab ID')
     return host.tabs()!.reopenClosedTab(closedTabId)
   })
-  host.handleBrowserIpc('browser:select-tab', (event, tabId) => { host.assertTrustedSender(event); return host.tabs()!.selectTabForPerson(tabId) })
+  host.handleBrowserIpc('browser:select-tab', (event, tabId) => { host.assertTrustedSender(event); return stateReply(host, host.tabs()!.selectTabForPerson(tabId)) })
   host.handleBrowserIpc('browser:close-tab', (event, tabId: unknown) => {
     host.assertTrustedSender(event)
     if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
-    return host.tabs()!.closeTabsForPerson([tabId])
+    return stateReply(host, host.tabs()!.closeTabsForPerson([tabId]))
   })
   host.handleBrowserIpc('browser:open-split-view', (event, tabId: unknown) => {
     host.assertTrustedSender(event)

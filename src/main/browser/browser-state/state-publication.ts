@@ -6,29 +6,59 @@ import type { BrowserState } from '../../../shared/types.js'
  */
 export const STATE_PUBLISH_MS = 33
 
+/** How long a publication waits for the shell to say it drew the last one, in case it never says so. */
+export const STATE_DRAWN_TIMEOUT_MS = 250
+
+/** The tabs on screen: the selected one, and the other half of a split view it is in. */
+export function shownTabIds(activeTabId: string | null, splitView: { firstTabId: string; secondTabId: string } | null): string[] {
+  if (!activeTabId) return []
+  if (splitView && (splitView.firstTabId === activeTabId || splitView.secondTabId === activeTabId)) {
+    return [splitView.firstTabId, splitView.secondTabId]
+  }
+  return [activeTabId]
+}
+
 export interface StatePublicationOptions {
   /** Whether the state may be published now: not while the browser closes or restores its layout. */
   canPublish(): boolean
   /** The browser state as it is now. */
   read(): BrowserState
-  /** The tabs whose pages are loading now, without reading the whole state. */
-  loadingTabIds(): Iterable<string>
+  /**
+   * The pages loading in the shown tabs now, one key for each tab and the navigation it is on, without reading the
+   * whole state.
+   */
+  shownLoadingPages(): Iterable<string>
   /** Sends a state to the shell and the state hooks. */
   send(state: BrowserState): void
 }
 
 /**
  * Publishes the browser state to the shell. A change after a quiet moment goes out at once, and the changes of a burst
- * go out together, from the state as it is then, once STATE_PUBLISH_MS passed since the last publication. A page that
- * starts loading goes out at once too: the shell learns a load began from its tab's loading flag, which a fast reload
- * would otherwise clear within the same publication. A state equal to the last one sent is not sent again until the
- * state is read, since the reader may show the shell that state as an action's reply.
+ * go out together, from the state as it is then, once STATE_PUBLISH_MS passed since the last publication.
+ *
+ * The shell says when it drew a publication (drawn), once its view of it is patched, before the frame is laid out and
+ * painted. Until then, changes wait, and once it did, they wait as long again as that took, so a shell slower than the
+ * changes draws the newest state instead of falling seconds behind on a queue of older ones, and keeps about half its
+ * time for the person and its own work. A shown tab that starts loading a page, or moves on to a new one while it
+ * loads, goes out at once. The shell learns a load began from the tab's loading flag, which a fast reload would
+ * otherwise clear before the next publication, and detached panels act on it. It closes the panels it opened for a
+ * page when the tab gets a new one, and tells a page's own load ending from a new page only by seeing the new page
+ * while the tab still loads. A state equal to the last one sent is not sent again until the state is read, since the
+ * reader may show the shell that state as an action's reply.
  */
 export class StatePublication {
   private timer: NodeJS.Timeout | null = null
+  private drawnTimer: NodeJS.Timeout | null = null
   private lastPublishAt = Number.NEGATIVE_INFINITY
+  private lastSentAt = Number.NEGATIVE_INFINITY
+  /** When the shell next has had as much time to itself as it took to draw the last publication. */
+  private shellFreeAt = Number.NEGATIVE_INFINITY
+  /** Publications sent that the shell has not said it drew. */
+  private undrawn = 0
+  /** A change came while the shell was still drawing. */
+  private waiting = false
   private lastSent: string | undefined
-  /** The tabs the last state sent showed loading. */
+  /** The pages the last state sent showed loading in the shown tabs. */
   private sentLoading = new Set<string>()
 
   constructor(private readonly options: StatePublicationOptions) {}
@@ -36,12 +66,54 @@ export class StatePublication {
   /** Something in the state changed. */
   changed(): void {
     if (!this.options.canPublish()) return
-    if (this.loadStarted()) {
+    if (this.shownPageLoadStarted()) {
       this.publishNow()
       return
     }
+    this.schedule()
+  }
+
+  /** The shell drew a publication it was sent. */
+  drawn(): void {
+    if (this.undrawn === 0) return
+    this.undrawn -= 1
+    if (this.undrawn > 0) return
+    const now = performance.now()
+    this.shellDrew(now + (now - this.lastSentAt))
+  }
+
+  /**
+   * The state is about to be read, perhaps for an action's reply, which the shell drops for a publication that arrived
+   * meanwhile. A change still waiting goes out first, so the publication the shell keeps is never older than the reply.
+   * A change waiting for the shell to draw goes out once it did.
+   */
+  beforeRead(): void {
+    if (this.timer) this.publishNow()
+    this.lastSent = undefined
+  }
+
+  /**
+   * The shell is about to get an action's reply. It keeps the reply only if no state arrived meanwhile, and a state
+   * it has not drawn yet arrives meanwhile, so a change waiting for that draw goes out first: the last state the shell
+   * gets is then never older than the reply.
+   */
+  beforeReply(): void {
+    if (this.waiting) this.publishNow()
+  }
+
+  dispose(): void {
+    this.clearTimer()
+    if (this.drawnTimer) clearTimeout(this.drawnTimer)
+    this.drawnTimer = null
+  }
+
+  private schedule(): void {
     if (this.timer) return
-    const wait = this.lastPublishAt + STATE_PUBLISH_MS - performance.now()
+    if (this.undrawn > 0) {
+      this.waiting = true
+      return
+    }
+    const wait = Math.max(this.lastPublishAt + STATE_PUBLISH_MS, this.shellFreeAt) - performance.now()
     if (wait <= 0) {
       this.publishNow()
       return
@@ -49,35 +121,37 @@ export class StatePublication {
     this.timer = setTimeout(() => this.publishNow(), wait)
   }
 
-  /**
-   * The state is about to be read, perhaps for an action's reply, which the shell drops for a publication that arrived
-   * meanwhile. A change still waiting goes out first, so the publication the shell keeps is never older than the reply.
-   */
-  beforeRead(): void {
-    if (this.timer) this.publishNow()
-    this.lastSent = undefined
+  /** The shell is done drawing, and the next publication waits until freeAt. */
+  private shellDrew(freeAt: number): void {
+    if (this.drawnTimer) clearTimeout(this.drawnTimer)
+    this.drawnTimer = null
+    this.undrawn = 0
+    this.shellFreeAt = freeAt
+    if (!this.waiting) return
+    this.waiting = false
+    if (this.options.canPublish()) this.schedule()
   }
 
-  dispose(): void {
-    if (this.timer) clearTimeout(this.timer)
-    this.timer = null
-  }
-
-  private loadStarted(): boolean {
-    for (const tabId of this.options.loadingTabIds()) {
-      if (!this.sentLoading.has(tabId)) return true
+  private shownPageLoadStarted(): boolean {
+    for (const page of this.options.shownLoadingPages()) {
+      if (!this.sentLoading.has(page)) return true
     }
     return false
   }
 
+  private clearTimer(): void {
+    if (this.timer) clearTimeout(this.timer)
+    this.timer = null
+  }
+
   private publishNow(): void {
-    this.dispose()
+    this.clearTimer()
     if (!this.options.canPublish()) return
     this.lastPublishAt = performance.now()
     const state = this.options.read()
     const serialized = JSON.stringify(state)
     if (serialized === this.lastSent) return
-    const loading = new Set(this.options.loadingTabIds())
+    const loading = new Set(this.options.shownLoadingPages())
     try {
       this.options.send(state)
     } catch (error) {
@@ -86,6 +160,12 @@ export class StatePublication {
       return
     }
     this.lastSent = serialized
+    this.lastSentAt = this.lastPublishAt
     this.sentLoading = loading
+    this.waiting = false
+    this.undrawn += 1
+    // A shell that is reloading, or never draws, does not hold the browser's state back for long.
+    if (this.drawnTimer) clearTimeout(this.drawnTimer)
+    this.drawnTimer = setTimeout(() => this.shellDrew(performance.now()), STATE_DRAWN_TIMEOUT_MS)
   }
 }

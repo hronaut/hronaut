@@ -1,4 +1,4 @@
-import { computed, ref, toRaw, watch } from 'vue'
+import { computed, nextTick, ref, toRaw, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { translate } from '../../../shared/i18n.js'
 import type {
@@ -65,7 +65,10 @@ export const useBrowserStore = defineStore('browser', () => {
     initializationError.value = null
     const initialRevision = revision
     unsubscribe = window.hronaut.onStateChanged((next) => {
-      if (generation === currentGeneration) acceptAuthoritativeState(next)
+      if (generation !== currentGeneration) return
+      acceptAuthoritativeState(next)
+      // Main sends the next state once this one is drawn, so states never queue up behind a slow draw.
+      void nextTick(() => window.hronaut.stateDrawn())
     })
     initializePromise = window.hronaut.getState()
       .then((next) => {
