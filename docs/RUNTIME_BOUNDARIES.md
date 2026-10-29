@@ -5,7 +5,7 @@ workspace archive/restore transitions. These boundaries are intentionally narrow
 than the entire browser runtime.
 
 - `main/index.ts` composes runtime services and registers trusted IPC through
-  per-feature `main/*-ipc.ts` modules, which keep each handler's sender check
+  per-feature `main/**/*-ipc.ts` modules, which keep each handler's sender check
   with the handler and read index state through a small host object. The checks
   themselves, which shell document sent a message and whether saved workspaces are
   ready, come from `main/ipc-guards.ts`. Home's dashboard state comes from
