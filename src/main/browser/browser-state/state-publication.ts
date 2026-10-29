@@ -33,12 +33,13 @@ export interface StatePublicationOptions {
  * Publishes the browser state to the shell. A change after a quiet moment goes out at once, and the changes of a burst
  * go out together, from the state as it is then, once STATE_PUBLISH_MS passed since the last publication.
  *
- * The shell says when it drew a publication (drawn). Until then, changes wait, and once it did, they wait as long again
- * as the shell took, so a shell slower than the changes draws the newest state instead of falling seconds behind on a
- * queue of older ones, and keeps half its time for the person and its own work. A shown page that starts loading goes
- * out at once: the shell learns a load began from its tab's loading flag, which a fast reload would otherwise clear
- * before the next publication, and detached panels act on it. A state equal to the last one sent is not sent again
- * until the state is read, since the reader may show the shell that state as an action's reply.
+ * The shell says when it drew a publication (drawn), once its view of it is patched, before the frame is laid out and
+ * painted. Until then, changes wait, and once it did, they wait as long again as that took, so a shell slower than the
+ * changes draws the newest state instead of falling seconds behind on a queue of older ones, and keeps about half its
+ * time for the person and its own work. A shown page that starts loading goes out at once: the shell learns a load
+ * began from its tab's loading flag, which a fast reload would otherwise clear before the next publication, and
+ * detached panels act on it. A state equal to the last one sent is not sent again until the state is read, since the
+ * reader may show the shell that state as an action's reply.
  */
 export class StatePublication {
   private timer: NodeJS.Timeout | null = null
@@ -84,6 +85,15 @@ export class StatePublication {
   beforeRead(): void {
     if (this.timer) this.publishNow()
     this.lastSent = undefined
+  }
+
+  /**
+   * The shell is about to get an action's reply. It keeps the reply only if no state arrived meanwhile, and a state
+   * it has not drawn yet arrives meanwhile, so a change waiting for that draw goes out first: the last state the shell
+   * gets is then never older than the reply.
+   */
+  beforeReply(): void {
+    if (this.waiting) this.publishNow()
   }
 
   dispose(): void {

@@ -1,9 +1,9 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
-import type { BrowserPdfPageSize } from '../shared/types.js'
+import type { BrowserPdfPageSize, BrowserState } from '../shared/types.js'
 import type { BrowserTabsManager } from './browser/tabs-manager.js'
 
 type NavigationIpcTabs = Pick<BrowserTabsManager,
-  | 'toggleDevTools' | 'showDevToolsConsole' | 'navigate' | 'back' | 'forward' | 'showHistoryMenu' | 'openNavigationInNewTab' | 'reload' | 'reloadIgnoringCache' | 'stop'
+  | 'beforeStateReply' | 'toggleDevTools' | 'showDevToolsConsole' | 'navigate' | 'back' | 'forward' | 'showHistoryMenu' | 'openNavigationInNewTab' | 'reload' | 'reloadIgnoringCache' | 'stop'
   | 'findInPage' | 'stopFindInPage' | 'setZoom' | 'savePdf'>
 
 interface NavigationIpcHost {
@@ -13,6 +13,16 @@ interface NavigationIpcHost {
   tabs(): NavigationIpcTabs | null
   /** The paper a PDF saved from Hronaut's controls uses when they name none: the standard paper of the person's region. */
   defaultPdfPageSize(): BrowserPdfPageSize
+}
+
+/**
+ * Replies to a shell action with the browser state it returned. The shell drops a reply if a state arrived meanwhile,
+ * which a state it has not drawn yet always does, so a change waiting for that draw is sent first, before the reply.
+ */
+async function stateReply(host: { tabs(): Pick<BrowserTabsManager, 'beforeStateReply'> | null }, reply: Promise<BrowserState>): Promise<BrowserState> {
+  const state = await reply
+  host.tabs()?.beforeStateReply()
+  return state
 }
 
 /** Dependencies stay lazy because handlers are registered before the window loads. */
@@ -27,9 +37,9 @@ export function registerNavigationIpc(host: NavigationIpcHost): void {
     if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
     return host.tabs()!.showDevToolsConsole(tabId)
   })
-  host.handleBrowserIpc('browser:navigate', (event, options) => { host.assertTrustedSender(event); return host.tabs()!.navigate(options.url, options.tabId, { byPerson: true }) })
-  host.handleBrowserIpc('browser:back', (event, tabId) => { host.assertTrustedSender(event); return host.tabs()!.back(tabId) })
-  host.handleBrowserIpc('browser:forward', (event, tabId) => { host.assertTrustedSender(event); return host.tabs()!.forward(tabId) })
+  host.handleBrowserIpc('browser:navigate', (event, options) => { host.assertTrustedSender(event); return stateReply(host, host.tabs()!.navigate(options.url, options.tabId, { byPerson: true })) })
+  host.handleBrowserIpc('browser:back', (event, tabId) => { host.assertTrustedSender(event); return stateReply(host, host.tabs()!.back(tabId)) })
+  host.handleBrowserIpc('browser:forward', (event, tabId) => { host.assertTrustedSender(event); return stateReply(host, host.tabs()!.forward(tabId)) })
   host.handleBrowserIpc('browser:show-history-menu', (event, options: unknown) => {
     host.assertTrustedSender(event)
     if (typeof options !== 'object' || options === null) throw new TypeError('Invalid history list options')
@@ -46,7 +56,7 @@ export function registerNavigationIpc(host: NavigationIpcHost): void {
     }
     return host.tabs()!.openNavigationInNewTab(tabId, target, active)
   })
-  host.handleBrowserIpc('browser:reload', (event, tabId) => { host.assertTrustedSender(event); return host.tabs()!.reload(tabId) })
+  host.handleBrowserIpc('browser:reload', (event, tabId) => { host.assertTrustedSender(event); return stateReply(host, host.tabs()!.reload(tabId)) })
   host.handleBrowserIpc('browser:reload-ignoring-cache', (event, tabId) => { host.assertTrustedSender(event); return host.tabs()!.reloadIgnoringCache(tabId) })
   host.handleBrowserIpc('browser:stop', (event, tabId) => { host.assertTrustedSender(event); return host.tabs()!.stop(tabId) })
   host.handleBrowserIpc('browser:find-in-page', (event, options: unknown) => {

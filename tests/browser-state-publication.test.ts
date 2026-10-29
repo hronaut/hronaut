@@ -142,6 +142,15 @@ it('publishes nothing while the browser closes, and nothing waits once disposed'
   expect(shell.titles()).toEqual(['First'])
 })
 
+it('stops waiting for the shell to draw once disposed', async () => {
+  const shell = publication({ drawsItself: true })
+  shell.change({ title: 'First' })
+  shell.change({ title: 'Waiting' })
+  shell.states.dispose()
+  await advance(STATE_DRAWN_TIMEOUT_MS * 2)
+  expect(shell.titles()).toEqual(['First'])
+})
+
 it('logs a hook that fails without failing the change, and sends the state again with the next change', async () => {
   const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
   const shell = publication()
@@ -196,6 +205,39 @@ it('sends a shown page that starts loading even while the shell draws, but not a
   hidden.states.drawn()
   await advance(STATE_PUBLISH_MS)
   expect(hidden.loading()).toEqual([false, true])
+})
+
+it('waits until the shell drew every state it was sent', async () => {
+  const shell = publication({ drawsItself: true })
+  shell.change({ title: 'Before reload' })
+  // A shown page that starts loading goes out while the shell still draws the first state.
+  shell.change({ loading: true })
+  shell.change({ title: 'Loading' })
+  expect(shell.titles()).toEqual(['Before reload', 'Before reload'])
+  shell.states.drawn()
+  await advance(100)
+  expect(shell.titles()).toHaveLength(2)
+  // Both drawn 100 ms after the last was sent: the next state waits another 100 ms.
+  shell.states.drawn()
+  await advance(99)
+  expect(shell.titles()).toHaveLength(2)
+  await advance(1)
+  expect(shell.titles()).toEqual(['Before reload', 'Before reload', 'Loading'])
+})
+
+it('sends a change waiting for the shell to draw before an action’s reply, so the shell never ends on a state older than the reply', () => {
+  // The shell drops a reply when a state arrives meanwhile, and the state it has not drawn yet always does: without
+  // the waiting change, it kept that older state, such as the tab selected before a click on another.
+  const shell = publication({ drawsItself: true })
+  shell.change({ title: 'First' })
+  shell.change({ title: 'Selected' })
+  shell.states.beforeRead()
+  expect(shell.titles()).toEqual(['First'])
+  shell.states.beforeReply()
+  expect(shell.titles()).toEqual(['First', 'Selected'])
+  // With nothing waiting, a reply sends nothing more.
+  shell.states.beforeReply()
+  expect(shell.titles()).toEqual(['First', 'Selected'])
 })
 
 it('ignores a drawn state it did not send, so a late answer does not let a burst through', async () => {

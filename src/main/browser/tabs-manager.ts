@@ -1700,6 +1700,11 @@ export class BrowserTabsManager {
     this.statePublication.drawn()
   }
 
+  /** The shell is about to get an action's reply; a change waiting for it to draw goes out first (see StatePublication). */
+  beforeStateReply(): void {
+    this.statePublication.beforeReply()
+  }
+
   /** The browser state as it is now. A change still waiting to be published goes out first (see StatePublication). */
   getState(): BrowserState {
     this.statePublication.beforeRead()

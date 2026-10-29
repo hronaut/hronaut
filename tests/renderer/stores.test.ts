@@ -377,17 +377,25 @@ describe('browser Pinia store lifecycle', () => {
     await nextTick()
     expect(stateDrawn).not.toHaveBeenCalled()
 
-    let drawnTitle: string | undefined
-    stateDrawn.mockImplementation(() => { drawnTitle = document.title })
-    const unwatch = watch(() => store.state.activeTabId, (id) => { document.title = id ?? '' })
-    listener?.(browserState('published'))
-    expect(stateDrawn).not.toHaveBeenCalled()
+    let shownTabId: string | null | undefined
+    let shownWhenDrawn: string | null | undefined
+    stateDrawn.mockImplementation(() => { shownWhenDrawn = shownTabId })
+    const unwatch = watch(() => store.state.activeTabId, (id) => { shownTabId = id })
+    try {
+      listener?.(browserState('published'))
+      expect(stateDrawn).not.toHaveBeenCalled()
+      await nextTick()
+      expect(stateDrawn).toHaveBeenCalledTimes(1)
+      // It was drawn first: what follows the state had already run.
+      expect(shownWhenDrawn).toBe('published')
+    } finally {
+      unwatch()
+      store.dispose()
+    }
+    // A store that stopped listening draws nothing more, so it says nothing.
+    listener?.(browserState('after dispose'))
     await nextTick()
     expect(stateDrawn).toHaveBeenCalledTimes(1)
-    // It was drawn first: what follows the state had already run.
-    expect(drawnTitle).toBe('published')
-    unwatch()
-    store.dispose()
   })
 
   it('keeps the tabs that did not change, so only the changed tab draws again', async () => {
