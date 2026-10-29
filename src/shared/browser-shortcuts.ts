@@ -133,9 +133,9 @@ export function websiteKeptShortcutAction(input: BrowserShortcutInput): BrowserS
 /**
  * The keys of Hronaut's application menu that are not browser shortcuts above, which act on the page in view or open
  * another of Hronaut's dialogs: Print, Save Page As, View Page Source, Downloads, Bookmark All Tabs, Back, Forward and
- * Keyboard shortcuts, on macOS Find Next and Find Previous, which elsewhere are website-kept keys, and elsewhere
- * Escape, which stops the page in focus loading once it leaves the key alone, as in Chrome, and Shift+Escape, which
- * opens the Task manager.
+ * Keyboard shortcuts; on macOS also Find Next and Find Previous, which elsewhere are website-kept keys, and Settings'
+ * Cmd+,; and elsewhere Escape, which stops the page in focus loading once it leaves the key alone, as in Chrome, and
+ * Shift+Escape, which opens the Task manager.
  * Elsewhere than macOS, Zoom In's and Keyboard shortcuts' keys also go by the key's code, as the menu matches them. A
  * key Hronaut's window leaves alone reaches the menu, so under its own dialogs and the command palette the window keeps
  * these from the menu as well.
@@ -148,7 +148,7 @@ export function applicationMenuKey(input: BrowserShortcutInput): boolean {
     if (!input.meta || input.control) return false
     if (input.alt) return !input.shift && (optionLetter(input, 'u') || optionLetter(input, 'l'))
     if (input.shift) return key === 'g' || key === 'd' || slash
-    return key === 'p' || key === 's' || key === 'g' || key === '[' || key === ']'
+    return key === 'p' || key === 's' || key === 'g' || key === '[' || key === ']' || key === ','
   }
   if (input.meta) return false
   if (input.alt) return !input.control && !input.shift && (key === 'arrowleft' || key === 'arrowright')

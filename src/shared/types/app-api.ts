@@ -55,7 +55,8 @@ import type {
 } from './browsing-data.js'
 import type { DetachablePanelId, PanelDock, PanelRedockRequest } from './panels.js'
 
-export type HelpMenuAction = 'shortcuts' | 'about' | 'support'
+/** What an item of the application menu asks Hronaut's window to show: a Help dialog, or a part of Settings. */
+export type HelpMenuAction = 'shortcuts' | 'about' | 'support' | 'settings'
 
 export interface HronautBookmarkCollectionsApi {
   list(): Promise<BookmarkCollectionSnapshot>

@@ -950,6 +950,7 @@ export const ruRU: MessageSchema = {
       "directTab": "Перейти к веб-вкладке 1–8",
       "lastTab": "Перейти к последней веб-вкладке",
       "resetZoom": "Сбросить масштаб страницы",
+      "settings": "Открыть настройки",
       "fullPage": "Переключить полностраничный режим",
       "takeOver": "Взять управление у агента на странице",
       "switchWorkspace": "Сменить рабочее пространство",
@@ -3642,7 +3643,16 @@ export const ruRU: MessageSchema = {
       "viewSource": "Просмотр кода страницы",
       "downloads": "Загрузки",
       "savePage": "Сохранить страницу как…",
-      "bookmarkAllTabs": "Добавить все вкладки в закладки…"
+      "bookmarkAllTabs": "Добавить все вкладки в закладки…",
+      "settings": "Настройки…",
+      "services": "Службы",
+      "hide": "Скрыть Hronaut",
+      "hideOthers": "Скрыть остальные",
+      "showAll": "Показать все",
+      "window": "Окно",
+      "minimize": "Свернуть",
+      "zoom": "Изменить масштаб",
+      "bringAllToFront": "Все окна — на передний план"
     },
     "tray": {
       "show": "Показать Hronaut",

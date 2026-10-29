@@ -8,7 +8,8 @@ import { createApplicationMenu } from '../src/main/windows/application-menu.js'
 // Under a Hronaut dialog or the command palette, Hronaut's window leaves its keys alone, and a key it leaves alone
 // reaches the application menu, which acts on the page behind it: Ctrl+R reloaded it and Ctrl+Plus zoomed it.
 // The window keeps every key the menu sets there, so a key added to the menu must be one it knows. The Edit menu's
-// and full screen's keys come from their roles, set no accelerator here, and stay with the menu.
+// and full screen's keys, and on macOS Hide's, Hide Others' and Minimize's, come from their roles, set no accelerator
+// here, and stay with the menu.
 
 const platform = process.platform
 afterEach(() => { Object.defineProperty(process, 'platform', { value: platform }) })
@@ -36,7 +37,7 @@ const NAMED_KEYS: Readonly<Record<string, { key: string; code: string; shift?: t
   '[': { key: '[', code: 'BracketLeft' }, ']': { key: ']', code: 'BracketRight' },
   Left: { key: 'ArrowLeft', code: 'ArrowLeft' }, Right: { key: 'ArrowRight', code: 'ArrowRight' },
   PageUp: { key: 'PageUp', code: 'PageUp' }, PageDown: { key: 'PageDown', code: 'PageDown' }, Home: { key: 'Home', code: 'Home' },
-  Escape: { key: 'Escape', code: 'Escape' }
+  Escape: { key: 'Escape', code: 'Escape' }, ',': { key: ',', code: 'Comma' }
 }
 // On macOS Option changes the character a letter key types, as a US keyboard does: ç for C, ¬ for L, a dead key for U.
 const MAC_OPTION_KEYS: Readonly<Record<string, string>> = { C: 'ç', L: '¬', U: 'Dead' }
@@ -99,6 +100,13 @@ describe('the application menu\'s keys', () => {
     expect(isBrowserKey(german('~', 'BracketRight', 187, false, true))).toBe(false)
     // On macOS the menu goes by the character Cmd types, so the code changes nothing there.
     expect(isBrowserKey({ ...german('*', 'BracketRight', 187, true), control: false, meta: true, mac: true })).toBe(false)
+  })
+
+  // Hiding and minimizing act on Hronaut's window, not on a page, so they work under a dialog as quitting does.
+  it('leave macOS\'s Hide, Hide Others and Minimize to the menu under a dialog', () => {
+    for (const key of [{ key: 'h', code: 'KeyH' }, { key: '˙', code: 'KeyH', alt: true }, { key: 'm', code: 'KeyM' }]) {
+      expect(isBrowserKey({ control: false, meta: true, alt: false, shift: false, mac: true, ...key }), JSON.stringify(key)).toBe(false)
+    }
   })
 
   it('leave quitting to the menu under a dialog', () => {

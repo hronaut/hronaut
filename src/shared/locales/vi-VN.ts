@@ -950,6 +950,7 @@ export const viVN: MessageSchema = {
       "directTab": "Chuyển tới thẻ trang web 1–8",
       "lastTab": "Chuyển tới thẻ trang web cuối cùng",
       "resetZoom": "Đặt lại mức thu phóng trang",
+      "settings": "Mở Cài đặt",
       "fullPage": "Bật/tắt chế độ xem toàn trang",
       "takeOver": "Tiếp quản từ tác nhân đang làm việc trên trang",
       "switchWorkspace": "Chuyển không gian làm việc",
@@ -3642,7 +3643,16 @@ export const viVN: MessageSchema = {
       "viewSource": "Xem nguồn trang",
       "downloads": "Tải xuống",
       "savePage": "Lưu trang thành…",
-      "bookmarkAllTabs": "Thêm tất cả các thẻ vào dấu trang…"
+      "bookmarkAllTabs": "Thêm tất cả các thẻ vào dấu trang…",
+      "settings": "Cài đặt…",
+      "services": "Dịch vụ",
+      "hide": "Ẩn Hronaut",
+      "hideOthers": "Ẩn mục khác",
+      "showAll": "Hiển thị tất cả",
+      "window": "Cửa sổ",
+      "minimize": "Thu nhỏ",
+      "zoom": "Thu phóng",
+      "bringAllToFront": "Đưa tất cả ra trước"
     },
     "tray": {
       "show": "Hiển thị Hronaut",

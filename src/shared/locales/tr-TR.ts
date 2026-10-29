@@ -950,6 +950,7 @@ export const trTR: MessageSchema = {
       "directTab": "1–8 numaralı web sitesi sekmesine geç",
       "lastTab": "Son web sitesi sekmesine geç",
       "resetZoom": "Sayfa yakınlaştırmasını sıfırla",
+      "settings": "Ayarları aç",
       "fullPage": "Tam sayfa görünümünü aç/kapat",
       "takeOver": "Sayfada çalışan ajandan devral",
       "switchWorkspace": "Çalışma alanı değiştir",
@@ -3642,7 +3643,16 @@ export const trTR: MessageSchema = {
       "viewSource": "Sayfa kaynağını görüntüle",
       "downloads": "İndirilenler",
       "savePage": "Sayfayı farklı kaydet…",
-      "bookmarkAllTabs": "Tüm sekmeleri yer işaretlerine ekle…"
+      "bookmarkAllTabs": "Tüm sekmeleri yer işaretlerine ekle…",
+      "settings": "Ayarlar…",
+      "services": "Servisler",
+      "hide": "Hronaut’u gizle",
+      "hideOthers": "Diğerlerini gizle",
+      "showAll": "Tümünü göster",
+      "window": "Pencere",
+      "minimize": "Simge durumuna küçült",
+      "zoom": "Büyüt",
+      "bringAllToFront": "Tümünü öne getir"
     },
     "tray": {
       "show": "Hronaut’u göster",

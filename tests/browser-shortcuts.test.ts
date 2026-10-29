@@ -163,6 +163,16 @@ describe('browserShortcutAction', () => {
     expect(browserShortcutAction(input({ key: 'O', control: true, shift: true, repeat: true }))).toBeNull()
   })
 
+  it('keeps macOS Settings\' Cmd+, from the menu under Hronaut\'s dialogs, and no Ctrl+, elsewhere, which opens nothing', () => {
+    expect(browserShortcutAction(input({ key: ',', code: 'Comma', meta: true, mac: true }))).toBeNull()
+    expect(applicationMenuKey(input({ key: ',', code: 'Comma', meta: true, mac: true }))).toBe(true)
+    expect(isBrowserKey(input({ key: ',', code: 'Comma', meta: true, mac: true }))).toBe(true)
+    for (const key of [
+      { key: ',', code: 'Comma', control: true }, { key: ',', code: 'Comma', meta: true, shift: true, mac: true },
+      { key: ',', code: 'Comma', meta: true, control: true, mac: true }
+    ]) expect(applicationMenuKey(input(key)), JSON.stringify(key)).toBe(false)
+  })
+
   it('leaves Bookmark all tabs\' primary modifier plus Shift+D to the page first, as Chrome does, keeping Bookmark on D', () => {
     // Chrome does not reserve it, so a website may keep it, as a web editor does to show its Run and Debug view. The
     // application menu's View item has it, which runs only when the page leaves the key alone.

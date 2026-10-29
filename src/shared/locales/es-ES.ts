@@ -950,6 +950,7 @@ export const esES: MessageSchema = {
       "directTab": "Ir a la pestaña web 1–8",
       "lastTab": "Ir a la última pestaña web",
       "resetZoom": "Restablecer el zoom de la página",
+      "settings": "Abrir Configuración",
       "fullPage": "Alternar vista de página completa",
       "takeOver": "Tomar el control del agente que trabaja en la página",
       "switchWorkspace": "Cambiar de espacio de trabajo",
@@ -3642,7 +3643,16 @@ export const esES: MessageSchema = {
       "viewSource": "Ver código fuente de la página",
       "downloads": "Descargas",
       "savePage": "Guardar página como…",
-      "bookmarkAllTabs": "Añadir todas las pestañas a marcadores…"
+      "bookmarkAllTabs": "Añadir todas las pestañas a marcadores…",
+      "settings": "Configuración…",
+      "services": "Servicios",
+      "hide": "Ocultar Hronaut",
+      "hideOthers": "Ocultar otros",
+      "showAll": "Mostrar todo",
+      "window": "Ventana",
+      "minimize": "Minimizar",
+      "zoom": "Zoom",
+      "bringAllToFront": "Traer todo al frente"
     },
     "tray": {
       "show": "Mostrar Hronaut",

@@ -101,12 +101,52 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
     ]
   }
 
+  // macOS's own items of an application's menu, as Chrome has them there: About and Settings first, then the system's
+  // Services and hiding. Their roles give Hide its Cmd+H and Hide Others its Cmd+Option+H.
+  function macApplicationItems(): { first: MenuItemConstructorOptions[]; beforeQuit: MenuItemConstructorOptions[] } {
+    if (process.platform !== 'darwin') return { first: [], beforeQuit: [] }
+    return {
+      first: [
+        { label: host.text('native.menu.about'), click: () => requestHelp('about') },
+        { type: 'separator' },
+        { label: host.text('native.menu.settings'), accelerator: 'Cmd+,', click: () => requestHelp('settings') },
+        { type: 'separator' }
+      ],
+      beforeQuit: [
+        { role: 'services', label: host.text('native.menu.services') },
+        { type: 'separator' },
+        { role: 'hide', label: host.text('native.menu.hide') },
+        { role: 'hideOthers', label: host.text('native.menu.hideOthers') },
+        { role: 'unhide', label: host.text('native.menu.showAll') },
+        { type: 'separator' }
+      ]
+    }
+  }
+
+  // macOS's Window menu, as Chrome's there: Minimize with its Cmd+M, Zoom, and Bring All to Front, with the system
+  // listing the open windows after them.
+  function macWindowMenu(): MenuItemConstructorOptions[] {
+    if (process.platform !== 'darwin') return []
+    return [{
+      label: host.text('native.menu.window'),
+      role: 'window',
+      submenu: [
+        { role: 'minimize', label: host.text('native.menu.minimize') },
+        { role: 'zoom', label: host.text('native.menu.zoom') },
+        { type: 'separator' },
+        { role: 'front', label: host.text('native.menu.bringAllToFront') }
+      ]
+    }]
+  }
+
   function installApplicationMenu(): void {
+    const macItems = macApplicationItems()
     Menu.setApplicationMenu(
       Menu.buildFromTemplate([
         {
           label: 'Hronaut',
           submenu: [
+            ...macItems.first,
             { label: host.text('native.menu.show'), accelerator: 'CmdOrCtrl+Shift+H', click: host.showWindow },
             {
               label: host.text('native.menu.checkUpdates'),
@@ -117,6 +157,7 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
               }
             },
             { type: 'separator' },
+            ...macItems.beforeQuit,
             {
               label: host.text('native.menu.quit'),
               accelerator: 'CmdOrCtrl+Q',
@@ -291,15 +332,19 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
             { role: 'togglefullscreen' }
           ]
         },
+        ...macWindowMenu(),
         {
           label: host.text('native.menu.help'),
+          // On macOS the system adds its search of the menus to the Help menu.
+          ...(process.platform === 'darwin' ? { role: 'help' as const } : {}),
           submenu: [
             {
               label: host.text('native.menu.shortcuts'),
               accelerator: 'CmdOrCtrl+Shift+/',
               click: () => requestHelp('shortcuts')
             },
-            { label: host.text('native.menu.about'), click: () => requestHelp('about') },
+            // On macOS About is in the Hronaut menu, as in Chrome there.
+            ...(process.platform === 'darwin' ? [] : [{ label: host.text('native.menu.about'), click: () => requestHelp('about') }]),
             { label: host.text('native.menu.support'), click: () => requestHelp('support') },
             { type: 'separator' },
             { label: host.text('native.menu.repository'), click: openRepository },

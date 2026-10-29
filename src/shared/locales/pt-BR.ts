@@ -950,6 +950,7 @@ export const ptBR: MessageSchema = {
       "directTab": "Ir para a guia de site 1–8",
       "lastTab": "Ir para a última guia de site",
       "resetZoom": "Redefinir o zoom da página",
+      "settings": "Abrir Configurações",
       "fullPage": "Alternar modo de página inteira",
       "takeOver": "Assumir o controle do agente que está trabalhando na página",
       "switchWorkspace": "Trocar de espaço de trabalho",
@@ -3642,7 +3643,16 @@ export const ptBR: MessageSchema = {
       "viewSource": "Ver código-fonte da página",
       "downloads": "Downloads",
       "savePage": "Salvar página como…",
-      "bookmarkAllTabs": "Adicionar todas as guias aos favoritos…"
+      "bookmarkAllTabs": "Adicionar todas as guias aos favoritos…",
+      "settings": "Configurações…",
+      "services": "Serviços",
+      "hide": "Ocultar o Hronaut",
+      "hideOthers": "Ocultar outros",
+      "showAll": "Mostrar tudo",
+      "window": "Janela",
+      "minimize": "Minimizar",
+      "zoom": "Zoom",
+      "bringAllToFront": "Trazer tudo para a frente"
     },
     "tray": {
       "show": "Mostrar o Hronaut",

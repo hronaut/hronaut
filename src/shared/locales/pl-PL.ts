@@ -950,6 +950,7 @@ export const plPL: MessageSchema = {
       "directTab": "Przejdź do karty internetowej 1–8",
       "lastTab": "Przejdź do ostatniej karty internetowej",
       "resetZoom": "Zresetuj powiększenie strony",
+      "settings": "Otwórz ustawienia",
       "fullPage": "Przełącz widok pełnej strony",
       "takeOver": "Przejmij kontrolę od agenta pracującego na stronie",
       "switchWorkspace": "Przełącz obszar roboczy",
@@ -3642,7 +3643,16 @@ export const plPL: MessageSchema = {
       "viewSource": "Wyświetl źródło strony",
       "downloads": "Pobrane pliki",
       "savePage": "Zapisz stronę jako…",
-      "bookmarkAllTabs": "Dodaj wszystkie karty do zakładek…"
+      "bookmarkAllTabs": "Dodaj wszystkie karty do zakładek…",
+      "settings": "Ustawienia…",
+      "services": "Usługi",
+      "hide": "Ukryj Hronaut",
+      "hideOthers": "Ukryj pozostałe",
+      "showAll": "Pokaż wszystkie",
+      "window": "Okno",
+      "minimize": "Minimalizuj",
+      "zoom": "Zmień rozmiar",
+      "bringAllToFront": "Umieść wszystko na wierzchu"
     },
     "tray": {
       "show": "Pokaż Hronaut",

@@ -9,6 +9,7 @@ export interface HelpShellControllerOptions {
   closeHelpDialog: () => void
   showHelpDialog: (dialog: HelpDialogName) => void
   showSupportSettings: () => void
+  showSettings: () => void
   navigate: (url: string) => Promise<unknown>
   openPurchase: () => Promise<unknown>
   runAction: (action: () => unknown) => Promise<boolean>
@@ -21,16 +22,24 @@ export function useHelpShellController(options: HelpShellControllerOptions) {
     options.showHelpDialog(dialog)
   }
 
-  function openSupportSettings(): void {
+  function openSettings(show: () => void): void {
     options.commandPaletteOpen.value = false
     options.closeHelpDialog()
-    options.showSupportSettings()
+    show()
+  }
+
+  function openSupportSettings(): void {
+    openSettings(options.showSupportSettings)
   }
 
   function handleRequested(action: HelpMenuAction): void {
     if (options.blocked()) return
     if (action === 'support') {
       openSupportSettings()
+      return
+    }
+    if (action === 'settings') {
+      openSettings(options.showSettings)
       return
     }
     openDialog(action)

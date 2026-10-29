@@ -950,6 +950,7 @@ export const zhTW: MessageSchema = {
       "directTab": "移至第 1–8 個網站分頁",
       "lastTab": "移至最後一個網站分頁",
       "resetZoom": "重設網頁縮放",
+      "settings": "開啟設定",
       "fullPage": "切換全頁檢視",
       "takeOver": "從正在處理網頁的代理程式接手",
       "switchWorkspace": "切換工作區",
@@ -3642,7 +3643,16 @@ export const zhTW: MessageSchema = {
       "viewSource": "查看網頁原始碼",
       "downloads": "下載",
       "savePage": "另存網頁…",
-      "bookmarkAllTabs": "將所有分頁加入書籤…"
+      "bookmarkAllTabs": "將所有分頁加入書籤…",
+      "settings": "設定…",
+      "services": "服務",
+      "hide": "隱藏 Hronaut",
+      "hideOthers": "隱藏其他",
+      "showAll": "顯示全部",
+      "window": "視窗",
+      "minimize": "縮到最小",
+      "zoom": "縮放",
+      "bringAllToFront": "將全部移至最前"
     },
     "tray": {
       "show": "顯示 Hronaut",

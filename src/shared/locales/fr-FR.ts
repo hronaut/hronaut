@@ -950,6 +950,7 @@ export const frFR: MessageSchema = {
       "directTab": "Passer à l’onglet web 1–8",
       "lastTab": "Passer au dernier onglet web",
       "resetZoom": "Réinitialiser le zoom de la page",
+      "settings": "Ouvrir les paramètres",
       "fullPage": "Activer ou désactiver la vue pleine page",
       "takeOver": "Prendre la main sur l’agent qui travaille sur la page",
       "switchWorkspace": "Changer d’espace de travail",
@@ -3642,7 +3643,16 @@ export const frFR: MessageSchema = {
       "viewSource": "Afficher le code source de la page",
       "downloads": "Téléchargements",
       "savePage": "Enregistrer la page sous…",
-      "bookmarkAllTabs": "Ajouter tous les onglets aux favoris…"
+      "bookmarkAllTabs": "Ajouter tous les onglets aux favoris…",
+      "settings": "Paramètres…",
+      "services": "Services",
+      "hide": "Masquer Hronaut",
+      "hideOthers": "Masquer les autres",
+      "showAll": "Tout afficher",
+      "window": "Fenêtre",
+      "minimize": "Placer dans le Dock",
+      "zoom": "Zoom",
+      "bringAllToFront": "Tout ramener au premier plan"
     },
     "tray": {
       "show": "Afficher Hronaut",

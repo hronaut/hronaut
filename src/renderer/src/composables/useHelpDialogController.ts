@@ -61,6 +61,8 @@ export function useHelpDialogController(options: HelpDialogControllerOptions) {
     // Chrome gives its Task manager no key on macOS.
     ...(mac ? [] : [{ label: options.translate('runtime.shortcuts.taskManager'), keys: ['Shift', 'Esc'] }]),
     { label: options.translate('runtime.shortcuts.clearData'), keys: ['Ctrl/Cmd', 'Shift', 'Delete'] },
+    // Settings has a key only on macOS, as in Chrome.
+    ...(mac ? [{ label: options.translate('runtime.shortcuts.settings'), keys: ['Cmd', ','] }] : []),
     // F12 needs the Fn key on most Mac keyboards.
     { label: options.translate('runtime.shortcuts.devtools'), keys: mac ? ['Cmd', 'Option', 'I'] : ['F12'] },
     { label: options.translate('runtime.shortcuts.console'), keys: mac ? ['Cmd', 'Option', 'J'] : ['Ctrl', 'Shift', 'J'] },
