@@ -24,14 +24,14 @@ function fixture() {
   })
   const tab = { id: 'tab-1', webContents, networkDebuggerEnabled: false } as never as { webContents: typeof webContents; networkDebuggerEnabled: boolean; mainFrameId?: string }
   const attachments = new Map<number, Promise<void>>()
-  const access = {
-    isDestroyed: () => false,
-    isDevToolsOpening: () => false,
-    dialogMonitorAttachPromises: () => attachments,
+  const browser = {
+    destroyed: false,
+    devToolsOpening: new Set<number>(),
+    dialogMonitorAttachPromises: attachments,
     isHumanInteractionLocked: () => false,
-    isAgentInput: () => false
+    agentInputWebContents: new Map<number, number>()
   } as never
-  return { state, commands, webContents, tab, access, attachments }
+  return { state, commands, webContents, tab, browser, attachments }
 }
 
 describe('dialog monitoring on a page whose renderer exited', () => {
@@ -39,8 +39,8 @@ describe('dialog monitoring on a page whose renderer exited', () => {
     const f = fixture()
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     try {
-      await ensureDialogMonitoring(f.access, f.tab as never)
-      await ensureDialogMonitoring(f.access, f.tab as never)
+      await ensureDialogMonitoring(f.browser, f.tab as never)
+      await ensureDialogMonitoring(f.browser, f.tab as never)
       expect(f.tab.networkDebuggerEnabled).toBe(false)
       expect(f.webContents.listenerCount('dom-ready')).toBe(1)
       expect(error).not.toHaveBeenCalled()
@@ -61,7 +61,7 @@ describe('dialog monitoring on a page whose renderer exited', () => {
     f.webContents.debugger.sendCommand.mockRejectedValueOnce(new Error('Protocol error'))
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     try {
-      await ensureDialogMonitoring(f.access, f.tab as never)
+      await ensureDialogMonitoring(f.browser, f.tab as never)
       expect(error).toHaveBeenCalledOnce()
       expect(f.webContents.listenerCount('dom-ready')).toBe(0)
     } finally {
@@ -84,7 +84,7 @@ describe('dialog monitoring on a page its print dialog holds', () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     try {
       print(true)
-      await ensureDialogMonitoring(f.access, f.tab as never)
+      await ensureDialogMonitoring(f.browser, f.tab as never)
       expect(f.tab.networkDebuggerEnabled).toBe(false)
       expect(f.commands).toEqual([])
 
@@ -105,14 +105,14 @@ describe('dialog monitoring on a page that has not loaded yet', () => {
     const f = fixture()
     f.state.crashed = false
     holdUntilFirstLoad(f.webContents)
-    await ensureDialogMonitoring(f.access, f.tab as never)
+    await ensureDialogMonitoring(f.browser, f.tab as never)
     expect(f.state.attached).toBe(false)
     expect(f.commands).toEqual([])
     expect(f.attachments.size).toBe(0)
     expect(f.webContents.listenerCount('dom-ready')).toBe(0)
 
     firstLoadStarts(f.webContents)
-    await ensureDialogMonitoring(f.access, f.tab as never)
+    await ensureDialogMonitoring(f.browser, f.tab as never)
     expect(f.state.attached).toBe(true)
     expect(f.commands).toEqual(['Page.enable', 'Page.getFrameTree', 'Runtime.enable', 'Runtime.setAsyncCallStackDepth', 'Log.enable', 'Audits.enable', 'Network.enable', 'Input.setIgnoreInputEvents'])
   })

@@ -503,7 +503,6 @@ import type { AgentPauseAccess } from './agent-pause/agent-pause-access.js'
 import { hasAgentPauseExceptions, isTabAgentPaused, isTabTakenOver, setAllAgentsPaused, setTabAgentPaused } from './agent-pause/agent-pause.js'
 import type { InteractionLockAccess } from './interaction-lock/interaction-lock-access.js'
 import { setAllHumanInteractionLocked, setTabHumanInteractionLocked } from './interaction-lock/interaction-lock.js'
-import type { WebsiteDialogsAccess } from './website-dialogs/website-dialogs-access.js'
 import {
   detachDialogMonitoring,
   dismissWebsiteDialogForTrustedChrome,
@@ -511,16 +510,13 @@ import {
   handleDialog,
   withOptionalDialogHandling
 } from './website-dialogs/website-dialogs.js'
-import type {
-  AgentInputAuthorizationAccess,
-  AuthorizedAgentKeyboardInput,
-  AuthorizedAgentMouseInput
-} from './agent-input-authorization/agent-input-authorization-access.js'
 import {
   agentInputDebugger,
   consumeExpectedAgentKeyboardInput,
   sendAuthorizedAgentInputCommand,
-  shouldBlockHumanMouseInput
+  shouldBlockHumanMouseInput,
+  type AuthorizedAgentKeyboardInput,
+  type AuthorizedAgentMouseInput
 } from './agent-input-authorization/agent-input-authorization.js'
 import { withAgentInput } from './agent-input-scope/agent-input-scope.js'
 import { withBackgroundAgentFocusGuard } from './agent-input-scope/focus-isolation.js'
@@ -542,7 +538,6 @@ import type { RendererHealthEventsAccess } from './tab-events/renderer-health-ev
 import { attachRendererHealthEvents } from './tab-events/renderer-health-events.js'
 import type { WindowOpenHandlerAccess } from './tab-events/window-open-handler-access.js'
 import { attachWindowOpenHandler } from './tab-events/window-open-handler.js'
-import type { RenderableTabAccess } from './renderable-tab/renderable-tab-access.js'
 import { withRenderableTab } from './renderable-tab/renderable-tab.js'
 import type { TabSleepAccess } from './tab-sleep/tab-sleep-access.js'
 import {
@@ -4943,35 +4938,11 @@ export class Browser {
     return callWebMcpTool(this.webMcpAccess(), input)
   }
 
-  /**
-   * The narrow view website dialogs and dialog monitoring get of this
-   * manager's private tabs, destroyed flag, debugger queue, pending monitor
-   * attachments, execution contexts, DevTools opening, human interaction lock,
-   * agent input and state publication. It is a prototype method rather than a
-   * field, so managers created without the constructor (as unit tests do)
-   * still provide it. The delegates below return the feature's promise
-   * directly, so callers see the same ticks as before.
-   */
-  private websiteDialogsAccess(): WebsiteDialogsAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      findTab: (tabId) => this.tabs.get(tabId),
-      isDestroyed: () => this.destroyed,
-      withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
-      dialogMonitorAttachPromises: () => this.dialogMonitorAttachPromises,
-      defaultExecutionContexts: () => this.defaultExecutionContexts,
-      isDevToolsOpening: (webContentsId) => this.devToolsOpening.has(webContentsId),
-      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
-      isAgentInput: (webContentsId) => this.agentInputWebContents.has(webContentsId),
-      changed: (persist) => this.changed(persist)
-    }
-  }
-
   handleDialog(action: BrowserDialogAction, tabId?: string): Promise<{
     handled: true
     action: BrowserDialogAction
   }> {
-    return handleDialog(this.websiteDialogsAccess(), action, tabId)
+    return handleDialog(this, action, tabId)
   }
 
   /**
@@ -5290,7 +5261,7 @@ export class Browser {
    * managers created without the constructor (as unit tests do) still
    * provide it, and the helpers they stub are reached through it.
    */
-  private windowLayoutAccess(): WindowLayoutAccess<BrowserTab> {
+  windowLayoutAccess(): WindowLayoutAccess<BrowserTab> {
     return {
       isDestroyed: () => this.destroyed,
       window: () => this.window,
@@ -5441,7 +5412,7 @@ export class Browser {
   }
 
   /** Where a tab's page goes in its space: see `emulationViewSize`. */
-  private tabViewBounds(tab: BrowserTab, space: Rectangle): Rectangle {
+  tabViewBounds(tab: BrowserTab, space: Rectangle): Rectangle {
     // Rounded up, so the space is never less than the caption needs in shell pixels.
     const captionSpace = Math.ceil(EMULATION_FRAME_CAPTION_SPACE * (this.window.webContents.getZoomFactor?.() ?? 1))
     return emulatedViewBounds(space, tab.emulationViewSize, captionSpace)
@@ -5455,7 +5426,7 @@ export class Browser {
     publishSplitDivider(this.windowLayoutAccess())
   }
 
-  private reconcileTabPresentation(tab: BrowserTab): void {
+  reconcileTabPresentation(tab: BrowserTab): void {
     // The Linux visibility repair intentionally performs a WasShown
     // transition. Skip it while an explicit lifecycle hold is active or
     // ambiguous, otherwise the repair would silently thaw the page.
@@ -6501,26 +6472,8 @@ export class Browser {
     focusTabOrTrustedChrome(this.trustedChromeFocusAccess(), tab)
   }
 
-  /**
-   * The narrow view agent input authorization gets of this manager's private
-   * tabs, page-to-tab index, human interaction lock and authorized agent input
-   * records. It is a prototype method rather than a field, so managers created
-   * without the constructor (as unit tests do) still provide it. The delegates
-   * below return the feature's value or promise directly, so callers see the
-   * same ticks as before.
-   */
-  private agentInputAuthorizationAccess(): AgentInputAuthorizationAccess<BrowserTab> {
-    return {
-      findTab: (tabId) => this.tabs.get(tabId),
-      tabIdForWebContents: (webContentsId) => this.webContentsToTab.get(webContentsId),
-      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
-      authorizedAgentMouseInput: () => this.authorizedAgentMouseInput,
-      authorizedAgentKeyboardInput: () => this.authorizedAgentKeyboardInput
-    }
-  }
-
   private shouldBlockHumanMouseInput(tab: BrowserTab, mouse: Electron.MouseInputEvent): boolean {
-    return shouldBlockHumanMouseInput(this.agentInputAuthorizationAccess(), tab, mouse)
+    return shouldBlockHumanMouseInput(this, tab, mouse)
   }
 
   private nativeInputAuthority(
@@ -6553,7 +6506,7 @@ export class Browser {
     webContents: BrowserTab['view']['webContents'],
     validateInput?: () => void
   ): PointerDebugger & KeyboardDebugger {
-    return agentInputDebugger(this.agentInputAuthorizationAccess(), webContents, validateInput)
+    return agentInputDebugger(this, webContents, validateInput)
   }
 
   private sendAuthorizedAgentInputCommand(
@@ -6564,14 +6517,14 @@ export class Browser {
     observer?: NativeInputDispatchObserver,
     beforeRawDispatch?: () => Promise<void>
   ): Promise<unknown> {
-    return sendAuthorizedAgentInputCommand(this.agentInputAuthorizationAccess(), webContents, method, commandParams, validateInput, observer, beforeRawDispatch)
+    return sendAuthorizedAgentInputCommand(this, webContents, method, commandParams, validateInput, observer, beforeRawDispatch)
   }
 
   private consumeExpectedAgentKeyboardInput(
     webContentsId: number,
     input: Electron.Input
   ): boolean {
-    return consumeExpectedAgentKeyboardInput(this.agentInputAuthorizationAccess(), webContentsId, input)
+    return consumeExpectedAgentKeyboardInput(this, webContentsId, input)
   }
 
   syncHumanInteractionInputGuard(tab: BrowserTab): Promise<void> {
@@ -6632,38 +6585,12 @@ export class Browser {
     return withBackgroundAgentFocusGuard(this, operation)
   }
 
-  /**
-   * The narrow view rendering a hidden tab gets of this manager's private
-   * destroyed flag, window, tabs, render queues, offscreen capture set, active
-   * tab, split view, layout, view bounds, presentation repair and debugger
-   * lease. It is a prototype method rather than a field, so managers created
-   * without the constructor (as unit tests do) still provide it. The delegate
-   * below returns the feature's promise directly, so callers see the same
-   * ticks as before.
-   */
-  private renderableTabAccess(): RenderableTabAccess<BrowserTab> {
-    return {
-      isDestroyed: () => this.destroyed,
-      window: () => this.window,
-      findTab: (tabId) => this.tabs.get(tabId),
-      renderQueues: () => this.renderQueues,
-      offscreenCaptureTabIds: () => this.offscreenCaptureTabIds,
-      activeTabId: () => this.activeTabId,
-      splitViewContains: (tabId) => this.splitViewContains(tabId),
-      layout: () => this.layout(),
-      tabViewBounds: (tab, space) => this.tabViewBounds(tab, space),
-      contentAreaBounds: () => contentAreaBounds(this.windowLayoutAccess()),
-      reconcileTabPresentation: (tab) => this.reconcileTabPresentation(tab),
-      withDebugger: (webContents, operation) => this.withDebugger(webContents, operation)
-    }
-  }
-
   private withRenderableTab<T>(
     tab: BrowserTab,
     operation: () => Promise<T>,
     mode: 'presented-frame' | 'surface' | 'print' = 'presented-frame'
   ): Promise<T> {
-    return withRenderableTab(this.renderableTabAccess(), tab, operation, mode)
+    return withRenderableTab(this, tab, operation, mode)
   }
 
   /**
@@ -6708,7 +6635,7 @@ export class Browser {
     options: BrowserDialogHandlingOptions,
     operation: () => Promise<T>
   ): Promise<T> {
-    return withOptionalDialogHandling(this.websiteDialogsAccess(), webContents, options, operation)
+    return withOptionalDialogHandling(this, webContents, options, operation)
   }
 
   private mainWorldContextId(webContents: BrowserTab['view']['webContents']): Promise<number> {
@@ -6716,15 +6643,15 @@ export class Browser {
   }
 
   private detachDialogMonitoring(webContents: BrowserTab['view']['webContents']): void {
-    detachDialogMonitoring(this.websiteDialogsAccess(), webContents)
+    detachDialogMonitoring(this, webContents)
   }
 
   private dismissWebsiteDialogForTrustedChrome(tab: BrowserTab): Promise<void> {
-    return dismissWebsiteDialogForTrustedChrome(this.websiteDialogsAccess(), tab)
+    return dismissWebsiteDialogForTrustedChrome(this, tab)
   }
 
   private ensureDialogMonitoring(tab: BrowserTab): Promise<void> {
-    return ensureDialogMonitoring(this.websiteDialogsAccess(), tab)
+    return ensureDialogMonitoring(this, tab)
   }
 
   private openDevTools(tab: BrowserTab): Promise<void> {
@@ -6781,7 +6708,7 @@ export class Browser {
     publishChange(this, persist)
   }
 
-  private splitViewContains(tabId: string): boolean {
+  splitViewContains(tabId: string): boolean {
     return this.splitView?.firstTabId === tabId || this.splitView?.secondTabId === tabId
   }
 
