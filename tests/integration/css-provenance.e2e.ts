@@ -3,7 +3,7 @@ import { createServer } from 'node:http'
 import { CallToolResultSchema, type CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { BrowserElementInspection, HronautApi } from '../../src/shared/types.js'
 import { test, expect, text } from './capability-fixtures.js'
-import { closeFixtureServer } from './fixtures.js'
+import { closeFixtureServer, pageAt } from './fixtures.js'
 
 test('inspects explicit CSS candidates without changing the page or disrupting debugger owners', async ({ capabilities, electronApp, appWindow }, testInfo) => {
   const server = createServer((request, response) => {
@@ -27,8 +27,7 @@ test('inspects explicit CSS candidates without changing the page or disrupting d
   }
   try {
     await call('browser_navigate', { url })
-    await expect.poll(() => electronApp.context().pages().some(page => page.url() === url)).toBe(true)
-    const page = electronApp.context().pages().find(page => page.url() === url)!
+    const page = await pageAt(electronApp, url)
     await expect.poll(() => page.locator('#frame').evaluate((frame: HTMLIFrameElement) => frame.contentDocument?.readyState)).toBe('complete')
     await page.locator('#action').focus()
     const state = () => page.evaluate(() => ({ html: document.documentElement.outerHTML, focus: document.activeElement?.id, x: scrollX, y: scrollY, display: getComputedStyle(document.querySelector('#target')!).display }))

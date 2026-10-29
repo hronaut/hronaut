@@ -2,7 +2,7 @@ import { createServer } from 'node:http'
 import type { Page } from '@playwright/test'
 import type { HronautApi } from '../../src/shared/types.js'
 import { formatReproAsPlaywright } from '../../src/shared/repro-export.js'
-import { closeFixtureServer, expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, test, pageAt } from './fixtures.js'
 
 const variants = [
   ['button-default', '<button>Activate</button>', 1, 1, 0],
@@ -29,8 +29,7 @@ for (const [name, markup, clicks, submits, resets] of variants) {
     try {
       const state = await appWindow.evaluate(url => (window as unknown as { hronaut: HronautApi }).hronaut.newTab({ url, active: true }), url)
       const tabId = state.activeTabId!
-      await expect.poll(() => electronApp.context().pages().some(page => page.url() === url)).toBe(true)
-      const page = electronApp.context().pages().find(page => page.url() === url)!
+      const page = await pageAt(electronApp, url)
       await page.locator('form > :first-child').focus()
       const initial = await appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.manageRepro('start', id), tabId)
       await electronApp.evaluate(({ webContents }, url) => {

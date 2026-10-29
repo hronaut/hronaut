@@ -4,7 +4,7 @@ import { access, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { HronautApi } from '../../src/shared/types.js'
-import { closeFixtureServer, expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, test, pageAt } from './fixtures.js'
 
 test('reviews and saves frozen text evidence that remains inert when opened offline', async ({ appWindow, electronApp, profileDirectory, browser }) => {
   let unsafeRequests = 0
@@ -23,8 +23,7 @@ test('reviews and saves frozen text evidence that remains inert when opened offl
   try {
     const state = await appWindow.evaluate(async url => (window as unknown as { hronaut: HronautApi }).hronaut.newTab({ url, active: true }), url)
     const tabId = state.activeTabId!
-    await expect.poll(() => electronApp.context().pages().some(page => page.url() === url)).toBe(true)
-    const page = electronApp.context().pages().find(page => page.url() === url)!
+    const page = await pageAt(electronApp, url)
     await expect(page.getByRole('heading', { name: 'Ready' })).toBeVisible()
     const hostile = `private-canary private-second-canary </pre><script>globalThis.__incidentAttack=true;fetch('${origin}/should-not-run')</script><img src="${origin}/should-not-run"> password=credential-secret`
     const longToken = `long-token-${'x'.repeat(600)}`
@@ -183,8 +182,7 @@ test('saves exact path-reviewed bytes and rejects stale approval during the nati
   try {
     const state = await appWindow.evaluate(url => (window as unknown as { hronaut: HronautApi }).hronaut.newTab({ url, active: true }), url)
     const tabId = state.activeTabId!
-    await expect.poll(() => electronApp.context().pages().some(page => page.url() === url)).toBe(true)
-    const page = electronApp.context().pages().find(page => page.url() === url)!
+    const page = await pageAt(electronApp, url)
     await page.evaluate(() => { console.error('omit-value-canary'); console.error('keep-sibling-canary') })
     await expect.poll(async () => {
       const report = await appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.createDebugReport({ tabId }), tabId)

@@ -2,7 +2,7 @@ import { createServer } from 'node:http'
 import type { Page } from '@playwright/test'
 import { formatReproAsPlaywright } from '../../src/shared/repro-export.js'
 import type { HronautApi } from '../../src/shared/types.js'
-import { closeFixtureServer, expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, test, pageAt } from './fixtures.js'
 
 test('replays native checkbox and radio Space activation without replacement inputs', async ({ appWindow, electronApp }) => {
   const server = createServer((_request, response) => {
@@ -16,8 +16,7 @@ test('replays native checkbox and radio Space activation without replacement inp
   try {
     const state = await appWindow.evaluate(url => (window as unknown as { hronaut: HronautApi }).hronaut.newTab({ url, active: true }), url)
     const tabId = state.activeTabId!
-    await expect.poll(() => electronApp.context().pages().some(page => page.url() === url)).toBe(true)
-    const page = electronApp.context().pages().find(page => page.url() === url)!
+    const page = await pageAt(electronApp, url)
     await expect(page.locator('#checkbox')).toBeVisible()
     const initial = await appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.manageRepro('start', tabId), tabId)
     for (const selector of ['#checkbox', '#radio']) {

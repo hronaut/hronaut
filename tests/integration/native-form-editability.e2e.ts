@@ -1,7 +1,7 @@
 import { createServer } from 'node:http'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { expect, test, text } from './capability-fixtures.js'
-import { closeFixtureServer } from './fixtures.js'
+import { closeFixtureServer, pageAt } from './fixtures.js'
 
 interface Witness {
   controls: Array<{ id: string; value: string; checked: boolean | null }>
@@ -95,7 +95,7 @@ for (const batch of [false, true]) for (const targetKind of ['selector', 'ref'] 
         const url = `http://127.0.0.1:${address.port}/?case=${index}`
         expect((await call('browser_navigate', { url })).isError).not.toBe(true)
         await call('browser_wait', { selector: '#target' })
-        const page = electronApp.context().pages().find(page => page.url() === url)!
+        const page = await pageAt(electronApp, url)
         if (targetKind === 'ref') expect((await call('browser_snapshot', {})).isError).not.toBe(true)
         const targets = await page.evaluate(kind => Object.fromEntries(['prefix', 'target', 'suffix'].map(id => {
           const e = document.getElementById(id)!

@@ -61,6 +61,19 @@ export async function closeFixtureServer(server: FixtureServer): Promise<void> {
   })
 }
 
+/**
+ * The website page Playwright knows at this address. Playwright learns a page's address from its own connection to the
+ * app, which can lag behind an MCP result saying the page loaded, so it is waited for.
+ */
+export async function pageAt(electronApp: ElectronApplication, url: string): Promise<Page> {
+  let found: Page | undefined
+  await expect.poll(() => {
+    found = electronApp.context().pages().find((page) => page.url() === url)
+    return found !== undefined
+  }, { message: `Playwright knows no page at ${url}` }).toBe(true)
+  return found!
+}
+
 export async function blockFileDestination(path: string): Promise<() => Promise<void>> {
   const backupPath = `${path}.${randomUUID()}.test-backup`
   await rename(path, backupPath)

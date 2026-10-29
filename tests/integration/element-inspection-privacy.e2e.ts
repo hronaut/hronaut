@@ -4,7 +4,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
 import type { HronautApi } from '../../src/shared/types.js'
-import { closeFixtureServer, expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, test, pageAt } from './fixtures.js'
 
 test('keeps editable values out of MCP inspection, locators and the live human picker clipboard', async ({ appWindow, electronApp, mcpPort, mcpToken }) => {
   const server = createServer((_request, response) => {
@@ -28,8 +28,7 @@ test('keeps editable values out of MCP inspection, locators and the live human p
     }
     tabId = (await call('browser_new_tab', { url, active: true })).activeTabId as string
     await appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.selectTab(tabId), tabId)
-    await expect.poll(() => electronApp.context().pages().some(page => page.url() === url)).toBe(true)
-    const page = electronApp.context().pages().find(page => page.url() === url)!
+    const page = await pageAt(electronApp, url)
     await page.locator('#editor').fill('private-rich-canary')
     const original = await page.locator('#group').innerHTML()
     for (const selector of ['#editor', '#group', '#labelled', '#input']) {

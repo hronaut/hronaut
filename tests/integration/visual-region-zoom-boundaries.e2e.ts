@@ -1,6 +1,6 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { test as base, expect, text } from './capability-fixtures.js'
-import { launchHronaut, closeHronaut } from './fixtures.js'
+import { launchHronaut, closeHronaut, pageAt } from './fixtures.js'
 
 const test = base.extend<{ displayScale: number }>({
   displayScale: [1, { option: true }],
@@ -19,8 +19,7 @@ for (const displayScale of [1, 2]) test.describe(`region edge pixels at native s
       expect(result.isError, text(result)).not.toBe(true)
       return JSON.parse(text(result)) as { baseline?: { width: number; height: number }; changedPixels?: number }
     }
-    await expect.poll(() => electronApp.context().pages().some(page => page.url() === fixtureUrl)).toBe(true)
-    const page = electronApp.context().pages().find(page => page.url() === fixtureUrl)!
+    const page = await pageAt(electronApp, fixtureUrl)
     await page.evaluate(() => { document.body.innerHTML = '<style>html,body{margin:0;background:white;overflow:hidden}#target{position:absolute;left:40px;top:40px;width:80px;height:60px;background:blue}</style><div id="target"></div>' })
     await call('browser_emulate', { viewport: { width: 800, height: 600, deviceScaleFactor: 1, mobile: false, touch: false, orientation: 'portrait' } })
     await call('browser_zoom', { action: 'set', percent: 400 })

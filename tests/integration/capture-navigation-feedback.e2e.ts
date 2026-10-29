@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures.js'
+import { expect, test, pageAt } from './fixtures.js'
 
 type CaptureProbe = { calls: number; release(): void; restore(): void }
 type ProbeGlobal = typeof globalThis & { __navigationCaptureProbe?: CaptureProbe }
@@ -6,8 +6,7 @@ type ProbeGlobal = typeof globalThis & { __navigationCaptureProbe?: CaptureProbe
 test('clears pending screenshot feedback when the captured tab reloads', async ({ appWindow, electronApp }) => {
   const url = 'data:text/html,<title>Capture navigation</title><h1>Capture navigation</h1>'
   await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true })`)
-  await expect.poll(() => electronApp.context().pages().some(page => page.url() === url)).toBe(true)
-  const page = electronApp.context().pages().find(page => page.url() === url)!
+  const page = await pageAt(electronApp, url)
   await expect(page.getByRole('heading')).toHaveText('Capture navigation')
   await electronApp.evaluate(({ webContents }, url) => {
     const contents = webContents.getAllWebContents().find(candidate => candidate.getURL() === url)!

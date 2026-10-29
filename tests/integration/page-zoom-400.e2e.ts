@@ -4,7 +4,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
 import type { BrowserState, HronautApi } from '../../src/shared/types.js'
-import { closeFixtureServer, expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, test, pageAt } from './fixtures.js'
 
 function text(result: CallToolResult): string {
   return result.content.filter(item => item.type === 'text').map(item => item.text).join('\n')
@@ -36,8 +36,7 @@ test('supports real 400% page zoom, reflow, input and isolated workspaces', asyn
     const opened = JSON.parse(text(await call('browser_new_tab', { url, active: true }))) as BrowserState
     const tabId = opened.activeTabId!
     await appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.selectTab(id), tabId)
-    await expect.poll(() => electronApp.context().pages().some(p => p.url() === url)).toBe(true)
-    const page = electronApp.context().pages().find(p => p.url() === url)!
+    const page = await pageAt(electronApp, url)
     await expect(page.locator('#target')).toBeVisible()
     const before = await page.evaluate(() => ({ width: innerWidth, dpr: devicePixelRatio }))
     const shellWidth = await appWindow.evaluate(() => innerWidth)
@@ -96,8 +95,7 @@ test('supports real 400% page zoom, reflow, input and isolated workspaces', asyn
     await expect.poll(() => page.evaluate(() => innerWidth)).toBeCloseTo(before.width / 4, 0)
     // Record Chromium's same-origin sharing, while proving separate sessions stay isolated.
     await call('browser_new_tab', { url: `${origin}/same-origin`, active: true })
-    await expect.poll(() => electronApp.context().pages().some(p => p.url() === `${origin}/same-origin`)).toBe(true)
-    const same = electronApp.context().pages().find(p => p.url() === `${origin}/same-origin`)!
+    const same = await pageAt(electronApp, `${origin}/same-origin`)
     await expect.poll(() => same.evaluate(() => innerWidth)).toBeCloseTo(before.width / 4, 0)
     const crossOriginUrl = `http://localhost:${address.port}/other-origin`
     await call('browser_new_tab', { url: crossOriginUrl, active: true })

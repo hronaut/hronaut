@@ -1,5 +1,5 @@
 import { createServer } from 'node:http'
-import { closeFixtureServer, expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, test, pageAt } from './fixtures.js'
 
 // Screen recording exposed a late-response assertion in Playwright's CDP
 // driver during forced SIGKILL. Keep DOM snapshots and call/network evidence
@@ -24,8 +24,7 @@ test('recovers a crashed website renderer in a fresh process', async ({ appWindo
     // Shell title publication can precede Playwright's page initialization.
     // Complete a read through that target before deliberately terminating it,
     // just as the Home crash case does below.
-    await expect.poll(() => electronApp.context().pages().some(page => page.url() === url)).toBe(true)
-    const websitePage = electronApp.context().pages().find(page => page.url() === url)!
+    const websitePage = await pageAt(electronApp, url)
     await expect(websitePage.locator('main')).toHaveText('Renderer recovered')
     const firstProcessId = await electronApp.evaluate(({ webContents }, requestedUrl) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)

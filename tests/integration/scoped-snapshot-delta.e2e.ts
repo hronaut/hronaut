@@ -3,7 +3,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { BrowserState } from '../../src/shared/types.js'
-import { closeFixtureServer, expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, test, pageAt } from './fixtures.js'
 
 test('keeps snapshot deltas bound to their component without exposing selectors or outside content', async ({ electronApp, mcpPort, mcpToken }) => {
   const html = '<!doctype html><title>Scoped delta</title>'
@@ -30,8 +30,7 @@ test('keeps snapshot deltas bound to their component without exposing selectors 
     const workspace = parsed<{ id: string }>(await call('browser_workspaces', { action: 'create', name: 'Scoped delta', storage: 'scratch' }))
     const state = parsed<BrowserState>(await call('browser_new_tab', { workspaceId: workspace.id, url }))
     const args = { workspaceId: workspace.id, tabId: state.activeTabId! }
-    await expect.poll(() => electronApp.context().pages().some(page => page.url() === url)).toBe(true)
-    const page = electronApp.context().pages().find(page => page.url() === url)!
+    const page = await pageAt(electronApp, url)
     await expect(page.locator('form')).toBeVisible()
     const rootSelector = '#private-scope-canary'
     const baseline = await call('browser_snapshot', { ...args, action: 'set-baseline', rootSelector })

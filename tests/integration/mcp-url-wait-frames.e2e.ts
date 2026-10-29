@@ -3,7 +3,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
-import { closeFixtureServer, expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, test, pageAt } from './fixtures.js'
 
 function text(result: CallToolResult): string {
   return result.content.filter(item => item.type === 'text').map(item => item.text).join('\n')
@@ -32,8 +32,7 @@ for (const navigation of ['same-document', 'document'] as const) {
       const opened = await client.callTool({ name: 'browser_new_tab', arguments: { url, active: true } }) as CallToolResult
       expect(opened.isError).not.toBe(true)
       const tabId = (JSON.parse(text(opened)) as { activeTabId: string }).activeTabId
-      await expect.poll(() => electronApp.context().pages().some(page => page.url() === url)).toBe(true)
-      const page = electronApp.context().pages().find(page => page.url() === url)!
+      const page = await pageAt(electronApp, url)
       await expect(page.frameLocator('iframe').getByRole('heading')).toHaveText('Child frame')
       const listeners = () => electronApp.evaluate(({ webContents }, url) => {
         const contents = webContents.getAllWebContents().find(candidate => candidate.getURL() === url)!
