@@ -1575,7 +1575,7 @@ export class Browser {
       elementPickerSessions: () => this.elementPickerSessions,
       devToolsOpening: () => this.devToolsOpening,
       hasEmulationOverrides: (state) => hasEmulationOverrides(state),
-      nativeInputAuthority: (tab, validateInput) => this.nativeInputAuthority(tab, validateInput),
+      nativeInputAuthority: (tab, validateInput) => nativeInputAuthority(this, tab, validateInput),
       withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
       agentWheel: () => this.agentWheel
     }
@@ -1602,7 +1602,7 @@ export class Browser {
       screenshotAreaSessions: () => this.screenshotAreaSessions,
       elementPickerSessions: () => this.elementPickerSessions,
       devToolsOpening: () => this.devToolsOpening,
-      nativeInputAuthority: (tab, validateInput) => this.nativeInputAuthority(tab, validateInput),
+      nativeInputAuthority: (tab, validateInput) => nativeInputAuthority(this, tab, validateInput),
       withAgentInput: (webContents, operation) => this.withAgentInput(webContents, operation),
       withDebugger: (webContents, operation) => this.withDebugger(webContents, operation)
     }
@@ -3895,7 +3895,7 @@ export class Browser {
       assertRightClickViewport: (webContents, x, y, validate) => this.assertRightClickViewport(webContents, x, y, validate),
       assertClickTargetEnabled: (result) => this.assertClickTargetEnabled(result),
       assertNativeEditability: (result) => this.assertNativeEditability(result),
-      nativeInputAuthority: (tab, validateInput) => this.nativeInputAuthority(tab, validateInput),
+      nativeInputAuthority: (tab, validateInput) => nativeInputAuthority(this, tab, validateInput),
       rightClickEnvironment: (tab) => this.rightClickEnvironment(tab),
       acquireNativeClickAdmission: (pageDebugger, target, validate, progress, publish) => acquireNativeClickAdmission(pageDebugger, target, validate, progress, publish),
       showAgentPointer: (webContents, point, effect, options) => this.showAgentPointer(webContents, point, effect, options),
@@ -4623,7 +4623,7 @@ export class Browser {
       elementPickerSessions: () => this.elementPickerSessions,
       devToolsOpening: () => this.devToolsOpening,
       requireEmulationConfirmed: (tab) => this.requireEmulationConfirmed(tab),
-      nativeInputAuthority: (tab, validateInput) => this.nativeInputAuthority(tab, validateInput),
+      nativeInputAuthority: (tab, validateInput) => nativeInputAuthority(this, tab, validateInput),
       withAgentInput: (webContents, operation) => this.withAgentInput(webContents, operation),
       withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
       sendAuthorizedAgentInputCommand: (webContents, method, commandParams, validateInput, observer) =>
@@ -5870,7 +5870,7 @@ export class Browser {
       trackWorkspaceOrigin: (tab, url) => this.trackWorkspaceOrigin(tab, url),
       applySiteMuting: (tab) => applySiteMuting(this.siteMutingAccess(), tab),
       appendConsoleMessage: (tab, message, source) => appendConsoleMessage(tab, message, source),
-      watchCredentialSubmission: (tab) => this.watchCredentialSubmission(tab),
+      watchCredentialSubmission: (tab) => watchCredentialSubmission(this, tab),
       watchUnsavedFormEdits: (tab, frame) => watchUnsavedFormEdits(tab, frame),
       syncHumanInteractionInputGuard: (tab) => this.syncHumanInteractionInputGuard(tab),
       isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab)
@@ -6000,10 +6000,6 @@ export class Browser {
     return loadFavicon(this, tab, favicons)
   }
 
-  private watchCredentialSubmission(tab: BrowserTab): void {
-    watchCredentialSubmission(this, tab)
-  }
-
   private sleepBlockReason(tab: BrowserTab, allowActiveTab?: boolean): string | undefined {
     return sleepBlockReason(this.tabSleepAccess(), tab, allowActiveTab)
   }
@@ -6121,13 +6117,6 @@ export class Browser {
 
   private shouldBlockHumanMouseInput(tab: BrowserTab, mouse: Electron.MouseInputEvent): boolean {
     return shouldBlockHumanMouseInput(this, tab, mouse)
-  }
-
-  private nativeInputAuthority(
-    tab: BrowserTab,
-    validateInput?: (validateContext: () => void) => void
-  ): { validate: () => void; dispose: () => void } {
-    return nativeInputAuthority(this, tab, validateInput)
   }
 
   private agentInputDebugger(
