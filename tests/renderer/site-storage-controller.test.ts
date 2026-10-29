@@ -2,7 +2,7 @@ import { nextTick, ref } from 'vue'
 import type { SupportedLocale } from '../../src/shared/locale.js'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useShellFeedbackController, type CopyTextWithFeedback } from '../../src/renderer/src/composables/useShellFeedbackController.js'
-import { useSiteStorageController } from '../../src/renderer/src/composables/useSiteStorageController.js'
+import { useSiteStorageController } from '../../src/renderer/src/features/site-storage/useSiteStorageController.js'
 import type {
   BrowserIndexedDbReport,
   BrowserPwaReport,

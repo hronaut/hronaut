@@ -1,0 +1,260 @@
+import { computed, ref } from 'vue'
+import { disposeAll, registerDisposers } from '../../composables/dispose-all.js'
+import type {
+  HronautWalletsApi,
+  WalletAuditSummary,
+  WalletPermissionSummary,
+  WalletPreparedImport
+} from '../../../../shared/types.js'
+import type {
+  WalletCreateInput,
+  WalletDescriptor,
+  WalletImportDetails,
+  WalletPolicy,
+  WalletRequestSummary,
+  WalletSecretFormat,
+  WalletServiceStatus,
+  WalletUpdateInput,
+  WalletWatchOnlyInput
+} from '../../../../shared/wallet.js'
+
+export interface WalletsControllerOptions {
+  api: HronautWalletsApi
+  formatError: (error: unknown) => string
+  /** Reports the failure of an approval or rejection whose request has already left the queue, so no dialog shows it. */
+  reportRequestError: (message: string) => void
+}
+
+export function useWalletsController(options: WalletsControllerOptions) {
+  const status = ref<WalletServiceStatus>({
+    managedWallets: 'disabled', backend: 'initializing', watchOnlyAvailable: false
+  })
+  const wallets = ref<WalletDescriptor[]>([])
+  const policies = ref<WalletPolicy[]>([])
+  const permissions = ref<WalletPermissionSummary[]>([])
+  const requests = ref<WalletRequestSummary[]>([])
+  const audit = ref<WalletAuditSummary[]>([])
+  const busy = ref(false)
+  /** The failure of the last Settings action. */
+  const errorMessage = ref('')
+  /** The failure of the last approval or rejection, kept with its request so another request's dialog never shows it. */
+  const requestError = ref<{ requestId: string; message: string }>()
+  let disposed = false
+  let initialized = false
+  let initializePromise: Promise<void> | null = null
+  let subscriptionGeneration = 0
+  let detailsGeneration = 0
+  let statusRevision = 0
+  let walletsRevision = 0
+  let requestsRevision = 0
+  const subscriptions: Array<() => void> = []
+
+  const awaitingApproval = computed(() => requests.value.filter((request) => request.status === 'awaiting-human'))
+
+  function setError(error: unknown): void {
+    errorMessage.value = options.formatError(error)
+  }
+
+  function acceptStatus(next: WalletServiceStatus): void {
+    statusRevision += 1
+    status.value = next
+  }
+
+  function acceptWallets(next: WalletDescriptor[]): void {
+    walletsRevision += 1
+    wallets.value = next
+  }
+
+  function detachSubscriptions(): void {
+    disposeAll(subscriptions.splice(0))
+  }
+
+  function attachSubscriptions(): void {
+    if (initialized || disposed) return
+    const currentGeneration = ++subscriptionGeneration
+    subscriptions.push(...registerDisposers([
+      () => options.api.onChanged((next) => {
+        if (!disposed && subscriptionGeneration === currentGeneration) acceptWallets(next)
+      }),
+      () => options.api.onStatusChanged((next) => {
+        if (!disposed && subscriptionGeneration === currentGeneration) acceptStatus(next)
+      }),
+      () => options.api.onRequestsChanged((next) => {
+        if (disposed || subscriptionGeneration !== currentGeneration) return
+        requestsRevision += 1
+        requests.value = next
+      })
+    ], () => {
+      if (subscriptionGeneration === currentGeneration) subscriptionGeneration += 1
+    }))
+    initialized = true
+  }
+
+  async function loadDetails(startingRequestsRevision: number): Promise<void> {
+    const currentGeneration = ++detailsGeneration
+    const [nextPolicies, nextPermissions, nextRequests, nextAudit] = await Promise.all([
+      options.api.listPolicies(), options.api.listPermissions(), options.api.listRequests(), options.api.auditHistory()
+    ])
+    if (disposed || currentGeneration !== detailsGeneration) return
+    policies.value = nextPolicies
+    permissions.value = nextPermissions
+    if (startingRequestsRevision === requestsRevision) requests.value = nextRequests
+    audit.value = nextAudit
+  }
+
+  function refreshDetails(): Promise<void> {
+    return loadDetails(requestsRevision)
+  }
+
+  function initialize(): Promise<void> {
+    if (initializePromise) return initializePromise
+    if (disposed) return Promise.resolve()
+    const startingStatusRevision = statusRevision
+    const startingWalletsRevision = walletsRevision
+    const startingRequestsRevision = requestsRevision
+    try {
+      attachSubscriptions()
+    } catch (error) {
+      return Promise.reject(error instanceof Error ? error : new Error(String(error)))
+    }
+    const operation = (async () => {
+      try {
+        const [nextStatus, nextWallets] = await Promise.all([options.api.status(), options.api.list()])
+        if (disposed) return
+        if (startingStatusRevision === statusRevision) acceptStatus(nextStatus)
+        if (startingWalletsRevision === walletsRevision) acceptWallets(nextWallets)
+        await loadDetails(startingRequestsRevision)
+      } catch (error) {
+        const failures = [error]
+        if (!disposed) {
+          initialized = false
+          subscriptionGeneration += 1
+          try {
+            detachSubscriptions()
+          } catch (cleanupError) {
+            if (cleanupError instanceof AggregateError) {
+              failures.push(...(cleanupError.errors as unknown[]))
+            } else {
+              failures.push(cleanupError)
+            }
+          }
+        }
+        if (failures.length === 1) throw error
+        throw new AggregateError(failures, 'Wallet initialization failed and listener cleanup was incomplete')
+      }
+    })()
+    const trackedOperation = operation.finally(() => {
+      if (initializePromise === trackedOperation) initializePromise = null
+    })
+    initializePromise = trackedOperation
+    return trackedOperation
+  }
+
+  async function run<T>(operation: () => Promise<T>, refresh = true, requestId?: string): Promise<T | undefined> {
+    if (busy.value) return undefined
+    busy.value = true
+    if (requestId === undefined) errorMessage.value = ''
+    else requestError.value = undefined
+    let result: T | undefined
+    try {
+      result = await operation()
+      if (refresh && !disposed) {
+        const startingStatusRevision = statusRevision
+        const nextStatus = await options.api.status()
+        if (disposed) return result
+        if (startingStatusRevision === statusRevision) acceptStatus(nextStatus)
+        const startingWalletsRevision = walletsRevision
+        const nextWallets = await options.api.list()
+        if (disposed) return result
+        if (startingWalletsRevision === walletsRevision) acceptWallets(nextWallets)
+        await refreshDetails()
+      }
+      return result
+    } catch (error) {
+      if (!disposed) {
+        if (requestId === undefined) setError(error)
+        // Main publishes the queue before it answers, so a request the failure ended has already left it here.
+        else if (requests.value.some((request) => request.id === requestId && request.status === 'awaiting-human')) {
+          requestError.value = { requestId, message: options.formatError(error) }
+        } else {
+          options.reportRequestError(options.formatError(error))
+        }
+      }
+      // A failed follow-up read must not turn a committed mutation into a
+      // retryable failure (import confirmation tokens are already consumed).
+      return result
+    } finally {
+      if (!disposed) busy.value = false
+    }
+  }
+
+  const setupPassphrase = (passphrase: string) => run(() => options.api.setupPassphrase(passphrase))
+  const unlock = (passphrase: string) => run(() => options.api.unlock(passphrase))
+  const lock = () => run(() => options.api.lock())
+  const generate = (input: WalletCreateInput) => run(() => options.api.generate(input))
+  const prepareImport = (
+    chainFamily: WalletDescriptor['chainFamily'],
+    format: WalletSecretFormat,
+    recoveryMaterial: string
+  ): Promise<WalletPreparedImport | undefined> => run(
+    () => options.api.prepareImport(chainFamily, format, recoveryMaterial),
+    false
+  )
+  const confirmImport = (token: string, details: WalletImportDetails) => run(() => options.api.confirmImport(token, details))
+  const cancelImport = async (token: string): Promise<boolean | undefined> => {
+    try {
+      return await options.api.cancelImport(token)
+    } catch (error) {
+      if (!disposed) setError(error)
+      return undefined
+    }
+  }
+  const addWatchOnly = (input: WalletWatchOnlyInput) => run(() => options.api.addWatchOnly(input))
+  const update = (walletId: string, changes: WalletUpdateInput) => run(() => options.api.update(walletId, changes))
+  const remove = (walletId: string) => run(() => options.api.remove(walletId))
+  const setPolicy = (policy: WalletPolicy) => run(() => options.api.setPolicy(policy))
+  const removePolicy = (policyId: string) => run(() => options.api.removePolicy(policyId))
+  const revokePermission = (permissionId: string) => run(() => options.api.revokePermission(permissionId))
+  const approve = (requestId: string) => run(() => options.api.approveRequest(requestId), true, requestId)
+  const reject = (requestId: string) => run(() => options.api.rejectRequest(requestId), true, requestId)
+
+  function dispose(): void {
+    disposed = true
+    subscriptionGeneration += 1
+    detailsGeneration += 1
+    detachSubscriptions()
+  }
+
+  return {
+    status,
+    wallets,
+    policies,
+    permissions,
+    requests,
+    audit,
+    awaitingApproval,
+    busy,
+    errorMessage,
+    requestError,
+    initialize,
+    refreshDetails,
+    setupPassphrase,
+    unlock,
+    lock,
+    generate,
+    prepareImport,
+    confirmImport,
+    cancelImport,
+    addWatchOnly,
+    update,
+    remove,
+    setPolicy,
+    removePolicy,
+    revokePermission,
+    approve,
+    reject,
+    dispose
+  }
+}
+
+export type WalletsController = ReturnType<typeof useWalletsController>

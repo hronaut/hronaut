@@ -23,7 +23,7 @@ import type { SettingsSection } from '../composables/useSettingsDialogController
 import AgentStepsDialog from './AgentStepsDialog.vue'
 import AppBrowserCollectionsLayer from './AppBrowserCollectionsLayer.vue'
 import CommandPalette from './CommandPalette.vue'
-import CredentialPicker from './CredentialPicker.vue'
+import CredentialPicker from '../features/credentials/CredentialPicker.vue'
 import FindInPageBar from './FindInPageBar.vue'
 import TabSearchPanel from './TabSearchPanel.vue'
 import WorkspaceEditor from './WorkspaceEditor.vue'

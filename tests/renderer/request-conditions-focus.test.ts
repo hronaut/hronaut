@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import NetworkPanel from '../../src/renderer/src/components/NetworkPanel.vue'
+import NetworkPanel from '../../src/renderer/src/features/network/NetworkPanel.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BrowserNetworkRouteSummary, BrowserState, BrowserTabState } from '../../src/shared/types.js'
 

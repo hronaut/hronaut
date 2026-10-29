@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { flushPromises } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
-import BookmarksFileActions from '../../src/renderer/src/components/BookmarksFileActions.vue'
+import BookmarksFileActions from '../../src/renderer/src/features/bookmarks/BookmarksFileActions.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BookmarkImportResult, SupportedLocale } from '../../src/shared/types.js'
 

@@ -1,6 +1,6 @@
 import { nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { useEnvironmentPanelController } from '../../src/renderer/src/composables/useEnvironmentPanelController.js'
+import { useEnvironmentPanelController } from '../../src/renderer/src/features/emulation/useEnvironmentPanelController.js'
 import { browserEnvironmentFromEmulation } from '../../src/shared/browser-environment.js'
 import type { BrowserState, BrowserTabState } from '../../src/shared/types.js'
 

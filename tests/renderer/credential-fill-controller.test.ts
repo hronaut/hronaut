@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { useCredentialFillController } from '../../src/renderer/src/composables/useCredentialFillController.js'
+import { useCredentialFillController } from '../../src/renderer/src/features/credentials/useCredentialFillController.js'
 import type { BrowserTabState, CredentialSummary } from '../../src/shared/types.js'
 
 function tab(id = 'tab-1'): BrowserTabState {

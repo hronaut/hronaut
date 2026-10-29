@@ -1,6 +1,6 @@
 import { nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { useBookmarksPanelController } from '../../src/renderer/src/composables/useBookmarksPanelController.js'
+import { useBookmarksPanelController } from '../../src/renderer/src/features/bookmarks/useBookmarksPanelController.js'
 import type { BrowserBookmark } from '../../src/shared/types.js'
 
 function bookmark(id: string, title = `Page ${id}`): BrowserBookmark {

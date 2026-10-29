@@ -9,11 +9,11 @@ import { friendlyUiError, type AppToastTone } from './useAppToastController.js'
 import {
   useEmulationController,
   type EmulationControllerOptions
-} from './useEmulationController.js'
+} from '../features/emulation/useEmulationController.js'
 import {
   useEnvironmentPanelController,
   type EnvironmentPanelControllerOptions
-} from './useEnvironmentPanelController.js'
+} from '../features/emulation/useEnvironmentPanelController.js'
 
 type EmulationBrowserApi = Pick<
   HronautApi,

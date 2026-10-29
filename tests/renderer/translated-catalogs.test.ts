@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { render, screen } from '@testing-library/vue'
 import { describe, expect, it, vi } from 'vitest'
-import ResponsivePreviewPanel from '../../src/renderer/src/components/ResponsivePreviewPanel.vue'
+import ResponsivePreviewPanel from '../../src/renderer/src/features/emulation/ResponsivePreviewPanel.vue'
 import SearchSettingsPanel from '../../src/renderer/src/components/SearchSettingsPanel.vue'
 import { useSearchSettingsController } from '../../src/renderer/src/composables/useSearchSettingsController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'

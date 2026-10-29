@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/vue'
 import { flushPromises } from '@vue/test-utils'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
-import DownloadsPanel from '../../src/renderer/src/components/DownloadsPanel.vue'
+import DownloadsPanel from '../../src/renderer/src/features/downloads/DownloadsPanel.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BrowserDownloadState, SupportedLocale } from '../../src/shared/types.js'
 

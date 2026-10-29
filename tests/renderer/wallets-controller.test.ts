@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { useWalletsController } from '../../src/renderer/src/composables/useWalletsController.js'
+import { useWalletsController } from '../../src/renderer/src/features/wallets/useWalletsController.js'
 import type { HronautWalletsApi, WalletAuditSummary } from '../../src/shared/types.js'
 import type {
   WalletDescriptor,

@@ -1,6 +1,6 @@
 import { render } from '@testing-library/vue'
 import { expect, it } from 'vitest'
-import NetworkRequestConditions from '../../src/renderer/src/components/NetworkRequestConditions.vue'
+import NetworkRequestConditions from '../../src/renderer/src/features/network/NetworkRequestConditions.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 
 it('keeps the space before a request condition’s lifetime', () => {
