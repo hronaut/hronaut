@@ -34,7 +34,7 @@ interface Manager {
 
 function browser(available = true) {
   const executeJavaScript = vi.fn(async (_worldId: number, scripts: Array<{ code: string }>, _userGesture?: boolean) =>
-    scripts[0]!.code.includes('minLength: Math.max') ? { minLength: -1, maxLength: -1 } : 'filled')
+    scripts[0]!.code.includes('return { minLength: field.minLength') ? { minLength: -1, maxLength: -1 } : 'filled')
   const page: Tab = {
     id: 'page',
     url: 'https://accounts.example/sign-up',

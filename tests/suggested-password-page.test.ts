@@ -43,10 +43,10 @@ afterEach(() => {
 })
 
 describe('reading the password field a password is suggested for', () => {
-  it('reads the length limits of the focused password field and its confirmation, -1 where they set none', () => {
-    document.body.innerHTML = '<form><input id="new" type="password" minlength="20" maxlength="64"><input id="confirm" type="password" maxlength="40"></form><input id="plain" type="password">'
+  it('reads the length limits of the focused password field alone, -1 where it sets none', () => {
+    document.body.innerHTML = '<form><input id="new" type="password" minlength="20" maxlength="64"><input id="pin" type="password" maxlength="4"></form><input id="plain" type="password">'
     input('#new').focus()
-    expect(field()).toEqual({ minLength: 20, maxLength: 40 })
+    expect(field()).toEqual({ minLength: 20, maxLength: 64 })
     input('#plain').focus()
     expect(field()).toEqual({ minLength: -1, maxLength: -1 })
   })
@@ -150,6 +150,19 @@ describe('filling a suggested password', () => {
     field()
     expect(fill(PASSWORD, 'https://elsewhere.example/')).toBe('none')
     expect(input('#new').value).toBe('')
+  })
+
+  it('leaves a short field after it, such as a PIN, empty instead of shortening the password', () => {
+    document.body.innerHTML = '<form><input id="new" type="password"><input id="pin" type="password" maxlength="4"></form>'
+    expect(suggestIn('#new')).toBe('filled')
+    expect([input('#new').value, input('#pin').value]).toEqual([PASSWORD, ''])
+  })
+
+  it('reads the form’s fields even when a field stands in for them by its name', () => {
+    document.body.innerHTML = '<form><input id="new" type="password"><input id="confirm" type="password"><input name="elements"><input name="elements"></form>'
+    expect(suggestIn('#new')).toBe('filled')
+    expect(input('#confirm').value).toBe(PASSWORD)
+    expect([...document.querySelectorAll<HTMLInputElement>('[name="elements"]')].map((element) => element.value)).toEqual(['', ''])
   })
 
   it('sets the value with the browser’s own setter, as a framework watching the field expects', () => {

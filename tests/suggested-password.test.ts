@@ -67,7 +67,7 @@ function harness(options: {
   const executeJavaScriptInIsolatedWorld = vi.fn(async (worldId: number, scripts: Array<{ code: string }>, userGesture?: boolean) => {
     const code = scripts[0]!.code
     steps.push(`world ${worldId === ISOLATED_WORLDS.suggestedPassword ? 'suggested password' : worldId}`)
-    if (code.includes('minLength: Math.max')) {
+    if (code.includes('return { minLength: field.minLength')) {
       steps.push(`read field${userGesture ? ' with gesture' : ''}`)
       return options.field === undefined ? { minLength: -1, maxLength: -1 } : options.field
     }

@@ -1,8 +1,18 @@
 // @vitest-environment jsdom
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { credentialCapturePageScript } from '../src/main/browser/credential-capture-page.js'
 
+const realClientRects = Element.prototype.getClientRects
+
+beforeEach(() => {
+  // jsdom lays nothing out: a field shows unless it, or a box around it, is not displayed.
+  Element.prototype.getClientRects = function (this: Element) {
+    return (this.closest('[style*="display:none"]') ? [] : [{ width: 120, height: 24 }]) as unknown as DOMRectList
+  }
+})
+
 afterEach(() => {
+  Element.prototype.getClientRects = realClientRects
   vi.useRealTimers()
   window.dispatchEvent(new Event('pagehide'))
   document.body.innerHTML = ''
@@ -100,7 +110,7 @@ it('waits for validation before capturing a native form submit button', async ()
   await expect(candidate).resolves.toBeNull()
 })
 
-it.each(['Sign up', 'Create account', 'Create an account', 'Register', 'Save', 'Change password', 'Update password'])(
+it.each(['Sign up', 'Create account', 'Create an account', 'Register', 'Change password', 'Update password'])(
   'captures a JavaScript-driven %s button, as a sign-up or password change uses',
   async (label) => {
     document.body.innerHTML =
@@ -126,6 +136,28 @@ it('captures the new password from a form that changes one, as Chrome saves it',
   const unmarked = window.eval(credentialCapturePageScript()) as Promise<unknown>
   document.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true }))
   await expect(unmarked).resolves.toMatchObject({ password: 'k7Gm2xPqR9sTv4w' })
+})
+
+it('offers nothing for a secret a settings page saves with a scripted Save or Submit button', async () => {
+  for (const label of ['Save', 'Submit']) {
+    document.body.innerHTML =
+      '<form><input type="email" name="email" value="ada@example.com"><input type="password" name="api-key" value="sk-live-123">' +
+      `<button type="button">${label}</button></form>`
+    const candidate = window.eval(credentialCapturePageScript()) as Promise<unknown>
+    document.querySelector('button')!.click()
+    window.dispatchEvent(new Event('pagehide'))
+    await expect(candidate).resolves.toBeNull()
+  }
+})
+
+it('offers no new password from fields that do not show, such as a combined sign-in and sign-up form', async () => {
+  document.body.innerHTML =
+    '<form><input autocomplete="username" value="ada"><input type="password" autocomplete="current-password" value="secret">' +
+    '<div style="display:none"><input type="password" autocomplete="new-password" value="old-draft"><input type="password" autocomplete="new-password" value="old-draft"></div></form>'
+  const candidate = window.eval(credentialCapturePageScript()) as Promise<unknown>
+  document.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true }))
+  window.dispatchEvent(new Event('pagehide'))
+  await expect(candidate).resolves.toBeNull()
 })
 
 it('offers nothing for passwords that do not match', async () => {

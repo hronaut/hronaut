@@ -21,11 +21,17 @@ export function credentialCapturePageScript(): string {
     };
     // The one value typed in every password field; or, in a form that changes a password, the new password typed twice
     // after the current one, which Chrome saves then: the fields marked new-password, or else the second and third of
-    // three. Anything else, such as a confirmation that does not match, offers nothing.
+    // three, all of them shown. Anything else, such as a confirmation that does not match, offers nothing.
+    const shown = (input) => (typeof input.checkVisibility !== 'function' || input.checkVisibility({
+      opacityProperty: true,
+      visibilityProperty: true,
+      contentVisibilityAuto: true
+    })) && [...input.getClientRects()].some((rect) => rect.width > 0 && rect.height > 0);
     const submittedPassword = (passwords) => {
       if (new Set(passwords.map((input) => input.value)).size === 1) {
         return (passwords.find((input) => purpose(input) === 'current-password') || passwords[0]).value;
       }
+      if (!passwords.every(shown)) return null;
       const fresh = passwords.filter((input) => purpose(input) === 'new-password');
       if (fresh.length && new Set(fresh.map((input) => input.value)).size === 1
         && passwords.every((input) => fresh.includes(input) || purpose(input) === 'current-password')) return fresh[0].value;
@@ -83,7 +89,7 @@ export function credentialCapturePageScript(): string {
       if (form && ((button instanceof HTMLButtonElement || button instanceof HTMLInputElement)
         && button.type === 'submit')) return;
       const label = (button.getAttribute('aria-label') || button.textContent || button.value || '').trim();
-      if (/^(log\\s*in|sign\\s*in|sign\\s*up|create\\s+(an\\s+)?account|register|continue|next|submit|save|(change|update|set|reset)\\s+password)$/i.test(label)) capture(form);
+      if (/^(log\\s*in|sign\\s*in|sign\\s*up|create\\s+(an\\s+)?account|register|continue|next|(change|update|set|reset)\\s+password)$/i.test(label)) capture(form);
     };
     const onKeydown = (event) => {
       if (event.key === 'Enter' && !event.isComposing && event.target instanceof HTMLInputElement

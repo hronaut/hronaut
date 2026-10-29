@@ -1,7 +1,7 @@
 import type { CredentialFillContext } from '../credential-fill-context.js'
 import { javascriptLiteral } from '../../../shared/javascript-literal.js'
 
-/** The length limits a suggested password must fit: the field's and its confirmation's; -1 where they set none. */
+/** The length limits of the field a password is suggested for; -1 where it sets none. */
 export interface SuggestedPasswordField {
   minLength: number
   maxLength: number
@@ -41,17 +41,21 @@ function helpers(expectedContext: CredentialFillContext): string {
       && !input.matches(':disabled') && !input.readOnly;
     const confirmationOf = (field) => {
       const textTypes = new Set(['text', 'email', 'password', 'tel', 'url', 'search', 'number']);
-      const group = field.form ? [...field.form.elements] : [...document.querySelectorAll('input')].filter((input) => !input.form);
+      // Read through the prototype: a field named "elements" would stand in for the form's own list.
+      const elements = Object.getOwnPropertyDescriptor(HTMLFormElement.prototype, 'elements').get;
+      const group = field.form ? [...elements.call(field.form)] : [...document.querySelectorAll('input')].filter((input) => !input.form);
       const entries = group.filter((input) => input instanceof HTMLInputElement && input.form === field.form
         && textTypes.has(input.type) && (input === field || shown(input)));
-      const next = entries[entries.indexOf(field) + 1];
+      const index = entries.indexOf(field);
+      const next = index >= 0 ? entries[index + 1] : undefined;
       return next && writable(next) && !['current-password', 'one-time-code'].includes(purpose(next) || '') ? next : undefined;
     };`
 }
 
 /**
- * Keeps the focused password field, which a right-click on it focused, for the fill, and reads the length limits it
- * and its confirmation set; null when the page is another one or the focus is in no writable password field.
+ * Keeps the focused password field, which a right-click on it focused, for the fill, and reads its length limits;
+ * null when the page is another one or the focus is in no writable password field. The password fits that field
+ * alone: a short field after it, such as a PIN, takes none rather than shorten it.
  */
 export function suggestedPasswordFieldScript(expectedContext: CredentialFillContext): string {
   return `(() => {
@@ -60,12 +64,7 @@ export function suggestedPasswordFieldScript(expectedContext: CredentialFillCont
     const field = document.activeElement;
     if (!onPage || !writable(field)) return null;
     ${FIELD} = new WeakRef(field);
-    const fields = [field, confirmationOf(field)].filter(Boolean);
-    const maxima = fields.map((input) => input.maxLength).filter((length) => length >= 0);
-    return {
-      minLength: Math.max(...fields.map((input) => input.minLength)),
-      maxLength: maxima.length ? Math.min(...maxima) : -1
-    };
+    return { minLength: field.minLength, maxLength: field.maxLength };
   })()`
 }
 

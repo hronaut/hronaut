@@ -20,6 +20,8 @@ const SIGN_UP = `<!doctype html>
     <div style="display:none"><input id="ghost" type="text"></div>
     <input id="confirm" type="password" autocomplete="new-password">
     <input id="decoy" type="password" style="opacity:0">
+    <!-- Two fields named "elements" stand in for the form's own list of fields. -->
+    <input type="hidden" name="elements"><input type="hidden" name="elements">
   </form>
   <account-form></account-form>
   <script>
