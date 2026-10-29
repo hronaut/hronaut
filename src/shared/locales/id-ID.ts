@@ -902,7 +902,7 @@ export const idID: MessageSchema = {
     "close": "Tutup bantuan",
     "shortcutsDescription": "Gunakan pintasan ini dari Hronaut atau dari situs yang sedang difokuskan.",
     "developmentBuild": "Build pengembangan",
-    "description": "Browser persisten dan terlihat yang dapat dinavigasi agen coding bersama Anda melalui MCP.",
+    "description": "Browser desktop yang terlihat untuk agen coding, dengan ruang kerja terpisah untuk setiap proyek.",
     "repository": "Repositori GitHub",
     "license": "Lisensi Hronaut",
     "contribute": "Berkontribusi",

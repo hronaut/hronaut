@@ -902,7 +902,7 @@ export const koKR: MessageSchema = {
     "close": "도움말 닫기",
     "shortcutsDescription": "Hronaut이나 현재 포커스된 웹사이트에서 이 단축키를 사용하세요.",
     "developmentBuild": "개발 빌드",
-    "description": "코딩 에이전트가 MCP를 통해 사용자와 함께 탐색할 수 있는, 계속 유지되고 눈에 보이는 브라우저입니다.",
+    "description": "프로젝트마다 별도의 작업 공간을 갖춘, 코딩 에이전트를 위한 눈에 보이는 데스크톱 브라우저입니다.",
     "repository": "GitHub 저장소",
     "license": "Hronaut 라이선스",
     "contribute": "기여하기",

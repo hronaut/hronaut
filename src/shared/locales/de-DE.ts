@@ -902,7 +902,7 @@ export const deDE: MessageSchema = {
     "close": "Hilfe schließen",
     "shortcutsDescription": "Verwenden Sie diese Tastenkürzel in Hronaut oder auf der aktuell fokussierten Website.",
     "developmentBuild": "Entwicklungs-Build",
-    "description": "Ein dauerhafter, sichtbarer Browser, in dem Coding-Agenten gemeinsam mit Ihnen über MCP navigieren können.",
+    "description": "Ein sichtbarer Desktop-Browser für Coding-Agenten, mit einem eigenen Arbeitsbereich für jedes Projekt.",
     "repository": "GitHub-Repository",
     "license": "Hronaut-Lizenz",
     "contribute": "Mitwirken",
