@@ -179,7 +179,7 @@ describe('main-process failures people see in tabs, navigation and new tabs', ()
       'Unknown workspace: workspace-id.', 'Робочий простір більше недоступний.'],
     ['the menu of a workspace that just closed', () => Object.assign(Object.create(Browser.prototype), { mcpTabGroups: new Map() }).showWorkspaceContextMenu('workspace-id'),
       'Unknown workspace: workspace-id', 'Робочий простір більше недоступний.'],
-    ['putting the tabs of a workspace that just closed to sleep', () => sleepWorkspaceTabs(noWorkspaces as never, 'workspace-id'),
+    ['putting the tabs of a workspace that just closed to sleep', () => sleepWorkspaceTabs({ mcpTabGroups: new Map() } as never, 'workspace-id'),
       'Unknown workspace: workspace-id', 'Робочий простір більше недоступний.'],
     ['the site data of a workspace that just closed', () => listWorkspaceStorageOrigins(noWorkspaces as never, 'workspace-id'),
       'Unknown workspace: workspace-id.', 'Робочий простір більше недоступний.'],

@@ -4,6 +4,13 @@ import { navigate, reload } from '../src/main/browser/page-navigation/page-navig
 import { PAGE_LOAD_WAIT_MS } from '../src/main/browser/page-waits/page-load-limit.js'
 import { putTabToSleep, wakeTab } from '../src/main/browser/tab-sleep/tab-sleep.js'
 
+// The sleeping tab's browser below stubs changed and getState, which waking publishes through.
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist),
+  browserState: (browser: { getState: () => unknown }) => browser.getState()
+}))
+
 // A page whose load never ends, such as one with an image its server never answers, held browser_navigate, the
 // address bar and every agent call on a sleeping tab for as long as the page kept loading: Electron settles a load
 // only at the page's load event. The e2e probe that found it drove the real app with such an image.
@@ -132,20 +139,18 @@ describe('waking a tab whose page never finishes loading', () => {
       navigationGeneration: 3, pinned: false, pageLifecycleState: 'active',
       lastActiveAt: 0, sleepNavigationHistory: { entries: [], index: 0 }, webContents, wakePromise: undefined as Promise<void> | undefined
     }
-    const access = {
-      getTab: () => tab,
-      findTab: (id: string) => (id === tab.id ? tab : undefined),
-      hasTab: (id: string) => id === tab.id,
-      activeTabId: () => undefined,
+    const manager = {
+      tabs: new Map([[tab.id, tab]]),
+      activeTabId: undefined,
       splitViewContains: () => false,
-      tabOverviewSleepPreviews: () => new Map(),
+      tabOverviewSleepPreviews: new Map(),
       changed: vi.fn(),
       getState: () => ({ tabs: [] })
     }
     return {
       tab, entries, webContents,
-      wake: () => wakeTab(access as never, tab.id),
-      sleep: () => putTabToSleep(access as never, tab as never, false)
+      wake: () => wakeTab(manager as never, tab.id),
+      sleep: () => putTabToSleep(manager as never, tab as never, false)
     }
   }
 

@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
 import { wakeTab } from '../src/main/browser/tab-sleep/tab-sleep.js'
 
+// The sleeping tab's browser below stubs changed and getState, which waking publishes through.
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist),
+  browserState: (browser: { getState: () => unknown }) => browser.getState()
+}))
+
 // A sleeping tab whose website could not be reached could not be opened: the wake failed and sent it back to sleep,
 // though Chromium already showed the error page at its address. The e2e wake-unreachable-site drives the real app.
 
@@ -43,14 +50,13 @@ function sleepingTab(commits: string | null) {
     id: 'tab', url: ADDRESS, sleeping: true, loading: false, suppressInitialHistory: false, navigationGeneration: 3,
     lastActiveAt: 0, sleepNavigationHistory: { entries: [], index: 0 }, webContents
   }
-  const access = {
-    getTab: () => tab,
-    findTab: (id: string) => (id === tab.id ? tab : undefined),
-    tabOverviewSleepPreviews: () => new Map(),
+  const browser = {
+    tabs: new Map([[tab.id, tab]]),
+    tabOverviewSleepPreviews: new Map(),
     changed: vi.fn(),
     getState: () => ({ tabs: [] })
   }
-  return { tab, entries, wake: () => wakeTab(access as never, tab.id) }
+  return { tab, entries, wake: () => wakeTab(browser as never, tab.id) }
 }
 
 describe('waking a sleeping tab whose website cannot be reached', () => {

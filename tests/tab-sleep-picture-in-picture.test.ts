@@ -44,31 +44,28 @@ type FakeTab = ReturnType<typeof tab>
 
 /** The tab manager around the tabs, with the first one shown and nothing else keeping a tab awake. */
 function manager(tabs: FakeTab[]) {
-  let active = tabs[0]!.id
   const none = { active: () => false }
-  return {
-    getTab: (tabId?: string) => tabs.find((candidate) => candidate.id === (tabId ?? active))!,
-    findTab: (tabId: string) => tabs.find((candidate) => candidate.id === tabId),
-    hasTab: (tabId: string) => tabs.some((candidate) => candidate.id === tabId),
-    tabs: () => tabs.values(),
-    orderedTabs: () => tabs,
-    activeTabId: () => active,
+  const browser = {
+    tabs: new Map(tabs.map((candidate) => [candidate.id, candidate])),
+    mcpTabGroups: new Map(),
+    activeTabId: tabs[0]!.id,
     splitViewContains: () => false,
-    selectTab: vi.fn((tabId: string) => { active = tabId }),
-    options: () => ({}),
-    devToolsOpening: () => new Set(),
-    screenshotAreaSessions: () => new Map(),
-    elementPickerSessions: () => new Map(),
-    agentInputWebContents: () => new Map(),
-    videoRecorder: () => ({ state: () => ({ status: 'idle' }) }),
-    cssStatePreview: () => none,
-    domMutationSource: () => none,
-    virtualPasskeys: () => none,
-    logpoints: () => none,
-    mcpActivitiesByTab: () => new Map(),
-    downloadController: () => ({ hasActiveDownload: () => false }),
-    renderQueues: () => new Map()
+    selectTab: vi.fn((tabId: string) => { browser.activeTabId = tabId }),
+    options: {},
+    devToolsOpening: new Set(),
+    screenshotAreaSessions: new Map(),
+    elementPickerSessions: new Map(),
+    agentInputWebContents: new Map(),
+    videoRecorder: { state: () => ({ status: 'idle' }) },
+    cssStatePreview: none,
+    domMutationSource: none,
+    virtualPasskeys: none,
+    logpoints: none,
+    mcpActivitiesByTab: new Map(),
+    downloadController: { hasActiveDownload: () => false },
+    renderQueues: new Map()
   }
+  return browser
 }
 
 beforeEach(() => {
@@ -146,7 +143,7 @@ describe('putting a tab with a video in Picture in picture to sleep', () => {
     const access = manager([shown, tab({}, [], 'beside')])
     await expect(setTabSleepingFromContextMenu(access as never, 'player', true)).rejects.toMatchObject({ key: 'appErrors.sleep.pictureInPicture' })
     expect(access.selectTab).not.toHaveBeenCalled()
-    expect(access.activeTabId()).toBe('player')
+    expect(access.activeTabId).toBe('player')
     expect(shown.webContents.loadURL).not.toHaveBeenCalled()
   })
 })
