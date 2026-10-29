@@ -66,7 +66,7 @@ than the entire browser runtime.
   `main/attention/tray-attention.ts`; index.ts's `createRuntimeMcpServer` only hands them to
   the server. `main/app-lifecycle.ts` registers the application's events and runs
   index.ts's `startRuntime` once Electron is ready.
-- `browser/tabs-manager.ts` remains the **TabRuntime** host: Electron contents,
+- `browser/browser.ts` (the `Browser` registry) remains the **TabRuntime** host: Electron contents,
   navigation generations, input, storage operations, native presentation, and
   persistence. `workspace-registry.ts` owns active/archive identity transitions,
   public archive projections, and restore rollback through narrow runtime ports.

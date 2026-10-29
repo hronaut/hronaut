@@ -13,7 +13,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 
 const { LocalizedError, withTranslatedIpcErrors } = await import('../src/main/localized-error.js')
 const { translate } = await import('../src/shared/i18n.js')
-const { BrowserTabsManager } = await import('../src/main/browser/tabs-manager.js')
+const { Browser } = await import('../src/main/browser/browser.js')
 const { fillCredentialWhileMcpPaused } = await import('../src/main/credentials/credential-fill-pause.js')
 const { CredentialStore } = await import('../src/main/credentials/credential-store.js')
 const { emulate } = await import('../src/main/browser/emulation/emulation.js')
@@ -88,7 +88,7 @@ const emulationAccess = (tab: object, findTab: () => unknown = () => tab) => ({
   getTab: () => tab, findTab, isDestroyed: () => false, requireEmulationConfirmed: () => undefined, requireNetworkConditionsKnown: () => undefined,
   withDebugger: (_webContents: unknown, run: () => unknown) => run()
 })
-const confirmedEmulation = BrowserTabsManager.prototype as unknown as { requireEmulationConfirmed(tab: object): void }
+const confirmedEmulation = Browser.prototype as unknown as { requireEmulationConfirmed(tab: object): void }
 
 /** A wallet service before startup; nothing here is read from or written to disk. */
 const walletService = () => new WalletService({

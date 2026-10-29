@@ -1,6 +1,6 @@
 import { videoOptionsSchema } from '../shared/video.js'
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
-import type { BrowserTabsManager } from './browser/tabs-manager.js'
+import type { Browser } from './browser/browser.js'
 import { LocalizedError } from './localized-error.js'
 import type {
   BrowserAccessibilityAuditOptions,
@@ -19,7 +19,7 @@ import type {
 
 interface DiagnosticsIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
-  tabs(): Pick<BrowserTabsManager,
+  tabs(): Pick<Browser,
     | 'accessibilityAudit'
     | 'codeCoverage'
     | 'cpuProfile'

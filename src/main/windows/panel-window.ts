@@ -5,7 +5,7 @@ import { LocalizedError } from '../localized-error.js'
 import { restoreWindowBounds, type SavedWindowState, type WindowStateStore } from '../window-state.js'
 import { attachShellEditContextMenu } from './shell-edit-context-menu.js'
 import type { BookmarkStore } from '../bookmarks-history/bookmark-store.js'
-import type { BrowserTabsManager } from '../browser/tabs-manager.js'
+import type { Browser } from '../browser/browser.js'
 import type { CredentialStore } from '../credentials/credential-store.js'
 import type { HistoryStore } from '../bookmarks-history/history-store.js'
 import type { SitePermissionStore } from '../site-data/site-permission-store.js'
@@ -58,7 +58,7 @@ interface PanelWindowHost {
   resolvedTheme(theme: ThemeName): ResolvedThemeName
   /** Each theme's window background. */
   themeBackground: Record<ResolvedThemeName, string>
-  tabs(): Pick<BrowserTabsManager, 'getState' | 'listDownloads'> | null
+  tabs(): Pick<Browser, 'getState' | 'listDownloads'> | null
   currentRendererSettingsState(): RendererSettingsState
   /** The update state; read on every use because each update replaces the object. */
   updateState(): AppUpdateState

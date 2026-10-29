@@ -13,7 +13,7 @@ vi.mock('../src/main/browser/agent-input-scope/agent-input-scope.js', async (ori
   withAgentInput: vi.fn(async (_access: unknown, _webContents: unknown, operation: () => Promise<unknown>) => operation())
 }))
 
-const { BrowserTabsManager } = await import('../src/main/browser/tabs-manager.js')
+const { Browser } = await import('../src/main/browser/browser.js')
 
 interface Tab {
   id: string
@@ -46,7 +46,7 @@ function browser(available = true) {
   }
   const suggested = vi.fn()
   const whileAgentsPaused = vi.fn(async (fill: () => Promise<boolean>) => fill())
-  const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+  const manager = Object.assign(Object.create(Browser.prototype), {
     tabs: new Map([['page', page], ['other', { ...page, id: 'other', url: 'https://other.example/' }]]),
     activeTabId: 'page',
     tabSelectionGeneration: 5,

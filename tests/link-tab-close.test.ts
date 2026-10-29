@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, Menu: {} }))
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+import { Browser } from '../src/main/browser/browser.js'
 
 // Closing a tab opened from a page's link showed the tab to its right, where Chrome shows the page's next tab or the
 // page itself; a workspace whose remembered tab closed off screen remembered that tab too.
@@ -23,7 +23,7 @@ const forgets = () => ({ forget: vi.fn() })
 
 function fixture(spec: Array<{ id: string; from?: string; workspace?: string }>, remembered: string | null = null) {
   const group = (id: string) => ({ id, name: id, activeTabId: id === 'work' ? remembered : null, lastUsedAt: '2026-10-22T06:00:00.000Z' })
-  return Object.assign(Object.create(BrowserTabsManager.prototype), {
+  return Object.assign(Object.create(Browser.prototype), {
     mcpTabGroups: new Map([['work', group('work')], ['other', group('other')]]),
     tabs: new Map(spec.map((tab, index) => [tab.id, {
       id: tab.id, url: `https://${tab.id}.example/`, pinned: false, mcpGroupId: tab.workspace ?? 'work',

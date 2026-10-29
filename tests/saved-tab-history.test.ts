@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { NavigationEntry } from 'electron'
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+import { Browser } from '../src/main/browser/browser.js'
 import { historyAroundShownPage, savedTabHistories, savedTabHistory, TabHistoryStore } from '../src/main/browser/saved-tab-history/saved-tab-history.js'
 import type { NavigationHistorySnapshot } from '../src/main/browser/navigation-history.js'
 import type { BrowserWorkspaceNavigationPolicy } from '../src/shared/types.js'
@@ -263,7 +263,7 @@ describe('the tab manager saving the tabs\' history', () => {
       }
     }
     const saved: Array<ReadonlyMap<string, NavigationHistorySnapshot> | undefined> = []
-    const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+    const manager = Object.assign(Object.create(Browser.prototype), {
       closedTabs: [],
       detachedClosedTabs: new Set(),
       tabs: new Map([[TAB_ID, { id: TAB_ID, url: page('b'), mcpGroupId: 'workspace', sleeping: false, webContents }]]),
@@ -275,7 +275,7 @@ describe('the tab manager saving the tabs\' history', () => {
         forgetPages: vi.fn(),
         save: async (histories: (previous: ReadonlyMap<string, NavigationHistorySnapshot>) => ReadonlyMap<string, NavigationHistorySnapshot> | undefined) => { saved.push(histories(new Map())) }
       }
-    }) as BrowserTabsManager
+    }) as Browser
     manager.forgetHistoryPages((url) => url === page('a'))
     await vi.waitFor(() => expect(saved).toHaveLength(1))
     expect(saved[0]).toEqual(new Map([[TAB_ID, history(['b'], 0)]]))

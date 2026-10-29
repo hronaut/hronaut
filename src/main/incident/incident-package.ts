@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { incidentCaptureSchema, incidentReviewSchema, type IncidentArtifact, type IncidentDraft, type IncidentPreview } from '../../shared/incident-package.js'
 import { omitIncidentPaths } from './incident-path-omissions.js'
 import { redactDiagnosticText } from '../../shared/debug-report.js'
-import type { BrowserTabsManager } from '../browser/tabs-manager.js'
+import type { Browser } from '../browser/browser.js'
 
 const ARTIFACT_LIMIT = 256 * 1024
 const PACKAGE_LIMIT = 4 * 1024 * 1024
@@ -11,7 +11,7 @@ const PRESENTATION_CSS = 'pre { white-space: pre-wrap; overflow-wrap: anywhere; 
 const PRESENTATION_STYLE_HASH = createHash('sha256').update(PRESENTATION_CSS).digest('base64')
 const hash = (value: string) => createHash('sha256').update(value, 'utf8').digest('hex')
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
-type Host = Pick<BrowserTabsManager, 'getState' | 'debugReport' | 'networkHar' | 'reproRecording'>
+type Host = Pick<Browser, 'getState' | 'debugReport' | 'networkHar' | 'reproRecording'>
 interface Stored { draft: IncidentDraft; preview?: IncidentPreview }
 
 /** Volatile, bounded review snapshots. Never re-read live evidence after review. */

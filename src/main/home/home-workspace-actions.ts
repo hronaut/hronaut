@@ -1,7 +1,7 @@
-import type { BrowserTabsManager } from '../browser/tabs-manager.js'
+import type { Browser } from '../browser/browser.js'
 import { HOME_CARD_ICON_MAX_LENGTH, HOME_CARD_TAB_LIMIT, type HomeWorkspaceAction, type HomeWorkspaceEditorRequest, type HomeWorkspaceState } from '../../shared/home-workspaces.js'
 
-export function homeWorkspaceState(manager: Pick<BrowserTabsManager, 'getState'>): HomeWorkspaceState {
+export function homeWorkspaceState(manager: Pick<Browser, 'getState'>): HomeWorkspaceState {
   const state = manager.getState()
   const shown = new Map<string | undefined, number>()
   // Only the tabs a card shows carry their icon, and only a small image one, so polling stays light.
@@ -25,7 +25,7 @@ export function homeWorkspaceState(manager: Pick<BrowserTabsManager, 'getState'>
 }
 
 export async function runHomeWorkspaceAction(
-  manager: Pick<BrowserTabsManager, 'getState' | 'openHome' | 'selectTab' | 'newTab' | 'archiveWorkspaceForPerson' | 'closeWorkspace' | 'closeWorkspaceForPerson' | 'restoreSavedTabGroup' | 'deleteSavedTabGroup' | 'updateMcpTabGroup' | 'updateArchivedWorkspacePreferences'>,
+  manager: Pick<Browser, 'getState' | 'openHome' | 'selectTab' | 'newTab' | 'archiveWorkspaceForPerson' | 'closeWorkspace' | 'closeWorkspaceForPerson' | 'restoreSavedTabGroup' | 'deleteSavedTabGroup' | 'updateMcpTabGroup' | 'updateArchivedWorkspacePreferences'>,
   input: unknown,
   edit: (request: HomeWorkspaceEditorRequest) => void
 ): Promise<HomeWorkspaceState> {

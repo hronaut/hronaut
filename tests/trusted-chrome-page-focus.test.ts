@@ -9,7 +9,7 @@ vi.mock('electron', () => ({
   app: { getPath: () => '/tmp' },
   webContents: { getFocusedWebContents: () => electron.focused }
 }))
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+import { Browser } from '../src/main/browser/browser.js'
 
 afterEach(() => { electron.focused = null })
 
@@ -21,7 +21,7 @@ function fixture() {
   const shell = Object.assign(new EventEmitter(), { focus: vi.fn(), isDestroyed: () => false })
   const page = { id: 7, focus: vi.fn(), isDestroyed: () => false }
   const tab = { id: 'picked', url: 'https://example.test/', sleeping: false, webContents: page, view: { getVisible: () => true }, nativeInputEnvironmentGeneration: 0 }
-  const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+  const manager = Object.assign(Object.create(Browser.prototype), {
     destroyed: false,
     window: { isDestroyed: () => false, isFocused: () => true, webContents: shell },
     tabs: new Map([[tab.id, tab]]),
@@ -38,7 +38,7 @@ function fixture() {
     mcpActivityFollower: { setOccluded: vi.fn() },
     occlusionSnapshot: { begin: vi.fn(), end: vi.fn(), confirmPagesHidden: vi.fn() },
     layout: vi.fn()
-  }) as BrowserTabsManager
+  }) as Browser
   return { manager, internals: manager as unknown as PageFocusInternals, shell, page, tab }
 }
 

@@ -1,11 +1,11 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
-import type { BrowserTabsManager } from './browser/tabs-manager.js'
+import type { Browser } from './browser/browser.js'
 import type { McpHttpServer } from './mcp/server.js'
 import { LocalizedError } from './localized-error.js'
 import { tabAgentPauseOptions, type TakeOverOffers } from './agents/take-over-offers.js'
 import { validateTabOverviewPreviewIds, type BrowserState, type DroppedLinkTarget } from '../shared/types.js'
 
-type TabsIpcTabs = Pick<BrowserTabsManager,
+type TabsIpcTabs = Pick<Browser,
   | 'getState' | 'beforeStateReply' | 'getTabOverviewPreviews' | 'getTabOverviewPagePreview'
   | 'openHome' | 'newTab' | 'reopenClosedTab' | 'selectTabForPerson' | 'closeTabsForPerson'
   | 'openSplitViewAndWait' | 'updateSplitView' | 'closeSplitView'
@@ -33,7 +33,7 @@ interface TabsIpcHost {
  * Replies to a shell action with the browser state it returned. The shell drops a reply if a state arrived meanwhile,
  * which a state it has not drawn yet always does, so a change waiting for that draw is sent first, before the reply.
  */
-async function stateReply(host: { tabs(): Pick<BrowserTabsManager, 'beforeStateReply'> | null }, reply: Promise<BrowserState>): Promise<BrowserState> {
+async function stateReply(host: { tabs(): Pick<Browser, 'beforeStateReply'> | null }, reply: Promise<BrowserState>): Promise<BrowserState> {
   const state = await reply
   host.tabs()?.beforeStateReply()
   return state

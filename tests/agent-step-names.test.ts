@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' } }))
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+import { Browser } from '../src/main/browser/browser.js'
 import { BROWSER_SNAPSHOT_FORMAT_VERSION } from '../src/shared/snapshot.js'
 
 function fixture() {
@@ -17,13 +17,13 @@ function fixture() {
   })
   const checkout = page('tab-1', 'workspace-a')
   const admin = page('tab-2', 'workspace-b')
-  const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+  const manager = Object.assign(Object.create(Browser.prototype), {
     // Snapshots read the person's settings, here the defaults.
     options: {},
     tabs: new Map([[checkout.id, checkout], [admin.id, admin]]),
     activeTabId: admin.id,
     mcpTabGroups: new Map([['workspace-a', { activeTabId: checkout.id }], ['workspace-b', { activeTabId: admin.id }]])
-  }) as BrowserTabsManager
+  }) as Browser
   return { manager, checkout, show: (names: unknown) => { targetNames = names } }
 }
 

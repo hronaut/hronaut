@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { NavigationEntry } from 'electron'
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+import { Browser } from '../src/main/browser/browser.js'
 import { ClosedTabsStore, restoredClosedTabs, savedClosedTabs, type SavedClosedTab, type SavedClosedTabsAccess } from '../src/main/browser/saved-closed-tabs/saved-closed-tabs.js'
 import { closedTabHistory, rememberClosedTab, rememberSavedClosedTabs, reopenClosedTabEntry } from '../src/main/browser/tab-reopening/tab-reopening.js'
 import type { TabReopeningAccess, TabReopeningCreation, TabReopeningTab } from '../src/main/browser/tab-reopening/tab-reopening-access.js'
@@ -276,7 +276,7 @@ describe('the tab manager saving Recently closed', () => {
     tabs.close([address('a')], 0)
     tabs.close([address('cleared')], 0)
     const saved: (readonly SavedClosedTab[] | undefined)[] = []
-    const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+    const manager = Object.assign(Object.create(Browser.prototype), {
       closedTabs: tabs.closedTabs,
       detachedClosedTabs: new Set(),
       tabs: new Map(),
@@ -286,7 +286,7 @@ describe('the tab manager saving Recently closed', () => {
       destroyed: false,
       changed: vi.fn(),
       closedTabsStore: { save: async (closedTabs: () => readonly SavedClosedTab[] | undefined) => { saved.push(closedTabs()) } }
-    }) as BrowserTabsManager
+    }) as Browser
     manager.forgetHistoryPages((url) => url === address('cleared'))
     await vi.waitFor(() => expect(saved).toHaveLength(1))
     expect(saved[0]!.map(({ closed }) => closed.url)).toEqual([address('a')])
@@ -296,7 +296,7 @@ describe('the tab manager saving Recently closed', () => {
     const tabs = browser()
     tabs.close([address('cleared'), address('kept')], 1)
     const saved: (readonly SavedClosedTab[] | undefined)[] = []
-    const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+    const manager = Object.assign(Object.create(Browser.prototype), {
       closedTabs: tabs.closedTabs,
       detachedClosedTabs: new Set(),
       tabs: new Map(),
@@ -306,7 +306,7 @@ describe('the tab manager saving Recently closed', () => {
       destroyed: false,
       changed: vi.fn(),
       closedTabsStore: { save: async (closedTabs: () => readonly SavedClosedTab[] | undefined) => { saved.push(closedTabs()) } }
-    }) as BrowserTabsManager
+    }) as Browser
     // Saved once with the page, as every few seconds, and then once its history is cleared.
     await (manager as unknown as { saveForNextStart(): Promise<void> }).saveForNextStart()
     manager.forgetHistoryPages((url) => url === address('cleared'))
@@ -318,7 +318,7 @@ describe('the tab manager saving Recently closed', () => {
 
   it('removes the saved Recently closed when the history is cleared before the saved tabs are back', async () => {
     const discard = vi.fn(async () => undefined)
-    const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+    const manager = Object.assign(Object.create(Browser.prototype), {
       closedTabs: [],
       detachedClosedTabs: new Set(),
       tabs: new Map(),
@@ -327,7 +327,7 @@ describe('the tab manager saving Recently closed', () => {
       destroyed: false,
       changed: vi.fn(),
       closedTabsStore: { discard, save: vi.fn() }
-    }) as BrowserTabsManager
+    }) as Browser
     manager.forgetHistoryPages(() => true)
     expect(discard).toHaveBeenCalledOnce()
   })
@@ -335,11 +335,11 @@ describe('the tab manager saving Recently closed', () => {
   it('leaves out the closed tabs of a workspace being deleted', () => {
     const tabs = browser()
     tabs.close([address('a')], 0)
-    const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+    const manager = Object.assign(Object.create(Browser.prototype), {
       closedTabs: tabs.closedTabs,
       mcpTabGroups: new Map([['work', { navigationPolicy: anywhere }]]),
       workspacesBeingDeleted: new Map([['work', {}]])
-    }) as BrowserTabsManager
+    }) as Browser
     const access = (manager as unknown as { savedClosedTabsAccess(): SavedClosedTabsAccess }).savedClosedTabsAccess()
     expect(savedClosedTabs(access)).toEqual([])
   })

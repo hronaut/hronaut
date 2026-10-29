@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' } }))
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+import { Browser } from '../src/main/browser/browser.js'
 
 afterEach(() => { vi.useRealTimers() })
 
@@ -18,12 +18,12 @@ function fixture() {
     navigationGeneration: 3, humanInteractionGeneration: 7
   }
   const tabs = new Map([[tab.id, tab]])
-  const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+  const manager = Object.assign(Object.create(Browser.prototype), {
     tabs, allAgentsPaused: false, agentPauseOverridesAllowed: true, globallyResumedAgentTabIds: new Set<string>(),
     liveRegionRecorder: { release: vi.fn() }, cssStatePreview: { clear: vi.fn(async () => undefined) }, virtualPasskeys: { stop: vi.fn() },
     logpoints: { stop: vi.fn() },
     changed: vi.fn(), getTab: () => tab, getState: () => ({ tabs: [] })
-  }) as BrowserTabsManager
+  }) as Browser
   return { manager, tab }
 }
 

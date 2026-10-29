@@ -30,7 +30,7 @@ import { AgentStepThumbnailScheduler, type AgentStepThumbnailCapture } from './a
 import type { AgentAnswerKind, AgentPresence, AgentStepHistoryEntry } from '../../shared/agent-presence.js'
 import { strongerAgentState, type ConnectedAgent } from '../../shared/agent-status.js'
 import type { HomeFeedEntry, HomeWorkspaceActivity } from '../../shared/home.js'
-import type { BrowserTabsManager } from '../browser/tabs-manager.js'
+import type { Browser } from '../browser/browser.js'
 import type { BrowserState, McpServerStatus, McpTabActivity, UserAttentionInput, UserAttentionRequest } from '../../shared/types.js'
 import type { McpToolSet } from '../../shared/mcp-tool-sets.js'
 import type { BookmarkOperations, HistoryOperations, SiteDataOperations } from './browser-data-operations.js'
@@ -161,7 +161,7 @@ export class McpHttpServer {
   private readonly agentStepThumbnails: AgentStepThumbnailScheduler | undefined
 
   constructor(
-    private readonly manager: BrowserTabsManager,
+    private readonly manager: Browser,
     private readonly options: McpHttpServerOptions
   ) {
     this.token = options.token

@@ -1,5 +1,5 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
-import type { BrowserTabsManager } from './browser/tabs-manager.js'
+import type { Browser } from './browser/browser.js'
 import { sanitizeConsoleMessages } from '../shared/debug-report.js'
 import type {
   BrowserElementInspectionOptions,
@@ -9,7 +9,7 @@ import type {
   BrowserPageCaptureOptions
 } from '../shared/types.js'
 
-type PageInspectionIpcTabs = Pick<BrowserTabsManager,
+type PageInspectionIpcTabs = Pick<Browser,
   | 'manageStorage' | 'inspectStorageUsage' | 'storageChanges' | 'inspectIndexedDb' | 'pwaLifecycle' | 'inspectPwa'
   | 'snapshotDetails' | 'pickElement' | 'captureElementScreenshot' | 'screenshot' | 'elementInspection'
   | 'cancelElementPicker' | 'consoleMessages' | 'networkRequests' | 'networkRequestDetails' | 'replayNetworkRequest'

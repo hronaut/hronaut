@@ -3,7 +3,7 @@ import type { AnySchema, ZodRawShapeCompat } from '@modelcontextprotocol/sdk/ser
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
 import type { McpTabActivity, UserAttentionInput, UserAttentionRequest } from '../../../shared/types.js'
-import type { BrowserTabsManager } from '../../browser/tabs-manager.js'
+import type { Browser } from '../../browser/browser.js'
 import type { UserAttentionLifecycle } from '../../attention/user-attention-lifecycle.js'
 import { McpActionTracker } from '../action-tracker.js'
 import type { AuditReceiptService } from '../audit-receipt-service.js'
@@ -205,7 +205,7 @@ export type WorkspaceToolHandler<T, S = undefined> = ((input: T, call: Workspace
  * its authorizations, and the shared wrappers that admit, guard and settle each call (see browser-mcp-server.ts and workspace-tool-call.ts).
  */
 export interface McpToolContext {
-  manager: BrowserTabsManager
+  manager: Browser
   client: McpClientActivity
   bookmarks: BookmarkOperations
   history: HistoryOperations
@@ -261,14 +261,14 @@ export interface McpToolContext {
     target?: { workspaceId: string; tabId?: string; origins?: string[] }
   ) => McpCapabilityProfile | undefined
   capabilityAllowsUrl: (profile: McpCapabilityProfile | undefined, url: string) => boolean
-  requireAgentWorkspace: (workspaceId: string) => ReturnType<BrowserTabsManager['requireMcpTabGroup']>
+  requireAgentWorkspace: (workspaceId: string) => ReturnType<Browser['requireMcpTabGroup']>
   requireSavedWorkspace: (workspaceId: string) => void
   authorizeResume: (workspaceId: string, resumeKey: string, saved: boolean) => void
-  authorizedActiveWorkspaces: () => ReturnType<BrowserTabsManager['listMcpTabGroups']>
-  authorizedSavedWorkspaces: () => ReturnType<BrowserTabsManager['listSavedTabGroups']>
+  authorizedActiveWorkspaces: () => ReturnType<Browser['listMcpTabGroups']>
+  authorizedSavedWorkspaces: () => ReturnType<Browser['listSavedTabGroups']>
   workspaceAuthorizationError: () => Error
   withResumeKey: <T extends { id: string }>(workspace: T) => T & { resumeKey: string }
-  forkOnlySource: (source: ReturnType<BrowserTabsManager['listWorkspaceForkSources']>[number]) => ReturnType<BrowserTabsManager['listWorkspaceForkSources']>[number] & {
+  forkOnlySource: (source: ReturnType<Browser['listWorkspaceForkSources']>[number]) => ReturnType<Browser['listWorkspaceForkSources']>[number] & {
     forkOnly: true
     forkWith: { action: 'create'; storage: 'fork-workspace'; sourceWorkspaceId: string }
   }

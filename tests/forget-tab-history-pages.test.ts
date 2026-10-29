@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+import { Browser } from '../src/main/browser/browser.js'
 import { forgetTabHistoryPages, holdTabHistory, type TabHistoryPagesTab } from '../src/main/browser/tab-history-pages/forget-tab-history-pages.js'
 import type { BrowserClosedTabState } from '../src/shared/types.js'
 
@@ -99,9 +99,9 @@ describe('forgetting cleared pages from open tabs\' Back and Forward lists', () 
   it('publishes the tabs when only an open tab forgets a page, without saving them', () => {
     const changed = vi.fn()
     const open = tab(['a', 'b'].map(page), 1)
-    const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+    const manager = Object.assign(Object.create(Browser.prototype), {
       closedTabs: [], detachedClosedTabs: new Set(), tabs: new Map([['tab', open.tab]]), changed
-    }) as BrowserTabsManager
+    }) as Browser
     manager.forgetHistoryPages(matching('c'))
     expect(changed).not.toHaveBeenCalled()
     manager.forgetHistoryPages(matching('a'))
@@ -121,7 +121,7 @@ describe('forgetting cleared pages from open tabs\' Back and Forward lists', () 
       tabs: new Map([['agent', agentTab.tab], ['person', personTab.tab]]),
       changed: vi.fn()
     }
-    const manager = Object.assign(Object.create(BrowserTabsManager.prototype), internals) as BrowserTabsManager
+    const manager = Object.assign(Object.create(Browser.prototype), internals) as Browser
     manager.forgetHistoryPages(matching('a'), 'agent-workspace')
     expect(agentTab.urls()).toEqual([page('b')])
     expect(personTab.urls()).toEqual(['a', 'b'].map(page))

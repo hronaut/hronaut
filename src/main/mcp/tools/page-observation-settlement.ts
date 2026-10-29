@@ -1,5 +1,5 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import type { BrowserTabsManager } from '../../browser/tabs-manager.js'
+import type { Browser } from '../../browser/browser.js'
 import { McpCapabilityAuthorizationError } from '../capability-profile-store.js'
 import { textResult } from '../tool-results.js'
 import { WorkspaceWriteLeaseError } from '../workspace-write-leases.js'
@@ -22,7 +22,7 @@ function pageObservationPublicationFailure(error: unknown): CallToolResult {
  * its target and workspace observation access when it settles; otherwise its content is discarded and the call
  * reports that the capture may have changed the page.
  */
-export function pageObservationSettlement(manager: BrowserTabsManager) {
+export function pageObservationSettlement(manager: Browser) {
   let publication: (() => void) | undefined
   return {
     authorizesResolvedTab: true,

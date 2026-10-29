@@ -69,9 +69,9 @@ checks the first three.
   out to a feature module rather than growing them, and lower a budget when its
   file shrinks.
 - Feature functions import each other directly. Do not add access objects
-  (`*-access.ts` files, or `...Access` interfaces of delegates) or tab-manager
+  (`*-access.ts` files, or `...Access` interfaces of delegates) or `Browser`
   methods that only pass a call on; the existing ones go away as features
-  move out of `tabs-manager.ts`, and the budgets file lists the files left.
+  move out of `browser/browser.ts`, and the budgets file lists the files left.
 - Imports only go down the layers: page primitives (debugger use, page
   evaluation, input authorization, workspace scope) come first, features use
   them, and workflows (tab sleep, tab close, window layout, workspace archive)

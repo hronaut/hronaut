@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { BookmarkStore, type RemovedBookmark } from './bookmark-store.js'
 import { HistoryStore, normalizeHistoryUrl } from './history-store.js'
 import { LocalizedError } from '../localized-error.js'
-import type { BrowserTabsManager } from '../browser/tabs-manager.js'
+import type { Browser } from '../browser/browser.js'
 import type { BookmarkOperations, HistoryOperations, McpHttpServer } from '../mcp/server.js'
 import type { UndoableAction } from '../undo-offers.js'
 import type { BrowserBookmark, BrowserHistoryEntry } from '../../shared/types.js'
@@ -30,7 +30,7 @@ interface BookmarksAndHistoryHost {
   /** The MCP listener while it runs, whose agents' finished steps go when the person or an agent clears the history. */
   mcpServer(): Pick<McpHttpServer, 'forgetAgentStepsSince'> | null
   /** The tabs once the window opens, whose Recently closed tabs and Back and Forward pages go with the history. */
-  tabs(): Pick<BrowserTabsManager, 'forgetHistoryPages'> | null
+  tabs(): Pick<Browser, 'forgetHistoryPages'> | null
   /** Offers the person's latest reversible action for Undo, replacing the previous offer. */
   offerUndo(action: UndoableAction): void
 }

@@ -33,7 +33,7 @@ vi.mock('electron', () => {
   return { session: {}, webContents: { getFocusedWebContents: () => null }, WebContentsView, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, powerMonitor: { on: () => undefined }, Menu: {} }
 })
 
-const { BrowserTabsManager } = await import('../src/main/browser/tabs-manager.js')
+const { Browser } = await import('../src/main/browser/browser.js')
 const { attachPagePointerEvents } = await import('../src/main/browser/tab-events/page-pointer-events.js')
 
 const PERSON = '01912345-6789-7abc-8def-0123456789ab'
@@ -56,7 +56,7 @@ interface Manager {
 }
 
 function browser() {
-  const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+  const manager = Object.assign(Object.create(Browser.prototype), {
     destroyed: false, initialized: true, restoringLayout: false,
     options: { partition: 'persist:hronaut' },
     window: {

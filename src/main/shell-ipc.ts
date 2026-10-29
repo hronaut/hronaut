@@ -1,13 +1,13 @@
 import type { BrowserWindow, IpcMain, IpcMainEvent, IpcMainInvokeEvent, WebContents } from 'electron'
 import type { AppQuitState } from './app-lifecycle.js'
 import type { FollowSuspensionState } from './overlays/agent-card-overlay.js'
-import type { BrowserTabsManager } from './browser/tabs-manager.js'
+import type { Browser } from './browser/browser.js'
 import type { ToastOverlay } from './overlays/toast-overlay.js'
 import type { SidebarOverlay } from './overlays/sidebar-overlay.js'
 import { scaleShellMetric } from '../shared/interface-scale.js'
 import { parseScrimColor, type ScrimColor } from '../shared/title-bar.js'
 
-type ShellIpcTabs = Pick<BrowserTabsManager,
+type ShellIpcTabs = Pick<Browser,
   | 'setToolbarHeight' | 'setContentInsets' | 'setBrowserContentOccluded' | 'presentOcclusionSnapshot'
   | 'setFollowAgentActivitySuspended' | 'stateDrawn'>
 

@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' } }))
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+import { Browser } from '../src/main/browser/browser.js'
 import type { BrowserPdfOptions } from '../src/shared/types.js'
 
 const pages = (count: number): Buffer => Buffer.from(`%PDF-1.4\n3 0 obj\n<</Type /Pages /Count ${count} /Kids []>>\nendobj\n%%EOF`, 'latin1')
@@ -18,7 +18,7 @@ function exporter(output: Buffer = pages(1)) {
     removeListener: vi.fn()
   }
   const tab = { id: 'tab-1', title: 'Guide', navigationGeneration: 1, webContents }
-  const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+  const manager = Object.assign(Object.create(Browser.prototype), {
     options: {},
     tabs: new Map([[tab.id, tab]]),
     activeTabId: tab.id,
@@ -27,7 +27,7 @@ function exporter(output: Buffer = pages(1)) {
     destroyed: false,
     withRenderableTab: (_tab: unknown, run: () => Promise<unknown>) => run(),
     writeUniqueDownload
-  }) as BrowserTabsManager
+  }) as Browser
   return {
     save: (options: BrowserPdfOptions) => manager.savePdf({ tabId: tab.id, ...options }),
     printed: () => (printToPDF.mock.calls[0] as unknown[])[0],

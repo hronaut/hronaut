@@ -18,7 +18,7 @@ vi.mock('../src/main/browser/split-view/split-view.js', async (original) => ({
   })
 }))
 
-const { BrowserTabsManager } = await import('../src/main/browser/tabs-manager.js')
+const { Browser } = await import('../src/main/browser/browser.js')
 
 interface Tab { id: string }
 interface Manager {
@@ -30,7 +30,7 @@ interface Manager {
 function browser() {
   opened.splitViews.length = 0
   const page = { id: 'page' }
-  const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+  const manager = Object.assign(Object.create(Browser.prototype), {
     tabs: new Map([['page', page], ['link', { id: 'link' }], ['other', { id: 'other' }]]),
     activeTabId: 'page'
   }) as Manager

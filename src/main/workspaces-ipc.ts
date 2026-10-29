@@ -7,7 +7,7 @@ import type {
   SaveDialogOptions,
   SaveDialogReturnValue
 } from 'electron'
-import type { BrowserTabsManager } from './browser/tabs-manager.js'
+import type { Browser } from './browser/browser.js'
 import { normalizeWorkspaceNavigationPolicy } from './browser/workspace-navigation-policy.js'
 import { LocalizedError } from './localized-error.js'
 import { agentAnswerForDecision } from './mcp/agent-presence.js'
@@ -25,7 +25,7 @@ import type {
 } from '../shared/types.js'
 import { parseWorkspaceTemplate, WORKSPACE_TEMPLATE_ERRORS } from '../shared/workspace-template.js'
 
-type WorkspacesIpcTabs = Pick<BrowserTabsManager,
+type WorkspacesIpcTabs = Pick<Browser,
   | 'getState' | 'renameMcpTabGroup' | 'updateMcpTabGroup'
   | 'inspectWorkspaceContinuity' | 'suspendWorkspaceContinuity' | 'armWorkspaceContinuity' | 'reconcileWorkspaceContinuity'
   | 'updateWorkspaceNavigationPolicy' | 'listWorkspaceNavigationAudit'

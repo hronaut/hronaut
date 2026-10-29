@@ -1,10 +1,10 @@
 import type { IpcMain } from 'electron'
 import type { PageBootstrap } from '../shared/page-bootstrap.js'
-import type { BrowserTabsManager } from './browser/tabs-manager.js'
+import type { Browser } from './browser/browser.js'
 
 interface PageBootstrapIpcHost {
   ipcMain: Pick<IpcMain, 'on'>
-  tabs(): Pick<BrowserTabsManager, 'reactInspectionBootstrap' | 'fixedDateBootstrap'> | null
+  tabs(): Pick<Browser, 'reactInspectionBootstrap' | 'fixedDateBootstrap'> | null
 }
 
 /**

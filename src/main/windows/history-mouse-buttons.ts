@@ -1,10 +1,10 @@
 import type { BrowserWindow } from 'electron'
-import type { BrowserTabsManager } from '../browser/tabs-manager.js'
+import type { Browser } from '../browser/browser.js'
 
 interface HistoryMouseButtonsHost {
   /** Runs a browser action from native UI and reports its failure to the shell; skipped until saved workspaces are up. */
   runNativeBrowserAction(action: string, callback: () => unknown): void
-  tabs(): Pick<BrowserTabsManager, 'historyGesture'> | null
+  tabs(): Pick<Browser, 'historyGesture'> | null
 }
 
 /**

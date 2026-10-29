@@ -42,7 +42,7 @@ import { createAppUpdates, type AppUpdatesState } from './updates/app-updates.js
 import { registerPageInspectionIpc } from './page-inspection-ipc.js'
 import { registerQrCodeIpc } from './qr-code-ipc.js'
 import { DownloadHistoryStore } from './browser/download-history/download-history.js'
-import { BrowserTabsManager } from './browser/tabs-manager.js'
+import { Browser } from './browser/browser.js'
 import { TabStateStore, WorkspaceMetadataError } from './browser/tab-store.js'
 import { createTabRuntimeStartup, type TabRuntimeState } from './tab-runtime-startup.js'
 import { createWalletRuntime, type WalletRuntimeState } from './wallet/runtime.js'
@@ -1200,7 +1200,7 @@ async function createWindow(startMinimized = false): Promise<void> {
   await startAgentServices()
   const downloadHistory = new DownloadHistoryStore(join(app.getPath('userData'), 'download-history.json'))
   const savedDownloads = await downloadHistory.load()
-  tabRuntime.tabs = new BrowserTabsManager(mainWindowRefs.window, {
+  tabRuntime.tabs = new Browser(mainWindowRefs.window, {
     partition: PARTITION,
     sessionDataPath: app.getPath('sessionData'),
     storePath: join(app.getPath('userData'), 'tabs.json'),

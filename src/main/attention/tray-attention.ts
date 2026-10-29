@@ -3,7 +3,7 @@ import { Menu, nativeImage, Notification, Tray, type BrowserWindow, type NativeI
 import { bindTrayActivation } from './tray-activation.js'
 import trayIconPath from '../../../build/icons/24x24.png?asset'
 import trayAttentionIconPath from '../../../build/icons/tray-attention.png?asset'
-import type { BrowserTabsManager } from '../browser/tabs-manager.js'
+import type { Browser } from '../browser/browser.js'
 import type { McpHttpServer } from '../mcp/server.js'
 import type { UserAttentionLifecycle } from './user-attention-lifecycle.js'
 import type { AgentPresenceSnapshot } from '../../shared/agent-presence.js'
@@ -39,7 +39,7 @@ interface TrayAttentionHost {
   showWindow(): void
   /** The main window; read on every use because it opens after startup and goes when it closes. */
   mainWindow(): Pick<BrowserWindow, 'flashFrame' | 'webContents'> | null
-  tabs(): Pick<BrowserTabsManager, 'selectTabAndWait'> | null
+  tabs(): Pick<Browser, 'selectTabAndWait'> | null
   mcpServer(): Pick<McpHttpServer, 'recordAgentAnswer'> | null
   /** Runs a browser action from native UI and reports its failure to the shell; skipped until saved workspaces are up. */
   runNativeBrowserAction(action: string, callback: () => unknown): void

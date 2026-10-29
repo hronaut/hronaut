@@ -8,7 +8,7 @@ vi.mock('electron', () => ({
 }))
 
 const { showTabContextMenu } = await import('../src/main/browser/context-menus/tab-context-menu.js')
-const { BrowserTabsManager } = await import('../src/main/browser/tabs-manager.js')
+const { Browser } = await import('../src/main/browser/browser.js')
 
 // A tab menu opened on one of several tabs selected with Ctrl or Shift and a click acted only on that tab; as in
 // Chrome, it acts on every selected tab.
@@ -160,7 +160,7 @@ describe('the tab menu of several selected tabs', () => {
   })
 
   it('pins and unpins the tabs in the order they had, as Chrome does', async () => {
-    const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+    const manager = Object.assign(Object.create(Browser.prototype), {
       mcpTabGroups: new Map([['work', { id: 'work', name: 'Work' }]]),
       tabs: new Map(['p', 'a', 'b', 'c', 'd'].map((id) => [id, tab(id, 'work', { pinned: id === 'p' })])),
       activeTabId: 'a',

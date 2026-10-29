@@ -14,7 +14,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 const { LocalizedError, withTranslatedIpcErrors } = await import('../src/main/localized-error.js')
 const { translate } = await import('../src/shared/i18n.js')
 const { MAX_BROWSER_TABS } = await import('../src/shared/types.js')
-const { BrowserTabsManager } = await import('../src/main/browser/tabs-manager.js')
+const { Browser } = await import('../src/main/browser/browser.js')
 const { RendererExitedError } = await import('../src/main/browser/renderer-exit-guard.js')
 const { WorkspaceMetadataError } = await import('../src/main/browser/tab-store.js')
 const { waitForPage } = await import('../src/main/browser/page-waits/page-waits.js')
@@ -87,7 +87,7 @@ async function failure(action: () => unknown): Promise<unknown> {
 const destroyed = { isDestroyed: () => true }
 const homeTab = { id: 'home', url: 'hronaut://home/', pinned: false, nativeInputEnvironmentGeneration: 0 }
 const websiteTab = { id: 'site', url: 'https://example.test/', pinned: false, nativeInputEnvironmentGeneration: 0 }
-const manager = (activeTabId: string | null) => Object.assign(Object.create(BrowserTabsManager.prototype), { tabs: new Map(), activeTabId }) as InstanceType<typeof BrowserTabsManager>
+const manager = (activeTabId: string | null) => Object.assign(Object.create(Browser.prototype), { tabs: new Map(), activeTabId }) as InstanceType<typeof Browser>
 const noWorkspaces = { mcpTabGroups: () => new Map(), savedTabGroups: () => new Map() }
 const labels = {
   initialized: () => true, isDestroyed: () => false, tabLabelAdmissionClosed: () => false, tabLabelLifecycleHolds: () => 0,
@@ -176,7 +176,7 @@ describe('main-process failures people see in tabs, navigation and new tabs', ()
       'Unknown workspace: workspace-id.', 'Робочий простір більше недоступний.'],
     ['closing a workspace with Undo that just closed', () => closeWorkspaceForPerson(noWorkspaces as never, 'workspace-id'),
       'Unknown workspace: workspace-id.', 'Робочий простір більше недоступний.'],
-    ['the menu of a workspace that just closed', () => Object.assign(Object.create(BrowserTabsManager.prototype), { mcpTabGroups: new Map() }).showWorkspaceContextMenu('workspace-id'),
+    ['the menu of a workspace that just closed', () => Object.assign(Object.create(Browser.prototype), { mcpTabGroups: new Map() }).showWorkspaceContextMenu('workspace-id'),
       'Unknown workspace: workspace-id', 'Робочий простір більше недоступний.'],
     ['putting the tabs of a workspace that just closed to sleep', () => sleepWorkspaceTabs(noWorkspaces as never, 'workspace-id'),
       'Unknown workspace: workspace-id', 'Робочий простір більше недоступний.'],
@@ -301,7 +301,7 @@ describe('main-process failures people see in page tools, workspace management a
     ['an empty workspace name', () => normalizedWorkspaceName('   '),
       'Workspace name cannot be empty.',
       'Назва робочого простору не може бути порожньою.'],
-    ['a workspace name already in use', () => Object.assign(Object.create(BrowserTabsManager.prototype), {
+    ['a workspace name already in use', () => Object.assign(Object.create(Browser.prototype), {
       mcpTabGroups: new Map([['research', research]]), savedTabGroups: new Map()
     }).assertWorkspaceNameAvailable('Research'),
     'A workspace named "Research" already exists. Workspace names must be unique.',

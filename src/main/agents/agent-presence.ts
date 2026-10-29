@@ -1,4 +1,4 @@
-import type { BrowserTabsManager } from '../browser/tabs-manager.js'
+import type { Browser } from '../browser/browser.js'
 import type { McpRuntimeState } from '../mcp-runtime/mcp-runtime.js'
 import type { AgentPresenceSnapshot } from '../../shared/agent-presence.js'
 import type { ConnectedAgent } from '../../shared/agent-status.js'
@@ -8,7 +8,7 @@ interface AgentPresenceHost {
   /** The MCP listener, whose server knows the agents in each workspace; its server is null while it is not running. */
   mcpRuntime: Pick<McpRuntimeState, 'server'>
   /** The tab runtime, which follows only agents still present and reloads Home; null until the window opens. */
-  tabs(): Pick<BrowserTabsManager, 'retainAgentFollow' | 'notifyHomeChanged'> | null
+  tabs(): Pick<Browser, 'retainAgentFollow' | 'notifyHomeChanged'> | null
   /** Publishes the MCP status, whose toolbar names the connected agents. */
   publishMcpControlState(options?: { refreshHome?: boolean }): McpControlState
   /** Whether the person already responded to the open request for their attention; the tray and agents read it too. */

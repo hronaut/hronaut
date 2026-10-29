@@ -1,11 +1,11 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
-import type { BrowserTabsManager } from './browser/tabs-manager.js'
+import type { Browser } from './browser/browser.js'
 import { qrCodeFilename, qrCodePng } from './browser/qr-code/qr-code-image.js'
 
 /** Longer text than this, in UTF-16 code units, holds more than the largest QR code can anyway. */
 const QR_CODE_TEXT_MAX_LENGTH = 8192
 
-type QrCodeIpcTabs = Pick<BrowserTabsManager, 'downloadGeneratedFile'>
+type QrCodeIpcTabs = Pick<Browser, 'downloadGeneratedFile'>
 
 interface QrCodeIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void

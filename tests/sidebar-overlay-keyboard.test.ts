@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp', isPackaged: true } }))
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+import { Browser } from '../src/main/browser/browser.js'
 import { attachPageKeyboardEvents } from '../src/main/browser/tab-events/page-keyboard-events.js'
 import type { PageKeyboardEventsAccess, PageKeyboardEventsTab } from '../src/main/browser/tab-events/page-keyboard-events-access.js'
 import { createOverlaySurfaces } from '../src/main/windows/overlay-surfaces.js'
@@ -23,7 +23,7 @@ function press(contents: EventEmitter, input: KeyInput): boolean {
 async function railView() {
   const contents = Object.assign(new EventEmitter(), { isDestroyed: () => false, isFocused: () => true, send: vi.fn(), setZoomFactor: vi.fn() })
   const held = new Set<string>()
-  const tabs = Object.assign(Object.create(BrowserTabsManager.prototype), { shellHeldKeys: held }) as BrowserTabsManager
+  const tabs = Object.assign(Object.create(Browser.prototype), { shellHeldKeys: held }) as Browser
   const pointerActivity = vi.fn()
   const runShortcut = vi.fn()
   const loaded = { view: { setBounds: vi.fn() }, webContents: contents }

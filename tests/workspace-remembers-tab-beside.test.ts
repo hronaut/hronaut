@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, Menu: {} }))
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+import { Browser } from '../src/main/browser/browser.js'
 
 // When the tab a workspace remembered closed while another workspace was on screen, for example when an agent closed
 // it, the workspace remembered its first tab. Going back to the workspace showed that tab, and agent commands without
@@ -19,7 +19,7 @@ interface Internals {
 const forgets = () => ({ forget: vi.fn() })
 
 function fixture(tabs: Array<{ id: string; pinned?: boolean; destroyed?: boolean; openerTabId?: string }>, remembered: string) {
-  return Object.assign(Object.create(BrowserTabsManager.prototype), {
+  return Object.assign(Object.create(Browser.prototype), {
     mcpTabGroups: new Map([['work', { id: 'work', name: 'work', activeTabId: remembered, lastUsedAt: '2026-10-21T09:00:00.000Z' }]]),
     tabs: new Map(tabs.map((tab, index) => [tab.id, {
       id: tab.id, url: `https://${tab.id}.example/`, pinned: tab.pinned === true, mcpGroupId: 'work',

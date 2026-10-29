@@ -3,7 +3,7 @@ import { join, resolve } from 'node:path'
 import { createDownloadFolder } from '../download-folder.js'
 import { commitRuntimeSetting } from './runtime-setting-commit.js'
 import { SettingsStore } from './settings-store.js'
-import type { BrowserTabsManager } from '../browser/tabs-manager.js'
+import type { Browser } from '../browser/browser.js'
 import type { McpRuntimeState } from '../mcp-runtime/mcp-runtime.js'
 import { StartupLaunchManager } from '../startup-launch.js'
 import type { MainWindowRefs } from '../windows/main-window.js'
@@ -48,7 +48,7 @@ interface SettingsRuntimeHost {
   /** The browser profile's session, whose download folder follows the setting; null until startup configures it. */
   persistentSession(): Pick<Session, 'setDownloadPath'> | null
   /** The tab runtime, whose downloads follow the settings; null until the window opens. */
-  tabs(): Pick<BrowserTabsManager, 'setDownloadPreferences'> | null
+  tabs(): Pick<Browser, 'setDownloadPreferences'> | null
 }
 
 /**

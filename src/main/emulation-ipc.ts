@@ -1,5 +1,5 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
-import type { BrowserTabsManager } from './browser/tabs-manager.js'
+import type { Browser } from './browser/browser.js'
 import { isBrowserEnvironmentSettings } from '../shared/browser-environment.js'
 import type { BrowserEnvironmentSettings, BrowserViewportEmulation } from '../shared/types.js'
 import { isBrowserViewportEmulation } from '../shared/viewport-presets.js'
@@ -8,7 +8,7 @@ interface EmulationIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
   /** Registers a handler that is refused while saved workspaces are still initializing or failed to start. */
   handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void
-  tabs(): Pick<BrowserTabsManager, 'clearCssStatePreview' | 'emulate' | 'getState'> | null
+  tabs(): Pick<Browser, 'clearCssStatePreview' | 'emulate' | 'getState'> | null
 }
 
 /** Dependencies stay lazy because handlers are registered before the window loads. */

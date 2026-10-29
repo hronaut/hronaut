@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, Menu: {} }))
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+import { Browser } from '../src/main/browser/browser.js'
 
 // Dragging one of several selected tabs moved only that tab; as in Chrome, the selected tabs move together.
 
@@ -14,7 +14,7 @@ interface Internals {
 
 /** A manager with these tabs open in this order: `other:` ones in a second workspace, a `*` one pinned, `home` as Home. */
 function manager(ids: string[]): Internals {
-  return Object.assign(Object.create(BrowserTabsManager.prototype), {
+  return Object.assign(Object.create(Browser.prototype), {
     mcpTabGroups: new Map([['work', { id: 'work', name: 'work' }], ['other', { id: 'other', name: 'other' }]]),
     tabs: new Map(ids.map((id) => {
       const [group, label] = id.includes(':') ? id.split(':') : ['work', id]

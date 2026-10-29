@@ -1,7 +1,7 @@
 import { app, type IpcMain, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import type { BrowserTabsManager } from './browser/tabs-manager.js'
+import type { Browser } from './browser/browser.js'
 import type { WorkspaceStartupReads } from './workspace-startup-reads.js'
 import type { MainWindowRefs } from './windows/main-window.js'
 import type { PanelWindowRefs } from './windows/panel-window.js'
@@ -34,9 +34,9 @@ interface IpcGuardsHost {
   /** The saved workspaces' initialization while it runs; reads wait for it and changes are refused meanwhile. */
   tabsInitializationPromise(): Promise<void> | null
   /** The tab runtime; null until the window opens and after shutdown. */
-  tabs(): BrowserTabsManager | null
+  tabs(): Browser | null
   /** The tab runtime whose saved workspaces finished initializing; a replaced runtime no longer matches it. */
-  initializedTabs(): BrowserTabsManager | null
+  initializedTabs(): Browser | null
   /** The main window, whose shell document the main and trusted checks admit; read on every check. */
   mainWindowRefs: Pick<MainWindowRefs, 'window'>
   /** The detached panel window and the document it loaded, which the panel and trusted checks admit. */

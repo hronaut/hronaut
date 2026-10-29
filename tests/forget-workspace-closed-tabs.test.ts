@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, Menu: {} }))
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+import { Browser } from '../src/main/browser/browser.js'
 import type { BrowserClosedTabState } from '../src/shared/types.js'
 import type { WorkspaceNavigationAccess } from '../src/main/browser/workspace-navigation/workspace-navigation-access.js'
 
@@ -20,7 +20,7 @@ const closed = (id: string, mcpGroupId?: string): BrowserClosedTabState => ({
 describe('forgetting a workspace\'s closed tabs', () => {
   it('forgets only that workspace\'s closed tabs on the matching pages, including one held aside', () => {
     const held = [closed('held', 'work')]
-    const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+    const manager = Object.assign(Object.create(Browser.prototype), {
       closedTabs: [closed('work', 'work'), closed('docs', 'docs'), closed('home')],
       detachedClosedTabs: new Set([held])
     }) as Internals

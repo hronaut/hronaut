@@ -6,7 +6,7 @@ import type { WalletSafeStorage } from './key-provider.js'
 import { generateWalletWithRecoveryConfirmation } from './onboarding.js'
 import { WalletService } from './service.js'
 import { walletStartupFailureStatus } from './startup-status.js'
-import type { BrowserTabsManager } from '../browser/tabs-manager.js'
+import type { Browser } from '../browser/browser.js'
 import type { CommercialLicenseStore } from '../license/commercial-license-store.js'
 import type { WalletAgentOperations, WalletAgentToolTarget } from '../mcp/server.js'
 import type { MainWindowRefs } from '../windows/main-window.js'
@@ -36,7 +36,7 @@ interface WalletRuntimeHost {
   /** The license store, which admits agents to wallets; null until startup configures it. */
   commercialLicenseStore(): Pick<CommercialLicenseStore, 'assertAutomationAccess'> | null
   /** The tab runtime, which owns the pages wallets serve; null until the window opens. */
-  tabs(): Pick<BrowserTabsManager, 'walletPageContext' | 'walletPageContextForMcpTab' | 'sendWalletProviderEvent'> | null
+  tabs(): Pick<Browser, 'walletPageContext' | 'walletPageContextForMcpTab' | 'sendWalletProviderEvent'> | null
   /** Why saved workspaces could not start, if they could not; read on every page request. */
   workspaceStartupFailure(): Error | undefined
   /** The main window, which shows the recovery phrase dialog; read on every use because it can close. */

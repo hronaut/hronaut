@@ -1,7 +1,7 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
-import type { BrowserTabsManager } from './browser/tabs-manager.js'
+import type { Browser } from './browser/browser.js'
 
-type PageGeometryIpcTabs = Pick<BrowserTabsManager,
+type PageGeometryIpcTabs = Pick<Browser,
   | 'getSplitDivider' | 'getEmulationFrames' | 'getPageCards'
   | 'beginSplitDivider' | 'updateSplitDivider' | 'finishSplitDivider' | 'setSplitDividerRatio'>
 

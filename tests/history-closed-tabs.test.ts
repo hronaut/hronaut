@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { BrowserClosedTabState } from '../src/shared/types.js'
 import { createBookmarksAndHistory } from '../src/main/bookmarks-history/bookmarks-and-history.js'
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+import { Browser } from '../src/main/browser/browser.js'
 import { forgetClosedTabs, reopenClosedTabEntry } from '../src/main/browser/tab-reopening/tab-reopening.js'
 import type { TabReopeningAccess, TabReopeningTab } from '../src/main/browser/tab-reopening/tab-reopening-access.js'
 import { HistoryStore } from '../src/main/bookmarks-history/history-store.js'
@@ -265,7 +265,7 @@ describe('the tab manager forgetting recently closed tabs', () => {
       tabs: new Map(),
       changed
     }
-    const manager = Object.assign(Object.create(BrowserTabsManager.prototype), internals) as BrowserTabsManager
+    const manager = Object.assign(Object.create(Browser.prototype), internals) as Browser
     manager.forgetHistoryPages((url) => url.startsWith('https://mail.example/'))
     expect(changed).not.toHaveBeenCalled()
 
