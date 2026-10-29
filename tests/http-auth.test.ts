@@ -569,15 +569,13 @@ describe('an agent opening a page that asks the person to sign in', () => {
       loadURL: vi.fn(() => new Promise<void>(() => {}))
     })
     const tab = { id: 'tab', sleeping: false, navigationGeneration: 0, documentGeneration: 0, navigationPolicyDenialSequence: 0, webContents }
-    const access = {
-      getTab: () => tab,
-      findTab: (id: string) => (id === tab.id ? tab : undefined),
-      searchEngine: () => undefined,
-      prepareDiagnosticNavigation: vi.fn(),
-      confirmLeavePage: vi.fn(),
-      getState: () => ({ ok: true })
+    const browser = {
+      tabs: new Map([[tab.id, tab]]),
+      activeTabId: tab.id,
+      options: {},
+      prepareDiagnosticNavigation: vi.fn()
     }
-    return { tab, webContents, go: () => navigate(access as never, PAGE, undefined, { byPerson: false }) }
+    return { tab, webContents, go: () => navigate(browser as never, PAGE, undefined, { byPerson: false }) }
   }
 
   it('tells the agent the person was asked to sign in, rather than that the page timed out', async () => {

@@ -1,6 +1,6 @@
 {
   "oversizedFiles": {
-    "src/main/browser/browser.ts": 5591,
+    "src/main/browser/browser.ts": 5478,
     "src/main/browser/downloads-controller.ts": 811,
     "src/main/index.ts": 1662,
     "src/main/mcp/http-server.ts": 856,
@@ -13,7 +13,6 @@
     "src/main/browser/agent-keys/agent-keys-access.ts",
     "src/main/browser/agent-page-actions/agent-page-actions-access.ts",
     "src/main/browser/agent-touch/agent-touch-access.ts",
-    "src/main/browser/context-menus/history-menu-access.ts",
     "src/main/browser/context-menus/page-context-menu-access.ts",
     "src/main/browser/context-menus/tab-context-menu-access.ts",
     "src/main/browser/debug-report/debug-report-access.ts",
@@ -28,7 +27,6 @@
     "src/main/browser/page-fullscreen/page-fullscreen-access.ts",
     "src/main/browser/page-geometry/page-geometry-access.ts",
     "src/main/browser/page-lifecycle/page-lifecycle-access.ts",
-    "src/main/browser/page-navigation/page-navigation-access.ts",
     "src/main/browser/screenshots/screenshots-access.ts",
     "src/main/browser/tab-close/before-unload-staging-access.ts",
     "src/main/browser/tab-close/close-tabs-for-person-access.ts",
@@ -49,8 +47,6 @@
     "src/main/browser/workspace-archive/workspace-archive-access.ts",
     "src/main/browser/workspace-continuity/workspace-continuity-access.ts",
     "src/main/browser/workspace-creation/workspace-creation-access.ts",
-    "src/main/browser/workspace-data/workspace-data-access.ts",
-    "src/main/browser/workspace-navigation/workspace-navigation-access.ts",
-    "src/main/browser/workspace-operations/workspace-operations-access.ts"
+    "src/main/browser/workspace-data/workspace-data-access.ts"
   ]
 }

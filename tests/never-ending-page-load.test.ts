@@ -4,7 +4,7 @@ import { navigate, reload } from '../src/main/browser/page-navigation/page-navig
 import { PAGE_LOAD_WAIT_MS } from '../src/main/browser/page-waits/page-load-limit.js'
 import { putTabToSleep, wakeTab } from '../src/main/browser/tab-sleep/tab-sleep.js'
 
-// The sleeping tab's browser below stubs changed and getState, which waking publishes through.
+// The browsers below stub changed and getState, which loading, retrying and waking publish through.
 vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
   publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist),
@@ -41,15 +41,14 @@ describe('opening an address whose page never finishes loading', () => {
       })
     })
     const tab = { id: 'tab', navigationGeneration: 0, documentGeneration: 0, navigationPolicyDenialSequence: 0, sleeping: false, webContents }
-    const access = {
-      getTab: () => tab,
-      findTab: (id: string) => (id === tab.id ? tab : undefined),
-      searchEngine: () => undefined,
+    const browser = {
+      tabs: new Map([[tab.id, tab]]),
+      activeTabId: tab.id,
+      options: {},
       prepareDiagnosticNavigation: vi.fn(),
-      confirmLeavePage: vi.fn(),
       getState: () => ({ ok: true })
     }
-    return { webContents, go: (byPerson?: boolean) => navigate(access as never, 'https://next.example/', undefined, { byPerson }) }
+    return { webContents, go: (byPerson?: boolean) => navigate(browser as never, 'https://next.example/', undefined, { byPerson }) }
   }
 
   it.each([false, true])('returns once the wait has passed, leaving the page loading (by a person: %s)', async byPerson => {
@@ -83,22 +82,23 @@ describe('retrying a failed page whose load never ends', () => {
   it('tells the caller once the wait has passed, leaving the page loading', async () => {
     const webContents = { loadURL: vi.fn(() => new Promise<void>(() => {})) }
     const tab = { id: 'tab', sleeping: false, pageProblem: { kind: 'load-error', url: ADDRESS }, webContents }
-    const access = {
-      getTab: () => tab,
-      isRendererRecovering: () => false,
+    const browser = {
+      tabs: new Map([[tab.id, tab]]),
+      activeTabId: tab.id,
+      rendererRecovery: { isRecovering: () => false },
       prepareDiagnosticNavigation: vi.fn(),
       changed: vi.fn(),
       waitForPage: vi.fn(() => new Promise<void>(() => {})),
       getState: () => ({ ok: true })
     }
-    const retry = reload(access as never)
+    const retry = reload(browser as never)
     const outcome = expect(retry).rejects.toMatchObject({ message: 'Timed out waiting for the page to finish loading.' })
     await vi.advanceTimersByTimeAsync(PAGE_LOAD_WAIT_MS - 1)
     expect(await stateOf(retry)).toBe('pending')
     await vi.advanceTimersByTimeAsync(1)
     await outcome
     expect(webContents.loadURL).toHaveBeenCalledWith(ADDRESS, undefined)
-    expect(access.waitForPage).not.toHaveBeenCalled()
+    expect(browser.waitForPage).not.toHaveBeenCalled()
   })
 })
 

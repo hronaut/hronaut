@@ -3,7 +3,7 @@ import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import { mkdtemp, open, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { OpenWorkspaceOperationAction, WorkspaceOperationAction } from '../src/main/browser/workspace-operations/workspace-operations-access.js'
+import type { OpenWorkspaceOperationAction, WorkspaceOperationAction } from '../src/main/browser/workspace-operations/workspace-operations.js'
 
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, Menu: {} }))
 vi.mock('node:fs/promises', async (importOriginal) => {
@@ -94,11 +94,13 @@ const labels = {
   initialized: () => true, isDestroyed: () => false, tabLabelAdmissionClosed: () => false, tabLabelLifecycleHolds: () => 0,
   pendingTabLabels: () => new Set()
 }
+// The denial is recorded in the workspace's audit; with its window gone, nothing is published.
 const restrictedWorkspace = {
-  findWorkspace: () => ({ navigationPolicy: { mode: 'restricted', rules: ['https://allowed.example'] }, navigationAudit: [] }),
-  options: () => ({}),
-  changed: () => undefined
+  mcpTabGroups: new Map([['workspace', { navigationPolicy: { mode: 'restricted', rules: ['https://allowed.example'] }, navigationAudit: [] }]]),
+  options: {},
+  window: { isDestroyed: () => true }
 }
+const noWorkspaceOperations = { mcpTabGroups: new Map(), savedTabGroups: new Map(), workspaceOperations: new Map(), savedWorkspaceOperations: new Map() }
 
 describe('main-process failures people see in tabs, navigation and new tabs', () => {
   it.each([
@@ -119,13 +121,13 @@ describe('main-process failures people see in tabs, navigation and new tabs', ()
       'There is no active tab',
       'Немає активної вкладки.'],
     // Address bar navigation
-    ['Home typed into a website tab', () => navigate({ getTab: () => ({ mcpGroupId: 'workspace' }), searchEngine: () => undefined } as never, 'hronaut://home/'),
+    ['Home typed into a website tab', () => navigate({ tabs: new Map([['tab', { id: 'tab', mcpGroupId: 'workspace' }]]), activeTabId: 'tab', options: {} } as never, 'hronaut://home/'),
       'Hronaut Home is a human application page and cannot be opened inside an agent workspace.',
       'Домівка Hronaut — сторінка застосунку для людини, її не можна відкрити в робочому просторі агента.'],
     ['a site the workspace does not allow', () => assertWorkspaceNavigationAllowed(restrictedWorkspace as never, 'workspace', 'https://blocked.example/private?q=1', 'direct'),
       'Workspace navigation to https://blocked.example is blocked. Allow this origin in the trusted workspace Site access settings.',
       'Перехід до https://blocked.example у цьому робочому просторі заблоковано. Дозвольте це джерело в налаштуваннях «Доступ до сайтів» довіреного робочого простору.'],
-    ['a workspace that just closed', () => assertWorkspaceNavigationAllowed({ findWorkspace: () => undefined } as never, 'workspace-id', 'https://example.test/', 'direct'),
+    ['a workspace that just closed', () => assertWorkspaceNavigationAllowed({ mcpTabGroups: new Map() } as never, 'workspace-id', 'https://example.test/', 'direct'),
       'Unknown workspace: workspace-id.',
       'Робочий простір більше недоступний.'],
     // Tab actions
@@ -165,8 +167,8 @@ describe('main-process failures people see in tabs, navigation and new tabs', ()
       'Unknown workspace: workspace-id. List workspaces with browser_workspaces or create one first.',
       'Робочий простір більше недоступний.'],
     ['a workspace being archived', () => assertWorkspaceIdle({
-      workspaceOperations: () => new Map([['workspace', { action: 'archiving the workspace', blocksNewTabs: true, token: Symbol('archive') }]]),
-      mcpTabGroups: () => new Map([['workspace', { name: 'Research' }]])
+      workspaceOperations: new Map([['workspace', { action: 'archiving the workspace', blocksNewTabs: true, token: Symbol('archive') }]]),
+      mcpTabGroups: new Map([['workspace', { name: 'Research' }]])
     } as never, 'workspace'),
     'Workspace "Research" is busy archiving the workspace. Try again after that operation finishes.',
     'Робочий простір «Research» зараз архівується. Спробуйте ще раз, коли це завершиться.'],
@@ -185,9 +187,9 @@ describe('main-process failures people see in tabs, navigation and new tabs', ()
       'Unknown workspace: workspace-id.', 'Робочий простір більше недоступний.'],
     ['the session of a workspace that just closed', () => workspaceSession(noWorkspaces as never, 'workspace-id'),
       'Unknown workspace: workspace-id.', 'Робочий простір більше недоступний.'],
-    ['an operation on a workspace that just closed', () => withWorkspaceOperation(noWorkspaces as never, 'workspace-id', 'clearing website data', async () => undefined),
+    ['an operation on a workspace that just closed', () => withWorkspaceOperation(noWorkspaceOperations as never, 'workspace-id', 'clearing website data', async () => undefined),
       'Unknown workspace: workspace-id.', 'Робочий простір більше недоступний.'],
-    ['an operation on an archived workspace that was just deleted', () => withSavedWorkspaceOperation(noWorkspaces as never, 'workspace-id', 'deleting the archived workspace', async () => undefined),
+    ['an operation on an archived workspace that was just deleted', () => withSavedWorkspaceOperation(noWorkspaceOperations as never, 'workspace-id', 'deleting the archived workspace', async () => undefined),
       'Unknown archived workspace: workspace-id.', 'Архівний робочий простір більше недоступний.'],
     // Tab labels
     ['a label edit while a tab operation runs', () => assertTabLabelAdmission({ ...labels, tabLabelLifecycleHolds: () => 1 } as never),
@@ -220,11 +222,11 @@ describe('main-process failures people see in tabs, navigation and new tabs', ()
     } satisfies Record<OpenWorkspaceOperationAction, true>
     const sentences = new Set<string>()
     for (const action of Object.keys(actions) as OpenWorkspaceOperationAction[]) {
-      const access = {
-        workspaceOperations: () => new Map([['workspace', { action, blocksNewTabs: true, token: Symbol(action) }]]),
-        mcpTabGroups: () => new Map([['workspace', { name: 'Research' }]])
+      const browser = {
+        workspaceOperations: new Map([['workspace', { action, blocksNewTabs: true, token: Symbol(action) }]]),
+        mcpTabGroups: new Map([['workspace', { name: 'Research' }]])
       }
-      const error = (() => { try { assertWorkspaceIdle(access as never, 'workspace') } catch (caught) { return caught } })()
+      const error = (() => { try { assertWorkspaceIdle(browser as never, 'workspace') } catch (caught) { return caught } })()
       expect(error).toBeInstanceOf(LocalizedError)
       expect((error as Error).message).toBe(`Workspace "Research" is busy ${action}. Try again after that operation finishes.`)
       sentences.add(ukrainian((error as InstanceType<typeof LocalizedError>).key, { name: 'Research' }))
@@ -318,13 +320,13 @@ describe('main-process failures people see in page tools, workspace management a
     'Workspace "Research" is protected from deletion. Turn off deletion protection in Home first.',
     'Робочий простір «Research» захищено від видалення. Спершу вимкніть захист від видалення в Домівці.'],
     ['an archived workspace that is being restored', () => withSavedWorkspaceOperation({
-      savedTabGroups: () => new Map([['saved', archivedResearch]]),
-      savedWorkspaceOperations: () => new Map([['saved', { action: 'restoring the archived workspace', blocksNewTabs: true, token: Symbol('restore') }]])
+      savedTabGroups: new Map([['saved', archivedResearch]]),
+      savedWorkspaceOperations: new Map([['saved', { action: 'restoring the archived workspace', blocksNewTabs: true, token: Symbol('restore') }]])
     } as never, 'saved', 'deleting the archived workspace', async () => undefined),
     'Archived workspace "Research" is busy restoring the archived workspace. Try again after that operation finishes.',
     'Робочий простір «Research» зараз відновлюється з архіву. Спробуйте ще раз, коли це завершиться.'],
     ['workspace storage while data is being copied', () => withGlobalWorkspaceStorageOperation({
-      workspaceStorageOperation: () => ({ action: 'copying workspace data', blocksNewTabs: false, token: Symbol('copy') })
+      workspaceStorageOperation: { action: 'copying workspace data', blocksNewTabs: false, token: Symbol('copy') }
     } as never, 'clearing website data', async () => undefined),
     'Workspace storage is busy copying workspace data. Try again after that operation finishes.',
     'Сховище робочих просторів зайняте: зараз копіюються дані робочого простору. Спробуйте ще раз, коли це завершиться.'],
@@ -421,9 +423,9 @@ describe('main-process failures people see in page tools, workspace management a
     for (const action of Object.keys(actions) as WorkspaceOperationAction[]) {
       const operation = { action, blocksNewTabs: true, token: Symbol(action) }
       const archived = await failure(() => withSavedWorkspaceOperation({
-        savedTabGroups: () => new Map([['saved', archivedResearch]]), savedWorkspaceOperations: () => new Map([['saved', operation]])
+        savedTabGroups: new Map([['saved', archivedResearch]]), savedWorkspaceOperations: new Map([['saved', operation]])
       } as never, 'saved', 'restoring the archived workspace', async () => undefined))
-      const storage = await failure(() => withGlobalWorkspaceStorageOperation({ workspaceStorageOperation: () => operation } as never, 'clearing website data', async () => undefined))
+      const storage = await failure(() => withGlobalWorkspaceStorageOperation({ workspaceStorageOperation: operation } as never, 'clearing website data', async () => undefined))
       expect(archived).toBeInstanceOf(LocalizedError)
       expect(storage).toBeInstanceOf(LocalizedError)
       expect((archived as Error).message).toBe(`Archived workspace "Research" is busy ${action}. Try again after that operation finishes.`)
@@ -562,8 +564,8 @@ describe('main-process failures people see in continuity checkpoints and waiting
     'Підтвердьте, що сторінку перевірено й що попередня дія вже могла мати наслідки.'],
     // Workspaces
     ['a busy workspace whose record is already gone', () => assertWorkspaceIdle({
-      workspaceOperations: () => new Map([['019a0000-0000-7000-8000-000000000001', { action: 'closing the workspace', blocksNewTabs: true, token: Symbol('close') }]]),
-      mcpTabGroups: () => new Map()
+      workspaceOperations: new Map([['019a0000-0000-7000-8000-000000000001', { action: 'closing the workspace', blocksNewTabs: true, token: Symbol('close') }]]),
+      mcpTabGroups: new Map()
     } as never, '019a0000-0000-7000-8000-000000000001'),
     'Workspace "019a0000-0000-7000-8000-000000000001" is busy closing the workspace. Try again after that operation finishes.',
     'Цей робочий простір зараз зайнятий іншою дією. Спробуйте ще раз, коли це завершиться.']
@@ -580,8 +582,8 @@ describe('main-process failures people see in continuity checkpoints and waiting
     const savedId = '019a0000-0000-7000-8000-000000000002'
     let reads = 0
     const error = await failure(() => withSavedWorkspaceOperation({
-      savedTabGroups: () => reads++ === 0 ? new Map([[savedId, { ...archivedResearch, id: savedId }]]) : new Map(),
-      savedWorkspaceOperations: () => new Map([[savedId, { action: 'deleting the archived workspace', blocksNewTabs: true, token: Symbol('delete') }]])
+      savedTabGroups: { get: (id: string) => reads++ === 0 && id === savedId ? { ...archivedResearch, id: savedId } : undefined },
+      savedWorkspaceOperations: new Map([[savedId, { action: 'deleting the archived workspace', blocksNewTabs: true, token: Symbol('delete') }]])
     } as never, savedId, 'restoring the archived workspace', async () => undefined))
     expect(error).toBeInstanceOf(LocalizedError)
     expect((error as Error).message).toBe('Archived workspace "Research" is busy deleting the archived workspace. Try again after that operation finishes.')

@@ -1,6 +1,6 @@
 import type { BrowserSavedTabGroupState, BrowserSavedTabGroupTab, BrowserTabGroupColor, BrowserTabGroupState, BrowserWorkspaceContextClass, BrowserWorkspaceNavigationAuditEntry, BrowserWorkspaceNavigationPolicy } from '../../shared/types.js'
 import { LocalizedError } from '../localized-error.js'
-import type { OpenWorkspaceOperationAction, WorkspaceOperationAction } from './workspace-operations/workspace-operations-access.js'
+import type { OpenWorkspaceOperationAction, WorkspaceOperationAction } from './workspace-operations/workspace-operations.js'
 
 export interface ActiveWorkspace {
   hiddenFromSidebar?: boolean

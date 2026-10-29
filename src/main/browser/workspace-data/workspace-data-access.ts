@@ -3,7 +3,7 @@ import type {
   BrowserWorkspaceOperation,
   OpenWorkspaceOperationAction,
   WorkspaceOperationAction
-} from '../workspace-operations/workspace-operations-access.js'
+} from '../workspace-operations/workspace-operations.js'
 import type { ActiveWorkspace, ArchivedWorkspace } from '../workspace-registry.js'
 
 /** The tab manager options workspace data uses: the storage partition and the hook every workspace session is configured with. */

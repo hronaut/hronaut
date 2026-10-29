@@ -3,11 +3,24 @@ import type { WebContents } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
 import type { BrowserState, BrowserWorkspaceNavigationPolicy } from '../src/shared/types.js'
 import { updateWorkspaceNavigationPolicy } from '../src/main/browser/workspace-navigation/workspace-navigation.js'
-import type {
-  WorkspaceNavigationAccess,
-  WorkspaceNavigationTab,
-  WorkspaceNavigationWorkspace
-} from '../src/main/browser/workspace-navigation/workspace-navigation-access.js'
+import type { Browser } from '../src/main/browser/browser.js'
+import type { ActiveWorkspace } from '../src/main/browser/workspace-registry.js'
+
+// The browser below stubs changed and getState, which the navigation policy publishes through, and keeps the
+// workspace's recently closed tabs by address, which forgetting them reaches through tab reopening.
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist),
+  browserState: (browser: { getState: () => unknown }) => browser.getState()
+}))
+vi.mock('../src/main/browser/tab-reopening/tab-reopening.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-reopening/tab-reopening.js')>(),
+  forgetWorkspaceClosedTabs: (
+    browser: { forgetWorkspaceClosedTabs: (workspaceId: string, matches: (url: string) => boolean) => void },
+    workspaceId: string,
+    matches: (url: string) => boolean
+  ) => browser.forgetWorkspaceClosedTabs(workspaceId, matches)
+}))
 
 const ALLOWED = 'https://allowed.example'
 const BLOCKED = 'https://blocked.example'
@@ -42,7 +55,19 @@ class FakePage extends EventEmitter {
   isDestroyed(): boolean { return this.destroyed }
 }
 
-interface FakeTab extends WorkspaceNavigationTab { page: FakePage }
+/** The tab fields the workspace navigation policy reads when the policy changes, and the tab's page. */
+interface FakeTab {
+  id: string
+  url: string
+  title: string
+  faviconDataUrl?: string
+  mcpGroupId?: string
+  webContents: WebContents
+  sleeping: boolean
+  sleepNavigationHistory?: unknown
+  pendingMainFrameUrl?: string
+  page: FakePage
+}
 
 function tab(id: string, url: string, options: { sleeping?: boolean } = {}): FakeTab {
   const page = new FakePage(options.sleeping ? 'data:text/html,sleeping' : url)
@@ -55,9 +80,9 @@ function tab(id: string, url: string, options: { sleeping?: boolean } = {}): Fak
 }
 
 /** The workspace with these tabs open, in this order, and the policy it has before the change. */
-function access(tabs: FakeTab[], policy: BrowserWorkspaceNavigationPolicy = UNRESTRICTED) {
+function workspaceBrowser(tabs: FakeTab[], policy: BrowserWorkspaceNavigationPolicy = UNRESTRICTED) {
   const open = new Map(tabs.map((candidate) => [candidate.id, candidate]))
-  const workspace: WorkspaceNavigationWorkspace = { contextClass: 'standard', lastUsedAt: '', navigationPolicy: policy, navigationAudit: [] }
+  const workspace: Pick<ActiveWorkspace, 'contextClass' | 'lastUsedAt' | 'navigationPolicy' | 'navigationAudit'> = { contextClass: 'standard', lastUsedAt: '', navigationPolicy: policy, navigationAudit: [] }
   // The workspace's recently closed tabs, by address.
   const closedTabs: string[] = []
   const wakeTab = vi.fn(async (id: string) => {
@@ -66,23 +91,21 @@ function access(tabs: FakeTab[], policy: BrowserWorkspaceNavigationPolicy = UNRE
     await woken.page.loadURL(woken.url)
   })
   const decisions = vi.fn()
-  const port: WorkspaceNavigationAccess<FakeTab> = {
-    findWorkspace: (id) => id === 'workspace' ? workspace : undefined,
-    findArchivedWorkspace: () => undefined,
-    assertWorkspaceIdle: () => undefined,
-    inspectionPermission: () => undefined,
-    setInspectionPermission: () => undefined,
-    tabs: () => open.values(),
-    findTab: (id) => open.get(id),
-    options: () => ({ onWorkspaceNavigationDecision: decisions }),
+  const browser = {
+    mcpTabGroups: new Map([['workspace', workspace]]),
+    savedTabGroups: new Map(),
+    workspaceOperations: new Map(),
+    inspectionPermissions: new WeakMap(),
+    tabs: open,
+    options: { onWorkspaceNavigationDecision: decisions },
     prepareDiagnosticNavigation: () => undefined,
     wakeTab,
-    forgetWorkspaceClosedTabs: (id, matches) => {
+    forgetWorkspaceClosedTabs: (id: string, matches: (url: string) => boolean) => {
       if (id === 'workspace') closedTabs.splice(0, closedTabs.length, ...closedTabs.filter((url) => !matches(url)))
     },
     changed: () => undefined,
     getState: () => ({}) as BrowserState
-  }
+  } as unknown as Browser
   const close = (closed: FakeTab) => {
     open.delete(closed.id)
     closed.page.destroyed = true
@@ -93,15 +116,15 @@ function access(tabs: FakeTab[], policy: BrowserWorkspaceNavigationPolicy = UNRE
     open.clear()
     for (const id of ids) open.set(id, tabsById.get(id)!)
   }
-  return { port, workspace, wakeTab, close, closedTabs, decisions, reorder }
+  return { browser, workspace, wakeTab, close, closedTabs, decisions, reorder }
 }
 
 describe('restricting a workspace', () => {
   it('wakes a sleeping tab on a blank page instead of leaving it to wake to the denied page', async () => {
     const sleeping = tab('sleeping', `${BLOCKED}/draft`, { sleeping: true })
-    const { port, workspace, wakeTab } = access([sleeping])
+    const { browser, workspace, wakeTab } = workspaceBrowser([sleeping])
 
-    await updateWorkspaceNavigationPolicy(port, 'workspace', RESTRICTED)
+    await updateWorkspaceNavigationPolicy(browser, 'workspace', RESTRICTED)
 
     expect(wakeTab).toHaveBeenCalledExactlyOnceWith('sleeping')
     expect(sleeping).toMatchObject({ url: 'about:blank', sleeping: false, sleepNavigationHistory: undefined, title: 'New tab', faviconDataUrl: undefined })
@@ -111,9 +134,9 @@ describe('restricting a workspace', () => {
 
   it('leaves a sleeping tab on an allowed page asleep with its history', async () => {
     const sleeping = tab('sleeping', `${ALLOWED}/docs`, { sleeping: true })
-    const { port, wakeTab } = access([sleeping])
+    const { browser, wakeTab } = workspaceBrowser([sleeping])
 
-    await updateWorkspaceNavigationPolicy(port, 'workspace', RESTRICTED)
+    await updateWorkspaceNavigationPolicy(browser, 'workspace', RESTRICTED)
 
     expect(wakeTab).not.toHaveBeenCalled()
     expect(sleeping).toMatchObject({ url: `${ALLOWED}/docs`, sleeping: true, title: 'Page sleeping' })
@@ -129,9 +152,9 @@ describe('restricting a workspace', () => {
       waking.page.loadingMainFrame = true
       waking.pendingMainFrameUrl = waking.url
     }
-    const { port, workspace } = access([toAllowed, toBlocked])
+    const { browser, workspace } = workspaceBrowser([toAllowed, toBlocked])
 
-    await updateWorkspaceNavigationPolicy(port, 'workspace', RESTRICTED)
+    await updateWorkspaceNavigationPolicy(browser, 'workspace', RESTRICTED)
 
     // The placeholder used to be checked and denied, so a tab waking to an allowed page was blanked and slept again.
     expect(toAllowed.page.loadURL).not.toHaveBeenCalled()
@@ -143,17 +166,17 @@ describe('restricting a workspace', () => {
 
   it('forgets the closed tabs on denied pages, which Reopen Closed Tab could never open', async () => {
     // The newest closed tab failed to reopen every time, and Reopen Closed Tab never reached the older ones.
-    const { port, closedTabs } = access([])
+    const { browser, closedTabs } = workspaceBrowser([])
     closedTabs.push(`${ALLOWED}/older`, `${BLOCKED}/newest`)
 
-    await updateWorkspaceNavigationPolicy(port, 'workspace', RESTRICTED)
+    await updateWorkspaceNavigationPolicy(browser, 'workspace', RESTRICTED)
 
     expect(closedTabs).toEqual([`${ALLOWED}/older`])
   })
 
   it('forgets them before the open tabs are checked, and again once a tab closed meanwhile joins them', async () => {
     const blocked = tab('blocked', `${BLOCKED}/page`)
-    const { port, closedTabs } = access([blocked])
+    const { browser, closedTabs } = workspaceBrowser([blocked])
     closedTabs.push(`${BLOCKED}/closed-before`)
     let closedWhileChecking: string[] = []
     blocked.page.loadURL.mockImplementationOnce(async (url: string) => {
@@ -163,7 +186,7 @@ describe('restricting a workspace', () => {
       blocked.page.shown = url
     })
 
-    await updateWorkspaceNavigationPolicy(port, 'workspace', RESTRICTED)
+    await updateWorkspaceNavigationPolicy(browser, 'workspace', RESTRICTED)
 
     expect(closedWhileChecking).toEqual([])
     expect(closedTabs).toEqual([])
@@ -171,22 +194,22 @@ describe('restricting a workspace', () => {
 
   it('does not fail when the workspace closes while its tabs are checked', async () => {
     const blocked = tab('blocked', `${BLOCKED}/page`)
-    const { port, closedTabs } = access([blocked])
+    const { browser, closedTabs } = workspaceBrowser([blocked])
     blocked.page.loadURL.mockImplementationOnce(async (url: string) => {
       // The closing workspace's closed tabs are held aside for Undo, where forgetting closed tabs still reaches them.
       closedTabs.push(`${BLOCKED}/held-for-undo`)
-      port.findWorkspace = () => undefined
+      browser.mcpTabGroups.delete('workspace')
       blocked.page.shown = url
     })
 
-    await expect(updateWorkspaceNavigationPolicy(port, 'workspace', RESTRICTED)).resolves.toBeDefined()
+    await expect(updateWorkspaceNavigationPolicy(browser, 'workspace', RESTRICTED)).resolves.toBeDefined()
   })
 
   it('blanks a denied page and clears its title and icon', async () => {
     const blocked = tab('blocked', `${BLOCKED}/page`)
-    const { port } = access([blocked])
+    const { browser } = workspaceBrowser([blocked])
 
-    await updateWorkspaceNavigationPolicy(port, 'workspace', RESTRICTED)
+    await updateWorkspaceNavigationPolicy(browser, 'workspace', RESTRICTED)
 
     expect(blocked.page.getURL()).toBe('about:blank')
     expect(blocked).toMatchObject({ title: 'New tab', faviconDataUrl: undefined })
@@ -196,9 +219,9 @@ describe('restricting a workspace', () => {
     const leaving = tab('leaving', `${ALLOWED}/start`)
     leaving.page.loadingMainFrame = true
     leaving.pendingMainFrameUrl = `${BLOCKED}/slow-page`
-    const { port, workspace } = access([leaving])
+    const { browser, workspace } = workspaceBrowser([leaving])
 
-    await updateWorkspaceNavigationPolicy(port, 'workspace', RESTRICTED)
+    await updateWorkspaceNavigationPolicy(browser, 'workspace', RESTRICTED)
 
     expect(leaving.page.stop).toHaveBeenCalledOnce()
     expect(leaving.page.loadURL).not.toHaveBeenCalled()
@@ -212,15 +235,15 @@ describe('restricting a workspace', () => {
     opening.pendingMainFrameUrl = `${ALLOWED}/next`
     const committed = tab('committed', `${ALLOWED}/images`)
     committed.page.loadingMainFrame = true
-    const restricted = access([opening, committed])
+    const restricted = workspaceBrowser([opening, committed])
     // A page that opened but is still loading its images was stopped too, and a new tab still opening failed.
-    await updateWorkspaceNavigationPolicy(restricted.port, 'workspace', RESTRICTED)
-    await updateWorkspaceNavigationPolicy(restricted.port, 'workspace', RESTRICTED)
+    await updateWorkspaceNavigationPolicy(restricted.browser, 'workspace', RESTRICTED)
+    await updateWorkspaceNavigationPolicy(restricted.browser, 'workspace', RESTRICTED)
 
     const loosening = tab('loosening', `${ALLOWED}/start`)
     loosening.page.loadingMainFrame = true
     loosening.pendingMainFrameUrl = `${BLOCKED}/page`
-    await updateWorkspaceNavigationPolicy(access([loosening], RESTRICTED).port, 'workspace', UNRESTRICTED)
+    await updateWorkspaceNavigationPolicy(workspaceBrowser([loosening], RESTRICTED).browser, 'workspace', UNRESTRICTED)
 
     for (const page of [opening, committed, loosening].map((candidate) => candidate.page)) {
       expect(page.stop).not.toHaveBeenCalled()
@@ -231,9 +254,9 @@ describe('restricting a workspace', () => {
   it('blanks a denied page that asks before leaving, and asks as usual afterwards', async () => {
     const draft = tab('draft', `${BLOCKED}/unsaved-draft`)
     draft.page.asksBeforeLeaving = true
-    const { port } = access([draft])
+    const { browser } = workspaceBrowser([draft])
 
-    await updateWorkspaceNavigationPolicy(port, 'workspace', RESTRICTED)
+    await updateWorkspaceNavigationPolicy(browser, 'workspace', RESTRICTED)
 
     expect(draft.page.getURL()).toBe('about:blank')
     expect(draft.page.listenerCount('will-prevent-unload')).toBe(0)
@@ -243,14 +266,14 @@ describe('restricting a workspace', () => {
     const first = tab('first', `${BLOCKED}/one`)
     const closing = tab('closing', `${BLOCKED}/two`, { sleeping: true })
     const last = tab('last', `${BLOCKED}/three`)
-    const { port, wakeTab, close } = access([first, closing, last])
+    const { browser, wakeTab, close } = workspaceBrowser([first, closing, last])
     first.page.loadURL.mockImplementationOnce(async (url: string) => {
       close(closing)
       first.page.shown = url
     })
 
     // Checking a closed tab used to fail the update, and the tabs after it kept their denied pages.
-    await expect(updateWorkspaceNavigationPolicy(port, 'workspace', RESTRICTED)).resolves.toBeDefined()
+    await expect(updateWorkspaceNavigationPolicy(browser, 'workspace', RESTRICTED)).resolves.toBeDefined()
 
     expect(wakeTab).not.toHaveBeenCalled()
     expect(last.page.getURL()).toBe('about:blank')
@@ -259,13 +282,13 @@ describe('restricting a workspace', () => {
   it('checks each tab once when the tabs are put in a new order while one is replaced', async () => {
     const first = tab('first', `${BLOCKED}/one`)
     const last = tab('last', `${BLOCKED}/two`)
-    const { port, decisions, reorder } = access([first, last])
+    const { browser, decisions, reorder } = workspaceBrowser([first, last])
     first.page.loadURL.mockImplementationOnce(async (url: string) => {
       reorder(['last', 'first'])
       first.page.shown = url
     })
 
-    await updateWorkspaceNavigationPolicy(port, 'workspace', RESTRICTED)
+    await updateWorkspaceNavigationPolicy(browser, 'workspace', RESTRICTED)
 
     // The open tabs were walked live, so a new order started the walk again and checked the tabs a second time.
     expect(decisions).toHaveBeenCalledTimes(2)
@@ -277,9 +300,9 @@ describe('restricting a workspace', () => {
     const failing = tab('failing', `${BLOCKED}/one`)
     failing.page.failure = new Error('ERR_FAILED (-2) loading')
     const after = tab('after', `${BLOCKED}/two`)
-    const { port } = access([failing, after])
+    const { browser } = workspaceBrowser([failing, after])
 
-    await expect(updateWorkspaceNavigationPolicy(port, 'workspace', RESTRICTED)).rejects.toThrow('ERR_FAILED')
+    await expect(updateWorkspaceNavigationPolicy(browser, 'workspace', RESTRICTED)).rejects.toThrow('ERR_FAILED')
 
     expect(after.page.getURL()).toBe('about:blank')
   })

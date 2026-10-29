@@ -71,25 +71,23 @@ describe('a failed page load as a person reads it', () => {
 })
 
 describe('a failed address bar load', () => {
-  function navigationAccess(failure: Error) {
+  function navigationBrowser(failure: Error) {
     const tab = {
       id: 'tab',
       navigationPolicyDenialSequence: 0,
       webContents: { on: () => undefined, once: () => undefined, removeListener: () => undefined, isDestroyed: () => false, isCrashed: () => false, loadURL: () => Promise.reject(failure) }
     }
     return {
-      getTab: () => tab,
-      findTab: () => tab,
-      searchEngine: () => undefined,
-      assertWorkspaceNavigationAllowed: () => undefined,
-      prepareDiagnosticNavigation: () => undefined,
-      getState: () => ({ tabs: [] })
+      tabs: new Map([[tab.id, tab]]),
+      activeTabId: tab.id,
+      options: {},
+      prepareDiagnosticNavigation: () => undefined
     } as never
   }
 
   it('reaches the shell in its language and keeps Electron’s text for agents and websites', async () => {
     const raw = electronLoadError('ERR_CONNECTION_REFUSED', -102, 'http://127.0.0.1:3000/temporarily-unavailable')
-    const thrown = await navigate(navigationAccess(raw), 'http://127.0.0.1:3000/temporarily-unavailable').catch((error: unknown) => error)
+    const thrown = await navigate(navigationBrowser(raw), 'http://127.0.0.1:3000/temporarily-unavailable').catch((error: unknown) => error)
     expect((thrown as Error).message).toBe("ERR_CONNECTION_REFUSED (-102) loading 'http://127.0.0.1:3000/temporarily-unavailable'")
 
     const handlers = new Map<string, Parameters<IpcMain['handle']>[1]>()

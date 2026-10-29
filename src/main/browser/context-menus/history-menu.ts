@@ -1,6 +1,8 @@
 import { Menu, type MenuItemConstructorOptions } from 'electron'
 import { safeNavigationHistorySnapshot } from '../navigation-history.js'
-import type { HistoryMenuAccess, HistoryMenuTab } from './history-menu-access.js'
+import type { Browser } from '../browser.js'
+import { goToHistoryEntry } from '../page-navigation/page-navigation.js'
+import { findTab } from '../browser-core.js'
 
 /** As many pages as Chrome lists under Back or Forward. */
 export const HISTORY_MENU_PAGES = 12
@@ -15,9 +17,9 @@ const HISTORY_MENU_LABEL_SOURCE_LENGTH = 1_000
  * page's history is not the tab's own then; nor does a tab with nothing that way. The anchor is where the list opens,
  * in the window's CSS pixels; without one it opens at the pointer. It returns whether it showed the list.
  */
-export function showHistoryMenu<Tab extends HistoryMenuTab>(access: HistoryMenuAccess<Tab>, tabId: string,
+export function showHistoryMenu(browser: Browser, tabId: string,
   direction: 'back' | 'forward', anchor?: { x: number; y: number }): boolean {
-  const tab = access.findTab(tabId)
+  const tab = findTab(browser, tabId)
   if (!tab || tab.sleeping || tab.wakePromise) return false
   const { entries, index: activeIndex } = safeNavigationHistorySnapshot(tab.webContents)
   if (activeIndex < 0) return false
@@ -28,12 +30,13 @@ export function showHistoryMenu<Tab extends HistoryMenuTab>(access: HistoryMenuA
     if (entry) pages.push({ index, url: entry.url, title: entry.title })
   }
   if (pages.length === 0) return false
+  // Each item reads the browser when it is picked, not when the list opens.
   const runAction = (action: string, callback: () => unknown): void => {
     try {
       callback()
     } catch (error) {
       console.error(`[browser] Could not ${action} from the history list:`, error)
-      access.onActionFailed(action, error)
+      browser.options.onActionFailed?.(action, error)
     }
   }
   const template: MenuItemConstructorOptions[] = [
@@ -41,17 +44,17 @@ export function showHistoryMenu<Tab extends HistoryMenuTab>(access: HistoryMenuA
       id: `history-entry-${page.index}`,
       label: historyMenuLabel(page.title.trim() || page.url),
       click: () => runAction('go to a page in the tab history', () => (
-        access.goToHistoryEntry(tab.id, { index: page.index, url: page.url, activeIndex })
+        goToHistoryEntry(browser, tab.id, { index: page.index, url: page.url, activeIndex })
       ))
     })),
     { type: 'separator' },
     {
       id: 'show-full-history',
-      label: access.text('native.context.showFullHistory'),
-      click: () => runAction('show the full history', () => access.window().webContents.send('browser:visit-history-requested'))
+      label: browser.text('native.context.showFullHistory'),
+      click: () => runAction('show the full history', () => browser.window.webContents.send('browser:visit-history-requested'))
     }
   ]
-  const window = access.window()
+  const window = browser.window
   const zoom = window.webContents.getZoomFactor()
   Menu.buildFromTemplate(template).popup({
     window,

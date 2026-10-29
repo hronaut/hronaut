@@ -3,7 +3,7 @@ import type { BrowserClosedTabState, BrowserState } from '../../../shared/types.
 import type { WorkspaceBeingDeleted } from '../browser-state/persisted-state.js'
 import type { BrowserNetworkRecordingState } from '../network-recording.js'
 import type { PersistedBrowserState, TabStateStore } from '../tab-store.js'
-import type { OpenWorkspaceOperationAction, WorkspaceOperationAction } from '../workspace-operations/workspace-operations-access.js'
+import type { OpenWorkspaceOperationAction, WorkspaceOperationAction } from '../workspace-operations/workspace-operations.js'
 import type { ActiveWorkspace, ArchivedWorkspace } from '../workspace-registry.js'
 
 /**
