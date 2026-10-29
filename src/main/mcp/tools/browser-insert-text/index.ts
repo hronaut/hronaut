@@ -1,5 +1,6 @@
 import { z } from 'zod'
-import { MAX_INSERTED_TEXT_LENGTH, type TextInsertionProgress } from '../../../browser/text-insertion/text-insertion.js'
+import { MAX_INSERTED_TEXT_LENGTH } from '../../../browser/text-insertion/inserted-text.js'
+import type { TextInsertionProgress } from '../../../browser/text-insertion/text-insertion.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'

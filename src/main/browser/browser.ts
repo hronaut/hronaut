@@ -74,8 +74,7 @@ import { renderBrowserVideo } from './video-export.js'
 import { readVideoAudioFile } from './video-audio-file.js'
 import { writeUniqueDownloadFile } from './unique-download-file.js'
 import { VIDEO_RECORDING_NOTICES, type BrowserVideoOptions, type BrowserVideoState } from '../../shared/video.js'
-import type { BrowserCredentialCandidate, CredentialCaptureAccess } from './credential-capture/credential-capture-access.js'
-import { watchCredentialSubmission } from './credential-capture/credential-capture.js'
+import { watchCredentialSubmission, type BrowserCredentialCandidate } from './credential-capture/credential-capture.js'
 import type { BrowserNetworkRequestRecord } from './network-recording.js'
 import type { SessionHooksAccess } from './session-hooks/session-hooks-access.js'
 import { installSessionHooks } from './session-hooks/session-hooks.js'
@@ -172,11 +171,8 @@ import { readFileSync } from 'node:fs'
 import type { FileUploadAccess } from './file-upload/file-upload-access.js'
 import { uploadFiles } from './file-upload/file-upload.js'
 import { dropFiles, type FileDropResult } from './file-drop/file-drop.js'
-import type { FileDropAccess } from './file-drop/file-drop-access.js'
 import { insertText, type TextInsertionProgress, type TextInsertionResult } from './text-insertion/text-insertion.js'
 import { fillFromFile, type TextFileFillProgress, type TextFileFillResult } from './text-file-fill/text-file-fill.js'
-import type { TextInsertionAccess } from './text-insertion/text-insertion-access.js'
-import type { TextFileFillAccess } from './text-file-fill/text-file-fill-access.js'
 import { shadowSnapshot, type BrowserShadowSnapshot } from './shadow-snapshot/shadow-snapshot.js'
 import { trackedViewportScreenshot, type TrackedScreenshot, type TrackedScreenshotAccess, type TrackedScreenshotOptions } from './screenshot-observations/tracked-screenshot.js'
 import { basename, dirname, isAbsolute, join } from 'node:path'
@@ -228,7 +224,6 @@ import {
 } from './page-snapshots/page-snapshots.js'
 import {
   BROWSER_SNAPSHOT_FORMAT_VERSION,
-  snapshotDeltaInvalidationReason,
   type BrowserSnapshotDeltaContext
 } from '../../shared/snapshot-delta.js'
 import { safeNavigationHistorySnapshot, type NavigationHistorySnapshot } from './navigation-history.js'
@@ -503,6 +498,7 @@ import {
   type AuthorizedAgentMouseInput
 } from './agent-input-authorization/agent-input-authorization.js'
 import { withAgentInput } from './agent-input-scope/agent-input-scope.js'
+import { nativeInputAuthority } from './native-input-authority/native-input-authority.js'
 import { withBackgroundAgentFocusGuard } from './agent-input-scope/focus-isolation.js'
 import type { PageDestroyedEventsAccess } from './tab-events/page-destroyed-events-access.js'
 import { attachPageDestroyedEvents, recoverFromDestroyedPage } from './tab-events/page-destroyed-events.js'
@@ -516,7 +512,6 @@ import type { PageFocusEventsAccess } from './tab-events/page-focus-events-acces
 import { attachPageFocusEvents } from './tab-events/page-focus-events.js'
 import type { PagePointerEventsAccess } from './tab-events/page-pointer-events-access.js'
 import { attachPagePointerEvents } from './tab-events/page-pointer-events.js'
-import type { PageTargetUrlEventsAccess, PageTargetUrlEventsOptions } from './tab-events/page-target-url-events-access.js'
 import { attachPageTargetUrlEvents } from './tab-events/page-target-url-events.js'
 import type { RendererHealthEventsAccess } from './tab-events/renderer-health-events-access.js'
 import { attachRendererHealthEvents } from './tab-events/renderer-health-events.js'
@@ -568,7 +563,6 @@ import { getMcpDiscoveryTabs, getMcpGroupState, requireTabInMcpGroup, tabBelongs
 import type { NewTabsAccess } from './new-tabs/new-tabs-access.js'
 import { createNewTab, newLabeledAgentTab } from './new-tabs/new-tabs.js'
 import { dismissAgentPointer, showAgentPointer } from './agent-pointer/agent-pointer.js'
-import type { VisualCaptureAccess } from './visual-compare/visual-capture-access.js'
 import { captureVisual, visualCompareContext } from './visual-compare/visual-capture.js'
 import { currentNetworkRequests, matchingNetworkWaitRequest } from './network-inspection/network-request-records.js'
 import type { TabMutingAccess } from './tab-muting/tab-muting-access.js'
@@ -743,8 +737,10 @@ export interface BrowserOptions {
   onChanged?: () => void
   /** A page took or left full screen, which nothing of the shell's is drawn over. */
   onPageFullscreenChanged?: () => void
-  onPageTargetUrl?: PageTargetUrlEventsOptions['onPageTargetUrl']
-  onPagePointer?: PageTargetUrlEventsOptions['onPagePointer']
+  /** The link under the person's pointer or with keyboard focus changed; an empty address means none. */
+  onPageTargetUrl?: (tabId: string, url: string) => void
+  /** The person's pointer moved over the page, to this point in its own coordinates, or left it: null. */
+  onPagePointer?: (tabId: string, pointer: { x: number; y: number } | null) => void
   /** The pages were laid out again: moved, resized, shown, hidden or swapped for others. */
   onPagesLaidOut?: () => void
   onWorkspaceNavigationDecision?: (workspaceId: string, decision: WorkspaceNavigationDecision, source: BrowserWorkspaceNavigationAuditSource) => void
@@ -4573,50 +4569,13 @@ export class Browser {
     return uploadFiles(this.fileUploadAccess(), target, paths, validateUpload)
   }
 
-  /**
-   * The narrow view a file drop gets of this manager's private tabs, target
-   * validation, native input authority, agent cursor, agent input scope,
-   * debugger lease and authorized agent input. It is a prototype method
-   * rather than a field, so managers created without the constructor (as unit
-   * tests do) still provide it.
-   */
-  private fileDropAccess(): FileDropAccess<BrowserTab> {
-    return {
-      validateTarget: (target) => this.validateTarget(target),
-      getTab: (tabId) => getTab(this, tabId),
-      nativeInputAuthority: (tab, validateInput) => this.nativeInputAuthority(tab, validateInput),
-      showAgentPointer: (webContents, point, effect, options) => this.showAgentPointer(webContents, point, effect, options),
-      withAgentInput: (webContents, operation) => this.withAgentInput(webContents, operation),
-      withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
-      agentInputDebugger: (webContents, validateInput) => this.agentInputDebugger(webContents, validateInput)
-    }
-  }
-
   dropFiles(
     target: { tabId?: string; ref?: string; selector?: string },
     paths: string[],
     validateDrop?: (validateContext: () => void) => void,
     agent?: AgentPointerIdentity
   ): Promise<FileDropResult> {
-    return dropFiles(this.fileDropAccess(), target, paths, validateDrop, agent)
-  }
-
-  /**
-   * The narrow view an agent's text insertion gets of this manager's private
-   * tabs, target validation, native input authority, agent input scope,
-   * debugger queue and authorized agent input. It is a prototype method
-   * rather than a field, so managers created without the constructor (as unit
-   * tests do) still provide it.
-   */
-  private textInsertionAccess(): TextInsertionAccess<BrowserTab> {
-    return {
-      validateTarget: (target) => this.validateTarget(target),
-      getTab: (tabId) => getTab(this, tabId),
-      nativeInputAuthority: (tab, validateInput) => this.nativeInputAuthority(tab, validateInput),
-      withAgentInput: (webContents, operation) => this.withAgentInput(webContents, operation),
-      withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
-      agentInputDebugger: (webContents, validateInput) => this.agentInputDebugger(webContents, validateInput)
-    }
+    return dropFiles(this, target, paths, validateDrop, agent)
   }
 
   insertText(
@@ -4625,16 +4584,7 @@ export class Browser {
     validateInsertion?: (validateContext: () => void) => void,
     progress?: TextInsertionProgress
   ): Promise<TextInsertionResult> {
-    return insertText(this.textInsertionAccess(), target, text, validateInsertion, progress)
-  }
-
-  private textFileFillAccess(): TextFileFillAccess<BrowserTab> {
-    return {
-      validateTarget: (target) => this.validateTarget(target),
-      getTab: (tabId) => getTab(this, tabId),
-      nativeInputAuthority: (tab, validateInput) => this.nativeInputAuthority(tab, validateInput),
-      withAgentInput: (webContents, operation) => this.withAgentInput(webContents, operation)
-    }
+    return insertText(this, target, text, validateInsertion, progress)
   }
 
   fillFromFile(
@@ -4643,7 +4593,7 @@ export class Browser {
     validateFill?: (validateContext: () => void) => void,
     progress?: TextFileFillProgress
   ): Promise<TextFileFillResult> {
-    return fillFromFile(this.textFileFillAccess(), target, source, validateFill, progress)
+    return fillFromFile(this, target, source, validateFill, progress)
   }
 
   /**
@@ -4718,30 +4668,12 @@ export class Browser {
     return handleDialog(this, action, tabId)
   }
 
-  /**
-   * The narrow view a visual capture gets of this manager's private tabs,
-   * observation context, page presentation, agent pointer and emulation
-   * confirmation check. It is a prototype method rather than a field, so
-   * managers created without the constructor (as unit tests do) still
-   * provide it. The delegates below return the feature's promise directly,
-   * so callers see the same ticks as before.
-   */
-  private visualCaptureAccess(): VisualCaptureAccess<BrowserTab> {
-    return {
-      findTab: (tabId) => this.tabs.get(tabId),
-      snapshotDeltaContext: (tab) => this.snapshotDeltaContext(tab),
-      withRenderableTab: (tab, operation) => this.withRenderableTab(tab, operation),
-      dismissAgentPointer: (webContents) => this.dismissAgentPointer(webContents),
-      requireEmulationConfirmed: (tab) => this.requireEmulationConfirmed(tab)
-    }
-  }
-
   private visualCompareContext(tab: BrowserTab): Promise<BrowserVisualCompareContext> {
-    return visualCompareContext(this.visualCaptureAccess(), tab)
+    return visualCompareContext(this, tab)
   }
 
   private captureVisual(tab: BrowserTab, settleMs: number, clip?: BrowserScreenshotClip): Promise<BrowserVisualCapture> {
-    return captureVisual(this.visualCaptureAccess(), tab, settleMs, clip)
+    return captureVisual(this, tab, settleMs, clip)
   }
 
   /**
@@ -5726,7 +5658,7 @@ export class Browser {
     attachPageFocusEvents(this.pageFocusEventsAccess(), tab, webContents)
     attachPageKeyboardEvents(this.pageKeyboardEventsAccess(), tab, webContents)
     attachPagePointerEvents(this.pagePointerEventsAccess(), tab, webContents)
-    attachPageTargetUrlEvents(this.pageTargetUrlEventsAccess(), tab, webContents)
+    attachPageTargetUrlEvents(this, tab, webContents)
     attachPageWheelZoom(this, tab, webContents)
     attachPageContextMenuEvents(this.pageContextMenuAccess(), tab, webContents)
     attachDevToolsEvents(this.devToolsAccess(), tab, webContents)
@@ -5861,22 +5793,6 @@ export class Browser {
       reproRecorder: () => this.reproRecorder,
       scheduleTabOverviewPreview: (tab, settleMs) => this.scheduleTabOverviewPreview(tab, settleMs),
       mcpActivityFollower: () => this.mcpActivityFollower,
-      options: () => this.options
-    }
-  }
-
-  /**
-   * The narrow view a page's link and pointer listeners for the status bubble
-   * get of this manager's private in-flight agent input, agent tool calls and
-   * options. It is a
-   * prototype method rather than a field, so managers created without the
-   * constructor (as unit tests do) still provide it. Each member reads the
-   * manager when called.
-   */
-  private pageTargetUrlEventsAccess(): PageTargetUrlEventsAccess {
-    return {
-      agentInputWebContents: () => this.agentInputWebContents,
-      agentToolCallInFlight: (tabId) => this.mcpActivitiesByTab.has(tabId),
       options: () => this.options
     }
   }
@@ -6084,20 +6000,8 @@ export class Browser {
     return loadFavicon(this, tab, favicons)
   }
 
-  /**
-   * The narrow view watching for submitted credentials gets of this manager's
-   * private options. It is a prototype method rather than a field, so
-   * managers created without the constructor (as unit tests do) still
-   * provide it.
-   */
-  private credentialCaptureAccess(): CredentialCaptureAccess {
-    return {
-      options: () => this.options
-    }
-  }
-
   private watchCredentialSubmission(tab: BrowserTab): void {
-    watchCredentialSubmission(this.credentialCaptureAccess(), tab)
+    watchCredentialSubmission(this, tab)
   }
 
   private sleepBlockReason(tab: BrowserTab, allowActiveTab?: boolean): string | undefined {
@@ -6223,26 +6127,7 @@ export class Browser {
     tab: BrowserTab,
     validateInput?: (validateContext: () => void) => void
   ): { validate: () => void; dispose: () => void } {
-    const webContents = tab.webContents
-    const context = this.snapshotDeltaContext(tab)
-    const workspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
-    const permissionGeneration = workspace ? this.inspectionPermissions.get(workspace) ?? 0 : 0
-    let documentCommitted = false
-    const onCommitted = (): void => { documentCommitted = true }
-    const assertContext = (): void => {
-      const currentWorkspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
-      if (documentCommitted || this.destroyed || currentWorkspace !== workspace
-        || (currentWorkspace ? this.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== permissionGeneration
-        || this.tabs.get(tab.id) !== tab || tab.webContents !== webContents || webContents.isDestroyed()
-        || snapshotDeltaInvalidationReason(context, this.snapshotDeltaContext(tab))) {
-        throw new Error('Native input context changed; inspect fresh state before continuing. Earlier input effects are not rolled back')
-      }
-    }
-    webContents.on('did-navigate', onCommitted)
-    return {
-      validate: () => { if (validateInput) validateInput(assertContext); else assertContext() },
-      dispose: () => { webContents.removeListener('did-navigate', onCommitted) }
-    }
+    return nativeInputAuthority(this, tab, validateInput)
   }
 
   private agentInputDebugger(

@@ -1,10 +1,27 @@
 import { EventEmitter } from 'node:events'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ISOLATED_WORLDS } from '../src/main/browser/isolated-worlds.js'
-import { insertableTextProblem, insertText, MAX_INSERTED_TEXT_LENGTH, type TextInsertionProgress } from '../src/main/browser/text-insertion/text-insertion.js'
-import type { TextInsertionAccess, TextInsertionTab } from '../src/main/browser/text-insertion/text-insertion-access.js'
+import { insertableTextProblem, MAX_INSERTED_TEXT_LENGTH } from '../src/main/browser/text-insertion/inserted-text.js'
+import { insertText, type TextInsertionProgress } from '../src/main/browser/text-insertion/text-insertion.js'
+import type { Browser } from '../src/main/browser/browser.js'
 import type { TextInsertionLocation, TextInsertionObservation } from '../src/main/browser/text-insertion/text-insertion-scripts.js'
 import { registerBrowserInsertText } from '../src/main/mcp/tools/browser-insert-text/index.js'
+
+// The native input authority, agent input scope, debugger lease and authorized input, as the fake browser of the
+// page in use answers them.
+vi.mock('../src/main/browser/native-input-authority/native-input-authority.js', () => ({
+  nativeInputAuthority: (browser: { nativeInputAuthority(...args: unknown[]): unknown }, ...args: unknown[]) => browser.nativeInputAuthority(...args)
+}))
+vi.mock('../src/main/browser/agent-input-scope/agent-input-scope.js', () => ({
+  withAgentInput: (browser: { withAgentInput(...args: unknown[]): unknown }, ...args: unknown[]) => browser.withAgentInput(...args)
+}))
+vi.mock('../src/main/browser/debugger-lease/debugger-lease.js', () => ({
+  withDebugger: (browser: { withDebugger(...args: unknown[]): unknown }, ...args: unknown[]) => browser.withDebugger(...args)
+}))
+vi.mock('../src/main/browser/agent-input-authorization/agent-input-authorization.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/agent-input-authorization/agent-input-authorization.js')>(),
+  agentInputDebugger: (browser: { agentInputDebugger(...args: unknown[]): unknown }, ...args: unknown[]) => browser.agentInputDebugger(...args)
+}))
 
 const TEXT = 'private-draft-canary 😀 мир'
 
@@ -13,7 +30,7 @@ const observation = (overrides: Partial<TextInsertionObservation> = {}): TextIns
 })
 
 /**
- * A page whose isolated-world scripts answer from queues, and a manager view whose
+ * A page whose isolated-world scripts answer from queues, and a browser showing it whose
  * authorized debugger records each command and checks the insertion's authority first.
  */
 function editorPage(options: {
@@ -47,15 +64,14 @@ function editorPage(options: {
       return true
     }
   })
-  const tab: TextInsertionTab = { webContents: webContents as never }
+  const tab = { id: 'tab', webContents }
   let authorityCurrent = true
   let disposed = 0
-  const access: TextInsertionAccess<TextInsertionTab> = {
-    validateTarget: (target) => {
-      if (Boolean(target.ref) === Boolean(target.selector)) throw new Error('Provide exactly one of ref or selector')
-    },
-    getTab: () => tab,
-    nativeInputAuthority: (_tab, validateInput) => ({
+  // The browser members the insertion reaches; a test may replace one to act at that point.
+  const fake = {
+    tabs: new Map([[tab.id, tab]]),
+    activeTabId: tab.id,
+    nativeInputAuthority: (_tab: unknown, validateInput?: (validateContext: () => void) => void) => ({
       validate: () => {
         const assertContext = (): void => { if (!authorityCurrent) throw new Error('Native input context changed') }
         if (validateInput) validateInput(assertContext)
@@ -63,10 +79,10 @@ function editorPage(options: {
       },
       dispose: () => { disposed += 1 }
     }),
-    withAgentInput: (_webContents, operation) => operation(),
-    withDebugger: (_webContents, operation) => operation(),
-    agentInputDebugger: (_webContents, validateInput) => ({
-      sendCommand: async (method, params = {}) => {
+    withAgentInput: <T>(_webContents: unknown, operation: () => Promise<T>): Promise<T> => operation(),
+    withDebugger: <T>(_webContents: unknown, operation: () => Promise<T>): Promise<T> => operation(),
+    agentInputDebugger: (_webContents: unknown, validateInput?: () => void) => ({
+      sendCommand: async (method: string, params: Record<string, unknown> = {}) => {
         // Like the authorized input path: two checks before the command.
         validateInput?.()
         validateInput?.()
@@ -76,7 +92,8 @@ function editorPage(options: {
     })
   }
   return {
-    access,
+    fake,
+    browser: fake as unknown as Browser,
     commands,
     scripts,
     navigate: (isMainFrame = true) => { events.emit('did-start-navigation', { isMainFrame }) },
@@ -92,7 +109,7 @@ describe('text insertion', () => {
   it('checks the editor, arms the guard in the debugger turn, sends the text natively and reports it inserted', async () => {
     const page = editorPage()
     const progress: TextInsertionProgress = { sent: false }
-    const result = await insertText(page.access, { ref: 'e4' }, TEXT, undefined, progress)
+    const result = await insertText(page.browser, { ref: 'e4' }, TEXT, undefined, progress)
     expect(result).toEqual({
       status: 'INSERTED', editor: 'textarea', insertedBy: 'browser',
       note: 'The editor took the text and its content changed. This does not prove that the page saved it; read the editor or the page to check.'
@@ -110,19 +127,19 @@ describe('text insertion', () => {
 
   it('tells the page scripts only the text\'s length and whether it has line breaks, for length limits and single-line fields', async () => {
     const page = editorPage()
-    await insertText(page.access, { selector: '#notes' }, 'first\nsecond')
+    await insertText(page.browser, { selector: '#notes' }, 'first\nsecond')
     expect(page.scripts[0]!.code).toContain('const lineBreaks = true')
     expect(page.scripts[0]!.code).toContain('const textLength = 12')
     expect(page.scripts[1]!.code).toContain('const textLength = 12')
     const plain = editorPage()
-    await insertText(plain.access, { selector: '#notes' }, 'first\tsecond 😀')
+    await insertText(plain.browser, { selector: '#notes' }, 'first\tsecond 😀')
     expect(plain.scripts[0]!.code).toContain('const lineBreaks = false')
     // Counted in UTF-16 code units, as maxlength is.
     expect(plain.scripts[0]!.code).toContain('const textLength = 15')
   })
 
   it('reports an editor that applied the text itself, a cancelled or unchanged one, and a blocked insertion', async () => {
-    const outcome = async (observed: Partial<TextInsertionObservation>) => insertText(editorPage({ observations: [observed] }).access, { ref: 'e4' }, TEXT)
+    const outcome = async (observed: Partial<TextInsertionObservation>) => insertText(editorPage({ observations: [observed] }).browser, { ref: 'e4' }, TEXT)
     expect(await outcome({ cancelled: true })).toMatchObject({ status: 'INSERTED', insertedBy: 'editor' })
     expect(await outcome({ cancelled: true, inputFired: false, changed: false })).toMatchObject({ status: 'NOT_ACCEPTED', note: expect.stringContaining('cancelled it') })
     expect(await outcome({ cancelled: true, inputFired: false, changed: false })).toMatchObject({ note: expect.stringContaining('read it before trying again') })
@@ -141,7 +158,7 @@ describe('text insertion', () => {
 
   it('treats an observation that fails after the text was sent as unconfirmed, never as nothing sent', async () => {
     const page = editorPage({ observations: [new Error('Execution context was destroyed')] })
-    expect(await insertText(page.access, { ref: 'e4' }, TEXT)).toMatchObject({ status: 'UNCONFIRMED' })
+    expect(await insertText(page.browser, { ref: 'e4' }, TEXT)).toMatchObject({ status: 'UNCONFIRMED' })
     expect(page.commands).toHaveLength(1)
   })
 
@@ -149,7 +166,7 @@ describe('text insertion', () => {
     const refused = async (location: TextInsertionLocation, phase: 'check' | 'arm' = 'check') => {
       const page = editorPage({ locations: phase === 'check' ? [location] : [{ editor: 'input' }, location] })
       const progress: TextInsertionProgress = { sent: false }
-      const error = await insertText(page.access, { ref: 'e4' }, TEXT, undefined, progress).then(() => new Error('inserted'), (caught: unknown) => caught as Error)
+      const error = await insertText(page.browser, { ref: 'e4' }, TEXT, undefined, progress).then(() => new Error('inserted'), (caught: unknown) => caught as Error)
       expect(page.commands).toHaveLength(0)
       expect(progress.sent).toBe(false)
       expect(error.message).not.toContain('private-draft-canary')
@@ -179,36 +196,36 @@ describe('text insertion', () => {
     expect(insertableTextProblem('\uD83D')).toMatch(/unpaired surrogate/u)
     expect(insertableTextProblem('a\uDE00b')).toMatch(/unpaired surrogate/u)
     const page = editorPage()
-    await expect(insertText(page.access, { ref: 'e4' }, 'bad\u0007bell')).rejects.toThrow(/control characters/u)
-    await expect(insertText(page.access, { ref: 'e4', selector: '#also' }, TEXT)).rejects.toThrow(/exactly one of ref or selector/u)
+    await expect(insertText(page.browser, { ref: 'e4' }, 'bad\u0007bell')).rejects.toThrow(/control characters/u)
+    await expect(insertText(page.browser, { ref: 'e4', selector: '#also' }, TEXT)).rejects.toThrow('Provide either ref or selector, not both')
     expect(page.scripts).toHaveLength(0)
   })
 
   it('sends nothing when the page navigates or the authority changes before the text goes out', async () => {
     const navigating = editorPage()
-    const realScript = navigating.access.withDebugger
-    navigating.access.withDebugger = (webContents, operation) => {
+    const realScript = navigating.fake.withDebugger
+    navigating.fake.withDebugger = (webContents, operation) => {
       navigating.navigate()
       return realScript(webContents, operation)
     }
-    await expect(insertText(navigating.access, { ref: 'e4' }, TEXT)).rejects.toThrow(/navigated before the text was sent, so nothing was inserted/u)
+    await expect(insertText(navigating.browser, { ref: 'e4' }, TEXT)).rejects.toThrow(/navigated before the text was sent, so nothing was inserted/u)
     expect(navigating.commands).toHaveLength(0)
     // A subframe's navigation does not change the editor's document.
     const subframe = editorPage()
-    subframe.access.withDebugger = (webContents, operation) => {
+    subframe.fake.withDebugger = (webContents, operation) => {
       subframe.navigate(false)
       return realScript(webContents, operation)
     }
-    expect(await insertText(subframe.access, { ref: 'e4' }, TEXT)).toMatchObject({ status: 'INSERTED' })
+    expect(await insertText(subframe.browser, { ref: 'e4' }, TEXT)).toMatchObject({ status: 'INSERTED' })
 
     const revoked = editorPage()
     const progress: TextInsertionProgress = { sent: false }
     const outcomes: Array<boolean> = []
-    revoked.access.withAgentInput = (webContents, operation) => {
+    revoked.fake.withAgentInput = (webContents, operation) => {
       revoked.loseAuthority()
       return operation()
     }
-    await expect(insertText(revoked.access, { ref: 'e4' }, TEXT, (validateContext) => {
+    await expect(insertText(revoked.browser, { ref: 'e4' }, TEXT, (validateContext) => {
       try { validateContext() } catch (error) { outcomes.push(progress.sent); throw error }
     }, progress)).rejects.toThrow(/Native input context changed/u)
     expect(revoked.commands).toHaveLength(0)
@@ -219,7 +236,7 @@ describe('text insertion', () => {
     const page = editorPage({ onCommand: () => { page.loseAuthority() } })
     const progress: TextInsertionProgress = { sent: false }
     const sentWhenRefused: boolean[] = []
-    await expect(insertText(page.access, { ref: 'e4' }, TEXT, (validateContext) => {
+    await expect(insertText(page.browser, { ref: 'e4' }, TEXT, (validateContext) => {
       try { validateContext() } catch (error) { sentWhenRefused.push(progress.sent); throw error }
     }, progress)).rejects.toThrow(/Native input context changed/u)
     expect(page.commands).toHaveLength(1)
@@ -228,12 +245,12 @@ describe('text insertion', () => {
 
   it('reports a command Chromium rejected or did not answer after its last check as unconfirmed', async () => {
     const rejected = editorPage({ onCommand: () => { throw new Error('Target closed') } })
-    expect(await insertText(rejected.access, { ref: 'e4' }, TEXT)).toMatchObject({ status: 'UNCONFIRMED', note: expect.stringContaining('may have reached the page') })
+    expect(await insertText(rejected.browser, { ref: 'e4' }, TEXT)).toMatchObject({ status: 'UNCONFIRMED', note: expect.stringContaining('may have reached the page') })
     expect(rejected.scripts.map(script => script.kind)).toEqual(['check', 'arm', 'dispose'])
 
     vi.useFakeTimers()
     const stalled = editorPage({ onCommand: () => new Promise(() => undefined) })
-    const pending = insertText(stalled.access, { ref: 'e4' }, TEXT)
+    const pending = insertText(stalled.browser, { ref: 'e4' }, TEXT)
     await vi.advanceTimersByTimeAsync(5_000)
     expect(await pending).toMatchObject({ status: 'UNCONFIRMED' })
   })

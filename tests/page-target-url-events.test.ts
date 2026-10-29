@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events'
 import type { WebContents } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
 import { attachPageTargetUrlEvents } from '../src/main/browser/tab-events/page-target-url-events.js'
-import type { PageTargetUrlEventsAccess } from '../src/main/browser/tab-events/page-target-url-events-access.js'
+import type { Browser } from '../src/main/browser/browser.js'
 
 // Pointing at a link showed nothing of where it goes. Chrome shows its address in the status bubble; an agent's
 // pointing says nothing of where the person points, and nothing of an agent's is drawn over the page.
@@ -12,8 +12,8 @@ function fixture() {
   const agentInput = new Map<number, number>()
   const toolCalls = new Set<string>()
   const options = { onPageTargetUrl: vi.fn(), onPagePointer: vi.fn() }
-  const access: PageTargetUrlEventsAccess = { agentInputWebContents: () => agentInput, agentToolCallInFlight: (tabId) => toolCalls.has(tabId), options: () => options }
-  attachPageTargetUrlEvents(access, { id: 'tab' }, page)
+  const browser = { agentInputWebContents: agentInput, mcpActivitiesByTab: toolCalls, options } as unknown as Browser
+  attachPageTargetUrlEvents(browser, { id: 'tab' }, page)
   const mouse = (type: string, x = 0, y = 0) => page.emit('before-mouse-event', {}, { type, x, y })
   return { page, agentInput, toolCalls, options, mouse, link: (url: string) => page.emit('update-target-url', {}, url) }
 }

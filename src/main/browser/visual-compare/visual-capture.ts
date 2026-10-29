@@ -3,7 +3,11 @@ import { snapshotDeltaInvalidationReason } from '../../../shared/snapshot-delta.
 import type { BrowserScreenshotClip, BrowserVisualCompareContext, BrowserVisualCompareScope } from '../../../shared/types.js'
 import { visualCompareBitmapClip } from '../../../shared/visual-compare.js'
 import { ISOLATED_WORLDS } from '../isolated-worlds.js'
-import type { VisualCaptureAccess, VisualCaptureTab } from './visual-capture-access.js'
+import { dismissAgentPointer } from '../agent-pointer/agent-pointer.js'
+import type { Browser } from '../browser.js'
+import { findTab } from '../browser-core.js'
+import type { BrowserTab } from '../browser-tab.js'
+import { withRenderableTab } from '../renderable-tab/renderable-tab.js'
 import type { VisualCompareCapture } from './visual-compare-access.js'
 
 /** The largest visual capture compared; larger captures are scaled down to fit. */
@@ -18,7 +22,7 @@ const VISUAL_COMPARE_WORLD_ID = ISOLATED_WORLDS.visualCompare
  * zoomed or its visual viewport is offset, or the tab's emulation is not
  * confirmed.
  */
-export async function visualCompareContext<Tab extends VisualCaptureTab>(access: VisualCaptureAccess<Tab>, tab: Tab): Promise<BrowserVisualCompareContext> {
+export async function visualCompareContext(browser: Browser, tab: BrowserTab): Promise<BrowserVisualCompareContext> {
   const raw = await tab.webContents.executeJavaScriptInIsolatedWorld(VISUAL_COMPARE_WORLD_ID, [{
     code: '({ viewportWidth: innerWidth, viewportHeight: innerHeight, devicePixelRatio, scrollX, scrollY, pageScale: visualViewport?.scale ?? 1, offsetX: visualViewport?.offsetLeft ?? 0, offsetY: visualViewport?.offsetTop ?? 0 })'
   }], false) as Omit<BrowserVisualCompareContext, 'zoomFactor'> & { pageScale: number; offsetX: number; offsetY: number }
@@ -27,7 +31,7 @@ export async function visualCompareContext<Tab extends VisualCaptureTab>(access:
   }
   if (raw.pageScale !== 1 || raw.offsetX !== 0 || raw.offsetY !== 0) throw new Error('Region visual comparison does not support pinch zoom or an offset visual viewport; reset the page scale first')
   const bounds = tab.view.getBounds()
-  access.requireEmulationConfirmed(tab)
+  browser.requireEmulationConfirmed(tab)
   const viewport = tab.emulation.viewport ?? bounds
   const zoomFactor = tab.webContents.getZoomFactor()
   return { viewportWidth: viewport.width / zoomFactor, viewportHeight: viewport.height / zoomFactor, devicePixelRatio: raw.devicePixelRatio,
@@ -41,19 +45,19 @@ export async function visualCompareContext<Tab extends VisualCaptureTab>(access:
  * throws when the page, or for a region the viewport or scroll position,
  * changed meanwhile.
  */
-export async function captureVisual<Tab extends VisualCaptureTab>(access: VisualCaptureAccess<Tab>, tab: Tab, settleMs: number, clip?: BrowserScreenshotClip): Promise<VisualCompareCapture> {
-  const context = access.snapshotDeltaContext(tab)
+export async function captureVisual(browser: Browser, tab: BrowserTab, settleMs: number, clip?: BrowserScreenshotClip): Promise<VisualCompareCapture> {
+  const context = browser.snapshotDeltaContext(tab)
   const assertCurrent = (): void => {
-    if (access.findTab(tab.id) !== tab || tab.webContents.isDestroyed()
-      || snapshotDeltaInvalidationReason(context, access.snapshotDeltaContext(tab))) {
+    if (findTab(browser, tab.id) !== tab || tab.webContents.isDestroyed()
+      || snapshotDeltaInvalidationReason(context, browser.snapshotDeltaContext(tab))) {
       throw new Error('The page changed while the visual capture was pending. Capture it again.')
     }
   }
-  return access.withRenderableTab(tab, async () => {
-    await access.dismissAgentPointer(tab.webContents)
+  return withRenderableTab(browser, tab, async () => {
+    await dismissAgentPointer(tab.webContents)
     if (settleMs > 0) await new Promise<void>((resolve) => setTimeout(resolve, settleMs))
     assertCurrent()
-    const environment = clip ? await visualCompareContext(access, tab) : undefined
+    const environment = clip ? await visualCompareContext(browser, tab) : undefined
     assertCurrent()
     const captured = await tab.webContents.capturePage()
     assertCurrent()
@@ -62,7 +66,7 @@ export async function captureVisual<Tab extends VisualCaptureTab>(access: Visual
     let scope: BrowserVisualCompareScope = { kind: 'viewport' }
     let selected = captured
     if (clip && environment) {
-      const after = await visualCompareContext(access, tab)
+      const after = await visualCompareContext(browser, tab)
       assertCurrent()
       if (JSON.stringify(after) !== JSON.stringify(environment)) throw new Error('The viewport or scroll position changed while the visual capture was pending. Capture it again.')
       // Native capture dimensions include display scaling. Derive exact CSS

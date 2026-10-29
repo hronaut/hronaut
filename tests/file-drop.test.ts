@@ -3,9 +3,29 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { dropFiles } from '../src/main/browser/file-drop/file-drop.js'
-import type { FileDropAccess, FileDropTab } from '../src/main/browser/file-drop/file-drop-access.js'
+import type { Browser } from '../src/main/browser/browser.js'
 import type { FileDropLocation, FileDropObservation } from '../src/main/browser/file-drop/file-drop-scripts.js'
 import { ISOLATED_WORLDS } from '../src/main/browser/isolated-worlds.js'
+
+// The native input authority, agent cursor, agent input scope, debugger lease and authorized input, as the fake
+// browser of the page in use answers them.
+vi.mock('../src/main/browser/native-input-authority/native-input-authority.js', () => ({
+  nativeInputAuthority: (browser: { nativeInputAuthority(...args: unknown[]): unknown }, ...args: unknown[]) => browser.nativeInputAuthority(...args)
+}))
+vi.mock('../src/main/browser/agent-pointer/agent-pointer.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/agent-pointer/agent-pointer.js')>(),
+  showAgentPointer: (browser: { showAgentPointer(...args: unknown[]): unknown }, ...args: unknown[]) => browser.showAgentPointer(...args)
+}))
+vi.mock('../src/main/browser/agent-input-scope/agent-input-scope.js', () => ({
+  withAgentInput: (browser: { withAgentInput(...args: unknown[]): unknown }, ...args: unknown[]) => browser.withAgentInput(...args)
+}))
+vi.mock('../src/main/browser/debugger-lease/debugger-lease.js', () => ({
+  withDebugger: (browser: { withDebugger(...args: unknown[]): unknown }, ...args: unknown[]) => browser.withDebugger(...args)
+}))
+vi.mock('../src/main/browser/agent-input-authorization/agent-input-authorization.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/agent-input-authorization/agent-input-authorization.js')>(),
+  agentInputDebugger: (browser: { agentInputDebugger(...args: unknown[]): unknown }, ...args: unknown[]) => browser.agentInputDebugger(...args)
+}))
 
 type Command = { type: string; x: number; y: number; files?: string[]; validated: boolean }
 
@@ -14,7 +34,7 @@ const observation = (overrides: Partial<FileDropObservation> = {}): FileDropObse
 })
 
 /**
- * A page whose isolated-world scripts answer from queues, and a manager view whose
+ * A page whose isolated-world scripts answer from queues, and a browser showing it whose
  * authorized debugger records each drag command and checks the drop's authority first.
  */
 function dropPage(options: {
@@ -51,24 +71,22 @@ function dropPage(options: {
       return true
     }
   }
-  const tab: FileDropTab = { webContents: webContents as never }
+  const tab = { id: 'tab', webContents }
   let authorityCurrent = true
   let disposed = 0
   const pointers: Array<{ x: number; y: number }> = []
-  const access: FileDropAccess<FileDropTab> = {
-    validateTarget: (target) => {
-      if (!target.ref && !target.selector) throw new Error('Provide ref or selector')
-    },
-    getTab: () => tab,
+  const browser = {
+    tabs: new Map([[tab.id, tab]]),
+    activeTabId: tab.id,
     nativeInputAuthority: () => ({
       validate: () => { if (!authorityCurrent) throw new Error('Native input context changed') },
       dispose: () => { disposed += 1 }
     }),
-    showAgentPointer: async (_webContents, point) => { pointers.push(point) },
-    withAgentInput: (_webContents, operation) => operation(),
-    withDebugger: (_webContents, operation) => operation(),
-    agentInputDebugger: (_webContents, validateInput) => ({
-      sendCommand: async (method, params = {}) => {
+    showAgentPointer: async (_webContents: unknown, point: { x: number; y: number }) => { pointers.push(point) },
+    withAgentInput: <T>(_webContents: unknown, operation: () => Promise<T>): Promise<T> => operation(),
+    withDebugger: <T>(_webContents: unknown, operation: () => Promise<T>): Promise<T> => operation(),
+    agentInputDebugger: (_webContents: unknown, validateInput?: () => void) => ({
+      sendCommand: async (method: string, params: Record<string, unknown> = {}) => {
         expect(method).toBe('Input.dispatchDragEvent')
         validateInput?.()
         options.betweenChecks?.(params)
@@ -79,9 +97,9 @@ function dropPage(options: {
         return (await options.onCommand?.(command)) ?? {}
       }
     })
-  }
+  } as unknown as Browser
   return {
-    access,
+    browser,
     commands,
     scripts,
     pointers,
@@ -111,7 +129,7 @@ describe('file drop', () => {
 
   it('enters, accepts and drops the files at the target, and returns only their count', async () => {
     const page = dropPage()
-    const result = await dropFiles(page.access, { selector: '#zone' }, [notes, data])
+    const result = await dropFiles(page.browser, { selector: '#zone' }, [notes, data])
     expect(result).toMatchObject({ status: 'DROPPED', files: 2, pageHandledDrop: true })
     expect(JSON.stringify(result)).not.toContain(folder)
     expect(page.commands).toEqual([
@@ -127,14 +145,14 @@ describe('file drop', () => {
 
   it('keeps updating the drag while it only moves onto a new element, such as an overlay shown on dragenter', async () => {
     const page = dropPage({ observations: { over: [{}, { dragOverArrived: true, dragOverAccepted: true }] } })
-    const result = await dropFiles(page.access, { selector: '#attach' }, [notes])
+    const result = await dropFiles(page.browser, { selector: '#attach' }, [notes])
     expect(result.status).toBe('DROPPED')
     expect(page.commands.map(command => command.type)).toEqual(['dragEnter', 'dragOver', 'dragOver', 'drop'])
   })
 
   it('leaves the page without dropping when no dragover accepts the files', async () => {
     const page = dropPage({ observations: { over: [{ dragOverArrived: true, dragOverAccepted: false }] } })
-    const result = await dropFiles(page.access, { selector: '#zone' }, [notes])
+    const result = await dropFiles(page.browser, { selector: '#zone' }, [notes])
     expect(result).toMatchObject({ status: 'NOT_ACCEPTED', files: 1 })
     expect(result.note).toContain('browser_file_upload')
     expect(page.commands).toEqual([
@@ -147,7 +165,7 @@ describe('file drop', () => {
 
   it('treats a target that never gets a dragover after four updates as not accepting the files', async () => {
     const page = dropPage({ observations: { over: [{}, {}, {}, {}] } })
-    const result = await dropFiles(page.access, { selector: '#zone' }, [notes])
+    const result = await dropFiles(page.browser, { selector: '#zone' }, [notes])
     expect(result.status).toBe('NOT_ACCEPTED')
     expect(page.commands.filter(command => command.files).map(command => command.type)).toEqual(['dragEnter', 'dragOver', 'dragOver', 'dragOver', 'dragOver'])
     expect(page.commands.some(command => command.type === 'drop' && command.files)).toBe(false)
@@ -155,10 +173,10 @@ describe('file drop', () => {
 
   it('reports a drop Chromium ended with a dragleave as not accepted, and an unseen drop as unconfirmed', async () => {
     const refused = dropPage({ observations: { drop: [{ leftWithoutDrop: true }] } })
-    expect(await dropFiles(refused.access, { selector: '#zone' }, [notes])).toMatchObject({ status: 'NOT_ACCEPTED', files: 1 })
+    expect(await dropFiles(refused.browser, { selector: '#zone' }, [notes])).toMatchObject({ status: 'NOT_ACCEPTED', files: 1 })
     expect(refused.commands.at(-1)).toMatchObject({ type: 'drop', x: 120, y: 80 })
     const unseen = dropPage({ observations: { drop: [{}] } })
-    const result = await dropFiles(unseen.access, { selector: '#zone' }, [notes])
+    const result = await dropFiles(unseen.browser, { selector: '#zone' }, [notes])
     expect(result).toMatchObject({ status: 'DROP_UNCONFIRMED', files: 1 })
     expect(result).not.toHaveProperty('pageHandledDrop')
   })
@@ -167,7 +185,7 @@ describe('file drop', () => {
     const pageRef: { current?: ReturnType<typeof dropPage> } = {}
     const page = dropPage({ onCommand: (command) => { if (command.type === 'dragOver' && command.files) pageRef.current?.loseAuthority() } })
     pageRef.current = page
-    await expect(dropFiles(page.access, { selector: '#zone' }, [notes])).rejects.toThrow('Native input context changed')
+    await expect(dropFiles(page.browser, { selector: '#zone' }, [notes])).rejects.toThrow('Native input context changed')
     expect(page.commands).toEqual([
       { type: 'dragEnter', x: 120, y: 80, files: [notes], validated: true },
       { type: 'dragOver', x: 120, y: 80, files: [notes], validated: true },
@@ -179,7 +197,7 @@ describe('file drop', () => {
 
   it('reports a drop Chromium rejects after its checks passed as unconfirmed, since it may have reached the page', async () => {
     const page = dropPage({ onCommand: (command) => { if (command.type === 'drop' && command.files) throw new Error('Target closed') } })
-    const result = await dropFiles(page.access, { selector: '#zone' }, [notes])
+    const result = await dropFiles(page.browser, { selector: '#zone' }, [notes])
     expect(result).toMatchObject({ status: 'DROP_UNCONFIRMED', files: 1 })
     expect(result.note).toContain('may have reached the page')
     expect(page.commands.slice(-2)).toMatchObject([{ type: 'dragOver', x: -100, y: -100, files: undefined }, { type: 'drop', x: -100, y: -100, files: undefined }])
@@ -196,7 +214,7 @@ describe('file drop', () => {
         return new Promise(() => undefined)
       }
     })
-    const stopped = dropFiles(stalledOver.access, { selector: '#zone' }, [notes]).then(() => undefined, (error: unknown) => error as Error)
+    const stopped = dropFiles(stalledOver.browser, { selector: '#zone' }, [notes]).then(() => undefined, (error: unknown) => error as Error)
     await reachedDragOver
     await vi.advanceTimersByTimeAsync(5_000)
     expect((await stopped)?.message).toMatch(/did not take the drag event in time/)
@@ -213,7 +231,7 @@ describe('file drop', () => {
         return new Promise(() => undefined)
       }
     })
-    const unconfirmed = dropFiles(stalledDrop.access, { selector: '#zone' }, [notes])
+    const unconfirmed = dropFiles(stalledDrop.browser, { selector: '#zone' }, [notes])
     await dropReached
     await vi.advanceTimersByTimeAsync(5_000)
     expect(await unconfirmed).toMatchObject({ status: 'DROP_UNCONFIRMED', files: 1 })
@@ -229,7 +247,7 @@ describe('file drop', () => {
       }
     })
     pageRef.current = page
-    await expect(dropFiles(page.access, { selector: '#zone' }, [notes])).rejects.toThrow('Native input context changed')
+    await expect(dropFiles(page.browser, { selector: '#zone' }, [notes])).rejects.toThrow('Native input context changed')
     expect(page.commands.map(command => [command.type, command.files ? 'files' : 'none'])).toEqual([
       ['dragEnter', 'files'], ['dragOver', 'files'], ['dragOver', 'none'], ['drop', 'none']
     ])
@@ -237,7 +255,7 @@ describe('file drop', () => {
 
   it('stops when the page stops answering during the drag', async () => {
     const page = dropPage({ observations: { over: [new Error('Script failed to execute')] } })
-    await expect(dropFiles(page.access, { selector: '#zone' }, [notes])).rejects.toThrow('stopped answering')
+    await expect(dropFiles(page.browser, { selector: '#zone' }, [notes])).rejects.toThrow('stopped answering')
     expect(page.commands.map(command => command.type)).toEqual(['dragEnter', 'dragOver', 'dragOver', 'drop'])
     expect(page.commands.at(-1)).toMatchObject({ x: -100, y: -100, files: undefined })
   })
@@ -255,12 +273,12 @@ describe('file drop', () => {
     ]
     for (const [location, message] of messages) {
       const page = dropPage({ locations: [location] })
-      await expect(dropFiles(page.access, { selector: '#zone' }, [notes])).rejects.toThrow(message)
+      await expect(dropFiles(page.browser, { selector: '#zone' }, [notes])).rejects.toThrow(message)
       expect(page.commands).toEqual([])
       expect(page.pointers).toEqual([])
     }
     const replaced = dropPage({ locations: [{ x: 120, y: 80 }, { problem: 'replaced' }] })
-    await expect(dropFiles(replaced.access, { selector: '#zone' }, [notes])).rejects.toThrow(/changed before the drop/)
+    await expect(dropFiles(replaced.browser, { selector: '#zone' }, [notes])).rejects.toThrow(/changed before the drop/)
     expect(replaced.commands).toEqual([])
   })
 
@@ -275,7 +293,7 @@ describe('file drop', () => {
     ]
     for (const [paths, message] of cases) {
       const page = dropPage()
-      const failure = await dropFiles(page.access, { selector: '#zone' }, paths).then(() => undefined, (error: unknown) => error as Error)
+      const failure = await dropFiles(page.browser, { selector: '#zone' }, paths).then(() => undefined, (error: unknown) => error as Error)
       expect(failure?.message).toMatch(message)
       expect(failure?.message).not.toContain(folder)
       expect(page.scripts).toEqual([])
