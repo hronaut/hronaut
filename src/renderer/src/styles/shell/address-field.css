@@ -11,6 +11,12 @@
 .site-controls-button:disabled { @apply cursor-default [opacity:.48]; }
 .site-controls-button svg { @apply [width:18px] [height:18px]; }
 .site-controls-indicator { @apply absolute [right:3px] [bottom:3px] [width:6px] [height:6px] [border:1px_solid_var(--surface-muted)] rounded-full bg-accent; }
+/* "Not secure" after the information icon for an HTTP page, as in Chrome. While it does not show, it stays measurable
+   out of the layout; the permissions dot stays on the icon. */
+.site-controls-button.not-secure { @apply flex [width:auto] [gap:4px] [padding:0_8px_0_5px]; }
+.site-security-label { @apply [font:inherit] [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)] whitespace-nowrap; }
+.site-security-label.measured-only { @apply absolute [top:0] [left:0] invisible pointer-events-none; }
+.site-controls-button.not-secure .site-controls-indicator { @apply [left:17px] [right:auto]; }
 .address { @apply w-full border-0 [outline:0] bg-transparent text-copy [font-size:var(--type-body-size)]; }
 .address::placeholder { @apply text-subtle; }
 /* The engine a keyword search goes to, before the search, and Tab to search one, after the text, as in Chrome. */

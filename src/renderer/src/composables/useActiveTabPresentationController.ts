@@ -1,3 +1,4 @@
+import { addressSecurity } from '../../../shared/address-security.js'
 import { isActiveDownload } from '../../../shared/download-state.js'
 import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import { tabTitleForDisplay } from '../../../shared/tab-title.js'
@@ -63,6 +64,8 @@ export function useActiveTabPresentationController(options: ActiveTabPresentatio
     return options.sitePermissions.value.filter((entry) => entry.workspaceId === workspaceId
       && (entry.embeddedIn === undefined ? entry.origin === origin : entry.embeddedIn === origin))
   })
+  // The shown page's connection, which the address bar's site controls button shows as Chrome does.
+  const activeSecurity = computed(() => addressSecurity(activeWebUrl.value))
   const activeAddressKind = computed(() => (
     options.translate(activeWebUrl.value?.startsWith('https:') ? 'runtime.address.https' : 'runtime.address.http')
   ))
@@ -187,6 +190,7 @@ export function useActiveTabPresentationController(options: ActiveTabPresentatio
     activeOrigin,
     activeHostname,
     activeSitePermissions,
+    activeSecurity,
     activeAddressKind,
     activeCredentials,
     activeDownloads,

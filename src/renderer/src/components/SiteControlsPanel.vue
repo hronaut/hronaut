@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import UiButton from "../ui/UiButton.vue"
-import { watch } from 'vue'
+import { computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconHistory from '~icons/material-symbols/history-rounded'
+import IconInfo from '~icons/material-symbols/info-outline-rounded'
+import IconLock from '~icons/material-symbols/lock-outline'
 import IconPrivacy from '~icons/material-symbols/privacy-tip-rounded'
 import IconTune from '~icons/material-symbols/tune-rounded'
+import type { AddressSecurity } from '../../../shared/address-security'
 import { SITE_SOUND_PERMISSION } from '../../../shared/site-permission-names'
 import { formatNumber } from '../../../shared/format'
 import type {
@@ -21,6 +24,7 @@ import { vTooltip } from '../ui/tooltip.js'
 const props = defineProps<{
   hostname: string
   addressKind: string
+  security: AddressSecurity | null
   origin: string | null
   summary: BrowsingDataSiteSummary | null
   state: 'idle' | 'loading' | 'error'
@@ -47,6 +51,19 @@ const localNumber = (value: number): string => formatNumber(props.locale, value)
 // reads nothing.
 watch(dock, (next, previous) => {
   if (open.value && previous === 'window' && next !== 'window' && !props.keepsSeparatePanelOpen() && !props.summary && props.state === 'idle') void props.refresh()
+})
+
+/**
+ * The page's connection as Chrome's site information says it: secure over HTTPS, and otherwise not secure, with what that
+ * means for a page on this computer, whose connection does not leave it.
+ */
+const connection = computed(() => {
+  if (!props.security) return null
+  if (props.security === 'secure') return { summary: t('shell.siteControls.secure'), detail: t('shell.siteControls.secureDetail') }
+  return {
+    summary: t('shell.siteControls.notSecure'),
+    detail: t(props.security === 'local' ? 'shell.siteControls.localDetail' : 'shell.siteControls.notSecureDetail')
+  }
 })
 
 /** What tells a decision apart from the page's own decisions in this workspace: a website embedded in the page shows its origin. */
@@ -101,6 +118,11 @@ async function changePermission(entry: SitePermissionEntry, event: Event): Promi
         <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('shell.siteControls.close')" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
       </div>
     </header>
+    <div v-if="connection" class="site-connection" :class="security">
+      <IconLock v-if="security === 'secure'" aria-hidden="true" />
+      <IconInfo v-else aria-hidden="true" />
+      <span><strong>{{ connection.summary }}</strong><small>{{ connection.detail }}</small></span>
+    </div>
     <div class="site-data-summary" :aria-busy="state === 'loading'">
       <article :aria-label="summary ? t('runtime.tabs.cookieAvailable', { count: localNumber(summary.cookieCount) }, summary.cookieCount) : t('runtime.tabs.loadingCookies')">
         <IconPrivacy aria-hidden="true" />

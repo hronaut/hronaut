@@ -1222,6 +1222,7 @@ export const esES: MessageSchema = {
     },
     "address": {
       "https": "Dirección HTTPS",
+      "notSecure": "No es seguro",
       "http": "Dirección HTTP",
       "zoom": "Zoom de la página: {percent} (Ctrl/Cmd + Más, Menos o 0)",
       "responsive": "Vista adaptable: {status}",
@@ -1243,6 +1244,7 @@ export const esES: MessageSchema = {
       "stop": "Detener",
       "reload": "Recargar",
       "siteControls": "Controles del sitio {host}",
+      "siteControlsNotSecure": "No es seguro. Controles del sitio {host}",
       "siteControlsAvailable": "Los controles del sitio están disponibles en sitios web",
       "siteControlsUnavailable": "Los controles del sitio no están disponibles",
       "cookieAvailable": "{count} cookie disponible para esta dirección | {count} cookies disponibles para esta dirección",
@@ -1668,6 +1670,11 @@ export const esES: MessageSchema = {
       "avatarControl": "Tienes el control de esta pestaña. Reanuda {name} para devolverla"
     },
     "siteControls": {
+      "secure": "La conexión es segura",
+      "secureDetail": "Tu información (por ejemplo, contraseñas o números de tarjetas de crédito) se mantiene privada cuando se envía a este sitio.",
+      "notSecure": "La conexión con este sitio no es segura",
+      "notSecureDetail": "No deberías introducir información sensible en este sitio (por ejemplo, contraseñas o tarjetas de crédito), ya que podrían robarla los atacantes.",
+      "localDetail": "Esta página procede de este ordenador, así que su conexión no sale de él.",
       "close": "Cerrar los controles del sitio",
       "cookies": "cookie | cookies",
       "historyPages": "página del historial | páginas del historial",

@@ -1222,6 +1222,7 @@ export const jaJP: MessageSchema = {
     },
     "address": {
       "https": "HTTPS アドレス",
+      "notSecure": "保護されていない通信",
       "http": "HTTP アドレス",
       "zoom": "ページのズーム：{percent}（Ctrl/Cmd + プラス、マイナス、または 0）",
       "responsive": "レスポンシブ プレビュー：{status}",
@@ -1243,6 +1244,7 @@ export const jaJP: MessageSchema = {
       "stop": "中止",
       "reload": "再読み込み",
       "siteControls": "{host} のサイト コントロール",
+      "siteControlsNotSecure": "保護されていない通信。{host} のサイト コントロール",
       "siteControlsAvailable": "サイト コントロールはウェブサイトで使用できます",
       "siteControlsUnavailable": "サイト コントロールを利用できません",
       "cookieAvailable": "このアドレスで利用可能な Cookie {count} 個",
@@ -1668,6 +1670,11 @@ export const jaJP: MessageSchema = {
       "avatarControl": "このタブはあなたが操作中です。作業を戻すには {name} を再開してください"
     },
     "siteControls": {
+      "secure": "この接続は保護されています",
+      "secureDetail": "このサイトに送信される情報（パスワードやクレジットカード番号など）は第三者から見られることはありません。",
+      "notSecure": "このサイトへの接続は保護されていません",
+      "notSecureDetail": "このサイトでは機密情報（パスワードやクレジットカードなど）を入力しないでください。悪意のあるユーザーに盗まれる可能性があります。",
+      "localDetail": "このページはこのパソコンから配信されているため、接続がパソコンの外に出ることはありません。",
       "close": "サイト コントロールを閉じる",
       "cookies": "Cookie",
       "historyPages": "履歴ページ",

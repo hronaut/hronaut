@@ -1222,6 +1222,7 @@ export const itIT: MessageSchema = {
     },
     "address": {
       "https": "Indirizzo HTTPS",
+      "notSecure": "Non sicuro",
       "http": "Indirizzo HTTP",
       "zoom": "Zoom pagina: {percent} (Ctrl/Cmd + Più, Meno o 0)",
       "responsive": "Anteprima responsive: {status}",
@@ -1243,6 +1244,7 @@ export const itIT: MessageSchema = {
       "stop": "Interrompi",
       "reload": "Ricarica",
       "siteControls": "Controlli del sito per {host}",
+      "siteControlsNotSecure": "Non sicuro. Controlli del sito per {host}",
       "siteControlsAvailable": "I controlli del sito sono disponibili sui siti web",
       "siteControlsUnavailable": "I controlli del sito non sono disponibili",
       "cookieAvailable": "{count} cookie disponibile per questo indirizzo | {count} cookie disponibili per questo indirizzo",
@@ -1668,6 +1670,11 @@ export const itIT: MessageSchema = {
       "avatarControl": "Hai il controllo di questa scheda. Riprendi {name} per restituirgliela"
     },
     "siteControls": {
+      "secure": "La connessione è sicura",
+      "secureDetail": "Le tue informazioni (ad esempio password o numeri di carte di credito) restano private quando vengono inviate a questo sito.",
+      "notSecure": "La connessione a questo sito non è sicura",
+      "notSecureDetail": "Non dovresti inserire informazioni sensibili su questo sito (ad esempio password o carte di credito), perché potrebbero essere sottratte da malintenzionati.",
+      "localDetail": "Questa pagina proviene da questo computer, quindi la sua connessione non ne esce.",
       "close": "Chiudi controlli del sito",
       "cookies": "cookie | cookie",
       "historyPages": "pagina nella cronologia | pagine nella cronologia",

@@ -79,6 +79,7 @@ describe('extracted shell components', () => {
       activeOrigin: ref('https://example.test'),
       activeHostname: ref('example.test'),
       activeSitePermissions: ref([permission]),
+      activeSecurity: ref('secure'),
       activeAddressKind: ref('Secure HTTPS connection'),
       activeTabUsesDefaultProfile: ref(true)
     } as unknown as ActiveTabPresentationController
@@ -163,6 +164,7 @@ describe('extracted shell components', () => {
       activeOrigin: ref('https://example.test'),
       activeHostname: ref('example.test'),
       activeSitePermissions: ref([permission]),
+      activeSecurity: ref('secure'),
       activeAddressKind: ref('Secure HTTPS connection'),
       activeTabUsesDefaultProfile: ref(true)
     } as unknown as ActiveTabPresentationController
@@ -375,6 +377,7 @@ describe('extracted shell components', () => {
         activeOrigin: ref('https://example.test'),
         activeHostname: ref('example.test'),
         activeSitePermissions: ref([]),
+        activeSecurity: ref('secure'),
         activeAddressKind: ref('Secure HTTPS connection'),
         activeTabUsesDefaultProfile: ref(true)
       } as unknown as ActiveTabPresentationController,

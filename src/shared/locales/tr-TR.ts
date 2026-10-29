@@ -1222,6 +1222,7 @@ export const trTR: MessageSchema = {
     },
     "address": {
       "https": "HTTPS adresi",
+      "notSecure": "Güvenli değil",
       "http": "HTTP adresi",
       "zoom": "Sayfa yakınlaştırma: {percent} (Ctrl/Cmd + Artı, Eksi veya 0)",
       "responsive": "Duyarlı önizleme: {status}",
@@ -1243,6 +1244,7 @@ export const trTR: MessageSchema = {
       "stop": "Durdur",
       "reload": "Yeniden yükle",
       "siteControls": "{host} için site denetimleri",
+      "siteControlsNotSecure": "Güvenli değil. {host} için site denetimleri",
       "siteControlsAvailable": "Site denetimleri web sitelerinde kullanılabilir",
       "siteControlsUnavailable": "Site denetimleri kullanılamıyor",
       "cookieAvailable": "Bu adres için {count} çerez kullanılabilir | Bu adres için {count} çerez kullanılabilir",
@@ -1668,6 +1670,11 @@ export const trTR: MessageSchema = {
       "avatarControl": "Bu sekmenin kontrolü sizde. Geri devretmek için {name} ajanını devam ettirin"
     },
     "siteControls": {
+      "secure": "Bağlantı güvenli",
+      "secureDetail": "Bilgileriniz (örneğin, şifreler veya kredi kartı numaraları) bu siteye gönderilirken gizli kalır.",
+      "notSecure": "Bu siteye bağlantınız güvenli değil",
+      "notSecureDetail": "Bu sitede hassas bilgiler (örneğin, şifreler veya kredi kartı bilgileri) girmemelisiniz, çünkü saldırganlar bunları çalabilir.",
+      "localDetail": "Bu sayfa bu bilgisayardan geliyor, bu nedenle bağlantısı bilgisayarın dışına çıkmaz.",
       "close": "Site denetimlerini kapat",
       "cookies": "çerez | çerez",
       "historyPages": "geçmiş sayfası | geçmiş sayfası",

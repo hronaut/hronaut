@@ -1222,6 +1222,7 @@ export const frFR: MessageSchema = {
     },
     "address": {
       "https": "Adresse HTTPS",
+      "notSecure": "Non sécurisé",
       "http": "Adresse HTTP",
       "zoom": "Zoom de la page : {percent} (Ctrl/Cmd + Plus, Moins ou 0)",
       "responsive": "Aperçu adaptatif : {status}",
@@ -1243,6 +1244,7 @@ export const frFR: MessageSchema = {
       "stop": "Arrêter",
       "reload": "Recharger",
       "siteControls": "Paramètres du site {host}",
+      "siteControlsNotSecure": "Non sécurisé. Paramètres du site {host}",
       "siteControlsAvailable": "Les paramètres du site sont disponibles sur les sites",
       "siteControlsUnavailable": "Les paramètres du site sont indisponibles",
       "cookieAvailable": "{count} cookie disponible pour cette adresse | {count} cookies disponibles pour cette adresse",
@@ -1668,6 +1670,11 @@ export const frFR: MessageSchema = {
       "avatarControl": "Vous avez la main sur cet onglet. Relancez {name} pour le lui rendre"
     },
     "siteControls": {
+      "secure": "La connexion est sécurisée",
+      "secureDetail": "Vos informations (par exemple, mots de passe ou numéros de carte de crédit) restent confidentielles lorsqu'elles sont envoyées à ce site.",
+      "notSecure": "La connexion à ce site n'est pas sécurisée",
+      "notSecureDetail": "Vous ne devez saisir aucune information sensible sur ce site (par exemple, mots de passe ou numéros de carte de crédit), car des pirates pourraient la voler.",
+      "localDetail": "Cette page provient de cet ordinateur, sa connexion n'en sort donc pas.",
       "close": "Fermer les contrôles du site",
       "cookies": "cookie | cookies",
       "historyPages": "page d’historique | pages d’historique",

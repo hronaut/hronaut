@@ -1222,6 +1222,7 @@ export const idID: MessageSchema = {
     },
     "address": {
       "https": "Alamat HTTPS",
+      "notSecure": "Tidak aman",
       "http": "Alamat HTTP",
       "zoom": "Zoom halaman: {percent} (Ctrl/Cmd + Plus, Minus, atau 0)",
       "responsive": "Pratinjau responsif: {status}",
@@ -1243,6 +1244,7 @@ export const idID: MessageSchema = {
       "stop": "Berhenti",
       "reload": "Muat ulang",
       "siteControls": "Kontrol situs untuk {host}",
+      "siteControlsNotSecure": "Tidak aman. Kontrol situs untuk {host}",
       "siteControlsAvailable": "Kontrol situs tersedia di situs",
       "siteControlsUnavailable": "Kontrol situs tidak tersedia",
       "cookieAvailable": "{count} cookie tersedia untuk alamat ini",
@@ -1668,6 +1670,11 @@ export const idID: MessageSchema = {
       "avatarControl": "Anda memegang kendali tab ini. Lanjutkan {name} untuk mengembalikannya"
     },
     "siteControls": {
+      "secure": "Koneksi aman",
+      "secureDetail": "Informasi Anda (misalnya, sandi atau nomor kartu kredit) bersifat pribadi saat dikirim ke situs ini.",
+      "notSecure": "Koneksi Anda ke situs ini tidak aman",
+      "notSecureDetail": "Sebaiknya jangan masukkan informasi sensitif di situs ini (misalnya, sandi atau kartu kredit), karena dapat dicuri oleh penyerang.",
+      "localDetail": "Halaman ini berasal dari komputer ini, jadi koneksinya tidak keluar dari komputer ini.",
       "close": "Tutup kontrol situs",
       "cookies": "cookie",
       "historyPages": "halaman riwayat",
