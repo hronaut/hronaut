@@ -2,7 +2,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import WorkspaceEditor from '../../src/renderer/src/components/WorkspaceEditor.vue'
+import WorkspaceEditor from '../../src/renderer/src/features/workspaces/WorkspaceEditor.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BrowserState } from '../../src/shared/types.js'
 

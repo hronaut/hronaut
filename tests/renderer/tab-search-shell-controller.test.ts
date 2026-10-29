@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { useTabSearchShellController } from '../../src/renderer/src/composables/useTabSearchShellController.js'
+import { useTabSearchShellController } from '../../src/renderer/src/features/tabs/useTabSearchShellController.js'
 
 function createController() {
   const open = ref(false)

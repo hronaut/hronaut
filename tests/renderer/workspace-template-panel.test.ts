@@ -1,6 +1,6 @@
 import { mount, flushPromises } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import WorkspaceTemplatePanel from '../../src/renderer/src/components/WorkspaceTemplatePanel.vue'
+import WorkspaceTemplatePanel from '../../src/renderer/src/features/workspaces/WorkspaceTemplatePanel.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BrowserState } from '../../src/shared/types.js'
 

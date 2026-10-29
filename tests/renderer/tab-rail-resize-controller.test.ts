@@ -1,6 +1,6 @@
 import { effectScope, ref } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useTabRailResizeController } from '../../src/renderer/src/composables/useTabRailResizeController.js'
+import { useTabRailResizeController } from '../../src/renderer/src/features/tabs/useTabRailResizeController.js'
 
 const key = 'hronaut:vertical-tab-rail-width'
 const storageDescriptor = Object.getOwnPropertyDescriptor(window, 'localStorage')

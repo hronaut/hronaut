@@ -12,11 +12,11 @@ import type {
   BrowsingDataSiteSummary,
   HronautApi
 } from '../../../shared/types.js'
-import { useAddressBarController } from './useAddressBarController.js'
+import { useAddressBarController } from '../features/address-bar/useAddressBarController.js'
 import { useAppSiteManagementFeatureController } from './useAppSiteManagementFeatureController.js'
-import { useBrowserTabActionsController } from './useBrowserTabActionsController.js'
+import { useBrowserTabActionsController } from '../features/tabs/useBrowserTabActionsController.js'
 import { disposeAll } from './dispose-all.js'
-import type { SettingsSection } from './useSettingsDialogController.js'
+import type { SettingsSection } from '../features/settings/useSettingsDialogController.js'
 import { useSiteDataSummaryController } from './useSiteDataSummaryController.js'
 import type { SiteStorageShellPanel } from '../features/site-storage/useSiteStorageShellController.js'
 

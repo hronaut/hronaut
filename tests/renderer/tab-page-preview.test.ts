@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { useTabPagePreview } from '../../src/renderer/src/composables/useTabPagePreview.js'
+import { useTabPagePreview } from '../../src/renderer/src/features/tabs/useTabPagePreview.js'
 import type { BrowserTabOverviewPreview, BrowserTabState } from '../../src/shared/types.js'
 
 function deferred() {

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/vue'
 import { computed, defineComponent, nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { useAddressBarController } from '../../src/renderer/src/composables/useAddressBarController.js'
+import { useAddressBarController } from '../../src/renderer/src/features/address-bar/useAddressBarController.js'
 import { ADDRESS_SUGGESTION_URL_MAX_LENGTH, type AddressSuggestionOverlayRequest, type AddressSuggestionSelection } from '../../src/shared/address-suggestions.js'
 import type { BrowserHistoryEntry, BrowserTabState } from '../../src/shared/types.js'
 

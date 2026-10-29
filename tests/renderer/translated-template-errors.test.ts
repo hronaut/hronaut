@@ -1,6 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import WorkspaceTemplatePanel from '../../src/renderer/src/components/WorkspaceTemplatePanel.vue'
+import WorkspaceTemplatePanel from '../../src/renderer/src/features/workspaces/WorkspaceTemplatePanel.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import { localeMessages } from '../../src/shared/i18n.js'
 import { SUPPORTED_LOCALES } from '../../src/shared/locale.js'

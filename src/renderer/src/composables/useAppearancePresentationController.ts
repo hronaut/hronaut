@@ -3,9 +3,9 @@ import { computed, ref, watch, type Ref } from 'vue'
 import type { AppSettings } from '../../../shared/types.js'
 import type { WindowMaterial } from '../../../shared/window-material.js'
 import { themeColorScheme } from '../../../shared/theme.js'
-import { useTabRailInteractionController } from './useTabRailInteractionController.js'
-import { useTabRailCollapseMotion } from './useTabRailCollapseMotion.js'
-import { useTabRailResizeController } from './useTabRailResizeController.js'
+import { useTabRailInteractionController } from '../features/tabs/useTabRailInteractionController.js'
+import { useTabRailCollapseMotion } from '../features/tabs/useTabRailCollapseMotion.js'
+import { useTabRailResizeController } from '../features/tabs/useTabRailResizeController.js'
 
 interface AppearancePresentationOptions {
   settings: Ref<AppSettings>

@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useShellFeedbackController, type CopyTextWithFeedback } from '../../src/renderer/src/composables/useShellFeedbackController.js'
-import { useMcpStatusController } from '../../src/renderer/src/composables/useMcpStatusController.js'
+import { useMcpStatusController } from '../../src/renderer/src/features/mcp/useMcpStatusController.js'
 import type { HronautMcpApi, McpControlState } from '../../src/shared/types.js'
 
 function deferred<Value>() {

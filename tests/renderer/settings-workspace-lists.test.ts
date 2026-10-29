@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ref } from 'vue'
-import { useSettingsWorkspaceLists } from '../../src/renderer/src/composables/useSettingsWorkspaceLists.js'
+import { useSettingsWorkspaceLists } from '../../src/renderer/src/features/settings/useSettingsWorkspaceLists.js'
 import type { BrowserState } from '../../src/shared/types.js'
 
 function browserState(): BrowserState {

@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import TabLabelEditor from '../../src/renderer/src/components/TabLabelEditor.vue'
+import TabLabelEditor from '../../src/renderer/src/features/tabs/TabLabelEditor.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BrowserState, BrowserTabState } from '../../src/shared/types.js'
 

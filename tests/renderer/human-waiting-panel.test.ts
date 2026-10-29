@@ -1,6 +1,6 @@
 import { mount, flushPromises } from '@vue/test-utils'
 import { afterEach, expect, it, vi } from 'vitest'
-import HumanWaitingPanel from '../../src/renderer/src/components/HumanWaitingPanel.vue'
+import HumanWaitingPanel from '../../src/renderer/src/features/workspaces/HumanWaitingPanel.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { HumanWaitingRecord } from '../../src/shared/human-waiting.js'
 

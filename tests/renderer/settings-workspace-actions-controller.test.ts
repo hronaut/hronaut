@@ -1,6 +1,6 @@
 import { nextTick } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { useSettingsWorkspaceActionsController } from '../../src/renderer/src/composables/useSettingsWorkspaceActionsController.js'
+import { useSettingsWorkspaceActionsController } from '../../src/renderer/src/features/settings/useSettingsWorkspaceActionsController.js'
 
 function fixture() {
   const options = {

@@ -9,7 +9,7 @@ import type {
 } from '../../../shared/sidebar-overlay.js'
 import type { BrowserTabState } from '../../../shared/types.js'
 import { sidebarOverlayModel, type SidebarOverlayModelInputs } from './sidebar-overlay-model.js'
-import { useAgentPresence } from './useAgentPresence.js'
+import { useAgentPresence } from '../features/agents/useAgentPresence.js'
 import { useSidebarOverlay } from './useSidebarOverlay.js'
 
 /** What a click in the shell's own rail does, which a click in the rail opened over the page asks for. */

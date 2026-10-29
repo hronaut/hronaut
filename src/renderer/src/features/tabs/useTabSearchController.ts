@@ -1,0 +1,634 @@
+import { isHronautHomeUrl } from '../../../../shared/home-url.js'
+import { tabTitleForDisplay } from '../../../../shared/tab-title.js'
+import { computed, nextTick, ref, watch, type Ref } from 'vue'
+import { isImeCompositionEvent } from '../../keyboard-composition.js'
+import type {
+  BrowserClosedTabState,
+  BrowserTabOverviewPreview,
+  BrowserSavedTabGroupState,
+  BrowserState,
+  BrowserTabGroupColor,
+  BrowserTabState,
+  HronautApi,
+  McpTabActivity
+} from '../../../../shared/types.js'
+import { splitConfirmation, type Confirmation } from '../../../../shared/confirmation.js'
+
+type TabSearchBrowserApi = Pick<
+  HronautApi,
+  'closeTab' | 'reopenClosedTab' | 'setTabPinned' | 'restoreSavedTabGroup' | 'deleteSavedTabGroup' | 'getTabOverviewPreviews'
+>
+
+type Translate = (
+  key: string,
+  parameters?: Record<string, string | number>,
+  plural?: number
+) => string
+
+export type TabSearchResult =
+  | { kind: 'open'; tab: BrowserTabState }
+  | { kind: 'closed'; tab: BrowserClosedTabState }
+  | { kind: 'saved'; tab: BrowserSavedTabGroupState }
+
+export interface TabSearchWorkspaceGroup {
+  id: string
+  name: string
+  color: BrowserTabGroupColor
+  tabs: BrowserTabState[]
+}
+
+export interface TabSearchControllerOptions {
+  state: Readonly<Ref<BrowserState>>
+  open: Ref<boolean>
+  mcpActivityByTab: Readonly<Ref<Record<string, McpTabActivity>>>
+  browser: TabSearchBrowserApi
+  syncState: (next: Promise<BrowserState> | BrowserState) => Promise<void>
+  selectTab: (tabId: string) => Promise<unknown>
+  expandTabGroup: (tab: BrowserTabState) => void
+  translate: Translate
+  formatNumber: (value: number) => string
+  formatTime: (value: Date | number | string) => string
+  describeEmulation: (tab: BrowserTabState) => string
+  confirm: (question: Confirmation) => Promise<boolean>
+  formatError: (cause: unknown, fallback: string) => string
+  showError: (title: string, message: string) => void
+}
+
+const TAB_OVERVIEW_LIVE_REFRESH_MS = 1_000
+const TAB_OVERVIEW_LIVE_REFRESH_BATCH = 4
+
+function resultKey(result: TabSearchResult): string {
+  return `${result.kind}:${result.tab.id}`
+}
+
+/** A preview still shows the tab: its page has not changed, and it is a kept frame exactly when the tab sleeps. */
+function previewMatchesTab(preview: BrowserTabOverviewPreview, tab: BrowserTabState): boolean {
+  return preview.navigationGeneration === tab.navigationGeneration && Boolean(tab.sleeping) === (preview.sleeping === true)
+}
+
+export function useTabSearchController(options: TabSearchControllerOptions) {
+  const input = ref<HTMLInputElement | null>(null)
+  const query = ref('')
+  const recencyNow = ref(Date.now())
+  let recencyTimer: ReturnType<typeof setInterval> | null = null
+  const resultKind = ref<'all' | 'open' | 'closed' | 'saved'>('all')
+  const selection = ref(0)
+  const actionPending = ref(false)
+  const previewLoading = ref(false)
+  const previewRefreshPaused = ref(document.visibilityState === 'hidden')
+  const previewsByTab = ref<Record<string, BrowserTabOverviewPreview>>({})
+  let presentationGeneration = 0
+  let previewRequestGeneration = 0
+  let previewRequestInFlight = false
+  let previewReloadPending = false
+  let previewRefreshTimer: ReturnType<typeof setInterval> | null = null
+  let previewInitialHydrationComplete = false
+  let previewRefreshCursor = 0
+  let previewWindowFocused = true
+  let actionToken: symbol | null = null
+
+  const searchTerms = computed(() => query.value.toLocaleLowerCase().trim().split(/\s+/).filter(Boolean))
+
+  function matchesQuery(...fields: string[]): boolean {
+    const text = fields.join('\n').toLocaleLowerCase()
+    return searchTerms.value.every(term => text.includes(term))
+  }
+
+  const regularTabs = computed(() => options.state.value.tabs.filter((tab) => !isHronautHomeUrl(tab.url)))
+  const filteredTabs = computed(() => {
+    if (resultKind.value !== 'all' && resultKind.value !== 'open') return []
+    if (!searchTerms.value.length) return regularTabs.value
+    return regularTabs.value.filter(tab => matchesQuery(
+      tab.label ?? '', tabTitleForDisplay(tab, options.translate('tabSearch.newTabTitle')), tab.url, tab.mcpGroupName ?? ''
+    ))
+  })
+  const filteredClosedTabs = computed(() => {
+    if (resultKind.value !== 'all' && resultKind.value !== 'closed') return []
+    if (!searchTerms.value.length) return options.state.value.closedTabs
+    return options.state.value.closedTabs.filter(tab => matchesQuery(tab.label ?? '', tabTitleForDisplay(tab, options.translate('tabSearch.newTabTitle')), tab.url))
+  })
+  const filteredSavedTabGroups = computed(() => {
+    if (resultKind.value !== 'all' && resultKind.value !== 'saved') return []
+    if (!searchTerms.value.length) return options.state.value.savedTabGroups
+    return options.state.value.savedTabGroups.filter(group => (
+      matchesQuery(group.name)
+      || group.tabs.some(tab => matchesQuery(group.name, tab.label ?? '', tabTitleForDisplay(tab, options.translate('tabSearch.newTabTitle')), tab.url))
+    ))
+  })
+  const filteredWorkspaceGroups = computed<TabSearchWorkspaceGroup[]>(() => {
+    const matchedTabs = new Map(filteredTabs.value.map((tab) => [tab.id, tab]))
+    const knownWorkspaceIds = new Set(options.state.value.mcpTabGroups.map((group) => group.id))
+    const groups = options.state.value.mcpTabGroups.flatMap((group): TabSearchWorkspaceGroup[] => {
+      const tabs = options.state.value.tabs.filter((tab) => (
+        tab.mcpGroupId === group.id && matchedTabs.has(tab.id) && !isHronautHomeUrl(tab.url)
+      ))
+      return tabs.length ? [{ id: group.id, name: group.name, color: group.color, tabs }] : []
+    })
+    const ungroupedTabs = filteredTabs.value.filter((tab) => (
+      !tab.mcpGroupId || !knownWorkspaceIds.has(tab.mcpGroupId)
+    ))
+    if (ungroupedTabs.length) {
+      groups.push({
+        id: 'ungrouped',
+        name: options.translate('tabSearch.ungrouped'),
+        color: 'gray',
+        tabs: ungroupedTabs
+      })
+    }
+    return groups
+  })
+  const results = computed<TabSearchResult[]>(() => [
+    ...filteredWorkspaceGroups.value.flatMap((group) => group.tabs).map((tab): TabSearchResult => ({ kind: 'open', tab })),
+    ...filteredSavedTabGroups.value.map((tab): TabSearchResult => ({ kind: 'saved', tab })),
+    ...filteredClosedTabs.value.map((tab): TabSearchResult => ({ kind: 'closed', tab }))
+  ])
+  const resultKeys = computed(() => results.value.map(resultKey))
+  const selectedResult = computed(() => results.value[selection.value])
+
+  function resultId(result: TabSearchResult): string {
+    return `tab-search-${result.kind}-${result.tab.id}`
+  }
+
+  function resultLabel(result: TabSearchResult): string {
+    return result.kind === 'saved'
+      ? result.tab.name
+      : result.tab.label || tabTitleForDisplay(result.tab, options.translate('tabSearch.newTabTitle'))
+  }
+
+  function resultIndex(kind: TabSearchResult['kind'], id: string): number {
+    return results.value.findIndex((result) => result.kind === kind && result.tab.id === id)
+  }
+
+  /** The tab's thumbnail; a sleeping tab shows the frame main kept from before it slept. */
+  function previewForTab(tab: BrowserTabState): BrowserTabOverviewPreview | undefined {
+    const preview = previewsByTab.value[tab.id]
+    if (!preview || !previewMatchesTab(preview, tab)) return undefined
+    return preview
+  }
+
+  function clearPreviews(): void {
+    previewRequestGeneration += 1
+    previewReloadPending = false
+    previewInitialHydrationComplete = false
+    previewRefreshCursor = 0
+    previewLoading.value = false
+    previewsByTab.value = {}
+  }
+
+  function canRefreshPreviews(): boolean {
+    return options.open.value && (resultKind.value === 'all' || resultKind.value === 'open')
+      && previewWindowFocused && document.visibilityState !== 'hidden'
+  }
+
+  function stopPreviewRefresh(): void {
+    if (previewRefreshTimer) clearInterval(previewRefreshTimer)
+    previewRefreshTimer = null
+  }
+
+  function startPreviewRefresh(): void {
+    stopPreviewRefresh()
+    previewRefreshTimer = setInterval(() => {
+      if (canRefreshPreviews()) void loadPreviews()
+    }, TAB_OVERVIEW_LIVE_REFRESH_MS)
+  }
+
+  async function loadPreviews(presentation = presentationGeneration): Promise<void> {
+    if (!canRefreshPreviews()) return
+    if (previewRequestInFlight) {
+      previewReloadPending = true
+      return
+    }
+    const tabs = regularTabs.value.filter((tab) => !tab.sleeping)
+    // A sleeping tab's frame never changes, so it is asked for until it is here instead of on every refresh.
+    const sleepingTabs = regularTabs.value.filter((tab) => {
+      const preview = tab.sleeping ? previewsByTab.value[tab.id] : undefined
+      return tab.sleeping && (!preview || !previewMatchesTab(preview, tab))
+    })
+    let requestedTabs = tabs
+    if (previewInitialHydrationComplete && tabs.length > TAB_OVERVIEW_LIVE_REFRESH_BATCH) {
+      const visibleTabIds = new Set([
+        options.state.value.activeTabId,
+        options.state.value.splitView?.firstTabId,
+        options.state.value.splitView?.secondTabId
+      ].filter((tabId): tabId is string => Boolean(tabId)))
+      const selected = new Map(tabs
+        .filter((tab) => visibleTabIds.has(tab.id))
+        .slice(0, TAB_OVERVIEW_LIVE_REFRESH_BATCH)
+        .map((tab) => [tab.id, tab]))
+      let scanned = 0
+      while (selected.size < TAB_OVERVIEW_LIVE_REFRESH_BATCH && scanned < tabs.length) {
+        const tab = tabs[(previewRefreshCursor + scanned) % tabs.length]
+        if (tab) selected.set(tab.id, tab)
+        scanned += 1
+      }
+      previewRefreshCursor = (previewRefreshCursor + Math.max(1, scanned)) % tabs.length
+      requestedTabs = [...selected.values()]
+    }
+    requestedTabs = [...requestedTabs, ...sleepingTabs]
+    const request = ++previewRequestGeneration
+    if (!requestedTabs.length) {
+      previewsByTab.value = Object.fromEntries(Object.entries(previewsByTab.value).filter(([tabId, preview]) => {
+        const tab = regularTabs.value.find((candidate) => candidate.id === tabId)
+        return tab ? previewMatchesTab(preview, tab) : false
+      }))
+      previewLoading.value = false
+      return
+    }
+    previewRequestInFlight = true
+    previewLoading.value = true
+    try {
+      const previews = await options.browser.getTabOverviewPreviews(requestedTabs.map((tab) => tab.id))
+      if (
+        request !== previewRequestGeneration
+        || !options.open.value
+        || !isPresentationCurrent(presentation)
+      ) return
+      const currentTabs = new Map(regularTabs.value.map((tab) => [tab.id, tab]))
+      const current: Record<string, BrowserTabOverviewPreview> = {}
+      for (const [tabId, preview] of Object.entries(previewsByTab.value)) {
+        const tab = currentTabs.get(tabId)
+        if (tab && Boolean(tab.sleeping) === (preview.sleeping === true)) current[tabId] = preview
+      }
+      for (const preview of previews) {
+        const tab = currentTabs.get(preview.tabId)
+        if (!tab || !previewMatchesTab(preview, tab)) continue
+        if (!/^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/.test(preview.dataUrl)) continue
+        if (!Number.isInteger(preview.width) || preview.width < 1 || !Number.isInteger(preview.height) || preview.height < 1) continue
+        current[preview.tabId] = preview
+      }
+      previewsByTab.value = current
+      previewInitialHydrationComplete = true
+    } catch {
+      // Previews are optional presentation data. Keep the overview usable with
+      // deterministic placeholders when capture is unavailable, without
+      // flashing away a last-good frame during a transient live refresh.
+    } finally {
+      previewRequestInFlight = false
+      if (request === previewRequestGeneration) previewLoading.value = false
+      if (previewReloadPending) {
+        previewReloadPending = false
+        if (canRefreshPreviews()) void loadPreviews()
+      }
+    }
+  }
+
+  function handlePreviewWindowBlur(): void {
+    previewWindowFocused = false
+    previewRefreshPaused.value = true
+  }
+
+  function handlePreviewWindowFocus(): void {
+    previewWindowFocused = true
+    previewRefreshPaused.value = document.visibilityState === 'hidden'
+    if (canRefreshPreviews()) void loadPreviews()
+  }
+
+  function handlePreviewVisibilityChange(): void {
+    previewRefreshPaused.value = document.visibilityState === 'hidden' || !previewWindowFocused
+    if (previewRefreshPaused.value) return
+    if (canRefreshPreviews()) void loadPreviews()
+  }
+
+  function revealSelectedResult(): void {
+    const result = selectedResult.value
+    if (!result) return
+    document.getElementById(resultId(result))?.scrollIntoView?.({ block: 'nearest' })
+  }
+
+  function beginPresentation(): number {
+    presentationGeneration += 1
+    return presentationGeneration
+  }
+
+  function isPresentationCurrent(generation: number): boolean {
+    return generation === presentationGeneration
+  }
+
+  function beginAction(): { token: symbol; presentation: number } | null {
+    if (actionToken) return null
+    const token = Symbol('tab-search-action')
+    actionToken = token
+    actionPending.value = true
+    return { token, presentation: presentationGeneration }
+  }
+
+  function finishAction(token: symbol): void {
+    if (actionToken !== token) return
+    actionToken = null
+    actionPending.value = false
+  }
+
+  function showOpenError(cause: unknown): void {
+    options.showError(
+      options.translate('runtime.workspace.openFailed'),
+      options.formatError(cause, options.translate('runtime.workspace.openDescription'))
+    )
+  }
+
+  function showActionError(cause: unknown): void {
+    options.showError(
+      options.translate('runtimeDetails.browserAction'),
+      options.formatError(cause, options.translate('runtime.toast.actionFailed'))
+    )
+  }
+
+  async function focusAndReveal(presentation = presentationGeneration): Promise<void> {
+    await nextTick()
+    if (!options.open.value || !isPresentationCurrent(presentation)) return
+    input.value?.focus()
+    revealSelectedResult()
+  }
+
+  async function openPanel(): Promise<void> {
+    const presentation = beginPresentation()
+    resultKind.value = 'all'
+    query.value = ''
+    const activeIndex = results.value.findIndex((result) => result.kind === 'open' && result.tab.active)
+    selection.value = Math.max(0, activeIndex)
+    options.open.value = true
+    if (canRefreshPreviews()) void loadPreviews(presentation)
+    await focusAndReveal(presentation)
+    if (!options.open.value || !isPresentationCurrent(presentation)) return
+    input.value?.select()
+  }
+
+  function close(): void {
+    beginPresentation()
+    stopPreviewRefresh()
+    clearPreviews()
+    options.open.value = false
+  }
+
+  async function moveSelection(offset: -1 | 1): Promise<void> {
+    if (!results.value.length) return
+    selection.value = (selection.value + offset + results.value.length) % results.value.length
+    await nextTick()
+    revealSelectedResult()
+  }
+
+  async function selectOpenTab(tab: BrowserTabState): Promise<void> {
+    close()
+    const presentation = presentationGeneration
+    options.expandTabGroup(tab)
+    try {
+      await options.selectTab(tab.id)
+    } catch (cause) {
+      if (isPresentationCurrent(presentation)) showOpenError(cause)
+    }
+  }
+
+  async function restoreClosedTab(tab: BrowserClosedTabState): Promise<void> {
+    close()
+    const presentation = presentationGeneration
+    try {
+      await options.syncState(options.browser.reopenClosedTab(tab.id))
+    } catch (cause) {
+      if (isPresentationCurrent(presentation)) showOpenError(cause)
+    }
+  }
+
+  async function restoreSavedGroup(group: BrowserSavedTabGroupState): Promise<void> {
+    const action = beginAction()
+    if (!action) return
+    try {
+      await options.syncState(options.browser.restoreSavedTabGroup(group.id))
+      if (isPresentationCurrent(action.presentation)) close()
+    } catch (cause) {
+      if (isPresentationCurrent(action.presentation)) options.showError(
+        options.translate('runtime.workspace.restoreFailed'),
+        options.formatError(cause, options.translate('runtime.workspace.restoreDescription'))
+      )
+    } finally {
+      finishAction(action.token)
+    }
+  }
+
+  async function runSelectedResult(): Promise<void> {
+    const result = selectedResult.value
+    if (!result) return
+    if (result.kind === 'open') await selectOpenTab(result.tab)
+    else if (result.kind === 'closed') await restoreClosedTab(result.tab)
+    else await restoreSavedGroup(result.tab)
+  }
+
+  function handleKeydown(event: KeyboardEvent): void {
+    if (isImeCompositionEvent(event)) return
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      void moveSelection(1)
+      return
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      void moveSelection(-1)
+      return
+    }
+    if (event.key === 'Enter' && selectedResult.value) {
+      event.preventDefault()
+      // Closing a tab with its × button puts the focus here, so a held Enter would go on to run the selected result.
+      if (!actionPending.value && !event.repeat) void runSelectedResult()
+    }
+  }
+
+  async function closeOpenTab(event: MouseEvent, tabId: string): Promise<void> {
+    event.stopPropagation()
+    const action = beginAction()
+    if (!action) return
+    try {
+      await options.syncState(options.browser.closeTab(tabId))
+      await focusAndReveal(action.presentation)
+    } catch (cause) {
+      if (isPresentationCurrent(action.presentation)) showActionError(cause)
+    } finally {
+      finishAction(action.token)
+    }
+  }
+
+  async function togglePinnedTab(event: Event | undefined, tab: BrowserTabState): Promise<void> {
+    event?.stopPropagation()
+    const action = beginAction()
+    if (!action) return
+    try {
+      await options.syncState(options.browser.setTabPinned(tab.id, !tab.pinned))
+      await focusAndReveal(action.presentation)
+    } catch (cause) {
+      if (isPresentationCurrent(action.presentation)) showActionError(cause)
+    } finally {
+      finishAction(action.token)
+    }
+  }
+
+  async function deleteSavedGroup(event: MouseEvent, group: BrowserSavedTabGroupState): Promise<void> {
+    event.stopPropagation()
+    const askedPresentation = presentationGeneration
+    const confirmed = await options.confirm(splitConfirmation(
+      (parameters) => options.translate('runtimeActions.workspace.deleteConfirm', parameters, group.tabs.length),
+      { name: group.name, count: options.formatNumber(group.tabs.length) }
+    ))
+    // Search tabs keeps running while the question waits: it may close, or an agent may restore, protect or delete the
+    // workspace. Only the archived workspace the person was asked about is deleted.
+    const current = options.state.value.savedTabGroups.find(candidate => candidate.id === group.id)
+    if (!confirmed || !isPresentationCurrent(askedPresentation) || !current || current.deletionProtected) return
+    const action = beginAction()
+    if (!action) return
+    try {
+      await options.syncState(options.browser.deleteSavedTabGroup(group.id))
+      await focusAndReveal(action.presentation)
+    } catch (cause) {
+      if (isPresentationCurrent(action.presentation)) options.showError(
+        options.translate('runtime.workspace.deleteFailed'),
+        options.formatError(cause, options.translate('runtime.workspace.deleteDescription'))
+      )
+    } finally {
+      finishAction(action.token)
+    }
+  }
+
+  function tabMeta(tab: BrowserTabState): string {
+    const status: string[] = []
+    if (tab.mcpGroupName) status.push(options.translate('tabSearch.meta.group', { name: tab.mcpGroupName }))
+    if (tab.pinned) status.push(options.translate('tabSearch.meta.pinned'))
+    if (tab.active) status.push(options.translate('tabSearch.meta.current'))
+    if (tab.humanInteractionInputLocked ?? (options.state.value.allHumanInteractionLocked || tab.humanInteractionLocked)) status.push(options.translate('tabSearch.meta.locked'))
+    if (tab.muted) status.push(options.translate('tabSearch.meta.muted'))
+    else if (tab.audible) status.push(options.translate('tabSearch.meta.audio'))
+    if (options.mcpActivityByTab.value[tab.id]) status.push(options.translate('tabSearch.meta.agent'))
+    if (tab.emulation) status.push(options.translate('tabSearch.meta.emulated', { state: options.describeEmulation(tab) }))
+    if (tab.networkRouteCount) {
+      status.push(options.translate(
+        'tabSearch.meta.routes',
+        { count: options.formatNumber(tab.networkRouteCount) },
+        tab.networkRouteCount
+      ))
+    }
+    return status.join(' · ')
+  }
+
+  function closedTabMeta(tab: BrowserClosedTabState): string {
+    const elapsed = Math.max(0, recencyNow.value - Date.parse(tab.closedAt))
+    let closed: string
+    if (elapsed < 60_000) closed = options.translate('tabSearch.meta.justNow')
+    else if (elapsed < 60 * 60_000) {
+      const minutes = Math.max(1, Math.floor(elapsed / 60_000))
+      closed = options.translate('tabSearch.meta.minutesAgo', { count: options.formatNumber(minutes) })
+    } else {
+      closed = options.translate('tabSearch.meta.closedAt', { time: options.formatTime(tab.closedAt) })
+    }
+    return tab.pinned ? `${options.translate('tabSearch.meta.pinned')} · ${closed}` : closed
+  }
+
+  function stopRecencyRefresh(): void {
+    if (recencyTimer !== null) clearInterval(recencyTimer)
+    recencyTimer = null
+  }
+
+  const stopRecencyTracking = watch(
+    () => options.open.value && filteredClosedTabs.value.length > 0 && !previewRefreshPaused.value,
+    active => {
+      stopRecencyRefresh()
+      if (!active) return
+      recencyNow.value = Date.now()
+      recencyTimer = setInterval(() => { recencyNow.value = Date.now() }, 60_000)
+    },
+    { immediate: true, flush: 'sync' }
+  )
+
+  const stopResultTracking = watch(
+    [query, resultKind, resultKeys],
+    ([nextQuery, nextKind, nextKeys], [previousQuery, previousKind, previousKeys]) => {
+      if (nextQuery !== previousQuery || nextKind !== previousKind) {
+        selection.value = 0
+      } else {
+        const previousKey = previousKeys[selection.value]
+        const preservedIndex = previousKey ? nextKeys.indexOf(previousKey) : -1
+        selection.value = preservedIndex >= 0
+          ? preservedIndex
+          : Math.min(selection.value, Math.max(0, nextKeys.length - 1))
+      }
+      void nextTick().then(revealSelectedResult)
+    },
+    { flush: 'sync' }
+  )
+  const stopResultKindTracking = watch(resultKind, () => {
+    clearPreviews()
+    if (canRefreshPreviews()) void loadPreviews()
+  }, { flush: 'sync' })
+  const stopOpenTracking = watch(options.open, (nextOpen, previousOpen) => {
+    if (previousOpen && !nextOpen) {
+      beginPresentation()
+      stopPreviewRefresh()
+      clearPreviews()
+    } else if (!previousOpen && nextOpen) {
+      startPreviewRefresh()
+    }
+  }, { flush: 'sync' })
+  const previewIdentity = computed(() => regularTabs.value.map((tab) => (
+    `${tab.id}:${tab.navigationGeneration}:${tab.sleeping ? 'sleeping' : 'awake'}`
+  )).join('|'))
+  const stopPreviewIdentityTracking = watch(previewIdentity, () => {
+    if (options.open.value) void loadPreviews()
+  }, { flush: 'post' })
+
+  if (options.open.value) {
+    const activeIndex = results.value.findIndex((result) => result.kind === 'open' && result.tab.active)
+    selection.value = Math.max(0, activeIndex)
+    startPreviewRefresh()
+    void loadPreviews()
+  }
+
+  window.addEventListener('blur', handlePreviewWindowBlur)
+  window.addEventListener('focus', handlePreviewWindowFocus)
+  document.addEventListener('visibilitychange', handlePreviewVisibilityChange)
+
+  function dispose(): void {
+    beginPresentation()
+    stopPreviewRefresh()
+    clearPreviews()
+    actionToken = null
+    actionPending.value = false
+    stopRecencyTracking()
+    stopRecencyRefresh()
+    stopResultTracking()
+    stopResultKindTracking()
+    stopOpenTracking()
+    stopPreviewIdentityTracking()
+    window.removeEventListener('blur', handlePreviewWindowBlur)
+    window.removeEventListener('focus', handlePreviewWindowFocus)
+    document.removeEventListener('visibilitychange', handlePreviewVisibilityChange)
+  }
+
+  return {
+    input,
+    query,
+    resultKind,
+    selection,
+    actionPending,
+    previewLoading,
+    previewRefreshPaused,
+    previewsByTab,
+    regularTabs,
+    filteredTabs,
+    filteredWorkspaceGroups,
+    filteredClosedTabs,
+    filteredSavedTabGroups,
+    results,
+    selectedResult,
+    resultId,
+    resultLabel,
+    resultIndex,
+    previewForTab,
+    openPanel,
+    close,
+    moveSelection,
+    handleKeydown,
+    selectOpenTab,
+    restoreClosedTab,
+    restoreSavedGroup,
+    closeOpenTab,
+    togglePinnedTab,
+    deleteSavedGroup,
+    tabMeta,
+    closedTabMeta,
+    dispose
+  }
+}

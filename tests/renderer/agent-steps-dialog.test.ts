@@ -3,8 +3,8 @@ import { screen, within } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { effectScope, nextTick, ref } from 'vue'
-import AgentStepsDialog from '../../src/renderer/src/components/AgentStepsDialog.vue'
-import { useAgentStepHistory } from '../../src/renderer/src/composables/useAgentStepHistory.js'
+import AgentStepsDialog from '../../src/renderer/src/features/agents/AgentStepsDialog.vue'
+import { useAgentStepHistory } from '../../src/renderer/src/features/agents/useAgentStepHistory.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type {
   AgentPresence,

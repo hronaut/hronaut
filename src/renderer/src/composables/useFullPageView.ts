@@ -1,5 +1,5 @@
 import { computed, getCurrentScope, onScopeDispose, ref, shallowRef, watch, type Ref } from 'vue'
-import { useTabRailInteractionController } from './useTabRailInteractionController.js'
+import { useTabRailInteractionController } from '../features/tabs/useTabRailInteractionController.js'
 
 // A click on the page takes focus from the shell when the button goes down. The chrome stays this long after,
 // so the page does not move between the press and the release.

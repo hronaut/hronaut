@@ -1,6 +1,6 @@
 import { nextTick, ref } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useMcpActivityController } from '../../src/renderer/src/composables/useMcpActivityController.js'
+import { useMcpActivityController } from '../../src/renderer/src/features/mcp/useMcpActivityController.js'
 import type { McpTabActivity } from '../../src/shared/types.js'
 
 function activity(

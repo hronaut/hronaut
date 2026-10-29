@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/vue'
 import { flushPromises } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import BrowserTabsBar from '../../src/renderer/src/components/BrowserTabsBar.vue'
+import BrowserTabsBar from '../../src/renderer/src/features/tabs/BrowserTabsBar.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BrowserState, BrowserTabGroupState, BrowserTabState } from '../../src/shared/types.js'
 

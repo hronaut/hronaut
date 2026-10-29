@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { effectScope, nextTick, ref } from 'vue'
-import { useAgentDecisionAnswers, type AgentDecisionBrowser, type AgentDecisionTarget } from '../../src/renderer/src/composables/useAgentDecisionAnswers.js'
+import { useAgentDecisionAnswers, type AgentDecisionBrowser, type AgentDecisionTarget } from '../../src/renderer/src/features/agents/useAgentDecisionAnswers.js'
 import type { HumanWaitingRecord } from '../../src/shared/human-waiting.js'
 import type { WorkspaceContinuityReport } from '../../src/shared/workspace-continuity.js'
 

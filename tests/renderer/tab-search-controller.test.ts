@@ -1,7 +1,7 @@
 import { computed, nextTick, ref, type Ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import type { Confirmation } from '../../src/shared/confirmation.js'
-import { useTabSearchController } from '../../src/renderer/src/composables/useTabSearchController.js'
+import { useTabSearchController } from '../../src/renderer/src/features/tabs/useTabSearchController.js'
 import type {
   BrowserSavedTabGroupState,
   BrowserState,

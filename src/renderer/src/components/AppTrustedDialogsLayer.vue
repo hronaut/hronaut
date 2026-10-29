@@ -4,9 +4,9 @@ import type { HelpDialogController } from '../composables/useHelpDialogControlle
 import TrustedDialog from '../trusted-dialogs/TrustedDialog.vue'
 import type { TrustedDialogController } from '../trusted-dialogs/useTrustedDialogController.js'
 import HelpDialog from './HelpDialog.vue'
-import SettingsDialog from './SettingsDialog.vue'
+import SettingsDialog from '../features/settings/SettingsDialog.vue'
 import WalletApprovalDialog from '../features/wallets/WalletApprovalDialog.vue'
-import WhatsNewDialog from './WhatsNewDialog.vue'
+import WhatsNewDialog from '../features/updates/WhatsNewDialog.vue'
 
 const props = defineProps<{
   settingsController: AppSettingsFeatureController

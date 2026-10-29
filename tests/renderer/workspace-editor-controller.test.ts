@@ -1,6 +1,6 @@
 import { nextTick, ref, type Ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { useWorkspaceEditorController } from '../../src/renderer/src/composables/useWorkspaceEditorController.js'
+import { useWorkspaceEditorController } from '../../src/renderer/src/features/workspaces/useWorkspaceEditorController.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../src/shared/undo.js'
 import type {
   BrowserState,

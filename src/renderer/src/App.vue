@@ -48,15 +48,15 @@ import { useAppShellLayoutFeatureController } from './composables/useAppShellLay
 import { useAppTabRuntimeFeatureController } from './composables/useAppTabRuntimeFeatureController'
 import { useAppActiveTabFeatureController } from './composables/useAppActiveTabFeatureController'
 import { useAppTransientShellLayerController } from './composables/useAppTransientShellLayerController'
-import { useSettingsWorkspaceActionsController } from './composables/useSettingsWorkspaceActionsController'
+import { useSettingsWorkspaceActionsController } from './features/settings/useSettingsWorkspaceActionsController'
 import { useAppBrowserChromeFeatureController } from './composables/useAppBrowserChromeFeatureController'
 import type { TransientPanelsCloseOptions } from './composables/useTransientPanelsController'
 import { createInWindowTooltipPort } from './composables/in-window-tooltips'
 import { useShellTooltips } from './composables/shell-tooltips'
-import { useWorkspaceShellTint } from './composables/useWorkspaceShellTint'
+import { useWorkspaceShellTint } from './features/workspaces/useWorkspaceShellTint'
 import { useFullPageView } from './composables/useFullPageView'
 import { useUserAttention } from './composables/useUserAttention'
-import { useSettingsWorkspaceLists } from './composables/useSettingsWorkspaceLists'
+import { useSettingsWorkspaceLists } from './features/settings/useSettingsWorkspaceLists'
 import { confirmAction } from './confirm-action.js'
 
 const { t } = useI18n({ useScope: 'global' })

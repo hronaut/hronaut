@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { useSettingsNavigationController } from '../../src/renderer/src/composables/useSettingsNavigationController.js'
+import { useSettingsNavigationController } from '../../src/renderer/src/features/settings/useSettingsNavigationController.js'
 
 function createController(overrides: { defaultProfile?: boolean; blocked?: boolean; origin?: string | null } = {}) {
   const closeSiteControls = vi.fn()

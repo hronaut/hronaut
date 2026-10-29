@@ -4,8 +4,8 @@ import {
   useCommandPaletteShellController,
   type CommandPalettePanel,
   type CommandPaletteView
-} from './useCommandPaletteShellController.js'
-import type { SettingsSection } from './useSettingsDialogController.js'
+} from '../features/command-palette/useCommandPaletteShellController.js'
+import type { SettingsSection } from '../features/settings/useSettingsDialogController.js'
 import type { AppBrowserCollectionsFeatureController } from './useAppBrowserCollectionsFeatureController.js'
 import type { AppEmulationFeatureController } from './useAppEmulationFeatureController.js'
 import type { AppPageToolsFeatureController } from './useAppPageToolsFeatureController.js'
