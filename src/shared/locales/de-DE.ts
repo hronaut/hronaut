@@ -3743,7 +3743,7 @@ export const deDE: MessageSchema = {
       "openAudio": "Audio in neuem Tab öffnen",
       "saveAudio": "Audio speichern",
       "copyAudioAddress": "Audioadresse kopieren",
-      "loop": "Schleife",
+      "loop": "Endlosschleife",
       "showControls": "Steuerelemente anzeigen",
       "pictureInPicture": "Bild im Bild",
       "addDictionary": "„{word}“ zum Wörterbuch hinzufügen",

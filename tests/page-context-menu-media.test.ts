@@ -48,7 +48,8 @@ function mediaMenu(params: Partial<ContextMenuParams>) {
     isDestroyed: () => false,
     navigationHistory: { canGoBack: () => false, canGoForward: () => false },
     mainFrame,
-    downloadURL
+    downloadURL,
+    getZoomFactor: () => 1.25
   } as unknown as WebContents
   const tab: PageTab = { id: 'tab', url: PAGE, mcpGroupId: 'client', webContents }
   const access = {
@@ -58,8 +59,7 @@ function mediaMenu(params: Partial<ContextMenuParams>) {
     text: (key: string) => key,
     isHumanInteractionLocked: () => false,
     expectSavedLinkName: vi.fn(),
-    createTab,
-    viewSize: () => ({ width: 800, height: 600 })
+    createTab
   } as unknown as PageContextMenuAccess
   // Electron's params give the frame of the click until it navigates or goes, and then none.
   const menuParams = {
@@ -73,7 +73,7 @@ function mediaMenu(params: Partial<ContextMenuParams>) {
   const click = (id: string) => (item(id)!.click as () => void)()
   // The ids in the menu's order, with a dash for each separator, up to the page's own items.
   const order = () => items.slice(0, items.findIndex(entry => entry.id === 'back') - 1).map(entry => entry.type === 'separator' ? '-' : entry.id)
-  return { items, item, click, order, createTab, downloadURL, copyText, copyVideoFrameAt, onClipboardCopyFailed, mainFrame, params: menuParams as { frame: WebFrameMain | null } }
+  return { items, item, click, order, webContents, createTab, downloadURL, copyText, copyVideoFrameAt, onClipboardCopyFailed, mainFrame, params: menuParams as { frame: WebFrameMain | null } }
 }
 
 afterEach(() => {
@@ -233,15 +233,15 @@ describe('Loop, Show controls and Picture in picture in the page menu', () => {
     ])
   })
 
-  it('turns on what is off and off what is on, for the element at the click, in the view’s pixels', () => {
+  it('turns on what is off and off what is on, for the element at the click, with the page’s zoom', () => {
     const off = mediaMenu({ mediaType: 'video', srcURL: VIDEO, mediaFlags: flags() })
     off.click('media-loop')
     off.click('media-controls')
     off.click('picture-in-picture')
     expect(player.act.mock.calls).toEqual([
-      [off.mainFrame, { x: 10, y: 20, viewWidth: 800, viewHeight: 600 }, 'loop', true],
-      [off.mainFrame, { x: 10, y: 20, viewWidth: 800, viewHeight: 600 }, 'controls', true],
-      [off.mainFrame, { x: 10, y: 20, viewWidth: 800, viewHeight: 600 }, 'picture-in-picture', true]
+      [off.webContents, off.mainFrame, { x: 10, y: 20, zoom: 1.25 }, 'loop', true],
+      [off.webContents, off.mainFrame, { x: 10, y: 20, zoom: 1.25 }, 'controls', true],
+      [off.webContents, off.mainFrame, { x: 10, y: 20, zoom: 1.25 }, 'picture-in-picture', true]
     ])
     player.act.mockClear()
 
@@ -250,14 +250,14 @@ describe('Loop, Show controls and Picture in picture in the page menu', () => {
     on.click('media-loop')
     on.click('media-controls')
     on.click('picture-in-picture')
-    expect(player.act.mock.calls.map(call => [call[2], call[3]])).toEqual([['loop', false], ['controls', false], ['picture-in-picture', false]])
+    expect(player.act.mock.calls.map(call => [call[3], call[4]])).toEqual([['loop', false], ['controls', false], ['picture-in-picture', false]])
   })
 
   it('acts in the frame of the page the video is in', () => {
     const frame = pageFrame({ parent: {} })
     const menu = mediaMenu({ mediaType: 'video', srcURL: VIDEO, frame: frame as unknown as WebFrameMain, x: 300, y: 150, mediaFlags: flags() })
     menu.click('media-loop')
-    expect(player.act).toHaveBeenCalledExactlyOnceWith(frame, { x: 300, y: 150, viewWidth: 800, viewHeight: 600 }, 'loop', true)
+    expect(player.act).toHaveBeenCalledExactlyOnceWith(menu.webContents, frame, { x: 300, y: 150, zoom: 1.25 }, 'loop', true)
   })
 
   it('keeps each unavailable where Chromium says so, or once the frame of the click is gone', () => {
@@ -285,16 +285,19 @@ describe('Loop, Show controls and Picture in picture in the page menu', () => {
     expect(audio.order()).toEqual(['media-loop', 'media-controls', '-', 'open-audio-new-tab', 'save-audio', 'copy-audio-address'])
     expect([audio.item('media-controls')!.checked, audio.item('media-controls')!.enabled]).toEqual([true, false])
     audio.click('media-loop')
-    expect(player.act).toHaveBeenCalledExactlyOnceWith(audio.mainFrame, { x: 10, y: 20, viewWidth: 800, viewHeight: 600 }, 'loop', true)
+    expect(player.act).toHaveBeenCalledExactlyOnceWith(audio.webContents, audio.mainFrame, { x: 10, y: 20, zoom: 1.25 }, 'loop', true)
     // Chrome offers them for an audio a page plays from a stream too, which has no address.
     expect(mediaMenu({ mediaType: 'audio', srcURL: '', mediaFlags: flags() }).order()).toEqual(['media-loop', 'media-controls'])
   })
 
   it('logs a failure without the page’s words', async () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    player.act.mockRejectedValueOnce(new Error('secret page text'))
-    mediaMenu({ mediaType: 'video', srcURL: VIDEO, mediaFlags: flags() }).click('media-loop')
-    await vi.waitFor(() => expect(error).toHaveBeenCalledExactlyOnceWith('[browser] Could not turn loop on from page context menu.'))
-    error.mockRestore()
+    try {
+      player.act.mockRejectedValueOnce(new Error('secret page text'))
+      mediaMenu({ mediaType: 'video', srcURL: VIDEO, mediaFlags: flags() }).click('media-loop')
+      await vi.waitFor(() => expect(error).toHaveBeenCalledExactlyOnceWith('[browser] Could not turn loop on from page context menu.'))
+    } finally {
+      error.mockRestore()
+    }
   })
 })

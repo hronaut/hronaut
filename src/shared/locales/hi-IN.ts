@@ -3743,7 +3743,7 @@ export const hiIN: MessageSchema = {
       "openAudio": "ऑडियो को नए टैब में खोलें",
       "saveAudio": "ऑडियो सेव करें",
       "copyAudioAddress": "ऑडियो का पता कॉपी करें",
-      "loop": "लूप करें",
+      "loop": "लूप",
       "showControls": "नियंत्रण दिखाएं",
       "pictureInPicture": "पिक्चर में पिक्चर",
       "addDictionary": "“{word}” को शब्दकोश में जोड़ें",

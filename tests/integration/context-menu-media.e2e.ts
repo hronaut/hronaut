@@ -243,7 +243,7 @@ test('copies and saves the frame a video shows, in the page and in a frame of an
   }
 })
 
-test('turns Loop, Show controls and Picture in picture on and off for a video in the zoomed page and in a frame of another site, as Chrome does', async ({ appWindow, electronApp }) => {
+test('turns Loop, Show controls and Picture in picture on and off for a video in the zoomed page, in a player’s shadow root and in a frame of another site, as Chrome does', async ({ appWindow, electronApp }) => {
   const video = '<video id="video" muted preload="auto" src="/clip.webm" style="display:block;width:160px;height:90px"></video>'
   let frameUrl = ''
   const server = createServer((request, response) => {
@@ -251,34 +251,36 @@ test('turns Loop, Show controls and Picture in picture on and off for a video in
       response.writeHead(200, { 'content-type': 'video/webm', 'content-length': RED_FIRST_FRAME.length }).end(RED_FIRST_FRAME)
       return
     }
-    // The frame sits past a margin, a border and padding, which the click passes on its way to the frame's video.
+    // A player keeps a second video in its shadow root, as Reddit's and Mux's do, which the page's hit test stops at. The
+    // frame sits past a margin, a border and padding, which the click passes on its way to the frame's video.
     response.writeHead(200, { 'content-type': 'text/html' }).end(request.url === '/frame'
       ? `<!doctype html><body style="margin:8px 0 0 20px">${video}</body>`
-      : `<!doctype html><title>Video player fixture</title><body style="margin:0">${video}<iframe id="frame" src="${frameUrl}" style="display:block;margin:10px 0 0 30px;border:4px solid #888;padding:6px;width:220px;height:130px"></iframe></body>`)
+      : `<!doctype html><title>Video player fixture</title><body style="margin:0"><div style="display:flex;gap:20px">${video}<div id="player"></div></div><iframe id="frame" src="${frameUrl}" style="display:block;margin:10px 0 0 30px;border:4px solid #888;padding:6px;width:220px;height:130px"></iframe><script>document.querySelector('#player').attachShadow({ mode: 'open' }).innerHTML = ${JSON.stringify(video)}</script></body>`)
   })
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()
   if (!address || typeof address === 'string') throw new Error('Missing fixture port')
   const url = `http://127.0.0.1:${address.port}/play`
   frameUrl = `http://localhost:${address.port}/frame`
-  type Target = 'page' | 'frame'
+  type Target = 'page' | 'shadow' | 'frame'
   type PlayerItem = { id: string; label: string; enabled: boolean; checked: boolean }
   // The video's center in the view, which the page's zoom scales, and what is on for it.
   const videoState = (target: Target) => electronApp.evaluate(async ({ webContents }, { url, target }) => {
     const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)
     if (!page) return null
-    const frame = target === 'page' ? page.mainFrame : page.mainFrame.frames[0]
+    const frame = target === 'frame' ? page.mainFrame.frames[0] : page.mainFrame
     if (!frame) return null
-    const offset = target === 'page' ? { x: 0, y: 0 } : await page.executeJavaScript(`(() => {
+    const offset = target !== 'frame' ? { x: 0, y: 0 } : await page.executeJavaScript(`(() => {
       const element = document.querySelector('#frame')
       const bounds = element.getBoundingClientRect()
       const style = getComputedStyle(element)
       return { x: bounds.x + element.clientLeft + parseFloat(style.paddingLeft), y: bounds.y + element.clientTop + parseFloat(style.paddingTop) }
     })()`) as { x: number; y: number }
     const video = await frame.executeJavaScript(`(() => {
-      const video = document.querySelector('#video')
+      const root = ${JSON.stringify(target)} === 'shadow' ? document.querySelector('#player').shadowRoot : document
+      const video = root.querySelector('#video')
       const bounds = video.getBoundingClientRect()
-      return { readyState: video.readyState, x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2, loop: video.loop, controls: video.controls, pictureInPicture: document.pictureInPictureElement === video }
+      return { readyState: video.readyState, x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2, loop: video.loop, controls: video.controls, pictureInPicture: root.pictureInPictureElement === video }
     })()`) as { readyState: number; x: number; y: number; loop: boolean; controls: boolean; pictureInPicture: boolean }
     const zoom = page.getZoomFactor()
     return { ...video, x: Math.round((offset.x + video.x) * zoom), y: Math.round((offset.y + video.y) * zoom) }
@@ -286,7 +288,7 @@ test('turns Loop, Show controls and Picture in picture on and off for a video in
   try {
     await appWindow.evaluate(url => (window as unknown as { hronaut: { newTab(options: { url: string; active: boolean }): Promise<unknown> } }).hronaut.newTab({ url, active: true }), url)
     await expect(appWindow.getByRole('tab', { name: /Video player fixture/ })).toBeVisible()
-    for (const target of ['page', 'frame'] as const) {
+    for (const target of ['page', 'shadow', 'frame'] as const) {
       await expect.poll(async () => (await videoState(target))?.readyState ?? 0).toBeGreaterThanOrEqual(2)
     }
     expect(await electronApp.evaluate(({ webContents }, url) => {
@@ -336,7 +338,7 @@ test('turns Loop, Show controls and Picture in picture on and off for a video in
       return { loop: state.loop, controls: state.controls, pictureInPicture: state.pictureInPicture }
     }
 
-    for (const target of ['page', 'frame'] as const) {
+    for (const target of ['page', 'shadow', 'frame'] as const) {
       // A video's menu had neither, so a clip could not be looped, its controls shown or watched in a window of its own.
       expect(await openMenu(target)).toEqual([
         { id: 'media-loop', label: 'Loop', enabled: true, checked: false },

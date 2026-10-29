@@ -187,8 +187,7 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
     click: withLiveContents(`turn ${action} ${checked ? 'off' : 'on'}`, () => {
       const current = mediaFrame()
       if (!current) return
-      const view = access.viewSize(tab)
-      void mediaPlayerActionAt(current, { x: params.x, y: params.y, viewWidth: view.width, viewHeight: view.height }, action, !checked)
+      void mediaPlayerActionAt(webContents, current, { x: params.x, y: params.y, zoom: webContents.getZoomFactor() }, action, !checked)
         // The page's own error is the page's, so only the action is logged.
         .catch(() => console.error(`[browser] Could not turn ${action} ${checked ? 'off' : 'on'} from page context menu.`))
     })

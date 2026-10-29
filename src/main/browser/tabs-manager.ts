@@ -6540,10 +6540,6 @@ export class BrowserTabsManager {
         if (!this.options.suggestedPasswords?.available()) return null
         const context = this.tabs.get(tab.id) === tab ? this.credentialContext(tab.id) : null
         return context ? () => suggestStrongPassword(this.suggestedPasswordAccess(), tab, context) : null
-      },
-      viewSize: (tab) => {
-        const { width, height } = tab.view.getBounds()
-        return { width, height }
       }
     }
   }
