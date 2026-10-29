@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { snapshotDeltaInvalidationReason } from '../../../shared/snapshot-delta.js'
+import type { Browser } from '../browser.js'
+import { findTab, getTab } from '../browser-core.js'
 import { ISOLATED_WORLDS } from '../isolated-worlds.js'
-import type { ShadowSnapshotAccess, ShadowSnapshotTab } from './shadow-snapshot-access.js'
 import {
   SHADOW_SNAPSHOT_LIMITS,
   shadowSnapshotScript,
@@ -50,28 +51,28 @@ export interface BrowserShadowSnapshot {
  * changes nothing on the page. It throws when the host cannot be read, or when
  * the tab or its observation context changed during the capture.
  */
-export async function shadowSnapshot<Tab extends ShadowSnapshotTab>(
-  access: ShadowSnapshotAccess<Tab>,
+export async function shadowSnapshot(
+  browser: Browser,
   tabId: string | undefined,
   hostSelector: string,
   maxChars = 30_000
 ): Promise<BrowserShadowSnapshot> {
   if (!hostSelector.trim() || hostSelector.length > 512) throw new TypeError('Shadow host must be a non-empty CSS selector of at most 512 characters')
   const boundedChars = Math.min(Math.max(maxChars, 1_000), 100_000)
-  const tab = access.getTab(tabId)
-  const context = access.snapshotDeltaContext(tab)
-  const omitUrlDetail = access.omitUrlDetail?.() === true
+  const tab = getTab(browser, tabId)
+  const context = browser.snapshotDeltaContext(tab)
+  const omitUrlDetail = browser.omitAgentUrlDetail()
   const page = await tab.webContents.executeJavaScriptInIsolatedWorld(
     SHADOW_SNAPSHOT_WORLD_ID,
     [{ code: shadowSnapshotScript(hostSelector, boundedChars, omitUrlDetail) }],
     false
   ) as ShadowSnapshotPage
   if ('problem' in page) throw new Error(PROBLEMS[page.problem] ?? 'Shadow host could not be captured')
-  const current = access.findTab(tab.id)
+  const current = findTab(browser, tab.id)
   if (!current || current !== tab || current.webContents.isDestroyed()) {
     throw new Error('The snapshot tab changed while it was being observed. Capture a fresh snapshot.')
   }
-  const invalidation = snapshotDeltaInvalidationReason(context, access.snapshotDeltaContext(current))
+  const invalidation = snapshotDeltaInvalidationReason(context, browser.snapshotDeltaContext(current))
   if (invalidation) throw new Error(`The snapshot context changed during observation (${invalidation}). Capture a fresh snapshot.`)
   const omissions = OMISSIONS.filter(omission => page.omissions.includes(omission))
   const complete = !omissions.some(omission => INCOMPLETE_OMISSIONS.includes(omission))

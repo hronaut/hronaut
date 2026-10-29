@@ -132,7 +132,7 @@ describe('main-process failures people see in tabs, navigation and new tabs', ()
     ['dragging Home', () => reorderTab({ getTab: (id: string) => id === 'home' ? homeTab : websiteTab } as never, 'home', 'site', 'after'),
       'Hronaut Home cannot be reordered',
       'Домівку Hronaut не можна переміщати.'],
-    ['zooming past the limit', () => setZoom({ getTab: () => ({ ...websiteTab, webContents: { getZoomFactor: () => 1 } }) } as never, { action: 'set', percent: 401 }),
+    ['zooming past the limit', () => setZoom({ activeTabId: 'site', tabs: new Map([['site', { ...websiteTab, webContents: { getZoomFactor: () => 1 } }]]) } as never, { action: 'set', percent: 401 }),
       'Page zoom percent must be an integer from 50 to 400',
       'Масштаб сторінки має бути цілим числом від 50 до 400 відсотків.'],
     ['freezing Home', () => controlPageLifecycle({ getTab: () => homeTab } as never, 'home', 'frozen'),
