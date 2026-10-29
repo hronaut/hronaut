@@ -14,6 +14,7 @@ vi.mock('../src/main/browser/page-geometry/page-geometry.js', async (importOrigi
 import { Browser } from '../src/main/browser/browser.js'
 import { ISOLATED_WORLDS } from '../src/main/browser/isolated-worlds.js'
 import { setEmulationViewSize } from '../src/main/browser/emulation/emulation-view-size.js'
+import { withRenderableTab } from '../src/main/browser/renderable-tab/renderable-tab.js'
 import { createBrowserShortcutRouting } from '../src/main/browser-shortcut-routing.js'
 import {
   attachPageFullscreenEvents,
@@ -225,15 +226,12 @@ describe('page full screen layout', () => {
       emulationViewSize: { width: 800, height: 600 } as { width: number; height: number } | undefined,
       webContents: Object.assign(pageContents(), { id: 7, isCrashed: () => false })
     }
-    const internals = manager as unknown as {
-      tabs: Map<string, unknown>
-      withRenderableTab<T>(tab: unknown, operation: () => Promise<T>, mode: 'surface'): Promise<T>
-    }
+    const internals = manager as unknown as { tabs: Map<string, unknown> }
     internals.tabs.set(agent.id, agent)
     first.pageFullscreen = true
     manager.layout()
     // An agent resets the viewport of its tab while a capture presents it offscreen; the restore used to take the whole window.
-    await internals.withRenderableTab(agent, async () => { setEmulationViewSize(manager, agent as never, undefined) }, 'surface')
+    await withRenderableTab(manager, agent as never, async () => { setEmulationViewSize(manager, agent as never, undefined) }, 'surface')
     expect(agent.view.setBounds).toHaveBeenLastCalledWith({ x: 280, y: 60, width: 1150, height: 830 })
   })
 

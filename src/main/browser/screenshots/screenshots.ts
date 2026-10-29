@@ -7,7 +7,15 @@ import type { BrowserScreenshotOptions } from '../../../shared/types.js'
 import { LocalizedError } from '../../localized-error.js'
 import { ISOLATED_WORLDS } from '../isolated-worlds.js'
 import { targetExpression } from '../page-scripts.js'
-import type { ScreenshotsAccess, ScreenshotsTab } from './screenshots-access.js'
+import type { Browser } from '../browser.js'
+import { findTab, getTab } from '../browser-core.js'
+import type { BrowserTab } from '../browser-tab.js'
+import { storeTabOverviewPreview } from '../tab-overview-previews/tab-overview-previews.js'
+import { visualCompareContext } from '../visual-compare/visual-capture.js'
+import { withDebugger } from '../debugger-lease/debugger-lease.js'
+import { withRenderableTab } from '../renderable-tab/renderable-tab.js'
+import { dismissAgentPointer } from '../agent-pointer/agent-pointer.js'
+import { validateTarget } from '../input-targets/input-targets.js'
 
 const SCREENSHOT_ANNOTATION_WORLD_ID = ISOLATED_WORLDS.screenshotAnnotation
 
@@ -32,25 +40,25 @@ function screenshotTargetError(error: unknown): unknown {
  * The agent's pointer is taken off the page first. A viewport capture of a
  * settled background tab also becomes its overview preview.
  */
-export async function screenshot<Tab extends ScreenshotsTab>(access: ScreenshotsAccess<Tab>, options: BrowserScreenshotOptions = {}): Promise<{ annotations?: ScreenshotAnnotationReport; data: Buffer; mimeType: 'image/png' | 'image/jpeg' }> {
+export async function screenshot(browser: Browser, options: BrowserScreenshotOptions = {}): Promise<{ annotations?: ScreenshotAnnotationReport; data: Buffer; mimeType: 'image/png' | 'image/jpeg' }> {
   const format = options.format ?? 'png'
   const refs = normalizeScreenshotRefs(options.annotateRefs)
   if (format === 'png' && options.quality !== undefined) throw new Error('Screenshot quality is supported only for JPEG images')
   const quality = options.quality ?? 80
-  const tab = access.getTab(options.tabId)
+  const tab = getTab(browser, options.tabId)
   const hasTarget = options.ref !== undefined || options.selector !== undefined
-  if (hasTarget) access.validateTarget(options)
+  if (hasTarget) validateTarget(options)
   if (options.fullPage && (hasTarget || options.clip)) {
     throw new Error('fullPage cannot be combined with ref, selector, or clip')
   }
   if (hasTarget && options.clip) throw new Error('Provide an element target or clip rectangle, not both')
   if (refs) {
     if (options.fullPage || hasTarget || options.clip) throw new Error('annotateRefs supports viewport screenshots only; omit fullPage, ref, selector and clip')
-    return annotatedScreenshot(access, tab, options, refs)
+    return annotatedScreenshot(browser, tab, options, refs)
   }
-  return access.withRenderableTab(tab, async () => {
+  return withRenderableTab(browser, tab, async () => {
     const webContents = tab.webContents
-    await access.dismissAgentPointer(webContents)
+    await dismissAgentPointer(webContents)
     if (hasTarget || options.clip) {
       const requestedClip = hasTarget
         ? await webContents.executeJavaScript(`(async () => {
@@ -81,10 +89,10 @@ export async function screenshot<Tab extends ScreenshotsTab>(access: Screenshots
       }
       if (requestedClip.width <= 0 || requestedClip.height <= 0) throw new LocalizedError('appErrors.pageTools.areaOutsidePage')
       let data = ''
-      await access.withDebugger(webContents, async () => {
+      await withDebugger(browser, webContents, async () => {
         const metrics = await webContents.debugger.sendCommand('Page.getLayoutMetrics') as ScreenshotLayoutMetrics
         const bounds = cssScreenshotBounds(requestedClip, metrics.cssVisualViewport?.zoom ?? webContents.getZoomFactor())
-        const pixelRatio = access.screenshotPixelRatio(tab)
+        const pixelRatio = browser.screenshotPixelRatio(tab)
         const bounded = boundedScreenshotSize(bounds.width * pixelRatio, bounds.height * pixelRatio, options.maxWidth, options.maxHeight)
         const result = await webContents.debugger.sendCommand('Page.captureScreenshot', {
           format,
@@ -99,10 +107,10 @@ export async function screenshot<Tab extends ScreenshotsTab>(access: Screenshots
     }
     if (options.fullPage) {
       let data = ''
-      await access.withDebugger(webContents, async () => {
+      await withDebugger(browser, webContents, async () => {
         const metrics = await webContents.debugger.sendCommand('Page.getLayoutMetrics') as ScreenshotLayoutMetrics
         const bounds = fullPageScreenshotBounds(metrics, webContents.getZoomFactor())
-        const pixelRatio = access.screenshotPixelRatio(tab)
+        const pixelRatio = browser.screenshotPixelRatio(tab)
         const bounded = boundedScreenshotSize(bounds.width * pixelRatio, bounds.height * pixelRatio, options.maxWidth, options.maxHeight)
         const clip = { ...bounds, scale: bounded.scale }
         const result = await webContents.debugger.sendCommand('Page.captureScreenshot', {
@@ -119,11 +127,11 @@ export async function screenshot<Tab extends ScreenshotsTab>(access: Screenshots
     const navigationGeneration = tab.navigationGeneration
     // A screenshot of a tab in the background is also the overview's picture of it, once its page has settled in its
     // natural state: not mid-navigation, which would still show the previous page, and not under a forced CSS state.
-    const settledForOverview = () => !tab.loading && !webContents.isLoadingMainFrame() && !access.cssStatePreviewActive(tab)
+    const settledForOverview = () => !tab.loading && !webContents.isLoadingMainFrame() && !browser.cssStatePreview.active(tab)
     const overviewEligible = settledForOverview()
     const captured = await webContents.capturePage()
-    if (overviewEligible && settledForOverview() && tab.id !== access.activeTabId() && !access.splitViewContains(tab.id)) {
-      access.storeTabOverviewPreview(tab, captured, navigationGeneration, false)
+    if (overviewEligible && settledForOverview() && tab.id !== browser.activeTabId && !browser.splitViewContains(tab.id)) {
+      storeTabOverviewPreview(browser, tab, captured, navigationGeneration, false)
     }
     const original = captured.getSize()
     const bounded = boundedScreenshotSize(original.width, original.height, options.maxWidth, options.maxHeight)
@@ -145,22 +153,22 @@ export async function screenshot<Tab extends ScreenshotsTab>(access: Screenshots
  * throws when the observation context, viewport or scroll position changed
  * during the capture, and removes its marks from the page afterwards.
  */
-async function annotatedScreenshot<Tab extends ScreenshotsTab>(access: ScreenshotsAccess<Tab>, tab: Tab, options: BrowserScreenshotOptions, refs: string[]): Promise<{ data: Buffer; mimeType: 'image/png' | 'image/jpeg'; annotations: ScreenshotAnnotationReport }> {
-  const context = access.snapshotDeltaContext(tab)
+async function annotatedScreenshot(browser: Browser, tab: BrowserTab, options: BrowserScreenshotOptions, refs: string[]): Promise<{ data: Buffer; mimeType: 'image/png' | 'image/jpeg'; annotations: ScreenshotAnnotationReport }> {
+  const context = browser.snapshotDeltaContext(tab)
   const assertCurrent = (): void => {
-    if (access.findTab(tab.id) !== tab || tab.webContents.isDestroyed()
-      || snapshotDeltaInvalidationReason(context, access.snapshotDeltaContext(tab))) {
+    if (findTab(browser, tab.id) !== tab || tab.webContents.isDestroyed()
+      || snapshotDeltaInvalidationReason(context, browser.snapshotDeltaContext(tab))) {
       throw new Error('The observation context changed during annotated screenshot capture. Take a fresh snapshot and capture again.')
     }
   }
-  const result = await access.withRenderableTab(tab, async () => {
+  const result = await withRenderableTab(browser, tab, async () => {
     const id = randomUUID()
     const contents = tab.webContents
-    await access.dismissAgentPointer(contents)
+    await dismissAgentPointer(contents)
     const execute = (code: string) => contents.executeJavaScriptInIsolatedWorld(SCREENSHOT_ANNOTATION_WORLD_ID, [{ code }], false)
     try {
       assertCurrent()
-      const environment = await access.visualCompareContext(tab)
+      const environment = await visualCompareContext(browser, tab)
       assertCurrent()
       await execute(screenshotAnnotationScript(id, refs))
       assertCurrent()
@@ -169,7 +177,7 @@ async function annotatedScreenshot<Tab extends ScreenshotsTab>(access: Screensho
       if (captured.isEmpty()) throw new Error('Could not capture the visible page for annotation')
       const rows: unknown = await execute(screenshotAnnotationScript(id))
       assertCurrent()
-      const after = await access.visualCompareContext(tab)
+      const after = await visualCompareContext(browser, tab)
       assertCurrent()
       if (JSON.stringify(environment) !== JSON.stringify(after)) throw new Error('The viewport or scroll position changed during annotated screenshot capture. Capture again.')
       const source = captured.getSize()

@@ -134,7 +134,7 @@ describe('main-process failures people see in tabs, navigation and new tabs', ()
     ['zooming past the limit', () => setZoom({ activeTabId: 'site', tabs: new Map([['site', { ...websiteTab, webContents: { getZoomFactor: () => 1 } }]]) } as never, { action: 'set', percent: 401 }),
       'Page zoom percent must be an integer from 50 to 400',
       'Масштаб сторінки має бути цілим числом від 50 до 400 відсотків.'],
-    ['freezing Home', () => controlPageLifecycle({ getTab: () => homeTab } as never, 'home', 'frozen'),
+    ['freezing Home', () => controlPageLifecycle({ tabs: new Map([['home', homeTab]]) } as never, 'home', 'frozen'),
       'Only live page tabs can be frozen or resumed.',
       'Заморожувати й відновлювати можна лише вкладки із запущеними сторінками.'],
     ['unlocking a public observer page', () => setTabHumanInteractionLocked({
@@ -595,10 +595,15 @@ describe('main-process failures people see in continuity checkpoints and waiting
 })
 
 describe('translated failures keep the English and the cause agents and logs read', () => {
-  const elementTab = { id: 'site', loading: false, navigationGeneration: 0, webContents: { executeJavaScript: vi.fn() } }
+  const elementTab = {
+    id: 'site', loading: false, navigationGeneration: 0,
+    webContents: { id: 4, isDestroyed: () => false, isCrashed: () => false, executeJavaScript: vi.fn(), executeJavaScriptInIsolatedWorld: async () => undefined }
+  }
+  // The element's tab shown in a visible window, which a screenshot captures as it is.
   const screenshots = {
-    getTab: () => elementTab, validateTarget: () => undefined,
-    withRenderableTab: (_tab: unknown, run: () => unknown) => run(), dismissAgentPointer: async () => undefined
+    tabs: new Map([[elementTab.id, elementTab]]), activeTabId: elementTab.id, destroyed: false, renderQueues: new Map(),
+    window: { isDestroyed: () => false, isVisible: () => true, isMinimized: () => false },
+    splitViewContains: () => false, reconcileTabPresentation: () => undefined
   }
 
   it.each([

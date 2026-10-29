@@ -2,23 +2,27 @@ import { buildBrowserDebugReport } from '../../../shared/debug-report.js'
 import { countConsoleEvents } from '../../../shared/console-messages.js'
 import { redactNetworkUrl } from '../../../shared/network-details.js'
 import type { BrowserDebugReport, BrowserDebugReportOptions, BrowserDiagnosticLogState } from '../../../shared/types.js'
-import type { DebugReportAccess, DebugReportTab } from './debug-report-access.js'
+import type { Browser } from '../browser.js'
+import { currentNetworkRequests } from '../network-inspection/network-request-records.js'
+import { networkRequestSummary } from '../network-inspection/network-request-summary.js'
+import { getTab } from '../browser-core.js'
+import { publishChange } from '../browser-state/browser-state.js'
 
 /**
  * Builds the tab's bounded debug report from its page problem, emulation,
  * request routes, console messages and current network requests.
  */
-export function debugReport<Tab extends DebugReportTab>(access: DebugReportAccess<Tab>, options: BrowserDebugReportOptions = {}): BrowserDebugReport {
-  const tab = access.getTab(options.tabId)
+export function debugReport(browser: Browser, options: BrowserDebugReportOptions = {}): BrowserDebugReport {
+  const tab = getTab(browser, options.tabId)
   return buildBrowserDebugReport({
     tabId: tab.id,
     title: tab.title,
     url: tab.url,
     ...(tab.pageProblem ? { pageProblem: { ...tab.pageProblem } } : {}),
-    ...access.emulationProjection(tab),
+    ...browser.emulationProjection(tab),
     networkRouteCount: tab.networkRoutes.length,
-    consoleMessages: access.consoleMessages(tab.id),
-    networkRequests: access.currentNetworkRequests(tab).map((request) => access.networkRequestSummary(request)),
+    consoleMessages: browser.consoleMessages(tab.id),
+    networkRequests: currentNetworkRequests(tab).map((request) => networkRequestSummary(request)),
     options
   })
 }
@@ -28,7 +32,7 @@ export function debugReport<Tab extends DebugReportTab>(access: DebugReportAcces
  * always, DOM changes and reproduction steps while recorded for this
  * document, and storage changes while a baseline exists for its web origin.
  */
-export function auditEvidenceAvailability<Tab extends DebugReportTab>(access: DebugReportAccess<Tab>, tabId: string): {
+export function auditEvidenceAvailability(browser: Browser, tabId: string): {
   diagnostic: boolean
   network: boolean
   domChanges: boolean
@@ -36,7 +40,7 @@ export function auditEvidenceAvailability<Tab extends DebugReportTab>(access: De
   storageSupported: boolean
   reproduction: boolean
 } {
-  const tab = access.getTab(tabId)
+  const tab = getTab(browser, tabId)
   let origin: string | undefined
   try {
     const url = new URL(tab.url)
@@ -55,31 +59,31 @@ export function auditEvidenceAvailability<Tab extends DebugReportTab>(access: De
 }
 
 /** Counts the tab's retained console messages and current network requests, with its redacted URL. */
-export function diagnosticLogState<Tab extends DebugReportTab>(access: DebugReportAccess<Tab>, tabId?: string): BrowserDiagnosticLogState {
-  const tab = access.getTab(tabId)
+export function diagnosticLogState(browser: Browser, tabId?: string): BrowserDiagnosticLogState {
+  const tab = getTab(browser, tabId)
   return {
     tabId: tab.id,
     url: redactNetworkUrl(tab.url),
     preserveAcrossNavigation: tab.preserveDiagnosticLogs,
     consoleMessageCount: countConsoleEvents(tab.consoleMessages.filter(message => message.observationGeneration === tab.observationGeneration)),
-    networkRequestCount: access.currentNetworkRequests(tab).length
+    networkRequestCount: currentNetworkRequests(tab).length
   }
 }
 
 /** Sets whether the tab's diagnostic logs survive navigation, then reports them. */
-export function setDiagnosticLogPreservation<Tab extends DebugReportTab>(access: DebugReportAccess<Tab>, tabId: string, preserve: boolean): BrowserDiagnosticLogState {
-  const tab = access.getTab(tabId)
+export function setDiagnosticLogPreservation(browser: Browser, tabId: string, preserve: boolean): BrowserDiagnosticLogState {
+  const tab = getTab(browser, tabId)
   tab.preserveDiagnosticLogs = preserve
-  access.changed(false)
-  return diagnosticLogState(access, tab.id)
+  publishChange(browser, false)
+  return diagnosticLogState(browser, tab.id)
 }
 
 /** Clears the tab's retained console messages, pending runtime messages and network requests, then reports them. */
-export function clearDiagnosticLogs<Tab extends DebugReportTab>(access: DebugReportAccess<Tab>, tabId?: string): BrowserDiagnosticLogState {
-  const tab = access.getTab(tabId)
+export function clearDiagnosticLogs(browser: Browser, tabId?: string): BrowserDiagnosticLogState {
+  const tab = getTab(browser, tabId)
   tab.consoleMessages = []
   tab.pendingRuntimeConsoleMessages = []
   tab.networkRequests = []
-  access.changed(false)
-  return diagnosticLogState(access, tab.id)
+  publishChange(browser, false)
+  return diagnosticLogState(browser, tab.id)
 }
