@@ -902,7 +902,7 @@ export const viVN: MessageSchema = {
     "close": "Đóng trợ giúp",
     "shortcutsDescription": "Dùng các phím tắt này trong Hronaut hoặc trong trang web đang được chọn.",
     "developmentBuild": "Bản dựng phát triển",
-    "description": "Trình duyệt máy tính hiển thị rõ ràng dành cho tác nhân lập trình, với không gian làm việc riêng cho từng dự án.",
+    "description": "Trình duyệt hiển thị trên máy tính dành cho tác nhân lập trình, với không gian làm việc riêng cho từng dự án.",
     "repository": "Kho lưu trữ GitHub",
     "license": "Giấy phép Hronaut",
     "contribute": "Đóng góp",

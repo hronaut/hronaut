@@ -2932,8 +2932,9 @@ test('puts Help in the native application menu and opens shell dialogs above eve
   await appWindow.locator('.settings-dialog').getByRole('button', { name: 'Close settings', exact: true }).click()
 
   await appWindow.getByRole('button', { name: 'New tab' }).click()
-  // A pick ends when the tab's page changes, so it starts once the new tab's blank page is there: the toolbar offers
-  // Reload, not Stop, only once that page has loaded.
+  // A pick ends when the tab's page changes, and the new tab's blank page can commit after the toolbar shows, which would
+  // make the second Pick Element start a pick instead of stopping it. The toolbar offers Reload, not Stop, once that page
+  // has loaded.
   await expect(appWindow.locator('.toolbar').getByRole('button', { name: 'Reload', exact: true })).toBeVisible()
   await clickMenuItem('View', 'Pick Element for Agent')
   await expect(appWindow.getByRole('button', { name: 'Cancel element selection' })).toBeVisible()
