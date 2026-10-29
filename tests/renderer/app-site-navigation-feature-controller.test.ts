@@ -65,6 +65,7 @@ function createHarness() {
     newTab: vi.fn(async () => browserState.value),
     reload: vi.fn(async () => browserState.value),
     reorderTab: vi.fn(async () => browserState.value),
+    reorderTabs: vi.fn(async () => browserState.value),
     selectTab: vi.fn(async () => browserState.value),
     setAllTabsMuted: vi.fn(async () => browserState.value),
     setAllHumanInteractionLocked: vi.fn(async () => browserState.value),

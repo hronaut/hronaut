@@ -10,7 +10,7 @@ type TabsIpcTabs = Pick<BrowserTabsManager,
   | 'openHome' | 'newTab' | 'reopenClosedTab' | 'selectTabForPerson' | 'closeTabsForPerson'
   | 'openSplitViewAndWait' | 'updateSplitView' | 'closeSplitView'
   | 'setTabLabel' | 'setTabPinned' | 'setTabSleeping' | 'setTabPageLifecycle' | 'sleepInactiveTabs'
-  | 'reorderTab' | 'openDroppedLink' | 'focusActivePage' | 'showTabContextMenu' | 'setTabMuted' | 'setAllTabsMuted'
+  | 'reorderTab' | 'reorderTabs' | 'openDroppedLink' | 'focusActivePage' | 'showTabContextMenu' | 'setTabMuted' | 'setAllTabsMuted'
   | 'setTabHumanInteractionLocked' | 'setAllHumanInteractionLocked'>
 
 interface TabsIpcHost {
@@ -53,6 +53,17 @@ function droppedLinkTarget(value: unknown): DroppedLinkTarget {
   return workspaceId === undefined ? {} : { workspaceId }
 }
 
+/** The most tabs one request can name: far more than a person selects, and few enough to check at once. */
+const MAX_SELECTED_TABS = 10_000
+
+/** The ids of the tabs selected in the strip or rail, as a request names them. */
+function selectedTabIds(value: unknown): string[] {
+  if (!Array.isArray(value) || value.length === 0 || value.length > MAX_SELECTED_TABS || value.some((tabId) => typeof tabId !== 'string')) {
+    throw new TypeError('Invalid selected tabs')
+  }
+  return [...value as string[]]
+}
+
 /** Dependencies stay lazy because handlers are registered before the window loads. */
 export function registerTabsIpc(host: TabsIpcHost): void {
   host.handleBrowserIpc('browser:get-state', async (event) => {
@@ -80,6 +91,10 @@ export function registerTabsIpc(host: TabsIpcHost): void {
     host.assertTrustedSender(event)
     if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
     return stateReply(host, host.tabs()!.closeTabsForPerson([tabId]))
+  })
+  host.handleBrowserIpc('browser:close-tabs', (event, tabIds: unknown) => {
+    host.assertTrustedSender(event)
+    return stateReply(host, host.tabs()!.closeTabsForPerson(selectedTabIds(tabIds)))
   })
   host.handleBrowserIpc('browser:open-split-view', (event, tabId: unknown) => {
     host.assertTrustedSender(event)
@@ -149,6 +164,11 @@ export function registerTabsIpc(host: TabsIpcHost): void {
     ) throw new TypeError('Invalid tab reorder request')
     return host.tabs()!.reorderTab(tabId, targetTabId, placement)
   })
+  host.handleBrowserIpc('browser:reorder-tabs', (event, tabIds: unknown, targetTabId: unknown, placement: unknown) => {
+    host.assertTrustedSender(event)
+    if (typeof targetTabId !== 'string' || (placement !== 'before' && placement !== 'after')) throw new TypeError('Invalid tab reorder request')
+    return host.tabs()!.reorderTabs(selectedTabIds(tabIds), targetTabId, placement)
+  })
   host.handleBrowserIpc('browser:drop-link', (event, text: unknown, target: unknown) => {
     host.assertTrustedSender(event)
     if (typeof text !== 'string') throw new TypeError('Invalid dropped link')
@@ -158,10 +178,10 @@ export function registerTabsIpc(host: TabsIpcHost): void {
     host.assertTrustedSender(event)
     host.tabs()!.focusActivePage(event.sender)
   })
-  host.handleBrowserIpc('browser:show-tab-context-menu', (event, tabId: unknown) => {
+  host.handleBrowserIpc('browser:show-tab-context-menu', (event, tabId: unknown, selected: unknown) => {
     host.assertTrustedSender(event)
     if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
-    host.tabs()!.showTabContextMenu(tabId)
+    host.tabs()!.showTabContextMenu(tabId, undefined, selected === undefined ? undefined : selectedTabIds(selected))
   })
   host.handleBrowserIpc('browser:set-tab-muted', (event, tabId: unknown, muted: unknown) => {
     host.assertTrustedSender(event)

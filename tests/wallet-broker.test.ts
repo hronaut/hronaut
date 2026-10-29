@@ -98,6 +98,11 @@ function settle<T>(promise: Promise<T>): Promise<
   )
 }
 
+// A step these tests wait for runs through the wallet's durable stores one write after another: the request, its
+// transitions, policy usage and fsynced audit entries. It takes about 50 ms alone, but missed vi.waitFor's 1 s
+// default while the whole unit suite shared a CI runner, so a wait gets most of a test's 5 s instead.
+const DURABLE_WAIT = { timeout: 4_000 }
+
 function deferred<T = void>() {
   let resolve!: (value: T | PromiseLike<T>) => void
   let reject!: (reason?: unknown) => void
@@ -490,7 +495,7 @@ describe('WalletBroker', () => {
     const otherTab = settle(broker.providerRequest(context({ tabId: 'tab-2' }), { family: 'evm', method: 'eth_requestAccounts' }))
     const otherPage = settle(broker.providerRequest(context({ navigationGeneration: 2 }), { family: 'evm', method: 'eth_requestAccounts' }))
     await broker.waitForPending(request => request.status === 'awaiting-human' && request.origin === 'https://dapp.example')
-    await vi.waitFor(() => expect(broker.listPending().filter(request => request.status === 'awaiting-human')).toHaveLength(3))
+    await vi.waitFor(() => expect(broker.listPending().filter(request => request.status === 'awaiting-human')).toHaveLength(3), DURABLE_WAIT)
     await broker.agentBalance(agent, wallet.id)
 
     const listed = broker.agentPageRequests(agent) as { requests: Array<Record<string, unknown>> }
@@ -860,7 +865,7 @@ describe('WalletBroker', () => {
     const first = await broker.agentBalance(agent, wallet.id)
     const requestId = (first.request as { id: string }).id
     const approval = broker.approve(requestId)
-    await vi.waitFor(() => expect(service.approvals.get(requestId)?.status).toBe('approved'))
+    await vi.waitFor(() => expect(service.approvals.get(requestId)?.status).toBe('approved'), DURABLE_WAIT)
 
     // An agent polling for its balance asks again before the permission is saved.
     expect(await broker.agentBalance(agent, wallet.id)).toMatchObject({ status: 'permission-required', request: { id: requestId, status: 'approved' } })
@@ -1039,7 +1044,7 @@ describe('WalletBroker', () => {
     }, true)
     expect(result).toMatchObject({ status: 'requested', request: { status: 'submitted' } })
     const requestId = (result.request as { id: string }).id
-    await vi.waitFor(() => expect(broker.agentRequestStatus(agent, requestId).status).toBe('confirmed'))
+    await vi.waitFor(() => expect(broker.agentRequestStatus(agent, requestId).status).toBe('confirmed'), DURABLE_WAIT)
     expect(chain.sign).toHaveBeenCalledOnce()
     expect(chain.broadcast).toHaveBeenCalledOnce()
   })
@@ -1168,7 +1173,7 @@ describe('WalletBroker', () => {
     }, true)
     await vi.waitFor(() => expect(broker.listPending().filter((request) => (
       request.operation === 'sign-and-send-transaction' && request.status === 'policy-decision'
-    ))).toHaveLength(1))
+    ))).toHaveLength(1), DURABLE_WAIT)
 
     now = new Date(policyExpiry.getTime() + 1)
     releaseFirstBroadcast()
@@ -1217,7 +1222,7 @@ describe('WalletBroker', () => {
     })
     const renewedId = (renewed.request as { id: string }).id
     await expect(broker.approve(renewedId)).resolves.toMatchObject({ status: 'submitted' })
-    await vi.waitFor(() => expect(service.approvals.get(renewedId)?.status).toBe('confirmed'))
+    await vi.waitFor(() => expect(service.approvals.get(renewedId)?.status).toBe('confirmed'), DURABLE_WAIT)
     expect(chain.sign).toHaveBeenCalledOnce()
     expect(chain.broadcast).toHaveBeenCalledOnce()
   })
@@ -1242,7 +1247,7 @@ describe('WalletBroker', () => {
     const request = broker.requestAgentTransaction(agent, wallet.id, {
       to: '0x0000000000000000000000000000000000000002'
     }, true)
-    await vi.waitFor(() => expect(chain.normalizeTransaction).toHaveBeenCalled())
+    await vi.waitFor(() => expect(chain.normalizeTransaction).toHaveBeenCalled(), DURABLE_WAIT)
     controller.abort()
     const cancellation = broker.cancelForRequester(agent.requester.id)
     releaseNormalization()
@@ -1284,7 +1289,7 @@ describe('WalletBroker', () => {
     const cancellation = broker.cancelForRequester(agent.requester.id)
     await vi.waitFor(() => expect(broker.listPending().some((entry) => (
       entry.operation.includes('transaction') && entry.status === 'cancelled'
-    ))).toBe(true))
+    ))).toBe(true), DURABLE_WAIT)
     releaseCreate()
 
     await cancellation
@@ -1385,7 +1390,7 @@ describe('WalletBroker', () => {
     events.mockClear()
 
     const connection = broker.providerRequest(context(), { family: 'evm', method: 'eth_requestAccounts' })
-    await vi.waitFor(() => expect(broker.listPending().some((request) => request.status === 'awaiting-human')).toBe(true))
+    await vi.waitFor(() => expect(broker.listPending().some((request) => request.status === 'awaiting-human')).toBe(true), DURABLE_WAIT)
     const request = broker.listPending().find((entry) => entry.status === 'awaiting-human')!
     await broker.approve(request.id)
     await expect(connection).resolves.toEqual([wallet.publicAddress])
@@ -1657,7 +1662,7 @@ describe('WalletBroker', () => {
     // The swap is only prepared, and so estimated against the approved allowance, once the approval is mined.
     const swap = batch('approve-then-swap', 2)
     await broker.approve((await nextApproval()).id)
-    await vi.waitFor(() => expect(confirmation.mock.calls.filter(([, hash]) => hash === '0xapprove').length).toBeGreaterThan(2))
+    await vi.waitFor(() => expect(confirmation.mock.calls.filter(([, hash]) => hash === '0xapprove').length).toBeGreaterThan(2), DURABLE_WAIT)
     expect(broker.listPending().filter((request) => request.status === 'awaiting-human')).toEqual([])
     approvalMined = true
     await broker.approve((await nextApproval()).id)
@@ -1697,7 +1702,7 @@ describe('WalletBroker', () => {
     expect(broker.keepsTabAwake('tab-2')).toBe(false)
     await broker.approve(first.id)
     // While the first call is mined no request is open, but the batch will still ask for the next one.
-    await vi.waitFor(() => expect(confirmation).toHaveBeenCalledWith(expect.anything(), '0xapprove'))
+    await vi.waitFor(() => expect(confirmation).toHaveBeenCalledWith(expect.anything(), '0xapprove'), DURABLE_WAIT)
     expect(broker.listPending().filter((request) => request.status === 'awaiting-human')).toEqual([])
     expect(broker.keepsTabAwake('tab-1')).toBe(true)
 
@@ -1729,7 +1734,7 @@ describe('WalletBroker', () => {
     }))
     // Counted before the call's first await, so there is no moment a sleep could slip in.
     expect(broker.keepsTabAwake('tab-1')).toBe(true)
-    await vi.waitFor(() => expect(evm.normalizeTransaction).toHaveBeenCalled())
+    await vi.waitFor(() => expect(evm.normalizeTransaction).toHaveBeenCalled(), DURABLE_WAIT)
     expect(broker.listPending().filter((request) => request.status === 'awaiting-human')).toEqual([])
     expect(broker.keepsTabAwake('tab-1')).toBe(true)
     prepared.resolve()
@@ -1739,7 +1744,7 @@ describe('WalletBroker', () => {
 
     // A read the node answers never prompts, so the page can wait on it in a sleeping tab.
     const balance = broker.providerRequest(context(), { family: 'evm', method: 'eth_getBalance', params: [wallet.publicAddress, 'latest'] })
-    await vi.waitFor(() => expect(readRpc).toHaveBeenCalled())
+    await vi.waitFor(() => expect(readRpc).toHaveBeenCalled(), DURABLE_WAIT)
     expect(broker.keepsTabAwake('tab-1')).toBe(false)
     read.resolve('0x1')
     await expect(balance).resolves.toBe('0x1')
@@ -1781,7 +1786,7 @@ describe('WalletBroker', () => {
     await vi.waitFor(() => expect(broker.agentPageRequests(agent).callBatches).toEqual([
       { id: '0xstopped', networkId: '11155111', calls: 2, state: 'stopped', transactions: [{ transactionHash: '0xtransaction', status: 'confirmed' }], error: 'Wallet request was rejected by the user' },
       { id: 'not shown', networkId: '11155111', calls: 1, state: 'sending', transactions: [] }
-    ]))
+    ]), DURABLE_WAIT)
     // Batches belong to the site in this workspace, whichever of its tabs the agent reads.
     expect(broker.agentPageRequests({ ...agent, tabId: 'tab-2' })).toHaveProperty('callBatches')
     expect(broker.agentPageRequests({ ...agent, workspaceId: 'workspace-2' })).not.toHaveProperty('callBatches')
@@ -2128,7 +2133,7 @@ describe('WalletBroker', () => {
     const { service } = await setup()
     const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
     const result = settle(broker.providerRequest(context(), { family: 'evm', method: 'eth_requestAccounts' }))
-    await vi.waitFor(() => expect(broker.listPending().some((request) => request.status === 'awaiting-human')).toBe(true))
+    await vi.waitFor(() => expect(broker.listPending().some((request) => request.status === 'awaiting-human')).toBe(true), DURABLE_WAIT)
     const requestId = broker.listPending().find((request) => request.status === 'awaiting-human')!.id
 
     await expect(broker.lock()).resolves.toMatchObject({ managedWallets: 'locked' })
@@ -2147,7 +2152,7 @@ describe('WalletBroker', () => {
       onProviderEvent: providerEvents
     })
     const result = settle(broker.providerRequest(context(), { family: 'evm', method: 'eth_requestAccounts' }))
-    await vi.waitFor(() => expect(broker.listPending().some((request) => request.status === 'awaiting-human')).toBe(true))
+    await vi.waitFor(() => expect(broker.listPending().some((request) => request.status === 'awaiting-human')).toBe(true), DURABLE_WAIT)
     const requestId = broker.listPending().find((request) => request.status === 'awaiting-human')!.id
 
     const approval = settle(broker.approve(requestId))
@@ -2194,7 +2199,7 @@ describe('WalletBroker', () => {
     }))
     await vi.waitFor(() => expect(broker.listPending().some((request) => (
       request.operation === 'sign-and-send-transaction' && request.status === 'awaiting-human'
-    ))).toBe(true))
+    ))).toBe(true), DURABLE_WAIT)
     const requestId = broker.listPending().find((request) => request.operation === 'sign-and-send-transaction')!.id
     const approval = settle(broker.approve(requestId))
     await signingEntered.promise
@@ -2310,7 +2315,7 @@ describe('WalletBroker', () => {
     }))
     await vi.waitFor(() => expect(broker.listPending().filter((request) => (
       request.operation === 'sign-message' && request.status === 'awaiting-human'
-    ))).toHaveLength(1))
+    ))).toHaveLength(1), DURABLE_WAIT)
     const requestId = broker.listPending().find((request) => (
       request.operation === 'sign-message' && request.status === 'awaiting-human'
     ))!.id
@@ -2374,7 +2379,7 @@ describe('WalletBroker', () => {
     }))
     await vi.waitFor(() => expect(broker.listPending().filter((request) => (
       request.operation === 'sign-message' && request.status === 'awaiting-human'
-    ))).toHaveLength(1))
+    ))).toHaveLength(1), DURABLE_WAIT)
     const requestId = broker.listPending().find((request) => (
       request.operation === 'sign-message' && request.status === 'awaiting-human'
     ))!.id
@@ -2452,7 +2457,7 @@ describe('WalletBroker', () => {
     }))
     await vi.waitFor(() => expect(broker.listPending().filter((request) => (
       request.operation === 'sign-message' && request.status === 'awaiting-human'
-    ))).toHaveLength(1))
+    ))).toHaveLength(1), DURABLE_WAIT)
     const requestId = broker.listPending().find((request) => (
       request.operation === 'sign-message' && request.status === 'awaiting-human'
     ))!.id
@@ -2493,7 +2498,7 @@ describe('WalletBroker', () => {
       family: 'evm', method: 'eth_sendTransaction', params: [{ to: policy.destinations[0] }]
     })
     await vi.waitFor(() => expect(broker.listPending().filter((request) => request.operation === 'sign-and-send-transaction').at(-1)?.status)
-      .toBe('awaiting-human'))
+      .toBe('awaiting-human'), DURABLE_WAIT)
     expect(chain.sign).not.toHaveBeenCalled()
     const pending = broker.listPending().filter((request) => request.operation === 'sign-and-send-transaction').at(-1)!
     expect(pending.details?.raw).toMatchObject({
@@ -2503,7 +2508,7 @@ describe('WalletBroker', () => {
     await broker.approve(pending.id)
     await expect(result).resolves.toBe('0xtransaction')
     await vi.waitFor(() => expect(broker.listPending().find((request) => request.id === pending.id)?.status)
-      .toBe('confirmed'))
+      .toBe('confirmed'), DURABLE_WAIT)
   })
 
   it('retries an unresolved submitted transaction until confirmation reaches a terminal state', async () => {
@@ -2523,7 +2528,7 @@ describe('WalletBroker', () => {
     })
     await vi.waitFor(() => expect(broker.listPending().filter((request) => (
       request.operation === 'sign-and-send-transaction' && request.status === 'awaiting-human'
-    ))).toHaveLength(1))
+    ))).toHaveLength(1), DURABLE_WAIT)
     const requestId = broker.listPending().find((request) => (
       request.operation === 'sign-and-send-transaction' && request.status === 'awaiting-human'
     ))!.id
@@ -2544,7 +2549,7 @@ describe('WalletBroker', () => {
         type: 'transaction-confirmed',
         payload: expect.objectContaining({ requestId, transactionHash: '0xtransaction', blockReference: '2' })
       })
-    ])))
+    ])), DURABLE_WAIT)
   })
 
   it('fails a sent transaction once another transaction has held its nonce on steady checks for a minute', async () => {
@@ -2561,7 +2566,7 @@ describe('WalletBroker', () => {
     // Waits for a poll that started after the last change to finish.
     const polled = async () => {
       const calls = confirmation.mock.calls.length
-      await vi.waitFor(() => expect(confirmation.mock.calls.length).toBeGreaterThan(calls + 1))
+      await vi.waitFor(() => expect(confirmation.mock.calls.length).toBeGreaterThan(calls + 1), DURABLE_WAIT)
     }
     const advance = async (ms: number) => {
       currentTime += ms
@@ -2596,11 +2601,11 @@ describe('WalletBroker', () => {
     await advance(30_000)
     expect(status()).toBe('submitted')
     currentTime += 30_000
-    await vi.waitFor(() => expect(status()).toBe('failed'))
+    await vi.waitFor(() => expect(status()).toBe('failed'), DURABLE_WAIT)
     await vi.waitFor(async () => expect(await service.auditHistory()).toContainEqual(expect.objectContaining({
       type: 'transaction-failed',
       payload: expect.objectContaining({ transactionHash: '0xtransaction', replaced: true })
-    })))
+    })), DURABLE_WAIT)
     const settled = confirmation.mock.calls.length
     await new Promise((resolve) => setTimeout(resolve, 30))
     expect(confirmation.mock.calls.length).toBe(settled)
@@ -2621,7 +2626,7 @@ describe('WalletBroker', () => {
     })
     await broker.approve((await broker.waitForPending((request) => request.status === 'awaiting-human')).id)
     await expect(batch).resolves.toEqual({ id: 'reverted-batch' })
-    await vi.waitFor(() => expect(broker.listPending().find((request) => request.operation === 'sign-and-send-transaction')?.status).toBe('failed'))
+    await vi.waitFor(() => expect(broker.listPending().find((request) => request.operation === 'sign-and-send-transaction')?.status).toBe('failed'), DURABLE_WAIT)
     await expect(broker.providerRequest(context(), { family: 'evm', method: 'wallet_getCallsStatus', params: ['reverted-batch'] }))
       .resolves.toMatchObject({ status: 100, receipts: [] })
   })
@@ -2647,7 +2652,7 @@ describe('WalletBroker', () => {
       }]
     })
     await broker.approve((await broker.waitForPending((request) => request.status === 'awaiting-human')).id)
-    await vi.waitFor(() => expect(confirmation.mock.calls.filter(([, , nonce]) => nonce === '7').length).toBeGreaterThan(1))
+    await vi.waitFor(() => expect(confirmation.mock.calls.filter(([, , nonce]) => nonce === '7').length).toBeGreaterThan(1), DURABLE_WAIT)
     await expect(broker.providerRequest(context(), { family: 'evm', method: 'wallet_getCallsStatus', params: ['replaced-batch'] }))
       .resolves.toMatchObject({ status: 100, receipts: [] })
 
@@ -2655,7 +2660,7 @@ describe('WalletBroker', () => {
     const nonceChecks = () => confirmation.mock.calls.filter(([, , nonce]) => nonce === '7').length
     const checks = nonceChecks()
     currentTime += 30_000
-    await vi.waitFor(() => expect(nonceChecks()).toBeGreaterThan(checks + 1))
+    await vi.waitFor(() => expect(nonceChecks()).toBeGreaterThan(checks + 1), DURABLE_WAIT)
     currentTime += 30_000
     await expect(batch).resolves.toEqual({ id: 'replaced-batch' })
     expect(chain.broadcast).toHaveBeenCalledOnce()
@@ -2821,13 +2826,13 @@ describe('WalletBroker', () => {
       ))
       expect(confirmed).toBeDefined()
       confirmedRequestId = confirmed!.id
-    })
+    }, DURABLE_WAIT)
     await vi.waitFor(async () => expect(await service.auditHistory()).toEqual(expect.arrayContaining([
       expect.objectContaining({
         type: 'transaction-confirmed',
         payload: expect.objectContaining({ requestId: confirmedRequestId })
       })
-    ])))
+    ])), DURABLE_WAIT)
   })
 
   it('shows token approval warnings and keeps unlimited and collection-wide approvals with a person under a policy', async () => {
@@ -2961,7 +2966,7 @@ describe('WalletBroker', () => {
 
     await vi.waitFor(() => expect(broker.listPending().find((request) => (
       request.operation === 'sign-and-send-transaction'
-    ))?.status).toBe('awaiting-human'))
+    ))?.status).toBe('awaiting-human'), DURABLE_WAIT)
     expect(chain.sign).not.toHaveBeenCalled()
     expect(chain.broadcast).not.toHaveBeenCalled()
     const requestId = broker.listPending().find((request) => (
@@ -2989,7 +2994,7 @@ describe('WalletBroker', () => {
     }))
     await vi.waitFor(() => expect(broker.listPending().filter((request) => (
       request.operation === 'sign-and-send-transaction'
-    )).at(-1)?.status).toBe('awaiting-human'))
+    )).at(-1)?.status).toBe('awaiting-human'), DURABLE_WAIT)
     expect(chain.sign).not.toHaveBeenCalled()
     const pending = broker.listPending().filter((request) => request.operation === 'sign-and-send-transaction').at(-1)!
     await broker.reject(pending.id)
@@ -3017,12 +3022,12 @@ describe('WalletBroker', () => {
     })))
     await vi.waitFor(() => expect(broker.listPending().filter((request) => (
       request.operation === 'sign-and-send-transaction' && request.status === 'awaiting-human'
-    ))).toHaveLength(1))
+    ))).toHaveLength(1), DURABLE_WAIT)
 
     await vi.waitFor(() => {
       expect(chain.sign).toHaveBeenCalledOnce()
       expect(chain.broadcast).toHaveBeenCalledOnce()
-    })
+    }, DURABLE_WAIT)
     const awaiting = broker.listPending().find((request) => (
       request.operation === 'sign-and-send-transaction' && request.status === 'awaiting-human'
     ))!
@@ -3037,13 +3042,13 @@ describe('WalletBroker', () => {
       ))
       expect(confirmed).toBeDefined()
       confirmedRequestId = confirmed!.id
-    })
+    }, DURABLE_WAIT)
     await vi.waitFor(async () => expect(await service.auditHistory()).toEqual(expect.arrayContaining([
       expect.objectContaining({
         type: 'transaction-confirmed',
         payload: expect.objectContaining({ requestId: confirmedRequestId })
       })
-    ])))
+    ])), DURABLE_WAIT)
   })
 
   it('cancels a pending website request on navigation and never reaches the signer', async () => {
@@ -3051,7 +3056,7 @@ describe('WalletBroker', () => {
     const chain = adapter()
     const broker = new WalletBroker(service, { adapters: { evm: chain } })
     const result = settle(broker.providerRequest(context(), { family: 'evm', method: 'eth_requestAccounts' }))
-    await vi.waitFor(() => expect(broker.listPending().some((request) => request.status === 'awaiting-human')).toBe(true))
+    await vi.waitFor(() => expect(broker.listPending().some((request) => request.status === 'awaiting-human')).toBe(true), DURABLE_WAIT)
 
     await broker.cancelForNavigation('tab-1', 2)
 
@@ -3077,7 +3082,7 @@ describe('WalletBroker', () => {
     })
 
     const result = settle(broker.providerRequest(context(), { family: 'evm', method: 'eth_requestAccounts' }))
-    await vi.waitFor(() => expect(broker.listPending().some((request) => request.status === 'awaiting-human')).toBe(true))
+    await vi.waitFor(() => expect(broker.listPending().some((request) => request.status === 'awaiting-human')).toBe(true), DURABLE_WAIT)
     const pending = broker.listPending().find((request) => request.status === 'awaiting-human')!
     const approval = settle(broker.approve(pending.id))
     await persisted
@@ -3124,7 +3129,7 @@ describe('WalletBroker', () => {
     })
 
     const result = settle(broker.providerRequest(context(), { family: 'evm', method: 'eth_requestAccounts' }))
-    await vi.waitFor(() => expect(broker.listPending().some((request) => request.status === 'awaiting-human')).toBe(true))
+    await vi.waitFor(() => expect(broker.listPending().some((request) => request.status === 'awaiting-human')).toBe(true), DURABLE_WAIT)
     const pending = broker.listPending().find((request) => request.status === 'awaiting-human')!
     const approval = settle(broker.approve(pending.id))
     await persisted
@@ -3194,7 +3199,7 @@ describe('WalletBroker', () => {
     }))
     await vi.waitFor(() => expect(service.approvals.list().some((request) => (
       request.status === 'awaiting-human' && request.request.navigationGeneration === 3
-    ))).toBe(true))
+    ))).toBe(true), DURABLE_WAIT)
 
     await broker.cancelForTab('tab-1')
     await expect(first).resolves.toMatchObject({
@@ -3214,7 +3219,7 @@ describe('WalletBroker', () => {
     })
     await vi.waitFor(() => expect(service.approvals.list().some((request) => (
       request.status === 'awaiting-human' && request.request.navigationGeneration === 4
-    ))).toBe(true))
+    ))).toBe(true), DURABLE_WAIT)
     const pending = service.approvals.list().find((request) => (
       request.status === 'awaiting-human' && request.request.navigationGeneration === 4
     ))!
@@ -3345,7 +3350,7 @@ describe('WalletBroker', () => {
     const solanaConnection = broker.providerRequest(context(), { family: 'solana', method: 'connect' })
     await vi.waitFor(() => expect(broker.listPending().filter((request) => (
       request.walletId === solanaWallet.id && request.status === 'awaiting-human'
-    ))).toHaveLength(1))
+    ))).toHaveLength(1), DURABLE_WAIT)
     const connectionRequest = broker.listPending().find((request) => (
       request.walletId === solanaWallet.id && request.status === 'awaiting-human'
     ))!
@@ -3361,7 +3366,7 @@ describe('WalletBroker', () => {
     }))
     await vi.waitFor(() => expect(broker.listPending().filter((request) => (
       request.walletId === solanaWallet.id && request.operation === 'sign-message' && request.status === 'awaiting-human'
-    ))).toHaveLength(1))
+    ))).toHaveLength(1), DURABLE_WAIT)
 
     await expect(broker.providerRequest(context(), { family: 'solana', method: 'disconnect' })).resolves.toBeUndefined()
 
@@ -3483,7 +3488,7 @@ describe('WalletBroker', () => {
     })
     await vi.waitFor(() => expect(broker.listPending().some((request) => (
       request.operation === 'connect-account' && request.status === 'awaiting-human'
-    ))).toBe(true))
+    ))).toBe(true), DURABLE_WAIT)
     const request = broker.listPending().find((entry) => entry.operation === 'connect-account')!
     await broker.approve(request.id)
     await expect(connecting).resolves.toEqual([wallet.publicAddress])
@@ -3664,7 +3669,7 @@ describe('WalletBroker', () => {
     }))
     await vi.waitFor(() => expect(broker.listPending().filter((request) => (
       request.walletId === authorized.id && request.operation === 'sign-message' && request.status === 'awaiting-human'
-    ))).toHaveLength(1))
+    ))).toHaveLength(1), DURABLE_WAIT)
 
     await expect(broker.revokePermission(permission.id)).resolves.toBe(true)
     await expect(signing).resolves.toMatchObject({
@@ -3800,7 +3805,7 @@ describe('WalletBroker', () => {
       request.walletId === wallet.id
       && request.operation === 'sign-transaction'
       && request.status === 'awaiting-human'
-    ))).toBe(true))
+    ))).toBe(true), DURABLE_WAIT)
 
     expect(normalize).toHaveBeenCalledWith(wallet, input)
     await broker.cancelForTab('tab-1')
@@ -3921,7 +3926,7 @@ describe('WalletBroker', () => {
     })
     await vi.waitFor(() => expect(broker.listPending().filter((request) => (
       request.walletId === wallet.id && request.operation === 'sign-transaction' && request.status === 'awaiting-human'
-    ))).toHaveLength(1))
+    ))).toHaveLength(1), DURABLE_WAIT)
     const request = broker.listPending().find((entry) => (
       entry.walletId === wallet.id && entry.operation === 'sign-transaction' && entry.status === 'awaiting-human'
     ))!
@@ -3972,7 +3977,7 @@ describe('WalletBroker', () => {
     }))
     await vi.waitFor(() => expect(broker.listPending().filter((request) => (
       request.walletId === authorized.id && request.operation === 'sign-message' && request.status === 'awaiting-human'
-    ))).toHaveLength(1))
+    ))).toHaveLength(1), DURABLE_WAIT)
 
     await expect(broker.providerRequest(context(), {
       family: 'solana', method: 'disconnect'
@@ -4110,7 +4115,7 @@ describe('WalletBroker', () => {
     const signing = settle(broker.providerRequest(context(), {
       family: 'evm', method: 'personal_sign', params: ['rpc-change', wallet.publicAddress]
     }))
-    await vi.waitFor(() => expect(broker.listPending().at(-1)?.status).toBe('awaiting-human'))
+    await vi.waitFor(() => expect(broker.listPending().at(-1)?.status).toBe('awaiting-human'), DURABLE_WAIT)
 
     const updated = await broker.updateWallet(wallet.id, { rpcUrl: 'http://127.0.0.1:9545' })
 
@@ -4173,13 +4178,13 @@ describe('WalletBroker', () => {
     await broker.updateWallet(wallet.id, { availableInAllWorkspaces: true })
     const otherWorkspace = context({ workspaceId: 'workspace-2', tabId: 'tab-2' })
     const connection = broker.providerRequest(otherWorkspace, { family: 'evm', method: 'eth_requestAccounts' })
-    await vi.waitFor(() => expect(broker.listPending().at(-1)?.status).toBe('awaiting-human'))
+    await vi.waitFor(() => expect(broker.listPending().at(-1)?.status).toBe('awaiting-human'), DURABLE_WAIT)
     await broker.approve(broker.listPending().at(-1)!.id)
     await expect(connection).resolves.toEqual([wallet.publicAddress])
     const signing = settle(broker.providerRequest(otherWorkspace, {
       family: 'evm', method: 'personal_sign', params: ['scope-change', wallet.publicAddress]
     }))
-    await vi.waitFor(() => expect(broker.listPending().at(-1)?.status).toBe('awaiting-human'))
+    await vi.waitFor(() => expect(broker.listPending().at(-1)?.status).toBe('awaiting-human'), DURABLE_WAIT)
 
     await broker.updateWallet(wallet.id, {
       availableInAllWorkspaces: false,
@@ -4204,7 +4209,7 @@ describe('WalletBroker', () => {
       family: 'evm', method: 'personal_sign', params: ['permission-revoked', wallet.publicAddress]
     }))
     await vi.waitFor(() => expect(broker.listPending().filter((request) => request.operation === 'sign-message').at(-1)?.status)
-      .toBe('awaiting-human'))
+      .toBe('awaiting-human'), DURABLE_WAIT)
 
     await expect(broker.revokePermission(permission.id)).resolves.toBe(true)
 
@@ -4250,7 +4255,7 @@ describe('WalletBroker', () => {
     let now = new Date('2026-08-28T12:00:00.000Z')
     const broker = new WalletBroker(service, { adapters: { evm: adapter() }, now: () => now })
     const result = settle(broker.providerRequest(context(), { family: 'evm', method: 'eth_requestAccounts' }))
-    await vi.waitFor(() => expect(broker.listPending().find((request) => request.status === 'awaiting-human')).toBeDefined())
+    await vi.waitFor(() => expect(broker.listPending().find((request) => request.status === 'awaiting-human')).toBeDefined(), DURABLE_WAIT)
     const pending = broker.listPending().find((request) => request.status === 'awaiting-human')!
     now = new Date('2026-08-28T12:06:00.000Z')
 
@@ -4469,7 +4474,7 @@ describe('WalletBroker', () => {
       family: 'evm', method: 'personal_sign', params: ['0x68656c6c6f', wallet.publicAddress]
     })
     await vi.waitFor(() => expect(broker.listPending().filter((request) => request.operation === 'sign-message').at(-1)?.status)
-      .toBe('awaiting-human'))
+      .toBe('awaiting-human'), DURABLE_WAIT)
     const pending = broker.listPending().filter((request) => request.operation === 'sign-message').at(-1)!
     await broker.approve(pending.id)
     const signature = await result as `0x${string}`

@@ -43,6 +43,7 @@ function state(activeTab = tab()): BrowserState {
 
 const expandTabGroup = vi.fn()
 const expandTabGroupForTab = vi.fn()
+const selectedTabs = vi.fn(() => ['first', 'second'])
 const BrowserTabsBarStub = defineComponent({
   name: 'BrowserTabsBar',
   props: {
@@ -57,7 +58,8 @@ const BrowserTabsBarStub = defineComponent({
     formatNumber: Function,
     tabTooltip: Function,
     describeEmulation: Function,
-    linkDrops: Boolean
+    linkDrops: Boolean,
+    tabSelection: Boolean
   },
   emits: [
     'openHome',
@@ -75,7 +77,7 @@ const BrowserTabsBarStub = defineComponent({
     'switchWorkspace'
   ],
   setup(_props, { expose }) {
-    expose({ expandTabGroup, expandTabGroupForTab })
+    expose({ expandTabGroup, expandTabGroupForTab, selectedTabs })
     return () => h('div', { 'data-testid': 'tabs' })
   }
 })
@@ -930,17 +932,21 @@ describe('AppBrowserChromeLayer', () => {
     const surface = harness.wrapper.vm as unknown as {
       expandTabGroup: (groupId: string) => void
       expandTabGroupForTab: (tab: BrowserTabState) => void
+      selectedTabs: () => string[]
     }
     surface.expandTabGroup('workspace-1')
     surface.expandTabGroupForTab(harness.props.state.tabs[0])
     expect(expandTabGroup).toHaveBeenCalledWith('workspace-1')
     expect(expandTabGroupForTab).toHaveBeenCalledWith(harness.props.state.tabs[0])
+    // The tabs selected in the strip, which the close-tab key closes together.
+    expect(surface.selectedTabs()).toEqual(['first', 'second'])
 
     harness.wrapper.unmount()
     surface.expandTabGroup('workspace-2')
     surface.expandTabGroupForTab(harness.props.state.tabs[0])
     expect(expandTabGroup).toHaveBeenCalledTimes(1)
     expect(expandTabGroupForTab).toHaveBeenCalledTimes(1)
+    expect(surface.selectedTabs()).toEqual([])
   })
 
   it('routes independent agent and lifecycle actions through the tab controller', async () => {
@@ -981,6 +987,7 @@ describe('AppBrowserChromeLayer', () => {
     tabs.vm.$emit('newTab', 'workspace-1')
     tabs.vm.$emit('createWorkspace')
     tabs.vm.$emit('showTabContextMenu', 'tab-1')
+    tabs.vm.$emit('showTabContextMenu', 'tab-1', ['tab-1', 'tab-2'])
     tabs.vm.$emit('reorderTab', reorder)
     tabs.vm.$emit('toggleTabMuted', harness.props.state.tabs[0])
     tabs.vm.$emit('closeTab', 'tab-1')
@@ -1015,7 +1022,9 @@ describe('AppBrowserChromeLayer', () => {
     expect(harness.tabActions.showWorkspaceContextMenu).toHaveBeenCalledWith('workspace-1')
     expect(harness.actions.newTabInWorkspace).toHaveBeenCalledWith('workspace-1')
     expect(harness.actions.openNewWorkspaceEditor).toHaveBeenCalledOnce()
-    expect(harness.browser.showTabContextMenu).toHaveBeenCalledWith('tab-1')
+    // The menu of one of several selected tabs acts on them all.
+    expect(harness.browser.showTabContextMenu.mock.calls).toEqual([['tab-1', undefined], ['tab-1', ['tab-1', 'tab-2']]])
+    expect(tabs.props('tabSelection')).toBe(true)
     expect(harness.tabActions.reorderTab).toHaveBeenCalledWith(reorder)
     expect(harness.tabActions.toggleTabMuted).toHaveBeenCalledWith(harness.props.state.tabs[0])
     expect(harness.tabActions.closeTab).toHaveBeenCalledWith('tab-1')

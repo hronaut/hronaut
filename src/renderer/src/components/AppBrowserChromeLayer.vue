@@ -105,6 +105,7 @@ interface BrowserTabsBarHandle {
   tabListScrollTop?: () => number
   scrollTabListTo?: (top: number) => void
   stopWorkerCapture?: (tabId: string) => Promise<void>
+  selectedTabs?: () => string[]
 }
 
 const browserTabsBar = ref<BrowserTabsBarHandle | null>(null)
@@ -439,7 +440,12 @@ useChromeSidebarOverlay({
   }
 })
 
-defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFromAgent })
+/** The tabs selected together in the tab strip while there are several, else none. */
+function selectedTabs(): string[] {
+  return browserTabsBar.value?.selectedTabs?.() ?? []
+}
+
+defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFromAgent, selectedTabs })
 </script>
 
 <template>
@@ -499,13 +505,14 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFrom
         :tab-tooltip="tabTooltip"
         :describe-emulation="describeTabEmulation"
         link-drops
+        tab-selection
         @open-home="runAction(actions.openHome)"
         @stay-here="setFollowAgentActivity(false)"
         @show-workspace-context-menu="runAction(() => showWorkspaceContextMenu($event))"
         @new-tab="runAction(() => actions.newTabInWorkspace($event))"
         @create-workspace="runAction(actions.openNewWorkspaceEditor)"
         @select-tab="selectTab"
-        @show-tab-context-menu="runAction(() => browser.showTabContextMenu($event))"
+        @show-tab-context-menu="(tabId: string, selectedTabIds?: string[]) => runAction(() => browser.showTabContextMenu(tabId, selectedTabIds))"
         @reorder-tab="runAction(() => reorderTab($event))"
         @drop-link="dropLink"
         @toggle-tab-muted="runAction(() => toggleTabMuted($event))"

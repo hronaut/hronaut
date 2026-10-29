@@ -72,3 +72,23 @@ export function reorderTab<Tab extends TabArrangementTab>(access: TabArrangement
   access.changed()
   return access.getState()
 }
+
+/**
+ * Moves the tabs together, in the order they have, before or after the target tab, as Chrome moves the tabs selected
+ * in its tab strip. Each tab moves only within the target's workspace and on its side of the pinned boundary.
+ */
+export function reorderTabs<Tab extends TabArrangementTab>(access: TabArrangementAccess<Tab>, tabIds: readonly string[], targetTabId: string, placement: 'before' | 'after'): BrowserState {
+  const target = access.getTab(targetTabId)
+  const moving = new Set([...new Set(tabIds)].map((tabId) => access.getTab(tabId)))
+  if (moving.has(target)) return access.getState()
+  if (isHronautHomeUrl(target.url) || [...moving].some((tab) => isHronautHomeUrl(tab.url))) throw new LocalizedError('appErrors.tabs.homeNotReordered')
+  if ([...moving].some((tab) => tab.pinned !== target.pinned)) throw new LocalizedError('appErrors.tabs.pinnedBoundary')
+  if ([...moving].some((tab) => tab.mcpGroupId !== target.mcpGroupId)) throw new LocalizedError('appErrors.tabs.otherWorkspace')
+
+  const ordered = access.orderedTabs()
+  const staying = ordered.filter((tab) => !moving.has(tab))
+  staying.splice(staying.indexOf(target) + (placement === 'after' ? 1 : 0), 0, ...ordered.filter((tab) => moving.has(tab)))
+  setOrder(access, staying)
+  access.changed()
+  return access.getState()
+}

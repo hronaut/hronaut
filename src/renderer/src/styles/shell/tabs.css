@@ -52,6 +52,14 @@
 .tab.grouped { @apply [background:transparent]; }
 .tab.grouped:hover { @apply [background:var(--tab-hover)]; }
 .tab.grouped.active { @apply [background:var(--toolbar)]; }
+/* One of several selected tabs, which the tab menu and a drag act on, as in Chrome. */
+.tab.selected:not(.active),
+.tab.grouped.selected:not(.active) {
+  @apply [background:color-mix(in_srgb,_var(--accent)_14%,_transparent)] [border-color:color-mix(in_srgb,_var(--accent)_34%,_var(--border-soft))];
+}
+@media (forced-colors: active) {
+  .tab.selected:not(.active) { border-color: Highlight; }
+}
 .tab.needs-attention {
   @apply [border-color:#e49a32] [background:color-mix(in_srgb,_#e49a32_19%,_var(--toolbar))] [box-shadow:inset_0_0_0_1px_#e49a32,_0_0_0_2px_color-mix(in_srgb,_#e49a32_35%,_transparent)];
 }

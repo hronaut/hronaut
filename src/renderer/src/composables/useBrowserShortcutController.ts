@@ -10,7 +10,7 @@ import type {
 
 type ShortcutBrowserApi = Pick<
   HronautApi,
-  'closeTab' | 'reopenClosedTab' | 'selectTab' | 'reload' | 'reloadIgnoringCache' | 'newTab' | 'reorderTab' | 'focusActivePage'
+  'closeTab' | 'closeTabs' | 'reopenClosedTab' | 'selectTab' | 'reload' | 'reloadIgnoringCache' | 'newTab' | 'reorderTab' | 'focusActivePage'
 >
 
 type ShortcutCallback = () => void | Promise<void>
@@ -18,6 +18,8 @@ type ShortcutCallback = () => void | Promise<void>
 export interface BrowserShortcutControllerOptions {
   state: Readonly<Ref<BrowserState>>
   activeTab: Readonly<Ref<BrowserTabState | undefined>>
+  /** The tabs selected together in the tab strip while there are several, which close together, as in Chrome. */
+  selectedTabIds?: () => readonly string[]
   browser: ShortcutBrowserApi
   syncState: (operation: Promise<BrowserState> | BrowserState) => Promise<void>
   settingsOpen: Ref<boolean>
@@ -247,7 +249,12 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
           else options.settingsOpen.value = false
           return
         }
-        if (options.activeTab.value) await options.syncState(options.browser.closeTab(options.activeTab.value.id))
+        if (options.activeTab.value) {
+          const selected = options.selectedTabIds?.() ?? []
+          await options.syncState(selected.includes(options.activeTab.value.id)
+            ? options.browser.closeTabs(selected)
+            : options.browser.closeTab(options.activeTab.value.id))
+        }
         return
       case 'reopen-closed-tab':
         options.settingsOpen.value = false

@@ -12,6 +12,7 @@ type BrowserTabActionsApi = Pick<
   | 'newTab'
   | 'reload'
   | 'reorderTab'
+  | 'reorderTabs'
   | 'selectTab'
   | 'setAllTabsMuted'
   | 'setAllHumanInteractionLocked'
@@ -61,9 +62,13 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
     tabId: string
     targetTabId: string
     placement: 'before' | 'after'
+    /** Every tab the move takes along, when it moves several selected tabs. */
+    tabIds?: readonly string[]
   }): Promise<void> {
     if (disposed) return
-    await options.syncState(options.browser.reorderTab(details.tabId, details.targetTabId, details.placement))
+    await options.syncState(details.tabIds && details.tabIds.length > 1
+      ? options.browser.reorderTabs(details.tabIds, details.targetTabId, details.placement)
+      : options.browser.reorderTab(details.tabId, details.targetTabId, details.placement))
   }
 
   async function selectBrowserTab(tabId: string): Promise<boolean> {

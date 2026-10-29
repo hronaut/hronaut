@@ -47,11 +47,12 @@ function deferred<Value>() {
   return { promise, resolve, reject }
 }
 
-function createController(canRunAction = (_action: string) => true) {
+function createController(canRunAction = (_action: string) => true, selectedTabIds?: () => readonly string[]) {
   const state = ref(browserState())
   const activeTab = ref<BrowserTabState | undefined>(state.value.tabs[1])
   const browser = {
     closeTab: vi.fn(async (_tabId: string) => state.value),
+    closeTabs: vi.fn(async (_tabIds: readonly string[]) => state.value),
     reopenClosedTab: vi.fn(async (_closedTabId?: string) => state.value),
     selectTab: vi.fn(async (_tabId: string) => state.value),
     reload: vi.fn(async (_tabId?: string) => state.value),
@@ -98,6 +99,7 @@ function createController(canRunAction = (_action: string) => true) {
   const controller = useBrowserShortcutController({
     state,
     activeTab,
+    ...(selectedTabIds ? { selectedTabIds } : {}),
     browser,
     syncState,
     settingsOpen,
@@ -448,6 +450,24 @@ describe('browser shortcut controller', () => {
 
     expect(harness.browser.closeTab).toHaveBeenCalledWith('second')
     expect(harness.callbacks.onError).not.toHaveBeenCalled()
+    harness.controller.dispose()
+  })
+
+  // Ctrl/Cmd+W on one of several tabs selected with Ctrl or Shift and a click closed only the shown tab; as in Chrome,
+  // it closes them all.
+  it('closes every selected tab when the shown tab is one of them', async () => {
+    let selected: readonly string[] = ['first', 'second']
+    const harness = createController(undefined, () => selected)
+
+    await expect(harness.controller.run('close-tab')).resolves.toBe(true)
+    expect(harness.browser.closeTabs).toHaveBeenCalledExactlyOnceWith(['first', 'second'])
+    expect(harness.browser.closeTab).not.toHaveBeenCalled()
+
+    // A selection the shown tab is not part of leaves the key to the shown tab.
+    selected = ['first', 'third']
+    await harness.controller.run('close-tab')
+    expect(harness.browser.closeTab).toHaveBeenCalledExactlyOnceWith('second')
+    expect(harness.browser.closeTabs).toHaveBeenCalledOnce()
     harness.controller.dispose()
   })
 
