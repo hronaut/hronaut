@@ -7,27 +7,12 @@ import type { Browser } from '../browser.js'
 import { getTab } from '../browser-core.js'
 import { evaluateWithAttachedDebugger, mainWorldContextId } from '../debugger-evaluation/debugger-evaluation.js'
 import { withDebugger } from '../debugger-lease/debugger-lease.js'
+import { EvaluationStoppedError } from './evaluation-stopped-error.js'
 
 /** How long an evaluation waits for its script, and the call's cancellation. */
 export interface EvaluationDeadline {
   timeoutMs: number
   signal?: AbortSignal
-}
-
-/** An evaluation that stopped waiting for its script because its deadline passed or its call was cancelled. */
-export class EvaluationStoppedError extends Error {
-  readonly reason: 'SCRIPT_TIMEOUT' | 'CANCELLED'
-  /** Whether the script reached the page; false when the evaluation stopped before sending it. */
-  readonly sent: boolean
-
-  constructor(reason: 'SCRIPT_TIMEOUT' | 'CANCELLED', sent: boolean, timeoutMs: number) {
-    const stopped = reason === 'SCRIPT_TIMEOUT' ? `The script did not finish within ${timeoutMs} ms` : 'The call was cancelled before the script finished'
-    const unsent = reason === 'SCRIPT_TIMEOUT' ? `The ${timeoutMs} ms deadline passed before the script was sent` : 'The call was cancelled before the script was sent'
-    super(sent ? `${stopped}. It may still be running in the page, so its effects are unknown.` : `${unsent}; nothing ran.`)
-    this.name = 'EvaluationStoppedError'
-    this.reason = reason
-    this.sent = sent
-  }
 }
 
 /**

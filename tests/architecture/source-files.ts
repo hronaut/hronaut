@@ -37,6 +37,22 @@ export function runtimeSpecifiers(code: string, fileName = 'module.ts'): string[
   return specifiers
 }
 
+/** The names a module imports or re-exports from one package for its code, leaving out types and the default export. */
+export function runtimeNamesFrom(code: string, specifier: string, fileName = 'module.ts'): string[] {
+  const names: string[] = []
+  for (const statement of ts.createSourceFile(fileName, code, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS).statements) {
+    if (ts.isImportDeclaration(statement) && textOf(statement.moduleSpecifier) === specifier && !statement.importClause?.isTypeOnly) {
+      const bindings = statement.importClause?.namedBindings
+      if (bindings && ts.isNamedImports(bindings)) names.push(...bindings.elements.filter(element => !element.isTypeOnly).map(element => (element.propertyName ?? element.name).text))
+    }
+    if (ts.isExportDeclaration(statement) && statement.moduleSpecifier && textOf(statement.moduleSpecifier) === specifier && !statement.isTypeOnly) {
+      const clause = statement.exportClause
+      if (clause && ts.isNamedExports(clause)) names.push(...clause.elements.filter(element => !element.isTypeOnly).map(element => (element.propertyName ?? element.name).text))
+    }
+  }
+  return names.filter(name => name !== 'default')
+}
+
 function importsTypesOnly(clause: ts.ImportClause | undefined): boolean {
   if (!clause) return false
   if (clause.isTypeOnly) return true
@@ -61,11 +77,11 @@ function codeOf(file: string, text: string): string {
   return [...text.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map(match => match[1]).join('\n')
 }
 
-/** The file a relative import names: TypeScript's `.js` for `.ts`, a Vue file, or a folder's index. */
+/** The file a relative import names: TypeScript's `.js` for `.ts`, a Vue or JavaScript file, or a folder's index. */
 function resolveImport(from: string, specifier: string): string | undefined {
   const target = join(dirname(from), specifier.replace(/\?.*$/, ''))
-  const candidates = [target, target.replace(/\.js$/, '.ts'), `${target}.ts`, join(target, 'index.ts')]
-  const found = candidates.find(candidate => /\.(ts|vue)$/.test(candidate) && existsSync(join(ROOT, candidate)) && statSync(join(ROOT, candidate)).isFile())
+  const candidates = [target.replace(/\.js$/, '.ts'), target, `${target}.ts`, join(target, 'index.ts')]
+  const found = candidates.find(candidate => /\.(ts|vue|js|mjs|cjs)$/.test(candidate) && existsSync(join(ROOT, candidate)) && statSync(join(ROOT, candidate)).isFile())
   return found?.split(sep).join('/')
 }
 
