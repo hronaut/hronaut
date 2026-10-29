@@ -18,7 +18,7 @@ import type {
 import type { BrowserConsoleMessageRecord, ConsoleCapture } from './console-messages/console-messages.js'
 import type { BrowserDomRecordingState } from './dom-recorder.js'
 import type { BrowserLiveRegionRecordingState } from './live-region-recorder.js'
-import type { BrowserNetworkRouteRecord } from './network-conditions/network-conditions-access.js'
+import type { BrowserNetworkRouteRecord } from './network-conditions/network-conditions.js'
 import type { BrowserNetworkRecordingState } from './network-recording.js'
 import type { BrowserProfilingState } from './profiling-controller.js'
 import type { BrowserReproRecordingInternal } from './repro-recorder.js'
