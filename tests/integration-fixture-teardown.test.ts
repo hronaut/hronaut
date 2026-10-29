@@ -19,7 +19,8 @@ describe('integration fixture teardown', () => {
     if (stage === 'monitor') evaluate.mockRejectedValueOnce(failure)
     if (stage === 'window') firstWindow.mockRejectedValueOnce(failure)
     const close = vi.fn(async () => undefined)
-    const app = { evaluate, firstWindow, close, process: () => ({ exitCode: 0 }) } as unknown as ElectronApplication
+    const child = Object.assign(new EventEmitter(), { exitCode: 0, stderr: null, stdout: null })
+    const app = { evaluate, firstWindow, close, process: () => child } as unknown as ElectronApplication
     const launch = vi.spyOn(electron, 'launch').mockResolvedValue(app)
     try {
       await expect(launchHronaut(directory)).rejects.toBe(failure)
@@ -129,6 +130,40 @@ describe('integration fixture teardown', () => {
       expect(vi.getTimerCount()).toBe(0)
     } finally {
       vi.useRealTimers()
+    }
+  })
+
+  // A main process that ended mid-test left only "Main process closed before diagnostics could be collected".
+  it('says how a launch\'s main process ended and what it last logged when it closed before diagnostics', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'hronaut-ended-main-'))
+    const stderr = new EventEmitter()
+    const child = Object.assign(new EventEmitter(), { exitCode: null as number | null, signalCode: null, stderr, stdout: null })
+    const closed = new Error('Target page, context or browser has been closed')
+    const app = {
+      evaluate: vi.fn(async () => undefined),
+      firstWindow: vi.fn(async () => ({ on: vi.fn(), waitForLoadState: vi.fn(async () => undefined) })),
+      close: vi.fn(async () => undefined),
+      process: () => child
+    } as unknown as ElectronApplication
+    const launch = vi.spyOn(electron, 'launch').mockResolvedValue(app)
+    try {
+      await launchHronaut(directory)
+      stderr.emit('data', '[startup] Could not open the workspace recovery window; showing the system dialog instead.\n')
+      child.exitCode = 0
+      child.emit('exit', 0, null)
+      vi.mocked(app.evaluate).mockRejectedValueOnce(closed)
+      await expect(collectRendererDiagnostics(app)).resolves.toEqual({
+        unavailable: 'Main process closed before diagnostics could be collected',
+        mainProcess: {
+          exitCode: 0,
+          signal: null,
+          ranForMs: expect.any(Number),
+          lastLogLines: ['[startup] Could not open the workspace recovery window; showing the system dialog instead.']
+        }
+      })
+    } finally {
+      launch.mockRestore()
+      await rm(directory, { recursive: true, force: true })
     }
   })
 
