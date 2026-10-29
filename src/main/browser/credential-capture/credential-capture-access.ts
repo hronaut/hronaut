@@ -5,6 +5,8 @@ export interface BrowserCredentialCandidate {
   origin: string
   username: string
   password: string
+  /** The current password a form that changes one gave, when it names no account. */
+  previousPassword?: string
 }
 
 /** The tab fields watching for submitted credentials reads: its address, its page and the person's last interaction with it. */

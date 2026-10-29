@@ -41,7 +41,10 @@ export interface SavePasswordDialogVariant {
   kind: 'save-password'
   /** The website the password is for, as an origin. */
   origin: string
-  /** The username the page submitted with it; empty when it sent none. */
+  /**
+   * The username the page submitted with it, or for a password change that named none, the saved account Hronaut found
+   * it changes; empty when there is neither.
+   */
   username: string
   /** True when Hronaut has a password for this username and website already. */
   updating: boolean
