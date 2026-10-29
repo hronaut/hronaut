@@ -2,14 +2,14 @@ import { render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import BrowserAddressBar from '../../src/renderer/src/components/BrowserAddressBar.vue'
+import BrowserAddressBar from '../../src/renderer/src/features/address-bar/BrowserAddressBar.vue'
 import DetachedPanelUnavailableState from '../../src/renderer/src/components/DetachedPanelUnavailableState.vue'
 import PageProblemBar from '../../src/renderer/src/components/PageProblemBar.vue'
 import {
   useActiveTabPresentationController,
   type ActiveTabPresentationController
 } from '../../src/renderer/src/composables/useActiveTabPresentationController.js'
-import type { AddressBarController } from '../../src/renderer/src/composables/useAddressBarController.js'
+import type { AddressBarController } from '../../src/renderer/src/features/address-bar/useAddressBarController.js'
 import type { EmulationController } from '../../src/renderer/src/features/emulation/useEmulationController.js'
 import type { PageToolsPresentationController } from '../../src/renderer/src/composables/usePageToolsPresentationController.js'
 import type { SiteDataSummaryController } from '../../src/renderer/src/composables/useSiteDataSummaryController.js'

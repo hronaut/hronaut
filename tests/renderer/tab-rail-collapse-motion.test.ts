@@ -1,6 +1,6 @@
 import { effectScope, ref } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { COLLAPSE_DURATION, useTabRailCollapseMotion } from '../../src/renderer/src/composables/useTabRailCollapseMotion.js'
+import { COLLAPSE_DURATION, useTabRailCollapseMotion } from '../../src/renderer/src/features/tabs/useTabRailCollapseMotion.js'
 
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals() })
 

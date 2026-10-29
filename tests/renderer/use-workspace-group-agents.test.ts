@@ -1,7 +1,7 @@
 import { flushPromises } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import { effectScope, nextTick, ref } from 'vue'
-import { useWorkspaceGroupAgents } from '../../src/renderer/src/composables/useWorkspaceGroupAgents.js'
+import { useWorkspaceGroupAgents } from '../../src/renderer/src/features/workspaces/useWorkspaceGroupAgents.js'
 import type { AgentPresence, AgentPresenceSnapshot, HronautAgentPresenceApi } from '../../src/shared/agent-presence.js'
 
 function agent(name: string, state: AgentPresence['state']): AgentPresence {

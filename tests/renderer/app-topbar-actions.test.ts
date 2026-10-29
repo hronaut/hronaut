@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import AppTopbarActions from '../../src/renderer/src/components/AppTopbarActions.vue'
-import { useMcpStatusController } from '../../src/renderer/src/composables/useMcpStatusController.js'
+import { useMcpStatusController } from '../../src/renderer/src/features/mcp/useMcpStatusController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type {
   AppUpdateState,

@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { usePerformanceSettingsController } from '../../src/renderer/src/composables/usePerformanceSettingsController.js'
+import { usePerformanceSettingsController } from '../../src/renderer/src/features/settings/usePerformanceSettingsController.js'
 import { DEFAULT_RENDERER_SETTINGS } from '../../src/renderer/src/stores/settings.js'
 import type { AppSettings, BrowserState, MemorySaverTimeoutMinutes } from '../../src/shared/types.js'
 

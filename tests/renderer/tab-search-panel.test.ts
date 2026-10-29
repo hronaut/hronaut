@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import TabSearchPanel from '../../src/renderer/src/components/TabSearchPanel.vue'
+import TabSearchPanel from '../../src/renderer/src/features/tabs/TabSearchPanel.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BrowserState, BrowserTabState } from '../../src/shared/types.js'
 

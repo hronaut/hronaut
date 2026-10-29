@@ -4,10 +4,10 @@ import {
   useSiteStorageShellController,
   type SiteStorageShellPanel
 } from '../features/site-storage/useSiteStorageShellController.js'
-import { usePrivacySettingsShellController } from './usePrivacySettingsShellController.js'
-import { useSettingsNavigationController } from './useSettingsNavigationController.js'
+import { usePrivacySettingsShellController } from '../features/settings/usePrivacySettingsShellController.js'
+import { useSettingsNavigationController } from '../features/settings/useSettingsNavigationController.js'
 import { useSiteControlsShellController } from './useSiteControlsShellController.js'
-import type { SettingsSection } from './useSettingsDialogController.js'
+import type { SettingsSection } from '../features/settings/useSettingsDialogController.js'
 
 export interface AppSiteManagementFeatureControllerOptions {
   siteDataController: SiteDataSummaryController

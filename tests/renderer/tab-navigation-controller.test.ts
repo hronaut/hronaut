@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { useTabNavigationController } from '../../src/renderer/src/composables/useTabNavigationController.js'
+import { useTabNavigationController } from '../../src/renderer/src/features/tabs/useTabNavigationController.js'
 import type { BrowserState, BrowserTabState } from '../../src/shared/types.js'
 
 function tab(id: string, active = false): BrowserTabState {

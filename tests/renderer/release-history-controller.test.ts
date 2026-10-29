@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { useReleaseHistoryController } from '../../src/renderer/src/composables/useReleaseHistoryController.js'
+import { useReleaseHistoryController } from '../../src/renderer/src/features/updates/useReleaseHistoryController.js'
 import type { AppReleaseHistoryPage } from '../../src/shared/types.js'
 
 function deferred<Value>() {

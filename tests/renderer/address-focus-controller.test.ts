@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { useAddressFocusController } from '../../src/renderer/src/composables/useAddressFocusController.js'
+import { useAddressFocusController } from '../../src/renderer/src/features/address-bar/useAddressFocusController.js'
 import type { BrowserState, BrowserTabState } from '../../src/shared/types.js'
 
 function tab(id: string, active = false, url = `https://${id}.test/`): BrowserTabState {

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import CommandPalette from '../../src/renderer/src/components/CommandPalette.vue'
+import CommandPalette from '../../src/renderer/src/features/command-palette/CommandPalette.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 
 describe('CommandPalette', () => {

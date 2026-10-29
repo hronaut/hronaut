@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/vue'
 import { computed, defineComponent, ref } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { addressEnterAction, withWwwAndCom } from '../../src/renderer/src/address-enter.js'
-import { useAddressBarController } from '../../src/renderer/src/composables/useAddressBarController.js'
+import { useAddressBarController } from '../../src/renderer/src/features/address-bar/useAddressBarController.js'
 import type { BrowserHistoryEntry, BrowserTabState } from '../../src/shared/types.js'
 
 const shellWindow = window as unknown as { hronautShell?: { windowChrome: { platform: string } } }

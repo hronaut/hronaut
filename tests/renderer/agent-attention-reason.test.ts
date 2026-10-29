@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { attentionReasonText } from '../../src/renderer/src/composables/agent-attention-reason.js'
+import { attentionReasonText } from '../../src/renderer/src/features/agents/agent-attention-reason.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import { humanDecisionAttentionReason, humanDecisionFromAttentionReason, type HumanWaitingDecision } from '../../src/shared/human-waiting.js'
 import { SUPPORTED_LOCALES } from '../../src/shared/locale.js'

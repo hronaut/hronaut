@@ -6,7 +6,7 @@ import { useI18n } from 'vue-i18n'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconDashboard from '~icons/material-symbols/space-dashboard-rounded'
 import type { HelpDialogController } from '../composables/useHelpDialogController.js'
-import type { ReleaseHistoryController } from '../composables/useReleaseHistoryController.js'
+import type { ReleaseHistoryController } from '../features/updates/useReleaseHistoryController.js'
 import { useModalDialogFocus } from '../composables/useModalDialogFocus.js'
 import { commandShortcutKeys } from '../../../shared/command-palette.js'
 

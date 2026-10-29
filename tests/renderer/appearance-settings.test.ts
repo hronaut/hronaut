@@ -2,7 +2,7 @@ import { createTestingPinia } from '@pinia/testing'
 import { render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import AppearanceSettings from '../../src/renderer/src/components/AppearanceSettings.vue'
+import AppearanceSettings from '../../src/renderer/src/features/settings/AppearanceSettings.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { RendererSettingsState } from '../../src/shared/types.js'
 

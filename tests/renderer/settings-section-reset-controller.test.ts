@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { useSettingsSectionResetController } from '../../src/renderer/src/composables/useSettingsSectionResetController.js'
+import { useSettingsSectionResetController } from '../../src/renderer/src/features/settings/useSettingsSectionResetController.js'
 
 function createHarness() {
   const callbacks = {

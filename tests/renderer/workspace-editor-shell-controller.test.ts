@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { useWorkspaceEditorShellController } from '../../src/renderer/src/composables/useWorkspaceEditorShellController.js'
+import { useWorkspaceEditorShellController } from '../../src/renderer/src/features/workspaces/useWorkspaceEditorShellController.js'
 
 describe('useWorkspaceEditorShellController', () => {
   it('owns the closed editor state and safely ignores actions before the panel mounts', async () => {

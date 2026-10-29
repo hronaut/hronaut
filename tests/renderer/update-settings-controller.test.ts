@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { useUpdateSettingsController } from '../../src/renderer/src/composables/useUpdateSettingsController.js'
+import { useUpdateSettingsController } from '../../src/renderer/src/features/updates/useUpdateSettingsController.js'
 import { DEFAULT_RENDERER_SETTINGS } from '../../src/renderer/src/stores/settings.js'
 import type { AppSettings, AppUpdateState, HronautUpdatesApi } from '../../src/shared/types.js'
 

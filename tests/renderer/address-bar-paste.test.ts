@@ -1,7 +1,7 @@
 import { createEvent, fireEvent, render, screen } from '@testing-library/vue'
 import { computed, defineComponent, nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { useAddressBarController } from '../../src/renderer/src/composables/useAddressBarController.js'
+import { useAddressBarController } from '../../src/renderer/src/features/address-bar/useAddressBarController.js'
 import type { BrowserHistoryEntry, BrowserTabState } from '../../src/shared/types.js'
 
 // A paste into the address field went in as copied, so `javascript:` text copied from a page, pasted and entered, ran

@@ -2,14 +2,14 @@ import { defineComponent, ref, watch } from 'vue'
 import { render, screen, fireEvent } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import SettingsNavigation from '../../src/renderer/src/components/SettingsNavigation.vue'
+import SettingsNavigation from '../../src/renderer/src/features/settings/SettingsNavigation.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 
-import { useSettingsSectionSearch } from '../../src/renderer/src/composables/useSettingsSectionSearch.js'
+import { useSettingsSectionSearch } from '../../src/renderer/src/features/settings/useSettingsSectionSearch.js'
 import { SETTINGS_NAVIGATION } from '../../src/renderer/src/settings-navigation.js'
 import { translate } from '../../src/shared/i18n.js'
 import { SUPPORTED_LOCALES } from '../../src/shared/locale.js'
-import type { SettingsSection } from '../../src/renderer/src/composables/useSettingsDialogController.js'
+import type { SettingsSection } from '../../src/renderer/src/features/settings/useSettingsDialogController.js'
 
 const icon = defineComponent({ template: '<svg />' })
 /** The sections Settings lists for a search in an interface language, best first. */

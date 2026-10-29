@@ -1,6 +1,6 @@
 import { nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { useMcpSettingsController } from '../../src/renderer/src/composables/useMcpSettingsController.js'
+import { useMcpSettingsController } from '../../src/renderer/src/features/mcp/useMcpSettingsController.js'
 import type { CopyTextWithFeedback } from '../../src/renderer/src/composables/useShellFeedbackController.js'
 import { DEFAULT_RENDERER_SETTINGS } from '../../src/renderer/src/stores/settings.js'
 import type { AppSettings, McpCapabilityCredentialResult, McpCapabilityProfileSummary, McpPortMoveResult } from '../../src/shared/types.js'

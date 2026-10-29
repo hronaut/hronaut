@@ -21,10 +21,10 @@ import type {
   UserAttentionRequest
 } from '../../../shared/types.js'
 import { installShellTooltips } from '../composables/shell-tooltips.js'
-import type { McpStatusControlsController } from '../composables/useMcpStatusController.js'
+import type { McpStatusControlsController } from '../features/mcp/useMcpStatusController.js'
 import { createShellViewportMedia } from '../shell-viewport-media.js'
 import AppTopbarActions from './AppTopbarActions.vue'
-import BrowserTabsBar from './BrowserTabsBar.vue'
+import BrowserTabsBar from '../features/tabs/BrowserTabsBar.vue'
 
 const props = defineProps<{ api: HronautSidebarOverlayViewApi }>()
 

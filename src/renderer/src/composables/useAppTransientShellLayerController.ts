@@ -1,8 +1,8 @@
 import { computed, ref, shallowRef } from 'vue'
 import type { BrowserTabState } from '../../../shared/types.js'
-import type { AgentStepHistoryTarget } from './useAgentStepHistory.js'
-import type { CommandPaletteView } from './useCommandPaletteShellController.js'
-import { useWorkspaceEditorShellController } from './useWorkspaceEditorShellController.js'
+import type { AgentStepHistoryTarget } from '../features/agents/useAgentStepHistory.js'
+import type { CommandPaletteView } from '../features/command-palette/useCommandPaletteShellController.js'
+import { useWorkspaceEditorShellController } from '../features/workspaces/useWorkspaceEditorShellController.js'
 
 type ZoomAction = 'in' | 'out' | 'reset'
 

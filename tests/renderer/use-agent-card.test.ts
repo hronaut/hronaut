@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { effectScope, nextTick, ref } from 'vue'
-import { agentCardModel, fitAgentCardText, useAgentCard, type AgentCardContext } from '../../src/renderer/src/composables/useAgentCard.js'
+import { agentCardModel, fitAgentCardText, useAgentCard, type AgentCardContext } from '../../src/renderer/src/features/agents/useAgentCard.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { AgentCardEvent, AgentCardModel, AgentCardShowRequest, HronautAgentCardApi } from '../../src/shared/agent-card.js'
 import { parseAgentCardModel } from '../../src/shared/agent-card.js'

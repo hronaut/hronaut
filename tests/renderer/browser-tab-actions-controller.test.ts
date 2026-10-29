@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { useBrowserTabActionsController } from '../../src/renderer/src/composables/useBrowserTabActionsController.js'
+import { useBrowserTabActionsController } from '../../src/renderer/src/features/tabs/useBrowserTabActionsController.js'
 import type { BrowserState, BrowserTabState, NewTabOptions } from '../../src/shared/types.js'
 
 function tab(overrides: Partial<BrowserTabState> = {}): BrowserTabState {

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { usePrivacySettingsController } from '../../src/renderer/src/composables/usePrivacySettingsController.js'
+import { usePrivacySettingsController } from '../../src/renderer/src/features/settings/usePrivacySettingsController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { Confirmation } from '../../src/shared/confirmation.js'
 import type { BrowsingDataSummary, BrowsingDataWebsiteSummary, SupportedLocale } from '../../src/shared/types.js'
