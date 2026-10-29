@@ -1,6 +1,6 @@
 {
   "name": "hronaut",
-  "version": "3.13.0",
+  "version": "3.14.0",
   "description": "A visible desktop browser for coding agents, with a separate workspace for each project.",
   "desktopName": "Hronaut",
   "author": "Hronaut",
