@@ -7,12 +7,13 @@ import type { Browser } from '../src/main/browser/browser.js'
 import type { BrowserTab } from '../src/main/browser/browser-tab.js'
 import { setAllTabsMuted, setTabMuted } from '../src/main/browser/tab-muting/tab-muting.js'
 import { SitePermissionStore } from '../src/main/site-data/site-permission-store.js'
+import type { BrowserState } from '../src/shared/types.js'
 
+// The browser below stubs changed and getState, which muting publishes through.
 vi.mock('../src/main/browser/browser-state/browser-state.js', () => ({
   publishChange: (browser: { changed(...args: unknown[]): void }, ...args: unknown[]) => browser.changed(...args),
   browserState: (browser: { getState(): unknown }) => browser.getState()
 }))
-import type { BrowserState } from '../src/shared/types.js'
 
 // Chrome's Mute Site mutes a website in every tab and on its later pages, and Unmute Site forgets that. Hronaut keeps it
 // per workspace, as a "sound" decision of the site permission store, which Settings lists with the other decisions.

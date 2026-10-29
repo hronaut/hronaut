@@ -3286,7 +3286,6 @@ export class Browser {
     return setAllTabsMuted(this, muted)
   }
 
-  /** The narrow view muting websites gets of this manager's tabs and of the site permission store it was given. */
   setSiteMuted(tabId: string, muted: boolean): Promise<BrowserState> {
     return setSiteMuted(this, tabId, muted)
   }
