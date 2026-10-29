@@ -23,8 +23,8 @@ import { withDebugger } from '../debugger-lease/debugger-lease.js'
 const ABORTED_LOAD_ERROR = -3
 
 /**
- * The tab's first page starts to load: the renderer exit guard lets page calls through, website dialogs are watched,
- * and the person's input lock holds from the first document.
+ * The tab's first page starts to load: the renderer exit guard lets page calls through, the page's dialogs and network
+ * are monitored, and the person's input lock holds from the first document.
  */
 function startFirstLoad(browser: Browser, tab: BrowserTab): void {
   firstLoadStarts(tab.webContents)

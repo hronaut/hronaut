@@ -500,12 +500,10 @@ import type { WindowOpenHandlerAccess } from './tab-events/window-open-handler-a
 import { attachWindowOpenHandler } from './tab-events/window-open-handler.js'
 import { withRenderableTab } from './renderable-tab/renderable-tab.js'
 import {
-  putTabToSleep,
   setTabSleeping,
   setTabSleepingFromContextMenu,
   sleepBlockReason,
   sleepFallbackTab,
-  sleepWorkspaceTabs,
   sleepBeforeFirstLoad,
   wakeTab,
   watchUnsavedFormEdits,
@@ -2351,10 +2349,6 @@ export class Browser {
 
   sleepInactiveTabs(): Promise<BrowserState> {
     return sleepInactiveTabs(this)
-  }
-
-  private sleepWorkspaceTabs(groupId: string): Promise<void> {
-    return sleepWorkspaceTabs(this, groupId)
   }
 
   reorderTab(tabId: string, targetTabId: string, placement: 'before' | 'after'): BrowserState {
@@ -5267,10 +5261,6 @@ export class Browser {
 
   private sleepBlockReason(tab: BrowserTab, allowActiveTab?: boolean): string | undefined {
     return sleepBlockReason(this, tab, allowActiveTab)
-  }
-
-  private putTabToSleep(tab: BrowserTab, reportBlocked: boolean, isCurrent?: () => boolean): Promise<boolean> {
-    return putTabToSleep(this, tab, reportBlocked, isCurrent)
   }
 
   private sweepMemorySaver(force: boolean): Promise<void> {

@@ -131,19 +131,19 @@ describe('what in the page keeps a tab awake', () => {
 describe('putting a tab with a video in Picture in picture to sleep', () => {
   it('keeps the tab awake, telling the person who asked and leaving Memory Saver quiet', async () => {
     const shown = tab({ picture: async () => true }, [], 'player')
-    const access = manager([tab({}, [], 'shown'), shown])
-    await expect(putTabToSleep(access as never, shown as never, true)).rejects.toMatchObject({ key: 'appErrors.sleep.pictureInPicture' })
-    expect(await putTabToSleep(access as never, shown as never, false)).toBe(false)
+    const browser = manager([tab({}, [], 'shown'), shown])
+    await expect(putTabToSleep(browser as never, shown as never, true)).rejects.toMatchObject({ key: 'appErrors.sleep.pictureInPicture' })
+    expect(await putTabToSleep(browser as never, shown as never, false)).toBe(false)
     expect(shown.sleeping).toBe(false)
     expect(shown.webContents.loadURL).not.toHaveBeenCalled()
   })
 
   it('keeps the view on the tab the person put to sleep from its menu, without waking the tab beside it', async () => {
     const shown = tab({ picture: async () => true }, [], 'player')
-    const access = manager([shown, tab({}, [], 'beside')])
-    await expect(setTabSleepingFromContextMenu(access as never, 'player', true)).rejects.toMatchObject({ key: 'appErrors.sleep.pictureInPicture' })
-    expect(access.selectTab).not.toHaveBeenCalled()
-    expect(access.activeTabId).toBe('player')
+    const browser = manager([shown, tab({}, [], 'beside')])
+    await expect(setTabSleepingFromContextMenu(browser as never, 'player', true)).rejects.toMatchObject({ key: 'appErrors.sleep.pictureInPicture' })
+    expect(browser.selectTab).not.toHaveBeenCalled()
+    expect(browser.activeTabId).toBe('player')
     expect(shown.webContents.loadURL).not.toHaveBeenCalled()
   })
 })
