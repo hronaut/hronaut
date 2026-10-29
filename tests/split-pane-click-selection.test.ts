@@ -71,7 +71,6 @@ interface Manager {
   selectTabAndWait(tabId: string): Promise<unknown>
   openSplitView(tabId: string): unknown
   openSplitViewAndWait(tabId: string): Promise<unknown>
-  pagePointerEventsAccess(): never
 }
 
 function browser() {
@@ -91,7 +90,7 @@ function browser() {
     allHumanInteractionLocked: false, globallyUnlockedTabIds: new Set(), agentInputWebContents: new Map(), agentWheel: new Map(),
     screenshotAreaSessions: new Map(), elementPickerSessions: new Map(), browserContentOccluded: false, pageFullscreenTabs: new Set(),
     reproRecorder: { observeReproMouse: vi.fn() }, mcpActivityFollower: { noteHumanInput: vi.fn() },
-    scheduleTabOverviewPreview: vi.fn(), shouldBlockHumanMouseInput: () => false, agentWheelUnderWay: () => false,
+    scheduleTabOverviewPreview: vi.fn(),
     mcpTabGroups: new Map([[PERSON, {
       id: PERSON, name: 'Mine', description: '', color: 'blue', createdAt: '', lastUsedAt: '', activeTabId: null,
       storageId: '8e3da8ea-cba4-41c2-9619-a6e04a493a44', origins: [], navigationPolicy: { mode: 'unrestricted', rules: [] },
@@ -116,7 +115,7 @@ async function personInSplitViewWithASleepingTab(manager: Manager) {
   const right = await manager.createTab({ url: 'https://right.example/', mcpGroupId: PERSON, active: false })
   const sleeper = await manager.createTab({ url: 'https://slow.example/', mcpGroupId: PERSON, active: false })
   sleeper.sleeping = true
-  attachPagePointerEvents(manager.pagePointerEventsAccess(), right as never, right.webContents as never)
+  attachPagePointerEvents(manager as never, right as never, right.webContents as never)
   manager.selectTab(left.id)
   manager.openSplitView(right.id)
   const split = structuredClone(manager.splitView)

@@ -1,5 +1,12 @@
 import type { WebContents } from 'electron'
-import type { PagePointerEventsAccess, PagePointerEventsTab } from './page-pointer-events-access.js'
+import type { Browser } from '../browser.js'
+import type { BrowserTab } from '../browser-tab.js'
+import { shouldBlockHumanMouseInput } from '../agent-input-authorization/agent-input-authorization.js'
+import { agentWheelUnderWay } from '../agent-wheel/agent-wheel.js'
+import { queueElementPickerMouseInput } from '../element-picker/element-picker.js'
+import { queueScreenshotAreaMouseInput } from '../screenshot-area/screenshot-area.js'
+import { scheduleTabOverviewPreview } from '../tab-overview-previews/tab-overview-previews.js'
+import { publishChange } from '../browser-state/browser-state.js'
 
 /** After a click, key or scroll on the page in view, its overview preview waits this long for the page to settle. The keyboard listener keeps its own copy. */
 const TAB_OVERVIEW_INPUT_SETTLE_MS = 1_000
@@ -13,65 +20,65 @@ const TAB_OVERVIEW_INPUT_SETTLE_MS = 1_000
  * touch on the other split pane makes it the active tab; a touch counts as no
  * click, since it may start a scroll.
  */
-export function attachPagePointerEvents<Tab extends PagePointerEventsTab>(access: PagePointerEventsAccess<Tab>, tab: Tab, webContents: WebContents): void {
+export function attachPagePointerEvents(browser: Browser, tab: BrowserTab, webContents: WebContents): void {
   // Wheel and touch input never reach before-mouse-event; while the person scrolls or touches
   // the page, following waits.
   const webContentsId = webContents.id
   webContents.on('input-event', (_event, input) => {
     if (input.type !== 'mouseWheel' && input.type !== 'touchStart') return
-    access.scheduleTabOverviewPreview(tab, TAB_OVERVIEW_INPUT_SETTLE_MS)
-    if (access.agentInputWebContents().has(webContentsId) || access.agentWheelUnderWay(webContentsId)) return
-    access.mcpActivityFollower().noteHumanInput()
+    scheduleTabOverviewPreview(browser, tab, TAB_OVERVIEW_INPUT_SETTLE_MS)
+    if (browser.agentInputWebContents.has(webContentsId) || agentWheelUnderWay(browser, webContentsId)) return
+    browser.mcpActivityFollower.noteHumanInput()
     // A touch may start a scroll, so it is no click, but a touch on the other split pane makes it the active pane as a
     // click does, unless trusted chrome covers the pages or the human input lock holds the page.
-    if (input.type === 'touchStart' && !access.browserContentOccluded() && !access.isHumanInteractionLocked(tab)) {
-      selectOtherPane(access, tab)
+    if (input.type === 'touchStart' && !browser.browserContentOccluded && !browser.isHumanInteractionLocked(tab)) {
+      selectOtherPane(browser, tab)
     }
   })
-  webContents.once('destroyed', () => access.agentWheel().delete(webContentsId))
+  webContents.once('destroyed', () => browser.agentWheel.delete(webContentsId))
   webContents.on('before-mouse-event', (event, mouse) => {
-    if (access.browserContentOccluded() && !access.agentInputWebContents().has(webContents.id)) {
+    if (browser.browserContentOccluded && !browser.agentInputWebContents.has(webContents.id)) {
       // Trusted chrome is open; a click must not give the page focus, activation or the active split pane.
       event.preventDefault()
       return
     }
-    const screenshotSession = access.screenshotAreaSessions().get(webContents.id)
-    if (screenshotSession && !screenshotSession.canceled && !access.agentInputWebContents().has(webContents.id)) {
+    const screenshotSession = browser.screenshotAreaSessions.get(webContents.id)
+    if (screenshotSession && !screenshotSession.canceled && !browser.agentInputWebContents.has(webContents.id)) {
       event.preventDefault()
       if (mouse.type === 'mouseDown' && (mouse.button === undefined || mouse.button === 'left')) {
-        access.queueScreenshotAreaMouseInput(tab, screenshotSession, 'down', mouse)
+        queueScreenshotAreaMouseInput(browser, tab, screenshotSession, 'down', mouse)
       } else if (mouse.type === 'mouseMove') {
-        access.queueScreenshotAreaMouseInput(tab, screenshotSession, 'move', mouse)
+        queueScreenshotAreaMouseInput(browser, tab, screenshotSession, 'move', mouse)
       } else if (mouse.type === 'mouseUp' && (mouse.button === undefined || mouse.button === 'left')) {
-        access.queueScreenshotAreaMouseInput(tab, screenshotSession, 'up', mouse)
+        queueScreenshotAreaMouseInput(browser, tab, screenshotSession, 'up', mouse)
       }
       return
     }
-    const elementPickerSession = access.elementPickerSessions().get(webContents.id)
-    if (elementPickerSession && !elementPickerSession.canceled && !access.agentInputWebContents().has(webContents.id)) {
+    const elementPickerSession = browser.elementPickerSessions.get(webContents.id)
+    if (elementPickerSession && !elementPickerSession.canceled && !browser.agentInputWebContents.has(webContents.id)) {
       event.preventDefault()
       if (mouse.type === 'mouseDown' && (mouse.button === undefined || mouse.button === 'left')) {
-        access.queueElementPickerMouseInput(tab, elementPickerSession, 'down', mouse)
+        queueElementPickerMouseInput(browser, tab, elementPickerSession, 'down', mouse)
       } else if (mouse.type === 'mouseMove') {
-        access.queueElementPickerMouseInput(tab, elementPickerSession, 'move', mouse)
+        queueElementPickerMouseInput(browser, tab, elementPickerSession, 'move', mouse)
       } else if (mouse.type === 'mouseUp' && (mouse.button === undefined || mouse.button === 'left')) {
-        access.queueElementPickerMouseInput(tab, elementPickerSession, 'up', mouse)
+        queueElementPickerMouseInput(browser, tab, elementPickerSession, 'up', mouse)
       }
       return
     }
-    if (access.shouldBlockHumanMouseInput(tab, mouse)) {
+    if (shouldBlockHumanMouseInput(browser, tab, mouse)) {
       event.preventDefault()
       return
     }
-    access.reproRecorder().observeReproMouse(tab, mouse)
-    if (mouse.type === 'mouseUp') access.scheduleTabOverviewPreview(tab, TAB_OVERVIEW_INPUT_SETTLE_MS)
-    if ((mouse.type === 'mouseDown' || mouse.type === 'contextMenu') && !access.agentInputWebContents().has(webContents.id)) {
+    browser.reproRecorder.observeReproMouse(tab, mouse)
+    if (mouse.type === 'mouseUp') scheduleTabOverviewPreview(browser, tab, TAB_OVERVIEW_INPUT_SETTLE_MS)
+    if ((mouse.type === 'mouseDown' || mouse.type === 'contextMenu') && !browser.agentInputWebContents.has(webContents.id)) {
       tab.humanInteractionGeneration += 1
       tab.lastHumanInteractionAt = Date.now()
       tab.lastActiveAt = tab.lastHumanInteractionAt
-      access.mcpActivityFollower().noteHumanInput()
-      selectOtherPane(access, tab)
-      access.options().onUserInteraction?.({ tabId: tab.id, workspaceId: tab.mcpGroupId })
+      browser.mcpActivityFollower.noteHumanInput()
+      selectOtherPane(browser, tab)
+      browser.options.onUserInteraction?.({ tabId: tab.id, workspaceId: tab.mcpGroupId })
     }
   })
 }
@@ -81,11 +88,11 @@ export function attachPagePointerEvents<Tab extends PagePointerEventsTab>(access
  * did not show: it becomes the active tab. It is a selection, so a tab still
  * waking for an earlier one stays out.
  */
-function selectOtherPane<Tab extends PagePointerEventsTab>(access: PagePointerEventsAccess<Tab>, tab: Tab): void {
-  if (!access.splitViewContains(tab.id) || access.activeTabId() === tab.id) return
-  access.setAgentFollow(undefined)
-  access.writeTabSelectionGeneration(access.tabSelectionGeneration() + 1)
-  access.writeActiveTabId(tab.id)
-  access.markTabActiveInGroup(tab)
-  access.changed()
+function selectOtherPane(browser: Browser, tab: BrowserTab): void {
+  if (!browser.splitViewContains(tab.id) || browser.activeTabId === tab.id) return
+  browser.agentFollow = undefined
+  browser.tabSelectionGeneration += 1
+  browser.writeActiveTabId(tab.id)
+  browser.markTabActiveInGroup(tab)
+  publishChange(browser)
 }

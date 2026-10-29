@@ -1,5 +1,10 @@
 import { EventEmitter } from 'node:events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+// The browser below is a stand-in that answers every call; these functions ask it instead of reading its fields.
+vi.mock('../src/main/browser/site-muting/site-muting.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/site-muting/site-muting.js')>(),
+  applySiteMuting: (browser: { applySiteMuting: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.applySiteMuting(...args)
+}))
 import { TabDiscoveryTitle } from '../src/main/browser/tab-discovery-title.js'
 import { attachNavigationEvents } from '../src/main/browser/tab-events/navigation-events.js'
 
@@ -30,6 +35,8 @@ function tabPage(options: { restored?: boolean } = {}) {
     isLoading: () => contents.loading,
     isLoadingMainFrame: () => contents.loading,
     isDestroyed: () => false,
+    // The ready page's form edit watcher, which finds nothing.
+    executeJavaScript: async () => undefined,
     navigationHistory: {
       getActiveIndex: () => contents.entryIndex,
       length: () => contents.entryCount || contents.entryIndex + 1,
@@ -40,18 +47,18 @@ function tabPage(options: { restored?: boolean } = {}) {
     id: 'tab', url: 'about:blank', title: 'New Tab', loading: false, sleeping: false,
     discoveryTitle: new TabDiscoveryTitle(), navigationGeneration: 0, faviconRequestId: 0, pendingHistoryUrl: null,
     suppressInitialHistory: options.restored === true, navigationPolicyDenialSequence: 0, emulationContextGeneration: 0,
-    documentGeneration: 0, walletNavigationGeneration: 0
+    documentGeneration: 0, walletNavigationGeneration: 0, webContents: contents
   }
   const visits: Array<{ url: string; samePage: boolean }> = []
   const titles: string[] = []
   const fallback = anything() as Record<string | symbol, unknown>
   const answers: Record<string | symbol, unknown> = {
-    isDestroyed: () => false,
+    destroyed: false,
     recordVisit: (visited: typeof tab, samePage: boolean) => visits.push({ url: visited.url, samePage }),
-    options: () => ({ getLocale: () => 'en', onPageTitleUpdated: ({ title }: { title: string }) => titles.push(title) })
+    options: { getLocale: () => 'en', onPageTitleUpdated: ({ title }: { title: string }) => titles.push(title) }
   }
-  const access = new Proxy({}, { get: (_target, key) => answers[key] ?? fallback[key] })
-  attachNavigationEvents(access as never, tab as never, contents as never)
+  const browser = new Proxy({}, { get: (_target, key) => answers[key] ?? fallback[key] })
+  attachNavigationEvents(browser as never, tab as never, contents as never)
 
   /**
    * Commits a document at an address and history entry, which stays loading and becomes ready unless told not to. As in

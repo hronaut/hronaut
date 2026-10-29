@@ -1,5 +1,10 @@
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
+// The browser below answers workspaceNavigationAllowed, which a page navigating its tab asks.
+vi.mock('../src/main/browser/workspace-navigation/workspace-navigation.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-navigation/workspace-navigation.js')>(),
+  workspaceNavigationAllowed: (browser: { workspaceNavigationAllowed: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.workspaceNavigationAllowed(...args)
+}))
 import { attachNavigationEvents } from '../src/main/browser/tab-events/navigation-events.js'
 import { sleepBlockReason } from '../src/main/browser/tab-sleep/tab-sleep.js'
 
@@ -75,8 +80,8 @@ describe('a page navigating a sleeping tab', () => {
     const tab = { id: 'popup', url: 'https://popup.example/', sleeping: true, mcpGroupId: 'client', navigationPolicyDenialSequence: 0 }
     const workspaceNavigationAllowed = vi.fn(() => policyAllows)
     const fallback = anything() as Record<string | symbol, unknown>
-    const access = new Proxy({}, { get: (_target, key) => key === 'workspaceNavigationAllowed' ? workspaceNavigationAllowed : fallback[key] })
-    attachNavigationEvents(access as never, tab as never, contents as never)
+    const browser = new Proxy({}, { get: (_target, key) => key === 'workspaceNavigationAllowed' ? workspaceNavigationAllowed : fallback[key] })
+    attachNavigationEvents(browser as never, tab as never, contents as never)
     const navigate = (url: string, isMainFrame = true) => {
       const preventDefault = vi.fn()
       contents.emit('will-frame-navigate', { url, isMainFrame, preventDefault })

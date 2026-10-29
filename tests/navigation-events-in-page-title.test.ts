@@ -1,5 +1,10 @@
 import { EventEmitter } from 'node:events'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+// The browser below is a stand-in that answers every call; these functions ask it instead of reading its fields.
+vi.mock('../src/main/browser/site-muting/site-muting.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/site-muting/site-muting.js')>(),
+  applySiteMuting: (browser: { applySiteMuting: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.applySiteMuting(...args)
+}))
 import { TabDiscoveryTitle } from '../src/main/browser/tab-discovery-title.js'
 import { attachNavigationEvents } from '../src/main/browser/tab-events/navigation-events.js'
 
@@ -21,21 +26,25 @@ function page(url: string, title: string) {
     getTitle: () => contents.title,
     isLoading: () => false,
     isLoadingMainFrame: () => false,
-    isDestroyed: () => false
+    isDestroyed: () => false,
+    // The ready page's sign-in and form edit watchers, which find nothing.
+    executeJavaScript: async () => undefined,
+    executeJavaScriptInIsolatedWorld: async () => null
   })
   const tab = {
     id: 'tab', url: 'about:blank', title: 'New Tab', loading: false, sleeping: false,
     discoveryTitle: new TabDiscoveryTitle(), navigationGeneration: 0, faviconRequestId: 0, pendingHistoryUrl: null,
-    suppressInitialHistory: false, navigationPolicyDenialSequence: 0, emulationContextGeneration: 0
+    suppressInitialHistory: false, navigationPolicyDenialSequence: 0, emulationContextGeneration: 0,
+    webContents: contents
   }
   const visits: Array<{ url: string; title: string }> = []
   const fallback = anything() as Record<string | symbol, unknown>
   const answers: Record<string | symbol, unknown> = {
-    isDestroyed: () => false,
+    destroyed: false,
     recordVisit: (visited: typeof tab) => visits.push({ url: visited.url, title: visited.title })
   }
-  const access = new Proxy({}, { get: (_target, key) => answers[key] ?? fallback[key] })
-  attachNavigationEvents(access as never, tab as never, contents as never)
+  const browser = new Proxy({}, { get: (_target, key) => answers[key] ?? fallback[key] })
+  attachNavigationEvents(browser as never, tab as never, contents as never)
   /** Loads the page; a title the page sets itself is reported to the tab, as Electron does. */
   const open = (pageTitle?: string) => {
     contents.emit('did-navigate', {}, contents.url)

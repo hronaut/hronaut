@@ -16,13 +16,12 @@ import { visualCompare, visualDiff, type BrowserVisualCompareResult } from './vi
 import { callWebMcpTool, listWebMcpTools, webMcpStatus, type WebMcpStatus, type WebMcpToolCall, type WebMcpToolList } from './webmcp/webmcp.js'
 import { inspectPwa } from './pwa-inspection/pwa-inspection.js'
 import { elementInspection, imageState, mediaState } from './element-inspection/element-inspection.js'
-import { appendConsoleMessage, consoleMessages, retainRuntimeConsoleMessage } from './console-messages/console-messages.js'
+import { consoleMessages } from './console-messages/console-messages.js'
 import {
   getTabOverviewPagePreview,
   getTabOverviewPreviews,
   invalidateTabOverviewPreview,
   performTabOverviewPreviewCapture,
-  scheduleTabOverviewPreview,
   storeTabOverviewPreview,
   type TabOverviewPreviewCaptureRequest
 } from './tab-overview-previews/tab-overview-previews.js'
@@ -31,7 +30,7 @@ import { attachPageContextMenuEvents } from './context-menus/page-context-menu-e
 import { workspaceContextMenuItems } from './context-menus/workspace-context-menu.js'
 import { fillForm, scroll, select, type } from './agent-page-actions/form-input-and-scroll.js'
 import type { NativeWheelInput } from './native-wheel.js'
-import { agentWheelUnderWay, wheel } from './agent-wheel/agent-wheel.js'
+import { wheel } from './agent-wheel/agent-wheel.js'
 import type { AgentTouchAccess } from './agent-touch/agent-touch-access.js'
 import { touch, type NativeTouchInput, type NativeTouchProgress } from './agent-touch/agent-touch.js'
 import type { NativeKeyHoldInput, NativeKeyHoldProgress, NativeInputDispatchObserver } from './native-key-hold.js'
@@ -64,7 +63,7 @@ import { renderBrowserVideo } from './video-export.js'
 import { readVideoAudioFile } from './video-audio-file.js'
 import { writeUniqueDownloadFile } from './unique-download-file.js'
 import { VIDEO_RECORDING_NOTICES, type BrowserVideoOptions, type BrowserVideoState } from '../../shared/video.js'
-import { watchCredentialSubmission, type BrowserCredentialCandidate } from './credential-capture/credential-capture.js'
+import type { BrowserCredentialCandidate } from './credential-capture/credential-capture.js'
 import type { BrowserNetworkRequestRecord } from './network-recording.js'
 import { installSessionHooks } from './session-hooks/session-hooks.js'
 import { performanceEnvironment, tabPerformanceEnvironmentFingerprint } from './emulation/performance-environment.js'
@@ -74,11 +73,10 @@ import {
   cancelElementPicker,
   captureElementScreenshot,
   pickElement,
-  queueElementPickerMouseInput,
   type BrowserElementPickerResult,
   type BrowserElementPickerSession
 } from './element-picker/element-picker.js'
-import { cancelScreenshotArea, captureScreenshotArea, queueScreenshotAreaMouseInput, type BrowserScreenshotAreaSession } from './screenshot-area/screenshot-area.js'
+import { cancelScreenshotArea, captureScreenshotArea, type BrowserScreenshotAreaSession } from './screenshot-area/screenshot-area.js'
 import { cancelNativeSelectionSessions } from './native-selections/native-selections.js'
 import { BrowserNetworkWaitController } from './network-wait-controller.js'
 import { PreviewCaptureQueue } from './preview-capture-queue.js'
@@ -108,7 +106,6 @@ import {
   networkConditionPublication,
   networkConditionState,
   networkRoutes,
-  queueNetworkRouteRequest,
   removeNetworkRoute,
   requireNetworkConditionsKnown,
   setNetworkRouteEnabled
@@ -151,9 +148,7 @@ import { assertActiveWorkspaceCapacity } from './workspace-creation/workspace-ca
 import { normalizeWorkspaceDescription } from '../../shared/workspace-description.js'
 import { reconcilePresentedViewVisibility, showResumedPresentedView, watchPresentedViewVisibility } from './presented-view-visibility.js'
 import { resizeViewport } from './emulation/resize-viewport.js'
-import { setEmulationViewSize } from './emulation/emulation-view-size.js'
 import { createSplitDivider } from './split-view/split-divider.js'
-import { loadFavicon } from './tab-favicon/tab-favicon.js'
 import { FaviconDecoder } from './favicon.js'
 import { createHash } from 'node:crypto'
 import { createRequire } from 'node:module'
@@ -186,7 +181,6 @@ import {
   type WebPreferences
 } from 'electron'
 import type { BrowserShortcutAction } from '../../shared/browser-shortcuts.js'
-import type { PageKeyboardEventsAccess } from './tab-events/page-keyboard-events-access.js'
 import { attachPageKeyboardEvents } from './tab-events/page-keyboard-events.js'
 import { noteShellHeldKey, trackShellHeldKeys } from './tab-events/shell-held-keys.js'
 import { MAX_BROWSER_TABS } from '../../shared/types.js'
@@ -255,7 +249,7 @@ import type { NormalizedBrowserNetworkWaitOptions } from '../../shared/network-w
 import type { ScreenshotAnnotationReport } from '../../shared/screenshot-annotations.js'
 import type { ScreenshotsAccess } from './screenshots/screenshots-access.js'
 import { screenshot } from './screenshots/screenshots.js'
-import { addInspectorIssue, inspectorIssues, recordAuthChallenge } from './inspector-issues/inspector-issues.js'
+import { inspectorIssues } from './inspector-issues/inspector-issues.js'
 import { answerHttpAuth, followSignIns, type HttpAuthQuestion, type SignInAnswer } from './http-auth/http-auth.js'
 import {
   answerCertificateError,
@@ -445,7 +439,6 @@ import {
   withWorkspaceStorageOperation
 } from './workspace-operations/workspace-operations.js'
 import { OpenedTabObservation, type TabsOpenedDuringClick } from './click-opened-tabs.js'
-import { pageShortcut } from './take-over.js'
 import { hasAgentPauseExceptions, isTabAgentPaused, isTabTakenOver, setAllAgentsPaused, setTabAgentPaused } from './agent-pause/agent-pause.js'
 import type { InteractionLockAccess } from './interaction-lock/interaction-lock-access.js'
 import { setAllHumanInteractionLocked, setTabHumanInteractionLocked } from './interaction-lock/interaction-lock.js'
@@ -458,9 +451,7 @@ import {
 } from './website-dialogs/website-dialogs.js'
 import {
   agentInputDebugger,
-  consumeExpectedAgentKeyboardInput,
   sendAuthorizedAgentInputCommand,
-  shouldBlockHumanMouseInput,
   type AuthorizedAgentKeyboardInput,
   type AuthorizedAgentMouseInput
 } from './agent-input-authorization/agent-input-authorization.js'
@@ -469,12 +460,9 @@ import { nativeInputAuthority } from './native-input-authority/native-input-auth
 import { withBackgroundAgentFocusGuard } from './agent-input-scope/focus-isolation.js'
 import { attachPageDestroyedEvents } from './tab-events/page-destroyed-events.js'
 import { attachPageCloseEvents } from './tab-events/page-close-events.js'
-import type { DebuggerEventsAccess } from './tab-events/debugger-events-access.js'
 import { attachDebuggerEvents } from './tab-events/debugger-events.js'
-import type { NavigationEventsAccess } from './tab-events/navigation-events-access.js'
 import { attachNavigationEvents } from './tab-events/navigation-events.js'
 import { attachPageFocusEvents } from './tab-events/page-focus-events.js'
-import type { PagePointerEventsAccess } from './tab-events/page-pointer-events-access.js'
 import { attachPagePointerEvents } from './tab-events/page-pointer-events.js'
 import { attachPageTargetUrlEvents } from './tab-events/page-target-url-events.js'
 import { attachRendererHealthEvents } from './tab-events/renderer-health-events.js'
@@ -487,7 +475,6 @@ import {
   sleepFallbackTab,
   sleepBeforeFirstLoad,
   wakeTab,
-  watchUnsavedFormEdits,
   withoutSleepingPage
 } from './tab-sleep/tab-sleep.js'
 import { SLEEPING_PAGE_URL } from './tab-sleep/sleeping-page.js'
@@ -1513,10 +1500,6 @@ export class Browser {
       withAgentInput: (webContents, operation) => this.withAgentInput(webContents, operation),
       withDebugger: (webContents, operation) => this.withDebugger(webContents, operation)
     }
-  }
-
-  private agentWheelUnderWay(webContentsId: number): boolean {
-    return agentWheelUnderWay(this, webContentsId)
   }
 
   retainAgentFollow(agentIds: ReadonlySet<string>): void {
@@ -3434,16 +3417,12 @@ export class Browser {
     return this.getState()
   }
 
-  private recordAuthChallenge(tab: BrowserTab, details: Electron.AuthenticationResponseDetails, authInfo: Electron.AuthInfo): void {
-    recordAuthChallenge(tab, details, authInfo)
-  }
-
-  private answerHttpAuth(tab: BrowserTab, event: Electron.Event, details: Electron.AuthenticationResponseDetails,
+  answerHttpAuth(tab: BrowserTab, event: Electron.Event, details: Electron.AuthenticationResponseDetails,
     authInfo: Electron.AuthInfo, callback: (username?: string, password?: string) => void): void {
     answerHttpAuth({ askToSignIn: async (question) => this.options.askToSignIn?.(question) ?? null }, tab, event, details, authInfo, callback)
   }
 
-  private answerCertificateError(tab: BrowserTab, event: Electron.Event, url: string, error: string, certificate: Electron.Certificate,
+  answerCertificateError(tab: BrowserTab, event: Electron.Event, url: string, error: string, certificate: Electron.Certificate,
     callback: (trusted: boolean) => void, isMainFrame: boolean): void {
     answerCertificateError({
       probe: (session, probeUrl) => net.request({ url: probeUrl, session: session as Session, redirect: 'manual' }) as StrictTransportProbe,
@@ -4434,167 +4413,29 @@ export class Browser {
     runPageScriptsOnceDocumentReady(webContents)
     attachPageDestroyedEvents(this, tab, webContents)
     attachPageFocusEvents(this, tab, webContents)
-    attachPageKeyboardEvents(this.pageKeyboardEventsAccess(), tab, webContents)
-    attachPagePointerEvents(this.pagePointerEventsAccess(), tab, webContents)
+    attachPageKeyboardEvents(this, tab, webContents)
+    attachPagePointerEvents(this, tab, webContents)
     attachPageTargetUrlEvents(this, tab, webContents)
     attachPageWheelZoom(this, tab, webContents)
     attachPageContextMenuEvents(this.pageContextMenuAccess(), tab, webContents)
     attachDevToolsEvents(this.devToolsAccess(), tab, webContents)
     this.frameObservation.track(webContents)
-    attachDebuggerEvents(this.debuggerEventsAccess(), tab, webContents)
+    attachDebuggerEvents(this, tab, webContents)
     void this.ensureDialogMonitoring(tab)
-    attachNavigationEvents(this.navigationEventsAccess(), tab, webContents)
+    attachNavigationEvents(this, tab, webContents)
     attachPageFullscreenEvents(this, tab, webContents)
     attachConsoleMessageEvents(tab, webContents)
     attachRendererHealthEvents(this, tab, webContents)
     attachWindowOpenHandler(this, tab, webContents)
   }
 
-  /**
-   * The narrow view a page's debugger listeners get of this manager's private
-   * request rules, network waits, console messages, execution contexts,
-   * trusted chrome occlusion, website dialogs, inspector issues, profiling,
-   * CSS state preview, emulation sizing, tabs, DevTools opening set, dialog
-   * monitoring and state publication. It is a prototype method rather than a
-   * field, so managers created without the constructor (as unit tests do)
-   * still provide it. Each member reads the manager when called.
-   */
-  private debuggerEventsAccess(): DebuggerEventsAccess<BrowserTab> {
-    return {
-      queueNetworkRouteRequest: (tab, params) => this.queueNetworkRouteRequest(tab, params),
-      networkWaitController: () => this.networkWaitController,
-      appendConsoleMessage: (tab, message, source) => appendConsoleMessage(tab, message, source),
-      retainRuntimeConsoleMessage: (tab, message) => retainRuntimeConsoleMessage(tab, message),
-      defaultExecutionContexts: () => this.defaultExecutionContexts,
-      browserContentOccluded: () => this.browserContentOccluded,
-      dismissWebsiteDialogForTrustedChrome: (tab) => this.dismissWebsiteDialogForTrustedChrome(tab),
-      changed: (persist) => this.changed(persist),
-      addInspectorIssue: (tab, value) => addInspectorIssue(this, tab, value),
-      profiling: () => this.profiling,
-      cssStatePreview: () => this.cssStatePreview,
-      setEmulationViewSize: (tab, viewport) => setEmulationViewSize(this, tab, viewport),
-      isDestroyed: () => this.destroyed,
-      hasTab: (tabId) => this.tabs.has(tabId),
-      devToolsOpening: () => this.devToolsOpening,
-      ensureDialogMonitoring: (tab) => this.ensureDialogMonitoring(tab)
-    }
-  }
-
-  /**
-   * The narrow view a page's keyboard listener gets of this manager's private
-   * trusted chrome occlusion, in-flight and expected agent input, native
-   * selection sessions, human input lock, repro recording, tab overview
-   * previews, MCP activity follower and options. It is a prototype method
-   * rather than a field, so managers created without the constructor (as
-   * unit tests do) still provide it. Each member reads the manager when
-   * called.
-   */
-  private pageKeyboardEventsAccess(): PageKeyboardEventsAccess<BrowserTab> {
-    return {
-      browserContentOccluded: () => this.browserContentOccluded,
-      agentInputWebContents: () => this.agentInputWebContents,
-      screenshotAreaSessions: () => this.screenshotAreaSessions,
-      cancelScreenshotArea: (tabId) => this.cancelScreenshotArea(tabId),
-      elementPickerSessions: () => this.elementPickerSessions,
-      cancelElementPicker: (tabId) => this.cancelElementPicker(tabId),
-      consumeExpectedAgentKeyboardInput: (webContentsId, input) => this.consumeExpectedAgentKeyboardInput(webContentsId, input),
-      pageShortcut: (requested, input) => pageShortcut(requested, input),
-      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
-      shellHeldKeys: () => this.shellHeldKeys,
-      reproRecorder: () => this.reproRecorder,
-      scheduleTabOverviewPreview: (tab, settleMs) => scheduleTabOverviewPreview(this, tab, settleMs),
-      mcpActivityFollower: () => this.mcpActivityFollower,
-      options: () => this.options
-    }
-  }
-
-  /**
-   * The narrow view a page's mouse, wheel and touch listeners get of this
-   * manager's private trusted chrome occlusion, in-flight agent input, agent
-   * wheel scrolling, native selection sessions, human input lock, repro
-   * recording, tab overview previews, MCP activity follower, split view,
-   * active tab, agent following, workspace activation, state publication and
-   * options. It is a prototype method rather than a field, so managers
-   * created without the constructor (as unit tests do) still provide it.
-   * Each member reads the manager when called.
-   */
-  private pagePointerEventsAccess(): PagePointerEventsAccess<BrowserTab> {
-    return {
-      browserContentOccluded: () => this.browserContentOccluded,
-      agentInputWebContents: () => this.agentInputWebContents,
-      agentWheelUnderWay: (webContentsId) => this.agentWheelUnderWay(webContentsId),
-      agentWheel: () => this.agentWheel,
-      screenshotAreaSessions: () => this.screenshotAreaSessions,
-      queueScreenshotAreaMouseInput: (tab, session, type, mouse) => this.queueScreenshotAreaMouseInput(tab, session, type, mouse),
-      elementPickerSessions: () => this.elementPickerSessions,
-      queueElementPickerMouseInput: (tab, session, type, mouse) => this.queueElementPickerMouseInput(tab, session, type, mouse),
-      shouldBlockHumanMouseInput: (tab, mouse) => this.shouldBlockHumanMouseInput(tab, mouse),
-      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
-      reproRecorder: () => this.reproRecorder,
-      scheduleTabOverviewPreview: (tab, settleMs) => scheduleTabOverviewPreview(this, tab, settleMs),
-      mcpActivityFollower: () => this.mcpActivityFollower,
-      splitViewContains: (tabId) => this.splitViewContains(tabId),
-      activeTabId: () => this.activeTabId,
-      writeActiveTabId: (tabId) => this.writeActiveTabId(tabId),
-      tabSelectionGeneration: () => this.tabSelectionGeneration,
-      writeTabSelectionGeneration: (generation) => { this.tabSelectionGeneration = generation },
-      setAgentFollow: (follow) => { this.agentFollow = follow },
-      markTabActiveInGroup: (tab) => this.markTabActiveInGroup(tab),
-      changed: (persist) => this.changed(persist),
-      options: () => this.options
-    }
-  }
-
-  /**
-   * The narrow view a page's title, loading and navigation listeners get of
-   * this manager's private destroyed flag, history, options, workspace
-   * navigation policy, diagnostic logs, tab overview previews, wallet
-   * requests, CSS state preview, native selection sessions, favicons, sign-in
-   * challenges, presentation repair, repro recording, workspace origins,
-   * console messages, credential and form watching, interaction lock and
-   * state publication. It is a prototype method rather than a field, so
-   * managers created without the constructor (as unit tests do) still
-   * provide it. Each member reads the manager when called.
-   */
-  private navigationEventsAccess(): NavigationEventsAccess<BrowserTab> {
-    return {
-      isDestroyed: () => this.destroyed,
-      changed: (persist) => this.changed(persist),
-      recordVisit: (tab, samePage) => this.recordVisit(tab, samePage),
-      options: () => this.options,
-      workspaceNavigationAllowed: (groupId, url, source) => this.workspaceNavigationAllowed(groupId, url, source),
-      prepareDiagnosticNavigation: (tab) => this.prepareDiagnosticNavigation(tab),
-      invalidateTabOverviewPreview: (tab) => invalidateTabOverviewPreview(this, tab),
-      runWalletLifecycleAction: (action, callback) => this.runWalletLifecycleAction(action, callback),
-      cssStatePreview: () => this.cssStatePreview,
-      cancelNativeSelectionSessions: (tab) => this.cancelNativeSelectionSessions(tab),
-      loadFavicon: (tab, favicons) => this.loadFavicon(tab, favicons),
-      recordAuthChallenge: (tab, details, authInfo) => this.recordAuthChallenge(tab, details, authInfo),
-      answerHttpAuth: (tab, event, details, authInfo, callback) => this.answerHttpAuth(tab, event, details, authInfo, callback),
-      answerCertificateError: (tab, event, url, error, certificate, callback, isMainFrame) => (
-        this.answerCertificateError(tab, event, url, error, certificate, callback, isMainFrame)
-      ),
-      certificateRefusal: (tab, url) => certificateRefusal(tab.webContents, url),
-      reconcileTabPresentation: (tab) => this.reconcileTabPresentation(tab),
-      reproRecorder: () => this.reproRecorder,
-      scheduleTabOverviewPreview: (tab, settleMs) => scheduleTabOverviewPreview(this, tab, settleMs),
-      trackWorkspaceOrigin: (tab, url) => this.trackWorkspaceOrigin(tab, url),
-      applySiteMuting: (tab) => applySiteMuting(this, tab),
-      appendConsoleMessage: (tab, message, source) => appendConsoleMessage(tab, message, source),
-      watchCredentialSubmission: (tab) => watchCredentialSubmission(this, tab),
-      watchUnsavedFormEdits: (tab, frame) => watchUnsavedFormEdits(tab, frame),
-      syncHumanInteractionInputGuard: (tab) => this.syncHumanInteractionInputGuard(tab),
-      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab)
-    }
-  }
-
-  private recordVisit(tab: BrowserTab, samePage: boolean): void {
+  recordVisit(tab: BrowserTab, samePage: boolean): void {
     if (!isWebUrl(tab.url)) return
     this.trackWorkspaceOrigin(tab, tab.url)
     this.options.onPageVisited?.({ url: tab.url, title: tab.title, samePage })
   }
 
-  private trackWorkspaceOrigin(tab: BrowserTab, url: string): void {
+  trackWorkspaceOrigin(tab: BrowserTab, url: string): void {
     if (!tab.mcpGroupId || !isWebUrl(url)) return
     const workspace = this.mcpTabGroups.get(tab.mcpGroupId)
     if (!workspace) return
@@ -4641,10 +4482,6 @@ export class Browser {
         return context ? () => suggestStrongPassword(this, tab, context) : null
       }
     }
-  }
-
-  private loadFavicon(tab: BrowserTab, favicons: string[]): Promise<void> {
-    return loadFavicon(this, tab, favicons)
   }
 
   private sleepBlockReason(tab: BrowserTab, allowActiveTab?: boolean): string | undefined {
@@ -4759,10 +4596,6 @@ export class Browser {
     focusTabOrTrustedChrome(this, tab)
   }
 
-  private shouldBlockHumanMouseInput(tab: BrowserTab, mouse: Electron.MouseInputEvent): boolean {
-    return shouldBlockHumanMouseInput(this, tab, mouse)
-  }
-
   private agentInputDebugger(
     webContents: BrowserTab['view']['webContents'],
     validateInput?: () => void
@@ -4781,33 +4614,8 @@ export class Browser {
     return sendAuthorizedAgentInputCommand(this, webContents, method, commandParams, validateInput, observer, beforeRawDispatch)
   }
 
-  private consumeExpectedAgentKeyboardInput(
-    webContentsId: number,
-    input: Electron.Input
-  ): boolean {
-    return consumeExpectedAgentKeyboardInput(this, webContentsId, input)
-  }
-
   syncHumanInteractionInputGuard(tab: BrowserTab): Promise<void> {
     return syncHumanInteractionInputGuard(this.interactionLockAccess(), tab)
-  }
-
-  private queueScreenshotAreaMouseInput(
-    tab: BrowserTab,
-    session: BrowserScreenshotAreaSession,
-    type: 'down' | 'move' | 'up',
-    mouse: Electron.MouseInputEvent
-  ): void {
-    queueScreenshotAreaMouseInput(this, tab, session, type, mouse)
-  }
-
-  private queueElementPickerMouseInput(
-    tab: BrowserTab,
-    session: BrowserElementPickerSession,
-    type: 'down' | 'move' | 'up',
-    mouse: Electron.MouseInputEvent
-  ): void {
-    queueElementPickerMouseInput(this, tab, session, type, mouse)
   }
 
   readonly unconfirmedSemanticClicks = new WeakSet<BrowserTab['view']['webContents']>()
@@ -4896,10 +4704,6 @@ export class Browser {
 
   private openDevTools(tab: BrowserTab): Promise<void> {
     return openDevTools(this.devToolsAccess(), tab)
-  }
-
-  private queueNetworkRouteRequest(tab: BrowserTab, params: unknown): void {
-    queueNetworkRouteRequest(this, tab, params)
   }
 
   prepareDiagnosticNavigation(tab: BrowserTab): void {

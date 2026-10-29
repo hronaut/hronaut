@@ -1,5 +1,11 @@
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
+// The certificate the tab refused, which the case gives each page and the browser would keep when it answered Chromium.
+const { certificateRefusal } = vi.hoisted(() => ({ certificateRefusal: vi.fn<(webContents: object, url: string) => unknown>() }))
+vi.mock('../src/main/browser/certificate-errors/certificate-errors.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/certificate-errors/certificate-errors.js')>(),
+  certificateRefusal
+}))
 import { attachNavigationEvents } from '../src/main/browser/tab-events/navigation-events.js'
 
 const PAGE = 'https://staging.example/login'
@@ -26,19 +32,18 @@ function tabWithRefusal(refusal?: { host: string; canProceed?: boolean; locked?:
     id: 'tab', url: 'about:blank', title: 'New tab', loading: true, sleeping: false,
     discoveryTitle: anything(), navigationGeneration: 0, documentGeneration: 0, faviconRequestId: 0, pendingHistoryUrl: null as string | null,
     suppressInitialHistory: false, navigationPolicyDenialSequence: 0, emulationContextGeneration: 0,
-    pageProblem: undefined as unknown
+    pageProblem: undefined as unknown, consoleMessages: []
   }
-  const certificateRefusal = vi.fn((_tab: unknown, url: string) => (refusal && url === PAGE ? refusal : undefined))
+  certificateRefusal.mockReset().mockImplementation((_webContents, url) => (refusal && url === PAGE ? refusal : undefined))
   const answerCertificateError = vi.fn()
   const own: Record<string, unknown> = {
-    certificateRefusal,
     answerCertificateError,
-    options: () => ({ getLocale: () => 'en-US' }),
-    isDestroyed: () => false
+    options: { getLocale: () => 'en-US' },
+    destroyed: false
   }
   const fallback = anything() as Record<string | symbol, unknown>
-  const access = new Proxy({}, { get: (_target, key) => (typeof key === 'string' && key in own ? own[key] : fallback[key]) })
-  attachNavigationEvents(access as never, tab as never, contents as never)
+  const browser = new Proxy({}, { get: (_target, key) => (typeof key === 'string' && key in own ? own[key] : fallback[key]) })
+  attachNavigationEvents(browser as never, tab as never, contents as never)
   const fail = (errorCode: number, errorDescription: string, isMainFrame = true) => {
     contents.emit('did-fail-load', {}, errorCode, errorDescription, PAGE, isMainFrame)
   }

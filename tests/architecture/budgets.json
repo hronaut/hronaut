@@ -1,6 +1,6 @@
 {
   "oversizedFiles": {
-    "src/main/browser/browser.ts": 4954,
+    "src/main/browser/browser.ts": 4758,
     "src/main/browser/downloads-controller.ts": 811,
     "src/main/index.ts": 1662,
     "src/main/mcp/http-server.ts": 856,
@@ -24,10 +24,6 @@
     "src/main/browser/screenshots/screenshots-access.ts",
     "src/main/browser/tab-close/before-unload-staging-access.ts",
     "src/main/browser/tab-close/close-tabs-for-person-access.ts",
-    "src/main/browser/tab-events/debugger-events-access.ts",
-    "src/main/browser/tab-events/navigation-events-access.ts",
-    "src/main/browser/tab-events/page-keyboard-events-access.ts",
-    "src/main/browser/tab-events/page-pointer-events-access.ts",
     "src/main/browser/tab-selection/tab-selection-access.ts",
     "src/main/browser/trusted-chrome-occlusion/trusted-chrome-occlusion-access.ts",
     "src/main/browser/workspace-archive/workspace-archive-access.ts",
