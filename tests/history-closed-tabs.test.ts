@@ -6,7 +6,6 @@ import type { BrowserClosedTabState } from '../src/shared/types.js'
 import { createBookmarksAndHistory } from '../src/main/bookmarks-history/bookmarks-and-history.js'
 import { Browser } from '../src/main/browser/browser.js'
 import { forgetClosedTabs, reopenClosedTabEntry } from '../src/main/browser/tab-reopening/tab-reopening.js'
-import type { TabReopeningAccess, TabReopeningTab } from '../src/main/browser/tab-reopening/tab-reopening-access.js'
 import { HistoryStore } from '../src/main/bookmarks-history/history-store.js'
 import { registerBrowsingDataIpc } from '../src/main/site-data/browsing-data-ipc.js'
 import { registerCollectionIpc } from '../src/main/collection-ipc.js'
@@ -34,17 +33,17 @@ function recentlyClosed(urls: string[], mcpGroupId?: string) {
   const closedTabs = urls.map((url) => closedTab(url, mcpGroupId))
   const detachedClosedTabs = new Set<BrowserClosedTabState[]>()
   let failOpening!: (error: Error) => void
-  const access = {
-    closedTabs: () => closedTabs,
-    detachedClosedTabs: () => detachedClosedTabs,
-    tabCount: () => 1,
+  const browser = {
+    closedTabs,
+    detachedClosedTabs,
+    tabs: new Map([['open', {}]]),
     createTab: () => new Promise<never>((_resolve, reject) => { failOpening = reject })
-  } as unknown as TabReopeningAccess<TabReopeningTab>
+  } as unknown as Browser
   return {
     closedTabs,
-    access,
+    browser,
     failOpening: (error: Error) => failOpening(error),
-    tabs: { forgetHistoryPages: vi.fn((matches: (url: string) => boolean, workspaceId?: string) => { forgetClosedTabs(access, matches, workspaceId) }) }
+    tabs: { forgetHistoryPages: vi.fn((matches: (url: string) => boolean, workspaceId?: string) => { forgetClosedTabs(browser, matches, workspaceId) }) }
   }
 }
 
@@ -236,8 +235,8 @@ describe('recently closed tabs and the history', () => {
   })
 
   it('keeps a closed tab forgotten when the history is cleared while it reopens and reopening it fails', async () => {
-    const { closedTabs, access, failOpening, tabs } = recentlyClosed(['https://bank.example/statement', 'https://news.example/'])
-    const reopening = reopenClosedTabEntry(access, closedTabs[0]!.id, true)
+    const { closedTabs, browser, failOpening, tabs } = recentlyClosed(['https://bank.example/statement', 'https://news.example/'])
+    const reopening = reopenClosedTabEntry(browser, closedTabs[0]!.id, true)
     tabs.forgetHistoryPages(() => true)
     failOpening(new Error('The tab could not be opened.'))
     await expect(reopening).rejects.toThrow('could not be opened')
@@ -246,8 +245,8 @@ describe('recently closed tabs and the history', () => {
   })
 
   it('remembers a closed tab again when reopening it fails and the history cleared meanwhile did not show it', async () => {
-    const { closedTabs, access, failOpening, tabs } = recentlyClosed(['https://bank.example/statement', 'https://news.example/'])
-    const reopening = reopenClosedTabEntry(access, closedTabs[0]!.id, true)
+    const { closedTabs, browser, failOpening, tabs } = recentlyClosed(['https://bank.example/statement', 'https://news.example/'])
+    const reopening = reopenClosedTabEntry(browser, closedTabs[0]!.id, true)
     tabs.forgetHistoryPages((url) => url === 'https://news.example/')
     failOpening(new Error('The tab could not be opened.'))
     await expect(reopening).rejects.toThrow('could not be opened')
