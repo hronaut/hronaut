@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, Menu: {} }))
 import { Browser } from '../src/main/browser/browser.js'
+import { orderedTabs } from '../src/main/browser/browser-core.js'
 
 // Dragging one of several selected tabs moved only that tab; as in Chrome, the selected tabs move together.
 
@@ -8,7 +9,6 @@ interface Tab { id: string; url: string; pinned: boolean; sleeping: boolean; mcp
 interface Internals {
   tabs: Map<string, Tab>
   changed: () => void
-  orderedTabs(): Tab[]
   reorderTabs(tabIds: readonly string[], targetTabId: string, placement: 'before' | 'after'): unknown
 }
 
@@ -29,7 +29,7 @@ function manager(ids: string[]): Internals {
   }) as unknown as Internals
 }
 
-const order = (tabs: Internals) => tabs.orderedTabs().map((tab) => tab.id)
+const order = (tabs: Internals) => orderedTabs(tabs as never).map((tab) => tab.id)
 
 describe('moving the selected tabs together', () => {
   it('puts them before or after the target in the order they had, whatever order they were named in', () => {

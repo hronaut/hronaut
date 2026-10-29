@@ -81,8 +81,7 @@ function browser() {
     browserContentOccluded: false, pageFullscreenTabs: new Set(),
     assertWorkspaceNavigationAllowed: vi.fn(), workspaceNavigationAllowed: () => true, workspaceObservationGeneration: () => 0,
     roundPageCorners: vi.fn(), installSessionHooks: vi.fn(), attachTabEvents: vi.fn(), layout: vi.fn(), changed: vi.fn(),
-    withTabLabelLifecycle: (run: () => Promise<unknown>) => run(), getState: () => ({}), text: (key: string) => key,
-    orderedTabs(this: Manager) { return [...this.tabs.values()] }
+    withTabLabelLifecycle: (run: () => Promise<unknown>) => run(), getState: () => ({}), text: (key: string) => key
   }) as Manager
   const opened: Array<{ url: string; loadsInTurn: boolean }> = []
   const registry: InstanceType<typeof WorkspaceRegistry> = new WorkspaceRegistry({

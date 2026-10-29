@@ -22,7 +22,7 @@ for (const stage of ['queue', 'monitor', 'attach', 'Page.enable', 'Runtime.enabl
   const tab = { id: 'tab', url: 'https://example.test/', mcpGroupId: 'workspace', webContents: contents }
   const workspace = {}
   const manager = Object.assign(Object.create(Browser.prototype), {
-    getTab: () => tab, snapshotDeltaContext: () => context,
+    snapshotDeltaContext: () => context,
     tabs: new Map([['tab', tab]]), mcpTabGroups: new Map([['workspace', workspace]]), inspectionPermissions: new WeakMap(),
     devToolsOpening: new Set(), destroyed: false,
     debuggerQueue: { run: async (_id: number, operation: () => Promise<unknown>) => { if (stage === 'queue') veto = true; return operation() } },
