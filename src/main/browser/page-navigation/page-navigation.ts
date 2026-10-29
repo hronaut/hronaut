@@ -1,7 +1,7 @@
 import type { WebContents } from 'electron'
 import type { BrowserState } from '../../../shared/types.js'
 import { LocalizedError } from '../../localized-error.js'
-import { asksToSignIn } from '../http-auth/http-auth.js'
+import { pageLoadTimedOut } from '../http-auth/http-auth.js'
 import { localizedLoadFailure } from '../load-failure-error.js'
 import { PAGE_LOAD_WAIT_MS, settledWithin } from '../page-waits/page-load-limit.js'
 import { RendererExitedError } from '../renderer-exit-guard.js'
@@ -89,7 +89,7 @@ export async function navigate<Tab extends PageNavigationTab>(access: PageNaviga
   // A person sees the tab still loading, as in Chrome; an agent would otherwise read the page it left. A website that
   // asks the person to sign in first holds the page until they do, so the agent is told that instead.
   if (loaded === 'not-shown' && !options.byPerson) {
-    throw new LocalizedError(asksToSignIn(webContents) ? 'appErrors.page.signInAsked' : 'appErrors.page.loadTimedOut')
+    throw pageLoadTimedOut(webContents)
   }
   if (loaded === 'renderer-exited' && !options.byPerson) throw new RendererExitedError(true)
   if (loaded !== 'asked-to-stay') return access.getState()
@@ -297,7 +297,7 @@ async function reloadPage<Tab extends PageNavigationTab>(access: PageNavigationA
     const loaded = await settledWithin(tab.webContents.loadURL(pageProblem.url, ignoreCache
       ? { extraHeaders: 'Cache-Control: no-cache\r\nPragma: no-cache\r\n' }
       : undefined).catch(() => undefined))
-    if (!loaded) throw new LocalizedError('appErrors.page.loadTimedOut')
+    if (!loaded) throw pageLoadTimedOut(tab.webContents)
   } else if (pageProblem?.kind === 'unresponsive') {
     const contents = tab.webContents
     const navigationGeneration = tab.navigationGeneration

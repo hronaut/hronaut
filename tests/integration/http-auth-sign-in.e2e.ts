@@ -11,12 +11,21 @@ const SIGNED_IN = `Basic ${Buffer.from(`ada:${PASSWORD}`).toString('base64')}`
 
 const text = (result: CallToolResult): string => result.content.filter(item => item.type === 'text').map(item => item.type === 'text' ? item.text : '').join('\n')
 
-/** A website whose /reports pages ask for a username and password, and whose /admin page asks in another realm. */
+/**
+ * A website whose /reports pages ask for a username and password, whose /admin page asks in another realm, and whose
+ * /poll page asks for /reports/data again and again.
+ */
 function signInServer() {
   const authorizations: string[] = []
+  const requests: string[] = []
   const server = createServer((request: IncomingMessage, response) => {
     const path = request.url ?? '/'
+    requests.push(path)
     if (request.headers.authorization) authorizations.push(request.headers.authorization)
+    if (path === '/poll') {
+      response.writeHead(200, { 'content-type': 'text/html' }).end('<title>Poll</title><script>setInterval(() => fetch("/reports/data").catch(() => {}), 200)</script>')
+      return
+    }
     const realm = path.startsWith('/reports') ? 'Reports' : path.startsWith('/admin') ? 'Admin' : undefined
     if (realm && request.headers.authorization !== SIGNED_IN) {
       response.writeHead(401, { 'www-authenticate': `Basic realm="${realm}"`, 'content-type': 'text/html' }).end('<title>Denied</title>Denied')
@@ -24,7 +33,7 @@ function signInServer() {
     }
     response.writeHead(200, { 'content-type': 'text/html' }).end(`<title>${realm ?? 'Start'} page</title>${path}`)
   })
-  return { server, authorizations }
+  return { server, authorizations, requests }
 }
 
 test('signs a person in to a website that asks for a username and password, as Chrome does, and shows its refusal when they cancel', async ({ appWindow, electronApp }) => {
@@ -39,7 +48,9 @@ test('signs a person in to a website that asks for a username and password, as C
     await expect(dialog).toBeVisible()
     await expect(dialog).toHaveAttribute('data-variant', 'http-auth')
     expect(await trustedDialogHeadline(appWindow)).toBe(`Sign in to ${origin}`)
-    await expect(dialog).toContainText('Your connection to this site is not private.')
+    // A website on this computer is not read on the way, as the address bar says too.
+    await expect(dialog).toContainText('never shows them to agents')
+    await expect(dialog).not.toContainText('not private')
     const username = dialog.getByLabel('Username')
     await expect(username).toBeFocused()
     await expect(dialog).toHaveAttribute('data-armed', 'true')
@@ -68,6 +79,26 @@ test('signs a person in to a website that asks for a username and password, as C
     const page = await electronApp.evaluate(({ webContents }, url) => webContents.getAllWebContents()
       .find(contents => contents.getURL() === url)?.executeJavaScript('document.documentElement.outerHTML'), `${origin}/admin`)
     expect(page).not.toContain(PASSWORD)
+  } finally {
+    await closeFixtureServer(server)
+  }
+})
+
+test('does not ask again for a sign-in the person cancelled while the page that asked is shown, however often it asks', async ({ appWindow }) => {
+  const { server, requests } = signInServer()
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+  try {
+    await appWindow.evaluate(url => { void (window as unknown as { hronaut: { newTab(options: { url: string; active: boolean }): Promise<unknown> } }).hronaut.newTab({ url, active: true }) }, `${origin}/poll`)
+    const dialog = trustedDialog(appWindow)
+    await expect(dialog).toBeVisible()
+    await expect(dialog).toHaveAttribute('data-armed', 'true')
+    await dialog.locator('.ui-dialog__footer').getByRole('button', { name: 'Cancel', exact: true }).click()
+    await expect(dialog).toBeHidden()
+    // The page goes on asking, and gets the website's refusal each time without the person being asked.
+    const asked = requests.filter(path => path === '/reports/data').length
+    await expect.poll(() => requests.filter(path => path === '/reports/data').length).toBeGreaterThan(asked + 3)
+    await expect(dialog).toBeHidden()
   } finally {
     await closeFixtureServer(server)
   }

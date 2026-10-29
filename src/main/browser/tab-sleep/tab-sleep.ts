@@ -2,6 +2,7 @@ import type { Event, WebContents, WebFrameMain } from 'electron'
 import type { MessageKey } from '../../../shared/i18n.js'
 import type { BrowserState } from '../../../shared/types.js'
 import { LocalizedError } from '../../localized-error.js'
+import { pageLoadTimedOut } from '../http-auth/http-auth.js'
 import { ISOLATED_WORLDS } from '../isolated-worlds.js'
 import { liveRegionRecordingKeepsTabAwake } from '../live-region-recorder.js'
 import { localizedLoadFailure } from '../load-failure-error.js'
@@ -278,7 +279,7 @@ async function awaitWake(tab: TabSleepTab, wake: Promise<void>): Promise<void> {
     }
     return
   }
-  throw new LocalizedError('appErrors.page.loadTimedOut')
+  throw pageLoadTimedOut(tab.webContents)
 }
 
 /** Puts the tab to sleep, reporting what keeps it awake, or wakes it. */

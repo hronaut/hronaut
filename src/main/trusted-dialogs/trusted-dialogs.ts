@@ -217,7 +217,7 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
     publish(contents)
   }
 
-  function settle(pending: Pending, response: number, credentials?: TrustedDialogCredentials): void {
+  function settle(pending: Pending, response: number, credentials?: TrustedDialogCredentials, closedUnanswered = false): void {
     const contents = pending.window.webContents
     const shell = shells.get(contents)
     pending.release()
@@ -227,7 +227,11 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
     } else if (shell) {
       shell.queue = shell.queue.filter((candidate) => candidate !== pending)
     }
-    const keyboardPage = shell && !shell.visible ? shell.keyboardPage : null
+    // A sign-in that closes while the person types in it, as when the page that asked loads another, keeps the keyboard
+    // from the page: the rest of what they type, the password's end and Enter included, would go to it.
+    const keyboardPage = shell && !shell.visible && !(closedUnanswered && pending.request.variant.kind === 'http-auth')
+      ? shell.keyboardPage
+      : null
     if (shell && !shell.visible) {
       shell.keyboardPage = null
       shell.awayWhenOpened = false
@@ -306,7 +310,7 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
       variant: options.variant ?? { kind: 'message' }
     }
     return new Promise((resolve) => {
-      const onAbort = (): void => settle(pending, cancelId)
+      const onAbort = (): void => settle(pending, cancelId, undefined, true)
       const pending: Pending = {
         request,
         options,
@@ -352,10 +356,11 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
       if (!visible || visible.window.webContents !== event.sender || visible.request.id !== id) return
       if (!validIndex(response, visible.request.buttons)) return
       // Only the answer that signs in to a website's sign-in dialog carries what the person typed, and it counts only
-      // with it; every other answer leaves anything sent with it behind.
+      // with it, as Cancel otherwise, since the shell takes no other answer once it sent one; every other answer leaves
+      // anything sent with it behind.
       if (visible.request.variant.kind === 'http-auth' && response === visible.request.primaryId) {
         const typed = validCredentials(credentials)
-        if (typed) settle(visible, response, typed)
+        settle(visible, typed ? response : visible.request.cancelId, typed)
         return
       }
       settle(visible, response)

@@ -452,17 +452,37 @@ describe('a website’s sign-in in Hronaut’s own dialog', () => {
     await expect(answer).resolves.toEqual({ response: 1, checkboxChecked: false, credentials: { username: 'ada', password: 's3cret' } })
   })
 
-  it('takes Sign in only with a username and a password of bounded text, and drops anything sent with another answer', async () => {
+  it('takes Sign in only with a username and a password of bounded text, as Cancel otherwise, and drops anything sent with another answer', async () => {
     const { dialogs, main, ready, respond } = harness()
     ready()
-    const answer = dialogs.show(signIn)
-    const id = main.shown()!.id
+    // The shell takes no other answer once it sent one, so a Sign in main cannot take closes the dialog.
     for (const credentials of [undefined, null, 'ada:s3cret', { username: 'ada' }, { username: 'ada', password: 7 }, { username: 'a'.repeat(4_097), password: '' }, { username: '', password: 'p'.repeat(4_097) }]) {
-      respond(main, id, 1, credentials)
-      expect(main.shown()?.id).toBe(id)
+      const answer = dialogs.show(signIn)
+      respond(main, main.shown()!.id, 1, credentials)
+      await expect(answer, JSON.stringify(credentials)).resolves.toEqual({ response: 0, checkboxChecked: false })
+      expect(main.shown()).toBeNull()
     }
-    respond(main, id, 0, { username: 'ada', password: 's3cret' })
+    const answer = dialogs.show(signIn)
+    respond(main, main.shown()!.id, 0, { username: 'ada', password: 's3cret' })
     await expect(answer).resolves.toEqual({ response: 0, checkboxChecked: false })
+  })
+
+  it('keeps the keyboard from the page when a sign-in closes before the person answers, and gives it back once they answer', async () => {
+    const { dialogs, main, ready, respond, keyboard, returnKeyboard } = harness()
+    ready()
+    const page = { isDestroyed: () => false }
+    keyboard.page = page
+    // The page that asked loads another while the person types: the rest of the password must not reach the page.
+    const closing = new AbortController()
+    const closed = dialogs.show({ ...signIn, signal: closing.signal })
+    closing.abort()
+    await expect(closed).resolves.toEqual({ response: 0, checkboxChecked: false })
+    expect(returnKeyboard).not.toHaveBeenCalled()
+
+    const answered = dialogs.show(signIn)
+    respond(main, main.shown()!.id, 0)
+    await answered
+    expect(returnKeyboard).toHaveBeenCalledExactlyOnceWith(page)
   })
 
   it('takes an empty username and password, as Chrome sends them', async () => {

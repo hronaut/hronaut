@@ -53,13 +53,20 @@ function setButtonRef(index: number, element: unknown): void {
 const username = ref('')
 const password = ref('')
 const usernameField = ref<{ $el?: HTMLElement } | null>(null)
+const passwordField = ref<{ $el?: HTMLElement } | null>(null)
+/**
+ * Whether the dialog shown replaced, in place, a sign-in that closed before the person answered it, as when the page
+ * that asked loads another: they may still be typing their password, which must not land in this one's fields.
+ */
+const replacedUnansweredSignIn = ref(false)
 
 /**
  * Where the focus goes when a dialog opens or takes answers: the safe button, or for a sign-in, Username, where a key
- * the person still holds from the page presses nothing.
+ * the person still holds from the page presses nothing. A sign-in that replaced one the person may still be typing in
+ * focuses its safe button too, so they click into a field to sign in.
  */
 function focusSafeControl(): void {
-  if (copy.value?.signIn) usernameField.value?.$el?.focus({ preventScroll: true })
+  if (copy.value?.signIn && !replacedUnansweredSignIn.value) usernameField.value?.$el?.focus({ preventScroll: true })
   else defaultButton.value?.focus({ preventScroll: true })
 }
 
@@ -89,9 +96,16 @@ watch(presentedId, (id) => {
 watch(() => request.value?.id, async (id) => {
   username.value = ''
   password.value = ''
-  if (!id) return
-  // The next dialog in the queue replaces this one in place, so the focus moves to its safe control too.
+  const interruptedSignIn = props.controller.closedUnanswered.value?.variant.kind === 'http-auth'
+  replacedUnansweredSignIn.value = Boolean(id) && interruptedSignIn
   await nextTick()
+  if (!id) {
+    // The dialog gave the focus back to the shell control the person last used, such as the address field, and main
+    // keeps the page from the keyboard; the rest of a password typed into a sign-in that closed goes to neither.
+    if (interruptedSignIn && !request.value && document.activeElement instanceof HTMLElement) document.activeElement.blur()
+    return
+  }
+  // The next dialog in the queue replaces this one in place, so the focus moves to its safe control too.
   if (request.value?.id === id) focusSafeControl()
 }, { immediate: true })
 
@@ -113,10 +127,12 @@ onBeforeUnmount(() => {
 
 /**
  * A key held since before the dialog opened, such as Enter or Tab on the page, repeats; it never presses a button or
- * moves the focus here. Escape's first press still denies.
+ * moves the focus here. Escape's first press still denies. In a sign-in's field, where a key presses nothing, a held
+ * key repeats as in any field, such as Backspace deleting, except Enter and Tab.
  */
 function ignoreHeldKeys(event: KeyboardEvent): void {
   if (!event.repeat) return
+  if (event.target instanceof HTMLInputElement && event.key !== 'Enter' && event.key !== 'Tab' && event.key !== 'Escape') return
   event.preventDefault()
   event.stopPropagation()
 }
@@ -137,11 +153,15 @@ function signIn(): void {
   if (primaryId !== undefined) choose(primaryId)
 }
 
-/** Enter in a sign-in's field signs in, unless it ends a word the person composes, as in Japanese input. */
+/**
+ * Enter in Username moves to Password, and Enter in Password signs in, unless it ends a word the person composes, as in
+ * Japanese input; so Enter that ends a password typed into Username never sends it.
+ */
 function enterSignsIn(event: KeyboardEvent): void {
   if (event.isComposing) return
   event.preventDefault()
-  signIn()
+  if (event.target === usernameField.value?.$el) passwordField.value?.$el?.focus({ preventScroll: true })
+  else signIn()
 }
 
 function openChanged(open: boolean): void {
@@ -214,6 +234,7 @@ function buttonVariant(index: number): 'primary' | 'secondary' {
         </UiField>
         <UiField :label="copy.signIn.password" for-id="trusted-dialog-password">
           <UiInput
+            ref="passwordField"
             v-model="password"
             type="password"
             autocomplete="off"

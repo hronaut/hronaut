@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events'
 import type { AuthenticationResponseDetails, AuthInfo } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
-import { answerHttpAuth, asksToSignIn, type HttpAuthQuestion } from '../src/main/browser/http-auth/http-auth.js'
+import { answerHttpAuth, asksToSignIn, pageLoadTimedOut, type HttpAuthQuestion } from '../src/main/browser/http-auth/http-auth.js'
 import { navigate } from '../src/main/browser/page-navigation/page-navigation.js'
 import { PAGE_LOAD_WAIT_MS } from '../src/main/browser/page-waits/page-load-limit.js'
 import type { TrustedDialogCredentials } from '../src/shared/trusted-dialogs.js'
@@ -9,13 +9,15 @@ import type { TrustedDialogCredentials } from '../src/shared/trusted-dialogs.js'
 const PAGE = 'https://intranet.example/reports'
 
 /** A tab showing the page, in a workspace, whose questions to the person wait until the test answers them. */
-function harness(shown = PAGE) {
-  const webContents = Object.assign(new EventEmitter(), { getURL: () => shown, isDestroyed: () => false })
+function harness(shown = PAGE, session: object = {}) {
+  const webContents = Object.assign(new EventEmitter(), { getURL: () => shown, isDestroyed: () => false, session })
   const tab = { sleeping: false, mcpGroupId: 'workspace-1', webContents }
   const questions: Array<HttpAuthQuestion & { answer(credentials: TrustedDialogCredentials | null): void }> = []
   const access = {
+    // As Hronaut's dialog does, a question that closes answers at once, as Cancel.
     askToSignIn: vi.fn((question: HttpAuthQuestion) => new Promise<TrustedDialogCredentials | null>((resolve) => {
       questions.push({ ...question, answer: resolve })
+      question.signal.addEventListener('abort', () => resolve(null))
     }))
   }
   /** A challenge the page's request gets; returns whether Hronaut takes it and the request's callback. */
@@ -45,7 +47,17 @@ describe('a website asking for a username and password', () => {
     expect(page.callback).toHaveBeenCalledExactlyOnceWith('ada', 's3cret')
     expect(asksToSignIn(webContents)).toBe(false)
     // Every listener the question added is gone.
-    for (const name of ['did-start-navigation', 'did-fail-load', 'did-navigate', 'destroyed']) expect(webContents.listenerCount(name)).toBe(0)
+    for (const name of ['did-start-navigation', 'did-fail-provisional-load', 'did-fail-load', 'did-navigate', 'render-process-gone', 'destroyed']) {
+      expect(webContents.listenerCount(name), name).toBe(0)
+    }
+  })
+
+  it('warns that the password can be read on the way only for an unencrypted connection that leaves this computer', () => {
+    for (const [url, secure] of [['https://intranet.example/', true], ['http://intranet.example/', false], ['http://localhost:8080/', true], ['http://127.0.0.1:3000/', true]] as const) {
+      const { challenge, questions } = harness()
+      challenge(url, { navigation: true, mainFrame: true })
+      expect(questions[0]!.secure, url).toBe(secure)
+    }
   })
 
   it('lets the website show its page without credentials when the person cancels', async () => {
@@ -99,11 +111,14 @@ describe('a website asking for a username and password', () => {
     expect(questions[1]!.signal.aborted).toBe(false)
   })
 
-  it('closes the question for a page once another load starts, the load ends or the tab closes', () => {
+  it('closes the question for a page once another load starts, the load stops or fails, the tab closes or its page crashes', () => {
     for (const [event, args] of [
       ['did-start-navigation', [{}, 'https://other.example/', false, true]],
-      ['did-fail-load', [{}, -3, 'ERR_ABORTED', PAGE, true]],
+      // Electron reports a stopped load only as a provisional failure.
+      ['did-fail-provisional-load', [{}, -3, 'ERR_ABORTED', PAGE, true]],
+      ['did-fail-provisional-load', [{}, -105, 'ERR_NAME_NOT_RESOLVED', PAGE, true]],
       ['did-navigate', [{}, PAGE]],
+      ['render-process-gone', [{}, { reason: 'crashed' }]],
       ['destroyed', []]
     ] as const) {
       const { challenge, questions, webContents } = harness()
@@ -118,20 +133,86 @@ describe('a website asking for a username and password', () => {
     challenge('https://intranet.example/api/a')
     webContents.emit('did-start-navigation', {}, 'https://intranet.example/next', false, true)
     webContents.emit('did-start-navigation', {}, 'https://intranet.example/frame', false, false)
-    webContents.emit('did-fail-load', {}, -3, 'ERR_ABORTED', 'https://intranet.example/next', true)
+    webContents.emit('did-fail-provisional-load', {}, -3, 'ERR_ABORTED', 'https://intranet.example/next', true)
+    webContents.emit('did-fail-provisional-load', {}, -105, 'ERR_NAME_NOT_RESOLVED', 'https://intranet.example/frame', false)
     webContents.emit('did-fail-load', {}, -105, 'ERR_NAME_NOT_RESOLVED', 'https://intranet.example/frame', false)
     expect(questions[0]!.signal.aborted).toBe(false)
     webContents.emit('did-navigate', {}, 'https://intranet.example/next')
     expect(questions[0]!.signal.aborted).toBe(true)
   })
 
-  it('cancels the requests when asking fails', async () => {
-    const { access, challenge, settled, webContents } = harness()
-    access.askToSignIn.mockRejectedValueOnce(new Error('No window'))
-    const page = challenge(PAGE, { navigation: true, mainFrame: true })
+  it('closes the question for the page shown once an error page replaces it', () => {
+    const { challenge, questions, webContents } = harness()
+    challenge('https://intranet.example/api/a')
+    webContents.emit('did-fail-load', {}, -105, 'ERR_NAME_NOT_RESOLVED', 'https://intranet.example/next', true)
+    expect(questions[0]!.signal.aborted).toBe(true)
+  })
+
+  it('cancels the requests when asking fails or throws', async () => {
+    for (const fail of ['reject', 'throw'] as const) {
+      const { access, challenge, settled, webContents } = harness()
+      if (fail === 'reject') access.askToSignIn.mockRejectedValueOnce(new Error('No window'))
+      else access.askToSignIn.mockImplementationOnce(() => { throw new Error('No window') })
+      const page = challenge(PAGE, { navigation: true, mainFrame: true })
+      await settled()
+      expect(page.callback, fail).toHaveBeenCalledExactlyOnceWith()
+      expect(asksToSignIn(webContents), fail).toBe(false)
+      expect(webContents.listenerCount('did-navigate'), fail).toBe(1)
+    }
+  })
+
+  it('does not ask again for a sign-in the person cancelled until the tab shows another document', async () => {
+    const { challenge, questions, settled, webContents } = harness()
+    const polled = challenge('https://intranet.example/api/poll')
+    questions[0]!.answer(null)
     await settled()
-    expect(page.callback).toHaveBeenCalledExactlyOnceWith()
-    expect(asksToSignIn(webContents)).toBe(false)
+    expect(polled.callback).toHaveBeenCalledExactlyOnceWith()
+    // The page asks again and again; Electron cancels each request, and the person is not asked.
+    for (let attempt = 0; attempt < 3; attempt += 1) expect(challenge('https://intranet.example/api/poll').taken).toBe(false)
+    expect(challenge(PAGE, { navigation: true, mainFrame: true }).taken).toBe(false)
+    expect(questions).toHaveLength(1)
+    // Another realm still asks.
+    expect(challenge('https://intranet.example/admin', { realm: 'Admin' }).taken).toBe(true)
+    questions[1]!.answer(null)
+    await settled()
+    webContents.emit('did-navigate', {}, PAGE)
+    expect(challenge('https://intranet.example/api/poll').taken).toBe(true)
+    expect(questions).toHaveLength(3)
+  })
+
+  it('asks again for a sign-in whose question closed before the person answered', async () => {
+    const { challenge, questions, settled, webContents } = harness()
+    challenge(PAGE, { navigation: true, mainFrame: true })
+    webContents.emit('did-start-navigation', {}, 'https://other.example/', false, true)
+    questions[0]!.answer(null)
+    await settled()
+    expect(challenge(PAGE, { navigation: true, mainFrame: true }).taken).toBe(true)
+  })
+
+  it('answers the workspace’s other tabs asking for the same sign-in with the person’s answer, as Chrome does', async () => {
+    const workspace = {}
+    const first = harness(PAGE, workspace)
+    const second = harness(PAGE, workspace)
+    const otherRealm = harness(PAGE, workspace)
+    const otherWorkspace = harness(PAGE, {})
+    const asked = [first, second, otherRealm, otherWorkspace].map((tab, index) => tab.challenge('https://intranet.example/api', { realm: index === 2 ? 'Admin' : 'Reports' }))
+    first.questions[0]!.answer({ username: 'ada', password: 's3cret' })
+    await first.settled()
+    expect(second.questions[0]!.signal.aborted).toBe(true)
+    expect(asked[1]!.callback).toHaveBeenCalledExactlyOnceWith('ada', 's3cret')
+    expect(otherRealm.questions[0]!.signal.aborted).toBe(false)
+    expect(otherWorkspace.questions[0]!.signal.aborted).toBe(false)
+    expect(asked[2]!.callback).not.toHaveBeenCalled()
+    expect(asked[3]!.callback).not.toHaveBeenCalled()
+
+    // A Cancel counts for them too, and neither tab asks again for the page it shows.
+    const third = harness(PAGE, workspace)
+    const fourth = harness(PAGE, workspace)
+    const cancelled = [third, fourth].map((tab) => tab.challenge('https://intranet.example/api', { realm: 'Billing' }))
+    third.questions[0]!.answer(null)
+    await third.settled()
+    expect(cancelled[1]!.callback).toHaveBeenCalledExactlyOnceWith()
+    expect(fourth.challenge('https://intranet.example/api', { realm: 'Billing' }).taken).toBe(false)
   })
 })
 
@@ -170,6 +251,15 @@ describe('an agent opening a page that asks the person to sign in', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('says the page timed out when only a request of the page shown asks', () => {
+    const { challenge, webContents } = harness()
+    challenge('https://intranet.example/api/a')
+    expect(asksToSignIn(webContents)).toBe(false)
+    expect(pageLoadTimedOut(webContents).key).toBe('appErrors.page.loadTimedOut')
+    challenge('https://intranet.example/next', { navigation: true, mainFrame: true })
+    expect(pageLoadTimedOut(webContents).key).toBe('appErrors.page.signInAsked')
   })
 
   it('still says the page timed out when nothing asks', async () => {

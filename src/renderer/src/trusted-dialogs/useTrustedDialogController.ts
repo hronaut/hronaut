@@ -12,8 +12,12 @@ export function useTrustedDialogController(api: HronautTrustedDialogsApi | undef
   const answeredId = ref<string>()
   const open = computed(() => request.value !== null)
   const answering = computed(() => Boolean(request.value && answeredId.value === request.value.id))
+  /** The request main last closed or replaced before the person answered it, as when a sign-in's page loads another. */
+  const closedUnanswered = shallowRef<TrustedDialogRequest | null>(null)
 
   const stop = api?.onChanged((next) => {
+    const previous = request.value
+    closedUnanswered.value = previous && previous.id !== next?.id && answeredId.value !== previous.id ? previous : null
     request.value = next
     if (next?.id !== answeredId.value) answeredId.value = undefined
   })
@@ -43,7 +47,7 @@ export function useTrustedDialogController(api: HronautTrustedDialogsApi | undef
     stop?.()
   }
 
-  return { request, open, answering, respond, cancel, dispose }
+  return { request, open, answering, closedUnanswered, respond, cancel, dispose }
 }
 
 export type TrustedDialogController = ReturnType<typeof useTrustedDialogController>

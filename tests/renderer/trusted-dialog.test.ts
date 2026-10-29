@@ -623,7 +623,7 @@ describe('Hronaut’s sign-in dialog for a website', () => {
     const dialog = screen.getByRole('alertdialog', { name: 'Sign in to https://intranet.example' })
     expect(dialog).toHaveAttribute('data-variant', 'http-auth')
     expect(dialog).toHaveTextContent('You stay signed in to this website in the “Client A” workspace until Hronaut quits.')
-    expect(dialog).toHaveTextContent('Hronaut sends your username and password only to this website. Agents never see them.')
+    expect(dialog).toHaveTextContent('Hronaut sends your username and password only to this website and never shows them to agents.')
     expect(dialog).not.toHaveTextContent('not private')
     const username = screen.getByLabelText('Username')
     expect(screen.getByLabelText('Password')).toHaveAttribute('type', 'password')
@@ -672,14 +672,82 @@ describe('Hronaut’s sign-in dialog for a website', () => {
   it('takes no Enter before it takes answers, nor one held since before it opened, nor one that ends a composed word', async () => {
     const { api, show, settle } = mountDialog()
     await show(httpAuth('one'))
-    const username = screen.getByLabelText('Username')
-    await fireEvent.keyDown(username, { key: 'Enter' })
+    const password = screen.getByLabelText('Password')
+    await fireEvent.keyDown(password, { key: 'Enter' })
     await settle()
-    username.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true }))
-    await fireEvent.keyDown(username, { key: 'Enter', isComposing: true })
+    password.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true }))
+    await fireEvent.keyDown(password, { key: 'Enter', isComposing: true })
     expect(api.respond).not.toHaveBeenCalled()
-    await fireEvent.keyDown(username, { key: 'Enter' })
+    await fireEvent.keyDown(password, { key: 'Enter' })
     expect(api.respond).toHaveBeenCalledExactlyOnceWith('one', 1, { username: '', password: '' })
+  })
+
+  it('moves from Username to Password on Enter, so a password typed into Username is never sent by its Enter', async () => {
+    const { api, show, settle } = mountDialog()
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTimeAsync })
+    await show(httpAuth('one'))
+    await settle()
+    await user.type(screen.getByLabelText('Username'), 'tail{Enter}')
+    expect(api.respond).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('Password')).toHaveFocus()
+  })
+
+  it('repeats a key held in its fields, such as Backspace, but never a held Enter or Tab', async () => {
+    const { show, settle } = mountDialog()
+    await show(httpAuth('one'))
+    await settle()
+    const username = screen.getByLabelText('Username')
+    const held = (key: string): boolean => username.dispatchEvent(new KeyboardEvent('keydown', { key, repeat: true, bubbles: true, cancelable: true }))
+    expect(held('Backspace')).toBe(true)
+    expect(held('a')).toBe(true)
+    expect(held('Enter')).toBe(false)
+    expect(held('Tab')).toBe(false)
+  })
+
+  it('starts on Cancel when it takes the place of a sign-in that closed before the person answered, who may still be typing', async () => {
+    const { api, show, settle } = mountDialog()
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTimeAsync })
+    await show(httpAuth('one'))
+    await settle()
+    await user.type(screen.getByLabelText('Password'), 'pass')
+    // Main closes the first sign-in, as when its page loads another, and shows the next one in its place.
+    await show(httpAuth('two', { origin: 'https://intranet-example.test' }))
+    const cancel = screen.getByRole('button', { name: 'Cancel' })
+    expect(cancel).toHaveFocus()
+    await settle()
+    expect(cancel).toHaveFocus()
+    await user.keyboard('word{Enter}')
+    expect(api.respond).toHaveBeenCalledExactlyOnceWith('two', 0)
+
+    // One that follows an answer starts in Username, as usual.
+    await show(httpAuth('three'))
+    await settle()
+    expect(screen.getByLabelText('Username')).toHaveFocus()
+  })
+
+  it('gives the focus back to the shell control it came from once answered, but to nothing when it closes before an answer', async () => {
+    const { show, settle } = mountDialog()
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTimeAsync })
+    const address = document.createElement('input')
+    address.setAttribute('aria-label', 'Address')
+    document.body.append(address)
+    try {
+      address.focus()
+      await show(httpAuth('one'))
+      await settle()
+      await user.click(screen.getByRole('button', { name: 'Cancel' }))
+      await show(null)
+      expect(address).toHaveFocus()
+
+      await show(httpAuth('two'))
+      await settle()
+      await user.type(screen.getByLabelText('Password'), 'pass')
+      await show(null)
+      expect(address).not.toHaveFocus()
+      expect(document.activeElement).toBe(document.body)
+    } finally {
+      address.remove()
+    }
   })
 
   it('keeps the field the person moved to while it was opening', async () => {

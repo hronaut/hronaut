@@ -11,7 +11,7 @@ export const trustedDialogMessages = {
       headline: 'Sign in to {origin}',
       notPrivate: 'Your connection to this site is not private. Anyone on the network can read your username and password.',
       workspace: 'You stay signed in to this website in the “{workspace}” workspace until Hronaut quits.',
-      sent: 'Hronaut sends your username and password only to this website. Agents never see them.',
+      sent: 'Hronaut sends your username and password only to this website and never shows them to agents.',
       username: 'Username',
       password: 'Password',
       signIn: 'Sign in'
@@ -70,7 +70,7 @@ export const trustedDialogMessages = {
       headline: 'Увійдіть на {origin}',
       notPrivate: 'З’єднання з цим сайтом не захищене. Будь-хто в мережі може прочитати ваше ім’я користувача й пароль.',
       workspace: 'Ви залишатиметеся в системі на цьому сайті в робочому просторі «{workspace}», доки Hronaut не закриється.',
-      sent: 'Hronaut надсилає ваше ім’я користувача й пароль лише цьому сайту. Агенти ніколи їх не бачать.',
+      sent: 'Hronaut надсилає ваше ім’я користувача й пароль лише цьому сайту та ніколи не показує їх агентам.',
       username: 'Ім’я користувача',
       password: 'Пароль',
       signIn: 'Увійти'
@@ -129,7 +129,7 @@ export const trustedDialogMessages = {
       headline: 'Войдите на {origin}',
       notPrivate: 'Подключение к этому сайту не защищено. Любой в сети может прочитать ваше имя пользователя и пароль.',
       workspace: 'Вы останетесь в системе на этом сайте в рабочем пространстве «{workspace}», пока Hronaut не закроется.',
-      sent: 'Hronaut отправляет ваше имя пользователя и пароль только этому сайту. Агенты их никогда не видят.',
+      sent: 'Hronaut отправляет ваше имя пользователя и пароль только этому сайту и никогда не показывает их агентам.',
       username: 'Имя пользователя',
       password: 'Пароль',
       signIn: 'Войти'
@@ -188,7 +188,7 @@ export const trustedDialogMessages = {
       headline: 'Bei {origin} anmelden',
       notPrivate: 'Ihre Verbindung zu dieser Website ist nicht privat. Jeder im Netzwerk kann Ihren Benutzernamen und Ihr Passwort lesen.',
       workspace: 'Sie bleiben auf dieser Website im Arbeitsbereich „{workspace}“ angemeldet, bis Hronaut beendet wird.',
-      sent: 'Hronaut sendet Ihren Benutzernamen und Ihr Passwort nur an diese Website. Agenten sehen sie nie.',
+      sent: 'Hronaut sendet Ihren Benutzernamen und Ihr Passwort nur an diese Website und zeigt sie Agenten nie.',
       username: 'Benutzername',
       password: 'Passwort',
       signIn: 'Anmelden'
@@ -246,8 +246,8 @@ export const trustedDialogMessages = {
       eyebrow: 'Connexion',
       headline: 'Se connecter à {origin}',
       notPrivate: 'Votre connexion à ce site n’est pas privée. N’importe qui sur le réseau peut lire votre nom d’utilisateur et votre mot de passe.',
-      workspace: 'Vous restez connecté à ce site dans l’espace de travail « {workspace} » jusqu’à ce que Hronaut quitte.',
-      sent: 'Hronaut envoie votre nom d’utilisateur et votre mot de passe uniquement à ce site. Les agents ne les voient jamais.',
+      workspace: 'Vous restez connecté à ce site dans l’espace de travail « {workspace} » jusqu’à ce que Hronaut se ferme.',
+      sent: 'Hronaut envoie votre nom d’utilisateur et votre mot de passe uniquement à ce site et ne les montre jamais aux agents.',
       username: 'Nom d’utilisateur',
       password: 'Mot de passe',
       signIn: 'Se connecter'
@@ -306,7 +306,7 @@ export const trustedDialogMessages = {
       headline: 'Iniciar sesión en {origin}',
       notPrivate: 'Tu conexión con este sitio no es privada. Cualquiera en la red puede leer tu nombre de usuario y tu contraseña.',
       workspace: 'Sigues con la sesión iniciada en este sitio web en el espacio de trabajo «{workspace}» hasta que se cierre Hronaut.',
-      sent: 'Hronaut envía tu nombre de usuario y tu contraseña solo a este sitio web. Los agentes nunca los ven.',
+      sent: 'Hronaut envía tu nombre de usuario y tu contraseña solo a este sitio web y nunca se los muestra a los agentes.',
       username: 'Nombre de usuario',
       password: 'Contraseña',
       signIn: 'Iniciar sesión'
@@ -362,10 +362,10 @@ export const trustedDialogMessages = {
     close: 'Zamknij',
     httpAuth: {
       eyebrow: 'Logowanie',
-      headline: 'Zaloguj się w {origin}',
+      headline: 'Zaloguj się do {origin}',
       notPrivate: 'Połączenie z tą witryną nie jest prywatne. Każdy w sieci może odczytać Twoją nazwę użytkownika i hasło.',
       workspace: 'Pozostajesz zalogowany w tej witrynie w obszarze roboczym „{workspace}”, dopóki Hronaut nie zostanie zamknięty.',
-      sent: 'Hronaut wysyła Twoją nazwę użytkownika i hasło tylko do tej witryny. Agenci nigdy ich nie widzą.',
+      sent: 'Hronaut wysyła Twoją nazwę użytkownika i hasło tylko do tej witryny i nigdy nie pokazuje ich agentom.',
       username: 'Nazwa użytkownika',
       password: 'Hasło',
       signIn: 'Zaloguj się'
@@ -424,7 +424,7 @@ export const trustedDialogMessages = {
       headline: 'Accedi a {origin}',
       notPrivate: 'La connessione a questo sito non è privata. Chiunque sulla rete può leggere il tuo nome utente e la tua password.',
       workspace: 'Resti connesso a questo sito web nell’area di lavoro “{workspace}” finché Hronaut non viene chiuso.',
-      sent: 'Hronaut invia il tuo nome utente e la tua password solo a questo sito web. Gli agenti non li vedono mai.',
+      sent: 'Hronaut invia il tuo nome utente e la tua password solo a questo sito web e non li mostra mai agli agenti.',
       username: 'Nome utente',
       password: 'Password',
       signIn: 'Accedi'
@@ -483,7 +483,7 @@ export const trustedDialogMessages = {
       headline: 'Fazer login em {origin}',
       notPrivate: 'Sua conexão com este site não é particular. Qualquer pessoa na rede pode ler seu nome de usuário e sua senha.',
       workspace: 'Você continua conectado a este site no espaço de trabalho “{workspace}” até o Hronaut ser fechado.',
-      sent: 'O Hronaut envia seu nome de usuário e sua senha somente para este site. Os agentes nunca os veem.',
+      sent: 'O Hronaut envia seu nome de usuário e sua senha somente para este site e nunca os mostra aos agentes.',
       username: 'Nome de usuário',
       password: 'Senha',
       signIn: 'Fazer login'
@@ -542,7 +542,7 @@ export const trustedDialogMessages = {
       headline: '{origin} sitesinde oturum açın',
       notPrivate: 'Bu siteye bağlantınız gizli değil. Ağdaki herkes kullanıcı adınızı ve şifrenizi okuyabilir.',
       workspace: 'Hronaut kapanana kadar “{workspace}” çalışma alanında bu web sitesinde oturumunuz açık kalır.',
-      sent: 'Hronaut kullanıcı adınızı ve şifrenizi yalnızca bu web sitesine gönderir. Ajanlar bunları asla görmez.',
+      sent: 'Hronaut kullanıcı adınızı ve şifrenizi yalnızca bu web sitesine gönderir ve bunları ajanlara asla göstermez.',
       username: 'Kullanıcı adı',
       password: 'Şifre',
       signIn: 'Oturum aç'
@@ -601,7 +601,7 @@ export const trustedDialogMessages = {
       headline: '{origin} में साइन इन करें',
       notPrivate: 'इस साइट से आपका कनेक्शन निजी नहीं है। नेटवर्क पर कोई भी आपका उपयोगकर्ता नाम और पासवर्ड पढ़ सकता है।',
       workspace: 'Hronaut बंद होने तक आप “{workspace}” वर्कस्पेस में इस वेबसाइट पर साइन इन रहते हैं।',
-      sent: 'Hronaut आपका उपयोगकर्ता नाम और पासवर्ड सिर्फ़ इसी वेबसाइट को भेजता है। एजेंट इन्हें कभी नहीं देखते।',
+      sent: 'Hronaut आपका उपयोगकर्ता नाम और पासवर्ड सिर्फ़ इसी वेबसाइट को भेजता है और इन्हें एजेंटों को कभी नहीं दिखाता।',
       username: 'उपयोगकर्ता नाम',
       password: 'पासवर्ड',
       signIn: 'साइन इन करें'
@@ -660,7 +660,7 @@ export const trustedDialogMessages = {
       headline: '{origin} にサインイン',
       notPrivate: 'このサイトへの接続は保護されていません。ネットワーク上の誰でも、ユーザー名とパスワードを読み取れます。',
       workspace: 'Hronaut を終了するまで、「{workspace}」ワークスペースでこのウェブサイトにサインインしたままになります。',
-      sent: 'Hronaut はユーザー名とパスワードをこのウェブサイトにだけ送信します。エージェントがそれらを見ることはありません。',
+      sent: 'Hronaut はユーザー名とパスワードをこのウェブサイトにだけ送信し、エージェントに表示することはありません。',
       username: 'ユーザー名',
       password: 'パスワード',
       signIn: 'サインイン'
@@ -719,7 +719,7 @@ export const trustedDialogMessages = {
       headline: '{origin}에 로그인',
       notPrivate: '이 사이트와의 연결은 비공개가 아닙니다. 네트워크의 누구나 사용자 이름과 비밀번호를 읽을 수 있습니다.',
       workspace: 'Hronaut을 종료할 때까지 ‘{workspace}’ 작업 공간에서 이 웹사이트에 로그인된 상태가 유지됩니다.',
-      sent: 'Hronaut은 사용자 이름과 비밀번호를 이 웹사이트에만 보냅니다. 에이전트는 이를 절대 볼 수 없습니다.',
+      sent: 'Hronaut은 사용자 이름과 비밀번호를 이 웹사이트에만 보내며, 에이전트에게 절대 보여 주지 않습니다.',
       username: '사용자 이름',
       password: '비밀번호',
       signIn: '로그인'
@@ -778,7 +778,7 @@ export const trustedDialogMessages = {
       headline: '登录到 {origin}',
       notPrivate: '您与此网站之间的连接不是私密连接。网络上的任何人都能读取您的用户名和密码。',
       workspace: '在 Hronaut 退出前，您会在“{workspace}”工作区中保持此网站的登录状态。',
-      sent: 'Hronaut 只会将您的用户名和密码发送给此网站。智能体永远看不到它们。',
+      sent: 'Hronaut 只会将您的用户名和密码发送给此网站，绝不会向智能体显示。',
       username: '用户名',
       password: '密码',
       signIn: '登录'
@@ -837,7 +837,7 @@ export const trustedDialogMessages = {
       headline: '登入 {origin}',
       notPrivate: '你與這個網站之間的連線不是私人連線。網路上的任何人都能讀取你的使用者名稱和密碼。',
       workspace: '在 Hronaut 結束前，你會在「{workspace}」工作區中保持這個網站的登入狀態。',
-      sent: 'Hronaut 只會將你的使用者名稱和密碼傳送給這個網站。代理程式絕對看不到這些資料。',
+      sent: 'Hronaut 只會將你的使用者名稱和密碼傳送給這個網站，絕不會向代理程式顯示。',
       username: '使用者名稱',
       password: '密碼',
       signIn: '登入'
@@ -896,7 +896,7 @@ export const trustedDialogMessages = {
       headline: 'Masuk ke {origin}',
       notPrivate: 'Koneksi Anda ke situs ini tidak pribadi. Siapa pun di jaringan dapat membaca nama pengguna dan sandi Anda.',
       workspace: 'Anda tetap masuk ke situs ini di ruang kerja “{workspace}” sampai Hronaut ditutup.',
-      sent: 'Hronaut mengirim nama pengguna dan sandi Anda hanya ke situs ini. Agen tidak pernah melihatnya.',
+      sent: 'Hronaut mengirim nama pengguna dan sandi Anda hanya ke situs ini dan tidak pernah menampilkannya kepada agen.',
       username: 'Nama pengguna',
       password: 'Sandi',
       signIn: 'Masuk'
@@ -955,7 +955,7 @@ export const trustedDialogMessages = {
       headline: 'Đăng nhập vào {origin}',
       notPrivate: 'Kết nối của bạn với trang web này không riêng tư. Bất kỳ ai trên mạng cũng có thể đọc tên người dùng và mật khẩu của bạn.',
       workspace: 'Bạn vẫn đăng nhập trang web này trong không gian làm việc “{workspace}” cho đến khi Hronaut thoát.',
-      sent: 'Hronaut chỉ gửi tên người dùng và mật khẩu của bạn đến trang web này. Tác nhân không bao giờ thấy chúng.',
+      sent: 'Hronaut chỉ gửi tên người dùng và mật khẩu của bạn đến trang web này và không bao giờ hiển thị chúng cho tác nhân.',
       username: 'Tên người dùng',
       password: 'Mật khẩu',
       signIn: 'Đăng nhập'
