@@ -21,7 +21,10 @@ const PAGE = 'https://mail.example/compose'
 
 // A text field's menu had no Spell check submenu, which Chrome's has to turn checking on or off for every website.
 
-function menu(params: Partial<ContextMenuParams>, options: { spellCheck?: boolean, setSpellCheck?: (enabled: boolean) => Promise<void> } = {}) {
+function menu(
+  params: Partial<ContextMenuParams>,
+  options: { spellCheck?: boolean, setSpellCheck?: (enabled: boolean) => Promise<void>, offersLanguages?: boolean } = {}
+) {
   const webContents = {
     id: 7,
     isDestroyed: () => false,
@@ -30,6 +33,7 @@ function menu(params: Partial<ContextMenuParams>, options: { spellCheck?: boolea
   const tab: PageTab = { id: 'tab', url: PAGE, webContents }
   const onActionFailed = vi.fn()
   const setSpellCheck = vi.fn(options.setSpellCheck ?? (async () => undefined))
+  const openSpellCheckSettings = vi.fn()
   const access = {
     findTab: () => tab,
     window: () => ({}),
@@ -38,7 +42,9 @@ function menu(params: Partial<ContextMenuParams>, options: { spellCheck?: boolea
     isHumanInteractionLocked: () => false,
     searchEngine: () => 'google',
     spellCheck: () => options.spellCheck ?? true,
-    setSpellCheck
+    setSpellCheck,
+    offersSpellCheckLanguages: () => options.offersLanguages ?? true,
+    openSpellCheckSettings
   } as unknown as PageContextMenuAccess
   showContextMenu(access, tab, {
     x: 10, y: 20, linkURL: '', srcURL: '', selectionText: '', isEditable: false, mediaType: 'none', editFlags: {},
@@ -47,7 +53,7 @@ function menu(params: Partial<ContextMenuParams>, options: { spellCheck?: boolea
   } as unknown as ContextMenuParams)
   const items = built.templates.at(-1)!
   const spellCheck = items.find(item => item.id === 'spell-check')
-  return { items, ids: items.map(item => item.id ?? item.type), spellCheck, setSpellCheck, onActionFailed }
+  return { items, ids: items.map(item => item.id ?? item.type), spellCheck, setSpellCheck, openSpellCheckSettings, onActionFailed }
 }
 
 function choose(item: MenuItemConstructorOptions, checked: boolean): void {
@@ -77,6 +83,21 @@ describe('Spell check in a text field\'s page menu', () => {
 
     const misspelled = menu({ isEditable: true, formControlType: 'text-area', misspelledWord: 'teh', dictionarySuggestions: ['the'] })
     expect(misspelled.ids.indexOf('add-to-dictionary')).toBeLessThan(misspelled.ids.indexOf('spell-check'))
+  })
+
+  it('opens the settings with the spell check languages from Language settings, as Chrome\'s submenu does', () => {
+    const { spellCheck, openSpellCheckSettings, setSpellCheck } = menu({ isEditable: true, formControlType: 'input-text' })
+    const items = spellCheck!.submenu as MenuItemConstructorOptions[]
+    expect(items.map((item) => item.id)).toEqual(['check-spelling', 'spell-check-language-settings'])
+    expect(items[1]).toMatchObject({ label: 'native.context.spellCheckLanguageSettings' })
+    ;(items[1]!.click as () => void)()
+    expect(openSpellCheckSettings).toHaveBeenCalledOnce()
+    expect(setSpellCheck).not.toHaveBeenCalled()
+  })
+
+  it('has no Language settings where Settings has no spell check languages, as on macOS', () => {
+    const { spellCheck } = menu({ isEditable: true, formControlType: 'input-text' }, { offersLanguages: false })
+    expect((spellCheck!.submenu as MenuItemConstructorOptions[]).map((item) => item.id)).toEqual(['check-spelling'])
   })
 
   it('turns spell checking off or on as the checkbox now shows', () => {

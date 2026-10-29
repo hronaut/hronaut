@@ -85,6 +85,19 @@ export interface AppSettings {
   languagePreference: LanguagePreference
   /** Check spelling in websites' text fields, as in Chrome: misspelled words are underlined and the menu suggests fixes. */
   spellCheck: boolean
+  /**
+   * The languages spell checking checks, as Chrome's spell check languages; none chosen means the one for Hronaut's
+   * locale. Not on macOS, where the system's spell checker picks the language.
+   */
+  spellCheckLanguages: string[]
+}
+
+/** The spell check languages Settings offers. */
+export interface SpellCheckLanguages {
+  /** The languages Chromium has dictionaries for, as codes such as `en-US`; none on macOS. */
+  available: string[]
+  /** The language checked while none is chosen. */
+  automatic: string[]
 }
 
 export interface RendererSettingsState {

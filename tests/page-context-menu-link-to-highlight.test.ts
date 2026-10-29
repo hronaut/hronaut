@@ -42,6 +42,8 @@ function openMenu(params: Partial<ContextMenuParams>, url = PAGE, pageText?: () 
     searchEngine: () => 'google',
     spellCheck: () => true,
     setSpellCheck: async () => undefined,
+    offersSpellCheckLanguages: () => true,
+    openSpellCheckSettings: () => undefined,
     browserContentOccluded: () => false
   } as unknown as PageContextMenuAccess
   showContextMenu(access, tab, {

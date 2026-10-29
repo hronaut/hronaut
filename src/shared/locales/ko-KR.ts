@@ -279,6 +279,12 @@ export const koKR: MessageSchema = {
       "label": "맞춤법 검사",
       "description": "웹사이트에서 텍스트를 입력할 때 맞춤법 오류를 확인합니다."
     },
+    "spellCheckLanguages": {
+      "label": "맞춤법 검사 언어",
+      "description": "다음 언어로 맞춤법을 검사합니다.",
+      "add": "언어 추가",
+      "remove": "{language} 삭제"
+    },
     "interfaceSize": {
       "label": "인터페이스 크기",
       "description": "웹사이트 확대/축소는 바꾸지 않고 Hronaut의 컨트롤과 텍스트를 크게 표시합니다.",
@@ -3726,6 +3732,7 @@ export const koKR: MessageSchema = {
       "addDictionary": "사전에 ‘{word}’ 추가",
       "spellCheck": "맞춤법 검사",
       "checkSpelling": "텍스트 필드의 맞춤법 검사",
+      "spellCheckLanguageSettings": "언어 설정",
       "undo": "실행취소",
       "redo": "다시 실행",
       "cut": "잘라내기",

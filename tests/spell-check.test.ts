@@ -4,7 +4,7 @@ import type { AppSettings } from '../src/shared/types.js'
 
 vi.mock('electron', () => ({ app: { getPath: () => '' }, nativeTheme: {}, session: { fromPartition: vi.fn() } }))
 
-const { createSpellCheck, registerSpellCheckIpc } = await import('../src/main/spell-check.js')
+const { automaticSpellCheckLanguages, createSpellCheck, registerSpellCheckIpc } = await import('../src/main/spell-check.js')
 const { createBrowserSession } = await import('../src/main/browser-session.js')
 const { DEFAULT_SETTINGS } = await import('../src/main/settings-store.js')
 const { commitRuntimeSetting } = await import('../src/main/runtime-setting-commit.js')
@@ -14,7 +14,10 @@ const { commitRuntimeSetting } = await import('../src/main/runtime-setting-commi
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown
 
-function spellCheckRuntime(saved: Partial<AppSettings> = {}) {
+// Part of Chromium's dictionary list on Linux and Windows.
+const DICTIONARIES = ['de', 'de-DE', 'en-GB', 'en-US', 'es', 'es-419', 'fr', 'pt-BR', 'pt-PT', 'uk']
+
+function spellCheckRuntime(saved: Partial<AppSettings> = {}, platform: { available?: string[], locale?: string } = {}) {
   let settings: AppSettings = { ...DEFAULT_SETTINGS, ...saved }
   let saveFails = false
   let saving: (() => void) | undefined
@@ -36,12 +39,28 @@ function spellCheckRuntime(saved: Partial<AppSettings> = {}) {
       settings = next
       return settings
     }),
-    publishSettings: vi.fn(() => { order.push('published') })
+    publishSettings: vi.fn(() => { order.push('published') }),
+    availableLanguages: () => platform.available ?? DICTIONARIES,
+    locale: () => platform.locale ?? 'en-US'
   }
   const spellCheck = createSpellCheck(host)
-  const session = () => {
+  // A session starts with the languages it was given last, which Chromium keeps in the profile across restarts.
+  const session = (startLanguages: string[] = ['en-US']) => {
     const calls: boolean[] = []
-    return { calls, setSpellCheckerEnabled: (enabled: boolean) => { calls.push(enabled); order.push(`session ${enabled}`) } }
+    const languageCalls: string[][] = []
+    let languages = [...startLanguages]
+    return {
+      calls,
+      languageCalls,
+      languages: () => languages,
+      setSpellCheckerEnabled: (enabled: boolean) => { calls.push(enabled); order.push(`session ${enabled}`) },
+      getSpellCheckerLanguages: () => [...languages],
+      setSpellCheckerLanguages: (next: string[]) => {
+        languageCalls.push([...next])
+        languages = [...next]
+        order.push(`session languages ${next.join(',')}`)
+      }
+    }
   }
   return {
     spellCheck, host, session, order,
@@ -123,7 +142,9 @@ describe('spell check', () => {
       setPermissionCheckHandler: () => { steps.push(`${name} check handler`) },
       setPermissionRequestHandler: () => { steps.push(`${name} request handler`) },
       on: () => undefined,
-      setSpellCheckerEnabled: (enabled: boolean) => { steps.push(`${name} spell check ${enabled}`) }
+      setSpellCheckerEnabled: (enabled: boolean) => { steps.push(`${name} spell check ${enabled}`) },
+      getSpellCheckerLanguages: () => ['en-US'],
+      setSpellCheckerLanguages: (languages: string[]) => { steps.push(`${name} languages ${languages.join(',')}`) }
     }) as unknown as Session
     const workspace = fakeSession('workspace')
     const home = fakeSession('home')
@@ -158,7 +179,12 @@ describe('spell check', () => {
     const assertTrustedSender = vi.fn((event: IpcMainInvokeEvent) => {
       if ((event as unknown as { untrusted?: boolean }).untrusted) throw new Error('untrusted sender')
     })
-    registerSpellCheckIpc(ipcMain, { assertTrustedSender, setEnabled })
+    registerSpellCheckIpc(ipcMain, {
+      assertTrustedSender,
+      setEnabled,
+      languages: () => ({ available: DICTIONARIES, automatic: ['en-US'] }),
+      setLanguages: async () => DEFAULT_SETTINGS
+    })
     const invoke = (event: object, value: unknown) => Promise.resolve().then(() => handlers.get('settings:set-spell-check')!(event as IpcMainInvokeEvent, value))
 
     await expect(invoke({}, false)).resolves.toMatchObject({ spellCheck: false })
@@ -166,5 +192,130 @@ describe('spell check', () => {
     await expect(invoke({}, 'off')).rejects.toThrow('Spell check must be a boolean')
     await expect(invoke({ untrusted: true }, true)).rejects.toThrow('untrusted sender')
     expect(setEnabled).toHaveBeenCalledOnce()
+  })
+})
+
+describe('spell check languages', () => {
+  it('picks the language for the locale when none is chosen, as Chromium does on a new profile', () => {
+    expect(automaticSpellCheckLanguages('en-US', DICTIONARIES)).toEqual(['en-US'])
+    expect(automaticSpellCheckLanguages('uk', DICTIONARIES)).toEqual(['uk'])
+    expect(automaticSpellCheckLanguages('pt-BR', DICTIONARIES)).toEqual(['pt-BR'])
+    expect(automaticSpellCheckLanguages('es-419', DICTIONARIES)).toEqual(['es-419'])
+    // A locale whose region has no dictionary takes its language's, and one with none for its language American English.
+    expect(automaticSpellCheckLanguages('de-AT', DICTIONARIES)).toEqual(['de'])
+    expect(automaticSpellCheckLanguages('fr-CA', ['fr-FR', 'en-US'])).toEqual(['fr-FR'])
+    expect(automaticSpellCheckLanguages('ja', DICTIONARIES)).toEqual(['en-US'])
+    expect(automaticSpellCheckLanguages('ja', [])).toEqual([])
+  })
+
+  it('gives each session the chosen languages it has dictionaries for when it is tracked, once', () => {
+    const runtime = spellCheckRuntime({ spellCheckLanguages: ['uk', 'xx-YY', 'en-GB'] })
+    const workspace = runtime.session()
+    runtime.spellCheck.track(workspace)
+    runtime.spellCheck.track(workspace)
+    expect(workspace.languageCalls).toEqual([['uk', 'en-GB']])
+  })
+
+  it('leaves a session that already checks the wanted languages as it is', () => {
+    const automatic = spellCheckRuntime()
+    const fresh = automatic.session(['en-US'])
+    automatic.spellCheck.track(fresh)
+    expect(fresh.languageCalls).toEqual([])
+
+    const chosen = spellCheckRuntime({ spellCheckLanguages: ['uk', 'en-US'] })
+    const restarted = chosen.session(['uk', 'en-US'])
+    chosen.spellCheck.track(restarted)
+    expect(restarted.languageCalls).toEqual([])
+  })
+
+  it('gives a session the automatic language again when none is chosen, though it kept others from before', () => {
+    const runtime = spellCheckRuntime({}, { locale: 'uk' })
+    const restarted = runtime.session(['de-DE', 'pt-PT'])
+    runtime.spellCheck.track(restarted)
+    expect(restarted.languages()).toEqual(['uk'])
+    // Chosen languages Chromium no longer has dictionaries for count as none.
+    const missing = spellCheckRuntime({ spellCheckLanguages: ['xx-YY'] }, { locale: 'uk' })
+    const other = missing.session(['en-US'])
+    missing.spellCheck.track(other)
+    expect(other.languages()).toEqual(['uk'])
+  })
+
+  it('leaves the languages to the system where Chromium has no dictionaries, as on macOS', async () => {
+    const runtime = spellCheckRuntime({ spellCheckLanguages: ['uk'] }, { available: [] })
+    const workspace = runtime.session([])
+    runtime.spellCheck.track(workspace)
+    expect(runtime.spellCheck.languages()).toEqual({ available: [], automatic: [] })
+    await runtime.spellCheck.setLanguages(['de'])
+    runtime.spellCheck.applyLanguages([])
+    expect(workspace.languageCalls).toEqual([])
+    expect(workspace.calls).toEqual([true])
+  })
+
+  it('offers the languages with dictionaries and the automatic one', () => {
+    expect(spellCheckRuntime({}, { locale: 'de-AT' }).spellCheck.languages()).toEqual({ available: DICTIONARIES, automatic: ['de'] })
+  })
+
+  it('gives every tracked session new languages, saves them and then tells the shells', async () => {
+    const runtime = spellCheckRuntime()
+    const workspace = runtime.session()
+    const home = runtime.session()
+    runtime.spellCheck.track(workspace)
+    runtime.spellCheck.track(home)
+    runtime.order.length = 0
+
+    await expect(runtime.spellCheck.setLanguages(['en-US', 'uk'])).resolves.toMatchObject({ spellCheckLanguages: ['en-US', 'uk'] })
+    expect(runtime.settings().spellCheckLanguages).toEqual(['en-US', 'uk'])
+    expect(runtime.order).toEqual(['session languages en-US,uk', 'session languages en-US,uk', 'published'])
+
+    runtime.spellCheck.applyLanguages([])
+    expect(workspace.languages()).toEqual(['en-US'])
+    expect(home.languages()).toEqual(['en-US'])
+  })
+
+  it('gives a session tracked while new languages save those, and puts the sessions back when they cannot be saved', async () => {
+    const runtime = spellCheckRuntime()
+    const late = runtime.session()
+    runtime.whileSaving(() => runtime.spellCheck.track(late))
+    await runtime.spellCheck.setLanguages(['uk'])
+    expect(late.languages()).toEqual(['uk'])
+
+    runtime.failSaves()
+    runtime.whileSaving(() => undefined)
+    await expect(runtime.spellCheck.setLanguages(['de', 'fr'])).rejects.toThrow('disk full')
+    expect(late.languageCalls).toEqual([['uk'], ['de', 'fr'], ['uk']])
+    expect(runtime.settings().spellCheckLanguages).toEqual(['uk'])
+    const later = runtime.session()
+    runtime.spellCheck.track(later)
+    expect(later.languages()).toEqual(['uk'])
+  })
+
+  it('reads the languages and takes only different languages with dictionaries from a trusted shell over IPC', async () => {
+    const handlers = new Map<string, Handler>()
+    const ipcMain = { handle: (channel: string, handler: Handler) => { handlers.set(channel, handler) } } as unknown as IpcMain
+    const setLanguages = vi.fn(async (languages: readonly string[]) => ({ ...DEFAULT_SETTINGS, spellCheckLanguages: [...languages] }))
+    const assertTrustedSender = vi.fn((event: IpcMainInvokeEvent) => {
+      if ((event as unknown as { untrusted?: boolean }).untrusted) throw new Error('untrusted sender')
+    })
+    registerSpellCheckIpc(ipcMain, {
+      assertTrustedSender,
+      setEnabled: async () => DEFAULT_SETTINGS,
+      languages: () => ({ available: DICTIONARIES, automatic: ['en-US'] }),
+      setLanguages
+    })
+    const invoke = (channel: string, event: object, ...values: unknown[]) =>
+      Promise.resolve().then(() => handlers.get(channel)!(event as IpcMainInvokeEvent, ...values))
+
+    await expect(invoke('settings:spell-check-languages', {})).resolves.toEqual({ available: DICTIONARIES, automatic: ['en-US'] })
+    await expect(invoke('settings:spell-check-languages', { untrusted: true })).rejects.toThrow('untrusted sender')
+    await expect(invoke('settings:set-spell-check-languages', {}, ['uk', 'en-US'])).resolves.toMatchObject({ spellCheckLanguages: ['uk', 'en-US'] })
+    expect(setLanguages).toHaveBeenLastCalledWith(['uk', 'en-US'])
+    // A sparse array, which IPC keeps: its hole is no language.
+    const sparse: unknown[] = new Array(2)
+    sparse[1] = 'uk'
+    for (const invalid of [[], ['uk', 'uk'], ['xx-YY'], 'uk', [7], null, sparse]) {
+      await expect(invoke('settings:set-spell-check-languages', {}, invalid)).rejects.toThrow('Spell check languages must be')
+    }
+    await expect(invoke('settings:set-spell-check-languages', { untrusted: true }, ['uk'])).rejects.toThrow('untrusted sender')
+    expect(setLanguages).toHaveBeenCalledOnce()
   })
 })

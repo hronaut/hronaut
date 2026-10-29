@@ -279,6 +279,12 @@ export const deDE: MessageSchema = {
       "label": "Rechtschreibprüfung",
       "description": "Beim Eingeben von Text auf Websites auf Rechtschreibfehler prüfen."
     },
+    "spellCheckLanguages": {
+      "label": "Sprachen für die Rechtschreibprüfung",
+      "description": "Rechtschreibung in diesen Sprachen prüfen.",
+      "add": "Sprache hinzufügen",
+      "remove": "{language} entfernen"
+    },
     "interfaceSize": {
       "label": "Oberflächengröße",
       "description": "Vergrößern Sie Hronaut-Steuerelemente und Text, ohne den Website-Zoom zu ändern.",
@@ -3726,6 +3732,7 @@ export const deDE: MessageSchema = {
       "addDictionary": "„{word}“ zum Wörterbuch hinzufügen",
       "spellCheck": "Rechtschreibprüfung",
       "checkSpelling": "Rechtschreibung in Textfeldern prüfen",
+      "spellCheckLanguageSettings": "Spracheinstellungen",
       "undo": "Rückgängig",
       "redo": "Wiederholen",
       "cut": "Ausschneiden",

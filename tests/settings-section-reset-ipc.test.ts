@@ -27,6 +27,7 @@ const CHANGED: Partial<AppSettings> = {
   pinAgentLiveStatus: true,
   languagePreference: 'uk-UA',
   spellCheck: false,
+  spellCheckLanguages: ['uk', 'de'],
   searchEngine: 'bing',
   memorySaverEnabled: false,
   memorySaverTimeoutMinutes: 15,
@@ -35,7 +36,7 @@ const CHANGED: Partial<AppSettings> = {
 const APPEARANCE_KEYS = ['theme', 'interfaceScale', 'tabPosition', 'useSystemTitleBar'] as const
 const GENERAL_KEYS = [
   'hideInTray', 'launchAtStartup', 'launchMinimized', 'attentionSound', 'attentionSoundCue',
-  'showAgentCursor', 'pinAgentLiveStatus', 'languagePreference', 'spellCheck'
+  'showAgentCursor', 'pinAgentLiveStatus', 'languagePreference', 'spellCheck', 'spellCheckLanguages'
 ] as const
 const PERFORMANCE_KEYS = ['memorySaverEnabled', 'memorySaverTimeoutMinutes', 'graphicsAcceleration'] as const
 
@@ -67,6 +68,7 @@ function settingsIpc(packaged = false, saveFails = false) {
     applyInterfaceScale: vi.fn(),
     applyLanguagePreferenceRuntime: vi.fn(async () => { host.publishSettings() }),
     applySpellCheck: vi.fn(),
+    applySpellCheckLanguages: vi.fn(),
     publishSettings: vi.fn(),
     currentRendererSettingsState: () => ({ settings })
   }
@@ -102,6 +104,8 @@ describe('Reset to default in Settings', () => {
     expect(host.applyLanguagePreferenceRuntime).toHaveBeenCalledWith(DEFAULT_SETTINGS.languagePreference)
     // Spell check turns back on in every browser session, not only in the saved settings.
     expect(host.applySpellCheck).toHaveBeenCalledWith(true)
+    // And every browser session goes back to the automatic language.
+    expect(host.applySpellCheckLanguages).toHaveBeenCalledWith([])
     expect(host.applyTheme).not.toHaveBeenCalled()
     expect(host.publishSettings).toHaveBeenCalledOnce()
   })
@@ -111,6 +115,7 @@ describe('Reset to default in Settings', () => {
     await expect(invoke('settings:reset-general')).rejects.toThrow('disk full')
 
     expect(host.applySpellCheck.mock.calls).toEqual([[true], [false]])
+    expect(host.applySpellCheckLanguages.mock.calls).toEqual([[[]], [['uk', 'de']]])
     expect(startupLaunchManager.setEnabled.mock.calls).toEqual([[DEFAULT_SETTINGS.launchAtStartup], [true]])
     expect(pick(settings(), GENERAL_KEYS)).toEqual(pick({ ...DEFAULT_SETTINGS, ...CHANGED }, GENERAL_KEYS))
     expect(host.publishSettings).not.toHaveBeenCalled()

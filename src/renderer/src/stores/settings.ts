@@ -50,7 +50,8 @@ export const DEFAULT_RENDERER_SETTINGS: AppSettings = {
   graphicsAcceleration: true,
   checkForUpdatesOnStartup: true,
   languagePreference: 'system',
-  spellCheck: true
+  spellCheck: true,
+  spellCheckLanguages: []
 }
 
 export const useSettingsStore = defineStore('settings', () => {
@@ -206,6 +207,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const setShowAgentCursor = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setShowAgentCursor(enabled))
   const setPinAgentLiveStatus = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setPinAgentLiveStatus(enabled))
   const setSpellCheck = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setSpellCheck(enabled))
+  const setSpellCheckLanguages = (languages: string[]): Promise<AppSettings> => applySettings(window.hronautSettings.setSpellCheckLanguages(languages))
   const setChallengeDetectionEnabled = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setChallengeDetectionEnabled(enabled))
   const setOmitAgentUrlDetail = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setOmitAgentUrlDetail(enabled))
   const setAllowWebsiteFileSaving = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setAllowWebsiteFileSaving(enabled))
@@ -277,6 +279,7 @@ export const useSettingsStore = defineStore('settings', () => {
     setShowAgentCursor,
     setPinAgentLiveStatus,
     setSpellCheck,
+    setSpellCheckLanguages,
     setChallengeDetectionEnabled,
     setOmitAgentUrlDetail,
     setAllowWebsiteFileSaving,

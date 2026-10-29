@@ -279,6 +279,12 @@ export const trTR: MessageSchema = {
       "label": "Yazım denetimi",
       "description": "Web sitelerinde metin yazarken yazım hatalarını denetle."
     },
+    "spellCheckLanguages": {
+      "label": "Yazım denetimi dilleri",
+      "description": "Yazımı bu dillerde denetle.",
+      "add": "Dil ekle",
+      "remove": "Kaldır: {language}"
+    },
     "interfaceSize": {
       "label": "Arayüz boyutu",
       "description": "Web sitelerinin yakınlaştırma düzeyini değiştirmeden Hronaut’un denetimlerini ve metnini büyütün.",
@@ -3726,6 +3732,7 @@ export const trTR: MessageSchema = {
       "addDictionary": "“{word}” sözcüğünü sözlüğe ekle",
       "spellCheck": "Yazım denetimi",
       "checkSpelling": "Metin alanlarında yazımı denetle",
+      "spellCheckLanguageSettings": "Dil ayarları",
       "undo": "Geri al",
       "redo": "Yinele",
       "cut": "Kes",

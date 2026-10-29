@@ -890,6 +890,10 @@ export interface TabsManagerOptions {
   getSpellCheck?: () => boolean
   /** Turns spell checking on or off for every website and saves it, as Settings does. */
   setSpellCheck?: (enabled: boolean) => Promise<unknown>
+  /** Whether Settings offers spell check languages; not on macOS, where the system's spell checker picks the language. */
+  offersSpellCheckLanguages?: () => boolean
+  /** Opens Settings → General, where the spell check languages are, as Chrome's Language settings. */
+  openSpellCheckSettings?: () => void
   /** The site permission store, which keeps the websites Mute Site muted in each workspace; null before it loaded. */
   sitePermissionStore?: () => SiteSoundStore | null
   /** Mute Site changed a saved site permission, which the shell windows list. */
@@ -6476,6 +6480,8 @@ export class BrowserTabsManager {
       searchEngine: () => this.options.getSearchEngine?.() ?? DEFAULT_SEARCH_ENGINE,
       spellCheck: () => this.options.getSpellCheck?.() !== false,
       setSpellCheck: async (enabled) => { await this.options.setSpellCheck?.(enabled) },
+      offersSpellCheckLanguages: () => this.options.offersSpellCheckLanguages?.() === true,
+      openSpellCheckSettings: () => this.options.openSpellCheckSettings?.(),
       browserContentOccluded: () => this.browserContentOccluded,
       expectSavedLinkName: (webContents, url, linkName) => this.downloadController.expectSavedLinkName(webContents.id, url, linkName)
     }

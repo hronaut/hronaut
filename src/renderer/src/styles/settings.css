@@ -387,6 +387,15 @@
 .mcp-capability-card details code { @apply block [margin-top:8px] overflow-auto [max-height:90px] [font:var(--type-micro-size)/1.5_var(--font-code)] whitespace-normal; }
 .mcp-capability-empty { @apply [margin:18px_0_0] text-muted [font-size:var(--type-body-size)]; }
 .attention-sound-actions { @apply flex flex-none items-center [gap:8px]; }
+/* The longest language names would stretch the select across the row. */
+.spell-check-languages-row select { @apply [max-width:236px]; }
+/* The languages belong to the row above them: no rule between them. */
+.spell-check-language-list { @apply flex flex-wrap [gap:6px] [margin:-4px_0_0] [padding:0_0_14px] [list-style:none]; }
+.spell-check-language { @apply inline-flex items-center [gap:2px] [min-height:32px] [padding:0_0_0_12px] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-pill)] bg-surface-raised [font-size:var(--type-small-size)]; }
+.spell-check-language .ui-icon-button { @apply [border-radius:var(--corner-pill)]; }
+.spell-check-language .ui-icon-button svg { @apply size-4; }
+.spell-check-language .ui-icon-button[aria-disabled="true"],
+.spell-check-language .ui-icon-button[aria-disabled="true"]:hover { @apply cursor-default opacity-48 bg-transparent; }
 .attention-sound-actions select { @apply [min-width:112px] [padding:8px_10px] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-1)] outline-none text-copy bg-surface-raised [font-size:var(--type-body-size)]; }
 .attention-sound-actions select:focus { @apply border-accent [box-shadow:0_0_0_2px_var(--accent-soft)]; }
 .test-sound-button { @apply whitespace-nowrap; }

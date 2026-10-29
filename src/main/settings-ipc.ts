@@ -49,6 +49,8 @@ interface SettingsIpcHost {
   applyMainWindowBackground(): void
   /** Has every browser session check spelling, or stop, as the value says. */
   applySpellCheck(enabled: boolean): void
+  /** Has every browser session check spelling in these languages, or the automatic one for none. */
+  applySpellCheckLanguages(languages: readonly string[]): void
   startupLaunchManager(): Pick<StartupLaunchManager, 'setEnabled'> | null
   defaultDownloadDirectory(): string
   effectiveDownloadDirectory(): string
@@ -154,9 +156,11 @@ export function registerSettingsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Sett
       showAgentCursor: DEFAULT_SETTINGS.showAgentCursor,
       pinAgentLiveStatus: DEFAULT_SETTINGS.pinAgentLiveStatus,
       languagePreference: DEFAULT_SETTINGS.languagePreference,
-      spellCheck: DEFAULT_SETTINGS.spellCheck
+      spellCheck: DEFAULT_SETTINGS.spellCheck,
+      spellCheckLanguages: [...DEFAULT_SETTINGS.spellCheckLanguages]
     }, async (next) => {
       host.applySpellCheck(next.spellCheck)
+      host.applySpellCheckLanguages(next.spellCheckLanguages)
       await startupLaunch?.setEnabled(next.launchAtStartup)
     })
     // Publishes the reset settings too, also when the language stays the same.

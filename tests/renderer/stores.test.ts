@@ -69,7 +69,8 @@ function settingsState(locale: 'en-US' | 'uk-UA' = 'en-US'): RendererSettingsSta
       graphicsAcceleration: true,
       checkForUpdatesOnStartup: true,
       languagePreference: locale,
-      spellCheck: true
+      spellCheck: true,
+      spellCheckLanguages: []
     },
     systemTheme: 'dark',
     systemLocale: locale,

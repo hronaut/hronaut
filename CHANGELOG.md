@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Spell check languages** in **Settings → General**, as in Chrome: on Windows and Linux, websites' text fields can check spelling in several languages at once, chosen from Chromium's dictionaries, instead of only the one for the system language. A text field's **Spell check → Language settings** opens the setting.
+
 ### Fixed
 
 - A page's request no longer fails at random with **Failed to fetch** (`net::ERR_FAILED`) just after a one-time request condition or a hold caught a request. Settling the rules a moment later sent the page's request interception to Chromium again, which could cut off a request the page was starting; Hronaut now leaves interception that still covers the rules in place, and ends it once nothing is left to intercept.
@@ -11,7 +15,6 @@ All notable changes to Hronaut are documented in this file.
 - When more than 100 agent sessions pile up, Hronaut lets go of one its client left, then one only waiting for messages, and of those the one used longest ago, instead of the oldest session, which could be an agent still at work.
 - Changing or resetting the MCP access token, or turning authentication on or off, ends the sessions on the old token at once: agents that can no longer act leave the toolbar and Home instead of staying listed while their stream stays open, and a call one of them had in progress fails at once instead of staying counted as running.
 - Pinning a tab moves it to the end of its workspace's pinned tabs, and unpinning one moves it to the first place after them, as in Chrome. A tab kept the place it was opened in among the pinned or the other tabs, so pinning the last tab and then unpinning it sent it back to the far end, or, after a restart, left it first.
-
 - An agent's new tab no longer shows its activity on another tab opened at the same moment. The tab strip, **Follow agents** and the agent's steps could name a tab the person or another agent opened at the same time, even in another workspace, and **Follow agents** could switch the view there.
 
 ## [3.13.0] - 2026-10-29

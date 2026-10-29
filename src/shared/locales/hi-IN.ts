@@ -279,6 +279,12 @@ export const hiIN: MessageSchema = {
       "label": "वर्तनी जांच",
       "description": "वेबसाइटों पर टेक्स्ट लिखते समय वर्तनी की गलतियां जांचें।"
     },
+    "spellCheckLanguages": {
+      "label": "वर्तनी जांच की भाषाएं",
+      "description": "इन भाषाओं में वर्तनी जांचें।",
+      "add": "भाषा जोड़ें",
+      "remove": "{language} हटाएं"
+    },
     "interfaceSize": {
       "label": "इंटरफ़ेस का साइज़",
       "description": "वेबसाइट का ज़ूम बदले बिना Hronaut के कंट्रोल और टेक्स्ट बड़े करें।",
@@ -3726,6 +3732,7 @@ export const hiIN: MessageSchema = {
       "addDictionary": "“{word}” को शब्दकोश में जोड़ें",
       "spellCheck": "वर्तनी जांच",
       "checkSpelling": "टेक्स्ट फ़ील्ड की वर्तनी जांचें",
+      "spellCheckLanguageSettings": "भाषा सेटिंग",
       "undo": "पहले जैसा करें",
       "redo": "फिर से करें",
       "cut": "काटें",

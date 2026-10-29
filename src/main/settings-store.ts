@@ -52,7 +52,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   graphicsAcceleration: true,
   checkForUpdatesOnStartup: true,
   languagePreference: 'system',
-  spellCheck: true
+  spellCheck: true,
+  spellCheckLanguages: []
 }
 
 export { isThemeName }
@@ -63,6 +64,14 @@ export function isDownloadDirectory(value: unknown): value is string {
     && value.length <= 4_096
     && !value.includes('\0')
     && isAbsolute(value)
+}
+
+/** Spell check languages as saved: different language codes, such as `en-US`; which of them have dictionaries is checked where they apply. */
+export function isSpellCheckLanguageList(value: unknown): value is string[] {
+  return Array.isArray(value)
+    && value.length <= 64
+    && new Set(value).size === value.length
+    && value.every((language) => typeof language === 'string' && /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(language))
 }
 
 export class SettingsStore {
@@ -137,7 +146,10 @@ export class SettingsStore {
         languagePreference: isLanguagePreference(value.languagePreference)
           ? value.languagePreference
           : DEFAULT_SETTINGS.languagePreference,
-        spellCheck: typeof value.spellCheck === 'boolean' ? value.spellCheck : DEFAULT_SETTINGS.spellCheck
+        spellCheck: typeof value.spellCheck === 'boolean' ? value.spellCheck : DEFAULT_SETTINGS.spellCheck,
+        spellCheckLanguages: isSpellCheckLanguageList(value.spellCheckLanguages)
+          ? [...value.spellCheckLanguages]
+          : [...DEFAULT_SETTINGS.spellCheckLanguages]
       }
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code

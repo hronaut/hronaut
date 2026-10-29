@@ -279,6 +279,12 @@ export const frFR: MessageSchema = {
       "label": "Vérification orthographique",
       "description": "Vérifier l’orthographe quand vous saisissez du texte sur les sites web."
     },
+    "spellCheckLanguages": {
+      "label": "Langues de la vérification orthographique",
+      "description": "Vérifier l’orthographe dans ces langues.",
+      "add": "Ajouter une langue",
+      "remove": "Retirer la langue : {language}"
+    },
     "interfaceSize": {
       "label": "Taille de l’interface",
       "description": "Agrandissez les commandes et le texte de Hronaut sans modifier le zoom des sites.",
@@ -3726,6 +3732,7 @@ export const frFR: MessageSchema = {
       "addDictionary": "Ajouter « {word} » au dictionnaire",
       "spellCheck": "Vérification orthographique",
       "checkSpelling": "Vérifier l’orthographe des champs de texte",
+      "spellCheckLanguageSettings": "Paramètres de langue",
       "undo": "Annuler",
       "redo": "Rétablir",
       "cut": "Couper",

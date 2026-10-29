@@ -279,6 +279,12 @@ export const itIT: MessageSchema = {
       "label": "Controllo ortografico",
       "description": "Controlla gli errori di ortografia quando scrivi testo nei siti web."
     },
+    "spellCheckLanguages": {
+      "label": "Lingue del controllo ortografico",
+      "description": "Controlla l’ortografia in queste lingue.",
+      "add": "Aggiungi lingua",
+      "remove": "Rimuovi {language}"
+    },
     "interfaceSize": {
       "label": "Dimensione dell’interfaccia",
       "description": "Ingrandisci i controlli e il testo di Hronaut senza modificare lo zoom dei siti web.",
@@ -3726,6 +3732,7 @@ export const itIT: MessageSchema = {
       "addDictionary": "Aggiungi “{word}” al dizionario",
       "spellCheck": "Controllo ortografico",
       "checkSpelling": "Controlla l’ortografia dei campi di testo",
+      "spellCheckLanguageSettings": "Impostazioni lingua",
       "undo": "Annulla",
       "redo": "Ripeti",
       "cut": "Taglia",

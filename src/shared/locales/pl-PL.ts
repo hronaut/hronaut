@@ -279,6 +279,12 @@ export const plPL: MessageSchema = {
       "label": "Sprawdzanie pisowni",
       "description": "Sprawdzaj pisownię podczas wpisywania tekstu na stronach internetowych."
     },
+    "spellCheckLanguages": {
+      "label": "Języki sprawdzania pisowni",
+      "description": "Sprawdzaj pisownię w tych językach.",
+      "add": "Dodaj język",
+      "remove": "Usuń {language}"
+    },
     "interfaceSize": {
       "label": "Rozmiar interfejsu",
       "description": "Powiększ elementy sterujące i tekst Hronaut bez zmiany powiększenia witryn.",
@@ -3726,6 +3732,7 @@ export const plPL: MessageSchema = {
       "addDictionary": "Dodaj „{word}” do słownika",
       "spellCheck": "Sprawdzanie pisowni",
       "checkSpelling": "Sprawdzaj pisownię w polach tekstowych",
+      "spellCheckLanguageSettings": "Ustawienia języka",
       "undo": "Cofnij",
       "redo": "Ponów",
       "cut": "Wytnij",

@@ -43,6 +43,8 @@ function openMenu(params: Partial<ContextMenuParams>, options: { engine?: Search
     searchEngine,
     spellCheck: () => true,
     setSpellCheck: async () => undefined,
+    offersSpellCheckLanguages: () => true,
+    openSpellCheckSettings: () => undefined,
     browserContentOccluded: options.occluded ?? (() => false)
   } as unknown as PageContextMenuAccess
   showContextMenu(access, tab, {
