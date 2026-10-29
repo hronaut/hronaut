@@ -8,14 +8,33 @@ import { liveRegionRecordingKeepsTabAwake } from '../live-region-recorder.js'
 import { localizedLoadFailure } from '../load-failure-error.js'
 import type { NavigationHistorySnapshot } from '../navigation-history.js'
 import { settledWithin } from '../page-waits/page-load-limit.js'
-import { RendererExitedError } from '../renderer-exit-guard.js'
+import { firstLoadStarts, RendererExitedError } from '../renderer-exit-guard.js'
 import { holdTabHistory } from '../tab-history-pages/forget-tab-history-pages.js'
 import { isHronautHomeUrl, isWebUrl } from '../url.js'
 import { SLEEPING_PAGE_URL } from './sleeping-page.js'
-import type { TabSleepAccess, TabSleepTab } from './tab-sleep-access.js'
+import type { Browser } from '../browser.js'
+import { ensureDialogMonitoring } from '../website-dialogs/website-dialogs.js'
+import { findTab, getTab, orderedTabs } from '../browser-core.js'
+import type { BrowserTab } from '../browser-tab.js'
+import { browserState, publishChange } from '../browser-state/browser-state.js'
+import { withDebugger } from '../debugger-lease/debugger-lease.js'
 
 // A copy of the tab manager's own check, which its load handling keeps using.
 const ABORTED_LOAD_ERROR = -3
+
+/**
+ * The tab's first page starts to load: the renderer exit guard lets page calls through, the page's dialogs and network
+ * are monitored, and the person's input lock holds from the first document.
+ */
+function startFirstLoad(browser: Browser, tab: BrowserTab): void {
+  firstLoadStarts(tab.webContents)
+  void ensureDialogMonitoring(browser, tab)
+  // The browser process applies the input lock without the page's renderer, so it holds from the first document
+  // rather than once the page's monitoring is in place.
+  if (browser.isHumanInteractionLocked(tab) && tab.webContents.debugger.isAttached()) {
+    void tab.webContents.debugger.sendCommand('Input.setIgnoreInputEvents', { ignore: true }).catch(() => undefined)
+  }
+}
 
 function isAbortedLoad(error: unknown): boolean {
   if (!(error instanceof Error)) return false
@@ -149,11 +168,11 @@ function forgetSleepingPage(webContents: WebContents): void {
  * Removes the sleeping page from the history once the navigation that replaced a wake opens its page; until then the
  * sleeping page is still the last page the tab committed and cannot be removed.
  */
-function forgetSleepingPageOnNextPage<Tab extends TabSleepTab>(access: TabSleepAccess<Tab>, tab: Tab): void {
+function forgetSleepingPageOnNextPage(browser: Browser, tab: BrowserTab): void {
   const contents = tab.webContents
-  if (access.findTab(tab.id) !== tab || contents.isDestroyed()) return
+  if (findTab(browser, tab.id) !== tab || contents.isDestroyed()) return
   contents.once('did-navigate', () => {
-    if (access.findTab(tab.id) === tab && tab.webContents === contents && !contents.isDestroyed()) forgetSleepingPage(contents)
+    if (findTab(browser, tab.id) === tab && tab.webContents === contents && !contents.isDestroyed()) forgetSleepingPage(contents)
   })
 }
 
@@ -166,14 +185,14 @@ function forgetSleepingPageOnNextPage<Tab extends TabSleepTab>(access: TabSleepA
  * shows no page of its own, goes back to sleep and the failure is thrown.
  * Once awake, the sleeping page leaves its history.
  */
-export async function wakeTab<Tab extends TabSleepTab>(access: TabSleepAccess<Tab>, tabId: string): Promise<BrowserState> {
-  const tab = access.getTab(tabId)
+export async function wakeTab(browser: Browser, tabId: string): Promise<BrowserState> {
+  const tab = getTab(browser, tabId)
   tab.lastActiveAt = Date.now()
   if (tab.wakePromise) {
     await awaitWake(tab, tab.wakePromise)
-    return access.getState()
+    return browserState(browser)
   }
-  if (!tab.sleeping) return access.getState()
+  if (!tab.sleeping) return browserState(browser)
   // Its callers went on with the page it showed, which an agent may already use.
   const handedOver = (): boolean => shownWakes.has(wake)
   const wake = (async () => {
@@ -181,7 +200,7 @@ export async function wakeTab<Tab extends TabSleepTab>(access: TabSleepAccess<Ta
     if (tab.pageReady) {
       await tab.pageReady
       tab.pageReady = undefined
-      if (access.findTab(tab.id) !== tab || tab.webContents.isDestroyed() || !tab.sleeping) return
+      if (findTab(browser, tab.id) !== tab || tab.webContents.isDestroyed() || !tab.sleeping) return
     }
     const restoreUrl = tab.url
     // Clearing the history while the tab wakes also reaches the history it goes back to sleep with if waking fails.
@@ -193,22 +212,22 @@ export async function wakeTab<Tab extends TabSleepTab>(access: TabSleepAccess<Ta
     const firstLoad = tab.waitsForTurn === true
     tab.waitsForTurn = false
     tab.sleeping = false
-    access.tabOverviewSleepPreviews().delete(tab.id)
+    browser.tabOverviewSleepPreviews.delete(tab.id)
     tab.sleepNavigationHistory = undefined
     tab.loading = true
     if (!firstLoad) tab.suppressInitialHistory = true
-    access.changed(false)
+    publishChange(browser, false)
     try {
       // A tab created asleep never loaded a page, so it has had no renderer process until now, as in Chrome.
       if (tab.webContents.getURL() === '') {
-        access.firstLoadStarts(tab)
+        startFirstLoad(browser, tab)
         await loadFirstPage(tab.webContents, restoreUrl, navigationHistory)
       } else {
         await returnFromSleepingPage(tab.webContents, restoreUrl)
       }
     } catch (error) {
       if (handedOver()) return
-      const wakeWasSuperseded = () => access.findTab(tab.id) !== tab
+      const wakeWasSuperseded = () => findTab(browser, tab.id) !== tab
         || tab.webContents.isDestroyed()
         || (tab.navigationGeneration !== navigationGeneration
           && (tab.webContents.isLoading() || showsPage(tab.webContents)))
@@ -218,7 +237,7 @@ export async function wakeTab<Tab extends TabSleepTab>(access: TabSleepAccess<Ta
       // authoritative, and the sleeping page leaves the history once that
       // navigation's page opens.
       if (isAbortedLoad(error) && wakeWasSuperseded()) {
-        forgetSleepingPageOnNextPage(access, tab)
+        forgetSleepingPageOnNextPage(browser, tab)
         return
       }
       try {
@@ -228,33 +247,33 @@ export async function wakeTab<Tab extends TabSleepTab>(access: TabSleepAccess<Ta
         // A newer navigation can also interrupt the fallback. Preserve its
         // live document instead of restoring the obsolete sleeping state.
         if (isAbortedLoad(fallbackError) && wakeWasSuperseded()) {
-          forgetSleepingPageOnNextPage(access, tab)
+          forgetSleepingPageOnNextPage(browser, tab)
           return
         }
         // A website that cannot be reached, such as a stopped local server, leaves the tab on Chromium's error page at
         // its address, or at the address it redirected to, as Chrome shows a discarded tab: the tab is awake there,
         // and Reload tries again. A load that commits nothing, such as a download, leaves the tab without a page.
-        if (access.findTab(tab.id) === tab && !tab.webContents.isDestroyed() && showsPage(tab.webContents)) {
+        if (findTab(browser, tab.id) === tab && !tab.webContents.isDestroyed() && showsPage(tab.webContents)) {
           forgetSleepingPage(tab.webContents)
           return
         }
-        if (access.findTab(tab.id) === tab) {
+        if (findTab(browser, tab.id) === tab) {
           tab.sleeping = true
           tab.sleepNavigationHistory = navigationHistory
           tab.loading = previousLoading
           tab.suppressInitialHistory = previousSuppressInitialHistory
-          access.changed(false)
+          publishChange(browser, false)
         }
         throw localizedLoadFailure(fallbackError)
       }
     }
-    if (access.findTab(tab.id) === tab && !tab.webContents.isDestroyed()) forgetSleepingPage(tab.webContents)
+    if (findTab(browser, tab.id) === tab && !tab.webContents.isDestroyed()) forgetSleepingPage(tab.webContents)
   })()
   tab.wakePromise = wake
   const settled = (): void => { if (tab.wakePromise === wake) tab.wakePromise = undefined }
   wake.then(settled, settled)
   await awaitWake(tab, wake)
-  return access.getState()
+  return browserState(browser)
 }
 
 /** Wakes whose callers went on once their page showed, while its load went on. */
@@ -265,7 +284,7 @@ const shownWakes = new WeakSet<Promise<void>>()
  * caller only for PAGE_LOAD_WAIT_MS: once the page shows, the tab is awake and keeps loading, as in Chrome, and the
  * sleeping page leaves its history; while it still shows no page of its own, the wait fails.
  */
-async function awaitWake(tab: TabSleepTab, wake: Promise<void>): Promise<void> {
+async function awaitWake(tab: BrowserTab, wake: Promise<void>): Promise<void> {
   if (await settledWithin(wake)) return
   if (!tab.webContents.isDestroyed() && showsPage(tab.webContents)) {
     shownWakes.add(wake)
@@ -283,11 +302,11 @@ async function awaitWake(tab: TabSleepTab, wake: Promise<void>): Promise<void> {
 }
 
 /** Puts the tab to sleep, reporting what keeps it awake, or wakes it. */
-export async function setTabSleeping<Tab extends TabSleepTab>(access: TabSleepAccess<Tab>, tabId: string, sleeping: boolean): Promise<BrowserState> {
-  const tab = access.getTab(tabId)
-  if (sleeping) await putTabToSleep(access, tab, true)
-  else await wakeTab(access, tabId)
-  return access.getState()
+export async function setTabSleeping(browser: Browser, tabId: string, sleeping: boolean): Promise<BrowserState> {
+  const tab = getTab(browser, tabId)
+  if (sleeping) await putTabToSleep(browser, tab, true)
+  else await wakeTab(browser, tabId)
+  return browserState(browser)
 }
 
 /**
@@ -296,8 +315,8 @@ export async function setTabSleeping<Tab extends TabSleepTab>(access: TabSleepAc
  * so the person stays in the workspace, then an awake tab of another
  * workspace, then any.
  */
-export function sleepFallbackTab<Tab extends TabSleepTab>(access: TabSleepAccess<Tab>, tab: Tab): Tab | undefined {
-  const ordered = access.orderedTabs()
+export function sleepFallbackTab(browser: Browser, tab: BrowserTab): BrowserTab | undefined {
+  const ordered = orderedTabs(browser)
   const index = ordered.indexOf(tab)
   const candidates = [
     ...ordered.slice(index + 1),
@@ -315,50 +334,50 @@ export function sleepFallbackTab<Tab extends TabSleepTab>(access: TabSleepAccess
  * that may sleep first hands the view to its fallback tab, and gets it back
  * when going to sleep fails.
  */
-export async function setTabSleepingFromContextMenu<Tab extends TabSleepTab>(access: TabSleepAccess<Tab>, tabId: string, sleeping: boolean): Promise<void> {
-  const tab = access.getTab(tabId)
+export async function setTabSleepingFromContextMenu(browser: Browser, tabId: string, sleeping: boolean): Promise<void> {
+  const tab = getTab(browser, tabId)
   if (!sleeping) {
-    await wakeTab(access, tab.id)
+    await wakeTab(browser, tab.id)
     return
   }
   if (tab.sleeping) return
 
-  const active = tab.id === access.activeTabId() && !access.splitViewContains(tab.id)
-  const fallback = active ? sleepFallbackTab(access, tab) : undefined
-  const blockReason = sleepBlockReason(access, tab, active && fallback !== undefined)
+  const active = tab.id === browser.activeTabId && !browser.splitViewContains(tab.id)
+  const fallback = active ? sleepFallbackTab(browser, tab) : undefined
+  const blockReason = sleepBlockReason(browser, tab, active && fallback !== undefined)
   if (blockReason) throw new LocalizedError(blockReason)
   if (!active || !fallback) {
-    await putTabToSleep(access, tab, true)
+    await putTabToSleep(browser, tab, true)
     return
   }
 
   // What the page holds keeps it awake before the view moves, so a refusal neither switches tabs nor wakes the fallback.
   const pageHold = await pageSleepHold(tab)
   if (pageHold) throw new LocalizedError(pageHold)
-  if (access.activeTabId() !== tab.id || access.splitViewContains(tab.id)) {
-    await putTabToSleep(access, tab, true)
+  if (browser.activeTabId !== tab.id || browser.splitViewContains(tab.id)) {
+    await putTabToSleep(browser, tab, true)
     return
   }
-  const latestFallback = sleepFallbackTab(access, tab)
-  const latestBlockReason = sleepBlockReason(access, tab, latestFallback !== undefined)
+  const latestFallback = sleepFallbackTab(browser, tab)
+  const latestBlockReason = sleepBlockReason(browser, tab, latestFallback !== undefined)
   if (latestBlockReason) throw new LocalizedError(latestBlockReason)
   if (!latestFallback) throw new LocalizedError('appErrors.sleep.visible')
-  access.selectTab(latestFallback.id)
+  browser.selectTab(latestFallback.id)
   try {
-    await putTabToSleep(access, tab, true)
+    await putTabToSleep(browser, tab, true)
   } catch (error) {
-    if (access.hasTab(tab.id) && !tab.webContents.isDestroyed() && access.activeTabId() === latestFallback.id) {
-      access.selectTab(tab.id)
+    if (browser.tabs.has(tab.id) && !tab.webContents.isDestroyed() && browser.activeTabId === latestFallback.id) {
+      browser.selectTab(tab.id)
     }
     throw error
   }
 }
 
 /** Puts every tab of the workspace that may sleep to sleep, skipping the others. */
-export async function sleepWorkspaceTabs<Tab extends TabSleepTab>(access: TabSleepAccess<Tab>, groupId: string): Promise<void> {
-  if (!access.mcpTabGroups().has(groupId)) throw new LocalizedError('appErrors.workspace.unavailable', undefined, { message: `Unknown workspace: ${groupId}` })
-  const workspaceTabs = [...access.tabs()].filter((tab) => tab.mcpGroupId === groupId)
-  for (const tab of workspaceTabs) await putTabToSleep(access, tab, false)
+export async function sleepWorkspaceTabs(browser: Browser, groupId: string): Promise<void> {
+  if (!browser.mcpTabGroups.has(groupId)) throw new LocalizedError('appErrors.workspace.unavailable', undefined, { message: `Unknown workspace: ${groupId}` })
+  const workspaceTabs = [...browser.tabs.values()].filter((tab) => tab.mcpGroupId === groupId)
+  for (const tab of workspaceTabs) await putTabToSleep(browser, tab, false)
 }
 
 /**
@@ -366,44 +385,44 @@ export async function sleepWorkspaceTabs<Tab extends TabSleepTab>(access: TabSle
  * undefined when it may sleep. The active tab may sleep only when
  * allowActiveTab says another tab will take its place.
  */
-export function sleepBlockReason<Tab extends TabSleepTab>(access: TabSleepAccess<Tab>, tab: Tab, allowActiveTab = false): MessageKey | undefined {
-  if (!access.hasTab(tab.id) || tab.webContents.isDestroyed()) return 'native.errors.tabUnavailable'
+export function sleepBlockReason(browser: Browser, tab: BrowserTab, allowActiveTab = false): MessageKey | undefined {
+  if (!browser.tabs.has(tab.id) || tab.webContents.isDestroyed()) return 'native.errors.tabUnavailable'
   if (isHronautHomeUrl(tab.url) || !isWebUrl(tab.url)) return 'appErrors.sleep.onlyWebsites'
-  if ((!allowActiveTab && tab.id === access.activeTabId()) || access.splitViewContains(tab.id)) return 'appErrors.sleep.visible'
+  if ((!allowActiveTab && tab.id === browser.activeTabId) || browser.splitViewContains(tab.id)) return 'appErrors.sleep.visible'
   if (tab.pinned) return 'appErrors.sleep.pinned'
   if (tab.pageLifecycleState !== 'active' || tab.pageLifecycleOperation) return 'appErrors.sleep.pageHold'
   if (tab.loading) return 'appErrors.sleep.loading'
   if (tab.audible) return 'appErrors.sleep.audio'
   if (tab.dialog) return 'appErrors.sleep.dialog'
-  if (access.options().walletKeepsTabAwake?.(tab.id)) return 'appErrors.sleep.wallet'
-  if (tab.webContents.isDevToolsOpened() || access.devToolsOpening().has(tab.webContents.id)) {
+  if (browser.options.walletKeepsTabAwake?.(tab.id)) return 'appErrors.sleep.wallet'
+  if (tab.webContents.isDevToolsOpened() || browser.devToolsOpening.has(tab.webContents.id)) {
     return 'appErrors.sleep.devTools'
   }
   if (
-    access.screenshotAreaSessions().has(tab.webContents.id)
-    || access.elementPickerSessions().has(tab.webContents.id)
-    || access.agentInputWebContents().has(tab.webContents.id)
+    browser.screenshotAreaSessions.has(tab.webContents.id)
+    || browser.elementPickerSessions.has(tab.webContents.id)
+    || browser.agentInputWebContents.has(tab.webContents.id)
   ) {
     return 'appErrors.sleep.interaction'
   }
-  if (access.videoRecorder().state(tab.id).status === 'recording') return 'appErrors.sleep.video'
+  if (browser.videoRecorder.state(tab.id).status === 'recording') return 'appErrors.sleep.video'
   if (tab.reproRecording?.active) return 'appErrors.sleep.repro'
   if (tab.domChangesRecording?.active) return 'appErrors.sleep.domChanges'
   if (liveRegionRecordingKeepsTabAwake(tab)) return 'appErrors.sleep.liveRegion'
-  if (access.cssStatePreview().active(tab)) return 'appErrors.sleep.cssState'
-  if (access.domMutationSource().active(tab)) return 'appErrors.sleep.domMutationSource'
-  if (access.virtualPasskeys().active(tab)) return 'appErrors.sleep.passkey'
-  if (access.logpoints().active(tab)) return 'appErrors.sleep.logpoints'
+  if (browser.cssStatePreview.active(tab)) return 'appErrors.sleep.cssState'
+  if (browser.domMutationSource.active(tab)) return 'appErrors.sleep.domMutationSource'
+  if (browser.virtualPasskeys.active(tab)) return 'appErrors.sleep.passkey'
+  if (browser.logpoints.active(tab)) return 'appErrors.sleep.logpoints'
   if (tab.codeCoverage?.recording) return 'appErrors.sleep.coverage'
   if (tab.cpuProfile?.recording) return 'appErrors.sleep.cpuProfile'
   if (tab.memoryAllocation?.recording) return 'appErrors.sleep.memory'
-  if ((access.mcpActivitiesByTab().get(tab.id)?.size ?? 0) > 0) return 'appErrors.sleep.mcpCommand'
-  if (access.downloadController().hasActiveDownload(tab.id)) {
+  if ((browser.mcpActivitiesByTab.get(tab.id)?.size ?? 0) > 0) return 'appErrors.sleep.mcpCommand'
+  if (browser.downloadController.hasActiveDownload(tab.id)) {
     return 'appErrors.sleep.download'
   }
-  if (access.renderQueues().has(tab.webContents.id)) return 'appErrors.sleep.render'
+  if (browser.renderQueues.has(tab.webContents.id)) return 'appErrors.sleep.render'
   // Sleeping replaces the page, which would break what the two pages are doing together, such as signing in.
-  if ((tab.openerTabId && access.hasTab(tab.openerTabId)) || [...access.tabs()].some(other => other.openerTabId === tab.id)) {
+  if ((tab.openerTabId && browser.tabs.has(tab.openerTabId)) || [...browser.tabs.values()].some(other => other.openerTabId === tab.id)) {
     return 'appErrors.sleep.window'
   }
   return undefined
@@ -461,7 +480,7 @@ const PICTURE_IN_PICTURE_SCRIPT = "document.pictureInPictureElement != null || (
  * there; one that cannot answer in time, such as one not allowed to run scripts, is skipped, so it cannot hold up
  * sleeping or keep the tab awake for good.
  */
-export async function pageSleepHold(tab: TabSleepTab): Promise<MessageKey | undefined> {
+export async function pageSleepHold(tab: BrowserTab): Promise<MessageKey | undefined> {
   const [changed, shown] = await Promise.all([
     tab.webContents.executeJavaScript(CHANGED_FORM_STATE_SCRIPT).then(
       (answer: unknown) => answer === true,
@@ -516,7 +535,7 @@ const WATCH_FORM_EDITS_SCRIPT = `(() => {
  * which forms do not show. Adding a listener needs no user activation, so none is granted: activation would let the
  * page, or an embedded frame and every page above it, act as if the person had just clicked.
  */
-export function watchUnsavedFormEdits(tab: TabSleepTab, frame?: WebFrameMain): void {
+export function watchUnsavedFormEdits(tab: BrowserTab, frame?: WebFrameMain): void {
   const run = frame ? frame.executeJavaScript(WATCH_FORM_EDITS_SCRIPT, false) : tab.webContents.executeJavaScript(WATCH_FORM_EDITS_SCRIPT, false)
   void run.catch(() => undefined)
 }
@@ -543,7 +562,7 @@ export function sleepBeforeFirstLoad(pageCanLoad: Promise<void>): Promise<void> 
  * failed, the previous page is restored; when that fails too, the tab stays
  * asleep. Returns whether the tab went to sleep.
  */
-export async function putTabToSleep<Tab extends TabSleepTab>(access: TabSleepAccess<Tab>, tab: Tab, reportBlocked: boolean, isCurrent: () => boolean = () => true): Promise<boolean> {
+export async function putTabToSleep(browser: Browser, tab: BrowserTab, reportBlocked: boolean, isCurrent: () => boolean = () => true): Promise<boolean> {
   if (tab.wakePromise) {
     try {
       await awaitWake(tab, tab.wakePromise)
@@ -559,7 +578,7 @@ export async function putTabToSleep<Tab extends TabSleepTab>(access: TabSleepAcc
     tab.waitsForTurn = false
     return false
   }
-  const blockReason = sleepBlockReason(access, tab)
+  const blockReason = sleepBlockReason(browser, tab)
   if (blockReason) {
     if (reportBlocked) throw new LocalizedError(blockReason)
     return false
@@ -570,21 +589,21 @@ export async function putTabToSleep<Tab extends TabSleepTab>(access: TabSleepAcc
     return false
   }
   if (!isCurrent()) return false
-  const latestBlockReason = sleepBlockReason(access, tab)
+  const latestBlockReason = sleepBlockReason(browser, tab)
   if (latestBlockReason) {
     if (reportBlocked) throw new LocalizedError(latestBlockReason)
     return false
   }
-  tab.sleepNavigationHistory = access.navigationHistorySnapshot(tab)
+  tab.sleepNavigationHistory = browser.navigationHistorySnapshot(tab)
   // The overview keeps showing the page as it was; the frame is dropped when the tab wakes or closes.
-  const lastFrame = access.tabOverviewPreviews().get(tab.id)
-  if (lastFrame?.navigationGeneration === tab.navigationGeneration) access.tabOverviewSleepPreviews().set(tab.id, lastFrame)
-  else access.tabOverviewSleepPreviews().delete(tab.id)
+  const lastFrame = browser.tabOverviewPreviews.get(tab.id)
+  if (lastFrame?.navigationGeneration === tab.navigationGeneration) browser.tabOverviewSleepPreviews.set(tab.id, lastFrame)
+  else browser.tabOverviewSleepPreviews.delete(tab.id)
   tab.sleeping = true
   tab.walletPageUnloading = true
   tab.loading = false
   tab.pendingHistoryUrl = null
-  access.changed(false)
+  publishChange(browser, false)
   let sleepingPageLoaded = false
   try {
     try {
@@ -594,7 +613,7 @@ export async function putTabToSleep<Tab extends TabSleepTab>(access: TabSleepAcc
       tab.walletPageUnloading = false
     }
     sleepingPageLoaded = true
-    await access.withDebugger(tab.webContents, () =>
+    await withDebugger(browser, tab.webContents, () =>
       tab.webContents.debugger.sendCommand('HeapProfiler.collectGarbage')
     )
   } catch (error) {
@@ -602,7 +621,7 @@ export async function putTabToSleep<Tab extends TabSleepTab>(access: TabSleepAcc
     if (!sleepingPageLoaded) {
       tab.sleeping = false
       tab.sleepNavigationHistory = undefined
-      access.changed(false)
+      publishChange(browser, false)
       if (reportBlocked) throw error
       console.warn(`[browser] Could not put tab ${tab.id} to sleep:`, error)
       return false
@@ -624,7 +643,7 @@ export async function putTabToSleep<Tab extends TabSleepTab>(access: TabSleepAcc
       tab.sleeping = true
       tab.sleepNavigationHistory = navigationHistory
       tab.loading = false
-      access.changed(false)
+      publishChange(browser, false)
       const recoveryError = new AggregateError(
         [error, restoreError],
         'The tab could not finish sleeping and its previous page could not be restored.'
@@ -636,11 +655,11 @@ export async function putTabToSleep<Tab extends TabSleepTab>(access: TabSleepAcc
     tab.sleeping = false
     tab.sleepNavigationHistory = undefined
     tab.loading = false
-    access.changed(false)
+    publishChange(browser, false)
     if (reportBlocked) throw error
     console.warn(`[browser] Could not put tab ${tab.id} to sleep:`, error)
     return false
   }
-  access.changed(false)
+  publishChange(browser, false)
   return true
 }

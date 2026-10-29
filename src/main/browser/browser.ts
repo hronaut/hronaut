@@ -28,7 +28,6 @@ import {
 } from './tab-overview-previews/tab-overview-previews.js'
 import type { PageContextMenuAccess } from './context-menus/page-context-menu-access.js'
 import { attachPageContextMenuEvents } from './context-menus/page-context-menu-events.js'
-import type { WorkspaceContextMenuAccess } from './context-menus/workspace-context-menu-access.js'
 import { workspaceContextMenuItems } from './context-menus/workspace-context-menu.js'
 import { fillForm, scroll, select, type } from './agent-page-actions/form-input-and-scroll.js'
 import type { NativeWheelInput } from './native-wheel.js'
@@ -300,7 +299,7 @@ import { uuidV7 } from '../uuid-v7.js'
 import { LocalizedError } from '../localized-error.js'
 import { RendererRecovery } from './renderer-recovery.js'
 import { EndedByPersonMarks, endTaskManagerProcess, taskManagerProcesses, type TaskManagerAccess } from './task-manager/task-manager.js'
-import { firstLoadStarts, guardPageCallsAcrossRendererExit, holdUntilFirstLoad } from './renderer-exit-guard.js'
+import { guardPageCallsAcrossRendererExit, holdUntilFirstLoad } from './renderer-exit-guard.js'
 import { refusePageScriptsInSourceView } from './source-view-guard.js'
 import { guardPageCallsDuringPrintDialog } from './print-dialog-guard.js'
 import { runPageScriptsOnceDocumentReady } from './page-script-readiness.js'
@@ -500,21 +499,17 @@ import { attachRendererHealthEvents } from './tab-events/renderer-health-events.
 import type { WindowOpenHandlerAccess } from './tab-events/window-open-handler-access.js'
 import { attachWindowOpenHandler } from './tab-events/window-open-handler.js'
 import { withRenderableTab } from './renderable-tab/renderable-tab.js'
-import type { TabSleepAccess } from './tab-sleep/tab-sleep-access.js'
 import {
-  putTabToSleep,
   setTabSleeping,
   setTabSleepingFromContextMenu,
   sleepBlockReason,
   sleepFallbackTab,
-  sleepWorkspaceTabs,
   sleepBeforeFirstLoad,
   wakeTab,
   watchUnsavedFormEdits,
   withoutSleepingPage
 } from './tab-sleep/tab-sleep.js'
 import { SLEEPING_PAGE_URL } from './tab-sleep/sleeping-page.js'
-import type { MemorySaverAccess } from './tab-sleep/memory-saver-access.js'
 import { setMemorySaverSettings, sleepInactiveTabs, sweepMemorySaver } from './tab-sleep/memory-saver.js'
 import { BackgroundLoads } from './tab-sleep/background-loads.js'
 import { evaluateWithAttachedDebugger, mainWorldContextId } from './debugger-evaluation/debugger-evaluation.js'
@@ -2242,34 +2237,8 @@ export class Browser {
     return setTabPinned(this, tabId, pinned)
   }
 
-  /**
-   * The narrow view Memory Saver's settings and sleep sweep get of this
-   * manager's private tabs, Memory Saver settings, settings generation and
-   * sweep queue, and of putting tabs to sleep and waking them. It is a
-   * prototype method rather than a field, so managers created without the
-   * constructor (as unit tests do) still provide it. The delegates below
-   * return the feature's promise directly, so callers see the same ticks as
-   * before.
-   */
-  private memorySaverAccess(): MemorySaverAccess<BrowserTab> {
-    return {
-      tabs: () => this.tabs.values(),
-      findTab: (tabId) => this.tabs.get(tabId),
-      isDestroyed: () => this.destroyed,
-      memorySaverEnabled: () => this.memorySaverEnabled,
-      setMemorySaverEnabled: (enabled) => { this.memorySaverEnabled = enabled },
-      memorySaverTimeoutMinutes: () => this.memorySaverTimeoutMinutes,
-      setMemorySaverTimeoutMinutes: (timeoutMinutes) => { this.memorySaverTimeoutMinutes = timeoutMinutes },
-      memorySaverSettingsGeneration: () => this.memorySaverSettingsGeneration,
-      setMemorySaverSettingsGeneration: (generation) => { this.memorySaverSettingsGeneration = generation },
-      memorySaverSweeps: () => this.memorySaverSweeps,
-      putTabToSleep: (tab, reportBlocked, isCurrent) => this.putTabToSleep(tab, reportBlocked, isCurrent),
-      getState: () => this.getState()
-    }
-  }
-
   setMemorySaverSettings(enabled: boolean, timeoutMinutes: MemorySaverTimeoutMinutes): void {
-    setMemorySaverSettings(this.memorySaverAccess(), enabled, timeoutMinutes)
+    setMemorySaverSettings(this, enabled, timeoutMinutes)
   }
 
   setFollowAgentActivity(enabled: boolean): void {
@@ -2281,61 +2250,8 @@ export class Browser {
     handleMcpTabActivity(this.agentFollowAccess(), activity, agent)
   }
 
-  /**
-   * The narrow view putting a tab to sleep and waking it gets of this
-   * manager's private tabs, active tab, split view, options, DevTools opening,
-   * native selection sessions, agent input, video recorder, CSS state
-   * previews, MCP activity, downloads, render queues, navigation history, tab
-   * overview previews, workspaces, debugger queue, selection and state
-   * publication. It is a prototype method rather than a field, so managers
-   * created without the constructor (as unit tests do) still provide it. The
-   * delegates below return the feature's promise directly, so callers see the
-   * same ticks as before.
-   */
-  private tabSleepAccess(): TabSleepAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      findTab: (tabId) => this.tabs.get(tabId),
-      hasTab: (tabId) => this.tabs.has(tabId),
-      tabs: () => this.tabs.values(),
-      orderedTabs: () => orderedTabs(this),
-      activeTabId: () => this.activeTabId,
-      splitViewContains: (tabId) => this.splitViewContains(tabId),
-      selectTab: (tabId) => this.selectTab(tabId),
-      options: () => this.options,
-      devToolsOpening: () => this.devToolsOpening,
-      screenshotAreaSessions: () => this.screenshotAreaSessions,
-      elementPickerSessions: () => this.elementPickerSessions,
-      agentInputWebContents: () => this.agentInputWebContents,
-      videoRecorder: () => this.videoRecorder,
-      cssStatePreview: () => this.cssStatePreview,
-      domMutationSource: () => this.domMutationSource,
-      virtualPasskeys: () => this.virtualPasskeys,
-      logpoints: () => this.logpoints,
-      mcpActivitiesByTab: () => this.mcpActivitiesByTab,
-      downloadController: () => this.downloadController,
-      renderQueues: () => this.renderQueues,
-      navigationHistorySnapshot: (tab) => this.navigationHistorySnapshot(tab),
-      tabOverviewPreviews: () => this.tabOverviewPreviews,
-      tabOverviewSleepPreviews: () => this.tabOverviewSleepPreviews,
-      mcpTabGroups: () => this.mcpTabGroups,
-      withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
-      firstLoadStarts: (tab) => {
-        firstLoadStarts(tab.webContents)
-        void this.ensureDialogMonitoring(tab)
-        // The browser process applies the input lock without the page's renderer, so it holds from the first document
-        // rather than once the page's monitoring is in place.
-        if (this.isHumanInteractionLocked(tab) && tab.webContents.debugger.isAttached()) {
-          void tab.webContents.debugger.sendCommand('Input.setIgnoreInputEvents', { ignore: true }).catch(() => undefined)
-        }
-      },
-      changed: (persist) => this.changed(persist),
-      getState: () => this.getState()
-    }
-  }
-
   wakeTab(tabId: string): Promise<BrowserState> {
-    return wakeTab(this.tabSleepAccess(), tabId)
+    return wakeTab(this, tabId)
   }
 
   /** The tabs waiting asleep to load in their turn. Made when first used, as managers made without the constructor are. */
@@ -2377,7 +2293,7 @@ export class Browser {
   }
 
   setTabSleeping(tabId: string, sleeping: boolean): Promise<BrowserState> {
-    return setTabSleeping(this.tabSleepAccess(), tabId, sleeping)
+    return setTabSleeping(this, tabId, sleeping)
   }
 
   /**
@@ -2424,19 +2340,15 @@ export class Browser {
   }
 
   private sleepFallbackTab(tab: BrowserTab): BrowserTab | undefined {
-    return sleepFallbackTab(this.tabSleepAccess(), tab)
+    return sleepFallbackTab(this, tab)
   }
 
   private setTabSleepingFromContextMenu(tabId: string, sleeping: boolean): Promise<void> {
-    return setTabSleepingFromContextMenu(this.tabSleepAccess(), tabId, sleeping)
+    return setTabSleepingFromContextMenu(this, tabId, sleeping)
   }
 
   sleepInactiveTabs(): Promise<BrowserState> {
-    return sleepInactiveTabs(this.memorySaverAccess())
-  }
-
-  private sleepWorkspaceTabs(groupId: string): Promise<void> {
-    return sleepWorkspaceTabs(this.tabSleepAccess(), groupId)
+    return sleepInactiveTabs(this)
   }
 
   reorderTab(tabId: string, targetTabId: string, placement: 'before' | 'after'): BrowserState {
@@ -2469,29 +2381,8 @@ export class Browser {
     }
   }
 
-  /**
-   * The narrow view the workspace context menu gets of this manager's private
-   * tabs, window, options, localized text, human interaction lock, sleep
-   * checks and workspace sleeping. It is a prototype method
-   * rather than a field, so managers created without the constructor (as unit
-   * tests do) still provide it.
-   */
-  private workspaceContextMenuAccess(): WorkspaceContextMenuAccess<BrowserTab> {
-    return {
-      tabs: () => this.tabs.values(),
-      window: () => this.window,
-      options: () => this.options,
-      text: (key, parameters) => this.text(key, parameters),
-      allHumanInteractionLocked: () => this.allHumanInteractionLocked,
-      sleepBlockReason: (tab) => this.sleepBlockReason(tab),
-      setWorkspacePinned: (groupId, pinned) => this.setWorkspacePinned(groupId, pinned),
-      sleepWorkspaceTabs: (groupId) => this.sleepWorkspaceTabs(groupId),
-      archiveWorkspaceForPerson: (groupId) => this.archiveWorkspaceForPerson(groupId)
-    }
-  }
-
   private workspaceContextMenuItems(group: BrowserTabGroup): MenuItemConstructorOptions[] {
-    return workspaceContextMenuItems(this.workspaceContextMenuAccess(), group)
+    return workspaceContextMenuItems(this, group)
   }
 
   /** Opens a workspace's menu where the pointer is; `onClosed` runs once it closes. */
@@ -5369,15 +5260,11 @@ export class Browser {
   }
 
   private sleepBlockReason(tab: BrowserTab, allowActiveTab?: boolean): string | undefined {
-    return sleepBlockReason(this.tabSleepAccess(), tab, allowActiveTab)
-  }
-
-  private putTabToSleep(tab: BrowserTab, reportBlocked: boolean, isCurrent?: () => boolean): Promise<boolean> {
-    return putTabToSleep(this.tabSleepAccess(), tab, reportBlocked, isCurrent)
+    return sleepBlockReason(this, tab, allowActiveTab)
   }
 
   private sweepMemorySaver(force: boolean): Promise<void> {
-    return sweepMemorySaver(this.memorySaverAccess(), force)
+    return sweepMemorySaver(this, force)
   }
 
   /** A copy of the tab's Back and Forward history: the one kept while it sleeps, or else its page's without the sleeping page. */

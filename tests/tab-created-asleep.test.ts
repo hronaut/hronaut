@@ -2,6 +2,23 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { FIRST_WAKE_WAIT_MS, putTabToSleep, sleepBeforeFirstLoad, wakeTab } from '../src/main/browser/tab-sleep/tab-sleep.js'
 import { PAGE_LOAD_WAIT_MS } from '../src/main/browser/page-waits/page-load-limit.js'
 
+/** What each tab's page records when its first load starts, which waking reports through the renderer exit guard. */
+const firstLoads = vi.hoisted(() => new WeakMap<object, () => void>())
+vi.mock('../src/main/browser/renderer-exit-guard.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/renderer-exit-guard.js')>(),
+  firstLoadStarts: (webContents: object) => firstLoads.get(webContents)?.()
+}))
+vi.mock('../src/main/browser/website-dialogs/website-dialogs.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/website-dialogs/website-dialogs.js')>(),
+  ensureDialogMonitoring: async () => undefined
+}))
+// The browsers below stub changed and getState, which waking publishes through.
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist),
+  browserState: (browser: { getState: () => unknown }) => browser.getState()
+}))
+
 // A restart loaded every restored tab at once, so 45 tabs came back as 45 pages loading together. The tabs behind the
 // one shown now come back asleep and load once shown, as in Chrome; the e2e restore-tabs-asleep drives the real app.
 // They first showed a sleeping page, which still started a renderer process for each of them: 45 restored tabs kept 48
@@ -72,15 +89,15 @@ function asleepTab(page: ReturnType<typeof newPage>, pageReady: Promise<void>, o
     lastActiveAt: 0, sleepNavigationHistory: opened.history, pageReady, webContents: page.webContents, pendingHistoryUrl: null as string | null,
     waitsForTurn: opened.waitsForTurn
   }
-  const access = {
-    getTab: () => tab,
-    findTab: (id: string) => (id === tab.id ? tab : undefined),
-    tabOverviewSleepPreviews: () => new Map(),
-    firstLoadStarts: vi.fn(() => { page.calls.push('first load starts') }),
+  firstLoads.set(page.webContents, () => { page.calls.push('first load starts') })
+  const browser = {
+    tabs: new Map([[tab.id, tab]]),
+    tabOverviewSleepPreviews: new Map(),
+    isHumanInteractionLocked: () => false,
     changed: vi.fn(),
     getState: () => ({ tabs: [] })
   }
-  return { tab, access, wake: () => wakeTab(access as never, tab.id) }
+  return { tab, browser, wake: () => wakeTab(browser as never, tab.id) }
 }
 
 it('loads nothing in a tab created asleep until it wakes, so it starts no renderer process', async () => {

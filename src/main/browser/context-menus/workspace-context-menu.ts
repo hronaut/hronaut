@@ -1,6 +1,7 @@
 import type { MenuItemConstructorOptions } from 'electron'
 import type { ActiveWorkspace } from '../workspace-registry.js'
-import type { WorkspaceContextMenuAccess, WorkspaceContextMenuTab } from './workspace-context-menu-access.js'
+import type { Browser } from '../browser.js'
+import { sleepBlockReason, sleepWorkspaceTabs } from '../tab-sleep/tab-sleep.js'
 
 /**
  * The workspace's context menu items: a new tab in it, importing browser
@@ -9,10 +10,10 @@ import type { WorkspaceContextMenuAccess, WorkspaceContextMenuTab } from './work
  * other failed action is logged and reported to the manager's onActionFailed
  * option.
  */
-export function workspaceContextMenuItems<Tab extends WorkspaceContextMenuTab>(access: WorkspaceContextMenuAccess<Tab>, group: ActiveWorkspace): MenuItemConstructorOptions[] {
+export function workspaceContextMenuItems(browser: Browser, group: ActiveWorkspace): MenuItemConstructorOptions[] {
   const reportError = (action: string) => (error: unknown): void => {
     console.error(`[browser] Could not ${action} from workspace context menu:`, error)
-    access.options().onActionFailed?.(action, error)
+    browser.options.onActionFailed?.(action, error)
   }
   const runAction = (action: string, callback: () => unknown): void => {
     try {
@@ -26,44 +27,44 @@ export function workspaceContextMenuItems<Tab extends WorkspaceContextMenuTab>(a
   return [
     {
       id: 'new-tab-in-workspace',
-      label: access.text('native.context.newTabWorkspace'),
+      label: browser.text('native.context.newTabWorkspace'),
       // The window opens it as its + button does, so the cursor goes to the address field.
-      click: () => runAction('open a new tab in the workspace', () => access.window().webContents.send('browser:new-tab-requested', group.id))
+      click: () => runAction('open a new tab in the workspace', () => browser.window.webContents.send('browser:new-tab-requested', group.id))
     },
     { type: 'separator' },
     {
       id: 'import-browser-cookies',
-      label: access.text('browserImport.action'),
-      click: () => access.window().webContents.send('browser:home-workspace-editor', { view: 'import', workspaceId: group.id })
+      label: browser.text('browserImport.action'),
+      click: () => browser.window.webContents.send('browser:home-workspace-editor', { view: 'import', workspaceId: group.id })
     },
     {
       id: 'edit-workspace',
-      label: access.text('native.context.editWorkspace'),
+      label: browser.text('native.context.editWorkspace'),
       click: () => runAction('edit the workspace', () => {
-        access.window().webContents.send('browser:edit-tab-group', group.id)
+        browser.window.webContents.send('browser:edit-tab-group', group.id)
       })
     },
     {
       id: 'pin-workspace',
-      label: access.text(pin ? 'native.context.pinWorkspace' : 'native.context.unpinWorkspace'),
-      click: () => runAction('pin the workspace', () => access.setWorkspacePinned(group.id, pin))
+      label: browser.text(pin ? 'native.context.pinWorkspace' : 'native.context.unpinWorkspace'),
+      click: () => runAction('pin the workspace', () => browser.setWorkspacePinned(group.id, pin))
     },
     { type: 'separator' },
     {
       id: 'sleep-workspace-tabs',
-      label: access.text('native.context.sleepWorkspaceTabs'),
-      enabled: !access.allHumanInteractionLocked() && [...access.tabs()].some((tab) => (
+      label: browser.text('native.context.sleepWorkspaceTabs'),
+      enabled: !browser.allHumanInteractionLocked && [...browser.tabs.values()].some((tab) => (
         tab.mcpGroupId === group.id
         && !tab.sleeping
-        && access.sleepBlockReason(tab) === undefined
+        && sleepBlockReason(browser, tab) === undefined
       )),
-      click: () => runAction('put eligible workspace tabs to sleep', () => access.sleepWorkspaceTabs(group.id))
+      click: () => runAction('put eligible workspace tabs to sleep', () => sleepWorkspaceTabs(browser, group.id))
     },
     {
       id: 'archive-workspace',
-      label: access.text('native.context.archiveWorkspace'),
-      enabled: !access.allHumanInteractionLocked() || ![...access.tabs()].some(tab => tab.mcpGroupId === group.id),
-      click: () => runAction('archive the workspace', () => access.archiveWorkspaceForPerson(group.id))
+      label: browser.text('native.context.archiveWorkspace'),
+      enabled: !browser.allHumanInteractionLocked || ![...browser.tabs.values()].some(tab => tab.mcpGroupId === group.id),
+      click: () => runAction('archive the workspace', () => browser.archiveWorkspaceForPerson(group.id))
     }
   ]
 }

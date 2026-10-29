@@ -1,6 +1,6 @@
 {
   "oversizedFiles": {
-    "src/main/browser/browser.ts": 5704,
+    "src/main/browser/browser.ts": 5591,
     "src/main/browser/downloads-controller.ts": 811,
     "src/main/index.ts": 1662,
     "src/main/mcp/http-server.ts": 856,
@@ -16,7 +16,6 @@
     "src/main/browser/context-menus/history-menu-access.ts",
     "src/main/browser/context-menus/page-context-menu-access.ts",
     "src/main/browser/context-menus/tab-context-menu-access.ts",
-    "src/main/browser/context-menus/workspace-context-menu-access.ts",
     "src/main/browser/debug-report/debug-report-access.ts",
     "src/main/browser/devtools/devtools-access.ts",
     "src/main/browser/dropped-links/dropped-links-access.ts",
@@ -45,8 +44,6 @@
     "src/main/browser/tab-labels/tab-labels-access.ts",
     "src/main/browser/tab-overview-previews/tab-overview-previews-access.ts",
     "src/main/browser/tab-selection/tab-selection-access.ts",
-    "src/main/browser/tab-sleep/memory-saver-access.ts",
-    "src/main/browser/tab-sleep/tab-sleep-access.ts",
     "src/main/browser/trusted-chrome-occlusion/trusted-chrome-occlusion-access.ts",
     "src/main/browser/window-layout/window-layout-access.ts",
     "src/main/browser/workspace-archive/workspace-archive-access.ts",
