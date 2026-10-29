@@ -10,12 +10,12 @@ vi.mock('../src/main/browser/unique-download-file.js', () => ({
 }))
 import { Browser } from '../src/main/browser/browser.js'
 import { ISOLATED_WORLDS } from '../src/main/browser/isolated-worlds.js'
+import { captureVisual } from '../src/main/browser/visual-compare/visual-capture.js'
 import type { AgentPointerIdentity } from '../src/main/browser/page-scripts.js'
 
 const CLAUDE: AgentPointerIdentity = { name: 'Claude Code', fill: '#2aa198', ink: '#111318' }
 
 type PointerManager = Pick<Browser, 'screenshot' | 'savePdf'> & {
-  captureVisual(tab: unknown, settleMs: number): Promise<{ png: Buffer }>
   showAgentPointer(webContents: unknown, point: { x: number; y: number }, effect: 'click', options?: { agent?: AgentPointerIdentity }): Promise<void>
 }
 
@@ -107,6 +107,6 @@ it('takes an agent\'s cursor off the page before printing it to PDF, since it wo
 
 it('takes an agent\'s cursor off the page before a visual comparison capture', async () => {
   const { manager, tab, order } = fixture(true)
-  await expect(manager.captureVisual(tab, 0)).resolves.toMatchObject({ png: Buffer.from('png') })
+  await expect(captureVisual(manager as unknown as Browser, tab as never, 0)).resolves.toMatchObject({ png: Buffer.from('png') })
   expect(order).toEqual([`world ${ISOLATED_WORLDS.agentPointer}`, 'capture'])
 })
