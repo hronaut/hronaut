@@ -8,6 +8,8 @@ All notable changes to Hronaut are documented in this file.
 
 - A page's request no longer fails at random with **Failed to fetch** (`net::ERR_FAILED`) just after a one-time request condition or a hold caught a request. Settling the rules a moment later sent the page's request interception to Chromium again, which could cut off a request the page was starting; Hronaut now leaves interception that still covers the rules in place, and ends it once nothing is left to intercept.
 
+- An agent's new tab no longer shows its activity on another tab opened at the same moment. The tab strip, **Follow agents** and the agent's steps could name a tab the person or another agent opened at the same time, even in another workspace, and **Follow agents** could switch the view there.
+
 ## [3.13.0] - 2026-10-29
 
 ### Added
