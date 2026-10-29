@@ -1,6 +1,6 @@
 import { render } from '@testing-library/vue'
 import { describe, expect, it } from 'vitest'
-import NetworkRequestConditions from '../../src/renderer/src/components/NetworkRequestConditions.vue'
+import NetworkRequestConditions from '../../src/renderer/src/features/network/NetworkRequestConditions.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import { SUPPORTED_LOCALES, type SupportedLocale } from '../../src/shared/locale.js'
 import { networkAbortReasonMessages } from '../../src/shared/locales/network-abort-reasons.js'

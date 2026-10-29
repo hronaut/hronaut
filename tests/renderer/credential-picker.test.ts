@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import CredentialPicker from '../../src/renderer/src/components/CredentialPicker.vue'
+import CredentialPicker from '../../src/renderer/src/features/credentials/CredentialPicker.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { CredentialSummary } from '../../src/shared/types.js'
 

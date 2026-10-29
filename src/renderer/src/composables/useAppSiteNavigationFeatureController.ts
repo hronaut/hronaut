@@ -18,7 +18,7 @@ import { useBrowserTabActionsController } from './useBrowserTabActionsController
 import { disposeAll } from './dispose-all.js'
 import type { SettingsSection } from './useSettingsDialogController.js'
 import { useSiteDataSummaryController } from './useSiteDataSummaryController.js'
-import type { SiteStorageShellPanel } from './useSiteStorageShellController.js'
+import type { SiteStorageShellPanel } from '../features/site-storage/useSiteStorageShellController.js'
 
 type SiteNavigationBrowserApi = Pick<
   HronautApi,

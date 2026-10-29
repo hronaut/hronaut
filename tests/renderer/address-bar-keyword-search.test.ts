@@ -5,7 +5,7 @@ import BrowserAddressBar from '../../src/renderer/src/components/BrowserAddressB
 import { addressKeyword, keywordSearchTarget } from '../../src/renderer/src/address-keyword-search.js'
 import type { ActiveTabPresentationController } from '../../src/renderer/src/composables/useActiveTabPresentationController.js'
 import { useAddressBarController } from '../../src/renderer/src/composables/useAddressBarController.js'
-import type { EmulationController } from '../../src/renderer/src/composables/useEmulationController.js'
+import type { EmulationController } from '../../src/renderer/src/features/emulation/useEmulationController.js'
 import type { PageToolsPresentationController } from '../../src/renderer/src/composables/usePageToolsPresentationController.js'
 import type { SiteDataSummaryController } from '../../src/renderer/src/composables/useSiteDataSummaryController.js'
 import type { SitePermissionsController } from '../../src/renderer/src/composables/useSitePermissionsController.js'

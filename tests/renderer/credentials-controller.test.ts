@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { useCredentialsController } from '../../src/renderer/src/composables/useCredentialsController.js'
+import { useCredentialsController } from '../../src/renderer/src/features/credentials/useCredentialsController.js'
 import type { CredentialStorageStatus, CredentialSummary } from '../../src/shared/types.js'
 
 function credential(id: string, username = 'Person'): CredentialSummary {

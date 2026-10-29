@@ -5,7 +5,7 @@ import TrustedDialog from '../trusted-dialogs/TrustedDialog.vue'
 import type { TrustedDialogController } from '../trusted-dialogs/useTrustedDialogController.js'
 import HelpDialog from './HelpDialog.vue'
 import SettingsDialog from './SettingsDialog.vue'
-import WalletApprovalDialog from './WalletApprovalDialog.vue'
+import WalletApprovalDialog from '../features/wallets/WalletApprovalDialog.vue'
 import WhatsNewDialog from './WhatsNewDialog.vue'
 
 const props = defineProps<{

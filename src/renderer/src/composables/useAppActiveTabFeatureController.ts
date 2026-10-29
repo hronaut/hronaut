@@ -10,8 +10,8 @@ import {
   type ActiveTabPresentationControllerOptions
 } from './useActiveTabPresentationController.js'
 import { useActiveTabContextController } from './useActiveTabContextController.js'
-import { useCredentialFillController } from './useCredentialFillController.js'
-import type { EnvironmentPanelAction } from './useEnvironmentPanelController.js'
+import { useCredentialFillController } from '../features/credentials/useCredentialFillController.js'
+import type { EnvironmentPanelAction } from '../features/emulation/useEnvironmentPanelController.js'
 
 export interface AppActiveTabFeatureControllerOptions {
   presentation: ActiveTabPresentationControllerOptions

@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { useEmulationController } from '../../src/renderer/src/composables/useEmulationController.js'
+import { useEmulationController } from '../../src/renderer/src/features/emulation/useEmulationController.js'
 import type {
   BrowserEmulationState,
   BrowserState,

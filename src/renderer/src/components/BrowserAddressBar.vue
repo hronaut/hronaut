@@ -23,7 +23,7 @@ import type {
 import { hasSwitchToTabButton } from '../../../shared/address-suggestions.js'
 import type { ActiveTabPresentationController } from '../composables/useActiveTabPresentationController.js'
 import type { AddressBarController } from '../composables/useAddressBarController.js'
-import type { EmulationController } from '../composables/useEmulationController.js'
+import type { EmulationController } from '../features/emulation/useEmulationController.js'
 import type { PageToolsPresentationController } from '../composables/usePageToolsPresentationController.js'
 import type { SiteDataSummaryController } from '../composables/useSiteDataSummaryController.js'
 import type { SitePermissionsController } from '../composables/useSitePermissionsController.js'

@@ -1,6 +1,6 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
-import NetworkRequestPriority from '../../src/renderer/src/components/NetworkRequestPriority.vue'
+import NetworkRequestPriority from '../../src/renderer/src/features/network/NetworkRequestPriority.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import { networkPriorityMessages } from '../../src/shared/locales/network-priority.js'
 import type { SupportedLocale } from '../../src/shared/locale.js'

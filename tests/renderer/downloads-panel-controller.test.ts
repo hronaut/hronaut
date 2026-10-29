@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { useDownloadsPanelController } from '../../src/renderer/src/composables/useDownloadsPanelController.js'
+import { useDownloadsPanelController } from '../../src/renderer/src/features/downloads/useDownloadsPanelController.js'
 import type { BrowserDownloadState } from '../../src/shared/types.js'
 
 function download(

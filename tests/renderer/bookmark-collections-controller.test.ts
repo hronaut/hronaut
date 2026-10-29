@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { expect, it, vi } from 'vitest'
 import type { BookmarkCollectionSnapshot, BookmarkTabsOutcome } from '../../src/shared/types.js'
-import { useBookmarkCollectionsController } from '../../src/renderer/src/composables/useBookmarkCollectionsController.js'
+import { useBookmarkCollectionsController } from '../../src/renderer/src/features/bookmarks/useBookmarkCollectionsController.js'
 
 function fixture() {
   const open = ref(false)

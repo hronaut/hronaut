@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 // Fresh processes make system timezone changes deterministic on every runner.
 function bounds(zone: string, range: string, now: string): string[] | null {
   return JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e', `
-    import { historyDateBounds } from './src/renderer/src/composables/history-date-range.ts'
+    import { historyDateBounds } from './src/renderer/src/features/history/history-date-range.ts'
     console.log(JSON.stringify(historyDateBounds(${JSON.stringify(range)}, Date.parse(${JSON.stringify(now)}))?.map(value => new Date(value).toISOString()) ?? null))
   `], { env: { ...process.env, TZ: zone }, encoding: 'utf8' })) as string[] | null
 }

@@ -15,14 +15,14 @@ import type {
   ConsolePanelShellHandle,
   NetworkPanelShellHandle
 } from '../composables/useDeveloperPanelsShellController.js'
-import type { SiteStorageShellPanel } from '../composables/useSiteStorageShellController.js'
-import ConsolePanelContainer from './ConsolePanelContainer.vue'
+import type { SiteStorageShellPanel } from '../features/site-storage/useSiteStorageShellController.js'
+import ConsolePanelContainer from '../features/console/ConsolePanelContainer.vue'
 import DiagnosticsPanels from '../features/diagnostics/DiagnosticsPanels.vue'
-import EnvironmentPanel from './EnvironmentPanel.vue'
-import NetworkPanel from './NetworkPanel.vue'
+import EnvironmentPanel from '../features/emulation/EnvironmentPanel.vue'
+import NetworkPanel from '../features/network/NetworkPanel.vue'
 import PageToolsPanel from './PageToolsPanel.vue'
-import ResponsivePreviewPanel from './ResponsivePreviewPanel.vue'
-import SiteStoragePanel from './SiteStoragePanel.vue'
+import ResponsivePreviewPanel from '../features/emulation/ResponsivePreviewPanel.vue'
+import SiteStoragePanel from '../features/site-storage/SiteStoragePanel.vue'
 
 interface AppPageToolsLayerHandles {
   setResponsivePanel: (panel: ResponsivePanelSurface | null) => void

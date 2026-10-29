@@ -4,9 +4,9 @@ import type {
   PanelDock
 } from '../../../shared/types.js'
 import type { AppBrowserCollectionsFeatureController } from '../composables/useAppBrowserCollectionsFeatureController.js'
-import BookmarksPanel from './BookmarksPanel.vue'
-import DownloadsPanel from './DownloadsPanel.vue'
-import HistoryPanel from './HistoryPanel.vue'
+import BookmarksPanel from '../features/bookmarks/BookmarksPanel.vue'
+import DownloadsPanel from '../features/downloads/DownloadsPanel.vue'
+import HistoryPanel from '../features/history/HistoryPanel.vue'
 
 const props = defineProps<{
   controller: AppBrowserCollectionsFeatureController

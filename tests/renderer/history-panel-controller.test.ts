@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { useHistoryPanelController } from '../../src/renderer/src/composables/useHistoryPanelController.js'
+import { useHistoryPanelController } from '../../src/renderer/src/features/history/useHistoryPanelController.js'
 import type { BrowserHistoryEntry } from '../../src/shared/types.js'
 
 function entry(id: string, title = `Page ${id}`, visitCount = 1): BrowserHistoryEntry {

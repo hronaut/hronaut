@@ -1,8 +1,8 @@
 import { computed, type Ref } from 'vue'
 import type { BrowserTabState } from '../../../shared/types.js'
 import type { DiagnosticsController } from '../features/diagnostics/useDiagnosticsController.js'
-import type { EmulationController } from './useEmulationController.js'
-import type { EnvironmentPanelState } from './useEnvironmentPanelController.js'
+import type { EmulationController } from '../features/emulation/useEmulationController.js'
+import type { EnvironmentPanelState } from '../features/emulation/useEnvironmentPanelController.js'
 import type { PageCaptureController } from './usePageCaptureController.js'
 import type { PageExportController } from './usePageExportController.js'
 

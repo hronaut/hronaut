@@ -3,7 +3,7 @@ import type { SiteDataSummaryController } from './useSiteDataSummaryController.j
 import {
   useSiteStorageShellController,
   type SiteStorageShellPanel
-} from './useSiteStorageShellController.js'
+} from '../features/site-storage/useSiteStorageShellController.js'
 import { usePrivacySettingsShellController } from './usePrivacySettingsShellController.js'
 import { useSettingsNavigationController } from './useSettingsNavigationController.js'
 import { useSiteControlsShellController } from './useSiteControlsShellController.js'

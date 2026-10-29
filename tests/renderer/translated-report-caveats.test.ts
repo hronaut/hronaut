@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/vue'
 import { ref } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import SiteStorageIndexedDbView from '../../src/renderer/src/components/SiteStorageIndexedDbView.vue'
+import SiteStorageIndexedDbView from '../../src/renderer/src/features/site-storage/SiteStorageIndexedDbView.vue'
 import DiagnosticsPanels from '../../src/renderer/src/features/diagnostics/DiagnosticsPanels.vue'
 import { useDiagnosticsController } from '../../src/renderer/src/features/diagnostics/useDiagnosticsController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'

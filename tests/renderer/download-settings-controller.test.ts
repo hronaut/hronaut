@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { useDownloadSettingsController } from '../../src/renderer/src/composables/useDownloadSettingsController.js'
+import { useDownloadSettingsController } from '../../src/renderer/src/features/downloads/useDownloadSettingsController.js'
 import { DEFAULT_RENDERER_SETTINGS } from '../../src/renderer/src/stores/settings.js'
 import type { AppSettings, DownloadDirectorySelection } from '../../src/shared/types.js'
 

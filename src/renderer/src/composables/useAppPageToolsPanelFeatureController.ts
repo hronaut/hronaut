@@ -13,7 +13,7 @@ import type {
   ConsolePanelShellHandle,
   NetworkPanelShellHandle
 } from './useDeveloperPanelsShellController.js'
-import type { SiteStorageShellPanel } from './useSiteStorageShellController.js'
+import type { SiteStorageShellPanel } from '../features/site-storage/useSiteStorageShellController.js'
 
 type PanelRegistryOptions = Omit<AppPanelFeatureControllerOptions['registry'], 'pageToolsOpen'>
 type PanelDeveloperOptions = Pick<AppPanelFeatureControllerOptions['developer'], 'keepsSeparatePanelOpen'>

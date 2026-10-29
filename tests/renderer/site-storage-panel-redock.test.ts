@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/vue'
 import { afterEach, expect, it, vi } from 'vitest'
-import SiteStoragePanel from '../../src/renderer/src/components/SiteStoragePanel.vue'
+import SiteStoragePanel from '../../src/renderer/src/features/site-storage/SiteStoragePanel.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BrowserStorageResult, BrowserTabState, PanelDock } from '../../src/shared/types.js'
 

@@ -194,13 +194,14 @@ describe('overlay motion', () => {
     expect(tokens).toMatch(/@media \(prefers-reduced-motion: reduce\) \{[^}]*--motion-enter-y: 0px;[^}]*--motion-enter-scale: 1;/u)
 
     // Every component rendering a full-window backdrop plays its exit through the shared transition.
-    const components = join(rendererRoot, 'components')
-    const backdrops = readdirSync(components).filter((name) => name.endsWith('.vue')).filter((name) => (
-      /<div v-if="[^"]+" class="(?:settings-overlay|tab-group-editor-overlay|wallet-approval-overlay)\b/u.test(readFileSync(join(components, name), 'utf8'))
+    const vueFiles = readdirSync(rendererRoot, { recursive: true, encoding: 'utf8' }).filter((name) => name.endsWith('.vue'))
+    const backdrops = vueFiles.filter((name) => (
+      /<div v-if="[^"]+" class="(?:settings-overlay|tab-group-editor-overlay|wallet-approval-overlay)\b/u.test(readFileSync(join(rendererRoot, name), 'utf8'))
     ))
     expect(backdrops.length).toBeGreaterThanOrEqual(8)
+    expect(backdrops).toContain(join('features', 'wallets', 'WalletApprovalDialog.vue'))
     for (const name of backdrops) {
-      expect(readFileSync(join(components, name), 'utf8'), name).toMatch(/<template>\n {2}<UiOverlayTransition>\n/u)
+      expect(readFileSync(join(rendererRoot, name), 'utf8'), name).toMatch(/<template>\n {2}<UiOverlayTransition>\n/u)
     }
   })
 })

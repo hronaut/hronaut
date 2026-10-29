@@ -1,6 +1,6 @@
 import { nextTick, ref } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { useNetworkController } from '../../src/renderer/src/composables/useNetworkController.js'
+import { useNetworkController } from '../../src/renderer/src/features/network/useNetworkController.js'
 import { useShellFeedbackController, type CopyTextWithFeedback } from '../../src/renderer/src/composables/useShellFeedbackController.js'
 import { translate, type MessageKey } from '../../src/shared/i18n.js'
 import type {

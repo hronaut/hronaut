@@ -1,6 +1,6 @@
 import { nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { useResponsivePreviewController } from '../../src/renderer/src/composables/useResponsivePreviewController.js'
+import { useResponsivePreviewController } from '../../src/renderer/src/features/emulation/useResponsivePreviewController.js'
 import type {
   BrowserState,
   BrowserTabState,
