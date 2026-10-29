@@ -9,12 +9,13 @@ Link users who need maintenance or migration guidance to the canonical
 
 ## Copy-ready capability summary
 
-Hronaut is a visible desktop browser with persistent, isolated workspaces
-controlled by local coding agents through MCP. Download and start Hronaut on
-Windows, macOS, or Linux, then copy the local Streamable HTTP setup from Hronaut
-Home. The MCP server listens on loopback only. Remote deployment is not
-supported, and Hronaut is not a hosted browser or connector. People can watch,
-pause, approve, and take over browser work.
+Hronaut is a visible desktop browser for coding agents, with a separate
+workspace for each project. Your everyday Chrome stays out of it, and you can
+pause and take over at any time. Download and start Hronaut on Windows, macOS,
+or Linux, then copy the local Streamable HTTP setup from Hronaut Home. The MCP
+server listens on loopback only. Remote deployment is not supported, and Hronaut
+is not a hosted browser or connector. People can watch, pause, approve, and take
+over browser work.
 
 Use these canonical links:
 
