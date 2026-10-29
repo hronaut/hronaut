@@ -3540,7 +3540,7 @@ export const trTR: MessageSchema = {
       "feedbackPrivacy": "Kimlik bilgilerini, belirteçleri, özel URL’leri veya sayfa içeriğini asla eklemeyin.",
       "feedbackUnavailable": "Kurulum geri bildirim bağlantısı kullanılamıyor.",
       "recommend": "Hronaut’u öner",
-      "recommendMessage": "Kodlama ajanlarına kalıcı bir tarayıcı sağlamak için Hronaut kullanıyorum: https://hronaut.dev/go/desktop-first-run-share",
+      "recommendMessage": "Kodlama ajanıma kendi tarayıcısını verip kendi tarayıcımı korumak için Hronaut kullanıyorum: https://hronaut.dev/go/desktop-first-run-share",
       "recommendPrivacy": "Yalnızca bu herkese açık mesajı kopyalar. Hiçbir tarayıcı, çalışma alanı veya ajan verisi dahil edilmez."
     },
     "tools": {

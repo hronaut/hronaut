@@ -1,8 +1,10 @@
 # Hronaut contributor instructions
 
-Hronaut is a visible, persistent Electron browser controlled through a local
-Streamable HTTP MCP server. Keep the browser useful to both its human operator
-and connected coding agents. Read `README.md` for the product overview and
+Hronaut is a visible desktop browser for coding agents, with a separate
+workspace for each project. Your everyday Chrome stays out of it, and you can
+pause and take over at any time. Agents control it through a local Streamable
+HTTP MCP server. Keep the browser useful to both its human operator and
+connected coding agents. Read `README.md` for the product overview and
 `REFERENCE.md` for detailed behavior and operational contracts.
 
 ## Runtime boundaries

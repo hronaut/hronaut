@@ -3540,7 +3540,7 @@ export const viVN: MessageSchema = {
       "feedbackPrivacy": "Đừng bao giờ đưa vào thông tin xác thực, mã thông báo, URL riêng tư hay nội dung trang.",
       "feedbackUnavailable": "Không có đường liên kết phản hồi về thiết lập.",
       "recommend": "Giới thiệu Hronaut",
-      "recommendMessage": "Tôi dùng Hronaut để cung cấp cho tác nhân lập trình một trình duyệt luôn duy trì trạng thái: https://hronaut.dev/go/desktop-first-run-share",
+      "recommendMessage": "Tôi dùng Hronaut để tác nhân lập trình của tôi có trình duyệt riêng, còn tôi vẫn giữ trình duyệt của mình: https://hronaut.dev/go/desktop-first-run-share",
       "recommendPrivacy": "Chỉ sao chép thông điệp công khai này. Không bao gồm dữ liệu trình duyệt, không gian làm việc hay tác nhân."
     },
     "tools": {

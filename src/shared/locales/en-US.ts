@@ -699,7 +699,7 @@ export const enUS = {
       reportTrouble: 'Report setup trouble ↗', helpPrivacy: 'The guide opens in your default browser and receives no browser or agent data.',
       feedback: 'Share your setup result ↗', feedbackPrivacy: 'Never include credentials, tokens, private URLs, or page content.',
       feedbackUnavailable: 'The setup feedback link is unavailable.', recommend: 'Recommend Hronaut',
-      recommendMessage: 'I use Hronaut to give coding agents a persistent browser: https://hronaut.dev/go/desktop-first-run-share',
+      recommendMessage: 'I use Hronaut to give my coding agent its own browser and keep mine: https://hronaut.dev/go/desktop-first-run-share',
       recommendPrivacy: 'Copies only this public message. No browser, workspace, or agent data is included.'
     },
     tools: { heading: 'Browser tooling', description: 'The live MCP catalog available to every connected agent.' },

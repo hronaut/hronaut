@@ -3540,7 +3540,7 @@ export const ptBR: MessageSchema = {
       "feedbackPrivacy": "Nunca inclua credenciais, tokens, URLs privados ou conteúdo de páginas.",
       "feedbackUnavailable": "O link de feedback da configuração está indisponível.",
       "recommend": "Recomendar o Hronaut",
-      "recommendMessage": "Uso o Hronaut para dar aos agentes de programação um navegador persistente: https://hronaut.dev/go/desktop-first-run-share",
+      "recommendMessage": "Uso o Hronaut para dar ao meu agente de programação um navegador só dele e manter o meu: https://hronaut.dev/go/desktop-first-run-share",
       "recommendPrivacy": "Copia somente esta mensagem pública. Nenhum dado do navegador, dos espaços de trabalho ou dos agentes é incluído."
     },
     "tools": {

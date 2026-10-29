@@ -3540,7 +3540,7 @@ export const zhTW: MessageSchema = {
       "feedbackPrivacy": "絕對不要包含憑證、權杖、私人網址或網頁內容。",
       "feedbackUnavailable": "無法取得設定意見回饋連結。",
       "recommend": "推薦 Hronaut",
-      "recommendMessage": "我使用 Hronaut 為程式設計代理程式提供常駐的瀏覽器：https://hronaut.dev/go/desktop-first-run-share",
+      "recommendMessage": "我使用 Hronaut 讓程式設計代理程式擁有自己的瀏覽器，我的瀏覽器留給我自己：https://hronaut.dev/go/desktop-first-run-share",
       "recommendPrivacy": "只會複製這則公開訊息，不包含任何瀏覽器、工作區或代理程式資料。"
     },
     "tools": {

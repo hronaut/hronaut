@@ -689,7 +689,7 @@ test('offers troubleshooting until an agent action succeeds, then enables referr
     'https://hronaut.dev/go/desktop-setup-feedback'
   ])
   await expect.poll(() => electronApp.evaluate(({ clipboard }) => clipboard.readText())).toBe(
-    'I use Hronaut to give coding agents a persistent browser: https://hronaut.dev/go/desktop-first-run-share'
+    'I use Hronaut to give my coding agent its own browser and keep mine: https://hronaut.dev/go/desktop-first-run-share'
   )
   await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.length)')).toBe(tabCount)
 })

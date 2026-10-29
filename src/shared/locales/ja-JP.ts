@@ -3540,7 +3540,7 @@ export const jaJP: MessageSchema = {
       "feedbackPrivacy": "認証情報、トークン、非公開の URL、ページのコンテンツは絶対に含めないでください。",
       "feedbackUnavailable": "セットアップのフィードバック リンクを利用できません。",
       "recommend": "Hronaut をおすすめ",
-      "recommendMessage": "コーディング エージェントに永続的なブラウザを提供するために Hronaut を使っています：https://hronaut.dev/go/desktop-first-run-share",
+      "recommendMessage": "自分のコーディング エージェントに専用のブラウザを持たせ、自分のブラウザは手元に残すために Hronaut を使っています：https://hronaut.dev/go/desktop-first-run-share",
       "recommendPrivacy": "この公開メッセージのみをコピーします。ブラウザ、ワークスペース、エージェントのデータは含まれません。"
     },
     "tools": {
