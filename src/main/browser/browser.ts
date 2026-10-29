@@ -8,16 +8,13 @@ import type { StorageComparisonHooks } from './storage-comparison-operation.js'
 import { acquireNativeClickAdmission, type NativeClickProgress } from './native-click-admission.js'
 import type { StorageInspectionHooks } from './storage-inspection-operation.js'
 import type { WebStorageHooks } from './web-storage-operation.js'
-import type { SiteStorageAccess } from './site-storage/site-storage-access.js'
 import { manageStorage } from './site-storage/manage-storage.js'
 import { inspectIndexedDb, inspectStorageUsage } from './site-storage/storage-inspection.js'
 import { storageChanges } from './site-storage/storage-changes.js'
 import { waitForElement, waitForPage, waitForText, waitForUrlPattern } from './page-waits/page-waits.js'
-import type { VisualCompareAccess } from './visual-compare/visual-compare-access.js'
 import { visualCompare, visualDiff, type BrowserVisualCompareResult } from './visual-compare/visual-compare.js'
 import { callWebMcpTool, listWebMcpTools, webMcpStatus, type WebMcpStatus, type WebMcpToolCall, type WebMcpToolList } from './webmcp/webmcp.js'
 import { inspectPwa } from './pwa-inspection/pwa-inspection.js'
-import type { ElementInspectionAccess } from './element-inspection/element-inspection-access.js'
 import { elementInspection, imageState, mediaState } from './element-inspection/element-inspection.js'
 import { appendConsoleMessage, consoleMessages, retainRuntimeConsoleMessage } from './console-messages/console-messages.js'
 import type { TabOverviewPreviewCaptureRequest, TabOverviewPreviewsAccess } from './tab-overview-previews/tab-overview-previews-access.js'
@@ -46,7 +43,6 @@ import type { BrowserImageState, BrowserMediaState } from '../../shared/types.js
 import type { PendingElementInspection } from './element-inspection-publication.js'
 import type { PendingPdfExport } from './pdf-export-publication.js'
 import { savePdf } from './pdf-export/pdf-export.js'
-import type { ScreenshotExportAccess } from './screenshot-export/screenshot-export-access.js'
 import { saveScreenshot, type PendingScreenshotExport, type ScreenshotExport, type ScreenshotExportOptions } from './screenshot-export/screenshot-export.js'
 import { FrameObservationController } from './frame-observation.js'
 import type { TabContextMenuAccess } from './context-menus/tab-context-menu-access.js'
@@ -66,7 +62,6 @@ import type { CookieWriteHooks } from './cookie-write-operation.js'
 import type { BrowserVideoInspectionOptions } from '../../shared/video-inspection.js'
 import { inspectVideoFrames } from './video-inspection.js'
 import { BrowserVideoRecorder, type PendingVideoInspection, type VideoSourceBinding } from './video-recorder.js'
-import type { VideoRecordingAccess } from './video-recording/video-recording-access.js'
 import { inspectVideo, videoPreview, videoRecording } from './video-recording/video-recording.js'
 import { renderBrowserVideo } from './video-export.js'
 import { readVideoAudioFile } from './video-audio-file.js'
@@ -252,7 +247,6 @@ import { qualityAudit } from './page-audits/quality-audit.js'
 import type { BrowserGeneratedLocator } from '../../shared/playwright-locator.js'
 import { generatePlaywrightLocator } from './element-inspection/playwright-locator.js'
 import { networkRequestSummary } from './network-inspection/network-request-summary.js'
-import { portableExportFilename } from '../../shared/portable-filename.js'
 import type { NetworkInspectionAccess } from './network-inspection/network-inspection-access.js'
 import {
   networkHar,
@@ -312,7 +306,6 @@ import { refusePageScriptsInSourceView } from './source-view-guard.js'
 import { guardPageCallsDuringPrintDialog } from './print-dialog-guard.js'
 import { runPageScriptsOnceDocumentReady } from './page-script-readiness.js'
 import type { CredentialFillContext } from './credential-fill-context.js'
-import type { CredentialFillAccess } from './credential-fill/credential-fill-access.js'
 import { credentialContext, fillCredential } from './credential-fill/credential-fill.js'
 import { suggestStrongPassword } from './suggested-password/suggested-password.js'
 import type { SuggestedPasswordAccess, SuggestedPasswordOptions } from './suggested-password/suggested-password-access.js'
@@ -339,7 +332,6 @@ import type {
   BrowserPdfExport,
   BrowserPdfOptions,
   BrowserScreenshotOptions,
-  BrowserScreenshotClip,
   BrowserVisualCompareOptions,
   BrowserVisualCompareContext,
   BrowserStorageOptions,
@@ -433,7 +425,6 @@ import { savePageAs, saveShownPage } from './page-save/page-save.js'
 import { viewFrameSource, viewPageSource, viewShownPageSource } from './page-source/page-source.js'
 import { openNavigationInNewTab } from './navigation-new-tab/navigation-new-tab.js'
 import { closeTabLeftEmptyByDownload, opensFromPage } from './download-tab-close/download-tab-close.js'
-import type { NavigationNewTabAccess } from './navigation-new-tab/navigation-new-tab-access.js'
 import { attachPageWheelZoom } from './page-zoom/page-wheel-zoom.js'
 import {
   normalizeWorkspaceNavigationPolicy,
@@ -556,7 +547,7 @@ import { getMcpDiscoveryTabs, getMcpGroupState, requireTabInMcpGroup, tabBelongs
 import type { NewTabsAccess } from './new-tabs/new-tabs-access.js'
 import { createNewTab, newLabeledAgentTab } from './new-tabs/new-tabs.js'
 import { dismissAgentPointer, showAgentPointer } from './agent-pointer/agent-pointer.js'
-import { captureVisual, visualCompareContext } from './visual-compare/visual-capture.js'
+import { visualCompareContext } from './visual-compare/visual-capture.js'
 import { currentNetworkRequests, matchingNetworkWaitRequest } from './network-inspection/network-request-records.js'
 import type { TabMutingAccess } from './tab-muting/tab-muting-access.js'
 import { setAllTabsMuted, setTabMuted } from './tab-muting/tab-muting.js'
@@ -633,11 +624,7 @@ async function restoreHistoryOrLoad(webContents: WebContents, history: Navigatio
   }
 }
 
-function screenshotFilename(requested: string | undefined, title: string): string {
-  return portableExportFilename(requested, title, 'png')
-}
-
-import type { BrowserTab, BrowserVisualCapture } from './browser-tab.js'
+import type { BrowserTab } from './browser-tab.js'
 import { getTab, orderedTabs } from './browser-core.js'
 import { WorkspaceRegistry, type ActiveWorkspace as BrowserTabGroup } from './workspace-registry.js'
 
@@ -2107,35 +2094,16 @@ export class Browser {
       && home.webContents === contents && isHronautHomeUrl(home.url))
   }
 
-  /**
-   * The narrow view site storage gets of this manager's private tabs,
-   * workspaces and debugger lease. It is a prototype method rather than a
-   * field, so managers created without the constructor (as unit tests do)
-   * still provide it. The delegates below return the feature's promise
-   * directly, so no extra ticks separate its final checks from the caller.
-   */
-  private siteStorageAccess(): SiteStorageAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      findTab: (tabId) => this.tabs.get(tabId),
-      findWorkspace: (workspaceId) => this.mcpTabGroups.get(workspaceId),
-      inspectionPermission: (workspace) => this.inspectionPermissions.get(workspace),
-      isDestroyed: () => this.destroyed,
-      snapshotDeltaContext: (tab) => this.snapshotDeltaContext(tab),
-      withDebugger: (webContents, operation, validateAdmission) => this.withDebugger(webContents, operation, validateAdmission)
-    }
-  }
-
   manageStorage(options: BrowserStorageOptions, cookieWriteHooks?: CookieWriteHooks, webStorageHooks?: WebStorageHooks): Promise<BrowserStorageResult> {
-    return manageStorage(this.siteStorageAccess(), options, cookieWriteHooks, webStorageHooks)
+    return manageStorage(this, options, cookieWriteHooks, webStorageHooks)
   }
 
   inspectIndexedDb(options: BrowserIndexedDbOptions = {}, hooks?: StorageInspectionHooks): Promise<BrowserIndexedDbReport> {
-    return inspectIndexedDb(this.siteStorageAccess(), options, hooks)
+    return inspectIndexedDb(this, options, hooks)
   }
 
   inspectStorageUsage(tabId?: string, hooks?: StorageInspectionHooks): Promise<BrowserStorageUsageReport> {
-    return inspectStorageUsage(this.siteStorageAccess(), tabId, hooks)
+    return inspectStorageUsage(this, tabId, hooks)
   }
 
   async pwaLifecycle(options: PwaLifecycleOptions, validate: (origin: string) => void = () => undefined) {
@@ -2156,30 +2124,11 @@ export class Browser {
     includeValues = false,
     hooks?: StorageComparisonHooks
   ): Promise<BrowserStorageChangesReport> {
-    return storageChanges(this.siteStorageAccess(), action, tabId, includeValues, hooks)
-  }
-
-  /**
-   * The narrow view filling a saved credential gets of this manager's private
-   * tabs, active tab and selection generation, agent input scope and options.
-   * It is a prototype method rather than a field, so managers created without
-   * the constructor (as unit tests do) still provide it. The delegates below
-   * return the feature's value or promise directly, so callers see the same
-   * ticks as before.
-   */
-  private credentialFillAccess(): CredentialFillAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      activeTabId: () => this.activeTabId,
-      tabSelectionGeneration: () => this.tabSelectionGeneration,
-      withAgentInput: (webContents, operation) => this.withAgentInput(webContents, operation),
-      recordTrustedCredentialFill: (outcome, tab, now, onUserInteraction) => recordTrustedCredentialFill(outcome, tab, now, onUserInteraction),
-      options: () => this.options
-    }
+    return storageChanges(this, action, tabId, includeValues, hooks)
   }
 
   credentialContext(tabId?: string): CredentialFillContext | null {
-    return credentialContext(this.credentialFillAccess(), tabId)
+    return credentialContext(this, tabId)
   }
 
   /**
@@ -2204,7 +2153,7 @@ export class Browser {
     username: string,
     password: string
   ): Promise<boolean> {
-    return fillCredential(this.credentialFillAccess(), tabId, expectedContext, username, password)
+    return fillCredential(this, tabId, expectedContext, username, password)
   }
 
   /**
@@ -3299,21 +3248,7 @@ export class Browser {
    * middle-click on Chrome's toolbar buttons does.
    */
   openNavigationInNewTab(tabId: string, target: 'back' | 'forward' | 'reload', active: boolean): Promise<BrowserState> {
-    return openNavigationInNewTab(this.navigationNewTabAccess(), tabId, target, active)
-  }
-
-  /**
-   * The narrow view opening a tab's back, forward or own page in a new tab gets of this manager's tabs, their history,
-   * tab creation and state. It is a prototype method rather than a field, so managers created without the constructor
-   * (as unit tests do) still provide it.
-   */
-  private navigationNewTabAccess(): NavigationNewTabAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      navigationHistorySnapshot: (tab) => this.navigationHistorySnapshot(tab),
-      createTab: (options) => this.createTab(options),
-      getState: () => this.getState()
-    }
+    return openNavigationInNewTab(this, tabId, target, active)
   }
 
   /**
@@ -3707,47 +3642,20 @@ export class Browser {
     return captureElementScreenshot(this.elementPickerAccess(), tabId)
   }
 
-  /**
-   * The narrow view element, media and image inspection get of this manager's
-   * private tabs, workspaces, inspection slots and debugger lease. It is a
-   * prototype method rather than a field, so managers created without the
-   * constructor (as unit tests do) still provide it. The delegates below
-   * return the feature's promise directly, so no extra ticks separate its
-   * final checks from the caller.
-   */
-  private elementInspectionAccess(): ElementInspectionAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      findTab: (tabId) => this.tabs.get(tabId),
-      findWorkspace: (workspaceId) => this.mcpTabGroups.get(workspaceId),
-      inspectionPermission: (workspace) => this.inspectionPermissions.get(workspace),
-      isDestroyed: () => this.destroyed,
-      snapshotDeltaContext: (tab) => this.snapshotDeltaContext(tab),
-      validateTarget: (target) => this.validateTarget(target),
-      acquireSizingInspectionSlot: (owner) => this.sizingInspectionSlots.acquire(owner),
-      acquireImageInspectionSlot: (owner) => this.imageInspectionSlots.acquire(owner),
-      isDevToolsOpening: (webContentsId) => this.devToolsOpening.has(webContentsId),
-      cssStatePreviewActive: (tab) => this.cssStatePreview.active(tab),
-      domMutationSourceActive: (tab) => this.domMutationSource.active(tab),
-      withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
-      isUnavailableCdpMethod: (error) => this.isUnavailableCdpMethod(error)
-    }
-  }
-
   elementInspection(options: BrowserElementInspectionOptions, validateInspection?: () => void, deferInspection?: (pending: PendingElementInspection) => void): Promise<BrowserElementInspection> {
-    return elementInspection(this.elementInspectionAccess(), options, validateInspection, deferInspection)
+    return elementInspection(this, options, validateInspection, deferInspection)
   }
 
   mediaState(options: { tabId?: string; ref?: never; selector: string }, validateInspection?: () => void, deferInspection?: (pending: PendingElementInspection) => void): Promise<BrowserMediaState> {
-    return mediaState(this.elementInspectionAccess(), options, validateInspection, deferInspection)
+    return mediaState(this, options, validateInspection, deferInspection)
   }
 
   imageState(options: { tabId?: string; ref?: never; selector: string }, validateInspection?: () => void, deferInspection?: (pending: PendingElementInspection) => void): Promise<BrowserImageState> {
-    return imageState(this.elementInspectionAccess(), options, validateInspection, deferInspection)
+    return imageState(this, options, validateInspection, deferInspection)
   }
 
   generatePlaywrightLocator(options: BrowserElementInspectionOptions): Promise<BrowserGeneratedLocator> {
-    return generatePlaywrightLocator(this.elementInspectionAccess(), options)
+    return generatePlaywrightLocator(this, options)
   }
 
   cancelElementPicker(tabId?: string): Promise<boolean> {
@@ -4111,36 +4019,16 @@ export class Browser {
     return clearDiagnosticLogs(this.debugReportAccess(), tabId)
   }
 
-  /**
-   * The narrow view recording, inspecting and previewing a tab's video gets of
-   * this manager's private tabs, window, trusted chrome occlusion, page
-   * presentation and video recorder. It is a prototype method rather than a
-   * field, so managers created without the constructor (as unit tests do)
-   * still provide it. The delegates below return the feature's promise
-   * directly, so callers see the same ticks as before.
-   */
-  private videoRecordingAccess(): VideoRecordingAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      findTab: (tabId) => this.tabs.get(tabId),
-      isDestroyed: () => this.destroyed,
-      window: () => this.window,
-      browserContentOccluded: () => this.browserContentOccluded,
-      withRenderableTab: (tab, operation) => this.withRenderableTab(tab, operation),
-      videoRecorder: () => this.videoRecorder
-    }
-  }
-
   videoRecording(options: BrowserVideoOptions, validateAuthority?: () => void, signal?: AbortSignal): Promise<BrowserVideoState> {
-    return videoRecording(this.videoRecordingAccess(), options, validateAuthority, signal)
+    return videoRecording(this, options, validateAuthority, signal)
   }
 
   inspectVideo(options: BrowserVideoInspectionOptions, authorize: (source: VideoSourceBinding) => void, signal?: AbortSignal): Promise<PendingVideoInspection> {
-    return inspectVideo(this.videoRecordingAccess(), options, authorize, signal)
+    return inspectVideo(this, options, authorize, signal)
   }
 
   videoPreview(tabId: string): Uint8Array {
-    return videoPreview(this.videoRecordingAccess(), tabId)
+    return videoPreview(this, tabId)
   }
 
   async reproRecording(action: BrowserReproAction, tabId?: string, checkpoint?: unknown): Promise<BrowserReproRecording> {
@@ -4532,32 +4420,12 @@ export class Browser {
     return visualCompareContext(this, tab)
   }
 
-  private captureVisual(tab: BrowserTab, settleMs: number, clip?: BrowserScreenshotClip): Promise<BrowserVisualCapture> {
-    return captureVisual(this, tab, settleMs, clip)
-  }
-
-  /**
-   * The narrow view visual comparison gets of this manager's private tabs,
-   * observation context and page capture. It is a prototype method rather
-   * than a field, so managers created without the constructor (as unit tests
-   * do) still provide it. The delegate below returns the feature's promise
-   * directly, so no extra ticks separate its final checks from the caller.
-   */
-  private visualCompareAccess(): VisualCompareAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      findTab: (tabId) => this.tabs.get(tabId),
-      snapshotDeltaContext: (tab) => this.snapshotDeltaContext(tab),
-      captureVisual: (tab, settleMs, clip) => this.captureVisual(tab, settleMs, clip)
-    }
-  }
-
   visualCompare(options: BrowserVisualCompareOptions, validateCapture?: () => void): Promise<BrowserVisualCompareResult> {
-    return visualCompare(this.visualCompareAccess(), options, validateCapture)
+    return visualCompare(this, options, validateCapture)
   }
 
   visualDiff(tabId?: string): Buffer {
-    return visualDiff(this.visualCompareAccess(), tabId)
+    return visualDiff(this, tabId)
   }
 
   /**
@@ -4619,34 +4487,8 @@ export class Browser {
     return savePdf(this, options, validateExport, deferExport)
   }
 
-  /**
-   * The narrow view a screenshot export gets of this manager's private tabs,
-   * workspaces, inspection permissions, page presentation, agent pointer,
-   * display scaling, download writing and export file name. Like the PDF
-   * export's, it is a prototype method.
-   */
-  private screenshotExportAccess(): ScreenshotExportAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      findTab: (tabId) => this.tabs.get(tabId),
-      findWorkspace: (workspaceId) => this.mcpTabGroups.get(workspaceId),
-      inspectionPermission: (workspace) => this.inspectionPermissions.get(workspace),
-      isDestroyed: () => this.destroyed,
-      withRenderableTab: (tab, operation, mode) => this.withRenderableTab(tab, operation, mode),
-      dismissAgentPointer: (webContents) => this.dismissAgentPointer(webContents),
-      captureScale: (tab) => {
-        this.requireEmulationConfirmed(tab)
-        const scale = Math.max(1, ...screen.getAllDisplays().map((display) => display.scaleFactor))
-        if (!Number.isFinite(scale) || scale > 32) throw new LocalizedError('appErrors.pageTools.displayScale')
-        return scale
-      },
-      writeUniqueDownload: (filename, data, validate) => this.writeUniqueDownload(filename, data, validate),
-      screenshotFilename: (requested, title) => screenshotFilename(requested, title)
-    }
-  }
-
   saveScreenshot(options: ScreenshotExportOptions = {}, validateExport?: () => void, deferExport?: (pending: PendingScreenshotExport) => void): Promise<ScreenshotExport> {
-    return saveScreenshot(this.screenshotExportAccess(), options, validateExport, deferExport)
+    return saveScreenshot(this, options, validateExport, deferExport)
   }
 
   waitForPage(tabId?: string, timeoutMs = 30_000): Promise<void> {
@@ -5832,7 +5674,8 @@ export class Browser {
     return sweepMemorySaver(this.memorySaverAccess(), force)
   }
 
-  private navigationHistorySnapshot(tab: BrowserTab): { entries: NavigationEntry[]; index: number } {
+  /** A copy of the tab's Back and Forward history: the one kept while it sleeps, or else its page's without the sleeping page. */
+  navigationHistorySnapshot(tab: BrowserTab): { entries: NavigationEntry[]; index: number } {
     if (tab.sleepNavigationHistory) {
       return {
         entries: tab.sleepNavigationHistory.entries.map((entry) => ({ ...entry })),

@@ -1,8 +1,22 @@
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
-import type { ScreenshotExportAccess, ScreenshotExportTab } from '../src/main/browser/screenshot-export/screenshot-export-access.js'
+import type { Browser } from '../src/main/browser/browser.js'
 import { saveScreenshot, SCREENSHOT_EXPORT_MAX_BYTES, SCREENSHOT_EXPORT_MAX_CONCURRENT, type PendingScreenshotExport } from '../src/main/browser/screenshot-export/screenshot-export.js'
 import { screenshotExportSettlement } from '../src/main/mcp/tools/browser-screenshot-save/screenshot-save-settlement.js'
+
+/** The display scale the next capture uses; each page below sets its own. */
+const display = vi.hoisted(() => ({ scale: 1 }))
+vi.mock('electron', () => ({ screen: { getAllDisplays: () => [{ scaleFactor: display.scale }] } }))
+// Rendering goes to the fake browser's render queue, and the agent's cursor is never shown.
+vi.mock('../src/main/browser/renderable-tab/renderable-tab.js', () => ({
+  withRenderableTab: (browser: { withRenderableTab: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.withRenderableTab(...args)
+}))
+vi.mock('../src/main/browser/agent-pointer/agent-pointer.js', () => ({ dismissAgentPointer: async () => undefined }))
+/** Each page's writer, by its downloads folder: files go to it instead of to disk. */
+const writers = vi.hoisted(() => new Map<string, (filename: string, data: Buffer, validate?: () => void) => Promise<string>>())
+vi.mock('../src/main/browser/unique-download-file.js', () => ({
+  writeUniqueDownloadFile: (directory: string, filename: string, data: Buffer, validate?: () => void) => writers.get(directory)!(filename, data, validate)
+}))
 
 /** A captured image of the given size whose PNG has the given number of bytes. */
 function image(width: number, height: number, pngBytes = 100) {
@@ -29,7 +43,7 @@ function exportPage(options: {
     isDestroyed: () => false,
     capturePage: vi.fn(options.capture ?? (async () => image(800, 600)))
   })
-  const tab: ScreenshotExportTab = {
+  const tab = {
     id: 'tab-1',
     title: 'Checkout',
     navigationGeneration: 1,
@@ -41,75 +55,76 @@ function exportPage(options: {
   }
   const written: Array<{ filename: string; bytes: number }> = []
   const workspaces = new Map<string, object>([['workspace-1', {}]])
-  let tabOpen = true
-  const access: ScreenshotExportAccess<ScreenshotExportTab> = {
-    getTab: () => tab,
-    findTab: () => tabOpen ? tab : undefined,
-    findWorkspace: id => workspaces.get(id),
-    inspectionPermission: () => 0,
-    isDestroyed: () => false,
-    withRenderableTab: (_tab, operation) => options.render ? options.render(operation) : operation(),
-    dismissAgentPointer: async () => undefined,
-    captureScale: () => options.scale ?? 1,
-    writeUniqueDownload: vi.fn(async (filename: string, data: Buffer, validate?: () => void) => {
-      validate?.()
-      options.onWritten?.()
-      // Like the real writer, check again once the bytes are on disk and remove the file when that fails.
-      validate?.()
-      written.push({ filename, bytes: data.length })
-      return `/downloads/${filename}`
-    }),
-    screenshotFilename: (requested, title) => `${requested ?? title}.png`
-  }
+  const tabs = new Map([[tab.id, tab]])
+  display.scale = options.scale ?? 1
+  const downloadDirectory = `/downloads-${writers.size}`
+  writers.set(downloadDirectory, async (filename, data, validate) => {
+    validate?.()
+    options.onWritten?.()
+    // Like the real writer, check again once the bytes are on disk and remove the file when that fails.
+    validate?.()
+    written.push({ filename, bytes: data.length })
+    return `/downloads/${filename}`
+  })
+  const browser = {
+    options: { downloadDirectory },
+    activeTabId: tab.id,
+    tabs,
+    mcpTabGroups: workspaces,
+    inspectionPermissions: new WeakMap(),
+    destroyed: false,
+    withRenderableTab: <T>(_tab: unknown, operation: () => Promise<T>) => options.render ? options.render(operation) : operation(),
+    requireEmulationConfirmed: () => undefined
+  } as unknown as Browser
   return {
-    access, tab, webContents, written,
+    browser, tab, webContents, written,
     revokeWorkspace: () => { workspaces.set('workspace-1', {}) },
-    closeTab: () => { tabOpen = false }
+    closeTab: () => { tabs.delete(tab.id) }
   }
 }
 
 describe('screenshot export', () => {
   it('writes the viewport PNG and returns only its metadata', async () => {
     const page = exportPage()
-    const saved = await saveScreenshot(page.access, { filename: 'record' })
+    const saved = await saveScreenshot(page.browser, { filename: 'record' })
     expect(saved).toMatchObject({ filename: 'record.png', path: '/downloads/record.png', mimeType: 'image/png', width: 800, height: 600, bytes: 100 })
     expect(Number.isNaN(Date.parse(saved.capturedAt))).toBe(false)
     expect(page.written).toEqual([{ filename: 'record.png', bytes: 100 }])
   })
 
   it('scales the saved image to maxWidth and maxHeight', async () => {
-    const saved = await saveScreenshot(exportPage().access, { maxWidth: 400, maxHeight: 400 })
+    const saved = await saveScreenshot(exportPage().browser, { maxWidth: 400, maxHeight: 400 })
     expect({ width: saved.width, height: saved.height }).toEqual({ width: 400, height: 300 })
   })
 
   it('refuses a viewport over an 8K frame before capturing it', async () => {
     const page = exportPage({ view: { width: 4000, height: 3000 }, scale: 2 })
-    await expect(saveScreenshot(page.access)).rejects.toThrow('more pixels than an 8K frame')
+    await expect(saveScreenshot(page.browser)).rejects.toThrow('more pixels than an 8K frame')
     expect(page.webContents.capturePage).not.toHaveBeenCalled()
     expect(page.written).toEqual([])
   })
 
   it('bounds an emulated viewport larger than the view showing it before capturing it', async () => {
     const page = exportPage({ view: { width: 940, height: 390 }, emulated: { width: 3840, height: 3840 }, scale: 2 })
-    await expect(saveScreenshot(page.access)).rejects.toThrow('more pixels than an 8K frame')
+    await expect(saveScreenshot(page.browser)).rejects.toThrow('more pixels than an 8K frame')
     expect(page.webContents.capturePage).not.toHaveBeenCalled()
   })
 
   it('does not count the emulated pixel ratio, which does not change the capture size', async () => {
     // At the emulated ratio of 3 this would be 36.9 million pixels, over the bound; the capture has 4.1 million.
     const page = exportPage({ view: { width: 2560, height: 1600 }, emulated: { width: 2560, height: 1600 }, capture: async () => image(2560, 1600) })
-    await expect(saveScreenshot(page.access)).resolves.toMatchObject({ width: 2560, height: 1600 })
+    await expect(saveScreenshot(page.browser)).resolves.toMatchObject({ width: 2560, height: 1600 })
   })
 
   it('refuses a capture that came back larger than its bound', async () => {
     const page = exportPage({ capture: async () => image(7681, 4320) })
-    await expect(saveScreenshot(page.access)).rejects.toThrow('could not capture a bounded image')
+    await expect(saveScreenshot(page.browser)).rejects.toThrow('could not capture a bounded image')
     expect(page.written).toEqual([])
   })
 
   it('refuses a PNG over the byte limit before writing it', async () => {
     const page = exportPage({ capture: async () => image(800, 600, SCREENSHOT_EXPORT_MAX_BYTES + 1) })
-    await expect(saveScreenshot(page.access)).rejects.toThrow('larger than 64 MiB')
+    await expect(saveScreenshot(page.browser)).rejects.toThrow('larger than 64 MiB')
     expect(page.written).toEqual([])
   })
 
@@ -120,7 +135,7 @@ describe('screenshot export', () => {
         return image(800, 600)
       }
     })
-    await expect(saveScreenshot(page.access, {}, () => undefined)).rejects.toThrow('page changed')
+    await expect(saveScreenshot(page.browser, {}, () => undefined)).rejects.toThrow('page changed')
     expect(page.written).toEqual([])
     expect(page.webContents.listenerCount('did-navigate')).toBe(0)
   })
@@ -132,24 +147,24 @@ describe('screenshot export', () => {
         throw new Error('UnknownVizError')
       }
     })
-    await expect(saveScreenshot(page.access, {}, () => undefined)).rejects.toThrow('page changed')
+    await expect(saveScreenshot(page.browser, {}, () => undefined)).rejects.toThrow('page changed')
     // A capture that fails on a page that stayed keeps its own error.
     const failed = exportPage({ capture: async () => { throw new Error('UnknownVizError') } })
-    await expect(saveScreenshot(failed.access, {}, () => undefined)).rejects.toThrow('UnknownVizError')
+    await expect(saveScreenshot(failed.browser, {}, () => undefined)).rejects.toThrow('UnknownVizError')
     expect([...page.written, ...failed.written]).toEqual([])
   })
 
   it('fails the write when the page navigates while the file is being written', async () => {
     const page = exportPage({ onWritten: () => { page.webContents.emit('did-navigate') } })
-    await expect(saveScreenshot(page.access, {}, () => undefined)).rejects.toThrow('page changed')
+    await expect(saveScreenshot(page.browser, {}, () => undefined)).rejects.toThrow('page changed')
     expect(page.written).toEqual([])
   })
 
   it('writes nothing when the workspace\'s access changes or the tab closes during the capture', async () => {
     const revoked = exportPage({ capture: async () => { revoked.revokeWorkspace(); return image(800, 600) } })
-    await expect(saveScreenshot(revoked.access, {}, () => undefined)).rejects.toThrow('Workspace access changed')
+    await expect(saveScreenshot(revoked.browser, {}, () => undefined)).rejects.toThrow('Workspace access changed')
     const closed = exportPage({ capture: async () => { closed.closeTab(); return image(800, 600) } })
-    await expect(saveScreenshot(closed.access, {}, () => undefined)).rejects.toThrow('tab closed')
+    await expect(saveScreenshot(closed.browser, {}, () => undefined)).rejects.toThrow('tab closed')
     expect([...revoked.written, ...closed.written]).toEqual([])
   })
 
@@ -161,7 +176,7 @@ describe('screenshot export', () => {
         return image(800, 600)
       }
     })
-    await expect(saveScreenshot(page.access, {}, () => { if (cancelled) throw new Error('Screenshot export cancelled') })).rejects.toThrow('cancelled')
+    await expect(saveScreenshot(page.browser, {}, () => { if (cancelled) throw new Error('Screenshot export cancelled') })).rejects.toThrow('cancelled')
     expect(page.written).toEqual([])
   })
 
@@ -169,32 +184,32 @@ describe('screenshot export', () => {
     let release!: () => void
     const held = new Promise<void>(resolve => { release = resolve })
     const page = exportPage({ capture: async () => { await held; return image(800, 600) } })
-    const running = Array.from({ length: SCREENSHOT_EXPORT_MAX_CONCURRENT }, () => saveScreenshot(page.access))
+    const running = Array.from({ length: SCREENSHOT_EXPORT_MAX_CONCURRENT }, () => saveScreenshot(page.browser))
     await vi.waitFor(() => expect(page.webContents.capturePage).toHaveBeenCalledTimes(SCREENSHOT_EXPORT_MAX_CONCURRENT))
-    await expect(saveScreenshot(page.access)).rejects.toThrow('already being saved')
+    await expect(saveScreenshot(page.browser)).rejects.toThrow('already being saved')
     release()
     await Promise.all(running)
-    await expect(saveScreenshot(page.access)).resolves.toMatchObject({ filename: 'Checkout.png' })
+    await expect(saveScreenshot(page.browser)).resolves.toMatchObject({ filename: 'Checkout.png' })
   })
 
   it('holds no slot while waiting for the tab\'s turn to render, nor after failing before it', async () => {
     const gates: Array<() => void> = []
     const queued = exportPage({ render: async operation => { await new Promise<void>(resolve => { gates.push(resolve) }); return operation() } })
-    const waiting = Array.from({ length: SCREENSHOT_EXPORT_MAX_CONCURRENT }, () => saveScreenshot(queued.access))
+    const waiting = Array.from({ length: SCREENSHOT_EXPORT_MAX_CONCURRENT }, () => saveScreenshot(queued.browser))
     await vi.waitFor(() => expect(gates).toHaveLength(SCREENSHOT_EXPORT_MAX_CONCURRENT))
     // Exports still waiting for their render turn leave the slots free.
-    await expect(saveScreenshot(exportPage().access)).resolves.toMatchObject({ filename: 'Checkout.png' })
+    await expect(saveScreenshot(exportPage().browser)).resolves.toMatchObject({ filename: 'Checkout.png' })
     for (const release of gates) release()
     await Promise.all(waiting)
     // An export whose render turn fails before it starts gives back no slot it never took.
     const failed = exportPage({ render: async () => { throw new Error('The tab closed while rendering its page.') } })
-    await expect(saveScreenshot(failed.access)).rejects.toThrow('tab closed')
+    await expect(saveScreenshot(failed.browser)).rejects.toThrow('tab closed')
     let release!: () => void
     const held = new Promise<void>(resolve => { release = resolve })
     const busy = exportPage({ capture: async () => { await held; return image(800, 600) } })
-    const running = Array.from({ length: SCREENSHOT_EXPORT_MAX_CONCURRENT }, () => saveScreenshot(busy.access))
+    const running = Array.from({ length: SCREENSHOT_EXPORT_MAX_CONCURRENT }, () => saveScreenshot(busy.browser))
     await vi.waitFor(() => expect(busy.webContents.capturePage).toHaveBeenCalledTimes(SCREENSHOT_EXPORT_MAX_CONCURRENT))
-    await expect(saveScreenshot(busy.access)).rejects.toThrow('already being saved')
+    await expect(saveScreenshot(busy.browser)).rejects.toThrow('already being saved')
     release()
     await Promise.all(running)
   })
@@ -202,7 +217,7 @@ describe('screenshot export', () => {
   it('hands the caller only an authority check once the file is complete', async () => {
     const page = exportPage()
     let pending: PendingScreenshotExport | undefined
-    await saveScreenshot(page.access, {}, () => undefined, deferred => { pending = deferred })
+    await saveScreenshot(page.browser, {}, () => undefined, deferred => { pending = deferred })
     expect(page.webContents.listenerCount('did-navigate')).toBe(0)
     // A later navigation does not change the saved file. The export itself
     // ignores a closed tab too; the tool's own validation refuses it.

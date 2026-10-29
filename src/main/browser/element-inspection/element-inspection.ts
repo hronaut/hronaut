@@ -21,7 +21,10 @@ import { elementInspectionScript } from '../page-scripts.js'
 import { passwordOccupancySettlementScript } from '../password-occupancy.js'
 import { isHronautHomeUrl } from '../url.js'
 import { valueComparisonSettlementScript } from '../value-comparison.js'
-import type { ElementInspectionAccess, ElementInspectionTab } from './element-inspection-access.js'
+import type { Browser } from '../browser.js'
+import { findTab, getTab } from '../browser-core.js'
+import { withDebugger } from '../debugger-lease/debugger-lease.js'
+import { validateTarget } from '../input-targets/input-targets.js'
 
 const ELEMENT_INSPECTION_WORLD_ID = ISOLATED_WORLDS.elementInspection
 
@@ -30,7 +33,7 @@ const ELEMENT_INSPECTION_WORLD_ID = ISOLATED_WORLDS.elementInspection
  * fonts or one guarded reading (password occupancy, form validity, sizing
  * inputs or value comparison) whose publication can be deferred to the caller.
  */
-export async function elementInspection<Tab extends ElementInspectionTab>(access: ElementInspectionAccess<Tab>, options: BrowserElementInspectionOptions, validateInspection?: () => void, deferInspection?: (pending: PendingElementInspection) => void): Promise<BrowserElementInspection> {
+export async function elementInspection(browser: Browser, options: BrowserElementInspectionOptions, validateInspection?: () => void, deferInspection?: (pending: PendingElementInspection) => void): Promise<BrowserElementInspection> {
   if (options.includePasswordOccupancy !== undefined && typeof options.includePasswordOccupancy !== 'boolean') throw new TypeError('includePasswordOccupancy must be a boolean')
   const occupancy = options.includePasswordOccupancy === true
   if (options.includeValidity !== undefined && typeof options.includeValidity !== 'boolean') throw new TypeError('includeValidity must be a boolean')
@@ -61,30 +64,30 @@ export async function elementInspection<Tab extends ElementInspectionTab>(access
   if (options.includeFonts !== undefined && typeof options.includeFonts !== 'boolean') throw new TypeError('includeFonts must be a boolean')
   if (options.includeScroll !== undefined && typeof options.includeScroll !== 'boolean') throw new TypeError('includeScroll must be a boolean')
   const includeFonts = options.includeFonts === true
-  const tab = access.getTab(options.tabId)
+  const tab = getTab(browser, options.tabId)
   if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before inspecting an element')
   if (guarded && (tab.sleeping || tab.wakePromise || tab.pageLifecycleState !== 'active')) throw new Error(`${inspectionLabel} requires an already active tab`)
-  access.validateTarget(options)
+  validateTarget(options)
   const contents = tab.webContents
   let documentChanged = false
   const onCommitted = (): void => { documentChanged = true }
   const deadline = Date.now() + 5_000
-  const context = access.snapshotDeltaContext(tab)
-  const inspectionWorkspace = tab.mcpGroupId ? access.findWorkspace(tab.mcpGroupId) : undefined
-  const inspectionPermissionGeneration = inspectionWorkspace ? access.inspectionPermission(inspectionWorkspace) ?? 0 : 0
+  const context = browser.snapshotDeltaContext(tab)
+  const inspectionWorkspace = tab.mcpGroupId ? browser.mcpTabGroups.get(tab.mcpGroupId) : undefined
+  const inspectionPermissionGeneration = inspectionWorkspace ? browser.inspectionPermissions.get(inspectionWorkspace) ?? 0 : 0
   const assertCurrent = (): void => {
     validateInspection?.()
-    if (sizing && (access.isDestroyed() || documentChanged || tab.webContents !== contents || Date.now() > deadline)) throw new Error('Sizing inspection context changed or expired')
-    const currentWorkspace = tab.mcpGroupId ? access.findWorkspace(tab.mcpGroupId) : undefined
-    if (currentWorkspace !== inspectionWorkspace || (currentWorkspace ? access.inspectionPermission(currentWorkspace) ?? 0 : 0) !== inspectionPermissionGeneration) {
+    if (sizing && (browser.destroyed || documentChanged || tab.webContents !== contents || Date.now() > deadline)) throw new Error('Sizing inspection context changed or expired')
+    const currentWorkspace = tab.mcpGroupId ? browser.mcpTabGroups.get(tab.mcpGroupId) : undefined
+    if (currentWorkspace !== inspectionWorkspace || (currentWorkspace ? browser.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== inspectionPermissionGeneration) {
       throw new Error('Workspace permissions changed during element inspection')
     }
     if (guarded && (tab.sleeping || tab.wakePromise || tab.pageLifecycleState !== 'active')) throw new Error(`${inspectionLabel} requires an already active tab`)
-    const current = access.findTab(tab.id)
+    const current = findTab(browser, tab.id)
     if (!current || current !== tab || current.webContents.isDestroyed()) {
       throw new Error('The tab changed during element inspection. Inspect the element again.')
     }
-    const invalidation = snapshotDeltaInvalidationReason(context, access.snapshotDeltaContext(current))
+    const invalidation = snapshotDeltaInvalidationReason(context, browser.snapshotDeltaContext(current))
     if (invalidation) {
       throw new Error(`The observation context changed during element inspection (${invalidation}). Inspect the element again.`)
     }
@@ -101,7 +104,7 @@ export async function elementInspection<Tab extends ElementInspectionTab>(access
     } finally { if (timer) clearTimeout(timer) }
   }
   assertCurrent()
-  const slot = sizing ? access.acquireSizingInspectionSlot(contents) : undefined
+  const slot = sizing ? browser.sizingInspectionSlots.acquire(contents) : undefined
   try { if (sizing) contents.on('did-navigate', onCommitted) } catch (error) { contents.removeListener('did-navigate', onCommitted); slot?.close(); throw error }
   const execute = (code: string, cleanup = false): Promise<unknown> => {
     if (!sizing) return tab.webContents.executeJavaScriptInIsolatedWorld(ELEMENT_INSPECTION_WORLD_ID, [{ code }], false)
@@ -148,18 +151,18 @@ export async function elementInspection<Tab extends ElementInspectionTab>(access
     if (properties || includeFonts) {
       // CSS provenance resets this session's DOM bindings, which would drop a CSS state preview, and
       // disables the DOM domain, which would clear a DOM mutation source capture's breakpoint.
-      const conflict = (): boolean => access.isDevToolsOpening(tab.webContents.id)
+      const conflict = (): boolean => browser.devToolsOpening.has(tab.webContents.id)
         || tab.webContents.isDevToolsOpened()
         || Boolean(tab.codeCoverage?.recording || tab.cpuProfile?.recording)
-        || access.cssStatePreviewActive(tab)
-        || access.domMutationSourceActive(tab)
+        || browser.cssStatePreview.active(tab)
+        || browser.domMutationSource.active(tab)
       if (conflict()) {
         if (properties) cssProvenance = unavailableCssProvenance(properties, 'debugger-in-use')
         if (includeFonts) renderedFonts = unavailableRenderedFonts('debugger-in-use')
         raw = await inspect()
       } else {
         try {
-          const capture = await access.withDebugger(tab.webContents, async () => {
+          const capture = await withDebugger(browser, tab.webContents, async () => {
             assertCurrent()
             if (conflict()) throw new Error('CSS provenance debugger is in use')
             const selector = options.ref
@@ -173,7 +176,7 @@ export async function elementInspection<Tab extends ElementInspectionTab>(access
           renderedFonts = capture.renderedFonts
         } catch (error) {
           assertCurrent()
-          if (!conflict() && !access.isUnavailableCdpMethod(error)) throw error
+          if (!conflict() && !browser.isUnavailableCdpMethod(error)) throw error
           if (properties) cssProvenance = unavailableCssProvenance(properties, conflict() ? 'debugger-in-use' : 'unsupported-protocol')
           if (includeFonts) renderedFonts = unavailableRenderedFonts(conflict() ? 'debugger-in-use' : 'unsupported-protocol')
           raw = await inspect()
@@ -196,19 +199,19 @@ export async function elementInspection<Tab extends ElementInspectionTab>(access
 }
 
 /** Reads the playback state of one media element, guarded against observation changes until publication. */
-export async function mediaState<Tab extends ElementInspectionTab>(access: ElementInspectionAccess<Tab>, options: { tabId?: string; ref?: never; selector: string }, validateInspection?: () => void, deferInspection?: (pending: PendingElementInspection) => void): Promise<BrowserMediaState> {
+export async function mediaState(browser: Browser, options: { tabId?: string; ref?: never; selector: string }, validateInspection?: () => void, deferInspection?: (pending: PendingElementInspection) => void): Promise<BrowserMediaState> {
   if (Object.hasOwn(options, 'ref')) throw new TypeError('Media state does not support snapshot refs; provide a unique selector')
   if (typeof options.selector !== 'string' || !options.selector.trim() || options.selector.length > 1_000) throw new TypeError('Media state requires a nonempty selector of at most 1000 characters')
-  const tab = access.getTab(options.tabId)
-  const context = access.snapshotDeltaContext(tab)
-  const workspace = tab.mcpGroupId ? access.findWorkspace(tab.mcpGroupId) : undefined
-  const permissionGeneration = workspace ? access.inspectionPermission(workspace) ?? 0 : 0
+  const tab = getTab(browser, options.tabId)
+  const context = browser.snapshotDeltaContext(tab)
+  const workspace = tab.mcpGroupId ? browser.mcpTabGroups.get(tab.mcpGroupId) : undefined
+  const permissionGeneration = workspace ? browser.inspectionPermissions.get(workspace) ?? 0 : 0
   const assertCurrent = (): void => {
     validateInspection?.()
-    const currentWorkspace = tab.mcpGroupId ? access.findWorkspace(tab.mcpGroupId) : undefined
-    if (access.findTab(tab.id) !== tab || tab.webContents.isDestroyed()
-      || currentWorkspace !== workspace || (currentWorkspace ? access.inspectionPermission(currentWorkspace) ?? 0 : 0) !== permissionGeneration
-      || snapshotDeltaInvalidationReason(context, access.snapshotDeltaContext(tab))) throw new Error('The observation context changed during media inspection')
+    const currentWorkspace = tab.mcpGroupId ? browser.mcpTabGroups.get(tab.mcpGroupId) : undefined
+    if (findTab(browser, tab.id) !== tab || tab.webContents.isDestroyed()
+      || currentWorkspace !== workspace || (currentWorkspace ? browser.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== permissionGeneration
+      || snapshotDeltaInvalidationReason(context, browser.snapshotDeltaContext(tab))) throw new Error('The observation context changed during media inspection')
     if (isHronautHomeUrl(tab.url) || tab.sleeping || tab.wakePromise || tab.pageLifecycleState !== 'active') throw new Error('Media state unavailable: requires an already active website tab')
   }
   assertCurrent()
@@ -246,28 +249,28 @@ export async function mediaState<Tab extends ElementInspectionTab>(access: Eleme
 }
 
 /** Reads the load completion and natural size of one image element, guarded against document and observation changes until publication. */
-export async function imageState<Tab extends ElementInspectionTab>(access: ElementInspectionAccess<Tab>, options: { tabId?: string; ref?: never; selector: string }, validateInspection?: () => void, deferInspection?: (pending: PendingElementInspection) => void): Promise<BrowserImageState> {
+export async function imageState(browser: Browser, options: { tabId?: string; ref?: never; selector: string }, validateInspection?: () => void, deferInspection?: (pending: PendingElementInspection) => void): Promise<BrowserImageState> {
   if (Object.hasOwn(options, 'ref')) throw new TypeError('Image state does not support snapshot refs; provide a unique selector')
   if (typeof options.selector !== 'string' || !options.selector.trim() || options.selector.length > 1_000) throw new TypeError('Image state requires a nonempty selector of at most 1000 characters')
-  const tab = access.getTab(options.tabId)
+  const tab = getTab(browser, options.tabId)
   const contents = tab.webContents
   let documentChanged = false
   const onCommitted = (): void => { documentChanged = true }
   const deadline = Date.now() + 5_000
-  const context = access.snapshotDeltaContext(tab)
-  const workspace = tab.mcpGroupId ? access.findWorkspace(tab.mcpGroupId) : undefined
-  const permissionGeneration = workspace ? access.inspectionPermission(workspace) ?? 0 : 0
+  const context = browser.snapshotDeltaContext(tab)
+  const workspace = tab.mcpGroupId ? browser.mcpTabGroups.get(tab.mcpGroupId) : undefined
+  const permissionGeneration = workspace ? browser.inspectionPermissions.get(workspace) ?? 0 : 0
   const assertCurrent = (): void => {
     validateInspection?.()
     if (Date.now() > deadline) throw new Error('Image state inspection expired')
-    const currentWorkspace = tab.mcpGroupId ? access.findWorkspace(tab.mcpGroupId) : undefined
-    if (access.isDestroyed() || documentChanged || access.findTab(tab.id) !== tab || tab.webContents !== contents || contents.isDestroyed()
-      || currentWorkspace !== workspace || (currentWorkspace ? access.inspectionPermission(currentWorkspace) ?? 0 : 0) !== permissionGeneration
-      || snapshotDeltaInvalidationReason(context, access.snapshotDeltaContext(tab))) throw new Error('The observation context changed during image inspection')
+    const currentWorkspace = tab.mcpGroupId ? browser.mcpTabGroups.get(tab.mcpGroupId) : undefined
+    if (browser.destroyed || documentChanged || findTab(browser, tab.id) !== tab || tab.webContents !== contents || contents.isDestroyed()
+      || currentWorkspace !== workspace || (currentWorkspace ? browser.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== permissionGeneration
+      || snapshotDeltaInvalidationReason(context, browser.snapshotDeltaContext(tab))) throw new Error('The observation context changed during image inspection')
     if (isHronautHomeUrl(tab.url) || tab.sleeping || tab.wakePromise || tab.pageLifecycleState !== 'active') throw new Error('Image state unavailable: requires an already active website tab')
   }
   assertCurrent()
-  const slot = access.acquireImageInspectionSlot(contents)
+  const slot = browser.imageInspectionSlots.acquire(contents)
   contents.on('did-navigate', onCommitted)
   const token = randomUUID()
   const bounded = async <T>(operation: Promise<T>): Promise<T> => {

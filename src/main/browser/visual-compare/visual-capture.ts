@@ -6,9 +6,8 @@ import { ISOLATED_WORLDS } from '../isolated-worlds.js'
 import { dismissAgentPointer } from '../agent-pointer/agent-pointer.js'
 import type { Browser } from '../browser.js'
 import { findTab } from '../browser-core.js'
-import type { BrowserTab } from '../browser-tab.js'
+import type { BrowserTab, BrowserVisualCapture } from '../browser-tab.js'
 import { withRenderableTab } from '../renderable-tab/renderable-tab.js'
-import type { VisualCompareCapture } from './visual-compare-access.js'
 
 /** The largest visual capture compared; larger captures are scaled down to fit. */
 const MAX_VISUAL_COMPARE_WIDTH = 1_920
@@ -45,7 +44,7 @@ export async function visualCompareContext(browser: Browser, tab: BrowserTab): P
  * throws when the page, or for a region the viewport or scroll position,
  * changed meanwhile.
  */
-export async function captureVisual(browser: Browser, tab: BrowserTab, settleMs: number, clip?: BrowserScreenshotClip): Promise<VisualCompareCapture> {
+export async function captureVisual(browser: Browser, tab: BrowserTab, settleMs: number, clip?: BrowserScreenshotClip): Promise<BrowserVisualCapture> {
   const context = browser.snapshotDeltaContext(tab)
   const assertCurrent = (): void => {
     if (findTab(browser, tab.id) !== tab || tab.webContents.isDestroyed()

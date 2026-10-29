@@ -6,24 +6,27 @@ import { buildBrowserStorageUsageReport, storageManagerUsageBreakdown } from '..
 import type { BrowserIndexedDbOptions, BrowserIndexedDbReport, BrowserStorageUsageReport } from '../../../shared/types.js'
 import { ISOLATED_WORLDS } from '../isolated-worlds.js'
 import { storageInspectionGuard, type StorageInspectionHooks } from '../storage-inspection-operation.js'
-import type { SiteStorageAccess, SiteStorageTab } from './site-storage-access.js'
+import type { Browser } from '../browser.js'
+import { findTab, getTab } from '../browser-core.js'
+import type { BrowserTab } from '../browser-tab.js'
+import { withDebugger } from '../debugger-lease/debugger-lease.js'
 
 const INDEXED_DB_WORLD_ID = ISOLATED_WORLDS.indexedDb
 const STORAGE_USAGE_WORLD_ID = ISOLATED_WORLDS.storageUsage
 
 /** Rejects once the tab, its workspace, its inspection permission or its observation context changes, and retains that check for publication. */
-function storageInspectionContextGuard<Tab extends SiteStorageTab>(access: SiteStorageAccess<Tab>, tab: Tab, hooks?: StorageInspectionHooks): () => void {
+function storageInspectionContextGuard(browser: Browser, tab: BrowserTab, hooks?: StorageInspectionHooks): () => void {
   const contents = tab.webContents
-  const context = access.snapshotDeltaContext(tab)
-  const workspace = tab.mcpGroupId ? access.findWorkspace(tab.mcpGroupId) : undefined
-  const permissionGeneration = workspace ? access.inspectionPermission(workspace) ?? 0 : 0
+  const context = browser.snapshotDeltaContext(tab)
+  const workspace = tab.mcpGroupId ? browser.mcpTabGroups.get(tab.mcpGroupId) : undefined
+  const permissionGeneration = workspace ? browser.inspectionPermissions.get(workspace) ?? 0 : 0
   const assertCurrent = storageInspectionGuard(() => {
     hooks?.validate()
-    const currentWorkspace = tab.mcpGroupId ? access.findWorkspace(tab.mcpGroupId) : undefined
-    if (access.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== contents || contents.isDestroyed()
+    const currentWorkspace = tab.mcpGroupId ? browser.mcpTabGroups.get(tab.mcpGroupId) : undefined
+    if (browser.destroyed || findTab(browser, tab.id) !== tab || tab.webContents !== contents || contents.isDestroyed()
       || currentWorkspace !== workspace
-      || (currentWorkspace ? access.inspectionPermission(currentWorkspace) ?? 0 : 0) !== permissionGeneration
-      || snapshotDeltaInvalidationReason(context, access.snapshotDeltaContext(tab))) {
+      || (currentWorkspace ? browser.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== permissionGeneration
+      || snapshotDeltaInvalidationReason(context, browser.snapshotDeltaContext(tab))) {
       throw new Error('Storage inspection context changed')
     }
   })
@@ -32,14 +35,14 @@ function storageInspectionContextGuard<Tab extends SiteStorageTab>(access: SiteS
 }
 
 /** A bounded, read-only IndexedDB report for the tab's top-level origin. */
-export async function inspectIndexedDb<Tab extends SiteStorageTab>(access: SiteStorageAccess<Tab>, options: BrowserIndexedDbOptions = {}, hooks?: StorageInspectionHooks): Promise<BrowserIndexedDbReport> {
-  const tab = access.getTab(options.tabId)
+export async function inspectIndexedDb(browser: Browser, options: BrowserIndexedDbOptions = {}, hooks?: StorageInspectionHooks): Promise<BrowserIndexedDbReport> {
+  const tab = getTab(browser, options.tabId)
   const pageUrl = new URL(tab.url)
   if (pageUrl.protocol !== 'http:' && pageUrl.protocol !== 'https:') {
     throw new Error('IndexedDB inspection is available only for HTTP and HTTPS tabs.')
   }
   const normalized = normalizeBrowserIndexedDbOptions(options)
-  const requireCurrentPage = storageInspectionContextGuard(access, tab, hooks)
+  const requireCurrentPage = storageInspectionContextGuard(browser, tab, hooks)
   requireCurrentPage()
   hooks?.readStarted()
   const result = await tab.webContents.executeJavaScriptInIsolatedWorld(
@@ -65,17 +68,17 @@ export async function inspectIndexedDb<Tab extends SiteStorageTab>(access: SiteS
 }
 
 /** The origin's storage usage and quota from Chromium, or from the page's StorageManager estimate when the quota command fails. */
-export async function inspectStorageUsage<Tab extends SiteStorageTab>(access: SiteStorageAccess<Tab>, tabId?: string, hooks?: StorageInspectionHooks): Promise<BrowserStorageUsageReport> {
-  const tab = access.getTab(tabId)
+export async function inspectStorageUsage(browser: Browser, tabId?: string, hooks?: StorageInspectionHooks): Promise<BrowserStorageUsageReport> {
+  const tab = getTab(browser, tabId)
   const pageUrl = new URL(tab.url)
   if (pageUrl.protocol !== 'http:' && pageUrl.protocol !== 'https:') {
     throw new Error('Storage usage inspection is available only for HTTP and HTTPS tabs.')
   }
 
-  const requireCurrentPage = storageInspectionContextGuard(access, tab, hooks)
+  const requireCurrentPage = storageInspectionContextGuard(browser, tab, hooks)
   requireCurrentPage()
   try {
-    const raw = await access.withDebugger(tab.webContents, () => {
+    const raw = await withDebugger(browser, tab.webContents, () => {
       requireCurrentPage()
       hooks?.readStarted()
       return tab.webContents.debugger.sendCommand('Storage.getUsageAndQuota', { origin: pageUrl.origin }) as Promise<{

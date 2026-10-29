@@ -1,6 +1,8 @@
 import type { BrowserState } from '../../../shared/types.js'
 import { isHronautHomeUrl } from '../url.js'
-import type { NavigationNewTabAccess, NavigationNewTabTab } from './navigation-new-tab-access.js'
+import type { Browser } from '../browser.js'
+import { getTab } from '../browser-core.js'
+import { browserState } from '../browser-state/browser-state.js'
 
 /** The page of the tab's history each toolbar button goes to, from the one the tab shows. */
 const STEP = { back: -1, reload: 0, forward: 1 } as const
@@ -13,15 +15,15 @@ const STEP = { back: -1, reload: 0, forward: 1 } as const
  * it as Duplicate loads a copy, which Chromium may fill from its cache. Nothing opens when the tab has no page that
  * way, while a sleeping tab wakes (its history is then the placeholder page's), or for Hronaut Home.
  */
-export async function openNavigationInNewTab<Tab extends NavigationNewTabTab>(access: NavigationNewTabAccess<Tab>, tabId: string,
+export async function openNavigationInNewTab(browser: Browser, tabId: string,
   target: keyof typeof STEP, active: boolean): Promise<BrowserState> {
-  const tab = access.getTab(tabId)
-  if (tab.wakePromise) return access.getState()
-  const { entries, index } = access.navigationHistorySnapshot(tab)
+  const tab = getTab(browser, tabId)
+  if (tab.wakePromise) return browserState(browser)
+  const { entries, index } = browser.navigationHistorySnapshot(tab)
   const targetIndex = index + STEP[target]
   const entry = index < 0 ? undefined : entries[targetIndex]
-  if (!entry || isHronautHomeUrl(tab.url) || isHronautHomeUrl(entry.url)) return access.getState()
-  await access.createTab({
+  if (!entry || isHronautHomeUrl(tab.url) || isHronautHomeUrl(entry.url)) return browserState(browser)
+  await browser.createTab({
     url: entry.url,
     title: entry.title,
     // The page was visited already; the history the tab takes with it says so.
@@ -31,5 +33,5 @@ export async function openNavigationInNewTab<Tab extends NavigationNewTabTab>(ac
     mcpGroupId: tab.mcpGroupId,
     openedFrom: { tabId: tab.id, background: !active }
   })
-  return access.getState()
+  return browserState(browser)
 }
