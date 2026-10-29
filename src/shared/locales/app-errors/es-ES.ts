@@ -17,7 +17,7 @@ export const esESAppErrors: AppErrorMessages = {
     "pageHold": "Una pestaña con la página retenida de forma explícita permanece activa.",
     "loading": "No se puede suspender una pestaña que se está cargando.",
     "audio": "Una pestaña que reproduce audio permanece activa.",
-    "pictureInPicture": "Una pestaña que muestra un vídeo en imagen en imagen permanece activa.",
+    "pictureInPicture": "Una pestaña que muestra un vídeo en modo imagen en imagen permanece activa.",
     "dialog": "Una pestaña con un cuadro de diálogo abierto permanece activa.",
     "wallet": "Una pestaña que espera una solicitud del monedero permanece activa.",
     "devTools": "Una pestaña con las herramientas de desarrollo abiertas permanece activa.",

@@ -2,13 +2,13 @@ import type { Event, WebContents, WebFrameMain } from 'electron'
 import type { MessageKey } from '../../../shared/i18n.js'
 import type { BrowserState } from '../../../shared/types.js'
 import { LocalizedError } from '../../localized-error.js'
+import { ISOLATED_WORLDS } from '../isolated-worlds.js'
 import { liveRegionRecordingKeepsTabAwake } from '../live-region-recorder.js'
 import { localizedLoadFailure } from '../load-failure-error.js'
 import type { NavigationHistorySnapshot } from '../navigation-history.js'
 import { settledWithin } from '../page-waits/page-load-limit.js'
 import { RendererExitedError } from '../renderer-exit-guard.js'
 import { holdTabHistory } from '../tab-history-pages/forget-tab-history-pages.js'
-import { ISOLATED_WORLDS } from '../isolated-worlds.js'
 import { isHronautHomeUrl, isWebUrl } from '../url.js'
 import { SLEEPING_PAGE_URL } from './sleeping-page.js'
 import type { TabSleepAccess, TabSleepTab } from './tab-sleep-access.js'
@@ -331,9 +331,9 @@ export async function setTabSleepingFromContextMenu<Tab extends TabSleepTab>(acc
     return
   }
 
-  if (await hasChangedFormState(tab)) {
-    throw new LocalizedError('appErrors.sleep.unsavedForm')
-  }
+  // What the page holds keeps it awake before the view moves, so a refusal neither switches tabs nor wakes the fallback.
+  const pageHold = await pageSleepHold(tab)
+  if (pageHold) throw new LocalizedError(pageHold)
   if (access.activeTabId() !== tab.id || access.splitViewContains(tab.id)) {
     await putTabToSleep(access, tab, true)
     return
@@ -440,60 +440,56 @@ const CHANGED_FORM_STATE_SCRIPT = `(() => {
     return window.__hronautContentEditableDirty === true;
   })()`
 
-/** How long an embedded frame has to answer the form check, so a busy or vanishing frame cannot hold up sleeping. */
-const FRAME_FORM_CHECK_TIMEOUT_MS = 1_000
+/** How long an embedded frame has to answer the page checks, so a busy or vanishing frame cannot hold up sleeping. */
+const FRAME_CHECK_TIMEOUT_MS = 1_000
 
 /**
- * Whether the page holds form input the person changed, including edited
- * content, so sleeping would lose it. Every frame is checked, since a draft
- * can be in an embedded form or editor. A page that cannot answer counts as
- * changed, except one whose renderer exited, which holds no input. An
- * embedded frame that cannot answer in time, such as one not allowed to run
- * scripts, is skipped, as before frames were checked, so it cannot keep the
- * tab awake for good.
+ * Whether a video of the document shows in Picture in picture, or the document opened a Picture in picture window of
+ * its own; a video in a shadow root shows as its root's host. A document without these APIs shows none.
  */
-async function hasChangedFormState(tab: TabSleepTab): Promise<boolean> {
-  try {
-    if (await tab.webContents.executeJavaScript(CHANGED_FORM_STATE_SCRIPT) === true) return true
-  } catch (error) {
-    return !(error instanceof RendererExitedError)
-  }
-  if (tab.webContents.isDestroyed()) return false
-  for (const frame of tab.webContents.mainFrame.framesInSubtree) {
-    if (frame === tab.webContents.mainFrame || frame.isDestroyed() || frame.detached) continue
-    if (await frameAnswer(frame.executeJavaScript(CHANGED_FORM_STATE_SCRIPT)) === true) return true
-  }
-  return false
-}
-
-/** Whether a video of the document shows in Picture in picture; one in a shadow root shows as its root's host. */
-const PICTURE_IN_PICTURE_SCRIPT = 'document.pictureInPictureElement !== null'
+const PICTURE_IN_PICTURE_SCRIPT = "document.pictureInPictureElement != null || (typeof documentPictureInPicture === 'object' && documentPictureInPicture?.window != null)"
 
 /**
- * Whether a video of the page shows in Picture in picture, which the sleeping page would close, so Chrome never
- * discards such a tab. The page's own frame answers in a world of its own, which the page cannot change. A frame inside
- * it answers in its page's world, the only one Electron runs scripts in there, within the form check's time, so a busy
- * frame cannot hold up sleeping. A page that cannot answer shows none.
+ * What in the page keeps the tab awake, as the message saying so, or undefined when nothing does: form input the person
+ * changed, including edited content, which sleeping would lose, or a video shown in Picture in picture, which the
+ * sleeping page would close, as Chrome never discards such a tab. Every frame is read, since a draft or a player can be
+ * embedded. The page's own frame answers both at once: the forms in the page's world, where its watcher records edited
+ * content, and Picture in picture in a world of its own, which the page cannot change. A page that cannot answer the
+ * form check counts as changed, except one whose renderer exited, which holds no input; one that cannot answer the other
+ * shows none. A frame inside the page answers both at once in its page's world, the only one Electron runs scripts in
+ * there; one that cannot answer in time, such as one not allowed to run scripts, is skipped, so it cannot hold up
+ * sleeping or keep the tab awake for good.
  */
-export async function showsPictureInPicture(tab: TabSleepTab): Promise<boolean> {
-  try {
-    const shown: unknown = await tab.webContents.executeJavaScriptInIsolatedWorld(ISOLATED_WORLDS.tabSleep, [{ code: PICTURE_IN_PICTURE_SCRIPT }])
-    if (shown === true) return true
-  } catch {
-    return false
-  }
-  if (tab.webContents.isDestroyed()) return false
+export async function pageSleepHold(tab: TabSleepTab): Promise<MessageKey | undefined> {
+  const [changed, shown] = await Promise.all([
+    tab.webContents.executeJavaScript(CHANGED_FORM_STATE_SCRIPT).then(
+      (answer: unknown) => answer === true,
+      (error: unknown) => !(error instanceof RendererExitedError)
+    ),
+    tab.webContents.executeJavaScriptInIsolatedWorld(ISOLATED_WORLDS.tabSleep, [{ code: PICTURE_IN_PICTURE_SCRIPT }]).then(
+      (answer: unknown) => answer === true,
+      () => false
+    )
+  ])
+  if (changed) return 'appErrors.sleep.unsavedForm'
+  if (shown) return 'appErrors.sleep.pictureInPicture'
+  if (tab.webContents.isDestroyed()) return undefined
   for (const frame of tab.webContents.mainFrame.framesInSubtree) {
     if (frame === tab.webContents.mainFrame || frame.isDestroyed() || frame.detached) continue
-    if (await frameAnswer(frame.executeJavaScript(PICTURE_IN_PICTURE_SCRIPT)) === true) return true
+    const [frameChanged, frameShown] = await Promise.all([
+      frameAnswer(frame.executeJavaScript(CHANGED_FORM_STATE_SCRIPT)),
+      frameAnswer(frame.executeJavaScript(PICTURE_IN_PICTURE_SCRIPT))
+    ])
+    if (frameChanged === true) return 'appErrors.sleep.unsavedForm'
+    if (frameShown === true) return 'appErrors.sleep.pictureInPicture'
   }
-  return false
+  return undefined
 }
 
 /** The frame's answer, or undefined when it fails or does not answer in time. */
 async function frameAnswer(call: Promise<unknown>): Promise<unknown> {
   let timer: ReturnType<typeof setTimeout> | undefined
-  const late = new Promise<undefined>((resolve) => { timer = setTimeout(() => resolve(undefined), FRAME_FORM_CHECK_TIMEOUT_MS) })
+  const late = new Promise<undefined>((resolve) => { timer = setTimeout(() => resolve(undefined), FRAME_CHECK_TIMEOUT_MS) })
   try {
     return await Promise.race([call.catch(() => undefined), late])
   } finally {
@@ -540,7 +536,7 @@ export function sleepBeforeFirstLoad(pageCanLoad: Promise<void>): Promise<void> 
 /**
  * Puts the tab to sleep: it keeps its history and overview frame, and its
  * page is replaced by the sleeping page, freeing its memory. It checks what
- * keeps the tab awake again after reading the page's forms, and stops when
+ * keeps the tab awake again after reading the page, and stops when
  * isCurrent says the request is no longer wanted. A failure that reportBlocked
  * leaves unthrown is logged. When the sleeping page loaded but its cleanup
  * failed, the previous page is restored; when that fails too, the tab stays
@@ -567,12 +563,9 @@ export async function putTabToSleep<Tab extends TabSleepTab>(access: TabSleepAcc
     if (reportBlocked) throw new LocalizedError(blockReason)
     return false
   }
-  if (await hasChangedFormState(tab)) {
-    if (reportBlocked) throw new LocalizedError('appErrors.sleep.unsavedForm')
-    return false
-  }
-  if (await showsPictureInPicture(tab)) {
-    if (reportBlocked) throw new LocalizedError('appErrors.sleep.pictureInPicture')
+  const pageHold = await pageSleepHold(tab)
+  if (pageHold) {
+    if (reportBlocked) throw new LocalizedError(pageHold)
     return false
   }
   if (!isCurrent()) return false

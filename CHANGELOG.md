@@ -16,7 +16,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
-- A tab showing a video in picture-in-picture no longer goes to sleep, which closed the video's window: like a tab playing audio, it stays active, as Chrome never discards such a tab. **Put Tab to Sleep** says why.
+- A tab showing a video in picture-in-picture, its own or an embedded player's, no longer goes to sleep, which closed the video's window: like a tab playing audio, it stays active, as Chrome never discards such a tab. **Put Tab to Sleep** says why, and keeps the tab in view.
 - A page's request no longer fails at random with **Failed to fetch** (`net::ERR_FAILED`) just after a one-time request condition or a hold caught a request. Settling the rules a moment later sent the page's request interception to Chromium again, which could cut off a request the page was starting; Hronaut now leaves interception that still covers the rules in place, and ends it once nothing is left to intercept.
 - Filling a saved password or importing a browser's cookies no longer fails with **an agent command was still running** while a coding agent such as Claude Code is merely connected. The stream an agent keeps open to hear from Hronaut counted as a command in progress, and with 32 agents connected every request was refused as **Too many active MCP requests**. Home's **active** count and each connection's **Active** label now count only requests in progress.
 - When more than 100 agent sessions pile up, Hronaut lets go of one its client left, then one only waiting for messages, and of those the one used longest ago, instead of the oldest session, which could be an agent still at work.
