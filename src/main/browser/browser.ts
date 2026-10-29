@@ -32,7 +32,6 @@ import type { WorkspaceContextMenuAccess } from './context-menus/workspace-conte
 import { workspaceContextMenuItems } from './context-menus/workspace-context-menu.js'
 import { fillForm, scroll, select, type } from './agent-page-actions/form-input-and-scroll.js'
 import type { NativeWheelInput } from './native-wheel.js'
-import type { AgentWheelAccess } from './agent-wheel/agent-wheel-access.js'
 import { agentWheelUnderWay, wheel } from './agent-wheel/agent-wheel.js'
 import type { AgentTouchAccess } from './agent-touch/agent-touch-access.js'
 import { touch, type NativeTouchInput, type NativeTouchProgress } from './agent-touch/agent-touch.js'
@@ -76,10 +75,15 @@ import type { EmulationAccess } from './emulation/emulation-access.js'
 import { emulate } from './emulation/emulation.js'
 import { applyNetworkEmulation } from './emulation/network-emulation.js'
 import { DEFAULT_EMULATION, cloneEmulationState, hasEmulationOverrides } from './emulation-state.js'
-import type { BrowserElementPickerResult, BrowserElementPickerSession, ElementPickerAccess } from './element-picker/element-picker-access.js'
-import { cancelElementPicker, captureElementScreenshot, pickElement, queueElementPickerMouseInput } from './element-picker/element-picker.js'
-import type { BrowserScreenshotAreaSession, ScreenshotAreaAccess } from './screenshot-area/screenshot-area-access.js'
-import { cancelScreenshotArea, captureScreenshotArea, queueScreenshotAreaMouseInput } from './screenshot-area/screenshot-area.js'
+import {
+  cancelElementPicker,
+  captureElementScreenshot,
+  pickElement,
+  queueElementPickerMouseInput,
+  type BrowserElementPickerResult,
+  type BrowserElementPickerSession
+} from './element-picker/element-picker.js'
+import { cancelScreenshotArea, captureScreenshotArea, queueScreenshotAreaMouseInput, type BrowserScreenshotAreaSession } from './screenshot-area/screenshot-area.js'
 import { cancelNativeSelectionSessions } from './native-selections/native-selections.js'
 import { BrowserNetworkWaitController } from './network-wait-controller.js'
 import { PreviewCaptureQueue } from './preview-capture-queue.js'
@@ -201,7 +205,6 @@ import type { TabPosition } from '../../shared/tab-position.js'
 import type { SnapshotSearchOptions, SnapshotSearchResult } from '../../shared/snapshot-search.js'
 import type { BrowserSnapshot } from '../../shared/snapshot.js'
 import type { BrowserObservationQualityResult } from '../../shared/observation-quality.js'
-import type { BrowserSnapshotBaselineRecord, PageSnapshotsAccess } from './page-snapshots/page-snapshots-access.js'
 import {
   agentStepName,
   clearSnapshotBaseline,
@@ -211,7 +214,8 @@ import {
   setSnapshotBaseline,
   snapshot,
   snapshotDelta,
-  snapshotDetails
+  snapshotDetails,
+  type BrowserSnapshotBaselineRecord
 } from './page-snapshots/page-snapshots.js'
 import {
   BROWSER_SNAPSHOT_FORMAT_VERSION,
@@ -464,7 +468,6 @@ import {
 } from './workspace-operations/workspace-operations.js'
 import { OpenedTabObservation, type TabsOpenedDuringClick } from './click-opened-tabs.js'
 import { pageShortcut } from './take-over.js'
-import type { AgentPauseAccess } from './agent-pause/agent-pause-access.js'
 import { hasAgentPauseExceptions, isTabAgentPaused, isTabTakenOver, setAllAgentsPaused, setTabAgentPaused } from './agent-pause/agent-pause.js'
 import type { InteractionLockAccess } from './interaction-lock/interaction-lock-access.js'
 import { setAllHumanInteractionLocked, setTabHumanInteractionLocked } from './interaction-lock/interaction-lock.js'
@@ -524,7 +527,6 @@ import { BackgroundLoads } from './tab-sleep/background-loads.js'
 import { evaluateWithAttachedDebugger, mainWorldContextId } from './debugger-evaluation/debugger-evaluation.js'
 import { withDebugger } from './debugger-lease/debugger-lease.js'
 import { dispatchNativeClick } from './native-click/native-click.js'
-import type { RightClickEnvironmentAccess } from './native-click/right-click-environment-access.js'
 import { rightClickEnvironment } from './native-click/right-click-environment.js'
 import { coordinateDragPointsOrValidateTargets, coordinatePointOrValidateTarget, validateTarget } from './input-targets/input-targets.js'
 import { assertClickTargetEnabled, assertNativeEditability, assertPointInsideVisibleViewport, assertRightClickViewport } from './input-targets/target-checks.js'
@@ -628,9 +630,9 @@ import type { BrowserTab } from './browser-tab.js'
 import { getTab, orderedTabs } from './browser-core.js'
 import { WorkspaceRegistry, type ActiveWorkspace as BrowserTabGroup } from './workspace-registry.js'
 
-export type { BrowserElementPickerResult } from './element-picker/element-picker-access.js'
+export type { BrowserElementPickerResult } from './element-picker/element-picker.js'
 
-export type { BrowserScreenshotAreaResult } from './screenshot-area/screenshot-area-access.js'
+export type { BrowserScreenshotAreaResult } from './screenshot-area/screenshot-area.js'
 
 export type { BrowserVisualCompareResult }
 
@@ -1525,37 +1527,6 @@ export class Browser {
   }
 
   /**
-   * The narrow view an agent's native wheel gets of this manager's private
-   * tabs, window, active tab, split view, generations, trusted chrome
-   * occlusion, human interaction lock, native selection sessions, DevTools
-   * opening, emulation check, native input authority, debugger queue and
-   * agent wheel markers. It is a prototype method rather than a field, so
-   * managers created without the constructor (as unit tests do) still provide
-   * it. The delegates below return the feature's promise directly, so callers
-   * see the same ticks as before.
-   */
-  private agentWheelAccess(): AgentWheelAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      tabSelectionGeneration: () => this.tabSelectionGeneration,
-      splitViewGeneration: () => this.splitViewGeneration,
-      splitView: () => this.splitView,
-      window: () => this.window,
-      activeTabId: () => this.activeTabId,
-      browserContentOccluded: () => this.browserContentOccluded,
-      nativeInputLockMutations: () => this.nativeInputLockMutations,
-      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
-      screenshotAreaSessions: () => this.screenshotAreaSessions,
-      elementPickerSessions: () => this.elementPickerSessions,
-      devToolsOpening: () => this.devToolsOpening,
-      hasEmulationOverrides: (state) => hasEmulationOverrides(state),
-      nativeInputAuthority: (tab, validateInput) => nativeInputAuthority(this, tab, validateInput),
-      withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
-      agentWheel: () => this.agentWheel
-    }
-  }
-
-  /**
    * The narrow view an agent's touch gesture gets of this manager's private
    * tabs, window, active tab, split view, generations, trusted chrome
    * occlusion, human interaction lock, native selection sessions, DevTools
@@ -1583,7 +1554,7 @@ export class Browser {
   }
 
   private agentWheelUnderWay(webContentsId: number): boolean {
-    return agentWheelUnderWay(this.agentWheelAccess(), webContentsId)
+    return agentWheelUnderWay(this, webContentsId)
   }
 
   retainAgentFollow(agentIds: ReadonlySet<string>): void {
@@ -3312,51 +3283,25 @@ export class Browser {
     return setZoom(this, options)
   }
 
-  /**
-   * The narrow view agent pausing gets of this manager's private tabs, global
-   * pause fields, live region recorder, CSS state preview and state
-   * publication. It is a prototype method rather than a field, so managers
-   * created without the constructor (as unit tests do) still provide it. The
-   * delegates below return the feature's value directly, and stay synchronous.
-   */
-  private agentPauseAccess(): AgentPauseAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      findTab: (tabId) => this.tabs.get(tabId),
-      tabs: () => this.tabs.values(),
-      allAgentsPaused: () => this.allAgentsPaused,
-      writeAllAgentsPaused: (paused) => { this.allAgentsPaused = paused },
-      agentPauseOverridesAllowed: () => this.agentPauseOverridesAllowed,
-      writeAgentPauseOverridesAllowed: (allowed) => { this.agentPauseOverridesAllowed = allowed },
-      globallyResumedAgentTabIds: () => this.globallyResumedAgentTabIds,
-      releaseLiveRegion: (tab) => this.liveRegionRecorder.release(tab),
-      clearCssStatePreview: (tab, reason) => this.cssStatePreview.clear(tab, reason),
-      stopVirtualPasskey: (tab, reason) => this.virtualPasskeys.stop(tab, reason),
-      stopLogpoints: (tab, reason) => this.logpoints.stop(tab, reason),
-      changed: (persist) => this.changed(persist),
-      getState: () => this.getState()
-    }
-  }
-
   setAllAgentsPaused(paused: boolean, allowTabOverrides = true): void {
-    setAllAgentsPaused(this.agentPauseAccess(), paused, allowTabOverrides)
+    setAllAgentsPaused(this, paused, allowTabOverrides)
   }
 
   setTabAgentPaused(tabId: string, paused: boolean, options: { takeOver?: boolean } = {}): BrowserState {
-    return setTabAgentPaused(this.agentPauseAccess(), tabId, paused, options)
+    return setTabAgentPaused(this, tabId, paused, options)
   }
 
   /** The person took this tab over from its agent and has not handed it back. */
   isTabTakenOver(tabId: string): boolean {
-    return isTabTakenOver(this.agentPauseAccess(), tabId)
+    return isTabTakenOver(this, tabId)
   }
 
   isTabAgentPaused(tabId: string): boolean {
-    return isTabAgentPaused(this.agentPauseAccess(), tabId)
+    return isTabAgentPaused(this, tabId)
   }
 
   hasAgentPauseExceptions(): boolean {
-    return hasAgentPauseExceptions(this.agentPauseAccess())
+    return hasAgentPauseExceptions(this)
   }
 
   /**
@@ -3460,33 +3405,12 @@ export class Browser {
     return setAllHumanInteractionLocked(this.interactionLockAccess(), locked)
   }
 
-  /**
-   * The narrow view snapshots get of this manager's private tabs, workspaces,
-   * options, observation context and snapshot baselines. It is a prototype
-   * method rather than a field, so managers created without the constructor
-   * (as unit tests do) still provide it. The delegates below return the
-   * feature's value or promise directly, so no extra ticks separate its final
-   * checks from the caller.
-   */
-  private pageSnapshotsAccess(): PageSnapshotsAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      findTab: (tabId) => this.tabs.get(tabId),
-      tabs: () => this.tabs.values(),
-      findWorkspace: (workspaceId) => this.mcpTabGroups.get(workspaceId),
-      options: () => this.options,
-      snapshotDeltaContext: (tab) => this.snapshotDeltaContext(tab),
-      snapshotBaselines: () => this.snapshotBaselines,
-      snapshotBaselineIdsByTab: () => this.snapshotBaselineIdsByTab
-    }
-  }
-
   snapshot(tabId?: string, maxChars = 30_000): Promise<string> {
-    return snapshot(this.pageSnapshotsAccess(), tabId, maxChars)
+    return snapshot(this, tabId, maxChars)
   }
 
   snapshotDetails(tabId?: string, maxChars = 30_000, rootSelector?: string): Promise<BrowserSnapshot> {
-    return snapshotDetails(this.pageSnapshotsAccess(), tabId, maxChars, rootSelector)
+    return snapshotDetails(this, tabId, maxChars, rootSelector)
   }
 
   shadowSnapshot(tabId: string | undefined, hostSelector: string, maxChars?: number): Promise<BrowserShadowSnapshot> {
@@ -3499,7 +3423,7 @@ export class Browser {
    * a route change within the page keeps them, as it keeps the refs.
    */
   agentStepName(workspaceId: string, tabId: string | undefined, ref: string): string | undefined {
-    return agentStepName(this.pageSnapshotsAccess(), workspaceId, tabId, ref)
+    return agentStepName(this, workspaceId, tabId, ref)
   }
 
   observationQuality(options: {
@@ -3508,15 +3432,15 @@ export class Browser {
     expectedText?: string
     expectedSelector?: string
   } = {}): Promise<BrowserObservationQualityResult> {
-    return observationQuality(this.pageSnapshotsAccess(), options)
+    return observationQuality(this, options)
   }
 
   setSnapshotBaseline(tabId?: string, maxChars = 30_000, rootSelector?: string) {
-    return setSnapshotBaseline(this.pageSnapshotsAccess(), tabId, maxChars, rootSelector)
+    return setSnapshotBaseline(this, tabId, maxChars, rootSelector)
   }
 
   clearSnapshotBaseline(tabId?: string, baselineId?: string) {
-    return clearSnapshotBaseline(this.pageSnapshotsAccess(), tabId, baselineId)
+    return clearSnapshotBaseline(this, tabId, baselineId)
   }
 
   snapshotDelta(options: {
@@ -3526,7 +3450,7 @@ export class Browser {
     maxOutputChars?: number
     advanceBaseline?: boolean
   }) {
-    return snapshotDelta(this.pageSnapshotsAccess(), options)
+    return snapshotDelta(this, options)
   }
 
   snapshotDeltaContext(tab: BrowserTab): BrowserSnapshotDeltaContext {
@@ -3541,11 +3465,11 @@ export class Browser {
   }
 
   private deleteSnapshotBaselineForTab(tabId: string): void {
-    deleteSnapshotBaselineForTab(this.pageSnapshotsAccess(), tabId)
+    deleteSnapshotBaselineForTab(this, tabId)
   }
 
   findSnapshot(options: SnapshotSearchOptions & { tabId?: string; rootSelector?: string }): Promise<SnapshotSearchResult & { tabId: string; sourceSnapshot: Omit<BrowserSnapshot, 'text'> }> {
-    return findSnapshot(this.pageSnapshotsAccess(), options)
+    return findSnapshot(this, options)
   }
 
   /**
@@ -3617,29 +3541,12 @@ export class Browser {
     return this.profiling.memoryReport(options)
   }
 
-  /**
-   * The narrow view picking an element gets of this manager's private tabs,
-   * pickers in progress, human input lock and screenshots. It is a prototype
-   * method rather than a field, so managers created without the constructor
-   * (as unit tests do) still provide it. The delegates below return the
-   * feature's promise directly, so callers see the same ticks as before.
-   */
-  private elementPickerAccess(): ElementPickerAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      elementPickerSessions: () => this.elementPickerSessions,
-      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
-      syncHumanInteractionInputGuard: (tab) => this.syncHumanInteractionInputGuard(tab),
-      screenshot: (options) => this.screenshot(options)
-    }
-  }
-
   pickElement(tabId?: string): Promise<BrowserElementPickerResult> {
-    return pickElement(this.elementPickerAccess(), tabId)
+    return pickElement(this, tabId)
   }
 
   captureElementScreenshot(tabId?: string): Promise<{ canceled: boolean; data?: Buffer }> {
-    return captureElementScreenshot(this.elementPickerAccess(), tabId)
+    return captureElementScreenshot(this, tabId)
   }
 
   elementInspection(options: BrowserElementInspectionOptions, validateInspection?: () => void, deferInspection?: (pending: PendingElementInspection) => void): Promise<BrowserElementInspection> {
@@ -3659,33 +3566,15 @@ export class Browser {
   }
 
   cancelElementPicker(tabId?: string): Promise<boolean> {
-    return cancelElementPicker(this.elementPickerAccess(), tabId)
-  }
-
-  /**
-   * The narrow view selecting a screenshot area gets of this manager's
-   * private tabs, selections in progress, human input lock and offscreen
-   * rendering. It is a prototype method rather than a field, so managers
-   * created without the constructor (as unit tests do) still provide it. The
-   * delegates below return the feature's promise directly, so callers see the
-   * same ticks as before.
-   */
-  private screenshotAreaAccess(): ScreenshotAreaAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      screenshotAreaSessions: () => this.screenshotAreaSessions,
-      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
-      syncHumanInteractionInputGuard: (tab) => this.syncHumanInteractionInputGuard(tab),
-      withRenderableTab: (tab, operation) => this.withRenderableTab(tab, operation)
-    }
+    return cancelElementPicker(this, tabId)
   }
 
   captureScreenshotArea(tabId?: string): Promise<{ canceled: boolean; data?: Buffer }> {
-    return captureScreenshotArea(this.screenshotAreaAccess(), tabId)
+    return captureScreenshotArea(this, tabId)
   }
 
   cancelScreenshotArea(tabId?: string): Promise<boolean> {
-    return cancelScreenshotArea(this.screenshotAreaAccess(), tabId)
+    return cancelScreenshotArea(this, tabId)
   }
 
   /**
@@ -3734,31 +3623,8 @@ export class Browser {
     return click(this.agentPageActionsAccess(), target, validateClick, recordClickProgress, retainClickAuthority, agent)
   }
 
-  /**
-   * The narrow view a native right-click's environment gets of this manager's
-   * private window, active tab, split view, generations, trusted chrome
-   * occlusion, human interaction lock, native selection sessions and DevTools
-   * opening. It is a prototype method rather than a field, so managers
-   * created without the constructor (as unit tests do) still provide it.
-   */
-  private rightClickEnvironmentAccess(): RightClickEnvironmentAccess<BrowserTab> {
-    return {
-      tabSelectionGeneration: () => this.tabSelectionGeneration,
-      splitViewGeneration: () => this.splitViewGeneration,
-      splitView: () => this.splitView,
-      window: () => this.window,
-      activeTabId: () => this.activeTabId,
-      browserContentOccluded: () => this.browserContentOccluded,
-      nativeInputLockMutations: () => this.nativeInputLockMutations,
-      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
-      screenshotAreaSessions: () => this.screenshotAreaSessions,
-      elementPickerSessions: () => this.elementPickerSessions,
-      devToolsOpening: () => this.devToolsOpening
-    }
-  }
-
   private rightClickEnvironment(tab: BrowserTab): { validate(): void; dispose(): void } {
-    return rightClickEnvironment(this.rightClickEnvironmentAccess(), tab)
+    return rightClickEnvironment(this, tab)
   }
 
   private assertRightClickViewport(webContents: BrowserTab['webContents'], x: number, y: number, validate: () => void): Promise<void> {
@@ -3907,7 +3773,7 @@ export class Browser {
   }
 
   wheel(input: NativeWheelInput, validateInput: (validateContext: () => void) => void, markAttempted: () => void): Promise<unknown> {
-    return wheel(this.agentWheelAccess(), input, validateInput, markAttempted)
+    return wheel(this, input, validateInput, markAttempted)
   }
 
   touch(input: NativeTouchInput, validateInput: (validateContext: () => void) => void, recordProgress: (progress: NativeTouchProgress) => void, signal?: AbortSignal): Promise<unknown> {
@@ -5817,7 +5683,7 @@ export class Browser {
     type: 'down' | 'move' | 'up',
     mouse: Electron.MouseInputEvent
   ): void {
-    queueScreenshotAreaMouseInput(this.screenshotAreaAccess(), tab, session, type, mouse)
+    queueScreenshotAreaMouseInput(this, tab, session, type, mouse)
   }
 
   private queueElementPickerMouseInput(
@@ -5826,7 +5692,7 @@ export class Browser {
     type: 'down' | 'move' | 'up',
     mouse: Electron.MouseInputEvent
   ): void {
-    queueElementPickerMouseInput(this.elementPickerAccess(), tab, session, type, mouse)
+    queueElementPickerMouseInput(this, tab, session, type, mouse)
   }
 
   readonly unconfirmedSemanticClicks = new WeakSet<BrowserTab['view']['webContents']>()

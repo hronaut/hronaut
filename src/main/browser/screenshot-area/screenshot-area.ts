@@ -1,9 +1,27 @@
 import { LocalizedError } from '../../localized-error.js'
-import { createNativeSelectionSession } from '../native-selection-session.js'
+import { createNativeSelectionSession, type BrowserNativeSelectionSession } from '../native-selection-session.js'
 import { cancelScreenshotAreaScript, screenshotAreaNativeInputScript, screenshotAreaScript } from '../page-scripts.js'
 import { RendererExitedError } from '../renderer-exit-guard.js'
 import { isHronautHomeUrl } from '../url.js'
-import type { BrowserScreenshotAreaResult, BrowserScreenshotAreaSession, ScreenshotAreaAccess, ScreenshotAreaTab } from './screenshot-area-access.js'
+import type { Browser } from '../browser.js'
+import { getTab } from '../browser-core.js'
+import type { BrowserTab } from '../browser-tab.js'
+import { withRenderableTab } from '../renderable-tab/renderable-tab.js'
+
+/** The area a person dragged on a page, in its viewport, or that they canceled. */
+export interface BrowserScreenshotAreaResult {
+  canceled: boolean
+  clip?: { x: number; y: number; width: number; height: number }
+  pageClip?: { x: number; y: number; width: number; height: number }
+  viewport?: { width: number; height: number }
+  url?: string
+}
+
+/** A screenshot area selection in progress on one page, with the drag the native mouse input has made so far. */
+export interface BrowserScreenshotAreaSession extends BrowserNativeSelectionSession<BrowserScreenshotAreaResult> {
+  start?: { x: number; y: number }
+  current?: { x: number; y: number }
+}
 
 // The same check the element picker and the human input guard make.
 function nativeSelectionContextUnavailable(error: unknown): boolean {
@@ -17,11 +35,11 @@ function nativeSelectionContextUnavailable(error: unknown): boolean {
  * canceled when the person cancels, the page goes away, or a newer selection
  * replaces this one.
  */
-export async function captureScreenshotArea<Tab extends ScreenshotAreaTab>(access: ScreenshotAreaAccess<Tab>, tabId?: string): Promise<{ canceled: boolean; data?: Buffer }> {
-  const tab = access.getTab(tabId)
+export async function captureScreenshotArea(browser: Browser, tabId?: string): Promise<{ canceled: boolean; data?: Buffer }> {
+  const tab = getTab(browser, tabId)
   if (isHronautHomeUrl(tab.url)) throw new LocalizedError('appErrors.pageTools.areaOnHome')
   const webContents = tab.webContents
-  const existing = access.screenshotAreaSessions().get(webContents.id)
+  const existing = browser.screenshotAreaSessions.get(webContents.id)
   if (existing) {
     existing.canceled = true
     existing.resolve({ canceled: true })
@@ -29,9 +47,9 @@ export async function captureScreenshotArea<Tab extends ScreenshotAreaTab>(acces
   }
   const session = createNativeSelectionSession<BrowserScreenshotAreaResult>() as BrowserScreenshotAreaSession
   tab.nativeInputEnvironmentGeneration += 1
-  access.screenshotAreaSessions().set(webContents.id, session)
+  browser.screenshotAreaSessions.set(webContents.id, session)
   try {
-    if (access.isHumanInteractionLocked(tab)) await access.syncHumanInteractionInputGuard(tab)
+    if (browser.isHumanInteractionLocked(tab)) await browser.syncHumanInteractionInputGuard(tab)
     void webContents.executeJavaScript(screenshotAreaScript(), true)
       .then((selection: BrowserScreenshotAreaResult) => {
         if (selection?.canceled || (selection?.clip && selection?.viewport)) session.resolve(selection)
@@ -44,31 +62,31 @@ export async function captureScreenshotArea<Tab extends ScreenshotAreaTab>(acces
         }
       })
     const selection = await session.result
-    if (session.canceled || access.screenshotAreaSessions().get(webContents.id) !== session || selection.canceled) {
+    if (session.canceled || browser.screenshotAreaSessions.get(webContents.id) !== session || selection.canceled) {
       return { canceled: true }
     }
     await session.inputQueue.catch(() => undefined)
     await webContents.executeJavaScript(cancelScreenshotAreaScript(), true).catch(() => false)
-    const data = await captureScreenshotAreaSelection(access, tab, selection)
-    if (session.canceled || access.screenshotAreaSessions().get(webContents.id) !== session) return { canceled: true }
+    const data = await captureScreenshotAreaSelection(browser, tab, selection)
+    if (session.canceled || browser.screenshotAreaSessions.get(webContents.id) !== session) return { canceled: true }
     return { canceled: false, data }
   } finally {
-    if (access.screenshotAreaSessions().get(webContents.id) === session) {
+    if (browser.screenshotAreaSessions.get(webContents.id) === session) {
       session.canceled = true
       await webContents.executeJavaScript(cancelScreenshotAreaScript(), true).catch(() => false)
       // Cleanup can finish after a replacement selection starts.
-      if (access.screenshotAreaSessions().get(webContents.id) === session) {
-        access.screenshotAreaSessions().delete(webContents.id)
-        if (access.isHumanInteractionLocked(tab)) await access.syncHumanInteractionInputGuard(tab)
+      if (browser.screenshotAreaSessions.get(webContents.id) === session) {
+        browser.screenshotAreaSessions.delete(webContents.id)
+        if (browser.isHumanInteractionLocked(tab)) await browser.syncHumanInteractionInputGuard(tab)
       }
     }
   }
 }
 
 /** Cancels the screenshot area selection on a tab's page, resolving whether its overlay was removed. */
-export async function cancelScreenshotArea<Tab extends ScreenshotAreaTab>(access: ScreenshotAreaAccess<Tab>, tabId?: string): Promise<boolean> {
-  const tab = access.getTab(tabId)
-  const session = access.screenshotAreaSessions().get(tab.webContents.id)
+export async function cancelScreenshotArea(browser: Browser, tabId?: string): Promise<boolean> {
+  const tab = getTab(browser, tabId)
+  const session = browser.screenshotAreaSessions.get(tab.webContents.id)
   if (session) {
     session.canceled = true
     session.resolve({ canceled: true })
@@ -77,7 +95,7 @@ export async function cancelScreenshotArea<Tab extends ScreenshotAreaTab>(access
 }
 
 /** Captures the selected area of the tab's rendered page, scaled from its viewport to the view, as a PNG. */
-async function captureScreenshotAreaSelection<Tab extends ScreenshotAreaTab>(access: ScreenshotAreaAccess<Tab>, tab: Tab, selection: BrowserScreenshotAreaResult): Promise<Buffer> {
+async function captureScreenshotAreaSelection(browser: Browser, tab: BrowserTab, selection: BrowserScreenshotAreaResult): Promise<Buffer> {
   const { clip, viewport } = selection
   if (!clip || !viewport) throw new LocalizedError('appErrors.pageTools.areaIncomplete')
   if ([clip.x, clip.y, clip.width, clip.height, viewport.width, viewport.height]
@@ -89,7 +107,7 @@ async function captureScreenshotAreaSelection<Tab extends ScreenshotAreaTab>(acc
   }
   const webContents = tab.webContents
 
-  return access.withRenderableTab(tab, async () => {
+  return withRenderableTab(browser, tab, async () => {
     const bounds = tab.view.getBounds()
     const scaleX = bounds.width / viewport.width
     const scaleY = bounds.height / viewport.height
@@ -112,9 +130,9 @@ async function captureScreenshotAreaSelection<Tab extends ScreenshotAreaTab>(acc
  * order, tracking the drag so a release that the overlay misses still
  * selects the dragged area.
  */
-export function queueScreenshotAreaMouseInput<Tab extends ScreenshotAreaTab>(
-  access: ScreenshotAreaAccess<Tab>,
-  tab: Tab,
+export function queueScreenshotAreaMouseInput(
+  browser: Browser,
+  tab: BrowserTab,
   session: BrowserScreenshotAreaSession,
   type: 'down' | 'move' | 'up',
   mouse: Electron.MouseInputEvent
@@ -150,7 +168,7 @@ export function queueScreenshotAreaMouseInput<Tab extends ScreenshotAreaTab>(
     session.current = undefined
   }
   const queued = session.inputQueue.catch(() => undefined).then(async () => {
-    if (session.canceled || access.screenshotAreaSessions().get(tab.webContents.id) !== session) return
+    if (session.canceled || browser.screenshotAreaSessions.get(tab.webContents.id) !== session) return
     await tab.webContents.executeJavaScript(screenshotAreaNativeInputScript(
       type,
       mouse.x,
@@ -163,13 +181,13 @@ export function queueScreenshotAreaMouseInput<Tab extends ScreenshotAreaTab>(
   if (fallbackSelection) {
     const selection = fallbackSelection
     void queued.catch(() => undefined).then(() => {
-      if (!session.canceled && access.screenshotAreaSessions().get(tab.webContents.id) === session) {
+      if (!session.canceled && browser.screenshotAreaSessions.get(tab.webContents.id) === session) {
         session.resolve(selection)
       }
     })
   }
   void queued.catch((error) => {
-    if (!session.canceled && access.screenshotAreaSessions().get(tab.webContents.id) === session) {
+    if (!session.canceled && browser.screenshotAreaSessions.get(tab.webContents.id) === session) {
       console.error('[browser] Could not forward screenshot selection input:', error)
     }
   })
