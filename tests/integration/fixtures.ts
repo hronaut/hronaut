@@ -18,6 +18,7 @@ import { startWorkerDisplay } from './worker-display.js'
 import { activityDiagnostics, attachActivityDiagnostics } from './activity-failure-diagnostics.js'
 import { collectsNativeCrashStacks, readNativeCrashStacks, trackNativeCrashStacks, untrackNativeCrashStacks, type TeardownAbort } from './native-crash-stacks.js'
 import { readMainUncaughtExceptions, trackMainUncaughtExceptions, untrackMainUncaughtExceptions } from './main-uncaught-exceptions.js'
+import { mainProcessEnd, mainProcessExit, trackMainProcessEnd, type MainProcessEnd } from './main-process-end.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 
 export function expectFixtureSuccess(result: CallToolResult, operation: string): void {
@@ -155,6 +156,7 @@ export async function launchHronaut(
       HRONAUT_DOWNLOAD_DIR: profileDirectory
     }
   })
+  trackMainProcessEnd(app)
   const teardownAbort: TeardownAbort = { requested: false }
   if (testInfo) readNativeCrashStacks(testInfo, app.process().stderr, teardownAbort)
   if (testInfo) readMainUncaughtExceptions(testInfo, app.process().stderr)
@@ -227,7 +229,8 @@ export async function waitForSavedWorkspaces(window: Page): Promise<void> {
 /**
  * What the main process knows of each renderer when a test fails: its exits, and how each page met a script that does
  * nothing. 'silent' tells a busy shell or page from a busy main process, which answers nothing at all; 'refused' is a
- * call Hronaut turned down before it reached the page, as on a page still loading or with a print dialog open.
+ * call Hronaut turned down before it reached the page, as on a page still loading or with a print dialog open. A main
+ * process that ended or does not answer is described instead by how it ended and what it last logged.
  */
 export async function collectRendererDiagnostics(app: ElectronApplication): Promise<unknown> {
   const pending = app.evaluate(async ({ webContents }) => {
@@ -259,10 +262,19 @@ export async function collectRendererDiagnostics(app: ElectronApplication): Prom
       }
     }))
     return { rendererExits: scope.__hronautQaRendererExits?.exits ?? [], nativeContents }
-  }).catch(() => ({ unavailable: 'Main process closed before diagnostics could be collected' }))
-  let diagnostics: unknown = { unavailable: 'Main process did not respond to diagnostics within 2000ms' }
+  }).catch(async () => {
+    // The connection closes just before the process exits, and its exit code is what says how it ended.
+    await mainProcessExit(app, 500)
+    return { unavailable: 'Main process closed before diagnostics could be collected', ...mainProcessDiagnostics(app) }
+  })
+  let diagnostics: unknown
   await settleWithin(pending.then(result => { diagnostics = result }), 2_000)
-  return diagnostics
+  return diagnostics ?? { unavailable: 'Main process did not respond to diagnostics within 2000ms', ...mainProcessDiagnostics(app) }
+}
+
+function mainProcessDiagnostics(app: ElectronApplication): { mainProcess?: MainProcessEnd } {
+  const mainProcess = mainProcessEnd(app)
+  return mainProcess ? { mainProcess } : {}
 }
 
 export async function closeHronaut(app: ElectronApplication): Promise<void> {

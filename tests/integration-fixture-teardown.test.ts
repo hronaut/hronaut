@@ -19,7 +19,8 @@ describe('integration fixture teardown', () => {
     if (stage === 'monitor') evaluate.mockRejectedValueOnce(failure)
     if (stage === 'window') firstWindow.mockRejectedValueOnce(failure)
     const close = vi.fn(async () => undefined)
-    const app = { evaluate, firstWindow, close, process: () => ({ exitCode: 0 }) } as unknown as ElectronApplication
+    const child = Object.assign(new EventEmitter(), { exitCode: 0, stderr: null, stdout: null })
+    const app = { evaluate, firstWindow, close, process: () => child } as unknown as ElectronApplication
     const launch = vi.spyOn(electron, 'launch').mockResolvedValue(app)
     try {
       await expect(launchHronaut(directory)).rejects.toBe(failure)
@@ -132,6 +133,63 @@ describe('integration fixture teardown', () => {
     }
   })
 
+  // A main process that ended mid-test left only "Main process closed before diagnostics could be collected".
+  it('says how a launch\'s main process ended and what it last logged when it closed before diagnostics', async () => {
+    const { app, child, stderr, finish } = await launchedWithFakeProcess()
+    try {
+      stderr.emit('data', '[startup] Could not open the workspace recovery window; showing the system dialog instead.\n')
+      child.exitCode = 0
+      child.emit('exit', 0, null)
+      vi.mocked(app.evaluate).mockRejectedValueOnce(new Error('Target page, context or browser has been closed'))
+      await expect(collectRendererDiagnostics(app)).resolves.toEqual({
+        unavailable: 'Main process closed before diagnostics could be collected',
+        mainProcess: {
+          exitCode: 0,
+          signal: null,
+          ranForMs: expect.any(Number),
+          lastLogLines: ['[startup] Could not open the workspace recovery window; showing the system dialog instead.']
+        }
+      })
+    } finally {
+      await finish()
+    }
+  })
+
+  it('waits for a main process whose connection closed just before it exits', async () => {
+    const { app, child, finish } = await launchedWithFakeProcess()
+    try {
+      vi.mocked(app.evaluate).mockRejectedValueOnce(new Error('Target page, context or browser has been closed'))
+      setTimeout(() => {
+        child.exitCode = 1
+        child.emit('exit', 1, null)
+      }, 50)
+      await expect(collectRendererDiagnostics(app)).resolves.toMatchObject({
+        unavailable: 'Main process closed before diagnostics could be collected',
+        mainProcess: { exitCode: 1, ranForMs: expect.any(Number) }
+      })
+    } finally {
+      await finish()
+    }
+  })
+
+  it('says what a main process that does not answer diagnostics last logged', async () => {
+    const { app, stderr, finish } = await launchedWithFakeProcess()
+    vi.useFakeTimers()
+    try {
+      stderr.emit('data', '[3779:1029/030605.268817:ERROR:dbus/bus.cc:406] Failed to connect to socket\n')
+      vi.mocked(app.evaluate).mockReturnValueOnce(new Promise<never>(() => undefined))
+      const collecting = collectRendererDiagnostics(app)
+      await vi.advanceTimersByTimeAsync(2_000)
+      await expect(collecting).resolves.toEqual({
+        unavailable: 'Main process did not respond to diagnostics within 2000ms',
+        mainProcess: { exitCode: null, signal: null, ranForMs: null, lastLogLines: ['ERROR dbus/bus.cc:406'] }
+      })
+    } finally {
+      vi.useRealTimers()
+      await finish()
+    }
+  })
+
   it('retains successful renderer diagnostics and clears the fallback timer', async () => {
     vi.useFakeTimers()
     try {
@@ -165,3 +223,27 @@ describe('integration fixture teardown', () => {
     }
   })
 })
+
+/** A launch whose main process is a fake the test ends, with the launch tracked as the fixture tracks a real one. */
+async function launchedWithFakeProcess() {
+  const directory = await mkdtemp(join(tmpdir(), 'hronaut-ended-main-'))
+  const stderr = new EventEmitter()
+  const child = Object.assign(new EventEmitter(), { exitCode: null as number | null, signalCode: null, stderr, stdout: null })
+  const app = {
+    evaluate: vi.fn(async () => undefined),
+    firstWindow: vi.fn(async () => ({ on: vi.fn(), waitForLoadState: vi.fn(async () => undefined) })),
+    close: vi.fn(async () => undefined),
+    process: () => child
+  } as unknown as ElectronApplication
+  const launch = vi.spyOn(electron, 'launch').mockResolvedValue(app)
+  await launchHronaut(directory)
+  return {
+    app,
+    child,
+    stderr,
+    async finish(): Promise<void> {
+      launch.mockRestore()
+      await rm(directory, { recursive: true, force: true })
+    }
+  }
+}
