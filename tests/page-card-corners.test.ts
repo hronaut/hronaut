@@ -1,5 +1,15 @@
 import { expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' } }))
+// The prototype-built browser below stubs scheduleTabOverviewPreview and publishPageGeometry, with which laying out
+// the pages asks for their overview previews and sends their cards to the shell.
+vi.mock('../src/main/browser/tab-overview-previews/tab-overview-previews.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-overview-previews/tab-overview-previews.js')>(),
+  scheduleTabOverviewPreview: (browser: { scheduleTabOverviewPreview: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.scheduleTabOverviewPreview(...args)
+}))
+vi.mock('../src/main/browser/page-geometry/page-geometry.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/page-geometry/page-geometry.js')>(),
+  publishPageGeometry: (browser: { publishPageGeometry: () => unknown }) => browser.publishPageGeometry()
+}))
 import { Browser } from '../src/main/browser/browser.js'
 import { PAGE_CARD_GUTTER, PAGE_CARD_RADIUS, pageCardInsets } from '../src/shared/page-card.js'
 
@@ -8,9 +18,9 @@ function pageView() {
 }
 
 function fixture(zoom: number, split = false) {
-  const first = { id: 'first', view: pageView() }
-  const second = { id: 'second', view: pageView() }
-  const shell = { getZoomFactor: () => zoom, isDestroyed: () => false }
+  const first = { id: 'first', view: pageView(), webContents: { isDestroyed: () => false } }
+  const second = { id: 'second', view: pageView(), webContents: { isDestroyed: () => false } }
+  const shell = { getZoomFactor: () => zoom, isDestroyed: () => false, send: vi.fn() }
   const manager = Object.assign(Object.create(Browser.prototype), {
     destroyed: false,
     options: {},
@@ -23,6 +33,8 @@ function fixture(zoom: number, split = false) {
     tabs: new Map([[first.id, first], [second.id, second]]),
     activeTabId: first.id,
     splitView: split ? { firstTabId: first.id, secondTabId: second.id, orientation: 'vertical', ratio: 0.5 } : null,
+    splitViewGeneration: 0,
+    lastSplitDividerGeometry: '',
     browserContentOccluded: false,
     toolbarHeight: 60,
     contentInsets: { top: 0, right: 10, bottom: 10, left: 280 },
@@ -32,7 +44,6 @@ function fixture(zoom: number, split = false) {
     splitDivider: { reconcile: vi.fn() },
     reconcileTabPresentation: vi.fn(),
     scheduleTabOverviewPreview: vi.fn(),
-    publishSplitDivider: vi.fn(),
     publishPageGeometry: vi.fn()
   }) as Browser
   return { manager, first, second, shell }

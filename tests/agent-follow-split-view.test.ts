@@ -49,6 +49,12 @@ vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOrigi
   browserState: (browser: { getState: () => unknown }) => browser.getState()
 }))
 
+// The prototype-built browser below stubs roundPageCorners, with which a new tab's page gets the page card's corners.
+vi.mock('../src/main/browser/window-layout/window-layout.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/window-layout/window-layout.js')>(),
+  roundPageCorners: (browser: { roundPageCorners: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.roundPageCorners(...args)
+}))
+
 const { Browser } = await import('../src/main/browser/browser.js')
 const { McpActivityFollowController } = await import('../src/main/browser/mcp-activity-follow-controller.js')
 

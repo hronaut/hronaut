@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, Menu: {} }))
+// The prototype-built browser below stubs invalidateTabOverviewPreview, which closing a tab drops its overview preview with.
+vi.mock('../src/main/browser/tab-overview-previews/tab-overview-previews.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-overview-previews/tab-overview-previews.js')>(),
+  invalidateTabOverviewPreview: (browser: { invalidateTabOverviewPreview: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.invalidateTabOverviewPreview(...args)
+}))
 import { Browser } from '../src/main/browser/browser.js'
 
 // When the tab a workspace remembered closed while another workspace was on screen, for example when an agent closed

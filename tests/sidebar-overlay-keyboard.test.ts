@@ -1,6 +1,11 @@
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp', isPackaged: true } }))
+// The prototype-built browser below stubs scheduleTabOverviewPreview, which showing a page asks for its overview preview with.
+vi.mock('../src/main/browser/tab-overview-previews/tab-overview-previews.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-overview-previews/tab-overview-previews.js')>(),
+  scheduleTabOverviewPreview: (browser: { scheduleTabOverviewPreview: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.scheduleTabOverviewPreview(...args)
+}))
 import { Browser } from '../src/main/browser/browser.js'
 import { attachPageKeyboardEvents } from '../src/main/browser/tab-events/page-keyboard-events.js'
 import type { PageKeyboardEventsAccess, PageKeyboardEventsTab } from '../src/main/browser/tab-events/page-keyboard-events-access.js'

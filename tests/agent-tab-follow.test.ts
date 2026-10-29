@@ -36,6 +36,11 @@ vi.mock('../src/main/browser/tab-labels/tab-labels.js', async (importOriginal) =
   saveTabLabel: (browser: { saveTabLabel: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.saveTabLabel(...args)
 }))
 import type { WebContents } from 'electron'
+// The prototype-built browser below stubs roundPageCorners, with which a new tab's page gets the page card's corners.
+vi.mock('../src/main/browser/window-layout/window-layout.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/window-layout/window-layout.js')>(),
+  roundPageCorners: (browser: { roundPageCorners: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.roundPageCorners(...args)
+}))
 import { Browser } from '../src/main/browser/browser.js'
 import { McpActivityFollowController } from '../src/main/browser/mcp-activity-follow-controller.js'
 import { attachWindowOpenHandler } from '../src/main/browser/tab-events/window-open-handler.js'

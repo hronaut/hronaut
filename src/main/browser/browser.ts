@@ -17,14 +17,14 @@ import { callWebMcpTool, listWebMcpTools, webMcpStatus, type WebMcpStatus, type 
 import { inspectPwa } from './pwa-inspection/pwa-inspection.js'
 import { elementInspection, imageState, mediaState } from './element-inspection/element-inspection.js'
 import { appendConsoleMessage, consoleMessages, retainRuntimeConsoleMessage } from './console-messages/console-messages.js'
-import type { TabOverviewPreviewCaptureRequest, TabOverviewPreviewsAccess } from './tab-overview-previews/tab-overview-previews-access.js'
 import {
   getTabOverviewPagePreview,
   getTabOverviewPreviews,
   invalidateTabOverviewPreview,
   performTabOverviewPreviewCapture,
   scheduleTabOverviewPreview,
-  storeTabOverviewPreview
+  storeTabOverviewPreview,
+  type TabOverviewPreviewCaptureRequest
 } from './tab-overview-previews/tab-overview-previews.js'
 import type { PageContextMenuAccess } from './context-menus/page-context-menu-access.js'
 import { attachPageContextMenuEvents } from './context-menus/page-context-menu-events.js'
@@ -276,16 +276,13 @@ import type {
   BrowserSplitViewState
 } from '../../shared/split-view.js'
 import { closeSplitView, openSplitView, openSplitViewAndWait, updateSplitView } from './split-view/split-view.js'
-import type { WindowLayoutAccess } from './window-layout/window-layout-access.js'
-import { getSplitDivider, layout, publishSplitDivider } from './window-layout/window-layout.js'
-import { browserViewBounds, contentAreaBounds, pageArea, setContentInsets, setToolbarHeight, shownPageFullscreenTab } from './window-layout/content-area.js'
-import type { PageFullscreenAccess } from './page-fullscreen/page-fullscreen-access.js'
-import { attachPageFullscreenEvents, exitHiddenPageFullscreen, exitPageFullscreen, exitPageFullscreenCovering, watchWindowFullScreen, windowFullScreenToSave } from './page-fullscreen/page-fullscreen.js'
+import { getSplitDivider, layout, roundPageCorners } from './window-layout/window-layout.js'
+import { contentAreaBounds, pageArea, setContentInsets, setToolbarHeight, shownPageFullscreenTab } from './window-layout/content-area.js'
+import { attachPageFullscreenEvents, exitPageFullscreen, exitPageFullscreenCovering, watchWindowFullScreen, windowFullScreenToSave } from './page-fullscreen/page-fullscreen.js'
 import type { BrowserTabSelectionOptions, TabSelectionAccess } from './tab-selection/tab-selection-access.js'
 import { selectAgentTabAndWait, selectTab, selectTabAndWait } from './tab-selection/tab-selection.js'
 import { EMULATION_FRAME_CAPTION_SPACE, emulatedViewBounds, type EmulationFrameGeometry } from '../../shared/emulation-frame.js'
-import { PAGE_CARD_RADIUS, type PageCardGeometry } from '../../shared/page-card.js'
-import type { PageGeometryAccess } from './page-geometry/page-geometry-access.js'
+import type { PageCardGeometry } from '../../shared/page-card.js'
 import { getEmulationFrames, getPageCards, publishPageGeometry } from './page-geometry/page-geometry.js'
 import type { BrowserTabGroupColor } from '../../shared/tab-groups.js'
 import {
@@ -1231,7 +1228,7 @@ export class Browser {
   readonly tabOverviewPageCaptures = new Map<string, Promise<BrowserTabOverviewPreview>>()
   readonly tabOverviewPreviewTimers = new Map<string, NodeJS.Timeout>()
   readonly tabOverviewPreviewCaptures = new PreviewCaptureQueue<TabOverviewPreviewCaptureRequest<BrowserTab>>(
-    request => performTabOverviewPreviewCapture(this.tabOverviewPreviewsAccess(), request.tab, request.sequence, request.mode)
+    request => performTabOverviewPreviewCapture(this, request.tab, request.sequence, request.mode)
   )
   readonly nativePreviewCapture = new NativePreviewCapture(TAB_OVERVIEW_CAPTURE_TIMEOUT_MS)
   readonly shellHeldKeys: Set<string>
@@ -1300,7 +1297,7 @@ export class Browser {
       },
       onError: (error) => console.error('[browser] Could not follow MCP activity:', error)
     })
-    watchWindowFullScreen(this.pageFullscreenAccess())
+    watchWindowFullScreen(this)
   }
 
   text(key: MessageKey, parameters?: MessageParameters): string {
@@ -1535,50 +1532,15 @@ export class Browser {
     retainAgentFollow(this.agentFollowAccess(), agentIds)
   }
 
-  /**
-   * The narrow view overview previews get of this manager's private tabs,
-   * window, split view, debugger lease and preview caches, timers and queues.
-   * It is a prototype method rather than a field, so managers created without
-   * the constructor (as unit tests do) still provide it. The delegates below
-   * return the feature's promise or value directly, so no extra ticks separate
-   * its final checks from the caller.
-   */
-  private tabOverviewPreviewsAccess(): TabOverviewPreviewsAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      findTab: (tabId) => this.tabs.get(tabId),
-      tabs: () => this.tabs.values(),
-      isDestroyed: () => this.destroyed,
-      window: () => this.window,
-      browserContentOccluded: () => this.browserContentOccluded,
-      activeTabId: () => this.activeTabId,
-      splitViewContains: (tabId) => this.splitViewContains(tabId),
-      isDevToolsOpening: (webContentsId) => this.devToolsOpening.has(webContentsId),
-      screenshotPixelRatio: (tab) => this.screenshotPixelRatio(tab),
-      withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
-      withRenderableTab: (tab, operation, mode) => this.withRenderableTab(tab, operation, mode),
-      scheduleTabOverviewPreview: (tab) => this.scheduleTabOverviewPreview(tab),
-      tabOverviewPreviews: () => this.tabOverviewPreviews,
-      tabOverviewSleepPreviews: () => this.tabOverviewSleepPreviews,
-      tabOverviewPageCaptures: () => this.tabOverviewPageCaptures,
-      tabOverviewPreviewTimers: () => this.tabOverviewPreviewTimers,
-      tabOverviewPreviewCaptures: () => this.tabOverviewPreviewCaptures,
-      tabOverviewPreviewableTabs: () => this.tabOverviewPreviewableTabs,
-      tabOverviewLiveCaptureCursor: () => this.tabOverviewLiveCaptureCursor,
-      setTabOverviewLiveCaptureCursor: (cursor) => { this.tabOverviewLiveCaptureCursor = cursor },
-      nativePreviewCapture: () => this.nativePreviewCapture
-    }
-  }
-
   getTabOverviewPreviews(tabIds: readonly string[]): BrowserTabOverviewPreview[] {
-    return getTabOverviewPreviews(this.tabOverviewPreviewsAccess(), tabIds)
+    return getTabOverviewPreviews(this, tabIds)
   }
 
   captureAgentStepThumbnail(tabId: string, workspaceId: string): Promise<AgentStepThumbnailImage | 'later' | undefined> {
     return captureAgentStepThumbnail(this, tabId, workspaceId)
   }
 
-  private screenshotPixelRatio(tab: BrowserTab): number {
+  screenshotPixelRatio(tab: BrowserTab): number {
     this.requireEmulationConfirmed(tab)
     const ratio = Math.max(1, screen.getDisplayMatching(this.window.getBounds()).scaleFactor, tab.emulation.viewport?.deviceScaleFactor ?? 1)
     if (!Number.isFinite(ratio) || ratio > 32) throw new LocalizedError('appErrors.pageTools.pageScale')
@@ -1586,7 +1548,7 @@ export class Browser {
   }
 
   getTabOverviewPagePreview(tabId: string): Promise<BrowserTabOverviewPreview> {
-    return getTabOverviewPagePreview(this.tabOverviewPreviewsAccess(), tabId)
+    return getTabOverviewPagePreview(this, tabId)
   }
 
   /**
@@ -2361,7 +2323,7 @@ export class Browser {
       writeSplitView: (splitView) => { this.splitView = splitView },
       splitViewContains: (tabId) => this.splitViewContains(tabId),
       window: () => this.window,
-      exitPageFullscreenCovering: (tabId) => exitPageFullscreenCovering(this.pageFullscreenAccess(), tabId),
+      exitPageFullscreenCovering: (tabId) => exitPageFullscreenCovering(this, tabId),
       wakeTab: (tabId) => this.wakeTab(tabId),
       workspaceActiveTabId: (tab) => tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId)?.activeTabId : undefined,
       markTabActiveInGroup: (tab) => this.markTabActiveInGroup(tab),
@@ -2471,10 +2433,10 @@ export class Browser {
       splitViewContains: (tabId) => this.splitViewContains(tabId),
       window: () => this.window,
       closeTabTransition: (tab) => this.closeTabTransition(tab),
-      contentAreaBounds: () => contentAreaBounds(this.windowLayoutAccess()),
+      contentAreaBounds: () => contentAreaBounds(this),
       tabViewBounds: (tab, space) => this.tabViewBounds(tab, space),
-      roundPageCorners: (view) => this.roundPageCorners(view),
-      publishPageGeometry: () => this.publishPageGeometry(),
+      roundPageCorners: (view) => roundPageCorners(this, view),
+      publishPageGeometry: () => publishPageGeometry(this),
       layout: () => this.layout(),
       focusTabOrTrustedChrome: (tab) => this.focusTabOrTrustedChrome(tab)
     }
@@ -2760,7 +2722,7 @@ export class Browser {
     this.domMutationSource.forget(tab)
     this.logpoints.forget(tab)
     this.workerEvaluations.forget(tab)
-    this.invalidateTabOverviewPreview(tab)
+    invalidateTabOverviewPreview(this, tab)
     this.tabOverviewSleepPreviews.delete(tab.id)
     this.tabOverviewPreviewCaptures.cancelPending(tab.id)
     this.tabOverviewPreviewableTabs.delete(tab.id)
@@ -3306,9 +3268,9 @@ export class Browser {
       activeTabId: () => this.activeTabId,
       splitViewContains: (tabId) => this.splitViewContains(tabId),
       layout: () => this.layout(),
-      publishPageGeometry: () => this.publishPageGeometry(),
+      publishPageGeometry: () => publishPageGeometry(this),
       tabViewBounds: (tab, space) => this.tabViewBounds(tab, space),
-      contentAreaBounds: () => contentAreaBounds(this.windowLayoutAccess())
+      contentAreaBounds: () => contentAreaBounds(this)
     }
   }
 
@@ -3861,7 +3823,7 @@ export class Browser {
       cssStatePreviewActive: (tab) => this.cssStatePreview.active(tab),
       snapshotDeltaContext: (tab) => this.snapshotDeltaContext(tab),
       visualCompareContext: (tab) => this.visualCompareContext(tab),
-      storeTabOverviewPreview: (tab, captured, navigationGeneration, enlarged) => this.storeTabOverviewPreview(tab, captured, navigationGeneration, enlarged)
+      storeTabOverviewPreview: (tab, captured, navigationGeneration, enlarged) => storeTabOverviewPreview(this, tab, captured, navigationGeneration, enlarged)
     }
   }
 
@@ -3931,11 +3893,11 @@ export class Browser {
   }
 
   setToolbarHeight(height: number): void {
-    setToolbarHeight(this.windowLayoutAccess(), height)
+    setToolbarHeight(this, height)
   }
 
   setContentInsets(insets: { top: number; right: number; bottom: number; left: number }): void {
-    setContentInsets(this.windowLayoutAccess(), insets)
+    setContentInsets(this, insets)
   }
 
   /**
@@ -4005,82 +3967,12 @@ export class Browser {
 
   /** Where pages show, below the toolbar and beside the tab rail, in window coordinates; null once the window is gone. */
   pageArea(): Rectangle | null {
-    return pageArea(this.windowLayoutAccess())
-  }
-
-  private browserViewBounds(): Rectangle {
-    return browserViewBounds(this.windowLayoutAccess())
-  }
-
-  /**
-   * The narrow view laying out the window, sizing its page area and
-   * publishing the split divider get of this manager's private tabs, window,
-   * active tab, split view and its revision, divider drag, toolbar height,
-   * content insets, trusted chrome occlusion, global input lock, view
-   * bounds, page corners, presentation repair, tab overview previews, page
-   * geometry and layout. It is a prototype method rather than a field, so
-   * managers created without the constructor (as unit tests do) still
-   * provide it, and the helpers they stub are reached through it.
-   */
-  windowLayoutAccess(): WindowLayoutAccess<BrowserTab> {
-    return {
-      isDestroyed: () => this.destroyed,
-      window: () => this.window,
-      activeTabId: () => this.activeTabId,
-      findTab: (tabId) => this.tabs.get(tabId),
-      splitView: () => this.splitView,
-      writeSplitView: (splitView) => { this.splitView = splitView },
-      splitViewGeneration: () => this.splitViewGeneration,
-      splitDivider: () => this.splitDivider,
-      lastSplitDividerGeometry: () => this.lastSplitDividerGeometry,
-      writeLastSplitDividerGeometry: (serialized) => { this.lastSplitDividerGeometry = serialized },
-      toolbarHeight: () => this.toolbarHeight,
-      writeToolbarHeight: (height) => { this.toolbarHeight = height },
-      contentInsets: () => this.contentInsets,
-      writeContentInsets: (insets) => { this.contentInsets = insets },
-      browserContentOccluded: () => this.browserContentOccluded,
-      occlusionSnapshot: () => this.occlusionSnapshot,
-      allHumanInteractionLocked: () => this.allHumanInteractionLocked,
-      offscreenCaptureTabIds: () => this.offscreenCaptureTabIds,
-      browserViewBounds: () => this.browserViewBounds(),
-      tabViewBounds: (tab, space) => this.tabViewBounds(tab, space),
-      roundPageCorners: (view) => this.roundPageCorners(view),
-      squarePageCorners: (view) => this.squarePageCorners(view),
-      reconcileTabPresentation: (tab) => this.reconcileTabPresentation(tab),
-      scheduleTabOverviewPreview: (tab, settleMs) => this.scheduleTabOverviewPreview(tab, settleMs),
-      publishSplitDivider: () => this.publishSplitDivider(),
-      publishPageGeometry: () => this.publishPageGeometry(),
-      exitHiddenPageFullscreen: () => exitHiddenPageFullscreen(this.pageFullscreenAccess()),
-      layout: () => this.layout()
-    }
-  }
-
-  /**
-   * The narrow view following a page's full screen gets of this manager's
-   * private tabs, window, active tab, split view, offscreen capture set, view
-   * bounds, the person's own full screen and layout. It is a prototype method
-   * rather than a field, so managers created without the constructor (as
-   * unit tests do) still provide it.
-   */
-  private pageFullscreenAccess(): PageFullscreenAccess<BrowserTab> {
-    return {
-      isDestroyed: () => this.destroyed,
-      window: () => this.window,
-      tabs: () => this.tabs.values(),
-      isShown: (tabId) => this.activeTabId === tabId || this.splitViewContains(tabId),
-      offscreenCaptureTabIds: () => this.offscreenCaptureTabIds,
-      tabViewBounds: (tab, space) => this.tabViewBounds(tab, space),
-      contentAreaBounds: () => contentAreaBounds(this.windowLayoutAccess()),
-      personFullScreen: () => this.personFullScreen,
-      writePersonFullScreen: (fullScreen) => { this.personFullScreen = fullScreen },
-      layout: () => this.layout(),
-      pageFullscreenChanged: () => this.options.onPageFullscreenChanged?.()
-    }
+    return pageArea(this)
   }
 
   /** Whether the window shows a page in full screen, such as a video, which Follow agents does not switch away from. */
   private pageFullscreenShown(): boolean {
-    return shownPageFullscreenTab(this.windowLayoutAccess()) !== undefined
+    return shownPageFullscreenTab(this) !== undefined
   }
 
   /** Whether the window shows a page in full screen, which nothing of the shell's is drawn over. */
@@ -4098,16 +3990,16 @@ export class Browser {
 
   /** Asks the page in full screen, if any, to leave it so the browser's own controls show. */
   exitPageFullscreen(): void {
-    exitPageFullscreen(this.pageFullscreenAccess())
+    exitPageFullscreen(this)
   }
 
   /** The window's full screen to save: the person's own, not a page's, which ends with the page. */
   windowFullScreenToSave(): boolean {
-    return windowFullScreenToSave(this.pageFullscreenAccess())
+    return windowFullScreenToSave(this)
   }
 
   getSplitDivider(): SplitDividerGeometry | null {
-    return getSplitDivider(this.windowLayoutAccess())
+    return getSplitDivider(this)
   }
 
   cancelSplitDivider(): void { this.splitDivider.cancel() }
@@ -4116,60 +4008,12 @@ export class Browser {
   finishSplitDivider(token: string, commit: boolean, ratio?: number): SplitDividerGeometry | null { return this.splitDivider.finish(token, commit, ratio) }
   setSplitDividerRatio(revision: number, ratio: number): SplitDividerGeometry | null { return this.splitDivider.setRatio(revision, ratio) }
 
-  /**
-   * The narrow view the page cards and emulation frames get of this manager's
-   * private tabs, window, active tab, split view, toolbar height, trusted
-   * chrome occlusion, occluded geometry, view bounds and the geometry last
-   * sent to the shell. It is a prototype method rather than a field, so
-   * managers created without the constructor (as unit tests do) still provide
-   * it.
-   */
-  private pageGeometryAccess(): PageGeometryAccess<BrowserTab> {
-    return {
-      isDestroyed: () => this.destroyed,
-      window: () => this.window,
-      activeTabId: () => this.activeTabId,
-      findTab: (tabId) => this.tabs.get(tabId),
-      splitView: () => this.splitView,
-      toolbarHeight: () => this.toolbarHeight,
-      browserContentOccluded: () => this.browserContentOccluded,
-      occlusionSnapshot: () => this.occlusionSnapshot,
-      occludedEmulationFrames: () => this.occludedEmulationFrames,
-      occludedPageCards: () => this.occludedPageCards,
-      browserViewBounds: () => this.browserViewBounds(),
-      tabViewBounds: (tab, space) => this.tabViewBounds(tab, space),
-      lastEmulationFrames: () => this.lastEmulationFrames,
-      setLastEmulationFrames: (serialized) => { this.lastEmulationFrames = serialized },
-      lastPageCards: () => this.lastPageCards,
-      setLastPageCards: (serialized) => { this.lastPageCards = serialized }
-    }
-  }
-
   getEmulationFrames(): EmulationFrameGeometry[] {
-    return getEmulationFrames(this.pageGeometryAccess())
+    return getEmulationFrames(this)
   }
 
   getPageCards(): PageCardGeometry[] {
-    return getPageCards(this.pageGeometryAccess())
-  }
-
-  private publishPageGeometry(): void {
-    publishPageGeometry(this.pageGeometryAccess())
-  }
-
-  /** Rounds a page view's corners to the shell's page card, which scales with the shell's zoom. */
-  private roundPageCorners(view: WebContentsView): void {
-    const radius = Math.round(PAGE_CARD_RADIUS * (this.window.webContents.getZoomFactor?.() ?? 1))
-    if (this.pageCornerRadii.get(view) === radius) return
-    view.setBorderRadius(radius)
-    this.pageCornerRadii.set(view, radius)
-  }
-
-  /** Squares a page view's corners, for a page in full screen that fills the window. */
-  private squarePageCorners(view: WebContentsView): void {
-    if (this.pageCornerRadii.get(view) === 0) return
-    view.setBorderRadius(0)
-    this.pageCornerRadii.set(view, 0)
+    return getPageCards(this)
   }
 
   /** Where a tab's page goes in its space: see `emulationViewSize`. */
@@ -4183,10 +4027,6 @@ export class Browser {
     setEmulationViewSize(this.emulationAccess(), tab, viewport)
   }
 
-  private publishSplitDivider(): void {
-    publishSplitDivider(this.windowLayoutAccess())
-  }
-
   reconcileTabPresentation(tab: BrowserTab): void {
     // The Linux visibility repair intentionally performs a WasShown
     // transition. Skip it while an explicit lifecycle hold is active or
@@ -4196,7 +4036,7 @@ export class Browser {
   }
 
   layout(): void {
-    layout(this.windowLayoutAccess())
+    layout(this)
     this.options.onPagesLaidOut?.()
   }
 
@@ -4447,8 +4287,8 @@ export class Browser {
       // Background tabs need a real initial layout even before their first selection.
       // A zero-sized viewport cannot paint a meaningful explicit page preview.
       // Their space is the page card's, even while a shown page in full screen fills the window.
-      view.setBounds(contentAreaBounds(this.windowLayoutAccess()))
-      this.roundPageCorners(view)
+      view.setBounds(contentAreaBounds(this))
+      roundPageCorners(this, view)
     } catch (error) {
       // This view has no registered tab or owner yet, so normal tab rollback
       // cannot find and close its WebContents after initialization fails.
@@ -4684,7 +4524,7 @@ export class Browser {
     attachDebuggerEvents(this.debuggerEventsAccess(), tab, webContents)
     void this.ensureDialogMonitoring(tab)
     attachNavigationEvents(this.navigationEventsAccess(), tab, webContents)
-    attachPageFullscreenEvents(this.pageFullscreenAccess(), tab, webContents)
+    attachPageFullscreenEvents(this, tab, webContents)
     attachConsoleMessageEvents(tab, webContents)
     attachRendererHealthEvents(this.rendererHealthEventsAccess(), tab, webContents)
     attachWindowOpenHandler(this.windowOpenHandlerAccess(), tab, webContents)
@@ -4733,7 +4573,7 @@ export class Browser {
    */
   private pageDestroyedEventsAccess(): PageDestroyedEventsAccess<BrowserTab> {
     return {
-      invalidateTabOverviewPreview: (tab) => this.invalidateTabOverviewPreview(tab),
+      invalidateTabOverviewPreview: (tab) => invalidateTabOverviewPreview(this, tab),
       tabOverviewPreviewCaptures: () => this.tabOverviewPreviewCaptures,
       tabOverviewPreviewableTabs: () => this.tabOverviewPreviewableTabs,
       networkWaitController: () => this.networkWaitController,
@@ -4758,7 +4598,7 @@ export class Browser {
       changed: (persist) => this.changed(persist),
       orderedTabs: () => orderedTabs(this),
       selectTab: (tabId) => this.selectTab(tabId),
-      publishPageGeometry: () => this.publishPageGeometry(),
+      publishPageGeometry: () => publishPageGeometry(this),
       createTab: (options) => this.createTab(options)
     }
   }
@@ -4809,7 +4649,7 @@ export class Browser {
       isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
       shellHeldKeys: () => this.shellHeldKeys,
       reproRecorder: () => this.reproRecorder,
-      scheduleTabOverviewPreview: (tab, settleMs) => this.scheduleTabOverviewPreview(tab, settleMs),
+      scheduleTabOverviewPreview: (tab, settleMs) => scheduleTabOverviewPreview(this, tab, settleMs),
       mcpActivityFollower: () => this.mcpActivityFollower,
       options: () => this.options
     }
@@ -4838,7 +4678,7 @@ export class Browser {
       shouldBlockHumanMouseInput: (tab, mouse) => this.shouldBlockHumanMouseInput(tab, mouse),
       isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
       reproRecorder: () => this.reproRecorder,
-      scheduleTabOverviewPreview: (tab, settleMs) => this.scheduleTabOverviewPreview(tab, settleMs),
+      scheduleTabOverviewPreview: (tab, settleMs) => scheduleTabOverviewPreview(this, tab, settleMs),
       mcpActivityFollower: () => this.mcpActivityFollower,
       splitViewContains: (tabId) => this.splitViewContains(tabId),
       activeTabId: () => this.activeTabId,
@@ -4871,7 +4711,7 @@ export class Browser {
       options: () => this.options,
       workspaceNavigationAllowed: (groupId, url, source) => this.workspaceNavigationAllowed(groupId, url, source),
       prepareDiagnosticNavigation: (tab) => this.prepareDiagnosticNavigation(tab),
-      invalidateTabOverviewPreview: (tab) => this.invalidateTabOverviewPreview(tab),
+      invalidateTabOverviewPreview: (tab) => invalidateTabOverviewPreview(this, tab),
       runWalletLifecycleAction: (action, callback) => this.runWalletLifecycleAction(action, callback),
       cssStatePreview: () => this.cssStatePreview,
       cancelNativeSelectionSessions: (tab) => this.cancelNativeSelectionSessions(tab),
@@ -4884,7 +4724,7 @@ export class Browser {
       certificateRefusal: (tab, url) => certificateRefusal(tab.webContents, url),
       reconcileTabPresentation: (tab) => this.reconcileTabPresentation(tab),
       reproRecorder: () => this.reproRecorder,
-      scheduleTabOverviewPreview: (tab, settleMs) => this.scheduleTabOverviewPreview(tab, settleMs),
+      scheduleTabOverviewPreview: (tab, settleMs) => scheduleTabOverviewPreview(this, tab, settleMs),
       trackWorkspaceOrigin: (tab, url) => this.trackWorkspaceOrigin(tab, url),
       applySiteMuting: (tab) => applySiteMuting(this, tab),
       appendConsoleMessage: (tab, message, source) => appendConsoleMessage(tab, message, source),
@@ -4909,7 +4749,7 @@ export class Browser {
       markNetworkConditionsUnknown: (tab) => this.markNetworkConditionsUnknown(tab),
       changed: (persist) => this.changed(persist),
       setEmulationViewSize: (tab, viewport) => this.setEmulationViewSize(tab, viewport),
-      invalidateTabOverviewPreview: (tab) => this.invalidateTabOverviewPreview(tab),
+      invalidateTabOverviewPreview: (tab) => invalidateTabOverviewPreview(this, tab),
       tabOverviewPreviewCaptures: () => this.tabOverviewPreviewCaptures,
       tabOverviewPreviewableTabs: () => this.tabOverviewPreviewableTabs,
       rendererRecovery: () => this.rendererRecovery,
@@ -5303,24 +5143,6 @@ export class Browser {
 
   splitViewContains(tabId: string): boolean {
     return this.splitView?.firstTabId === tabId || this.splitView?.secondTabId === tabId
-  }
-
-  private scheduleTabOverviewPreview(tab: BrowserTab, settleMs?: number): void {
-    scheduleTabOverviewPreview(this.tabOverviewPreviewsAccess(), tab, settleMs)
-  }
-
-  private storeTabOverviewPreview(
-    tab: BrowserTab,
-    captured: Electron.NativeImage,
-    navigationGeneration: number,
-    enlarged: boolean,
-    stillCurrent?: () => boolean
-  ): boolean {
-    return storeTabOverviewPreview(this.tabOverviewPreviewsAccess(), tab, captured, navigationGeneration, enlarged, stillCurrent)
-  }
-
-  private invalidateTabOverviewPreview(tab: BrowserTab): void {
-    invalidateTabOverviewPreview(this.tabOverviewPreviewsAccess(), tab)
   }
 
   /** Records the tab shown. A new tab that stops showing returns nowhere when it later closes, as in Chrome. */
