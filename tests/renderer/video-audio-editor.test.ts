@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/vue'
 import { afterEach, expect, it, vi } from 'vitest'
-import VideoAudioEditor from '../../src/renderer/src/components/VideoAudioEditor.vue'
+import VideoAudioEditor from '../../src/renderer/src/features/video/VideoAudioEditor.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import { VIDEO_AUDIO_BUILTINS, VIDEO_AUDIO_LIMITS } from '../../src/shared/video-audio.js'
 import type { BrowserVideoOptions, BrowserVideoState } from '../../src/shared/video.js'

@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import type { AppSettingsFeatureController } from '../composables/useAppSettingsFeatureController.js'
-import type { HelpDialogController } from '../composables/useHelpDialogController.js'
+import type { HelpDialogController } from '../features/help/useHelpDialogController.js'
 import TrustedDialog from '../trusted-dialogs/TrustedDialog.vue'
 import type { TrustedDialogController } from '../trusted-dialogs/useTrustedDialogController.js'
-import HelpDialog from './HelpDialog.vue'
+import HelpDialog from '../features/help/HelpDialog.vue'
 import SettingsDialog from '../features/settings/SettingsDialog.vue'
 import WalletApprovalDialog from '../features/wallets/WalletApprovalDialog.vue'
 import WhatsNewDialog from '../features/updates/WhatsNewDialog.vue'

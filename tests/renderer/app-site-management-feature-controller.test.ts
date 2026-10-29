@@ -2,7 +2,7 @@ import { nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import type { BrowsingDataSiteSummary } from '../../src/shared/types.js'
 import { useAppSiteManagementFeatureController } from '../../src/renderer/src/composables/useAppSiteManagementFeatureController.js'
-import { useSiteDataSummaryController } from '../../src/renderer/src/composables/useSiteDataSummaryController.js'
+import { useSiteDataSummaryController } from '../../src/renderer/src/features/site-controls/useSiteDataSummaryController.js'
 import type { SettingsSection } from '../../src/renderer/src/features/settings/useSettingsDialogController.js'
 
 function createHarness() {

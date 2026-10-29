@@ -22,8 +22,8 @@ import type { BrowserState, BrowserTabState, HronautApi } from '../../../shared/
 import type {
   ElementPickerState,
   ScreenshotCaptureState
-} from '../composables/usePageCaptureController.js'
-import SplitViewControl from './SplitViewControl.vue'
+} from '../features/page-tools/usePageCaptureController.js'
+import SplitViewControl from '../features/split-view/SplitViewControl.vue'
 import { vTooltip } from '../ui/tooltip.js'
 
 type SplitViewBrowserApi = Pick<HronautApi, 'openSplitView' | 'updateSplitView' | 'closeSplitView'>

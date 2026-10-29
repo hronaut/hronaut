@@ -12,7 +12,7 @@ import IconScreenshotRegion from '~icons/material-symbols/screenshot-region-roun
 import { formatNumber, formatPercent } from '../../../../../shared/format'
 import type { PanelDock, SupportedLocale } from '../../../../../shared/types'
 import type { DiagnosticsController } from '../useDiagnosticsController'
-import PanelDockPicker from '../../../components/PanelDockPicker.vue'
+import PanelDockPicker from '../../panels/PanelDockPicker.vue'
 
 const props = defineProps<{
   locale: SupportedLocale

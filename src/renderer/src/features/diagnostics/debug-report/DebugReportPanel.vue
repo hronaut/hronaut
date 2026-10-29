@@ -20,7 +20,7 @@ import type {
   SupportedLocale
 } from '../../../../../shared/types'
 import type { DiagnosticsController } from '../useDiagnosticsController'
-import PanelDockPicker from '../../../components/PanelDockPicker.vue'
+import PanelDockPicker from '../../panels/PanelDockPicker.vue'
 import IncidentPackageReview from './IncidentPackageReview.vue'
 import { vTooltip } from '../../../ui/tooltip.js'
 import { networkLabelMessages } from '../../../../../shared/locales/network-labels.js'

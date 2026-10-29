@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { LocalPreferenceStorage } from '../../src/renderer/src/local-preferences.js'
-import { usePanelDockPreferenceController } from '../../src/renderer/src/composables/usePanelDockPreferenceController.js'
+import { usePanelDockPreferenceController } from '../../src/renderer/src/features/panels/usePanelDockPreferenceController.js'
 
 function storage(initial: Record<string, string> = {}): LocalPreferenceStorage {
   const values = new Map(Object.entries(initial))

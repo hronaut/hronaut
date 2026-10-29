@@ -14,7 +14,7 @@ import { formatNumber } from '../../../../shared/format'
 import type { SupportedLocale } from '../../../../shared/locale'
 import { browserConsoleLevel, type BrowserConsoleLevelFilter } from '../../../../shared/console-messages'
 import type { BrowserConsoleMessage, PanelDock } from '../../../../shared/types'
-import PanelDockPicker from '../../components/PanelDockPicker.vue'
+import PanelDockPicker from '../panels/PanelDockPicker.vue'
 import { vTooltip } from '../../ui/tooltip.js'
 
 const props = defineProps<{

@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { useSiteControlsShellController } from '../../src/renderer/src/composables/useSiteControlsShellController.js'
+import { useSiteControlsShellController } from '../../src/renderer/src/features/site-controls/useSiteControlsShellController.js'
 
 function deferred<Value>() {
   let resolve!: (value: Value) => void

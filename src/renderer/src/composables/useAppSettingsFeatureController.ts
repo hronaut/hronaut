@@ -33,7 +33,7 @@ import { useReleaseHistoryController } from '../features/updates/useReleaseHisto
 import { useSearchSettingsController } from '../features/settings/useSearchSettingsController.js'
 import { useSettingsDialogController } from '../features/settings/useSettingsDialogController.js'
 import { useSettingsSectionResetController } from '../features/settings/useSettingsSectionResetController.js'
-import { useSitePermissionsController } from './useSitePermissionsController.js'
+import { useSitePermissionsController } from '../features/site-controls/useSitePermissionsController.js'
 import { useUpdateNoticePresentationController } from '../features/updates/useUpdateNoticePresentationController.js'
 import { useUpdateSettingsController } from '../features/updates/useUpdateSettingsController.js'
 import { useWalletsController } from '../features/wallets/useWalletsController.js'

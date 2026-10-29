@@ -2,7 +2,7 @@ import { render } from '@testing-library/vue'
 import type { BrowserTabState, UserAttentionRequest } from '../../src/shared/types.js'
 import { afterEach, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
-import PageCard from '../../src/renderer/src/components/PageCard.vue'
+import PageCard from '../../src/renderer/src/features/page-tools/PageCard.vue'
 import type { HronautPageCardApi, PageCardGeometry } from '../../src/shared/page-card.js'
 
 const original = window.hronautPageCard

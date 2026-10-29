@@ -1,12 +1,12 @@
 import type { Ref } from 'vue'
-import type { SiteDataSummaryController } from './useSiteDataSummaryController.js'
+import type { SiteDataSummaryController } from '../features/site-controls/useSiteDataSummaryController.js'
 import {
   useSiteStorageShellController,
   type SiteStorageShellPanel
 } from '../features/site-storage/useSiteStorageShellController.js'
 import { usePrivacySettingsShellController } from '../features/settings/usePrivacySettingsShellController.js'
 import { useSettingsNavigationController } from '../features/settings/useSettingsNavigationController.js'
-import { useSiteControlsShellController } from './useSiteControlsShellController.js'
+import { useSiteControlsShellController } from '../features/site-controls/useSiteControlsShellController.js'
 import type { SettingsSection } from '../features/settings/useSettingsDialogController.js'
 
 export interface AppSiteManagementFeatureControllerOptions {

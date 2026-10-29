@@ -19,7 +19,7 @@ import {
 } from '../../../../../shared/format'
 import type { PanelDock, SupportedLocale } from '../../../../../shared/types'
 import type { DiagnosticsController } from '../useDiagnosticsController'
-import PanelDockPicker from '../../../components/PanelDockPicker.vue'
+import PanelDockPicker from '../../panels/PanelDockPicker.vue'
 import { vTooltip } from '../../../ui/tooltip.js'
 
 const props = defineProps<{

@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { useSitePermissionsController } from '../../src/renderer/src/composables/useSitePermissionsController.js'
+import { useSitePermissionsController } from '../../src/renderer/src/features/site-controls/useSitePermissionsController.js'
 import type { SitePermissionEntry } from '../../src/shared/types.js'
 
 const permission = (decision: 'allow' | 'deny'): SitePermissionEntry => ({

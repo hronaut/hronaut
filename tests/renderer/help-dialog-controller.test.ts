@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { useHelpDialogController } from '../../src/renderer/src/composables/useHelpDialogController.js'
+import { useHelpDialogController } from '../../src/renderer/src/features/help/useHelpDialogController.js'
 
 describe('help dialog controller', () => {
   it('opens either help view and runs shell cleanup first', () => {

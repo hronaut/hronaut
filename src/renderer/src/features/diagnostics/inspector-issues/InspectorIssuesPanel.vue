@@ -15,7 +15,7 @@ import { INSPECTOR_ISSUE_METADATA } from '../../../../../shared/browser-issues'
 import { formatNumber } from '../../../../../shared/format'
 import type { BrowserInspectorIssue, PanelDock, SupportedLocale } from '../../../../../shared/types'
 import type { DiagnosticsController } from '../useDiagnosticsController'
-import PanelDockPicker from '../../../components/PanelDockPicker.vue'
+import PanelDockPicker from '../../panels/PanelDockPicker.vue'
 
 const props = defineProps<{
   locale: SupportedLocale

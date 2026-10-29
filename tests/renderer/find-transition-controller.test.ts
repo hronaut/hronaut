@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { useFindTransitionController } from '../../src/renderer/src/composables/useFindTransitionController.js'
+import { useFindTransitionController } from '../../src/renderer/src/features/find/useFindTransitionController.js'
 
 function deferred<Value>() {
   let resolve!: (value: Value) => void
