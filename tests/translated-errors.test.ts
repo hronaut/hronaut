@@ -267,10 +267,10 @@ const templateText = JSON.stringify({ format: 'hronaut-workspace-template', vers
 describe('main-process failures people see in page tools, workspace management and settings', () => {
   it.each([
     // Page tools
-    ['selecting an element on Home', () => pickElement({ getTab: () => homeTab } as never),
+    ['selecting an element on Home', () => pickElement({ activeTabId: 'home', tabs: new Map([['home', homeTab]]) } as never),
       'Open a website tab before selecting an element',
       'Відкрийте вкладку з вебсайтом, щоб вибрати елемент.'],
-    ['capturing an area of Home', () => captureScreenshotArea({ getTab: () => homeTab } as never),
+    ['capturing an area of Home', () => captureScreenshotArea({ activeTabId: 'home', tabs: new Map([['home', homeTab]]) } as never),
       'Open a website tab before capturing an area',
       'Відкрийте вкладку з вебсайтом, щоб зробити знімок області.'],
     ['a page tool while Developer Tools are open', () => withDebugger({

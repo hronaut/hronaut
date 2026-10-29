@@ -1,7 +1,8 @@
 import { runInNewContext } from 'node:vm'
 import type { WebContents } from 'electron'
 import { describe, expect, it } from 'vitest'
-import type { PageSnapshotsAccess, PageSnapshotsTab } from '../src/main/browser/page-snapshots/page-snapshots-access.js'
+import type { Browser } from '../src/main/browser/browser.js'
+import type { BrowserTab } from '../src/main/browser/browser-tab.js'
 import { setSnapshotBaseline, snapshotDelta, snapshotDetails } from '../src/main/browser/page-snapshots/page-snapshots.js'
 import { compactTabDiscovery } from '../src/main/mcp/tab-discovery.js'
 import { mcpWorkspaceState, mcpWorkspaceTab, savedWorkspaceWithoutUrlDetail } from '../src/main/mcp/tool-results.js'
@@ -151,40 +152,38 @@ describe('snapshot URL lines without detail', () => {
         return { formatVersion: BROWSER_SNAPSHOT_FORMAT_VERSION, text, maxChars: 30_000, returnedChars: text.length, truncated: false, omitted: { headings: false, controls: false, bodyText: false, characters: false } }
       }
     } as unknown as WebContents
-    const tab: PageSnapshotsTab = { id: 'tab-1', url: 'https://shop.example.test/checkout?view=cart', mcpGroupId: 'w', webContents, walletNavigationGeneration: 0, snapshotBaselineGeneration: 0 }
+    const tab = { id: 'tab-1', url: 'https://shop.example.test/checkout?view=cart', mcpGroupId: 'w', webContents, walletNavigationGeneration: 0, snapshotBaselineGeneration: 0 } as unknown as BrowserTab
     const baselines = new Map()
     const baselineIds = new Map<string, string>()
-    const access: PageSnapshotsAccess<PageSnapshotsTab> = {
-      getTab: () => tab,
-      findTab: () => tab,
-      tabs: () => [tab][Symbol.iterator](),
-      findWorkspace: () => ({ activeTabId: tab.id }),
-      options: () => ({ getOmitAgentUrlDetail: () => omit }),
+    const browser = {
+      tabs: new Map([[tab.id, tab]]),
+      mcpTabGroups: new Map([['w', { activeTabId: tab.id }]]),
+      options: { getOmitAgentUrlDetail: () => omit },
       snapshotDeltaContext: () => CONTEXT,
-      snapshotBaselines: () => baselines,
-      snapshotBaselineIdsByTab: () => baselineIds
-    }
-    return { access, scripts, setOmit: (value: boolean) => { omit = value } }
+      snapshotBaselines: baselines,
+      snapshotBaselineIdsByTab: baselineIds
+    } as unknown as Browser
+    return { browser, scripts, setOmit: (value: boolean) => { omit = value } }
   }
 
   it('asks the page for the URL line the setting calls for and marks the snapshot', async () => {
     const page = fakePage()
-    expect(await snapshotDetails(page.access, 'tab-1')).not.toHaveProperty('urlDetail')
+    expect(await snapshotDetails(page.browser, 'tab-1')).not.toHaveProperty('urlDetail')
     expect(page.scripts[0]).toContain("add(false ? 'URL: '")
     page.setOmit(true)
-    const snapshot = await snapshotDetails(page.access, 'tab-1')
+    const snapshot = await snapshotDetails(page.browser, 'tab-1')
     expect(snapshot).toMatchObject({ urlDetail: 'omitted', text: expect.stringContaining('(query and fragment omitted)') })
     expect(page.scripts[1]).toContain("add(true ? 'URL: '")
   })
 
   it('starts a delta over instead of comparing URL lines across a change of the setting', async () => {
     const page = fakePage()
-    const baseline = await setSnapshotBaseline(page.access, 'tab-1')
+    const baseline = await setSnapshotBaseline(page.browser, 'tab-1')
     page.setOmit(true)
-    const delta = await snapshotDelta(page.access, { tabId: 'tab-1', baselineId: baseline.baselineId })
+    const delta = await snapshotDelta(page.browser, { tabId: 'tab-1', baselineId: baseline.baselineId })
     expect(delta).toMatchObject({ status: 'invalidated', invalidationReason: 'snapshot-format', changes: [] })
     expect(JSON.stringify(delta)).not.toContain('view=cart')
-    const fresh = await setSnapshotBaseline(page.access, 'tab-1')
-    expect(await snapshotDelta(page.access, { tabId: 'tab-1', baselineId: fresh.baselineId })).toMatchObject({ status: 'unchanged' })
+    const fresh = await setSnapshotBaseline(page.browser, 'tab-1')
+    expect(await snapshotDelta(page.browser, { tabId: 'tab-1', baselineId: fresh.baselineId })).toMatchObject({ status: 'unchanged' })
   })
 })

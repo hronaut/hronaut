@@ -1,6 +1,6 @@
 import type { BrowserShortcutAction } from '../../../shared/browser-shortcuts.js'
-import type { BrowserElementPickerSession } from '../element-picker/element-picker-access.js'
-import type { BrowserScreenshotAreaSession } from '../screenshot-area/screenshot-area-access.js'
+import type { BrowserElementPickerSession } from '../element-picker/element-picker.js'
+import type { BrowserScreenshotAreaSession } from '../screenshot-area/screenshot-area.js'
 
 /** The tab fields the person's keyboard input reads and writes: its id and workspace, and when a person last used it. */
 export interface PageKeyboardEventsTab {
