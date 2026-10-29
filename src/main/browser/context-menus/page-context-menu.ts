@@ -6,6 +6,7 @@ import type { PageContextMenuAccess, PageContextMenuTab } from './page-context-m
 import { openedResourceReferrer, savedResourceReferrer } from './page-context-menu-referrer.js'
 import { readHighlightPageText } from './highlight-page-text.js'
 import { textFragmentLink } from './text-fragment-link.js'
+import { LocalizedError } from '../../localized-error.js'
 
 // The fields Chrome offers the emoji picker in: an editable element, which has no form control, a text, search,
 // address, email or password input, or a text area. A number, telephone or date field takes no emoji.
@@ -311,6 +312,20 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
       { type: 'separator' },
       { id: 'select-all', label: access.text('native.context.selectAll'), enabled: params.editFlags.canSelectAll, click: withLiveContents('select all', () => webContents.selectAll()) }
     ])
+    // Chrome's Suggest strong password, for a password field of the page itself while passwords can be saved: Hronaut
+    // makes the password, fills it in with the field that confirms it, and offers to save it when the page submits it.
+    const suggestPassword = params.formControlType === 'input-password' && !frame ? access.passwordSuggestion(tab) : null
+    if (suggestPassword) {
+      groups.push([{
+        id: 'suggest-strong-password',
+        label: access.text('native.context.suggestStrongPassword'),
+        click: withLiveContents('suggest a strong password', () => {
+          void suggestPassword().then((filled) => {
+            if (!filled) reportActionFailure('suggest a strong password', new LocalizedError('appErrors.credentials.suggestFailed'))
+          }, (error: unknown) => reportActionFailure('suggest a strong password', error))
+        })
+      }])
+    }
     const search = searchSelection()
     if (search.length) groups.push(search)
     // Chrome's Spell check submenu turns checking on or off for every website, as Settings does, and, where Settings has

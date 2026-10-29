@@ -362,6 +362,7 @@ export const zhCNAppErrors: AppErrorMessages = {
     "fillAgentActive": "由于智能体命令仍在运行，未填充密码。智能体保持暂停状态；请在命令完成后重试。",
     "notFound": "已保存的密码已不可用。",
     "changed": "读取期间已保存的密码已更改。请重试。",
+    "suggestFailed": "Hronaut 无法为此字段建议密码。请右键点击密码字段，然后重试。",
     "decryptFailed": "无法解密已保存的密码。请确保系统的安全存储已解锁，然后重试。"
   },
   "emulation": {

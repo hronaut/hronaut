@@ -362,6 +362,7 @@ export const ptBRAppErrors: AppErrorMessages = {
     "fillAgentActive": "A senha não foi preenchida porque um comando de agente ainda estava em execução. Os agentes continuam pausados; tente novamente quando ele terminar.",
     "notFound": "A senha salva não está mais disponível.",
     "changed": "A senha salva mudou enquanto era lida. Tente novamente.",
+    "suggestFailed": "O Hronaut não conseguiu sugerir uma senha para este campo. Clique com o botão direito no campo de senha e tente novamente.",
     "decryptFailed": "Não foi possível descriptografar a senha salva. Verifique se o armazenamento seguro do sistema está desbloqueado e tente novamente."
   },
   "emulation": {

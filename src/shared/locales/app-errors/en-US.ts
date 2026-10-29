@@ -366,6 +366,7 @@ export const enUSAppErrors = {
     "fillAgentActive": "The password was not filled because an agent command was still running. Agents stay paused; try again when it finishes.",
     "notFound": "The saved password is no longer available.",
     "changed": "The saved password changed while it was being read. Try again.",
+    "suggestFailed": "Hronaut could not suggest a password for this field. Right-click the password field and try again.",
     "decryptFailed": "The saved password could not be decrypted. Make sure the system’s secure storage is unlocked, then try again."
   },
   "emulation": {

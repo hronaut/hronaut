@@ -362,6 +362,7 @@ export const plPLAppErrors: AppErrorMessages = {
     "fillAgentActive": "Hasło nie zostało wypełnione, ponieważ polecenie agenta wciąż było wykonywane. Agenci pozostają wstrzymani; spróbuj ponownie, gdy się zakończy.",
     "notFound": "Zapisane hasło nie jest już dostępne.",
     "changed": "Zapisane hasło zmieniło się podczas odczytu. Spróbuj ponownie.",
+    "suggestFailed": "Hronaut nie mógł zaproponować hasła dla tego pola. Kliknij pole hasła prawym przyciskiem myszy i spróbuj ponownie.",
     "decryptFailed": "Nie udało się odszyfrować zapisanego hasła. Upewnij się, że bezpieczna pamięć systemu jest odblokowana, i spróbuj ponownie."
   },
   "emulation": {

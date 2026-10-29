@@ -362,6 +362,7 @@ export const frFRAppErrors: AppErrorMessages = {
     "fillAgentActive": "Le mot de passe n’a pas été renseigné, car une commande d’agent était encore en cours. Les agents restent en pause ; réessayez quand elle sera terminée.",
     "notFound": "Le mot de passe enregistré n’est plus disponible.",
     "changed": "Le mot de passe enregistré a changé pendant sa lecture. Réessayez.",
+    "suggestFailed": "Hronaut n’a pas pu suggérer de mot de passe pour ce champ. Faites un clic droit sur le champ de mot de passe et réessayez.",
     "decryptFailed": "Impossible de déchiffrer le mot de passe enregistré. Vérifiez que le stockage sécurisé du système est déverrouillé, puis réessayez."
   },
   "emulation": {

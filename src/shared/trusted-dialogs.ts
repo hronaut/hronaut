@@ -45,6 +45,8 @@ export interface SavePasswordDialogVariant {
   username: string
   /** True when Hronaut has a password for this username and website already. */
   updating: boolean
+  /** True when Hronaut suggested the password, which nothing shows again, so the dialog says what not saving it means. */
+  suggested: boolean
 }
 
 /**

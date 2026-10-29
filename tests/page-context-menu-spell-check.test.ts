@@ -44,7 +44,8 @@ function menu(
     spellCheck: () => options.spellCheck ?? true,
     setSpellCheck,
     offersSpellCheckLanguages: () => options.offersLanguages ?? true,
-    openSpellCheckSettings
+    openSpellCheckSettings,
+    passwordSuggestion: () => null
   } as unknown as PageContextMenuAccess
   showContextMenu(access, tab, {
     x: 10, y: 20, linkURL: '', srcURL: '', selectionText: '', isEditable: false, mediaType: 'none', editFlags: {},

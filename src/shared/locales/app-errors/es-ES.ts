@@ -362,6 +362,7 @@ export const esESAppErrors: AppErrorMessages = {
     "fillAgentActive": "No se rellenó la contraseña porque un comando de agente seguía en curso. Los agentes siguen en pausa; vuelve a intentarlo cuando termine.",
     "notFound": "La contraseña guardada ya no está disponible.",
     "changed": "La contraseña guardada cambió mientras se leía. Vuelve a intentarlo.",
+    "suggestFailed": "Hronaut no pudo sugerir una contraseña para este campo. Haz clic derecho en el campo de contraseña y vuelve a intentarlo.",
     "decryptFailed": "No se pudo descifrar la contraseña guardada. Comprueba que el almacenamiento seguro del sistema esté desbloqueado y vuelve a intentarlo."
   },
   "emulation": {

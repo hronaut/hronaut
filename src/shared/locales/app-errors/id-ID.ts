@@ -362,6 +362,7 @@ export const idIDAppErrors: AppErrorMessages = {
     "fillAgentActive": "Sandi tidak diisi karena perintah agen masih berjalan. Agen tetap dijeda; coba lagi setelah perintah selesai.",
     "notFound": "Sandi tersimpan sudah tidak tersedia.",
     "changed": "Sandi tersimpan berubah saat sedang dibaca. Coba lagi.",
+    "suggestFailed": "Hronaut tidak dapat menyarankan sandi untuk kolom ini. Klik kanan kolom sandi, lalu coba lagi.",
     "decryptFailed": "Sandi tersimpan tidak dapat didekripsi. Pastikan penyimpanan aman sistem tidak terkunci, lalu coba lagi."
   },
   "emulation": {

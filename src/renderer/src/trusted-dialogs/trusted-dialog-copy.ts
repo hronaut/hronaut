@@ -190,7 +190,8 @@ function savePasswordCopy(variant: SavePasswordDialogVariant, t: Translate): Tru
     ...(variant.username ? { quoted: variant.username, quotedLabel: t('trustedDialogs.savePassword.username') } : {}),
     lines: [
       ...(variant.username ? [] : [t('trustedDialogs.savePassword.noUsername')]),
-      t('trustedDialogs.savePassword.stored')
+      t('trustedDialogs.savePassword.stored'),
+      ...(variant.suggested ? [t('native.dialog.suggestedPasswordWarning')] : [])
     ]
   }
 }

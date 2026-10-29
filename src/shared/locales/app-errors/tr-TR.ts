@@ -362,6 +362,7 @@ export const trTRAppErrors: AppErrorMessages = {
     "fillAgentActive": "Bir ajan komutu hâlâ çalıştığı için şifre doldurulmadı. Ajanlar duraklatılmış olarak kalır; komut bitince tekrar deneyin.",
     "notFound": "Kayıtlı şifre artık kullanılamıyor.",
     "changed": "Kayıtlı şifre okunurken değişti. Tekrar deneyin.",
+    "suggestFailed": "Hronaut bu alan için şifre öneremedi. Şifre alanını sağ tıklayıp tekrar deneyin.",
     "decryptFailed": "Kayıtlı şifrenin şifresi çözülemedi. Sistemin güvenli depolama alanının kilidinin açık olduğundan emin olun, ardından tekrar deneyin."
   },
   "emulation": {

@@ -578,7 +578,7 @@ const { currentBrowsingDataSiteSummary, agentSiteData } = createSiteData({
   publishVisitHistory
 })
 
-const { publishCredentials, offerToSaveCredential, configureCredentialStore } = createCredentialRuntime({
+const { publishCredentials, offerToSaveCredential, rememberSuggestedPassword, configureCredentialStore } = createCredentialRuntime({
   text,
   showDialog: (options) => trustedDialogs.show(options),
   mainWindow: () => mainWindowRefs.window,
@@ -1312,7 +1312,17 @@ async function createWindow(startMinimized = false): Promise<void> {
     ...walletLifecycleCallbacks,
     onPageVisited: recordPageVisit,
     onPageTitleUpdated: updatePageTitle,
-    onCredentialSubmitted: offerToSaveCredential
+    onCredentialSubmitted: offerToSaveCredential,
+    suggestedPasswords: {
+      available: () => credentialRuntime.storageStatus.available && credentialRuntime.store !== null,
+      whileAgentsPaused: (fill) => fillCredentialWhileMcpPaused({
+        pausePersistently: () => { setMcpPaused(true) },
+        acquireTemporaryPause: acquireTemporaryMcpPause,
+        getActiveRequestCount: () => mcpRuntime.server?.getActiveRequestCount() ?? mcpActionTracker.activeCount,
+        fill
+      }),
+      suggested: rememberSuggestedPassword
+    }
   })
   registerPageBootstrapIpc({ ipcMain, tabs: () => tabRuntime.tabs })
   registerIpc()

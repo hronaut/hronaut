@@ -46,7 +46,8 @@ function menu(params: Partial<ContextMenuParams>, tabOpen = true) {
     spellCheck: () => true,
     setSpellCheck: async () => undefined,
     offersSpellCheckLanguages: () => true,
-    openSpellCheckSettings: () => undefined
+    openSpellCheckSettings: () => undefined,
+    passwordSuggestion: () => null
   } as unknown as PageContextMenuAccess
   showContextMenu(access, tab, {
     x: 10, y: 20, linkURL: '', srcURL: '', selectionText: '', isEditable: false, mediaType: 'none', editFlags: {},
