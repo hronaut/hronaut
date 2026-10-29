@@ -56,7 +56,8 @@ const BrowserTabsBarStub = defineComponent({
     mcpActivityByTab: Object,
     formatNumber: Function,
     tabTooltip: Function,
-    describeEmulation: Function
+    describeEmulation: Function,
+    linkDrops: Boolean
   },
   emits: [
     'openHome',
@@ -66,6 +67,7 @@ const BrowserTabsBarStub = defineComponent({
     'selectTab',
     'showTabContextMenu',
     'reorderTab',
+    'dropLink',
     'toggleTabMuted',
     'closeTab',
     'dragStart',
@@ -291,6 +293,7 @@ function createHarness(home = false, options: { attach?: boolean } = {}) {
     setTabAgentPaused: vi.fn(async (_tabId: string, _paused: boolean) => browserState),
     setTabPageLifecycle: vi.fn(async () => browserState),
     showTabContextMenu: vi.fn(async () => undefined),
+    dropLink: vi.fn(async (_text: string, _target: unknown) => browserState),
     answerUserAttention: vi.fn(async (_id: string, _answer: 'resolved' | 'dismissed') => true)
   }
   const actions = {
@@ -1085,5 +1088,30 @@ describe('AppBrowserChromeLayer', () => {
     await nextTick()
     expect(harness.wrapper.emitted('update:tabSearchOpen')?.at(-1)).toEqual([false])
     expect(harness.runAction).toHaveBeenCalled()
+  })
+
+  // A link dropped beside a tab while Settings was open opened its new tab behind Settings, so the drop looked lost.
+  it('opens dropped links through the browser, closing Settings and tab search for a link that opens a new tab', async () => {
+    const harness = createHarness()
+    const tabs = harness.wrapper.getComponent(BrowserTabsBarStub)
+    const close = (harness.props.settingsController as unknown as { settingsDialogController: { close: ReturnType<typeof vi.fn> } }).settingsDialogController.close
+    expect(tabs.props('linkDrops')).toBe(true)
+
+    tabs.vm.$emit('dropLink', { text: 'https://example.com/', target: { tabId: 'tab-1', placement: 'onto' } })
+    await nextTick()
+    expect(harness.browser.dropLink).toHaveBeenLastCalledWith('https://example.com/', { tabId: 'tab-1', placement: 'onto' })
+    expect(close).not.toHaveBeenCalled()
+    expect(harness.wrapper.emitted('update:tabSearchOpen')).toBeUndefined()
+
+    for (const target of [{ tabId: 'tab-1', placement: 'after' }, { workspaceId: 'workspace-1' }, {}]) {
+      close.mockClear()
+      await harness.wrapper.setProps({ tabSearchOpen: true })
+      tabs.vm.$emit('dropLink', { text: 'https://example.com/', target })
+      await nextTick()
+      expect(harness.browser.dropLink).toHaveBeenLastCalledWith('https://example.com/', target)
+      expect(close).toHaveBeenCalledOnce()
+      expect(harness.wrapper.emitted('update:tabSearchOpen')?.at(-1)).toEqual([false])
+    }
+    expect(harness.syncState).toHaveBeenCalledTimes(4)
   })
 })

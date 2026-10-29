@@ -18,7 +18,7 @@ import IconKeepOff from '~icons/material-symbols/keep-off-rounded'
 import IconSearch from '~icons/material-symbols/search-rounded'
 import IconVisibility from '~icons/material-symbols/visibility-rounded'
 import IconStacks from '~icons/material-symbols/stacks-rounded'
-import type { BrowserState, BrowserTabGroupColor, BrowserTabGroupState, BrowserTabState, McpTabActivity, UserAttentionRequest } from '../../../shared/types.js'
+import type { BrowserState, BrowserTabGroupColor, BrowserTabGroupState, BrowserTabState, DroppedLinkTarget, McpTabActivity, UserAttentionRequest } from '../../../shared/types.js'
 import { AGENT_AVATAR_VISIBLE_LIMIT, agentAvatarColorHex, type AgentPresence, type HronautAgentPresenceApi } from '../../../shared/agent-presence.js'
 import { BROWSER_TAB_GROUP_COLOR_HEX, defaultTabGroupColor } from '../../../shared/tab-groups.js'
 import { foldRailWorkspaces, pinnedWorkspacesFirst } from '../../../shared/workspace-rail.js'
@@ -27,6 +27,7 @@ import { attentionReasonText } from '../composables/agent-attention-reason.js'
 import { useWorkspaceGroupAgents } from '../composables/useWorkspaceGroupAgents.js'
 import { useCollapsedTabGroups } from '../composables/useCollapsedTabGroups.js'
 import { useTabDragReorder } from '../composables/useTabDragReorder.js'
+import { useTabLinkDrop } from '../composables/useTabLinkDrop.js'
 import { useTabStripScroll } from '../composables/useTabStripScroll.js'
 import { vTooltip } from '../ui/tooltip.js'
 import { ignoreHeldEnter } from '../held-enter.js'
@@ -62,6 +63,8 @@ const props = defineProps<{
    * shell's own list is; without it the list scrolls its active tab into view.
    */
   initialScrollTop?: number
+  /** Links dropped on a tab or a workspace's New tab button open there; the copy main draws over the page leaves it out. */
+  linkDrops?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -72,6 +75,8 @@ const emit = defineEmits<{
   selectTab: [tabId: string]
   showTabContextMenu: [tabId: string]
   reorderTab: [details: { tabId: string; targetTabId: string; placement: 'before' | 'after' }]
+  /** A link, or other text, dropped on a tab or a workspace's New tab button. */
+  dropLink: [details: { text: string; target: DroppedLinkTarget }]
   toggleTabMuted: [tab: BrowserTabState]
   closeTab: [tabId: string]
   dragStart: []
@@ -132,6 +137,29 @@ const { draggedTabId, tabDropTargetId, tabDropPlacement, clearTabDrag, beginTabD
   onDragStart: () => emit('dragStart'),
   onReorder: (details) => emit('reorderTab', details)
 })
+const {
+  linkDropTabId, linkDropPlacement, linkDropWorkspaceId, enterStrip, overStrip, leaveStrip, endStripDrag, overTab, dropOnTab, overNewTab, dropOnNewTab
+} = useTabLinkDrop({
+  vertical,
+  accepts: () => props.linkDrops === true,
+  draggingTab: () => draggedTabId.value !== null,
+  onDrop: (details) => emit('dropLink', details)
+})
+
+// A tab of the bar moves when dragged over another; a link opens on or beside the tab it is dropped on. Entering a tab
+// counts as moving over it.
+function handleTabDragover(event: DragEvent, tab: BrowserTabState): void {
+  if (!overTab(event, tab)) updateTabDrop(event, tab)
+}
+
+function handleTabDrop(event: DragEvent, tab: BrowserTabState): void {
+  if (!dropOnTab(event, tab)) finishTabDrop(event, tab)
+}
+
+function tabDropMarker(tab: BrowserTabState): 'onto' | 'before' | 'after' | undefined {
+  if (tabDropTargetId.value === tab.id) return tabDropPlacement.value ?? undefined
+  return linkDropTabId.value === tab.id ? linkDropPlacement.value ?? undefined : undefined
+}
 
 function tabGroupColor(tab: BrowserTabState): string | undefined {
   if (!tab.mcpGroupId) return undefined
@@ -561,6 +589,11 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, toggleTabGroup, collapsedTa
       :aria-label="t('shell.tabs.list')"
       @scroll="handleTabStripScroll"
       @wheel="scrollTabsWithWheel"
+      @dragenter="enterStrip"
+      @dragover="overStrip"
+      @dragleave="leaveStrip"
+      @drop="endStripDrag"
+      @dragend="endStripDrag"
     >
     <div
       v-for="workspace in railWorkspaces"
@@ -625,7 +658,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, toggleTabGroup, collapsedTa
           :tab="tab"
           :active="tab.active && !settingsActive"
           :dragging="draggedTabId === tab.id"
-          :drop-placement="tabDropTargetId === tab.id ? tabDropPlacement ?? undefined : undefined"
+          :drop-placement="tabDropMarker(tab)"
           :all-human-interaction-locked="state.allHumanInteractionLocked"
           :all-tabs-muted="state.allTabsMuted === true"
           :split-orientation="tabSplitOrientation(tab)"
@@ -643,8 +676,9 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, toggleTabGroup, collapsedTa
           @tab-auxclick="handleTabAuxClick"
           @context-menu="showTabContextMenu"
           @tab-dragstart="beginTabDrag"
-          @tab-dragover="updateTabDrop"
-          @tab-drop="finishTabDrop"
+          @tab-dragenter="handleTabDragover"
+          @tab-dragover="handleTabDragover"
+          @tab-drop="handleTabDrop"
           @tab-dragend="clearTabDrag"
           @toggle-muted="toggleTabMuted"
           @close="closeTab"
@@ -653,11 +687,15 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, toggleTabGroup, collapsedTa
       </div>
       <UiButton appearance="application"
         class="new-tab workspace-new-tab"
+        :class="{ 'link-drop-target': linkDropWorkspaceId === workspace.id }"
         type="button"
         :style="tabGroupColorStyle(workspace.color)"
         v-tooltip="t('runtime.tabs.newTab', { name: workspace.name })"
         :aria-label="t('runtime.tabs.newTab', { name: workspace.name })"
         @click="emit('newTab', workspace.id)"
+        @dragenter="overNewTab($event, workspace.id)"
+        @dragover="overNewTab($event, workspace.id)"
+        @drop="dropOnNewTab($event, workspace.id)"
       ><IconAdd aria-hidden="true" /><span class="workspace-new-tab-label">{{ t('tabSearch.newTabTitle') }}</span></UiButton>
     </div>
     <UiButton appearance="application"
@@ -677,10 +715,14 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, toggleTabGroup, collapsedTa
     ><IconStacks aria-hidden="true" /><span class="all-workspaces-label">{{ allWorkspacesLabel }}</span><span v-if="unlistedWorkspaceNeedsYou" class="all-workspaces-needs-you" aria-hidden="true" /></UiButton>
     <UiButton v-if="!state.mcpTabGroups.length" appearance="application"
       class="new-tab"
+      :class="{ 'link-drop-target': linkDropWorkspaceId === '' }"
       type="button"
       v-tooltip="t('tabSearch.newTabTitle')"
       :aria-label="t('tabSearch.newTabTitle')"
       @click="emit('newTab')"
+      @dragenter="overNewTab($event)"
+      @dragover="overNewTab($event)"
+      @drop="dropOnNewTab($event)"
     ><IconAdd aria-hidden="true" /></UiButton>
     <!-- A folded rail keeps Create workspace at the end of its list, as before; once open, the Workspaces header has it.
          Focus opens the rail, so this copy is left out of the tab order rather than lost from under focus. -->

@@ -14,6 +14,7 @@ import type {
   BrowserWorkspaceNavigationPolicy,
   BrowserWorkspaceStorageTransferOptions,
   BrowserWorkspaceStorageTransferResult,
+  DroppedLinkTarget,
   NavigateOptions,
   NewTabOptions
 } from './browser-state.js'
@@ -136,6 +137,11 @@ export interface HronautApi {
   setTabPageLifecycle(tabId: string, state: 'active' | 'frozen'): Promise<BrowserState>
   sleepInactiveTabs(): Promise<BrowserState>
   reorderTab(tabId: string, targetTabId: string, placement: 'before' | 'after'): Promise<BrowserState>
+  /**
+   * Opens the text of a link or other text dropped on the tab strip or rail where it was dropped; text that is no
+   * address searches. A javascript: address opens nothing.
+   */
+  dropLink(text: string, target: DroppedLinkTarget): Promise<BrowserState>
   /** Gives the keyboard to the page in view, as F6 does from Chrome's toolbar. */
   focusActivePage(): Promise<void>
   createWorkspace(options: BrowserWorkspaceCreateOptions): Promise<BrowserState>

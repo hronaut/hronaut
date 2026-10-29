@@ -31,7 +31,8 @@ const props = defineProps<{
   /** The tab is the one in view, and Settings does not cover it. */
   active: boolean
   dragging: boolean
-  dropPlacement?: 'before' | 'after'
+  /** Where a dragged tab or link would land: before or after this tab, or a link on it. */
+  dropPlacement?: 'before' | 'after' | 'onto'
   /** The browser-wide lock and mute show as pressed buttons, so a row does not repeat them. */
   allHumanInteractionLocked: boolean
   allTabsMuted: boolean
@@ -59,6 +60,7 @@ const emit = defineEmits<{
   tabAuxclick: [event: MouseEvent, tab: BrowserTabState]
   contextMenu: [tabId: string]
   tabDragstart: [event: DragEvent, tab: BrowserTabState]
+  tabDragenter: [event: DragEvent, tab: BrowserTabState]
   tabDragover: [event: DragEvent, tab: BrowserTabState]
   tabDrop: [event: DragEvent, tab: BrowserTabState]
   tabDragend: []
@@ -86,6 +88,7 @@ const networkUnconfirmed = computed(() => Boolean(props.tab.networkConditionStat
       dragging,
       'drop-before': dropPlacement === 'before',
       'drop-after': dropPlacement === 'after',
+      'drop-onto': dropPlacement === 'onto',
       locked: tab.humanInteractionInputLocked ?? (allHumanInteractionLocked || tab.humanInteractionLocked),
       'split-visible': splitOrientation !== undefined,
       'mcp-active': agentCommand !== undefined,
@@ -110,6 +113,7 @@ const networkUnconfirmed = computed(() => Boolean(props.tab.networkConditionStat
     @auxclick="emit('tabAuxclick', $event, tab)"
     @contextmenu.prevent="emit('contextMenu', tab.id)"
     @dragstart="emit('tabDragstart', $event, tab)"
+    @dragenter="emit('tabDragenter', $event, tab)"
     @dragover="emit('tabDragover', $event, tab)"
     @drop="emit('tabDrop', $event, tab)"
     @dragend="emit('tabDragend')"

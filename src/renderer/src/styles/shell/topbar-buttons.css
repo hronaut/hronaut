@@ -12,6 +12,10 @@
 .workspace-new-tab:focus-visible {
   @apply [border-color:var(--tab-group-color)] [background:color-mix(in_srgb,_var(--tab-group-color)_22%,_var(--toolbar))];
 }
+/* A link dropped here opens in a new tab. */
+.new-tab.link-drop-target {
+  @apply [box-shadow:inset_0_0_0_2px_var(--accent),_0_0_7px_color-mix(in_srgb,_var(--accent)_70%,_transparent)];
+}
 .workspace-action-divider {
   @apply [width:1px] [height:20px] [flex:0_0_1px] [margin:0_2px_9px_1px] [background:var(--border-soft)];
 }

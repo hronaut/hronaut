@@ -316,3 +316,12 @@ export interface NavigateOptions {
   tabId?: string
   url: string
 }
+
+/**
+ * Where a link dropped on the tab strip or rail opens: in the tab it was dropped on, in a new tab before or after that
+ * tab, or in a new tab at the end of a workspace, as when it was dropped on the workspace's New tab button; the person's
+ * own workspace when none is named.
+ */
+export type DroppedLinkTarget =
+  | { tabId: string; placement: 'onto' | 'before' | 'after' }
+  | { workspaceId?: string }

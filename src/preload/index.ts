@@ -67,6 +67,7 @@ import type {
   HronautTaskManagerApi,
   BrowsingDataClearOptions,
   McpTabActivity,
+  DroppedLinkTarget,
   NavigateOptions,
   NewTabOptions,
   SitePermissionDecision,
@@ -152,6 +153,7 @@ const api: HronautApi = {
   sleepInactiveTabs: () => ipcRenderer.invoke('browser:sleep-inactive-tabs'),
   reorderTab: (tabId: string, targetTabId: string, placement: 'before' | 'after') =>
     ipcRenderer.invoke('browser:reorder-tab', tabId, targetTabId, placement),
+  dropLink: (text: string, target: DroppedLinkTarget) => ipcRenderer.invoke('browser:drop-link', text, target),
   focusActivePage: () => ipcRenderer.invoke('browser:focus-active-page'),
   createWorkspace: (options: BrowserWorkspaceCreateOptions) => ipcRenderer.invoke('browser:create-workspace', options),
   openWorkspaceTemplateFile: () => ipcRenderer.invoke('browser:open-workspace-template-file'),

@@ -96,6 +96,10 @@ export async function navigate<Tab extends PageNavigationTab>(access: PageNaviga
   const samePage = (): boolean => access.findTab(tab.id) === tab && tab.webContents === webContents
     && !webContents.isDestroyed() && tab.documentGeneration === documentGeneration
   if (!samePage()) return access.getState()
+  // The question is about this page, so its tab comes into view first, as when a link was dropped on a tab behind the
+  // one shown.
+  await access.showTab(tab)
+  if (!samePage()) return access.getState()
   if (!await access.confirmLeavePage()) {
     // The person keeps editing the page, which takes the keyboard as the page they asked for would have once loaded.
     if (samePage()) access.focusKeptPage(tab)
