@@ -23,8 +23,11 @@ export interface StatePublicationOptions {
   canPublish(): boolean
   /** The browser state as it is now. */
   read(): BrowserState
-  /** The shown tabs whose pages are loading now, without reading the whole state. */
-  shownLoadingTabIds(): Iterable<string>
+  /**
+   * The pages loading in the shown tabs now, one key for each tab and the navigation it is on, without reading the
+   * whole state.
+   */
+  shownLoadingPages(): Iterable<string>
   /** Sends a state to the shell and the state hooks. */
   send(state: BrowserState): void
 }
@@ -36,9 +39,11 @@ export interface StatePublicationOptions {
  * The shell says when it drew a publication (drawn), once its view of it is patched, before the frame is laid out and
  * painted. Until then, changes wait, and once it did, they wait as long again as that took, so a shell slower than the
  * changes draws the newest state instead of falling seconds behind on a queue of older ones, and keeps about half its
- * time for the person and its own work. A shown page that starts loading goes out at once: the shell learns a load
- * began from its tab's loading flag, which a fast reload would otherwise clear before the next publication, and
- * detached panels act on it. A state equal to the last one sent is not sent again until the state is read, since the
+ * time for the person and its own work. A shown tab that starts loading a page, or moves on to a new one while it
+ * loads, goes out at once. The shell learns a load began from the tab's loading flag, which a fast reload would
+ * otherwise clear before the next publication, and detached panels act on it. It closes the panels it opened for a
+ * page when the tab gets a new one, and tells a page's own load ending from a new page only by seeing the new page
+ * while the tab still loads. A state equal to the last one sent is not sent again until the state is read, since the
  * reader may show the shell that state as an action's reply.
  */
 export class StatePublication {
@@ -53,7 +58,7 @@ export class StatePublication {
   /** A change came while the shell was still drawing. */
   private waiting = false
   private lastSent: string | undefined
-  /** The shown tabs the last state sent showed loading. */
+  /** The pages the last state sent showed loading in the shown tabs. */
   private sentLoading = new Set<string>()
 
   constructor(private readonly options: StatePublicationOptions) {}
@@ -61,7 +66,7 @@ export class StatePublication {
   /** Something in the state changed. */
   changed(): void {
     if (!this.options.canPublish()) return
-    if (this.shownLoadStarted()) {
+    if (this.shownPageLoadStarted()) {
       this.publishNow()
       return
     }
@@ -127,9 +132,9 @@ export class StatePublication {
     if (this.options.canPublish()) this.schedule()
   }
 
-  private shownLoadStarted(): boolean {
-    for (const tabId of this.options.shownLoadingTabIds()) {
-      if (!this.sentLoading.has(tabId)) return true
+  private shownPageLoadStarted(): boolean {
+    for (const page of this.options.shownLoadingPages()) {
+      if (!this.sentLoading.has(page)) return true
     }
     return false
   }
@@ -146,7 +151,7 @@ export class StatePublication {
     const state = this.options.read()
     const serialized = JSON.stringify(state)
     if (serialized === this.lastSent) return
-    const loading = new Set(this.options.shownLoadingTabIds())
+    const loading = new Set(this.options.shownLoadingPages())
     try {
       this.options.send(state)
     } catch (error) {

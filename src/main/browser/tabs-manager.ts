@@ -1213,7 +1213,10 @@ export class BrowserTabsManager {
   private readonly statePublication = new StatePublication({
     canPublish: () => !this.destroyed && !this.window.isDestroyed() && !this.restoringLayout,
     read: () => getState(this.browserStateAccess()),
-    shownLoadingTabIds: () => shownTabIds(this.activeTabId, this.splitView).filter((id) => this.tabs.get(id)?.loading === true),
+    shownLoadingPages: () => shownTabIds(this.activeTabId, this.splitView).flatMap((id) => {
+      const tab = this.tabs.get(id)
+      return tab?.loading === true ? [`${id}:${tab.navigationGeneration}`] : []
+    }),
     send: (state) => {
       if (!this.window.webContents.isDestroyed()) this.window.webContents.send('browser:state-changed', state)
       this.options.onStateChanged?.(state)

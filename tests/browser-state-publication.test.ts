@@ -19,16 +19,17 @@ async function advance(ms: number): Promise<void> {
 }
 
 /**
- * A publication of a state holding one tab, whose title and loading a test changes, sent to a fake shell. The shell
- * says it drew each state right after it arrives, unless the test draws them itself; the tab is shown unless hidden.
+ * A publication of a state holding one tab, whose title, loading and navigation a test changes, sent to a fake shell.
+ * The shell says it drew each state right after it arrives, unless the test draws them itself; the tab is shown unless
+ * hidden.
  */
 function publication(options: { drawsItself?: boolean; hidden?: boolean } = {}) {
   const sent: BrowserState[] = []
-  const page = { title: 'Start', loading: false }
+  const page = { title: 'Start', loading: false, navigation: 0 }
   let open = true
   let failing = false
   const read = (): BrowserState => ({
-    tabs: [{ id: 'tab', title: page.title, loading: page.loading } as BrowserTabState],
+    tabs: [{ id: 'tab', title: page.title, loading: page.loading, navigationGeneration: page.navigation } as BrowserTabState],
     closedTabs: [],
     activeTabId: 'tab',
     allTabsMuted: false,
@@ -42,7 +43,7 @@ function publication(options: { drawsItself?: boolean; hidden?: boolean } = {}) 
   const states = new StatePublication({
     canPublish: () => open,
     read,
-    shownLoadingTabIds: () => page.loading && !options.hidden ? ['tab'] : [],
+    shownLoadingPages: () => page.loading && !options.hidden ? [`tab:${page.navigation}`] : [],
     send: (state) => {
       if (failing) throw new Error('hook failed')
       sent.push(state)
@@ -54,6 +55,7 @@ function publication(options: { drawsItself?: boolean; hidden?: boolean } = {}) 
     sent,
     titles: () => sent.map(state => state.tabs[0]!.title),
     loading: () => sent.map(state => state.tabs[0]!.loading),
+    pages: () => sent.map(state => [state.tabs[0]!.loading, state.tabs[0]!.navigationGeneration]),
     change: (next: Partial<typeof page>) => { Object.assign(page, next); states.changed() },
     close: () => { open = false },
     fail: (next: boolean) => { failing = next }
@@ -190,6 +192,23 @@ it('sends again a while after a state the shell never said it drew', async () =>
   expect(shell.titles()).toEqual(['First'])
   await advance(1)
   expect(shell.titles()).toEqual(['First', 'Second'])
+})
+
+it('sends a shown tab that moves on to a new page while it loads at once, so the shell tells it from the load ending', async () => {
+  // The shell closes the panels it opened for a page when the tab gets a new one. A new tab starts loading, moves on to
+  // its first page and stops loading within a moment; seen only once it stopped, the new page looked like one that
+  // came after the load, and Page tools opened meanwhile closed.
+  const shell = publication({ drawsItself: true })
+  shell.change({ title: 'New tab' })
+  shell.change({ loading: true })
+  shell.change({ navigation: 1 })
+  shell.change({ loading: false })
+  expect(shell.pages()).toEqual([[false, 0], [true, 0], [true, 1]])
+  shell.states.drawn()
+  shell.states.drawn()
+  shell.states.drawn()
+  await advance(STATE_PUBLISH_MS)
+  expect(shell.pages()).toEqual([[false, 0], [true, 0], [true, 1], [false, 1]])
 })
 
 it('sends a shown page that starts loading even while the shell draws, but not a page loading behind it', async () => {
