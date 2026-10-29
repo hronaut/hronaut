@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { parse } from 'yaml'
 import {
   STARTUP_LAUNCH_ARGUMENT,
   StartupLaunchManager,
@@ -29,6 +30,9 @@ describe('StartupLaunchManager', () => {
 
     const entry = await readFile(join(directory, 'hronaut.desktop'), 'utf8')
     expect(entry).toContain('Name=Hronaut')
+    // The same description as the app menu entry, which electron-builder writes from linux.description.
+    const builder = parse(await readFile('electron-builder.yml', 'utf8')) as { linux: { description: string } }
+    expect(entry).toContain(`\nComment=${builder.linux.description}\n`)
     expect(entry).toContain('Exec="/opt/Hronaut 100%% Browser/hronaut" --launch-at-login')
     expect(entry).toContain('TryExec=/opt/Hronaut 100% Browser/hronaut')
     expect(await manager.isEnabled()).toBe(true)
