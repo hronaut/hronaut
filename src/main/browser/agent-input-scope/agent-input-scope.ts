@@ -1,7 +1,8 @@
 import { webContents as electronWebContents, type WebContents } from 'electron'
 import { clearRendererAgentInputFlag, NativeInputCleanupError } from '../native-input-cleanup.js'
 import { printDialogHolds, whenPrintDialogCloses } from '../print-dialog-guard.js'
-import type { AgentInputScopeAccess } from './agent-input-scope-access.js'
+import type { Browser } from '../browser.js'
+import { findTab } from '../browser-core.js'
 import { beginAgentFocusIsolation, restoreHumanFocusAfterAgentInput } from './focus-isolation.js'
 
 /**
@@ -12,22 +13,22 @@ import { beginAgentFocusIsolation, restoreHumanFocusAfterAgentInput } from './fo
  * guard of a locked tab, puts the person's focus back and releases focus
  * isolation, reporting cleanup failures through onCleanupFailure.
  */
-export async function withAgentInput<Tab, T>(
-  access: AgentInputScopeAccess<Tab>,
+export async function withAgentInput<T>(
+  browser: Browser,
   webContents: WebContents,
   operation: () => Promise<T>,
   options: { deferRendererFlag?: boolean; onCleanupFailure?: () => void } = {}
 ): Promise<T> {
-  const depth = (access.agentInputWebContents().get(webContents.id) ?? 0) + 1
+  const depth = (browser.agentInputWebContents.get(webContents.id) ?? 0) + 1
   if (depth === 1) {
-    const mainWindowFocused = access.window().isFocused()
-    access.agentInputFocusGuardReleases().set(webContents.id, beginAgentFocusIsolation(access))
-    access.agentInputFocusSnapshots().set(webContents.id, {
+    const mainWindowFocused = browser.window.isFocused()
+    browser.agentInputFocusGuardReleases.set(webContents.id, beginAgentFocusIsolation(browser))
+    browser.agentInputFocusSnapshots.set(webContents.id, {
       mainWindowFocused,
       focusedWebContentsId: electronWebContents.getFocusedWebContents()?.id ?? null
     })
   }
-  access.agentInputWebContents().set(webContents.id, depth)
+  browser.agentInputWebContents.set(webContents.id, depth)
   let nativeCleanupFailure: NativeInputCleanupError | undefined
   try {
     if (depth === 1 && !options.deferRendererFlag && !webContents.isDestroyed()) {
@@ -41,13 +42,13 @@ export async function withAgentInput<Tab, T>(
     throw error
   } finally {
     try {
-      const remaining = Math.max(0, (access.agentInputWebContents().get(webContents.id) ?? 1) - 1)
+      const remaining = Math.max(0, (browser.agentInputWebContents.get(webContents.id) ?? 1) - 1)
       if (remaining > 0) {
-        access.agentInputWebContents().set(webContents.id, remaining)
+        browser.agentInputWebContents.set(webContents.id, remaining)
       } else {
-        access.agentInputWebContents().delete(webContents.id)
-        const focusSnapshot = access.agentInputFocusSnapshots().get(webContents.id)
-        access.agentInputFocusSnapshots().delete(webContents.id)
+        browser.agentInputWebContents.delete(webContents.id)
+        const focusSnapshot = browser.agentInputFocusSnapshots.get(webContents.id)
+        browser.agentInputFocusSnapshots.delete(webContents.id)
         try {
           if (!webContents.isDestroyed()) {
             await clearRendererAgentInputFlag(webContents, options.onCleanupFailure)
@@ -55,14 +56,14 @@ export async function withAgentInput<Tab, T>(
               // The page's print dialog kept the flag from being cleared. Without it, the person's own pointer input
               // to Hronaut's element picker and screenshot area on this page would still read as an agent's.
               void whenPrintDialogCloses(webContents).then(async () => {
-                if (!webContents.isDestroyed() && !access.agentInputWebContents().has(webContents.id)) await clearRendererAgentInputFlag(webContents)
+                if (!webContents.isDestroyed() && !browser.agentInputWebContents.has(webContents.id)) await clearRendererAgentInputFlag(webContents)
               })
             }
-            const tabId = access.tabIdForWebContents(webContents.id)
-            const tab = tabId ? access.findTab(tabId) : undefined
-            if (!webContents.isDestroyed() && tab && access.isHumanInteractionLocked(tab)) {
+            const tabId = browser.webContentsToTab.get(webContents.id)
+            const tab = tabId ? findTab(browser, tabId) : undefined
+            if (!webContents.isDestroyed() && tab && browser.isHumanInteractionLocked(tab)) {
               try {
-                await access.syncHumanInteractionInputGuard(tab)
+                await browser.syncHumanInteractionInputGuard(tab)
               } catch (error) {
                 options.onCleanupFailure?.()
                 // Preserve acknowledged input uncertainty, but otherwise keep
@@ -73,10 +74,10 @@ export async function withAgentInput<Tab, T>(
           }
         } finally {
           try {
-            restoreHumanFocusAfterAgentInput(access, webContents, focusSnapshot)
+            restoreHumanFocusAfterAgentInput(browser, webContents, focusSnapshot)
           } finally {
-            const releaseFocusGuard = access.agentInputFocusGuardReleases().get(webContents.id)
-            access.agentInputFocusGuardReleases().delete(webContents.id)
+            const releaseFocusGuard = browser.agentInputFocusGuardReleases.get(webContents.id)
+            browser.agentInputFocusGuardReleases.delete(webContents.id)
             releaseFocusGuard?.()
           }
         }

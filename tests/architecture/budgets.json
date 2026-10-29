@@ -1,6 +1,6 @@
 {
   "oversizedFiles": {
-    "src/main/browser/browser.ts": 6953,
+    "src/main/browser/browser.ts": 6830,
     "src/main/browser/downloads-controller.ts": 811,
     "src/main/index.ts": 1662,
     "src/main/mcp/http-server.ts": 856,
@@ -11,7 +11,6 @@
   "accessFiles": [
     "src/main/browser/agent-follow/agent-follow-access.ts",
     "src/main/browser/agent-input-authorization/agent-input-authorization-access.ts",
-    "src/main/browser/agent-input-scope/agent-input-scope-access.ts",
     "src/main/browser/agent-keys/agent-keys-access.ts",
     "src/main/browser/agent-page-actions/agent-page-actions-access.ts",
     "src/main/browser/agent-pause/agent-pause-access.ts",
@@ -27,8 +26,6 @@
     "src/main/browser/credential-capture/credential-capture-access.ts",
     "src/main/browser/credential-fill/credential-fill-access.ts",
     "src/main/browser/debug-report/debug-report-access.ts",
-    "src/main/browser/debugger-evaluation/debugger-evaluation-access.ts",
-    "src/main/browser/debugger-lease/debugger-lease-access.ts",
     "src/main/browser/devtools/devtools-access.ts",
     "src/main/browser/download-copy/download-copy-access.ts",
     "src/main/browser/download-tab-close/download-tab-close-access.ts",
@@ -51,7 +48,6 @@
     "src/main/browser/network-inspection/network-inspection-access.ts",
     "src/main/browser/new-tabs/new-tabs-access.ts",
     "src/main/browser/page-audits/page-audits-access.ts",
-    "src/main/browser/page-evaluation/page-evaluation-access.ts",
     "src/main/browser/page-find/page-find-access.ts",
     "src/main/browser/page-fullscreen/page-fullscreen-access.ts",
     "src/main/browser/page-geometry/page-geometry-access.ts",
@@ -114,7 +110,6 @@
     "src/main/browser/workspace-creation/workspace-creation-access.ts",
     "src/main/browser/workspace-data/workspace-data-access.ts",
     "src/main/browser/workspace-navigation/workspace-navigation-access.ts",
-    "src/main/browser/workspace-operations/workspace-operations-access.ts",
-    "src/main/browser/workspace-scope/workspace-scope-access.ts"
+    "src/main/browser/workspace-operations/workspace-operations-access.ts"
   ]
 }
