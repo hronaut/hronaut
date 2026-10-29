@@ -2,9 +2,31 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { BrowserState, HronautApi } from '../../../shared/types.js'
-import type { BrowserImportPreview, BrowserImportProfile, BrowserImportResponse, BrowserImportResult } from '../../../shared/browser-import.js'
+import type { BrowserImportErrorCode, BrowserImportPreview, BrowserImportProfile, BrowserImportResponse, BrowserImportResult } from '../../../shared/browser-import.js'
 import UiButton from '../ui/UiButton.vue'
 import { friendlyUiError } from '../composables/useAppToastController.js'
+
+/** How to fix a browser key error: install the missing tool with one of these commands, or unlock the keyring or wallet. */
+type KeyFix = { kind: 'install'; tool: string; commands: readonly { system: string; command: string }[] } | { kind: 'unlock' }
+// Package names and commands read the same in every language, so they live here and not in the locales.
+const KEY_FIXES: Partial<Record<BrowserImportErrorCode, KeyFix>> = {
+  secretToolMissing: { kind: 'install', tool: 'secret-tool', commands: [
+    { system: 'Ubuntu, Debian', command: 'sudo apt install libsecret-tools' },
+    { system: 'Fedora', command: 'sudo dnf install libsecret' },
+    { system: 'Arch', command: 'sudo pacman -S libsecret' }
+  ] },
+  kwalletQueryMissing: { kind: 'install', tool: 'kwallet-query', commands: [
+    { system: 'Ubuntu 25.04+, Debian 13+', command: 'sudo apt install kwallet6' },
+    { system: 'Ubuntu 24.04, Debian 12', command: 'sudo apt install libkf5wallet-bin' },
+    { system: 'Fedora', command: 'sudo dnf install kf6-kwallet' },
+    { system: 'Arch', command: 'sudo pacman -S kwallet' }
+  ] },
+  keyUnavailable: { kind: 'unlock' }
+}
+/** A refusal from the main process that keeps its code, so the panel can say how to fix it. */
+class BrowserImportFailure extends Error {
+  constructor(readonly code: BrowserImportErrorCode, message: string) { super(message) }
+}
 
 const props = defineProps<{ workspaceId: string; state: BrowserState; browser: HronautApi; syncState: (next: Promise<BrowserState> | BrowserState) => Promise<void> }>()
 const emit = defineEmits<{ busy: [boolean]; close: [] }>()
@@ -19,20 +41,29 @@ const busy = ref(false)
 const writing = ref(false)
 const previewConsumed = ref(false)
 const error = ref('')
+const errorCode = ref<BrowserImportErrorCode>()
+const copied = ref('')
+const copyFailed = ref(false)
 let generation = 0
+let copyRequest = 0
 const workspace = computed(() => props.state.mcpTabGroups.find(g => g.id === props.workspaceId) ?? props.state.savedTabGroups.find(g => g.id === props.workspaceId))
 const archived = computed(() => props.state.savedTabGroups.some(g => g.id === props.workspaceId))
 const sites = computed(() => preview.value?.sites.filter(s => s.domain.includes(filter.value.trim().toLowerCase())) ?? [])
+const keyFix = computed(() => errorCode.value && KEY_FIXES[errorCode.value])
 function unwrap<T>(response: BrowserImportResponse<T>): T {
-  if (!response.ok) throw new Error(t(`browserImport.errors.${response.error}`))
+  if (!response.ok) throw new BrowserImportFailure(response.error, t(`browserImport.errors.${response.error}`))
   return response.value
 }
 function setBusy(value: boolean): void { busy.value = value; emit('busy', value) }
 async function run(action: () => Promise<void>): Promise<void> {
   if (busy.value) return
-  error.value = ''; setBusy(true)
+  error.value = ''; errorCode.value = undefined; copied.value = ''; copyFailed.value = false; copyRequest++; setBusy(true)
   const current = generation
-  try { await action() } catch (cause) { if (current === generation) error.value = friendlyUiError(cause, t('browserImport.error')) }
+  try { await action() } catch (cause) {
+    if (current !== generation) return
+    error.value = friendlyUiError(cause, t('browserImport.error'))
+    errorCode.value = cause instanceof BrowserImportFailure ? cause.code : undefined
+  }
   finally { if (current === generation) setBusy(false) }
 }
 /**
@@ -77,6 +108,14 @@ async function read(): Promise<void> {
     if (current !== generation || profileId.value !== source) return
     preview.value = next; previewConsumed.value = false; selected.value = []
   })
+}
+async function copyCommand(command: string): Promise<void> {
+  const request = ++copyRequest
+  copied.value = ''; copyFailed.value = false
+  try {
+    await props.browser.copyText(command)
+    if (request === copyRequest) copied.value = command
+  } catch { if (request === copyRequest) copyFailed.value = true }
 }
 function selectAll(): void { selected.value = [...new Set([...selected.value, ...sites.value.map(s => s.domain)])] }
 async function commit(): Promise<void> {
@@ -150,6 +189,24 @@ onBeforeUnmount(() => { generation++; void props.browser.browserImport.cancel().
       </template>
       <p v-if="busy" role="status">{{ t('browserImport.working') }}</p>
       <p v-if="error" class="workspace-editor-error" role="alert">{{ error }}</p>
+      <section v-if="error && keyFix" class="browser-import-fix" aria-labelledby="browser-import-fix-title" data-testid="browser-import-fix">
+        <h4 id="browser-import-fix-title">{{ t('browserImport.fix.title') }}</h4>
+        <ol>
+          <li v-if="keyFix.kind === 'unlock'">{{ t('browserImport.fix.unlock') }}</li>
+          <li v-else>
+            {{ t('browserImport.fix.install', { tool: keyFix.tool }) }}
+            <ul class="browser-import-commands">
+              <li v-for="(row, index) in keyFix.commands" :key="row.command">
+                <span>{{ row.system }}</span>
+                <code :id="`browser-import-command-${index}`">{{ row.command }}</code>
+                <UiButton size="small" :aria-describedby="`browser-import-command-${index}`" @click="copyCommand(row.command)">{{ t(copied === row.command ? 'browserImport.fix.copied' : 'browserImport.fix.copy') }}</UiButton>
+              </li>
+            </ul>
+          </li>
+          <li>{{ t('browserImport.fix.retry', { button: t('browserImport.continue') }) }}</li>
+        </ol>
+        <p v-if="copyFailed" role="alert">{{ t('browserImport.fix.copyFailed') }}</p>
+      </section>
     </div>
     <div class="browser-import-footer">
       <div v-if="preview" class="browser-import-actions">
@@ -176,4 +233,10 @@ onBeforeUnmount(() => { generation++; void props.browser.browserImport.cancel().
 .browser-import-sites label { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: var(--corner-1); background: var(--surface); }
 .browser-import-sites label span:nth-child(2) { flex: 1; overflow-wrap: anywhere; }
 .browser-import-sites small { display: block; opacity: 0.7; }
+.browser-import-fix { display: grid; gap: 8px; }
+.browser-import-fix ol { display: grid; gap: 8px; margin: 0; padding-left: 20px; line-height: 1.5; }
+.browser-import-commands { display: grid; gap: 6px; margin: 8px 0 0; padding: 0; list-style: none; }
+.browser-import-commands li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 8px; padding: 8px; border-radius: var(--corner-1); background: var(--surface); }
+.browser-import-commands span { grid-column: 1 / -1; color: var(--text-muted); font-size: var(--type-small-size); }
+.browser-import-commands code { font-family: var(--font-code); overflow-wrap: anywhere; user-select: text; }
 </style>
