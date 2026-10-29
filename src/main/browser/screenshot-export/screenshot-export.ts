@@ -155,9 +155,10 @@ function emulatedViewportSize(tab: BrowserTab): { width: number; height: number 
 }
 
 /**
- * How many device pixels a capture has per CSS pixel: the largest display
- * scale, which a capture uses wherever the window is. It needs the tab's
- * emulation confirmed, and refuses a scale that is not finite or over 32.
+ * The device pixels per CSS pixel a capture of the tab can have: the largest
+ * display scale, since a hidden window captures offscreen on whichever
+ * display is nearest. It throws while the tab's emulation is unconfirmed, and
+ * refuses a scale that is not finite or over 32.
  */
 function captureScale(browser: Browser, tab: BrowserTab): number {
   browser.requireEmulationConfirmed(tab)
