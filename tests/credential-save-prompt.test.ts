@@ -147,13 +147,14 @@ describe('a password change that names no account', () => {
     expect(store.save).toHaveBeenCalledWith('https://login.example', 'grace@example.com', 'k7Gm2xPqR9sTv4w')
   })
 
-  it('offers an unnamed account when no saved password is the current one, or the form gave none', async () => {
+  it('offers an unnamed account when no saved password, or more than one, is the current one, or the form gave none', async () => {
     const accounts = [
       { origin: 'https://login.example', username: 'ada@example.com', password: 'another-secret' },
       { origin: 'https://login.example', username: 'grace@example.com', password: 'yet-another' }
     ]
-    for (const candidate of [change, { ...change, previousPassword: undefined }]) {
-      const { credentials, store, showDialog } = runtimeWithAccounts(accounts)
+    const shared = accounts.map((account) => ({ ...account, password: 'old-secret' }))
+    for (const [saved, candidate] of [[accounts, change], [accounts, { ...change, previousPassword: undefined }], [shared, change]] as const) {
+      const { credentials, store, showDialog } = runtimeWithAccounts([...saved])
       credentials.offerToSaveCredential(candidate)
       await vi.waitFor(() => expect(store.save).toHaveBeenCalledOnce())
       expect(showDialog.mock.calls[0]![0]).toMatchObject({

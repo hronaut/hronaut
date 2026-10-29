@@ -54,18 +54,20 @@ export function createCredentialRuntime(host: CredentialRuntimeHost): {
 
   /**
    * The saved account a form that changes a password names none for, as Chrome finds it: the website's only saved
-   * account, or else the one whose saved password is the current password the form gave. Without one the password is
-   * offered for an unnamed account. Saved passwords are compared here and never leave the main process.
+   * account, or else the one whose saved password is the current password the form gave. Without one, or with several
+   * that have it, which Hronaut has no way to choose between, the password is offered for an unnamed account. Saved
+   * passwords are compared here and never leave the main process.
    */
   async function changedAccount(origin: string, previousPassword: string | undefined): Promise<string> {
     if (!previousPassword || previousPassword.length > 16_384) return ''
     const saved = host.state.store!.list().filter((entry) => entry.origin === origin)
     if (saved.length === 1) return saved[0]!.username
+    const matches: string[] = []
     for (const entry of saved) {
       // A password the secure storage cannot decrypt is not this one.
-      if (await host.state.store!.password(entry.id).catch(() => null) === previousPassword) return entry.username
+      if (await host.state.store!.password(entry.id).catch(() => null) === previousPassword) matches.push(entry.username)
     }
-    return ''
+    return matches.length === 1 ? matches[0]! : ''
   }
 
   async function handleCredentialCandidate(candidate: BrowserCredentialCandidate): Promise<void> {
