@@ -33,6 +33,9 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D, Ctrl+E, Alt+Home, F6, Ctrl+F4 and Ctrl+Page 
       if (!page) throw new Error('Page web contents was not found')
       return page.executeJavaScript(script) as Promise<string[]>
     }, { url: await pageOf(id), script })
+    // The tab's page is up and listening. The tab shows a new address from the start, but its page has it only once
+    // the server's answer commits, and runs the script that listens a moment later, so neither is there to read before.
+    const listening = (id: string) => expect.poll(() => keys(id, 'window.keys?.slice() ?? null').catch(() => null)).toEqual([])
     // The person's key on the tab's page, as the keyboard sends it.
     const press = async (id: string, keyCode: string, modifiers: Array<'shift' | 'control' | 'alt'> = []) => electronApp.evaluate(({ webContents }, { url, keyCode, modifiers }) => {
       const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)
@@ -44,6 +47,7 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D, Ctrl+E, Alt+Home, F6, Ctrl+F4 and Ctrl+Page 
     const visit = async (to: string) => {
       await appWindow.evaluate(`window.hronaut.navigate({ url: ${JSON.stringify(origin + to)}, tabId: ${JSON.stringify(tabId)} })`)
       await expect.poll(() => path(tabId)).toBe(to)
+      await listening(tabId)
     }
     const addressBar = appWindow.getByRole('combobox', { name: 'Address', exact: true })
     const focusedPage = () => electronApp.evaluate(({ webContents }) => webContents.getFocusedWebContents()?.getURL())
@@ -58,12 +62,16 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D, Ctrl+E, Alt+Home, F6, Ctrl+F4 and Ctrl+Page 
     await expect.poll(() => loadsOf('/page').length).toBe(1)
     await press(tabId, 'F5')
     await expect.poll(() => loadsOf('/page').length).toBe(2)
+    // The reload replaces the page, which listens again only once the new one is there.
+    await listening(tabId)
     expect(loadsOf('/page')[1]!.cacheControl).not.toBe('no-cache')
     await press(tabId, 'F5', ['shift'])
     await expect.poll(() => loadsOf('/page').length).toBe(3)
+    await listening(tabId)
     expect(loadsOf('/page')[2]!.cacheControl).toBe('no-cache')
     await press(tabId, 'F5', ['control'])
     await expect.poll(() => loadsOf('/page').length).toBe(4)
+    await listening(tabId)
     expect(loadsOf('/page')[3]!.cacheControl).toBe('no-cache')
     await press(tabId, 'D', ['alt'])
     await expect.poll(focusedPage).toBe(appWindow.url())
@@ -142,6 +150,7 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D, Ctrl+E, Alt+Home, F6, Ctrl+F4 and Ctrl+Page 
     // With neither open, the same keys act at once, and nothing pressed before comes in late.
     await pressInWindow('R', ['control'])
     await expect.poll(() => loadsOf('/page').length).toBe(5)
+    await listening(tabId)
     await pressInWindow('=', ['control', 'shift'])
     await expect.poll(zoom).toBeGreaterThan(zoomBefore)
     await pressInWindow('0', ['control'])
@@ -209,6 +218,7 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D, Ctrl+E, Alt+Home, F6, Ctrl+F4 and Ctrl+Page 
     const next = (await state()).tabs.find(tab => tab.url === `${origin}/next`)!.id
     await expect.poll(async () => (await state()).activeTabId).toBe(next)
     await expect.poll(() => loadsOf('/next').length).toBe(1)
+    await listening(next)
     await press(next, 'PageUp', ['control'])
     await expect.poll(async () => (await state()).activeTabId).toBe(tabId)
     await press(tabId, 'PageDown', ['control'])
@@ -250,8 +260,7 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D, Ctrl+E, Alt+Home, F6, Ctrl+F4 and Ctrl+Page 
       const id = (await state()).tabs.find(tab => tab.url === origin + path)!.id
       await expect.poll(async () => (await state()).activeTabId).toBe(id)
       await expect.poll(() => loads.some(load => load.path === path)).toBe(true)
-      // Its page is up and listening.
-      await expect.poll(() => keys(id)).toEqual([])
+      await listening(id)
       return id
     }
     const isOpen = async (id: string) => (await state()).tabs.some(tab => tab.id === id)

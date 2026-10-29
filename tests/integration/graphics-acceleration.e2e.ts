@@ -104,15 +104,19 @@ test('restarts Hronaut from beside the notice, and the next run applies the chan
     await settings.restartNow.click()
     await exited
 
-    const deadline = Date.now() + 30_000
-    while (!next) {
-      try {
-        next = await chromium.connectOverCDP(`http://127.0.0.1:${devToolsPort}`)
-      } catch (error) {
-        if (Date.now() > deadline) throw error
-        await new Promise((resolve) => setTimeout(resolve, 250))
-      }
+    // DevTools lists each of the next run's pages as soon as it opens, before its document commits, and Playwright,
+    // attached in between, can miss that commit and never report the page, while connecting waits for every page there.
+    // So the test attaches once DevTools lists Hronaut's window and then Home, its one tab, each with its document's
+    // title, which a page has only once its document is there.
+    const startupListed = async () => {
+      const response = await fetch(`http://127.0.0.1:${devToolsPort}/json/list`).catch(() => undefined)
+      const pages = ((await response?.json().catch(() => undefined) ?? []) as Array<{ type: string, url: string, title: string }>)
+        .filter((target) => target.type === 'page')
+      return pages.some((page) => page.url.endsWith('/renderer/index.html') && page.title === 'Hronaut')
+        && pages.some((page) => page.url.startsWith('hronaut://home') && page.title === 'Hronaut Home')
     }
+    await expect.poll(startupListed, { timeout: 30_000 }).toBe(true)
+    next = await chromium.connectOverCDP(`http://127.0.0.1:${devToolsPort}`)
     const shell = async () => {
       for (const page of next!.contexts().flatMap((context) => context.pages())) {
         if (await page.evaluate('typeof window.hronautSettings?.graphicsAccelerationInUse === "function"').catch(() => false)) {
