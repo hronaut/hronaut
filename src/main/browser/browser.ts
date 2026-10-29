@@ -6147,7 +6147,7 @@ export class Browser {
     }
   }
 
-  validateTarget(target: { ref?: string; selector?: string }): void {
+  private validateTarget(target: { ref?: string; selector?: string }): void {
     validateTarget(target)
   }
 

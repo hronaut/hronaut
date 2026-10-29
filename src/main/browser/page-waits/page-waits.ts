@@ -5,6 +5,7 @@ import { LocalizedError } from '../../localized-error.js'
 import { pageLoadTimedOut } from '../http-auth/http-auth.js'
 import type { Browser } from '../browser.js'
 import { getTab } from '../browser-core.js'
+import { validateTarget } from '../input-targets/input-targets.js'
 import { targetStateScript } from '../page-scripts.js'
 
 /** Waits until the tab stops loading, rejecting if it closes, loses its renderer or times out. */
@@ -179,7 +180,7 @@ export async function waitForElement(
   timeoutMs = 30_000,
   state: 'attached' | 'detached' | 'visible' | 'hidden' = 'visible'
 ): Promise<boolean> {
-  browser.validateTarget(target)
+  validateTarget(target)
   const tab = getTab(browser, tabId)
   const webContents = tab.webContents
   const deadline = Date.now() + Math.min(Math.max(timeoutMs, 1), 60_000)
