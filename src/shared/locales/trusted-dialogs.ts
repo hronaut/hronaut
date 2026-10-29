@@ -1227,5 +1227,5 @@ export const trustedDialogMessages = {
         other: '{origin} muốn sử dụng “{permission}”'
       }
     }
-  },
+  }
 }

@@ -119,5 +119,5 @@ export const searchEngineMessages = {
     bing: 'Tìm kiếm web và hình ảnh của Microsoft',
     brave: 'Tìm kiếm độc lập, chú trọng quyền riêng tư',
     startpage: 'Kết quả riêng tư, không lập hồ sơ người dùng'
-  },
+  }
 }
