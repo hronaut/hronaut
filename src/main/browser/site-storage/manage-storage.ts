@@ -5,14 +5,15 @@ import type { CookieWriteHooks } from '../cookie-write-operation.js'
 import { boundStorageItems } from '../storage-items.js'
 import { executeWebStorage, WebStorageInputError, type WebStorageHooks } from '../web-storage-operation.js'
 import { manageCookies } from './cookies.js'
-import type { SiteStorageAccess, SiteStorageTab } from './site-storage-access.js'
+import type { Browser } from '../browser.js'
+import { findTab, getTab } from '../browser-core.js'
 
 const MAX_STORAGE_KEY_CHARS = 512
 const MAX_STORAGE_INPUT_VALUE_BYTES = 256 * 1024
 
 /** Lists, reads, sets, deletes or clears local storage, session storage or cookies for one HTTP(S) tab's origin. */
-export async function manageStorage<Tab extends SiteStorageTab>(access: SiteStorageAccess<Tab>, options: BrowserStorageOptions, cookieWriteHooks?: CookieWriteHooks, webStorageHooks?: WebStorageHooks): Promise<BrowserStorageResult> {
-  const tab = access.getTab(options.tabId)
+export async function manageStorage(browser: Browser, options: BrowserStorageOptions, cookieWriteHooks?: CookieWriteHooks, webStorageHooks?: WebStorageHooks): Promise<BrowserStorageResult> {
+  const tab = getTab(browser, options.tabId)
   const action = options.action ?? 'list'
   const pageUrl = new URL(tab.url)
   if (pageUrl.protocol !== 'http:' && pageUrl.protocol !== 'https:') {
@@ -50,21 +51,21 @@ export async function manageStorage<Tab extends SiteStorageTab>(access: SiteStor
   }
 
   if (options.kind === 'cookies') {
-    return manageCookies(access, tab, pageUrl, action, key, options.value, options.includeValues === true, cookieWriteHooks,
+    return manageCookies(browser, tab, pageUrl, action, key, options.value, options.includeValues === true, cookieWriteHooks,
       exactCookie ? { domain: options.cookieDomain!, path: options.cookiePath! } : undefined)
   }
 
   const contents = tab.webContents
-  const context = access.snapshotDeltaContext(tab)
-  const workspace = tab.mcpGroupId ? access.findWorkspace(tab.mcpGroupId) : undefined
-  const permissionGeneration = workspace ? access.inspectionPermission(workspace) ?? 0 : 0
+  const context = browser.snapshotDeltaContext(tab)
+  const workspace = tab.mcpGroupId ? browser.mcpTabGroups.get(tab.mcpGroupId) : undefined
+  const permissionGeneration = workspace ? browser.inspectionPermissions.get(workspace) ?? 0 : 0
   const assertCurrent = (): void => {
     webStorageHooks?.validate()
-    const currentWorkspace = tab.mcpGroupId ? access.findWorkspace(tab.mcpGroupId) : undefined
-    if (access.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== contents || contents.isDestroyed()
+    const currentWorkspace = tab.mcpGroupId ? browser.mcpTabGroups.get(tab.mcpGroupId) : undefined
+    if (browser.destroyed || findTab(browser, tab.id) !== tab || tab.webContents !== contents || contents.isDestroyed()
       || currentWorkspace !== workspace
-      || (currentWorkspace ? access.inspectionPermission(currentWorkspace) ?? 0 : 0) !== permissionGeneration
-      || snapshotDeltaInvalidationReason(context, access.snapshotDeltaContext(tab))) {
+      || (currentWorkspace ? browser.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== permissionGeneration
+      || snapshotDeltaInvalidationReason(context, browser.snapshotDeltaContext(tab))) {
       throw new Error('Storage context changed. Earlier changes are not rolled back; inspect fresh state before continuing.')
     }
   }

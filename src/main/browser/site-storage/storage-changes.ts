@@ -14,25 +14,27 @@ import {
 import type { BrowserStorageChangesAction, BrowserStorageChangesReport } from '../../../shared/types.js'
 import { utf8Prefix } from '../../../shared/utf8.js'
 import { StorageComparisonInputError, type StorageComparisonHooks } from '../storage-comparison-operation.js'
-import type { SiteStorageAccess, SiteStorageTab } from './site-storage-access.js'
+import type { Browser } from '../browser.js'
+import { findTab, getTab } from '../browser-core.js'
+import type { BrowserTab } from '../browser-tab.js'
 
 /** Records, compares or clears the tab's in-memory storage baseline for its origin. */
-export async function storageChanges<Tab extends SiteStorageTab>(
-  access: SiteStorageAccess<Tab>,
+export async function storageChanges(
+  browser: Browser,
   action: BrowserStorageChangesAction = 'get',
   tabId?: string,
   includeValues = false,
   hooks?: StorageComparisonHooks
 ): Promise<BrowserStorageChangesReport> {
-  const tab = access.getTab(tabId)
+  const tab = getTab(browser, tabId)
   const pageUrl = new URL(tab.url)
   const origin = pageUrl.origin
   const contents = tab.webContents
   const storageSession = contents.session
   const url = tab.url
-  const context = access.snapshotDeltaContext(tab)
-  const workspace = tab.mcpGroupId ? access.findWorkspace(tab.mcpGroupId) : undefined
-  const permissionGeneration = workspace ? access.inspectionPermission(workspace) ?? 0 : 0
+  const context = browser.snapshotDeltaContext(tab)
+  const workspace = tab.mcpGroupId ? browser.mcpTabGroups.get(tab.mcpGroupId) : undefined
+  const permissionGeneration = workspace ? browser.inspectionPermissions.get(workspace) ?? 0 : 0
   let comparison = tab.storageComparison
   let operationGeneration = tab.storageComparisonGeneration
   let documentCommitted = false
@@ -44,12 +46,12 @@ export async function storageChanges<Tab extends SiteStorageTab>(
     if (!rejected) {
       try {
         hooks?.validate()
-        const currentWorkspace = tab.mcpGroupId ? access.findWorkspace(tab.mcpGroupId) : undefined
-        if (access.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== contents
+        const currentWorkspace = tab.mcpGroupId ? browser.mcpTabGroups.get(tab.mcpGroupId) : undefined
+        if (browser.destroyed || findTab(browser, tab.id) !== tab || tab.webContents !== contents
           || contents.isDestroyed() || contents.session !== storageSession || tab.url !== url
           || currentWorkspace !== workspace
-          || (currentWorkspace ? access.inspectionPermission(currentWorkspace) ?? 0 : 0) !== permissionGeneration
-          || snapshotDeltaInvalidationReason(context, access.snapshotDeltaContext(tab))
+          || (currentWorkspace ? browser.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== permissionGeneration
+          || snapshotDeltaInvalidationReason(context, browser.snapshotDeltaContext(tab))
           || documentCommitted || tab.storageComparisonGeneration !== operationGeneration
           || tab.storageComparison !== comparison) throw new Error('Storage comparison context changed')
         return
@@ -100,7 +102,7 @@ export async function storageChanges<Tab extends SiteStorageTab>(
 }
 
 function storageChangesReport(
-  tab: SiteStorageTab,
+  tab: BrowserTab,
   origin: string,
   action: BrowserStorageChangesAction,
   includeValues: boolean
