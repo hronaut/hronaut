@@ -6,9 +6,9 @@ import { isHronautHomeUrl } from '../url.js'
 import type { Browser } from '../browser.js'
 import { canMuteSite, isSiteMuted } from '../site-muting/site-muting.js'
 import { setTabSleepingFromContextMenu, sleepBlockReason, sleepFallbackTab } from '../tab-sleep/tab-sleep.js'
-import { workspaceContextMenuItems } from './workspace-context-menu.js'
 import { findTab, getTab, orderedTabs } from '../browser-core.js'
 import { reorderTab } from '../tab-arrangement/tab-arrangement.js'
+import { workspaceContextMenuItems } from './workspace-context-menu.js'
 import { selectedMenuTabs, showSelectedTabsContextMenu } from './selected-tabs-context-menu.js'
 
 /**

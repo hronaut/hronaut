@@ -19,11 +19,11 @@ import type { BrowserClosedTabState, BrowserState } from '../src/shared/types.js
 type Tab = { id: string; url: string; mcpGroupId?: string; pinned: boolean; title: string; label?: string; sleeping?: boolean }
 
 /**
- * A tab manager with these tabs open, in a Ukrainian interface. Closing the shown tab shows the tab after it, or the
- * one before it when it was last, waking it when it sleeps, as the tab manager does; a tab listed as staying asks to
+ * A browser with these tabs open, in a Ukrainian interface. Closing the shown tab shows the tab after it, or the
+ * one before it when it was last, waking it when it sleeps, as the browser does; a tab listed as staying asks to
  * stay and is kept.
  */
-function manager(tabs: Tab[], options: { active?: string; staying?: string[] } = {}) {
+function openBrowser(tabs: Tab[], options: { active?: string; staying?: string[] } = {}) {
   const open = [...tabs]
   const closed: BrowserClosedTabState[] = []
   const offers: UndoableAction[] = []
@@ -80,7 +80,7 @@ function sites(...ids: string[]): Tab[] {
 describe('closing tabs for the person', () => {
   it('names a closed blank tab in the interface language on its Undo offer', async () => {
     // Hronaut calls a blank tab "New tab" until a page names it; the Undo toast showed that English title in every language.
-    const { browser, offers } = manager([
+    const { browser, offers } = openBrowser([
       { id: 'blank', title: 'New tab', url: 'about:blank', pinned: false },
       { id: 'site', title: 'New tab', url: 'https://example.test/new', pinned: false }
     ])
@@ -92,7 +92,7 @@ describe('closing tabs for the person', () => {
   })
 
   it('closes the shown tab last, so no sleeping tab wakes only to be closed next', async () => {
-    const tabs = manager(sites('shown', 'asleep-1', 'asleep-2', 'kept'), { active: 'shown' })
+    const tabs = openBrowser(sites('shown', 'asleep-1', 'asleep-2', 'kept'), { active: 'shown' })
 
     // Close other tabs on the last tab passes the others in order, the shown one first.
     await closeTabsForPerson(tabs.browser as never, ['shown', 'asleep-1', 'asleep-2'])
@@ -106,7 +106,7 @@ describe('closing tabs for the person', () => {
   })
 
   it('closes tabs in their order when the shown tab is not among them', async () => {
-    const tabs = manager(sites('a', 'asleep-b', 'c', 'shown'), { active: 'shown' })
+    const tabs = openBrowser(sites('a', 'asleep-b', 'c', 'shown'), { active: 'shown' })
 
     await closeTabsForPerson(tabs.browser as never, ['a', 'asleep-b', 'c'])
 
@@ -115,7 +115,7 @@ describe('closing tabs for the person', () => {
   })
 
   it('stops at a page that asks to stay, which leaves the shown tab open too', async () => {
-    const tabs = manager(sites('shown', 'a', 'stays', 'kept'), { active: 'shown', staying: ['stays'] })
+    const tabs = openBrowser(sites('shown', 'a', 'stays', 'kept'), { active: 'shown', staying: ['stays'] })
 
     await closeTabsForPerson(tabs.browser as never, ['shown', 'a', 'stays'])
 
@@ -125,7 +125,7 @@ describe('closing tabs for the person', () => {
   })
 
   it('puts every tab back in its place on Undo when the shown tab in the middle closed last', async () => {
-    const tabs = manager(sites('x1', 'shown', 'x2', 'kept'), { active: 'shown' })
+    const tabs = openBrowser(sites('x1', 'shown', 'x2', 'kept'), { active: 'shown' })
 
     await closeTabsForPerson(tabs.browser as never, ['x1', 'shown', 'x2'])
     expect(tabs.closedOrder()).toEqual(['x1', 'x2', 'shown'])
@@ -135,7 +135,7 @@ describe('closing tabs for the person', () => {
   })
 
   it('names a closed tab by its label first', async () => {
-    const { browser, offers } = manager([{ id: 'blank', title: 'New tab', label: 'Checkout task', url: 'about:blank', pinned: false }])
+    const { browser, offers } = openBrowser([{ id: 'blank', title: 'New tab', label: 'Checkout task', url: 'about:blank', pinned: false }])
     await closeTabsForPerson(browser as never, ['blank'])
     expect(offers).toMatchObject([{ kind: 'tabs-closed', name: 'Checkout task', count: 1 }])
   })

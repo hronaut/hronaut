@@ -955,6 +955,10 @@ export class Browser {
   mainWindowFocusableBeforeAgentInput = true
   readonly elementPickerSessions = new Map<number, BrowserElementPickerSession>()
   readonly screenshotAreaSessions = new Map<number, BrowserScreenshotAreaSession>()
+  /**
+   * The closes in flight that let the tab's page ask to stay, by tab id, with the tab each began on. Only the tab's
+   * identity is compared, so a newer tab under the same id starts its own close.
+   */
   readonly pendingHumanTabCloses = new Map<string, { tab: BrowserTab; operation: Promise<BrowserState> }>()
   readonly expectedTabClosures = new WeakSet<WebContents>()
   destroyed = false
@@ -2309,6 +2313,7 @@ export class Browser {
     return attemptBeforeUnloadClose(webContents)
   }
 
+  /** The split partner and the tab that becomes active when this tab closes. */
   closeTabTransition(tab: BrowserTab): { splitPartnerId: string | null; nextId: string | undefined } {
     const splitPartnerId = this.splitViewContains(tab.id)
       ? (this.splitView!.firstTabId === tab.id ? this.splitView!.secondTabId : this.splitView!.firstTabId)
@@ -2381,6 +2386,11 @@ export class Browser {
     }
   }
 
+  /**
+   * Closes a tab, opening a replacement when it was the last, letting its page ask to stay when respectBeforeUnload
+   * is set, and keeping a shown tab open when yieldsToNewerSelection is set and another tab is selected while the tab
+   * that replaces it wakes.
+   */
   closeTabInternal(
     tabId: string,
     ensureReplacement: boolean,
@@ -2390,6 +2400,7 @@ export class Browser {
     return withTabLabelLifecycle(this, () => closeTabAfterLabelSave(this, tabId, ensureReplacement, respectBeforeUnload, yieldsToNewerSelection))
   }
 
+  /** Closes the tab, opening a replacement when it was the last and ensureReplacement is set. */
   async performCloseTab(
     tabId: string,
     ensureReplacement: boolean,
