@@ -79,6 +79,7 @@ export const zhTWAppErrors: AppErrorMessages = {
     "closedWhileWaiting": "等待網頁時，分頁已關閉。",
     "rendererLostWhileWaiting": "等待網頁時，分頁轉譯器已無法使用。",
     "loadTimedOut": "等待網頁載入完成時逾時。",
+    "signInAsked": "這個網站要求提供使用者名稱和密碼，Hronaut 已請使用者登入；使用者登入後網頁就會開啟。請讓使用者登入，然後再次檢查這個分頁。",
     "zoomPercent": "網頁縮放百分比必須是 50 到 400 之間的整數",
     "findQuery": "搜尋字詞必須包含 1 到 1,000 個字元",
     "printFailed": "Hronaut 無法列印這個網頁。",

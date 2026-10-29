@@ -186,9 +186,12 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     if (tab.sleeping) return
     void access.loadFavicon(tab, favicons)
   })
-  // Observe only. Without preventDefault Electron cancels the challenge, so
-  // no credentials are requested, supplied or retried.
-  webContents.on('login', (_event, details, authInfo) => access.recordAuthChallenge(tab, details, authInfo))
+  // Records the challenge for browser_issues, then asks the person to sign in, as Chrome does; a challenge Hronaut does
+  // not ask about, such as one from another website's frame, Electron cancels.
+  webContents.on('login', (event, details, authInfo, callback) => {
+    access.recordAuthChallenge(tab, details, authInfo)
+    access.answerHttpAuth(tab, event, details, authInfo, callback)
+  })
   webContents.on('audio-state-changed', (event) => {
     tab.audible = event.audible
     tab.muted = webContents.isAudioMuted()

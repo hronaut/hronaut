@@ -10,7 +10,7 @@ import { holdOverlayEntrance, occludeBrowserContent, overlayEntranceEpoch, relea
 import { useShellOverlayCoordinationController } from '../../src/renderer/src/composables/useShellOverlayCoordinationController.js'
 import { useModalDialogFocus } from '../../src/renderer/src/composables/useModalDialogFocus.js'
 import type { SupportedLocale } from '../../src/shared/locale.js'
-import type { HronautTrustedDialogsApi, TrustedDialogRequest } from '../../src/shared/trusted-dialogs.js'
+import type { HronautTrustedDialogsApi, TrustedDialogRequest, TrustedDialogShellState } from '../../src/shared/trusted-dialogs.js'
 
 function sitePermission(id: string, overrides: Partial<Extract<TrustedDialogRequest['variant'], { kind: 'site-permission' }>> = {}): TrustedDialogRequest {
   return {
@@ -28,7 +28,7 @@ function sitePermission(id: string, overrides: Partial<Extract<TrustedDialogRequ
 }
 
 function mountDialog(locale: SupportedLocale = 'en-US') {
-  let publish: (request: TrustedDialogRequest | null) => void = () => undefined
+  let publish: (request: TrustedDialogRequest | null, state: TrustedDialogShellState) => void = () => undefined
   const ready = vi.fn()
   const respond = vi.fn()
   const api: HronautTrustedDialogsApi = {
@@ -44,8 +44,9 @@ function mountDialog(locale: SupportedLocale = 'en-US') {
   return {
     api: { ready, respond },
     controller,
-    show: async (request: TrustedDialogRequest | null) => {
-      publish(request)
+    /** Main shows the request, or none, and says whether a sign-in closed unanswered moments ago. */
+    show: async (request: TrustedDialogRequest | null, state: TrustedDialogShellState = { afterInterruptedSignIn: false }) => {
+      publish(request, state)
       await nextTick()
       await nextTick()
     },
@@ -178,7 +179,7 @@ describe('Hronaut’s permission dialog', () => {
 
   it('waits for the page to leave the screen when its own request covers the page', async () => {
     // The shell starts covering the page from the request itself, before the dialog could start its moment on screen.
-    let publish: (request: TrustedDialogRequest | null) => void = () => undefined
+    let publish: (request: TrustedDialogRequest | null, state: TrustedDialogShellState) => void = () => undefined
     const api: HronautTrustedDialogsApi = { ready: vi.fn(), respond: vi.fn(), onChanged: (listener) => { publish = listener; return () => undefined } }
     const covered: Array<[boolean, number]> = []
     const shellApi = { setBrowserContentOccluded: (occluded: boolean, request: number) => { covered.push([occluded, request]) } }
@@ -196,7 +197,7 @@ describe('Hronaut’s permission dialog', () => {
       }
     })
     render(Shell, { global: { plugins: [createHronautI18n('en-US')] } })
-    publish(sitePermission('one'))
+    publish(sitePermission('one'), { afterInterruptedSignIn: false })
     await nextTick()
     await nextTick()
     expect(covered).toEqual([[true, overlayEntranceEpoch()]])
@@ -599,5 +600,221 @@ describe('Hronaut’s Claude Code setup dialog', () => {
     within(dialog).getByRole('region', { name: 'Новий запис у "mcpServers"' })
     within(dialog).getByRole('region', { name: 'Запис, який він замінить' })
     expect(dialog).toHaveTextContent('Hronaut запише справжній токен MCP на місце •••.')
+  })
+})
+
+function httpAuth(id: string, overrides: Partial<Extract<TrustedDialogRequest['variant'], { kind: 'http-auth' }>> = {}): TrustedDialogRequest {
+  return {
+    id,
+    type: 'question',
+    title: 'Sign in',
+    message: 'Sign in to https://intranet.example',
+    buttons: ['Cancel', 'Sign in'],
+    defaultId: 0,
+    cancelId: 0,
+    primaryId: 1,
+    variant: { kind: 'http-auth', origin: 'https://intranet.example', secure: true, workspaceName: 'Client A', ...overrides }
+  }
+}
+
+describe('Hronaut’s sign-in dialog for a website', () => {
+  it('names the website and the workspace, with the focus in Username and fields that take no typing until it takes answers', async () => {
+    const { show, settle } = mountDialog()
+    await show(httpAuth('one'))
+    const dialog = screen.getByRole('alertdialog', { name: 'Sign in to https://intranet.example' })
+    expect(dialog).toHaveAttribute('data-variant', 'http-auth')
+    expect(dialog).toHaveTextContent('You stay signed in to this website in the “Client A” workspace until Hronaut quits.')
+    expect(dialog).toHaveTextContent('Hronaut sends your username and password only to this website and never shows them to agents.')
+    expect(dialog).not.toHaveTextContent('not private')
+    const username = screen.getByLabelText('Username')
+    expect(screen.getByLabelText('Password')).toHaveAttribute('type', 'password')
+    expect(username).toHaveFocus()
+    expect(username).toHaveAttribute('readonly')
+    await settle()
+    expect(username).not.toHaveAttribute('readonly')
+    expect(username).toHaveFocus()
+    expect(screen.getByRole('button', { name: 'Sign in' })).toHaveClass('ui-button--primary')
+  })
+
+  it('warns that anyone on the network can read what is sent over an unencrypted connection', async () => {
+    const { show } = mountDialog()
+    await show(httpAuth('one', { origin: 'http://intranet.example', secure: false, workspaceName: undefined }))
+    const dialog = screen.getByRole('alertdialog', { name: 'Sign in to http://intranet.example' })
+    expect(dialog).toHaveClass('trusted-dialog--warning')
+    expect(dialog).toHaveTextContent('Your connection to this site is not private. Anyone on the network can read your username and password.')
+    expect(dialog).not.toHaveTextContent('workspace')
+  })
+
+  it('signs in with what the person typed, by Enter or the button, and cancels without sending any of it', async () => {
+    const { api, show, settle } = mountDialog()
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTimeAsync })
+    await show(httpAuth('one'))
+    await settle()
+    await user.type(screen.getByLabelText('Username'), 'ada')
+    await user.type(screen.getByLabelText('Password'), 's3cret{Enter}')
+    expect(api.respond).toHaveBeenCalledExactlyOnceWith('one', 1, { username: 'ada', password: 's3cret' })
+    expect(screen.getByLabelText('Password')).toHaveValue('')
+
+    await show(httpAuth('two'))
+    await settle()
+    expect(screen.getByLabelText('Username')).toHaveValue('')
+    await user.type(screen.getByLabelText('Password'), 'typed')
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(api.respond).toHaveBeenLastCalledWith('two', 0)
+
+    await show(httpAuth('three'))
+    await settle()
+    expect(screen.getByLabelText('Password')).toHaveValue('')
+    await user.type(screen.getByLabelText('Username'), 'grace')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+    expect(api.respond).toHaveBeenLastCalledWith('three', 1, { username: 'grace', password: '' })
+  })
+
+  it('takes no Enter before it takes answers, nor one held since before it opened, nor one that ends a composed word', async () => {
+    const { api, show, settle } = mountDialog()
+    await show(httpAuth('one'))
+    const password = screen.getByLabelText('Password')
+    await fireEvent.keyDown(password, { key: 'Enter' })
+    await settle()
+    password.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true }))
+    await fireEvent.keyDown(password, { key: 'Enter', isComposing: true })
+    expect(api.respond).not.toHaveBeenCalled()
+    await fireEvent.keyDown(password, { key: 'Enter' })
+    expect(api.respond).toHaveBeenCalledExactlyOnceWith('one', 1, { username: '', password: '' })
+  })
+
+  it('moves from Username to Password on Enter, so a password typed into Username is never sent by its Enter', async () => {
+    const { api, show, settle } = mountDialog()
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTimeAsync })
+    await show(httpAuth('one'))
+    await settle()
+    await user.type(screen.getByLabelText('Username'), 'tail{Enter}')
+    expect(api.respond).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('Password')).toHaveFocus()
+  })
+
+  it('repeats a key held in its fields, such as Backspace, but never a held Enter or Tab', async () => {
+    const { show, settle } = mountDialog()
+    await show(httpAuth('one'))
+    await settle()
+    const username = screen.getByLabelText('Username')
+    const held = (key: string): boolean => username.dispatchEvent(new KeyboardEvent('keydown', { key, repeat: true, bubbles: true, cancelable: true }))
+    expect(held('Backspace')).toBe(true)
+    expect(held('a')).toBe(true)
+    expect(held('Enter')).toBe(false)
+    expect(held('Tab')).toBe(false)
+  })
+
+  it('starts on its text when it shows moments after a sign-in that closed before the person answered, who may still be typing', async () => {
+    const { api, show, settle } = mountDialog()
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTimeAsync })
+    const interrupted = { afterInterruptedSignIn: true }
+    await show(httpAuth('one'))
+    await settle()
+    await user.type(screen.getByLabelText('Password'), 'pass')
+    // Main closes the first sign-in, as when its page loads another, and shows another tab's one in its place.
+    await show(httpAuth('two', { origin: 'https://intranet-example.test' }), interrupted)
+    const text = screen.getByTestId('trusted-dialog-details')
+    expect(text).toHaveFocus()
+    await settle()
+    expect(text).toHaveFocus()
+    // The rest of the password and its Enter press nothing, not even Cancel, and no field takes them.
+    await user.keyboard('word{Enter}')
+    expect(api.respond).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('Username')).toHaveValue('')
+    expect(screen.getByLabelText('Password')).toHaveValue('')
+    // Tab moves on to Username, where the person signs in.
+    await user.tab()
+    expect(screen.getByLabelText('Username')).toHaveFocus()
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(api.respond).toHaveBeenCalledExactlyOnceWith('two', 0)
+
+    // The page that asked opens one that asks: no dialog for a moment, then the new sign-in, which the rest of the
+    // password must not reach either.
+    await show(httpAuth('three'))
+    await settle()
+    await user.type(screen.getByLabelText('Password'), 'pass')
+    await show(null, interrupted)
+    await show(httpAuth('four', { origin: 'https://intranet-example.test' }), interrupted)
+    expect(screen.getByTestId('trusted-dialog-details')).toHaveFocus()
+    await user.keyboard('word{Enter}')
+    await settle()
+    expect(screen.getByTestId('trusted-dialog-details')).toHaveFocus()
+    await user.keyboard('word{Enter}')
+    expect(screen.getByLabelText('Username')).toHaveValue('')
+    expect(api.respond).toHaveBeenCalledTimes(1)
+
+    // One that comes later starts in Username, as usual, and its text takes no focus.
+    await show(httpAuth('five'))
+    await settle()
+    expect(screen.getByLabelText('Username')).toHaveFocus()
+    expect(screen.getByTestId('trusted-dialog-details')).not.toHaveAttribute('tabindex')
+  })
+
+  it('starts any dialog shown moments after an interrupted sign-in on its text, where the rest of a password and Enter answer nothing', async () => {
+    const { api, show, settle } = mountDialog()
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTimeAsync })
+    await show(httpAuth('one'))
+    await settle()
+    await user.type(screen.getByLabelText('Password'), 'pass')
+    // A website's permission prompt replaces the sign-in that closed while the person typed.
+    await show(sitePermission('permission'), { afterInterruptedSignIn: true })
+    const text = screen.getByTestId('trusted-dialog-details')
+    expect(text).toHaveFocus()
+    await settle()
+    expect(text).toHaveFocus()
+    await user.keyboard('word{Enter}')
+    expect(api.respond).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Allow' }))
+    expect(api.respond).toHaveBeenCalledExactlyOnceWith('permission', 1)
+    // So does a message with nothing but its headline, whose OK Enter would press.
+    await show({ id: 'message', type: 'info', title: 'Hronaut', message: 'Something happened', buttons: ['OK'], defaultId: 0, cancelId: 0, variant: { kind: 'message' } }, { afterInterruptedSignIn: true })
+    await settle()
+    expect(screen.getByTestId('trusted-dialog-details')).toHaveFocus()
+    await user.keyboard('{Enter}')
+    expect(api.respond).toHaveBeenCalledOnce()
+    // One that comes later starts on its safe answer, as usual.
+    await show(sitePermission('later'))
+    await settle()
+    expect(screen.getByRole('button', { name: 'Deny' })).toHaveFocus()
+  })
+
+  it('gives the focus back to the shell control it came from once answered, but to nothing when it closes before an answer', async () => {
+    const { show, settle } = mountDialog()
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTimeAsync })
+    const address = document.createElement('input')
+    address.setAttribute('aria-label', 'Address')
+    document.body.append(address)
+    try {
+      address.focus()
+      await show(httpAuth('one'))
+      await settle()
+      await user.click(screen.getByRole('button', { name: 'Cancel' }))
+      await show(null)
+      expect(address).toHaveFocus()
+
+      // Answered in another tab: the person is done with it.
+      await show(httpAuth('two'))
+      await settle()
+      await show(null)
+      expect(address).toHaveFocus()
+
+      await show(httpAuth('three'))
+      await settle()
+      await user.type(screen.getByLabelText('Password'), 'pass')
+      await show(null, { afterInterruptedSignIn: true })
+      expect(address).not.toHaveFocus()
+      expect(document.activeElement).toBe(document.body)
+    } finally {
+      address.remove()
+    }
+  })
+
+  it('keeps the field the person moved to while it was opening', async () => {
+    const { show, settle } = mountDialog()
+    await show(httpAuth('one'))
+    screen.getByLabelText('Password').focus()
+    await settle()
+    expect(screen.getByLabelText('Password')).toHaveFocus()
   })
 })

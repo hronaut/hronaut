@@ -79,6 +79,7 @@ export const jaJPAppErrors: AppErrorMessages = {
     "closedWhileWaiting": "ページを待っている間にタブが閉じられました。",
     "rendererLostWhileWaiting": "ページを待っている間にタブのレンダラが利用できなくなりました。",
     "loadTimedOut": "ページの読み込みの完了を待機中にタイムアウトしました。",
+    "signInAsked": "ウェブサイトがユーザー名とパスワードを求めているため、Hronaut はユーザーにサインインを依頼しました。サインインするとページが開きます。ユーザーにサインインを依頼してから、もう一度タブを確認してください。",
     "zoomPercent": "ページのズームの割合は 50～400 の整数にしてください",
     "findQuery": "検索語句は 1～1,000 文字にしてください",
     "printFailed": "Hronaut はこのページを印刷できませんでした。",

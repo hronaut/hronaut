@@ -1,5 +1,5 @@
 import type { WebContents } from 'electron'
-import { LocalizedError } from '../localized-error.js'
+import { pageLoadTimedOut } from './http-auth/http-auth.js'
 import { PAGE_LOAD_WAIT_MS } from './page-waits/page-load-limit.js'
 
 type ReadinessEvent = 'dom-ready' | 'did-stop-loading' | 'did-navigate' | 'render-process-gone' | 'destroyed'
@@ -106,7 +106,7 @@ export function runPageScriptsOnceDocumentReady(page: ReadinessPage): void {
           recheckTimer = undefined
         }
         if (waitEnded && !page.isDestroyed() && (!page.getURL() || (navigationPending && page.isWaitingForResponse()))) {
-          reject(new LocalizedError('appErrors.page.loadTimedOut'))
+          reject(pageLoadTimedOut(page))
           return
         }
         try {

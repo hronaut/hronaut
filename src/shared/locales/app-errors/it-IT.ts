@@ -79,6 +79,7 @@ export const itITAppErrors: AppErrorMessages = {
     "closedWhileWaiting": "La scheda si è chiusa durante l’attesa della pagina.",
     "rendererLostWhileWaiting": "Il renderer della scheda non è più disponibile durante l’attesa della pagina.",
     "loadTimedOut": "Tempo scaduto in attesa del completamento del caricamento della pagina.",
+    "signInAsked": "Il sito web chiede un nome utente e una password, e Hronaut ha chiesto alla persona di accedere; la pagina si apre appena lo fa. Chiedi alla persona di accedere, poi controlla di nuovo la scheda.",
     "zoomPercent": "La percentuale di zoom della pagina deve essere un numero intero da 50 a 400",
     "findQuery": "La ricerca deve contenere da 1 a 1.000 caratteri",
     "printFailed": "Hronaut non è riuscito a stampare questa pagina.",

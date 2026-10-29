@@ -8,6 +8,8 @@ import type { TrustedChromeFocusAccess, TrustedChromeFocusTab } from './trusted-
  * such as Enter on a dialog's button, are not a new key.
  */
 function focusTabAfterTrustedChrome<Tab extends TrustedChromeFocusTab>(access: TrustedChromeFocusAccess<Tab>, tab: Tab): void {
+  const pending = access.focusAfterTrustedChrome()
+  if (pending && !pending.tab) return
   cancelFocusAfterTrustedChrome(access)
   const shell = access.window().webContents
   const onInput = (_event: Electron.Event, input: Electron.InputEvent): void => {
@@ -22,6 +24,17 @@ function focusTabAfterTrustedChrome<Tab extends TrustedChromeFocusTab>(access: T
       if (!shell.isDestroyed()) shell.removeListener('input-event', onInput)
     }
   })
+}
+
+/**
+ * Keeps every page from the keyboard until trusted chrome closes, even one that was to take it then or asks for it
+ * meanwhile, such as the tab selected after another closes; a page receiving agent input still takes it. Nothing waits
+ * to take the keyboard once trusted chrome is gone.
+ */
+export function withholdFocusAfterTrustedChrome<Tab extends TrustedChromeFocusTab>(access: TrustedChromeFocusAccess<Tab>): void {
+  if (!access.browserContentOccluded()) return
+  cancelFocusAfterTrustedChrome(access)
+  access.setFocusAfterTrustedChrome({ cancel: () => undefined })
 }
 
 /** Stops waiting to focus a page after trusted chrome, returning the tab that waited. */

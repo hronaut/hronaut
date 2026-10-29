@@ -87,7 +87,7 @@ import { applySavedSecureDns, registerSecureDnsIpc } from './secure-dns.js'
 import { createSpellCheck, registerSpellCheckIpc } from './spell-check.js'
 import { applySavedGraphicsAcceleration, registerGraphicsAccelerationIpc } from './graphics-acceleration.js'
 import { registerAppRestartIpc } from './app-restart.js'
-import { createBrowserSession, type BrowserSessionState } from './browser-session.js'
+import { createBrowserSession, promptWorkspaceName, type BrowserSessionState } from './browser-session.js'
 import { registerPermissionsIpc } from './permissions-ipc.js'
 import { WindowStateStore } from './window-state.js'
 import { createMainWindow, type MainWindowRefs } from './windows/main-window.js'
@@ -191,7 +191,8 @@ const trustedDialogs = createTrustedDialogs({
   showNativeMessageBox: (window, options) => window ? dialog.showMessageBox(window, options) : dialog.showMessageBox(options),
   keyboardPage: () => tabRuntime.tabs?.keyboardPage() ?? null,
   // Only a page in view gets it back; the shell keeps its own focus on the control it restores.
-  returnKeyboard: (page) => tabRuntime.tabs?.focusPageAfterQuestion(page)
+  returnKeyboard: (page) => tabRuntime.tabs?.focusPageAfterQuestion(page),
+  withholdKeyboard: () => tabRuntime.tabs?.withholdKeyboardAfterQuestion()
 })
 const addressSuggestionOverlay = createAddressSuggestionOverlay({
   trustedShellUrl,
@@ -1305,6 +1306,27 @@ async function createWindow(startMinimized = false): Promise<void> {
         variant: { kind: 'message', topic: 'unsaved-changes' }
       })
       return response === 1
+    },
+    askToSignIn: async ({ origin, secure, workspaceId, signal }) => {
+      // The sign-in holds for the tab's workspace, which may not be the one shown, such as one an agent works in.
+      const workspaceName = workspaceId && tabRuntime.tabs
+        ? promptWorkspaceName(workspaceId, [...tabRuntime.tabs.listMcpTabGroups(), ...tabRuntime.tabs.listSavedTabGroups()])
+        : undefined
+      const { response, credentials, unanswered } = await trustedDialogs.show({
+        variant: { kind: 'http-auth', origin, secure, ...(workspaceName ? { workspaceName } : {}) },
+        signal,
+        type: 'question',
+        title: text('trustedDialogs.httpAuth.eyebrow'),
+        message: text('trustedDialogs.httpAuth.headline', { origin }),
+        ...(secure ? {} : { detail: text('trustedDialogs.httpAuth.notPrivate') }),
+        buttons: [text('native.dialog.cancel'), text('trustedDialogs.httpAuth.signIn')],
+        // Escape cancels; the dialog puts the focus in Username, and Sign in is the main action.
+        defaultId: 0,
+        cancelId: 0,
+        primaryId: 1
+      })
+      if (unanswered) return null
+      return response === 1 && credentials ? credentials : 'cancelled'
     },
     onCoveredPageKeyboard: (page) => {
       if (mainWindowRefs.window) trustedDialogs.noteKeyboardPage(mainWindowRefs.window, page)

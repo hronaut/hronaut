@@ -1,4 +1,4 @@
-import type { AuthenticationResponseDetails, AuthInfo, WebFrameMain } from 'electron'
+import type { AuthenticationResponseDetails, AuthInfo, Event, WebFrameMain } from 'electron'
 import type { CssStatePreviewEndReason } from '../../../shared/css-state-preview.js'
 import type { SupportedLocale } from '../../../shared/locale.js'
 import type {
@@ -98,6 +98,9 @@ export interface NavigationEventsAccess<Tab extends NavigationEventsTab> {
   loadFavicon(tab: Tab, favicons: string[]): Promise<void>
   /** Records a sign-in challenge the page received, without answering it. */
   recordAuthChallenge(tab: Tab, details: AuthenticationResponseDetails, authInfo: AuthInfo): void
+  /** Asks the person to sign in for a challenge the page received, or leaves Electron to cancel it. */
+  answerHttpAuth(tab: Tab, event: Event, details: AuthenticationResponseDetails, authInfo: AuthInfo,
+    callback: (username?: string, password?: string) => void): void
   /** Repairs the tab's presentation after loading, unless its lifecycle is held. */
   reconcileTabPresentation(tab: Tab): void
   /** Repro recording, which follows scrolling and navigation. */

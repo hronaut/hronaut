@@ -1,5 +1,5 @@
 import { computed, ref, shallowRef } from 'vue'
-import type { HronautTrustedDialogsApi, TrustedDialogRequest } from '../../../shared/trusted-dialogs.js'
+import type { HronautTrustedDialogsApi, TrustedDialogCredentials, TrustedDialogRequest } from '../../../shared/trusted-dialogs.js'
 
 /**
  * Mirrors the one dialog main asks this shell window to show, such as a website's permission request, and reports
@@ -12,21 +12,31 @@ export function useTrustedDialogController(api: HronautTrustedDialogsApi | undef
   const answeredId = ref<string>()
   const open = computed(() => request.value !== null)
   const answering = computed(() => Boolean(request.value && answeredId.value === request.value.id))
+  /**
+   * Whether a website's sign-in closed moments ago before the person answered it, as when the page that asked loads
+   * another: they may still be typing their password.
+   */
+  const afterInterruptedSignIn = ref(false)
 
-  const stop = api?.onChanged((next) => {
+  const stop = api?.onChanged((next, state) => {
+    afterInterruptedSignIn.value = state.afterInterruptedSignIn
     request.value = next
     if (next?.id !== answeredId.value) answeredId.value = undefined
   })
   // Only now can main show dialogs here; until then it asks with the system dialog instead.
   api?.ready()
 
-  /** Answers the request with this id, if it is still the one shown and not answered yet. */
-  function respond(id: string, response: number): void {
+  /**
+   * Answers the request with this id, if it is still the one shown and not answered yet; signing in to a website
+   * sends what the person typed with it.
+   */
+  function respond(id: string, response: number, credentials?: TrustedDialogCredentials): void {
     const current = request.value
     if (!current || current.id !== id || answeredId.value === id) return
     if (!Number.isInteger(response) || response < 0 || response >= current.buttons.length) return
     answeredId.value = id
-    api?.respond(id, response)
+    if (credentials) api?.respond(id, response, credentials)
+    else api?.respond(id, response)
   }
 
   /** Answers the shown request as Escape does. */
@@ -39,7 +49,7 @@ export function useTrustedDialogController(api: HronautTrustedDialogsApi | undef
     stop?.()
   }
 
-  return { request, open, answering, respond, cancel, dispose }
+  return { request, open, answering, afterInterruptedSignIn, respond, cancel, dispose }
 }
 
 export type TrustedDialogController = ReturnType<typeof useTrustedDialogController>

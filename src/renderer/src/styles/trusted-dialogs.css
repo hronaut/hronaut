@@ -16,6 +16,8 @@
 .trusted-dialog--error .ui-dialog__icon > svg { @apply text-danger; }
 .trusted-dialog .ui-dialog__body { @apply pt-2 pl-[74px]; }
 .trusted-dialog__details { @apply grid gap-2.5; }
+/* The text holds the focus only so keys still typed after a sign-in closed press nothing; it shows no ring. */
+.trusted-dialog__details:focus { @apply outline-none; }
 .trusted-dialog__details p { @apply m-0 whitespace-pre-line [font-size:var(--type-small-size)] leading-[1.5] text-muted [overflow-wrap:anywhere]; }
 .trusted-dialog__workspace { @apply flex items-start gap-2; }
 .trusted-dialog__details .trusted-dialog__workspace { @apply text-copy; }
@@ -41,6 +43,8 @@
 .trusted-dialog__details .trusted-dialog__change-note { @apply m-0 [font-size:var(--type-micro-size)]; }
 .trusted-dialog__change pre { @apply m-0 max-h-48 overflow-auto rounded-1 text-copy [font-family:var(--font-code)] [font-size:var(--type-small-size)] leading-[1.45] whitespace-pre-wrap [overflow-wrap:anywhere]; }
 .trusted-dialog .ui-dialog__footer { @apply mt-2; }
+/* A website's sign-in: its two fields, which take no typing until the dialog takes answers. */
+.trusted-dialog__sign-in { @apply m-0 grid gap-2.5; }
 
 @media (max-width: 520px) {
   .trusted-dialog .ui-dialog__body { @apply pl-5; }

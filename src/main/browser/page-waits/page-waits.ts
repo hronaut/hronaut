@@ -2,6 +2,7 @@ import { javascriptLiteral } from '../../../shared/javascript-literal.js'
 import { redactNetworkUrl } from '../../../shared/network-details.js'
 import { normalizePageUrlWaitPattern, pageUrlMatchesWait } from '../../../shared/page-url-wait.js'
 import { LocalizedError } from '../../localized-error.js'
+import { pageLoadTimedOut } from '../http-auth/http-auth.js'
 import { targetStateScript } from '../page-scripts.js'
 import type { PageWaitsAccess } from './page-waits-access.js'
 
@@ -84,7 +85,7 @@ export async function waitForPage(access: PageWaitsAccess, tabId?: string, timeo
     }
     const onTimeout = (): void => {
       cleanup()
-      reject(new LocalizedError('appErrors.page.loadTimedOut'))
+      reject(pageLoadTimedOut(webContents))
     }
     const timer = setTimeout(onTimeout, Math.min(Math.max(timeoutMs, 1), 60_000))
     webContents.on('did-stop-loading', onDidStopLoading)
