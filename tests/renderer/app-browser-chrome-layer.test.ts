@@ -43,6 +43,7 @@ function state(activeTab = tab()): BrowserState {
 
 const expandTabGroup = vi.fn()
 const expandTabGroupForTab = vi.fn()
+const selectedTabs = vi.fn(() => ['first', 'second'])
 const BrowserTabsBarStub = defineComponent({
   name: 'BrowserTabsBar',
   props: {
@@ -76,7 +77,7 @@ const BrowserTabsBarStub = defineComponent({
     'switchWorkspace'
   ],
   setup(_props, { expose }) {
-    expose({ expandTabGroup, expandTabGroupForTab })
+    expose({ expandTabGroup, expandTabGroupForTab, selectedTabs })
     return () => h('div', { 'data-testid': 'tabs' })
   }
 })
@@ -931,17 +932,21 @@ describe('AppBrowserChromeLayer', () => {
     const surface = harness.wrapper.vm as unknown as {
       expandTabGroup: (groupId: string) => void
       expandTabGroupForTab: (tab: BrowserTabState) => void
+      selectedTabs: () => string[]
     }
     surface.expandTabGroup('workspace-1')
     surface.expandTabGroupForTab(harness.props.state.tabs[0])
     expect(expandTabGroup).toHaveBeenCalledWith('workspace-1')
     expect(expandTabGroupForTab).toHaveBeenCalledWith(harness.props.state.tabs[0])
+    // The tabs selected in the strip, which the close-tab key closes together.
+    expect(surface.selectedTabs()).toEqual(['first', 'second'])
 
     harness.wrapper.unmount()
     surface.expandTabGroup('workspace-2')
     surface.expandTabGroupForTab(harness.props.state.tabs[0])
     expect(expandTabGroup).toHaveBeenCalledTimes(1)
     expect(expandTabGroupForTab).toHaveBeenCalledTimes(1)
+    expect(surface.selectedTabs()).toEqual([])
   })
 
   it('routes independent agent and lifecycle actions through the tab controller', async () => {

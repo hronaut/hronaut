@@ -613,7 +613,8 @@ const {
     showDeveloperToolsConsole,
     openAgentCard: () => browserChromeLayer.value?.openAgentCard(),
     takeOverFromAgent: () => browserChromeLayer.value?.takeOverFromAgent(),
-    toggleFullPageView: fullPageView.toggle
+    toggleFullPageView: fullPageView.toggle,
+    selectedTabIds: () => browserChromeLayer.value?.selectedTabs() ?? []
   },
   actions: {
     closeTransientPanels,

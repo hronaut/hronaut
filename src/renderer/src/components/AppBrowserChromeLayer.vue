@@ -105,6 +105,7 @@ interface BrowserTabsBarHandle {
   tabListScrollTop?: () => number
   scrollTabListTo?: (top: number) => void
   stopWorkerCapture?: (tabId: string) => Promise<void>
+  selectedTabs?: () => string[]
 }
 
 const browserTabsBar = ref<BrowserTabsBarHandle | null>(null)
@@ -439,7 +440,12 @@ useChromeSidebarOverlay({
   }
 })
 
-defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFromAgent })
+/** The tabs selected together in the tab strip while there are several, else none. */
+function selectedTabs(): string[] {
+  return browserTabsBar.value?.selectedTabs?.() ?? []
+}
+
+defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFromAgent, selectedTabs })
 </script>
 
 <template>

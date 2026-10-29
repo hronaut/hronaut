@@ -53,6 +53,7 @@ function harness(specs: WorkspaceSpec[], startIn: string) {
   }
   const browser = {
     closeTab: vi.fn(async () => state.value),
+    closeTabs: vi.fn(async () => state.value),
     reopenClosedTab: vi.fn(async () => state.value),
     selectTab: vi.fn(async (tabId: string) => show(tabId)),
     reload: vi.fn(async () => state.value),

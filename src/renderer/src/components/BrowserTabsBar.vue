@@ -540,7 +540,16 @@ async function stopWorkerCapture(tabId: string): Promise<void> {
   }
 }
 
-defineExpose({ expandTabGroup, expandTabGroupForTab, toggleTabGroup, collapsedTabGroupIds, tabListScrollTop, scrollTabListTo, stopWorkerCapture })
+defineExpose({
+  expandTabGroup,
+  expandTabGroupForTab,
+  toggleTabGroup,
+  collapsedTabGroupIds,
+  tabListScrollTop,
+  scrollTabListTo,
+  stopWorkerCapture,
+  selectedTabs: () => [...selectedTabIds.value]
+})
 </script>
 
 <template>

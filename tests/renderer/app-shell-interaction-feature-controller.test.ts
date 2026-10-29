@@ -48,7 +48,7 @@ function deferred<Value>() {
   return { promise, resolve, reject }
 }
 
-function createHarness(extraNavigation: { takeOverFromAgent?: () => unknown } = {}) {
+function createHarness(extraNavigation: { takeOverFromAgent?: () => unknown; selectedTabIds?: () => readonly string[] } = {}) {
   const state = ref(browserState())
   const activeTab = computed(() => state.value.tabs.find((candidate) => candidate.id === state.value.activeTabId))
   const refs = {
@@ -85,6 +85,7 @@ function createHarness(extraNavigation: { takeOverFromAgent?: () => unknown } = 
     openHome: vi.fn(async () => state.value),
     newTab: vi.fn(async () => state.value),
     closeTab: vi.fn(async () => state.value),
+    closeTabs: vi.fn(async () => state.value),
     reopenClosedTab: vi.fn(async () => state.value),
     selectTab: vi.fn(async () => state.value),
     reload: vi.fn(async () => state.value),
@@ -227,6 +228,16 @@ function createHarness(extraNavigation: { takeOverFromAgent?: () => unknown } = 
 }
 
 describe('app shell interaction feature controller', () => {
+  it('closes the tabs selected in the tab strip with the close-tab key', async () => {
+    const harness = createHarness({ selectedTabIds: () => ['active', 'other'] })
+
+    await expect(harness.controller.runBrowserShortcut('close-tab')).resolves.toBe(true)
+
+    expect(harness.browser.closeTabs).toHaveBeenCalledExactlyOnceWith(['active', 'other'])
+    expect(harness.browser.closeTab).not.toHaveBeenCalled()
+    harness.controller.dispose()
+  })
+
   it('routes command-palette browser commands through the shared shortcut controller', async () => {
     const harness = createHarness()
 

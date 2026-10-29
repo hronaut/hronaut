@@ -2,7 +2,7 @@ import { createServer } from 'node:http'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 import type { BrowserState } from '../../src/shared/types.js'
 
-test('selects tabs with Ctrl and a click, moves them together by drag and pins them all from the tab menu', async ({ appWindow, electronApp }) => {
+test('selects tabs with Ctrl and a click, moves them together by drag, pins them all from the tab menu and closes them with Ctrl+W', async ({ appWindow, electronApp }) => {
   const server = createServer((request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' })
     response.end(`<!doctype html><title>Tab ${(request.url ?? '/').slice(1).toUpperCase()}</title><p>Page</p>`)
@@ -68,6 +68,10 @@ test('selects tabs with Ctrl and a click, moves them together by drag and pins t
     await expect.poll(order).toEqual(['a*', 'b*', 'c', 'd!'])
     await expect(control('C')).toHaveAttribute('aria-selected', 'true')
     await expect(control('D')).toHaveAttribute('aria-current', 'page')
+
+    // Ctrl+W closes every selected tab, as in Chrome.
+    await control('D').press('Control+w')
+    await expect.poll(async () => (await order()).map((name) => name.replace(/[*!]/g, ''))).toEqual(['a', 'b'])
   } finally {
     await closeFixtureServer(server)
   }

@@ -92,6 +92,10 @@ export function registerTabsIpc(host: TabsIpcHost): void {
     if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
     return stateReply(host, host.tabs()!.closeTabsForPerson([tabId]))
   })
+  host.handleBrowserIpc('browser:close-tabs', (event, tabIds: unknown) => {
+    host.assertTrustedSender(event)
+    return stateReply(host, host.tabs()!.closeTabsForPerson(selectedTabIds(tabIds)))
+  })
   host.handleBrowserIpc('browser:open-split-view', (event, tabId: unknown) => {
     host.assertTrustedSender(event)
     if (typeof tabId !== 'string') throw new TypeError('Invalid split-view tab ID')

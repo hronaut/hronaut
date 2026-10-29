@@ -10,7 +10,7 @@ type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown
 function selectedTabsIpc(options: { trusted?: boolean } = {}) {
   const handlers = new Map<string, Handler>()
   const state = { tabs: [] } as unknown as BrowserState
-  const tabs = { reorderTabs: vi.fn(() => state), showTabContextMenu: vi.fn(), beforeStateReply: () => undefined }
+  const tabs = { reorderTabs: vi.fn(() => state), showTabContextMenu: vi.fn(), closeTabsForPerson: vi.fn(async () => state), beforeStateReply: () => undefined }
   registerTabsIpc({
     assertTrustedSender: () => { if (options.trusted === false) throw new Error('Untrusted sender') },
     assertMainShellSender: () => undefined,
@@ -48,6 +48,31 @@ describe('the shell moving its selected tabs', () => {
     const ipc = selectedTabsIpc({ trusted: false })
     await expect(ipc.invoke('browser:reorder-tabs', ['a', 'b'], 'c', 'after')).rejects.toThrow('Untrusted sender')
     expect(ipc.tabs.reorderTabs).not.toHaveBeenCalled()
+  })
+})
+
+describe('the shell closing its selected tabs', () => {
+  it('closes the named tabs as the person does', async () => {
+    const ipc = selectedTabsIpc()
+    await ipc.invoke('browser:close-tabs', ['a', 'b'])
+    expect(ipc.tabs.closeTabsForPerson).toHaveBeenCalledExactlyOnceWith(['a', 'b'])
+  })
+
+  it.each([
+    ['no list', 'a'],
+    ['an empty list', []],
+    ['a tab id that is no string', ['a', 2]],
+    ['more tabs than any strip holds', Array.from({ length: 10_001 }, (_, index) => `tab-${index}`)]
+  ])('refuses %s', async (_name, tabIds) => {
+    const ipc = selectedTabsIpc()
+    await expect(ipc.invoke('browser:close-tabs', tabIds)).rejects.toThrow(TypeError)
+    expect(ipc.tabs.closeTabsForPerson).not.toHaveBeenCalled()
+  })
+
+  it('refuses a sender other than the shell', async () => {
+    const ipc = selectedTabsIpc({ trusted: false })
+    await expect(ipc.invoke('browser:close-tabs', ['a', 'b'])).rejects.toThrow('Untrusted sender')
+    expect(ipc.tabs.closeTabsForPerson).not.toHaveBeenCalled()
   })
 })
 

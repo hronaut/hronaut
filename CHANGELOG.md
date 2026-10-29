@@ -8,7 +8,7 @@ All notable changes to Hronaut are documented in this file.
 
 - **Spell check languages** in **Settings → General**, as in Chrome: on Windows and Linux, websites' text fields can check spelling in several languages at once, chosen from Chromium's dictionaries, instead of only the one for the system language. A text field's **Spell check → Language settings** opens the setting.
 - Drag a link from a page or another app onto a tab to open it there, or near a tab's edge or onto a workspace's **New tab** button to open it in a new tab beside that tab or at the end of the workspace, as in Chrome. A marker shows where it will open; dropped text that is no address searches, and a `javascript:` address opens nothing.
-- Select several tabs of a workspace, as in Chrome: **Ctrl+click** (**Cmd+click** on macOS) adds a tab to the selection or takes it out, and **Shift+click** selects the tabs from the last one clicked. The right-click menu of a selected tab then reloads, duplicates, mutes, pins, unpins or closes them all, and dragging one of them moves them together.
+- Select several tabs of a workspace, as in Chrome: **Ctrl+click** (**Cmd+click** on macOS) adds a tab to the selection or takes it out, and **Shift+click** selects the tabs from the last one clicked. The right-click menu of a selected tab then reloads, duplicates, mutes, pins, unpins or closes them all, **Ctrl/Cmd+W** closes them all, and dragging one of them moves them together.
 
 ### Fixed
 

@@ -139,6 +139,7 @@ const api: HronautApi = {
   reopenClosedTab: (closedTabId?: string) => ipcRenderer.invoke('browser:reopen-closed-tab', closedTabId),
   selectTab: (tabId: string) => ipcRenderer.invoke('browser:select-tab', tabId),
   closeTab: (tabId: string) => ipcRenderer.invoke('browser:close-tab', tabId),
+  closeTabs: (tabIds: readonly string[]) => ipcRenderer.invoke('browser:close-tabs', [...tabIds]),
   openSplitView: (tabId: string) => ipcRenderer.invoke('browser:open-split-view', tabId),
   updateSplitView: (updates) => ipcRenderer.invoke('browser:update-split-view', updates),
   closeSplitView: () => ipcRenderer.invoke('browser:close-split-view'),

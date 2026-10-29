@@ -119,6 +119,8 @@ export interface HronautApi {
   reopenClosedTab(closedTabId?: string): Promise<BrowserState>
   selectTab(tabId: string): Promise<BrowserState>
   closeTab(tabId: string): Promise<BrowserState>
+  /** Closes the tabs selected together in the tab strip, as Ctrl/Cmd+W does on one of them. */
+  closeTabs(tabIds: readonly string[]): Promise<BrowserState>
   openSplitView(tabId: string): Promise<BrowserState>
   updateSplitView(updates: {
     orientation?: import('../split-view.js').BrowserSplitOrientation
