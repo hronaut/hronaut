@@ -1,19 +1,23 @@
 import { EventEmitter } from 'node:events'
 import type { IpcMainEvent, MessageBoxOptions, MessageBoxReturnValue } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
-import { createTrustedDialogs, type TrustedDialogWindow } from '../src/main/trusted-dialogs/trusted-dialogs.js'
-import { TRUSTED_DIALOG_CHANNELS, type TrustedDialogRequest } from '../src/shared/trusted-dialogs.js'
+import { ANSWERED_ELSEWHERE, createTrustedDialogs, type TrustedDialogWindow } from '../src/main/trusted-dialogs/trusted-dialogs.js'
+import { TRUSTED_DIALOG_CHANNELS, type TrustedDialogRequest, type TrustedDialogShellState } from '../src/shared/trusted-dialogs.js'
 
 type Listener = (event: IpcMainEvent, ...args: unknown[]) => void
 
 function fakeWindow() {
   const sent: Array<TrustedDialogRequest | null> = []
+  const states: TrustedDialogShellState[] = []
   const contents = Object.assign(new EventEmitter(), {
     destroyed: false,
     crashed: false,
     isDestroyed() { return this.destroyed },
     isCrashed() { return this.crashed },
-    send: (_channel: string, request: TrustedDialogRequest | null) => { sent.push(request) }
+    send: (_channel: string, request: TrustedDialogRequest | null, state: TrustedDialogShellState) => {
+      sent.push(request)
+      states.push(state)
+    }
   })
   const window = {
     webContents: contents,
@@ -26,7 +30,7 @@ function fakeWindow() {
     isMinimized() { return this.minimized },
     isFocused() { return this.focused }
   }
-  return { window: window as typeof window & TrustedDialogWindow, contents, sent, shown: () => sent.at(-1) ?? null }
+  return { window: window as typeof window & TrustedDialogWindow, contents, sent, states, shown: () => sent.at(-1) ?? null }
 }
 
 function harness() {
@@ -42,12 +46,14 @@ function harness() {
   // The page that has the keyboard, as the tabs report it; null while the person is in the shell or away.
   const keyboard: { page: { isDestroyed(): boolean } | null } = { page: null }
   const returnKeyboard = vi.fn()
+  const withholdKeyboard = vi.fn()
   const dialogs = createTrustedDialogs<typeof main.window>({
     mainWindow: () => main.window,
     showNativeMessageBox,
     quitting: () => quit.quitting,
     keyboardPage: () => keyboard.page as never,
-    returnKeyboard
+    returnKeyboard,
+    withholdKeyboard
   })
   dialogs.registerIpc({
     ipcMain: { on: (channel: string, listener: Listener) => { listeners.set(channel, listener) } } as never,
@@ -69,6 +75,7 @@ function harness() {
     quit,
     keyboard,
     returnKeyboard,
+    withholdKeyboard,
     ready: (window: { contents: unknown } = main) => send(window, TRUSTED_DIALOG_CHANNELS.ready),
     respond: (window: { contents: unknown }, id: unknown, response: unknown, ...credentials: unknown[]) => (
       send(window, TRUSTED_DIALOG_CHANNELS.respond, id, response, ...credentials)
@@ -467,22 +474,178 @@ describe('a website’s sign-in in Hronaut’s own dialog', () => {
     await expect(answer).resolves.toEqual({ response: 0, checkboxChecked: false })
   })
 
-  it('keeps the keyboard from the page when a sign-in closes before the person answers, and gives it back once they answer', async () => {
-    const { dialogs, main, ready, respond, keyboard, returnKeyboard } = harness()
+  it('keeps the keyboard from every page when a sign-in closes before the person answers, and gives it back once they answer', async () => {
+    const { dialogs, main, ready, respond, keyboard, returnKeyboard, withholdKeyboard } = harness()
     ready()
     const page = { isDestroyed: () => false }
     keyboard.page = page
-    // The page that asked loads another while the person types: the rest of the password must not reach the page.
+    // While main keeps the keyboard from the pages, no page has it or waits for it.
+    withholdKeyboard.mockImplementation(() => { keyboard.page = null })
+    // The page that asked loads another while the person types: the rest of the password must reach no page.
     const closing = new AbortController()
     const closed = dialogs.show({ ...signIn, signal: closing.signal })
+    expect(main.states.at(-1)).toEqual({ afterInterruptedSignIn: false })
     closing.abort()
-    await expect(closed).resolves.toEqual({ response: 0, checkboxChecked: false })
+    await expect(closed).resolves.toEqual({ response: 0, checkboxChecked: false, unanswered: true })
     expect(returnKeyboard).not.toHaveBeenCalled()
+    expect(withholdKeyboard).toHaveBeenCalledOnce()
+    // The shell keeps the focus out of every field.
+    expect(main.shown()).toBeNull()
+    expect(main.states.at(-1)).toEqual({ afterInterruptedSignIn: true })
 
     const answered = dialogs.show(signIn)
     respond(main, main.shown()!.id, 0)
+    await expect(answered).resolves.toEqual({ response: 0, checkboxChecked: false })
+    expect(returnKeyboard).toHaveBeenCalledExactlyOnceWith(page)
+    expect(withholdKeyboard).toHaveBeenCalledOnce()
+    // The person answered, so the next dialog starts as usual.
+    void dialogs.show(signIn)
+    expect(main.states.at(-1)).toEqual({ afterInterruptedSignIn: false })
+  })
+
+  it('gives the keyboard back to the page the person was in only for a question that comes moments after an interrupted sign-in', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      const { dialogs, main, ready, respond, keyboard, returnKeyboard, withholdKeyboard } = harness()
+      ready()
+      const page = { isDestroyed: () => false }
+      keyboard.page = page
+      withholdKeyboard.mockImplementation(() => { keyboard.page = null })
+      const closing = new AbortController()
+      void dialogs.show({ ...signIn, signal: closing.signal })
+      closing.abort()
+      vi.setSystemTime(Date.now() + 2_000)
+      // Main kept the keyboard from the pages, and the person went on in the shell.
+      const later = dialogs.show(permission)
+      respond(main, main.shown()!.id, 0)
+      await later
+      expect(returnKeyboard).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps the keyboard from every page when any dialog shown moments after an interrupted sign-in closes unanswered too', async () => {
+    const { dialogs, main, ready, respond, keyboard, returnKeyboard, withholdKeyboard } = harness()
+    ready()
+    const page = { isDestroyed: () => false }
+    keyboard.page = page
+    withholdKeyboard.mockImplementation(() => { keyboard.page = null })
+    const closing = new AbortController()
+    void dialogs.show({ ...signIn, signal: closing.signal })
+    closing.abort()
+    // The page asks for a permission while the person may still be typing the password, and the question closes too.
+    const closingPermission = new AbortController()
+    const closed = dialogs.show({ ...permission, signal: closingPermission.signal })
+    closingPermission.abort()
+    await expect(closed).resolves.toEqual({ response: 0, checkboxChecked: false, unanswered: true })
+    expect(returnKeyboard).not.toHaveBeenCalled()
+    expect(withholdKeyboard).toHaveBeenCalledTimes(2)
+    expect(main.states.at(-1)).toEqual({ afterInterruptedSignIn: true })
+    const answered = dialogs.show(permission)
+    respond(main, main.shown()!.id, 0)
     await answered
     expect(returnKeyboard).toHaveBeenCalledExactlyOnceWith(page)
+  })
+
+  it('gives the keyboard back to the page the person went to after an interrupted sign-in, rather than the one they were in', async () => {
+    const { dialogs, main, ready, respond, keyboard, returnKeyboard, withholdKeyboard } = harness()
+    ready()
+    keyboard.page = { isDestroyed: () => false }
+    withholdKeyboard.mockImplementation(() => { keyboard.page = null })
+    const closing = new AbortController()
+    void dialogs.show({ ...signIn, signal: closing.signal })
+    closing.abort()
+    // The person clicks another page, which takes the keyboard, and a dialog asks right after.
+    const other = { isDestroyed: () => false }
+    keyboard.page = other
+    const answered = dialogs.show(permission)
+    respond(main, main.shown()!.id, 0)
+    await answered
+    expect(returnKeyboard).toHaveBeenCalledExactlyOnceWith(other)
+  })
+
+  it('keeps the keyboard where it was when a sign-in still waiting behind another dialog closes', async () => {
+    const { dialogs, main, ready, respond, keyboard, returnKeyboard, withholdKeyboard } = harness()
+    ready()
+    const page = { isDestroyed: () => false }
+    keyboard.page = page
+    const shown = dialogs.show(permission)
+    const closing = new AbortController()
+    const waiting = dialogs.show({ ...signIn, signal: closing.signal })
+    closing.abort()
+    await expect(waiting).resolves.toEqual({ response: 0, checkboxChecked: false, unanswered: true })
+    // The person never saw it, so nothing they type was meant for it.
+    expect(withholdKeyboard).not.toHaveBeenCalled()
+    expect(main.states.at(-1)).toEqual({ afterInterruptedSignIn: false })
+    respond(main, main.shown()!.id, 0)
+    await shown
+    expect(returnKeyboard).toHaveBeenCalledExactlyOnceWith(page)
+  })
+
+  it('starts a sign-in shown moments after one closed unanswered away from its fields, whether it replaced it or came after a gap', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      const { dialogs, main, ready } = harness()
+      ready()
+      // Another tab's sign-in waits behind the one that closes, and replaces it in place.
+      const closing = new AbortController()
+      void dialogs.show({ ...signIn, signal: closing.signal })
+      void dialogs.show(signIn)
+      closing.abort()
+      expect(main.shown()?.variant.kind).toBe('http-auth')
+      expect(main.states.at(-1)).toEqual({ afterInterruptedSignIn: true })
+
+      // The page that asked opens one that asks: the shell shows none for a moment, then the new sign-in.
+      const { dialogs: second, main: secondMain, ready: secondReady } = harness()
+      secondReady()
+      const closingSecond = new AbortController()
+      void second.show({ ...signIn, signal: closingSecond.signal })
+      closingSecond.abort()
+      vi.setSystemTime(Date.now() + 1_999)
+      void second.show(signIn)
+      expect(secondMain.sent.slice(-2).map((request) => request?.variant.kind ?? null)).toEqual([null, 'http-auth'])
+      expect(secondMain.states.slice(-2)).toEqual([{ afterInterruptedSignIn: true }, { afterInterruptedSignIn: true }])
+
+      // One that comes later starts in Username as usual.
+      const { dialogs: third, main: thirdMain, ready: thirdReady } = harness()
+      thirdReady()
+      const closingThird = new AbortController()
+      void third.show({ ...signIn, signal: closingThird.signal })
+      closingThird.abort()
+      vi.setSystemTime(Date.now() + 2_000)
+      void third.show(signIn)
+      expect(thirdMain.states.at(-1)).toEqual({ afterInterruptedSignIn: false })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('closes a sign-in answered in another tab as an answered one, giving the keyboard back', async () => {
+    const { dialogs, main, ready, keyboard, returnKeyboard, withholdKeyboard } = harness()
+    ready()
+    const page = { isDestroyed: () => false }
+    keyboard.page = page
+    const closing = new AbortController()
+    const closed = dialogs.show({ ...signIn, signal: closing.signal })
+    closing.abort(ANSWERED_ELSEWHERE)
+    await expect(closed).resolves.toEqual({ response: 0, checkboxChecked: false, unanswered: true })
+    expect(withholdKeyboard).not.toHaveBeenCalled()
+    expect(returnKeyboard).toHaveBeenCalledExactlyOnceWith(page)
+    expect(main.states.at(-1)).toEqual({ afterInterruptedSignIn: false })
+  })
+
+  it('keeps the keyboard for dialogs other than a sign-in that close unanswered, as before', async () => {
+    const { dialogs, main, ready, keyboard, returnKeyboard, withholdKeyboard } = harness()
+    ready()
+    keyboard.page = { isDestroyed: () => false }
+    const closing = new AbortController()
+    const closed = dialogs.show({ ...permission, signal: closing.signal })
+    closing.abort()
+    await expect(closed).resolves.toEqual({ response: 0, checkboxChecked: false, unanswered: true })
+    expect(withholdKeyboard).not.toHaveBeenCalled()
+    expect(returnKeyboard).toHaveBeenCalledOnce()
+    expect(main.states.at(-1)).toEqual({ afterInterruptedSignIn: false })
   })
 
   it('takes an empty username and password, as Chrome sends them', async () => {
@@ -504,7 +667,7 @@ describe('a website’s sign-in in Hronaut’s own dialog', () => {
   it('cancels a sign-in no shell window can show, since no system dialog takes a password', async () => {
     const { dialogs, main, showNativeMessageBox } = harness()
     main.window.minimized = true
-    await expect(dialogs.show(signIn)).resolves.toEqual({ response: 0, checkboxChecked: false })
+    await expect(dialogs.show(signIn)).resolves.toEqual({ response: 0, checkboxChecked: false, unanswered: true })
     expect(showNativeMessageBox).not.toHaveBeenCalled()
   })
 
@@ -513,7 +676,7 @@ describe('a website’s sign-in in Hronaut’s own dialog', () => {
     ready()
     const answer = dialogs.show(signIn)
     main.contents.emit('destroyed')
-    await expect(answer).resolves.toEqual({ response: 0, checkboxChecked: false })
+    await expect(answer).resolves.toEqual({ response: 0, checkboxChecked: false, unanswered: true })
     expect(showNativeMessageBox).not.toHaveBeenCalled()
   })
 })

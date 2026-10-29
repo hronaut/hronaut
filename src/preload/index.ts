@@ -5,7 +5,7 @@ import type { HronautPageCardApi, PageCardGeometry } from '../shared/page-card.j
 import type { AgentCardEvent, HronautAgentCardApi } from '../shared/agent-card.js'
 import type { HronautToastOverlayApi, ToastOverlayEvent } from '../shared/toast-overlay.js'
 import type { HronautSidebarOverlayApi, SidebarOverlayEvent } from '../shared/sidebar-overlay.js'
-import { TRUSTED_DIALOG_CHANNELS, type HronautTrustedDialogsApi, type TrustedDialogRequest } from '../shared/trusted-dialogs.js'
+import { TRUSTED_DIALOG_CHANNELS, type HronautTrustedDialogsApi, type TrustedDialogRequest, type TrustedDialogShellState } from '../shared/trusted-dialogs.js'
 import type { AgentPresenceSnapshot, AgentTakeOverOffer, HronautAgentPresenceApi } from '../shared/agent-presence.js'
 import { contextBridge, ipcRenderer } from 'electron'
 import { createPanelRequestBuffer } from './panel-requests.js'
@@ -769,7 +769,9 @@ const trustedDialogsApi: HronautTrustedDialogsApi = {
     ? ipcRenderer.send(TRUSTED_DIALOG_CHANNELS.respond, id, response, { username: credentials.username, password: credentials.password })
     : ipcRenderer.send(TRUSTED_DIALOG_CHANNELS.respond, id, response),
   onChanged: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, request: TrustedDialogRequest | null): void => listener(request)
+    const handler = (_event: Electron.IpcRendererEvent, request: TrustedDialogRequest | null, state?: TrustedDialogShellState): void => (
+      listener(request, { afterInterruptedSignIn: state?.afterInterruptedSignIn === true })
+    )
     ipcRenderer.on(TRUSTED_DIALOG_CHANNELS.changed, handler)
     return () => ipcRenderer.removeListener(TRUSTED_DIALOG_CHANNELS.changed, handler)
   }

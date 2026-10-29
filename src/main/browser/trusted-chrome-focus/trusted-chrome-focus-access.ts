@@ -5,9 +5,12 @@ export interface TrustedChromeFocusTab {
   webContents: WebContents
 }
 
-/** A page waiting to take focus once trusted chrome closes, and how to stop waiting. */
+/**
+ * A page waiting to take focus once trusted chrome closes, and how to stop waiting; no page while every page is kept from
+ * the keyboard until then.
+ */
 export interface PendingTrustedChromeFocus<Tab extends TrustedChromeFocusTab> {
-  tab: Tab
+  tab?: Tab
   cancel: () => void
 }
 

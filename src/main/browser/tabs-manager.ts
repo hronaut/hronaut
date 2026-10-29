@@ -5,7 +5,6 @@ import { assertRightClickPlatform } from './owned-right-click.js'
 import type { PageEvaluationAccess } from './page-evaluation/page-evaluation-access.js'
 import { evaluateFile } from './page-evaluation/evaluate-file.js'
 import type { FileEvaluationSource, FileEvaluationHooks } from '../../shared/file-evaluation.js'
-import type { TrustedDialogCredentials } from '../../shared/trusted-dialogs.js'
 import type { StorageComparisonHooks } from './storage-comparison-operation.js'
 import { acquireNativeClickAdmission, type NativeClickProgress } from './native-click-admission.js'
 import type { StorageInspectionHooks } from './storage-inspection-operation.js'
@@ -290,7 +289,7 @@ import type { ScreenshotsAccess } from './screenshots/screenshots-access.js'
 import { screenshot } from './screenshots/screenshots.js'
 import type { InspectorIssuesAccess } from './inspector-issues/inspector-issues-access.js'
 import { addInspectorIssue, inspectorIssues, recordAuthChallenge } from './inspector-issues/inspector-issues.js'
-import { answerHttpAuth, type HttpAuthQuestion } from './http-auth/http-auth.js'
+import { answerHttpAuth, followSignIns, type HttpAuthQuestion, type SignInAnswer } from './http-auth/http-auth.js'
 import type {
   SplitDividerGeometry,
   SplitDividerSession,
@@ -606,8 +605,8 @@ import type { SiteMutingAccess, SiteSoundStore } from './site-muting/site-muting
 import { applySiteMuting, applySiteMutingToTabs, canMuteSite, isSiteMuted, setSiteMuted } from './site-muting/site-muting.js'
 import type { AgentStepThumbnailAccess } from './agent-step-thumbnail/agent-step-thumbnail-access.js'
 import { captureAgentStepThumbnail } from './agent-step-thumbnail/agent-step-thumbnail.js'
-import type { TrustedChromeFocusAccess } from './trusted-chrome-focus/trusted-chrome-focus-access.js'
-import { cancelFocusAfterTrustedChrome, focusTabOrTrustedChrome } from './trusted-chrome-focus/trusted-chrome-focus.js'
+import type { PendingTrustedChromeFocus, TrustedChromeFocusAccess } from './trusted-chrome-focus/trusted-chrome-focus-access.js'
+import { cancelFocusAfterTrustedChrome, focusTabOrTrustedChrome, withholdFocusAfterTrustedChrome } from './trusted-chrome-focus/trusted-chrome-focus.js'
 import type { TrustedChromeOcclusionAccess } from './trusted-chrome-occlusion/trusted-chrome-occlusion-access.js'
 import { occlusionLayout, occlusionSnapshotPanes, setBrowserContentOccluded, setFollowAgentActivitySuspended } from './trusted-chrome-occlusion/trusted-chrome-occlusion.js'
 import type { AgentFollowAccess } from './agent-follow/agent-follow-access.js'
@@ -960,9 +959,10 @@ export interface TabsManagerOptions {
   confirmBeforeUnloadLeave?: () => Promise<boolean>
   /**
    * Asks the person to sign in to a website that asks for a username and password, in Hronaut's own dialog; resolves
-   * with what they typed, or null when they cancel. Without it, Hronaut cancels the website's sign-in.
+   * with what they typed, 'cancelled' when they cancel, or null when nobody answered. Without it, Hronaut cancels the
+   * website's sign-in.
    */
-  askToSignIn?: (question: HttpAuthQuestion) => Promise<TrustedDialogCredentials | null>
+  askToSignIn?: (question: HttpAuthQuestion) => Promise<SignInAnswer | null>
   /**
    * A page took the keyboard while trusted chrome covers it, and gave it back to the shell, as when the person comes
    * back to the window they left with the keyboard in that page.
@@ -1283,7 +1283,7 @@ export class BrowserTabsManager {
   private occludedEmulationFrames: EmulationFrameGeometry[] = []
   private occludedPageCards: PageCardGeometry[] = []
   /** A tab that should take keyboard focus once trusted chrome closes, such as one picked in the tab overview. */
-  private focusAfterTrustedChrome: { tab: BrowserTab; cancel: () => void } | undefined
+  private focusAfterTrustedChrome: PendingTrustedChromeFocus<BrowserTab> | undefined
   private followAgentActivitySuspended = false
   private readonly downloadController = new BrowserDownloadsController({
     getSettings: () => ({
@@ -1391,9 +1391,11 @@ export class BrowserTabsManager {
   /**
    * Gives the keyboard back to a page that asked one of Hronaut's questions, such as Home before deleting a workspace,
    * once the question's dialog over it has closed, as a system dialog does. A click or key in the shell meanwhile keeps
-   * the focus where it went.
+   * the focus where it went. The person answered, so pages kept from the keyboard after a sign-in that closed while they
+   * typed in it may take it again.
    */
   focusPageAfterQuestion(page: WebContents): void {
+    if (this.focusAfterTrustedChrome && !this.focusAfterTrustedChrome.tab) cancelFocusAfterTrustedChrome(this.trustedChromeFocusAccess())
     const tabId = this.webContentsToTab.get(page.id)
     const tab = tabId ? this.tabs.get(tabId) : undefined
     if (!tab || (tab.id !== this.activeTabId && !this.splitViewContains(tab.id))) return
@@ -1401,11 +1403,19 @@ export class BrowserTabsManager {
   }
 
   /**
+   * Keeps every page from the keyboard until the questions over them close, as after a website's sign-in closed while
+   * the person typed in it: the rest of their password would go to the page in view then.
+   */
+  withholdKeyboardAfterQuestion(): void {
+    withholdFocusAfterTrustedChrome(this.trustedChromeFocusAccess())
+  }
+
+  /**
    * The page that has the keyboard now, or that takes it once trusted chrome closes if it is still in view; null while
    * the person is elsewhere.
    */
   keyboardPage(): WebContents | null {
-    const waiting = this.focusAfterTrustedChrome?.tab.webContents
+    const waiting = this.focusAfterTrustedChrome?.tab?.webContents
     if (waiting && !waiting.isDestroyed()) return waiting
     const focused = electronWebContents.getFocusedWebContents()
     return focused && this.webContentsToTab.has(focused.id) ? focused : null
@@ -6057,7 +6067,8 @@ export class BrowserTabsManager {
     this.installSessionHooks(view.webContents.session)
     // A tab created asleep loads nothing, so it has no renderer to answer the page's calls until it wakes.
     if (asleep) holdUntilFirstLoad(view.webContents)
-    this.attachTabEvents(tab)
+    const openedBy = options.adopt && options.openedFrom ? this.tabs.get(options.openedFrom.tabId) : undefined
+    this.attachTabEvents(tab, openedBy?.webContents)
     // A page opened for a window closes its tab when it closes itself. Other tabs keep their recovery from a page
     // destroyed under them, as tests and Electron destroy pages for other reasons.
     if (options.adopt) attachPageCloseEvents(this.pageCloseEventsAccess(), tab, view.webContents)
@@ -6197,8 +6208,11 @@ export class BrowserTabsManager {
     return withGlobalWorkspaceStorageOperation(this.workspaceOperationsAccess(), action, operation)
   }
 
-  private attachTabEvents(tab: BrowserTab): void {
+  /** Follows the tab's page from before its first page starts; `openedBy` is the page that opened it as a window. */
+  private attachTabEvents(tab: BrowserTab, openedBy?: WebContents): void {
     const webContents = tab.webContents
+    // A page a page opened refuses the sign-ins its opener's tab refuses.
+    followSignIns(webContents, openedBy)
     refusePageScriptsInSourceView(webContents)
     guardPageCallsAcrossRendererExit(webContents)
     guardPageCallsDuringPrintDialog(webContents)

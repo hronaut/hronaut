@@ -54,19 +54,22 @@ const username = ref('')
 const password = ref('')
 const usernameField = ref<{ $el?: HTMLElement } | null>(null)
 const passwordField = ref<{ $el?: HTMLElement } | null>(null)
+const details = ref<HTMLElement | null>(null)
 /**
- * Whether the dialog shown replaced, in place, a sign-in that closed before the person answered it, as when the page
- * that asked loads another: they may still be typing their password, which must not land in this one's fields.
+ * Whether the dialog shown came moments after a sign-in closed before the person answered it, as when the page that
+ * asked loads another: they may still be typing their password, which must not land in this one's fields.
  */
-const replacedUnansweredSignIn = ref(false)
+const afterInterruptedSignIn = ref(false)
 
 /**
  * Where the focus goes when a dialog opens or takes answers: the safe button, or for a sign-in, Username, where a key
- * the person still holds from the page presses nothing. A sign-in that replaced one the person may still be typing in
- * focuses its safe button too, so they click into a field to sign in.
+ * the person still holds from the page presses nothing. A dialog that came moments after a sign-in the person may still
+ * be typing in focuses its text, where neither the rest of their password nor Enter does anything, so they click or
+ * Tab to an answer or a field.
  */
 function focusSafeControl(): void {
-  if (copy.value?.signIn && !replacedUnansweredSignIn.value) usernameField.value?.$el?.focus({ preventScroll: true })
+  if (afterInterruptedSignIn.value) details.value?.focus({ preventScroll: true })
+  else if (copy.value?.signIn) usernameField.value?.$el?.focus({ preventScroll: true })
   else defaultButton.value?.focus({ preventScroll: true })
 }
 
@@ -96,8 +99,8 @@ watch(presentedId, (id) => {
 watch(() => request.value?.id, async (id) => {
   username.value = ''
   password.value = ''
-  const interruptedSignIn = props.controller.closedUnanswered.value?.variant.kind === 'http-auth'
-  replacedUnansweredSignIn.value = Boolean(id) && interruptedSignIn
+  const interruptedSignIn = props.controller.afterInterruptedSignIn.value
+  afterInterruptedSignIn.value = Boolean(id) && interruptedSignIn
   await nextTick()
   if (!id) {
     // The dialog gave the focus back to the shell control the person last used, such as the address field, and main
@@ -197,7 +200,15 @@ function buttonVariant(index: number): 'primary' | 'secondary' {
     <template #title>
       <template v-if="copy">{{ copy.headline.before }}<strong v-if="copy.headline.emphasis" class="trusted-dialog__origin">{{ copy.headline.emphasis }}</strong>{{ copy.headline.after }}</template>
     </template>
-    <div v-if="copy && (copy.quoted || copy.phrase || copy.change || copy.signIn || copy.lines.length || copy.workspaceLine)" class="trusted-dialog__details">
+    <!-- A dialog that came moments after a sign-in closed focuses its text, which no key the person still types presses. -->
+    <div
+      v-if="copy && (afterInterruptedSignIn || copy.quoted || copy.phrase || copy.change || copy.signIn || copy.lines.length || copy.workspaceLine)"
+      ref="details"
+      class="trusted-dialog__details"
+      :tabindex="afterInterruptedSignIn ? -1 : undefined"
+      :autofocus="afterInterruptedSignIn || undefined"
+      data-testid="trusted-dialog-details"
+    >
       <!-- The phrase leaves the screen as soon as the person answers, before main closes the dialog. -->
       <ol v-if="copy.phrase && !controller.answering.value" class="trusted-dialog__phrase" :aria-label="copy.phrase.label" data-testid="trusted-dialog-phrase">
         <li v-for="(word, index) in copy.phrase.words" :key="index">
@@ -223,7 +234,7 @@ function buttonVariant(index: number): 'primary' | 'secondary' {
           <UiInput
             ref="usernameField"
             v-model="username"
-            autofocus
+            :autofocus="!afterInterruptedSignIn || undefined"
             autocomplete="off"
             autocapitalize="off"
             spellcheck="false"
@@ -260,7 +271,7 @@ function buttonVariant(index: number): 'primary' | 'secondary' {
         :key="`${request?.id}:${index}`"
         :ref="(element) => setButtonRef(index, element)"
         :variant="buttonVariant(index)"
-        :autofocus="(index === request?.defaultId && !copy?.signIn) || undefined"
+        :autofocus="(index === request?.defaultId && !copy?.signIn && !afterInterruptedSignIn) || undefined"
         :aria-disabled="!armed || controller.answering.value || undefined"
         :data-response="index"
         @click="choose(index)"

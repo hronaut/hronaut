@@ -148,13 +148,22 @@ export const TRUSTED_DIALOG_CHANNELS = {
   ready: 'trusted-dialogs:ready',
   /** Shell → main: the person chose a button of a request, with what they typed to sign in when they sign in. */
   respond: 'trusted-dialogs:respond',
-  /** Main → shell: the dialog to show, or null for none. */
+  /** Main → shell: the dialog to show, or null for none, with the shell's state then. */
   changed: 'trusted-dialogs:changed'
 } as const
+
+/** What main tells a shell window with each dialog it shows there, or with none. */
+export interface TrustedDialogShellState {
+  /**
+   * True for a moment after a website's sign-in closed before the person answered it, as when the page that asked loads
+   * another: they may still be typing their password, which must land in no field, the next sign-in's included.
+   */
+  afterInterruptedSignIn: boolean
+}
 
 /** The bridge the trusted shell uses; websites never get it. */
 export interface HronautTrustedDialogsApi {
   ready(): void
   respond(id: string, response: number, credentials?: TrustedDialogCredentials): void
-  onChanged(listener: (request: TrustedDialogRequest | null) => void): () => void
+  onChanged(listener: (request: TrustedDialogRequest | null, state: TrustedDialogShellState) => void): () => void
 }

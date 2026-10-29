@@ -113,3 +113,47 @@ it('says once more that the pages are off the screen when asked to cover pages i
   expect(snapshot.confirmPagesHidden).toHaveBeenCalledExactlyOnceWith(3)
   expect(snapshot.begin).not.toHaveBeenCalled()
 })
+
+it('keeps every page from the keyboard until trusted chrome closes once a sign-in closed while the person typed in it', () => {
+  for (const order of ['picked first', 'withheld first'] as const) {
+    const { manager, internals, shell, page, tab } = fixture()
+    // The tab that asked closed, and the next one is picked while the sign-in's overlay plays its exit.
+    if (order === 'picked first') internals.focusTabOrTrustedChrome(tab)
+    manager.withholdKeyboardAfterQuestion()
+    if (order === 'withheld first') internals.focusTabOrTrustedChrome(tab)
+    expect(manager.keyboardPage(), order).toBeNull()
+    // A key the person types meanwhile is the rest of their password, not a choice to stay in the shell.
+    shell.emit('input-event', {}, { type: 'keyDown' })
+    expect(shell.listenerCount('input-event'), order).toBe(0)
+
+    manager.setBrowserContentOccluded(false, 1)
+    expect(page.focus, order).not.toHaveBeenCalled()
+    // Once trusted chrome is gone, nothing waits, and a page picked later takes the keyboard as usual.
+    internals.focusTabOrTrustedChrome(tab)
+    expect(page.focus, order).toHaveBeenCalledOnce()
+  }
+})
+
+it('gives the keyboard back to the page once the person answers the question that came next', () => {
+  const { manager, shell, page } = fixture()
+  manager.withholdKeyboardAfterQuestion()
+  // The person signs in to the sign-in that came next, which gives the keyboard back to the page that had it.
+  manager.focusPageAfterQuestion(page as never)
+  expect(manager.keyboardPage()).toBe(page)
+  expect(shell.listenerCount('input-event')).toBe(1)
+  manager.setBrowserContentOccluded(false, 1)
+  expect(page.focus).toHaveBeenCalledOnce()
+})
+
+it('withholds nothing once trusted chrome no longer covers the pages', () => {
+  const { manager, internals, page, tab } = fixture()
+  manager.setBrowserContentOccluded(false, 1)
+  manager.withholdKeyboardAfterQuestion()
+  internals.focusTabOrTrustedChrome(tab)
+  expect(page.focus).toHaveBeenCalledOnce()
+  // Nor the next time trusted chrome covers them: the tab picked under it takes the keyboard once it closes.
+  Object.assign(manager, { browserContentOccluded: true })
+  internals.focusTabOrTrustedChrome(tab)
+  manager.setBrowserContentOccluded(false, 3)
+  expect(page.focus).toHaveBeenCalledTimes(2)
+})

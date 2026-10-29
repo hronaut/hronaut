@@ -10,7 +10,7 @@ import { holdOverlayEntrance, occludeBrowserContent, overlayEntranceEpoch, relea
 import { useShellOverlayCoordinationController } from '../../src/renderer/src/composables/useShellOverlayCoordinationController.js'
 import { useModalDialogFocus } from '../../src/renderer/src/composables/useModalDialogFocus.js'
 import type { SupportedLocale } from '../../src/shared/locale.js'
-import type { HronautTrustedDialogsApi, TrustedDialogRequest } from '../../src/shared/trusted-dialogs.js'
+import type { HronautTrustedDialogsApi, TrustedDialogRequest, TrustedDialogShellState } from '../../src/shared/trusted-dialogs.js'
 
 function sitePermission(id: string, overrides: Partial<Extract<TrustedDialogRequest['variant'], { kind: 'site-permission' }>> = {}): TrustedDialogRequest {
   return {
@@ -28,7 +28,7 @@ function sitePermission(id: string, overrides: Partial<Extract<TrustedDialogRequ
 }
 
 function mountDialog(locale: SupportedLocale = 'en-US') {
-  let publish: (request: TrustedDialogRequest | null) => void = () => undefined
+  let publish: (request: TrustedDialogRequest | null, state: TrustedDialogShellState) => void = () => undefined
   const ready = vi.fn()
   const respond = vi.fn()
   const api: HronautTrustedDialogsApi = {
@@ -44,8 +44,9 @@ function mountDialog(locale: SupportedLocale = 'en-US') {
   return {
     api: { ready, respond },
     controller,
-    show: async (request: TrustedDialogRequest | null) => {
-      publish(request)
+    /** Main shows the request, or none, and says whether a sign-in closed unanswered moments ago. */
+    show: async (request: TrustedDialogRequest | null, state: TrustedDialogShellState = { afterInterruptedSignIn: false }) => {
+      publish(request, state)
       await nextTick()
       await nextTick()
     },
@@ -178,7 +179,7 @@ describe('Hronaut’s permission dialog', () => {
 
   it('waits for the page to leave the screen when its own request covers the page', async () => {
     // The shell starts covering the page from the request itself, before the dialog could start its moment on screen.
-    let publish: (request: TrustedDialogRequest | null) => void = () => undefined
+    let publish: (request: TrustedDialogRequest | null, state: TrustedDialogShellState) => void = () => undefined
     const api: HronautTrustedDialogsApi = { ready: vi.fn(), respond: vi.fn(), onChanged: (listener) => { publish = listener; return () => undefined } }
     const covered: Array<[boolean, number]> = []
     const shellApi = { setBrowserContentOccluded: (occluded: boolean, request: number) => { covered.push([occluded, request]) } }
@@ -196,7 +197,7 @@ describe('Hronaut’s permission dialog', () => {
       }
     })
     render(Shell, { global: { plugins: [createHronautI18n('en-US')] } })
-    publish(sitePermission('one'))
+    publish(sitePermission('one'), { afterInterruptedSignIn: false })
     await nextTick()
     await nextTick()
     expect(covered).toEqual([[true, overlayEntranceEpoch()]])
@@ -704,25 +705,78 @@ describe('Hronaut’s sign-in dialog for a website', () => {
     expect(held('Tab')).toBe(false)
   })
 
-  it('starts on Cancel when it takes the place of a sign-in that closed before the person answered, who may still be typing', async () => {
+  it('starts on its text when it shows moments after a sign-in that closed before the person answered, who may still be typing', async () => {
+    const { api, show, settle } = mountDialog()
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTimeAsync })
+    const interrupted = { afterInterruptedSignIn: true }
+    await show(httpAuth('one'))
+    await settle()
+    await user.type(screen.getByLabelText('Password'), 'pass')
+    // Main closes the first sign-in, as when its page loads another, and shows another tab's one in its place.
+    await show(httpAuth('two', { origin: 'https://intranet-example.test' }), interrupted)
+    const text = screen.getByTestId('trusted-dialog-details')
+    expect(text).toHaveFocus()
+    await settle()
+    expect(text).toHaveFocus()
+    // The rest of the password and its Enter press nothing, not even Cancel, and no field takes them.
+    await user.keyboard('word{Enter}')
+    expect(api.respond).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('Username')).toHaveValue('')
+    expect(screen.getByLabelText('Password')).toHaveValue('')
+    // Tab moves on to Username, where the person signs in.
+    await user.tab()
+    expect(screen.getByLabelText('Username')).toHaveFocus()
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(api.respond).toHaveBeenCalledExactlyOnceWith('two', 0)
+
+    // The page that asked opens one that asks: no dialog for a moment, then the new sign-in, which the rest of the
+    // password must not reach either.
+    await show(httpAuth('three'))
+    await settle()
+    await user.type(screen.getByLabelText('Password'), 'pass')
+    await show(null, interrupted)
+    await show(httpAuth('four', { origin: 'https://intranet-example.test' }), interrupted)
+    expect(screen.getByTestId('trusted-dialog-details')).toHaveFocus()
+    await user.keyboard('word{Enter}')
+    await settle()
+    expect(screen.getByTestId('trusted-dialog-details')).toHaveFocus()
+    await user.keyboard('word{Enter}')
+    expect(screen.getByLabelText('Username')).toHaveValue('')
+    expect(api.respond).toHaveBeenCalledTimes(1)
+
+    // One that comes later starts in Username, as usual, and its text takes no focus.
+    await show(httpAuth('five'))
+    await settle()
+    expect(screen.getByLabelText('Username')).toHaveFocus()
+    expect(screen.getByTestId('trusted-dialog-details')).not.toHaveAttribute('tabindex')
+  })
+
+  it('starts any dialog shown moments after an interrupted sign-in on its text, where the rest of a password and Enter answer nothing', async () => {
     const { api, show, settle } = mountDialog()
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTimeAsync })
     await show(httpAuth('one'))
     await settle()
     await user.type(screen.getByLabelText('Password'), 'pass')
-    // Main closes the first sign-in, as when its page loads another, and shows the next one in its place.
-    await show(httpAuth('two', { origin: 'https://intranet-example.test' }))
-    const cancel = screen.getByRole('button', { name: 'Cancel' })
-    expect(cancel).toHaveFocus()
+    // A website's permission prompt replaces the sign-in that closed while the person typed.
+    await show(sitePermission('permission'), { afterInterruptedSignIn: true })
+    const text = screen.getByTestId('trusted-dialog-details')
+    expect(text).toHaveFocus()
     await settle()
-    expect(cancel).toHaveFocus()
+    expect(text).toHaveFocus()
     await user.keyboard('word{Enter}')
-    expect(api.respond).toHaveBeenCalledExactlyOnceWith('two', 0)
-
-    // One that follows an answer starts in Username, as usual.
-    await show(httpAuth('three'))
+    expect(api.respond).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Allow' }))
+    expect(api.respond).toHaveBeenCalledExactlyOnceWith('permission', 1)
+    // So does a message with nothing but its headline, whose OK Enter would press.
+    await show({ id: 'message', type: 'info', title: 'Hronaut', message: 'Something happened', buttons: ['OK'], defaultId: 0, cancelId: 0, variant: { kind: 'message' } }, { afterInterruptedSignIn: true })
     await settle()
-    expect(screen.getByLabelText('Username')).toHaveFocus()
+    expect(screen.getByTestId('trusted-dialog-details')).toHaveFocus()
+    await user.keyboard('{Enter}')
+    expect(api.respond).toHaveBeenCalledOnce()
+    // One that comes later starts on its safe answer, as usual.
+    await show(sitePermission('later'))
+    await settle()
+    expect(screen.getByRole('button', { name: 'Deny' })).toHaveFocus()
   })
 
   it('gives the focus back to the shell control it came from once answered, but to nothing when it closes before an answer', async () => {
@@ -739,10 +793,16 @@ describe('Hronaut’s sign-in dialog for a website', () => {
       await show(null)
       expect(address).toHaveFocus()
 
+      // Answered in another tab: the person is done with it.
       await show(httpAuth('two'))
       await settle()
-      await user.type(screen.getByLabelText('Password'), 'pass')
       await show(null)
+      expect(address).toHaveFocus()
+
+      await show(httpAuth('three'))
+      await settle()
+      await user.type(screen.getByLabelText('Password'), 'pass')
+      await show(null, { afterInterruptedSignIn: true })
       expect(address).not.toHaveFocus()
       expect(document.activeElement).toBe(document.body)
     } finally {

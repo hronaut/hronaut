@@ -191,7 +191,8 @@ const trustedDialogs = createTrustedDialogs({
   showNativeMessageBox: (window, options) => window ? dialog.showMessageBox(window, options) : dialog.showMessageBox(options),
   keyboardPage: () => tabRuntime.tabs?.keyboardPage() ?? null,
   // Only a page in view gets it back; the shell keeps its own focus on the control it restores.
-  returnKeyboard: (page) => tabRuntime.tabs?.focusPageAfterQuestion(page)
+  returnKeyboard: (page) => tabRuntime.tabs?.focusPageAfterQuestion(page),
+  withholdKeyboard: () => tabRuntime.tabs?.withholdKeyboardAfterQuestion()
 })
 const addressSuggestionOverlay = createAddressSuggestionOverlay({
   trustedShellUrl,
@@ -1311,7 +1312,7 @@ async function createWindow(startMinimized = false): Promise<void> {
       const workspaceName = workspaceId && tabRuntime.tabs
         ? promptWorkspaceName(workspaceId, [...tabRuntime.tabs.listMcpTabGroups(), ...tabRuntime.tabs.listSavedTabGroups()])
         : undefined
-      const { response, credentials } = await trustedDialogs.show({
+      const { response, credentials, unanswered } = await trustedDialogs.show({
         variant: { kind: 'http-auth', origin, secure, ...(workspaceName ? { workspaceName } : {}) },
         signal,
         type: 'question',
@@ -1324,7 +1325,8 @@ async function createWindow(startMinimized = false): Promise<void> {
         cancelId: 0,
         primaryId: 1
       })
-      return response === 1 && credentials ? credentials : null
+      if (unanswered) return null
+      return response === 1 && credentials ? credentials : 'cancelled'
     },
     onCoveredPageKeyboard: (page) => {
       if (mainWindowRefs.window) trustedDialogs.noteKeyboardPage(mainWindowRefs.window, page)
