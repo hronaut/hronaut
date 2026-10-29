@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { evaluate, EvaluationStoppedError } from '../src/main/browser/page-evaluation/evaluate.js'
+import { evaluate } from '../src/main/browser/page-evaluation/evaluate.js'
+import { EvaluationStoppedError } from '../src/main/browser/page-evaluation/evaluation-stopped-error.js'
 
 // The focus guard, the debugger lease and the debugger's evaluation, as the fixture in use answers them.
 const seams = vi.hoisted(() => ({ current: undefined as unknown as ReturnType<typeof fixture>['collaborators'] }))

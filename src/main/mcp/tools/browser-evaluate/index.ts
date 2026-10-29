@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { EvaluationStoppedError } from '../../../browser/page-evaluation/evaluate.js'
+import { EvaluationStoppedError } from '../../../browser/page-evaluation/evaluation-stopped-error.js'
 import { safeValue, textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext, ToolActivityClassification, WorkspaceToolCall } from '../tool-context.js'

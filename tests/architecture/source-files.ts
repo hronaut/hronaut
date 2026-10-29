@@ -37,6 +37,26 @@ export function runtimeSpecifiers(code: string, fileName = 'module.ts'): string[
   return specifiers
 }
 
+/**
+ * The names a module imports or re-exports from one package for its code, leaving out those of types only; `*` stands
+ * for `export * from` it.
+ */
+export function runtimeNamesFrom(code: string, specifier: string, fileName = 'module.ts'): string[] {
+  const names: string[] = []
+  for (const statement of ts.createSourceFile(fileName, code, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS).statements) {
+    if (ts.isImportDeclaration(statement) && textOf(statement.moduleSpecifier) === specifier && !statement.importClause?.isTypeOnly) {
+      const bindings = statement.importClause?.namedBindings
+      if (bindings && ts.isNamedImports(bindings)) names.push(...bindings.elements.filter(element => !element.isTypeOnly).map(element => (element.propertyName ?? element.name).text))
+    }
+    if (ts.isExportDeclaration(statement) && statement.moduleSpecifier && textOf(statement.moduleSpecifier) === specifier && !statement.isTypeOnly) {
+      const clause = statement.exportClause
+      if (!clause) names.push('*')
+      else if (ts.isNamedExports(clause)) names.push(...clause.elements.filter(element => !element.isTypeOnly).map(element => (element.propertyName ?? element.name).text))
+    }
+  }
+  return names
+}
+
 function importsTypesOnly(clause: ts.ImportClause | undefined): boolean {
   if (!clause) return false
   if (clause.isTypeOnly) return true
