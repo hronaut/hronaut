@@ -5,14 +5,22 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { ISOLATED_WORLDS } from '../src/main/browser/isolated-worlds.js'
 import { javascriptLiteral } from '../src/shared/javascript-literal.js'
 import { fillFromFile, MAX_FILL_FILE_BYTES, readFillText, type TextFileFillProgress } from '../src/main/browser/text-file-fill/text-file-fill.js'
-import type { TextFileFillAccess, TextFileFillTab } from '../src/main/browser/text-file-fill/text-file-fill-access.js'
+import type { Browser } from '../src/main/browser/browser.js'
 import type { TextFileFillCheck, TextFileFillPageResult } from '../src/main/browser/text-file-fill/text-file-fill-scripts.js'
 import { fillSettlement } from '../src/main/mcp/tools/browser-fill-from-file/fill-settlement.js'
 import { registerBrowserFillFromFile } from '../src/main/mcp/tools/browser-fill-from-file/index.js'
+
+// The native input authority and the agent input scope, as the fake browser of the page in use answers them.
+vi.mock('../src/main/browser/native-input-authority/native-input-authority.js', () => ({
+  nativeInputAuthority: (browser: { nativeInputAuthority(...args: unknown[]): unknown }, ...args: unknown[]) => browser.nativeInputAuthority(...args)
+}))
+vi.mock('../src/main/browser/agent-input-scope/agent-input-scope.js', () => ({
+  withAgentInput: (browser: { withAgentInput(...args: unknown[]): unknown }, ...args: unknown[]) => browser.withAgentInput(...args)
+}))
 
 const ORIGIN = 'http://127.0.0.1:4100'
 const TEXT = 'private-fixture-canary "quoted" `tick` </script> \u2028 😀 мир\nsecond line\n'
@@ -107,8 +115,8 @@ describe('reading the file', () => {
 })
 
 /**
- * A page whose check script answers with `check` and whose fill script answers from a queue, and a manager view
- * whose authority checks call the fill's validator.
+ * A page whose check script answers with `check` and whose fill script answers from a queue, and a browser showing
+ * it whose authority checks call the fill's validator.
  */
 function fieldPage(options: {
   url?: string
@@ -133,22 +141,21 @@ function fieldPage(options: {
     }
   })
   let disposed = 0
-  const access: TextFileFillAccess<TextFileFillTab> = {
-    validateTarget: (target) => {
-      if ((target.ref === undefined) === (target.selector === undefined)) throw new Error('Provide exactly one of ref or selector')
-    },
-    getTab: () => ({ webContents }) as unknown as TextFileFillTab,
-    nativeInputAuthority: (_tab, validateInput) => ({
+  const tab = { id: 'tab', webContents }
+  const browser = {
+    tabs: new Map([[tab.id, tab]]),
+    activeTabId: tab.id,
+    nativeInputAuthority: (_tab: unknown, validateInput?: (validateContext: () => void) => void) => ({
       validate: () => validateInput?.(() => undefined),
       dispose: () => { disposed += 1 }
     }),
-    withAgentInput: async (_webContents, operation) => {
+    withAgentInput: async <T>(_webContents: unknown, operation: () => Promise<T>): Promise<T> => {
       options.beforeWrite?.()
       return operation()
     }
-  }
+  } as unknown as Browser
   return {
-    access,
+    browser,
     scripts,
     navigate: () => { events.emit('did-start-navigation', { isMainFrame: true }) },
     disposed: () => disposed,
@@ -163,7 +170,7 @@ describe('filling a field from a file', () => {
     const page = fieldPage()
     const progress: TextFileFillProgress = { written: false }
     const sent = Date.now()
-    const result = await fillFromFile(page.access, { selector: '#notes' }, source({ expectedOrigin: `${ORIGIN}/any/path` }), undefined, progress)
+    const result = await fillFromFile(page.browser, { selector: '#notes' }, source({ expectedOrigin: `${ORIGIN}/any/path` }), undefined, progress)
     expect(result).toEqual(expect.objectContaining({ status: 'MATCHED', field: 'textarea', characters: TEXT.length }))
     expect(page.scripts).toHaveLength(2)
     expect(page.scripts.map(script => script.world)).toEqual([ISOLATED_WORLDS.textFileFill, ISOLATED_WORLDS.textFileFill])
@@ -186,7 +193,7 @@ describe('filling a field from a file', () => {
   })
 
   it('reports a field the page rewrote, one it replaced, and a page that stopped answering after the write', async () => {
-    const fill = (result: TextFileFillPageResult | Error) => fillFromFile(fieldPage({ results: [result] }).access, { ref: 'e4' }, source())
+    const fill = (result: TextFileFillPageResult | Error) => fillFromFile(fieldPage({ results: [result] }).browser, { ref: 'e4' }, source())
     expect(await fill({ field: 'input', matched: false, connected: true, fieldCharacters: 12 }))
       .toMatchObject({ status: 'MISMATCH', field: 'input', fieldCharacters: 12, note: expect.stringContaining('rewritten, rejected or shortened') })
     expect(await fill({ field: 'input', matched: true, connected: false, fieldCharacters: 3 }))
@@ -198,16 +205,16 @@ describe('filling a field from a file', () => {
   it('refuses before reading the file or writing anything when the page is elsewhere or the target was refused', async () => {
     const elsewhere = fieldPage({ url: 'https://other.example/form' })
     // The origin is checked before the file is read: a missing file is not even looked for.
-    await expect(fillFromFile(elsewhere.access, { ref: 'e4' }, source({ path: join(directory, 'missing.txt') }))).rejects.toThrow(/not at expectedOrigin/u)
+    await expect(fillFromFile(elsewhere.browser, { ref: 'e4' }, source({ path: join(directory, 'missing.txt') }))).rejects.toThrow(/not at expectedOrigin/u)
     expect(elsewhere.scripts).toHaveLength(0)
     const blank = fieldPage({ url: 'about:blank' })
-    await expect(fillFromFile(blank.access, { ref: 'e4' }, source())).rejects.toThrow(/not at expectedOrigin/u)
-    await expect(fillFromFile(fieldPage().access, { ref: 'e4' }, source({ expectedOrigin: 'not an origin' }))).rejects.toThrow(/expectedOrigin must be an origin/u)
-    await expect(fillFromFile(fieldPage().access, { ref: 'e4', selector: '#also' }, source())).rejects.toThrow(/exactly one of ref or selector/u)
+    await expect(fillFromFile(blank.browser, { ref: 'e4' }, source())).rejects.toThrow(/not at expectedOrigin/u)
+    await expect(fillFromFile(fieldPage().browser, { ref: 'e4' }, source({ expectedOrigin: 'not an origin' }))).rejects.toThrow(/expectedOrigin must be an origin/u)
+    await expect(fillFromFile(fieldPage().browser, { ref: 'e4', selector: '#also' }, source())).rejects.toThrow('Provide either ref or selector, not both')
     for (const [problem, message] of [['not-fillable', /not a plain text input or a textarea/u], ['too-long', /never shortens it/u], ['single-line', /drops line breaks/u], ['wrong-origin', /not at expectedOrigin/u]] as const) {
       const progress: TextFileFillProgress = { written: false }
       const refused = fieldPage({ check: { problem } })
-      await expect(fillFromFile(refused.access, { ref: 'e4' }, source(), undefined, progress)).rejects.toThrow(message)
+      await expect(fillFromFile(refused.browser, { ref: 'e4' }, source(), undefined, progress)).rejects.toThrow(message)
       // Only the check ran: the text never reached the page.
       expect(refused.scripts).toHaveLength(1)
       expect(progress.written).toBe(false)
@@ -216,7 +223,7 @@ describe('filling a field from a file', () => {
     for (const [problem, message] of [['late', /too busy to start the fill in time/u], ['not-found', /Field not found/u]] as const) {
       const progress: TextFileFillProgress = { written: false }
       const refused = fieldPage({ results: [{ problem }] })
-      await expect(fillFromFile(refused.access, { ref: 'e4' }, source(), undefined, progress)).rejects.toThrow(message)
+      await expect(fillFromFile(refused.browser, { ref: 'e4' }, source(), undefined, progress)).rejects.toThrow(message)
       expect(refused.scripts).toHaveLength(2)
       expect(progress.written).toBe(false)
     }
@@ -225,7 +232,7 @@ describe('filling a field from a file', () => {
   it('refuses a page that is still loading, which Electron would hold the fill back for', async () => {
     const loading = fieldPage({ loading: true })
     const progress: TextFileFillProgress = { written: false }
-    await expect(fillFromFile(loading.access, { ref: 'e4' }, source(), undefined, progress)).rejects.toThrow(/still loading/u)
+    await expect(fillFromFile(loading.browser, { ref: 'e4' }, source(), undefined, progress)).rejects.toThrow(/still loading/u)
     expect(loading.scripts).toHaveLength(1)
     expect(progress.written).toBe(false)
   })
@@ -234,21 +241,21 @@ describe('filling a field from a file', () => {
     const windows = join(directory, 'windows.txt')
     await writeFile(windows, 'first\r\nsecond')
     const page = fieldPage()
-    await expect(fillFromFile(page.access, { ref: 'e4' }, source({ path: windows }))).rejects.toThrow(/carriage returns/u)
+    await expect(fillFromFile(page.browser, { ref: 'e4' }, source({ path: windows }))).rejects.toThrow(/carriage returns/u)
     expect(page.scripts).toHaveLength(0)
   })
 
   it('writes nothing when the page navigates or the authority changes while the file is read', async () => {
     const navigating: ReturnType<typeof fieldPage> = fieldPage({ beforeWrite: () => navigating.navigate() })
     const progress: TextFileFillProgress = { written: false }
-    await expect(fillFromFile(navigating.access, { ref: 'e4' }, source(), undefined, progress)).rejects.toThrow(/navigated before the text was written/u)
+    await expect(fillFromFile(navigating.browser, { ref: 'e4' }, source(), undefined, progress)).rejects.toThrow(/navigated before the text was written/u)
     expect(navigating.scripts).toHaveLength(1)
     expect(progress.written).toBe(false)
 
     let revoked = false
     const revoking = fieldPage({ beforeWrite: () => { revoked = true } })
     const validateFill = (): void => { if (revoked) throw new Error('authority revoked') }
-    await expect(fillFromFile(revoking.access, { ref: 'e4' }, source(), validateFill)).rejects.toThrow('authority revoked')
+    await expect(fillFromFile(revoking.browser, { ref: 'e4' }, source(), validateFill)).rejects.toThrow('authority revoked')
     expect(revoking.scripts).toHaveLength(1)
   })
 
@@ -258,7 +265,7 @@ describe('filling a field from a file', () => {
     const progress: TextFileFillProgress = { written: false }
     // The first three checks precede the write; the fourth guards the result's publication.
     const validateFill = (): void => { checks += 1; if (checks === 4) throw new Error('authority ended') }
-    await expect(fillFromFile(page.access, { ref: 'e4' }, source(), validateFill, progress)).rejects.toThrow('authority ended')
+    await expect(fillFromFile(page.browser, { ref: 'e4' }, source(), validateFill, progress)).rejects.toThrow('authority ended')
     expect(page.scripts).toHaveLength(2)
     expect(progress.written).toBe(true)
   })

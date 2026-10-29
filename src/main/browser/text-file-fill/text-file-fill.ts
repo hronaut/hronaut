@@ -3,7 +3,11 @@ import { constants } from 'node:fs'
 import { open, stat } from 'node:fs/promises'
 import { isAbsolute } from 'node:path'
 import { ISOLATED_WORLDS } from '../isolated-worlds.js'
-import type { TextFileFillAccess, TextFileFillTab } from './text-file-fill-access.js'
+import { withAgentInput } from '../agent-input-scope/agent-input-scope.js'
+import type { Browser } from '../browser.js'
+import { getTab } from '../browser-core.js'
+import { validateTarget } from '../input-targets/input-targets.js'
+import { nativeInputAuthority } from '../native-input-authority/native-input-authority.js'
 import {
   textFileFillCheckScript,
   textFileFillScript,
@@ -161,18 +165,18 @@ async function readBoundedText(path: string, sha256: string | undefined): Promis
  * authority is not as required before the text is written, and afterwards
  * only when the call's authority changed; nothing is retried or submitted.
  */
-export async function fillFromFile<Tab extends TextFileFillTab>(
-  access: TextFileFillAccess<Tab>,
+export async function fillFromFile(
+  browser: Browser,
   target: { tabId?: string; ref?: string; selector?: string },
   source: { path: string; expectedOrigin: string; sha256?: string },
   validateFill?: (validateContext: () => void) => void,
   progress: TextFileFillProgress = { written: false }
 ): Promise<TextFileFillResult> {
-  access.validateTarget(target)
+  validateTarget(target)
   const expectedOrigin = originOf(source.expectedOrigin, 'expectedOrigin must be an origin such as https://app.example.com.')
-  const tab = access.getTab(target.tabId)
+  const tab = getTab(browser, target.tabId)
   const webContents = tab.webContents
-  const authority = access.nativeInputAuthority(tab, validateFill)
+  const authority = nativeInputAuthority(browser, tab, validateFill)
   let navigated = false
   const navigationStarted = (details: Electron.Event<Electron.WebContentsDidStartNavigationEventParams>): void => {
     // Within the document too: a new route may show another field in the same place.
@@ -198,7 +202,7 @@ export async function fillFromFile<Tab extends TextFileFillTab>(
       'The page did not respond in time; nothing was filled.'
     )
     if ('problem' in checked) throw new Error(TARGET_PROBLEMS[checked.problem])
-    return await access.withAgentInput(webContents, async (): Promise<TextFileFillResult> => {
+    return await withAgentInput(browser, webContents, async (): Promise<TextFileFillResult> => {
       // Nothing is awaited between these checks and the fill's dispatch.
       validate()
       // A script can be held back while the page loads, past every check: refuse instead.

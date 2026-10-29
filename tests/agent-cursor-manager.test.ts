@@ -1,5 +1,9 @@
 import { afterEach, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' } }))
+// Rendering a hidden page, as the fixture's manager answers it.
+vi.mock('../src/main/browser/renderable-tab/renderable-tab.js', () => ({
+  withRenderableTab: (browser: { withRenderableTab(...args: unknown[]): unknown }, ...args: unknown[]) => browser.withRenderableTab(...args)
+}))
 import { Browser } from '../src/main/browser/browser.js'
 import { ISOLATED_WORLDS } from '../src/main/browser/isolated-worlds.js'
 import type { AgentPointerIdentity } from '../src/main/browser/page-scripts.js'
