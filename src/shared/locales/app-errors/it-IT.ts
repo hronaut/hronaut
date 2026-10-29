@@ -362,6 +362,7 @@ export const itITAppErrors: AppErrorMessages = {
     "fillAgentActive": "La password non è stata inserita perché un comando di un agente era ancora in esecuzione. Gli agenti restano in pausa; riprova al termine del comando.",
     "notFound": "La password salvata non è più disponibile.",
     "changed": "La password salvata è cambiata durante la lettura. Riprova.",
+    "suggestFailed": "Hronaut non è riuscito a suggerire una password per questo campo. Fai clic con il pulsante destro sul campo password e riprova.",
     "decryptFailed": "Impossibile decriptare la password salvata. Assicurati che l’archiviazione sicura del sistema sia sbloccata, poi riprova."
   },
   "emulation": {

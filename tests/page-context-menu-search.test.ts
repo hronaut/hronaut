@@ -45,7 +45,8 @@ function openMenu(params: Partial<ContextMenuParams>, options: { engine?: Search
     setSpellCheck: async () => undefined,
     offersSpellCheckLanguages: () => true,
     openSpellCheckSettings: () => undefined,
-    browserContentOccluded: options.occluded ?? (() => false)
+    browserContentOccluded: options.occluded ?? (() => false),
+    passwordSuggestion: () => null
   } as unknown as PageContextMenuAccess
   showContextMenu(access, tab, {
     x: 10, y: 20, linkURL: '', srcURL: '', selectionText: '', isEditable: false, mediaType: 'none', editFlags: {},

@@ -1,6 +1,7 @@
 import { app, safeStorage, type BrowserWindow } from 'electron'
 import { join } from 'node:path'
 import { CredentialStore } from './credential-store.js'
+import { createSuggestedPasswordMemory } from './browser/suggested-password/suggested-password-memory.js'
 import type { BrowserCredentialCandidate } from './browser/tabs-manager.js'
 import type { TrustedDialogOptions } from './trusted-dialogs/trusted-dialogs.js'
 import type { MessageKey, MessageParameters } from '../shared/i18n.js'
@@ -35,13 +36,17 @@ interface CredentialRuntimeHost {
 /**
  * Saved passwords on this device: opening the store encrypted with the operating system's secure storage, which
  * stays closed when only Linux's plain-text backend is available, offering to save or update a password a page
- * submitted, and telling both shell windows which passwords are saved.
+ * submitted, saying so when Hronaut suggested that password, and telling both shell windows which passwords are saved.
  */
 export function createCredentialRuntime(host: CredentialRuntimeHost): {
   publishCredentials(): void
   offerToSaveCredential(candidate: BrowserCredentialCandidate): void
+  /** Hronaut suggested this password for the website; the offer to save it then says that nothing else shows it. */
+  rememberSuggestedPassword(origin: string, password: string): void
   configureCredentialStore(): Promise<void>
 } {
+  const suggestedPasswords = createSuggestedPasswordMemory()
+
   /** Tells both shell windows which passwords are saved. */
   function publishCredentials(): void {
     host.sendToShellWindows('credentials:changed', host.state.store?.list() ?? [])
@@ -56,18 +61,20 @@ export function createCredentialRuntime(host: CredentialRuntimeHost): {
       return
     }
     const updating = host.state.store!.has(candidate.origin, candidate.username)
+    const suggested = suggestedPasswords.suggested(candidate.origin, candidate.password)
     const account = candidate.username || host.text('native.dialog.unnamedAccount')
+    const detail = host.text('native.dialog.passwordDetail', { origin: candidate.origin })
     const { response } = await host.showDialog({
       type: 'question',
       title: host.text(updating ? 'native.dialog.updatePasswordTitle' : 'native.dialog.savePasswordTitle'),
       message: host.text(updating ? 'native.dialog.updatePasswordMessage' : 'native.dialog.savePasswordMessage', { account }),
-      detail: host.text('native.dialog.passwordDetail', { origin: candidate.origin }),
+      detail: suggested ? `${detail}\n\n${host.text('native.dialog.suggestedPasswordWarning')}` : detail,
       buttons: [host.text('native.dialog.notNow'), host.text(updating ? 'native.dialog.updatePassword' : 'native.dialog.savePassword')],
       defaultId: 1,
       cancelId: 0,
       primaryId: 1,
       noLink: true,
-      variant: { kind: 'save-password', origin: candidate.origin, username: candidate.username, updating }
+      variant: { kind: 'save-password', origin: candidate.origin, username: candidate.username, updating, suggested }
     })
     if (response !== 1) return
     await host.state.store!.save(candidate.origin, candidate.username, candidate.password)
@@ -103,5 +110,10 @@ export function createCredentialRuntime(host: CredentialRuntimeHost): {
     await host.state.store!.load()
   }
 
-  return { publishCredentials, offerToSaveCredential, configureCredentialStore }
+  return {
+    publishCredentials,
+    offerToSaveCredential,
+    rememberSuggestedPassword: (origin, password) => suggestedPasswords.remember(origin, password),
+    configureCredentialStore
+  }
 }

@@ -406,7 +406,7 @@ function savePassword(id: string, overrides: Partial<Extract<TrustedDialogReques
     defaultId: 1,
     cancelId: 0,
     primaryId: 1,
-    variant: { kind: 'save-password', origin: 'https://login.example', username: 'ada@example.com', updating: false, ...overrides }
+    variant: { kind: 'save-password', origin: 'https://login.example', username: 'ada@example.com', updating: false, suggested: false, ...overrides }
   }
 }
 
@@ -421,6 +421,7 @@ describe('Hronaut’s save password dialog', () => {
     expect(screen.getByTestId('trusted-dialog-quoted')).toHaveTextContent('ada@example.com')
     expect(dialog.querySelector('.trusted-dialog__quoted figcaption')).toHaveTextContent('Username')
     expect(dialog).toHaveTextContent('Saved passwords are never exposed through MCP.')
+    expect(dialog).not.toHaveTextContent('Hronaut suggested this password')
     const save = screen.getByRole('button', { name: 'Save password' })
     expect(save).toHaveFocus()
     expect(save).toHaveClass('ui-button--primary')
@@ -437,6 +438,13 @@ describe('Hronaut’s save password dialog', () => {
     const dialog = screen.getByRole('alertdialog', { name: 'Update your saved password for https://login.example?' })
     expect(screen.queryByTestId('trusted-dialog-quoted')).toBeNull()
     expect(dialog).toHaveTextContent('The page sent no username with it.')
+  })
+
+  it('says what not saving means for a password Hronaut suggested', async () => {
+    const { show } = mountDialog()
+    await show(savePassword('suggested', { suggested: true }))
+    const dialog = screen.getByRole('alertdialog', { name: 'Save your password for https://login.example?' })
+    expect(dialog).toHaveTextContent('Hronaut suggested this password and never shows it. Save it, or you will need to reset it to sign in again.')
   })
 
   it('speaks the interface language', async () => {

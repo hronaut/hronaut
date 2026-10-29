@@ -362,6 +362,7 @@ export const deDEAppErrors: AppErrorMessages = {
     "fillAgentActive": "Das Passwort wurde nicht ausgefüllt, weil noch ein Agentenbefehl lief. Agenten bleiben pausiert; versuchen Sie es erneut, wenn er abgeschlossen ist.",
     "notFound": "Das gespeicherte Passwort ist nicht mehr verfügbar.",
     "changed": "Das gespeicherte Passwort hat sich beim Lesen geändert. Versuchen Sie es erneut.",
+    "suggestFailed": "Hronaut konnte für dieses Feld kein Passwort vorschlagen. Klicken Sie mit der rechten Maustaste auf das Passwortfeld und versuchen Sie es erneut.",
     "decryptFailed": "Das gespeicherte Passwort konnte nicht entschlüsselt werden. Stellen Sie sicher, dass der sichere Speicher des Systems entsperrt ist, und versuchen Sie es erneut."
   },
   "emulation": {

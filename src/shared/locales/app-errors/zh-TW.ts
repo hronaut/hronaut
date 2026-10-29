@@ -362,6 +362,7 @@ export const zhTWAppErrors: AppErrorMessages = {
     "fillAgentActive": "由於代理程式指令仍在執行，因此未填入密碼。代理程式會保持暫停；請在指令完成後再試一次。",
     "notFound": "已儲存的密碼已無法使用。",
     "changed": "讀取已儲存的密碼時密碼已變更，請再試一次。",
+    "suggestFailed": "Hronaut 無法為此欄位建議密碼。請在密碼欄位上按一下滑鼠右鍵，然後再試一次。",
     "decryptFailed": "無法解密已儲存的密碼。請確認系統的安全儲存空間已解鎖，然後再試一次。"
   },
   "emulation": {

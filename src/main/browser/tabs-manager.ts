@@ -325,6 +325,8 @@ import { runPageScriptsOnceDocumentReady } from './page-script-readiness.js'
 import type { CredentialFillContext } from './credential-fill-context.js'
 import type { CredentialFillAccess } from './credential-fill/credential-fill-access.js'
 import { credentialContext, fillCredential } from './credential-fill/credential-fill.js'
+import { suggestStrongPassword } from './suggested-password/suggested-password.js'
+import type { SuggestedPasswordAccess, SuggestedPasswordOptions } from './suggested-password/suggested-password-access.js'
 import type {
   BrowserEmulationOptions,
   BrowserEmulationState,
@@ -911,6 +913,8 @@ export interface TabsManagerOptions {
   /** The person used the browser; with the tab, when they clicked or typed in its page. */
   onUserInteraction?: (touched?: { tabId: string; workspaceId: string | undefined }) => void
   onCredentialSubmitted?: (candidate: BrowserCredentialCandidate) => void
+  /** Keeps a strong password Hronaut suggests in a password field's menu; without it, the menu suggests none. */
+  suggestedPasswords?: SuggestedPasswordOptions
   /** A browser shortcut pressed in the shell's stead; from a page, with that page's tab. */
   onShortcutRequested?: (action: BrowserShortcutAction, page?: { tabId: string; workspaceId: string | undefined }) => void
   /** A shortcut the browser takes from this tab's page only while true; the page keeps the key otherwise. */
@@ -2486,6 +2490,22 @@ export class BrowserTabsManager {
 
   credentialContext(tabId?: string): CredentialFillContext | null {
     return credentialContext(this.credentialFillAccess(), tabId)
+  }
+
+  /**
+   * The narrow view suggesting a password in a page gets of this manager's
+   * tabs, credential fill context, agent input scope and options. It is a
+   * prototype method rather than a field, so managers created without the
+   * constructor (as unit tests do) still provide it.
+   */
+  private suggestedPasswordAccess(): SuggestedPasswordAccess<BrowserTab> {
+    return {
+      findTab: (tabId) => this.tabs.get(tabId),
+      credentialContext: (tabId) => this.tabs.has(tabId) ? this.credentialContext(tabId) : null,
+      withAgentInput: (webContents, operation) => this.withAgentInput(webContents, operation),
+      recordTrustedCredentialFill: (outcome, tab, now, onUserInteraction) => recordTrustedCredentialFill(outcome, tab, now, onUserInteraction),
+      options: () => this.options
+    }
   }
 
   fillCredential(
@@ -6515,7 +6535,12 @@ export class BrowserTabsManager {
       offersSpellCheckLanguages: () => this.options.offersSpellCheckLanguages?.() === true,
       openSpellCheckSettings: () => this.options.openSpellCheckSettings?.(),
       browserContentOccluded: () => this.browserContentOccluded,
-      expectSavedLinkName: (webContents, url, linkName) => this.downloadController.expectSavedLinkName(webContents.id, url, linkName)
+      expectSavedLinkName: (webContents, url, linkName) => this.downloadController.expectSavedLinkName(webContents.id, url, linkName),
+      passwordSuggestion: (tab) => {
+        if (!this.options.suggestedPasswords?.available()) return null
+        const context = this.tabs.get(tab.id) === tab ? this.credentialContext(tab.id) : null
+        return context ? () => suggestStrongPassword(this.suggestedPasswordAccess(), tab, context) : null
+      }
     }
   }
 

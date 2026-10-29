@@ -19,6 +19,26 @@ export function credentialCapturePageScript(): string {
         && (input.type === 'email' || /user|email|login|account|identifier/i.test(input.name + ' ' + input.id)));
       return semantic.length === 1 ? semantic[0] : null;
     };
+    // The one value typed in every password field; or, in a form that changes a password, the new password typed twice
+    // after the current one, which Chrome saves then: the fields marked new-password, or else the second and third of
+    // three, all of them shown. Anything else, such as a confirmation that does not match, offers nothing.
+    const shown = (input) => (typeof input.checkVisibility !== 'function' || input.checkVisibility({
+      opacityProperty: true,
+      visibilityProperty: true,
+      contentVisibilityAuto: true
+    })) && [...input.getClientRects()].some((rect) => rect.width > 0 && rect.height > 0);
+    const submittedPassword = (passwords) => {
+      if (new Set(passwords.map((input) => input.value)).size === 1) {
+        return (passwords.find((input) => purpose(input) === 'current-password') || passwords[0]).value;
+      }
+      if (!passwords.every(shown)) return null;
+      const fresh = passwords.filter((input) => purpose(input) === 'new-password');
+      if (fresh.length && new Set(fresh.map((input) => input.value)).size === 1
+        && passwords.every((input) => fresh.includes(input) || purpose(input) === 'current-password')) return fresh[0].value;
+      if (passwords.length === 3 && passwords.every((input) => !purpose(input))
+        && passwords[1].value === passwords[2].value) return passwords[1].value;
+      return null;
+    };
     const fieldsFor = (form) => [...(form ? form.elements : document.querySelectorAll('input'))]
       .filter((input) => input instanceof HTMLInputElement && input.form === form);
     const remember = (field) => {
@@ -40,9 +60,8 @@ export function credentialCapturePageScript(): string {
       const passwords = fields.filter((input) => usable(input) && !input.readOnly
         && input.type === 'password' && input.value && purpose(input) !== 'one-time-code');
       if (!passwords.length) { remember(account); return; }
-      if (new Set(passwords.map((input) => input.value)).size > 1) return;
-      const password = passwords.find((input) => purpose(input) === 'current-password') || passwords[0];
-      if (password.value.length > 16384) return;
+      const password = submittedPassword(passwords);
+      if (password === null || password.length > 16384) return;
       // An explicit account on this step wins, including an intentionally empty value.
       // Never borrow an account from a different form still present on the page.
       const previous = remembered && remembered.origin === location.origin
@@ -51,7 +70,7 @@ export function credentialCapturePageScript(): string {
         ? remembered.value : '';
       const username = account ? account.value : previous;
       if (username.length > 512) return;
-      finish({ origin: location.origin, username, password: password.value });
+      finish({ origin: location.origin, username, password });
     };
     const onSubmit = (event) => {
       if (event.target instanceof HTMLFormElement) capture(event.target);
@@ -70,7 +89,7 @@ export function credentialCapturePageScript(): string {
       if (form && ((button instanceof HTMLButtonElement || button instanceof HTMLInputElement)
         && button.type === 'submit')) return;
       const label = (button.getAttribute('aria-label') || button.textContent || button.value || '').trim();
-      if (/^(log\\s*in|sign\\s*in|continue|next)$/i.test(label)) capture(form);
+      if (/^(log\\s*in|sign\\s*in|sign\\s*up|create\\s+(an\\s+)?account|register|continue|next|(change|update|set|reset)\\s+password)$/i.test(label)) capture(form);
     };
     const onKeydown = (event) => {
       if (event.key === 'Enter' && !event.isComposing && event.target instanceof HTMLInputElement

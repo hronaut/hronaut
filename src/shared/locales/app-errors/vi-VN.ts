@@ -362,6 +362,7 @@ export const viVNAppErrors: AppErrorMessages = {
     "fillAgentActive": "Chưa điền mật khẩu vì một lệnh của tác nhân vẫn đang chạy. Các tác nhân vẫn tạm dừng; hãy thử lại khi lệnh hoàn tất.",
     "notFound": "Mật khẩu đã lưu không còn khả dụng.",
     "changed": "Mật khẩu đã lưu đã thay đổi trong khi đang được đọc. Hãy thử lại.",
+    "suggestFailed": "Hronaut không thể đề xuất mật khẩu cho trường này. Hãy nhấp chuột phải vào trường mật khẩu rồi thử lại.",
     "decryptFailed": "Không thể giải mã mật khẩu đã lưu. Hãy đảm bảo bộ nhớ bảo mật của hệ thống đã được mở khóa, rồi thử lại."
   },
   "emulation": {

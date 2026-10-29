@@ -68,4 +68,10 @@ export interface PageContextMenuAccess<Tab extends PageContextMenuTab> {
   browserContentOccluded(): boolean
   /** Names the download Save Link As starts for this address in this page with the link's `download` name. */
   expectSavedLinkName(webContents: WebContents, url: string, linkName: string): void
+  /**
+   * Suggests a strong password in the focused password field of the tab's page, bound to the page shown now; null
+   * while passwords cannot be saved, or when the tab is not the active one or shows no website. The suggestion
+   * reports whether the page took the password.
+   */
+  passwordSuggestion(tab: Tab): (() => Promise<boolean>) | null
 }
