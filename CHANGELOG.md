@@ -26,7 +26,7 @@ All notable changes to Hronaut are documented in this file.
 - Hronaut sends its window the state of the tabs only as fast as the window draws it, leaving it about half its time for clicks and keys, so with many pages loading at once it draws their newest state instead of working through seconds of older ones: with 45 pages opened by an agent, the window's longest pause is less than half of what it was. A page loading behind the shown one may no longer flash its spinner when its load is over within a moment.
 - The Claude Code plugin moved to its own repository, [hronaut/hronaut-claude-plugin](https://github.com/hronaut/hronaut-claude-plugin), with its own versions. To keep it updated, add that marketplace instead of hronaut/hronaut: `/plugin marketplace remove hronaut`, then `/plugin marketplace add hronaut/hronaut-claude-plugin` and `/plugin install hronaut@hronaut`.
 - The VS Code extension moved to its own repository, [hronaut/hronaut-vscode](https://github.com/hronaut/hronaut-vscode), with its own versions. Install it from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=hronaut.hronaut).
-- Hronaut describes itself the same way everywhere, as hronaut.dev does: "Give your coding agent its own browser. Keep yours." The README, the directory listing copy and the Official MCP Registry entry, from the next release, call it a visible desktop browser for coding agents, with a separate workspace for each project.
+- The Official MCP Registry entry and Hronaut's Windows shortcuts and installed-apps entry now describe it as hronaut.dev does: "A visible desktop browser for coding agents, with a separate workspace for each project."
 
 ### Fixed
 
