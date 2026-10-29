@@ -98,7 +98,8 @@ export async function suggestStrongPassword(
     const password = generateStrongPassword(length)
     // Remembered before the page has it: a page that submits as soon as the field changes is offered to save it too.
     suggestions.suggested(expectedContext.origin, password)
-    const outcome = await withAgentInput(browser, 
+    const outcome = await withAgentInput(
+      browser,
       tab.webContents,
       () => runInPage(tab, suggestedPasswordFillScript(expectedContext, password), true)
     )
