@@ -255,5 +255,5 @@ export const networkAbortReasonMessages = {
     AddressUnreachable: 'Không thể truy cập địa chỉ',
     BlockedByClient: 'Bị ứng dụng khách chặn',
     BlockedByResponse: 'Bị phản hồi chặn'
-  },
+  }
 }

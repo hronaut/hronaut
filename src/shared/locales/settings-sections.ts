@@ -17,9 +17,17 @@ export const settingsSectionMessages = {
       updates: 'version check release notes',
       support: 'license key activate subscription trial buy creem'
     },
-    appearanceGroups: { window: 'Window' },
-    generalGroups: { startup: 'Startup and tray', agents: 'Agent activity' },
-    general: { heading: 'General', description: 'Choose Hronaut’s language, how it starts, and how agent activity shows.' }
+    appearanceGroups: {
+      window: 'Window'
+    },
+    generalGroups: {
+      startup: 'Startup and tray',
+      agents: 'Agent activity'
+    },
+    general: {
+      heading: 'General',
+      description: 'Choose Hronaut’s language, how it starts, and how agent activity shows.'
+    }
   },
   'de-DE': {
     keywords: {
@@ -36,9 +44,17 @@ export const settingsSectionMessages = {
       updates: 'version prüfen versionshinweise aktualisierung',
       support: 'lizenz schlüssel aktivieren abonnement testphase kaufen creem'
     },
-    appearanceGroups: { window: 'Fenster' },
-    generalGroups: { startup: 'Start und Infobereich', agents: 'Agentenaktivität' },
-    general: { heading: 'Allgemein', description: 'Wähle die Sprache von Hronaut, wie es startet und wie Agentenaktivität angezeigt wird.' }
+    appearanceGroups: {
+      window: 'Fenster'
+    },
+    generalGroups: {
+      startup: 'Start und Infobereich',
+      agents: 'Agentenaktivität'
+    },
+    general: {
+      heading: 'Allgemein',
+      description: 'Wähle die Sprache von Hronaut, wie es startet und wie Agentenaktivität angezeigt wird.'
+    }
   },
   'fr-FR': {
     keywords: {
@@ -55,9 +71,17 @@ export const settingsSectionMessages = {
       updates: 'version vérifier notes de version mise à jour',
       support: 'licence clé activer abonnement essai acheter creem'
     },
-    appearanceGroups: { window: 'Fenêtre' },
-    generalGroups: { startup: 'Démarrage et zone de notification', agents: 'Activité des agents' },
-    general: { heading: 'Général', description: 'Choisissez la langue de Hronaut, son démarrage et l’affichage de l’activité des agents.' }
+    appearanceGroups: {
+      window: 'Fenêtre'
+    },
+    generalGroups: {
+      startup: 'Démarrage et zone de notification',
+      agents: 'Activité des agents'
+    },
+    general: {
+      heading: 'Général',
+      description: 'Choisissez la langue de Hronaut, son démarrage et l’affichage de l’activité des agents.'
+    }
   },
   'es-ES': {
     keywords: {
@@ -74,9 +98,17 @@ export const settingsSectionMessages = {
       updates: 'versión comprobar notas de la versión actualizar',
       support: 'licencia clave activar suscripción prueba comprar creem'
     },
-    appearanceGroups: { window: 'Ventana' },
-    generalGroups: { startup: 'Inicio y bandeja', agents: 'Actividad de los agentes' },
-    general: { heading: 'General', description: 'Elige el idioma de Hronaut, cómo se inicia y cómo se muestra la actividad de los agentes.' }
+    appearanceGroups: {
+      window: 'Ventana'
+    },
+    generalGroups: {
+      startup: 'Inicio y bandeja',
+      agents: 'Actividad de los agentes'
+    },
+    general: {
+      heading: 'General',
+      description: 'Elige el idioma de Hronaut, cómo se inicia y cómo se muestra la actividad de los agentes.'
+    }
   },
   'pl-PL': {
     keywords: {
@@ -93,9 +125,17 @@ export const settingsSectionMessages = {
       updates: 'wersja sprawdź informacje o wersji aktualizacja',
       support: 'licencja klucz aktywuj subskrypcja okres próbny kup creem'
     },
-    appearanceGroups: { window: 'Okno' },
-    generalGroups: { startup: 'Uruchamianie i zasobnik', agents: 'Aktywność agentów' },
-    general: { heading: 'Ogólne', description: 'Wybierz język Hronaut, sposób uruchamiania i pokazywania aktywności agentów.' }
+    appearanceGroups: {
+      window: 'Okno'
+    },
+    generalGroups: {
+      startup: 'Uruchamianie i zasobnik',
+      agents: 'Aktywność agentów'
+    },
+    general: {
+      heading: 'Ogólne',
+      description: 'Wybierz język Hronaut, sposób uruchamiania i pokazywania aktywności agentów.'
+    }
   },
   'ru-RU': {
     keywords: {
@@ -112,9 +152,17 @@ export const settingsSectionMessages = {
       updates: 'версия проверить что нового обновление',
       support: 'лицензия лицензионный ключ активировать подписка пробный период купить creem'
     },
-    appearanceGroups: { window: 'Окно' },
-    generalGroups: { startup: 'Запуск и трей', agents: 'Работа агентов' },
-    general: { heading: 'Общие', description: 'Выберите язык Hronaut, как он запускается и как видна работа агентов.' }
+    appearanceGroups: {
+      window: 'Окно'
+    },
+    generalGroups: {
+      startup: 'Запуск и трей',
+      agents: 'Работа агентов'
+    },
+    general: {
+      heading: 'Общие',
+      description: 'Выберите язык Hronaut, как он запускается и как видна работа агентов.'
+    }
   },
   'uk-UA': {
     keywords: {
@@ -131,9 +179,17 @@ export const settingsSectionMessages = {
       updates: 'версія перевірити що нового оновлення',
       support: 'ліцензія ліцензійний ключ активувати підписка пробний період купити creem'
     },
-    appearanceGroups: { window: 'Вікно' },
-    generalGroups: { startup: 'Запуск і трей', agents: 'Робота агентів' },
-    general: { heading: 'Загальні', description: 'Виберіть мову Hronaut, як він запускається і як видно роботу агентів.' }
+    appearanceGroups: {
+      window: 'Вікно'
+    },
+    generalGroups: {
+      startup: 'Запуск і трей',
+      agents: 'Робота агентів'
+    },
+    general: {
+      heading: 'Загальні',
+      description: 'Виберіть мову Hronaut, як він запускається і як видно роботу агентів.'
+    }
   },
   'it-IT': {
     keywords: {
@@ -150,9 +206,17 @@ export const settingsSectionMessages = {
       updates: 'versione controlla note di rilascio aggiornamenti',
       support: 'licenza chiave attiva abbonamento prova acquista creem supporto'
     },
-    appearanceGroups: { window: 'Finestra' },
-    generalGroups: { startup: 'Avvio e area di notifica', agents: 'Attività degli agenti' },
-    general: { heading: 'Generali', description: 'Scegli la lingua di Hronaut, come si avvia e come viene mostrata l’attività degli agenti.' }
+    appearanceGroups: {
+      window: 'Finestra'
+    },
+    generalGroups: {
+      startup: 'Avvio e area di notifica',
+      agents: 'Attività degli agenti'
+    },
+    general: {
+      heading: 'Generali',
+      description: 'Scegli la lingua di Hronaut, come si avvia e come viene mostrata l’attività degli agenti.'
+    }
   },
   'pt-BR': {
     keywords: {
@@ -169,9 +233,17 @@ export const settingsSectionMessages = {
       updates: 'versão verificar notas da versão atualização',
       support: 'licença chave ativar assinatura avaliação comprar creem'
     },
-    appearanceGroups: { window: 'Janela' },
-    generalGroups: { startup: 'Inicialização e bandeja', agents: 'Atividade dos agentes' },
-    general: { heading: 'Geral', description: 'Escolha o idioma do Hronaut, como ele é iniciado e como a atividade dos agentes é exibida.' }
+    appearanceGroups: {
+      window: 'Janela'
+    },
+    generalGroups: {
+      startup: 'Inicialização e bandeja',
+      agents: 'Atividade dos agentes'
+    },
+    general: {
+      heading: 'Geral',
+      description: 'Escolha o idioma do Hronaut, como ele é iniciado e como a atividade dos agentes é exibida.'
+    }
   },
   'tr-TR': {
     keywords: {
@@ -188,9 +260,17 @@ export const settingsSectionMessages = {
       updates: 'sürüm güncelleme denetle sürüm notları',
       support: 'lisans anahtar etkinleştir abonelik deneme satın al creem'
     },
-    appearanceGroups: { window: 'Pencere' },
-    generalGroups: { startup: 'Başlangıç ve sistem tepsisi', agents: 'Ajan etkinliği' },
-    general: { heading: 'Genel', description: 'Hronaut’un dilini, nasıl başlayacağını ve ajan etkinliğinin nasıl görüneceğini seçin.' }
+    appearanceGroups: {
+      window: 'Pencere'
+    },
+    generalGroups: {
+      startup: 'Başlangıç ve sistem tepsisi',
+      agents: 'Ajan etkinliği'
+    },
+    general: {
+      heading: 'Genel',
+      description: 'Hronaut’un dilini, nasıl başlayacağını ve ajan etkinliğinin nasıl görüneceğini seçin.'
+    }
   },
   'hi-IN': {
     keywords: {
@@ -207,9 +287,17 @@ export const settingsSectionMessages = {
       updates: 'अपडेट वर्शन जांचें रिलीज़ नोट',
       support: 'लाइसेंस कुंजी ऐक्टिवेट सदस्यता ट्रायल खरीदें creem'
     },
-    appearanceGroups: { window: 'विंडो' },
-    generalGroups: { startup: 'स्टार्टअप और ट्रे', agents: 'एजेंट गतिविधि' },
-    general: { heading: 'सामान्य', description: 'Hronaut की भाषा चुनें, यह कैसे शुरू होता है और एजेंट गतिविधि कैसे दिखती है।' }
+    appearanceGroups: {
+      window: 'विंडो'
+    },
+    generalGroups: {
+      startup: 'स्टार्टअप और ट्रे',
+      agents: 'एजेंट गतिविधि'
+    },
+    general: {
+      heading: 'सामान्य',
+      description: 'Hronaut की भाषा चुनें, यह कैसे शुरू होता है और एजेंट गतिविधि कैसे दिखती है।'
+    }
   },
   'ja-JP': {
     keywords: {
@@ -226,9 +314,17 @@ export const settingsSectionMessages = {
       updates: 'バージョン 確認 リリースノート アップデート 更新',
       support: 'ライセンス キー 有効化 サブスクリプション 試用 トライアル 購入 creem'
     },
-    appearanceGroups: { window: 'ウィンドウ' },
-    generalGroups: { startup: '起動とトレイ', agents: 'エージェントのアクティビティ' },
-    general: { heading: '全般', description: 'Hronaut の言語、起動方法、エージェントの動作の表示方法を選択します。' }
+    appearanceGroups: {
+      window: 'ウィンドウ'
+    },
+    generalGroups: {
+      startup: '起動とトレイ',
+      agents: 'エージェントのアクティビティ'
+    },
+    general: {
+      heading: '全般',
+      description: 'Hronaut の言語、起動方法、エージェントの動作の表示方法を選択します。'
+    }
   },
   'ko-KR': {
     keywords: {
@@ -245,9 +341,17 @@ export const settingsSectionMessages = {
       updates: '버전 확인 출시 노트 업데이트',
       support: '라이선스 키 활성화 구독 체험판 구매 creem 지원'
     },
-    appearanceGroups: { window: '창' },
-    generalGroups: { startup: '시작 및 트레이', agents: '에이전트 활동' },
-    general: { heading: '일반', description: 'Hronaut의 언어, 시작 방식, 에이전트 활동 표시 방식을 선택하세요.' }
+    appearanceGroups: {
+      window: '창'
+    },
+    generalGroups: {
+      startup: '시작 및 트레이',
+      agents: '에이전트 활동'
+    },
+    general: {
+      heading: '일반',
+      description: 'Hronaut의 언어, 시작 방식, 에이전트 활동 표시 방식을 선택하세요.'
+    }
   },
   'zh-CN': {
     keywords: {
@@ -264,9 +368,17 @@ export const settingsSectionMessages = {
       updates: '版本 检查 更新 版本说明 version update',
       support: '许可证 密钥 激活 订阅 试用 购买 creem license'
     },
-    appearanceGroups: { window: '窗口' },
-    generalGroups: { startup: '启动和托盘', agents: '智能体活动' },
-    general: { heading: '常规', description: '选择 Hronaut 的语言、启动方式以及智能体活动的显示方式。' }
+    appearanceGroups: {
+      window: '窗口'
+    },
+    generalGroups: {
+      startup: '启动和托盘',
+      agents: '智能体活动'
+    },
+    general: {
+      heading: '常规',
+      description: '选择 Hronaut 的语言、启动方式以及智能体活动的显示方式。'
+    }
   },
   'zh-TW': {
     keywords: {
@@ -283,9 +395,17 @@ export const settingsSectionMessages = {
       updates: '更新 版本 檢查 版本資訊',
       support: '授權 金鑰 啟用 訂閱 試用 購買 creem'
     },
-    appearanceGroups: { window: '視窗' },
-    generalGroups: { startup: '啟動與系統匣', agents: '代理程式活動' },
-    general: { heading: '一般', description: '選擇 Hronaut 的語言、啟動方式，以及代理程式活動的顯示方式。' }
+    appearanceGroups: {
+      window: '視窗'
+    },
+    generalGroups: {
+      startup: '啟動與系統匣',
+      agents: '代理程式活動'
+    },
+    general: {
+      heading: '一般',
+      description: '選擇 Hronaut 的語言、啟動方式，以及代理程式活動的顯示方式。'
+    }
   },
   'id-ID': {
     keywords: {
@@ -302,9 +422,17 @@ export const settingsSectionMessages = {
       updates: 'versi periksa catatan rilis pembaruan',
       support: 'lisensi kunci aktifkan langganan uji coba beli creem'
     },
-    appearanceGroups: { window: 'Jendela' },
-    generalGroups: { startup: 'Startup dan baki sistem', agents: 'Aktivitas agen' },
-    general: { heading: 'Umum', description: 'Pilih bahasa Hronaut, cara Hronaut dimulai, dan cara aktivitas agen ditampilkan.' }
+    appearanceGroups: {
+      window: 'Jendela'
+    },
+    generalGroups: {
+      startup: 'Startup dan baki sistem',
+      agents: 'Aktivitas agen'
+    },
+    general: {
+      heading: 'Umum',
+      description: 'Pilih bahasa Hronaut, cara Hronaut dimulai, dan cara aktivitas agen ditampilkan.'
+    }
   },
   'vi-VN': {
     keywords: {
@@ -321,8 +449,16 @@ export const settingsSectionMessages = {
       updates: 'cập nhật phiên bản kiểm tra ghi chú phát hành',
       support: 'giấy phép khóa kích hoạt gói đăng ký dùng thử mua creem'
     },
-    appearanceGroups: { window: 'Cửa sổ' },
-    generalGroups: { startup: 'Khởi động và khay hệ thống', agents: 'Hoạt động của tác nhân' },
-    general: { heading: 'Chung', description: 'Chọn ngôn ngữ của Hronaut, cách ứng dụng khởi động và cách hiển thị hoạt động của tác nhân.' }
-  },
+    appearanceGroups: {
+      window: 'Cửa sổ'
+    },
+    generalGroups: {
+      startup: 'Khởi động và khay hệ thống',
+      agents: 'Hoạt động của tác nhân'
+    },
+    general: {
+      heading: 'Chung',
+      description: 'Chọn ngôn ngữ của Hronaut, cách ứng dụng khởi động và cách hiển thị hoạt động của tác nhân.'
+    }
+  }
 }

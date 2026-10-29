@@ -35,6 +35,9 @@ tab access.
 ## Making changes
 
 - Use TypeScript and follow the existing ESM import style.
+- UI strings go in every language under `src/shared/locales/`. Run
+  `npm run format:locales` after editing them: it keeps one key per line, in
+  the order en-US has them, and the tests fail on a file it would change.
 - Prefer a self-contained module per feature. A reader should understand one
   feature, or one MCP tool, from its own folder without hopping across shared
   files. Duplicating a few lines is fine; a shared helper that couples
