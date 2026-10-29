@@ -2,8 +2,8 @@ import { constants, type BigIntStats } from 'node:fs'
 import { lstat, open, realpath, unlink, type FileHandle } from 'node:fs/promises'
 import { isAbsolute, join } from 'node:path'
 import { isWindowsReservedFilename } from '../../../shared/portable-filename.js'
+import type { Browser } from '../browser.js'
 import type { CompletedDownloadFile } from '../downloads-controller.js'
-import type { DownloadCopyAccess } from './download-copy-access.js'
 
 /** The largest download a copy takes, in bytes. */
 export const MAX_DOWNLOAD_COPY_BYTES = 2 * 1024 * 1024 * 1024
@@ -68,7 +68,7 @@ const CHANGED = 'The downloaded file was replaced or changed since it finished d
  * whether it is gone. Other messages never name a path.
  */
 export async function copyDownload(
-  access: DownloadCopyAccess,
+  browser: Browser,
   workspaceId: string,
   request: DownloadCopyRequest,
   validate?: () => void,
@@ -77,7 +77,7 @@ export async function copyDownload(
   const filename = portableCopyFilename(request.filename)
   if (!isAbsolute(request.directory)) throw new DownloadCopyProblem('The destination folder must be an absolute path.')
   validate?.()
-  const source = await access.completedDownloadFile(workspaceId, request.downloadId)
+  const source = await browser.downloadController.completedWorkspaceDownloadFile(workspaceId, request.downloadId)
   if (source.identity.size > MAX_DOWNLOAD_COPY_BYTES) throw new DownloadCopyProblem('The download is larger than 2 GiB, so it was not copied.')
   if (activeCopies >= MAX_ACTIVE_DOWNLOAD_COPIES) {
     throw new DownloadCopyProblem(`${MAX_ACTIVE_DOWNLOAD_COPIES} downloads are already being copied. Wait for them to finish, then copy again.`)

@@ -18,7 +18,6 @@ import type { VisualCompareAccess } from './visual-compare/visual-compare-access
 import { visualCompare, visualDiff, type BrowserVisualCompareResult } from './visual-compare/visual-compare.js'
 import type { WebMcpAccess } from './webmcp/webmcp-access.js'
 import { callWebMcpTool, listWebMcpTools, webMcpStatus, type WebMcpStatus, type WebMcpToolCall, type WebMcpToolList } from './webmcp/webmcp.js'
-import type { PwaInspectionAccess } from './pwa-inspection/pwa-inspection-access.js'
 import { inspectPwa } from './pwa-inspection/pwa-inspection.js'
 import type { ElementInspectionAccess } from './element-inspection/element-inspection-access.js'
 import { elementInspection, imageState, mediaState } from './element-inspection/element-inspection.js'
@@ -132,7 +131,6 @@ import {
 import { cancelHeldResponse, disposeHeldResponses, failAllHeldResponses, heldResponseSummaries, releaseHeldResponse, type HeldResponses } from './network-conditions/held-responses.js'
 import { BrowserDownloadsController } from './downloads-controller.js'
 import type { DownloadHistoryStore, SavedDownload } from './download-history/download-history.js'
-import type { DownloadCopyAccess } from './download-copy/download-copy-access.js'
 import { copyDownload, type DownloadCopyProgress, type DownloadCopyRequest, type DownloadCopyResult } from './download-copy/download-copy.js'
 import { BrowserProfilingController } from './profiling-controller.js'
 import { WorkspaceContinuityStore } from '../mcp/workspace-continuity-store.js'
@@ -185,7 +183,6 @@ import { fillFromFile, type TextFileFillProgress, type TextFileFillResult } from
 import type { TextInsertionAccess } from './text-insertion/text-insertion-access.js'
 import type { TextFileFillAccess } from './text-file-fill/text-file-fill-access.js'
 import { shadowSnapshot, type BrowserShadowSnapshot } from './shadow-snapshot/shadow-snapshot.js'
-import type { ShadowSnapshotAccess } from './shadow-snapshot/shadow-snapshot-access.js'
 import { trackedViewportScreenshot, type TrackedScreenshot, type TrackedScreenshotAccess, type TrackedScreenshotOptions } from './screenshot-observations/tracked-screenshot.js'
 import { basename, dirname, isAbsolute, join } from 'node:path'
 import axe from 'axe-core'
@@ -445,7 +442,6 @@ import type { PageLifecycleAccess } from './page-lifecycle/page-lifecycle-access
 import { controlPageLifecycle, pageLifecycle, setTabPageLifecycle } from './page-lifecycle/page-lifecycle.js'
 import type { PageNavigationAccess } from './page-navigation/page-navigation-access.js'
 import { back, forward, goToHistoryEntry, navigate, reload, reloadIgnoringCache, stop, stopFocusedPageLoading } from './page-navigation/page-navigation.js'
-import type { PageZoomAccess } from './page-zoom/page-zoom-access.js'
 import { setZoom } from './page-zoom/page-zoom.js'
 import type { PageWheelZoomAccess } from './page-zoom/page-wheel-zoom-access.js'
 import { historyGesture } from './history-gesture/history-gesture.js'
@@ -454,10 +450,8 @@ import { printPage, printShownPage } from './page-print/page-print.js'
 import { savePageAs, saveShownPage } from './page-save/page-save.js'
 import type { PageSaveAccess } from './page-save/page-save-access.js'
 import { viewFrameSource, viewPageSource, viewShownPageSource } from './page-source/page-source.js'
-import type { PageSourceAccess } from './page-source/page-source-access.js'
 import { openNavigationInNewTab } from './navigation-new-tab/navigation-new-tab.js'
 import { closeTabLeftEmptyByDownload, opensFromPage } from './download-tab-close/download-tab-close.js'
-import type { DownloadTabCloseAccess } from './download-tab-close/download-tab-close-access.js'
 import type { NavigationNewTabAccess } from './navigation-new-tab/navigation-new-tab-access.js'
 import type { PagePrintAccess } from './page-print/page-print-access.js'
 import { attachPageWheelZoom } from './page-zoom/page-wheel-zoom.js'
@@ -584,7 +578,6 @@ import { sendWalletProviderEvent, walletPageContext, walletPageContextForMcpTab 
 import { getMcpDiscoveryTabs, getMcpGroupState, requireTabInMcpGroup, tabBelongsToMcpGroup } from './workspace-scope/workspace-scope.js'
 import type { NewTabsAccess } from './new-tabs/new-tabs-access.js'
 import { createNewTab, newLabeledAgentTab } from './new-tabs/new-tabs.js'
-import type { AgentPointerAccess } from './agent-pointer/agent-pointer-access.js'
 import { dismissAgentPointer, showAgentPointer } from './agent-pointer/agent-pointer.js'
 import type { VisualCaptureAccess } from './visual-compare/visual-capture-access.js'
 import { captureVisual, visualCompareContext } from './visual-compare/visual-capture.js'
@@ -1138,7 +1131,7 @@ export class Browser {
       return browserSession
     },
     allowsAddress: (workspaceId, url, source) => this.mcpTabGroups.has(workspaceId) && this.workspaceNavigationAllowed(workspaceId, url, source),
-    downloadReady: (webContentsId) => closeTabLeftEmptyByDownload(this.downloadTabCloseAccess(), webContentsId),
+    downloadReady: (webContentsId) => closeTabLeftEmptyByDownload(this, webContentsId),
     isAvailable: () => !this.destroyed && !this.window.isDestroyed(),
     publish: (downloads) => {
       if (this.destroyed || this.window.isDestroyed() || this.window.webContents.isDestroyed()) return
@@ -2216,24 +2209,8 @@ export class Browser {
     this.pwaLifecycleRecorder.interruptWorkspace(workspaceId, reason)
   }
 
-  /**
-   * The narrow view PWA inspection gets of this manager's private tabs and
-   * debugger lease. It is a prototype method rather than a field, so
-   * managers created without the constructor (as unit tests do) still
-   * provide it. The delegate below returns the feature's promise directly,
-   * so no extra ticks separate its final checks from the caller.
-   */
-  private pwaInspectionAccess(): PwaInspectionAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      findTab: (tabId) => this.tabs.get(tabId),
-      withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
-      isUnavailableCdpMethod: (error) => this.isUnavailableCdpMethod(error)
-    }
-  }
-
   inspectPwa(options: BrowserPwaOptions = {}): Promise<BrowserPwaReport> {
-    return inspectPwa(this.pwaInspectionAccess(), options)
+    return inspectPwa(this, options)
   }
 
   storageChanges(
@@ -3437,21 +3414,6 @@ export class Browser {
   }
 
   /**
-   * The narrow view closing a tab a download left empty gets of this manager's tabs and tab closing. It is a prototype
-   * method rather than a field, so managers created without the constructor (as unit tests do) still provide it.
-   */
-  private downloadTabCloseAccess(): DownloadTabCloseAccess<BrowserTab> {
-    return {
-      tabOfPage: (webContentsId) => {
-        const tabId = this.destroyed ? undefined : this.webContentsToTab.get(webContentsId)
-        return tabId ? this.tabs.get(tabId) : undefined
-      },
-      tabCount: () => this.tabs.size,
-      closeTab: (tab) => this.closeTab(tab.id)
-    }
-  }
-
-  /**
    * The narrow view the list of pages Back and Forward show gets of this manager's tabs, window, failed action reports,
    * localized text and history navigation. It is a prototype method rather than a field, so managers created without
    * the constructor (as unit tests do) still provide it.
@@ -3494,7 +3456,7 @@ export class Browser {
   }
 
   viewShownPageSource(): Promise<boolean> {
-    return viewShownPageSource(this.pageSourceAccess())
+    return viewShownPageSource(this)
   }
 
   /** Save Page As for the page the window shows, for the menu and its key. */
@@ -3520,19 +3482,6 @@ export class Browser {
         : dialog.showSaveDialog(this.window, options),
       text: (key) => this.text(key),
       savingWebContents: () => (this.pageSaving ??= new Set())
-    }
-  }
-
-  /**
-   * The narrow view viewing a page's source gets of this manager's shown tab, trusted chrome occlusion and tab
-   * creation. It is a prototype method rather than a field, so managers created without the constructor (as unit tests
-   * do) still provide it. Each member reads the manager when called.
-   */
-  private pageSourceAccess(): PageSourceAccess<BrowserTab> {
-    return {
-      shownTab: () => this.activeTabId ? this.tabs.get(this.activeTabId) : undefined,
-      browserContentOccluded: () => this.browserContentOccluded,
-      createTab: (options) => this.createTab(options)
     }
   }
 
@@ -3598,23 +3547,8 @@ export class Browser {
     stopFindInPage(this.pageFindAccess(), tabId, options)
   }
 
-  /**
-   * The narrow view zooming a page gets of this manager's private tabs and
-   * state publication. It is a prototype method rather than a field, so
-   * managers created without the constructor (as unit tests do) still provide
-   * it. The delegate below returns the feature's value directly, and stays
-   * synchronous.
-   */
-  private pageZoomAccess(): PageZoomAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      changed: (persist) => this.changed(persist),
-      getState: () => this.getState()
-    }
-  }
-
   setZoom(options: { tabId?: string; action: 'in' | 'out' | 'reset' | 'set'; percent?: number }): BrowserState {
-    return setZoom(this.pageZoomAccess(), options)
+    return setZoom(this, options)
   }
 
   /**
@@ -3631,7 +3565,7 @@ export class Browser {
       isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
       agentInputWebContents: () => this.agentInputWebContents,
       nativeSelectionUnderWay: (webContentsId) => this.screenshotAreaSessions.has(webContentsId) || this.elementPickerSessions.has(webContentsId),
-      zoom: (tabId, direction) => { setZoom(this.pageZoomAccess(), { tabId, action: direction }) }
+      zoom: (tabId, direction) => { setZoom(this, { tabId, action: direction }) }
     }
   }
 
@@ -3812,23 +3746,8 @@ export class Browser {
     return snapshotDetails(this.pageSnapshotsAccess(), tabId, maxChars, rootSelector)
   }
 
-  /**
-   * The narrow view a shadow snapshot gets of this manager's private tabs and
-   * observation context. It is a prototype method rather than a field, so
-   * managers created without the constructor (as unit tests do) still
-   * provide it.
-   */
-  private shadowSnapshotAccess(): ShadowSnapshotAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      findTab: (tabId) => this.tabs.get(tabId),
-      snapshotDeltaContext: (tab) => this.snapshotDeltaContext(tab),
-      omitUrlDetail: () => this.omitAgentUrlDetail()
-    }
-  }
-
   shadowSnapshot(tabId: string | undefined, hostSelector: string, maxChars?: number): Promise<BrowserShadowSnapshot> {
-    return shadowSnapshot(this.shadowSnapshotAccess(), tabId, hostSelector, maxChars)
+    return shadowSnapshot(this, tabId, hostSelector, maxChars)
   }
 
   /**
@@ -3867,7 +3786,7 @@ export class Browser {
     return snapshotDelta(this.pageSnapshotsAccess(), options)
   }
 
-  private snapshotDeltaContext(tab: BrowserTab): BrowserSnapshotDeltaContext {
+  snapshotDeltaContext(tab: BrowserTab): BrowserSnapshotDeltaContext {
     return {
       tabId: tab.id,
       workspaceId: tab.mcpGroupId ?? null,
@@ -4161,26 +4080,13 @@ export class Browser {
     return dispatchNativeClick(this.nativeClickAccess(), webContents, point, doubleClick, validateClick, sample, observer, rightClick, modifiers)
   }
 
-  /**
-   * The narrow view drawing the agent's cursor gets of this manager's private
-   * options. It is a prototype method rather than a field, so managers created
-   * without the constructor (as unit tests do) still provide it. The
-   * delegates below return the feature's promise directly, so callers see the
-   * same ticks as before.
-   */
-  private agentPointerAccess(): AgentPointerAccess {
-    return {
-      options: () => this.options
-    }
-  }
-
   private showAgentPointer(
     webContents: BrowserTab['view']['webContents'],
     point: { x: number; y: number },
     effect: 'move' | 'click' | 'drag-start' | 'drag-end',
     options?: { origin?: { x: number; y: number }; agent?: AgentPointerIdentity }
   ): Promise<void> {
-    return showAgentPointer(this.agentPointerAccess(), webContents, point, effect, options)
+    return showAgentPointer(this, webContents, point, effect, options)
   }
 
   private dismissAgentPointer(webContents: BrowserTab['view']['webContents']): Promise<void> {
@@ -4727,13 +4633,9 @@ export class Browser {
     return this.downloadController.manageWorkspaceDownloads(workspaceId, action, downloadId)
   }
 
-  private downloadCopyAccess(): DownloadCopyAccess {
-    return { completedDownloadFile: (workspaceId, downloadId) => this.downloadController.completedWorkspaceDownloadFile(workspaceId, downloadId) }
-  }
-
   /** Copies a download the workspace finished into an existing folder under a new name; see copyDownload. */
   copyWorkspaceDownload(workspaceId: string, request: DownloadCopyRequest, validate?: () => void, progress?: DownloadCopyProgress): Promise<DownloadCopyResult> {
-    return copyDownload(this.downloadCopyAccess(), workspaceId, request, validate, progress)
+    return copyDownload(this, workspaceId, request, validate, progress)
   }
 
   private remapDownloadWorkspaceOwnership(sourceWorkspaceId: string, targetWorkspaceId: string): void {
@@ -5631,7 +5533,7 @@ export class Browser {
     if (mcpGroupId && !allowBusyWorkspace) this.assertWorkspaceCanOpenTab(mcpGroupId)
   }
 
-  private async createTab(options: {
+  async createTab(options: {
     id?: string
     title?: string
     label?: string
@@ -6304,8 +6206,8 @@ export class Browser {
       isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
       openDevTools: (tab) => this.openDevTools(tab),
       print: (tab) => printPage(this.pagePrintAccess(), tab),
-      viewSource: (tab) => viewPageSource(this.pageSourceAccess(), tab),
-      viewFrameSource: (tab, frameUrl) => viewFrameSource(this.pageSourceAccess(), tab, frameUrl),
+      viewSource: (tab) => viewPageSource(this, tab),
+      viewFrameSource: (tab, frameUrl) => viewFrameSource(this, tab, frameUrl),
       savePage: (tab) => savePageAs(this.pageSaveAccess(), tab),
       searchEngine: () => this.options.getSearchEngine?.() ?? DEFAULT_SEARCH_ENGINE,
       spellCheck: () => this.options.getSpellCheck?.() !== false,
@@ -6622,7 +6524,7 @@ export class Browser {
     return applyNetworkEmulation(webContents, preset, routes, send)
   }
 
-  private isUnavailableCdpMethod(error: unknown): boolean {
+  isUnavailableCdpMethod(error: unknown): boolean {
     return /(?:method not found|wasn't found|-32601)/i.test(String(error))
   }
 

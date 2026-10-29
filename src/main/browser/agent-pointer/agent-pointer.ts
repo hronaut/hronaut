@@ -1,7 +1,7 @@
 import type { WebContents } from 'electron'
 import { ISOLATED_WORLDS } from '../isolated-worlds.js'
+import type { Browser } from '../browser.js'
 import { agentPointerScript, dismissAgentPointerScript, type AgentPointerIdentity } from '../page-scripts.js'
-import type { AgentPointerAccess } from './agent-pointer-access.js'
 
 /** The isolated world the agent's cursor is drawn in, apart from the page's own scripts. */
 const AGENT_POINTER_WORLD_ID = ISOLATED_WORLDS.agentPointer
@@ -12,13 +12,13 @@ const AGENT_POINTER_WORLD_ID = ISOLATED_WORLDS.agentPointer
  * the name and two colors, in an isolated world.
  */
 export async function showAgentPointer(
-  access: AgentPointerAccess,
+  browser: Browser,
   webContents: WebContents,
   point: { x: number; y: number },
   effect: 'move' | 'click' | 'drag-start' | 'drag-end',
   options: { origin?: { x: number; y: number }; agent?: AgentPointerIdentity } = {}
 ): Promise<void> {
-  if (access.options().getShowAgentCursor?.() === false) return
+  if (browser.options.getShowAgentCursor?.() === false) return
   await webContents.executeJavaScriptInIsolatedWorld(
     AGENT_POINTER_WORLD_ID,
     [{ code: agentPointerScript(point, effect, options.origin, options.agent) }],

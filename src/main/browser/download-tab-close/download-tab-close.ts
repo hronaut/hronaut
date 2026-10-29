@@ -1,4 +1,5 @@
-import type { DownloadTabCloseAccess, DownloadTabCloseTab } from './download-tab-close-access.js'
+import type { Browser } from '../browser.js'
+import type { BrowserTab } from '../browser-tab.js'
 
 /**
  * Whether a new tab is one a download that is all it opens closes: a tab a page opened, from a link or a window it
@@ -18,19 +19,24 @@ export function opensFromPage(options: { openedFrom?: { window?: boolean }; navi
  * page keeps it, so saving a page or a link from it leaves it open, as does the window's only tab. Recently closed
  * does not list it, as reopening it would download the file again.
  */
-export function closeTabLeftEmptyByDownload<Tab extends DownloadTabCloseTab>(access: DownloadTabCloseAccess<Tab>,
-  webContentsId: number | undefined): void {
+export function closeTabLeftEmptyByDownload(browser: Browser, webContentsId: number | undefined): void {
   if (webContentsId === undefined) return
   // After the download's handler returns, as Electron goes on with the download then.
   setImmediate(() => {
-    const tab = access.tabOfPage(webContentsId)
+    const tab = tabOfPage(browser, webContentsId)
     // A page that never committed has no address yet; Chrome's tab is then still on its initial navigation.
-    if (!tab?.openedFromPage || tab.webContents.isDestroyed() || tab.webContents.getURL() !== '' || access.tabCount() < 2) return
+    if (!tab?.openedFromPage || tab.webContents.isDestroyed() || tab.webContents.getURL() !== '' || browser.tabs.size < 2) return
     tab.leftEmptyByDownload = true
-    void access.closeTab(tab).catch((error: unknown) => {
+    void browser.closeTab(tab.id).catch((error: unknown) => {
       delete tab.leftEmptyByDownload
       // A tab the person closed meanwhile is no failure.
-      if (access.tabOfPage(webContentsId) === tab) console.error('[browser] Could not close the tab a download left empty:', error)
+      if (tabOfPage(browser, webContentsId) === tab) console.error('[browser] Could not close the tab a download left empty:', error)
     })
   })
+}
+
+/** The open tab showing this page, if any. */
+function tabOfPage(browser: Browser, webContentsId: number): BrowserTab | undefined {
+  const tabId = browser.destroyed ? undefined : browser.webContentsToTab.get(webContentsId)
+  return tabId ? browser.tabs.get(tabId) : undefined
 }

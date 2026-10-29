@@ -7,7 +7,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { CompletedDownloadFile } from '../src/main/browser/downloads-controller.js'
 import { copyDownload, MAX_DOWNLOAD_COPY_BYTES, type DownloadCopyProgress } from '../src/main/browser/download-copy/download-copy.js'
-import type { DownloadCopyAccess } from '../src/main/browser/download-copy/download-copy-access.js'
+import type { Browser } from '../src/main/browser/browser.js'
 import { type DownloadCopySettlement, downloadCopySettlement } from '../src/main/mcp/tools/browser-download-copy/download-copy-settlement.js'
 import { registerBrowserDownloadCopy } from '../src/main/mcp/tools/browser-download-copy/index.js'
 
@@ -40,18 +40,18 @@ async function identityOf(path: string): Promise<CompletedDownloadFile['identity
   return { dev: String(info.dev), ino: String(info.ino), size: Number(info.size), mtimeNs: String(info.mtimeNs), ctimeNs: String(info.ctimeNs) }
 }
 
-/** A manager view whose one completed download is the file at `path`, recorded as it is now unless overridden. */
-async function accessFor(path: string, identity?: Partial<CompletedDownloadFile['identity']>): Promise<DownloadCopyAccess & { requests: string[] }> {
+/** A browser whose one completed download is the file at `path`, recorded as it is now unless overridden. */
+async function browserFor(path: string, identity?: Partial<CompletedDownloadFile['identity']>): Promise<Browser & { requests: string[] }> {
   const recorded = { ...await identityOf(path), ...identity }
   const requests: string[] = []
-  return {
-    requests,
-    completedDownloadFile: async (workspaceId, downloadId) => {
+  const downloadController = {
+    completedWorkspaceDownloadFile: async (workspaceId: string, downloadId: string): Promise<CompletedDownloadFile> => {
       requests.push(`${workspaceId}/${downloadId}`)
       if (workspaceId !== 'workspace' || downloadId !== 'download') throw new Error(`Download not found in this workspace: ${downloadId}`)
       return { savePath: path, identity: recorded }
     }
   }
+  return { requests, downloadController } as unknown as Browser & { requests: string[] }
 }
 
 async function problem(operation: Promise<unknown>): Promise<string> {
@@ -67,7 +67,7 @@ describe('copying a finished download', () => {
   it('copies the file byte for byte under the new name, readable only by its owner, and leaves the download as it was', async () => {
     const before = await stat(source)
     const progress: DownloadCopyProgress = { created: false, removed: false }
-    const result = await copyDownload(await accessFor(source), 'workspace', request(), undefined, progress)
+    const result = await copyDownload(await browserFor(source), 'workspace', request(), undefined, progress)
     const path = join(await realpath(destination), 'renamed copy.bin')
     expect(result).toMatchObject({ status: 'COPIED', downloadId: 'download', filename: 'renamed copy.bin', path, bytes: CONTENT.length })
     expect(Buffer.compare(await readFile(path), CONTENT)).toBe(0)
@@ -80,49 +80,49 @@ describe('copying a finished download', () => {
   it('writes into the real folder a symbolic link names, and reports that path', async () => {
     const linked = join(root, `linked-${Math.random().toString(36).slice(2)}`)
     await symlink(destination, linked)
-    const result = await copyDownload(await accessFor(source), 'workspace', request({ directory: linked }))
+    const result = await copyDownload(await browserFor(source), 'workspace', request({ directory: linked }))
     expect(result.path).toBe(join(await realpath(destination), 'renamed copy.bin'))
   })
 
   it('never replaces an existing name, a symbolic link included', async () => {
     const existing = join(destination, 'existing.bin')
     await writeFile(existing, 'keep me')
-    expect(await problem(copyDownload(await accessFor(source), 'workspace', request({ filename: 'existing.bin' })))).toMatch(/already exists.*nothing was copied or replaced/u)
+    expect(await problem(copyDownload(await browserFor(source), 'workspace', request({ filename: 'existing.bin' })))).toMatch(/already exists.*nothing was copied or replaced/u)
     expect(await readFile(existing, 'utf8')).toBe('keep me')
     const elsewhere = join(root, 'elsewhere.txt')
     await writeFile(elsewhere, 'outside')
     await symlink(elsewhere, join(destination, 'link.bin'))
     await symlink(join(root, 'nowhere.txt'), join(destination, 'dangling.bin'))
     for (const filename of ['link.bin', 'dangling.bin']) {
-      expect(await problem(copyDownload(await accessFor(source), 'workspace', request({ filename })))).toMatch(/already exists/u)
+      expect(await problem(copyDownload(await browserFor(source), 'workspace', request({ filename })))).toMatch(/already exists/u)
     }
     expect(await readFile(elsewhere, 'utf8')).toBe('outside')
     await expect(lstat(join(root, 'nowhere.txt'))).rejects.toThrow()
   })
 
   it('refuses names that are not one portable file name, and folders it cannot use, creating nothing', async () => {
-    const access = await accessFor(source)
+    const browser = await browserFor(source)
     for (const filename of ['../escape.bin', 'nested/copy.bin', 'nested\\copy.bin', '.', '..', ' padded.bin', 'padded.bin ', 'trailing.', 'CON.txt', 'nul', 'control\u0001.bin', 'colon:.bin', `${'é'.repeat(128)}.bin`]) {
-      expect(await problem(copyDownload(access, 'workspace', request({ filename }))), filename).toMatch(/one portable file name/u)
+      expect(await problem(copyDownload(browser, 'workspace', request({ filename }))), filename).toMatch(/one portable file name/u)
     }
-    expect(await problem(copyDownload(access, 'workspace', request({ directory: 'relative/folder' })))).toMatch(/must be an absolute path/u)
-    expect(await problem(copyDownload(access, 'workspace', request({ directory: join(root, 'missing') })))).toMatch(/does not exist/u)
-    expect(await problem(copyDownload(access, 'workspace', request({ directory: source })))).toMatch(/not a folder/u)
+    expect(await problem(copyDownload(browser, 'workspace', request({ directory: 'relative/folder' })))).toMatch(/must be an absolute path/u)
+    expect(await problem(copyDownload(browser, 'workspace', request({ directory: join(root, 'missing') })))).toMatch(/does not exist/u)
+    expect(await problem(copyDownload(browser, 'workspace', request({ directory: source })))).toMatch(/not a folder/u)
     expect(await readdir(destination)).toEqual([])
     // Names and relative folders are refused before the download is looked up.
-    expect(access.requests).toEqual(['workspace/download', 'workspace/download'])
+    expect(browser.requests).toEqual(['workspace/download', 'workspace/download'])
   })
 
   it('refuses a download from another workspace, one larger than the limit, and a file that changed since it finished', async () => {
-    expect(await problem(copyDownload(await accessFor(source), 'other', request()))).toMatch(/not found in this workspace/u)
-    expect(await problem(copyDownload(await accessFor(source, { size: MAX_DOWNLOAD_COPY_BYTES + 1 }), 'workspace', request()))).toMatch(/larger than 2 GiB/u)
+    expect(await problem(copyDownload(await browserFor(source), 'other', request()))).toMatch(/not found in this workspace/u)
+    expect(await problem(copyDownload(await browserFor(source, { size: MAX_DOWNLOAD_COPY_BYTES + 1 }), 'workspace', request()))).toMatch(/larger than 2 GiB/u)
 
-    const appended = await accessFor(source)
+    const appended = await browserFor(source)
     await appendFile(source, 'more')
     expect(await problem(copyDownload(appended, 'workspace', request()))).toMatch(/replaced or changed since it finished/u)
 
     await writeFile(source, CONTENT)
-    const touched = await accessFor(source)
+    const touched = await browserFor(source)
     await utimes(source, new Date(2001, 0, 1), new Date(2001, 0, 1))
     // Found before the copy is created, not only after it was written.
     const touchedProgress: DownloadCopyProgress = { created: false, removed: false }
@@ -130,19 +130,19 @@ describe('copying a finished download', () => {
     expect(touchedProgress.created).toBe(false)
 
     // Rewritten in place at the same size with its modification time set back: the change time still moves.
-    const rewritten = await accessFor(source)
+    const rewritten = await browserFor(source)
     const { atime, mtime } = await stat(source)
     await writeFile(source, Buffer.alloc(CONTENT.length, 7))
     await utimes(source, atime, mtime)
     expect(await problem(copyDownload(rewritten, 'workspace', request()))).toMatch(/replaced or changed/u)
 
     await writeFile(source, CONTENT)
-    const replaced = await accessFor(source)
+    const replaced = await browserFor(source)
     await unlink(source)
     await writeFile(source, CONTENT)
     expect(await problem(copyDownload(replaced, 'workspace', request()))).toMatch(/replaced or changed/u)
 
-    const linkedAway = await accessFor(source)
+    const linkedAway = await browserFor(source)
     const moved = `${source}.moved`
     await rename(source, moved)
     await symlink(moved, source)
@@ -154,11 +154,11 @@ describe('copying a finished download', () => {
   })
 
   it('runs at most two copies at once and refuses a third until one finishes', async () => {
-    const access = await accessFor(source)
-    const copies = await Promise.allSettled(['one.bin', 'two.bin', 'three.bin'].map(filename => copyDownload(access, 'workspace', request({ filename }))))
+    const browser = await browserFor(source)
+    const copies = await Promise.allSettled(['one.bin', 'two.bin', 'three.bin'].map(filename => copyDownload(browser, 'workspace', request({ filename }))))
     expect(copies.map(copy => copy.status)).toEqual(['fulfilled', 'fulfilled', 'rejected'])
     expect(((copies[2] as PromiseRejectedResult).reason as Error).message).toMatch(/already being copied/u)
-    expect((await copyDownload(access, 'workspace', request({ filename: 'four.bin' }))).status).toBe('COPIED')
+    expect((await copyDownload(browser, 'workspace', request({ filename: 'four.bin' }))).status).toBe('COPIED')
   })
 
   it('removes only its own partial copy when the call is stopped part way, and says so', async () => {
@@ -166,18 +166,18 @@ describe('copying a finished download', () => {
     const progress: DownloadCopyProgress = { created: false, removed: false }
     // The first two checks precede the file; the third follows the first chunk.
     const validate = (): void => { checks += 1; if (checks === 3) throw new Error('Download copy cancelled') }
-    expect(await problem(copyDownload(await accessFor(source), 'workspace', request(), validate, progress))).toBe('Download copy cancelled')
+    expect(await problem(copyDownload(await browserFor(source), 'workspace', request(), validate, progress))).toBe('Download copy cancelled')
     expect(await readdir(destination)).toEqual([])
     expect(progress).toEqual({ created: true, removed: true })
 
     // The call's own errors pass through unchanged, such as a lost write lease.
     const leaseLost = Object.assign(new Error('Workspace write lease lost'), { code: 'LEASE_LOST' })
     checks = 0
-    const lost = await copyDownload(await accessFor(source), 'workspace', request(), () => { checks += 1; if (checks === 3) throw leaseLost }).catch((caught: unknown) => caught)
+    const lost = await copyDownload(await browserFor(source), 'workspace', request(), () => { checks += 1; if (checks === 3) throw leaseLost }).catch((caught: unknown) => caught)
     expect(lost).toBe(leaseLost)
 
     const early: DownloadCopyProgress = { created: false, removed: false }
-    expect(await problem(copyDownload(await accessFor(source), 'workspace', request(), () => { throw new Error('Authority changed') }, early))).toBe('Authority changed')
+    expect(await problem(copyDownload(await browserFor(source), 'workspace', request(), () => { throw new Error('Authority changed') }, early))).toBe('Authority changed')
     expect(early).toEqual({ created: false, removed: false })
   })
 
@@ -192,7 +192,7 @@ describe('copying a finished download', () => {
       renameSync(target, join(destination, 'moved-away.bin'))
       writeFileSync(target, 'someone else')
     }
-    expect(await problem(copyDownload(await accessFor(source), 'workspace', request(), validate, progress))).toMatch(/moved or replaced while copying.*could not confirm that the copy it started is gone/u)
+    expect(await problem(copyDownload(await browserFor(source), 'workspace', request(), validate, progress))).toMatch(/moved or replaced while copying.*could not confirm that the copy it started is gone/u)
     expect(await readFile(target, 'utf8')).toBe('someone else')
     expect(progress).toEqual({ created: true, removed: false })
   })
@@ -202,7 +202,7 @@ describe('copying a finished download', () => {
     let checks = 0
     const renamed: DownloadCopyProgress = { created: false, removed: false }
     const renameAway = (): void => { checks += 1; if (checks === 3) renameSync(target, join(destination, 'kept.bin')) }
-    expect(await problem(copyDownload(await accessFor(source), 'workspace', request(), renameAway, renamed))).toMatch(/moved or replaced.*could not confirm/u)
+    expect(await problem(copyDownload(await browserFor(source), 'workspace', request(), renameAway, renamed))).toMatch(/moved or replaced.*could not confirm/u)
     expect(renamed).toEqual({ created: true, removed: false })
     expect(Buffer.compare(await readFile(join(destination, 'kept.bin')), CONTENT)).toBe(0)
 
@@ -210,7 +210,7 @@ describe('copying a finished download', () => {
     const moved: DownloadCopyProgress = { created: false, removed: false }
     const movedFolder = `${destination}-moved`
     const moveFolder = (): void => { checks += 1; if (checks === 3) renameSync(destination, movedFolder) }
-    expect(await problem(copyDownload(await accessFor(source), 'workspace', request(), moveFolder, moved))).toMatch(/moved or replaced.*could not confirm/u)
+    expect(await problem(copyDownload(await browserFor(source), 'workspace', request(), moveFolder, moved))).toMatch(/moved or replaced.*could not confirm/u)
     expect(moved).toEqual({ created: true, removed: false })
     expect(Buffer.compare(await readFile(join(movedFolder, 'renamed copy.bin')), CONTENT)).toBe(0)
 
@@ -224,7 +224,7 @@ describe('copying a finished download', () => {
       linkSync(join(second, 'renamed copy.bin'), join(second, 'other name.bin'))
       throw new Error('Download copy cancelled')
     }
-    expect(await problem(copyDownload(await accessFor(source), 'workspace', request({ directory: second }), linkAndStop, linked))).toMatch(/cancelled.*could not confirm/u)
+    expect(await problem(copyDownload(await browserFor(source), 'workspace', request({ directory: second }), linkAndStop, linked))).toMatch(/cancelled.*could not confirm/u)
     expect(linked).toEqual({ created: true, removed: false })
     expect(await readdir(second)).toEqual(['other name.bin'])
   })

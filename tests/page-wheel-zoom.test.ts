@@ -1,10 +1,16 @@
 import { EventEmitter } from 'node:events'
 import type { WebContents } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
+import type { Browser } from '../src/main/browser/browser.js'
 import { attachPageWheelZoom } from '../src/main/browser/page-zoom/page-wheel-zoom.js'
 import type { PageWheelZoomAccess, PageWheelZoomTab } from '../src/main/browser/page-zoom/page-wheel-zoom-access.js'
 import { setZoom } from '../src/main/browser/page-zoom/page-zoom.js'
-import type { BrowserState } from '../src/shared/types.js'
+
+// The state publication a zoom ends with, recorded on the fake browser it publishes for.
+vi.mock('../src/main/browser/browser-state/browser-state.js', () => ({
+  browserState: () => ({}),
+  publishChange: (browser: { changed(persist: boolean): void }, persist: boolean) => { browser.changed(persist) }
+}))
 
 interface ZoomTab extends PageWheelZoomTab {
   nativeInputEnvironmentGeneration: number
@@ -31,7 +37,7 @@ function attached(url: string, overrides: Partial<PageWheelZoomAccess<ZoomTab>> 
     agentInputWebContents: () => new Map(),
     nativeSelectionUnderWay: () => false,
     // The same step the zoom bar and Ctrl/Cmd with + or - take.
-    zoom: (tabId, direction) => { setZoom({ getTab: () => tab, changed, getState: () => ({}) as BrowserState }, { tabId, action: direction }) },
+    zoom: (tabId, direction) => { setZoom({ tabs: new Map([[tab.id, tab]]), changed } as unknown as Browser, { tabId, action: direction }) },
     ...overrides
   }
   attachPageWheelZoom(access, tab, webContents)
