@@ -78,7 +78,7 @@ function codeOf(file: string, text: string): string {
 }
 
 /** The file a relative import names: TypeScript's `.js` for `.ts`, a Vue or JavaScript file, or a folder's index. */
-function resolveImport(from: string, specifier: string): string | undefined {
+export function resolveImport(from: string, specifier: string): string | undefined {
   const target = join(dirname(from), specifier.replace(/\?.*$/, ''))
   const candidates = [target.replace(/\.js$/, '.ts'), target, `${target}.ts`, join(target, 'index.ts')]
   const found = candidates.find(candidate => /\.(ts|vue|js|mjs|cjs)$/.test(candidate) && existsSync(join(ROOT, candidate)) && statSync(join(ROOT, candidate)).isFile())
