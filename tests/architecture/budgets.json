@@ -1,6 +1,6 @@
 {
   "oversizedFiles": {
-    "src/main/browser/browser.ts": 5808,
+    "src/main/browser/browser.ts": 5704,
     "src/main/browser/downloads-controller.ts": 811,
     "src/main/index.ts": 1662,
     "src/main/mcp/http-server.ts": 856,
@@ -24,7 +24,6 @@
     "src/main/browser/interaction-lock/interaction-lock-access.ts",
     "src/main/browser/mcp-tab-groups/mcp-tab-groups-access.ts",
     "src/main/browser/network-conditions/network-conditions-access.ts",
-    "src/main/browser/network-inspection/network-inspection-access.ts",
     "src/main/browser/new-tabs/new-tabs-access.ts",
     "src/main/browser/page-audits/page-audits-access.ts",
     "src/main/browser/page-fullscreen/page-fullscreen-access.ts",
@@ -32,9 +31,6 @@
     "src/main/browser/page-lifecycle/page-lifecycle-access.ts",
     "src/main/browser/page-navigation/page-navigation-access.ts",
     "src/main/browser/screenshots/screenshots-access.ts",
-    "src/main/browser/session-hooks/session-hooks-access.ts",
-    "src/main/browser/split-view/split-view-access.ts",
-    "src/main/browser/suggested-password/suggested-password-access.ts",
     "src/main/browser/tab-close/before-unload-staging-access.ts",
     "src/main/browser/tab-close/close-tabs-for-person-access.ts",
     "src/main/browser/tab-events/debugger-events-access.ts",
