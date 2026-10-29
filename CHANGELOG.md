@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [3.14.0] - 2026-10-29
+
 ### Added
 
 - A website that asks for a username and password with HTTP authentication shows Hronaut's sign-in dialog, as Chrome does, instead of its 401 page: it names the website and the workspace, warns on an unencrypted connection, and sends what you type only to that website; the workspace stays signed in to it until Hronaut quits. Hronaut never shows what you type to agents, once you cancel a sign-in the tab's pages, and the tabs they open, cannot ask again by themselves, and an agent waiting for such a page is told that the person was asked to sign in.
