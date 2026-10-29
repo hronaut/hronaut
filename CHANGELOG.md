@@ -18,6 +18,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Hronaut no longer quits at random while a page uploads a file or other binary data, as X does while you scroll it. Electron 45.0 crashed Hronaut when such a request went out while Hronaut watched the tab's requests; Hronaut now runs on Electron 45.1, which fixes it.
 - A tab showing a video in picture-in-picture, its own or an embedded player's, no longer goes to sleep, which closed the video's window: like a tab playing audio, it stays active, as Chrome never discards such a tab. **Put Tab to Sleep** says why, and keeps the tab in view.
 - A page's request no longer fails at random with **Failed to fetch** (`net::ERR_FAILED`) just after a one-time request condition or a hold caught a request. Settling the rules a moment later sent the page's request interception to Chromium again, which could cut off a request the page was starting; Hronaut now leaves interception that still covers the rules in place, and ends it once nothing is left to intercept.
 - Filling a saved password or importing a browser's cookies no longer fails with **an agent command was still running** while a coding agent such as Claude Code is merely connected. The stream an agent keeps open to hear from Hronaut counted as a command in progress, and with 32 agents connected every request was refused as **Too many active MCP requests**. Home's **active** count and each connection's **Active** label now count only requests in progress.

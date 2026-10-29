@@ -130,7 +130,7 @@
     "@vue/test-utils": "^2.5.1",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
-    "electron": "45.0.0",
+    "electron": "45.1.0",
     "electron-builder": "^26.18.0",
     "electron-vite": "^6.0.0",
     "eslint": "^10.12.0",
