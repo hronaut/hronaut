@@ -1,11 +1,11 @@
 import { createDecipheriv, createHash, pbkdf2Sync, randomUUID, timingSafeEqual } from 'node:crypto'
-import { execFile } from 'node:child_process'
 import { lstat, readFile, readdir, realpath } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, isAbsolute, join, resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import type { Cookie } from 'electron'
 import { BrowserImportError, type CookieSnapshot, type ImportProfile } from './contracts.js'
+import { readLinuxBrowserKey } from './linux-browser-key.js'
 
 const MAX_ROWS = 20_000
 const MAX_BYTES = 128 * 1024 * 1024
@@ -145,20 +145,6 @@ export async function discoverImportProfiles(
     }
   }
   return profiles.slice(0, 300)
-}
-
-/** Only called after native read consent. Never writes or creates a keyring entry. */
-export function readLinuxBrowserKey(application: string): Promise<Buffer> {
-  if (!['chrome', 'chromium'].includes(application)) throw new BrowserImportError('keyUnavailable')
-  return new Promise((resolve, reject) => {
-    execFile('/usr/bin/secret-tool', ['lookup', 'application', application], { timeout: 30_000, maxBuffer: 4096, encoding: 'buffer' }, (error, stdout) => {
-      try {
-        if (error || !stdout.length) { reject(new BrowserImportError('keyUnavailable')); return }
-        const secret = stdout.subarray(0, stdout.at(-1) === 10 ? stdout.length - 1 : stdout.length)
-        resolve(pbkdf2Sync(secret, 'saltysalt', 1, 16, 'sha1'))
-      } finally { stdout.fill(0) }
-    })
-  })
 }
 
 // Chromium's Linux v10/v11 format: components/os_crypt/async/{browser,common}.
