@@ -32,10 +32,11 @@ export function attachPageDestroyedEvents<Tab extends PageDestroyedEventsTab>(ac
  * Shows that the tab's page is gone, while the tab is still open: it cancels
  * wallet requests, shows the problem, and keeps the browser usable: a split
  * view partner takes over, or another live tab is selected, or a new Home tab
- * is opened.
+ * is opened. Once the window is gone, as when Hronaut exits at once, there is
+ * no browser left to keep usable.
  */
 export function recoverFromDestroyedPage<Tab extends PageDestroyedEventsTab>(access: PageDestroyedEventsAccess<Tab>, tab: Tab): void {
-  if (access.isDestroyed() || access.findTab(tab.id) !== tab) return
+  if (access.isDestroyed() || access.window().isDestroyed() || access.findTab(tab.id) !== tab) return
   access.runWalletLifecycleAction('cancel wallet requests after a tab renderer closes', () => (
     access.options().onWalletTabClosed?.(tab.id)
   ))

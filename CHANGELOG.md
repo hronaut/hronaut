@@ -46,6 +46,7 @@ All notable changes to Hronaut are documented in this file.
 - Pages no longer wait for Hronaut before each request they send. Hronaut lists a page's requests itself until the page's debugger takes over, and it now only watches them, so many pages loading at once no longer hold up each other's requests while Hronaut is busy. A request that redirects is listed once for each address it goes to, with that address's status, and a request cleared from the list stays cleared when it ends.
 - With many pages loading at once, Hronaut saves the browsing history once a second rather than after each visit and title, and sends the windows only the pages that changed instead of the whole history each time.
 - With many tabs open, Hronaut does less work for each change a page makes: **Back** and **Forward** are checked without reading each tab's whole history, a page's requests are found without copying its list of them, and the tabs' history saved for the next start is read again only for the tabs shown and those whose history moved, and written only when it changed. At startup, the saved history and **Recently closed** are read together. Website icons that Electron cannot read itself, such as ICO and SVG on Linux, are decoded one at a time in a page of their own instead of in Hronaut's window, and a page waits for Hronaut once before its scripts run instead of twice.
+- When Hronaut exits at once, as it does when closing takes longer than ten seconds, it no longer shows or logs an "Object has been destroyed" error for its open tabs.
 
 ## [3.12.0] - 2026-10-25
 

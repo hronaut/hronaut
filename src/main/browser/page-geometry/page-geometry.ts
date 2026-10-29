@@ -71,7 +71,8 @@ export function getPageCards<Tab extends PageGeometryTab>(access: PageGeometryAc
 
 /** Tells the shell where the page cards and the frames around emulated pages are now. */
 export function publishPageGeometry<Tab extends PageGeometryTab>(access: PageGeometryAccess<Tab>): void {
-  if (access.window().webContents.isDestroyed()) return
+  // A destroyed window has no webContents to read.
+  if (access.window().isDestroyed() || access.window().webContents.isDestroyed()) return
   const frames = getEmulationFrames(access)
   const serializedFrames = JSON.stringify(frames)
   if (serializedFrames !== access.lastEmulationFrames()) {
