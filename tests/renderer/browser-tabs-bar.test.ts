@@ -2298,3 +2298,170 @@ describe('BrowserTabsBar dropped links', () => {
     expect(view.emitted().dropLink).toBeUndefined()
   })
 })
+
+// Ctrl or Shift with a click on a tab only showed it; as in Chrome, it selects several tabs, which the tab menu and a
+// drag then act on.
+describe('BrowserTabsBar selecting several tabs', () => {
+  function renderWithSelection(state: BrowserState, options: { tabSelection?: boolean; platform?: 'darwin' | 'linux' } = {}) {
+    return render(BrowserTabsBar, {
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: {
+        state,
+        hydrated: true,
+        orientation: 'horizontal',
+        railPinned: true,
+        mcpActivityByTab: {},
+        formatNumber: (value: number) => String(value),
+        tabTooltip: (value: BrowserTabState) => value.title,
+        describeEmulation: () => '',
+        platform: options.platform ?? 'linux',
+        tabSelection: options.tabSelection ?? true
+      }
+    })
+  }
+
+  function stateShowing(activeTabId: string, ids = ['a', 'b', 'c', 'd'], extra: BrowserTabState[] = [], groups = [workspace()]): BrowserState {
+    return browserState({ tabs: [...ids.map((id) => tab(id, { active: id === activeTabId })), ...extra], activeTabId, mcpTabGroups: groups })
+  }
+
+  const control = (id: string) => screen.getByRole('tab', { name: `Page ${id}` })
+  const selected = () => screen.getAllByRole('tab').filter((element) => element.getAttribute('aria-selected') === 'true').map((element) => element.dataset.tabId)
+  const highlighted = (view: ReturnType<typeof renderWithSelection>) => [...view.container.querySelectorAll<HTMLElement>('.tab.selected')].map((element) => element.dataset.tabId)
+
+  it('adds a tab with Ctrl and a click and shows it, and takes a tab out again', async () => {
+    const view = renderWithSelection(stateShowing('a'))
+    await fireEvent.click(control('b'), { ctrlKey: true })
+    expect(view.emitted().selectTab).toEqual([['b']])
+    expect(selected()).toEqual(['a', 'b'])
+    expect(highlighted(view)).toEqual(['a', 'b'])
+    expect(screen.getByRole('tablist', { name: 'Research' })).toHaveAttribute('aria-multiselectable', 'true')
+
+    // The shown tab moves to the tab added, and the selection stays.
+    await view.rerender({ state: stateShowing('b') })
+    await fireEvent.click(control('d'), { ctrlKey: true })
+    await view.rerender({ state: stateShowing('d') })
+    expect(selected()).toEqual(['a', 'b', 'd'])
+
+    // A tab taken out that is not shown leaves the others; the shown one hands the view to the nearest selected tab.
+    await fireEvent.click(control('a'), { ctrlKey: true })
+    expect(selected()).toEqual(['b', 'd'])
+    await fireEvent.click(control('d'), { ctrlKey: true })
+    expect(view.emitted().selectTab).toEqual([['b'], ['d'], ['b']])
+    await view.rerender({ state: stateShowing('b') })
+    expect(selected()).toEqual(['b'])
+    expect(highlighted(view)).toEqual([])
+
+    // The only selected tab stays.
+    await fireEvent.click(control('b'), { ctrlKey: true })
+    expect(selected()).toEqual(['b'])
+    expect(view.emitted().selectTab).toHaveLength(3)
+  })
+
+  it('selects the tabs from the last one clicked with Shift, and adds them with Ctrl and Shift', async () => {
+    const view = renderWithSelection(stateShowing('b'))
+    await fireEvent.click(control('d'), { shiftKey: true })
+    expect(view.emitted().selectTab).toEqual([['d']])
+    await view.rerender({ state: stateShowing('d') })
+    expect(selected()).toEqual(['b', 'c', 'd'])
+
+    // The range starts where it did, so a second Shift+click shortens it.
+    await fireEvent.click(control('a'), { shiftKey: true })
+    await view.rerender({ state: stateShowing('a') })
+    expect(selected()).toEqual(['a', 'b'])
+
+    await fireEvent.click(control('d'), { ctrlKey: true })
+    await view.rerender({ state: stateShowing('d') })
+    await fireEvent.click(control('c'), { shiftKey: true, ctrlKey: true })
+    await view.rerender({ state: stateShowing('c') })
+    expect(selected()).toEqual(['a', 'b', 'c', 'd'])
+  })
+
+  it('uses Cmd on macOS, where Control with a click opens the menu', async () => {
+    const view = renderWithSelection(stateShowing('a'), { platform: 'darwin' })
+    await fireEvent.click(control('b'), { ctrlKey: true })
+    expect(selected()).toEqual(['a'])
+    await fireEvent.click(control('c'), { metaKey: true })
+    expect(selected()).toEqual(['a', 'c'])
+    expect(view.emitted().selectTab).toEqual([['b'], ['c']])
+  })
+
+  it('leaves one tab selected after a plain click, a tab shown another way, or a click in another workspace', async () => {
+    const other = { ...workspace('workspace-2'), name: 'QA' }
+    const elsewhere = tab('x', { mcpGroupId: other.id, mcpGroupName: other.name })
+    const view = renderWithSelection(stateShowing('a', undefined, [elsewhere], [workspace(), other]))
+    await fireEvent.click(control('b'), { ctrlKey: true })
+    expect(selected()).toEqual(['a', 'b'])
+    await fireEvent.click(control('c'))
+    expect(selected()).toEqual(['a'])
+    await view.rerender({ state: stateShowing('c', undefined, [elsewhere], [workspace(), other]) })
+    expect(selected()).toEqual(['c'])
+
+    // The tab clicked last is where Shift selects from.
+    await fireEvent.click(control('b'), { shiftKey: true })
+    await view.rerender({ state: stateShowing('b', undefined, [elsewhere], [workspace(), other]) })
+    expect(selected()).toEqual(['b', 'c'])
+    // The keyboard, tab search or an agent shows a tab outside the selection.
+    await view.rerender({ state: stateShowing('d', undefined, [elsewhere], [workspace(), other]) })
+    expect(selected()).toEqual(['d'])
+
+    await fireEvent.click(control('c'), { ctrlKey: true })
+    expect(selected()).toEqual(['c', 'd'])
+    await fireEvent.click(control('x'), { ctrlKey: true })
+    expect(selected()).toEqual(['d'])
+    expect(view.emitted().selectTab?.at(-1)).toEqual(['x'])
+  })
+
+  it('drops a closed tab from the selection', async () => {
+    const view = renderWithSelection(stateShowing('a'))
+    await fireEvent.click(control('c'), { shiftKey: true })
+    await view.rerender({ state: stateShowing('c') })
+    expect(selected()).toEqual(['a', 'b', 'c'])
+    await view.rerender({ state: stateShowing('c', ['a', 'c', 'd']) })
+    expect(selected()).toEqual(['a', 'c'])
+    await view.rerender({ state: stateShowing('c', ['c', 'd']) })
+    expect(selected()).toEqual(['c'])
+    expect(highlighted(view)).toEqual([])
+  })
+
+  it('opens the menu of a selected tab for every selected tab, and of another tab for that tab alone', async () => {
+    const view = renderWithSelection(stateShowing('a'))
+    await fireEvent.click(control('c'), { ctrlKey: true })
+    await fireEvent.contextMenu(control('a'))
+    await fireEvent.contextMenu(control('b'))
+    expect(view.emitted().showTabContextMenu).toEqual([['a', ['a', 'c']], ['b', undefined]])
+  })
+
+  it('moves the selected tabs together when one of them is dragged', async () => {
+    const view = renderWithSelection(stateShowing('a'))
+    await fireEvent.click(control('b'), { ctrlKey: true })
+    await view.rerender({ state: stateShowing('b') })
+    vi.spyOn(control('d'), 'getBoundingClientRect').mockReturnValue({
+      left: 20, width: 100, right: 120, top: 0, bottom: 32, height: 32, x: 20, y: 0, toJSON: () => ({})
+    })
+
+    await fireEvent.dragStart(control('b'))
+    expect(view.container.querySelectorAll('.tab.dragging')).toHaveLength(2)
+    // Not beside a tab it moves.
+    await fireEvent.dragOver(control('a'), { clientX: 90 })
+    expect(view.container.querySelector('.drop-before, .drop-after')).toBeNull()
+    await fireEvent.dragOver(control('d'), { clientX: 90 })
+    expect(control('d')).toHaveClass('drop-after')
+    await fireEvent.drop(control('d'), { clientX: 90 })
+    expect(view.emitted().reorderTab).toEqual([[{ tabId: 'b', targetTabId: 'd', placement: 'after', tabIds: ['a', 'b'] }]])
+
+    // A tab outside the selection moves alone.
+    await fireEvent.dragStart(control('c'))
+    await fireEvent.dragOver(control('d'), { clientX: 90 })
+    await fireEvent.drop(control('d'), { clientX: 90 })
+    expect(view.emitted().reorderTab?.at(-1)).toEqual([{ tabId: 'c', targetTabId: 'd', placement: 'after' }])
+  })
+
+  it('only shows a tab with Ctrl or Shift and a click in the copy of the rail drawn over the page', async () => {
+    const view = renderWithSelection(stateShowing('a'), { tabSelection: false })
+    await fireEvent.click(control('b'), { ctrlKey: true })
+    await fireEvent.click(control('c'), { shiftKey: true })
+    expect(view.emitted().selectTab).toEqual([['b'], ['c']])
+    expect(selected()).toEqual(['a'])
+    expect(screen.getByRole('tablist', { name: 'Research' })).not.toHaveAttribute('aria-multiselectable')
+  })
+})

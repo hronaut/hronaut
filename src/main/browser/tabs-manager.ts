@@ -580,7 +580,7 @@ import type { TabReopeningAccess } from './tab-reopening/tab-reopening-access.js
 import { closedTabHistory, duplicateTabAfterLabelSave, forgetClosedTabs, forgetWorkspaceClosedTabs, rememberClosedTab, rememberSavedClosedTabs, reopenClosedTabAfterLabelSave, reopenClosedTabEntry } from './tab-reopening/tab-reopening.js'
 import { forgetTabHistoryPages, holdTabHistory } from './tab-history-pages/forget-tab-history-pages.js'
 import type { TabArrangementAccess } from './tab-arrangement/tab-arrangement-access.js'
-import { reorderTab, setTabPinned } from './tab-arrangement/tab-arrangement.js'
+import { reorderTab, reorderTabs, setTabPinned } from './tab-arrangement/tab-arrangement.js'
 import type { DroppedLinksAccess } from './dropped-links/dropped-links-access.js'
 import { openDroppedLink } from './dropped-links/dropped-links.js'
 import { placeTabOpenedFromPage } from './link-tab-placement/link-tab-placement.js'
@@ -2879,6 +2879,11 @@ export class BrowserTabsManager {
     return reorderTab(this.tabArrangementAccess(), tabId, targetTabId, placement)
   }
 
+  /** Moves the tabs selected in the strip or rail together, before or after the target tab. */
+  reorderTabs(tabIds: readonly string[], targetTabId: string, placement: 'before' | 'after'): BrowserState {
+    return reorderTabs(this.tabArrangementAccess(), tabIds, targetTabId, placement)
+  }
+
   /** Opens a link or other text the person dropped on the tab strip or rail, in a tab or beside one, as Chrome does. */
   openDroppedLink(text: string, target: DroppedLinkTarget): Promise<BrowserState> {
     return openDroppedLink(this.droppedLinksAccess(), text, target)
@@ -2979,8 +2984,8 @@ export class BrowserTabsManager {
   }
 
   /** Opens a tab's menu where the pointer is; `onClosed` runs once it closes, or at once when the tab has none. */
-  showTabContextMenu(tabId: string, onClosed?: () => void): void {
-    showTabContextMenu(this.tabContextMenuAccess(), tabId, onClosed)
+  showTabContextMenu(tabId: string, onClosed?: () => void, selectedTabIds?: readonly string[]): void {
+    showTabContextMenu(this.tabContextMenuAccess(), tabId, onClosed, selectedTabIds)
   }
 
   /**

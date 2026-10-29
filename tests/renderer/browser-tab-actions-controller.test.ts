@@ -57,6 +57,7 @@ function createHarness() {
     newTab: vi.fn(async (_options?: NewTabOptions) => state.value),
     reload: vi.fn(async (_tabId?: string) => state.value),
     reorderTab: vi.fn(async (_tabId: string, _targetTabId: string, _placement: 'before' | 'after') => state.value),
+    reorderTabs: vi.fn(async (_tabIds: readonly string[], _targetTabId: string, _placement: 'before' | 'after') => state.value),
     selectTab: vi.fn(async (_tabId: string) => state.value),
     setAllTabsMuted: vi.fn(async (_muted: boolean) => state.value),
     setAllHumanInteractionLocked: vi.fn(async (_locked: boolean) => state.value),
@@ -249,13 +250,16 @@ describe('browser tab actions controller', () => {
     harness.activeTab.value = mutedTab
     await harness.controller.showWorkspaceContextMenu('workspace')
     await harness.controller.reorderTab({ tabId: 'first', targetTabId: 'second', placement: 'after' })
+    // A drag of selected tabs moves them all.
+    await harness.controller.reorderTab({ tabId: 'first', targetTabId: 'third', placement: 'before', tabIds: ['first', 'second'] })
     await harness.controller.toggleTabMuted(mutedTab)
     await harness.controller.toggleAllTabsMuted()
     await harness.controller.toggleTabHumanInteraction()
     await harness.controller.toggleAllHumanInteraction()
 
     expect(harness.browser.showWorkspaceContextMenu).toHaveBeenCalledWith('workspace')
-    expect(harness.browser.reorderTab).toHaveBeenCalledWith('first', 'second', 'after')
+    expect(harness.browser.reorderTab).toHaveBeenCalledExactlyOnceWith('first', 'second', 'after')
+    expect(harness.browser.reorderTabs).toHaveBeenCalledExactlyOnceWith(['first', 'second'], 'third', 'before')
     expect(harness.browser.setTabMuted).toHaveBeenCalledWith('active', false)
     expect(harness.browser.setAllTabsMuted).toHaveBeenCalledWith(true)
     expect(harness.browser.setTabHumanInteractionLocked).toHaveBeenCalledWith('active', true)

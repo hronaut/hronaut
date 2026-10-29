@@ -30,6 +30,8 @@ const props = defineProps<{
   tab: BrowserTabState
   /** The tab is the one in view, and Settings does not cover it. */
   active: boolean
+  /** The tab is one of several selected with Ctrl, Cmd or Shift and a click, which its menu and a drag act on. */
+  selected?: boolean
   dragging: boolean
   /** Where a dragged tab or link would land: before or after this tab, or a link on it. */
   dropPlacement?: 'before' | 'after' | 'onto'
@@ -54,7 +56,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  select: [tabId: string]
+  select: [tabId: string, event: MouseEvent]
   focused: [tabId: string]
   tabKeydown: [event: KeyboardEvent, tab: BrowserTabState]
   tabAuxclick: [event: MouseEvent, tab: BrowserTabState]
@@ -81,6 +83,7 @@ const networkUnconfirmed = computed(() => Boolean(props.tab.networkConditionStat
     class="tab"
     :class="{
       active,
+      selected,
       pinned: tab.pinned,
       sleeping: tab.sleeping,
       frozen: tab.pageLifecycleState === 'frozen',
@@ -105,11 +108,11 @@ const networkUnconfirmed = computed(() => Boolean(props.tab.networkConditionStat
     :aria-keyshortcuts="tab.audible || tab.muted ? 'Delete M' : 'Delete'"
     :data-tab-id="tab.id"
     draggable="true"
-    :aria-selected="active"
+    :aria-selected="active || selected === true"
     :data-active-tab="active ? 'true' : undefined"
     @focus="emit('focused', tab.id)"
     @keydown="emit('tabKeydown', $event, tab)"
-    @click="emit('select', tab.id)"
+    @click="emit('select', tab.id, $event)"
     @auxclick="emit('tabAuxclick', $event, tab)"
     @contextmenu.prevent="emit('contextMenu', tab.id)"
     @dragstart="emit('tabDragstart', $event, tab)"

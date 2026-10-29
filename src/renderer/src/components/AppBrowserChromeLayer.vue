@@ -499,13 +499,14 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFrom
         :tab-tooltip="tabTooltip"
         :describe-emulation="describeTabEmulation"
         link-drops
+        tab-selection
         @open-home="runAction(actions.openHome)"
         @stay-here="setFollowAgentActivity(false)"
         @show-workspace-context-menu="runAction(() => showWorkspaceContextMenu($event))"
         @new-tab="runAction(() => actions.newTabInWorkspace($event))"
         @create-workspace="runAction(actions.openNewWorkspaceEditor)"
         @select-tab="selectTab"
-        @show-tab-context-menu="runAction(() => browser.showTabContextMenu($event))"
+        @show-tab-context-menu="(tabId: string, selectedTabIds?: string[]) => runAction(() => browser.showTabContextMenu(tabId, selectedTabIds))"
         @reorder-tab="runAction(() => reorderTab($event))"
         @drop-link="dropLink"
         @toggle-tab-muted="runAction(() => toggleTabMuted($event))"

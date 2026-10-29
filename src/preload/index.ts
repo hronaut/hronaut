@@ -153,6 +153,8 @@ const api: HronautApi = {
   sleepInactiveTabs: () => ipcRenderer.invoke('browser:sleep-inactive-tabs'),
   reorderTab: (tabId: string, targetTabId: string, placement: 'before' | 'after') =>
     ipcRenderer.invoke('browser:reorder-tab', tabId, targetTabId, placement),
+  reorderTabs: (tabIds: readonly string[], targetTabId: string, placement: 'before' | 'after') =>
+    ipcRenderer.invoke('browser:reorder-tabs', [...tabIds], targetTabId, placement),
   dropLink: (text: string, target: DroppedLinkTarget) => ipcRenderer.invoke('browser:drop-link', text, target),
   focusActivePage: () => ipcRenderer.invoke('browser:focus-active-page'),
   createWorkspace: (options: BrowserWorkspaceCreateOptions) => ipcRenderer.invoke('browser:create-workspace', options),
@@ -181,7 +183,8 @@ const api: HronautApi = {
   restoreSavedTabGroup: (savedGroupId: string) => ipcRenderer.invoke('browser:restore-saved-tab-group', savedGroupId),
   deleteSavedTabGroup: (savedGroupId: string) => ipcRenderer.invoke('browser:delete-saved-tab-group', savedGroupId),
   showWorkspaceContextMenu: (workspaceId: string) => ipcRenderer.invoke('browser:show-workspace-context-menu', workspaceId),
-  showTabContextMenu: (tabId: string) => ipcRenderer.invoke('browser:show-tab-context-menu', tabId),
+  showTabContextMenu: (tabId: string, selectedTabIds?: readonly string[]) =>
+    ipcRenderer.invoke('browser:show-tab-context-menu', tabId, selectedTabIds && [...selectedTabIds]),
   toggleDevTools: (tabId?: string) => ipcRenderer.invoke('browser:toggle-devtools', tabId),
   showDevToolsConsole: (tabId?: string) => ipcRenderer.invoke('browser:show-devtools-console', tabId),
   setTabViewport: (tabId: string, viewport: BrowserViewportEmulation | null) =>

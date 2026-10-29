@@ -137,6 +137,8 @@ export interface HronautApi {
   setTabPageLifecycle(tabId: string, state: 'active' | 'frozen'): Promise<BrowserState>
   sleepInactiveTabs(): Promise<BrowserState>
   reorderTab(tabId: string, targetTabId: string, placement: 'before' | 'after'): Promise<BrowserState>
+  /** Moves the tabs selected in the strip or rail together, in their order, before or after the target tab. */
+  reorderTabs(tabIds: readonly string[], targetTabId: string, placement: 'before' | 'after'): Promise<BrowserState>
   /**
    * Opens the text of a link or other text dropped on the tab strip or rail where it was dropped; text that is no
    * address searches. A javascript: address opens nothing.
@@ -165,7 +167,8 @@ export interface HronautApi {
   restoreSavedTabGroup(savedGroupId: string): Promise<BrowserState>
   deleteSavedTabGroup(savedGroupId: string): Promise<BrowserState>
   showWorkspaceContextMenu(workspaceId: string): Promise<void>
-  showTabContextMenu(tabId: string): Promise<void>
+  /** Shows the tab's menu, which acts on all the selected tabs when the tab is one of several selected ones. */
+  showTabContextMenu(tabId: string, selectedTabIds?: readonly string[]): Promise<void>
   toggleDevTools(tabId?: string): Promise<boolean>
   /** Opens Developer Tools on the Console, or turns open ones to it. */
   showDevToolsConsole(tabId?: string): Promise<boolean>

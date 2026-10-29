@@ -28,6 +28,7 @@ import { useWorkspaceGroupAgents } from '../composables/useWorkspaceGroupAgents.
 import { useCollapsedTabGroups } from '../composables/useCollapsedTabGroups.js'
 import { useTabDragReorder } from '../composables/useTabDragReorder.js'
 import { useTabLinkDrop } from '../composables/useTabLinkDrop.js'
+import { useTabSelection } from '../composables/useTabSelection.js'
 import { useTabStripScroll } from '../composables/useTabStripScroll.js'
 import { vTooltip } from '../ui/tooltip.js'
 import { ignoreHeldEnter } from '../held-enter.js'
@@ -65,6 +66,8 @@ const props = defineProps<{
   initialScrollTop?: number
   /** Links dropped on a tab or a workspace's New tab button open there; the copy main draws over the page leaves it out. */
   linkDrops?: boolean
+  /** Ctrl, Cmd or Shift with a click selects several tabs of a workspace; the copy main draws over the page leaves it out. */
+  tabSelection?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -73,8 +76,10 @@ const emit = defineEmits<{
   newTab: [groupId?: string]
   createWorkspace: []
   selectTab: [tabId: string]
-  showTabContextMenu: [tabId: string]
-  reorderTab: [details: { tabId: string; targetTabId: string; placement: 'before' | 'after' }]
+  /** The tab's menu, with the selected tabs it acts on when the tab is one of several selected. */
+  showTabContextMenu: [tabId: string, selectedTabIds?: string[]]
+  /** A tab moved by drag, with every tab it moves in tabIds when it moves the selected tabs. */
+  reorderTab: [details: { tabId: string; targetTabId: string; placement: 'before' | 'after'; tabIds?: string[] }]
   /** A link, or other text, dropped on a tab or a workspace's New tab button. */
   dropLink: [details: { text: string; target: DroppedLinkTarget }]
   toggleTabMuted: [tab: BrowserTabState]
@@ -131,9 +136,10 @@ const {
   observeStrip,
   stopObservingStrip
 } = useTabStripScroll({ vertical, focusedTabId })
-const { draggedTabId, tabDropTargetId, tabDropPlacement, clearTabDrag, beginTabDrag, updateTabDrop, finishTabDrop } = useTabDragReorder({
+const { draggedTabId, draggedTabIds, tabDropTargetId, tabDropPlacement, clearTabDrag, beginTabDrag, updateTabDrop, finishTabDrop } = useTabDragReorder({
   tabs: regularTabs,
   vertical,
+  selectionWith: (tabId) => selectionWith(tabId),
   onDragStart: () => emit('dragStart'),
   onReorder: (details) => emit('reorderTab', details)
 })
@@ -277,6 +283,13 @@ const allWorkspacesLabel = computed(() => {
 const visibleTabs = computed(() => railWorkspaces.value.flatMap((group) => (
   isTabGroupCollapsed(group.id) ? [] : tabGroupTabs(group.id)
 )))
+const { selectedTabIds, selectsOnClick, selectionWith } = useTabSelection({
+  enabled: () => props.tabSelection === true,
+  tabs: visibleTabs,
+  activeTabId: () => props.state.activeTabId,
+  platform: () => props.platform ?? window.hronautShell?.windowChrome.platform,
+  activate: activateTab
+})
 const keyboardTabId = computed(() => {
   const visibleIds = new Set(visibleTabs.value.map((tab) => tab.id))
   if (focusedTabId.value && visibleIds.has(focusedTabId.value)) return focusedTabId.value
@@ -308,6 +321,13 @@ function activateTab(tabId: string): void {
     const control = tabControl(tabId)
     if (control && document.activeElement === control) revealTab(control, 'auto')
   })
+}
+
+// Ctrl, Cmd or Shift with a click selects tabs; a plain click shows the tab.
+function clickTab(tabId: string, event: MouseEvent): void {
+  const tab = visibleTabs.value.find((candidate) => candidate.id === tabId)
+  if (tab && selectsOnClick(event, tab)) return
+  activateTab(tabId)
 }
 
 function handleTabKeyDown(event: KeyboardEvent, tab: BrowserTabState): void {
@@ -353,7 +373,10 @@ function noteFocusedTab(tabId: string): void {
 
 // The rows' events go on as the tab bar's own through these, the same function for every row and every draw, so a
 // row whose tab did not change is not drawn again for a new handler.
-const showTabContextMenu = (tabId: string): void => emit('showTabContextMenu', tabId)
+const showTabContextMenu = (tabId: string): void => {
+  const selected = selectionWith(tabId)
+  emit('showTabContextMenu', tabId, selected.length ? selected : undefined)
+}
 const toggleTabMuted = (tab: BrowserTabState): void => emit('toggleTabMuted', tab)
 const closeTab = (tabId: string): void => emit('closeTab', tabId)
 
@@ -651,13 +674,15 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, toggleTabGroup, collapsedTa
         role="tablist"
         :aria-label="workspace.name"
         :aria-orientation="orientation"
+        :aria-multiselectable="tabSelection ? 'true' : undefined"
       >
         <BrowserTabRow
           v-for="tab in isTabGroupCollapsed(workspace.id) ? [] : tabGroupTabs(workspace.id)"
           :key="tab.id"
           :tab="tab"
           :active="tab.active && !settingsActive"
-          :dragging="draggedTabId === tab.id"
+          :selected="selectedTabIds.includes(tab.id)"
+          :dragging="draggedTabIds.includes(tab.id)"
           :drop-placement="tabDropMarker(tab)"
           :all-human-interaction-locked="state.allHumanInteractionLocked"
           :all-tabs-muted="state.allTabsMuted === true"
@@ -670,7 +695,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, toggleTabGroup, collapsedTa
           :label="tabTooltip(tab)"
           :emulation-description="tab.emulation ? describeEmulation(tab) : undefined"
           :format-number="formatNumber"
-          @select="activateTab"
+          @select="clickTab"
           @focused="noteFocusedTab"
           @tab-keydown="handleTabKeyDown"
           @tab-auxclick="handleTabAuxClick"

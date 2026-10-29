@@ -4,17 +4,24 @@ import { tabTitleForDisplay } from '../../../shared/tab-title.js'
 import { reactInspectionMenu } from '../react-inspection-menu.js'
 import { isHronautHomeUrl } from '../url.js'
 import type { TabContextMenuAccess, TabContextMenuTab } from './tab-context-menu-access.js'
+import { selectedMenuTabs, showSelectedTabsContextMenu } from './selected-tabs-context-menu.js'
 
 /**
  * Shows a website tab's context menu: attention, new tab, reload, duplicate,
  * split view, React inspection, mute, Mute Site, pin, freeze, sleep, the workspace's own
  * menu, moving and closing tabs, reopening a closed one and bookmarking all
- * tabs. Hronaut Home has no tab menu. A failed action is logged and reported, never thrown.
+ * tabs. Hronaut Home has no tab menu. On one of several selected tabs, the menu acts on them all. A failed action is
+ * logged and reported, never thrown.
  */
-export function showTabContextMenu<Tab extends TabContextMenuTab>(access: TabContextMenuAccess<Tab>, tabId: string, onClosed?: () => void): void {
+export function showTabContextMenu<Tab extends TabContextMenuTab>(access: TabContextMenuAccess<Tab>, tabId: string, onClosed?: () => void, selectedTabIds?: readonly string[]): void {
   const tab = access.getTab(tabId)
   if (isHronautHomeUrl(tab.url)) {
     onClosed?.()
+    return
+  }
+  const selected = selectedMenuTabs(access, tab, selectedTabIds)
+  if (selected.length) {
+    showSelectedTabsContextMenu(access, tab, selected, onClosed)
     return
   }
   const websiteTabs = access.orderedTabs().filter((candidate) => !isHronautHomeUrl(candidate.url))
