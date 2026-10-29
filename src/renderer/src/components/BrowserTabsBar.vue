@@ -137,14 +137,17 @@ const { draggedTabId, tabDropTargetId, tabDropPlacement, clearTabDrag, beginTabD
   onDragStart: () => emit('dragStart'),
   onReorder: (details) => emit('reorderTab', details)
 })
-const { linkDropTabId, linkDropPlacement, linkDropWorkspaceId, clearLinkDrop, overTab, dropOnTab, overNewTab, dropOnNewTab } = useTabLinkDrop({
+const {
+  linkDropTabId, linkDropPlacement, linkDropWorkspaceId, enterStrip, overStrip, leaveStrip, endStripDrag, overTab, dropOnTab, overNewTab, dropOnNewTab
+} = useTabLinkDrop({
   vertical,
   accepts: () => props.linkDrops === true,
   draggingTab: () => draggedTabId.value !== null,
   onDrop: (details) => emit('dropLink', details)
 })
 
-// A tab of the bar moves when dragged over another; a link opens on or beside the tab it is dropped on.
+// A tab of the bar moves when dragged over another; a link opens on or beside the tab it is dropped on. Entering a tab
+// counts as moving over it.
 function handleTabDragover(event: DragEvent, tab: BrowserTabState): void {
   if (!overTab(event, tab)) updateTabDrop(event, tab)
 }
@@ -586,7 +589,11 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, toggleTabGroup, collapsedTa
       :aria-label="t('shell.tabs.list')"
       @scroll="handleTabStripScroll"
       @wheel="scrollTabsWithWheel"
-      @dragleave="clearLinkDrop"
+      @dragenter="enterStrip"
+      @dragover="overStrip"
+      @dragleave="leaveStrip"
+      @drop="endStripDrag"
+      @dragend="endStripDrag"
     >
     <div
       v-for="workspace in railWorkspaces"
@@ -669,6 +676,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, toggleTabGroup, collapsedTa
           @tab-auxclick="handleTabAuxClick"
           @context-menu="showTabContextMenu"
           @tab-dragstart="beginTabDrag"
+          @tab-dragenter="handleTabDragover"
           @tab-dragover="handleTabDragover"
           @tab-drop="handleTabDrop"
           @tab-dragend="clearTabDrag"
@@ -685,6 +693,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, toggleTabGroup, collapsedTa
         v-tooltip="t('runtime.tabs.newTab', { name: workspace.name })"
         :aria-label="t('runtime.tabs.newTab', { name: workspace.name })"
         @click="emit('newTab', workspace.id)"
+        @dragenter="overNewTab($event, workspace.id)"
         @dragover="overNewTab($event, workspace.id)"
         @drop="dropOnNewTab($event, workspace.id)"
       ><IconAdd aria-hidden="true" /><span class="workspace-new-tab-label">{{ t('tabSearch.newTabTitle') }}</span></UiButton>
@@ -711,6 +720,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, toggleTabGroup, collapsedTa
       v-tooltip="t('tabSearch.newTabTitle')"
       :aria-label="t('tabSearch.newTabTitle')"
       @click="emit('newTab')"
+      @dragenter="overNewTab($event)"
       @dragover="overNewTab($event)"
       @drop="dropOnNewTab($event)"
     ><IconAdd aria-hidden="true" /></UiButton>

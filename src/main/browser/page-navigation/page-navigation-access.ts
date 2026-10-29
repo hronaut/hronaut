@@ -47,6 +47,8 @@ export interface PageNavigationAccess<Tab extends PageNavigationTab> {
   waitForPage(tabId: string, timeoutMs: number): Promise<void>
   changed(persist?: boolean): void
   getState(): BrowserState
+  /** Brings the tab into view, as the person's click on it does, unless it is the tab shown. */
+  showTab(tab: Tab): Promise<void>
   /** Asks the person whether to leave a page that asked to confirm before it is left; true leaves it, and a question that could not be asked keeps the page. */
   confirmLeavePage(): Promise<boolean>
   /** Gives the keyboard to the page the person chose to keep, once the question over it has closed. */

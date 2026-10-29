@@ -7,6 +7,7 @@ import { applicationHasFocus } from '../composables/useModalDialogFocus.js'
 import type {
   BrowserState,
   BrowserTabState,
+  DroppedLinkTarget,
   HronautApi,
   UserAttentionRequest,
   SupportedLocale
@@ -243,6 +244,15 @@ function selectTab(tabId: string): void {
   settingsDialogController.close()
   tabSearchOpen.value = false
   void props.runAction(() => selectBrowserTab(tabId))
+}
+
+function dropLink(details: { text: string; target: DroppedLinkTarget }): void {
+  // A link that opens in a new tab shows that tab, as selecting one does, so Settings and tab search close for it.
+  if (!('tabId' in details.target) || details.target.placement !== 'onto') {
+    settingsDialogController.close()
+    tabSearchOpen.value = false
+  }
+  void props.runAction(() => props.syncState(props.browser.dropLink(details.text, details.target)))
 }
 
 const agentPresenceAvatars = ref<{ openCard: (options?: { reopen?: boolean }) => boolean; focus: () => boolean; cardOpen: boolean } | null>(null)
@@ -497,7 +507,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFrom
         @select-tab="selectTab"
         @show-tab-context-menu="runAction(() => browser.showTabContextMenu($event))"
         @reorder-tab="runAction(() => reorderTab($event))"
-        @drop-link="runAction(() => syncState(browser.dropLink($event.text, $event.target)))"
+        @drop-link="dropLink"
         @toggle-tab-muted="runAction(() => toggleTabMuted($event))"
         @close-tab="runAction(() => closeTab($event))"
         @drag-start="startTabDrag"

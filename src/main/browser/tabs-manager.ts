@@ -3580,6 +3580,9 @@ export class BrowserTabsManager {
       waitForPage: (tabId, timeoutMs) => this.waitForPage(tabId, timeoutMs),
       changed: (persist) => this.changed(persist),
       getState: () => this.getState(),
+      showTab: async (tab) => {
+        if (this.activeTabId !== tab.id) await this.selectTabForPerson(tab.id)
+      },
       confirmLeavePage: async () => {
         try {
           return await (this.options.confirmBeforeUnloadLeave?.() ?? Promise.resolve(false))

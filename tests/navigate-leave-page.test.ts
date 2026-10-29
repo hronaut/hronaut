@@ -23,6 +23,7 @@ function pageThatAsksToStay(confirmLeavePage: () => Promise<boolean> = async () 
     findTab: (id: string) => tabs.get(id),
     searchEngine: () => undefined,
     prepareDiagnosticNavigation: vi.fn(),
+    showTab: vi.fn(async () => undefined),
     confirmLeavePage: vi.fn(confirmLeavePage),
     focusKeptPage: vi.fn(),
     getState: () => ({ ok: true })
@@ -45,6 +46,23 @@ describe('loading an address from a page that asks before it is left', () => {
     expect(webContents.loadURL).toHaveBeenCalledOnce()
     // The address bar gave up the keyboard on Enter, which left it nowhere once the question closed.
     expect(access.focusKeptPage).toHaveBeenCalledExactlyOnceWith(tab)
+  })
+
+  // A link dropped on a tab behind the one shown asked about a page the person could not see.
+  it('brings the tab into view before asking the person, and asks nothing once its page went elsewhere meanwhile', async () => {
+    const { go, access, tab } = pageThatAsksToStay(async () => true)
+    const order: string[] = []
+    access.showTab.mockImplementation(async () => { order.push('shown') })
+    access.confirmLeavePage.mockImplementation(async () => { order.push('asked'); return true })
+    await go(true)
+    expect(access.showTab).toHaveBeenCalledExactlyOnceWith(tab)
+    expect(order).toEqual(['shown', 'asked'])
+
+    const moved = pageThatAsksToStay(async () => true)
+    moved.access.showTab.mockImplementation(async () => { moved.tab.documentGeneration++ })
+    await moved.go(true)
+    expect(moved.access.confirmLeavePage).not.toHaveBeenCalled()
+    expect(moved.webContents.loadURL).toHaveBeenCalledOnce()
   })
 
   it('gives no keyboard to a page that went elsewhere while the person decided to stay', async () => {

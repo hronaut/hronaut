@@ -60,6 +60,7 @@ const emit = defineEmits<{
   tabAuxclick: [event: MouseEvent, tab: BrowserTabState]
   contextMenu: [tabId: string]
   tabDragstart: [event: DragEvent, tab: BrowserTabState]
+  tabDragenter: [event: DragEvent, tab: BrowserTabState]
   tabDragover: [event: DragEvent, tab: BrowserTabState]
   tabDrop: [event: DragEvent, tab: BrowserTabState]
   tabDragend: []
@@ -112,6 +113,7 @@ const networkUnconfirmed = computed(() => Boolean(props.tab.networkConditionStat
     @auxclick="emit('tabAuxclick', $event, tab)"
     @contextmenu.prevent="emit('contextMenu', tab.id)"
     @dragstart="emit('tabDragstart', $event, tab)"
+    @dragenter="emit('tabDragenter', $event, tab)"
     @dragover="emit('tabDragover', $event, tab)"
     @drop="emit('tabDrop', $event, tab)"
     @dragend="emit('tabDragend')"

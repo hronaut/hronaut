@@ -2037,16 +2037,18 @@ describe('BrowserTabsBar dropped links', () => {
   }
 
   /** What a link dragged from a page carries, as Chromium hands it to the shell. */
-  function link(address = 'https://example.com/dropped', types = ['text/plain', 'text/uri-list', 'text/html']) {
+  function link(address = 'https://example.com/dropped', types = ['text/plain', 'text/uri-list', 'text/html'], effectAllowed = 'all') {
     const data: Record<string, string> = { 'text/plain': address, 'text/uri-list': address, 'text/html': `<a href="${address}">Dropped</a>` }
-    return { types, dropEffect: 'none', getData: (type: string) => types.includes(type) ? data[type] ?? '' : '' }
+    return { types, effectAllowed, dropEffect: 'none', getData: (type: string) => types.includes(type) ? data[type] ?? '' : '' }
   }
+
+  interface DragInit { clientX?: number; clientY?: number; dataTransfer: object }
 
   /**
    * Sends a drag event at the point; jsdom has no DragEvent, so the point goes on the event as Chromium's would carry
    * it. Whether the bar took the event comes back.
    */
-  async function drag(kind: 'dragOver' | 'drop', control: HTMLElement, init: { clientX?: number; clientY?: number; dataTransfer: object }): Promise<boolean> {
+  async function drag(kind: 'dragEnter' | 'dragOver' | 'dragLeave' | 'drop', control: Element, init: DragInit): Promise<boolean> {
     const event = createEvent[kind](control, { dataTransfer: init.dataTransfer })
     Object.defineProperties(event, { clientX: { value: init.clientX ?? 0 }, clientY: { value: init.clientY ?? 0 } })
     control.dispatchEvent(event)
@@ -2054,8 +2056,11 @@ describe('BrowserTabsBar dropped links', () => {
     return event.defaultPrevented
   }
 
-  const dragOver = (control: HTMLElement, init: { clientX?: number; clientY?: number; dataTransfer: object }) => drag('dragOver', control, init)
-  const drop = (control: HTMLElement, init: { clientX?: number; clientY?: number; dataTransfer: object }) => drag('drop', control, init)
+  const dragEnter = (control: Element, init: DragInit) => drag('dragEnter', control, init)
+  const dragLeave = (control: Element, init: DragInit) => drag('dragLeave', control, init)
+
+  const dragOver = (control: Element, init: DragInit) => drag('dragOver', control, init)
+  const drop = (control: Element, init: DragInit) => drag('drop', control, init)
 
   it.each([
     [21, 'before'], [44, 'before'], [45, 'onto'], [70, 'onto'], [94, 'onto'], [95, 'after'], [119, 'after']
@@ -2086,7 +2091,7 @@ describe('BrowserTabsBar dropped links', () => {
     await drop(first, { clientX: 70, clientY: 20, dataTransfer: link() })
     await drop(first, { clientX: 70, clientY: 35, dataTransfer: link() })
 
-    expect(view.emitted().dropLink?.map(([details]) => (details as { target: { placement: string } }).target.placement)).toEqual(['before', 'onto', 'after'])
+    expect((view.emitted().dropLink as [{ target: { placement: string } }][]).map(([details]) => details.target.placement)).toEqual(['before', 'onto', 'after'])
   })
 
   it('opens the first address of a link list, or the dragged text when there is none', async () => {
@@ -2136,20 +2141,119 @@ describe('BrowserTabsBar dropped links', () => {
   })
 
   // The marker stayed on the last tab a link was over after the link left the strip, as when it was dropped elsewhere.
-  it('clears the marker when the link leaves the strip', async () => {
+  // Chromium names no element a drag leaves for, and enters the next element before it leaves the last.
+  it('keeps the marker while the link moves within a tab, and clears it over a gap or once the link leaves the strip', async () => {
+    const view = renderWithLinkDrops(browserState({ tabs: [tab('first'), tab('second')], activeTabId: 'first' }))
+    const first = screen.getByRole('tab', { name: 'Page first' })
+    const second = screen.getByRole('tab', { name: 'Page second' })
+    bounds(first)
+    bounds(second)
+    const title = first.querySelector('.tab-title')!
+    const gap = second.closest('.workspace-tab-list')!
+    const markers = () => view.container.querySelectorAll('.drop-before, .drop-after, .drop-onto')
+
+    await dragEnter(first, { clientX: 70, dataTransfer: link() })
+    await dragEnter(title, { clientX: 70, dataTransfer: link() })
+    await dragLeave(first, { dataTransfer: link() })
+    expect(first).toHaveClass('drop-onto')
+    await dragEnter(second, { clientX: 100, dataTransfer: link() })
+    await dragLeave(title, { dataTransfer: link() })
+    expect(second).toHaveClass('drop-after')
+    expect(markers()).toHaveLength(1)
+    // The space around the tabs takes no link.
+    expect(await dragEnter(gap, { dataTransfer: link() })).toBe(false)
+    await dragLeave(second, { dataTransfer: link() })
+    expect(markers()).toHaveLength(0)
+    await dragEnter(second, { clientX: 100, dataTransfer: link() })
+    await dragLeave(gap, { dataTransfer: link() })
+    expect(second).toHaveClass('drop-after')
+    // Out of the strip.
+    await dragLeave(second, { dataTransfer: link() })
+    expect(markers()).toHaveLength(0)
+  })
+
+  it('counts nothing left over from a tab dropped in the strip, so a later link\'s marker still goes as it leaves', async () => {
+    const view = renderWithLinkDrops(browserState({ tabs: [tab('first'), tab('second')], activeTabId: 'first' }))
+    const first = screen.getByRole('tab', { name: 'Page first' })
+    const second = screen.getByRole('tab', { name: 'Page second' })
+    bounds(first)
+    bounds(second)
+    const data = new Map<string, string>()
+    const tabDrag = { types: ['text/plain', 'application/x-hronaut-tab'], effectAllowed: 'move', dropEffect: 'none', setData: (type: string, value: string) => { data.set(type, value) }, getData: (type: string) => data.get(type) ?? '' }
+
+    await fireEvent.dragStart(first, { dataTransfer: tabDrag })
+    await dragEnter(first, { clientX: 100, dataTransfer: tabDrag })
+    await dragEnter(second, { clientX: 100, dataTransfer: tabDrag })
+    await drop(second, { clientX: 100, dataTransfer: tabDrag })
+    await fireEvent.dragEnd(first, { dataTransfer: tabDrag })
+    expect(view.emitted().reorderTab).toHaveLength(1)
+
+    await dragEnter(first, { clientX: 70, dataTransfer: link() })
+    expect(first).toHaveClass('drop-onto')
+    await dragLeave(first, { dataTransfer: link() })
+    expect(view.container.querySelector('.drop-before, .drop-after, .drop-onto')).toBeNull()
+  })
+
+  // A link released as soon as it reached a tab or button dropped nothing: the pointer's entering was not taken.
+  it('takes a link the moment it enters a tab or a New tab button', async () => {
     const view = renderWithLinkDrops(browserState({ tabs: [tab('first')], activeTabId: 'first' }))
     const first = screen.getByRole('tab', { name: 'Page first' })
+    const newTab = screen.getByRole('button', { name: 'New tab in Research workspace' })
     bounds(first)
 
-    await dragOver(first, { clientX: 70, dataTransfer: link() })
+    expect(await dragEnter(first, { clientX: 70, dataTransfer: link() })).toBe(true)
     expect(first).toHaveClass('drop-onto')
-    await fireEvent.dragLeave(first, { dataTransfer: link() })
+    expect(await dragEnter(newTab, { dataTransfer: link() })).toBe(true)
+    await dragLeave(first, { dataTransfer: link() })
+    expect(newTab).toHaveClass('link-drop-target')
+    expect(first).not.toHaveClass('drop-onto')
+    await drop(newTab, { dataTransfer: link() })
 
-    expect(view.container.querySelector('.drop-onto')).toBeNull()
+    expect(view.emitted().dropLink).toEqual([[{ text: 'https://example.com/dropped', target: { workspaceId: 'workspace-1' } }]])
   })
 
   it.each([
-    ['files', link('file:///home/me/notes.txt', ['Files', 'text/uri-list'])],
+    ['all', 'copy'], ['copyLink', 'copy'], ['uninitialized', 'copy'], ['link', 'link'], ['linkMove', 'link'], ['move', 'move']
+  ])('takes a link whose source allows %s as a %s, as Chrome\'s tab strip does', async (effectAllowed, dropEffect) => {
+    renderWithLinkDrops(browserState({ tabs: [tab('first')], activeTabId: 'first' }))
+    const first = screen.getByRole('tab', { name: 'Page first' })
+    bounds(first)
+    const dataTransfer = link(undefined, undefined, effectAllowed)
+
+    await dragOver(first, { clientX: 70, dataTransfer })
+
+    expect(dataTransfer.dropEffect).toBe(dropEffect)
+  })
+
+  // Chromium hands an image dragged from a page over with its picture as a file too, which kept a linked picture from
+  // opening its link.
+  it('opens the address of an image dragged from a page, which carries the picture as a file', async () => {
+    const view = renderWithLinkDrops(browserState({ tabs: [tab('first')], activeTabId: 'first' }))
+    const first = screen.getByRole('tab', { name: 'Page first' })
+    bounds(first)
+    const dataTransfer = link('https://example.com/article', ['text/uri-list', 'text/html', 'Files'])
+
+    expect(await dragOver(first, { clientX: 70, dataTransfer })).toBe(true)
+    await drop(first, { clientX: 70, dataTransfer })
+
+    expect(view.emitted().dropLink).toEqual([[{ text: 'https://example.com/article', target: { tabId: 'first', placement: 'onto' } }]])
+  })
+
+  it('opens nothing for a file from the computer, even one that comes with its address', async () => {
+    const view = renderWithLinkDrops(browserState({ tabs: [tab('first')], activeTabId: 'first' }))
+    const first = screen.getByRole('tab', { name: 'Page first' })
+    bounds(first)
+    const withAddress = link('file:///home/me/notes.txt', ['Files', 'text/uri-list'])
+
+    await drop(first, { clientX: 70, dataTransfer: withAddress })
+    await drop(first, { clientX: 70, dataTransfer: link('FILE:///home/me/notes.txt', ['text/uri-list']) })
+
+    expect(view.emitted().dropLink).toBeUndefined()
+  })
+
+  it.each([
+    ['a file from the computer', link('/home/me/notes.txt', ['Files'])],
+    ['a file from the computer with its name as text', link('/home/me/notes.txt', ['Files', 'text/plain'])],
     ['a tab from the other copy of the rail', link('0199f0a2-tab', ['text/plain', 'application/x-hronaut-tab'])],
     ['nothing it can read as text', link('', ['text/html'])]
   ])('takes no drop of %s', async (_name, dataTransfer) => {
