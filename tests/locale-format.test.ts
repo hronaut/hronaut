@@ -85,6 +85,12 @@ describe('formatLocaleSource', () => {
     ].join('\n'))
   })
 
+  it('refuses a language file whose messages cannot line up with en-US', () => {
+    const english = "const plural = { one: 'one' }\nexport const enUS = { a: 'A', b: 'B' }"
+    expect(() => formatLocaleSource("export const deDE = { b: 'B', a: 'A' }", 'de-DE.ts', english))
+      .toThrow('de-DE.ts: 1 message objects, en-US.ts has 2; they cannot line up.')
+  })
+
   it("orders every language in one module like its 'en-US' entry", () => {
     const source = "export const words = { 'en-US': { a: 'A', b: 'B' }, 'de-DE': { b: 'B', a: 'A' }, other: { b: 'B', a: 'A' } }"
     expect(formatLocaleSource(source)).toBe([
@@ -112,8 +118,14 @@ describe('formatLocaleSource', () => {
     expect(formatLocaleSource(nested)).toBe("function words() {\n  return {\n    a: 'A',\n    b: 'B'\n  }\n}")
   })
 
-  it('refuses a comment inside messages instead of dropping it', () => {
-    expect(() => formatLocaleSource("export const m = {\n  // note\n  a: 'A'\n}", 'm.ts')).toThrow(/m\.ts:1: a comment/)
+  it('refuses a comment inside messages instead of dropping it, naming its line', () => {
+    expect(() => formatLocaleSource("export const m = {\n  a: 'A',\n  nested: {\n    // note\n    b: 'B'\n  }\n}", 'm.ts'))
+      .toThrow(/^m\.ts:4: a comment/)
+    expect(() => formatLocaleSource("export const m = { a: `x ${y} z`, /* note */ b: 'B' }", 'm.ts')).toThrow(/^m\.ts:1: a comment/)
+    expect(() => formatLocaleSource("export const m = {\n  a: /'/, // note\n  b: 'B'\n}", 'm.ts')).toThrow(/^m\.ts:2: a comment/)
+    expect(() => formatLocaleSource("export const m = { a: 'A' /* note */ }", 'm.ts')).toThrow(/^m\.ts:1: a comment/)
+    expect(formatLocaleSource("export const m = { a: `${y}//z`, b: 'https://example.com' }"))
+      .toBe("export const m = {\n  a: `${y}//z`,\n  b: 'https://example.com'\n}")
     expect(formatLocaleSource("// note\nexport const m = { a: 'https://example.com' }"))
       .toBe("// note\nexport const m = {\n  a: 'https://example.com'\n}")
   })

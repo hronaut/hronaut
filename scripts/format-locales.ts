@@ -42,8 +42,12 @@ export function formattedLocaleFile(path: string): string {
 
 export function formatLocaleSource(source: string, fileName = 'locale.ts', english?: string): string {
   const file = parse(source, fileName)
-  const orders = english === undefined ? [] : topLevelObjects(parse(english, 'en-US.ts')).map(keyOrder)
   const objects = topLevelObjects(file)
+  const orders = english === undefined ? [] : topLevelObjects(parse(english, 'en-US.ts')).map(keyOrder)
+  if (english !== undefined && orders.length !== objects.length) {
+    throw new Error(`${fileName}: ${objects.length} message objects, en-US.ts has ${orders.length}; they cannot line up.`)
+  }
+  objects.forEach((object) => refuseComments(object, file))
   let formatted = source
   for (const [index, object] of [...objects.entries()].reverse()) {
     const start = object.getStart(file)
@@ -79,22 +83,37 @@ function keyOrder(object: ts.ObjectLiteralExpression): KeyOrder {
   return { rank, nested }
 }
 
-function printObject(object: ts.ObjectLiteralExpression, indent: string, file: ts.SourceFile, order?: KeyOrder): string {
-  const where = `${file.fileName}:${file.getLineAndCharacterOfPosition(object.getStart(file)).line + 1}`
-  if (hasComment(file.text.slice(object.getStart(file), object.getEnd()))) {
-    throw new Error(`${where}: a comment inside locale messages would be lost; put it above the object.`)
+/** The printer keeps no comments, so one between the tokens of the messages stops it. */
+function refuseComments(object: ts.ObjectLiteralExpression, file: ts.SourceFile): void {
+  const visit = (node: ts.Node): void => {
+    const children = node.getChildren(file)
+    if (children.length > 0) {
+      children.forEach(visit)
+      return
+    }
+    const trivia = file.text.slice(Math.max(node.pos, object.getStart(file)), node.getStart(file))
+    const comment = /\S/.exec(trivia)
+    if (!comment) return
+    const line = file.getLineAndCharacterOfPosition(node.getStart(file) - trivia.length + comment.index).line + 1
+    throw new Error(`${file.fileName}:${line}: a comment inside locale messages would be lost; put it above the object.`)
   }
+  visit(object)
+}
+
+function printObject(object: ts.ObjectLiteralExpression, indent: string, file: ts.SourceFile, order?: KeyOrder): string {
   if (object.properties.length === 0) return '{}'
-  const english = object.properties.find((property) => ts.isPropertyAssignment(property)
-    && keyText(property.name) === 'en-US' && ts.isObjectLiteralExpression(property.initializer))
   // A module with every language in one object orders each language like its 'en-US' entry.
+  const english = object.properties.find((property) => ts.isPropertyAssignment(property) && keyText(property.name) === 'en-US')
   const languageOrder = english && ts.isPropertyAssignment(english) && ts.isObjectLiteralExpression(english.initializer)
     ? keyOrder(english.initializer)
     : undefined
   const inner = `${indent}  `
   const lines = ordered(object.properties, order).map((property) => {
     if (ts.isSpreadAssignment(property)) return `${inner}...${property.expression.getText(file)}`
-    if (!ts.isPropertyAssignment(property)) throw new Error(`${where}: locale messages hold only keys and spreads.`)
+    if (!ts.isPropertyAssignment(property)) {
+      const line = file.getLineAndCharacterOfPosition(property.getStart(file)).line + 1
+      throw new Error(`${file.fileName}:${line}: locale messages hold only keys and spreads.`)
+    }
     const key = keyText(property.name)
     const nested = order?.nested.get(key) ?? (LOCALE_NAME.test(key) ? languageOrder : undefined)
     return `${inner}${printKey(property.name, file)}: ${printValue(property.initializer, inner, file, nested)}`
@@ -147,7 +166,7 @@ function printValue(value: ts.Expression, indent: string, file: ts.SourceFile, o
   return value.getText(file)
 }
 
-/** The literal's own text with Prettier's quote choice; escapes other than quotes stay as written. */
+/** The literal's own text in the quotes its value needs fewer of escaped, single on a tie; other escapes stay as written. */
 function printString(literal: ts.StringLiteral, file: ts.SourceFile): string {
   const quote = count(literal.text, "'") > count(literal.text, '"') ? '"' : "'"
   const other = quote === '"' ? "'" : '"'
@@ -164,26 +183,12 @@ function count(text: string, character: string): number {
   return text.split(character).length - 1
 }
 
-function hasComment(text: string): boolean {
-  const scanner = ts.createScanner(ts.ScriptTarget.Latest, false, ts.LanguageVariant.Standard, text)
-  for (let token = scanner.scan(); token !== ts.SyntaxKind.EndOfFileToken; token = scanner.scan()) {
-    if (token === ts.SyntaxKind.SingleLineCommentTrivia || token === ts.SyntaxKind.MultiLineCommentTrivia) return true
-  }
-  return false
-}
-
 if (isMainModule(import.meta.url)) {
-  const check = process.argv.includes('--check')
-  const unformatted = localeFiles().filter((path) => {
-    const formatted = formattedLocaleFile(path)
-    if (formatted === readFileSync(path, 'utf8')) return false
-    if (!check) writeFileSync(path, formatted)
+  const formatted = localeFiles().filter((path) => {
+    const text = formattedLocaleFile(path)
+    if (text === readFileSync(path, 'utf8')) return false
+    writeFileSync(path, text)
     return true
-  }).map((path) => relative(process.cwd(), path))
-  if (check && unformatted.length > 0) {
-    process.stderr.write(`Locale files need formatting (npm run format:locales):\n${unformatted.join('\n')}\n`)
-    process.exitCode = 1
-  } else {
-    process.stdout.write(`${check ? 'Checked' : 'Formatted'} ${unformatted.length} locale file(s).\n`)
-  }
+  })
+  process.stdout.write(`Formatted ${formatted.length} locale file(s)${formatted.map((path) => `\n${relative(process.cwd(), path)}`).join('')}\n`)
 }
