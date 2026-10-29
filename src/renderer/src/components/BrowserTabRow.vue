@@ -31,7 +31,8 @@ const props = defineProps<{
   /** The tab is the one in view, and Settings does not cover it. */
   active: boolean
   dragging: boolean
-  dropPlacement?: 'before' | 'after'
+  /** Where a dragged tab or link would land: before or after this tab, or a link on it. */
+  dropPlacement?: 'before' | 'after' | 'onto'
   /** The browser-wide lock and mute show as pressed buttons, so a row does not repeat them. */
   allHumanInteractionLocked: boolean
   allTabsMuted: boolean
@@ -86,6 +87,7 @@ const networkUnconfirmed = computed(() => Boolean(props.tab.networkConditionStat
       dragging,
       'drop-before': dropPlacement === 'before',
       'drop-after': dropPlacement === 'after',
+      'drop-onto': dropPlacement === 'onto',
       locked: tab.humanInteractionInputLocked ?? (allHumanInteractionLocked || tab.humanInteractionLocked),
       'split-visible': splitOrientation !== undefined,
       'mcp-active': agentCommand !== undefined,

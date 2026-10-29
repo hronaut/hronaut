@@ -414,6 +414,7 @@ import type {
   BrowserWorkspaceStorageTransferResult,
   BrowserTabState,
   BrowserTabOverviewPreview,
+  DroppedLinkTarget,
   McpTabActivity,
   NewTabOptions
 } from '../../shared/types.js'
@@ -580,6 +581,8 @@ import { closedTabHistory, duplicateTabAfterLabelSave, forgetClosedTabs, forgetW
 import { forgetTabHistoryPages, holdTabHistory } from './tab-history-pages/forget-tab-history-pages.js'
 import type { TabArrangementAccess } from './tab-arrangement/tab-arrangement-access.js'
 import { reorderTab, setTabPinned } from './tab-arrangement/tab-arrangement.js'
+import type { DroppedLinksAccess } from './dropped-links/dropped-links-access.js'
+import { openDroppedLink } from './dropped-links/dropped-links.js'
 import { placeTabOpenedFromPage } from './link-tab-placement/link-tab-placement.js'
 import { forgetTabsOpenedFrom, handOverTabsOpenedFrom, switchLeavesOpenedTabs, tabAfterClosingLinkTab } from './link-tab-placement/link-tab-openers.js'
 import type { BrowserWalletPageContext, WalletPagesAccess } from './wallet-pages/wallet-pages-access.js'
@@ -2874,6 +2877,27 @@ export class BrowserTabsManager {
 
   reorderTab(tabId: string, targetTabId: string, placement: 'before' | 'after'): BrowserState {
     return reorderTab(this.tabArrangementAccess(), tabId, targetTabId, placement)
+  }
+
+  /** Opens a link or other text the person dropped on the tab strip or rail, in a tab or beside one, as Chrome does. */
+  openDroppedLink(text: string, target: DroppedLinkTarget): Promise<BrowserState> {
+    return openDroppedLink(this.droppedLinksAccess(), text, target)
+  }
+
+  /**
+   * The narrow view opening a dropped link gets of this manager's tabs in their order, navigation by the person, new tabs
+   * and state. It is a prototype method rather than a field, so managers created without the constructor (as unit tests
+   * do) still provide it.
+   */
+  private droppedLinksAccess(): DroppedLinksAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      tabs: () => this.tabs,
+      orderedTabs: () => this.orderedTabs(),
+      navigate: (address, tabId) => this.navigate(address, tabId, { byPerson: true }),
+      newTab: (options, onCreated) => this.createNewTab(options, true, onCreated),
+      getState: () => this.getState()
+    }
   }
 
   /**

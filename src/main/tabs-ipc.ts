@@ -3,14 +3,14 @@ import type { BrowserTabsManager } from './browser/tabs-manager.js'
 import type { McpHttpServer } from './mcp/server.js'
 import { LocalizedError } from './localized-error.js'
 import { tabAgentPauseOptions, type TakeOverOffers } from './take-over-offers.js'
-import { validateTabOverviewPreviewIds, type BrowserState } from '../shared/types.js'
+import { validateTabOverviewPreviewIds, type BrowserState, type DroppedLinkTarget } from '../shared/types.js'
 
 type TabsIpcTabs = Pick<BrowserTabsManager,
   | 'getState' | 'beforeStateReply' | 'getTabOverviewPreviews' | 'getTabOverviewPagePreview'
   | 'openHome' | 'newTab' | 'reopenClosedTab' | 'selectTabForPerson' | 'closeTabsForPerson'
   | 'openSplitViewAndWait' | 'updateSplitView' | 'closeSplitView'
   | 'setTabLabel' | 'setTabPinned' | 'setTabSleeping' | 'setTabPageLifecycle' | 'sleepInactiveTabs'
-  | 'reorderTab' | 'focusActivePage' | 'showTabContextMenu' | 'setTabMuted' | 'setAllTabsMuted'
+  | 'reorderTab' | 'openDroppedLink' | 'focusActivePage' | 'showTabContextMenu' | 'setTabMuted' | 'setAllTabsMuted'
   | 'setTabHumanInteractionLocked' | 'setAllHumanInteractionLocked'>
 
 interface TabsIpcHost {
@@ -37,6 +37,20 @@ async function stateReply(host: { tabs(): Pick<BrowserTabsManager, 'beforeStateR
   const state = await reply
   host.tabs()?.beforeStateReply()
   return state
+}
+
+/** Where the shell says a link was dropped: on a tab, before or after one, or on a workspace's New tab button. */
+function droppedLinkTarget(value: unknown): DroppedLinkTarget {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError('Invalid dropped link target')
+  const { tabId, placement, workspaceId } = value as Record<string, unknown>
+  if (tabId !== undefined) {
+    if (typeof tabId !== 'string' || (placement !== 'onto' && placement !== 'before' && placement !== 'after') || workspaceId !== undefined) {
+      throw new TypeError('Invalid dropped link target')
+    }
+    return { tabId, placement }
+  }
+  if (placement !== undefined || (workspaceId !== undefined && typeof workspaceId !== 'string')) throw new TypeError('Invalid dropped link target')
+  return workspaceId === undefined ? {} : { workspaceId }
 }
 
 /** Dependencies stay lazy because handlers are registered before the window loads. */
@@ -134,6 +148,11 @@ export function registerTabsIpc(host: TabsIpcHost): void {
       || (placement !== 'before' && placement !== 'after')
     ) throw new TypeError('Invalid tab reorder request')
     return host.tabs()!.reorderTab(tabId, targetTabId, placement)
+  })
+  host.handleBrowserIpc('browser:drop-link', (event, text: unknown, target: unknown) => {
+    host.assertTrustedSender(event)
+    if (typeof text !== 'string') throw new TypeError('Invalid dropped link')
+    return stateReply(host, host.tabs()!.openDroppedLink(text, droppedLinkTarget(target)))
   })
   host.handleBrowserIpc('browser:focus-active-page', (event) => {
     host.assertTrustedSender(event)

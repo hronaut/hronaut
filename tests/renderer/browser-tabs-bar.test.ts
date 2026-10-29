@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/vue'
+import { createEvent, fireEvent, render, screen, within } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { flushPromises } from '@vue/test-utils'
 import { nextTick, shallowRef } from 'vue'
@@ -2009,5 +2009,188 @@ describe('BrowserTabsBar drop marker while dragging a tab', () => {
 
     await fireEvent.drop(rejected, { clientX: 90 })
     expect(view.emitted().reorderTab).toBeUndefined()
+  })
+})
+
+describe('BrowserTabsBar dropped links', () => {
+  function renderWithLinkDrops(state: BrowserState, options: { linkDrops?: boolean; orientation?: 'horizontal' | 'vertical' } = {}) {
+    return render(BrowserTabsBar, {
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: {
+        state,
+        hydrated: true,
+        orientation: options.orientation ?? 'horizontal',
+        railPinned: true,
+        mcpActivityByTab: {},
+        formatNumber: (value: number) => String(value),
+        tabTooltip: (value: BrowserTabState) => value.title,
+        describeEmulation: () => '',
+        linkDrops: options.linkDrops ?? true
+      }
+    })
+  }
+
+  function bounds(control: HTMLElement): void {
+    vi.spyOn(control, 'getBoundingClientRect').mockReturnValue({
+      left: 20, width: 100, right: 120, top: 0, bottom: 40, height: 40, x: 20, y: 0, toJSON: () => ({})
+    })
+  }
+
+  /** What a link dragged from a page carries, as Chromium hands it to the shell. */
+  function link(address = 'https://example.com/dropped', types = ['text/plain', 'text/uri-list', 'text/html']) {
+    const data: Record<string, string> = { 'text/plain': address, 'text/uri-list': address, 'text/html': `<a href="${address}">Dropped</a>` }
+    return { types, dropEffect: 'none', getData: (type: string) => types.includes(type) ? data[type] ?? '' : '' }
+  }
+
+  /**
+   * Sends a drag event at the point; jsdom has no DragEvent, so the point goes on the event as Chromium's would carry
+   * it. Whether the bar took the event comes back.
+   */
+  async function drag(kind: 'dragOver' | 'drop', control: HTMLElement, init: { clientX?: number; clientY?: number; dataTransfer: object }): Promise<boolean> {
+    const event = createEvent[kind](control, { dataTransfer: init.dataTransfer })
+    Object.defineProperties(event, { clientX: { value: init.clientX ?? 0 }, clientY: { value: init.clientY ?? 0 } })
+    control.dispatchEvent(event)
+    await nextTick()
+    return event.defaultPrevented
+  }
+
+  const dragOver = (control: HTMLElement, init: { clientX?: number; clientY?: number; dataTransfer: object }) => drag('dragOver', control, init)
+  const drop = (control: HTMLElement, init: { clientX?: number; clientY?: number; dataTransfer: object }) => drag('drop', control, init)
+
+  it.each([
+    [21, 'before'], [44, 'before'], [45, 'onto'], [70, 'onto'], [94, 'onto'], [95, 'after'], [119, 'after']
+  ] as const)('marks a link at x=%i as dropped %s the tab, a quarter of it at either edge beside it, as in Chrome', async (clientX, placement) => {
+    const view = renderWithLinkDrops(browserState({ tabs: [tab('first'), tab('second')], activeTabId: 'first' }))
+    const second = screen.getByRole('tab', { name: 'Page second' })
+    bounds(second)
+    const dataTransfer = link()
+
+    expect(await dragOver(second, { clientX, dataTransfer })).toBe(true)
+    expect(dataTransfer.dropEffect).toBe('copy')
+    expect(second).toHaveClass(`drop-${placement}`)
+    expect(view.container.querySelectorAll('.drop-before, .drop-after, .drop-onto')).toHaveLength(1)
+
+    await drop(second, { clientX, dataTransfer })
+
+    expect(view.emitted().dropLink).toEqual([[{ text: 'https://example.com/dropped', target: { tabId: 'second', placement } }]])
+    expect(view.container.querySelector('.drop-before, .drop-after, .drop-onto')).toBeNull()
+    expect(view.emitted().reorderTab).toBeUndefined()
+  })
+
+  it('places a link by its height in the rail', async () => {
+    const view = renderWithLinkDrops(browserState({ tabs: [tab('first')], activeTabId: 'first' }), { orientation: 'vertical' })
+    const first = screen.getByRole('tab', { name: 'Page first' })
+    bounds(first)
+
+    await drop(first, { clientX: 70, clientY: 5, dataTransfer: link() })
+    await drop(first, { clientX: 70, clientY: 20, dataTransfer: link() })
+    await drop(first, { clientX: 70, clientY: 35, dataTransfer: link() })
+
+    expect(view.emitted().dropLink?.map(([details]) => (details as { target: { placement: string } }).target.placement)).toEqual(['before', 'onto', 'after'])
+  })
+
+  it('opens the first address of a link list, or the dragged text when there is none', async () => {
+    const view = renderWithLinkDrops(browserState({ tabs: [tab('first')], activeTabId: 'first' }))
+    const first = screen.getByRole('tab', { name: 'Page first' })
+    bounds(first)
+    const list = { types: ['text/uri-list', 'text/plain'], getData: (type: string) => type === 'text/uri-list' ? '# saved links\r\nhttps://example.com/one\r\nhttps://example.com/two' : 'Saved links' }
+    const words = { types: ['text/plain'], getData: (type: string) => type === 'text/plain' ? 'spell check languages' : '' }
+
+    await drop(first, { clientX: 70, dataTransfer: list })
+    await drop(first, { clientX: 70, dataTransfer: words })
+
+    expect(view.emitted().dropLink).toEqual([
+      [{ text: 'https://example.com/one', target: { tabId: 'first', placement: 'onto' } }],
+      [{ text: 'spell check languages', target: { tabId: 'first', placement: 'onto' } }]
+    ])
+  })
+
+  it('opens a link dropped on a workspace\'s New tab button in that workspace', async () => {
+    const other = { ...workspace('workspace-2'), name: 'QA' }
+    const view = renderWithLinkDrops(browserState({
+      tabs: [tab('first'), tab('elsewhere', { mcpGroupId: other.id, mcpGroupName: other.name })],
+      activeTabId: 'first',
+      mcpTabGroups: [workspace(), other]
+    }))
+    const newTab = screen.getByRole('button', { name: 'New tab in QA workspace' })
+
+    expect(await dragOver(newTab, { dataTransfer: link() })).toBe(true)
+    expect(newTab).toHaveClass('link-drop-target')
+    expect(screen.getByRole('button', { name: 'New tab in Research workspace' })).not.toHaveClass('link-drop-target')
+
+    await drop(newTab, { dataTransfer: link() })
+
+    expect(view.emitted().dropLink).toEqual([[{ text: 'https://example.com/dropped', target: { workspaceId: 'workspace-2' } }]])
+    expect(newTab).not.toHaveClass('link-drop-target')
+  })
+
+  it('opens a link dropped on the New tab button of a strip with no workspace in a new tab of the person\'s', async () => {
+    const view = renderWithLinkDrops(browserState({ tabs: [], activeTabId: null, mcpTabGroups: [] }))
+    const newTab = screen.getByRole('button', { name: 'New tab' })
+
+    expect(await dragOver(newTab, { dataTransfer: link() })).toBe(true)
+    expect(newTab).toHaveClass('link-drop-target')
+    await drop(newTab, { dataTransfer: link() })
+
+    expect(view.emitted().dropLink).toEqual([[{ text: 'https://example.com/dropped', target: {} }]])
+  })
+
+  // The marker stayed on the last tab a link was over after the link left the strip, as when it was dropped elsewhere.
+  it('clears the marker when the link leaves the strip', async () => {
+    const view = renderWithLinkDrops(browserState({ tabs: [tab('first')], activeTabId: 'first' }))
+    const first = screen.getByRole('tab', { name: 'Page first' })
+    bounds(first)
+
+    await dragOver(first, { clientX: 70, dataTransfer: link() })
+    expect(first).toHaveClass('drop-onto')
+    await fireEvent.dragLeave(first, { dataTransfer: link() })
+
+    expect(view.container.querySelector('.drop-onto')).toBeNull()
+  })
+
+  it.each([
+    ['files', link('file:///home/me/notes.txt', ['Files', 'text/uri-list'])],
+    ['a tab from the other copy of the rail', link('0199f0a2-tab', ['text/plain', 'application/x-hronaut-tab'])],
+    ['nothing it can read as text', link('', ['text/html'])]
+  ])('takes no drop of %s', async (_name, dataTransfer) => {
+    const view = renderWithLinkDrops(browserState({ tabs: [tab('first')], activeTabId: 'first' }))
+    const first = screen.getByRole('tab', { name: 'Page first' })
+    bounds(first)
+
+    expect(await dragOver(first, { clientX: 70, dataTransfer })).toBe(false)
+    expect(first).not.toHaveClass('drop-onto')
+    await drop(first, { clientX: 70, dataTransfer })
+
+    expect(view.emitted().dropLink).toBeUndefined()
+  })
+
+  it('takes no link in a copy that does not open links, as the one main draws over the page', async () => {
+    const view = renderWithLinkDrops(browserState({ tabs: [tab('first')], activeTabId: 'first' }), { linkDrops: false })
+    const first = screen.getByRole('tab', { name: 'Page first' })
+    bounds(first)
+
+    expect(await dragOver(first, { clientX: 70, dataTransfer: link() })).toBe(false)
+    expect(await dragOver(screen.getByRole('button', { name: 'New tab in Research workspace' }), { dataTransfer: link() })).toBe(false)
+    await drop(first, { clientX: 70, dataTransfer: link() })
+
+    expect(view.emitted().dropLink).toBeUndefined()
+  })
+
+  it('still moves a tab of the bar dragged over another, and marks its drag as a tab', async () => {
+    const view = renderWithLinkDrops(browserState({ tabs: [tab('first'), tab('second')], activeTabId: 'first' }))
+    const first = screen.getByRole('tab', { name: 'Page first' })
+    const second = screen.getByRole('tab', { name: 'Page second' })
+    bounds(second)
+    const data = new Map<string, string>()
+    const dataTransfer = { types: ['text/plain'], effectAllowed: 'all', dropEffect: 'none', setData: (type: string, value: string) => { data.set(type, value) }, getData: (type: string) => data.get(type) ?? '' }
+
+    await fireEvent.dragStart(first, { dataTransfer })
+    expect(data.get('application/x-hronaut-tab')).toBe('first')
+    await dragOver(second, { clientX: 100, dataTransfer })
+    expect(second).toHaveClass('drop-after')
+    await drop(second, { clientX: 100, dataTransfer })
+
+    expect(view.emitted().reorderTab).toEqual([[{ tabId: 'first', targetTabId: 'second', placement: 'after' }]])
+    expect(view.emitted().dropLink).toBeUndefined()
   })
 })

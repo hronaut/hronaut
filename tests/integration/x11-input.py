@@ -54,6 +54,27 @@ def main() -> None:
             x11.XSync(display, False)
             time.sleep(0.05)
             return
+        if action.startswith("--drag-and-drop-to="):
+            # Chromium's drag and drop runs its own loop once the pointer leaves the press, which needs motion it can
+            # see at each step and a pause over the target before the release, or it drops nothing.
+            target_x, target_y = map(int, action.removeprefix("--drag-and-drop-to=").split(","))
+            xtst.XTestFakeMotionEvent(display, -1, x, y, 0)
+            x11.XSync(display, False)
+            time.sleep(0.05)
+            xtst.XTestFakeButtonEvent(display, 1, True, 0)
+            x11.XSync(display, False)
+            time.sleep(0.05)
+            for step in range(1, 13):
+                xtst.XTestFakeMotionEvent(display, -1, x + round((target_x - x) * step / 12), y + round((target_y - y) * step / 12), 0)
+                x11.XSync(display, False)
+                time.sleep(0.08)
+            xtst.XTestFakeMotionEvent(display, -1, target_x + 1, target_y, 0)
+            x11.XSync(display, False)
+            time.sleep(0.3)
+            xtst.XTestFakeButtonEvent(display, 1, False, 0)
+            x11.XSync(display, False)
+            time.sleep(0.05)
+            return
         if action in ("--click", "--right-click"):
             button = 3 if action == "--right-click" else 1
             xtst.XTestFakeMotionEvent(display, -1, x, y, 0)

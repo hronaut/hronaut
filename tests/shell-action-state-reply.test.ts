@@ -15,7 +15,7 @@ function shellActions() {
   const tabs = {
     getState: () => { order.push('action ended'); return state },
     openHome: action, newTab: action, selectTabForPerson: action, closeTabsForPerson: action,
-    navigate: action, back: action, forward: action, reload: action,
+    navigate: action, back: action, forward: action, reload: action, openDroppedLink: action,
     beforeStateReply: () => { order.push('waiting change sent') }
   }
   const host = {
@@ -46,7 +46,8 @@ it('sends a change waiting for the shell to draw before replying to each shell a
   // older state than the reply.
   for (const [channel, ...args] of [
     ['browser:get-state'], ['browser:open-home'], ['browser:new-tab', {}], ['browser:select-tab', 'tab'], ['browser:close-tab', 'tab'],
-    ['browser:navigate', { url: 'https://example.com/' }], ['browser:back'], ['browser:forward'], ['browser:reload']
+    ['browser:navigate', { url: 'https://example.com/' }], ['browser:back'], ['browser:forward'], ['browser:reload'],
+    ['browser:drop-link', 'https://example.com/', { tabId: 'tab', placement: 'onto' }]
   ] as const) {
     const shell = shellActions()
     await expect(shell.invoke(channel, ...args), channel).resolves.toBe(shell.state)

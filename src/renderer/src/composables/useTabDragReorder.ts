@@ -9,6 +9,9 @@ interface TabDragReorderOptions {
   onReorder: (details: { tabId: string; targetTabId: string; placement: 'before' | 'after' }) => void
 }
 
+/** The type a tab's own drag carries, so a tab dragged from either copy of the rail is never read as a dropped link. */
+export const TAB_DRAG_TYPE = 'application/x-hronaut-tab'
+
 /** Dragging a tab to a new place: the tab being dragged, where it would land, and the move it asks for on drop. */
 export function useTabDragReorder(options: TabDragReorderOptions) {
   const { tabs: regularTabs, vertical } = options
@@ -40,6 +43,7 @@ export function useTabDragReorder(options: TabDragReorderOptions) {
     if (event.dataTransfer) {
       event.dataTransfer.effectAllowed = 'move'
       event.dataTransfer.setData('text/plain', tab.id)
+      event.dataTransfer.setData(TAB_DRAG_TYPE, tab.id)
     }
   }
 
