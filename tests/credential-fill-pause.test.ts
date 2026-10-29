@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fillCredentialWhileMcpPaused } from '../src/main/credential-fill-pause.js'
+import { fillCredentialWhileMcpPaused } from '../src/main/credentials/credential-fill-pause.js'
 import { McpPauseState } from '../src/main/mcp-pause-state.js'
 
 function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {

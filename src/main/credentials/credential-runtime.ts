@@ -1,12 +1,12 @@
 import { app, safeStorage, type BrowserWindow } from 'electron'
 import { join } from 'node:path'
 import { CredentialStore } from './credential-store.js'
-import { encryptsWithKeyringKey } from './keyring-key.js'
-import { createSuggestedPasswordMemory } from './browser/suggested-password/suggested-password-memory.js'
-import type { BrowserCredentialCandidate } from './browser/tabs-manager.js'
-import type { TrustedDialogOptions } from './trusted-dialogs/trusted-dialogs.js'
-import type { MessageKey, MessageParameters } from '../shared/i18n.js'
-import type { CredentialStorageStatus } from '../shared/types.js'
+import { encryptsWithKeyringKey } from '../keyring-key.js'
+import { createSuggestedPasswordMemory } from '../browser/suggested-password/suggested-password-memory.js'
+import type { BrowserCredentialCandidate } from '../browser/tabs-manager.js'
+import type { TrustedDialogOptions } from '../trusted-dialogs/trusted-dialogs.js'
+import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
+import type { CredentialStorageStatus } from '../../shared/types.js'
 
 /**
  * Saved passwords' storage, created once by index.ts. Startup opens the store when secure storage allows it; the

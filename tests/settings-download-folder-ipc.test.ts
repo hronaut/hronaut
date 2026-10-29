@@ -7,10 +7,10 @@ import { translate } from '../src/shared/i18n.js'
 
 vi.mock('electron', () => ({ app: { getPath: () => '' }, nativeTheme: {} }))
 
-const { registerSettingsIpc } = await import('../src/main/settings-ipc.js')
+const { registerSettingsIpc } = await import('../src/main/settings/settings-ipc.js')
 const { withTranslatedIpcErrors } = await import('../src/main/localized-error.js')
-const { createSettingsRuntime } = await import('../src/main/settings-runtime.js')
-const { DEFAULT_SETTINGS } = await import('../src/main/settings-store.js')
+const { createSettingsRuntime } = await import('../src/main/settings/settings-runtime.js')
+const { DEFAULT_SETTINGS } = await import('../src/main/settings/settings-store.js')
 
 // Choosing or opening the download folder in Settings showed Node's English error with the folder's path, such as
 // "ENOTDIR: not a directory, mkdir '…'", or the file manager's own English text, whatever the interface language.

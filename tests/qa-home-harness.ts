@@ -2,7 +2,7 @@
 // Home's real markup, mounts its real controller with a mocked `/api/status` and `window.hronautHome`, and cleans up
 // the DOM, timers, storage and listeners after each test.
 import { afterEach, beforeEach, vi, type Mock } from 'vitest'
-import { renderHomePage } from '../src/main/home-page.js'
+import { renderHomePage } from '../src/main/home/home-page.js'
 import { buildMcpReadinessDiagnostic } from '../src/main/mcp/readiness.js'
 import { mountHome } from '../src/renderer/src/home/controller.js'
 import type { ConnectedAgent } from '../src/shared/agent-status.js'

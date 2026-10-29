@@ -2,7 +2,7 @@ import { constants } from 'node:fs'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 const state = vi.hoisted(() => ({ open: vi.fn() }))
 vi.mock('node:fs/promises', () => ({ open: state.open }))
-import { MAX_CREDENTIAL_IMPORT_BYTES, readCredentialImportFile } from '../src/main/credential-import-file.js'
+import { MAX_CREDENTIAL_IMPORT_BYTES, readCredentialImportFile } from '../src/main/credentials/credential-import-file.js'
 
 function file(contents: Buffer, size = contents.length, chunkSize = contents.length || 1) {
   const buffers: Buffer[] = []

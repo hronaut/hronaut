@@ -1,6 +1,6 @@
-import { clientConfigurations } from '../shared/client-configuration.js'
-import { localeMessages } from '../shared/i18n.js'
-import type { HomeBootstrap, HomePageOptions } from '../shared/home.js'
+import { clientConfigurations } from '../../shared/client-configuration.js'
+import { localeMessages } from '../../shared/i18n.js'
+import type { HomeBootstrap, HomePageOptions } from '../../shared/home.js'
 
 export function homeBootstrap(options: HomePageOptions): HomeBootstrap {
   return { locale: options.locale, guides: clientConfigurations({ ...options, platform: options.platform ?? process.platform }),

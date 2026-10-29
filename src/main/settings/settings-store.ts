@@ -1,23 +1,23 @@
 import { readFile } from 'node:fs/promises'
 import { isAbsolute } from 'node:path'
-import { isAttentionSoundCue, type AppSettings } from '../shared/types.js'
-import { isThemeName } from '../shared/theme.js'
-import { DEFAULT_MCP_PORT, isValidMcpPort } from '../shared/mcp-port.js'
-import { DEFAULT_SEARCH_ENGINE, isSearchEngineName } from '../shared/search-engine.js'
-import { readSiteSearches } from '../shared/site-search.js'
-import { DEFAULT_SECURE_DNS_MODE, readSecureDns } from '../shared/secure-dns.js'
-import { DEFAULT_INTERFACE_SCALE, isInterfaceScale } from '../shared/interface-scale.js'
+import { isAttentionSoundCue, type AppSettings } from '../../shared/types.js'
+import { isThemeName } from '../../shared/theme.js'
+import { DEFAULT_MCP_PORT, isValidMcpPort } from '../../shared/mcp-port.js'
+import { DEFAULT_SEARCH_ENGINE, isSearchEngineName } from '../../shared/search-engine.js'
+import { readSiteSearches } from '../../shared/site-search.js'
+import { DEFAULT_SECURE_DNS_MODE, readSecureDns } from '../../shared/secure-dns.js'
+import { DEFAULT_INTERFACE_SCALE, isInterfaceScale } from '../../shared/interface-scale.js'
 import {
   DEFAULT_MEMORY_SAVER_TIMEOUT_MINUTES,
   isMemorySaverTimeoutMinutes
-} from '../shared/memory-saver.js'
-import { isLanguagePreference } from '../shared/locale.js'
-import { DEFAULT_TAB_POSITION, isTabPosition } from '../shared/tab-position.js'
+} from '../../shared/memory-saver.js'
+import { isLanguagePreference } from '../../shared/locale.js'
+import { DEFAULT_TAB_POSITION, isTabPosition } from '../../shared/tab-position.js'
 import {
   DEFAULT_MCP_TOOL_SET,
   isMcpToolSet
-} from '../shared/mcp-tool-sets.js'
-import { writeTextFileAtomically } from './atomic-file.js'
+} from '../../shared/mcp-tool-sets.js'
+import { writeTextFileAtomically } from '../atomic-file.js'
 
 export const DEFAULT_SETTINGS: AppSettings = {
   // New profiles start in the look hronaut.dev shows; a saved theme, System included, stays as it is.

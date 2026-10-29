@@ -4,10 +4,10 @@ import { CommercialLicenseClient, CommercialLicenseError } from './commercial-li
 import { COMMERCIAL_LICENSE_API_BASE_URL } from './commercial-license-links.js'
 import { CommercialLicenseOperationCoordinator } from './commercial-license-operations.js'
 import { CommercialLicenseStore, commercialLicenseStateRefreshDelay } from './commercial-license-store.js'
-import type { AppQuitState } from './app-lifecycle.js'
-import { LocalizedError } from './localized-error.js'
-import type { MessageKey, MessageParameters } from '../shared/i18n.js'
-import type { CommercialLicenseState, CredentialStorageStatus } from '../shared/types.js'
+import type { AppQuitState } from '../app-lifecycle.js'
+import { LocalizedError } from '../localized-error.js'
+import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
+import type { CommercialLicenseState, CredentialStorageStatus } from '../../shared/types.js'
 
 const COMMERCIAL_LICENSE_API_BASE = process.env.HRONAUT_LICENSE_API_BASE || COMMERCIAL_LICENSE_API_BASE_URL
 

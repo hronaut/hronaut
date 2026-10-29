@@ -1,6 +1,6 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import { commercialLicensePurchaseHandler } from './commercial-license-links.js'
-import type { CommercialLicenseState } from '../shared/types.js'
+import type { CommercialLicenseState } from '../../shared/types.js'
 
 interface LicenseIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void

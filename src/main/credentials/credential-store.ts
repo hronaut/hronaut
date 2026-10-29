@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import { chmod, readdir, readFile, rename, rm } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
-import type { CredentialSummary } from '../shared/types.js'
-import { writeTextFileAtomically } from './atomic-file.js'
-import { LocalizedError } from './localized-error.js'
+import type { CredentialSummary } from '../../shared/types.js'
+import { writeTextFileAtomically } from '../atomic-file.js'
+import { LocalizedError } from '../localized-error.js'
 
 interface PersistedCredential extends CredentialSummary {
   encryptedPassword: string

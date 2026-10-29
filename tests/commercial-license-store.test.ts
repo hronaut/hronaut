@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rename, rm, symlink, writeFile } from 'node:fs/promi
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { CommercialLicenseStore, commercialLicenseStateRefreshDelay, TRIAL_DURATION_MS, LICENSE_OFFLINE_GRACE_MS, type CommercialLicenseEncryption } from '../src/main/commercial-license-store.js'
+import { CommercialLicenseStore, commercialLicenseStateRefreshDelay, TRIAL_DURATION_MS, LICENSE_OFFLINE_GRACE_MS, type CommercialLicenseEncryption } from '../src/main/license/commercial-license-store.js'
 
 const temporaryDirectories: string[] = []
 const encryption: CommercialLicenseEncryption = {

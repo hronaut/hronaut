@@ -1,9 +1,9 @@
 import { app } from 'electron'
 import type { SettingsState } from './settings-runtime.js'
-import type { MainWindowRefs } from './windows/main-window.js'
-import type { PanelWindowRefs } from './windows/panel-window.js'
-import { resolveLocalePreference, resolveSupportedLocale } from '../shared/locale.js'
-import type { DetachablePanelId, LanguagePreference } from '../shared/types.js'
+import type { MainWindowRefs } from '../windows/main-window.js'
+import type { PanelWindowRefs } from '../windows/panel-window.js'
+import { resolveLocalePreference, resolveSupportedLocale } from '../../shared/locale.js'
+import type { DetachablePanelId, LanguagePreference } from '../../shared/types.js'
 
 interface InterfaceLanguageHost {
   /** The interface language and the system's; index.ts creates the settings record, and most of the main process reads it. */

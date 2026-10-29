@@ -6,7 +6,7 @@ import { restoreWindowBounds, type SavedWindowState, type WindowStateStore } fro
 import { attachShellEditContextMenu } from './shell-edit-context-menu.js'
 import type { BookmarkStore } from '../bookmark-store.js'
 import type { BrowserTabsManager } from '../browser/tabs-manager.js'
-import type { CredentialStore } from '../credential-store.js'
+import type { CredentialStore } from '../credentials/credential-store.js'
 import type { HistoryStore } from '../history-store.js'
 import type { SitePermissionStore } from '../site-permission-store.js'
 import type { MessageKey, MessageParameters } from '../../shared/i18n.js'

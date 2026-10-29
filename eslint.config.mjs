@@ -12,7 +12,7 @@ const sourceFiles = [
 const newBoundaryFiles = [
   'src/shared/{locale,i18n}.ts',
   'src/shared/locales/**/*.ts',
-  'src/main/settings-store.ts',
+  'src/main/settings/settings-store.ts',
   'src/renderer/src/i18n.ts',
   'src/renderer/src/stores/**/*.ts',
   'src/renderer/src/composables/**/*.ts',

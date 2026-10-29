@@ -5,9 +5,9 @@ import type { AppSettings } from '../src/shared/types.js'
 
 vi.mock('electron', () => ({ app: { getPath: () => '' }, nativeTheme: {} }))
 
-const { applySavedSecureDns, hostResolverOptions, registerSecureDnsIpc } = await import('../src/main/secure-dns.js')
-const { DEFAULT_SETTINGS } = await import('../src/main/settings-store.js')
-const { commitRuntimeSetting } = await import('../src/main/runtime-setting-commit.js')
+const { applySavedSecureDns, hostResolverOptions, registerSecureDnsIpc } = await import('../src/main/settings/secure-dns.js')
+const { DEFAULT_SETTINGS } = await import('../src/main/settings/settings-store.js')
+const { commitRuntimeSetting } = await import('../src/main/settings/runtime-setting-commit.js')
 
 // Hronaut had no secure DNS setting: Chromium looked up addresses in its default Automatic mode, with no way to turn
 // DNS over HTTPS off or to send every lookup to one provider. As in Chrome's Use secure DNS, main now applies the

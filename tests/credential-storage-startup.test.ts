@@ -20,7 +20,7 @@ vi.mock('electron', () => ({
   }
 }))
 
-const { createCredentialRuntime } = await import('../src/main/credential-runtime.js')
+const { createCredentialRuntime } = await import('../src/main/credentials/credential-runtime.js')
 const { translate } = await import('../src/shared/i18n.js')
 
 function runtime() {

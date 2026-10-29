@@ -1,6 +1,6 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import { ReleaseHistoryService } from './release-history.js'
-import type { AppUpdateState } from '../shared/types.js'
+import type { AppUpdateState } from '../../shared/types.js'
 
 interface UpdatesIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void

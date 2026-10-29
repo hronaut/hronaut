@@ -2,7 +2,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { expect, it, vi } from 'vitest'
 import { McpHttpServer } from '../src/main/mcp/server.js'
-import { fillCredentialWhileMcpPaused } from '../src/main/credential-fill-pause.js'
+import { fillCredentialWhileMcpPaused } from '../src/main/credentials/credential-fill-pause.js'
 import { McpActionTracker } from '../src/main/mcp/action-tracker.js'
 
 it.each([

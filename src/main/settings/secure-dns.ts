@@ -1,12 +1,12 @@
 import type { App, ConfigureHostResolverOptions, IpcMain, IpcMainInvokeEvent } from 'electron'
-import { LocalizedError } from './localized-error.js'
+import { LocalizedError } from '../localized-error.js'
 import {
   DEFAULT_SECURE_DNS_MODE,
   SECURE_DNS_TEMPLATE_MAX_LENGTH,
   isSecureDnsMode,
   isSecureDnsTemplate
-} from '../shared/secure-dns.js'
-import type { AppSettings } from '../shared/types.js'
+} from '../../shared/secure-dns.js'
+import type { AppSettings } from '../../shared/types.js'
 
 type SecureDnsSettings = Pick<AppSettings, 'secureDnsMode' | 'secureDnsTemplate'>
 type HostResolver = Pick<App, 'configureHostResolver'>
