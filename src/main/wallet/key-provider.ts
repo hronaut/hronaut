@@ -6,6 +6,7 @@ import {
   generateWalletPassphraseSalt
 } from './crypto.js'
 import { LocalizedError } from '../localized-error.js'
+import { encryptsWithKeyringKey } from '../keyring-key.js'
 
 export type WalletSafeStorageBackend =
   | 'basic_text'
@@ -162,6 +163,8 @@ export async function resolveWalletVaultProtection(
 
     const backend = safeStorage.getSelectedStorageBackend()
     if (SECURE_LINUX_BACKENDS.has(backend)) {
+      // No keyring answered as Hronaut started: a vault key wrapped now would be protected by a key every Chromium has.
+      if (!await encryptsWithKeyringKey(safeStorage, platform)) return { mode: 'passphrase-required', backend: 'unavailable' }
       return { mode: 'safe-storage', backend: backend as 'gnome_libsecret' | 'kwallet' | 'kwallet5' | 'kwallet6' }
     }
     if (backend === 'basic_text' || backend === 'unknown') {

@@ -36,11 +36,13 @@ interface TabRuntimeStartupHost {
 
 /**
  * What the app does while saved workspaces are not up: browser actions from the tray and the application menu are
- * ignored until they are, and rejected workspace metadata ends startup with a recovery notice instead of a browser.
+ * ignored until they are, and rejected workspace metadata ends startup with a recovery notice instead of a browser, as
+ * any other failure to start ends it with a notice that says so.
  */
 export function createTabRuntimeStartup(host: TabRuntimeStartupHost): {
   runNativeBrowserAction(action: string, callback: () => unknown): void
   showWorkspaceRecoveryNotice(error: WorkspaceMetadataError): Promise<void>
+  showStartupFailureNotice(error: unknown): Promise<void>
 } {
   /** Runs a browser action from native UI and reports its failure to the shell; skipped until saved workspaces are up. */
   function runNativeBrowserAction(action: string, callback: () => unknown): void {
@@ -75,5 +77,29 @@ export function createTabRuntimeStartup(host: TabRuntimeStartupHost): {
     } finally { app.quit() }
   }
 
-  return { runNativeBrowserAction, showWorkspaceRecoveryNotice }
+  /**
+   * Tells the person Hronaut could not start, and quits once they read it. A process that stayed without its window
+   * would keep the profile, so opening Hronaut again would only ask it to show a window it does not have. The error
+   * goes to the log only, as it can name files in the profile.
+   */
+  async function showStartupFailureNotice(error: unknown): Promise<void> {
+    console.error('[startup] Hronaut could not start:', error)
+    const notice = {
+      title: host.text('native.dialog.startupFailedTitle'),
+      message: host.text('native.dialog.startupFailedMessage'),
+      detail: host.text('native.dialog.startupFailedDetail'),
+      quit: host.text('native.menu.quit')
+    }
+    try {
+      await host.showStartupNotice(notice)
+    } catch {
+      console.error('[startup] Could not open the startup failure window; showing the system dialog instead.')
+      try {
+        await host.showMessageBox({ type: 'error', title: notice.title, message: notice.message, detail: notice.detail,
+          buttons: [notice.quit], defaultId: 0, cancelId: 0, noLink: true })
+      } catch { console.error('[startup] Could not display the startup failure notice.') }
+    } finally { app.quit() }
+  }
+
+  return { runNativeBrowserAction, showWorkspaceRecoveryNotice, showStartupFailureNotice }
 }

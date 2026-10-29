@@ -40,6 +40,16 @@ describe('wallet vault protection selection', () => {
     }))).resolves.toEqual({ mode: 'passphrase-required', backend: 'unknown' })
   })
 
+  it('requires a passphrase when no keyring answered and Linux fell back to its built-in key', async () => {
+    // Chromium still names the keyring it asked, and says encryption is available.
+    await expect(resolveWalletVaultProtection('linux', safeStorage({
+      encryptStringAsync: async () => Buffer.from('v10wrapped')
+    }))).resolves.toEqual({ mode: 'passphrase-required', backend: 'unavailable' })
+    await expect(resolveWalletVaultProtection('linux', safeStorage({
+      encryptStringAsync: async () => Buffer.from('v11wrapped')
+    }))).resolves.toEqual({ mode: 'safe-storage', backend: 'gnome_libsecret' })
+  })
+
   it('disables managed wallets rather than silently downgrading when backend detection fails', async () => {
     const warning = vi.fn()
     await expect(resolveWalletVaultProtection('linux', safeStorage({

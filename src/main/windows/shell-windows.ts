@@ -6,8 +6,11 @@ import { personErrorMessage } from '../localized-error.js'
 import type { BrowserActionFailure } from '../../shared/types.js'
 
 interface ShellWindowsHost {
-  /** The main window; index.ts creates the record, and every helper reads the window when it runs. */
-  mainWindowRefs: Pick<MainWindowRefs, 'window'>
+  /**
+   * The main window; index.ts creates the record, and every helper reads the window when it runs. A show asked for
+   * before it opens is recorded there for startup.
+   */
+  mainWindowRefs: Pick<MainWindowRefs, 'window' | 'showRequested'>
   /** The detached panel window, shown and told alongside the main window while it is open. */
   panelWindowRefs: Pick<PanelWindowRefs, 'window'>
   /** Why saved workspaces could not start, if they could not; the main window then stays hidden. */
@@ -46,7 +49,11 @@ export function createShellWindows(host: ShellWindowsHost): {
   /** Shows and focuses the main window, and shows the panel window if it is hidden; not after saved workspaces failed. */
   function showWindow(): void {
     if (host.workspaceStartupFailure()) return
-    if (!host.mainWindowRefs.window) return
+    // Startup shows it once it opens, as the person asked while it started, even if it starts hidden in the tray.
+    if (!host.mainWindowRefs.window) {
+      host.mainWindowRefs.showRequested = true
+      return
+    }
     if (host.mainWindowRefs.window.isMinimized()) host.mainWindowRefs.window.restore()
     host.mainWindowRefs.window.show()
     host.mainWindowRefs.window.focus()

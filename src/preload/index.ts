@@ -73,6 +73,7 @@ import type {
   SitePermissionDecision,
   SitePermissionEntry,
   SitePermissionScope,
+  CredentialStorageStatus,
   CredentialSummary,
   HelpMenuAction,
   McpControlState,
@@ -570,6 +571,11 @@ const credentialsApi: HronautCredentialsApi = {
     const handler = (_event: Electron.IpcRendererEvent, credentials: CredentialSummary[]): void => listener(credentials)
     ipcRenderer.on('credentials:changed', handler)
     return () => ipcRenderer.removeListener('credentials:changed', handler)
+  },
+  onStatusChanged: (listener: (status: CredentialStorageStatus) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, status: CredentialStorageStatus): void => listener(status)
+    ipcRenderer.on('credentials:status-changed', handler)
+    return () => ipcRenderer.removeListener('credentials:status-changed', handler)
   }
 }
 

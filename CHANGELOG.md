@@ -24,6 +24,10 @@ All notable changes to Hronaut are documented in this file.
 - Changing or resetting the MCP access token, or turning authentication on or off, ends the sessions on the old token at once: agents that can no longer act leave the toolbar and Home instead of staying listed while their stream stays open, and a call one of them had in progress fails at once instead of staying counted as running.
 - Pinning a tab moves it to the end of its workspace's pinned tabs, and unpinning one moves it to the first place after them, as in Chrome. A tab kept the place it was opened in among the pinned or the other tabs, so pinning the last tab and then unpinning it sent it back to the far end, or, after a restart, left it first.
 - An agent's new tab no longer shows its activity on another tab opened at the same moment. The tab strip, **Follow agents** and the agent's steps could name a tab the person or another agent opened at the same time, even in another workspace, and **Follow agents** could switch the view there.
+- Hronaut no longer waits for the system keyring before it opens, as when it starts at sign-in while the keyring stays locked: the window, the tray and the agents' connection open at once, and saved passwords and wallets follow once the keyring is unlocked. Until the request to unlock it was answered, Hronaut showed nothing and agents could not connect.
+- When Hronaut cannot start, it now says so and offers to quit, instead of staying open without a window, where opening it again did nothing.
+- Opening Hronaut again while it is still starting, as from a launcher just after sign-in, now shows its window once it opens, even when it starts in the tray.
+- On Linux, when no keyring answered as Hronaut started, as when you dismissed the request to unlock it, Hronaut no longer protects passwords, session cookies or wallet keys with the key Chromium falls back to then, which every Chromium-based app has. Passwords say a keyring is needed, session cookies are saved as the workspace keeps its other cookies, and wallets ask for a passphrase; restart Hronaut with the keyring unlocked to use it again.
 
 ## [3.13.0] - 2026-10-29
 

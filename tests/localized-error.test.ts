@@ -149,7 +149,7 @@ describe('failures the main process sends to the shell', () => {
     const send = vi.fn()
     const window = { isDestroyed: () => false, webContents: { isDestroyed: () => false, send } }
     const { reportBrowserActionFailure } = createShellWindows({
-      mainWindowRefs: { window: window as never },
+      mainWindowRefs: { window: window as never, showRequested: false },
       panelWindowRefs: { window: null },
       workspaceStartupFailure: () => undefined,
       text: ukrainian

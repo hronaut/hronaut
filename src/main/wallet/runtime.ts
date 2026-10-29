@@ -62,6 +62,11 @@ export function createWalletRuntime(host: WalletRuntimeHost): {
   generateWallet(input: WalletCreateInput): Promise<WalletDescriptor>
   agentWallets: WalletAgentOperations
 } {
+  /**
+   * Starts the wallet service and its broker, and tells the main window their status and wallets once they did or
+   * could not. Opening a vault waits for the operating system's secure storage, which can take as long as the person
+   * takes to unlock it, so startup does not wait for this. It never fails.
+   */
   async function startWallets(): Promise<void> {
     const candidateWalletService = new WalletService({
       directory: join(app.getPath('userData'), 'wallet'),
@@ -92,6 +97,8 @@ export function createWalletRuntime(host: WalletRuntimeHost): {
       host.state.unavailableStatus = walletStartupFailureStatus(error)
       console.error(`[wallet] Wallet startup disabled (${host.state.unavailableStatus.backend}).`)
     }
+    host.sendToMainWindow('wallets:status-changed', currentWalletServiceStatus())
+    host.sendToMainWindow('wallets:changed', host.state.service?.list() ?? [])
   }
 
   function assertWalletPageSender(event: Electron.IpcMainInvokeEvent) {

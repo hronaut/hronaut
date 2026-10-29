@@ -49,6 +49,7 @@ export function createCommercialLicenseRuntime(host: CommercialLicenseRuntimeHos
   authorizeAutomation(): Promise<void>
   assertAutomationAccess(): void
   startBackgroundLicenseRefresh(): void
+  publishCommercialLicenseState(): CommercialLicenseState
 } {
   let commercialLicenseClient: CommercialLicenseClient | null = null
   let commercialLicenseMessage: string | undefined
@@ -75,6 +76,10 @@ export function createCommercialLicenseRuntime(host: CommercialLicenseRuntimeHos
     return host.state.store!.summary(host.credentialStorageStatus().available, commercialLicenseMessage)
   }
 
+  /**
+   * Tells both shell windows the license state, and again when it next changes by itself; also once secure storage,
+   * which the state depends on, answered after startup.
+   */
   function publishCommercialLicenseState(): CommercialLicenseState {
     const state = currentCommercialLicenseState()
     host.sendToShellWindows('license:changed', state)
@@ -217,6 +222,7 @@ export function createCommercialLicenseRuntime(host: CommercialLicenseRuntimeHos
     deactivateCommercialLicense,
     authorizeAutomation,
     assertAutomationAccess,
-    startBackgroundLicenseRefresh
+    startBackgroundLicenseRefresh,
+    publishCommercialLicenseState
   }
 }

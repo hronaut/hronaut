@@ -299,7 +299,8 @@ const {
 const {
   entries: credentials,
   storage: credentialStorage,
-  replace: replaceCredentials
+  replace: replaceCredentials,
+  acceptStorage: acceptCredentialStorage
 } = credentialsController
 const {
   search: janitorSearch,
@@ -673,6 +674,7 @@ const { dispose: disposeAppEventsController } = useAppEventsController({
   onAddressPasteAndGo: addressBarController.pasteAndGo,
   onPermissionsChanged: replaceSitePermissions,
   onCredentialsChanged: replaceCredentials,
+  onCredentialStorageChanged: acceptCredentialStorage,
   onUpdateOpen: openUpdateSettings,
   onHelp: handleHelpRequested,
   onClipboardFailure: reportClipboardFailure,

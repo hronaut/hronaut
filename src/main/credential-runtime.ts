@@ -1,6 +1,7 @@
 import { app, safeStorage, type BrowserWindow } from 'electron'
 import { join } from 'node:path'
 import { CredentialStore } from './credential-store.js'
+import { encryptsWithKeyringKey } from './keyring-key.js'
 import { createSuggestedPasswordMemory } from './browser/suggested-password/suggested-password-memory.js'
 import type { BrowserCredentialCandidate } from './browser/tabs-manager.js'
 import type { TrustedDialogOptions } from './trusted-dialogs/trusted-dialogs.js'
@@ -31,6 +32,17 @@ interface CredentialRuntimeHost {
   sendToShellWindows(channel: string, ...args: unknown[]): void
   /** Tells the shell that a browser action failed, such as saving a password a page submitted. */
   reportBrowserActionFailure(action: string, error: unknown): void
+}
+
+/**
+ * Integration tests hold the operating system's secure storage, as a keyring waiting for the person to unlock it does,
+ * until they release it through `__hronautReleaseSecureStorageForTest`.
+ */
+function secureStorageHeldForTest(): Promise<void> {
+  if (process.env.HRONAUT_INTEGRATION_TEST_HOOKS !== '1' || process.env.HRONAUT_TEST_HOLD_SECURE_STORAGE !== '1') return Promise.resolve()
+  return new Promise((resolve) => {
+    ;(globalThis as typeof globalThis & { __hronautReleaseSecureStorageForTest?: () => void }).__hronautReleaseSecureStorageForTest = resolve
+  })
 }
 
 /**
@@ -108,25 +120,42 @@ export function createCredentialRuntime(host: CredentialRuntimeHost): {
     })
   }
 
+  /**
+   * Opens the password store once the operating system's secure storage answers, and tells both shell windows its
+   * status and the saved passwords. The storage can take as long as the person takes to unlock it, as a keyring that
+   * stayed locked at sign-in asks to, so startup does not wait for this. It never fails: a store that cannot open
+   * leaves saved passwords unavailable, saying why.
+   */
   async function configureCredentialStore(): Promise<void> {
-    const available = await safeStorage.isAsyncEncryptionAvailable()
     const backend = process.platform === 'linux' ? safeStorage.getSelectedStorageBackend() : process.platform === 'darwin' ? 'macOS Keychain' : 'Windows DPAPI'
-    if (!available || backend === 'basic_text') {
-      host.state.storageStatus = {
-        available: false,
-        backend,
-        reason: backend === 'basic_text'
-          ? host.text('native.errors.linuxSecrets')
-          : host.text('native.errors.secureStorage')
+    try {
+      await secureStorageHeldForTest()
+      const available = await safeStorage.isAsyncEncryptionAvailable()
+      // Linux's fallback key is no more secret than plain text, and cannot read what a keyring's key encrypted.
+      if (!available || backend === 'basic_text' || !await encryptsWithKeyringKey(safeStorage)) {
+        host.state.storageStatus = {
+          available: false,
+          backend,
+          reason: available || backend === 'basic_text'
+            ? host.text('native.errors.linuxSecrets')
+            : host.text('native.errors.secureStorage')
+        }
+      } else {
+        const store = new CredentialStore(join(app.getPath('userData'), 'credentials.json'), {
+          encrypt: (value) => safeStorage.encryptStringAsync(value),
+          decrypt: (value) => safeStorage.decryptStringAsync(value)
+        })
+        await store.load()
+        host.state.store = store
+        host.state.storageStatus = { available: true, backend }
       }
-      return
+    } catch (error) {
+      console.error('[credentials] Could not open saved passwords:', error)
+      host.state.store = null
+      host.state.storageStatus = { available: false, backend, reason: host.text('native.errors.secureStorage') }
     }
-    host.state.storageStatus = { available: true, backend }
-    host.state.store = new CredentialStore(join(app.getPath('userData'), 'credentials.json'), {
-      encrypt: (value) => safeStorage.encryptStringAsync(value),
-      decrypt: (value) => safeStorage.decryptStringAsync(value)
-    })
-    await host.state.store!.load()
+    host.sendToShellWindows('credentials:status-changed', host.state.storageStatus)
+    publishCredentials()
   }
 
   return {
