@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { useHelpShellController } from '../../src/renderer/src/composables/useHelpShellController.js'
+import { useHelpShellController } from '../../src/renderer/src/features/help/useHelpShellController.js'
 
 function createController(overrides: Partial<Parameters<typeof useHelpShellController>[0]> = {}) {
   const commandPaletteOpen = ref(true)

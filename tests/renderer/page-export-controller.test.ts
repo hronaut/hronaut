@@ -1,6 +1,6 @@
 import { nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { usePageExportController } from '../../src/renderer/src/composables/usePageExportController.js'
+import { usePageExportController } from '../../src/renderer/src/features/page-tools/usePageExportController.js'
 import type { BrowserPdfExport, BrowserSnapshotCopyResult, BrowserTabState } from '../../src/shared/types.js'
 
 function tab(url = 'https://example.test/start'): BrowserTabState {

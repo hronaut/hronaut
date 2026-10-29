@@ -5,20 +5,20 @@ import type {
   PanelDock
 } from '../../../shared/types.js'
 import { disposeAll } from './dispose-all.js'
-import { useDetachedPanelActionsController } from './useDetachedPanelActionsController.js'
+import { useDetachedPanelActionsController } from '../features/panels/useDetachedPanelActionsController.js'
 import {
   useDetachedPanelRefreshController,
   type DetachedPanelRefreshContext
-} from './useDetachedPanelRefreshController.js'
+} from '../features/panels/useDetachedPanelRefreshController.js'
 import {
   useDeveloperPanelsShellController,
   type ConsolePanelShellHandle,
   type NetworkPanelShellHandle
 } from './useDeveloperPanelsShellController.js'
 import type { DiagnosticsController } from '../features/diagnostics/useDiagnosticsController.js'
-import { usePanelRegistryController } from './usePanelRegistryController.js'
-import { usePanelWindowEventsController } from './usePanelWindowEventsController.js'
-import { usePanelWindowSyncController } from './usePanelWindowSyncController.js'
+import { usePanelRegistryController } from '../features/panels/usePanelRegistryController.js'
+import { usePanelWindowEventsController } from '../features/panels/usePanelWindowEventsController.js'
+import { usePanelWindowSyncController } from '../features/panels/usePanelWindowSyncController.js'
 import { useTransientPanelsController } from './useTransientPanelsController.js'
 
 export interface AppPanelFeatureControllerOptions {

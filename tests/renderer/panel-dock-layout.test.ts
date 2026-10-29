@@ -2,7 +2,7 @@ import { computed, defineComponent, h, nextTick, ref, type Ref } from 'vue'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PanelDock } from '../../src/shared/types.js'
-import { usePanelDockLayout } from '../../src/renderer/src/composables/usePanelDockLayout.js'
+import { usePanelDockLayout } from '../../src/renderer/src/features/panels/usePanelDockLayout.js'
 
 type Controller = ReturnType<typeof usePanelDockLayout>
 

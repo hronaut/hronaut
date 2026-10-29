@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { useSiteDataSummaryController, type SiteDataSummaryContext } from '../../src/renderer/src/composables/useSiteDataSummaryController.js'
+import { useSiteDataSummaryController, type SiteDataSummaryContext } from '../../src/renderer/src/features/site-controls/useSiteDataSummaryController.js'
 import type { BrowsingDataSiteSummary } from '../../src/shared/types.js'
 
 function deferred<Value>() {

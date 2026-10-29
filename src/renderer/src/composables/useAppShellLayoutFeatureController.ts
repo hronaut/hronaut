@@ -6,7 +6,7 @@ import type {
 } from '../../../shared/types.js'
 import { disposeAll } from './dispose-all.js'
 import { occludeBrowserContent, overlayExitHoldsPage } from './overlay-motion.js'
-import { usePanelDockLayout } from './usePanelDockLayout.js'
+import { usePanelDockLayout } from '../features/panels/usePanelDockLayout.js'
 import { useShellOverlayCoordinationController } from './useShellOverlayCoordinationController.js'
 import { useWindowControlsScrim } from './useWindowControlsScrim.js'
 

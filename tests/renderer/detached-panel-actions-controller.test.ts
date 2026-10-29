@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   useDetachedPanelActionsController,
   type DetachedPanelActionsControllerOptions
-} from '../../src/renderer/src/composables/useDetachedPanelActionsController.js'
+} from '../../src/renderer/src/features/panels/useDetachedPanelActionsController.js'
 import type { DetachablePanelId } from '../../src/shared/types.js'
 
 function createHarness() {

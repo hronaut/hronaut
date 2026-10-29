@@ -17,7 +17,7 @@ import type {
 } from '../../../../shared/types.js'
 import { BROWSER_VIEWPORT_PRESETS } from '../../../../shared/viewport-presets.js'
 import { useResponsivePreviewController } from './useResponsivePreviewController.js'
-import PanelDockPicker from '../../components/PanelDockPicker.vue'
+import PanelDockPicker from '../panels/PanelDockPicker.vue'
 import { vTooltip } from '../../ui/tooltip.js'
 
 const props = defineProps<{

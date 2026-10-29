@@ -16,7 +16,7 @@ import { formatNumber } from '../../../../shared/format.js'
 import type { SupportedLocale } from '../../../../shared/locale.js'
 import type { BrowserTabState, PanelDock } from '../../../../shared/types.js'
 import type { useEnvironmentPanelController } from './useEnvironmentPanelController.js'
-import PanelDockPicker from '../../components/PanelDockPicker.vue'
+import PanelDockPicker from '../panels/PanelDockPicker.vue'
 
 const props = defineProps<{
   activeTab?: BrowserTabState

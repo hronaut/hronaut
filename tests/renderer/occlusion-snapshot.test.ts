@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/vue'
 import { effectScope } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import PageSnapshot from '../../src/renderer/src/components/PageSnapshot.vue'
+import PageSnapshot from '../../src/renderer/src/features/page-tools/PageSnapshot.vue'
 import { useOcclusionSnapshotController } from '../../src/renderer/src/composables/useOcclusionSnapshotController.js'
 import { holdOverlayEntrance, overlayEntranceEpoch, overlayExitHoldsPage, overlayTransitionHooks, pageViewsHidden, resetOverlayMotion } from '../../src/renderer/src/composables/overlay-motion.js'
 import type { BrowserOcclusionSnapshot, HronautShellApi } from '../../src/shared/types.js'

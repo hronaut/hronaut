@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/vue'
 import { flushPromises } from '@vue/test-utils'
 import { afterEach, expect, it, vi } from 'vitest'
-import VideoRecorder from '../../src/renderer/src/components/VideoRecorder.vue'
+import VideoRecorder from '../../src/renderer/src/features/video/VideoRecorder.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import { localeMessages } from '../../src/shared/i18n.js'
 import { VIDEO_SCHEMA_ERRORS, type BrowserVideoState } from '../../src/shared/video.js'

@@ -11,7 +11,7 @@ import IconShieldLock from '~icons/material-symbols/shield-lock-rounded'
 import { formatDateTime, formatNumber } from '../../../../../shared/format'
 import type { PanelDock, SupportedLocale } from '../../../../../shared/types'
 import type { DiagnosticsController } from '../useDiagnosticsController'
-import PanelDockPicker from '../../../components/PanelDockPicker.vue'
+import PanelDockPicker from '../../panels/PanelDockPicker.vue'
 
 const props = defineProps<{
   locale: SupportedLocale

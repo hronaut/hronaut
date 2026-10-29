@@ -20,7 +20,7 @@ import ConsolePanelContainer from '../features/console/ConsolePanelContainer.vue
 import DiagnosticsPanels from '../features/diagnostics/DiagnosticsPanels.vue'
 import EnvironmentPanel from '../features/emulation/EnvironmentPanel.vue'
 import NetworkPanel from '../features/network/NetworkPanel.vue'
-import PageToolsPanel from './PageToolsPanel.vue'
+import PageToolsPanel from '../features/page-tools/PageToolsPanel.vue'
 import ResponsivePreviewPanel from '../features/emulation/ResponsivePreviewPanel.vue'
 import SiteStoragePanel from '../features/site-storage/SiteStoragePanel.vue'
 

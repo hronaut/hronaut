@@ -14,7 +14,7 @@ import IconStop from '~icons/material-symbols/stop-rounded'
 import { formatNumber } from '../../../../../shared/format'
 import type { PanelDock, SupportedLocale } from '../../../../../shared/types'
 import type { DiagnosticsController } from '../useDiagnosticsController'
-import PanelDockPicker from '../../../components/PanelDockPicker.vue'
+import PanelDockPicker from '../../panels/PanelDockPicker.vue'
 import ReproTimeline from './ReproTimeline.vue'
 
 const props = defineProps<{

@@ -1,6 +1,6 @@
 import { nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { useDetachedPanelRefreshController } from '../../src/renderer/src/composables/useDetachedPanelRefreshController.js'
+import { useDetachedPanelRefreshController } from '../../src/renderer/src/features/panels/useDetachedPanelRefreshController.js'
 import type { DetachablePanelId } from '../../src/shared/types.js'
 
 function createHarness(detachedWindow = true) {

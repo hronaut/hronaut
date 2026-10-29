@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useTaskManagerController } from '../../src/renderer/src/composables/useTaskManagerController.js'
+import { useTaskManagerController } from '../../src/renderer/src/features/task-manager/useTaskManagerController.js'
 import type { TaskManagerProcess } from '../../src/shared/types.js'
 
 function process(pid: number, overrides: Partial<TaskManagerProcess> = {}): TaskManagerProcess {

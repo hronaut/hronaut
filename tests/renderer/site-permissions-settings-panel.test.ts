@@ -2,11 +2,11 @@ import { render, screen, within } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
-import SitePermissionsSettingsPanel from '../../src/renderer/src/components/SitePermissionsSettingsPanel.vue'
+import SitePermissionsSettingsPanel from '../../src/renderer/src/features/site-controls/SitePermissionsSettingsPanel.vue'
 import {
   useSitePermissionsController,
   type SitePermissionWorkspace
-} from '../../src/renderer/src/composables/useSitePermissionsController.js'
+} from '../../src/renderer/src/features/site-controls/useSitePermissionsController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { SitePermissionEntry, SitePermissionScope, SupportedLocale } from '../../src/shared/types.js'
 

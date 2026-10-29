@@ -23,7 +23,7 @@ import type { AppShellPresentationFeatureController } from '../composables/useAp
 import type { AppSiteManagementFeatureController } from '../composables/useAppSiteManagementFeatureController.js'
 import type { AppTabRuntimeFeatureController } from '../composables/useAppTabRuntimeFeatureController.js'
 import type { BrowserTabActionsController } from '../features/tabs/useBrowserTabActionsController.js'
-import type { SiteDataSummaryController } from '../composables/useSiteDataSummaryController.js'
+import type { SiteDataSummaryController } from '../features/site-controls/useSiteDataSummaryController.js'
 import type { FullPageView } from '../composables/useFullPageView.js'
 import { useChromeSidebarOverlay } from '../composables/useChromeSidebarOverlay.js'
 import IconFullscreenExit from '~icons/material-symbols/fullscreen-exit-rounded'
@@ -37,7 +37,7 @@ import BrowserAddressBar from '../features/address-bar/BrowserAddressBar.vue'
 import BrowserNavigationControls from './BrowserNavigationControls.vue'
 import BrowserPageActions from './BrowserPageActions.vue'
 import BrowserTabsBar from '../features/tabs/BrowserTabsBar.vue'
-import PanelResizeHandle from './PanelResizeHandle.vue'
+import PanelResizeHandle from '../features/panels/PanelResizeHandle.vue'
 import ShellTitleBarSurface from './ShellTitleBarSurface.vue'
 
 export interface AppBrowserChromeLayerActions {

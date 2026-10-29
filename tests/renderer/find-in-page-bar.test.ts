@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
-import FindInPageBar from '../../src/renderer/src/components/FindInPageBar.vue'
+import FindInPageBar from '../../src/renderer/src/features/find/FindInPageBar.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import { MAX_FIND_QUERY_LENGTH, type BrowserFindResult, type BrowserTabState, type HronautApi } from '../../src/shared/types.js'
 

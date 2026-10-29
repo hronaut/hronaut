@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import type { BrowserTabState } from '../../src/shared/types.js'
-import { useZoomShellController } from '../../src/renderer/src/composables/useZoomShellController.js'
+import { useZoomShellController } from '../../src/renderer/src/features/zoom/useZoomShellController.js'
 
 const tab = { id: 'tab-1', url: 'https://example.test/' } as BrowserTabState
 

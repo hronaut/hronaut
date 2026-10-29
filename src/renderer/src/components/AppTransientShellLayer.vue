@@ -24,11 +24,11 @@ import AgentStepsDialog from '../features/agents/AgentStepsDialog.vue'
 import AppBrowserCollectionsLayer from './AppBrowserCollectionsLayer.vue'
 import CommandPalette from '../features/command-palette/CommandPalette.vue'
 import CredentialPicker from '../features/credentials/CredentialPicker.vue'
-import FindInPageBar from './FindInPageBar.vue'
+import FindInPageBar from '../features/find/FindInPageBar.vue'
 import TabSearchPanel from '../features/tabs/TabSearchPanel.vue'
 import WorkspaceEditor from '../features/workspaces/WorkspaceEditor.vue'
 import WorkspaceSwitcher from '../features/workspaces/WorkspaceSwitcher.vue'
-import ZoomBar from './ZoomBar.vue'
+import ZoomBar from '../features/zoom/ZoomBar.vue'
 
 type ZoomAction = 'in' | 'out' | 'reset'
 

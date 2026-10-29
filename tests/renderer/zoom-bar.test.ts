@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { flushPromises } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
-import ZoomBar from '../../src/renderer/src/components/ZoomBar.vue'
+import ZoomBar from '../../src/renderer/src/features/zoom/ZoomBar.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BrowserState, BrowserTabState, HronautApi } from '../../src/shared/types.js'
 

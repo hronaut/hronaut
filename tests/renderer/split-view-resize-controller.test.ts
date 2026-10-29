@@ -1,6 +1,6 @@
 import { effectScope } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { useSplitViewResizeController } from '../../src/renderer/src/composables/useSplitViewResizeController.js'
+import { useSplitViewResizeController } from '../../src/renderer/src/features/split-view/useSplitViewResizeController.js'
 import type { HronautSplitDividerApi, SplitDividerGeometry, SplitDividerSession } from '../../src/shared/split-view.js'
 
 const initial: SplitDividerGeometry = { revision: 1, firstTabId: 'a', secondTabId: 'b', orientation: 'vertical', ratio: .5, bounds: { x: 500, y: 80, width: 12, height: 600 }, area: { x: 0, y: 80, width: 1012, height: 600 }, gap: 12, scale: 1 }

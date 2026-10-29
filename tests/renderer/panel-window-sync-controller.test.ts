@@ -1,6 +1,6 @@
 import { nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { usePanelWindowSyncController } from '../../src/renderer/src/composables/usePanelWindowSyncController.js'
+import { usePanelWindowSyncController } from '../../src/renderer/src/features/panels/usePanelWindowSyncController.js'
 import type { DetachablePanelId, PanelDock } from '../../src/shared/types.js'
 
 function createHarness(detachedWindow = false) {

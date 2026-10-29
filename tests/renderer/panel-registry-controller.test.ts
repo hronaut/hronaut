@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   usePanelRegistryController,
   type DetachablePanelRegistry
-} from '../../src/renderer/src/composables/usePanelRegistryController.js'
+} from '../../src/renderer/src/features/panels/usePanelRegistryController.js'
 import { DETACHABLE_PANEL_IDS, type DetachablePanelId } from '../../src/shared/types.js'
 
 function create(initiallyOpen: readonly DetachablePanelId[] = []) {

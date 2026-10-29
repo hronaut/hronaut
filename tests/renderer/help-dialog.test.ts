@@ -1,8 +1,8 @@
 import { render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import HelpDialog from '../../src/renderer/src/components/HelpDialog.vue'
-import { useHelpDialogController } from '../../src/renderer/src/composables/useHelpDialogController.js'
+import HelpDialog from '../../src/renderer/src/features/help/HelpDialog.vue'
+import { useHelpDialogController } from '../../src/renderer/src/features/help/useHelpDialogController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 
 function renderDialog() {

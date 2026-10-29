@@ -17,7 +17,7 @@ import { useAppSiteManagementFeatureController } from './useAppSiteManagementFea
 import { useBrowserTabActionsController } from '../features/tabs/useBrowserTabActionsController.js'
 import { disposeAll } from './dispose-all.js'
 import type { SettingsSection } from '../features/settings/useSettingsDialogController.js'
-import { useSiteDataSummaryController } from './useSiteDataSummaryController.js'
+import { useSiteDataSummaryController } from '../features/site-controls/useSiteDataSummaryController.js'
 import type { SiteStorageShellPanel } from '../features/site-storage/useSiteStorageShellController.js'
 
 type SiteNavigationBrowserApi = Pick<

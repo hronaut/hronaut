@@ -22,7 +22,7 @@ import BookmarksFileActions from './BookmarksFileActions.vue'
 import BookmarksOpenAll from './BookmarksOpenAll.vue'
 import { useBookmarkCollectionsController } from './useBookmarkCollectionsController.js'
 import { useBookmarksOpenAll } from './useBookmarksOpenAll.js'
-import PanelDockPicker from '../../components/PanelDockPicker.vue'
+import PanelDockPicker from '../panels/PanelDockPicker.vue'
 import { vTooltip } from '../../ui/tooltip.js'
 
 const props = defineProps<{

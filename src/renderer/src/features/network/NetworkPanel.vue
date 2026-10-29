@@ -36,7 +36,7 @@ import { ignoreHeldEnter } from '../../held-enter.js'
 import NetworkContentSearch from './NetworkContentSearch.vue'
 import NetworkRequestConditions from './NetworkRequestConditions.vue'
 import NetworkRequestPriority from './NetworkRequestPriority.vue'
-import PanelDockPicker from '../../components/PanelDockPicker.vue'
+import PanelDockPicker from '../panels/PanelDockPicker.vue'
 import { vTooltip } from '../../ui/tooltip.js'
 
 const props = defineProps<{
