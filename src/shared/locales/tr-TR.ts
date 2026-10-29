@@ -1206,7 +1206,9 @@ export const trTR: MessageSchema = {
       "persistentStorage": "Kalıcı depolama",
       "keyboardLock": "Klavye kilidi",
       "pointerLock": "Fare işaretçisi kilidi",
-      "screenAwake": "Ekranı açık tut"
+      "screenAwake": "Ekranı açık tut",
+      "sound": "Ses",
+      "mute": "Sesi kapat"
     },
     "license": {
       "enterKey": "Creem makbuzunuzdaki lisans anahtarını girin."
@@ -3673,6 +3675,8 @@ export const trTR: MessageSchema = {
       "duplicateTab": "Sekmeyi çoğalt",
       "muteTab": "Sekmenin sesini kapat",
       "unmuteTab": "Sekmenin sesini aç",
+      "muteSite": "Sitenin sesini kapat",
+      "unmuteSite": "Sitenin sesini aç",
       "pinTab": "Sekmeyi sabitle",
       "unpinTab": "Sekmenin sabitlemesini kaldır",
       "freezePage": "Sayfayı inceleme için dondur",

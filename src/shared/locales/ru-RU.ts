@@ -1206,7 +1206,9 @@ export const ruRU: MessageSchema = {
       "persistentStorage": "Постоянное хранилище",
       "keyboardLock": "Перехват клавиатуры",
       "pointerLock": "Блокировка указателя мыши",
-      "screenAwake": "Не выключать экран"
+      "screenAwake": "Не выключать экран",
+      "sound": "Звук",
+      "mute": "Без звука"
     },
     "license": {
       "enterKey": "Введите ключ коммерческой лицензии из квитанции Creem."
@@ -3673,6 +3675,8 @@ export const ruRU: MessageSchema = {
       "duplicateTab": "Дублировать вкладку",
       "muteTab": "Выключить звук вкладки",
       "unmuteTab": "Включить звук вкладки",
+      "muteSite": "Выключить звук сайта",
+      "unmuteSite": "Включить звук сайта",
       "pinTab": "Закрепить вкладку",
       "unpinTab": "Открепить вкладку",
       "freezePage": "Заморозить страницу для проверки",

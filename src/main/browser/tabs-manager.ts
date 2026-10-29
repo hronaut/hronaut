@@ -595,6 +595,8 @@ import { captureVisual, visualCompareContext } from './visual-compare/visual-cap
 import { currentNetworkRequests, matchingNetworkWaitRequest } from './network-inspection/network-request-records.js'
 import type { TabMutingAccess } from './tab-muting/tab-muting-access.js'
 import { setAllTabsMuted, setTabMuted } from './tab-muting/tab-muting.js'
+import type { SiteMutingAccess, SiteSoundStore } from './site-muting/site-muting-access.js'
+import { applySiteMuting, applySiteMutingToTabs, canMuteSite, isSiteMuted, setSiteMuted } from './site-muting/site-muting.js'
 import type { AgentStepThumbnailAccess } from './agent-step-thumbnail/agent-step-thumbnail-access.js'
 import { captureAgentStepThumbnail } from './agent-step-thumbnail/agent-step-thumbnail.js'
 import type { TrustedChromeFocusAccess } from './trusted-chrome-focus/trusted-chrome-focus-access.js'
@@ -769,6 +771,8 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
   audible: boolean
   tabMuted: boolean
   muted: boolean
+  /** Muted because Mute Site muted its website, as Chrome's Sound setting; runtime only. */
+  mutedBySite: boolean
   view: WebContentsView
   // Keep the WebContents handle independently from WebContentsView. Electron
   // can invalidate the view's webContents getter during native-view teardown,
@@ -884,6 +888,10 @@ export interface TabsManagerOptions {
   getSpellCheck?: () => boolean
   /** Turns spell checking on or off for every website and saves it, as Settings does. */
   setSpellCheck?: (enabled: boolean) => Promise<unknown>
+  /** The site permission store, which keeps the websites Mute Site muted in each workspace; null before it loaded. */
+  sitePermissionStore?: () => SiteSoundStore | null
+  /** Mute Site changed a saved site permission, which the shell windows list. */
+  onSitePermissionsChanged?: () => void
   getLocale: () => SupportedLocale
   getTabPosition: () => TabPosition
   /** Whether an address is one of Hronaut's own windows, which the Task manager lists as Hronaut's and never ends. */
@@ -2922,6 +2930,9 @@ export class BrowserTabsManager {
       reactInspectionController: () => this.reactInspectionController,
       reactInspection: (tabId, command, authority) => this.reactInspection(tabId, command, authority),
       setTabMuted: (tabId, muted) => this.setTabMuted(tabId, muted),
+      canMuteSite: (tab) => canMuteSite(this.siteMutingAccess(), tab),
+      isSiteMuted: (tab) => isSiteMuted(this.siteMutingAccess(), tab),
+      setSiteMuted: (tabId, muted) => this.setSiteMuted(tabId, muted),
       setTabPinned: (tabId, pinned) => this.setTabPinned(tabId, pinned),
       setTabPageLifecycle: (tabId, state) => this.setTabPageLifecycle(tabId, state),
       sleepBlockReason: (tab, allowActiveTab) => this.sleepBlockReason(tab, allowActiveTab),
@@ -3858,6 +3869,28 @@ export class BrowserTabsManager {
 
   setAllTabsMuted(muted: boolean): BrowserState {
     return setAllTabsMuted(this.tabMutingAccess(), muted)
+  }
+
+  /** The narrow view muting websites gets of this manager's tabs and of the site permission store it was given. */
+  private siteMutingAccess(): SiteMutingAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      tabs: () => this.tabs.values(),
+      allTabsMuted: () => this.allTabsMuted,
+      store: () => this.options.sitePermissionStore?.() ?? null,
+      sitePermissionsChanged: () => this.options.onSitePermissionsChanged?.(),
+      changed: (persist) => this.changed(persist),
+      getState: () => this.getState()
+    }
+  }
+
+  setSiteMuted(tabId: string, muted: boolean): Promise<BrowserState> {
+    return setSiteMuted(this.siteMutingAccess(), tabId, muted)
+  }
+
+  /** Applies each tab's website sound setting once the saved site permissions changed, such as in Settings. */
+  applySiteMutingToTabs(): void {
+    applySiteMutingToTabs(this.siteMutingAccess())
   }
 
   stop(tabId?: string): BrowserState {
@@ -5889,6 +5922,7 @@ export class BrowserTabsManager {
       audible: false,
       tabMuted: options.muted === true,
       muted: (this.allTabsMuted || options.muted === true) && !isHronautHomeUrl(url),
+      mutedBySite: false,
       view,
       webContents: view.webContents,
       browserSession: view.webContents.session,
@@ -6319,6 +6353,7 @@ export class BrowserTabsManager {
       reproRecorder: () => this.reproRecorder,
       scheduleTabOverviewPreview: (tab, settleMs) => this.scheduleTabOverviewPreview(tab, settleMs),
       trackWorkspaceOrigin: (tab, url) => this.trackWorkspaceOrigin(tab, url),
+      applySiteMuting: (tab) => applySiteMuting(this.siteMutingAccess(), tab),
       appendConsoleMessage: (tab, message, source) => appendConsoleMessage(tab, message, source),
       watchCredentialSubmission: (tab) => this.watchCredentialSubmission(tab),
       watchUnsavedFormEdits: (tab, frame) => watchUnsavedFormEdits(tab, frame),

@@ -1111,7 +1111,11 @@ function registerIpc(): void {
   registerPermissionsIpc(hronautIpcMain, {
     assertTrustedSender: assertTrustedShellSender,
     sitePermissionStore: () => browserSessionState.sitePermissionStore,
-    publishSitePermissions
+    publishSitePermissions: () => {
+      publishSitePermissions()
+      // A website's Sound setting changed or forgotten in Settings mutes or unmutes its open tabs at once, as in Chrome.
+      tabRuntime.tabs?.applySiteMutingToTabs()
+    }
   })
   registerCredentialsIpc(hronautIpcMain, {
     assertTrustedSender: assertTrustedShellSender,
@@ -1187,6 +1191,8 @@ async function createWindow(startMinimized = false): Promise<void> {
     getSearchEngine: () => settingsState.current.searchEngine,
     getSpellCheck: () => spellCheck.isEnabled(),
     setSpellCheck: (enabled) => spellCheck.setEnabled(enabled),
+    sitePermissionStore: () => browserSessionState.sitePermissionStore,
+    onSitePermissionsChanged: publishSitePermissions,
     getLocale: () => settingsState.resolvedLocale,
     getTabPosition: () => settingsState.current.tabPosition,
     // Hronaut's own pages, the main window and its overlays among them, all load from the shell's folder.

@@ -1206,7 +1206,9 @@ export const plPL: MessageSchema = {
       "persistentStorage": "Trwała pamięć",
       "keyboardLock": "Blokada klawiatury",
       "pointerLock": "Blokada wskaźnika myszy",
-      "screenAwake": "Utrzymywanie włączonego ekranu"
+      "screenAwake": "Utrzymywanie włączonego ekranu",
+      "sound": "Dźwięk",
+      "mute": "Wycisz"
     },
     "license": {
       "enterKey": "Wprowadź klucz licencji komercyjnej z potwierdzenia Creem."
@@ -3673,6 +3675,8 @@ export const plPL: MessageSchema = {
       "duplicateTab": "Duplikuj kartę",
       "muteTab": "Wycisz kartę",
       "unmuteTab": "Włącz dźwięk karty",
+      "muteSite": "Wycisz witrynę",
+      "unmuteSite": "Włącz dźwięk witryny",
       "pinTab": "Przypnij kartę",
       "unpinTab": "Odepnij kartę",
       "freezePage": "Zamroź stronę do kontroli",

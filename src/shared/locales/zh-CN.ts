@@ -1206,7 +1206,9 @@ export const zhCN: MessageSchema = {
       "persistentStorage": "永久存储",
       "keyboardLock": "键盘锁定",
       "pointerLock": "鼠标指针锁定",
-      "screenAwake": "保持屏幕常亮"
+      "screenAwake": "保持屏幕常亮",
+      "sound": "声音",
+      "mute": "静音"
     },
     "license": {
       "enterKey": "请输入 Creem 收据中的许可证密钥。"
@@ -3673,6 +3675,8 @@ export const zhCN: MessageSchema = {
       "duplicateTab": "复制标签页",
       "muteTab": "将标签页静音",
       "unmuteTab": "取消标签页静音",
+      "muteSite": "将网站静音",
+      "unmuteSite": "取消网站静音",
       "pinTab": "固定标签页",
       "unpinTab": "取消固定标签页",
       "freezePage": "冻结页面以供审核",

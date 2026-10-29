@@ -1206,7 +1206,9 @@ export const esES: MessageSchema = {
       "persistentStorage": "Almacenamiento persistente",
       "keyboardLock": "Bloqueo del teclado",
       "pointerLock": "Bloqueo del puntero",
-      "screenAwake": "Mantener la pantalla encendida"
+      "screenAwake": "Mantener la pantalla encendida",
+      "sound": "Sonido",
+      "mute": "Silenciar"
     },
     "license": {
       "enterKey": "Introduce la clave de licencia comercial de tu recibo de Creem."
@@ -3673,6 +3675,8 @@ export const esES: MessageSchema = {
       "duplicateTab": "Duplicar pestaña",
       "muteTab": "Silenciar pestaña",
       "unmuteTab": "Activar sonido de pestaña",
+      "muteSite": "Silenciar sitio",
+      "unmuteSite": "Activar sonido del sitio",
       "pinTab": "Fijar pestaña",
       "unpinTab": "Desfijar pestaña",
       "freezePage": "Congelar página para revisión",

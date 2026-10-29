@@ -1206,7 +1206,9 @@ export const jaJP: MessageSchema = {
       "persistentStorage": "永続ストレージ",
       "keyboardLock": "キーボードのロック",
       "pointerLock": "マウスポインタのロック",
-      "screenAwake": "画面をオンのままにする"
+      "screenAwake": "画面をオンのままにする",
+      "sound": "音声",
+      "mute": "ミュート"
     },
     "license": {
       "enterKey": "Creem の領収書に記載されたライセンスキーを入力してください。"
@@ -3673,6 +3675,8 @@ export const jaJP: MessageSchema = {
       "duplicateTab": "タブを複製",
       "muteTab": "タブをミュート",
       "unmuteTab": "タブのミュートを解除",
+      "muteSite": "サイトをミュート",
+      "unmuteSite": "サイトのミュートを解除",
       "pinTab": "タブを固定",
       "unpinTab": "タブの固定を解除",
       "freezePage": "確認のためページをフリーズ",

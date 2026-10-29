@@ -1,5 +1,11 @@
 import type { MessageKey } from './i18n.js'
 
+/**
+ * Chrome's Sound site setting, which no website asks for: Mute Site saves it as a deny decision, so the website's pages
+ * play no sound, and Settings shows that decision as Mute.
+ */
+export const SITE_SOUND_PERMISSION = 'sound'
+
 /** The message naming each permission websites ask for, by Chromium's identifier. */
 const SITE_PERMISSION_NAMES: Readonly<Record<string, MessageKey>> = {
   'clipboard-read': 'runtime.permissions.clipboardRead',
@@ -17,6 +23,7 @@ const SITE_PERMISSION_NAMES: Readonly<Record<string, MessageKey>> = {
   'persistent-storage': 'runtime.permissions.persistentStorage',
   pointerLock: 'runtime.permissions.pointerLock',
   'screen-wake-lock': 'runtime.permissions.screenAwake',
+  [SITE_SOUND_PERMISSION]: 'runtime.permissions.sound',
   'storage-access': 'runtime.permissions.storage',
   'top-level-storage-access': 'runtime.permissions.relatedStorage',
   'window-management': 'runtime.permissions.windows'

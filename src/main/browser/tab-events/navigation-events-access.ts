@@ -106,6 +106,8 @@ export interface NavigationEventsAccess<Tab extends NavigationEventsTab> {
   scheduleTabOverviewPreview(tab: Tab, settleMs?: number): void
   /** Adds the address's origin to the tab's workspace origins. */
   trackWorkspaceOrigin(tab: Tab, url: string): void
+  /** Mutes the tab for a muted website, or gives back its sound for another; returns whether the tab changed. */
+  applySiteMuting(tab: Tab): boolean
   /** Appends a lifecycle message to the tab's console messages. */
   appendConsoleMessage(tab: Tab, message: BrowserConsoleMessage, source: 'lifecycle'): void
   /** Watches the page for submitted credentials. */

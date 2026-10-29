@@ -1206,7 +1206,9 @@ export const koKR: MessageSchema = {
       "persistentStorage": "영구 저장소",
       "keyboardLock": "키보드 잠금",
       "pointerLock": "마우스 포인터 잠금",
-      "screenAwake": "화면 켜짐 유지"
+      "screenAwake": "화면 켜짐 유지",
+      "sound": "소리",
+      "mute": "음소거"
     },
     "license": {
       "enterKey": "Creem 영수증에 있는 라이선스 키를 입력하세요."
@@ -3673,6 +3675,8 @@ export const koKR: MessageSchema = {
       "duplicateTab": "탭 복제",
       "muteTab": "탭 음소거",
       "unmuteTab": "탭 음소거 해제",
+      "muteSite": "사이트 음소거",
+      "unmuteSite": "사이트 음소거 해제",
       "pinTab": "탭 고정",
       "unpinTab": "탭 고정 해제",
       "freezePage": "검토를 위해 페이지 정지",

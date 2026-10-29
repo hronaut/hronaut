@@ -1206,7 +1206,9 @@ export const deDE: MessageSchema = {
       "persistentStorage": "Dauerhafter Speicher",
       "keyboardLock": "Tastatursperre",
       "pointerLock": "Mauszeigersperre",
-      "screenAwake": "Bildschirm aktiv halten"
+      "screenAwake": "Bildschirm aktiv halten",
+      "sound": "Ton",
+      "mute": "Stummschalten"
     },
     "license": {
       "enterKey": "Gib den kommerziellen Lizenzschlüssel aus deinem Creem-Beleg ein."
@@ -3673,6 +3675,8 @@ export const deDE: MessageSchema = {
       "duplicateTab": "Tab duplizieren",
       "muteTab": "Tab stummschalten",
       "unmuteTab": "Tabton einschalten",
+      "muteSite": "Website stummschalten",
+      "unmuteSite": "Ton der Website einschalten",
       "pinTab": "Tab anheften",
       "unpinTab": "Tab lösen",
       "freezePage": "Seite zur Prüfung einfrieren",

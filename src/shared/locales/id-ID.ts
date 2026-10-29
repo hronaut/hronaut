@@ -1206,7 +1206,9 @@ export const idID: MessageSchema = {
       "persistentStorage": "Penyimpanan persisten",
       "keyboardLock": "Kunci keyboard",
       "pointerLock": "Kunci pointer mouse",
-      "screenAwake": "Biarkan layar tetap menyala"
+      "screenAwake": "Biarkan layar tetap menyala",
+      "sound": "Suara",
+      "mute": "Bisukan"
     },
     "license": {
       "enterKey": "Masukkan kunci lisensi dari tanda terima Creem Anda."
@@ -3673,6 +3675,8 @@ export const idID: MessageSchema = {
       "duplicateTab": "Duplikat tab",
       "muteTab": "Bisukan tab",
       "unmuteTab": "Bunyikan tab",
+      "muteSite": "Bisukan situs",
+      "unmuteSite": "Bunyikan situs",
       "pinTab": "Sematkan tab",
       "unpinTab": "Lepas sematan tab",
       "freezePage": "Bekukan halaman untuk peninjauan",

@@ -1206,7 +1206,9 @@ export const itIT: MessageSchema = {
       "persistentStorage": "Archiviazione permanente",
       "keyboardLock": "Blocco tastiera",
       "pointerLock": "Blocco puntatore del mouse",
-      "screenAwake": "Mantieni lo schermo acceso"
+      "screenAwake": "Mantieni lo schermo acceso",
+      "sound": "Audio",
+      "mute": "Disattiva audio"
     },
     "license": {
       "enterKey": "Inserisci la chiave di licenza riportata nella ricevuta di Creem."
@@ -3673,6 +3675,8 @@ export const itIT: MessageSchema = {
       "duplicateTab": "Duplica scheda",
       "muteTab": "Disattiva audio scheda",
       "unmuteTab": "Riattiva audio scheda",
+      "muteSite": "Disattiva audio sito",
+      "unmuteSite": "Riattiva audio sito",
       "pinTab": "Blocca scheda",
       "unpinTab": "Sblocca scheda",
       "freezePage": "Congela pagina per la revisione",
