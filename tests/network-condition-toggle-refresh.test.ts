@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { WebContents } from 'electron'
-import { clearNetworkRoutes, queueNetworkRouteRequest, removeNetworkRoute, setNetworkRouteEnabled } from '../src/main/browser/network-conditions/network-conditions.js'
+import { applyNetworkRoutes, clearNetworkRoutes, queueNetworkRouteRequest, removeNetworkRoute, setNetworkRouteEnabled } from '../src/main/browser/network-conditions/network-conditions.js'
 import type { NetworkConditionsAccess, NetworkConditionsTab } from '../src/main/browser/network-conditions/network-conditions-access.js'
 import { normalizeNetworkRouteInput } from '../src/main/browser/network-route-input.js'
 
@@ -54,7 +54,7 @@ function conditions() {
       queue = run
       return run
     },
-    applyNetworkEmulation: async () => {},
+    applyNetworkEmulation: async (_contents, _network, _routes, send) => { await send?.('Network.emulateNetworkConditionsByRule') },
     networkRouteQueues: () => queues,
     networkRouteRefreshTimers: () => timers,
     heldNetworkResponses: () => new Map(),
@@ -76,11 +76,13 @@ function conditions() {
 
 it('toggles a rule while the refresh after a used-up rule is applying', async () => {
   const { access, tab, commands, useUpRule, holdNext, release } = conditions()
+  await applyNetworkRoutes(access, tab)
   await useUpRule()
   expect(tab.networkConditionApplication).toBe('pending')
-  holdNext('Fetch.enable')
+  // The refresh leaves interception in effect, which covers the kept rule, and settles the network conditions.
+  holdNext('Network.emulateNetworkConditionsByRule')
   await vi.advanceTimersByTimeAsync(250)
-  expect(commands.at(-1)).toBe('Fetch.enable')
+  expect(commands.at(-1)).toBe('Network.emulateNetworkConditionsByRule')
   // Refused as "must be confirmed" before, as if the rules had become unknown.
   const toggled = setNetworkRouteEnabled(access, 'tab-1', 'kept', false)
   release()

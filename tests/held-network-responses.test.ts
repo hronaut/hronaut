@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { WebContents } from 'electron'
 import { cancelHeldResponse, failAllHeldResponses, heldResponseSummaries, releaseHeldResponse, type HeldResponses } from '../src/main/browser/network-conditions/held-responses.js'
-import { addNetworkRoute, applyNetworkRoutes, clearNetworkRoutes, queueNetworkRouteRequest } from '../src/main/browser/network-conditions/network-conditions.js'
+import { addNetworkRoute, applyNetworkRoutes, clearNetworkRoutes, queueNetworkRouteRequest, removeNetworkRoute } from '../src/main/browser/network-conditions/network-conditions.js'
 import type { NetworkConditionsAccess, NetworkConditionsTab } from '../src/main/browser/network-conditions/network-conditions-access.js'
 
 type Sent = { method: string; params?: Record<string, unknown> }
@@ -103,22 +103,25 @@ it('fails a request whose hold times out, and never continues it', async () => {
   await pause('r1')
   sent.length = 0
   await vi.advanceTimersByTimeAsync(5_000)
-  // The rule refresh after capture keeps interception on without patterns.
+  // The rule refresh after capture leaves the interception in effect, which keeps the held request.
   expect(sent).toEqual([
-    { method: 'Fetch.enable', params: { patterns: [] } },
     { method: 'Fetch.failRequest', params: { requestId: 'r1', errorReason: 'TimedOut' } }
   ])
   await expect(releaseHeldResponse(access, undefined, routeId)).rejects.toThrow('it timed out')
   expect(sent.some(command => command.method === 'Fetch.continueRequest' || command.method === 'Fetch.fulfillRequest')).toBe(false)
 })
 
-it('keeps interception on without patterns while a request is held', async () => {
+it('keeps interception on while a request is held, without patterns once a change leaves no rules', async () => {
   const { access, tab, sent, pause, addHold } = fixture()
   const routeId = await addHold()
+  const otherId = (await addNetworkRoute(access, undefined, { urlPattern: 'https://app.test/other*', response: { status: 200 } })).at(-1)!.id
   await pause('r1')
-  expect(tab.networkRoutes).toEqual([])
+  expect(tab.networkRoutes.map(route => route.id)).toEqual([otherId])
   sent.length = 0
   await applyNetworkRoutes(access, tab)
+  // A refresh leaves the interception in effect, which covers the remaining rule and keeps the held request.
+  expect(sent).toEqual([])
+  await removeNetworkRoute(access, undefined, otherId)
   expect(sent).toEqual([{ method: 'Fetch.enable', params: { patterns: [] } }])
   await releaseHeldResponse(access, undefined, routeId)
   sent.length = 0
