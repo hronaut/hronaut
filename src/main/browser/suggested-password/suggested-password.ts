@@ -3,13 +3,28 @@ import { isCurrentCredentialFillContext, type CredentialFillContext } from '../c
 import { isCredentialFillPageResult } from '../credential-fill-page.js'
 import { ISOLATED_WORLDS } from '../isolated-worlds.js'
 import { LocalizedError } from '../../localized-error.js'
-import type { SuggestedPasswordAccess, SuggestedPasswordTab } from './suggested-password-access.js'
+import type { Browser } from '../browser.js'
+import { credentialContext } from '../credential-fill/credential-fill.js'
+import { findTab } from '../browser-core.js'
+import type { BrowserTab } from '../browser-tab.js'
+import { withAgentInput } from '../agent-input-scope/agent-input-scope.js'
+import { recordTrustedCredentialFill } from '../trusted-credential-fill.js'
 import {
   isSuggestedPasswordField,
   suggestedPasswordFieldScript,
   suggestedPasswordFillScript,
   type SuggestedPasswordField
 } from './suggested-password-page.js'
+
+/** What keeps a password Hronaut suggested: secure storage to save it in, paused agents, and the offer to save it. */
+export interface SuggestedPasswordOptions {
+  /** Whether passwords are saved securely; without that, a suggested password could never be filled in again. */
+  available(): boolean
+  /** Fills while agents are paused, as filling a saved password does, since the page then holds a password. */
+  whileAgentsPaused<T>(fill: () => Promise<T>): Promise<T>
+  /** Hronaut suggested this password for the website, which the offer to save it says when the page submits it. */
+  suggested(origin: string, password: string): void
+}
 
 // Chrome's password generator: letters and digits that are not easily confused (no l, o, I, O, 0 or 1), 15 of them,
 // with at least one lowercase letter, one capital and one digit.
@@ -50,7 +65,7 @@ export function generateStrongPassword(length: number, random: (max: number) => 
  * Runs one of the suggestion's scripts in Hronaut's own isolated world of the page. A script that fails is reported
  * without its error, which a page could have written.
  */
-async function runInPage(tab: SuggestedPasswordTab, code: string, userGesture: boolean): Promise<unknown> {
+async function runInPage(tab: BrowserTab, code: string, userGesture: boolean): Promise<unknown> {
   try {
     return await tab.webContents.executeJavaScriptInIsolatedWorld(ISOLATED_WORLDS.suggestedPassword, [{ code }], userGesture)
   } catch {
@@ -65,15 +80,15 @@ async function runInPage(tab: SuggestedPasswordTab, code: string, userGesture: b
  * while passwords cannot be saved, once the tab is no longer the one, at the address, the suggestion was offered
  * for, or once the focus left the field. It reports whether the page took the password.
  */
-export async function suggestStrongPassword<Tab extends SuggestedPasswordTab>(
-  access: SuggestedPasswordAccess<Tab>,
-  tab: Tab,
+export async function suggestStrongPassword(
+  browser: Browser,
+  tab: BrowserTab,
   expectedContext: CredentialFillContext
 ): Promise<boolean> {
-  const suggestions = access.options().suggestedPasswords
-  const current = (): boolean => access.findTab(tab.id) === tab
+  const suggestions = browser.options.suggestedPasswords
+  const current = (): boolean => findTab(browser, tab.id) === tab
     && !tab.webContents.isDestroyed()
-    && isCurrentCredentialFillContext(expectedContext, access.credentialContext(tab.id))
+    && isCurrentCredentialFillContext(expectedContext, credentialContext(browser, tab.id))
   if (!suggestions?.available() || !current()) return false
   const field = await runInPage(tab, suggestedPasswordFieldScript(expectedContext), false)
   const length = isSuggestedPasswordField(field) ? suggestedPasswordLength(field) : null
@@ -83,11 +98,11 @@ export async function suggestStrongPassword<Tab extends SuggestedPasswordTab>(
     const password = generateStrongPassword(length)
     // Remembered before the page has it: a page that submits as soon as the field changes is offered to save it too.
     suggestions.suggested(expectedContext.origin, password)
-    const outcome = await access.withAgentInput(
+    const outcome = await withAgentInput(browser, 
       tab.webContents,
       () => runInPage(tab, suggestedPasswordFillScript(expectedContext, password), true)
     )
     if (!isCredentialFillPageResult(outcome)) return false
-    return access.recordTrustedCredentialFill(outcome, tab, Date.now(), access.options().onUserInteraction)
+    return recordTrustedCredentialFill(outcome, tab, Date.now(), browser.options.onUserInteraction)
   })
 }

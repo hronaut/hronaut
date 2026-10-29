@@ -1,8 +1,17 @@
 import type { Session } from 'electron'
 import { expect, it, vi } from 'vitest'
-import type { SessionHooksAccess, SessionHooksTab } from '../src/main/browser/session-hooks/session-hooks-access.js'
+import type { Browser } from '../src/main/browser/browser.js'
+import type { BrowserTab } from '../src/main/browser/browser-tab.js'
 
 vi.mock('electron', () => ({ safeStorage: {} }))
+/** What the page loaded besides its own document, as certificate errors hear of it, for the session made last. */
+const loaded = vi.hoisted(() => ({ content: (_certificates: { changed(): void }, _tab: unknown, _url: string): void => undefined }))
+vi.mock('../src/main/browser/certificate-errors/certificate-errors.js', () => ({
+  contentLoaded: (certificates: { changed(): void }, tab: unknown, url: string) => loaded.content(certificates, tab, url)
+}))
+vi.mock('../src/main/browser/browser-state/browser-state.js', () => ({
+  publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist)
+}))
 
 const { installSessionHooks } = await import('../src/main/browser/session-hooks/session-hooks.js')
 
@@ -29,23 +38,25 @@ function hookedSession(debuggerRecords = false) {
     networkRequests: [],
     networkCaptureSequence: 0,
     observationGeneration: 1
-  } as unknown as SessionHooksTab
+  } as unknown as BrowserTab
   const notify = vi.fn()
-  const access: SessionHooksAccess<SessionHooksTab> = {
-    isDestroyed: () => false,
-    tabs: () => [tab].values(),
-    findTab: (tabId) => tabId === 'tab' ? tab : undefined,
-    tabIdForWebContents: (id) => id === 7 ? 'tab' : undefined,
-    browserSessionAuthorityHooks: () => new Map(),
-    browserCookieImportSessions: () => new Set(),
-    networkHookSessions: () => new WeakSet(),
+  const contentLoaded = vi.fn((certificates: { changed(): void }, _tab: unknown, _url: string) => { certificates.changed() })
+  loaded.content = contentLoaded
+  const certificatesChanged = vi.fn()
+  const browser = {
+    destroyed: false,
+    tabs: new Map([['tab', tab]]),
+    webContentsToTab: new Map([[7, 'tab']]),
+    browserSessionAuthorityHooks: new Map(),
+    browserCookieImportSessions: new Set(),
+    networkHookSessions: new WeakSet(),
     changed: vi.fn(),
-    contentLoaded: vi.fn(),
-    networkWaitController: () => ({ notify }),
-    downloadController: () => ({ attachSession: vi.fn() })
-  }
-  installSessionHooks(access, browserSession)
-  return { webRequest, listeners, tab, notify, access }
+    certificatesChanged,
+    networkWaitController: { notify },
+    downloadController: { attachSession: vi.fn() }
+  } as unknown as Browser
+  installSessionHooks(browser, browserSession)
+  return { webRequest, listeners, tab, notify, contentLoaded, certificatesChanged }
 }
 
 const request = { id: 41, url: 'https://example.test/app.js', method: 'GET', resourceType: 'script', timestamp: Date.parse('2026-10-26T16:00:00.000Z'), webContentsId: 7 }
@@ -72,12 +83,14 @@ it('records a page\'s requests before its debugger does without holding any of t
 
 it('tells what a page loaded besides its own document, for any tab, so a page showing content that is not private says so', () => {
   for (const debuggerRecords of [false, true]) {
-    const { listeners, tab, access } = hookedSession(debuggerRecords)
+    const { listeners, tab, contentLoaded, certificatesChanged } = hookedSession(debuggerRecords)
     listeners.completed!({ ...request, statusCode: 200, fromCache: true })
     listeners.completed!({ ...request, url: 'https://example.test/frame', resourceType: 'subFrame', statusCode: 200, fromCache: false })
     listeners.completed!({ ...request, url: 'https://example.test/', resourceType: 'mainFrame', statusCode: 200, fromCache: false })
     listeners.completed!({ ...request, webContentsId: undefined, statusCode: 200, fromCache: false })
-    expect(vi.mocked(access.contentLoaded).mock.calls, String(debuggerRecords)).toEqual([[tab, 'https://example.test/app.js'], [tab, 'https://example.test/frame']])
+    expect(contentLoaded.mock.calls.map(([, page, url]) => [page, url]), String(debuggerRecords)).toEqual([[tab, 'https://example.test/app.js'], [tab, 'https://example.test/frame']])
+    // What it loaded can make the page not private, which the tab's certificate state then shows.
+    expect(certificatesChanged.mock.calls, String(debuggerRecords)).toEqual([[tab], [tab]])
   }
 })
 

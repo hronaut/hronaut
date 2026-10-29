@@ -1,19 +1,23 @@
 import type { Session } from 'electron'
 import { trimNetworkRequests } from '../network-recording.js'
 import { restoringSessionCookies } from '../session-cookies/saved-session-cookies.js'
-import type { SessionHooksAccess, SessionHooksTab } from './session-hooks-access.js'
+import type { Browser } from '../browser.js'
+import { contentLoaded } from '../certificate-errors/certificate-errors.js'
+import { findTab } from '../browser-core.js'
+import type { BrowserTab } from '../browser-tab.js'
+import { publishChange } from '../browser-state/browser-state.js'
 
 /**
  * Hooks a browser session once: its cookie changes advance the generation of
  * every tab on that session, its requests are recorded for tabs whose debugger
  * does not record them, and its downloads are tracked.
  */
-export function installSessionHooks<Tab extends SessionHooksTab>(access: SessionHooksAccess<Tab>, browserSession: Session): void {
-  if (!access.browserSessionAuthorityHooks().has(browserSession)) {
+export function installSessionHooks(browser: Browser, browserSession: Session): void {
+  if (!browser.browserSessionAuthorityHooks.has(browserSession)) {
     const onCookieChanged = (): void => {
-      if (access.isDestroyed()) return
+      if (browser.destroyed) return
       let changed = false
-      for (const tab of access.tabs()) {
+      for (const tab of browser.tabs.values()) {
         if (tab.webContents.isDestroyed() || tab.webContents.session !== browserSession) continue
         tab.browserSessionGeneration = tab.browserSessionGeneration === Number.MAX_SAFE_INTEGER
           ? 0
@@ -22,20 +26,20 @@ export function installSessionHooks<Tab extends SessionHooksTab>(access: Session
       }
       // Authority generations still advance immediately, but a bulk import, or saved session cookies set again,
       // publishes its final state once instead of rerendering per cookie.
-      if (changed && !access.browserCookieImportSessions().has(browserSession) && !restoringSessionCookies(browserSession)) access.changed(false)
+      if (changed && !browser.browserCookieImportSessions.has(browserSession) && !restoringSessionCookies(browserSession)) publishChange(browser, false)
     }
     browserSession.cookies.on('changed', onCookieChanged)
-    access.browserSessionAuthorityHooks().set(browserSession, onCookieChanged)
+    browser.browserSessionAuthorityHooks.set(browserSession, onCookieChanged)
   }
-  if (!access.networkHookSessions().has(browserSession)) {
-    access.networkHookSessions().add(browserSession)
-    const requestTab = (details: { webContentsId?: number }): Tab | undefined => {
-      const tabId = details.webContentsId ? access.tabIdForWebContents(details.webContentsId) : undefined
-      return tabId ? access.findTab(tabId) : undefined
+  if (!browser.networkHookSessions.has(browserSession)) {
+    browser.networkHookSessions.add(browserSession)
+    const requestTab = (details: { webContentsId?: number }): BrowserTab | undefined => {
+      const tabId = details.webContentsId ? browser.webContentsToTab.get(details.webContentsId) : undefined
+      return tabId ? findTab(browser, tabId) : undefined
     }
     // The record of the request's latest address. A redirect starts a record of its own, as the debugger keeps one
     // for each address a request goes to: web:<id> first, then web:<id>-1, web:<id>-2.
-    const latestRecord = (tab: Tab, id: number) => {
+    const latestRecord = (tab: BrowserTab, id: number) => {
       const first = `web:${id}`
       for (let index = tab.networkRequests.length - 1; index >= 0; index -= 1) {
         const candidate = tab.networkRequests[index]!
@@ -65,7 +69,7 @@ export function installSessionHooks<Tab extends SessionHooksTab>(access: Session
         detailsAvailable: false
       })
       trimNetworkRequests(tab)
-      access.networkWaitController().notify(tab)
+      browser.networkWaitController.notify(tab)
     })
     browserSession.webRequest.onBeforeRedirect((details) => {
       const tab = requestTab(details)
@@ -75,19 +79,19 @@ export function installSessionHooks<Tab extends SessionHooksTab>(access: Session
       request.status = details.statusCode
       request.fromCache = details.fromCache
       request.responseSource = details.fromCache ? 'other-cache' : 'network'
-      access.networkWaitController().notify(tab)
+      browser.networkWaitController.notify(tab)
     })
     browserSession.webRequest.onCompleted((details) => {
       const tab = requestTab(details)
       // What a page loads counts for whether it is private; its own document counts once it shows.
-      if (tab && details.resourceType !== 'mainFrame') access.contentLoaded(tab, details.url)
+      if (tab && details.resourceType !== 'mainFrame') contentLoaded({ changed: () => browser.certificatesChanged(tab) }, tab, details.url)
       const request = tab && latestRecord(tab, details.id)
       if (!tab || !request || request.completedAt !== undefined) return
       request.completedAt = new Date().toISOString()
       request.status = details.statusCode
       request.fromCache = details.fromCache
       request.responseSource = details.fromCache ? 'other-cache' : 'network'
-      access.networkWaitController().notify(tab)
+      browser.networkWaitController.notify(tab)
     })
     browserSession.webRequest.onErrorOccurred((details) => {
       // A request whose record was cleared, as at a navigation, stays cleared.
@@ -96,9 +100,9 @@ export function installSessionHooks<Tab extends SessionHooksTab>(access: Session
       if (!tab || !request || request.completedAt !== undefined) return
       request.completedAt = new Date().toISOString()
       request.error = details.error
-      access.networkWaitController().notify(tab)
+      browser.networkWaitController.notify(tab)
     })
   }
 
-  access.downloadController().attachSession(browserSession)
+  browser.downloadController.attachSession(browserSession)
 }

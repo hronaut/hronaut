@@ -4,12 +4,28 @@ import { credentialFillContext, type CredentialFillContext } from '../src/main/b
 import {
   generateStrongPassword,
   suggestedPasswordLength,
-  suggestStrongPassword
+  suggestStrongPassword,
+  type SuggestedPasswordOptions
 } from '../src/main/browser/suggested-password/suggested-password.js'
-import type { SuggestedPasswordAccess, SuggestedPasswordOptions } from '../src/main/browser/suggested-password/suggested-password-access.js'
+import type { Browser } from '../src/main/browser/browser.js'
+import type { BrowserTab } from '../src/main/browser/browser-tab.js'
 import type { CredentialFillPageResult } from '../src/main/browser/credential-fill-page.js'
 import { ISOLATED_WORLDS } from '../src/main/browser/isolated-worlds.js'
 import { LocalizedError } from '../src/main/localized-error.js'
+
+/** The fill recorder of the harness made last, which records a fill the page took as the person's input. */
+const trustedFill = vi.hoisted(() => ({ record: (..._args: unknown[]): boolean => false }))
+vi.mock('../src/main/browser/trusted-credential-fill.js', () => ({
+  recordTrustedCredentialFill: (...args: unknown[]) => trustedFill.record(...args)
+}))
+vi.mock('../src/main/browser/credential-fill/credential-fill.js', () => ({
+  credentialContext: (browser: { credentialContext(tabId?: string): unknown }, tabId?: string) => browser.credentialContext(tabId)
+}))
+vi.mock('../src/main/browser/agent-input-scope/agent-input-scope.js', () => ({
+  withAgentInput: (browser: { withAgentInput(webContents: unknown, operation: () => Promise<unknown>): Promise<unknown> }, webContents: unknown, operation: () => Promise<unknown>) => (
+    browser.withAgentInput(webContents, operation)
+  )
+}))
 
 const LOWERCASE = 'abcdefghijkmnpqrstuvwxyz'
 const UPPERCASE = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
@@ -52,7 +68,7 @@ describe('generating a strong password', () => {
   })
 })
 
-type Tab = { id: string, webContents: WebContents, humanInteractionGeneration: number }
+type Tab = BrowserTab
 
 function harness(options: {
   field?: unknown
@@ -76,7 +92,7 @@ function harness(options: {
     if (options.fillError) throw options.fillError
     return options.fillOutcome ?? 'filled'
   })
-  const tab: Tab = { id: 'tab', webContents: { isDestroyed: () => false, executeJavaScriptInIsolatedWorld } as unknown as WebContents, humanInteractionGeneration: 0 }
+  const tab = { id: 'tab', webContents: { isDestroyed: () => false, executeJavaScriptInIsolatedWorld } as unknown as WebContents, humanInteractionGeneration: 0 } as Tab
   const suggested = vi.fn((origin: string, password: string) => { steps.push(`remember ${origin} ${password.length}`) })
   const suggestions: SuggestedPasswordOptions = {
     available: options.available ?? (() => true),
@@ -92,23 +108,23 @@ function harness(options: {
     recorded.humanInteractionGeneration++
     return outcome === 'filled'
   })
-  const access: SuggestedPasswordAccess<Tab> = {
-    findTab: (tabId) => tabId === tab.id ? tab : undefined,
+  trustedFill.record = recordTrustedCredentialFill as (...args: unknown[]) => boolean
+  const manager = {
+    tabs: new Map([[tab.id, tab]]),
     credentialContext: () => options.context ? options.context() : expected,
-    withAgentInput: async (_webContents, operation) => {
+    withAgentInput: async (_webContents: unknown, operation: () => Promise<unknown>) => {
       steps.push('agent input')
       return operation()
     },
-    recordTrustedCredentialFill,
-    options: () => ({ suggestedPasswords: suggestions, onUserInteraction })
+    options: { suggestedPasswords: suggestions, onUserInteraction }
   }
-  return { access, tab, expected, steps, suggested, recordTrustedCredentialFill, executeJavaScript: executeJavaScriptInIsolatedWorld, filled: () => filledWith }
+  return { browser: manager as unknown as Browser, manager, tab, expected, steps, suggested, recordTrustedCredentialFill, executeJavaScript: executeJavaScriptInIsolatedWorld, filled: () => filledWith }
 }
 
 describe('suggesting a strong password in a page', () => {
   it('reads the field, pauses agents, remembers the password, then fills it as the person’s input', async () => {
-    const { access, tab, expected, steps, suggested, recordTrustedCredentialFill, filled } = harness()
-    await expect(suggestStrongPassword(access, tab, expected)).resolves.toBe(true)
+    const { browser, tab, expected, steps, suggested, recordTrustedCredentialFill, filled } = harness()
+    await expect(suggestStrongPassword(browser, tab, expected)).resolves.toBe(true)
     expect(steps).toEqual([
       'world suggested password', 'read field', 'pause agents', 'remember https://accounts.example 15',
       'agent input', 'world suggested password', 'fill with gesture', 'release agents'
@@ -120,15 +136,15 @@ describe('suggesting a strong password in a page', () => {
   })
 
   it('fits the password to the field', async () => {
-    const { access, tab, expected, filled } = harness({ field: { minLength: -1, maxLength: 12 } })
-    await expect(suggestStrongPassword(access, tab, expected)).resolves.toBe(true)
+    const { browser, tab, expected, filled } = harness({ field: { minLength: -1, maxLength: 12 } })
+    await expect(suggestStrongPassword(browser, tab, expected)).resolves.toBe(true)
     expect(filled()).toHaveLength(12)
   })
 
   it('pauses no agent and fills nothing when there is no field to suggest a password for', async () => {
     for (const field of [null, { minLength: -1, maxLength: 3 }, { minLength: 'x', maxLength: 1 }, 'filled']) {
-      const { access, tab, expected, steps, suggested } = harness({ field })
-      await expect(suggestStrongPassword(access, tab, expected)).resolves.toBe(false)
+      const { browser, tab, expected, steps, suggested } = harness({ field })
+      await expect(suggestStrongPassword(browser, tab, expected)).resolves.toBe(false)
       expect(steps).toEqual(['world suggested password', 'read field'])
       expect(suggested).not.toHaveBeenCalled()
     }
@@ -136,35 +152,35 @@ describe('suggesting a strong password in a page', () => {
 
   it('touches no page while passwords cannot be saved, and fills none when that changes while agents pause', async () => {
     const unavailable = harness({ available: () => false })
-    await expect(suggestStrongPassword(unavailable.access, unavailable.tab, unavailable.expected)).resolves.toBe(false)
+    await expect(suggestStrongPassword(unavailable.browser, unavailable.tab, unavailable.expected)).resolves.toBe(false)
     expect(unavailable.executeJavaScript).not.toHaveBeenCalled()
 
     let available = true
     const closing = harness({ available: () => available })
-    closing.access.withAgentInput = vi.fn()
-    const pause = closing.access.options().suggestedPasswords!.whileAgentsPaused
-    closing.access.options().suggestedPasswords!.whileAgentsPaused = (fill) => { available = false; return pause(fill) }
-    await expect(suggestStrongPassword(closing.access, closing.tab, closing.expected)).resolves.toBe(false)
+    closing.manager.withAgentInput = vi.fn()
+    const pause = closing.manager.options.suggestedPasswords!.whileAgentsPaused
+    closing.manager.options.suggestedPasswords!.whileAgentsPaused = (fill) => { available = false; return pause(fill) }
+    await expect(suggestStrongPassword(closing.browser, closing.tab, closing.expected)).resolves.toBe(false)
     expect(closing.steps).toEqual(['world suggested password', 'read field', 'pause agents', 'release agents'])
     expect(closing.suggested).not.toHaveBeenCalled()
   })
 
   it('fills nothing once the tab shows another page or is no longer in front', async () => {
     const moved = harness({ context: () => credentialFillContext('https://accounts.example/sign-in', 3, 7) })
-    await expect(suggestStrongPassword(moved.access, moved.tab, moved.expected)).resolves.toBe(false)
+    await expect(suggestStrongPassword(moved.browser, moved.tab, moved.expected)).resolves.toBe(false)
     expect(moved.executeJavaScript).not.toHaveBeenCalled()
 
     let current = true
     const switched = harness({ context: () => current ? credentialFillContext('https://accounts.example/sign-up', 3, 7) : null })
-    const pause = switched.access.options().suggestedPasswords!.whileAgentsPaused
-    switched.access.options().suggestedPasswords!.whileAgentsPaused = (fill) => { current = false; return pause(fill) }
-    await expect(suggestStrongPassword(switched.access, switched.tab, switched.expected)).resolves.toBe(false)
+    const pause = switched.manager.options.suggestedPasswords!.whileAgentsPaused
+    switched.manager.options.suggestedPasswords!.whileAgentsPaused = (fill) => { current = false; return pause(fill) }
+    await expect(suggestStrongPassword(switched.browser, switched.tab, switched.expected)).resolves.toBe(false)
     expect(switched.steps).toEqual(['world suggested password', 'read field', 'pause agents', 'release agents'])
   })
 
   it('reports a script that failed in the page without its error, which the page could have written', async () => {
-    const { access, tab, expected } = harness({ fillError: new Error('k7Gm2xPqR9sTv4w leaked') })
-    const failure = await suggestStrongPassword(access, tab, expected).catch((error: unknown) => error)
+    const { browser, tab, expected } = harness({ fillError: new Error('k7Gm2xPqR9sTv4w leaked') })
+    const failure = await suggestStrongPassword(browser, tab, expected).catch((error: unknown) => error)
     expect(failure).toBeInstanceOf(LocalizedError)
     expect(failure).toMatchObject({ key: 'appErrors.credentials.suggestFailed' })
     expect(Object.hasOwn(failure as Error, 'cause')).toBe(false)
@@ -172,8 +188,8 @@ describe('suggesting a strong password in a page', () => {
   })
 
   it('reports that the page took no password, and records no interaction then', async () => {
-    const { access, tab, expected, recordTrustedCredentialFill } = harness({ fillOutcome: 'none' })
-    await expect(suggestStrongPassword(access, tab, expected)).resolves.toBe(false)
+    const { browser, tab, expected, recordTrustedCredentialFill } = harness({ fillOutcome: 'none' })
+    await expect(suggestStrongPassword(browser, tab, expected)).resolves.toBe(false)
     expect(recordTrustedCredentialFill).toHaveBeenCalledOnce()
     expect(tab.humanInteractionGeneration).toBe(0)
   })

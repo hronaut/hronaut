@@ -1,5 +1,6 @@
 import { SplitDividerController } from '../split-divider-controller.js'
-import type { SplitViewAccess, SplitViewTab } from './split-view-access.js'
+import type { Browser } from '../browser.js'
+import { publishChange } from '../browser-state/browser-state.js'
 
 /**
  * The split view divider's drag, which owns only the split it began on and
@@ -7,19 +8,19 @@ import type { SplitViewAccess, SplitViewTab } from './split-view-access.js'
  * also advances the split's generation and saves the state, and a cancel
  * restores the ratio and publishes it unsaved.
  */
-export function createSplitDivider<Tab extends SplitViewTab>(access: SplitViewAccess<Tab>): SplitDividerController {
+export function createSplitDivider(browser: Browser): SplitDividerController {
   return new SplitDividerController({
-    read: () => access.getSplitDivider(),
-    owns: (geometry) => access.splitViewGeneration() === geometry.revision
-      && access.splitView()?.firstTabId === geometry.firstTabId
-      && access.splitView()?.secondTabId === geometry.secondTabId
-      && access.splitView()?.orientation === geometry.orientation,
+    read: () => browser.getSplitDivider(),
+    owns: (geometry) => browser.splitViewGeneration === geometry.revision
+      && browser.splitView?.firstTabId === geometry.firstTabId
+      && browser.splitView?.secondTabId === geometry.secondTabId
+      && browser.splitView?.orientation === geometry.orientation,
     apply: (ratio, mode) => {
-      if (!access.splitView()) return
-      access.splitView()!.ratio = ratio
-      if (mode === 'commit') access.writeSplitViewGeneration(access.splitViewGeneration() + 1)
-      access.layout()
-      if (mode !== 'preview') access.changed(mode === 'commit')
+      if (!browser.splitView) return
+      browser.splitView.ratio = ratio
+      if (mode === 'commit') browser.splitViewGeneration += 1
+      browser.layout()
+      if (mode !== 'preview') publishChange(browser, mode === 'commit')
     }
   })
 }

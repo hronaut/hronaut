@@ -68,7 +68,6 @@ import { writeUniqueDownloadFile } from './unique-download-file.js'
 import { VIDEO_RECORDING_NOTICES, type BrowserVideoOptions, type BrowserVideoState } from '../../shared/video.js'
 import { watchCredentialSubmission, type BrowserCredentialCandidate } from './credential-capture/credential-capture.js'
 import type { BrowserNetworkRequestRecord } from './network-recording.js'
-import type { SessionHooksAccess } from './session-hooks/session-hooks-access.js'
 import { installSessionHooks } from './session-hooks/session-hooks.js'
 import { performanceEnvironment, tabPerformanceEnvironmentFingerprint } from './emulation/performance-environment.js'
 import type { EmulationAccess } from './emulation/emulation-access.js'
@@ -237,7 +236,6 @@ import type { PageAuditsAccess } from './page-audits/page-audits-access.js'
 import { accessibilityAudit } from './page-audits/accessibility-audit.js'
 import type { DebugReportAccess } from './debug-report/debug-report-access.js'
 import { auditEvidenceAvailability, clearDiagnosticLogs, debugReport, diagnosticLogState, setDiagnosticLogPreservation } from './debug-report/debug-report.js'
-import { recordTrustedCredentialFill } from './trusted-credential-fill.js'
 import { attachConsoleMessageEvents } from './console-messages/console-message-events.js'
 import { securityReport } from './page-audits/security-report.js'
 import type { WorkspaceCreationAccess } from './workspace-creation/workspace-creation-access.js'
@@ -251,7 +249,6 @@ import { qualityAudit } from './page-audits/quality-audit.js'
 import type { BrowserGeneratedLocator } from '../../shared/playwright-locator.js'
 import { generatePlaywrightLocator } from './element-inspection/playwright-locator.js'
 import { networkRequestSummary } from './network-inspection/network-request-summary.js'
-import type { NetworkInspectionAccess } from './network-inspection/network-inspection-access.js'
 import {
   networkHar,
   networkRequestDetails,
@@ -270,7 +267,6 @@ import { answerHttpAuth, followSignIns, type HttpAuthQuestion, type SignInAnswer
 import {
   answerCertificateError,
   certificateRefusal,
-  contentLoaded,
   proceedPastCertificateError,
   type CertificateQuestion,
   type StrictTransportProbe
@@ -282,7 +278,6 @@ import type {
   BrowserSplitOrientation,
   BrowserSplitViewState
 } from '../../shared/split-view.js'
-import type { SplitViewAccess } from './split-view/split-view-access.js'
 import { closeSplitView, openSplitView, openSplitViewAndWait, updateSplitView } from './split-view/split-view.js'
 import type { WindowLayoutAccess } from './window-layout/window-layout-access.js'
 import { getSplitDivider, layout, publishSplitDivider } from './window-layout/window-layout.js'
@@ -311,8 +306,7 @@ import { guardPageCallsDuringPrintDialog } from './print-dialog-guard.js'
 import { runPageScriptsOnceDocumentReady } from './page-script-readiness.js'
 import type { CredentialFillContext } from './credential-fill-context.js'
 import { credentialContext, fillCredential } from './credential-fill/credential-fill.js'
-import { suggestStrongPassword } from './suggested-password/suggested-password.js'
-import type { SuggestedPasswordAccess, SuggestedPasswordOptions } from './suggested-password/suggested-password-access.js'
+import { suggestStrongPassword, type SuggestedPasswordOptions } from './suggested-password/suggested-password.js'
 import type {
   BrowserEmulationOptions,
   BrowserEmulationState,
@@ -989,7 +983,7 @@ export class Browser {
   lastSplitDividerGeometry = ''
   lastEmulationFrames = '[]'
   lastPageCards = '[]'
-  readonly splitDivider = createSplitDivider(this.splitViewAccess())
+  readonly splitDivider = createSplitDivider(this)
   allTabsMuted = false
   allHumanInteractionLocked = false
   allAgentsPaused = false
@@ -2098,22 +2092,6 @@ export class Browser {
     return credentialContext(this, tabId)
   }
 
-  /**
-   * The narrow view suggesting a password in a page gets of this manager's
-   * tabs, credential fill context, agent input scope and options. It is a
-   * prototype method rather than a field, so managers created without the
-   * constructor (as unit tests do) still provide it.
-   */
-  private suggestedPasswordAccess(): SuggestedPasswordAccess<BrowserTab> {
-    return {
-      findTab: (tabId) => this.tabs.get(tabId),
-      credentialContext: (tabId) => this.tabs.has(tabId) ? this.credentialContext(tabId) : null,
-      withAgentInput: (webContents, operation) => this.withAgentInput(webContents, operation),
-      recordTrustedCredentialFill: (outcome, tab, now, onUserInteraction) => recordTrustedCredentialFill(outcome, tab, now, onUserInteraction),
-      options: () => this.options
-    }
-  }
-
   fillCredential(
     tabId: string,
     expectedContext: CredentialFillContext,
@@ -2683,54 +2661,20 @@ export class Browser {
     return selectTabPassively(this.agentFollowAccess(), tabId)
   }
 
-  /**
-   * The narrow view a split view and its divider's drag get of this manager's
-   * private tabs, split view and its generation, tab selection generation,
-   * tab waking, window content view, divider drag and geometry, layout, focus
-   * and state publication. It is a prototype method rather than a field, so
-   * managers created without the constructor (as unit tests do) still provide
-   * it, and the field initializer that creates the divider's drag can call
-   * it. The delegates below return the feature's value or promise directly,
-   * so callers see the same ticks as before.
-   */
-  private splitViewAccess(): SplitViewAccess<BrowserTab> {
-    return {
-      getActiveTab: () => this.getActiveTab(),
-      getTab: (tabId) => getTab(this, tabId),
-      findTab: (tabId) => this.tabs.get(tabId),
-      splitView: () => this.splitView,
-      writeSplitView: (splitView) => { this.splitView = splitView },
-      splitViewGeneration: () => this.splitViewGeneration,
-      writeSplitViewGeneration: (generation) => { this.splitViewGeneration = generation },
-      tabSelectionGeneration: () => this.tabSelectionGeneration,
-      writeTabSelectionGeneration: (generation) => { this.tabSelectionGeneration = generation },
-      activeTabId: () => this.activeTabId,
-      wakeTab: (tabId) => this.wakeTab(tabId),
-      addChildView: (view) => this.window.contentView.addChildView(view),
-      removeChildView: (view) => this.window.contentView.removeChildView(view),
-      cancelSplitDivider: () => this.splitDivider.cancel(),
-      getSplitDivider: () => this.getSplitDivider(),
-      layout: () => this.layout(),
-      focusTabOrTrustedChrome: (tab) => this.focusTabOrTrustedChrome(tab),
-      changed: (persist) => this.changed(persist),
-      getState: () => this.getState()
-    }
-  }
-
   openSplitViewAndWait(tabId: string): Promise<BrowserState> {
-    return openSplitViewAndWait(this.splitViewAccess(), tabId)
+    return openSplitViewAndWait(this, tabId)
   }
 
   openSplitView(tabId: string): BrowserState {
-    return openSplitView(this.splitViewAccess(), tabId)
+    return openSplitView(this, tabId)
   }
 
   updateSplitView(updates: { orientation?: BrowserSplitOrientation; ratio?: number; swap?: boolean }): BrowserState {
-    return updateSplitView(this.splitViewAccess(), updates)
+    return updateSplitView(this, updates)
   }
 
   closeSplitView(): BrowserState {
-    return closeSplitView(this.splitViewAccess())
+    return closeSplitView(this)
   }
 
   async closeTab(tabId: string, respectBeforeUnload = false): Promise<BrowserState> {
@@ -3738,49 +3682,24 @@ export class Browser {
     return consoleMessages(this, tabId, clear)
   }
 
-  /**
-   * The narrow view network inspection gets of this manager's private tabs,
-   * workspaces, inspection permissions, request summaries, network wait
-   * controller, downloads folder and debugger lease. It is a prototype method
-   * rather than a field, so managers created without the constructor (as unit
-   * tests do) still provide it. The delegates below return the feature's
-   * promise directly, so no extra ticks separate its final checks from the
-   * caller.
-   */
-  private networkInspectionAccess(): NetworkInspectionAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      findTab: (tabId) => this.tabs.get(tabId),
-      findWorkspace: (workspaceId) => this.mcpTabGroups.get(workspaceId),
-      inspectionPermission: (workspace) => this.inspectionPermissions.get(workspace),
-      ensureDialogMonitoring: (tab) => this.ensureDialogMonitoring(tab),
-      currentNetworkRequests: (tab) => this.currentNetworkRequests(tab),
-      networkRequestSummary: (request) => this.networkRequestSummary(request),
-      waitForNetworkActivity: (tab, options, minCaptureSequence) => this.networkWaitController.wait(tab, options, minCaptureSequence),
-      writeUniqueDownload: (filename, data) => this.writeUniqueDownload(filename, data),
-      withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
-      isUnavailableCdpMethod: (error) => this.isUnavailableCdpMethod(error)
-    }
-  }
-
   networkRequests(tabId?: string, clear = false): Promise<BrowserNetworkRequest[]> {
-    return networkRequests(this.networkInspectionAccess(), tabId, clear)
+    return networkRequests(this, tabId, clear)
   }
 
   waitForNetworkRequest(options: BrowserNetworkWaitOptions): Promise<BrowserNetworkWaitResult> {
-    return waitForNetworkRequest(this.networkInspectionAccess(), options)
+    return waitForNetworkRequest(this, options)
   }
 
   networkSearch(options: BrowserNetworkSearchOptions): Promise<BrowserNetworkSearchResult> {
-    return networkSearch(this.networkInspectionAccess(), options)
+    return networkSearch(this, options)
   }
 
   networkHar(options: BrowserNetworkHarOptions = {}): Promise<BrowserNetworkHar> {
-    return networkHar(this.networkInspectionAccess(), options)
+    return networkHar(this, options)
   }
 
   saveNetworkHar(options: BrowserNetworkHarSaveOptions = {}): Promise<BrowserNetworkHarExport> {
-    return saveNetworkHar(this.networkInspectionAccess(), options)
+    return saveNetworkHar(this, options)
   }
 
   /**
@@ -3939,7 +3858,7 @@ export class Browser {
    * Shows what the person can do about the certificate the tab refused, once Hronaut knows whether they can open it, and
    * whether its page is not private.
    */
-  private certificatesChanged(tab: BrowserTab): void {
+  certificatesChanged(tab: BrowserTab): void {
     if (this.tabs.get(tab.id) !== tab) return
     const problem = tab.pageProblem
     const refusal = problem?.certificate ? certificateRefusal(tab.webContents, problem.url) : undefined
@@ -3976,7 +3895,7 @@ export class Browser {
     includeBody = true,
     deferPublication?: (assertCurrent: () => void) => void
   ): Promise<BrowserNetworkRequestDetails> {
-    return networkRequestDetails(this.networkInspectionAccess(), tabId, requestId, maxChars, includeBody, deferPublication)
+    return networkRequestDetails(this, tabId, requestId, maxChars, includeBody, deferPublication)
   }
 
   replayNetworkRequest(
@@ -3984,7 +3903,7 @@ export class Browser {
     requestId: string,
     confirmSideEffects = false
   ): Promise<BrowserNetworkReplayResult> {
-    return replayNetworkRequest(this.networkInspectionAccess(), tabId, requestId, confirmSideEffects)
+    return replayNetworkRequest(this, tabId, requestId, confirmSideEffects)
   }
 
   /**
@@ -5418,7 +5337,7 @@ export class Browser {
       createTab: (options) => this.createTab(options),
       showBeside: async (tab, besideTabId) => {
         if (this.tabs.get(tab.id) !== tab || this.activeTabId !== tab.id) return
-        await openSplitViewAndWait(this.splitViewAccess(), besideTabId, { openedBeside: true })
+        await openSplitViewAndWait(this, besideTabId, { openedBeside: true })
       },
       back: (tabId) => this.back(tabId),
       forward: (tabId) => this.forward(tabId),
@@ -5440,7 +5359,7 @@ export class Browser {
       passwordSuggestion: (tab) => {
         if (!this.options.suggestedPasswords?.available()) return null
         const context = this.tabs.get(tab.id) === tab ? this.credentialContext(tab.id) : null
-        return context ? () => suggestStrongPassword(this.suggestedPasswordAccess(), tab, context) : null
+        return context ? () => suggestStrongPassword(this, tab, context) : null
       }
     }
   }
@@ -5724,31 +5643,8 @@ export class Browser {
     tab.networkRequests = []
   }
 
-  /**
-   * The narrow view a browser session's hooks get of this manager's private
-   * tabs, page tab ids, hooked sessions, cookie imports, network wait
-   * controller and downloads controller. It is a prototype method rather than
-   * a field, so managers created without the constructor (as unit tests do)
-   * still provide it.
-   */
-  private sessionHooksAccess(): SessionHooksAccess<BrowserTab> {
-    return {
-      isDestroyed: () => this.destroyed,
-      tabs: () => this.tabs.values(),
-      findTab: (tabId) => this.tabs.get(tabId),
-      tabIdForWebContents: (webContentsId) => this.webContentsToTab.get(webContentsId),
-      browserSessionAuthorityHooks: () => this.browserSessionAuthorityHooks,
-      browserCookieImportSessions: () => this.browserCookieImportSessions,
-      networkHookSessions: () => this.networkHookSessions,
-      changed: (persist) => this.changed(persist),
-      contentLoaded: (tab, url) => contentLoaded({ changed: () => this.certificatesChanged(tab) }, tab, url),
-      networkWaitController: () => this.networkWaitController,
-      downloadController: () => this.downloadController
-    }
-  }
-
   private installSessionHooks(browserSession: Session): void {
-    installSessionHooks(this.sessionHooksAccess(), browserSession)
+    installSessionHooks(this, browserSession)
   }
 
   private writeUniqueDownload(filename: string, data: Buffer, validate: () => void = () => undefined): Promise<string> {
