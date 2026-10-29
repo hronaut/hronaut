@@ -52,6 +52,22 @@ export function createCredentialRuntime(host: CredentialRuntimeHost): {
     host.sendToShellWindows('credentials:changed', host.state.store?.list() ?? [])
   }
 
+  /**
+   * The saved account a form that changes a password names none for, as Chrome finds it: the website's only saved
+   * account, or else the one whose saved password is the current password the form gave. Without one the password is
+   * offered for an unnamed account. Saved passwords are compared here and never leave the main process.
+   */
+  async function changedAccount(origin: string, previousPassword: string | undefined): Promise<string> {
+    if (!previousPassword || previousPassword.length > 16_384) return ''
+    const saved = host.state.store!.list().filter((entry) => entry.origin === origin)
+    if (saved.length === 1) return saved[0]!.username
+    for (const entry of saved) {
+      // A password the secure storage cannot decrypt is not this one.
+      if (await host.state.store!.password(entry.id).catch(() => null) === previousPassword) return entry.username
+    }
+    return ''
+  }
+
   async function handleCredentialCandidate(candidate: BrowserCredentialCandidate): Promise<void> {
     if (!host.state.storageStatus.available || !host.state.store || !host.mainWindow() || host.mainWindow()!.isDestroyed()) return
     if (candidate.username.length > 512 || !candidate.password || candidate.password.length > 16_384) return
@@ -60,9 +76,10 @@ export function createCredentialRuntime(host: CredentialRuntimeHost): {
     } catch {
       return
     }
-    const updating = host.state.store!.has(candidate.origin, candidate.username)
+    const username = candidate.username || await changedAccount(candidate.origin, candidate.previousPassword)
+    const updating = host.state.store!.has(candidate.origin, username)
     const suggested = suggestedPasswords.suggested(candidate.origin, candidate.password)
-    const account = candidate.username || host.text('native.dialog.unnamedAccount')
+    const account = username || host.text('native.dialog.unnamedAccount')
     const detail = host.text('native.dialog.passwordDetail', { origin: candidate.origin })
     const { response } = await host.showDialog({
       type: 'question',
@@ -74,10 +91,10 @@ export function createCredentialRuntime(host: CredentialRuntimeHost): {
       cancelId: 0,
       primaryId: 1,
       noLink: true,
-      variant: { kind: 'save-password', origin: candidate.origin, username: candidate.username, updating, suggested }
+      variant: { kind: 'save-password', origin: candidate.origin, username, updating, suggested }
     })
     if (response !== 1) return
-    await host.state.store!.save(candidate.origin, candidate.username, candidate.password)
+    await host.state.store!.save(candidate.origin, username, candidate.password)
     publishCredentials()
   }
 

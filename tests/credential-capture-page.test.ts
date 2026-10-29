@@ -138,6 +138,37 @@ it('captures the new password from a form that changes one, as Chrome saves it',
   await expect(unmarked).resolves.toMatchObject({ password: 'k7Gm2xPqR9sTv4w' })
 })
 
+it('gives the current password of a change that names no account, so the saved account can be found', async () => {
+  for (const [fields, previousPassword] of [
+    ['<input type="password" autocomplete="current-password" value="old-secret"><input type="password" autocomplete="new-password" value="k7Gm2xPqR9sTv4w">' +
+      '<input type="password" autocomplete="new-password" value="k7Gm2xPqR9sTv4w">', 'old-secret'],
+    ['<input type="password" value="old-secret"><input type="password" value="k7Gm2xPqR9sTv4w"><input type="password" value="k7Gm2xPqR9sTv4w">', 'old-secret'],
+    // Two current passwords that differ name none.
+    ['<input type="password" autocomplete="current-password" value="old-secret"><input type="password" autocomplete="current-password" value="older">' +
+      '<input type="password" autocomplete="new-password" value="k7Gm2xPqR9sTv4w">', undefined]
+  ] as const) {
+    document.body.innerHTML = `<form>${fields}</form>`
+    const candidate = window.eval(credentialCapturePageScript()) as Promise<Record<string, unknown>>
+    document.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true }))
+    const submitted = await candidate
+    expect(submitted).toMatchObject({ username: '', password: 'k7Gm2xPqR9sTv4w' })
+    expect(submitted.previousPassword).toBe(previousPassword)
+  }
+})
+
+it('keeps the current password in the page when the form names its account or changes nothing', async () => {
+  for (const html of [
+    '<form><input autocomplete="username" value="ada"><input type="password" autocomplete="current-password" value="old-secret">' +
+      '<input type="password" autocomplete="new-password" value="k7Gm2xPqR9sTv4w"></form>',
+    '<form><input type="password" autocomplete="current-password" value="secret"></form>'
+  ]) {
+    document.body.innerHTML = html
+    const candidate = window.eval(credentialCapturePageScript()) as Promise<Record<string, unknown>>
+    document.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true }))
+    expect(Object.hasOwn(await candidate, 'previousPassword')).toBe(false)
+  }
+})
+
 it('offers nothing for a secret a settings page saves with a scripted Save or Submit button', async () => {
   for (const label of ['Save', 'Submit']) {
     document.body.innerHTML =
