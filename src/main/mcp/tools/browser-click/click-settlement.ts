@@ -1,7 +1,7 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { recheckOpenedTabs, type TabsOpenedDuringClick } from '../../../browser/click-opened-tabs.js'
 import { type NativeClickProgress, nativeClickEffectsPossible } from '../../../browser/native-click-admission.js'
-import type { BrowserTabsManager } from '../../../browser/tabs-manager.js'
+import type { Browser } from '../../../browser/browser.js'
 import { McpCapabilityAuthorizationError } from '../../capability-profile-store.js'
 import { errorResult, nativeClickFailureResult } from '../../tool-results.js'
 import type { ToolActivityClassification, WorkspaceToolCall } from '../tool-context.js'
@@ -28,7 +28,7 @@ function withCurrentOpenedTabs(result: CallToolResult, isCurrent: (tabId: string
  * a right click, the menu authority it retained). Tabs the click opened are reported only while they are still in
  * the workspace.
  */
-export function clickSettlement(manager: BrowserTabsManager, rightClick: boolean) {
+export function clickSettlement(manager: Browser, rightClick: boolean) {
   let progress: NativeClickProgress | undefined
   let authority: { validate(): void; dispose(): void } | undefined
   let policy: Record<string, unknown> | undefined

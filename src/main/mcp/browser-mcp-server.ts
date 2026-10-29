@@ -22,7 +22,7 @@ import { WorkspaceWriteLeaseError, WorkspaceWriteLeaseRegistry } from './workspa
 import type { AgentCall } from './agent-presence.js'
 import { agentStepAddress } from '../../shared/agent-steps.js'
 import { webAddress } from '../browser/url.js'
-import type { BrowserTabsManager } from '../browser/tabs-manager.js'
+import type { Browser } from '../browser/browser.js'
 import type { McpTabActivity, UserAttentionInput, UserAttentionRequest } from '../../shared/types.js'
 import type { McpToolSet } from '../../shared/mcp-tool-sets.js'
 import { errorResult, textResult, toolDefinition } from './tool-results.js'
@@ -171,7 +171,7 @@ export function assertMcpToolRegistrationContract(
  * rate-limit checks have admitted the session; nothing else should call it.
  */
 export function createBrowserMcpServer(
-  manager: BrowserTabsManager,
+  manager: Browser,
   showWindowInactive: () => void,
   getUserAttention: () => UserAttentionRequest | null,
   requestUserAttention: (request: UserAttentionInput) => Promise<UserAttentionRequest>,
@@ -501,13 +501,13 @@ export function createBrowserMcpServer(
     }
     return { ...textResult(outcome), structuredContent: outcome, isError: true }
   }
-  const authorizedActiveWorkspaces = (): ReturnType<BrowserTabsManager['listMcpTabGroups']> => (
+  const authorizedActiveWorkspaces = (): ReturnType<Browser['listMcpTabGroups']> => (
     manager.listMcpTabGroups().filter((workspace) => activeWorkspaceIds.has(workspace.id) && manager.isWorkspaceAgentAccessible(workspace.id))
   )
-  const authorizedSavedWorkspaces = (): ReturnType<BrowserTabsManager['listSavedTabGroups']> => (
+  const authorizedSavedWorkspaces = (): ReturnType<Browser['listSavedTabGroups']> => (
     manager.listSavedTabGroups().filter((workspace) => savedWorkspaceIds.has(workspace.id) && manager.isWorkspaceAgentAccessible(workspace.id))
   )
-  const forkOnlySource = (source: ReturnType<BrowserTabsManager['listWorkspaceForkSources']>[number]) => ({
+  const forkOnlySource = (source: ReturnType<Browser['listWorkspaceForkSources']>[number]) => ({
     ...source,
     forkOnly: true as const,
     forkWith: { action: 'create' as const, storage: 'fork-workspace' as const, sourceWorkspaceId: source.id }
@@ -531,7 +531,7 @@ export function createBrowserMcpServer(
     manager.requireMcpTabGroup(workspaceId)
     activeWorkspaceIds.add(workspaceId)
   }
-  const requireAgentWorkspace = (workspaceId: string): ReturnType<BrowserTabsManager['requireMcpTabGroup']> => {
+  const requireAgentWorkspace = (workspaceId: string): ReturnType<Browser['requireMcpTabGroup']> => {
     agentControlContext.getStore()?.()
     if (!activeWorkspaceIds.has(workspaceId) || !manager.isWorkspaceAgentAccessible(workspaceId)) throw workspaceAuthorizationError()
     const workspace = manager.requireMcpTabGroup(workspaceId)

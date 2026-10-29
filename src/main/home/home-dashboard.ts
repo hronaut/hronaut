@@ -1,7 +1,7 @@
 import { app } from 'electron'
 import { mcpToolCatalogForSet } from '../mcp/server.js'
 import { buildMcpReadinessDiagnostic } from '../mcp/readiness.js'
-import type { BrowserTabsManager } from '../browser/tabs-manager.js'
+import type { Browser } from '../browser/browser.js'
 import type { McpPauseState } from '../mcp-runtime/mcp-pause-state.js'
 import type { McpRuntimeState } from '../mcp-runtime/mcp-runtime.js'
 import type { AgentPresenceSnapshot } from '../../shared/agent-presence.js'
@@ -17,7 +17,7 @@ interface HomeDashboardHost {
   /** The saved workspaces' initialization while it runs; Home is not reloaded meanwhile. */
   tabsInitializationPromise(): Promise<void> | null
   /** The tab runtime, which reloads a visible Home; null until the window opens. */
-  tabs(): Pick<BrowserTabsManager, 'reloadHome'> | null
+  tabs(): Pick<Browser, 'reloadHome'> | null
   /** Each connected agent once, with its strongest state; agent presence owns it. */
   connectedAgents(presence?: AgentPresenceSnapshot['workspaces']): ConnectedAgent[]
   /** The MCP status the shell shows, with the port the listener failed on and the free one to offer. */

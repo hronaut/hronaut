@@ -7,7 +7,7 @@ vi.mock('../src/main/browser/workspace-storage.js', async (original) => ({
   ...await original<typeof import('../src/main/browser/workspace-storage.js')>(),
   destroyWorkspaceStorage: vi.fn(async () => undefined)
 }))
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+import { Browser } from '../src/main/browser/browser.js'
 import { MAX_TABS, TabStateStore, type PersistedBrowserState } from '../src/main/browser/tab-store.js'
 import { destroyWorkspaceStorage } from '../src/main/browser/workspace-storage.js'
 
@@ -76,7 +76,7 @@ async function browser() {
     [SHOWN, page(SHOWN, CLOSING)], [ASLEEP, page(ASLEEP, CLOSING, true)],
     [OTHER_ASLEEP, page(OTHER_ASLEEP, OTHER, true)], [OTHER_AWAKE, page(OTHER_AWAKE, OTHER)]
   ])
-  const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+  const manager = Object.assign(Object.create(Browser.prototype), {
     destroyed: false, initialized: true, store,
     window: { isDestroyed: () => false, isFocused: () => false, contentView: { addChildView: vi.fn(), removeChildView: vi.fn() } },
     tabs,
@@ -111,7 +111,7 @@ async function browser() {
     removeTabRecord: (tab: Tab) => { tabs.delete(tab.id) },
     suspendWorkspaceContinuity: vi.fn(), retireWorkspaceContinuity: vi.fn(), runWalletLifecycleAction: vi.fn(),
     layout: vi.fn(), focusTabOrTrustedChrome: vi.fn(), changed: vi.fn(), getState: () => ({})
-  }) as BrowserTabsManager
+  }) as Browser
   const workspaceTabs = (groupId: string) => [...tabs.values()].filter((tab) => tab.mcpGroupId === groupId).map((tab) => tab.id)
   return { manager, internals: manager as unknown as Internals, store, directory, release, workspaceTabs }
 }

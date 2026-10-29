@@ -42,7 +42,7 @@ vi.mock('electron', () => {
   }
 })
 
-const { BrowserTabsManager } = await import('../src/main/browser/tabs-manager.js')
+const { Browser } = await import('../src/main/browser/browser.js')
 const { McpActivityFollowController } = await import('../src/main/browser/mcp-activity-follow-controller.js')
 
 const PERSON = '01912345-6789-7abc-8def-0123456789ab'
@@ -76,7 +76,7 @@ function workspace(id: string, storageId: string) {
 
 /** The real tab manager's tab creation, selection, split view and passive selection, with Electron's views faked. */
 function browser(): Manager {
-  const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+  const manager = Object.assign(Object.create(Browser.prototype), {
     destroyed: false, initialized: true, restoringLayout: false,
     options: { partition: 'persist:hronaut' },
     window: {

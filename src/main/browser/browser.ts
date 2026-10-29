@@ -878,7 +878,7 @@ export type { BrowserCredentialCandidate }
 
 export type { BrowserWalletPageContext }
 
-export interface TabsManagerOptions {
+export interface BrowserOptions {
   partition: string
   sessionDataPath?: string
   storePath: string
@@ -992,7 +992,7 @@ export interface TabsManagerOptions {
   onWorkspaceForgotten?: (workspaceId: string) => void
 }
 
-export class BrowserTabsManager {
+export class Browser {
   private nativeInputLockMutations = 0
   private readonly activeNativeKeyHolds = new WeakSet<BrowserTab['webContents']>()
   private readonly unconfirmedNativeKeyHolds = new WeakSet<BrowserTab['webContents']>()
@@ -1523,7 +1523,7 @@ export class BrowserTabsManager {
 
   constructor(
     private readonly window: BrowserWindow,
-    private readonly options: TabsManagerOptions
+    private readonly options: BrowserOptions
   ) {
     this.shellHeldKeys = trackShellHeldKeys(window)
     powerMonitor.on('suspend', this.pauseVideoForSuspend)
@@ -3383,7 +3383,7 @@ export class BrowserTabsManager {
     }
     if (!(await this.prepareActiveCloseReplacement(tab, yieldsToNewerSelection))) return this.getState()
     if (this.tabs.get(tab.id) !== tab) return this.getState()
-    let stagedClose: ReturnType<BrowserTabsManager['stageBeforeUnloadClose']> | undefined
+    let stagedClose: ReturnType<Browser['stageBeforeUnloadClose']> | undefined
     // A page that lets the tab close is gone once it answers, with its history, which Reopen closed tab restores.
     let closingHistory: NavigationHistorySnapshot | undefined
     if (respectBeforeUnload && !forceClose && !webContents.isDestroyed()) {

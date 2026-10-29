@@ -1,8 +1,8 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import type { BrowserPdfPageSize, BrowserState } from '../shared/types.js'
-import type { BrowserTabsManager } from './browser/tabs-manager.js'
+import type { Browser } from './browser/browser.js'
 
-type NavigationIpcTabs = Pick<BrowserTabsManager,
+type NavigationIpcTabs = Pick<Browser,
   | 'beforeStateReply' | 'toggleDevTools' | 'showDevToolsConsole' | 'navigate' | 'back' | 'forward' | 'showHistoryMenu' | 'openNavigationInNewTab' | 'reload' | 'reloadIgnoringCache' | 'stop'
   | 'proceedPastCertificateError'
   | 'findInPage' | 'stopFindInPage' | 'setZoom' | 'savePdf'>
@@ -20,7 +20,7 @@ interface NavigationIpcHost {
  * Replies to a shell action with the browser state it returned. The shell drops a reply if a state arrived meanwhile,
  * which a state it has not drawn yet always does, so a change waiting for that draw is sent first, before the reply.
  */
-async function stateReply(host: { tabs(): Pick<BrowserTabsManager, 'beforeStateReply'> | null }, reply: Promise<BrowserState>): Promise<BrowserState> {
+async function stateReply(host: { tabs(): Pick<Browser, 'beforeStateReply'> | null }, reply: Promise<BrowserState>): Promise<BrowserState> {
   const state = await reply
   host.tabs()?.beforeStateReply()
   return state

@@ -2,7 +2,7 @@ import { stageMcpRuntimeCandidate, synchronizeMcpRuntimeCandidate } from './mcp-
 import { DEFAULT_MCP_TOOL_SET } from '../../shared/mcp-tool-sets.js'
 import { mcpLocalHost } from '../../shared/mcp-network.js'
 import { DEFAULT_MCP_PORT, isValidMcpPort } from '../../shared/mcp-port.js'
-import type { BrowserTabsManager } from '../browser/tabs-manager.js'
+import type { Browser } from '../browser/browser.js'
 import type { McpPauseState } from './mcp-pause-state.js'
 import type { McpPortRecovery } from './mcp-port-suggestion.js'
 import type { McpHttpServer } from '../mcp/server.js'
@@ -54,7 +54,7 @@ interface McpRuntimeHost {
   /** Refuses a change while saved workspaces are still initializing or failed to start. */
   assertWorkspaceInitialized(): void
   /** The tab runtime, which shows pages the current endpoint; null until the window opens. */
-  tabs(): Pick<BrowserTabsManager, 'setMcpUrl'> | null
+  tabs(): Pick<Browser, 'setMcpUrl'> | null
   /** Translates into the current interface language; read on every use because the language can change. */
   text(key: MessageKey, parameters?: MessageParameters): string
   /** Asks in Hronaut's own dialog over the main window's pages, or in the system dialog while that window cannot show it. */

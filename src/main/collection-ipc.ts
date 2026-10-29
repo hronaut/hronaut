@@ -1,7 +1,7 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import type { BookmarkStore, RemovedBookmark } from './bookmarks-history/bookmark-store.js'
 import type { HistoryStore } from './bookmarks-history/history-store.js'
-import type { BrowserTabsManager } from './browser/tabs-manager.js'
+import type { Browser } from './browser/browser.js'
 import type { BookmarkTabsOutcome, BrowserBookmark, BrowserHistoryEntry } from '../shared/types.js'
 import { isHronautHomeUrl } from '../shared/home-url.js'
 
@@ -18,7 +18,7 @@ interface CollectionIpcHost {
   historyCleared?(): void
   /** The person removed one page from their history, so anything else that names it goes too. */
   historyEntryRemoved?(url: string): void
-  downloads(): Pick<BrowserTabsManager, 'listDownloads' | 'listDownloadsCheckingFiles' | 'removeFinishedDownload' | 'manageDownloads' | 'showDownloadInFolder' | 'startDownloadDrag'>
+  downloads(): Pick<Browser, 'listDownloads' | 'listDownloadsCheckingFiles' | 'removeFinishedDownload' | 'manageDownloads' | 'showDownloadInFolder' | 'startDownloadDrag'>
   publishBookmarks(): BrowserBookmark[]
   publishVisitHistory(): BrowserHistoryEntry[]
 }

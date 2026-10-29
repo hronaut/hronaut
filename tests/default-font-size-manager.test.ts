@@ -1,16 +1,16 @@
 import { expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' } }))
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+import { Browser } from '../src/main/browser/browser.js'
 
 function fixture() {
   const source = { id: 'source', title: 'Page', url: 'https://example.test/', label: undefined, pinned: false, mcpGroupId: 'workspace', zoomIsolated: false, defaultFontSize: 32 }
   const createTab = vi.fn(async (options: Record<string, unknown>) => ({ ...source, ...options, id: 'created' }))
   const ensureHumanWorkspace = vi.fn(() => 'workspace')
-  const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+  const manager = Object.assign(Object.create(Browser.prototype), {
     tabs: new Map([[source.id, source]]), mcpTabGroups: new Map([['workspace', {}]]), options: {},
     createTab, ensureHumanWorkspace, requireMcpTabGroup: vi.fn(), assertWorkspaceNavigationAllowed: vi.fn(),
     getTab: () => source, navigationHistorySnapshot: () => undefined, reorderTab: vi.fn(), getState: () => ({ tabs: [source] })
-  }) as BrowserTabsManager
+  }) as Browser
   return { manager, createTab, ensureHumanWorkspace }
 }
 

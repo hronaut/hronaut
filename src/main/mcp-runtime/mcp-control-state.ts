@@ -1,4 +1,4 @@
-import type { BrowserTabsManager } from '../browser/tabs-manager.js'
+import type { Browser } from '../browser/browser.js'
 import type { McpActionTracker } from '../mcp/action-tracker.js'
 import type { McpHttpServer } from '../mcp/server.js'
 import type { McpPauseState } from './mcp-pause-state.js'
@@ -22,7 +22,7 @@ interface McpControlStateHost {
   /** Each connected agent once, with its strongest state; agent presence and Home read it too. */
   connectedAgents(): ConnectedAgent[]
   /** The tab runtime, which pauses page agents and tells Home to read again; null until the window opens. */
-  tabs(): Pick<BrowserTabsManager, 'setAllAgentsPaused' | 'notifyHomeChanged'> | null
+  tabs(): Pick<Browser, 'setAllAgentsPaused' | 'notifyHomeChanged'> | null
   sendToShellWindows(channel: string, ...args: unknown[]): void
   /** Reloads a visible Home after a committed change; settings changes use it too. */
   refreshHomeAfterCommittedChange(scope: 'mcp' | 'settings'): void

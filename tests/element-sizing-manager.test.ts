@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events'
 import { expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' } }))
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+import { Browser } from '../src/main/browser/browser.js'
 import { ImageInspectionSlots } from '../src/main/browser/image-state.js'
 
 it.each(['validator', 'listener'])('releases sizing ownership after %s failure following acquisition', async stage => {
@@ -9,11 +9,11 @@ it.each(['validator', 'listener'])('releases sizing ownership after %s failure f
   const context = { tabId: 'tab', workspaceId: 'workspace', navigationGeneration: 1, observationGeneration: 1, humanInteractionGeneration: 0, snapshotFormatVersion: 1 }
   const tab = { id: 'tab', url: 'https://example.test/', mcpGroupId: 'workspace', webContents: contents, pageLifecycleState: 'active' }
   const slots = new ImageInspectionSlots()
-  const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+  const manager = Object.assign(Object.create(Browser.prototype), {
     getTab: () => tab, snapshotDeltaContext: () => context,
     tabs: new Map([['tab', tab]]), mcpTabGroups: new Map([['workspace', {}]]), inspectionPermissions: new WeakMap(),
     sizingInspectionSlots: slots, destroyed: false
-  }) as BrowserTabsManager
+  }) as Browser
   const on = contents.on
   if (stage === 'listener') contents.on = function (...args) { on.apply(this, args); throw Error('listener failure') }
   let checks = 0
@@ -37,11 +37,11 @@ it('runs the parent flex context on the guarded sizing path, and only for one un
   })
   const context = { tabId: 'tab', workspaceId: 'workspace', navigationGeneration: 1, observationGeneration: 1, humanInteractionGeneration: 0, snapshotFormatVersion: 1 }
   const tab = { id: 'tab', url: 'https://example.test/', title: 'Example', mcpGroupId: 'workspace', webContents: contents, pageLifecycleState: 'active' }
-  const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+  const manager = Object.assign(Object.create(Browser.prototype), {
     getTab: () => tab, snapshotDeltaContext: () => context, validateTarget: () => undefined,
     tabs: new Map([['tab', tab]]), mcpTabGroups: new Map([['workspace', {}]]), inspectionPermissions: new WeakMap(),
     sizingInspectionSlots: new ImageInspectionSlots(), destroyed: false
-  }) as BrowserTabsManager
+  }) as Browser
   const report = await manager.elementInspection({ tabId: 'tab', selector: '#target', includeFlexContainer: true })
   expect(report).toMatchObject({ sizingInputs: { 'flex-grow': 1 }, flexContainer: { status: 'unavailable', reason: 'not-flex-container' } })
   // The capture reads the parent and checks it again when it settles.

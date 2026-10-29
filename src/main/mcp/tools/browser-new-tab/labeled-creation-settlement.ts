@@ -1,5 +1,5 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import type { BrowserTabsManager } from '../../../browser/tabs-manager.js'
+import type { Browser } from '../../../browser/browser.js'
 import { McpCapabilityAuthorizationError } from '../../capability-profile-store.js'
 import { errorResult, mcpWorkspaceState, textResult, urlDetailOmitted } from '../../tool-results.js'
 import type { WorkspaceToolCall } from '../tool-context.js'
@@ -10,7 +10,7 @@ import type { WorkspaceToolCall } from '../tool-context.js'
  * unsaved label reports that the tab, its navigation or its label may already exist. The tool reports its own tab
  * activity once the call settles.
  */
-export function labeledCreationSettlement(manager: BrowserTabsManager, input: Record<string, unknown>) {
+export function labeledCreationSettlement(manager: Browser, input: Record<string, unknown>) {
   let attempted = false
   let policy: Record<string, unknown> | undefined
   let certificate: (() => void) | undefined

@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' } }))
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+import { Browser } from '../src/main/browser/browser.js'
 import { PAGE_CARD_GUTTER, PAGE_CARD_RADIUS, pageCardInsets } from '../src/shared/page-card.js'
 
 function pageView() {
@@ -11,7 +11,7 @@ function fixture(zoom: number, split = false) {
   const first = { id: 'first', view: pageView() }
   const second = { id: 'second', view: pageView() }
   const shell = { getZoomFactor: () => zoom, isDestroyed: () => false }
-  const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+  const manager = Object.assign(Object.create(Browser.prototype), {
     destroyed: false,
     options: {},
     window: {
@@ -34,7 +34,7 @@ function fixture(zoom: number, split = false) {
     scheduleTabOverviewPreview: vi.fn(),
     publishSplitDivider: vi.fn(),
     publishPageGeometry: vi.fn()
-  }) as BrowserTabsManager
+  }) as Browser
   return { manager, first, second, shell }
 }
 

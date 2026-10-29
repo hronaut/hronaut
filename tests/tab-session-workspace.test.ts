@@ -17,14 +17,14 @@ vi.mock('electron', () => {
   }
   return { session: {}, WebContentsView, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, powerMonitor: { on: () => undefined } }
 })
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+import { Browser } from '../src/main/browser/browser.js'
 
 const AGENT = '01912345-6789-7abc-8def-0123456789ab'
 
 /** A browser with one open workspace whose tabs are created for real, with their views faked. */
 function fixture() {
   const configureSession = vi.fn()
-  const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+  const manager = Object.assign(Object.create(Browser.prototype), {
     destroyed: false,
     initialized: true,
     restoringLayout: false,
@@ -60,7 +60,7 @@ function fixture() {
     layout: vi.fn(),
     changed: vi.fn(),
     getState: () => ({})
-  }) as BrowserTabsManager
+  }) as Browser
   const createTab = (options: Record<string, unknown>) => (
     manager as unknown as { createTab(options: Record<string, unknown>): Promise<unknown> }
   ).createTab(options)

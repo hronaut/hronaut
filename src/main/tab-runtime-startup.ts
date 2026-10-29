@@ -1,5 +1,5 @@
 import { app, type MessageBoxOptions, type MessageBoxReturnValue } from 'electron'
-import type { BrowserTabsManager } from './browser/tabs-manager.js'
+import type { Browser } from './browser/browser.js'
 import type { WorkspaceMetadataError } from './browser/tab-store.js'
 import type { MessageKey, MessageParameters } from '../shared/i18n.js'
 import type { StartupNotice } from './windows/startup-notice-window.js'
@@ -12,11 +12,11 @@ import type { StartupNotice } from './windows/startup-notice-window.js'
  */
 export interface TabRuntimeState {
   /** The tab runtime, from when the main window opens until shutdown releases it. */
-  tabs: BrowserTabsManager | null
+  tabs: Browser | null
   /** The saved workspaces' initialization while it runs; reads wait for it and changes are refused meanwhile. */
   initialization: Promise<void> | null
   /** The tab runtime whose saved workspaces finished initializing; a replaced runtime no longer matches it. */
-  initializedTabs: BrowserTabsManager | null
+  initializedTabs: Browser | null
   /** Why saved workspaces could not start, once their metadata was rejected; the app then only explains it and quits. */
   startupFailure: WorkspaceMetadataError | undefined
 }

@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' } }))
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+import { Browser } from '../src/main/browser/browser.js'
 import type { PersistedBrowserState } from '../src/main/browser/tab-store.js'
 
 function fixture() {
@@ -17,12 +17,12 @@ function fixture() {
       }
     })
   }) }
-  const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+  const manager = Object.assign(Object.create(Browser.prototype), {
     initialized: true, destroyed: false, tabLabelAdmissionClosed: false, tabLabelLifecycleHolds: 0,
     pendingTabLabels: new Set(), tabs, store, changed: vi.fn(),
     getTab: () => tab, getState: () => ({ tabs: [...tabs.values()] }),
     persistedState: () => ({ version: 3, activeTabId: tab.id, tabs: [{ ...tab }] })
-  }) as BrowserTabsManager
+  }) as Browser
   return { manager, store, tab, tabs, commit: () => commit(), reject: (error: Error) => reject(error) }
 }
 

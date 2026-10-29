@@ -80,7 +80,7 @@ out of focused boundary tests without moving browser authority into the renderer
 
 Reproduction recording now lives in `src/main/browser/repro-recorder.ts`.
 Public actions, pending start/stop ownership, input queues, scroll debounce,
-navigation updates, and cleanup move together. `BrowserTabsManager` retains tab
+navigation updates, and cleanup move together. `Browser` retains tab
 lookup, workspace authority, and native event wiring; it supplies current-tab and
 agent-input checks plus state-change notification. Existing navigation, clear,
 restart, closure, and concurrent-stop regression suites cover this boundary.
@@ -171,7 +171,7 @@ they are proposals, not completed changes or confirmed defects:
 
 1. **Tab overview thumbnail scheduling.** Move the per-tab settle timers,
    coalesced requests, process-wide capture queue, timeout handling, and late
-   completion recovery out of `tabs-manager.ts` together. Keep current tab,
+   completion recovery out of `browser.ts` together. Keep current tab,
    navigation, visibility, and workspace eligibility supplied by the manager.
    Characterize a pending capture followed by navigation, closure, timeout,
    rejection, and a newer request before moving code. Preserve the difference

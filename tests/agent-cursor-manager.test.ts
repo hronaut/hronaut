@@ -1,12 +1,12 @@
 import { afterEach, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' } }))
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+import { Browser } from '../src/main/browser/browser.js'
 import { ISOLATED_WORLDS } from '../src/main/browser/isolated-worlds.js'
 import type { AgentPointerIdentity } from '../src/main/browser/page-scripts.js'
 
 const CLAUDE: AgentPointerIdentity = { name: 'Claude Code', fill: '#2aa198', ink: '#111318' }
 
-type PointerManager = Pick<BrowserTabsManager, 'screenshot' | 'savePdf'> & {
+type PointerManager = Pick<Browser, 'screenshot' | 'savePdf'> & {
   captureVisual(tab: unknown, settleMs: number): Promise<{ png: Buffer }>
   showAgentPointer(webContents: unknown, point: { x: number; y: number }, effect: 'click', options?: { agent?: AgentPointerIdentity }): Promise<void>
 }
@@ -40,7 +40,7 @@ function fixture(showAgentCursor?: boolean, answer: () => Promise<unknown> = asy
     removeListener: vi.fn()
   }
   const tab = { id: 'tab-1', title: 'Checkout', navigationGeneration: 1, webContents }
-  const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+  const manager = Object.assign(Object.create(Browser.prototype), {
     options: showAgentCursor === undefined ? {} : { getShowAgentCursor: () => showAgentCursor },
     tabs: new Map([[tab.id, tab]]),
     activeTabId: tab.id,

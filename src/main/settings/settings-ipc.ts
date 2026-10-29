@@ -1,6 +1,6 @@
 import type { IpcMain, IpcMainInvokeEvent, OpenDialogReturnValue } from 'electron'
 import { resolve } from 'node:path'
-import type { BrowserTabsManager } from '../browser/tabs-manager.js'
+import type { Browser } from '../browser/browser.js'
 import type { McpCapabilityProfileStore } from '../mcp/capability-profile-store.js'
 import { mcpCapabilityProfileInputFromPreset, type McpHttpServer } from '../mcp/server.js'
 import { createDownloadFolder } from '../download-folder.js'
@@ -59,7 +59,7 @@ interface SettingsIpcHost {
   applyDownloadSettings(updates: Partial<AppSettings>): Promise<AppSettings>
   /** Opens a folder in the system file manager; resolves to an error message, or an empty string on success. */
   openPath(path: string): Promise<string>
-  tabs(): Pick<BrowserTabsManager, 'setMemorySaverSettings' | 'setFollowAgentActivity'> | null
+  tabs(): Pick<Browser, 'setMemorySaverSettings' | 'setFollowAgentActivity'> | null
   mcpServer(): Pick<McpHttpServer, 'setAuthenticationToken' | 'setToolSet'> | null
   mcpTokenConfiguration(): Pick<McpTokenConfiguration, 'token'> | null
   refreshHomeAfterCommittedChange(scope: 'mcp'): void

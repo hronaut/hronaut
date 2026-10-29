@@ -33,7 +33,7 @@ vi.mock('electron', () => {
   }
   return { session: {}, WebContentsView, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, powerMonitor: { on: () => undefined } }
 })
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+import { Browser } from '../src/main/browser/browser.js'
 import { nextPageLoadTurn } from '../src/main/browser/page-load-turns/page-load-turns.js'
 
 const AGENT = '01912345-6789-7abc-8def-0123456789ab'
@@ -42,7 +42,7 @@ interface Tab { id: string; webContents: { loadURL(url: string): Promise<void>; 
 
 /** A browser with one open workspace whose tabs are created for real, with their views faked. */
 function fixture() {
-  const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+  const manager = Object.assign(Object.create(Browser.prototype), {
     destroyed: false,
     initialized: true,
     restoringLayout: false,
@@ -78,7 +78,7 @@ function fixture() {
     layout: vi.fn(),
     changed: vi.fn(),
     getState: () => ({})
-  }) as BrowserTabsManager
+  }) as Browser
   const browser = manager as unknown as { tabs: Map<string, Tab>; createTab(options: Record<string, unknown>): Promise<Tab> }
   return { tabs: browser.tabs, createTab: (options: Record<string, unknown>) => browser.createTab(options) }
 }

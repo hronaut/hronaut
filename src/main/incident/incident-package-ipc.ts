@@ -2,11 +2,11 @@ import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import { z } from 'zod'
 import { IncidentPackages } from './incident-package.js'
 import { writeTextFileAtomically } from '../atomic-file.js'
-import type { BrowserTabsManager } from '../browser/tabs-manager.js'
+import type { Browser } from '../browser/browser.js'
 
 export function registerIncidentPackageIpc(ipc: Pick<IpcMain, 'handle'>, host: {
   assertTrustedSender(event: IpcMainInvokeEvent): void
-  tabs(): Pick<BrowserTabsManager, 'getState' | 'debugReport' | 'networkHar' | 'reproRecording'>
+  tabs(): Pick<Browser, 'getState' | 'debugReport' | 'networkHar' | 'reproRecording'>
   version: string
   pickDestination(): Promise<string | undefined>
   write?: typeof writeTextFileAtomically

@@ -19,7 +19,7 @@ vi.mock('electron', () => {
   return { session: {}, WebContentsView, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, powerMonitor: { on: () => undefined } }
 })
 import type { WebContents } from 'electron'
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+import { Browser } from '../src/main/browser/browser.js'
 import { McpActivityFollowController } from '../src/main/browser/mcp-activity-follow-controller.js'
 import { attachWindowOpenHandler } from '../src/main/browser/tab-events/window-open-handler.js'
 import type { WindowOpenHandlerAccess, WindowOpenHandlerTab } from '../src/main/browser/tab-events/window-open-handler-access.js'
@@ -68,7 +68,7 @@ function fixture(options: { pageFullscreen?: boolean; followAgentActivitySuspend
     id: 'agent-other', url: 'https://agent.test/other', mcpGroupId: 'Agent', sleeping: false, pinned: false, lastActiveAt: 0,
     view: { id: 'agent-other-view' }, webContents: { id: 3, isDestroyed: () => false }
   }
-  const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+  const manager = Object.assign(Object.create(Browser.prototype), {
     destroyed: false,
     initialized: true,
     restoringLayout: false,
@@ -107,7 +107,7 @@ function fixture(options: { pageFullscreen?: boolean; followAgentActivitySuspend
     wakeTab: vi.fn(async () => ({})),
     changed: vi.fn(),
     getState: () => ({ activeTabId: internals.activeTabId })
-  }) as BrowserTabsManager
+  }) as Browser
   const internals = manager as unknown as ManagerInternals
   return { manager, internals, agentTab }
 }

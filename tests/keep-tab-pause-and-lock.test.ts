@@ -25,7 +25,7 @@ vi.mock('electron', () => {
   return { session: {}, WebContentsView, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, powerMonitor: { on: () => undefined }, Menu: {} }
 })
 
-const { BrowserTabsManager } = await import('../src/main/browser/tabs-manager.js')
+const { Browser } = await import('../src/main/browser/browser.js')
 const { WorkspaceRegistry } = await import('../src/main/browser/workspace-registry.js')
 const { closeTabsForPerson } = await import('../src/main/browser/tab-close/close-tabs-for-person.js')
 
@@ -54,7 +54,7 @@ interface Manager {
  */
 function browser() {
   const offers: UndoableAction[] = []
-  const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+  const manager = Object.assign(Object.create(Browser.prototype), {
     destroyed: false, initialized: true, restoringLayout: false,
     options: { partition: 'persist:hronaut', offerUndo: (offer: UndoableAction) => { offers.push(offer) } },
     window: {

@@ -1,5 +1,5 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import type { BrowserTabsManager } from '../../../browser/tabs-manager.js'
+import type { Browser } from '../../../browser/browser.js'
 import { pageObservationSettlement } from '../page-observation-settlement.js'
 
 /**
@@ -7,7 +7,7 @@ import { pageObservationSettlement } from '../page-observation-settlement.js'
  * screenshot's observation is kept only when its result is published, so a
  * cancelled or revoked call leaves the session's observations as they were.
  */
-export function screenshotSettlement(manager: BrowserTabsManager) {
+export function screenshotSettlement(manager: Browser) {
   const page = pageObservationSettlement(manager)
   let commit: (() => void) | undefined
   return {

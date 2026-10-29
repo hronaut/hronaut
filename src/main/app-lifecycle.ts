@@ -1,6 +1,6 @@
 import type { App } from 'electron'
 import { shouldStartMinimized } from './startup-launch.js'
-import type { BrowserTabsManager } from './browser/tabs-manager.js'
+import type { Browser } from './browser/browser.js'
 import type { McpRuntimeState } from './mcp-runtime/mcp-runtime.js'
 import type { SavedWindowState } from './window-state.js'
 import type { MainWindowRefs } from './windows/main-window.js'
@@ -44,7 +44,7 @@ interface AppLifecycleHost {
   /** Tells the person Hronaut could not start, and quits once they read it. */
   startupFailed(error: unknown): Promise<void>
   /** The tab runtime, which needs an orderly shutdown once it exists. */
-  tabs(): BrowserTabsManager | null
+  tabs(): Browser | null
   /** The MCP listener, which needs an orderly shutdown while it runs. */
   mcpRuntime: Pick<McpRuntimeState, 'server'>
   /** Stops the listener and the tab runtime and flushes every store; later calls share the first shutdown. */

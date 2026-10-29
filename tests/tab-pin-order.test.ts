@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, Menu: {} }))
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+import { Browser } from '../src/main/browser/browser.js'
 
 interface Tab { id: string; url: string; pinned: boolean; sleeping: boolean; mcpGroupId?: string; webContents: { isDestroyed: () => boolean } }
 interface Internals {
@@ -17,7 +17,7 @@ interface Internals {
  */
 function manager(ids: string[], pinnedWorkspaces: string[] = []): Internals {
   const workspace = (id: string) => ({ id, name: id, ...(pinnedWorkspaces.includes(id) ? { pinnedAt: '2026-10-29T00:00:00.000Z' } : {}) })
-  return Object.assign(Object.create(BrowserTabsManager.prototype), {
+  return Object.assign(Object.create(Browser.prototype), {
     mcpTabGroups: new Map([['work', workspace('work')], ['other', workspace('other')]]),
     tabs: new Map(ids.map((id) => {
       const [group, name] = id.includes(':') ? id.split(':') : ['work', id]

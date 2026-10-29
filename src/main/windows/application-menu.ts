@@ -1,5 +1,5 @@
 import { Menu, type BaseWindow, type BrowserWindow, type KeyboardEvent, type MenuItemConstructorOptions } from 'electron'
-import type { BrowserTabsManager } from '../browser/tabs-manager.js'
+import type { Browser } from '../browser/browser.js'
 import type { BrowserShortcutAction } from '../../shared/browser-shortcuts.js'
 import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
 import type { AppUpdateState, HelpMenuAction } from '../../shared/types.js'
@@ -19,7 +19,7 @@ interface ApplicationMenuHost {
   runShortcut(action: BrowserShortcutAction): void
   /** Goes to the pane after the page in focus, for an F6 the page left alone. */
   runPageNextPane(): void
-  tabs(): Pick<BrowserTabsManager, 'newTab' | 'back' | 'forward' | 'historyGesture' | 'reload' | 'reloadIgnoringCache' | 'printShownPage' | 'saveShownPage' | 'viewShownPageSource' | 'toggleDevTools' | 'setZoom'
+  tabs(): Pick<Browser, 'newTab' | 'back' | 'forward' | 'historyGesture' | 'reload' | 'reloadIgnoringCache' | 'printShownPage' | 'saveShownPage' | 'viewShownPageSource' | 'toggleDevTools' | 'setZoom'
     | 'stopFocusedPageLoading'> | null
 }
 

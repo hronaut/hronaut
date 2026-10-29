@@ -2,7 +2,7 @@ import { createHmac } from 'node:crypto'
 import { z } from 'zod'
 import { type PublicObservationOutcome, classifyPublicObservationOutcome, classifyWriterContextOutcome, summarizePublicOutcomeAssessment } from '../../../../shared/public-outcome.js'
 import type { BrowserTabState } from '../../../../shared/types.js'
-import type { BrowserTabsManager } from '../../../browser/tabs-manager.js'
+import type { Browser } from '../../../browser/browser.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema, workspaceIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
@@ -132,8 +132,8 @@ export function registerBrowserPublicOutcome(context: McpToolContext): void {
         && (before.tab.browserSessionGeneration ?? 0) === (after.tab.browserSessionGeneration ?? 0)
       )
       const receipt = (
-        writerAssessment: Awaited<ReturnType<BrowserTabsManager['observationQuality']>> | null,
-        observerAssessment: Awaited<ReturnType<BrowserTabsManager['observationQuality']>> | null,
+        writerAssessment: Awaited<ReturnType<Browser['observationQuality']>> | null,
+        observerAssessment: Awaited<ReturnType<Browser['observationQuality']>> | null,
         writerStable: boolean,
         observerStable: boolean
       ) => {

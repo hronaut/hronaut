@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { afterEach, expect, it, vi } from 'vitest'
 import { IncidentPackages } from '../src/main/incident/incident-package.js'
-import type { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+import type { Browser } from '../src/main/browser/browser.js'
 
 const now = Date.parse('2026-10-01T01:00:00Z')
 function fixture() {
@@ -13,7 +13,7 @@ function fixture() {
     networkHar: vi.fn(async () => ({ log: { entries: [] }, _hronaut: { truncated: false, caveats: [] } })),
     debugReport: vi.fn(() => ({ console: [], network: [], caveats: [], truncated: { console: false, network: false } }))
   }
-  const service = new IncidentPackages(() => host as unknown as BrowserTabsManager, 'test', () => now)
+  const service = new IncidentPackages(() => host as unknown as Browser, 'test', () => now)
   return { service, host, source, tab }
 }
 afterEach(() => vi.useRealTimers())
@@ -44,7 +44,7 @@ it('reports empty, unavailable and oversized evidence without leaking exception 
 it('filters the time window and refuses expired or replaced reviews', async () => {
   const { host, source } = fixture()
   let time = now
-  const service = new IncidentPackages(() => host as unknown as BrowserTabsManager, 'test', () => time)
+  const service = new IncidentPackages(() => host as unknown as Browser, 'test', () => time)
   source.steps[0]!.occurredAt = new Date(now - 120000).toISOString()
   const draft = await service.capture(1, { tabId: 'tab', minutes: 1, kinds: ['repro'] })
   expect(draft.artifacts[0]?.status).toBe('empty')

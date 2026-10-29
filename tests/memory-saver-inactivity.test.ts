@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, powerMonitor: { on: () => undefined } }))
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+import { Browser } from '../src/main/browser/browser.js'
 
 afterEach(() => { vi.useRealTimers() })
 
@@ -36,7 +36,7 @@ function browser() {
     ['idle', page('idle', 3, now - 3 * 60 * MINUTE)]
   ])
   const putTabToSleep = vi.fn(async (_tab: Tab) => false)
-  const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+  const manager = Object.assign(Object.create(Browser.prototype), {
     destroyed: false, tabs, mcpTabGroups: new Map(),
     activeTabId: null, splitView: null, tabSelectionGeneration: 0, splitViewGeneration: 0,
     memorySaverEnabled: true, memorySaverTimeoutMinutes: 60, memorySaverSettingsGeneration: 0,
@@ -45,7 +45,7 @@ function browser() {
     splitDivider: { cancel: vi.fn() },
     putTabToSleep, wakeTab: vi.fn(async () => ({})),
     layout: vi.fn(), focusTabOrTrustedChrome: vi.fn(), changed: vi.fn(), getState: () => ({})
-  }) as BrowserTabsManager
+  }) as Browser
   const sweep = () => (manager as unknown as { sweepMemorySaver(force: boolean): Promise<void> }).sweepMemorySaver(false)
   const askedToSleep = () => putTabToSleep.mock.calls.map(([tab]) => tab.id)
   return { manager, tabs, putTabToSleep, sweep, askedToSleep }

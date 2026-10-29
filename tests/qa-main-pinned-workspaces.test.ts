@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, Menu: {} }))
 import type { MenuItemConstructorOptions } from 'electron'
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+import { Browser } from '../src/main/browser/browser.js'
 
 afterEach(() => {
   vi.useRealTimers()
@@ -22,7 +22,7 @@ interface Internals {
 }
 
 function fixture(groups: Group[], tabs: Omit<Tab, 'webContents'>[] = []) {
-  const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+  const manager = Object.assign(Object.create(Browser.prototype), {
     mcpTabGroups: new Map(groups.map((group) => [group.id, group])),
     tabs: new Map(tabs.map((tab) => [tab.id, { ...tab, webContents: { isDestroyed: () => false } }])),
     activeTabId: tabs[0]?.id ?? null,
@@ -32,7 +32,7 @@ function fixture(groups: Group[], tabs: Omit<Tab, 'webContents'>[] = []) {
     window: { webContents: { send: vi.fn() } },
     changed: vi.fn(),
     getState: vi.fn(() => ({ tabs: [] }))
-  }) as BrowserTabsManager
+  }) as Browser
   return { manager, internals: manager as unknown as Internals }
 }
 

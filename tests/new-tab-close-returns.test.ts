@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, Menu: {} }))
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+import { Browser } from '../src/main/browser/browser.js'
 
 // A new tab from + or Ctrl/Cmd+T, closed right away, showed the tab beside it (the workspace's last tab), where Chrome
 // shows the tab the person was on.
@@ -25,7 +25,7 @@ const forgets = () => ({ forget: vi.fn() })
 
 function fixture(spec: Array<{ id: string; workspace?: string | null; returnsTo?: string }>) {
   const group = (id: string) => ({ id, name: id, activeTabId: null, lastUsedAt: '2026-10-22T07:00:00.000Z' })
-  return Object.assign(Object.create(BrowserTabsManager.prototype), {
+  return Object.assign(Object.create(Browser.prototype), {
     mcpTabGroups: new Map([['work', group('work')], ['other', group('other')]]),
     tabs: new Map(spec.map((tab, index) => [tab.id, {
       id: tab.id, url: `https://${tab.id}.example/`, pinned: false,

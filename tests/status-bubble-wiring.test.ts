@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events'
 import type { IpcMainEvent } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp', isPackaged: true } }))
-const { BrowserTabsManager } = await import('../src/main/browser/tabs-manager.js')
+const { Browser } = await import('../src/main/browser/browser.js')
 const { registerOverlayViewsIpc } = await import('../src/main/overlays/overlay-views-ipc.js')
 const { createOverlaySurfaces } = await import('../src/main/windows/overlay-surfaces.js')
 
@@ -90,7 +90,7 @@ describe('where the status bubble shows', () => {
     const third = { id: 'third', view: view(), webContents: { isDestroyed: () => false } }
     const children: unknown[] = [first.view, second.view, third.view]
     const pageCornerRadii = new WeakMap<object, number>([[first.view, 12]])
-    const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+    const manager = Object.assign(Object.create(Browser.prototype), {
       destroyed: false,
       window: { contentView: { children } },
       tabs: new Map([[first.id, first], [second.id, second], [third.id, third]]),
@@ -98,7 +98,7 @@ describe('where the status bubble shows', () => {
       splitView: null as unknown,
       browserContentOccluded: false,
       pageCornerRadii
-    }) as unknown as Pick<InstanceType<typeof BrowserTabsManager>, 'statusBubblePane'> & { splitView: unknown; browserContentOccluded: boolean; destroyed: boolean }
+    }) as unknown as Pick<InstanceType<typeof Browser>, 'statusBubblePane'> & { splitView: unknown; browserContentOccluded: boolean; destroyed: boolean }
     return { manager, first, second, third, children }
   }
 

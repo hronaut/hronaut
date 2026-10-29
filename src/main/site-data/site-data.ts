@@ -1,7 +1,7 @@
 import type { Session } from 'electron'
 import { cookieAvailableToOrigin } from './browsing-data-websites.js'
 import { keepSessionCookies } from '../browser/session-cookies/saved-session-cookies.js'
-import type { BrowserTabsManager } from '../browser/tabs-manager.js'
+import type { Browser } from '../browser/browser.js'
 import type { HistoryStore } from '../bookmarks-history/history-store.js'
 import type { SiteDataOperations, SiteDataType } from '../mcp/server.js'
 import type { BrowsingDataSiteSummary } from '../../shared/types.js'
@@ -16,7 +16,7 @@ function closedTabOrigin(url: string): string | undefined {
 
 interface SiteDataHost {
   /** The tab runtime, which clears a workspace's site data between its storage operations; null until the window opens. */
-  tabs(): Pick<BrowserTabsManager, 'withWorkspaceSiteDataCleanup' | 'workspaceSession' | 'forgetHistoryPages'> | null
+  tabs(): Pick<Browser, 'withWorkspaceSiteDataCleanup' | 'workspaceSession' | 'forgetHistoryPages'> | null
   /** The visit history, once loaded; the collection and browsing data IPC, the MCP server and shutdown read it too. */
   historyStore(): Pick<HistoryStore, 'list' | 'clearOrigin'> | null
   publishVisitHistory(): void

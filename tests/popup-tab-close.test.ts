@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, Menu: {} }))
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+import { Browser } from '../src/main/browser/browser.js'
 
 // A sign-in popup that closed itself showed the first tab of the next workspace, rather than the tab that opened it.
 
@@ -13,7 +13,7 @@ interface Internals {
 
 function fixture(tabs: Array<Omit<Tab, 'webContents' | 'pinned' | 'url'>>) {
   const group = (id: string) => ({ id, name: id, lastUsedAt: '2026-10-21T09:00:00.000Z' })
-  const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+  const manager = Object.assign(Object.create(Browser.prototype), {
     mcpTabGroups: new Map([['alpha', group('alpha')], ['beta', group('beta')]]),
     tabs: new Map(tabs.map(tab => [tab.id, { ...tab, url: `https://${tab.id}.example/`, pinned: false, webContents: { isDestroyed: () => false } }])),
     activeTabId: null,

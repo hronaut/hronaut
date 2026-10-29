@@ -1,12 +1,12 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
-import type { BrowserTabsManager } from './browser/tabs-manager.js'
+import type { Browser } from './browser/browser.js'
 
 interface TaskManagerIpcHost {
   /** The Task manager is the main window's own dialog. */
   assertMainSender(event: IpcMainInvokeEvent): void
   /** Registers a handler that is refused while saved workspaces are still initializing or failed to start. */
   handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void
-  tabs(): Pick<BrowserTabsManager, 'taskManagerProcesses' | 'endTaskManagerProcess'> | null
+  tabs(): Pick<Browser, 'taskManagerProcesses' | 'endTaskManagerProcess'> | null
 }
 
 /** Dependencies stay lazy because handlers are registered before the window loads. */

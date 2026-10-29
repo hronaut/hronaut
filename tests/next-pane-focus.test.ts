@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, powerMonitor: { on: () => undefined }, Menu: {} }))
 
-const { BrowserTabsManager } = await import('../src/main/browser/tabs-manager.js')
+const { Browser } = await import('../src/main/browser/browser.js')
 const { createBrowserShortcutRouting } = await import('../src/main/browser-shortcut-routing.js')
 
 function routing(home: boolean) {
@@ -60,11 +60,11 @@ describe('F6 from Hronaut\'s window', () => {
     const shell = { id: 1 }
     const page = { id: 2, isDestroyed: () => false }
     const tab = { id: 'site', webContents: page }
-    const instance = Object.assign(Object.create(BrowserTabsManager.prototype), {
+    const instance = Object.assign(Object.create(Browser.prototype), {
       window: { webContents: shell },
       activeTabId: 'site',
       tabs: new Map([['site', tab]])
-    }) as InstanceType<typeof BrowserTabsManager>
+    }) as InstanceType<typeof Browser>
     const focus = vi.fn()
     Object.assign(instance, { focusTabOrTrustedChrome: focus })
     return { instance, shell, tab, focus }

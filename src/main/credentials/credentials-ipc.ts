@@ -8,7 +8,7 @@ import type {
 import { CredentialImportError, parseCredentialImportCsv } from './credential-import.js'
 import { readCredentialImportFile } from './credential-import-file.js'
 import { fillCredentialWhileMcpPaused } from './credential-fill-pause.js'
-import type { BrowserTabsManager } from '../browser/tabs-manager.js'
+import type { Browser } from '../browser/browser.js'
 import type { CredentialStore } from './credential-store.js'
 import type { McpActionTracker } from '../mcp/action-tracker.js'
 import type { McpHttpServer } from '../mcp/server.js'
@@ -24,7 +24,7 @@ interface CredentialsIpcHost {
   credentialStorageStatus(): CredentialStorageStatus
   credentialStore(): Pick<CredentialStore, 'list' | 'remove' | 'clear' | 'password' | 'importMany'> | null
   publishCredentials(): void
-  tabs(): Pick<BrowserTabsManager, 'credentialContext' | 'fillCredential'> | null
+  tabs(): Pick<Browser, 'credentialContext' | 'fillCredential'> | null
   mainWindow(): BrowserWindow | null
   /** Electron's `dialog.showOpenDialog` on the given window. */
   showOpenDialog(window: BrowserWindow, options: OpenDialogOptions): Promise<OpenDialogReturnValue>

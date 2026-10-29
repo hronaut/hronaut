@@ -2,7 +2,7 @@ import type { IpcMain, IpcMainInvokeEvent, Session } from 'electron'
 import { buildBrowsingDataWebsiteInventory } from './browsing-data-websites.js'
 import { LocalizedError } from '../localized-error.js'
 import type { BookmarkStore } from '../bookmarks-history/bookmark-store.js'
-import type { BrowserTabsManager } from '../browser/tabs-manager.js'
+import type { Browser } from '../browser/browser.js'
 import type { CredentialStore } from '../credentials/credential-store.js'
 import { isSourceViewUrl } from '../browser/source-view-guard.js'
 import { normalizeHistoryUrl, type HistoryStore } from '../bookmarks-history/history-store.js'
@@ -29,7 +29,7 @@ interface BrowsingDataIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
   /** Registers a handler that is refused while saved workspaces are still initializing or failed to start. */
   handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void
-  tabs(): Pick<BrowserTabsManager, 'getState' | 'workspaceSession' | 'forgetHistoryPages'> | null
+  tabs(): Pick<Browser, 'getState' | 'workspaceSession' | 'forgetHistoryPages'> | null
   historyStore(): Pick<HistoryStore, 'list' | 'clearOrigin' | 'clearSince' | 'clear'> | null
   bookmarkStore(): Pick<BookmarkStore, 'list'> | null
   credentialStore(): Pick<CredentialStore, 'list'> | null

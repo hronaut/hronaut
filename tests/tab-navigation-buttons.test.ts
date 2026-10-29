@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, powerMonitor: { on: () => undefined } }))
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+import { Browser } from '../src/main/browser/browser.js'
 import { SLEEPING_PAGE_URL } from '../src/main/browser/tab-sleep/sleeping-page.js'
 import { withoutSleepingPage } from '../src/main/browser/tab-sleep/tab-sleep.js'
 
@@ -29,7 +29,7 @@ function liveTab(urls: string[], index: number, options: { destroyed?: boolean; 
 }
 
 function manager(fields: Record<string, unknown> = {}): Manager {
-  return Object.assign(Object.create(BrowserTabsManager.prototype), { activeTabId: null, splitView: null, ...fields }) as Manager
+  return Object.assign(Object.create(Browser.prototype), { activeTabId: null, splitView: null, ...fields }) as Manager
 }
 
 const PAGE = 'https://example.test/'

@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' } }))
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+import { Browser } from '../src/main/browser/browser.js'
 
 function fixture() {
   const tab = { id: 'owned', title: 'Page', url: 'https://example.test/', mcpGroupId: 'workspace', label: undefined as string | undefined }
@@ -18,13 +18,13 @@ function fixture() {
     options.onCreated?.(tab)
     return tab
   })
-  const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+  const manager = Object.assign(Object.create(Browser.prototype), {
     initialized: true, destroyed: false, tabLabelAdmissionClosed: false, tabLabelLifecycleHolds: 0,
     pendingTabLabels: pending, tabs: new Map([[tab.id, tab]]), mcpTabGroups: new Map([['workspace', {}]]), store: { save },
     options: {}, followAgentActivity: false, createTab, changed: vi.fn(), getTab: () => tab,
     getState: () => ({ tabs: [tab] }), requireMcpTabGroup: vi.fn(), assertWorkspaceNavigationAllowed: vi.fn(),
     persistedState: () => ({ version: 3, tabs: [{ ...tab }] })
-  }) as BrowserTabsManager
+  }) as Browser
   return { manager, tab, pending, save, createTab, snapshot: () => snapshot(),
     commit: () => { hooks.beforeCommit(); hooks.onCommitted(); resolve() },
     reject: () => reject(new Error('Synthetic precommit failure')),

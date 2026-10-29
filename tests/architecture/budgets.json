@@ -1,7 +1,7 @@
 {
   "oversizedFiles": {
     "src/main/browser/downloads-controller.ts": 811,
-    "src/main/browser/tabs-manager.ts": 7233,
+    "src/main/browser/browser.ts": 7233,
     "src/main/index.ts": 1662,
     "src/main/mcp/http-server.ts": 856,
     "src/main/wallet/broker.ts": 884,

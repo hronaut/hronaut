@@ -1,8 +1,8 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import { parseNetworkRouteInput } from './browser/network-route-input.js'
-import type { BrowserTabsManager } from './browser/tabs-manager.js'
+import type { Browser } from './browser/browser.js'
 
-type NetworkRoutesIpcTabs = Pick<BrowserTabsManager,
+type NetworkRoutesIpcTabs = Pick<Browser,
   | 'networkRoutes' | 'addNetworkRoute' | 'removeNetworkRoute' | 'setNetworkRouteEnabled' | 'moveNetworkRoute'
   | 'clearNetworkRoutes' | 'getState'>
 

@@ -1,5 +1,5 @@
 import { pinnedWorkspaceAt } from '../shared/workspace-shortcuts.js'
-import type { BrowserTabsManager } from './browser/tabs-manager.js'
+import type { Browser } from './browser/browser.js'
 import type { TakeOverOffers } from './agents/take-over-offers.js'
 import type { MainWindowRefs } from './windows/main-window.js'
 import type { AgentPresenceSnapshot } from '../shared/agent-presence.js'
@@ -9,7 +9,7 @@ interface BrowserShortcutRoutingHost {
   /** The take over offers, which a page's take over key asks and acts on. */
   takeOvers: Pick<TakeOverOffers, 'available' | 'takeOverFromPage'>
   /** The tab runtime, whose Home tab and workspaces decide which keys a page keeps; null until the window opens. */
-  tabs(): Pick<BrowserTabsManager, 'isHomeTab' | 'shownTabIsHome' | 'listMcpTabGroups' | 'exitPageFullscreen'> | null
+  tabs(): Pick<Browser, 'isHomeTab' | 'shownTabIsHome' | 'listMcpTabGroups' | 'exitPageFullscreen'> | null
   /** The agents in each workspace; a page keeps the agent card key while its workspace has none. */
   agentPresenceSnapshot(): AgentPresenceSnapshot
   /** The main window, whose shell runs a shortcut pressed in a page; read when the key is pressed. */

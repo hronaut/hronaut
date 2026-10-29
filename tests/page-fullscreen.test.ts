@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' } }))
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+import { Browser } from '../src/main/browser/browser.js'
 import { ISOLATED_WORLDS } from '../src/main/browser/isolated-worlds.js'
 import { createBrowserShortcutRouting } from '../src/main/browser-shortcut-routing.js'
 import {
@@ -22,7 +22,7 @@ function layoutFixture(split = false) {
   const first = { id: 'first', view: pageView(), sleeping: false, pageFullscreen: false, webContents: pageContents() }
   const second = { id: 'second', view: pageView(), sleeping: false, pageFullscreen: false, webContents: pageContents() }
   const children: unknown[] = split ? [first.view, second.view] : [first.view]
-  const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+  const manager = Object.assign(Object.create(Browser.prototype), {
     destroyed: false,
     window: {
       isDestroyed: () => false,
@@ -59,7 +59,7 @@ function layoutFixture(split = false) {
     changed: vi.fn(),
     getState: () => ({}),
     options: { onPageFullscreenChanged: vi.fn() }
-  }) as BrowserTabsManager
+  }) as Browser
   return { manager, first, second }
 }
 

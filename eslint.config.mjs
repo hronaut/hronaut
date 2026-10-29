@@ -126,7 +126,7 @@ export default defineConfig(
   },
   {
     // A before-unload close confirmation starts out false before it is awaited.
-    files: ['src/main/browser/tabs-manager.ts'],
+    files: ['src/main/browser/browser.ts'],
     rules: { 'no-useless-assignment': 'off' }
   },
   {
@@ -141,7 +141,7 @@ export default defineConfig(
     rules: { 'no-unsafe-finally': 'off' }
   },
   {
-    // Moved out of tabs-manager.ts with that file's exemption: the submitted
+    // Moved out of browser.ts with that file's exemption: the submitted
     // origin starts out null before it is parsed.
     files: ['src/main/browser/credential-capture/credential-capture.ts'],
     rules: { 'no-useless-assignment': 'off' }
