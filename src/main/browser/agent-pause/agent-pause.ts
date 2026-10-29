@@ -26,6 +26,7 @@ export function setAllAgentsPaused(browser: Browser, paused: boolean, allowTabOv
     for (const tab of browser.tabs.values()) {
       browser.liveRegionRecorder.release(tab)
       void browser.cssStatePreview.clear(tab, 'agent-paused').catch(() => undefined)
+      // A virtual passkey an agent's lost authority must not keep, and logpoints whose values a person using the tab may reveal.
       browser.virtualPasskeys.stop(tab, 'authority-changed')
       browser.logpoints.stop(tab, 'authority-changed')
     }
@@ -56,6 +57,7 @@ export function setTabAgentPaused(browser: Browser, tabId: string, paused: boole
   if (isTabAgentPaused(browser, tab.id)) {
     browser.liveRegionRecorder.release(tab)
     void browser.cssStatePreview.clear(tab, 'agent-paused').catch(() => undefined)
+    // A virtual passkey an agent's lost authority must not keep, and logpoints whose values a person using the tab may reveal.
     browser.virtualPasskeys.stop(tab, 'authority-changed')
     browser.logpoints.stop(tab, 'authority-changed')
     if (options.takeOver && !tab.takeOver) {
