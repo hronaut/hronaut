@@ -1,8 +1,8 @@
 # Hronaut
 
-**One browser per project. Never your own Chrome.**
+**Give your coding agent its own browser. Keep yours.**
 
-Hronaut is a separate, visible browser for every project your coding agent touches. It is for developers and agencies who let Codex, Claude Code, Cursor or another coding agent check signed-in web apps.
+Hronaut is a visible desktop browser for coding agents, with a separate workspace for each project. Your everyday Chrome stays out of it, and you can pause and take over at any time. It is for developers and agencies who let Codex, Claude Code, Cursor or another coding agent check signed-in web apps.
 
 **[Download](https://hronaut.dev/download)** · **[Setup guide](https://hronaut.dev/setup)** · **[Pricing](https://hronaut.dev/#pricing)**
 

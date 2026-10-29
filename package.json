@@ -1,7 +1,7 @@
 {
   "name": "hronaut",
   "version": "3.12.0",
-  "description": "A visible local Browser MCP for coding agents with persistent tabs and isolated workspaces",
+  "description": "A visible desktop browser for coding agents, with a separate workspace for each project.",
   "desktopName": "Hronaut",
   "author": "Hronaut",
   "homepage": "https://hronaut.dev",

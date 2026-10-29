@@ -93,7 +93,7 @@ describe('canonical public facts', () => {
         repository: 'https://github.com/hronaut/hronaut'
       },
       directoryListing: {
-        description: 'A visible desktop browser with persistent, isolated workspaces controlled by local coding agents through MCP.',
+        description: 'A visible desktop browser for coding agents, with a separate workspace for each project.',
         deployment: 'local-only',
         remoteDeploymentSupported: false,
         install: 'Download and start the Hronaut desktop application, then copy its local MCP setup from Hronaut Home.',
