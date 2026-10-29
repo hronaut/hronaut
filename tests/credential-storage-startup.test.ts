@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const electron = vi.hoisted(() => ({
   profile: '',
   backend: 'gnome_libsecret',
+  /** Which key encrypts: a keyring's ("v11"), or Linux's fallback key ("v10") when no keyring answered. */
+  key: 'v11',
   answer: Promise.resolve(true) as Promise<boolean>
 }))
 vi.mock('electron', () => ({
@@ -13,7 +15,7 @@ vi.mock('electron', () => ({
   safeStorage: {
     isAsyncEncryptionAvailable: () => electron.answer,
     getSelectedStorageBackend: () => electron.backend,
-    encryptStringAsync: async (value: string) => Buffer.from(`v11${value}`),
+    encryptStringAsync: async (value: string) => Buffer.from(`${electron.key}${value}`),
     decryptStringAsync: async (value: Buffer) => ({ result: value.toString().slice(3), shouldReEncrypt: false })
   }
 }))
@@ -38,6 +40,7 @@ function runtime() {
 beforeEach(async () => {
   electron.profile = await mkdtemp(join(tmpdir(), 'hronaut-credential-startup-'))
   electron.backend = 'gnome_libsecret'
+  electron.key = 'v11'
   electron.answer = Promise.resolve(true)
 })
 
@@ -73,6 +76,17 @@ describe('opening saved passwords at startup', () => {
     const { credentials, state, sendToShellWindows } = runtime()
     await credentials.configureCredentialStore()
     const status = { available: false, backend: 'basic_text', reason: translate('en-US', 'native.errors.linuxSecrets') }
+    expect(state.store).toBeNull()
+    expect(state.storageStatus).toEqual(status)
+    expect(sendToShellWindows).toHaveBeenCalledWith('credentials:status-changed', status)
+  })
+
+  it('keeps passwords unavailable when no keyring answered and Linux fell back to its built-in key', async () => {
+    // As when the person dismissed the request to unlock a keyring that stayed locked at sign-in.
+    electron.key = 'v10'
+    const { credentials, state, sendToShellWindows } = runtime()
+    await credentials.configureCredentialStore()
+    const status = { available: false, backend: 'gnome_libsecret', reason: translate('en-US', 'native.errors.linuxSecrets') }
     expect(state.store).toBeNull()
     expect(state.storageStatus).toEqual(status)
     expect(sendToShellWindows).toHaveBeenCalledWith('credentials:status-changed', status)

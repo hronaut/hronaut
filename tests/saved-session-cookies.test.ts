@@ -5,7 +5,8 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Cookie, CookiesSetDetails, Session } from 'electron'
 
-const secretStorage = vi.hoisted(() => ({ available: false, backend: 'gnome_libsecret', locked: false, refuses: false }))
+// `fallbackKey`: no keyring answered, so Linux encrypts with the key built into Chromium, marked "v10".
+const secretStorage = vi.hoisted(() => ({ available: false, backend: 'gnome_libsecret', locked: false, refuses: false, fallbackKey: false }))
 
 vi.mock('electron', () => ({
   safeStorage: {
@@ -13,7 +14,7 @@ vi.mock('electron', () => ({
     getSelectedStorageBackend: () => secretStorage.backend,
     encryptStringAsync: async (value: string) => {
       if (secretStorage.refuses) throw new Error('Secret storage refused')
-      return Buffer.from(`sealed:${Buffer.from(value).toString('base64')}`)
+      return Buffer.from(`${secretStorage.fallbackKey ? 'v10' : ''}sealed:${Buffer.from(value).toString('base64')}`)
     },
     // A locked keyring waits for the person to unlock it.
     decryptStringAsync: (value: Buffer) => secretStorage.locked ? new Promise(() => undefined) : Promise.resolve({
@@ -30,7 +31,7 @@ const temporaryDirectories: string[] = []
 afterEach(async () => {
   vi.useRealTimers()
   vi.restoreAllMocks()
-  Object.assign(secretStorage, { available: false, backend: 'gnome_libsecret', locked: false, refuses: false })
+  Object.assign(secretStorage, { available: false, backend: 'gnome_libsecret', locked: false, refuses: false, fallbackKey: false })
   await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })))
 })
 
@@ -180,6 +181,15 @@ describe('session cookies across a restart', () => {
       await keepSessionCookies(plain.browserSession)
       await saveSessionCookies(plain.browserSession)
       expect((await savedFile(plain.path)).cookies).toHaveLength(1)
+
+      // A keyring that did not answer leaves Chromium's built-in key, no more secret than plain text.
+      secretStorage.backend = 'gnome_libsecret'
+      secretStorage.fallbackKey = true
+      const fallback = await workspaceSession([cookie()])
+      await keepSessionCookies(fallback.browserSession)
+      await saveSessionCookies(fallback.browserSession)
+      expect((await savedFile(fallback.path)).cookies).toHaveLength(1)
+      expect((await savedFile(fallback.path)).encrypted).toBeUndefined()
     }
   })
 

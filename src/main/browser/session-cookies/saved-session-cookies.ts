@@ -2,6 +2,7 @@ import { lstat, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { safeStorage, type Cookie, type CookiesSetDetails, type Session } from 'electron'
 import { writeTextFileAtomically } from '../../atomic-file.js'
+import { encryptsWithKeyringKey } from '../../keyring-key.js'
 
 /** The file in a workspace's own browser storage that keeps its session cookies for the next start. */
 const SESSION_COOKIES_FILE = 'Hronaut Session Cookies.json'
@@ -47,18 +48,20 @@ const watched = new WeakMap<Session, WatchedSession>()
 
 /**
  * Whether the system's secret storage encrypts the saved session cookies, as it does saved passwords: not Linux's
- * plain-text fallback, nor a Linux backend it cannot name. Without it they are saved as the workspace keeps its other
- * cookies, readable only by the person.
+ * plain-text fallback, nor a Linux backend it cannot name, nor the fallback key Linux uses when no keyring answered.
+ * Without it they are saved as the workspace keeps its other cookies, readable only by the person.
  */
 async function encryptionAvailable(): Promise<boolean> {
   try {
     if (!await safeStorage.isAsyncEncryptionAvailable()) return false
     if (process.platform !== 'linux') return true
     const backend = safeStorage.getSelectedStorageBackend()
-    return backend !== 'basic_text' && backend !== 'unknown'
+    if (backend === 'basic_text' || backend === 'unknown') return false
   } catch {
     return false
   }
+  // Secret storage that refuses to encrypt fails the save, as encrypting the cookies would, rather than leaving them readable.
+  return encryptsWithKeyringKey(safeStorage)
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

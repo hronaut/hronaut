@@ -1,6 +1,7 @@
 import { app, safeStorage, type BrowserWindow } from 'electron'
 import { join } from 'node:path'
 import { CredentialStore } from './credential-store.js'
+import { encryptsWithKeyringKey } from './keyring-key.js'
 import { createSuggestedPasswordMemory } from './browser/suggested-password/suggested-password-memory.js'
 import type { BrowserCredentialCandidate } from './browser/tabs-manager.js'
 import type { TrustedDialogOptions } from './trusted-dialogs/trusted-dialogs.js'
@@ -130,11 +131,12 @@ export function createCredentialRuntime(host: CredentialRuntimeHost): {
     try {
       await secureStorageHeldForTest()
       const available = await safeStorage.isAsyncEncryptionAvailable()
-      if (!available || backend === 'basic_text') {
+      // Linux's fallback key is no more secret than plain text, and cannot read what a keyring's key encrypted.
+      if (!available || backend === 'basic_text' || !await encryptsWithKeyringKey(safeStorage)) {
         host.state.storageStatus = {
           available: false,
           backend,
-          reason: backend === 'basic_text'
+          reason: available || backend === 'basic_text'
             ? host.text('native.errors.linuxSecrets')
             : host.text('native.errors.secureStorage')
         }
