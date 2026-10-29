@@ -3,10 +3,14 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { BrowserState } from '../src/shared/types.js'
+import type { Browser } from '../src/main/browser/browser.js'
 import { getMcpGroupState } from '../src/main/browser/workspace-scope/workspace-scope.js'
-import type { WorkspaceScopeAccess, WorkspaceScopeTab } from '../src/main/browser/workspace-scope/workspace-scope-access.js'
 import { McpHttpServer } from '../src/main/mcp/server.js'
 import { mcpWorkspaceState } from '../src/main/mcp/tool-results.js'
+
+// The whole browser's state, as the browser would publish it.
+const published = vi.hoisted(() => ({ state: undefined as unknown }))
+vi.mock('../src/main/browser/browser-state/browser-state.js', () => ({ browserState: () => published.state }))
 
 // Original failure: with Follow agents on, the browser state carries `agentFollow`, the tab in view and the
 // name of the agent being followed. The workspace-scoped state that browser_status and every state-returning
@@ -22,30 +26,31 @@ describe('workspace-scoped browser state', () => {
     ['ws-mine', workspace('ws-mine', 'Mine', 'tab-mine')],
     ['ws-other', workspace('ws-other', 'Other client', 'tab-other')]
   ])
-  const tabs: WorkspaceScopeTab[] = [
-    { id: 'tab-mine', mcpGroupId: 'ws-mine', discoveryTitle: { value: '' } },
-    { id: 'tab-other', mcpGroupId: 'ws-other', discoveryTitle: { value: '' } }
-  ]
+  const tabs = new Map([
+    ['tab-mine', { id: 'tab-mine', mcpGroupId: 'ws-mine', discoveryTitle: { value: '' } }],
+    ['tab-other', { id: 'tab-other', mcpGroupId: 'ws-other', discoveryTitle: { value: '' } }]
+  ])
   const tabState = (id: string, mcpGroupId: string) => ({ id, mcpGroupId, url: `https://${id}.example/`, title: id }) as unknown as BrowserState['tabs'][number]
-  const access = (agentFollow: BrowserState['agentFollow']): WorkspaceScopeAccess<WorkspaceScopeTab> => ({
-    tabs: () => tabs.values(),
-    findTab: id => tabs.find(tab => tab.id === id),
-    findWorkspace: id => workspaces.get(id),
-    requireMcpTabGroup: id => {
-      const found = workspaces.get(id)
-      if (!found) throw new Error('unknown workspace')
-      return { ...found, tabCount: 1, storageOriginCount: 0 }
-    },
-    getState: () => ({
+  const browser = (agentFollow: BrowserState['agentFollow']): Browser => {
+    published.state = {
       tabs: [tabState('tab-mine', 'ws-mine'), tabState('tab-other', 'ws-other')],
       closedTabs: [], activeTabId: 'tab-other', allHumanInteractionLocked: false,
       mcpUrl: 'http://127.0.0.1:47812/mcp', profilePath: '/profile', mcpTabGroups: [], savedTabGroups: [],
       ...(agentFollow ? { agentFollow } : {})
-    })
-  })
+    }
+    return {
+      tabs,
+      mcpTabGroups: workspaces,
+      requireMcpTabGroup: (id: string) => {
+        const found = workspaces.get(id)
+        if (!found) throw new Error('unknown workspace')
+        return { ...found, tabCount: 1, storageOriginCount: 0 }
+      }
+    } as never
+  }
 
   it('leaves out the followed agent and tab of another workspace', () => {
-    const state = getMcpGroupState(access({ tabId: 'tab-other', agentName: 'Other Agent' }), 'ws-mine')
+    const state = getMcpGroupState(browser({ tabId: 'tab-other', agentName: 'Other Agent' }), 'ws-mine')
     expect(state.tabs.map(tab => tab.id)).toEqual(['tab-mine'])
     expect(state.agentFollow).toBeUndefined()
     const published = JSON.stringify(mcpWorkspaceState(state))
@@ -54,7 +59,7 @@ describe('workspace-scoped browser state', () => {
   })
 
   it('keeps following that shows a tab of the workspace itself', () => {
-    const state = getMcpGroupState(access({ tabId: 'tab-mine', agentName: 'Claude Code' }), 'ws-mine')
+    const state = getMcpGroupState(browser({ tabId: 'tab-mine', agentName: 'Claude Code' }), 'ws-mine')
     expect(state.agentFollow).toEqual({ tabId: 'tab-mine', agentName: 'Claude Code' })
   })
 })

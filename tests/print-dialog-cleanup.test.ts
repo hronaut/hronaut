@@ -38,18 +38,19 @@ function printablePage() {
   return { page, scripts, commands, print }
 }
 
-function agentInputAccess(locked = false) {
+/** A browser showing the page in its one tab, with nothing focused. */
+function agentInputBrowser(locked = false) {
   const agentInput = new Map<number, number>()
   const tab = { id: 'tab' }
   return {
     agentInput,
-    access: {
-      window: () => ({ isFocused: () => false }),
-      agentInputWebContents: () => agentInput,
-      agentInputFocusSnapshots: () => new Map(),
-      agentInputFocusGuardReleases: () => new Map(),
-      findTab: () => tab,
-      tabIdForWebContents: () => tab.id,
+    browser: {
+      window: { isFocused: () => false },
+      agentInputWebContents: agentInput,
+      agentInputFocusSnapshots: new Map(),
+      agentInputFocusGuardReleases: new Map(),
+      tabs: new Map([[tab.id, tab]]),
+      webContentsToTab: new Map([[7, tab.id]]),
       isHumanInteractionLocked: () => locked,
       syncHumanInteractionInputGuard: vi.fn(async (): Promise<void> => undefined)
     }
@@ -63,8 +64,8 @@ const CLEAR_FLAG = 'delete window.__hronautAgentInputActive'
 describe('cleanup after a print dialog', () => {
   it('clears the agent input flag once the print dialog the agent opened closes', async () => {
     const { page, scripts, print } = printablePage()
-    const { access, agentInput } = agentInputAccess()
-    const click = withAgentInput(access as never, page as never, async () => {
+    const { browser, agentInput } = agentInputBrowser()
+    const click = withAgentInput(browser as never, page as never, async () => {
       print(true)
       throw new PrintDialogOpenError(true)
     })
@@ -78,8 +79,8 @@ describe('cleanup after a print dialog', () => {
 
   it('leaves the flag to a new agent input that began before the dialog closed', async () => {
     const { page, scripts, print } = printablePage()
-    const { access, agentInput } = agentInputAccess()
-    await expect(withAgentInput(access as never, page as never, async () => {
+    const { browser, agentInput } = agentInputBrowser()
+    await expect(withAgentInput(browser as never, page as never, async () => {
       print(true)
       throw new PrintDialogOpenError(true)
     })).rejects.toBeInstanceOf(PrintDialogOpenError)
@@ -101,9 +102,9 @@ describe('cleanup after a print dialog', () => {
       screenshotAreaSessions: () => new Map(),
       elementPickerSessions: () => new Map()
     }
-    const { access } = agentInputAccess(true)
-    access.syncHumanInteractionInputGuard.mockImplementation(() => syncHumanInteractionInputGuard(lockAccess as never, tab as never))
-    const click = withAgentInput(access as never, page as never, async () => {
+    const { browser } = agentInputBrowser(true)
+    browser.syncHumanInteractionInputGuard.mockImplementation(() => syncHumanInteractionInputGuard(lockAccess as never, tab as never))
+    const click = withAgentInput(browser as never, page as never, async () => {
       print(true)
       throw new PrintDialogOpenError(true)
     })

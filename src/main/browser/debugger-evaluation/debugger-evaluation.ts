@@ -1,5 +1,5 @@
 import type { WebContents } from 'electron'
-import type { DebuggerEvaluationAccess } from './debugger-evaluation-access.js'
+import type { Browser } from '../browser.js'
 
 /**
  * Evaluates the expression in the page through its attached debugger, in the
@@ -55,12 +55,12 @@ export async function releaseDebuggerEvaluationObjects(
 }
 
 /** The id of the page's main world context in its top frame; it throws when the context is not known. */
-export async function mainWorldContextId(access: DebuggerEvaluationAccess, webContents: WebContents): Promise<number> {
+export async function mainWorldContextId(browser: Browser, webContents: WebContents): Promise<number> {
   const frameTree = await webContents.debugger.sendCommand('Page.getFrameTree') as {
     frameTree?: { frame?: { id?: string } }
   }
   const frameId = frameTree.frameTree?.frame?.id
-  const contextId = frameId ? access.defaultExecutionContexts().get(webContents.id)?.get(frameId)?.id : undefined
+  const contextId = frameId ? browser.defaultExecutionContexts.get(webContents.id)?.get(frameId)?.id : undefined
   if (contextId === undefined) throw new Error('Could not locate the website JavaScript context for prompt handling')
   return contextId
 }

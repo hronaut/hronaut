@@ -2,7 +2,11 @@ import { randomUUID } from 'node:crypto'
 import type { WebContents } from 'electron'
 import type { BrowserDialogHandlingOptions } from '../../../shared/types.js'
 import { dialogAwareEvaluateScript, releaseEvaluationDialogsScript } from '../page-scripts.js'
-import type { PageEvaluationAccess, PageEvaluationTab } from './page-evaluation-access.js'
+import { withBackgroundAgentFocusGuard } from '../agent-input-scope/focus-isolation.js'
+import type { Browser } from '../browser.js'
+import { getTab } from '../browser-core.js'
+import { evaluateWithAttachedDebugger, mainWorldContextId } from '../debugger-evaluation/debugger-evaluation.js'
+import { withDebugger } from '../debugger-lease/debugger-lease.js'
 
 /** How long an evaluation waits for its script, and the call's cancellation. */
 export interface EvaluationDeadline {
@@ -35,8 +39,8 @@ export class EvaluationStoppedError extends Error {
  * debugger, releasing the focus guard and the debugger. The page's script is
  * left to finish on its own, and its dialog handling ends at once.
  */
-export async function evaluate<Tab extends PageEvaluationTab>(access: PageEvaluationAccess<Tab>, script: string, tabId?: string, dialog: BrowserDialogHandlingOptions = {}, deadline?: EvaluationDeadline): Promise<unknown> {
-  const webContents = access.getTab(tabId).webContents
+export async function evaluate(browser: Browser, script: string, tabId?: string, dialog: BrowserDialogHandlingOptions = {}, deadline?: EvaluationDeadline): Promise<unknown> {
+  const webContents = getTab(browser, tabId).webContents
   if (dialog.promptText !== undefined) throw new Error('Text prompts are supported by browser_click; Electron does not implement prompt() evaluation')
   const stop = deadline && stopSignal(deadline)
   let sent = false
@@ -51,29 +55,29 @@ export async function evaluate<Tab extends PageEvaluationTab>(access: PageEvalua
   // Preserve foreground native-dialog behavior, but never let a background
   // evaluation activate Hronaut. Unexpected background dialogs are dismissed
   // inside the page wrapper; explicit dialogAction still wins.
-  if (dialog.dialogAction === undefined && access.isWindowFocused()) {
+  if (dialog.dialogAction === undefined && browser.window.isFocused()) {
     sent = true
-    return access.withBackgroundAgentFocusGuard(() => settle(webContents.executeJavaScript(script, true)))
+    return withBackgroundAgentFocusGuard(browser, () => settle(webContents.executeJavaScript(script, true)))
   }
   // DevTools owns Chromium's debugger session. Keep direct evaluation
   // available there while the native non-focusable guard blocks activation.
   if (dialog.dialogAction === undefined && (
-    access.isDevToolsOpening(webContents.id) || webContents.isDevToolsOpened()
+    browser.devToolsOpening.has(webContents.id) || webContents.isDevToolsOpened()
   )) {
     sent = true
-    return access.withBackgroundAgentFocusGuard(() => settle(webContents.executeJavaScript(script, true)))
+    return withBackgroundAgentFocusGuard(browser, () => settle(webContents.executeJavaScript(script, true)))
   }
   const dialogAction = dialog.dialogAction ?? 'dismiss'
   const evaluationId = randomUUID()
   // The outer settle stops waiting for the debugger; the inner one frees it
   // for the next command while Chromium keeps waiting on the script's promise.
-  return access.withBackgroundAgentFocusGuard(() => settle(access.withDebugger(webContents, async () => {
+  return withBackgroundAgentFocusGuard(browser, () => settle(withDebugger(browser, webContents, async () => {
     unstopped()
-    const contextId = await access.mainWorldContextId(webContents)
+    const contextId = await mainWorldContextId(browser, webContents)
     unstopped()
     sent = true
     try {
-      return await settle(access.evaluateWithAttachedDebugger(webContents, dialogAwareEvaluateScript(script, dialogAction, evaluationId), contextId))
+      return await settle(evaluateWithAttachedDebugger(webContents, dialogAwareEvaluateScript(script, dialogAction, evaluationId), contextId))
     } catch (error) {
       if (error instanceof EvaluationStoppedError) releaseEvaluationDialogs(webContents, evaluationId, contextId)
       throw error

@@ -274,7 +274,7 @@ describe('main-process failures people see in page tools, workspace management a
       'Open a website tab before capturing an area',
       'Відкрийте вкладку з вебсайтом, щоб зробити знімок області.'],
     ['a page tool while Developer Tools are open', () => withDebugger({
-      inDebuggerQueue: (_id: number, run: () => unknown) => run(), dialogMonitorAttach: async () => undefined, isDevToolsOpening: () => false
+      debuggerQueue: { run: (_id: number, run: () => unknown) => run() }, dialogMonitorAttachPromises: new Map(), devToolsOpening: new Set()
     } as never, { id: 7, isDevToolsOpened: () => true } as never, async () => undefined),
     'Close Developer Tools for this tab before using this MCP action',
     'Закрийте інструменти розробника для цієї вкладки й спробуйте ще раз.'],

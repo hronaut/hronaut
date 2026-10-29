@@ -2,7 +2,6 @@ import { assertExclusiveWorkspaceStorage, canonicalStorageId, cleanExplicitlyDel
 import { ImageInspectionSlots } from './image-state.js'
 import type { BrowserEmulationResult, BrowserUnconfirmedEmulation, TaskManagerProcess } from '../../shared/types.js'
 import { assertRightClickPlatform } from './owned-right-click.js'
-import type { PageEvaluationAccess } from './page-evaluation/page-evaluation-access.js'
 import { evaluateFile } from './page-evaluation/evaluate-file.js'
 import type { FileEvaluationSource, FileEvaluationHooks } from '../../shared/file-evaluation.js'
 import type { StorageComparisonHooks } from './storage-comparison-operation.js'
@@ -523,7 +522,6 @@ import {
   sendAuthorizedAgentInputCommand,
   shouldBlockHumanMouseInput
 } from './agent-input-authorization/agent-input-authorization.js'
-import type { AgentInputScopeAccess } from './agent-input-scope/agent-input-scope-access.js'
 import { withAgentInput } from './agent-input-scope/agent-input-scope.js'
 import { withBackgroundAgentFocusGuard } from './agent-input-scope/focus-isolation.js'
 import type { PageDestroyedEventsAccess } from './tab-events/page-destroyed-events-access.js'
@@ -563,9 +561,7 @@ import { SLEEPING_PAGE_URL } from './tab-sleep/sleeping-page.js'
 import type { MemorySaverAccess } from './tab-sleep/memory-saver-access.js'
 import { setMemorySaverSettings, sleepInactiveTabs, sweepMemorySaver } from './tab-sleep/memory-saver.js'
 import { BackgroundLoads } from './tab-sleep/background-loads.js'
-import type { DebuggerEvaluationAccess } from './debugger-evaluation/debugger-evaluation-access.js'
 import { evaluateWithAttachedDebugger, mainWorldContextId, releaseDebuggerEvaluationObjects } from './debugger-evaluation/debugger-evaluation.js'
-import type { DebuggerLeaseAccess } from './debugger-lease/debugger-lease-access.js'
 import { withDebugger } from './debugger-lease/debugger-lease.js'
 import type { NativeClickAccess } from './native-click/native-click-access.js'
 import { dispatchNativeClick } from './native-click/native-click.js'
@@ -590,7 +586,6 @@ import { placeTabOpenedFromPage } from './link-tab-placement/link-tab-placement.
 import { forgetTabsOpenedFrom, handOverTabsOpenedFrom, switchLeavesOpenedTabs, tabAfterClosingLinkTab } from './link-tab-placement/link-tab-openers.js'
 import type { BrowserWalletPageContext, WalletPagesAccess } from './wallet-pages/wallet-pages-access.js'
 import { sendWalletProviderEvent, walletPageContext, walletPageContextForMcpTab } from './wallet-pages/wallet-pages.js'
-import type { WorkspaceScopeAccess } from './workspace-scope/workspace-scope-access.js'
 import { getMcpDiscoveryTabs, getMcpGroupState, requireTabInMcpGroup, tabBelongsToMcpGroup } from './workspace-scope/workspace-scope.js'
 import type { NewTabsAccess } from './new-tabs/new-tabs-access.js'
 import { createNewTab, newLabeledAgentTab } from './new-tabs/new-tabs.js'
@@ -2013,32 +2008,16 @@ export class Browser {
     return transferWorkspaceStorage(this.workspaceDataAccess(), options)
   }
 
-  /**
-   * The narrow view scoping to a workspace gets of this manager's private
-   * tabs, open workspaces and browser state. It is a prototype method rather
-   * than a field, so managers created without the constructor (as unit tests
-   * do) still provide it.
-   */
-  private workspaceScopeAccess(): WorkspaceScopeAccess<BrowserTab> {
-    return {
-      tabs: () => this.tabs.values(),
-      findTab: (tabId) => this.tabs.get(tabId),
-      findWorkspace: (groupId) => this.mcpTabGroups.get(groupId),
-      requireMcpTabGroup: (groupId) => this.requireMcpTabGroup(groupId),
-      getState: () => this.getState()
-    }
-  }
-
   requireTabInMcpGroup(groupId: string, tabId?: string, preserveSelection = false): string {
-    return requireTabInMcpGroup(this.workspaceScopeAccess(), groupId, tabId, preserveSelection)
+    return requireTabInMcpGroup(this, groupId, tabId, preserveSelection)
   }
 
   tabBelongsToMcpGroup(groupId: string, tabId: string): boolean {
-    return tabBelongsToMcpGroup(this.workspaceScopeAccess(), groupId, tabId)
+    return tabBelongsToMcpGroup(this, groupId, tabId)
   }
 
   getMcpGroupState(groupId: string): BrowserState {
-    return getMcpGroupState(this.workspaceScopeAccess(), groupId)
+    return getMcpGroupState(this, groupId)
   }
 
   /** Whether the person chose to keep URL query strings and fragments out of what agents read. */
@@ -2047,7 +2026,7 @@ export class Browser {
   }
 
   getMcpDiscoveryTabs(groupId: string): Array<Pick<BrowserTabState, 'id' | 'title' | 'url'>> {
-    return getMcpDiscoveryTabs(this.workspaceScopeAccess(), groupId)
+    return getMcpDiscoveryTabs(this, groupId)
   }
 
   /**
@@ -4113,7 +4092,7 @@ export class Browser {
       withBackgroundAgentFocusGuard: (operation) => this.withBackgroundAgentFocusGuard(operation),
       withOptionalDialogHandling: (webContents, options, operation) => this.withOptionalDialogHandling(webContents, options, operation),
       mainWorldContextId: (webContents) => this.mainWorldContextId(webContents),
-      evaluateWithAttachedDebugger: (webContents, expression, contextId) => this.evaluateWithAttachedDebugger(webContents, expression, contextId),
+      evaluateWithAttachedDebugger: (webContents, expression, contextId) => evaluateWithAttachedDebugger(webContents, expression, contextId),
       withDebugger: (webContents, operation, validateAdmission) => this.withDebugger(webContents, operation, validateAdmission),
       dispatchNativeClick: (webContents, point, doubleClick, validateClick, sample, observer, rightClick, modifiers) =>
         this.dispatchNativeClick(webContents, point, doubleClick, validateClick, sample, observer, rightClick, modifiers),
@@ -4798,7 +4777,7 @@ export class Browser {
       snapshotDeltaContext: (tab) => this.snapshotDeltaContext(tab),
       withAgentInput: (webContents, operation) => this.withAgentInput(webContents, operation),
       withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
-      releaseDebuggerEvaluationObjects: (webContents, response) => this.releaseDebuggerEvaluationObjects(webContents, response)
+      releaseDebuggerEvaluationObjects: (webContents, response) => releaseDebuggerEvaluationObjects(webContents, response)
     }
   }
 
@@ -4928,38 +4907,12 @@ export class Browser {
     return press(this.agentKeysAccess(), key, tabId, validateInput)
   }
 
-  /**
-   * The narrow view page script evaluation gets of this manager's private
-   * tabs, window, DevTools opening, workspaces, default execution contexts,
-   * background focus isolation, debugger lease and evaluation helpers. It is a
-   * prototype method rather than a field, so managers created without the
-   * constructor (as unit tests do) still provide it. The delegates below
-   * return the feature's promise directly, so no extra ticks separate its
-   * final checks from the caller.
-   */
-  private pageEvaluationAccess(): PageEvaluationAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      findTab: (tabId) => this.tabs.get(tabId),
-      isDestroyed: () => this.destroyed,
-      isWindowFocused: () => this.window.isFocused(),
-      isDevToolsOpening: (webContentsId) => this.devToolsOpening.has(webContentsId),
-      tabBelongsToMcpGroup: (groupId, tabId) => this.tabBelongsToMcpGroup(groupId, tabId),
-      defaultExecutionContexts: (webContentsId) => this.defaultExecutionContexts.get(webContentsId),
-      withBackgroundAgentFocusGuard: (operation) => this.withBackgroundAgentFocusGuard(operation),
-      withDebugger: (webContents, operation, validateAdmission) => this.withDebugger(webContents, operation, validateAdmission),
-      evaluateWithAttachedDebugger: (webContents, expression, contextId) => this.evaluateWithAttachedDebugger(webContents, expression, contextId),
-      mainWorldContextId: (webContents) => this.mainWorldContextId(webContents),
-      releaseDebuggerEvaluationObjects: (webContents, response) => this.releaseDebuggerEvaluationObjects(webContents, response)
-    }
-  }
-
   evaluateFile(source: FileEvaluationSource, hooks: FileEvaluationHooks): Promise<Record<string, unknown>> {
-    return evaluateFile(this.pageEvaluationAccess(), source, hooks)
+    return evaluateFile(this, source, hooks)
   }
 
   evaluate(script: string, tabId?: string, dialog: BrowserDialogHandlingOptions = {}, deadline?: EvaluationDeadline): Promise<unknown> {
-    return evaluate(this.pageEvaluationAccess(), script, tabId, dialog, deadline)
+    return evaluate(this, script, tabId, dialog, deadline)
   }
 
   /**
@@ -6621,7 +6574,7 @@ export class Browser {
     return consumeExpectedAgentKeyboardInput(this.agentInputAuthorizationAccess(), webContentsId, input)
   }
 
-  private syncHumanInteractionInputGuard(tab: BrowserTab): Promise<void> {
+  syncHumanInteractionInputGuard(tab: BrowserTab): Promise<void> {
     return syncHumanInteractionInputGuard(this.interactionLockAccess(), tab)
   }
 
@@ -6667,44 +6620,16 @@ export class Browser {
     return sourceCurrent ? report : undefined
   }
 
-  /**
-   * The narrow view agent input and focus isolation get of this manager's
-   * private window, destroyed flag, background focus guard depth, the window's
-   * focusability before the guard, in-flight agent input, focus snapshots and
-   * releases, tabs, page-to-tab index, human interaction lock and its native
-   * input guard. It is a prototype method rather than a field, so managers
-   * created without the constructor (as unit tests do) still provide it. The
-   * delegates below return the feature's promise directly, so callers see the
-   * same ticks as before.
-   */
-  private agentInputScopeAccess(): AgentInputScopeAccess<BrowserTab> {
-    return {
-      window: () => this.window,
-      isDestroyed: () => this.destroyed,
-      backgroundAgentInputFocusGuardDepth: () => this.backgroundAgentInputFocusGuardDepth,
-      writeBackgroundAgentInputFocusGuardDepth: (depth) => { this.backgroundAgentInputFocusGuardDepth = depth },
-      mainWindowFocusableBeforeAgentInput: () => this.mainWindowFocusableBeforeAgentInput,
-      writeMainWindowFocusableBeforeAgentInput: (focusable) => { this.mainWindowFocusableBeforeAgentInput = focusable },
-      agentInputWebContents: () => this.agentInputWebContents,
-      agentInputFocusSnapshots: () => this.agentInputFocusSnapshots,
-      agentInputFocusGuardReleases: () => this.agentInputFocusGuardReleases,
-      findTab: (tabId) => this.tabs.get(tabId),
-      tabIdForWebContents: (webContentsId) => this.webContentsToTab.get(webContentsId),
-      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
-      syncHumanInteractionInputGuard: (tab) => this.syncHumanInteractionInputGuard(tab)
-    }
-  }
-
   private withAgentInput<T>(
     webContents: BrowserTab['view']['webContents'],
     operation: () => Promise<T>,
     options: { deferRendererFlag?: boolean; onCleanupFailure?: () => void } = {}
   ): Promise<T> {
-    return withAgentInput(this.agentInputScopeAccess(), webContents, operation, options)
+    return withAgentInput(this, webContents, operation, options)
   }
 
   private withBackgroundAgentFocusGuard<T>(operation: () => Promise<T>): Promise<T> {
-    return withBackgroundAgentFocusGuard(this.agentInputScopeAccess(), operation)
+    return withBackgroundAgentFocusGuard(this, operation)
   }
 
   /**
@@ -6774,25 +6699,8 @@ export class Browser {
     return /(?:method not found|wasn't found|-32601)/i.test(String(error))
   }
 
-  /**
-   * The narrow view leasing a page's debugger gets of this manager's private
-   * debugger queue, dialog monitor attachments, DevTools opening set and
-   * destroyed flag. It is a prototype method rather than a field, so managers
-   * created without the constructor (as unit tests do) still provide it. The
-   * delegate below returns the feature's promise directly, so callers see the
-   * same ticks as before.
-   */
-  private debuggerLeaseAccess(): DebuggerLeaseAccess {
-    return {
-      inDebuggerQueue: (webContentsId, operation) => this.debuggerQueue.run(webContentsId, operation),
-      dialogMonitorAttach: (webContentsId) => this.dialogMonitorAttachPromises.get(webContentsId),
-      isDevToolsOpening: (webContentsId) => this.devToolsOpening.has(webContentsId),
-      isDestroyed: () => this.destroyed
-    }
-  }
-
   private withDebugger<T>(webContents: BrowserTab['view']['webContents'], operation: () => Promise<T>, validateAdmission?: () => void): Promise<T> {
-    return withDebugger(this.debuggerLeaseAccess(), webContents, operation, validateAdmission)
+    return withDebugger(this, webContents, operation, validateAdmission)
   }
 
   private withOptionalDialogHandling<T>(
@@ -6803,39 +6711,8 @@ export class Browser {
     return withOptionalDialogHandling(this.websiteDialogsAccess(), webContents, options, operation)
   }
 
-  private evaluateWithAttachedDebugger(
-    webContents: BrowserTab['view']['webContents'],
-    expression: string,
-    contextId?: number
-  ): Promise<unknown> {
-    return evaluateWithAttachedDebugger(webContents, expression, contextId)
-  }
-
-  private releaseDebuggerEvaluationObjects(
-    webContents: BrowserTab['view']['webContents'],
-    response: {
-      result?: { objectId?: string }
-      exceptionDetails?: { exception?: { objectId?: string } }
-    }
-  ): Promise<void> {
-    return releaseDebuggerEvaluationObjects(webContents, response)
-  }
-
-  /**
-   * The narrow view finding a page's main world context gets of this
-   * manager's private default execution contexts. It is a prototype method
-   * rather than a field, so managers created without the constructor (as unit
-   * tests do) still provide it. The delegates around it return the feature's
-   * promise directly, so callers see the same ticks as before.
-   */
-  private debuggerEvaluationAccess(): DebuggerEvaluationAccess {
-    return {
-      defaultExecutionContexts: () => this.defaultExecutionContexts
-    }
-  }
-
   private mainWorldContextId(webContents: BrowserTab['view']['webContents']): Promise<number> {
-    return mainWorldContextId(this.debuggerEvaluationAccess(), webContents)
+    return mainWorldContextId(this, webContents)
   }
 
   private detachDialogMonitoring(webContents: BrowserTab['view']['webContents']): void {

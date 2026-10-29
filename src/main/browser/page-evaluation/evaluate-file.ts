@@ -1,6 +1,11 @@
 import { fileSourceAcquisitionPool, AcquisitionFailure } from '../../file-source-acquisition.js'
 import { fileEvaluationFailure, type FileEvaluationSource, type FileEvaluationHooks, type FileEvaluationProgress } from '../../../shared/file-evaluation.js'
-import type { PageEvaluationAccess, PageEvaluationTab } from './page-evaluation-access.js'
+import { withBackgroundAgentFocusGuard } from '../agent-input-scope/focus-isolation.js'
+import type { Browser } from '../browser.js'
+import { findTab, getTab } from '../browser-core.js'
+import { releaseDebuggerEvaluationObjects } from '../debugger-evaluation/debugger-evaluation.js'
+import { withDebugger } from '../debugger-lease/debugger-lease.js'
+import { tabBelongsToMcpGroup } from '../workspace-scope/workspace-scope.js'
 
 // Process-wide admission survives client and manager reconnects.
 let activeFileEvaluations = 0
@@ -12,7 +17,7 @@ let activeFileEvaluations = 0
  * script is submitted, with no await in between. It resolves with a status
  * rather than throwing, and the caller's deadline or cancellation wins.
  */
-export async function evaluateFile<Tab extends PageEvaluationTab>(access: PageEvaluationAccess<Tab>, source: FileEvaluationSource, hooks: FileEvaluationHooks): Promise<Record<string, unknown>> {
+export async function evaluateFile(browser: Browser, source: FileEvaluationSource, hooks: FileEvaluationHooks): Promise<Record<string, unknown>> {
   const progress: FileEvaluationProgress = { submitted: false, acknowledged: false }
   if (activeFileEvaluations >= 2) return fileEvaluationFailure(progress, 'BUSY')
   activeFileEvaluations++
@@ -22,7 +27,7 @@ export async function evaluateFile<Tab extends PageEvaluationTab>(access: PageEv
   let dispose = (): void => undefined
   let retained = false
   const work = async (): Promise<Record<string, unknown>> => {
-    const tab = access.getTab(source.tabId)
+    const tab = getTab(browser, source.tabId)
     const contents = tab.webContents
     const generation = tab.navigationGeneration
     const mainFrame = contents.mainFrame
@@ -32,10 +37,10 @@ export async function evaluateFile<Tab extends PageEvaluationTab>(access: PageEv
     dispose = () => { contents.removeListener('did-navigate', onCommitted) }
     const validate = (): void => {
       hooks.validate()
-      if (documentCommitted || signal.aborted || access.isDestroyed() || contents.isDestroyed()
-        || access.findTab(source.tabId) !== tab || tab.navigationGeneration !== generation
+      if (documentCommitted || signal.aborted || browser.destroyed || contents.isDestroyed()
+        || findTab(browser, source.tabId) !== tab || tab.navigationGeneration !== generation
         || contents.mainFrame !== mainFrame || tab.mainFrameId !== frameId
-        || !access.tabBelongsToMcpGroup(source.workspaceId, source.tabId)
+        || !tabBelongsToMcpGroup(browser, source.workspaceId, source.tabId)
         || new URL(contents.getURL()).origin !== source.expectedOrigin) throw new Error('File evaluation target unavailable')
     }
     // A WebFrameMain object and navigation-start generation can both survive
@@ -46,12 +51,12 @@ export async function evaluateFile<Tab extends PageEvaluationTab>(access: PageEv
     validate()
     const script = await fileSourceAcquisitionPool.acquire(source.path, source.sha256, signal, 1000, validate)
     validate()
-    return access.withBackgroundAgentFocusGuard(() => access.withDebugger(contents, async () => {
+    return withBackgroundAgentFocusGuard(browser, () => withDebugger(browser, contents, async () => {
       validate()
       const tree = await contents.debugger.sendCommand('Page.getFrameTree') as { frameTree?: { frame?: { id?: string } } }
       validate()
       const currentFrame = tree.frameTree?.frame?.id
-      const context = currentFrame ? access.defaultExecutionContexts(contents.id)?.get(currentFrame) : undefined
+      const context = currentFrame ? browser.defaultExecutionContexts.get(contents.id)?.get(currentFrame) : undefined
       if (!frameId || currentFrame !== frameId || !context?.uniqueId) throw new Error('Unique context unavailable')
       validate()
       // No await between the complete main-owned authority check and submission.
@@ -67,7 +72,7 @@ export async function evaluateFile<Tab extends PageEvaluationTab>(access: PageEv
         if (response.exceptionDetails) return fileEvaluationFailure(progress, 'SCRIPT_FAILED')
         return { status: 'RETURNED', submitted: true, acknowledged: true, retrySafe: false,
           value: response.result && Object.hasOwn(response.result, 'value') ? response.result.value : response.result?.unserializableValue }
-      } finally { await access.releaseDebuggerEvaluationObjects(contents, response) }
+      } finally { await releaseDebuggerEvaluationObjects(contents, response) }
     }, validate))
   }
   let abort!: () => void
