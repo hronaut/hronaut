@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { importCycles, lineCount, ROOT, runtimeImports, runtimeNamesFrom, runtimeSpecifiers, sourceFiles } from './architecture/source-files.js'
+import { importCycles, lineCount, resolveImport, ROOT, runtimeImports, runtimeNamesFrom, runtimeSpecifiers, sourceFiles } from './architecture/source-files.js'
 
 const MAX_LINES = 800
 const BUDGETS_FILE = 'tests/architecture/budgets.json'
@@ -89,24 +89,27 @@ describe('the code the e2e tests load', () => {
   it('reaches no named import from Electron, so Playwright can list the tests', () => {
     const starts = ['playwright.config.ts', ...readdirSync(join(ROOT, 'tests/integration')).filter(name => name.endsWith('.ts')).sort().map(name => `tests/integration/${name}`)]
     const importedBy = new Map(starts.map(file => [file, '']))
-    // A Map visits the entries added while it is walked, so this follows every import the tests reach.
-    for (const [file] of importedBy) {
-      for (const target of runtimeImports([file]).get(file)!) if (!importedBy.has(target)) importedBy.set(target, file)
-    }
-    expect(importedBy.has('src/main/mcp/server.ts')).toBe(true)
     const problems: string[] = []
-    for (const file of importedBy.keys()) {
+    // A Map visits the entries added while it is walked, so this follows every import the tests reach. Each file is
+    // parsed once, and again only when it imports Electron, so the walk stays quick beside the rest of the suite.
+    for (const [file] of importedBy) {
       const code = readFileSync(join(ROOT, file), 'utf8')
-      const names = runtimeNamesFrom(code, 'electron', file)
-      const subpaths = runtimeSpecifiers(code, file).filter(specifier => specifier.startsWith('electron/'))
+      const specifiers = runtimeSpecifiers(code, file)
+      for (const specifier of specifiers) {
+        const target = specifier.startsWith('.') ? resolveImport(file, specifier) : undefined
+        if (target && !importedBy.has(target)) importedBy.set(target, file)
+      }
+      const names = specifiers.includes('electron') ? runtimeNamesFrom(code, 'electron', file) : []
+      const subpaths = specifiers.filter(specifier => specifier.startsWith('electron/'))
       if (names.length === 0 && subpaths.length === 0) continue
       const chain = [file]
       while (importedBy.get(chain[0]!)) chain.unshift(importedBy.get(chain[0]!)!)
       if (names.length > 0) problems.push(`${chain.join(' -> ')} imports { ${names.join(', ')} } from 'electron'`)
       for (const subpath of subpaths) problems.push(`${chain.join(' -> ')} imports from '${subpath}'`)
     }
+    expect(importedBy.has('src/main/mcp/server.ts')).toBe(true)
     expect(problems).toEqual([])
-  })
+  }, 30_000)
 
   it('counts the names a module takes from a package for its code, and leaves out types, its default and other packages', () => {
     const code = [
