@@ -1,6 +1,8 @@
 import type { WebContents } from 'electron'
 import { ISOLATED_WORLDS } from '../isolated-worlds.js'
-import type { PageFullscreenAccess, PageFullscreenTab } from './page-fullscreen-access.js'
+import type { Browser } from '../browser.js'
+import type { BrowserTab } from '../browser-tab.js'
+import { contentAreaBounds } from '../window-layout/content-area.js'
 
 /**
  * Leaves the document's full screen, from a world the page's own scripts cannot replace. Electron reports a page's
@@ -13,9 +15,14 @@ const EXIT_FULLSCREEN_SCRIPT = `new Promise((resolve) => {
   setTimeout(() => resolve(false), 2000)
 })`
 
+/** Whether the window shows this tab: the active tab, or a pane of the split view. */
+function isShown(browser: Browser, tabId: string): boolean {
+  return browser.activeTabId === tabId || browser.splitViewContains(tabId)
+}
+
 /** The tab holding full screen for one of its elements, if any. */
-function pageFullscreenHolder<Tab extends PageFullscreenTab>(access: PageFullscreenAccess<Tab>): Tab | undefined {
-  for (const tab of access.tabs()) if (tab.pageFullscreen) return tab
+function pageFullscreenHolder(browser: Browser): BrowserTab | undefined {
+  for (const tab of browser.tabs.values()) if (tab.pageFullscreen) return tab
   return undefined
 }
 
@@ -23,7 +30,7 @@ function pageFullscreenHolder<Tab extends PageFullscreenTab>(access: PageFullscr
  * Asks the page to leave full screen; Electron then restores the window. A request still running is not repeated,
  * and one that did not leave lets the next layout ask again.
  */
-function requestPageFullscreenExit(tab: PageFullscreenTab): void {
+function requestPageFullscreenExit(tab: BrowserTab): void {
   if (tab.pageFullscreenExitRequested || tab.webContents.isDestroyed()) return
   tab.pageFullscreenExitRequested = true
   tab.webContents.executeJavaScriptInIsolatedWorld(ISOLATED_WORLDS.pageFullscreen, [{ code: EXIT_FULLSCREEN_SCRIPT }])
@@ -43,36 +50,36 @@ function requestPageFullscreenExit(tab: PageFullscreenTab): void {
  * the pages follows each change, since the window may report its own full
  * screen before the page's, or not at all when it already was in full screen.
  */
-export function attachPageFullscreenEvents<Tab extends PageFullscreenTab>(
-  access: PageFullscreenAccess<Tab>,
-  tab: Tab,
+export function attachPageFullscreenEvents(
+  browser: Browser,
+  tab: BrowserTab,
   webContents: WebContents
 ): void {
   webContents.on('enter-html-full-screen', () => {
     tab.pageFullscreen = true
     tab.pageFullscreenExitRequested = false
-    if (!access.isShown(tab.id)) requestPageFullscreenExit(tab)
-    access.layout()
-    access.pageFullscreenChanged()
+    if (!isShown(browser, tab.id)) requestPageFullscreenExit(tab)
+    browser.layout()
+    browser.options.onPageFullscreenChanged?.()
   })
   webContents.on('leave-html-full-screen', () => {
     tab.pageFullscreen = false
     // Layout sizes only the tabs the window shows, so a page that leaves full screen after the person switched away
     // from it would keep the whole window's size in the background.
     if (
-      !access.isDestroyed() && !access.window().isDestroyed() && !access.isShown(tab.id)
-      && !access.offscreenCaptureTabIds().has(tab.id) && !access.window().contentView.children.includes(tab.view)
-    ) tab.view.setBounds(access.tabViewBounds(tab, access.contentAreaBounds()))
-    access.layout()
-    access.pageFullscreenChanged()
+      !browser.destroyed && !browser.window.isDestroyed() && !isShown(browser, tab.id)
+      && !browser.offscreenCaptureTabIds.has(tab.id) && !browser.window.contentView.children.includes(tab.view)
+    ) tab.view.setBounds(browser.tabViewBounds(tab, contentAreaBounds(browser)))
+    browser.layout()
+    browser.options.onPageFullscreenChanged?.()
   })
   webContents.once('destroyed', () => {
     if (!tab.pageFullscreen) return
     tab.pageFullscreen = false
-    if (access.isDestroyed() || access.window().isDestroyed() || pageFullscreenHolder(access)) return
-    if (!access.personFullScreen() && access.window().isFullScreen()) access.window().setFullScreen(false)
-    access.layout()
-    access.pageFullscreenChanged()
+    if (browser.destroyed || browser.window.isDestroyed() || pageFullscreenHolder(browser)) return
+    if (!browser.personFullScreen && browser.window.isFullScreen()) browser.window.setFullScreen(false)
+    browser.layout()
+    browser.options.onPageFullscreenChanged?.()
   })
 }
 
@@ -85,49 +92,49 @@ export function attachPageFullscreenEvents<Tab extends PageFullscreenTab>(
  * leaves too. A window in full screen is the person's only while no page
  * holds it.
  */
-export function watchWindowFullScreen<Tab extends PageFullscreenTab>(access: PageFullscreenAccess<Tab>): void {
-  access.writePersonFullScreen(access.window().isFullScreen())
+export function watchWindowFullScreen(browser: Browser): void {
+  browser.personFullScreen = browser.window.isFullScreen()
   const follow = (): void => {
     setImmediate(() => {
-      if (access.isDestroyed() || access.window().isDestroyed()) return
-      const holder = pageFullscreenHolder(access)
-      if (!access.window().isFullScreen()) {
-        access.writePersonFullScreen(false)
+      if (browser.destroyed || browser.window.isDestroyed()) return
+      const holder = pageFullscreenHolder(browser)
+      if (!browser.window.isFullScreen()) {
+        browser.personFullScreen = false
         if (holder) requestPageFullscreenExit(holder)
       } else if (!holder) {
-        access.writePersonFullScreen(true)
+        browser.personFullScreen = true
       }
     })
   }
-  access.window().on('enter-full-screen', follow)
-  access.window().on('leave-full-screen', follow)
+  browser.window.on('enter-full-screen', follow)
+  browser.window.on('leave-full-screen', follow)
 }
 
 /**
  * Asks the page in full screen to leave it, as when a browser shortcut opens the address field, Find or another
  * control the page would otherwise cover.
  */
-export function exitPageFullscreen<Tab extends PageFullscreenTab>(access: PageFullscreenAccess<Tab>): void {
-  for (const tab of access.tabs()) if (tab.pageFullscreen) requestPageFullscreenExit(tab)
+export function exitPageFullscreen(browser: Browser): void {
+  for (const tab of browser.tabs.values()) if (tab.pageFullscreen) requestPageFullscreenExit(tab)
 }
 
 /**
  * Asks every page in full screen but this tab's to leave it, as when the person selects the split view pane that the
  * other pane in full screen hides, so the selected page shows instead of taking keyboard focus behind it.
  */
-export function exitPageFullscreenCovering<Tab extends PageFullscreenTab>(access: PageFullscreenAccess<Tab>, tabId: string): void {
-  for (const tab of access.tabs()) if (tab.pageFullscreen && tab.id !== tabId) requestPageFullscreenExit(tab)
+export function exitPageFullscreenCovering(browser: Browser, tabId: string): void {
+  for (const tab of browser.tabs.values()) if (tab.pageFullscreen && tab.id !== tabId) requestPageFullscreenExit(tab)
 }
 
 /** Asks every page in full screen that the window no longer shows to leave it. */
-export function exitHiddenPageFullscreen<Tab extends PageFullscreenTab>(access: PageFullscreenAccess<Tab>): void {
-  for (const tab of access.tabs()) {
-    if (tab.pageFullscreen && !access.isShown(tab.id)) requestPageFullscreenExit(tab)
+export function exitHiddenPageFullscreen(browser: Browser): void {
+  for (const tab of browser.tabs.values()) {
+    if (tab.pageFullscreen && !isShown(browser, tab.id)) requestPageFullscreenExit(tab)
   }
 }
 
 /** The window's full screen to save: the person's own, not a page's, which ends with the page. */
-export function windowFullScreenToSave<Tab extends PageFullscreenTab>(access: PageFullscreenAccess<Tab>): boolean {
-  if (access.isDestroyed() || access.window().isDestroyed()) return access.personFullScreen()
-  return pageFullscreenHolder(access) ? access.personFullScreen() : access.window().isFullScreen()
+export function windowFullScreenToSave(browser: Browser): boolean {
+  if (browser.destroyed || browser.window.isDestroyed()) return browser.personFullScreen
+  return pageFullscreenHolder(browser) ? browser.personFullScreen : browser.window.isFullScreen()
 }

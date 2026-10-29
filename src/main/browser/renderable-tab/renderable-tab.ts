@@ -127,7 +127,7 @@ export async function withRenderableTab<T>(
               browser.layout()
             } else {
               // A viewport change during the capture left the view's size to this restore.
-              tab.view.setBounds(tab.emulationViewSize === viewSizeAtStart ? originalBounds : browser.tabViewBounds(tab, contentAreaBounds(browser.windowLayoutAccess())))
+              tab.view.setBounds(tab.emulationViewSize === viewSizeAtStart ? originalBounds : browser.tabViewBounds(tab, contentAreaBounds(browser)))
               tab.view.setVisible(visibleAtStart)
             }
           } catch (error) {

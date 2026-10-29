@@ -298,7 +298,7 @@ describe('main-process failures people see in page tools, workspace management a
     'Недостатньо місця на диску, щоб зберегти файл (ENOSPC).'],
     // Tab search page previews
     ['a full-page preview of a sleeping tab', () => getTabOverviewPagePreview({
-      getTab: () => sleepingTab, findTab: () => sleepingTab, isDestroyed: () => false, window: () => ({ isDestroyed: () => false })
+      tabs: new Map([['site', sleepingTab]]), destroyed: false, window: { isDestroyed: () => false }
     } as never, 'site'),
     'Wake this tab before requesting a full-page preview.',
     'Пробудіть цю вкладку, перш ніж запитувати перегляд усієї сторінки.'],

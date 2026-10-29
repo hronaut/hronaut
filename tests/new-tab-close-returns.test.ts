@@ -5,6 +5,11 @@ vi.mock('../src/main/browser/new-tabs/new-tabs.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/new-tabs/new-tabs.js')>(),
   createNewTab: (browser: { createNewTab: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.createNewTab(...args)
 }))
+// The prototype-built browser below stubs invalidateTabOverviewPreview, which closing a tab drops its overview preview with.
+vi.mock('../src/main/browser/tab-overview-previews/tab-overview-previews.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-overview-previews/tab-overview-previews.js')>(),
+  invalidateTabOverviewPreview: (browser: { invalidateTabOverviewPreview: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.invalidateTabOverviewPreview(...args)
+}))
 import { Browser } from '../src/main/browser/browser.js'
 
 // A new tab from + or Ctrl/Cmd+T, closed right away, showed the tab beside it (the workspace's last tab), where Chrome

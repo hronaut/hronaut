@@ -42,6 +42,18 @@ vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOrigi
   browserState: (browser: { getState: () => unknown }) => browser.getState()
 }))
 
+// The prototype-built browser below stubs scheduleTabOverviewPreview, which showing a page asks for its overview preview with.
+vi.mock('../src/main/browser/tab-overview-previews/tab-overview-previews.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-overview-previews/tab-overview-previews.js')>(),
+  scheduleTabOverviewPreview: (browser: { scheduleTabOverviewPreview: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.scheduleTabOverviewPreview(...args)
+}))
+
+// The prototype-built browser below stubs roundPageCorners, with which a new tab's page gets the page card's corners.
+vi.mock('../src/main/browser/window-layout/window-layout.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/window-layout/window-layout.js')>(),
+  roundPageCorners: (browser: { roundPageCorners: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.roundPageCorners(...args)
+}))
+
 const { Browser } = await import('../src/main/browser/browser.js')
 const { attachPagePointerEvents } = await import('../src/main/browser/tab-events/page-pointer-events.js')
 

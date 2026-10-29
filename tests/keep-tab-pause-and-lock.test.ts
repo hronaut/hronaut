@@ -48,6 +48,12 @@ vi.mock('../src/main/browser/tab-arrangement/tab-arrangement.js', async (importO
   ) => browser.reorderTab(tabId, targetTabId, placement)
 }))
 
+// The prototype-built browser below stubs roundPageCorners, with which a new tab's page gets the page card's corners.
+vi.mock('../src/main/browser/window-layout/window-layout.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/window-layout/window-layout.js')>(),
+  roundPageCorners: (browser: { roundPageCorners: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.roundPageCorners(...args)
+}))
+
 const { Browser } = await import('../src/main/browser/browser.js')
 const { WorkspaceRegistry } = await import('../src/main/browser/workspace-registry.js')
 const { closeTabsForPerson } = await import('../src/main/browser/tab-close/close-tabs-for-person.js')

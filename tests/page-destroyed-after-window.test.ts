@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { BrowserWindow } from 'electron'
 import { publishPageGeometry } from '../src/main/browser/page-geometry/page-geometry.js'
-import type { PageGeometryAccess } from '../src/main/browser/page-geometry/page-geometry-access.js'
+import type { Browser } from '../src/main/browser/browser.js'
 import { recoverFromDestroyedPage } from '../src/main/browser/tab-events/page-destroyed-events.js'
 import type { PageDestroyedEventsAccess, PageDestroyedEventsTab } from '../src/main/browser/tab-events/page-destroyed-events-access.js'
 
@@ -31,7 +31,7 @@ describe('a tab\'s page destroyed after the window', () => {
       orderedTabs: () => [tab],
       createTab,
       runWalletLifecycleAction,
-      publishPageGeometry: () => publishPageGeometry({ window: destroyedWindow } as unknown as PageGeometryAccess<never>)
+      publishPageGeometry: () => publishPageGeometry({ window: destroyedWindow() } as unknown as Browser)
     }, { get: (target, key) => (target as Record<PropertyKey, unknown>)[key] ?? vi.fn() }) as unknown as PageDestroyedEventsAccess<PageDestroyedEventsTab>
 
     expect(() => recoverFromDestroyedPage(access, tab)).not.toThrow()
@@ -41,6 +41,6 @@ describe('a tab\'s page destroyed after the window', () => {
   })
 
   it('publishes no page geometry once the window is gone', () => {
-    expect(() => publishPageGeometry({ window: destroyedWindow } as unknown as PageGeometryAccess<never>)).not.toThrow()
+    expect(() => publishPageGeometry({ window: destroyedWindow() } as unknown as Browser)).not.toThrow()
   })
 })

@@ -33,6 +33,11 @@ vi.mock('electron', () => {
   }
   return { session: {}, WebContentsView, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, powerMonitor: { on: () => undefined } }
 })
+// The prototype-built browser below stubs roundPageCorners, with which a new tab's page gets the page card's corners.
+vi.mock('../src/main/browser/window-layout/window-layout.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/window-layout/window-layout.js')>(),
+  roundPageCorners: (browser: { roundPageCorners: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.roundPageCorners(...args)
+}))
 import { Browser } from '../src/main/browser/browser.js'
 import { nextPageLoadTurn } from '../src/main/browser/page-load-turns/page-load-turns.js'
 

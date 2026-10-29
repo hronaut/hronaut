@@ -5,11 +5,21 @@ import { LocalizedError } from '../../localized-error.js'
 import { isHronautHomeUrl } from '../url.js'
 import { RendererExitedError } from '../renderer-exit-guard.js'
 import { PrintDialogOpenError } from '../print-dialog-guard.js'
-import type {
-  TabOverviewPreviewCaptureMode,
-  TabOverviewPreviewsAccess,
-  TabOverviewPreviewsTab
-} from './tab-overview-previews-access.js'
+import type { Browser } from '../browser.js'
+import { findTab, getTab } from '../browser-core.js'
+import type { BrowserTab } from '../browser-tab.js'
+import { withDebugger } from '../debugger-lease/debugger-lease.js'
+import { withRenderableTab } from '../renderable-tab/renderable-tab.js'
+
+/** How an overview capture reads the page: the frame in view, or a hidden page behind the overview. */
+export type TabOverviewPreviewCaptureMode = 'visible' | 'overview'
+
+/** One queued overview capture of a tab, superseded by a newer sequence. */
+export interface TabOverviewPreviewCaptureRequest<Tab> {
+  tab: Tab
+  sequence: number
+  mode: TabOverviewPreviewCaptureMode
+}
 
 const MAX_TAB_OVERVIEW_PREVIEW_WIDTH = 480
 const MAX_TAB_OVERVIEW_PREVIEW_HEIGHT = 300
@@ -32,41 +42,41 @@ const TAB_OVERVIEW_PREVIEW_SETTLE_MS = 250
  * from before it slept included. While the overview covers the page in view,
  * each call also refreshes a small rotating batch of the visible tabs' frames.
  */
-export function getTabOverviewPreviews<Tab extends TabOverviewPreviewsTab>(access: TabOverviewPreviewsAccess<Tab>, tabIds: readonly string[]): BrowserTabOverviewPreview[] {
+export function getTabOverviewPreviews(browser: Browser, tabIds: readonly string[]): BrowserTabOverviewPreview[] {
   if (
-    !access.isDestroyed()
-    && !access.window().isDestroyed()
-    && access.window().isVisible()
-    && access.window().isFocused()
-    && access.browserContentOccluded()
+    !browser.destroyed
+    && !browser.window.isDestroyed()
+    && browser.window.isVisible()
+    && browser.window.isFocused()
+    && browser.browserContentOccluded
   ) {
     const candidates = tabIds.flatMap((tabId) => {
-      const tab = access.findTab(tabId)
+      const tab = findTab(browser, tabId)
       return tab
-        && access.tabOverviewPreviewableTabs().has(tabId)
+        && browser.tabOverviewPreviewableTabs.has(tabId)
         && !tab.sleeping
         && !tab.webContents.isDestroyed()
-        && (tab.id === access.activeTabId() || access.splitViewContains(tab.id))
+        && (tab.id === browser.activeTabId || browser.splitViewContains(tab.id))
         ? [tab]
         : []
     })
     if (candidates.length) {
-      const start = access.tabOverviewLiveCaptureCursor() % candidates.length
+      const start = browser.tabOverviewLiveCaptureCursor % candidates.length
       const batchSize = Math.min(TAB_OVERVIEW_LIVE_CAPTURE_BATCH, candidates.length)
-      const batch: Tab[] = []
+      const batch: BrowserTab[] = []
       for (let index = 0; index < batchSize; index += 1) {
         const tab = candidates[(start + index) % candidates.length]
         if (tab) batch.push(tab)
       }
-      access.setTabOverviewLiveCaptureCursor((start + batchSize) % candidates.length)
+      browser.tabOverviewLiveCaptureCursor = (start + batchSize) % candidates.length
       for (const tab of batch) {
         // A periodic refresh must not invalidate a capture that is already
         // painting. Lifecycle events advance this sequence independently,
         // so navigation can still supersede the old frame and queue a new one.
-        const sequence = access.tabOverviewPreviewCaptures().has(tab.id)
+        const sequence = browser.tabOverviewPreviewCaptures.has(tab.id)
           ? tab.overviewPreviewSequence
           : ++tab.overviewPreviewSequence
-        void captureTabOverviewPreview(access, tab, sequence, 'overview').catch(() => {
+        void captureTabOverviewPreview(browser, tab, sequence, 'overview').catch(() => {
           // Live previews are best-effort. One page renderer refusing capture
           // must not suppress the last-good frames for every other tab.
         })
@@ -75,16 +85,16 @@ export function getTabOverviewPreviews<Tab extends TabOverviewPreviewsTab>(acces
   }
   const previews: BrowserTabOverviewPreview[] = []
   for (const tabId of tabIds) {
-    const tab = access.findTab(tabId)
-    const lastFrame = access.tabOverviewSleepPreviews().get(tabId)
+    const tab = findTab(browser, tabId)
+    const lastFrame = browser.tabOverviewSleepPreviews.get(tabId)
     if (lastFrame && tab?.sleeping) {
       previews.push({ ...lastFrame, navigationGeneration: tab.navigationGeneration, sleeping: true })
       continue
     }
-    if (lastFrame) access.tabOverviewSleepPreviews().delete(tabId)
-    const preview = access.tabOverviewPreviews().get(tabId)
+    if (lastFrame) browser.tabOverviewSleepPreviews.delete(tabId)
+    const preview = browser.tabOverviewPreviews.get(tabId)
     if (!tab || tab.sleeping || !preview || preview.navigationGeneration !== tab.navigationGeneration) {
-      if (preview) access.tabOverviewPreviews().delete(tabId)
+      if (preview) browser.tabOverviewPreviews.delete(tabId)
       continue
     }
     previews.push({ ...preview })
@@ -96,19 +106,19 @@ export function getTabOverviewPreviews<Tab extends TabOverviewPreviewsTab>(acces
  * A bounded full-page JPEG of an awake, loaded tab for the overview. At most
  * two run at once, and a repeated request for the same tab shares its capture.
  */
-export async function getTabOverviewPagePreview<Tab extends TabOverviewPreviewsTab>(access: TabOverviewPreviewsAccess<Tab>, tabId: string): Promise<BrowserTabOverviewPreview> {
-  const tab = access.getTab(tabId)
+export async function getTabOverviewPagePreview(browser: Browser, tabId: string): Promise<BrowserTabOverviewPreview> {
+  const tab = getTab(browser, tabId)
   const webContents = tab.webContents
   const navigationGeneration = tab.navigationGeneration
   let expired = false
   let viewportIdentity: string | undefined = undefined
   const currentViewportIdentity = (): string => {
     const { width, height } = tab.view.getBounds()
-    return JSON.stringify([width, height, webContents.getZoomFactor(), access.screenshotPixelRatio(tab), tab.emulation.viewport])
+    return JSON.stringify([width, height, webContents.getZoomFactor(), browser.screenshotPixelRatio(tab), tab.emulation.viewport])
   }
   const assertCurrent = (): void => {
     if (expired) throw new LocalizedError('appErrors.previews.timedOut')
-    if (access.isDestroyed() || access.window().isDestroyed() || access.findTab(tabId) !== tab || webContents.isDestroyed()) {
+    if (browser.destroyed || browser.window.isDestroyed() || findTab(browser, tabId) !== tab || webContents.isDestroyed()) {
       throw new LocalizedError('appErrors.previews.tabClosed')
     }
     if (tab.sleeping || tab.wakePromise) throw new LocalizedError('appErrors.previews.sleeping')
@@ -117,14 +127,14 @@ export async function getTabOverviewPagePreview<Tab extends TabOverviewPreviewsT
     if (viewportIdentity !== undefined && currentViewportIdentity() !== viewportIdentity) {
       throw new LocalizedError('appErrors.previews.viewportChanged')
     }
-    if (access.isDevToolsOpening(webContents.id) || webContents.isDevToolsOpened()) {
+    if (browser.devToolsOpening.has(webContents.id) || webContents.isDevToolsOpened()) {
       throw new LocalizedError('appErrors.previews.devTools')
     }
   }
   assertCurrent()
-  const existing = access.tabOverviewPageCaptures().get(tabId)
+  const existing = browser.tabOverviewPageCaptures.get(tabId)
   if (existing) return existing
-  if (access.tabOverviewPageCaptures().size >= MAX_TAB_OVERVIEW_PAGE_CAPTURES) {
+  if (browser.tabOverviewPageCaptures.size >= MAX_TAB_OVERVIEW_PAGE_CAPTURES) {
     throw new LocalizedError('appErrors.previews.busy')
   }
 
@@ -132,7 +142,7 @@ export async function getTabOverviewPagePreview<Tab extends TabOverviewPreviewsT
 
   // Visible tabs capture directly; detached tabs need the existing offscreen
   // host even if previously viewed. Neither path selects, scrolls, or wakes a tab.
-  const runCapture = () => access.withDebugger(webContents, async () => {
+  const runCapture = () => withDebugger(browser, webContents, async () => {
     assertCurrent()
     const metrics = await webContents.debugger.sendCommand('Page.getLayoutMetrics') as {
       cssContentSize?: { x: number; y: number; width: number; height: number }
@@ -146,7 +156,7 @@ export async function getTabOverviewPagePreview<Tab extends TabOverviewPreviewsT
     }
     // Page JavaScript can replace devicePixelRatio. Only trusted native and
     // Hronaut emulation values may influence capture allocation limits.
-    const pixelRatio = access.screenshotPixelRatio(tab)
+    const pixelRatio = browser.screenshotPixelRatio(tab)
     // Page.Viewport takes DIP, while cssContentSize is CSS pixels. Native
     // page zoom changes that ratio; scaling only the output crops the page.
     const clip = fullPageScreenshotBounds(metrics, webContents.getZoomFactor())
@@ -195,28 +205,28 @@ export async function getTabOverviewPagePreview<Tab extends TabOverviewPreviewsT
     nativeCapture = runCapture()
     return Promise.race([nativeCapture, deadline])
   }
-  const capture = access.withRenderableTab(tab, captureOperation, 'surface')
+  const capture = withRenderableTab(browser, tab, captureOperation, 'surface')
   const request = Promise.race([capture, deadline])
-  access.tabOverviewPageCaptures().set(tabId, request)
+  browser.tabOverviewPageCaptures.set(tabId, request)
   // The deadline releases an offscreen host promptly, but cannot cancel CDP.
   // Keep the slot until native work settles so retries do not accumulate or
   // detach a debugger owned by another operation.
   void capture.finally(async () => {
     if (timer) clearTimeout(timer)
     await nativeCapture?.catch(() => undefined)
-    if (access.tabOverviewPageCaptures().get(tabId) === request) access.tabOverviewPageCaptures().delete(tabId)
+    if (browser.tabOverviewPageCaptures.get(tabId) === request) browser.tabOverviewPageCaptures.delete(tabId)
   }).catch(() => undefined)
   return request
 }
 
 /** Queues an overview capture of the tab, keeping only the newest pending request per tab. */
-export async function captureTabOverviewPreview<Tab extends TabOverviewPreviewsTab>(
-  access: TabOverviewPreviewsAccess<Tab>,
-  tab: Tab,
+export async function captureTabOverviewPreview(
+  browser: Browser,
+  tab: BrowserTab,
   sequence: number,
   mode: TabOverviewPreviewCaptureMode = 'visible'
 ): Promise<void> {
-  return access.tabOverviewPreviewCaptures().run(tab.id, { tab, sequence, mode })
+  return browser.tabOverviewPreviewCaptures.run(tab.id, { tab, sequence, mode })
 }
 
 /**
@@ -225,93 +235,93 @@ export async function captureTabOverviewPreview<Tab extends TabOverviewPreviewsT
  * as the active tab or a split view pane. A newer schedule supersedes the
  * capture this one starts.
  */
-export function scheduleTabOverviewPreview<Tab extends TabOverviewPreviewsTab>(access: TabOverviewPreviewsAccess<Tab>, tab: Tab, settleMs = TAB_OVERVIEW_PREVIEW_SETTLE_MS): void {
+export function scheduleTabOverviewPreview(browser: Browser, tab: BrowserTab, settleMs = TAB_OVERVIEW_PREVIEW_SETTLE_MS): void {
   if (
-    access.isDestroyed()
-    || access.findTab(tab.id) !== tab
+    browser.destroyed
+    || findTab(browser, tab.id) !== tab
     || tab.webContents.isDestroyed()
     || tab.sleeping
-    || (tab.id !== access.activeTabId() && !access.splitViewContains(tab.id))
+    || (tab.id !== browser.activeTabId && !browser.splitViewContains(tab.id))
   ) return
   const sequence = ++tab.overviewPreviewSequence
-  const existing = access.tabOverviewPreviewTimers().get(tab.id)
+  const existing = browser.tabOverviewPreviewTimers.get(tab.id)
   if (existing) clearTimeout(existing)
   const timer = setTimeout(() => {
-    if (access.tabOverviewPreviewTimers().get(tab.id) === timer) {
-      access.tabOverviewPreviewTimers().delete(tab.id)
+    if (browser.tabOverviewPreviewTimers.get(tab.id) === timer) {
+      browser.tabOverviewPreviewTimers.delete(tab.id)
     }
-    void captureTabOverviewPreview(access, tab, sequence).catch((error) => {
+    void captureTabOverviewPreview(browser, tab, sequence).catch((error) => {
       // A crashed page has no preview; its crash already dropped the old one. A page in its print dialog keeps its old one.
       if (error instanceof RendererExitedError || error instanceof PrintDialogOpenError) return
-      if (!access.isDestroyed() && access.findTab(tab.id) === tab && !tab.webContents.isDestroyed()) {
+      if (!browser.destroyed && findTab(browser, tab.id) === tab && !tab.webContents.isDestroyed()) {
         console.warn(`[browser] Could not capture tab overview preview for ${tab.id}:`, error)
       }
     })
   }, settleMs)
   timer.unref()
-  access.tabOverviewPreviewTimers().set(tab.id, timer)
+  browser.tabOverviewPreviewTimers.set(tab.id, timer)
 }
 
 /**
  * Captures the tab's current frame for the overview when it is still eligible, and keeps it as the tab's preview.
  * While another capture of the page runs, a capture of the page in view is scheduled again once that one is done.
  */
-export async function performTabOverviewPreviewCapture<Tab extends TabOverviewPreviewsTab>(
-  access: TabOverviewPreviewsAccess<Tab>,
-  tab: Tab,
+export async function performTabOverviewPreviewCapture(
+  browser: Browser,
+  tab: BrowserTab,
   sequence: number,
   mode: TabOverviewPreviewCaptureMode
 ): Promise<void> {
   const isEligible = (): boolean => (
-    !access.isDestroyed()
-    && !access.window().isDestroyed()
-    && access.findTab(tab.id) === tab
+    !browser.destroyed
+    && !browser.window.isDestroyed()
+    && findTab(browser, tab.id) === tab
     && !tab.webContents.isDestroyed()
-    && access.window().isVisible()
-    && access.window().isFocused()
+    && browser.window.isVisible()
+    && browser.window.isFocused()
     && !tab.sleeping
     && (mode === 'overview'
-      ? access.browserContentOccluded()
-        && access.tabOverviewPreviewableTabs().has(tab.id)
-      : !access.browserContentOccluded()
+      ? browser.browserContentOccluded
+        && browser.tabOverviewPreviewableTabs.has(tab.id)
+      : !browser.browserContentOccluded
         && tab.view.getVisible()
         && !tab.loading
-        && (tab.id === access.activeTabId() || access.splitViewContains(tab.id)))
+        && (tab.id === browser.activeTabId || browser.splitViewContains(tab.id)))
     && tab.overviewPreviewSequence === sequence
   )
   if (!isEligible()) return
-  const busy = access.nativePreviewCapture().settled(tab.webContents)
+  const busy = browser.nativePreviewCapture.settled(tab.webContents)
   if (busy) {
     // Another capture of the page is still running, such as the picture of an agent's step, and this one would get
     // nothing: try again once it is done. The overview refreshes its own frames while it is open.
-    if (mode === 'visible') void busy.then(() => { if (isEligible()) access.scheduleTabOverviewPreview(tab) }).catch(() => undefined)
+    if (mode === 'visible') void busy.then(() => { if (isEligible()) scheduleTabOverviewPreview(browser, tab) }).catch(() => undefined)
     return
   }
   const navigationGeneration = tab.navigationGeneration
-  const captured = await access.nativePreviewCapture().run(
+  const captured = await browser.nativePreviewCapture.run(
     tab.webContents,
     () => mode === 'overview'
       ? tab.webContents.capturePage(undefined, { stayHidden: true, stayAwake: false })
       : tab.webContents.capturePage(),
-    () => { access.tabOverviewPreviewableTabs().delete(tab.id) },
-    () => resumeTabOverviewPreviewAfterLateCapture(access, tab)
+    () => { browser.tabOverviewPreviewableTabs.delete(tab.id) },
+    () => resumeTabOverviewPreviewAfterLateCapture(browser, tab)
   )
   if (!captured || !isEligible() || tab.navigationGeneration !== navigationGeneration || captured.isEmpty()) return
   // Only the single website card is enlarged. Keep normal cached captures
   // compact and promote the active frame during its existing overview refresh.
   const enlarged = mode === 'overview'
     && !isHronautHomeUrl(tab.url)
-    && [...access.tabs()].filter(candidate => !isHronautHomeUrl(candidate.url)).length === 1
-  if (storeTabOverviewPreview(access, tab, captured, navigationGeneration, enlarged, isEligible)) access.tabOverviewPreviewableTabs().add(tab.id)
+    && [...browser.tabs.values()].filter(candidate => !isHronautHomeUrl(candidate.url)).length === 1
+  if (storeTabOverviewPreview(browser, tab, captured, navigationGeneration, enlarged, isEligible)) browser.tabOverviewPreviewableTabs.add(tab.id)
 }
 
 /**
  * Keeps a captured frame as the tab's overview preview, compact unless enlarged; false when it no longer applies
  * or exceeds the size limit. Memory only: never saved, sent to agents or reported.
  */
-export function storeTabOverviewPreview<Tab extends TabOverviewPreviewsTab>(
-  access: TabOverviewPreviewsAccess<Tab>,
-  tab: Tab,
+export function storeTabOverviewPreview(
+  browser: Browser,
+  tab: BrowserTab,
   captured: Electron.NativeImage,
   navigationGeneration: number,
   enlarged: boolean,
@@ -337,13 +347,13 @@ export function storeTabOverviewPreview<Tab extends TabOverviewPreviewsTab>(
   const size = image.getSize()
   if (
     !stillCurrent()
-    || access.isDestroyed()
-    || access.findTab(tab.id) !== tab
+    || browser.destroyed
+    || findTab(browser, tab.id) !== tab
     || tab.sleeping
     || tab.navigationGeneration !== navigationGeneration
     || jpeg.length > MAX_TAB_OVERVIEW_PREVIEW_BYTES
   ) return false
-  access.tabOverviewPreviews().set(tab.id, {
+  browser.tabOverviewPreviews.set(tab.id, {
     tabId: tab.id,
     navigationGeneration,
     dataUrl: `data:image/jpeg;base64,${jpeg.toString('base64')}`,
@@ -353,35 +363,35 @@ export function storeTabOverviewPreview<Tab extends TabOverviewPreviewsTab>(
   return true
 }
 
-function resumeTabOverviewPreviewAfterLateCapture<Tab extends TabOverviewPreviewsTab>(access: TabOverviewPreviewsAccess<Tab>, tab: Tab): void {
+function resumeTabOverviewPreviewAfterLateCapture(browser: Browser, tab: BrowserTab): void {
   setImmediate(() => {
     if (
-      access.isDestroyed()
-      || access.window().isDestroyed()
-      || access.findTab(tab.id) !== tab
+      browser.destroyed
+      || browser.window.isDestroyed()
+      || findTab(browser, tab.id) !== tab
       || tab.webContents.isDestroyed()
       || tab.sleeping
     ) return
-    access.tabOverviewPreviewableTabs().add(tab.id)
+    browser.tabOverviewPreviewableTabs.add(tab.id)
     if (
-      access.window().isVisible()
-      && access.window().isFocused()
-      && access.browserContentOccluded()
-      && (tab.id === access.activeTabId() || access.splitViewContains(tab.id))
+      browser.window.isVisible()
+      && browser.window.isFocused()
+      && browser.browserContentOccluded
+      && (tab.id === browser.activeTabId || browser.splitViewContains(tab.id))
     ) {
       const sequence = ++tab.overviewPreviewSequence
-      void captureTabOverviewPreview(access, tab, sequence, 'overview').catch(() => undefined)
+      void captureTabOverviewPreview(browser, tab, sequence, 'overview').catch(() => undefined)
       return
     }
-    access.scheduleTabOverviewPreview(tab)
+    scheduleTabOverviewPreview(browser, tab)
   })
 }
 
 /** Drops the tab's overview preview and pending refresh, and supersedes any capture already under way. */
-export function invalidateTabOverviewPreview<Tab extends TabOverviewPreviewsTab>(access: TabOverviewPreviewsAccess<Tab>, tab: Tab): void {
-  const timer = access.tabOverviewPreviewTimers().get(tab.id)
+export function invalidateTabOverviewPreview(browser: Browser, tab: BrowserTab): void {
+  const timer = browser.tabOverviewPreviewTimers.get(tab.id)
   if (timer) clearTimeout(timer)
-  access.tabOverviewPreviewTimers().delete(tab.id)
-  access.tabOverviewPreviews().delete(tab.id)
+  browser.tabOverviewPreviewTimers.delete(tab.id)
+  browser.tabOverviewPreviews.delete(tab.id)
   tab.overviewPreviewSequence += 1
 }
