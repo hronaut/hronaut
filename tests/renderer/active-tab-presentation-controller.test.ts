@@ -118,6 +118,9 @@ describe('active tab presentation controller', () => {
     expect(controller.activeSecurity.value).toBe('local')
     activeTab.value = tab({ url: 'hronaut://home/' })
     expect(controller.activeSecurity.value).toBeNull()
+    // An HTTPS page whose certificate the person chose to trust anyway is not secure, as in Chrome.
+    activeTab.value = tab({ url: 'https://staging.example/', untrustedCertificate: true })
+    expect(controller.activeSecurity.value).toBe('not-secure')
   })
 
   it('shows Site controls only the decisions for the tab’s workspace and page', () => {

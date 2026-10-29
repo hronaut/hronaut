@@ -196,6 +196,7 @@ import {
   BrowserWindow,
   dialog,
   Menu,
+  net,
   powerMonitor,
   screen,
   webContents as electronWebContents,
@@ -290,6 +291,15 @@ import { screenshot } from './screenshots/screenshots.js'
 import type { InspectorIssuesAccess } from './inspector-issues/inspector-issues-access.js'
 import { addInspectorIssue, inspectorIssues, recordAuthChallenge } from './inspector-issues/inspector-issues.js'
 import { answerHttpAuth, followSignIns, type HttpAuthQuestion, type SignInAnswer } from './http-auth/http-auth.js'
+import {
+  answerCertificateError,
+  certificateRefusal,
+  contentLoaded,
+  proceedPastCertificateError,
+  type CertificateQuestion,
+  type StrictTransportProbe
+} from './certificate-errors/certificate-errors.js'
+import { certificateProblem } from './page-load-problem.js'
 import type {
   SplitDividerGeometry,
   SplitDividerSession,
@@ -963,6 +973,11 @@ export interface TabsManagerOptions {
    * website's sign-in.
    */
   askToSignIn?: (question: HttpAuthQuestion) => Promise<SignInAnswer | null>
+  /**
+   * Asks the person whether to open a page whose website presented a certificate the tab refused, in Hronaut's own
+   * dialog; resolves true only when they choose to proceed. Without it, nobody can.
+   */
+  confirmCertificateException?: (question: CertificateQuestion) => Promise<boolean>
   /**
    * A page took the keyboard while trusted chrome covers it, and gave it back to the shell, as when the person comes
    * back to the window they left with the keyboard in that page.
@@ -4781,6 +4796,44 @@ export class BrowserTabsManager {
     answerHttpAuth({ askToSignIn: async (question) => this.options.askToSignIn?.(question) ?? null }, tab, event, details, authInfo, callback)
   }
 
+  private answerCertificateError(tab: BrowserTab, event: Electron.Event, url: string, error: string, certificate: Electron.Certificate,
+    callback: (trusted: boolean) => void, isMainFrame: boolean): void {
+    answerCertificateError({
+      probe: (session, probeUrl) => net.request({ url: probeUrl, session: session as Session, redirect: 'manual' }) as StrictTransportProbe,
+      changed: () => this.certificatesChanged(tab)
+    }, tab, event, url, error, certificate, callback, isMainFrame)
+  }
+
+  /**
+   * Shows what the person can do about the certificate the tab refused, once Hronaut knows whether they can open it, and
+   * whether its page is not private.
+   */
+  private certificatesChanged(tab: BrowserTab): void {
+    if (this.tabs.get(tab.id) !== tab) return
+    const problem = tab.pageProblem
+    const refusal = problem?.certificate ? certificateRefusal(tab.webContents, problem.url) : undefined
+    if (problem && refusal) {
+      tab.pageProblem = certificateProblem(this.options.getLocale(), problem.url, problem.errorCode ?? 0, problem.errorDescription ?? refusal.error, refusal)
+    }
+    this.changed(false)
+  }
+
+  /**
+   * Asks the person whether to open the page the tab could not open because its website's certificate is not trusted,
+   * and opens it if they choose to, as Chrome's "Proceed (unsafe)". Only the shell asks for this, never an agent.
+   */
+  async proceedPastCertificateError(tabId: string): Promise<BrowserState> {
+    const tab = this.getTab(tabId)
+    const url = tab.pageProblem?.certificate?.canProceed ? tab.pageProblem.url : undefined
+    if (url) {
+      await proceedPastCertificateError({
+        confirm: (question) => this.options.confirmCertificateException?.(question) ?? Promise.resolve(false),
+        open: (pageUrl) => this.navigate(pageUrl, tab.id, { byPerson: true })
+      }, tab, url)
+    }
+    return this.getState()
+  }
+
   /**
    * The narrow view inspector issues get of this manager's private tabs, the
    * debugger that reports issues and state publication. It is a prototype
@@ -6439,6 +6492,10 @@ export class BrowserTabsManager {
       loadFavicon: (tab, favicons) => this.loadFavicon(tab, favicons),
       recordAuthChallenge: (tab, details, authInfo) => this.recordAuthChallenge(tab, details, authInfo),
       answerHttpAuth: (tab, event, details, authInfo, callback) => this.answerHttpAuth(tab, event, details, authInfo, callback),
+      answerCertificateError: (tab, event, url, error, certificate, callback, isMainFrame) => (
+        this.answerCertificateError(tab, event, url, error, certificate, callback, isMainFrame)
+      ),
+      certificateRefusal: (tab, url) => certificateRefusal(tab.webContents, url),
       reconcileTabPresentation: (tab) => this.reconcileTabPresentation(tab),
       reproRecorder: () => this.reproRecorder,
       scheduleTabOverviewPreview: (tab, settleMs) => this.scheduleTabOverviewPreview(tab, settleMs),
@@ -7059,6 +7116,7 @@ export class BrowserTabsManager {
       browserCookieImportSessions: () => this.browserCookieImportSessions,
       networkHookSessions: () => this.networkHookSessions,
       changed: (persist) => this.changed(persist),
+      contentLoaded: (tab, url) => contentLoaded({ changed: () => this.certificatesChanged(tab) }, tab, url),
       networkWaitController: () => this.networkWaitController,
       downloadController: () => this.downloadController
     }

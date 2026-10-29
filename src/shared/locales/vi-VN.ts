@@ -1752,7 +1752,8 @@ export const viVN: MessageSchema = {
   },
   "pageProblem": {
     "reload": "Tải lại",
-    "tryAgain": "Thử lại"
+    "tryAgain": "Thử lại",
+    "proceed": "Tiếp tục truy cập {host}…"
   },
   "responsive": {
     "kicker": "Kiểm thử thích ứng",
@@ -3782,6 +3783,11 @@ export const viVN: MessageSchema = {
       "savePage": "Lưu thành…"
     },
     "pageProblem": {
+      "certificateTitle": "Kết nối của bạn không phải là kết nối riêng tư",
+      "certificateTabTitle": "Lỗi quyền riêng tư",
+      "certificate": "Ai đó có thể đang cố đánh cắp thông tin của bạn từ {host}, chẳng hạn như mật khẩu, tin nhắn hoặc số thẻ.",
+      "certificateStrict": "{host} chỉ chấp nhận kết nối an toàn, vì vậy bạn không thể mở trang này khi chứng chỉ của trang chưa được tin cậy.",
+      "certificateBlocked": "Bạn không thể mở {host}: chứng chỉ của trang đã bị thu hồi, không đọc được hoặc bị chặn.",
       "loadTitle": "Không thể truy cập trang web này",
       "loadTabTitle": "Trang web không khả dụng",
       "loadDefault": "Hronaut không thể tải địa chỉ này.",

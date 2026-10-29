@@ -40,11 +40,12 @@ function hookedSession(debuggerRecords = false) {
     browserCookieImportSessions: () => new Set(),
     networkHookSessions: () => new WeakSet(),
     changed: vi.fn(),
+    contentLoaded: vi.fn(),
     networkWaitController: () => ({ notify }),
     downloadController: () => ({ attachSession: vi.fn() })
   }
   installSessionHooks(access, browserSession)
-  return { webRequest, listeners, tab, notify }
+  return { webRequest, listeners, tab, notify, access }
 }
 
 const request = { id: 41, url: 'https://example.test/app.js', method: 'GET', resourceType: 'script', timestamp: Date.parse('2026-10-26T16:00:00.000Z'), webContentsId: 7 }
@@ -67,6 +68,17 @@ it('records a page\'s requests before its debugger does without holding any of t
     detailsAvailable: false
   })])
   expect(notify).toHaveBeenCalledTimes(2)
+})
+
+it('tells what a page loaded besides its own document, for any tab, so a page showing content that is not private says so', () => {
+  for (const debuggerRecords of [false, true]) {
+    const { listeners, tab, access } = hookedSession(debuggerRecords)
+    listeners.completed!({ ...request, statusCode: 200, fromCache: true })
+    listeners.completed!({ ...request, url: 'https://example.test/frame', resourceType: 'subFrame', statusCode: 200, fromCache: false })
+    listeners.completed!({ ...request, url: 'https://example.test/', resourceType: 'mainFrame', statusCode: 200, fromCache: false })
+    listeners.completed!({ ...request, webContentsId: undefined, statusCode: 200, fromCache: false })
+    expect(vi.mocked(access.contentLoaded).mock.calls, String(debuggerRecords)).toEqual([[tab, 'https://example.test/app.js'], [tab, 'https://example.test/frame']])
+  }
 })
 
 it('keeps a record for each address a redirected request goes to, as the debugger does', () => {

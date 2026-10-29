@@ -10,6 +10,7 @@ type BrowserTabActionsApi = Pick<
   | 'closeTab'
   | 'navigate'
   | 'newTab'
+  | 'proceedPastCertificateError'
   | 'reload'
   | 'reorderTab'
   | 'reorderTabs'
@@ -121,6 +122,18 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
     const tab = options.activeTab.value
     if (!tab?.pageProblem) return
     await options.syncState(options.browser.reload(tab.id))
+  }
+
+  /** Lets the person open the page the shown tab refused for its website's certificate; main asks them to confirm. */
+  async function proceedPastActiveCertificateError(): Promise<void> {
+    if (disposed) return
+    const tab = options.activeTab.value
+    if (!tab?.pageProblem?.certificate?.canProceed) return
+    try {
+      await options.syncState(options.browser.proceedPastCertificateError(tab.id))
+    } catch (error) {
+      if (!disposed) options.onNavigateError(error)
+    }
   }
 
   async function showWorkspaceContextMenu(groupId: string): Promise<void> {
@@ -254,6 +267,7 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
     navigateAddress,
     openAddressInNewTab,
     retryActivePageProblem,
+    proceedPastActiveCertificateError,
     showWorkspaceContextMenu,
     closeTab,
     toggleTabMuted,

@@ -64,8 +64,11 @@ export function useActiveTabPresentationController(options: ActiveTabPresentatio
     return options.sitePermissions.value.filter((entry) => entry.workspaceId === workspaceId
       && (entry.embeddedIn === undefined ? entry.origin === origin : entry.embeddedIn === origin))
   })
-  // The shown page's connection, which the address bar's site controls button shows as Chrome does.
-  const activeSecurity = computed(() => addressSecurity(activeWebUrl.value))
+  // The shown page's connection, which the address bar's site controls button shows as Chrome does: not secure for a
+  // page not private because of a certificate Chromium does not trust.
+  const activeSecurity = computed(() => (
+    options.activeTab.value?.untrustedCertificate ? 'not-secure' as const : addressSecurity(activeWebUrl.value)
+  ))
   const activeAddressKind = computed(() => (
     options.translate(activeWebUrl.value?.startsWith('https:') ? 'runtime.address.https' : 'runtime.address.http')
   ))

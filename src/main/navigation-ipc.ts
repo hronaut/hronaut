@@ -4,6 +4,7 @@ import type { BrowserTabsManager } from './browser/tabs-manager.js'
 
 type NavigationIpcTabs = Pick<BrowserTabsManager,
   | 'beforeStateReply' | 'toggleDevTools' | 'showDevToolsConsole' | 'navigate' | 'back' | 'forward' | 'showHistoryMenu' | 'openNavigationInNewTab' | 'reload' | 'reloadIgnoringCache' | 'stop'
+  | 'proceedPastCertificateError'
   | 'findInPage' | 'stopFindInPage' | 'setZoom' | 'savePdf'>
 
 interface NavigationIpcHost {
@@ -57,6 +58,11 @@ export function registerNavigationIpc(host: NavigationIpcHost): void {
     return host.tabs()!.openNavigationInNewTab(tabId, target, active)
   })
   host.handleBrowserIpc('browser:reload', (event, tabId) => { host.assertTrustedSender(event); return stateReply(host, host.tabs()!.reload(tabId)) })
+  host.handleBrowserIpc('browser:proceed-past-certificate', (event, tabId: unknown) => {
+    host.assertTrustedSender(event)
+    if (typeof tabId !== 'string') throw new TypeError('Invalid tab')
+    return stateReply(host, host.tabs()!.proceedPastCertificateError(tabId))
+  })
   host.handleBrowserIpc('browser:reload-ignoring-cache', (event, tabId) => { host.assertTrustedSender(event); return host.tabs()!.reloadIgnoringCache(tabId) })
   host.handleBrowserIpc('browser:stop', (event, tabId) => { host.assertTrustedSender(event); return host.tabs()!.stop(tabId) })
   host.handleBrowserIpc('browser:find-in-page', (event, options: unknown) => {

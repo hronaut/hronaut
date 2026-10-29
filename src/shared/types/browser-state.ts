@@ -84,6 +84,11 @@ export interface BrowserTabState {
     startedAt: string
   }
   pageProblem?: BrowserPageProblem
+  /**
+   * Runtime only: the page's connection is not private because of a certificate that is not trusted: the tab refused
+   * it, the person chose to open the website anyway, or the page shows a frame they chose to open that way.
+   */
+  untrustedCertificate?: true
   dialog?: BrowserJavaScriptDialog
   mcpGroupId?: string
   mcpGroupName?: string

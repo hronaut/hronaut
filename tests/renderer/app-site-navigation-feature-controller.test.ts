@@ -64,6 +64,7 @@ function createHarness() {
     navigate: vi.fn(async () => browserState.value),
     newTab: vi.fn(async () => browserState.value),
     reload: vi.fn(async () => browserState.value),
+    proceedPastCertificateError: vi.fn(async () => browserState.value),
     reorderTab: vi.fn(async () => browserState.value),
     reorderTabs: vi.fn(async () => browserState.value),
     selectTab: vi.fn(async () => browserState.value),

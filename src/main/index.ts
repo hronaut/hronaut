@@ -1344,6 +1344,24 @@ async function createWindow(startMinimized = false): Promise<void> {
       if (unanswered) return null
       return response === 1 && credentials ? credentials : 'cancelled'
     },
+    confirmCertificateException: async ({ host, error, workspaceId, signal }) => {
+      const workspaceName = workspaceId && tabRuntime.tabs
+        ? promptWorkspaceName(workspaceId, [...tabRuntime.tabs.listMcpTabGroups(), ...tabRuntime.tabs.listSavedTabGroups()])
+        : undefined
+      const { response } = await trustedDialogs.show({
+        variant: { kind: 'certificate', host, error, ...(workspaceName ? { workspaceName } : {}) },
+        signal,
+        type: 'warning',
+        title: text('trustedDialogs.certificate.eyebrow'),
+        message: text('trustedDialogs.certificate.headline', { host }),
+        detail: text('trustedDialogs.certificate.risk'),
+        // Back to safety is the safe answer Escape and Enter give; Proceed is never drawn as the main action.
+        buttons: [text('trustedDialogs.certificate.back'), text('trustedDialogs.certificate.proceed')],
+        defaultId: 0,
+        cancelId: 0
+      })
+      return response === 1
+    },
     onCoveredPageKeyboard: (page) => {
       if (mainWindowRefs.window) trustedDialogs.noteKeyboardPage(mainWindowRefs.window, page)
     },

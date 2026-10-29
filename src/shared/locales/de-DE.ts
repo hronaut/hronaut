@@ -1752,7 +1752,8 @@ export const deDE: MessageSchema = {
   },
   "pageProblem": {
     "reload": "Neu laden",
-    "tryAgain": "Erneut versuchen"
+    "tryAgain": "Erneut versuchen",
+    "proceed": "Weiter zu {host}…"
   },
   "responsive": {
     "kicker": "Responsives Testen",
@@ -3782,6 +3783,11 @@ export const deDE: MessageSchema = {
       "savePage": "Speichern unter…"
     },
     "pageProblem": {
+      "certificateTitle": "Dies ist keine sichere Verbindung",
+      "certificateTabTitle": "Datenschutzfehler",
+      "certificate": "Möglicherweise versucht jemand, Ihre Daten von {host} zu stehlen, etwa Passwörter, Nachrichten oder Kartennummern.",
+      "certificateStrict": "{host} akzeptiert nur sichere Verbindungen, daher können Sie die Website nicht öffnen, solange ihrem Zertifikat nicht vertraut wird.",
+      "certificateBlocked": "Sie können {host} nicht öffnen: Das Zertifikat wurde widerrufen, ist nicht lesbar oder wird blockiert.",
       "loadTitle": "Diese Website konnte nicht erreicht werden",
       "loadTabTitle": "Website nicht erreichbar",
       "loadDefault": "Hronaut konnte diese Adresse nicht laden.",

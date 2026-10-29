@@ -198,6 +198,8 @@ export interface HronautApi {
   /** Opens the page Back or Forward goes to, or the tab's own page for Reload, in a new tab beside the tab; behind unless active. */
   openNavigationInNewTab(options: { tabId: string; target: 'back' | 'forward' | 'reload'; active: boolean }): Promise<BrowserState>
   reload(tabId?: string): Promise<BrowserState>
+  /** Asks the person whether to open the page the tab refused for its website's certificate, and opens it if they choose to. */
+  proceedPastCertificateError(tabId: string): Promise<BrowserState>
   reloadIgnoringCache(tabId?: string): Promise<BrowserState>
   stop(tabId?: string): Promise<BrowserState>
   findInPage(options: BrowserFindOptions): Promise<BrowserFindResult>

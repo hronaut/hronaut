@@ -1752,7 +1752,8 @@ export const koKR: MessageSchema = {
   },
   "pageProblem": {
     "reload": "새로고침",
-    "tryAgain": "다시 시도"
+    "tryAgain": "다시 시도",
+    "proceed": "{host}(으)로 이동…"
   },
   "responsive": {
     "kicker": "반응형 테스트",
@@ -3782,6 +3783,11 @@ export const koKR: MessageSchema = {
       "savePage": "다른 이름으로 저장…"
     },
     "pageProblem": {
+      "certificateTitle": "연결이 비공개로 설정되어 있지 않습니다",
+      "certificateTabTitle": "개인 정보 보호 오류",
+      "certificate": "누군가 {host}에서 비밀번호, 메시지, 카드 번호 같은 정보를 도용하려고 할 수 있습니다.",
+      "certificateStrict": "{host}은(는) 보안 연결만 허용하므로 인증서를 신뢰할 수 없는 동안에는 열 수 없습니다.",
+      "certificateBlocked": "{host}을(를) 열 수 없습니다. 인증서가 취소되었거나, 읽을 수 없거나, 차단되었습니다.",
       "loadTitle": "사이트에 연결할 수 없음",
       "loadTabTitle": "사이트를 사용할 수 없음",
       "loadDefault": "Hronaut에서 이 주소를 로드할 수 없습니다.",

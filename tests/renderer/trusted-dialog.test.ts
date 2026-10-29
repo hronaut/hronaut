@@ -818,3 +818,82 @@ describe('Hronaut’s sign-in dialog for a website', () => {
     expect(screen.getByLabelText('Password')).toHaveFocus()
   })
 })
+
+function certificate(id: string, overrides: Partial<Extract<TrustedDialogRequest['variant'], { kind: 'certificate' }>> = {}): TrustedDialogRequest {
+  return {
+    id,
+    type: 'warning',
+    title: 'Not private',
+    message: 'Proceed to staging.example?',
+    buttons: ['Back to safety', 'Proceed (unsafe)'],
+    defaultId: 0,
+    cancelId: 0,
+    variant: { kind: 'certificate', host: 'staging.example', error: 'ERR_CERT_AUTHORITY_INVALID', workspaceName: 'Client A', ...overrides }
+  }
+}
+
+describe('Hronaut’s question before opening a page whose certificate was refused', () => {
+  it('names the website, why its certificate is not trusted, the risk and the workspace, with Back to safety focused', async () => {
+    const { show, settle } = mountDialog()
+    await show(certificate('one'))
+    const dialog = screen.getByRole('alertdialog', { name: 'Proceed to staging.example?' })
+    expect(dialog).toHaveAttribute('data-variant', 'certificate')
+    expect(dialog).toHaveClass('trusted-dialog--warning')
+    expect(dialog).toHaveTextContent('Not private')
+    expect(dialog).toHaveTextContent('Its security certificate is not from an authority this computer trusts.')
+    expect(dialog).toHaveTextContent('Someone on the network might be pretending to be this website')
+    expect(dialog).toHaveTextContent('in the “Client A” workspace until it quits, and agents in the workspace can open it too.')
+    expect(dialog).not.toHaveTextContent('Hronaut trusts this certificate for this website until it quits.')
+    const back = screen.getByRole('button', { name: 'Back to safety' })
+    expect(back).toHaveFocus()
+    // Proceeding is never drawn as the main action.
+    expect(screen.getByRole('button', { name: 'Proceed (unsafe)' })).not.toHaveClass('ui-button--primary')
+    expect(back).not.toHaveClass('ui-button--primary')
+    await settle()
+    expect(back).toHaveFocus()
+  })
+
+  it('says why for each kind of certificate error, and that the choice lasts until Hronaut quits without a workspace', async () => {
+    const { show } = mountDialog()
+    for (const [error, reason] of [
+      ['ERR_CERT_COMMON_NAME_INVALID', 'Its security certificate is for another website.'],
+      ['ERR_CERT_DATE_INVALID', 'Its security certificate has expired or is not valid yet.'],
+      ['ERR_CERT_WEAK_KEY', 'Its security certificate cannot be verified.'],
+      ['toString', 'Its security certificate cannot be verified.']
+    ] as const) {
+      await show(certificate(error, { error, workspaceName: undefined }))
+      const dialog = screen.getByRole('alertdialog')
+      expect(dialog, error).toHaveTextContent(reason)
+      expect(dialog, error).toHaveTextContent('Hronaut trusts this certificate for this website until it quits.')
+      expect(dialog, error).not.toHaveTextContent('workspace')
+    }
+  })
+
+  it('goes back on Enter or Escape, and proceeds only on its button once it takes answers', async () => {
+    const { api, show, settle } = mountDialog()
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTimeAsync })
+    await show(certificate('one'))
+    await user.click(screen.getByRole('button', { name: 'Proceed (unsafe)' }))
+    expect(api.respond).not.toHaveBeenCalled()
+    await settle()
+    await user.keyboard('{Enter}')
+    expect(api.respond).toHaveBeenLastCalledWith('one', 0)
+
+    await show(certificate('two'))
+    await settle()
+    await user.keyboard('{Escape}')
+    expect(api.respond).toHaveBeenLastCalledWith('two', 0)
+
+    await show(certificate('three'))
+    await settle()
+    await user.click(screen.getByRole('button', { name: 'Proceed (unsafe)' }))
+    expect(api.respond).toHaveBeenLastCalledWith('three', 1)
+  })
+
+  it('speaks the interface language', async () => {
+    const { show } = mountDialog('uk-UA')
+    await show(certificate('one'))
+    const dialog = screen.getByRole('alertdialog', { name: 'Перейти на staging.example?' })
+    expect(dialog).toHaveTextContent('Не захищено')
+  })
+})

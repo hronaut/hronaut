@@ -25,6 +25,7 @@ type SiteNavigationBrowserApi = Pick<
   | 'closeTab'
   | 'navigate'
   | 'newTab'
+  | 'proceedPastCertificateError'
   | 'reload'
   | 'reorderTab'
   | 'reorderTabs'

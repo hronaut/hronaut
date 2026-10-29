@@ -16,6 +16,19 @@ export const trustedDialogMessages = {
       password: 'Password',
       signIn: 'Sign in'
     },
+    certificate: {
+      eyebrow: 'Not private',
+      headline: 'Proceed to {host}?',
+      authority: 'Its security certificate is not from an authority this computer trusts.',
+      name: 'Its security certificate is for another website.',
+      date: 'Its security certificate has expired or is not valid yet.',
+      other: 'Its security certificate cannot be verified.',
+      risk: 'Someone on the network might be pretending to be this website to read what you send it, such as passwords.',
+      workspace: 'Hronaut trusts this certificate for this website in the “{workspace}” workspace until it quits, and agents in the workspace can open it too.',
+      session: 'Hronaut trusts this certificate for this website until it quits.',
+      back: 'Back to safety',
+      proceed: 'Proceed (unsafe)'
+    },
     savePassword: {
       eyebrow: 'Saved passwords',
       save: 'Save your password for {origin}?',
@@ -74,6 +87,19 @@ export const trustedDialogMessages = {
       username: 'Ім’я користувача',
       password: 'Пароль',
       signIn: 'Увійти'
+    },
+    certificate: {
+      eyebrow: 'Не захищено',
+      headline: 'Перейти на {host}?',
+      authority: 'Його сертифікат безпеки видав центр, якому цей комп’ютер не довіряє.',
+      name: 'Його сертифікат безпеки належить іншому сайту.',
+      date: 'Термін дії його сертифіката безпеки минув або ще не настав.',
+      other: 'Його сертифікат безпеки не вдається перевірити.',
+      risk: 'Хтось у мережі може видавати себе за цей сайт, щоб читати те, що ви йому надсилаєте, як-от паролі.',
+      workspace: 'Hronaut довірятиме цьому сертифікату для цього сайту в робочому просторі «{workspace}», доки Hronaut не закриється, і агенти цього робочого простору теж зможуть його відкривати.',
+      session: 'Hronaut довірятиме цьому сертифікату для цього сайту, доки Hronaut не закриється.',
+      back: 'Повернутися в безпечне місце',
+      proceed: 'Перейти (небезпечно)'
     },
     savePassword: {
       eyebrow: 'Збережені паролі',
@@ -134,6 +160,19 @@ export const trustedDialogMessages = {
       password: 'Пароль',
       signIn: 'Войти'
     },
+    certificate: {
+      eyebrow: 'Не защищено',
+      headline: 'Перейти на {host}?',
+      authority: 'Его сертификат безопасности выдан центром, которому этот компьютер не доверяет.',
+      name: 'Его сертификат безопасности выдан другому сайту.',
+      date: 'Срок действия его сертификата безопасности истёк или ещё не начался.',
+      other: 'Его сертификат безопасности не удаётся проверить.',
+      risk: 'Кто-то в сети может выдавать себя за этот сайт, чтобы читать то, что вы ему отправляете, например пароли.',
+      workspace: 'Hronaut будет доверять этому сертификату для этого сайта в рабочем пространстве «{workspace}», пока Hronaut не закроется, и агенты этого рабочего пространства тоже смогут его открывать.',
+      session: 'Hronaut будет доверять этому сертификату для этого сайта, пока Hronaut не закроется.',
+      back: 'Вернуться в безопасное место',
+      proceed: 'Перейти (небезопасно)'
+    },
     savePassword: {
       eyebrow: 'Сохранённые пароли',
       save: 'Сохранить пароль для {origin}?',
@@ -192,6 +231,19 @@ export const trustedDialogMessages = {
       username: 'Benutzername',
       password: 'Passwort',
       signIn: 'Anmelden'
+    },
+    certificate: {
+      eyebrow: 'Nicht sicher',
+      headline: 'Weiter zu {host}?',
+      authority: 'Das Sicherheitszertifikat stammt nicht von einer Stelle, der dieser Computer vertraut.',
+      name: 'Das Sicherheitszertifikat gilt für eine andere Website.',
+      date: 'Das Sicherheitszertifikat ist abgelaufen oder noch nicht gültig.',
+      other: 'Das Sicherheitszertifikat lässt sich nicht überprüfen.',
+      risk: 'Jemand im Netzwerk könnte sich als diese Website ausgeben, um mitzulesen, was Sie ihr senden, etwa Passwörter.',
+      workspace: 'Hronaut vertraut diesem Zertifikat für diese Website im Arbeitsbereich „{workspace}“, bis Hronaut beendet wird, und auch die Agenten im Arbeitsbereich können sie öffnen.',
+      session: 'Hronaut vertraut diesem Zertifikat für diese Website, bis Hronaut beendet wird.',
+      back: 'Zurück zu sicherer Seite',
+      proceed: 'Weiter (unsicher)'
     },
     savePassword: {
       eyebrow: 'Gespeicherte Passwörter',
@@ -252,6 +304,19 @@ export const trustedDialogMessages = {
       password: 'Mot de passe',
       signIn: 'Se connecter'
     },
+    certificate: {
+      eyebrow: 'Connexion non privée',
+      headline: 'Continuer vers {host} ?',
+      authority: 'Son certificat de sécurité ne provient pas d’une autorité approuvée par cet ordinateur.',
+      name: 'Son certificat de sécurité concerne un autre site.',
+      date: 'Son certificat de sécurité a expiré ou n’est pas encore valide.',
+      other: 'Son certificat de sécurité ne peut pas être vérifié.',
+      risk: 'Quelqu’un sur le réseau se fait peut-être passer pour ce site afin de lire ce que vous lui envoyez, comme vos mots de passe.',
+      workspace: 'Hronaut fait confiance à ce certificat pour ce site dans l’espace de travail « {workspace} » jusqu’à ce que Hronaut se ferme, et les agents de l’espace de travail peuvent aussi l’ouvrir.',
+      session: 'Hronaut fait confiance à ce certificat pour ce site jusqu’à ce que Hronaut se ferme.',
+      back: 'Revenir en lieu sûr',
+      proceed: 'Continuer (dangereux)'
+    },
     savePassword: {
       eyebrow: 'Mots de passe enregistrés',
       save: 'Enregistrer votre mot de passe pour {origin} ?',
@@ -310,6 +375,19 @@ export const trustedDialogMessages = {
       username: 'Nombre de usuario',
       password: 'Contraseña',
       signIn: 'Iniciar sesión'
+    },
+    certificate: {
+      eyebrow: 'Conexión no privada',
+      headline: '¿Acceder a {host}?',
+      authority: 'Su certificado de seguridad no procede de una autoridad en la que confíe este ordenador.',
+      name: 'Su certificado de seguridad es de otro sitio web.',
+      date: 'Su certificado de seguridad ha caducado o aún no es válido.',
+      other: 'Su certificado de seguridad no se puede verificar.',
+      risk: 'Alguien de la red podría estar haciéndose pasar por este sitio web para leer lo que le envías, como contraseñas.',
+      workspace: 'Hronaut confía en este certificado para este sitio web en el espacio de trabajo «{workspace}» hasta que se cierre Hronaut, y los agentes del espacio de trabajo también pueden abrirlo.',
+      session: 'Hronaut confía en este certificado para este sitio web hasta que se cierre Hronaut.',
+      back: 'Volver a un lugar seguro',
+      proceed: 'Acceder (no seguro)'
     },
     savePassword: {
       eyebrow: 'Contraseñas guardadas',
@@ -370,6 +448,19 @@ export const trustedDialogMessages = {
       password: 'Hasło',
       signIn: 'Zaloguj się'
     },
+    certificate: {
+      eyebrow: 'Połączenie nieprywatne',
+      headline: 'Przejść do {host}?',
+      authority: 'Jej certyfikat bezpieczeństwa nie pochodzi od urzędu, któremu ufa ten komputer.',
+      name: 'Jej certyfikat bezpieczeństwa należy do innej witryny.',
+      date: 'Jej certyfikat bezpieczeństwa wygasł lub nie jest jeszcze ważny.',
+      other: 'Nie można zweryfikować jej certyfikatu bezpieczeństwa.',
+      risk: 'Ktoś w sieci może podszywać się pod tę witrynę, aby czytać to, co do niej wysyłasz, na przykład hasła.',
+      workspace: 'Hronaut ufa temu certyfikatowi dla tej witryny w obszarze roboczym „{workspace}”, dopóki Hronaut nie zostanie zamknięty, a agenci w tym obszarze roboczym też mogą ją otwierać.',
+      session: 'Hronaut ufa temu certyfikatowi dla tej witryny, dopóki Hronaut nie zostanie zamknięty.',
+      back: 'Wróć do bezpiecznej strony',
+      proceed: 'Przejdź (niebezpieczne)'
+    },
     savePassword: {
       eyebrow: 'Zapisane hasła',
       save: 'Zapisać hasło dla {origin}?',
@@ -428,6 +519,19 @@ export const trustedDialogMessages = {
       username: 'Nome utente',
       password: 'Password',
       signIn: 'Accedi'
+    },
+    certificate: {
+      eyebrow: 'Connessione non privata',
+      headline: 'Procedere su {host}?',
+      authority: 'Il suo certificato di sicurezza non proviene da un’autorità considerata attendibile da questo computer.',
+      name: 'Il suo certificato di sicurezza è di un altro sito web.',
+      date: 'Il suo certificato di sicurezza è scaduto o non è ancora valido.',
+      other: 'Il suo certificato di sicurezza non può essere verificato.',
+      risk: 'Qualcuno sulla rete potrebbe fingersi questo sito web per leggere ciò che gli invii, come le password.',
+      workspace: 'Hronaut considera attendibile questo certificato per questo sito web nell’area di lavoro “{workspace}” finché Hronaut non viene chiuso, e anche gli agenti dell’area di lavoro possono aprirlo.',
+      session: 'Hronaut considera attendibile questo certificato per questo sito web finché Hronaut non viene chiuso.',
+      back: 'Torna al sicuro',
+      proceed: 'Procedi (non sicuro)'
     },
     savePassword: {
       eyebrow: 'Password salvate',
@@ -488,6 +592,19 @@ export const trustedDialogMessages = {
       password: 'Senha',
       signIn: 'Fazer login'
     },
+    certificate: {
+      eyebrow: 'Conexão não particular',
+      headline: 'Ir para {host}?',
+      authority: 'O certificado de segurança dele não é de uma autoridade em que este computador confia.',
+      name: 'O certificado de segurança dele é de outro site.',
+      date: 'O certificado de segurança dele expirou ou ainda não é válido.',
+      other: 'Não é possível verificar o certificado de segurança dele.',
+      risk: 'Alguém na rede pode estar se passando por este site para ler o que você envia a ele, como senhas.',
+      workspace: 'O Hronaut confia neste certificado para este site no espaço de trabalho “{workspace}” até o Hronaut ser fechado, e os agentes do espaço de trabalho também podem abri-lo.',
+      session: 'O Hronaut confia neste certificado para este site até o Hronaut ser fechado.',
+      back: 'Voltar à segurança',
+      proceed: 'Ir (não seguro)'
+    },
     savePassword: {
       eyebrow: 'Senhas salvas',
       save: 'Salvar sua senha de {origin}?',
@@ -546,6 +663,19 @@ export const trustedDialogMessages = {
       username: 'Kullanıcı adı',
       password: 'Şifre',
       signIn: 'Oturum aç'
+    },
+    certificate: {
+      eyebrow: 'Gizli değil',
+      headline: '{host} sitesine ilerlensin mi?',
+      authority: 'Güvenlik sertifikası, bu bilgisayarın güvendiği bir yetkiliden alınmamış.',
+      name: 'Güvenlik sertifikası başka bir web sitesine ait.',
+      date: 'Güvenlik sertifikasının süresi dolmuş veya henüz geçerli değil.',
+      other: 'Güvenlik sertifikası doğrulanamıyor.',
+      risk: 'Ağdaki biri, bu web sitesine gönderdiklerinizi, örneğin şifreleri okumak için bu web sitesiymiş gibi davranıyor olabilir.',
+      workspace: 'Hronaut kapanana kadar “{workspace}” çalışma alanında bu web sitesi için bu sertifikaya güvenir ve çalışma alanındaki ajanlar da siteyi açabilir.',
+      session: 'Hronaut kapanana kadar bu web sitesi için bu sertifikaya güvenir.',
+      back: 'Güvenli sayfaya dön',
+      proceed: 'İlerle (güvenli değil)'
     },
     savePassword: {
       eyebrow: 'Kayıtlı şifreler',
@@ -606,6 +736,19 @@ export const trustedDialogMessages = {
       password: 'पासवर्ड',
       signIn: 'साइन इन करें'
     },
+    certificate: {
+      eyebrow: 'निजी नहीं',
+      headline: '{host} पर जाएं?',
+      authority: 'इसका सुरक्षा सर्टिफ़िकेट ऐसी अथॉरिटी का नहीं है जिस पर यह कंप्यूटर भरोसा करता है।',
+      name: 'इसका सुरक्षा सर्टिफ़िकेट किसी दूसरी वेबसाइट का है।',
+      date: 'इसके सुरक्षा सर्टिफ़िकेट की समय-सीमा खत्म हो गई है या यह अभी मान्य नहीं है।',
+      other: 'इसके सुरक्षा सर्टिफ़िकेट की पुष्टि नहीं की जा सकती।',
+      risk: 'हो सकता है कि नेटवर्क पर कोई इस वेबसाइट होने का दिखावा कर रहा हो, ताकि आप जो भेजते हैं, जैसे पासवर्ड, उसे पढ़ सके।',
+      workspace: 'Hronaut बंद होने तक “{workspace}” वर्कस्पेस में इस वेबसाइट के लिए इस सर्टिफ़िकेट पर भरोसा करता है, और वर्कस्पेस के एजेंट भी इसे खोल सकते हैं।',
+      session: 'Hronaut बंद होने तक इस वेबसाइट के लिए इस सर्टिफ़िकेट पर भरोसा करता है।',
+      back: 'सुरक्षित पेज पर वापस जाएं',
+      proceed: 'आगे बढ़ें (असुरक्षित)'
+    },
     savePassword: {
       eyebrow: 'सेव किए गए पासवर्ड',
       save: '{origin} के लिए अपना पासवर्ड सेव करें?',
@@ -664,6 +807,19 @@ export const trustedDialogMessages = {
       username: 'ユーザー名',
       password: 'パスワード',
       signIn: 'サインイン'
+    },
+    certificate: {
+      eyebrow: '保護されていない接続',
+      headline: '{host} にアクセスしますか？',
+      authority: 'このサイトのセキュリティ証明書は、このコンピュータが信頼する認証局から発行されていません。',
+      name: 'このサイトのセキュリティ証明書は別のウェブサイトのものです。',
+      date: 'このサイトのセキュリティ証明書は期限切れか、まだ有効になっていません。',
+      other: 'このサイトのセキュリティ証明書を検証できません。',
+      risk: 'ネットワーク上の誰かがこのウェブサイトになりすまし、パスワードなど送信する内容を読み取ろうとしている可能性があります。',
+      workspace: 'Hronaut を終了するまで、「{workspace}」ワークスペースではこのウェブサイトのこの証明書を信頼し、ワークスペースのエージェントもこのサイトを開けるようになります。',
+      session: 'Hronaut を終了するまで、このウェブサイトのこの証明書を信頼します。',
+      back: '安全なページに戻る',
+      proceed: 'アクセスする（安全ではありません）'
     },
     savePassword: {
       eyebrow: '保存したパスワード',
@@ -724,6 +880,19 @@ export const trustedDialogMessages = {
       password: '비밀번호',
       signIn: '로그인'
     },
+    certificate: {
+      eyebrow: '비공개 아님',
+      headline: '{host}(으)로 이동할까요?',
+      authority: '이 사이트의 보안 인증서는 이 컴퓨터가 신뢰하는 기관에서 발급되지 않았습니다.',
+      name: '이 사이트의 보안 인증서는 다른 웹사이트의 것입니다.',
+      date: '이 사이트의 보안 인증서가 만료되었거나 아직 유효하지 않습니다.',
+      other: '이 사이트의 보안 인증서를 확인할 수 없습니다.',
+      risk: '네트워크상의 누군가가 이 웹사이트인 척하며 비밀번호처럼 보내는 내용을 읽으려고 할 수 있습니다.',
+      workspace: 'Hronaut을 종료할 때까지 ‘{workspace}’ 작업 공간에서 이 웹사이트의 이 인증서를 신뢰하며, 작업 공간의 에이전트도 이 사이트를 열 수 있습니다.',
+      session: 'Hronaut을 종료할 때까지 이 웹사이트의 이 인증서를 신뢰합니다.',
+      back: '안전한 페이지로 돌아가기',
+      proceed: '이동(안전하지 않음)'
+    },
     savePassword: {
       eyebrow: '저장된 비밀번호',
       save: '{origin}의 비밀번호를 저장하시겠습니까?',
@@ -782,6 +951,19 @@ export const trustedDialogMessages = {
       username: '用户名',
       password: '密码',
       signIn: '登录'
+    },
+    certificate: {
+      eyebrow: '连接不私密',
+      headline: '要继续前往 {host} 吗？',
+      authority: '其安全证书并非来自此计算机信任的颁发机构。',
+      name: '其安全证书属于另一个网站。',
+      date: '其安全证书已过期或尚未生效。',
+      other: '无法验证其安全证书。',
+      risk: '网络上可能有人在冒充此网站，以读取您发送给它的内容，例如密码。',
+      workspace: '在 Hronaut 退出前，Hronaut 会在“{workspace}”工作区中为此网站信任此证书，该工作区中的智能体也可以打开它。',
+      session: '在 Hronaut 退出前，Hronaut 会为此网站信任此证书。',
+      back: '返回安全连接',
+      proceed: '继续前往（不安全）'
     },
     savePassword: {
       eyebrow: '已保存的密码',
@@ -842,6 +1024,19 @@ export const trustedDialogMessages = {
       password: '密碼',
       signIn: '登入'
     },
+    certificate: {
+      eyebrow: '非私人連線',
+      headline: '要繼續前往 {host} 嗎？',
+      authority: '其安全性憑證並非來自這部電腦信任的憑證授權單位。',
+      name: '其安全性憑證屬於另一個網站。',
+      date: '其安全性憑證已過期或尚未生效。',
+      other: '無法驗證其安全性憑證。',
+      risk: '網路上可能有人假冒這個網站，以讀取你傳送給它的內容，例如密碼。',
+      workspace: '在 Hronaut 結束前，Hronaut 會在「{workspace}」工作區中為這個網站信任這個憑證，工作區中的代理程式也能開啟它。',
+      session: '在 Hronaut 結束前，Hronaut 會為這個網站信任這個憑證。',
+      back: '返回安全性頁面',
+      proceed: '繼續前往（不安全）'
+    },
     savePassword: {
       eyebrow: '已儲存的密碼',
       save: '要儲存 {origin} 的密碼嗎？',
@@ -901,6 +1096,19 @@ export const trustedDialogMessages = {
       password: 'Sandi',
       signIn: 'Masuk'
     },
+    certificate: {
+      eyebrow: 'Tidak pribadi',
+      headline: 'Lanjutkan ke {host}?',
+      authority: 'Sertifikat keamanannya bukan dari otoritas yang dipercaya komputer ini.',
+      name: 'Sertifikat keamanannya milik situs lain.',
+      date: 'Sertifikat keamanannya sudah kedaluwarsa atau belum berlaku.',
+      other: 'Sertifikat keamanannya tidak dapat diverifikasi.',
+      risk: 'Seseorang di jaringan mungkin menyamar sebagai situs ini untuk membaca apa yang Anda kirim ke situs ini, seperti sandi.',
+      workspace: 'Hronaut memercayai sertifikat ini untuk situs ini di ruang kerja “{workspace}” sampai Hronaut ditutup, dan agen di ruang kerja juga dapat membukanya.',
+      session: 'Hronaut memercayai sertifikat ini untuk situs ini sampai Hronaut ditutup.',
+      back: 'Kembali ke tempat aman',
+      proceed: 'Lanjutkan (tidak aman)'
+    },
     savePassword: {
       eyebrow: 'Sandi tersimpan',
       save: 'Simpan sandi Anda untuk {origin}?',
@@ -959,6 +1167,19 @@ export const trustedDialogMessages = {
       username: 'Tên người dùng',
       password: 'Mật khẩu',
       signIn: 'Đăng nhập'
+    },
+    certificate: {
+      eyebrow: 'Không riêng tư',
+      headline: 'Tiếp tục truy cập {host}?',
+      authority: 'Chứng chỉ bảo mật của trang không do một tổ chức mà máy tính này tin cậy cấp.',
+      name: 'Chứng chỉ bảo mật của trang thuộc về một trang web khác.',
+      date: 'Chứng chỉ bảo mật của trang đã hết hạn hoặc chưa có hiệu lực.',
+      other: 'Không thể xác minh chứng chỉ bảo mật của trang.',
+      risk: 'Ai đó trên mạng có thể đang giả mạo trang web này để đọc những gì bạn gửi đến, chẳng hạn như mật khẩu.',
+      workspace: 'Hronaut tin cậy chứng chỉ này cho trang web này trong không gian làm việc “{workspace}” cho đến khi Hronaut thoát, và các tác nhân trong không gian làm việc cũng có thể mở trang.',
+      session: 'Hronaut tin cậy chứng chỉ này cho trang web này cho đến khi Hronaut thoát.',
+      back: 'Quay lại an toàn',
+      proceed: 'Tiếp tục (không an toàn)'
     },
     savePassword: {
       eyebrow: 'Mật khẩu đã lưu',

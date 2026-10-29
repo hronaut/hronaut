@@ -1,7 +1,7 @@
 import type { WebContents } from 'electron'
 import { translate } from '../../../shared/i18n.js'
 import { retireNetworkPriorityObservations } from '../network-recording.js'
-import { loadFailureProblem } from '../page-load-problem.js'
+import { certificateProblem, loadFailureProblem } from '../page-load-problem.js'
 import { normalizeTabTitle } from '../tab-metadata.js'
 import { isWebUrl } from '../url.js'
 import type { NavigationEventsAccess, NavigationEventsTab } from './navigation-events-access.js'
@@ -192,6 +192,11 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     access.recordAuthChallenge(tab, details, authInfo)
     access.answerHttpAuth(tab, event, details, authInfo, callback)
   })
+  // A certificate Chromium does not trust is refused, as Chrome does, unless the person chose to trust it in the tab's
+  // workspace; the tab keeps what it refused for its page, so the person can choose to open it anyway.
+  webContents.on('certificate-error', (event, url, error, certificate, callback, isMainFrame) => {
+    access.answerCertificateError(tab, event, url, error, certificate, callback, isMainFrame)
+  })
   webContents.on('audio-state-changed', (event) => {
     tab.audible = event.audible
     tab.muted = webContents.isAudioMuted()
@@ -326,8 +331,12 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     if (previousUrl !== failedUrl) tab.faviconDataUrl = undefined
     tab.url = failedUrl
     const locale = access.options().getLocale()
-    tab.title = translate(locale, 'native.pageProblem.loadTabTitle')
-    tab.pageProblem = loadFailureProblem(locale, failedUrl, errorCode, errorDescription)
+    // A certificate the tab refused shows Chrome's privacy error, from which the person may open the page anyway.
+    const refusal = errorDescription.startsWith('ERR_CERT_') ? access.certificateRefusal(tab, failedUrl) : undefined
+    tab.title = translate(locale, refusal ? 'native.pageProblem.certificateTabTitle' : 'native.pageProblem.loadTabTitle')
+    tab.pageProblem = refusal
+      ? certificateProblem(locale, failedUrl, errorCode, errorDescription, refusal)
+      : loadFailureProblem(locale, failedUrl, errorCode, errorDescription)
     access.appendConsoleMessage(tab, {
       timestamp: new Date().toISOString(),
       level: 'error',
