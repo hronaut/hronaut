@@ -1222,6 +1222,7 @@ export const zhTW: MessageSchema = {
     },
     "address": {
       "https": "HTTPS 地址",
+      "notSecure": "不安全",
       "http": "HTTP 地址",
       "zoom": "網頁縮放：{percent}（Ctrl/Cmd + 加號、減號或 0）",
       "responsive": "回應式預覽：{status}",
@@ -1243,6 +1244,7 @@ export const zhTW: MessageSchema = {
       "stop": "停止",
       "reload": "重新載入",
       "siteControls": "{host} 的網站控制項",
+      "siteControlsNotSecure": "不安全。{host} 的網站控制項",
       "siteControlsAvailable": "網站控制項適用於網站",
       "siteControlsUnavailable": "無法使用網站控制項",
       "cookieAvailable": "這個地址可使用 {count} 個 Cookie",
@@ -1668,6 +1670,11 @@ export const zhTW: MessageSchema = {
       "avatarControl": "你已取得這個分頁的控制權。恢復 {name} 即可交還控制權"
     },
     "siteControls": {
+      "secure": "已建立安全連線",
+      "secureDetail": "你的資訊 (例如密碼或信用卡號碼) 在傳送至這個網站時會受到保護。",
+      "notSecure": "你與這個網站之間的連線不安全",
+      "notSecureDetail": "請勿在這個網站上輸入任何機密資訊 (例如密碼或信用卡資料)，因為攻擊者可能會竊取這些資訊。",
+      "localDetail": "這個網頁來自這台電腦，因此連線不會離開這台電腦。",
       "close": "關閉網站控制項",
       "cookies": "Cookie",
       "historyPages": "記錄網頁",

@@ -52,3 +52,10 @@
 .shell.all-human-interaction-locked [data-lock-protected-tab-close]:disabled {
   @apply cursor-not-allowed [opacity:0.38];
 }
+/* The page's connection, which Chrome's site information also names first. */
+.site-connection { @apply grid items-start [gap:10px] [padding:12px_14px] [border-bottom:1px_solid_var(--border-soft)] [grid-template-columns:20px_minmax(0,_1fr)]; }
+.site-connection > svg { @apply [width:19px] [height:19px] [margin-top:1px] text-muted; }
+.site-connection.secure > svg { @apply text-accent-copy; }
+.site-connection > span { @apply grid min-w-0 [gap:3px]; }
+.site-connection strong { @apply [font-size:var(--type-body-size)]; }
+.site-connection small { @apply text-muted [font-size:var(--type-small-size)] [line-height:1.45]; }

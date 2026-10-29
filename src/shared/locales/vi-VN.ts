@@ -1222,6 +1222,7 @@ export const viVN: MessageSchema = {
     },
     "address": {
       "https": "Địa chỉ HTTPS",
+      "notSecure": "Không an toàn",
       "http": "Địa chỉ HTTP",
       "zoom": "Thu phóng trang: {percent} (Ctrl/Cmd + Plus, Minus hoặc 0)",
       "responsive": "Xem trước thích ứng: {status}",
@@ -1243,6 +1244,7 @@ export const viVN: MessageSchema = {
       "stop": "Dừng",
       "reload": "Tải lại",
       "siteControls": "Điều khiển trang web cho {host}",
+      "siteControlsNotSecure": "Không an toàn. Điều khiển trang web cho {host}",
       "siteControlsAvailable": "Điều khiển trang web có sẵn trên các trang web",
       "siteControlsUnavailable": "Điều khiển trang web không khả dụng",
       "cookieAvailable": "{count} cookie có sẵn cho địa chỉ này",
@@ -1668,6 +1670,11 @@ export const viVN: MessageSchema = {
       "avatarControl": "Bạn đang điều khiển thẻ này. Hãy tiếp tục {name} để trả lại"
     },
     "siteControls": {
+      "secure": "Kết nối an toàn",
+      "secureDetail": "Thông tin của bạn (ví dụ: mật khẩu hoặc số thẻ tín dụng) được giữ riêng tư khi gửi đến trang web này.",
+      "notSecure": "Kết nối của bạn với trang web này không an toàn",
+      "notSecureDetail": "Bạn không nên nhập thông tin nhạy cảm trên trang web này (ví dụ: mật khẩu hoặc thẻ tín dụng) vì kẻ tấn công có thể đánh cắp thông tin đó.",
+      "localDetail": "Trang này đến từ chính máy tính này, nên kết nối của nó không rời khỏi máy.",
       "close": "Đóng điều khiển trang web",
       "cookies": "cookie",
       "historyPages": "trang trong lịch sử",

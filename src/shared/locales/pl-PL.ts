@@ -1222,6 +1222,7 @@ export const plPL: MessageSchema = {
     },
     "address": {
       "https": "Adres HTTPS",
+      "notSecure": "Niezabezpieczona",
       "http": "Adres HTTP",
       "zoom": "Powiększenie strony: {percent} (Ctrl/Cmd + Plus, Minus lub 0)",
       "responsive": "Podgląd responsywny: {status}",
@@ -1243,6 +1244,7 @@ export const plPL: MessageSchema = {
       "stop": "Zatrzymaj",
       "reload": "Odśwież",
       "siteControls": "Ustawienia witryny {host}",
+      "siteControlsNotSecure": "Niezabezpieczona. Ustawienia witryny {host}",
       "siteControlsAvailable": "Ustawienia witryny są dostępne w witrynach",
       "siteControlsUnavailable": "Ustawienia witryny są niedostępne",
       "cookieAvailable": "Dla tego adresu dostępny jest {count} plik cookie | Dla tego adresu dostępne są {count} pliki cookie | Dla tego adresu dostępnych jest {count} plików cookie",
@@ -1668,6 +1670,11 @@ export const plPL: MessageSchema = {
       "avatarControl": "Masz kontrolę nad tą kartą. Wznów agenta {name}, aby ją oddać"
     },
     "siteControls": {
+      "secure": "Połączenie jest bezpieczne",
+      "secureDetail": "Twoje informacje (na przykład hasła lub numery kart kredytowych) pozostają prywatne, gdy są wysyłane do tej witryny.",
+      "notSecure": "Połączenie z tą witryną nie jest bezpieczne",
+      "notSecureDetail": "Nie wpisuj w tej witrynie żadnych poufnych informacji (na przykład haseł ani danych kart kredytowych), bo mogą je przechwycić atakujący.",
+      "localDetail": "Ta strona pochodzi z tego komputera, więc jej połączenie go nie opuszcza.",
       "close": "Zamknij ustawienia witryny",
       "cookies": "plik cookie | pliki cookie | plików cookie",
       "historyPages": "strona historii | strony historii | stron historii",

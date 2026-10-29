@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import UiButton from "../ui/UiButton.vue"
+import { useResizeObserver } from '@vueuse/core'
 import { computed, nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconAdsClick from '~icons/material-symbols/ads-click-rounded'
 import IconBugReport from '~icons/material-symbols/bug-report-rounded'
 import IconClose from '~icons/material-symbols/close-rounded'
+import IconInfo from '~icons/material-symbols/info-outline-rounded'
 import IconKeyboardArrowRight from '~icons/material-symbols/keyboard-arrow-right-rounded'
 import IconPasskey from '~icons/material-symbols/passkey-rounded'
 import IconRoute from '~icons/material-symbols/route-rounded'
@@ -89,6 +91,7 @@ const {
   activeOrigin,
   activeHostname,
   activeSitePermissions,
+  activeSecurity,
   activeAddressKind,
 } = props.activeTabPresentation
 const { activeEmulation, resetPending, label: emulationLabel, describe: emulationDescription } = props.emulationController
@@ -105,6 +108,18 @@ const cssStatePreview = computed(() => {
     action: t(preview.resetUncertain ? 'runtime.cssStatePreview.retry' : 'runtime.cssStatePreview.reset', { states, selector: preview.selector }),
     uncertain: preview.resetUncertain === true
   }
+})
+
+// The site controls button's name, which says first when the page is not secure, as the button shows it.
+const siteControlsLabel = computed(() => {
+  if (!activeWebUrl.value) return t('runtime.tabs.siteControlsUnavailable')
+  return t(activeSecurity.value === 'not-secure' ? 'runtime.tabs.siteControlsNotSecure' : 'runtime.tabs.siteControls', { host: activeHostname.value })
+})
+
+// As in Chrome, a narrow address field shows the information icon without "Not secure", so the address keeps its room.
+const narrowField = ref(false)
+useResizeObserver(form, ([entry]) => {
+  narrowField.value = (entry?.contentRect.width ?? 0) < 420
 })
 
 // What a screen reader hears as the field offers a keyword search or takes one, as the hint and the chip show it.
@@ -161,16 +176,19 @@ async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean>
     <UiButton appearance="application"
       ref="siteControlsButton"
       class="site-controls-button"
-      :class="{ active: siteControlsOpen, customized: activeSitePermissions.length > 0 }"
+      :class="{ active: siteControlsOpen, customized: activeSitePermissions.length > 0, 'not-secure': activeSecurity === 'not-secure' && !narrowField }"
       type="button"
-      v-tooltip="activeWebUrl ? t('runtime.tabs.siteControls', { host: activeHostname }) : t('runtime.tabs.siteControlsAvailable')"
-      :aria-label="activeWebUrl ? t('runtime.tabs.siteControls', { host: activeHostname }) : t('runtime.tabs.siteControlsUnavailable')"
+      v-tooltip="activeWebUrl ? siteControlsLabel : t('runtime.tabs.siteControlsAvailable')"
+      :aria-label="siteControlsLabel"
       aria-controls="site-controls-panel"
       :aria-expanded="siteControlsOpen"
       :disabled="!activeWebUrl"
       @click="run(actions.toggleSiteControls)"
     >
-      <IconTune aria-hidden="true" />
+      <!-- As in Chrome: an HTTP page shows the information icon, with "Not secure" unless it is on this computer. -->
+      <IconInfo v-if="activeSecurity === 'local' || activeSecurity === 'not-secure'" aria-hidden="true" />
+      <IconTune v-else aria-hidden="true" />
+      <span v-if="activeSecurity === 'not-secure' && !narrowField" class="site-security-label" aria-hidden="true">{{ t('runtime.address.notSecure') }}</span>
       <span v-if="activeSitePermissions.length" class="site-controls-indicator" aria-hidden="true" />
     </UiButton>
     <span v-if="keyword" id="address-keyword" class="address-keyword">
@@ -277,6 +295,7 @@ async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean>
       v-model:dock="panelDock"
       :hostname="activeHostname"
       :address-kind="activeAddressKind"
+      :security="activeSecurity"
       :origin="activeOrigin"
       :summary="siteDataSummary"
       :state="siteDataState"

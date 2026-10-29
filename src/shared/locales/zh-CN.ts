@@ -1222,6 +1222,7 @@ export const zhCN: MessageSchema = {
     },
     "address": {
       "https": "HTTPS 地址",
+      "notSecure": "不安全",
       "http": "HTTP 地址",
       "zoom": "页面缩放：{percent}（Ctrl/Cmd + 加号、减号或 0）",
       "responsive": "响应式预览：{status}",
@@ -1243,6 +1244,7 @@ export const zhCN: MessageSchema = {
       "stop": "停止",
       "reload": "重新加载",
       "siteControls": "{host} 的网站控件",
+      "siteControlsNotSecure": "不安全。{host} 的网站控件",
       "siteControlsAvailable": "网站控件仅适用于网站",
       "siteControlsUnavailable": "网站控件不可用",
       "cookieAvailable": "此地址可使用 {count} 个 Cookie",
@@ -1668,6 +1670,11 @@ export const zhCN: MessageSchema = {
       "avatarControl": "您已获得此标签页的控制权。恢复 {name} 即可交还"
     },
     "siteControls": {
+      "secure": "连接是安全的",
+      "secureDetail": "您的信息（例如密码或信用卡号）在发送至此网站时是私密的。",
+      "notSecure": "您与此网站之间建立的连接不安全",
+      "notSecureDetail": "请勿在此网站上输入任何敏感信息（例如密码或信用卡信息），因为攻击者可能会盗取这些信息。",
+      "localDetail": "此网页来自这台计算机，因此它的连接不会离开这台计算机。",
       "close": "关闭网站控件",
       "cookies": "个 Cookie",
       "historyPages": "个历史记录页面",

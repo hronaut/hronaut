@@ -109,6 +109,17 @@ describe('active tab presentation controller', () => {
     expect(controller.currentBookmark.value?.id).toBe('bookmark')
   })
 
+  it('follows the shown page’s connection, as the address bar shows it', () => {
+    const { controller, activeTab } = create()
+    expect(controller.activeSecurity.value).toBe('secure')
+    activeTab.value = tab({ url: 'http://192.168.1.20:3000/' })
+    expect(controller.activeSecurity.value).toBe('not-secure')
+    activeTab.value = tab({ url: 'http://localhost:5173/' })
+    expect(controller.activeSecurity.value).toBe('local')
+    activeTab.value = tab({ url: 'hronaut://home/' })
+    expect(controller.activeSecurity.value).toBeNull()
+  })
+
   it('shows Site controls only the decisions for the tab’s workspace and page', () => {
     // Site controls listed every decision for the website, from every workspace and every page that embedded it.
     const { controller, sitePermissions, activeTab } = create(tab({ mcpGroupId: 'isolated' }))

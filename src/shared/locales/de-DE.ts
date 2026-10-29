@@ -1222,6 +1222,7 @@ export const deDE: MessageSchema = {
     },
     "address": {
       "https": "HTTPS-Adresse",
+      "notSecure": "Nicht sicher",
       "http": "HTTP-Adresse",
       "zoom": "Seitenzoom: {percent} (Ctrl/Cmd + Plus, Minus oder 0)",
       "responsive": "Responsive Vorschau: {status}",
@@ -1243,6 +1244,7 @@ export const deDE: MessageSchema = {
       "stop": "Anhalten",
       "reload": "Neu laden",
       "siteControls": "Website-Einstellungen für {host}",
+      "siteControlsNotSecure": "Nicht sicher. Website-Einstellungen für {host}",
       "siteControlsAvailable": "Website-Einstellungen sind auf Websites verfügbar",
       "siteControlsUnavailable": "Website-Einstellungen sind nicht verfügbar",
       "cookieAvailable": "{count} Cookie für diese Adresse verfügbar | {count} Cookies für diese Adresse verfügbar",
@@ -1668,6 +1670,11 @@ export const deDE: MessageSchema = {
       "avatarControl": "Sie haben die Kontrolle über diesen Tab. Setzen Sie {name} fort, um ihn zurückzugeben"
     },
     "siteControls": {
+      "secure": "Verbindung ist sicher",
+      "secureDetail": "Ihre Daten, z. B. Passwörter oder Kreditkartennummern, bleiben vertraulich, wenn sie an diese Website gesendet werden.",
+      "notSecure": "Die Verbindung zu dieser Website ist nicht sicher",
+      "notSecureDetail": "Sie sollten auf dieser Website keine vertraulichen Informationen wie Passwörter oder Kreditkartendaten eingeben, weil sie von Angreifern gestohlen werden könnten.",
+      "localDetail": "Diese Seite kommt von diesem Computer, ihre Verbindung verlässt ihn also nicht.",
       "close": "Website-Steuerung schließen",
       "cookies": "Cookie | Cookies",
       "historyPages": "Verlaufsseite | Verlaufsseiten",

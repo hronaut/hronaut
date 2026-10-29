@@ -1222,6 +1222,7 @@ export const ruRU: MessageSchema = {
     },
     "address": {
       "https": "Адрес HTTPS",
+      "notSecure": "Не защищено",
       "http": "Адрес HTTP",
       "zoom": "Масштаб страницы: {percent} (Ctrl/Cmd + Плюс, Минус или 0)",
       "responsive": "Адаптивный предпросмотр: {status}",
@@ -1243,6 +1244,7 @@ export const ruRU: MessageSchema = {
       "stop": "Остановить",
       "reload": "Перезагрузить",
       "siteControls": "Параметры сайта {host}",
+      "siteControlsNotSecure": "Не защищено. Параметры сайта {host}",
       "siteControlsAvailable": "Параметры сайта доступны на сайтах",
       "siteControlsUnavailable": "Параметры сайта недоступны",
       "cookieAvailable": "Для этого адреса доступен {count} cookie | Для этого адреса доступны {count} cookie | Для этого адреса доступно {count} cookie",
@@ -1668,6 +1670,11 @@ export const ruRU: MessageSchema = {
       "avatarControl": "Управление этой вкладкой у вас. Возобновите агента {name}, чтобы вернуть её"
     },
     "siteControls": {
+      "secure": "Безопасное подключение",
+      "secureDetail": "Ваши данные (например, пароли или номера банковских карт) остаются конфиденциальными при отправке на этот сайт.",
+      "notSecure": "Подключение к сайту не защищено",
+      "notSecureDetail": "Не вводите на этом сайте конфиденциальные данные (например, пароли или данные банковских карт): их могут похитить злоумышленники.",
+      "localDetail": "Эта страница загружается с этого компьютера, поэтому подключение не выходит за его пределы.",
       "close": "Закрыть управление сайтом",
       "cookies": "файл cookie | файла cookie | файлов cookie",
       "historyPages": "страница истории | страницы истории | страниц истории",

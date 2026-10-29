@@ -1222,6 +1222,7 @@ export const ptBR: MessageSchema = {
     },
     "address": {
       "https": "Endereço HTTPS",
+      "notSecure": "Não seguro",
       "http": "Endereço HTTP",
       "zoom": "Zoom da página: {percent} (Ctrl/Cmd + Mais, Menos ou 0)",
       "responsive": "Visualização responsiva: {status}",
@@ -1243,6 +1244,7 @@ export const ptBR: MessageSchema = {
       "stop": "Parar",
       "reload": "Recarregar",
       "siteControls": "Controles do site para {host}",
+      "siteControlsNotSecure": "Não seguro. Controles do site para {host}",
       "siteControlsAvailable": "Os controles do site estão disponíveis em sites",
       "siteControlsUnavailable": "Os controles do site estão indisponíveis",
       "cookieAvailable": "{count} cookie disponível para este endereço | {count} cookies disponíveis para este endereço",
@@ -1668,6 +1670,11 @@ export const ptBR: MessageSchema = {
       "avatarControl": "Você está no controle desta guia. Retome {name} para devolvê-la"
     },
     "siteControls": {
+      "secure": "A conexão é segura",
+      "secureDetail": "Suas informações (por exemplo, senhas ou números de cartão de crédito) ficam protegidas quando são enviadas para este site.",
+      "notSecure": "Sua conexão com este site não é segura",
+      "notSecureDetail": "Não insira informações confidenciais neste site (por exemplo, senhas ou cartões de crédito), porque elas podem ser roubadas por invasores.",
+      "localDetail": "Esta página vem deste computador, então a conexão dela não sai dele.",
       "close": "Fechar controles do site",
       "cookies": "cookie | cookies",
       "historyPages": "página no histórico | páginas no histórico",

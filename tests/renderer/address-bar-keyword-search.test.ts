@@ -463,6 +463,7 @@ describe('the address bar\'s keyword chip and hint', () => {
             activeOrigin: ref('https://shown.test'),
             activeHostname: ref('shown.test'),
             activeSitePermissions: ref([]),
+            activeSecurity: ref('secure'),
             activeAddressKind: ref('Secure HTTPS connection'),
             activeTabUsesDefaultProfile: ref(true)
           } as unknown as ActiveTabPresentationController,

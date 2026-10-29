@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- **Not secure** beside an HTTP page's address, as in Chrome, and Site controls now say first whether the connection to the website is secure. A page on this computer, such as `localhost` or `127.0.0.1`, shows the information icon without the warning, since browsers treat it as secure.
 - **Spell check languages** in **Settings → General**, as in Chrome: on Windows and Linux, websites' text fields can check spelling in several languages at once, chosen from Chromium's dictionaries, instead of only the one for the system language. A text field's **Spell check → Language settings** opens the setting.
 - Drag a link from a page or another app onto a tab to open it there, or near a tab's edge or onto a workspace's **New tab** button to open it in a new tab beside that tab or at the end of the workspace, as in Chrome. A marker shows where it will open; dropped text that is no address searches, and a `javascript:` address opens nothing.
 - **Suggest Strong Password** in a password field's right-click menu, as in Chrome: Hronaut makes a random password of 15 letters and digits, fills it into the field and the one that confirms it while agents pause, and when the page submits it, offers to save it with a note that nothing else shows it. It is offered while passwords can be saved.

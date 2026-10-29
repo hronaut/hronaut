@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import SiteControlsPanel from '../../src/renderer/src/components/SiteControlsPanel.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
+import type { AddressSecurity } from '../../src/shared/address-security.js'
 import type { PanelDock, SitePermissionDecision, SitePermissionEntry, SupportedLocale } from '../../src/shared/types.js'
 import { getByTooltip } from './helpers/tooltip.js'
 
@@ -24,6 +25,7 @@ function renderPanel(options: {
   dock?: PanelDock
   refresh?: () => unknown
   keepsSeparatePanelOpen?: () => boolean
+  security?: AddressSecurity | null
 } = {}) {
   const setPermission = options.setPermission ?? vi.fn(() => true)
   const resetPermission = vi.fn(() => true)
@@ -36,6 +38,7 @@ function renderPanel(options: {
       dock: options.dock ?? 'right',
       hostname: 'example.test',
       addressKind: 'Secure',
+      security: options.security === undefined ? 'secure' : options.security,
       origin: 'https://example.test',
       summary: options.summary === null ? null : { origin: 'https://example.test', ...(options.summary ?? { cookieCount: 2, historyEntries: 3, historyVisits: 5 }) },
       state: options.state ?? 'idle',
@@ -56,6 +59,30 @@ function renderPanel(options: {
 }
 
 describe('SiteControlsPanel', () => {
+  it('says first whether the connection is secure, as Chrome’s site information does', () => {
+    const { view } = renderPanel()
+    expect(screen.getByText('Connection is secure')).toBeVisible()
+    expect(screen.getByText('Your information (for example, passwords or credit card numbers) is private when it is sent to this site.')).toBeVisible()
+    view.unmount()
+
+    renderPanel({ security: 'not-secure' })
+    expect(screen.getByText('Your connection to this site is not secure')).toBeVisible()
+    expect(screen.getByText(/You should not enter any sensitive information on this site/)).toBeVisible()
+    expect(screen.queryByText('Connection is secure')).toBeNull()
+  })
+
+  it('says a page on this computer is not secure, and that its connection stays on the computer', () => {
+    renderPanel({ security: 'local', locale: 'uk-UA' })
+    expect(screen.getByText('З’єднання з цим сайтом не захищене')).toBeVisible()
+    expect(screen.getByText('Ця сторінка надходить із цього комп’ютера, тож її з’єднання не виходить за його межі.')).toBeVisible()
+    expect(screen.queryByText(/конфіденційну інформацію/)).toBeNull()
+  })
+
+  it('shows no connection without a website address', () => {
+    renderPanel({ security: null })
+    expect(screen.queryByText(/connection/i)).toBeNull()
+  })
+
   it('owns site summary and permission interactions', async () => {
     const { setPermission, resetPermission, openPermissionSettings, openPrivacySettings } = renderPanel()
     const user = userEvent.setup()

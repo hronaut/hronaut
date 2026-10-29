@@ -1222,6 +1222,7 @@ export const koKR: MessageSchema = {
     },
     "address": {
       "https": "HTTPS 주소",
+      "notSecure": "주의 요함",
       "http": "HTTP 주소",
       "zoom": "페이지 확대/축소: {percent}(Ctrl/Cmd + 더하기, 빼기 또는 0)",
       "responsive": "반응형 미리보기: {status}",
@@ -1243,6 +1244,7 @@ export const koKR: MessageSchema = {
       "stop": "중지",
       "reload": "새로고침",
       "siteControls": "{host}의 사이트 컨트롤",
+      "siteControlsNotSecure": "주의 요함. {host}의 사이트 컨트롤",
       "siteControlsAvailable": "사이트 컨트롤은 웹사이트에서 사용할 수 있습니다",
       "siteControlsUnavailable": "사이트 컨트롤을 사용할 수 없습니다",
       "cookieAvailable": "이 주소에서 사용할 수 있는 쿠키 {count}개",
@@ -1668,6 +1670,11 @@ export const koKR: MessageSchema = {
       "avatarControl": "이 탭을 직접 제어하고 있습니다. 다시 넘기려면 {name}을(를) 재개하세요"
     },
     "siteControls": {
+      "secure": "연결이 안전함",
+      "secureDetail": "이 사이트로 전송되는 정보(예: 비밀번호 또는 신용카드 번호)는 비공개로 유지됩니다.",
+      "notSecure": "이 사이트에 대한 연결이 안전하지 않음",
+      "notSecureDetail": "이 사이트에는 민감한 정보(예: 비밀번호 또는 신용카드)를 입력하지 마세요. 공격자가 정보를 도용할 수 있습니다.",
+      "localDetail": "이 페이지는 이 컴퓨터에서 제공되므로 연결이 컴퓨터 밖으로 나가지 않습니다.",
       "close": "사이트 컨트롤 닫기",
       "cookies": "쿠키",
       "historyPages": "방문 기록 페이지",
