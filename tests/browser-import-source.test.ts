@@ -184,8 +184,9 @@ describe('external cookie sources', () => {
     addChrome(db, 'example.test', encrypted('keyring-cookie', 'example.test', 'v11', 'fixture-key'))
     addChrome(db, 'wrong.test', encrypted('secret', 'original.test', 'v11', 'fixture-key')); db.close()
     const readKey = vi.fn(async () => pbkdf2Sync('fixture-key', 'saltysalt', 1, 16, 'sha1'))
-    expect(await readImportCookies(profile(file), readKey)).toMatchObject({ skipped: 1, cookies: [{ value: 'keyring-cookie' }] })
-    expect(readKey).toHaveBeenCalledExactlyOnceWith('chrome')
+    const { signal } = new AbortController()
+    expect(await readImportCookies(profile(file), readKey, signal)).toMatchObject({ skipped: 1, cookies: [{ value: 'keyring-cookie' }] })
+    expect(readKey).toHaveBeenCalledExactlyOnceWith('chrome', { signal })
     expect(() => decryptLinuxCookie(encrypted('secret', 'original.test'), 'wrong.test', 24)).toThrow()
   })
   it('does not require a browser key for partitioned v11 cookies that cannot be imported', async () => {

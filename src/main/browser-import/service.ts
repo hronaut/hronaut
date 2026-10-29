@@ -8,7 +8,7 @@ interface ImportPorts {
   destination(id: string): ImportDestination
   discover(): Promise<ImportProfile[]>
   consent(profile: BrowserImportProfile, destination: ImportDestination): Promise<boolean>
-  read(profile: ImportProfile): Promise<CookieSnapshot>
+  read(profile: ImportProfile, signal: AbortSignal): Promise<CookieSnapshot>
   write(destination: ImportDestination, cookies: Cookie[]): Promise<BrowserImportResult>
   now?: () => number
 }
@@ -23,9 +23,12 @@ export class BrowserImportService {
   private previewState: PreviewState | null = null
   private timer: ReturnType<typeof setTimeout> | undefined
   private committing = false
+  // The profile read under way, which may wait on a keyring or wallet unlock prompt.
+  private reading: AbortController | undefined
   constructor(private readonly ports: ImportPorts) {}
   cancel(): void {
     this.generation++
+    this.reading?.abort(); this.reading = undefined
     this.profiles = []; this.destination = null
     if (this.previewState) for (const cookie of this.previewState.cookies) cookie.value = ''
     this.previewState = null
@@ -52,12 +55,15 @@ export class BrowserImportService {
     if (!destination || workspaceId !== destination.id || !profile) throw new BrowserImportError('expired')
     // Changing profiles invalidates both the old read grant and old cookie values.
     const generation = ++this.generation
+    this.reading?.abort(); this.reading = undefined
     if (this.previewState) for (const cookie of this.previewState.cookies) cookie.value = ''
     this.previewState = null
     this.check(generation, destination)
     if (!await this.ports.consent({ id: profile.id, browser: profile.browser, name: profile.name }, destination)) return null
     this.check(generation, destination)
-    const snapshot = await this.ports.read(profile)
+    const reading = this.reading = new AbortController()
+    let snapshot: CookieSnapshot
+    try { snapshot = await this.ports.read(profile, reading.signal) } finally { if (this.reading === reading) this.reading = undefined }
     try { this.check(generation, destination) } catch (error) { for (const cookie of snapshot.cookies) cookie.value = ''; throw error }
     const id = randomUUID()
     const expiresAt = (this.ports.now?.() ?? Date.now()) + LIFETIME

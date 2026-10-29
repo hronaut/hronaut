@@ -211,7 +211,7 @@ function cookieMetadata(row: Record<string, unknown>, kind: ImportProfile['kind'
   return validCookie(cookie) && (cookie.sameSite !== 'no_restriction' || cookie.secure) ? cookie : null
 }
 
-export async function readImportCookies(profile: ImportProfile, readKey = readLinuxBrowserKey): Promise<CookieSnapshot> {
+export async function readImportCookies(profile: ImportProfile, readKey = readLinuxBrowserKey, signal?: AbortSignal): Promise<CookieSnapshot> {
   let database: DatabaseSync | undefined
   let key: Buffer | undefined
   try {
@@ -247,7 +247,7 @@ export async function readImportCookies(profile: ImportProfile, readKey = readLi
     const rows = database.prepare(`SELECT ${columns} FROM ${table} LIMIT ${MAX_ROWS + 1}`).all()
     database.exec('ROLLBACK'); database.close(); database = undefined
     if (rows.some(r => cookieMetadata(r, profile.kind, version)
-      && r.encrypted_value instanceof Uint8Array && Buffer.from(r.encrypted_value).subarray(0, 3).toString() === 'v11')) key = await readKey(profile.keyApplication)
+      && r.encrypted_value instanceof Uint8Array && Buffer.from(r.encrypted_value).subarray(0, 3).toString() === 'v11')) key = await readKey(profile.keyApplication, { signal })
     const cookies: Cookie[] = []
     let skipped = 0
     const identities = new Set<string>()

@@ -264,9 +264,14 @@ Chrome/Chromium uses its existing Linux key: from KDE Wallet through
 `/usr/bin/kwallet-query` on a KDE desktop, else from the Secret Service keyring
 through `/usr/bin/secret-tool` (`libsecret-tools`), then from the other one, for a
 browser started with another password store. KDE Wallet is asked only for the
-default wallet named in `kwalletrc` (else `kdewallet`) when its file exists, since
-opening a missing wallet offers to create it. Any keyring or wallet unlock prompt
-occurs after native read consent. A missing command is reported by name; a key
+default wallet named in `kwalletrc` (else `kdewallet`), the one Chrome uses with
+KDE Wallet's own storage, when its file exists, so a computer without one never
+starts the wallet service. Only a single word of printable text counts as the key,
+since kwallet-query from KDE Frameworks 5 reports a missing folder or entry, in the
+desktop's language, with exit status 0. Any keyring or wallet unlock prompt
+occurs after native read consent, and KDE Wallet keeps the wallet open afterwards,
+as it does for any application by default. Cancel, or reading another profile,
+stops a key command still waiting and asks no further store. A missing command is reported by name; a key
 neither store gives is reported as unreadable. The import panel then shows how to
 fix it: the install command for Ubuntu, Debian, Fedora and Arch, each with a Copy
 button, or where to unlock the keyring or wallet, then Continue again. Basic-storage v10 cookies are also

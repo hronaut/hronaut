@@ -8,7 +8,7 @@ function setup() {
   const destination = { id: 'workspace', name: 'Work', fingerprint: 'one' }
   const profile = { id: 'source', name: 'Personal', browser: 'Chrome', kind: 'chromium' as const, file: '/private/profile', keyApplication: 'chrome' }
   const cookie = { domain: '.example.test', name: 'session', value: 'never-send-to-renderer', path: '/', hostOnly: false, session: true } as Cookie
-  const ports = { destination: vi.fn(() => ({ ...destination })), discover: vi.fn(async () => [profile]), consent: vi.fn(async () => true), read: vi.fn(async () => ({ cookies: [{ ...cookie }], skipped: 2 })), write: vi.fn(async (..._args: [ImportDestination, Cookie[]]) => ({ imported: 1, skipped: 0, failed: 0, recoveryRequired: false })), now: () => 10 }
+  const ports = { destination: vi.fn(() => ({ ...destination })), discover: vi.fn(async () => [profile]), consent: vi.fn(async () => true), read: vi.fn(async (_profile: unknown, _signal: AbortSignal) => ({ cookies: [{ ...cookie }], skipped: 2 })), write: vi.fn(async (..._args: [ImportDestination, Cookie[]]) => ({ imported: 1, skipped: 0, failed: 0, recoveryRequired: false })), now: () => 10 }
   return { destination, ports, service: new BrowserImportService(ports) }
 }
 describe('human-only import protocol', () => {
@@ -71,6 +71,22 @@ describe('human-only import protocol', () => {
     await expect(pending).rejects.toMatchObject({ code: 'expired' })
     expect(snapshot.cookies[0]!.value).toBe('')
     expect(ports.write).not.toHaveBeenCalled()
+  })
+
+  it('stops a profile read, which may wait on an unlock prompt, when another read starts or the import is cancelled', async () => {
+    const { service, ports } = setup(); await service.list('workspace')
+    ports.read.mockImplementation(() => new Promise(() => {}))
+    void service.preview('workspace', 'source').catch(() => {})
+    await vi.waitFor(() => expect(ports.read).toHaveBeenCalledTimes(1))
+    const first = ports.read.mock.calls[0]![1]
+    expect(first.aborted).toBe(false)
+    void service.preview('workspace', 'source').catch(() => {})
+    expect(first.aborted).toBe(true)
+    await vi.waitFor(() => expect(ports.read).toHaveBeenCalledTimes(2))
+    const second = ports.read.mock.calls[1]![1]
+    expect(second.aborted).toBe(false)
+    service.cancel()
+    expect(second.aborted).toBe(true)
   })
 
   it('keeps a canceled in-flight write exclusive and clears secrets after it settles', async () => {
