@@ -20,7 +20,7 @@ function fixture() {
   const manager = Object.assign(Object.create(Browser.prototype), {
     initialized: true, destroyed: false, tabLabelAdmissionClosed: false, tabLabelLifecycleHolds: 0,
     pendingTabLabels: new Set(), tabs, store, changed: vi.fn(),
-    getTab: () => tab, getState: () => ({ tabs: [...tabs.values()] }),
+    getState: () => ({ tabs: [...tabs.values()] }),
     persistedState: () => ({ version: 3, activeTabId: tab.id, tabs: [{ ...tab }] })
   }) as Browser
   return { manager, store, tab, tabs, commit: () => commit(), reject: (error: Error) => reject(error) }

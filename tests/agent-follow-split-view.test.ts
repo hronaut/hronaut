@@ -93,8 +93,7 @@ function browser(): Manager {
     mcpTabGroups: new Map([[PERSON, workspace(PERSON, '8e3da8ea-cba4-41c2-9619-a6e04a493a44')], [AGENT, workspace(AGENT, '9e3da8ea-cba4-41c2-9619-a6e04a493a45')]]),
     assertWorkspaceNavigationAllowed: vi.fn(), workspaceNavigationAllowed: () => true, workspaceObservationGeneration: () => 0,
     roundPageCorners: vi.fn(), installSessionHooks: vi.fn(), attachTabEvents: vi.fn(), layout: vi.fn(), changed: vi.fn(),
-    getState: () => ({}), text: (key: string) => key,
-    orderedTabs(this: Manager) { return [...this.tabs.values()] }
+    getState: () => ({}), text: (key: string) => key
   }) as Manager
   // Follow agents, wired as the manager's constructor wires it.
   manager.mcpActivityFollower = new McpActivityFollowController({

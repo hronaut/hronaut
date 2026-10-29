@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { getState } from '../src/main/browser/browser-state/browser-state.js'
+import { buildBrowserState } from '../src/main/browser/browser-state/browser-state.js'
 import { trustRefusedCertificate } from '../src/main/browser/certificate-errors/certificate-errors.js'
 
-/** A stand-in for whatever the state reads on the tab manager: any call or property gives another stand-in. */
+/** A stand-in for whatever the state reads on the browser: any call or property gives another stand-in. */
 function anything(): unknown {
   const stand: unknown = new Proxy(() => undefined, {
     get: (_target, key) => key === 'then' || key === Symbol.iterator ? undefined : stand,
@@ -19,19 +19,20 @@ function stateOf(url: string, session: object, destroyed = false, shown: object 
     ...shown
   }
   const own: Record<string, unknown> = {
-    orderedTabs: () => [tab],
-    closedTabs: () => [],
-    activeTabId: () => 'tab',
-    splitView: () => null,
+    tabs: new Map([['tab', tab]]),
+    mcpTabGroups: new Map(),
+    closedTabs: [],
+    activeTabId: 'tab',
+    splitView: null,
     listMcpTabGroups: () => [],
     listSavedTabGroups: () => [],
     publishedAgentFollow: () => undefined,
-    options: () => ({ profilePath: '/profile' }),
+    options: { profilePath: '/profile' },
     isTabTakenOver: () => false
   }
   const fallback = anything() as Record<string | symbol, unknown>
-  const access = new Proxy({}, { get: (_target, key) => (typeof key === 'string' && key in own ? own[key] : fallback[key]) })
-  return getState(access as never).tabs[0]!
+  const browser = new Proxy({}, { get: (_target, key) => (typeof key === 'string' && key in own ? own[key] : fallback[key]) })
+  return buildBrowserState(browser as never).tabs[0]!
 }
 
 describe('a page whose certificate the person chose to trust', () => {

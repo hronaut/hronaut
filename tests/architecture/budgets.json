@@ -1,6 +1,6 @@
 {
   "oversizedFiles": {
-    "src/main/browser/browser.ts": 7030,
+    "src/main/browser/browser.ts": 6953,
     "src/main/browser/downloads-controller.ts": 811,
     "src/main/index.ts": 1662,
     "src/main/mcp/http-server.ts": 856,
@@ -19,8 +19,6 @@
     "src/main/browser/agent-step-thumbnail/agent-step-thumbnail-access.ts",
     "src/main/browser/agent-touch/agent-touch-access.ts",
     "src/main/browser/agent-wheel/agent-wheel-access.ts",
-    "src/main/browser/browser-state/browser-state-access.ts",
-    "src/main/browser/browser-state/persisted-state-access.ts",
     "src/main/browser/console-messages/console-messages-access.ts",
     "src/main/browser/context-menus/history-menu-access.ts",
     "src/main/browser/context-menus/page-context-menu-access.ts",

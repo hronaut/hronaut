@@ -431,10 +431,8 @@ import { DEFAULT_SEARCH_ENGINE, type SearchEngineName } from '../../shared/searc
 import type { AgentPointerIdentity, BrowserFormField } from './page-scripts.js'
 import { evaluate, type EvaluationDeadline } from './page-evaluation/evaluate.js'
 import { TabStateStore, type PersistedBrowserState } from './tab-store.js'
-import type { PersistedStateAccess, WorkspaceBeingDeleted } from './browser-state/persisted-state-access.js'
-import { persistedState } from './browser-state/persisted-state.js'
-import type { BrowserStateAccess } from './browser-state/browser-state-access.js'
-import { getState } from './browser-state/browser-state.js'
+import { persistedState, type WorkspaceBeingDeleted } from './browser-state/persisted-state.js'
+import { browserState, buildBrowserState, publishChange } from './browser-state/browser-state.js'
 import { shownTabIds, StatePublication } from './browser-state/state-publication.js'
 import { normalizeTabTitle } from './tab-metadata.js'
 import { TabDiscoveryTitle } from './tab-discovery-title.js'
@@ -1077,7 +1075,7 @@ export class Browser {
   persistTimer: NodeJS.Timeout | null = null
   readonly statePublication = new StatePublication({
     canPublish: () => !this.destroyed && !this.window.isDestroyed() && !this.restoringLayout,
-    read: () => getState(this.browserStateAccess()),
+    read: () => buildBrowserState(this),
     shownLoadingPages: () => shownTabIds(this.activeTabId, this.splitView).flatMap((id) => {
       const tab = this.tabs.get(id)
       return tab?.loading === true ? [`${id}:${tab.navigationGeneration}`] : []
@@ -1533,46 +1531,6 @@ export class Browser {
     this.memorySaverTimer.unref()
   }
 
-  /**
-   * The narrow view publishing the browser state gets of this manager's
-   * private tabs, recently closed tabs, active tab, split view, global mute,
-   * lock and pause, MCP address, options, workspaces, agent following,
-   * navigation history, human input lock, agent pauses, video recording,
-   * emulation, network conditions, PWA lifecycle recording and CSS state
-   * preview. It is a prototype method rather than a field, so managers
-   * created without the constructor (as unit tests do) still provide it.
-   * Each member reads the manager when called.
-   */
-  private browserStateAccess(): BrowserStateAccess<BrowserTab> {
-    return {
-      publishedAgentFollow: () => this.publishedAgentFollow(),
-      orderedTabs: () => orderedTabs(this),
-      closedTabs: () => this.closedTabs,
-      activeTabId: () => this.activeTabId,
-      splitView: () => this.splitView,
-      allTabsMuted: () => this.allTabsMuted,
-      allHumanInteractionLocked: () => this.allHumanInteractionLocked,
-      allAgentsPaused: () => this.allAgentsPaused,
-      agentPauseOverridesAllowed: () => this.agentPauseOverridesAllowed,
-      mcpUrl: () => this.mcpUrl,
-      options: () => this.options,
-      listMcpTabGroups: () => this.listMcpTabGroups(),
-      listSavedTabGroups: () => this.listSavedTabGroups(),
-      navigationButtons: (tab) => this.navigationButtons(tab),
-      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
-      isTabAgentPaused: (tabId) => this.isTabAgentPaused(tabId),
-      isTabTakenOver: (tabId) => this.isTabTakenOver(tabId),
-      videoRecorder: () => this.videoRecorder,
-      emulationProjection: (tab) => this.emulationProjection(tab),
-      networkConditionState: (tabId) => this.networkConditionState(tabId),
-      pwaLifecycleRecorder: () => this.pwaLifecycleRecorder,
-      cssStatePreview: () => this.cssStatePreview,
-      virtualPasskeys: () => this.virtualPasskeys,
-      logpoints: () => this.logpoints,
-      mcpTabGroups: () => this.mcpTabGroups
-    }
-  }
-
   /** The main window's shell drew the last browser state it was sent, so the next change can go out (see StatePublication). */
   stateDrawn(): void {
     this.statePublication.drawn()
@@ -1585,8 +1543,7 @@ export class Browser {
 
   /** The browser state as it is now. A change still waiting to be published goes out first (see StatePublication). */
   getState(): BrowserState {
-    this.statePublication.beforeRead()
-    return getState(this.browserStateAccess())
+    return browserState(this)
   }
 
   /**
@@ -1617,7 +1574,7 @@ export class Browser {
     }
   }
 
-  private publishedAgentFollow(): { tabId: string; agentName: string } | undefined {
+  publishedAgentFollow(): { tabId: string; agentName: string } | undefined {
     return publishedAgentFollow(this.agentFollowAccess())
   }
 
@@ -4349,7 +4306,7 @@ export class Browser {
       : { application: tab.emulationApplication, retainedSettings: cloneEmulationState(tab.emulation), recovery: 'restore-committed' }
   }
 
-  private emulationProjection(tab: BrowserTab): { emulation?: BrowserEmulationState; emulationState?: BrowserUnconfirmedEmulation } {
+  emulationProjection(tab: BrowserTab): { emulation?: BrowserEmulationState; emulationState?: BrowserUnconfirmedEmulation } {
     if (tab.emulationApplication !== 'confirmed') return { emulationState: this.emulationResult(tab) as BrowserUnconfirmedEmulation }
     return hasEmulationOverrides(tab.emulation) ? { emulation: cloneEmulationState(tab.emulation) } : {}
   }
@@ -6502,7 +6459,7 @@ export class Browser {
    * Whether the tab can go Back and Forward, read without its history's pages: the state is built many times a second
    * while pages load, and reading every tab's whole history took a good part of it. The sleeping page is none to go to.
    */
-  private navigationButtons(tab: BrowserTab): { canGoBack: boolean; canGoForward: boolean } {
+  navigationButtons(tab: BrowserTab): { canGoBack: boolean; canGoForward: boolean } {
     const history = tab.sleepNavigationHistory
     if (history) return { canGoBack: history.index > 0, canGoForward: history.index < history.entries.length - 1 }
     if (tab.webContents.isDestroyed()) return { canGoBack: false, canGoForward: false }
@@ -6579,7 +6536,7 @@ export class Browser {
     return applyNetworkRoutes(this.networkConditionsAccess(), tab, validate, recovery, mutate, markSubmitted, admission)
   }
 
-  private isHumanInteractionLocked(tab: BrowserTab): boolean {
+  isHumanInteractionLocked(tab: BrowserTab): boolean {
     // Hronaut Home is application chrome, not a website tab. The global lock
     // protects page input while leaving Home controls usable for the human.
     return !isHronautHomeUrl(tab.url)
@@ -6944,15 +6901,7 @@ export class Browser {
   }
 
   private changed(persist = true): void {
-    if (this.destroyed || this.window.isDestroyed() || this.restoringLayout) return
-    this.options.onChanged?.()
-    this.statePublication.changed()
-    if (!persist) return
-    if (this.persistTimer) clearTimeout(this.persistTimer)
-    this.persistTimer = setTimeout(() => {
-      this.persistTimer = null
-      void this.store.save(() => this.persistedState()).catch((error) => console.error('[browser] Failed to persist tabs:', error))
-    }, 250)
+    publishChange(this, persist)
   }
 
   private splitViewContains(tabId: string): boolean {
@@ -6998,33 +6947,7 @@ export class Browser {
     })
   }
 
-  /**
-   * The narrow view saving the browser state gets of this manager's private
-   * destroyed flag, workspace storage records, workspace continuity, active
-   * tab, split view and divider, global mute and lock, workspaces, tabs and
-   * the workspaces being deleted. It is a prototype method rather than a
-   * field, so managers created without the constructor (as unit tests do)
-   * still provide it. Each member reads the manager when called.
-   */
-  private persistedStateAccess(): PersistedStateAccess<BrowserTab> {
-    return {
-      isDestroyed: () => this.destroyed,
-      deletedWorkspaceStorageIds: () => this.deletedWorkspaceStorageIds,
-      workspaceStorageCleanupBlocked: () => this.workspaceStorageCleanupBlocked,
-      workspaceContinuity: () => this.workspaceContinuity,
-      activeTabId: () => this.activeTabId,
-      splitView: () => this.splitView,
-      splitDivider: () => this.splitDivider,
-      allTabsMuted: () => this.allTabsMuted,
-      allHumanInteractionLocked: () => this.allHumanInteractionLocked,
-      mcpTabGroups: () => this.mcpTabGroups,
-      savedTabGroups: () => this.savedTabGroups,
-      orderedTabs: () => orderedTabs(this),
-      workspacesBeingDeleted: () => this.workspacesBeingDeleted
-    }
-  }
-
   private persistedState(): PersistedBrowserState {
-    return persistedState(this.persistedStateAccess())
+    return persistedState(this)
   }
 }

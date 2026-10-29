@@ -1,6 +1,6 @@
 import type { NavigationEntry, Session } from 'electron'
 import type { BrowserClosedTabState, BrowserState } from '../../../shared/types.js'
-import type { WorkspaceBeingDeleted } from '../browser-state/persisted-state-access.js'
+import type { WorkspaceBeingDeleted } from '../browser-state/persisted-state.js'
 import type { BrowserNetworkRecordingState } from '../network-recording.js'
 import type { PersistedBrowserState, TabStateStore } from '../tab-store.js'
 import type { OpenWorkspaceOperationAction, WorkspaceOperationAction } from '../workspace-operations/workspace-operations-access.js'

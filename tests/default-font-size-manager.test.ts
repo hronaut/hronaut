@@ -9,7 +9,7 @@ function fixture() {
   const manager = Object.assign(Object.create(Browser.prototype), {
     tabs: new Map([[source.id, source]]), mcpTabGroups: new Map([['workspace', {}]]), options: {},
     createTab, ensureHumanWorkspace, requireMcpTabGroup: vi.fn(), assertWorkspaceNavigationAllowed: vi.fn(),
-    getTab: () => source, navigationHistorySnapshot: () => undefined, reorderTab: vi.fn(), getState: () => ({ tabs: [source] })
+    navigationHistorySnapshot: () => undefined, reorderTab: vi.fn(), getState: () => ({ tabs: [source] })
   }) as Browser
   return { manager, createTab, ensureHumanWorkspace }
 }
