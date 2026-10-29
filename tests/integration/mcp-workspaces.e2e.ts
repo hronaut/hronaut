@@ -1165,10 +1165,14 @@ test('restores workspace identity and tabs after an application restart', async 
       arguments: { workspaceId, url: 'data:text/html,<title>Persistent grouped tab</title><h1>Still here</h1>' }
     }) as CallToolResult
     const tabId = (JSON.parse(text(opened)) as { activeTabId: string }).activeTabId
+    // The page opens at its address in place of the workspace's blank tab. Playwright emulates focus in every page it
+    // attaches to, and Chromium's renderer can crash (FocusController::FocusHasChanged) when that emulation ends as an
+    // unfocused page swaps out its blank document for the first address it navigates to.
     const defaultGroupId = await instance.window.evaluate(`(async () => {
       const state = await window.hronaut.createWorkspace({ name: 'Persistent human workspace', storage: 'scratch' });
       const group = state.mcpTabGroups.find((workspace) => workspace.name === 'Persistent human workspace');
-      await window.hronaut.navigate({ tabId: state.activeTabId, url: 'data:text/html,<title>Persistent human tab</title><h1>Mine</h1>' });
+      await window.hronaut.newTab({ url: 'data:text/html,<title>Persistent human tab</title><h1>Mine</h1>', active: true, mcpGroupId: group.id });
+      await window.hronaut.closeTab(state.activeTabId);
       return group.id;
     })()`) as string
     // Navigation completion and Chromium's title notification are separate IPC

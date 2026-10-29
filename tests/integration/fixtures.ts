@@ -196,6 +196,8 @@ export async function launchHronaut(
       applicationTraces.set(app, traces)
       await traces.start(app)
     }
+    // As the appWindow fixture does, so a test's first tab change does not meet "still initializing".
+    await waitForSavedWorkspaces(window)
     return { app, window }
   } catch (error) {
     // Ownership has not reached the caller yet, so its teardown cannot close
