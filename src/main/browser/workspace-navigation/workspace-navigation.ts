@@ -215,13 +215,18 @@ function recordWorkspaceNavigationDenied<Tab extends WorkspaceNavigationTab>(
   access.changed()
 }
 
-/** Reports the decision for a navigation, recording a denial, and returns whether the navigation may proceed. */
+/**
+ * Reports the decision for a navigation, recording a denial, and returns whether the navigation may proceed. A
+ * workspace that is gone, as its tabs' pages close while Hronaut quits, allows none: their events still arrive, and
+ * they run where nothing catches an error.
+ */
 export function workspaceNavigationAllowed<Tab extends WorkspaceNavigationTab>(
   access: WorkspaceNavigationAccess<Tab>,
   groupId: string,
   url: string,
   source: BrowserWorkspaceNavigationAuditSource
 ): boolean {
+  if (!access.findWorkspace(groupId)) return false
   const decision = workspaceNavigationDecision(access, groupId, url)
   access.options().onWorkspaceNavigationDecision?.(groupId, decision, source)
   if (decision.allowed) return true
