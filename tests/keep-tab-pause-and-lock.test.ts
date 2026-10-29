@@ -31,6 +31,13 @@ vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOrigi
   publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist),
   browserState: (browser: { getState: () => unknown }) => browser.getState()
 }))
+// The browser's withTabLabelLifecycle stub runs the tab operations that wait for pending label saves.
+vi.mock('../src/main/browser/tab-labels/tab-labels.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-labels/tab-labels.js')>(),
+  withTabLabelLifecycle: (browser: { withTabLabelLifecycle: (run: () => Promise<unknown>) => Promise<unknown> }, run: () => Promise<unknown>) => (
+    browser.withTabLabelLifecycle(run)
+  )
+}))
 vi.mock('../src/main/browser/tab-arrangement/tab-arrangement.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/tab-arrangement/tab-arrangement.js')>(),
   reorderTab: (

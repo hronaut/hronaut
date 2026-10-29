@@ -151,7 +151,7 @@ import {
   withWorkspaceSiteDataCleanup,
   workspaceSession
 } from './workspace-data/workspace-data.js'
-import { ensureHumanWorkspace } from './workspace-creation/human-workspace.js'
+import { assertActiveWorkspaceCapacity } from './workspace-creation/workspace-capacity.js'
 import { normalizeWorkspaceDescription } from '../../shared/workspace-description.js'
 import { reconcilePresentedViewVisibility, showResumedPresentedView, watchPresentedViewVisibility } from './presented-view-visibility.js'
 import { resizeViewport } from './emulation/resize-viewport.js'
@@ -236,7 +236,6 @@ import type { DebugReportAccess } from './debug-report/debug-report-access.js'
 import { auditEvidenceAvailability, clearDiagnosticLogs, debugReport, diagnosticLogState, setDiagnosticLogPreservation } from './debug-report/debug-report.js'
 import { attachConsoleMessageEvents } from './console-messages/console-message-events.js'
 import { securityReport } from './page-audits/security-report.js'
-import type { WorkspaceCreationAccess } from './workspace-creation/workspace-creation-access.js'
 import { createWorkspace, importWorkspaceTemplate } from './workspace-creation/workspace-creation.js'
 import type { WorkspaceTemplateImporter } from './workspace-template-import.js'
 import type { WorkspaceTemplateImportResult } from '../../shared/workspace-template.js'
@@ -516,18 +515,15 @@ import { attemptBeforeUnloadClose } from './tab-close/before-unload-close.js'
 import type { BeforeUnloadStagingAccess } from './tab-close/before-unload-staging-access.js'
 import { stageBeforeUnloadClose } from './tab-close/before-unload-staging.js'
 import { closeTabAfterLabelSave } from './tab-close/close-tab.js'
-import type { TabLabelsAccess } from './tab-labels/tab-labels-access.js'
-import { assertTabLabelAdmission, saveTabLabel, withTabLabelLifecycle } from './tab-labels/tab-labels.js'
+import { saveTabLabel, withTabLabelLifecycle } from './tab-labels/tab-labels.js'
 import { closedTabHistory, duplicateTabAfterLabelSave, forgetClosedTabs, rememberClosedTab, rememberSavedClosedTabs, reopenClosedTabAfterLabelSave, reopenClosedTabEntry } from './tab-reopening/tab-reopening.js'
 import { forgetTabHistoryPages, holdTabHistory } from './tab-history-pages/forget-tab-history-pages.js'
 import { reorderTab, reorderTabs, setTabPinned } from './tab-arrangement/tab-arrangement.js'
-import type { DroppedLinksAccess } from './dropped-links/dropped-links-access.js'
 import { openDroppedLink } from './dropped-links/dropped-links.js'
 import { placeTabOpenedFromPage } from './link-tab-placement/link-tab-placement.js'
 import { forgetTabsOpenedFrom, handOverTabsOpenedFrom, switchLeavesOpenedTabs, tabAfterClosingLinkTab } from './link-tab-placement/link-tab-openers.js'
 import { sendWalletProviderEvent, walletPageContext, walletPageContextForMcpTab, type BrowserWalletPageContext } from './wallet-pages/wallet-pages.js'
 import { getMcpDiscoveryTabs, getMcpGroupState, requireTabInMcpGroup, tabBelongsToMcpGroup } from './workspace-scope/workspace-scope.js'
-import type { NewTabsAccess } from './new-tabs/new-tabs-access.js'
 import { createNewTab, newLabeledAgentTab } from './new-tabs/new-tabs.js'
 import { dismissAgentPointer, showAgentPointer } from './agent-pointer/agent-pointer.js'
 import { visualCompareContext } from './visual-compare/visual-capture.js'
@@ -558,7 +554,6 @@ import {
 export const HRONAUT_HOME_URL = 'hronaut://home/'
 const MAX_TABS = MAX_BROWSER_TABS
 const MAX_SAVED_TAB_GROUPS = MAX_ARCHIVED_WORKSPACES
-const MAX_ACTIVE_WORKSPACES = 50
 /** Integration tests on a loaded machine can give the snapshot more time, so its ordering check is not a race. */
 function occlusionSnapshotTimeoutMs(): number {
   const override = Number(process.env.HRONAUT_TEST_OCCLUSION_SNAPSHOT_TIMEOUT_MS)
@@ -942,7 +937,7 @@ export class Browser {
     requireActive: id => this.requireMcpTabGroup(id),
     assertRestoreCapacity: (name, id) => {
       this.assertWorkspaceNameAvailable(name, undefined, id, true)
-      this.assertActiveWorkspaceCapacity()
+      assertActiveWorkspaceCapacity(this)
     },
     withActiveOperation: (id, action, run) => this.withWorkspaceOperation(id, action, run),
     withArchivedOperation: (id, action, run) => this.withSavedWorkspaceOperation(id, action, run),
@@ -1623,13 +1618,13 @@ export class Browser {
       assertWorkspaceNameAvailable: (name, excludeActiveWorkspaceId, excludeSavedWorkspaceId, allowDuplicateName) => (
         this.assertWorkspaceNameAvailable(name, excludeActiveWorkspaceId, excludeSavedWorkspaceId, allowDuplicateName)
       ),
-      assertActiveWorkspaceCapacity: () => this.assertActiveWorkspaceCapacity(),
+      assertActiveWorkspaceCapacity: () => assertActiveWorkspaceCapacity(this),
       assertWorkspaceIdle: (workspaceId) => this.assertWorkspaceIdle(workspaceId),
       isClosingWorkspace: (workspaceId) => this.isClosingWorkspace(workspaceId),
       withWorkspaceOperation: (workspaceId, action, operation, blocksNewTabs) => this.withWorkspaceOperation(workspaceId, action, operation, blocksNewTabs),
       withSavedWorkspaceOperation: (savedWorkspaceId, action, operation) => this.withSavedWorkspaceOperation(savedWorkspaceId, action, operation),
       withGlobalWorkspaceStorageOperation: (action, operation) => this.withGlobalWorkspaceStorageOperation(action, operation),
-      withTabLabelLifecycle: (run) => this.withTabLabelLifecycle(run),
+      withTabLabelLifecycle: (run) => withTabLabelLifecycle(this, run),
       createTab: (options) => this.createTab(options),
       closeTabs: (tabIds, ensureReplacement) => this.closeTabs(tabIds, ensureReplacement),
       selectTab: (tabId) => this.selectTab(tabId),
@@ -1759,42 +1754,12 @@ export class Browser {
       .digest('base64url')}`
   }
 
-  /**
-   * The narrow view creating workspaces for the person gets of this
-   * manager's private tabs, active tab, open and archived workspaces,
-   * template importer, workspace creation, changes and closing, tab
-   * creation, selection and state publication. It is a prototype method
-   * rather than a field, so managers created without the constructor (as unit
-   * tests do) still provide it. The delegates below return the feature's
-   * value or promise directly, so callers see the same ticks as before.
-   */
-  private workspaceCreationAccess(): WorkspaceCreationAccess {
-    return {
-      activeTabId: () => this.activeTabId,
-      tabs: () => this.tabs,
-      mcpTabGroups: () => this.mcpTabGroups,
-      savedTabGroups: () => this.savedTabGroups,
-      assertActiveWorkspaceCapacity: () => this.assertActiveWorkspaceCapacity(),
-      openWorkspaceRoom: () => MAX_ACTIVE_WORKSPACES - this.mcpTabGroups.size,
-      createMcpTabGroup: (name, color, storage, origins, allowDuplicateName, navigationPolicy, sourceWorkspaceId, description, contextClass) => (
-        this.createMcpTabGroup(name, color, storage, origins, allowDuplicateName, navigationPolicy, sourceWorkspaceId, description, contextClass)
-      ),
-      updateMcpTabGroup: (groupId, updates) => this.updateMcpTabGroup(groupId, updates),
-      closeMcpTabGroup: (groupId) => this.closeMcpTabGroup(groupId),
-      createTab: (options) => this.createTab(options),
-      selectTab: (tabId) => this.selectTab(tabId),
-      getState: () => this.getState(),
-      workspaceTemplateImporter: () => this.workspaceTemplateImporter,
-      setWorkspaceTemplateImporter: (importer) => { this.workspaceTemplateImporter = importer }
-    }
-  }
-
   importWorkspaceTemplate(text: string): Promise<WorkspaceTemplateImportResult> {
-    return importWorkspaceTemplate(this.workspaceCreationAccess(), text)
+    return importWorkspaceTemplate(this, text)
   }
 
   createWorkspace(options: BrowserWorkspaceCreateOptions): Promise<BrowserState> {
-    return createWorkspace(this.workspaceCreationAccess(), options)
+    return createWorkspace(this, options)
   }
 
   async closeWorkspace(workspaceId: string): Promise<BrowserState> {
@@ -1919,7 +1884,7 @@ export class Browser {
       closedTabs: () => this.closedTabs,
       detachedClosedTabs: () => this.detachedClosedTabs,
       workspaceRegistry: () => this.workspaceRegistry,
-      withTabLabelLifecycle: (run) => this.withTabLabelLifecycle(run),
+      withTabLabelLifecycle: (run) => withTabLabelLifecycle(this, run),
       withSavedWorkspaceOperation: (savedWorkspaceId, action, operation) => this.withSavedWorkspaceOperation(savedWorkspaceId, action, operation),
       assertStorageDeletionOwnership: (workspaceId, storageId) => this.assertStorageDeletionOwnership(workspaceId, storageId),
       downloadsEnd: (browserSession) => this.downloadController.downloadsEnd(browserSession),
@@ -2071,36 +2036,11 @@ export class Browser {
    * before this call settles.
    */
   async newAgentTab(options: NewTabOptions, onCreated?: (tabId: string) => void): Promise<BrowserState> {
-    return this.createNewTab(options, false, onCreated && ((tab) => onCreated(tab.id)))
-  }
-
-  /**
-   * The narrow view opening a new tab gets of this manager's private tabs,
-   * workspaces, options, workspace navigation checks, tab creation, Home,
-   * label saves and state. It is a prototype method rather than a field, so
-   * managers created without the constructor (as unit tests do) still provide
-   * it. The delegates below return the feature's promise directly, so a
-   * labeled tab's save is still admitted before the caller's next tick.
-   */
-  private newTabsAccess(): NewTabsAccess<BrowserTab> {
-    return {
-      options: () => this.options,
-      tabs: () => this.tabs,
-      mcpTabGroups: () => this.mcpTabGroups,
-      ensureHumanWorkspace: () => this.ensureHumanWorkspace(),
-      requireMcpTabGroup: (groupId) => this.requireMcpTabGroup(groupId),
-      assertWorkspaceNavigationAllowed: (groupId, url, source) => this.assertWorkspaceNavigationAllowed(groupId, url, source),
-      createTab: (options) => this.createTab(options),
-      closeMcpTabGroup: (groupId) => this.closeMcpTabGroup(groupId),
-      openHome: () => this.openHome(),
-      assertTabLabelAdmission: () => this.assertTabLabelAdmission(),
-      saveTabLabel: (tabId, value, validateAuthority, onCommitted) => this.saveTabLabel(tabId, value, validateAuthority, onCommitted),
-      getState: () => this.getState()
-    }
+    return createNewTab(this, options, false, onCreated && ((tab) => onCreated(tab.id)))
   }
 
   newLabeledAgentTab(options: NewTabOptions, value: string, validateAuthority: () => void, onCreated: (id: string) => void, onCreationAttempt: () => void): Promise<{ createdTabId: string; labelPersistence: 'saved' | 'durability-unconfirmed' | 'not-saved' }> {
-    return newLabeledAgentTab(this.newTabsAccess(), options, value, validateAuthority, onCreated, onCreationAttempt)
+    return newLabeledAgentTab(this, options, value, validateAuthority, onCreated, onCreationAttempt)
   }
 
   async newTab(options: NewTabOptions = {}, selectVisible = true): Promise<BrowserState> {
@@ -2109,17 +2049,13 @@ export class Browser {
     const shown = selectVisible && options.active !== false && !options.url && this.activeTabId
       ? this.tabs.get(this.activeTabId)
       : undefined
-    return this.createNewTab(options, selectVisible, shown?.mcpGroupId ? (tab) => {
+    return createNewTab(this, options, selectVisible, shown?.mcpGroupId ? (tab) => {
       if (tab.mcpGroupId === shown.mcpGroupId && tab.id !== shown.id) tab.returnsToTabId = shown.id
     } : undefined)
   }
 
-  private createNewTab(options: NewTabOptions, selectVisible: boolean, onCreated?: (tab: BrowserTab) => void, onCreationAttempt?: () => void): Promise<BrowserState> {
-    return createNewTab(this.newTabsAccess(), options, selectVisible, onCreated, onCreationAttempt)
-  }
-
   reopenClosedTab(closedTabId?: string): Promise<BrowserState> {
-    return this.withTabLabelLifecycle(() => reopenClosedTabAfterLabelSave(this, closedTabId))
+    return withTabLabelLifecycle(this, () => reopenClosedTabAfterLabelSave(this, closedTabId))
   }
 
   /**
@@ -2145,7 +2081,7 @@ export class Browser {
   }
 
   duplicateTab(tabId: string): Promise<BrowserState> {
-    return this.withTabLabelLifecycle(() => this.duplicateTabAfterLabelSave(tabId))
+    return withTabLabelLifecycle(this, () => this.duplicateTabAfterLabelSave(tabId))
   }
 
   private duplicateTabAfterLabelSave(tabId: string): Promise<BrowserState> {
@@ -2158,46 +2094,8 @@ export class Browser {
 
   stopTabLabelEdits(): void { this.tabLabelAdmissionClosed = true }
 
-  /**
-   * The narrow view saving tab labels gets of this manager's private tabs,
-   * store, persisted state, pending label saves, lifecycle holds and
-   * admission fence. It is a prototype method rather than a field, so
-   * managers created without the constructor (as unit tests do) still provide
-   * it. The delegates below return the feature's promise directly, so label
-   * saves are admitted and holds taken before the caller's next tick, as
-   * before.
-   */
-  private tabLabelsAccess(): TabLabelsAccess<BrowserTab> {
-    return {
-      initialized: () => this.initialized,
-      isDestroyed: () => this.destroyed,
-      tabLabelAdmissionClosed: () => this.tabLabelAdmissionClosed,
-      tabLabelLifecycleHolds: () => this.tabLabelLifecycleHolds,
-      setTabLabelLifecycleHolds: (holds) => { this.tabLabelLifecycleHolds = holds },
-      pendingTabLabels: () => this.pendingTabLabels,
-      getTab: (tabId) => getTab(this, tabId),
-      findTab: (tabId) => this.tabs.get(tabId),
-      store: () => this.store,
-      persistedState: () => this.persistedState(),
-      changed: (persist) => this.changed(persist),
-      getState: () => this.getState()
-    }
-  }
-
-  private withTabLabelLifecycle<T>(run: () => Promise<T>): Promise<T> {
-    return withTabLabelLifecycle(this.tabLabelsAccess(), run)
-  }
-
-  private assertTabLabelAdmission(): void {
-    assertTabLabelAdmission(this.tabLabelsAccess())
-  }
-
   async setTabLabel(tabId: string, value: string): Promise<{ state: BrowserState; status: 'saved' | 'durability-unconfirmed' }> {
-    return this.saveTabLabel(tabId, value)
-  }
-
-  private saveTabLabel(tabId: string, value: string, validateAuthority?: () => void, onCommitted?: () => void): Promise<{ state: BrowserState; status: 'saved' | 'durability-unconfirmed' }> {
-    return saveTabLabel(this.tabLabelsAccess(), tabId, value, validateAuthority, onCommitted)
+    return saveTabLabel(this, tabId, value)
   }
 
   setTabPinned(tabId: string, pinned: boolean): Promise<BrowserState> {
@@ -2329,23 +2227,7 @@ export class Browser {
 
   /** Opens a link or other text the person dropped on the tab strip or rail, in a tab or beside one, as Chrome does. */
   openDroppedLink(text: string, target: DroppedLinkTarget): Promise<BrowserState> {
-    return openDroppedLink(this.droppedLinksAccess(), text, target)
-  }
-
-  /**
-   * The narrow view opening a dropped link gets of this manager's tabs in their order, navigation by the person, new tabs
-   * and state. It is a prototype method rather than a field, so managers created without the constructor (as unit tests
-   * do) still provide it.
-   */
-  private droppedLinksAccess(): DroppedLinksAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      tabs: () => this.tabs,
-      orderedTabs: () => orderedTabs(this),
-      navigate: (address, tabId) => this.navigate(address, tabId, { byPerson: true }),
-      newTab: (options, onCreated) => this.createNewTab(options, true, onCreated),
-      getState: () => this.getState()
-    }
+    return openDroppedLink(this, text, target)
   }
 
   private workspaceContextMenuItems(group: BrowserTabGroup): MenuItemConstructorOptions[] {
@@ -2562,7 +2444,7 @@ export class Browser {
       performCloseTab: (tabId, ensureReplacement, respectBeforeUnload, forceClose, yieldsToNewerSelection) =>
         this.performCloseTab(tabId, ensureReplacement, respectBeforeUnload, forceClose, yieldsToNewerSelection),
       reopenClosedTabEntry: (closedTabId, active) => this.reopenClosedTabEntry(closedTabId, active),
-      withTabLabelLifecycle: (run) => this.withTabLabelLifecycle(run),
+      withTabLabelLifecycle: (run) => withTabLabelLifecycle(this, run),
       reorderTab: (tabId, targetTabId, placement) => this.reorderTab(tabId, targetTabId, placement),
       getState: () => this.getState(),
       options: () => this.options,
@@ -2688,7 +2570,7 @@ export class Browser {
     respectBeforeUnload = false,
     yieldsToNewerSelection = false
   ): Promise<BrowserState> {
-    return this.withTabLabelLifecycle(() => closeTabAfterLabelSave(this.personTabCloseAccess(), tabId, ensureReplacement, respectBeforeUnload, yieldsToNewerSelection))
+    return withTabLabelLifecycle(this, () => closeTabAfterLabelSave(this.personTabCloseAccess(), tabId, ensureReplacement, respectBeforeUnload, yieldsToNewerSelection))
   }
 
   private async performCloseTab(
@@ -4720,16 +4602,6 @@ export class Browser {
     options.onCreated?.(tab)
     this.changed()
     return tab
-  }
-
-  private ensureHumanWorkspace(): string {
-    return ensureHumanWorkspace(this.workspaceCreationAccess())
-  }
-
-  private assertActiveWorkspaceCapacity(): void {
-    if (this.mcpTabGroups.size >= MAX_ACTIVE_WORKSPACES) {
-      throw new LocalizedError('appErrors.workspace.activeLimit', { max: MAX_ACTIVE_WORKSPACES })
-    }
   }
 
   private assertWorkspaceNameAvailable(

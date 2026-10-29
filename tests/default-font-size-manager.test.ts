@@ -1,6 +1,7 @@
 import { expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' } }))
-// The prototype-built browser below stubs getState and reorderTab; duplicating a tab reaches them through these.
+// The prototype-built browser below stubs getState, reorderTab, ensureHumanWorkspace and
+// assertWorkspaceNavigationAllowed; opening and duplicating a tab reach them through these.
 vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
   browserState: (browser: { getState: () => unknown }) => browser.getState()
@@ -13,6 +14,14 @@ vi.mock('../src/main/browser/tab-arrangement/tab-arrangement.js', async (importO
     targetTabId: string,
     placement: 'before' | 'after'
   ) => browser.reorderTab(tabId, targetTabId, placement)
+}))
+vi.mock('../src/main/browser/workspace-creation/human-workspace.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-creation/human-workspace.js')>(),
+  ensureHumanWorkspace: (browser: { ensureHumanWorkspace: () => string }) => browser.ensureHumanWorkspace()
+}))
+vi.mock('../src/main/browser/workspace-navigation/workspace-navigation.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-navigation/workspace-navigation.js')>(),
+  assertWorkspaceNavigationAllowed: (browser: { assertWorkspaceNavigationAllowed: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.assertWorkspaceNavigationAllowed(...args)
 }))
 import { Browser } from '../src/main/browser/browser.js'
 

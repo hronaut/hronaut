@@ -1,5 +1,22 @@
 import { expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' } }))
+// The prototype-built browser below stubs changed, getState, persistedState and assertWorkspaceNavigationAllowed, which
+// opening a labeled tab publishes, saves and checks the workspace's sites through.
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist),
+  browserState: (browser: { getState: () => unknown }) => browser.getState()
+}))
+vi.mock('../src/main/browser/browser-state/persisted-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/persisted-state.js')>(),
+  persistedState: (browser: { persistedState: () => unknown }) => browser.persistedState()
+}))
+vi.mock('../src/main/browser/workspace-navigation/workspace-navigation.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-navigation/workspace-navigation.js')>(),
+  assertWorkspaceNavigationAllowed: (browser: { assertWorkspaceNavigationAllowed: (...args: unknown[]) => void }, ...args: unknown[]) => (
+    browser.assertWorkspaceNavigationAllowed(...args)
+  )
+}))
 import { Browser } from '../src/main/browser/browser.js'
 
 function fixture() {

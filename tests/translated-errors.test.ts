@@ -90,10 +90,7 @@ const homeTab = { id: 'home', url: 'hronaut://home/', pinned: false, nativeInput
 const websiteTab = { id: 'site', url: 'https://example.test/', pinned: false, nativeInputEnvironmentGeneration: 0 }
 const manager = (activeTabId: string | null) => Object.assign(Object.create(Browser.prototype), { tabs: new Map(), activeTabId }) as InstanceType<typeof Browser>
 const noWorkspaces = { mcpTabGroups: () => new Map(), savedTabGroups: () => new Map() }
-const labels = {
-  initialized: () => true, isDestroyed: () => false, tabLabelAdmissionClosed: () => false, tabLabelLifecycleHolds: () => 0,
-  pendingTabLabels: () => new Set()
-}
+const labels = { initialized: true, destroyed: false, tabLabelAdmissionClosed: false, tabLabelLifecycleHolds: 0, pendingTabLabels: new Set() }
 // The denial is recorded in the workspace's audit; with its window gone, nothing is published.
 const restrictedWorkspace = {
   mcpTabGroups: new Map([['workspace', { navigationPolicy: { mode: 'restricted', rules: ['https://allowed.example'] }, navigationAudit: [] }]]),
@@ -160,7 +157,7 @@ describe('main-process failures people see in tabs, navigation and new tabs', ()
       'This tab renderer is no longer available. Close the tab and reopen it from Recently closed.',
       'Ця вкладка більше не працює. Закрийте її та відкрийте знову в розділі «Нещодавно закриті».'],
     // New tabs
-    ['the tab limit', () => createNewTab({ options: () => ({}), tabs: () => ({ size: MAX_BROWSER_TABS }) } as never, { url: 'https://example.test/' }, true),
+    ['the tab limit', () => createNewTab({ options: {}, tabs: { size: MAX_BROWSER_TABS } } as never, { url: 'https://example.test/' }, true),
       `Tab limit reached (${MAX_BROWSER_TABS})`,
       `Досягнуто ліміту вкладок (${MAX_BROWSER_TABS}).`],
     ['a new tab in a workspace that just closed', () => requireMcpTabGroup({ mcpTabGroups: () => new Map() } as never, 'workspace-id'),
@@ -192,18 +189,22 @@ describe('main-process failures people see in tabs, navigation and new tabs', ()
     ['an operation on an archived workspace that was just deleted', () => withSavedWorkspaceOperation(noWorkspaceOperations as never, 'workspace-id', 'deleting the archived workspace', async () => undefined),
       'Unknown archived workspace: workspace-id.', 'Архівний робочий простір більше недоступний.'],
     // Tab labels
-    ['a label edit while a tab operation runs', () => assertTabLabelAdmission({ ...labels, tabLabelLifecycleHolds: () => 1 } as never),
+    ['a label edit while a tab operation runs', () => assertTabLabelAdmission({ ...labels, tabLabelLifecycleHolds: 1 } as never),
       'Wait for the tab operation to finish before editing its label.',
       'Дочекайтеся завершення дії з вкладкою, перш ніж змінювати її мітку.'],
-    ['too many label edits at once', () => assertTabLabelAdmission({ ...labels, pendingTabLabels: () => ({ size: 8 }) } as never),
+    ['too many label edits at once', () => assertTabLabelAdmission({ ...labels, pendingTabLabels: { size: 8 } } as never),
       'Wait for pending label edits to finish.',
       'Дочекайтеся збереження попередніх змін міток.'],
-    ['labeling Hronaut Home', () => saveTabLabel({ ...labels, getTab: () => homeTab } as never, 'home', 'Dashboard'),
+    ['labeling Hronaut Home', () => saveTabLabel({ ...labels, tabs: new Map([['home', homeTab]]) } as never, 'home', 'Dashboard'),
       'Hronaut Home cannot be labeled.',
       'Домівці Hronaut не можна задати мітку.'],
-    ['labeling a tab that closed before the label was saved', () => saveTabLabel({
-      ...labels, getTab: () => websiteTab, findTab: () => undefined, store: () => ({ save: (snapshot: () => unknown) => Promise.resolve().then(snapshot) })
-    } as never, 'site', 'Research'),
+    ['labeling a tab that closed before the label was saved', () => {
+      const tabs = new Map([['site', websiteTab]])
+      // The tab closes once its label save is queued.
+      return saveTabLabel({
+        ...labels, tabs, store: { save: (snapshot: () => unknown) => { tabs.delete('site'); return Promise.resolve().then(snapshot) } }
+      } as never, 'site', 'Research')
+    },
     'The tab is no longer available.',
     'Вкладка більше недоступна.']
   ] as const)('%s keeps its English message and reaches the shell in the interface language', async (_name, action, inEnglish, inUkrainian) => {
