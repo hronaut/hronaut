@@ -7,6 +7,8 @@ import { openedResourceReferrer, savedResourceReferrer } from './page-context-me
 import { readHighlightPageText } from './highlight-page-text.js'
 import { textFragmentLink } from './text-fragment-link.js'
 import { LocalizedError } from '../../localized-error.js'
+import type { MessageKey } from '../../../shared/i18n.js'
+import { mediaPlayerActionAt, type MediaPlayerAction } from './media-player-actions.js'
 
 // The fields Chrome offers the emoji picker in: an editable element, which has no form control, a text, search,
 // address, email or password input, or a text area. A number, telephone or date field takes no emoji.
@@ -166,25 +168,43 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
       click: () => copyText(params.srcURL)
     }
   ]
+  // The frame of the page the video or audio is in, as it is when an item is chosen. Electron gives none once it has
+  // navigated or gone, and then, as in Chrome, nothing is done to the document now in its place.
+  const mediaFrame = (): WebFrameMain | undefined => {
+    const current = params.frame
+    return current && !current.isDestroyed() && !current.detached ? current : undefined
+  }
+  // Chrome's Loop and Show controls for a video or audio, and its Picture in picture for a video: each is checked when
+  // Chromium said so as the menu opened, and turns that off or on, for the element at the click in the frame it is in.
+  // Chromium also says when one is unavailable, such as Loop for a live stream, Picture in picture for a video whose
+  // page disallows it, or Show controls for an audio, which hiding its controls would hide.
+  const mediaPlayerItem = (id: string, label: MessageKey, action: MediaPlayerAction, available: boolean, checked: boolean): MenuItemConstructorOptions => ({
+    id,
+    type: 'checkbox',
+    label: access.text(label),
+    checked,
+    enabled: available && Boolean(params.frame),
+    click: withLiveContents(`turn ${action} ${checked ? 'off' : 'on'}`, () => {
+      const current = mediaFrame()
+      if (!current) return
+      void mediaPlayerActionAt(webContents, current, { x: params.x, y: params.y, zoom: webContents.getZoomFactor() }, action, !checked)
+        // The page's own error is the page's, so only the action is logged.
+        .catch(() => console.error(`[browser] Could not turn ${action} ${checked ? 'off' : 'on'} from page context menu.`))
+    })
+  })
   // Chrome's Copy Video Frame and Save Video Frame, for the frame the video shows, taken from the frame of the page the
   // video is in, which the click's page coordinates reach even across sites. Electron tells nothing of whether the video
   // has a frame to give, so only a video in error has them unavailable: a copy without a frame reports it failed, and a
   // save without one saves nothing. The save goes through the downloads, as Save Video does.
   const videoFrameItems = (): MenuItemConstructorOptions[] => {
     const enabled = !params.mediaFlags.inError && Boolean(params.frame)
-    // The frame as it is when an item is chosen. Electron gives none once it has navigated or gone, and then, as in
-    // Chrome, nothing is copied or saved from the document now in its place.
-    const videoFrame = (): WebFrameMain | undefined => {
-      const current = params.frame
-      return current && !current.isDestroyed() && !current.detached ? current : undefined
-    }
     return [
       {
         id: 'copy-video-frame',
         label: access.text('native.context.copyVideoFrame'),
         enabled,
         click: withLiveContents('copy video frame', () => {
-          const current = videoFrame()
+          const current = mediaFrame()
           if (!current) return
           void access.options().copyVideoFrameAt(current, params.x, params.y)
             .catch((error) => reportCopyFailure('image', error))
@@ -194,7 +214,7 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
         id: 'save-video-frame',
         label: access.text('native.context.saveVideoFrame'),
         enabled,
-        click: withLiveContents('save video frame', () => videoFrame()?.saveVideoFrameAs(params.x, params.y))
+        click: withLiveContents('save video frame', () => mediaFrame()?.saveVideoFrameAs(params.x, params.y))
       }
     ]
   }
@@ -264,17 +284,26 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
     ])
   }
 
-  // A video or audio, as in Chrome: open it in a new tab, save it or copy its address, and for a video, copy or save the
-  // frame it shows. Chromium cannot save a stream a page builds itself, such as one from a MediaSource, and Chrome then
-  // neither saves nor opens it, so neither does this. As for an image, only an http or https address opens or saves. A
-  // video with no address, such as a camera's, still has its frame items.
+  // A video or audio, as in Chrome: Loop and Show controls first, then open it in a new tab, save it or copy its
+  // address, and for a video, copy or save the frame it shows and Picture in picture. Chromium cannot save a stream a
+  // page builds itself, such as one from a MediaSource, and Chrome then neither saves nor opens it, so neither does
+  // this. As for an image, only an http or https address opens or saves. A video with no address, such as a camera's,
+  // still has its frame items, and an audio without one its Loop and Show controls.
   const video = params.mediaType === 'video'
-  if (video || (params.mediaType === 'audio' && params.srcURL)) {
-    const savable = isWebUrl(params.srcURL) && params.mediaFlags.canSave
+  if (video || params.mediaType === 'audio') {
+    const flags = params.mediaFlags
     groups.push([
-      ...params.srcURL ? addressedMediaItems(video, savable) : [],
-      ...video ? videoFrameItems() : []
+      mediaPlayerItem('media-loop', 'native.context.loop', 'loop', flags.canLoop, flags.isLooping),
+      mediaPlayerItem('media-controls', 'native.context.showControls', 'controls', flags.canToggleControls, flags.isControlsVisible)
     ])
+    const savable = isWebUrl(params.srcURL) && flags.canSave
+    const items = [
+      ...params.srcURL ? addressedMediaItems(video, savable) : [],
+      ...video
+        ? [...videoFrameItems(), mediaPlayerItem('picture-in-picture', 'native.context.pictureInPicture', 'picture-in-picture', flags.canShowPictureInPicture, flags.isShowingPictureInPicture)]
+        : []
+    ]
+    if (items.length) groups.push(items)
   }
 
   if (params.isEditable) {
