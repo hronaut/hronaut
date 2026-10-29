@@ -902,7 +902,7 @@ export const zhTW: MessageSchema = {
     "close": "關閉說明",
     "shortcutsDescription": "你可以在 Hronaut 或目前焦點所在的網站中使用這些快速鍵。",
     "developmentBuild": "開發版本",
-    "description": "常駐且可見的瀏覽器，程式設計代理程式可以透過 MCP 和你一起瀏覽。",
+    "description": "為程式設計代理程式打造的可見桌面瀏覽器，每個專案都有獨立的工作區。",
     "repository": "GitHub 存放區",
     "license": "Hronaut 授權條款",
     "contribute": "參與貢獻",

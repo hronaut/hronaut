@@ -902,7 +902,7 @@ export const jaJP: MessageSchema = {
     "close": "ヘルプを閉じる",
     "shortcutsDescription": "これらのショートカットは、Hronaut または現在フォーカスしているウェブサイトで使用できます。",
     "developmentBuild": "開発ビルド",
-    "description": "コーディング エージェントが MCP を通じてあなたと一緒に操作できる、永続的で目に見えるブラウザです。",
+    "description": "プロジェクトごとに個別のワークスペースを備えた、コーディング エージェント向けの目に見えるデスクトップ ブラウザです。",
     "repository": "GitHub リポジトリ",
     "license": "Hronaut ライセンス",
     "contribute": "コントリビュート",

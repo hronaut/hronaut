@@ -902,7 +902,7 @@ export const trTR: MessageSchema = {
     "close": "Yardımı kapat",
     "shortcutsDescription": "Bu kısayolları Hronaut’ta veya odaktaki web sitesinde kullanın.",
     "developmentBuild": "Geliştirme sürümü",
-    "description": "Kodlama ajanlarının MCP aracılığıyla sizinle birlikte gezinebildiği kalıcı ve görünür bir tarayıcı.",
+    "description": "Her proje için ayrı bir çalışma alanı sunan, kodlama ajanlarına yönelik görünür bir masaüstü tarayıcısı.",
     "repository": "GitHub deposu",
     "license": "Hronaut Lisansı",
     "contribute": "Katkıda bulun",

@@ -902,7 +902,7 @@ export const itIT: MessageSchema = {
     "close": "Chiudi guida",
     "shortcutsDescription": "Usa queste scorciatoie da Hronaut o dal sito web attualmente attivo.",
     "developmentBuild": "Build di sviluppo",
-    "description": "Un browser persistente e visibile in cui gli agenti di programmazione possono navigare insieme a te tramite MCP.",
+    "description": "Un browser desktop visibile per agenti di programmazione, con un’area di lavoro separata per ogni progetto.",
     "repository": "Repository GitHub",
     "license": "Licenza di Hronaut",
     "contribute": "Contribuisci",

@@ -902,7 +902,7 @@ export const frFR: MessageSchema = {
     "close": "Fermer l’aide",
     "shortcutsDescription": "Utilisez ces raccourcis depuis Hronaut ou depuis le site web actuellement actif.",
     "developmentBuild": "Version de développement",
-    "description": "Un navigateur persistant et visible dans lequel les agents de programmation peuvent naviguer avec vous via MCP.",
+    "description": "Un navigateur de bureau visible pour les agents de programmation, avec un espace de travail distinct pour chaque projet.",
     "repository": "Dépôt GitHub",
     "license": "Licence Hronaut",
     "contribute": "Contribuer",

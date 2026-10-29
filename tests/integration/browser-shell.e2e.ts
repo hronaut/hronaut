@@ -2919,7 +2919,7 @@ test('puts Help in the native application menu and opens shell dialogs above eve
   await clickMenuItem('Help', 'About Hronaut')
   const aboutDialog = appWindow.getByRole('dialog', { name: 'About Hronaut' })
   await expect(aboutDialog).toBeVisible()
-  await expect(aboutDialog).toContainText('A persistent, visible browser')
+  await expect(aboutDialog).toContainText('A visible desktop browser for coding agents, with a separate workspace for each project.')
   await expect(aboutDialog.getByRole('button', { name: 'Hronaut License' })).toBeVisible()
   await expect(aboutDialog.getByRole('button', { name: 'Contribute' })).toBeVisible()
   await aboutDialog.getByRole('button', { name: 'License', exact: true }).click()
@@ -2932,7 +2932,9 @@ test('puts Help in the native application menu and opens shell dialogs above eve
   await appWindow.locator('.settings-dialog').getByRole('button', { name: 'Close settings', exact: true }).click()
 
   await appWindow.getByRole('button', { name: 'New tab' }).click()
-  await expect(appWindow.locator('.toolbar')).toBeVisible()
+  // A pick ends when the tab's page changes, so it starts once the new tab's blank page is there: the toolbar offers
+  // Reload, not Stop, only once that page has loaded.
+  await expect(appWindow.locator('.toolbar').getByRole('button', { name: 'Reload', exact: true })).toBeVisible()
   await clickMenuItem('View', 'Pick Element for Agent')
   await expect(appWindow.getByRole('button', { name: 'Cancel element selection' })).toBeVisible()
   await clickMenuItem('View', 'Pick Element for Agent')

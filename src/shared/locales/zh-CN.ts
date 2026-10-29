@@ -902,7 +902,7 @@ export const zhCN: MessageSchema = {
     "close": "关闭帮助",
     "shortcutsDescription": "可在 Hronaut 中或当前获得焦点的网站上使用这些快捷键。",
     "developmentBuild": "开发版本",
-    "description": "一款持久、可见的浏览器，编程智能体可以通过 MCP 与您一起浏览网页。",
+    "description": "面向编程智能体的可见桌面浏览器，每个项目都有独立的工作区。",
     "repository": "GitHub 代码库",
     "license": "Hronaut 许可协议",
     "contribute": "参与贡献",
