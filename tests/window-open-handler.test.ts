@@ -50,15 +50,17 @@ function fixture(options: { mcpGroupId?: string; allowed?: boolean; canOpenTab?:
   }
   let handler!: (details: Details) => Response
   attachWindowOpenHandler(browser as never, tab as never, { id: 7, setWindowOpenHandler: (registered: typeof handler) => { handler = registered } } as unknown as WebContents)
-  return { tab, open: (details: Details) => handler(details), createTab, observation, onActionFailed, agentInput }
+  return { tab, open: (details: Details) => handler(details), createTab, observation, onActionFailed, agentInput, assertCanCreateTab: browser.assertCanCreateTab }
 }
 
 const details: Details = { url: 'https://accounts.example/sign-in', disposition: 'new-window', referrer: { url: 'https://app.example/', policy: 'strict-origin-when-cross-origin' } }
 
 describe('a window a workspace page opens', () => {
   it('lets Chromium create it, with the page script every tab has, and shows that page in a new tab', async () => {
-    const { open, createTab, observation } = fixture()
+    const { open, createTab, observation, assertCanCreateTab } = fixture()
     const response = open(details)
+    // A workspace that cannot take a tab now refuses the window too.
+    expect(assertCanCreateTab).toHaveBeenCalledExactlyOnceWith('client', false)
     // A page's window.open() features, such as javascript=no, cannot change them.
     expect(response).toMatchObject({
       action: 'allow',

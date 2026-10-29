@@ -30,7 +30,7 @@ import { attachRendererHealthEvents } from '../src/main/browser/tab-events/rende
 function harness(endedByPerson: boolean) {
   const page = new EventEmitter() as unknown as WebContents
   const tab = {
-    id: 'tab', title: 'Fixture', url: 'https://example.com/', loading: true, networkConditionApplication: 'confirmed', networkConditionEpoch: 0,
+    id: 'tab', title: 'Fixture', url: 'https://example.com/', loading: true, networkConditionApplication: 'confirmed',
     emulationApplication: 'confirmed', emulationRevision: 0, emulationContextGeneration: 0, nativeInputEnvironmentGeneration: 0,
     pageLifecycleState: 'active', consoleMessages: [] as string[], pageProblem: undefined as unknown
   }

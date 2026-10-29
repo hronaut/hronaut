@@ -4931,6 +4931,7 @@ export class Browser {
     this.activeTabId = tabId
   }
 
+  /** Records the tab as its workspace's active tab, and the workspace as used now. */
   markTabActiveInGroup(tab: BrowserTab): void {
     if (!tab.mcpGroupId) return
     const group = this.mcpTabGroups.get(tab.mcpGroupId)
@@ -4939,6 +4940,7 @@ export class Browser {
     group.lastUsedAt = new Date().toISOString()
   }
 
+  /** Runs a wallet step a tab's lifecycle starts in the background, logging and reporting a failure. */
   runWalletLifecycleAction(action: string, callback: () => unknown): void {
     void runBackgroundAction(action, callback, (failedAction, error) => {
       console.error(`[wallet] Could not ${failedAction}:`, error)

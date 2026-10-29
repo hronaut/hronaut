@@ -31,7 +31,7 @@ describe('a tab\'s page destroyed after the window', () => {
       splitViewContains: () => false,
       createTab,
       runWalletLifecycleAction
-    }, { get: (target, key) => (target as Record<PropertyKey, unknown>)[key] ?? vi.fn() }) as unknown as Browser
+    }, { get: (target, key) => key in target ? (target as Record<PropertyKey, unknown>)[key] : vi.fn() }) as unknown as Browser
 
     expect(() => recoverFromDestroyedPage(browser, tab)).not.toThrow()
     expect(createTab).not.toHaveBeenCalled()

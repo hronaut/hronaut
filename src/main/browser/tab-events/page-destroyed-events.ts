@@ -8,13 +8,13 @@ import { invalidateTabOverviewPreview } from '../tab-overview-previews/tab-overv
 import { focusTabOrTrustedChrome } from '../trusted-chrome-focus/trusted-chrome-focus.js'
 import { publishChange } from '../browser-state/browser-state.js'
 
-/** Hronaut Home, which a destroyed page's recovery opens when no live tab is left; the tab manager's Home address. */
+/** Hronaut Home, which a destroyed page's recovery opens when no live tab is left; the browser's Home address. */
 const HRONAUT_HOME_URL = 'hronaut://home/'
 
 /**
  * Handles the page being destroyed. It always stops the favicon load, the
  * overview preview, network waits and selection sessions; a closure the
- * manager expected only forgets dialog monitoring and execution contexts.
+ * browser expected only forgets dialog monitoring and execution contexts.
  * Otherwise it shows that the page is gone and keeps the browser usable.
  */
 export function attachPageDestroyedEvents(browser: Browser, tab: BrowserTab, webContents: WebContents): void {
@@ -78,7 +78,7 @@ export function recoverFromDestroyedPage(browser: Browser, tab: BrowserTab): voi
     }
   }
 
-  const active = browser.activeTabId ? findTab(browser, browser.activeTabId!) : undefined
+  const active = browser.activeTabId ? findTab(browser, browser.activeTabId) : undefined
   if (active && !active.webContents.isDestroyed()) {
     publishChange(browser)
     return
