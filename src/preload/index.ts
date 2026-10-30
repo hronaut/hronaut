@@ -1,34 +1,28 @@
-import type { Confirmation } from '../shared/confirmation.js'
-import type { HronautSplitDividerApi, SplitDividerGeometry } from '../shared/split-view.js'
-import type { EmulationFrameGeometry, HronautEmulationFrameApi } from '../shared/emulation-frame.js'
-import type { HronautPageCardApi, PageCardGeometry } from '../shared/page-card.js'
-import { TRUSTED_DIALOG_CHANNELS, type HronautTrustedDialogsApi, type TrustedDialogRequest, type TrustedDialogShellState } from '../shared/trusted-dialogs.js'
-import type { AgentPresenceSnapshot, AgentTakeOverOffer, HronautAgentPresenceApi } from '../shared/agent-presence.js'
 import { contextBridge, ipcRenderer } from 'electron'
-import { SHELL_TOOLTIP_IPC } from '../shared/ipc/shell-tooltip.js'
 import { createPanelRequestBuffer } from './panel-requests.js'
 import { addressOverlayApi } from './bridges/address-overlay.js'
 import { agentCardApi } from './bridges/agent-card.js'
+import { agentPresenceApi } from './bridges/agent-presence.js'
 import { bookmarksApi } from './bridges/bookmarks.js'
 import { browsingDataApi } from './bridges/browsing-data.js'
 import { credentialsApi } from './bridges/credentials.js'
 import { downloadsApi } from './bridges/downloads.js'
 import { historyApi } from './bridges/history.js'
-import { send } from './bridges/ipc.js'
 import { licenseApi } from './bridges/license.js'
 import { mcpApi } from './bridges/mcp.js'
+import { emulationFrameApi, pageCardApi, splitDividerApi } from './bridges/page-geometry.js'
+import { panelWindowApi } from './bridges/panel-window.js'
 import { permissionsApi } from './bridges/permissions.js'
 import { settingsApi } from './bridges/settings.js'
+import { shellApi } from './bridges/shell.js'
 import { sidebarOverlayApi } from './bridges/sidebar-overlay.js'
 import { taskManagerApi } from './bridges/task-manager.js'
 import { toastOverlayApi } from './bridges/toast-overlay.js'
+import { trustedDialogsApi } from './bridges/trusted-dialogs.js'
 import { updatesApi } from './bridges/updates.js'
 import { walletsApi } from './bridges/wallets.js'
 import type {
-  BrowserOcclusionSnapshot,
   HronautApi,
-  HronautShellApi,
-  BrowserActionFailure,
   BrowserState,
   UserAttentionRequest,
   BrowserTabGroupUpdate,
@@ -58,18 +52,12 @@ import type {
   BrowserViewportEmulation,
   BrowserZoomOptions,
   BrowserPdfOptions,
-  HronautPanelWindowApi,
-  DetachablePanelId,
-  PanelDock,
-  PanelRedockRequest,
   McpTabActivity,
   DroppedLinkTarget,
   NavigateOptions,
-  NewTabOptions,
-  HelpMenuAction
+  NewTabOptions
 } from '../shared/types.js'
 import type { BrowserShortcutAction } from '../shared/browser-shortcuts.js'
-import type { ShellTooltipRequest } from '../shared/shell-tooltip.js'
 import type { UndoOffer } from '../shared/undo.js'
 
 // Main asks a panel window it has just opened for Bookmark all tabs' name once the window has loaded, which can be
@@ -332,154 +320,15 @@ contextBridge.exposeInMainWorld('hronautPermissions', permissionsApi)
 contextBridge.exposeInMainWorld('hronautCredentials', credentialsApi)
 contextBridge.exposeInMainWorld('hronautLicense', licenseApi)
 contextBridge.exposeInMainWorld('hronautUpdates', updatesApi)
-const panelRequests = createPanelRequestBuffer()
-ipcRenderer.on('panel-window:show-panel', (_event, panel: DetachablePanelId) => panelRequests.receive(panel))
-const panelWindowApi: HronautPanelWindowApi = {
-  open: (panel: DetachablePanelId) => ipcRenderer.invoke('panel-window:open', panel),
-  close: () => ipcRenderer.invoke('panel-window:close'),
-  setActive: (panel: DetachablePanelId) => ipcRenderer.invoke('panel-window:set-active', panel),
-  redock: (panel: DetachablePanelId, dock: Exclude<PanelDock, 'window'>) =>
-    ipcRenderer.invoke('panel-window:redock', panel, dock),
-  bookmarkAllTabs: (workspaceId: string | null) => ipcRenderer.invoke('panel-window:bookmark-all-tabs', workspaceId),
-  onPanelRequested: panelRequests.subscribe,
-  onActivePanelChanged: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, panel: DetachablePanelId): void => listener(panel)
-    ipcRenderer.on('panel-window:active-panel', handler)
-    return () => ipcRenderer.removeListener('panel-window:active-panel', handler)
-  },
-  onRedockRequested: (listener: (request: PanelRedockRequest) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, request: PanelRedockRequest): void => listener(request)
-    ipcRenderer.on('panel-window:redock-requested', handler)
-    return () => ipcRenderer.removeListener('panel-window:redock-requested', handler)
-  },
-  onClosed: (listener) => {
-    const handler = (): void => listener()
-    ipcRenderer.on('panel-window:closed', handler)
-    return () => ipcRenderer.removeListener('panel-window:closed', handler)
-  }
-}
 contextBridge.exposeInMainWorld('hronautPanelWindow', panelWindowApi)
 contextBridge.exposeInMainWorld('hronautAddressOverlay', addressOverlayApi)
-const desktopPlatform = process.platform === 'darwin' || process.platform === 'win32'
-  ? process.platform
-  : 'linux'
-const shellApi: HronautShellApi = {
-  windowChrome: {
-    platform: desktopPlatform,
-    mode: process.argv.includes('--hronaut-window-chrome=overlay') ? 'overlay' : 'system',
-    mainWindow: process.argv.includes('--hronaut-window-kind=main')
-  },
-  isWindowFocused: () => ipcRenderer.invoke('shell:is-window-focused'),
-  confirm: async (question: Confirmation) => await ipcRenderer.invoke('shell:confirm', question) === true,
-  setToolbarHeight: (height: number) => ipcRenderer.send('browser:toolbar-height', height),
-  setContentInsets: (insets: { top: number; right: number; bottom: number; left: number }) =>
-    ipcRenderer.send('browser:content-insets', insets),
-  setBrowserContentOccluded: (occluded: boolean, request: number) => ipcRenderer.send('browser:content-occluded', occluded, request),
-  onOcclusionSnapshot: (listener: (snapshot: BrowserOcclusionSnapshot | null) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, snapshot: BrowserOcclusionSnapshot | null): void => listener(snapshot)
-    ipcRenderer.on('browser:occlusion-snapshot', handler)
-    return () => ipcRenderer.removeListener('browser:occlusion-snapshot', handler)
-  },
-  presentOcclusionSnapshot: (id: number) => ipcRenderer.send('browser:occlusion-snapshot-presented', id),
-  setWindowControlsScrim: (color: string | null) => ipcRenderer.send('shell:window-controls-scrim', color),
-  onOcclusionPagesHidden: (listener: (request: number) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, request: unknown): void => {
-      if (typeof request === 'number') listener(request)
-    }
-    ipcRenderer.on('browser:occlusion-pages-hidden', handler)
-    return () => ipcRenderer.removeListener('browser:occlusion-pages-hidden', handler)
-  },
-  showTooltip: (request: ShellTooltipRequest) => send(SHELL_TOOLTIP_IPC.show, request),
-  hideTooltip: (id?: number) => send(SHELL_TOOLTIP_IPC.hide, id),
-  setFollowAgentActivitySuspended: (suspended: boolean) =>
-    ipcRenderer.send('browser:follow-agent-activity-suspended', suspended),
-  onHelpRequested: (listener: (action: HelpMenuAction) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, action: HelpMenuAction): void => listener(action)
-    ipcRenderer.on('help:open', handler)
-    return () => ipcRenderer.removeListener('help:open', handler)
-  },
-  onClipboardFailed: (listener: (message: string) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, message: string): void => listener(message)
-    ipcRenderer.on('clipboard:failed', handler)
-    return () => ipcRenderer.removeListener('clipboard:failed', handler)
-  },
-  onActionFailed: (listener: (failure: BrowserActionFailure) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, failure: BrowserActionFailure): void => listener(failure)
-    ipcRenderer.on('browser:action-failed', handler)
-    return () => ipcRenderer.removeListener('browser:action-failed', handler)
-  }
-}
 contextBridge.exposeInMainWorld('hronautShell', shellApi)
-
-const splitDividerApi: HronautSplitDividerApi = {
-  get: () => ipcRenderer.invoke('split-divider:get'),
-  begin: (revision) => ipcRenderer.invoke('split-divider:begin', revision),
-  update: (token, ratio) => ipcRenderer.invoke('split-divider:update', token, ratio),
-  finish: (token, commit, ratio) => ipcRenderer.invoke('split-divider:finish', token, commit, ratio),
-  setRatio: (revision, ratio) => ipcRenderer.invoke('split-divider:set-ratio', revision, ratio),
-  onChanged: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, geometry: SplitDividerGeometry | null): void => listener(geometry)
-    ipcRenderer.on('split-divider:changed', handler)
-    return () => ipcRenderer.removeListener('split-divider:changed', handler)
-  }
-}
 contextBridge.exposeInMainWorld('hronautSplitDivider', splitDividerApi)
-
-const emulationFrameApi: HronautEmulationFrameApi = {
-  get: () => ipcRenderer.invoke('emulation-frame:get'),
-  onChanged: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, frames: EmulationFrameGeometry[]): void => listener(frames)
-    ipcRenderer.on('emulation-frame:changed', handler)
-    return () => ipcRenderer.removeListener('emulation-frame:changed', handler)
-  }
-}
 contextBridge.exposeInMainWorld('hronautEmulationFrame', emulationFrameApi)
-
-const pageCardApi: HronautPageCardApi = {
-  get: () => ipcRenderer.invoke('page-card:get'),
-  onChanged: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, cards: PageCardGeometry[]): void => listener(cards)
-    ipcRenderer.on('page-card:changed', handler)
-    return () => ipcRenderer.removeListener('page-card:changed', handler)
-  }
-}
 contextBridge.exposeInMainWorld('hronautPageCard', pageCardApi)
-
-const agentPresenceApi: HronautAgentPresenceApi = {
-  get: () => ipcRenderer.invoke('agent-presence:get'),
-  onChanged: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, snapshot: AgentPresenceSnapshot): void => listener(snapshot)
-    ipcRenderer.on('agent-presence:changed', handler)
-    return () => ipcRenderer.removeListener('agent-presence:changed', handler)
-  },
-  onTakeOverOffer: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, offer: AgentTakeOverOffer): void => listener(offer)
-    ipcRenderer.on('agent-presence:take-over-offer', handler)
-    return () => ipcRenderer.removeListener('agent-presence:take-over-offer', handler)
-  },
-  steps: (request) => ipcRenderer.invoke('agent-presence:steps', request)
-}
 contextBridge.exposeInMainWorld('hronautAgentPresence', agentPresenceApi)
-
 contextBridge.exposeInMainWorld('hronautAgentCard', agentCardApi)
-
-// Hronaut's own dialogs, such as a website's permission request; main checks that this shell document answers.
-const trustedDialogsApi: HronautTrustedDialogsApi = {
-  ready: () => ipcRenderer.send(TRUSTED_DIALOG_CHANNELS.ready),
-  // Main takes what the person typed to sign in only with the answer that signs in to the sign-in dialog it shows.
-  respond: (id, response, credentials) => credentials
-    ? ipcRenderer.send(TRUSTED_DIALOG_CHANNELS.respond, id, response, { username: credentials.username, password: credentials.password })
-    : ipcRenderer.send(TRUSTED_DIALOG_CHANNELS.respond, id, response),
-  onChanged: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, request: TrustedDialogRequest | null, state?: TrustedDialogShellState): void => (
-      listener(request, { afterInterruptedSignIn: state?.afterInterruptedSignIn === true })
-    )
-    ipcRenderer.on(TRUSTED_DIALOG_CHANNELS.changed, handler)
-    return () => ipcRenderer.removeListener(TRUSTED_DIALOG_CHANNELS.changed, handler)
-  }
-}
 contextBridge.exposeInMainWorld('hronautTrustedDialogs', trustedDialogsApi)
-
 contextBridge.exposeInMainWorld('hronautToastOverlay', toastOverlayApi)
 
 // Only the main window's shell opens its tab rail over the page; a detached panel's window has no rail.

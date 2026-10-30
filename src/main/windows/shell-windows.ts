@@ -4,6 +4,7 @@ import type { PanelWindowRefs } from './panel-window.js'
 import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
 import { personErrorMessage } from '../localized-error.js'
 import type { BrowserActionFailure } from '../../shared/types.js'
+import { SHELL_IPC } from '../../shared/ipc/shell.js'
 
 interface ShellWindowsHost {
   /**
@@ -42,7 +43,7 @@ export function createShellWindows(host: ShellWindowsHost): {
         : rawMessage || host.text('native.errors.actionFailed')
     }
     if (host.mainWindowRefs.window && !host.mainWindowRefs.window.isDestroyed() && !host.mainWindowRefs.window.webContents.isDestroyed()) {
-      host.mainWindowRefs.window.webContents.send('browser:action-failed', failure)
+      host.mainWindowRefs.window.webContents.send(SHELL_IPC.actionFailed, failure)
     }
   }
 

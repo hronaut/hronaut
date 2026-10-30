@@ -8,6 +8,7 @@ import { scaleShellMetric } from '../shared/interface-scale.js'
 import { parseScrimColor, type ScrimColor } from '../shared/title-bar.js'
 import { setContentInsets, setToolbarHeight } from './browser/window-layout/content-area.js'
 import { setFollowAgentActivitySuspended, setBrowserContentOccluded } from './browser/trusted-chrome-occlusion/trusted-chrome-occlusion.js'
+import { SHELL_IPC } from '../shared/ipc/shell.js'
 
 interface ShellIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
@@ -56,18 +57,18 @@ export function registerShellIpc(ipcMain: Pick<IpcMain, 'handle' | 'on'>, host: 
     host.quit.quitting = true
     host.quitApp()
   })
-  ipcMain.handle('shell:is-window-focused', (event) => {
+  ipcMain.handle(SHELL_IPC.isWindowFocused, (event) => {
     host.assertTrustedSender(event)
     return host.windowFromWebContents(event.sender)?.isFocused() ?? false
   })
-  ipcMain.on('browser:toolbar-height', (event, height: number) => {
+  ipcMain.on(SHELL_IPC.toolbarHeight, (event, height: number) => {
     if (host.workspaceStartupFailure()) return
     host.assertMainShellSender(event)
     const browser = host.tabs()
     if (browser) setToolbarHeight(browser, scaleShellMetric(height, event.sender.getZoomFactor()))
     host.toastOverlay().relayout()
   })
-  ipcMain.on('browser:content-insets', (event, value: unknown) => {
+  ipcMain.on(SHELL_IPC.contentInsets, (event, value: unknown) => {
     if (host.workspaceStartupFailure()) return
     host.assertMainShellSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid browser content insets')
@@ -86,7 +87,7 @@ export function registerShellIpc(ipcMain: Pick<IpcMain, 'handle' | 'on'>, host: 
     }
     host.toastOverlay().relayout()
   })
-  ipcMain.on('browser:content-occluded', (event, occluded: unknown, request: unknown) => {
+  ipcMain.on(SHELL_IPC.contentOccluded, (event, occluded: unknown, request: unknown) => {
     if (host.workspaceStartupFailure()) return
     host.assertMainShellSender(event)
     if (typeof occluded !== 'boolean') throw new TypeError('Invalid browser content occlusion state')
@@ -95,10 +96,10 @@ export function registerShellIpc(ipcMain: Pick<IpcMain, 'handle' | 'on'>, host: 
     const tabs = host.tabs()
     if (tabs) setBrowserContentOccluded(tabs, occluded, request)
     // Without the tab runtime no page is on screen, and the shell waits for this report before a question takes answers.
-    else if (occluded && !event.sender.isDestroyed()) event.sender.send('browser:occlusion-pages-hidden', request)
+    else if (occluded && !event.sender.isDestroyed()) event.sender.send(SHELL_IPC.occlusionPagesHidden, request)
     host.sidebarOverlay().occlusionChanged(occluded)
   })
-  ipcMain.on('browser:occlusion-snapshot-presented', (event, id: unknown) => {
+  ipcMain.on(SHELL_IPC.occlusionSnapshotPresented, (event, id: unknown) => {
     if (host.workspaceStartupFailure()) return
     host.assertMainShellSender(event)
     if (!Number.isSafeInteger(id) || (id as number) < 1) throw new TypeError('Invalid occlusion snapshot')
@@ -109,7 +110,7 @@ export function registerShellIpc(ipcMain: Pick<IpcMain, 'handle' | 'on'>, host: 
     if (!host.isMainShellSender(event)) return
     host.tabs()?.statePublication.drawn()
   })
-  ipcMain.on('shell:window-controls-scrim', (event, color: unknown) => {
+  ipcMain.on(SHELL_IPC.windowControlsScrim, (event, color: unknown) => {
     if (host.workspaceStartupFailure()) return
     host.assertMainShellSender(event)
     const scrim = color === null ? null : parseScrimColor(color)
@@ -117,7 +118,7 @@ export function registerShellIpc(ipcMain: Pick<IpcMain, 'handle' | 'on'>, host: 
     host.setWindowControlsScrim(scrim)
     host.applyMainWindowTitleBarOverlay()
   })
-  ipcMain.on('browser:follow-agent-activity-suspended', (event, suspended: unknown) => {
+  ipcMain.on(SHELL_IPC.followAgentActivitySuspended, (event, suspended: unknown) => {
     if (host.workspaceStartupFailure()) return
     host.assertMainShellSender(event)
     if (typeof suspended !== 'boolean') throw new TypeError('Invalid follow-agent activity suspension state')

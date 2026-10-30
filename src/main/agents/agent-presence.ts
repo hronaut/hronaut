@@ -5,6 +5,8 @@ import type { ConnectedAgent } from '../../shared/agent-status.js'
 import type { McpControlState } from '../../shared/types.js'
 import { retainAgentFollow } from '../browser/agent-follow/agent-follow.js'
 import { notifyHomeChanged } from '../browser/home-tabs/home-tabs.js'
+import { AGENT_PRESENCE_IPC } from '../../shared/ipc/agent-presence.js'
+import type { EventSender } from '../../shared/ipc/channel.js'
 
 interface AgentPresenceHost {
   /** The MCP listener, whose server knows the agents in each workspace; its server is null while it is not running. */
@@ -19,7 +21,7 @@ interface AgentPresenceHost {
   userAttentionShown(workspaces: AgentPresenceSnapshot['workspaces']): boolean
   /** Ends the open request for the person's attention. */
   endUserAttention(options?: { disposition?: 'acknowledged' | 'dismissed'; keepPending?: boolean }): void
-  sendToMainWindow(channel: string, ...args: unknown[]): void
+  sendToMainWindow: EventSender
 }
 
 /**
@@ -82,7 +84,7 @@ export function createAgentPresence(host: AgentPresenceHost): {
       if (host.attentionQuiet() && !host.userAttentionShown(snapshot.workspaces)) host.endUserAttention({ keepPending: true })
       if (snapshot.revision === agentPresenceSentRevision) return
       agentPresenceSentRevision = snapshot.revision
-      host.sendToMainWindow('agent-presence:changed', snapshot)
+      host.sendToMainWindow(AGENT_PRESENCE_IPC.changed, snapshot)
     })
   }
 

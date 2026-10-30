@@ -2,7 +2,8 @@ import { EventEmitter } from 'node:events'
 import type { IpcMainEvent, MessageBoxOptions, MessageBoxReturnValue } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
 import { ANSWERED_ELSEWHERE, createTrustedDialogs, type TrustedDialogWindow } from '../src/main/trusted-dialogs/trusted-dialogs.js'
-import { TRUSTED_DIALOG_CHANNELS, type TrustedDialogRequest, type TrustedDialogShellState } from '../src/shared/trusted-dialogs.js'
+import { TRUSTED_DIALOGS_IPC } from '../src/shared/ipc/trusted-dialogs.js'
+import type { TrustedDialogRequest, TrustedDialogShellState } from '../src/shared/trusted-dialogs.js'
 
 type Listener = (event: IpcMainEvent, ...args: unknown[]) => void
 
@@ -76,9 +77,9 @@ function harness() {
     keyboard,
     returnKeyboard,
     withholdKeyboard,
-    ready: (window: { contents: unknown } = main) => send(window, TRUSTED_DIALOG_CHANNELS.ready),
+    ready: (window: { contents: unknown } = main) => send(window, TRUSTED_DIALOGS_IPC.ready),
     respond: (window: { contents: unknown }, id: unknown, response: unknown, ...credentials: unknown[]) => (
-      send(window, TRUSTED_DIALOG_CHANNELS.respond, id, response, ...credentials)
+      send(window, TRUSTED_DIALOGS_IPC.respond, id, response, ...credentials)
     )
   }
 }

@@ -2,6 +2,7 @@ import type { IpcMain, IpcMainInvokeEvent, MessageBoxReturnValue } from 'electro
 import type { Confirmation } from '../shared/confirmation.js'
 import type { MessageKey, MessageParameters } from '../shared/i18n.js'
 import type { TrustedDialogOptions, TrustedDialogWindow } from './trusted-dialogs/trusted-dialogs.js'
+import { SHELL_IPC } from '../shared/ipc/shell.js'
 
 /** Longer text is cut: a confirmation names what it changes, and a name never needs more. */
 export const MAX_CONFIRMATION_MESSAGE_LENGTH = 1_000
@@ -90,7 +91,7 @@ export function registerConfirmDialogIpc<Window extends TrustedDialogWindow>(hos
     }
   }
 
-  host.ipcMain.handle('shell:confirm', (event, value: unknown) => {
+  host.ipcMain.handle(SHELL_IPC.confirm, (event, value: unknown) => {
     try {
       host.assertTrustedShellSender(event)
     } catch {

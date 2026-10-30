@@ -21,6 +21,7 @@ import type {
 } from '../../shared/types.js'
 import { browserState } from '../browser/browser-state/browser-state.js'
 import { BOOKMARKS_IPC } from '../../shared/ipc/bookmarks.js'
+import type { EventSender } from '../../shared/ipc/channel.js'
 import { CREDENTIALS_IPC } from '../../shared/ipc/credentials.js'
 import { DOWNLOADS_IPC } from '../../shared/ipc/downloads.js'
 import { HISTORY_IPC } from '../../shared/ipc/history.js'
@@ -28,6 +29,7 @@ import { MCP_IPC } from '../../shared/ipc/mcp.js'
 import { PERMISSIONS_IPC } from '../../shared/ipc/permissions.js'
 import { UPDATES_IPC } from '../../shared/ipc/updates.js'
 import { SETTINGS_IPC } from '../../shared/ipc/settings.js'
+import { PANEL_WINDOW_IPC } from '../../shared/ipc/panel-window.js'
 
 /**
  * The detached panel window and what it shows, created once by index.ts. The window opens and closes while the app
@@ -61,7 +63,7 @@ interface PanelWindowHost {
    * window from the panel, and before-quit records the last bounds.
    */
   refs: PanelWindowRefs
-  sendToPanelWindow(channel: string, ...args: unknown[]): void
+  sendToPanelWindow: EventSender
   /** The current settings; read on every use because each committed update replaces the object. */
   settings(): AppSettings
   resolvedTheme(theme: ThemeName): ResolvedThemeName
@@ -155,7 +157,7 @@ export function createPanelWindow(host: PanelWindowHost): {
       const requestedPanel = host.refs.panel
       if (requestedPanel && host.refs.window && !host.refs.window!.isDestroyed()) {
         host.refs.window!.setTitle(detachedPanelTitle(requestedPanel))
-        host.sendToPanelWindow('panel-window:show-panel', requestedPanel)
+        host.sendToPanelWindow(PANEL_WINDOW_IPC.showPanel, requestedPanel)
         if (host.refs.window!.isMinimized()) host.refs.window!.restore()
         host.refs.window!.show()
         host.refs.window!.focus()
@@ -164,7 +166,7 @@ export function createPanelWindow(host: PanelWindowHost): {
     }
     if (host.refs.window && !host.refs.window!.isDestroyed()) {
       host.refs.window!.setTitle(detachedPanelTitle(panel))
-      host.sendToPanelWindow('panel-window:show-panel', panel)
+      host.sendToPanelWindow(PANEL_WINDOW_IPC.showPanel, panel)
       if (host.refs.window!.isMinimized()) host.refs.window!.restore()
       host.refs.window!.show()
       host.refs.window!.focus()
@@ -225,7 +227,7 @@ export function createPanelWindow(host: PanelWindowHost): {
         created.webContents.setZoomFactor(host.settings().interfaceScale)
         created.setTitle(detachedPanelTitle(requestedPanel))
         sendPanelWindowSnapshot(created)
-        created.webContents.send('panel-window:show-panel', requestedPanel)
+        created.webContents.send(PANEL_WINDOW_IPC.showPanel, requestedPanel)
       })
       created.once('ready-to-show', () => {
         if (!created.isDestroyed()) created.show()
@@ -250,7 +252,7 @@ export function createPanelWindow(host: PanelWindowHost): {
         host.refs.redocking = false
         void host.flushPanelWindowState().catch((error) => console.error('[panel-window] Failed to flush state:', error))
         if (!redocking && host.mainWindow() && !host.mainWindow()!.isDestroyed() && !host.mainWindow()!.webContents.isDestroyed()) {
-          host.mainWindow()!.webContents.send('panel-window:closed')
+          host.mainWindow()!.webContents.send(PANEL_WINDOW_IPC.closed)
         }
       })
 

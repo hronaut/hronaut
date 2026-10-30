@@ -5,6 +5,7 @@ import {
   type AgentPresenceSnapshot,
   type AgentStepHistoryEntry
 } from '../../shared/agent-presence.js'
+import { AGENT_PRESENCE_IPC } from '../../shared/ipc/agent-presence.js'
 
 interface AgentPresenceIpcHost {
   /** Admits only the main window's shell document, not a detached panel window. */
@@ -16,11 +17,11 @@ interface AgentPresenceIpcHost {
 
 /** Dependencies stay lazy because handlers are registered before the window loads. */
 export function registerAgentPresenceIpc(ipcMain: Pick<IpcMain, 'handle'>, host: AgentPresenceIpcHost): void {
-  ipcMain.handle('agent-presence:get', (event): AgentPresenceSnapshot => {
+  ipcMain.handle(AGENT_PRESENCE_IPC.get, (event): AgentPresenceSnapshot => {
     host.assertMainShellSender(event)
     return host.agentPresenceSnapshot()
   })
-  ipcMain.handle('agent-presence:steps', (event, value: unknown): AgentStepHistoryEntry[] | null => {
+  ipcMain.handle(AGENT_PRESENCE_IPC.steps, (event, value: unknown): AgentStepHistoryEntry[] | null => {
     host.assertMainShellSender(event)
     const request = parseAgentStepHistoryRequest(value)
     return host.mcpServer()?.getAgentStepHistory(request.clientKey, request.workspaceId, request.known) ?? null

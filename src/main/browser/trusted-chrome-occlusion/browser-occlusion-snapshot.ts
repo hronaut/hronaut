@@ -2,6 +2,7 @@ import { screen } from 'electron'
 import type { Browser } from '../browser.js'
 import { OCCLUSION_SNAPSHOT_TIMEOUT_MS, OcclusionSnapshot } from '../occlusion-snapshot.js'
 import { occlusionLayout, occlusionSnapshotPanes } from './trusted-chrome-occlusion.js'
+import { SHELL_IPC } from '../../../shared/ipc/shell.js'
 
 /** Integration tests on a loaded machine can give the snapshot more time, so its ordering check is not a race. */
 function occlusionSnapshotTimeoutMs(): number {
@@ -19,11 +20,11 @@ export function createOcclusionSnapshot(browser: Browser): OcclusionSnapshot {
     cssScale: () => browser.window.webContents.getZoomFactor?.() ?? 1,
     deviceScale: () => screen.getDisplayMatching(browser.window.getBounds()).scaleFactor,
     send: (snapshot) => {
-      if (!browser.window.isDestroyed() && !browser.window.webContents.isDestroyed()) browser.window.webContents.send('browser:occlusion-snapshot', snapshot)
+      if (!browser.window.isDestroyed() && !browser.window.webContents.isDestroyed()) browser.window.webContents.send(SHELL_IPC.occlusionSnapshot, snapshot)
     },
     relayout: () => browser.layout(),
     pagesHidden: (request) => {
-      if (!browser.window.isDestroyed() && !browser.window.webContents.isDestroyed()) browser.window.webContents.send('browser:occlusion-pages-hidden', request)
+      if (!browser.window.isDestroyed() && !browser.window.webContents.isDestroyed()) browser.window.webContents.send(SHELL_IPC.occlusionPagesHidden, request)
     },
     timeoutMs: occlusionSnapshotTimeoutMs()
   })
