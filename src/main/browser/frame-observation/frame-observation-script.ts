@@ -7,7 +7,7 @@ import { frameLinkInPage, frameObservationInPage, frameSelectorInPage } from './
  * evaluates to the frame the selection found, so the observation is called with it rather than with a literal.
  */
 export function frameObservationScript(selector: string, maxChars: number, expected: string): string {
-  return `(${pageFunctionSource(frameObservationInPage)})(${javascriptLiteral(selector)}, ${javascriptLiteral(maxChars)}, ${expected}, (${pageFunctionSource(frameLinkInPage)}))`
+  return `(${pageFunctionSource(frameObservationInPage)})(${javascriptLiteral(selector)}, ${javascriptLiteral(maxChars)}, (${expected}), (${pageFunctionSource(frameLinkInPage)}))`
 }
 
 /** The one iframe the selector names; see frameSelectorInPage. */

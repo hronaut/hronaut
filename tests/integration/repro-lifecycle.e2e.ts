@@ -69,7 +69,7 @@ test('contains rejected and obsolete delayed Repro page captures', async ({
       Object.defineProperty(view.webContents, 'executeJavaScript', {
         configurable: true,
         value: (code: string, userGesture?: boolean) => {
-          if (rejectScrollCapture && code === '(() => ({ x: Math.round(scrollX), y: Math.round(scrollY) }))()') {
+          if (rejectScrollCapture && code.startsWith('(function reproScrollInPage(')) {
             rejectScrollCapture = false
             ;(globalThis as typeof globalThis & { __hronautReproScrollIntercepted?: boolean })
               .__hronautReproScrollIntercepted = true
@@ -137,7 +137,7 @@ test('contains rejected and obsolete delayed Repro page captures', async ({
       Object.defineProperty(view.webContents, 'executeJavaScript', {
         configurable: true,
         value: (code: string, userGesture?: boolean) => {
-          if (interceptScrollCapture && code === '(() => ({ x: Math.round(scrollX), y: Math.round(scrollY) }))()') {
+          if (interceptScrollCapture && code.startsWith('(function reproScrollInPage(')) {
             interceptScrollCapture = false
             ;(globalThis as typeof globalThis & { __hronautDelayedReproScrollIntercepted?: boolean })
               .__hronautDelayedReproScrollIntercepted = true
@@ -216,7 +216,7 @@ test('contains rejected and obsolete delayed Repro page captures', async ({
       Object.defineProperty(view.webContents, 'executeJavaScript', {
         configurable: true,
         value: (code: string, userGesture?: boolean) => {
-          if (interceptTarget && code !== '(() => ({ x: Math.round(scrollX), y: Math.round(scrollY) }))()') {
+          if (interceptTarget && !code.startsWith('(function reproScrollInPage(')) {
             interceptTarget = false
             ;(globalThis as typeof globalThis & { __hronautDelayedReproTargetIntercepted?: boolean })
               .__hronautDelayedReproTargetIntercepted = true
@@ -295,7 +295,7 @@ test('contains rejected and obsolete delayed Repro page captures', async ({
       Object.defineProperty(view.webContents, 'executeJavaScript', {
         configurable: true,
         value: (code: string, userGesture?: boolean) => {
-          if (interceptTarget && code !== '(() => ({ x: Math.round(scrollX), y: Math.round(scrollY) }))()') {
+          if (interceptTarget && !code.startsWith('(function reproScrollInPage(')) {
             interceptTarget = false
             ;(globalThis as typeof globalThis & { __hronautNavigatingReproTargetIntercepted?: boolean })
               .__hronautNavigatingReproTargetIntercepted = true
