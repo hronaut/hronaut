@@ -49,19 +49,27 @@ const invokes: Array<[api: string, method: string, args: unknown[], channel: str
   ['hronaut', 'inspectIndexedDb', [{ tabId: 'tab-1', database: 'app', objectStore: 'orders', limit: 50 }], 'browser:indexeddb', [{ tabId: 'tab-1', database: 'app', objectStore: 'orders', limit: 50 }]],
   ['hronaut', 'inspectIndexedDb', [], 'browser:indexeddb', [{}]],
   ['hronaut', 'pwaLifecycle', [{ tabId: 'tab-1', action: 'start' }], 'browser:pwa-lifecycle', [{ tabId: 'tab-1', action: 'start' }]],
+  ['hronaut', 'pwaLifecycle', [{ tabId: 'tab-1', captureId: 'capture-1', action: 'get' }], 'browser:pwa-lifecycle', [{ tabId: 'tab-1', captureId: 'capture-1', action: 'get' }]],
   ['hronaut', 'inspectPwa', [{ tabId: 'tab-1', cacheName: 'static-v1' }], 'browser:pwa', [{ tabId: 'tab-1', cacheName: 'static-v1' }]],
   ['hronaut', 'inspectPwa', [], 'browser:pwa', [{}]],
   ['hronaut', 'storageChanges', [{ tabId: 'tab-1', action: 'baseline' }], 'browser:storage-changes', [{ tabId: 'tab-1', action: 'baseline' }]],
   ['hronaut', 'storageChanges', [], 'browser:storage-changes', [{}]],
   ['hronaut', 'copySnapshot', ['tab-1'], 'browser:copy-snapshot', ['tab-1']],
+  ['hronaut', 'copySnapshot', [], 'browser:copy-snapshot', [undefined]],
   ['hronaut', 'pickElement', ['tab-1'], 'browser:pick-element', ['tab-1']],
+  ['hronaut', 'pickElement', [], 'browser:pick-element', [undefined]],
   ['hronaut', 'captureElement', ['tab-1'], 'browser:capture-element', ['tab-1']],
+  ['hronaut', 'captureElement', [], 'browser:capture-element', [undefined]],
   ['hronaut', 'capturePage', [{ tabId: 'tab-1', fullPage: true }], 'browser:capture-page', [{ tabId: 'tab-1', fullPage: true }]],
   ['hronaut', 'capturePage', [], 'browser:capture-page', [{}]],
   ['hronaut', 'inspectElement', [{ tabId: 'tab-1', selector: 'main h1' }], 'browser:element-inspection', [{ tabId: 'tab-1', selector: 'main h1' }]],
+  ['hronaut', 'inspectElement', [{ tabId: 'tab-1', ref: 'e12' }], 'browser:element-inspection', [{ tabId: 'tab-1', ref: 'e12' }]],
   ['hronaut', 'cancelElementPicker', ['tab-1'], 'browser:cancel-element-picker', ['tab-1']],
+  ['hronaut', 'cancelElementPicker', [], 'browser:cancel-element-picker', [undefined]],
   ['hronaut', 'captureArea', ['tab-1'], 'browser:capture-area', ['tab-1']],
+  ['hronaut', 'captureArea', [], 'browser:capture-area', [undefined]],
   ['hronaut', 'cancelAreaCapture', ['tab-1'], 'browser:cancel-area-capture', ['tab-1']],
+  ['hronaut', 'cancelAreaCapture', [], 'browser:cancel-area-capture', [undefined]],
   ['hronaut', 'listConsoleMessages', ['tab-1', true], 'browser:console', [{ tabId: 'tab-1', clear: true }]],
   ['hronaut', 'listConsoleMessages', [], 'browser:console', [{ tabId: undefined, clear: false }]],
   ['hronaut', 'listNetworkRequests', ['tab-1', true], 'browser:network', [{ tabId: 'tab-1', clear: true }]],
@@ -338,7 +346,8 @@ it.each(invokes)('%s.%s asks main on its channel with its arguments and returns 
   electron.invoke.mockResolvedValueOnce('answer')
   const call = await exposed(api, method)
   await expect(call(...args)).resolves.toBe('answer')
-  expect(electron.invoke).toHaveBeenCalledExactlyOnceWith(channel, ...sent)
+  // Strict, so a key sent as undefined and a key left out are told apart.
+  expect(electron.invoke.mock.calls).toStrictEqual([[channel, ...sent]])
 })
 
 // Each message the shell and the overlay views send without waiting for an answer, with what main receives.
@@ -385,7 +394,7 @@ const sends: Array<[api: string, method: string, args: unknown[], channel: strin
 it.each(sends)('%s.%s tells main on its channel with its arguments', async (api, method, args, channel, sent) => {
   const call = await exposed(api, method)
   expect(call(...args)).toBeUndefined()
-  expect(electron.send).toHaveBeenCalledExactlyOnceWith(channel, ...sent)
+  expect(electron.send.mock.calls).toStrictEqual([[channel, ...sent]])
   expect(electron.invoke).not.toHaveBeenCalled()
 })
 

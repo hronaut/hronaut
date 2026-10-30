@@ -30,7 +30,11 @@ import type {
 } from '../types.js'
 import type { InvokeChannel } from './channel.js'
 
-/** What the shell's panels read from a tab's page: its storage, elements, pictures, console and network. A tab named by no id is the active one. */
+/**
+ * What the shell's panels read from a tab's page (its storage, elements, pictures, console and network) and what they do
+ * with it: change its storage, keep baselines, copy snapshots and pictures, clear the lists, replay a request and save a
+ * HAR file. A tab named by no id is the active one.
+ */
 export const PAGE_INSPECTION_IPC = {
   /** Shell → main: lists, reads or changes the page's local storage, session storage or cookies. */
   manageStorage: 'browser:manage-storage' as InvokeChannel<[options: BrowserStorageOptions], BrowserStorageResult>,
@@ -64,9 +68,16 @@ export const PAGE_INSPECTION_IPC = {
   consoleMessages: 'browser:console' as InvokeChannel<[options: { tabId: string | undefined; clear: boolean }], BrowserConsoleMessage[]>,
   /** Shell → main: the page's network requests, cleared after reading when asked. */
   networkRequests: 'browser:network' as InvokeChannel<[options: { tabId: string | undefined; clear: boolean }], BrowserNetworkRequest[]>,
-  /** Shell → main: one request's headers and bodies, the bodies up to maxChars characters. */
+  /**
+   * Shell → main: one recorded request's redacted headers and bodies, timing, initiator and related requests. A body
+   * longer than maxChars characters (20,000 unless given, kept within 1,000 to 100,000) is cut and marked as truncated.
+   */
   networkRequestDetails: 'browser:network-request' as InvokeChannel<[options: { tabId: string; requestId: string; maxChars: number | undefined }], BrowserNetworkRequestDetails>,
-  /** Shell → main: sends a captured request again from the tab; one whose method may change something only when confirmed. */
+  /**
+   * Shell → main: sends a captured XHR request again from the tab and waits up to 10 seconds for it to finish, failing
+   * when that goes unseen although it was sent. One whose method may change something goes only when confirmed; other
+   * request types are refused.
+   */
   replayNetworkRequest: 'browser:network-replay' as InvokeChannel<[options: { tabId: string; requestId: string; confirmSideEffects: boolean }], BrowserNetworkReplayResult>,
   /** Shell → main: finds text in the page's requests. */
   searchNetwork: 'browser:network-search' as InvokeChannel<[options: BrowserNetworkSearchOptions], BrowserNetworkSearchResult>,
