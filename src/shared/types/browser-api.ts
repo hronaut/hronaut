@@ -196,7 +196,7 @@ export interface HronautAppApi {
   copyText(text: string): Promise<void>
 }
 
-/** What main asks the shell for from its menus and shortcuts. */
+/** What main asks the shell for from its menus, shortcuts and Home. */
 export interface HronautShellRequestsApi {
   onShortcutRequested(listener: (action: import('../browser-shortcuts.js').BrowserShortcutAction) => void): () => void
   onHomeWorkspaceEditorRequested(listener: (request: import('../home-workspaces.js').HomeWorkspaceEditorRequest) => void): () => void

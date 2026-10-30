@@ -4,7 +4,7 @@ import type { HomeWorkspaceEditorRequest } from '../home-workspaces.js'
 import type { BrowserActionFailure, BrowserOcclusionSnapshot, HelpMenuAction } from '../types.js'
 import type { EventChannel, InvokeChannel, SendChannel } from './channel.js'
 
-/** The shell's own window: its layout over the pages, the dialogs it covers them with, and what main tells it. */
+/** The shell's own window and the app's: its layout over the pages, the dialogs it covers them with, Quit, the clipboard, and what main tells it or asks of it. */
 export const SHELL_IPC = {
   /** Shell → main: whether the shell's window has the focus. */
   isWindowFocused: 'shell:is-window-focused' as InvokeChannel<[], boolean>,
@@ -50,6 +50,6 @@ export const SHELL_IPC = {
   visitHistoryRequested: 'browser:visit-history-requested' as EventChannel<[]>,
   /** Main → shell: a tab's menu asked to bookmark the open tabs of its workspace, or of no workspace for null. */
   bookmarkAllTabsRequested: 'browser:bookmark-all-tabs-requested' as EventChannel<[workspaceId: string | null]>,
-  /** Main → shell: Paste and Go or Paste and Search in the address field's menu, with the clipboard text to open. */
+  /** Main → main window: Paste and Go or Paste and Search in the address field's menu, with the clipboard text to open. */
   addressPasteAndGo: 'browser:address-paste-and-go' as EventChannel<[text: string]>
 } as const

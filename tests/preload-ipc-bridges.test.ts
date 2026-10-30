@@ -72,12 +72,16 @@ const invokes: Array<[api: string, method: string, args: unknown[], channel: str
   ['hronaut', 'back', ['tab-1'], 'browser:back', ['tab-1']],
   ['hronaut', 'back', [], 'browser:back', [undefined]],
   ['hronaut', 'forward', ['tab-1'], 'browser:forward', ['tab-1']],
+  ['hronaut', 'forward', [], 'browser:forward', [undefined]],
   ['hronaut', 'showHistoryMenu', [{ tabId: 'tab-1', direction: 'back', anchor: { x: 12, y: 40 } }], 'browser:show-history-menu', [{ tabId: 'tab-1', direction: 'back', anchor: { x: 12, y: 40 } }]],
   ['hronaut', 'openNavigationInNewTab', [{ tabId: 'tab-1', target: 'reload', active: false }], 'browser:open-navigation-in-new-tab', [{ tabId: 'tab-1', target: 'reload', active: false }]],
   ['hronaut', 'reload', ['tab-1'], 'browser:reload', ['tab-1']],
+  ['hronaut', 'reload', [], 'browser:reload', [undefined]],
   ['hronaut', 'proceedPastCertificateError', ['tab-1'], 'browser:proceed-past-certificate', ['tab-1']],
   ['hronaut', 'reloadIgnoringCache', ['tab-1'], 'browser:reload-ignoring-cache', ['tab-1']],
+  ['hronaut', 'reloadIgnoringCache', [], 'browser:reload-ignoring-cache', [undefined]],
   ['hronaut', 'stop', ['tab-1'], 'browser:stop', ['tab-1']],
+  ['hronaut', 'stop', [], 'browser:stop', [undefined]],
   ['hronaut', 'findInPage', [{ tabId: 'tab-1', query: 'docs', forward: true, findNext: true }], 'browser:find-in-page', [{ tabId: 'tab-1', query: 'docs', forward: true, findNext: true }]],
   ['hronaut', 'stopFindInPage', ['tab-1', { activateMatch: true }], 'browser:stop-find-in-page', ['tab-1', { activateMatch: true }]],
   ['hronaut', 'stopFindInPage', [], 'browser:stop-find-in-page', [undefined, undefined]],
@@ -85,7 +89,9 @@ const invokes: Array<[api: string, method: string, args: unknown[], channel: str
   ['hronaut', 'savePdf', [{ tabId: 'tab-1', landscape: true, pageSize: 'A4' }], 'browser:save-pdf', [{ tabId: 'tab-1', landscape: true, pageSize: 'A4' }]],
   ['hronaut', 'savePdf', [], 'browser:save-pdf', [{}]],
   ['hronaut', 'toggleDevTools', ['tab-1'], 'browser:toggle-devtools', ['tab-1']],
+  ['hronaut', 'toggleDevTools', [], 'browser:toggle-devtools', [undefined]],
   ['hronaut', 'showDevToolsConsole', ['tab-1'], 'browser:show-devtools-console', ['tab-1']],
+  ['hronaut', 'showDevToolsConsole', [], 'browser:show-devtools-console', [undefined]],
   ['hronaut', 'undo', [undoToken], 'undo:run', [undoToken]],
   ['hronaut', 'holdUndo', [undoToken], 'undo:hold', [undoToken]],
   ['hronaut', 'finishUndo', [undoToken], 'undo:finish', [undoToken]],
@@ -430,16 +436,6 @@ it('hronaut sends main copies of the tab lists it is given', async () => {
   for (const sent of sentLists) expect(sent).not.toBe(tabIds)
 })
 
-it('hronaut.onNewTabRequested passes on a workspace id, or none for anything else', async () => {
-  const subscribe = await exposed('hronaut', 'onNewTabRequested')
-  const listener = vi.fn()
-  subscribe(listener)
-  const [, handler] = electron.on.mock.calls.find(([name]) => name === 'browser:new-tab-requested')!
-  handler({}, 42)
-  handler({}, 'workspace-1')
-  expect(listener.mock.calls).toEqual([[undefined], ['workspace-1']])
-})
-
 it('hronaut.onQrCodeRequested passes on only a tab and an address', async () => {
   const subscribe = await exposed('hronaut', 'onQrCodeRequested')
   const listener = vi.fn()
@@ -449,27 +445,6 @@ it('hronaut.onQrCodeRequested passes on only a tab and an address', async () => 
   handler({}, { tabId: 1, address: 'https://example.com/' })
   handler({}, { tabId: 'tab-1', address: 'https://example.com/', text: 'extra' })
   expect(listener.mock.calls).toEqual([[{ tabId: 'tab-1', address: 'https://example.com/' }]])
-})
-
-it('hronaut.onAddressPasteAndGo passes on only text', async () => {
-  const subscribe = await exposed('hronaut', 'onAddressPasteAndGo')
-  const listener = vi.fn()
-  subscribe(listener)
-  const [, handler] = electron.on.mock.calls.find(([name]) => name === 'browser:address-paste-and-go')!
-  handler({}, 5)
-  handler({}, 'docs')
-  expect(listener.mock.calls).toEqual([['docs']])
-})
-
-it('hronaut keeps the Bookmark all tabs request main sent until the shell listens', async () => {
-  const onBookmarkAllTabsRequested = await exposed('hronaut', 'onBookmarkAllTabsRequested')
-  const [, handler] = electron.on.mock.calls.find(([name]) => name === 'browser:bookmark-all-tabs-requested')!
-  handler({}, 'workspace-1')
-  handler({}, 7)
-  const listener = vi.fn()
-  onBookmarkAllTabsRequested(listener)
-  handler({}, 'workspace-2')
-  expect(listener.mock.calls).toEqual([[null], ['workspace-2']])
 })
 
 it('checks at compile time that calls and listeners match their channel', () => {

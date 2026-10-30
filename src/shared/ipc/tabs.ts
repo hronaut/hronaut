@@ -12,9 +12,9 @@ import type { EventChannel, InvokeChannel, SendChannel } from './channel.js'
 export const TABS_IPC = {
   /** Shell → main: the tabs and workspaces as they are. */
   getState: 'browser:get-state' as InvokeChannel<[], BrowserState>,
-  /** Main → shells: the state changed; the main window's shell gets the next one once it reports this one drawn. */
+  /** Main → shells: the state changed. Changes wait while the main window's shell has not reported the last state drawn, up to a timeout. */
   stateChanged: 'browser:state-changed' as EventChannel<[state: BrowserState]>,
-  /** Shell → main: the shell drew the last state it was sent, so main can send the next. */
+  /** Shell → main: the shell drew the last state it was sent; only the main window's report paces the states main sends. */
   stateDrawn: 'browser:state-drawn' as SendChannel<[]>,
   /** Main → main window: what an agent is doing in a tab, for its activity in the tab strip. */
   mcpTabActivity: 'browser:mcp-tab-activity' as EventChannel<[activity: McpTabActivity]>,
@@ -50,7 +50,7 @@ export const TABS_IPC = {
   setTabAgentPaused: 'browser:set-tab-agent-paused' as InvokeChannel<[tabId: string, paused: boolean, options?: { takeOver?: boolean }], BrowserState>,
   /** Shell → main: freezes the tab's page or lets it run again. */
   setTabPageLifecycle: 'browser:set-tab-page-lifecycle' as InvokeChannel<[tabId: string, state: 'active' | 'frozen'], BrowserState>,
-  /** Shell → main: puts every tab but the ones in view to sleep. */
+  /** Shell → main: puts every tab that may sleep to sleep now, while Memory Saver is on. */
   sleepInactiveTabs: 'browser:sleep-inactive-tabs' as InvokeChannel<[], BrowserState>,
   /** Shell → main: moves the tab before or after the target tab. */
   reorderTab: 'browser:reorder-tab' as InvokeChannel<[tabId: string, targetTabId: string, placement: 'before' | 'after'], BrowserState>,
@@ -60,7 +60,7 @@ export const TABS_IPC = {
   dropLink: 'browser:drop-link' as InvokeChannel<[text: string, target: DroppedLinkTarget], BrowserState>,
   /** Shell → main: gives the keyboard to the page in view. */
   focusActivePage: 'browser:focus-active-page' as InvokeChannel<[], void>,
-  /** Shell → main: shows the tab's menu, which acts on all the selected tabs when the tab is one of them. */
+  /** Shell → main: shows the tab's menu, which acts on all the selected tabs when the tab is one of several selected ones. */
   showTabContextMenu: 'browser:show-tab-context-menu' as InvokeChannel<[tabId: string, selectedTabIds: string[] | undefined], void>,
   /** Shell → main: mutes or unmutes the tab. */
   setTabMuted: 'browser:set-tab-muted' as InvokeChannel<[tabId: string, muted: boolean], BrowserState>,

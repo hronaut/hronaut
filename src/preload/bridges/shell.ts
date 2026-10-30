@@ -48,7 +48,7 @@ subscribe(SHELL_IPC.bookmarkAllTabsRequested, (workspaceId: unknown) => {
   bookmarkAllTabsRequests.receive(typeof workspaceId === 'string' ? workspaceId : null)
 })
 
-/** window.hronaut's requests from main's menus and shortcuts for the shell to carry out. */
+/** window.hronaut's requests from main's menus, shortcuts and Home for the shell to carry out. */
 export const shellRequestsApi: HronautShellRequestsApi = {
   onShortcutRequested: (listener) => subscribe(SHELL_IPC.shortcutRequested, (action) => listener(action)),
   onHomeWorkspaceEditorRequested: (listener) => subscribe(SHELL_IPC.homeWorkspaceEditorRequested, (request) => listener(request)),
