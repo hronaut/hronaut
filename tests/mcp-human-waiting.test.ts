@@ -5,6 +5,18 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { McpHttpServer } from '../src/main/mcp/server.js'
 import { HumanWaitingService } from '../src/main/mcp/human-waiting-service.js'
 
+// The fake browser below stubs the functions its tool calls go through; these reach its stubs.
+vi.mock('../src/main/browser/workspace-continuity/workspace-continuity.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-continuity/workspace-continuity.js')>(),
+  beginWorkspaceContinuityAction: (browser: { beginWorkspaceContinuityAction: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.beginWorkspaceContinuityAction(...args),
+  requireWorkspaceContinuityDispatch: (browser: { requireWorkspaceContinuityDispatch: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireWorkspaceContinuityDispatch(...args),
+  requireWorkspaceContinuityReview: (browser: { requireWorkspaceContinuityReview: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireWorkspaceContinuityReview(...args)
+}))
+vi.mock('../src/main/browser/workspace-scope/workspace-scope.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-scope/workspace-scope.js')>(),
+  requireTabInMcpGroup: (browser: { requireTabInMcpGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireTabInMcpGroup(...args)
+}))
+
 const workspaceId = '01912345-6789-7abc-8def-0123456789ab'
 const otherWorkspaceId = '01912345-678b-7abc-8def-0123456789ab'
 const resumeKey = `hrw1_${'A'.repeat(43)}`

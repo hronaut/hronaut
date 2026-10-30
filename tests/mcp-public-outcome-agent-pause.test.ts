@@ -4,6 +4,21 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { McpHttpServer } from '../src/main/mcp/server.js'
 
+// The fake browser below stubs the functions its tool calls go through; these reach its stubs.
+vi.mock('../src/main/browser/workspace-continuity/workspace-continuity.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-continuity/workspace-continuity.js')>(),
+  beginWorkspaceContinuityAction: (browser: { beginWorkspaceContinuityAction: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.beginWorkspaceContinuityAction(...args),
+  requireWorkspaceContinuityDispatch: (browser: { requireWorkspaceContinuityDispatch: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireWorkspaceContinuityDispatch(...args)
+}))
+vi.mock('../src/main/browser/page-snapshots/page-snapshots.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/page-snapshots/page-snapshots.js')>(),
+  observationQuality: (browser: { observationQuality: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.observationQuality(...args)
+}))
+vi.mock('../src/main/browser/workspace-scope/workspace-scope.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-scope/workspace-scope.js')>(),
+  requireTabInMcpGroup: (browser: { requireTabInMcpGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireTabInMcpGroup(...args)
+}))
+
 // Original failure: browser_public_outcome checked agent control for the writer tab against the observer
 // workspace. Whenever any tab anywhere in Hronaut was paused, such as a tab the person paused in their own
 // workspace, the writer tab was never found in the observer workspace, so every call failed with "Agents are

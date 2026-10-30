@@ -30,7 +30,6 @@ async function copyWorkspace(sourcePolicy: BrowserWorkspaceNavigationPolicy, cho
     workspaceStorageOperation: null,
     pendingWorkspaceOperationPromises: new Set(),
     assertWorkspaceNameAvailable: () => undefined,
-    isClosingWorkspace: () => false,
     createTab: async () => ({}),
     changed: () => undefined
   }
@@ -85,7 +84,6 @@ describe('Site access of a public observer', () => {
       workspaceStorageOperation: null,
       pendingWorkspaceOperationPromises: new Set(),
       assertWorkspaceNameAvailable: () => undefined,
-      isClosingWorkspace: () => false,
       createTab: async () => ({}),
       changed: () => undefined
     }

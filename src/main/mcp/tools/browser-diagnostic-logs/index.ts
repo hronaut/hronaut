@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { clearDiagnosticLogs, diagnosticLogState } from '../../../browser/debug-report/debug-report.js'
 
 export function registerBrowserDiagnosticLogs(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -20,8 +21,8 @@ export function registerBrowserDiagnosticLogs(context: McpToolContext): void {
       action: 'get' | 'set' | 'clear'
       preserveAcrossNavigation?: boolean
     }) => {
-      if (action === 'get') return textResult(manager.diagnosticLogState(tabId))
-      if (action === 'clear') return textResult(manager.clearDiagnosticLogs(tabId))
+      if (action === 'get') return textResult(diagnosticLogState(manager, tabId))
+      if (action === 'clear') return textResult(clearDiagnosticLogs(manager, tabId))
       if (preserveAcrossNavigation === undefined) throw new TypeError('preserveAcrossNavigation is required to set diagnostic log behavior')
       return textResult(manager.setDiagnosticLogPreservation(tabId!, preserveAcrossNavigation))
     })

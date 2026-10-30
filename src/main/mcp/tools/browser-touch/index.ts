@@ -4,6 +4,7 @@ import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
 import { type TouchSettlement, touchSettlement } from './touch-settlement.js'
+import { touch } from '../../../browser/agent-touch/agent-touch.js'
 
 export function registerBrowserTouch(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -30,7 +31,7 @@ export function registerBrowserTouch(context: McpToolContext): void {
       }
       const input = { tabId, gesture, x, y, ...(endX === undefined ? {} : { endX }), ...(endY === undefined ? {} : { endY }),
         ...(durationMs === undefined ? {} : { durationMs }) }
-      return textResult(await manager.touch(input, validateNativeInput, call.settlement.recordProgress, call.signal))
+      return textResult(await touch(manager, input, validateNativeInput, call.settlement.recordProgress, call.signal))
     }, 'never'),
     {
       settlement: () => touchSettlement(),

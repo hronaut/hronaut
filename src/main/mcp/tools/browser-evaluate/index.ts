@@ -3,6 +3,7 @@ import { EvaluationStoppedError } from '../../../browser/page-evaluation/evaluat
 import { safeValue, textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext, ToolActivityClassification, WorkspaceToolCall } from '../tool-context.js'
+import { evaluate } from '../../../browser/page-evaluation/evaluate.js'
 
 /**
  * How the call stopped waiting for its script, if it did: one still running
@@ -38,7 +39,7 @@ export function registerBrowserEvaluate(context: McpToolContext): void {
       timeoutMs: number
     }, call: WorkspaceToolCall<ReturnType<typeof evaluationSettlement>>) => {
       try {
-        return textResult(safeValue(await manager.evaluate(script, tabId, { dialogAction }, { timeoutMs, signal: call.signal })))
+        return textResult(safeValue(await evaluate(manager, script, tabId, { dialogAction }, { timeoutMs, signal: call.signal })))
       } catch (error) {
         if (!(error instanceof EvaluationStoppedError)) throw error
         call.settlement.stopped(error.sent)

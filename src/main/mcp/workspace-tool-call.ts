@@ -25,6 +25,9 @@ import { mcpCapabilityOperationClass } from './capability-classification.js'
 import { workspaceIdSchema } from './tool-schemas.js'
 import type { McpToolContext, ToolActivityClassification, ToolCallSettlement, ToolOptions, WorkspaceToolCall, WorkspaceToolHandler, WorkspaceToolOptions } from './tools/tool-context.js'
 import type { RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { auditEvidenceAvailability } from '../browser/debug-report/debug-report.js'
+import { beginWorkspaceContinuityAction, postWriteContextFingerprint, readBrowserReconciliation, readPostWritePostcondition, requireWorkspaceContinuityDispatch } from '../browser/workspace-continuity/workspace-continuity.js'
+import { requireTabInMcpGroup } from '../browser/workspace-scope/workspace-scope.js'
 
 function publicObserverAllowsTool(name: string, allowed: boolean): boolean {
   return name.startsWith('browser_') && (toolDefinition(name).annotations.readOnlyHint || allowed)
@@ -247,7 +250,7 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
         await requireHumanDecision()
         requireAgentWorkspace(workspaceId)
         const requireContinuity = (): void => {
-          if (!continuityInspection) manager.requireWorkspaceContinuityDispatch(workspaceId)
+          if (!continuityInspection) requireWorkspaceContinuityDispatch(manager, workspaceId)
         }
         // Target resolution can change the group's selected tab. Check first.
         requireContinuity()
@@ -259,7 +262,7 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
             && manager.getMcpGroupState(workspaceId).tabs.length === 0)
         const resolvedTabId = skipsTabTarget
           ? undefined
-          : preservePresentation ? manager.requireTabInMcpGroup(workspaceId, requestedTabId, true) : manager.requireTabInMcpGroup(workspaceId, requestedTabId)
+          : preservePresentation ? requireTabInMcpGroup(manager, workspaceId, requestedTabId, true) : requireTabInMcpGroup(manager, workspaceId, requestedTabId)
         const definition = toolDefinition(name)
         const actionTarget = browserActionTarget(actionInput)
         const actionPayloadFingerprint = browserActionPayloadFingerprint(actionInput)
@@ -294,10 +297,10 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
           expectedText: postWrite.expectedText
         } : undefined
         const postWriteFingerprint = postWriteCondition && resolvedTabId
-          ? manager.postWriteContextFingerprint(workspaceId, resolvedTabId, postWriteCondition) : undefined
+          ? postWriteContextFingerprint(manager, workspaceId, resolvedTabId, postWriteCondition) : undefined
         const requirePostWriteContext = (): void => {
           if (postWriteCondition && resolvedTabId && postWriteFingerprint
-            && manager.postWriteContextFingerprint(workspaceId, resolvedTabId, postWriteCondition) !== postWriteFingerprint) {
+            && postWriteContextFingerprint(manager, workspaceId, resolvedTabId, postWriteCondition) !== postWriteFingerprint) {
             throw new Error('Post-write verification context changed before tool dispatch')
           }
         }
@@ -435,9 +438,7 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
               ...(reconciliation.expectedCurrentText !== undefined
                 ? { expectedCurrentText: reconciliation.expectedCurrentText } : {})
             }
-            const evidence = await manager.readBrowserReconciliation(
-              workspaceId, resolvedTabId, condition, requireCurrentTarget, extra?.signal
-            )
+            const evidence = await readBrowserReconciliation(manager, workspaceId, resolvedTabId, condition, requireCurrentTarget, extra?.signal)
             requireCurrentTarget()
             requirePostWriteContext()
             preWriteReconciliation = publicBrowserReconciliation(reconciliation, evidence)
@@ -476,7 +477,7 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
             }, TAB_ACTIVITY_LIMIT_MS)
             activityLimit.unref?.()
           }
-          const finishContinuityAction = manager.beginWorkspaceContinuityAction(workspaceId, readOnly)
+          const finishContinuityAction = beginWorkspaceContinuityAction(manager, workspaceId, readOnly)
           try {
             if (!preservePresentation && resolvedTabId && (handler.resolvedTargetWakePolicy ?? 'before-handler') === 'before-handler') {
               await manager.wakeTab(resolvedTabId)
@@ -665,7 +666,7 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
                 }))
               }
             }
-            const availability = manager.auditEvidenceAvailability(state.tabId)
+            const availability = auditEvidenceAvailability(manager, state.tabId)
             const missingReason = invalidatedOutcome === 'outcome-unknown' ? 'outcome-unknown' as const : undefined
             const artifact = (source: 'diagnostic' | 'network' | 'dom-changes' | 'storage-changes' | 'reproduction',
               available: boolean, reason: 'recorder-inactive' | 'baseline-missing' | 'unsupported-scheme') => available ? {
@@ -704,9 +705,7 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
                   read: async readSignal => {
                     await requireHumanDecision(false, reviewAttempt?.id)
                     requireCurrentTarget()
-                    return manager.readPostWritePostcondition(
-                      workspaceId, resolvedTabId, postWriteCondition, requireCurrentTarget, readSignal
-                    )
+                    return readPostWritePostcondition(manager, workspaceId, resolvedTabId, postWriteCondition, requireCurrentTarget, readSignal)
                   },
                   onEvent: async event => {
                     await append({ attempt: event.attempt, status: event.state, reason: event.reason })

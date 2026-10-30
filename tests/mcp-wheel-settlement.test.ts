@@ -4,6 +4,21 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { expect, it, vi } from 'vitest'
 import { McpHttpServer } from '../src/main/mcp/server.js'
 
+// The fake browser below stubs the functions its tool calls go through; these reach its stubs.
+vi.mock('../src/main/browser/workspace-continuity/workspace-continuity.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-continuity/workspace-continuity.js')>(),
+  beginWorkspaceContinuityAction: (browser: { beginWorkspaceContinuityAction: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.beginWorkspaceContinuityAction(...args),
+  requireWorkspaceContinuityDispatch: (browser: { requireWorkspaceContinuityDispatch: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireWorkspaceContinuityDispatch(...args)
+}))
+vi.mock('../src/main/browser/workspace-scope/workspace-scope.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-scope/workspace-scope.js')>(),
+  requireTabInMcpGroup: (browser: { requireTabInMcpGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireTabInMcpGroup(...args)
+}))
+vi.mock('../src/main/browser/agent-wheel/agent-wheel.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/agent-wheel/agent-wheel.js')>(),
+  wheel: (browser: { wheel: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.wheel(...args)
+}))
+
 it.each(['late-review', 'late-audit', 'late-access'] as const)('retains wheel attempt provenance across %s settlement failure', async failure => {
   const workspaceId = '01912345-6789-7abc-8def-0123456789ab'
   const tabId = '01912345-6790-7abc-8def-0123456789ab'

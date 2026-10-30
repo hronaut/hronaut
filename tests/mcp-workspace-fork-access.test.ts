@@ -5,6 +5,28 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { McpHttpServer } from '../src/main/mcp/server.js'
 
+// The fake browser below stubs the functions its tool calls go through; these reach its stubs.
+vi.mock('../src/main/browser/workspace-continuity/workspace-continuity.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-continuity/workspace-continuity.js')>(),
+  beginWorkspaceContinuityAction: (browser: { beginWorkspaceContinuityAction: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.beginWorkspaceContinuityAction(...args),
+  requireWorkspaceContinuityDispatch: (browser: { requireWorkspaceContinuityDispatch: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireWorkspaceContinuityDispatch(...args),
+  requireWorkspaceContinuityReview: (browser: { requireWorkspaceContinuityReview: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireWorkspaceContinuityReview(...args)
+}))
+vi.mock('../src/main/browser/agent-page-actions/click.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/agent-page-actions/click.js')>(),
+  click: (browser: { click: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.click(...args)
+}))
+vi.mock('../src/main/browser/page-snapshots/page-snapshots.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/page-snapshots/page-snapshots.js')>(),
+  findSnapshot: (browser: { findSnapshot: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.findSnapshot(...args),
+  setSnapshotBaseline: (browser: { setSnapshotBaseline: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.setSnapshotBaseline(...args),
+  snapshotDelta: (browser: { snapshotDelta: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.snapshotDelta(...args)
+}))
+vi.mock('../src/main/browser/workspace-scope/workspace-scope.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-scope/workspace-scope.js')>(),
+  requireTabInMcpGroup: (browser: { requireTabInMcpGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireTabInMcpGroup(...args)
+}))
+
 const ownId = '01912345-6789-7abc-8def-0123456789ab'
 const targetId = '01912345-6790-7abc-8def-0123456789ab'
 const sourceId = '01912345-6789-7abc-8def-0123456789ac'

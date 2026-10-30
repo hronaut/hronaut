@@ -3,6 +3,7 @@ import { urlWithoutDetail } from '../../../../shared/url-detail.js'
 import { textResult, toolDescription, urlDetailOmitted } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { callWebMcpTool, listWebMcpTools, webMcpStatus } from '../../../browser/webmcp/webmcp.js'
 
 export function registerBrowserWebmcp(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -36,11 +37,11 @@ export function registerBrowserWebmcp(context: McpToolContext): void {
       arguments?: Record<string, unknown>
     }) => {
       if (action === 'status') {
-        const result = { workspaceId, ...await manager.webMcpStatus(tabId) }
+        const result = { workspaceId, ...await webMcpStatus(manager, tabId) }
         return { ...textResult(result), structuredContent: result }
       }
       if (action === 'list') {
-        const result = { workspaceId, ...await manager.listWebMcpTools(tabId) }
+        const result = { workspaceId, ...await listWebMcpTools(manager, tabId) }
         return { ...textResult(result), structuredContent: result, ...(result.status ? { isError: true } : {}) }
       }
       if (!expectedOrigin || navigationGeneration === undefined || !descriptorDigest || !toolName) {
@@ -49,7 +50,7 @@ export function registerBrowserWebmcp(context: McpToolContext): void {
       const result: Record<string, unknown> = {
         workspaceId,
         tabId,
-        ...await manager.callWebMcpTool({
+        ...await callWebMcpTool(manager, {
           tabId,
           expectedOrigin,
           navigationGeneration,

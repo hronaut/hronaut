@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { uploadFiles } from '../../../browser/file-upload/file-upload.js'
 
 export function registerBrowserFileUpload(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -31,7 +32,7 @@ export function registerBrowserFileUpload(context: McpToolContext): void {
           throw error
         }
       }
-      return textResult(await manager.uploadFiles(target, paths, validateUpload))
+      return textResult(await uploadFiles(manager, target, paths, validateUpload))
     }),
     { stepTarget: input => ({ ref: input.ref }) }
   )

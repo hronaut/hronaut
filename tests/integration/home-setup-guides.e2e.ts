@@ -1,4 +1,4 @@
-import { BROWSER_TOOL_CATALOG } from '../../src/main/mcp/server.js'
+import { BROWSER_TOOL_CATALOG } from '../../src/main/mcp/tool-catalog.js'
 import { expect, test } from './fixtures.js'
 
 // Agents installed on this computer, such as Claude Code, are listed first on Home and change the guide it copies,

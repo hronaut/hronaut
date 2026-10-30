@@ -5,6 +5,21 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { McpHttpServer } from '../src/main/mcp/server.js'
 import { TAB_ACTIVITY_LIMIT_MS } from '../src/main/mcp/workspace-tool-call.js'
 
+// The fake browser below stubs the functions its tool calls go through; these reach its stubs.
+vi.mock('../src/main/browser/workspace-continuity/workspace-continuity.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-continuity/workspace-continuity.js')>(),
+  beginWorkspaceContinuityAction: (browser: { beginWorkspaceContinuityAction: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.beginWorkspaceContinuityAction(...args),
+  requireWorkspaceContinuityDispatch: (browser: { requireWorkspaceContinuityDispatch: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireWorkspaceContinuityDispatch(...args)
+}))
+vi.mock('../src/main/browser/page-evaluation/evaluate.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/page-evaluation/evaluate.js')>(),
+  evaluate: (browser: { evaluate: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.evaluate(...args)
+}))
+vi.mock('../src/main/browser/workspace-scope/workspace-scope.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-scope/workspace-scope.js')>(),
+  requireTabInMcpGroup: (browser: { requireTabInMcpGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireTabInMcpGroup(...args)
+}))
+
 // A tab shows an agent's call as running from its start until its end. These calls once never sent the end, so the
 // tab, Follow, tab sleep and the tray treated them as running for as long as Hronaut stayed open.
 

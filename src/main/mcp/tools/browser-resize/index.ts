@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { resizeViewport } from '../../../browser/emulation/resize-viewport.js'
 
 export function registerBrowserResize(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -18,7 +19,7 @@ export function registerBrowserResize(context: McpToolContext): void {
       }
     },
     tabTool('browser_resize', async ({ tabId, width, height, reset }: { tabId?: string; width?: number; height?: number; reset?: boolean }) =>
-      textResult(await manager.resizeViewport(width, height, reset ?? false, tabId))
+      textResult(await resizeViewport(manager, width, height, reset ?? false, tabId))
     )
   )
 }

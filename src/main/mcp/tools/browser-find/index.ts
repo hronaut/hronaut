@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { findSnapshot } from '../../../browser/page-snapshots/page-snapshots.js'
 
 export function registerBrowserFind(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -26,7 +27,7 @@ export function registerBrowserFind(context: McpToolContext): void {
       caseSensitive?: boolean
       maxMatches?: number
       contextChars?: number
-    }) => textResult(await manager.findSnapshot(options))),
+    }) => textResult(await findSnapshot(manager, options))),
     { continuityInspection: () => true }
   )
 }

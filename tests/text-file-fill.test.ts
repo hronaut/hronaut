@@ -5,7 +5,7 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { ISOLATED_WORLDS } from '../src/main/browser/isolated-worlds.js'
 import { javascriptLiteral } from '../src/shared/javascript-literal.js'
 import { fillFromFile, MAX_FILL_FILE_BYTES, readFillText, type TextFileFillProgress } from '../src/main/browser/text-file-fill/text-file-fill.js'
@@ -21,6 +21,11 @@ vi.mock('../src/main/browser/native-input-authority/native-input-authority.js', 
 vi.mock('../src/main/browser/agent-input-scope/agent-input-scope.js', () => ({
   withAgentInput: (browser: { withAgentInput(...args: unknown[]): unknown }, ...args: unknown[]) => browser.withAgentInput(...args)
 }))
+// The tool tests below give the fill their own steps; the other tests run the real one.
+vi.mock('../src/main/browser/text-file-fill/text-file-fill.js', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../src/main/browser/text-file-fill/text-file-fill.js')>()
+  return { ...original, fillFromFile: vi.fn(original.fillFromFile) }
+})
 
 const ORIGIN = 'http://127.0.0.1:4100'
 const TEXT = 'private-fixture-canary "quoted" `tick` </script> \u2028 😀 мир\nsecond line\n'
@@ -272,12 +277,16 @@ describe('filling a field from a file', () => {
 })
 
 describe('browser_fill_from_file tool', () => {
+  afterEach(() => { vi.mocked(fillFromFile).mockReset() })
   type Validate = (validateContext: () => void) => void
   /** The tool's handler, over a manager whose fill runs the given steps, and a call that records its outcome class. */
   function tool(fill: (validateFill: Validate, progress: TextFileFillProgress) => Promise<unknown>, overrides: Record<string, unknown> = {}) {
     let handler: ((input: Record<string, unknown>, call: unknown) => Promise<unknown>) | undefined
+    vi.mocked(fillFromFile).mockImplementation(async (_browser, _target, _source, validateFill, progress) => (
+      await fill(validateFill!, progress!) as never
+    ))
     registerBrowserFillFromFile({
-      manager: { fillFromFile: (_target: unknown, _source: unknown, validateFill: Validate, progress: TextFileFillProgress) => fill(validateFill, progress) },
+      manager: {},
       tabTool: (_name: string, callback: unknown) => callback,
       registerWorkspaceTool: (_name: string, _config: unknown, callback: typeof handler) => { handler = callback }
     } as never)

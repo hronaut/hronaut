@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { controlPageLifecycle, pageLifecycle } from '../../../browser/page-lifecycle/page-lifecycle.js'
 
 export function registerBrowserPageLifecycle(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -19,7 +20,7 @@ export function registerBrowserPageLifecycle(context: McpToolContext): void {
       tabId?: string
       action: 'status' | 'freeze' | 'resume'
     }) => textResult(action === 'status'
-      ? manager.pageLifecycle(tabId!)
-      : await manager.controlPageLifecycle(tabId!, action === 'freeze' ? 'frozen' : 'active')), 'never')
+      ? pageLifecycle(manager, tabId!)
+      : await controlPageLifecycle(manager, tabId!, action === 'freeze' ? 'frozen' : 'active')), 'never')
   )
 }

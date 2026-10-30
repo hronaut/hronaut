@@ -343,8 +343,7 @@ describe('main-process failures people see in page tools, workspace management a
     `Відновлення «Research» перевищить ліміт вкладок (${MAX_BROWSER_TABS}).`],
     ['moving data out of an open workspace', () => transferWorkspaceStorage({
       mcpTabGroups: new Map([['research', research], ['work', { ...research, id: 'work', name: 'Work' }]]),
-      savedTabGroups: new Map(),
-      isClosingWorkspace: () => false
+      savedTabGroups: new Map()
     } as never, { sourceWorkspaceId: 'research', targetWorkspaceId: 'work', mode: 'move' }),
     'Archive both workspaces before moving data, or choose Copy to keep their pages open.',
     'Заархівуйте обидва робочі простори, перш ніж переміщувати дані, або виберіть «Копіювати», щоб їхні сторінки залишилися відкритими.'],

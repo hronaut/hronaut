@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { TAB_DISCOVERY_LIMITS, type TabDiscoverySearch, compactTabDiscovery } from '../../tab-discovery.js'
 import { mcpWorkspaceTab, textResult, toolDescription, urlDetailOmitted } from '../../tool-results.js'
 import type { McpToolContext, ToolCallSettlement } from '../tool-context.js'
+import { getMcpDiscoveryTabs } from '../../../browser/workspace-scope/workspace-scope.js'
 
 // A search result is published only if the workspace, control and capability still hold when the call settles.
 function tabDiscoverySettlement() {
@@ -37,7 +38,7 @@ export function registerBrowserTabs(context: McpToolContext): void {
       const omitUrlDetail = urlDetailOmitted(manager)
       return textResult(search === undefined
         ? manager.getMcpGroupState(workspaceId!).tabs.map(tab => mcpWorkspaceTab(tab, omitUrlDetail))
-        : compactTabDiscovery(manager.getMcpDiscoveryTabs(workspaceId!), search, omitUrlDetail))
+        : compactTabDiscovery(getMcpDiscoveryTabs(manager, workspaceId!), search, omitUrlDetail))
     }),
     {
       settlement: input => input.search !== undefined ? tabDiscoverySettlement() : undefined,

@@ -47,10 +47,11 @@ vi.mock('../src/main/browser/tab-arrangement/tab-arrangement.js', async (importO
     placement: 'before' | 'after'
   ) => browser.reorderTab(tabId, targetTabId, placement)
 }))
-// Their closeTab stub does a real close's bookkeeping, which closing tabs for the person reaches through this.
+// Their closeWithBookkeeping stub does a real close's bookkeeping, which closing tabs for the person reaches through
+// closeTab.
 vi.mock('../src/main/browser/tab-close/close-tab.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/tab-close/close-tab.js')>(),
-  closeTab: (browser: { closeTab: (tabId: string) => Promise<unknown> }, tabId: string) => browser.closeTab(tabId)
+  closeTab: (browser: { closeWithBookkeeping: (tabId: string) => Promise<unknown> }, tabId: string) => browser.closeWithBookkeeping(tabId)
 }))
 
 // The prototype-built browser below stubs withDebugger, under which the input lock's native guard is applied.
@@ -97,7 +98,7 @@ interface Manager {
   setAllAgentsPaused(paused: boolean): void
   isTabAgentPaused(tabId: string): boolean
   isHumanInteractionLocked(tab: Tab): boolean
-  closeTab(tabId: string): Promise<unknown>
+  closeWithBookkeeping(tabId: string): Promise<unknown>
 }
 
 /**
@@ -127,7 +128,7 @@ function browser() {
     roundPageCorners: vi.fn(), installSessionHooks: vi.fn(), attachTabEvents: vi.fn(), layout: vi.fn(), changed: vi.fn(),
     selectTab: vi.fn(), reorderTab: vi.fn(), navigationHistorySnapshot: () => ({ entries: [], index: -1 }),
     withTabLabelLifecycle: (run: () => Promise<unknown>) => run(), getState: () => ({}), text: (key: string) => key,
-    async closeTab(this: Manager, tabId: string) {
+    async closeWithBookkeeping(this: Manager, tabId: string) {
       // The close bookkeeping of a real close: the tab is remembered, then removed.
       rememberClosedTab(this as never, this.tabs.get(tabId)! as never)
       this.tabs.delete(tabId)
@@ -186,7 +187,7 @@ describe('a paused and locked tab brought back', () => {
   it('stays paused and locked after Reopen Closed Tab', async () => {
     const { manager } = browser()
     const tab = await guardedTab(manager)
-    await manager.closeTab(tab.id)
+    await manager.closeWithBookkeeping(tab.id)
 
     const reopened = await reopenLastClosed(manager)
 
@@ -228,7 +229,7 @@ describe('a paused and locked tab brought back', () => {
     const { manager } = browser()
     const tab = await guardedTab(manager)
     manager.setAllAgentsPaused(true)
-    await manager.closeTab(tab.id)
+    await manager.closeWithBookkeeping(tab.id)
     const reopened = await reopenLastClosed(manager)
 
     manager.setAllAgentsPaused(false)
@@ -255,7 +256,7 @@ describe('a tab paused and locked only because every tab was', () => {
   it('comes back open after Reopen Closed Tab', async () => {
     const { manager } = browser()
     const tab = await coveredTab(manager)
-    await manager.closeTab(tab.id)
+    await manager.closeWithBookkeeping(tab.id)
     await uncover(manager)
 
     expect(guards(manager, await reopenLastClosed(manager))).toEqual(OPEN)

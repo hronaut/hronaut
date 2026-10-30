@@ -16,6 +16,26 @@ import {
   mcpRequestAuthorized
 } from '../src/main/mcp/server.js'
 
+// The fake browser below stubs the functions its tool calls go through; these reach its stubs.
+vi.mock('../src/main/browser/workspace-continuity/workspace-continuity.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-continuity/workspace-continuity.js')>(),
+  beginWorkspaceContinuityAction: (browser: { beginWorkspaceContinuityAction: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.beginWorkspaceContinuityAction(...args),
+  requireWorkspaceContinuityDispatch: (browser: { requireWorkspaceContinuityDispatch: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireWorkspaceContinuityDispatch(...args)
+}))
+vi.mock('../src/main/browser/workspace-scope/workspace-scope.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-scope/workspace-scope.js')>(),
+  getMcpDiscoveryTabs: (browser: { getMcpDiscoveryTabs: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.getMcpDiscoveryTabs(...args),
+  requireTabInMcpGroup: (browser: { requireTabInMcpGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireTabInMcpGroup(...args)
+}))
+vi.mock('../src/main/browser/video-recording/video-recording.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/video-recording/video-recording.js')>(),
+  inspectVideo: (browser: { inspectVideo: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.inspectVideo(...args)
+}))
+vi.mock('../src/main/browser/agent-page-actions/form-input-and-scroll.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/agent-page-actions/form-input-and-scroll.js')>(),
+  select: (browser: { select: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.select(...args)
+}))
+
 const TOKEN = 'abcdefghijklmnopqrstuvwxyz_ABCDEFG-1234567890'
 const WORKSPACE_ID = '01912345-6789-7abc-8def-0123456789ab'
 const OTHER_WORKSPACE_ID = '01912345-678a-7abc-8def-0123456789ab'

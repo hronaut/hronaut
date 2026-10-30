@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { textResult, toolDescription } from '../../tool-results.js'
 import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
 import { type DownloadCopySettlement, downloadCopySettlement } from './download-copy-settlement.js'
+import { copyDownload } from '../../../browser/download-copy/download-copy.js'
 
 export function registerBrowserDownloadCopy(context: McpToolContext): void {
   const { capability, manager, registerWorkspaceTool, tool } = context
@@ -28,7 +29,7 @@ export function registerBrowserDownloadCopy(context: McpToolContext): void {
         call.requireCurrentTarget()
       }
       try {
-        const result = await manager.copyWorkspaceDownload(workspaceId!, { downloadId, directory, filename }, validate, progress)
+        const result = await copyDownload(manager, workspaceId!, { downloadId, directory, filename }, validate, progress)
         progress.copied = true
         return { ...textResult(result), structuredContent: { ...result } }
       } catch (error) {

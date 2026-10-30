@@ -4,6 +4,7 @@ import type { TextInsertionProgress } from '../../../browser/text-insertion/text
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { insertText } from '../../../browser/text-insertion/text-insertion.js'
 
 export function registerBrowserInsertText(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -44,7 +45,7 @@ export function registerBrowserInsertText(context: McpToolContext): void {
         }
       }
       try {
-        return textResult(await manager.insertText(target, text, validateInsertion, progress))
+        return textResult(await insertText(manager, target, text, validateInsertion, progress))
       } catch (error) {
         // Also a failure after sending that the checks above never saw, such as restoring a locked tab's input guard.
         if (progress.sent) call.setInvalidatedOutcome('outcome-unknown')

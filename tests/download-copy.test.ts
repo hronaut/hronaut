@@ -4,12 +4,18 @@ import { appendFile, lstat, mkdir, mkdtemp, readdir, readFile, realpath, rename,
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CompletedDownloadFile } from '../src/main/browser/downloads/downloads-controller.js'
 import { copyDownload, MAX_DOWNLOAD_COPY_BYTES, type DownloadCopyProgress } from '../src/main/browser/download-copy/download-copy.js'
 import type { Browser } from '../src/main/browser/browser.js'
 import { type DownloadCopySettlement, downloadCopySettlement } from '../src/main/mcp/tools/browser-download-copy/download-copy-settlement.js'
 import { registerBrowserDownloadCopy } from '../src/main/mcp/tools/browser-download-copy/index.js'
+
+// The tool tests below give the copy their own steps; the other tests run the real one.
+vi.mock('../src/main/browser/download-copy/download-copy.js', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../src/main/browser/download-copy/download-copy.js')>()
+  return { ...original, copyDownload: vi.fn(original.copyDownload) }
+})
 
 // More than two copy chunks, with every byte value.
 const CONTENT = Buffer.concat([Buffer.from(Array.from({ length: 256 }, (_, index) => index)), randomBytes(2.5 * 1024 * 1024)])
@@ -231,12 +237,16 @@ describe('copying a finished download', () => {
 })
 
 describe('browser_download_copy tool', () => {
+  afterEach(() => { vi.mocked(copyDownload).mockReset() })
   function tool(copy: (validate: () => void, progress: DownloadCopyProgress) => Promise<unknown>) {
     let handler: ((input: Record<string, unknown>, call: unknown) => Promise<CallToolResult>) | undefined
     let options: { settlement?: () => DownloadCopySettlement } | undefined
+    vi.mocked(copyDownload).mockImplementation(async (_browser, _workspaceId, _request, validate, progress) => (
+      await copy(validate!, progress!) as never
+    ))
     registerBrowserDownloadCopy({
       capability: {},
-      manager: { copyWorkspaceDownload: (_workspaceId: string, _request: unknown, validate: () => void, progress: DownloadCopyProgress) => copy(validate, progress) },
+      manager: {},
       tool: (callback: unknown) => callback,
       registerWorkspaceTool: (_name: string, _config: unknown, callback: typeof handler, toolOptions: typeof options) => { handler = callback; options = toolOptions }
     } as never)

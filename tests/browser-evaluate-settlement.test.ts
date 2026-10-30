@@ -2,7 +2,6 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { expect, it, vi } from 'vitest'
-import { evaluate } from '../src/main/browser/page-evaluation/evaluate.js'
 import { McpHttpServer } from '../src/main/mcp/server.js'
 
 // The focus guard, the debugger lease and the debugger's evaluation, as the page answers them.
@@ -16,6 +15,20 @@ vi.mock('../src/main/browser/debugger-lease/debugger-lease.js', () => ({
 vi.mock('../src/main/browser/debugger-evaluation/debugger-evaluation.js', () => ({
   mainWorldContextId: async () => page.contextAnswers ? 1 : new Promise<number>(() => {}),
   evaluateWithAttachedDebugger: async () => page.scriptAnswers ? 2 : new Promise(() => {})
+}))
+// The fake browser below stubs the functions its tool calls go through; these reach its stubs.
+vi.mock('../src/main/browser/debug-report/debug-report.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/debug-report/debug-report.js')>(),
+  auditEvidenceAvailability: (browser: { auditEvidenceAvailability: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.auditEvidenceAvailability(...args)
+}))
+vi.mock('../src/main/browser/workspace-continuity/workspace-continuity.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-continuity/workspace-continuity.js')>(),
+  beginWorkspaceContinuityAction: (browser: { beginWorkspaceContinuityAction: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.beginWorkspaceContinuityAction(...args),
+  requireWorkspaceContinuityDispatch: (browser: { requireWorkspaceContinuityDispatch: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireWorkspaceContinuityDispatch(...args)
+}))
+vi.mock('../src/main/browser/workspace-scope/workspace-scope.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-scope/workspace-scope.js')>(),
+  requireTabInMcpGroup: (browser: { requireTabInMcpGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireTabInMcpGroup(...args)
 }))
 
 // The shared call wrappers publish a stopped evaluation's own result, record
@@ -32,13 +45,12 @@ it('settles a stopped evaluation through the workspace wrappers', async () => {
     executeJavaScript: () => new Promise(() => {}),
     debugger: { sendCommand: vi.fn(async () => ({})) }
   }
-  const browser = {
+  const manager = {
+    // The evaluation itself runs on these, as the browser's own.
     tabs: new Map([[tabId, { id: tabId, navigationGeneration: 1, webContents }]]),
     activeTabId: tabId,
     window: { isFocused: () => page.focused },
-    devToolsOpening: new Set<number>()
-  }
-  const manager = {
+    devToolsOpening: new Set<number>(),
     suspendWorkspaceContinuity: vi.fn(() => false),
     requireWorkspaceContinuityDispatch: vi.fn(),
     beginWorkspaceContinuityAction: vi.fn(() => vi.fn()),
@@ -53,7 +65,6 @@ it('settles a stopped evaluation through the workspace wrappers', async () => {
     tabBelongsToMcpGroup: vi.fn(() => true),
     wakeTab: vi.fn(async () => undefined),
     auditEvidenceAvailability: vi.fn(() => ({ diagnostic: false, network: false, domChanges: false, storageChanges: false, storageSupported: true, reproduction: false })),
-    evaluate: vi.fn((script: string, _tabId: string | undefined, dialog: object, deadline: never) => evaluate(browser as never, script, undefined, dialog, deadline)),
     getMcpGroupState: vi.fn(() => ({
       activeTabId: tabId,
       tabs: [{ id: tabId, url: 'https://example.test/', navigationGeneration: 1, observationGeneration: 1, humanInteractionGeneration: 0 }],

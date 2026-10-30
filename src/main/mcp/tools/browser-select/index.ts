@@ -4,6 +4,7 @@ import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
 import { type SelectionSettlement, selectionSettlement } from './selection-settlement.js'
+import { select } from '../../../browser/agent-page-actions/form-input-and-scroll.js'
 
 export function registerBrowserSelect(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -32,7 +33,7 @@ export function registerBrowserSelect(context: McpToolContext): void {
         validateContext()
         if (call.authorityRejection()) throw new Error('Selection authority changed')
       } : undefined
-      const result = await manager.select(input, validateSelect, retainSelection, markSelectionSubmitted)
+      const result = await select(manager, input, validateSelect, retainSelection, markSelectionSubmitted)
       if (input.values === undefined) return textResult(result)
       const outcome = result as Record<string, unknown>
       return { ...textResult(outcome), structuredContent: outcome, ...(outcome.ok === false ? { isError: true } : {}) }

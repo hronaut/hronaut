@@ -4,6 +4,7 @@ import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
 import { type KeyHoldSettlement, keyHoldSettlement } from './key-hold-settlement.js'
+import { holdKey } from '../../../browser/agent-keys/agent-keys.js'
 
 export function registerBrowserHoldKey(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -27,7 +28,7 @@ export function registerBrowserHoldKey(context: McpToolContext): void {
           throw error
         }
       }
-      return textResult(await manager.holdKey({ tabId, key, durationMs }, validateNativeInput, call.settlement.recordProgress, call.signal))
+      return textResult(await holdKey(manager, { tabId, key, durationMs }, validateNativeInput, call.settlement.recordProgress, call.signal))
     }, 'never'),
     { settlement: () => keyHoldSettlement(), preservesPresentation: () => true, inputSchema: shape => z.object(shape).strict() }
   )

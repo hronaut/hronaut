@@ -3,6 +3,7 @@ import { agentCursorIdentity } from '../../agent-presence.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { dropFiles } from '../../../browser/file-drop/file-drop.js'
 
 export function registerBrowserFileDrop(context: McpToolContext): void {
   const { client, manager, registerWorkspaceTool, tabTool } = context
@@ -33,7 +34,7 @@ export function registerBrowserFileDrop(context: McpToolContext): void {
           throw error
         }
       }
-      return textResult(await manager.dropFiles(target, paths, validateDrop, agentCursorIdentity(client.name)))
+      return textResult(await dropFiles(manager, target, paths, validateDrop, agentCursorIdentity(client.name)))
     }),
     { stepTarget: input => ({ ref: input.ref }) }
   )
