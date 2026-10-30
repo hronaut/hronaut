@@ -23,6 +23,7 @@ import { isHronautHomeUrl } from '../url.js'
 import { valueComparisonSettlementScript } from '../value-comparison.js'
 import type { Browser } from '../browser.js'
 import { findTab, getTab } from '../browser-core.js'
+import { isUnavailableCdpMethod } from '../unavailable-cdp-method.js'
 import { withDebugger } from '../debugger-lease/debugger-lease.js'
 import { validateTarget } from '../input-targets/input-targets.js'
 
@@ -176,7 +177,7 @@ export async function elementInspection(browser: Browser, options: BrowserElemen
           renderedFonts = capture.renderedFonts
         } catch (error) {
           assertCurrent()
-          if (!conflict() && !browser.isUnavailableCdpMethod(error)) throw error
+          if (!conflict() && !isUnavailableCdpMethod(error)) throw error
           if (properties) cssProvenance = unavailableCssProvenance(properties, conflict() ? 'debugger-in-use' : 'unsupported-protocol')
           if (includeFonts) renderedFonts = unavailableRenderedFonts(conflict() ? 'debugger-in-use' : 'unsupported-protocol')
           raw = await inspect()

@@ -18,7 +18,7 @@ export function registerBrowserDownloads(context: McpToolContext): void {
       action?: 'list' | 'cancel' | 'clear' | 'pause' | 'resume' | 'retry'
       downloadId?: string
     }) =>
-      textResult(manager.manageWorkspaceDownloads(workspaceId!, action ?? 'list', downloadId))
+      textResult(manager.downloadController.manageWorkspaceDownloads(workspaceId!, action ?? 'list', downloadId))
     ),
     { tabTarget: 'none' }
   )

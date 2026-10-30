@@ -8,15 +8,11 @@ import {
 } from './tab-overview-previews/tab-overview-previews.js'
 import { workspaceContextMenuItems } from './context-menus/workspace-context-menu.js'
 import { createFrameObservation } from './frame-observation/browser-frame-observation.js'
-import type { ReactInspectionAuthority } from './react-inspection/react-inspection.js'
 import { createReactInspectionController } from './react-inspection/browser-react-inspection.js'
 import type { FixedDateAuthority } from './fixed-date/fixed-date.js'
 import { createFixedDateController } from './fixed-date/browser-fixed-date.js'
-import type { ReactInspectionCommand } from '../../shared/react-inspection.js'
-import type { FixedDateAction, FixedDateBootstrap, FixedDateResult } from '../../shared/fixed-date.js'
-import type { DomMutationSourceAction, DomMutationSourceKind, DomMutationSourceReport } from '../../shared/dom-mutation-source.js'
+import type { FixedDateAction, FixedDateResult } from '../../shared/fixed-date.js'
 import { createPwaLifecycleRecorder } from './pwa-inspection/browser-pwa-lifecycle.js'
-import type { PwaLifecycleOptions } from '../../shared/pwa-lifecycle.js'
 import { PageFindController } from './page-find-controller.js'
 import { createVideoRecorder } from './video-recording/browser-video-recorder.js'
 import { VIDEO_RECORDING_NOTICES } from '../../shared/video.js'
@@ -34,20 +30,11 @@ import { HomeRefresh } from './home-refresh.js'
 import { BrowserDebuggerQueue } from './debugger-queue.js'
 import { createDomRecorder } from './dom-recorder/browser-dom-recorder.js'
 import { createCssStatePreview } from './css-state-preview/browser-css-state-preview.js'
-import type { VirtualPasskeyAuthority, VirtualPasskeyOptions } from './virtual-passkey/virtual-passkey.js'
 import { createVirtualPasskeys } from './virtual-passkey/browser-virtual-passkeys.js'
-import type { VirtualPasskeyAction, VirtualPasskeyReport } from '../../shared/virtual-passkey.js'
-import type { WorkerEvaluationAuthority, WorkerEvaluationDeadline } from './worker-evaluation/worker-evaluation.js'
 import { createWorkerEvaluations } from './worker-evaluation/browser-worker-evaluations.js'
-import type { WorkerEvaluationReport, WorkerListReport } from '../../shared/worker-evaluation.js'
-import type { ComputedAccessibilityAuthority, ComputedAccessibilityTarget } from './computed-accessibility/computed-accessibility.js'
 import { createComputedAccessibilityReader } from './computed-accessibility/browser-computed-accessibility.js'
-import type { ComputedAccessibilityReport } from '../../shared/computed-accessibility.js'
-import type { DomMutationSourceAuthority } from './dom-mutation-source/dom-mutation-source.js'
 import { createDomMutationSource } from './dom-mutation-source/browser-dom-mutation-source.js'
-import type { LogpointAuthority } from './logpoints/logpoints.js'
 import { createLogpoints } from './logpoints/browser-logpoints.js'
-import type { LogpointAction, LogpointReport, LogpointRequest, LogpointScriptsReport } from '../../shared/logpoint.js'
 import { createLiveRegionRecorder } from './live-region-recorder/browser-live-region-recorder.js'
 import { createReproRecorder } from './repro-recorder/browser-repro-recorder.js'
 import { networkConditionState } from './network-conditions/network-conditions.js'
@@ -112,8 +99,6 @@ import {
 } from './certificate-errors/certificate-errors.js'
 import { certificateProblem } from './page-load-problem.js'
 import type {
-  SplitDividerGeometry,
-  SplitDividerSession,
   BrowserSplitViewState
 } from '../../shared/split-view.js'
 import { layout } from './window-layout/window-layout.js'
@@ -134,23 +119,9 @@ import { EndedByPersonMarks } from './task-manager/task-manager.js'
 import type { SuggestedPasswordOptions } from './suggested-password/suggested-password.js'
 import type {
   BrowserEmulationState,
-  BrowserPageMetadataReport,
   BrowserCodeCoverageOptions,
   BrowserCodeCoverageResult,
-  BrowserCpuProfileOptions,
-  BrowserCpuProfileResult,
-  BrowserMemoryOptions,
-  BrowserMemoryReport,
-  BrowserDownloadAction,
   BrowserDownloadState,
-  BrowserReproAction,
-  BrowserReproRecording,
-  BrowserDomChangesAction,
-  BrowserDomChangesReport,
-  BrowserLiveRegionAction,
-  BrowserLiveRegionReport,
-  BrowserCssStatePreviewAction,
-  BrowserCssStatePreviewReport,
   BrowserCssStatePreviewSummary,
   BrowserClosedTabState,
   BrowserSavedTabGroupState,
@@ -483,9 +454,6 @@ export class Browser {
   readonly pwaLifecycleRecorder = createPwaLifecycleRecorder(this)
   readonly debuggerQueue = new BrowserDebuggerQueue()
   readonly frameObservation = createFrameObservation(this)
-  captureFrameObservation(tabId: string, selector: string, maxChars: number, authority: () => void) {
-    return this.frameObservation.capture(tabId, selector, maxChars, authority)
-  }
 
   readonly sizingInspectionSlots = new ImageInspectionSlots('Sizing inputs')
   readonly imageInspectionSlots = new ImageInspectionSlots()
@@ -530,10 +498,6 @@ export class Browser {
     if (tab && !tab.webContents.isDestroyed()) focusTabOrTrustedChrome(this, tab)
   }
 
-  fixedDateBootstrap(page: WebContents, frameOrigin: string): FixedDateBootstrap {
-    return this.fixedDateController.bootstrap(page, frameOrigin)
-  }
-
   fixedDate(tabId: string, action: FixedDateAction, epochMs: number | undefined, authority: FixedDateAuthority): FixedDateResult {
     if (action === 'status') return this.fixedDateController.status(tabId)
     if (action === 'reset') return this.fixedDateController.reset(tabId)
@@ -544,10 +508,6 @@ export class Browser {
   reactInspectionBootstrap(contents: WebContents) {
     const tab = this.tabs.get(this.webContentsToTab.get(contents.id) ?? '')
     return tab?.webContents === contents ? this.reactInspectionController.bootstrap(tab.id) : { enabled: false }
-  }
-
-  reactInspection(tabId: string, command: ReactInspectionCommand, authority: ReactInspectionAuthority) {
-    return this.reactInspectionController.run(tabId, command, authority)
   }
 
   interactionLockTail: Promise<void> = Promise.resolve()
@@ -632,16 +592,6 @@ export class Browser {
 
   text(key: MessageKey, parameters?: MessageParameters): string {
     return translate(this.options.getLocale(), key, parameters)
-  }
-
-  /** The main window's shell drew the last browser state it was sent, so the next change can go out (see StatePublication). */
-  stateDrawn(): void {
-    this.statePublication.drawn()
-  }
-
-  /** The shell is about to get an action's reply; a change waiting for it to draw goes out first (see StatePublication). */
-  beforeStateReply(): void {
-    this.statePublication.beforeReply()
   }
 
   screenshotPixelRatio(tab: BrowserTab): number {
@@ -770,14 +720,6 @@ export class Browser {
       && home.webContents === contents && isHronautHomeUrl(home.url))
   }
 
-  async pwaLifecycle(options: PwaLifecycleOptions, validate: (origin: string) => void = () => undefined) {
-    return this.pwaLifecycleRecorder.manage(getTab(this, options.tabId), options, validate)
-  }
-
-  interruptPwaLifecycleWorkspace(workspaceId: string, reason: string): void {
-    this.pwaLifecycleRecorder.interruptWorkspace(workspaceId, reason)
-  }
-
   /**
    * Opens an agent's tab, which becomes its workspace's active tab without
    * being shown. Follow agents shows it through the agent's call on it, so it
@@ -904,10 +846,6 @@ export class Browser {
     }
   }
 
-  pageMetadata(tabId?: string): Promise<BrowserPageMetadataReport> {
-    return this.metadata.inspect(tabId)
-  }
-
   codeCoverage(options: BrowserCodeCoverageOptions = {}): Promise<BrowserCodeCoverageResult> {
     if (options.action === 'start' && this.cssStatePreview.active(getTab(this, options.tabId))) {
       return Promise.reject(new Error('Clear the CSS state preview before recording code coverage'))
@@ -919,14 +857,6 @@ export class Browser {
       return Promise.reject(new Error('Remove the logpoints before recording code coverage'))
     }
     return this.profiling.codeCoverage(options)
-  }
-
-  cpuProfile(options: BrowserCpuProfileOptions = {}): Promise<BrowserCpuProfileResult> {
-    return this.profiling.cpuProfile(options)
-  }
-
-  memoryReport(options: BrowserMemoryOptions = {}): Promise<BrowserMemoryReport> {
-    return this.profiling.memoryReport(options)
   }
 
   emulationResult(tab: BrowserTab): BrowserEmulationResult {
@@ -949,34 +879,6 @@ export class Browser {
     }
   }
 
-  async reproRecording(action: BrowserReproAction, tabId?: string, checkpoint?: unknown): Promise<BrowserReproRecording> {
-    return this.reproRecorder.manage(getTab(this, tabId), action, checkpoint)
-  }
-
-  async domChanges(action: BrowserDomChangesAction, tabId?: string): Promise<BrowserDomChangesReport> {
-    return this.domRecorder.manage(getTab(this, tabId), action)
-  }
-
-  async liveRegion(action: BrowserLiveRegionAction, tabId?: string, selector?: string): Promise<BrowserLiveRegionReport> {
-    return this.liveRegionRecorder.manage(getTab(this, tabId), action, selector)
-  }
-
-  async cssStatePreviewAction(
-    action: BrowserCssStatePreviewAction,
-    tabId?: string,
-    options: { selector?: string; states?: readonly string[]; durationMs?: number } = {}
-  ): Promise<BrowserCssStatePreviewReport> {
-    return this.cssStatePreview.manage(getTab(this, tabId), action, options)
-  }
-
-  domMutationSourceAction(
-    tabId: string,
-    action: DomMutationSourceAction,
-    options: { selector?: string; kind?: DomMutationSourceKind; durationMs?: number; authority?: DomMutationSourceAuthority } = {}
-  ): Promise<DomMutationSourceReport> {
-    return this.domMutationSource.manage(getTab(this, tabId), action, options)
-  }
-
   /** Marks screenshots and inspections taken while a forced CSS state was applied. */
   cssStatePreviewMarker(tabId?: string): BrowserCssStatePreviewSummary | undefined {
     const tab = this.tabs.get(tabId ?? this.activeTabId ?? '')
@@ -988,30 +890,6 @@ export class Browser {
   async clearCssStatePreview(tabId: string): Promise<BrowserState> {
     await this.cssStatePreview.clear(getTab(this, tabId), 'human-reset')
     return browserState(this)
-  }
-
-  virtualPasskey(tabId: string, action: VirtualPasskeyAction, options: VirtualPasskeyOptions, authority: VirtualPasskeyAuthority): Promise<VirtualPasskeyReport> {
-    return this.virtualPasskeys.manage(getTab(this, tabId), action, options, authority)
-  }
-
-  listWorkers(tabId: string, authority: WorkerEvaluationAuthority): Promise<WorkerListReport> {
-    return this.workerEvaluations.list(getTab(this, tabId), authority)
-  }
-
-  evaluateInWorker(tabId: string, handle: string, script: string, deadline: WorkerEvaluationDeadline, authority: WorkerEvaluationAuthority): Promise<WorkerEvaluationReport> {
-    return this.workerEvaluations.evaluate(getTab(this, tabId), handle, script, deadline, authority)
-  }
-
-  computedAccessibility(tabId: string, target: ComputedAccessibilityTarget, authority: ComputedAccessibilityAuthority): Promise<ComputedAccessibilityReport> {
-    return this.computedAccessibilityReader.read(getTab(this, tabId), target, authority)
-  }
-
-  logpoint(
-    tabId: string,
-    action: LogpointAction,
-    options: { probes?: LogpointRequest[]; maxHits?: number; durationMs?: number; authority?: LogpointAuthority } = {}
-  ): Promise<LogpointReport | LogpointScriptsReport> {
-    return this.logpoints.manage(getTab(this, tabId), action, options)
   }
 
   /** The address bar's stop for a tab's logpoints. It works whatever the agent's state, including while paused. */
@@ -1091,51 +969,9 @@ export class Browser {
     tab.webContents.downloadURL(dataUrl)
   }
 
-  listDownloads(): BrowserDownloadState[] {
-    return this.downloadController.listDownloads()
-  }
-
-  removeFinishedDownload(downloadId: string): BrowserDownloadState[] {
-    return this.downloadController.removeFinishedDownload(downloadId)
-  }
-
-  manageDownloads(action: BrowserDownloadAction, downloadId?: string): BrowserDownloadState[] {
-    return this.downloadController.manageDownloads(action, downloadId)
-  }
-
-  manageWorkspaceDownloads(
-    workspaceId: string,
-    action: BrowserDownloadAction,
-    downloadId?: string
-  ): BrowserDownloadState[] {
-    return this.downloadController.manageWorkspaceDownloads(workspaceId, action, downloadId)
-  }
-
-  listDownloadsCheckingFiles(): BrowserDownloadState[] {
-    return this.downloadController.listDownloadsCheckingFiles()
-  }
-
-  showDownloadInFolder(downloadId: string): Promise<void> {
-    return this.downloadController.showDownloadInFolder(downloadId)
-  }
-
-  startDownloadDrag(downloadId: string, sender: WebContents): Promise<void> {
-    return this.downloadController.startDownloadDrag(downloadId, sender)
-  }
-
-  /** The shell shows the snapshot with this ID under trusted chrome, so the pages can leave the screen. */
-  presentOcclusionSnapshot(id: number): void {
-    this.occlusionSnapshot.present(id)
-  }
-
   /** Whether the window shows a page in full screen, such as a video, which Follow agents does not switch away from. */
-  private pageFullscreenShown(): boolean {
+  pageFullscreenShown(): boolean {
     return shownPageFullscreenTab(this) !== undefined
-  }
-
-  /** Whether the window shows a page in full screen, which nothing of the shell's is drawn over. */
-  showsPageFullscreen(): boolean {
-    return this.pageFullscreenShown()
   }
 
   /**
@@ -1145,12 +981,6 @@ export class Browser {
   noteShellKey(input: Pick<Input, 'code' | 'isAutoRepeat' | 'type'>): void {
     noteShellHeldKey(this.shellHeldKeys, input)
   }
-
-  cancelSplitDivider(): void { this.splitDivider.cancel() }
-  beginSplitDivider(revision: number): SplitDividerSession | null { return this.splitDivider.begin(revision) }
-  updateSplitDivider(token: string, ratio: number): SplitDividerGeometry | null { return this.splitDivider.update(token, ratio) }
-  finishSplitDivider(token: string, commit: boolean, ratio?: number): SplitDividerGeometry | null { return this.splitDivider.finish(token, commit, ratio) }
-  setSplitDividerRatio(revision: number, ratio: number): SplitDividerGeometry | null { return this.splitDivider.setRatio(revision, ratio) }
 
   /** Where a tab's page goes in its space: see `emulationViewSize`. */
   tabViewBounds(tab: BrowserTab, space: Rectangle): Rectangle {
@@ -1320,10 +1150,6 @@ export class Browser {
       return sourceCurrent && opened !== undefined && opened.mcpGroupId === tab.mcpGroupId
     })
     return sourceCurrent ? report : undefined
-  }
-
-  isUnavailableCdpMethod(error: unknown): boolean {
-    return /(?:method not found|wasn't found|-32601)/i.test(String(error))
   }
 
   prepareDiagnosticNavigation(tab: BrowserTab): void {

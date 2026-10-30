@@ -18,7 +18,7 @@ interface CollectionIpcHost {
   historyCleared?(): void
   /** The person removed one page from their history, so anything else that names it goes too. */
   historyEntryRemoved?(url: string): void
-  downloads(): Pick<Browser, 'listDownloads' | 'listDownloadsCheckingFiles' | 'removeFinishedDownload' | 'manageDownloads' | 'showDownloadInFolder' | 'startDownloadDrag'>
+  downloads(): { downloadController: Pick<Browser['downloadController'], 'listDownloads' | 'listDownloadsCheckingFiles' | 'removeFinishedDownload' | 'manageDownloads' | 'showDownloadInFolder' | 'startDownloadDrag'> }
   publishBookmarks(): BrowserBookmark[]
   publishVisitHistory(): BrowserHistoryEntry[]
 }
@@ -27,34 +27,34 @@ interface CollectionIpcHost {
 export function registerCollectionIpc(ipcMain: Pick<IpcMain, 'handle'>, host: CollectionIpcHost): void {
   // Files are checked only when asked, as when the Downloads panel opens, not by the shell's list at startup.
   ipcMain.handle('downloads:list', (event, checkFiles: unknown) => host.runRead(event, () => (
-    checkFiles === true ? host.downloads().listDownloadsCheckingFiles() : host.downloads().listDownloads()
+    checkFiles === true ? host.downloads().downloadController.listDownloadsCheckingFiles() : host.downloads().downloadController.listDownloads()
   )))
   for (const action of ['cancel', 'pause', 'resume', 'retry'] as const) {
     ipcMain.handle(`downloads:${action}`, (event, downloadId: unknown) => {
       host.assertTrustedSender(event)
       if (typeof downloadId !== 'string') throw new TypeError('Invalid download ID')
-      return host.downloads().manageDownloads(action, downloadId)
+      return host.downloads().downloadController.manageDownloads(action, downloadId)
     })
   }
   ipcMain.handle('downloads:remove-finished', (event, downloadId: unknown) => {
     host.assertTrustedSender(event)
     if (typeof downloadId !== 'string' || !downloadId) throw new TypeError('Invalid download ID')
-    return host.downloads().removeFinishedDownload(downloadId)
+    return host.downloads().downloadController.removeFinishedDownload(downloadId)
   })
   ipcMain.handle('downloads:clear-finished', (event) => {
     host.assertTrustedSender(event)
-    return host.downloads().manageDownloads('clear')
+    return host.downloads().downloadController.manageDownloads('clear')
   })
   ipcMain.handle('downloads:show-in-folder', async (event, downloadId: unknown) => {
     host.assertTrustedSender(event)
     if (typeof downloadId !== 'string') throw new TypeError('Invalid download ID')
-    await host.downloads().showDownloadInFolder(downloadId)
+    await host.downloads().downloadController.showDownloadInFolder(downloadId)
   })
   // The person drags a completed download out of the panel, so the drag starts from the window it is in.
   ipcMain.handle('downloads:start-drag', async (event, downloadId: unknown) => {
     host.assertTrustedSender(event)
     if (typeof downloadId !== 'string') throw new TypeError('Invalid download ID')
-    await host.downloads().startDownloadDrag(downloadId, event.sender)
+    await host.downloads().downloadController.startDownloadDrag(downloadId, event.sender)
   })
   ipcMain.handle('bookmarks:list', (event) => host.runRead(event, () => host.bookmarks().list()))
   ipcMain.handle('bookmarks:add', async (event, url: unknown, title: unknown) => {

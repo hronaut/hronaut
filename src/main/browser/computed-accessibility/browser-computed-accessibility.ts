@@ -2,6 +2,9 @@ import type { BrowserTab } from '../browser-tab.js'
 import type { Browser } from '../browser.js'
 import { withDebugger } from '../debugger-lease/debugger-lease.js'
 import { ComputedAccessibilityReader } from './computed-accessibility.js'
+import { getTab } from '../browser-core.js'
+import type { ComputedAccessibilityReport } from '../../../shared/computed-accessibility.js'
+import type { ComputedAccessibilityAuthority, ComputedAccessibilityTarget } from './computed-accessibility.js'
 
 /**
  * Reads computed accessibility in the browser's tabs, through Hronaut's own DevTools session on each page, unless
@@ -18,4 +21,9 @@ export function createComputedAccessibilityReader(browser: Browser): ComputedAcc
         : browser.domMutationSource.active(tab) ? 'Cancel the DOM mutation source capture before reading computed accessibility' : undefined,
     keepDomEnabled: tab => Boolean(tab.emulation.renderingDebug && Object.values(tab.emulation.renderingDebug).some(Boolean))
   })
+}
+
+/** Reads the computed accessibility of an element in a tab. */
+export function computedAccessibility(browser: Browser, tabId: string, target: ComputedAccessibilityTarget, authority: ComputedAccessibilityAuthority): Promise<ComputedAccessibilityReport> {
+  return browser.computedAccessibilityReader.read(getTab(browser, tabId), target, authority)
 }

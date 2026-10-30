@@ -21,7 +21,7 @@ export async function qualityAudit(browser: Browser, tabId?: string): Promise<Br
   const [accessibility, performance, metadata] = await Promise.all([
     accessibilityAudit(browser, { tabId: tab.id, standard: 'wcag-aa', maxViolations: 50, maxNodesPerViolation: 1 }),
     performanceReport(browser, { tabId: tab.id, settleMs: 800, action: 'measure' }),
-    browser.pageMetadata(tab.id)
+    browser.metadata.inspect(tab.id)
   ])
   const security = securityReport(browser, tab.id)
   const pwa = await inspectPwa(browser, { tabId: tab.id, limit: 1 })

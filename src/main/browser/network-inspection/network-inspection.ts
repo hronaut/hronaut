@@ -38,6 +38,7 @@ import { writeUniqueDownloadFile } from '../unique-download-file.js'
 import { currentNetworkRequests } from './network-request-records.js'
 import { networkRequestSummary } from './network-request-summary.js'
 import { findTab, getTab } from '../browser-core.js'
+import { isUnavailableCdpMethod } from '../unavailable-cdp-method.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { withDebugger } from '../debugger-lease/debugger-lease.js'
 
@@ -327,7 +328,7 @@ export async function replayNetworkRequest(
       tab.webContents.debugger.sendCommand('Network.replayXHR', { requestId: request.cdpRequestId })
     )
   } catch (error) {
-    if (browser.isUnavailableCdpMethod(error)) {
+    if (isUnavailableCdpMethod(error)) {
       throw new LocalizedError('appErrors.network.replayUnsupported', undefined, { message: 'XHR replay is unavailable in this Chromium build' })
     }
     throw error

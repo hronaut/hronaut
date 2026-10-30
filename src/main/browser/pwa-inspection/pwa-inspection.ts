@@ -16,6 +16,7 @@ import {
 import type { BrowserPwaOptions, BrowserPwaReport } from '../../../shared/types.js'
 import type { Browser } from '../browser.js'
 import { findTab, getTab } from '../browser-core.js'
+import { isUnavailableCdpMethod } from '../unavailable-cdp-method.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { withDebugger } from '../debugger-lease/debugger-lease.js'
 import { ISOLATED_WORLDS } from '../isolated-worlds.js'
@@ -103,7 +104,7 @@ export async function inspectPwa(browser: Browser, options: BrowserPwaOptions = 
           installabilityErrors = installabilityResult.installabilityErrors ?? []
         } catch (error) {
           report.installabilityInspectionAvailable = false
-          if (!browser.isUnavailableCdpMethod(error)) {
+          if (!isUnavailableCdpMethod(error)) {
             report.caveats.push(`${PWA_INSTALLABILITY_UNAVAILABLE_PREFIX}${redactDiagnosticText(error instanceof Error ? error.message : String(error)).slice(0, 500)}`)
           }
         }

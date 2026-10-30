@@ -47,6 +47,14 @@ vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOrigi
   ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
   browserState: (browser: { getState: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.getState(...args)
 }))
+vi.mock('../src/main/browser/repro-recorder/browser-repro-recorder.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/repro-recorder/browser-repro-recorder.js')>(),
+  reproRecording: (browser: { reproRecording: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.reproRecording(...args)
+}))
+vi.mock('../src/main/browser/dom-recorder/browser-dom-recorder.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/dom-recorder/browser-dom-recorder.js')>(),
+  domChanges: (browser: { domChanges: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.domChanges(...args)
+}))
 
 type Listener = Parameters<IpcMain['handle']>[1]
 const channels = [
@@ -67,6 +75,8 @@ function fixture() {
     reproRecording: vi.fn(), domChanges: vi.fn(), visualCompare: vi.fn(),
     visualDiff: vi.fn(), inspectorIssues: vi.fn()
   }
+  // Page metadata and profiling are the browser's own services; they answer with the stubs above.
+  Object.assign(tabs, { metadata: { inspect: tabs.pageMetadata }, profiling: { cpuProfile: tabs.cpuProfile, memoryReport: tabs.memoryReport } })
   const host = {
     assertTrustedSender: vi.fn(), tabs: vi.fn(() => tabs as never),
     pngDataUrl: vi.fn(() => 'data:image/png;base64,diff'),

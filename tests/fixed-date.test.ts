@@ -149,7 +149,7 @@ it('answers only the top-level frame of a tab, with React inspection in the same
   let channel: string | undefined
   const fixedDateBootstrap = vi.fn(() => ({ enabled: true as const, epochMs: AT }))
   const reactInspectionBootstrap = vi.fn(() => ({ enabled: false }))
-  let tabs: { fixedDateBootstrap: typeof fixedDateBootstrap; reactInspectionBootstrap: typeof reactInspectionBootstrap } | null = null
+  let tabs: { fixedDateController: { bootstrap: typeof fixedDateBootstrap }; reactInspectionBootstrap: typeof reactInspectionBootstrap } | null = null
   registerPageBootstrapIpc({ ipcMain: { on: (name: string, handler: unknown) => { channel = name; listener = handler as typeof listener } } as unknown as Pick<IpcMain, 'on'>, tabs: () => tabs as never })
   expect(channel).toBe('page:bootstrap')
   const nothing = { reactInspection: { enabled: false }, fixedDate: { enabled: false } }
@@ -160,7 +160,7 @@ it('answers only the top-level frame of a tab, with React inspection in the same
     return event.returnValue
   }
   expect(ask(mainFrame)).toEqual(nothing)
-  tabs = { fixedDateBootstrap, reactInspectionBootstrap }
+  tabs = { fixedDateController: { bootstrap: fixedDateBootstrap }, reactInspectionBootstrap }
   expect(ask({ origin: ORIGIN })).toEqual(nothing)
   expect(ask(null)).toEqual(nothing)
   expect(fixedDateBootstrap).not.toHaveBeenCalled()

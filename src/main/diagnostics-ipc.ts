@@ -26,6 +26,8 @@ import { performanceReport } from './browser/page-audits/performance-report.js'
 import { qualityAudit } from './browser/page-audits/quality-audit.js'
 import { securityReport } from './browser/page-audits/security-report.js'
 import { browserState } from './browser/browser-state/browser-state.js'
+import { domChanges } from './browser/dom-recorder/browser-dom-recorder.js'
+import { reproRecording } from './browser/repro-recorder/browser-repro-recorder.js'
 
 interface DiagnosticsIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
@@ -82,7 +84,7 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
   ipcMain.handle('browser:page-metadata', (event, tabId: unknown): Promise<BrowserPageMetadataReport> => {
     host.assertTrustedSender(event)
     if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid page metadata tab')
-    return host.tabs().pageMetadata(tabId)
+    return host.tabs().metadata.inspect(tabId)
   })
   ipcMain.handle('browser:security', (event, tabId: unknown): BrowserSecurityReport => {
     host.assertTrustedSender(event)
@@ -113,7 +115,7 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
     ) {
       throw new TypeError('Invalid JavaScript CPU profile options')
     }
-    return host.tabs().cpuProfile(value as BrowserCpuProfileOptions)
+    return host.tabs().profiling.cpuProfile(value as BrowserCpuProfileOptions)
   })
   ipcMain.handle('browser:memory', (event, value: unknown) => {
     host.assertTrustedSender(event)
@@ -133,7 +135,7 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
     ) {
       throw new TypeError('Invalid memory options')
     }
-    return host.tabs().memoryReport(value as BrowserMemoryOptions)
+    return host.tabs().profiling.memoryReport(value as BrowserMemoryOptions)
   })
   ipcMain.handle('browser:debug-report', (event, value: unknown) => {
     host.assertTrustedSender(event)
@@ -188,8 +190,8 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
       || (tabId !== undefined && typeof tabId !== 'string')
     ) throw new TypeError('Invalid repro recording options')
     return action === 'checkpoint'
-      ? host.tabs().reproRecording(action, tabId as string | undefined, checkpoint)
-      : host.tabs().reproRecording(action as BrowserReproAction, tabId as string | undefined)
+      ? reproRecording(host.tabs(), action, tabId as string | undefined, checkpoint)
+      : reproRecording(host.tabs(), action as BrowserReproAction, tabId as string | undefined)
   })
   ipcMain.handle('browser:dom-changes', (event, value: unknown) => {
     host.assertTrustedSender(event)
@@ -199,7 +201,7 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
       !isAllowedString(action, ['start', 'get', 'stop', 'clear'])
       || (tabId !== undefined && typeof tabId !== 'string')
     ) throw new TypeError('Invalid DOM changes options')
-    return host.tabs().domChanges(action as BrowserDomChangesAction, tabId as string | undefined)
+    return domChanges(host.tabs(), action as BrowserDomChangesAction, tabId as string | undefined)
   })
   ipcMain.handle('browser:visual-compare', async (event, value: unknown) => {
     host.assertTrustedSender(event)

@@ -19,6 +19,7 @@ import { inspectIndexedDb, inspectStorageUsage } from './browser/site-storage/st
 import { elementInspection } from './browser/element-inspection/element-inspection.js'
 import { snapshotDetails } from './browser/page-snapshots/page-snapshots.js'
 import { screenshot } from './browser/screenshots/screenshots.js'
+import { pwaLifecycle } from './browser/pwa-inspection/browser-pwa-lifecycle.js'
 
 interface PageInspectionIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
@@ -92,7 +93,7 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
     const { tabId, captureId, action } = value as Record<string, unknown>
     if ((tabId !== undefined && typeof tabId !== 'string') || (captureId !== undefined && typeof captureId !== 'string')
       || !['start', 'get', 'stop', 'clear'].includes(String(action))) throw new TypeError('Invalid lifecycle request')
-    return host.tabs()!.pwaLifecycle({ tabId: tabId as string | undefined, captureId: captureId as string | undefined,
+    return pwaLifecycle(host.tabs()!, { tabId: tabId as string | undefined, captureId: captureId as string | undefined,
       action: action as 'start' | 'get' | 'stop' | 'clear' })
   })
   host.handleBrowserIpc('browser:pwa', (event, value: unknown) => {

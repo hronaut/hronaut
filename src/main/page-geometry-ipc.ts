@@ -27,23 +27,23 @@ export function registerPageGeometryIpc(host: PageGeometryIpcHost): void {
   host.handleBrowserIpc('split-divider:begin', (event, revision: unknown) => {
     host.assertMainShellSender(event)
     if (typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 0) throw new TypeError('Invalid split revision')
-    return host.tabs()!.beginSplitDivider(revision)
+    return host.tabs()!.splitDivider.begin(revision)
   })
   host.handleBrowserIpc('split-divider:update', (event, token: unknown, ratio: unknown) => {
     host.assertMainShellSender(event)
     if (typeof token !== 'string' || token.length > 64 || typeof ratio !== 'number' || !Number.isFinite(ratio)) throw new TypeError('Invalid split gesture update')
-    return host.tabs()!.updateSplitDivider(token, ratio)
+    return host.tabs()!.splitDivider.update(token, ratio)
   })
   host.handleBrowserIpc('split-divider:finish', (event, token: unknown, commit: unknown, ratio: unknown) => {
     host.assertMainShellSender(event)
     if (typeof token !== 'string' || token.length > 64 || typeof commit !== 'boolean'
       || (ratio !== undefined && (typeof ratio !== 'number' || !Number.isFinite(ratio)))) throw new TypeError('Invalid split gesture completion')
-    return host.tabs()!.finishSplitDivider(token, commit, ratio as number | undefined)
+    return host.tabs()!.splitDivider.finish(token, commit, ratio as number | undefined)
   })
   host.handleBrowserIpc('split-divider:set-ratio', (event, revision: unknown, ratio: unknown) => {
     host.assertMainShellSender(event)
     if (typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 0
       || typeof ratio !== 'number' || !Number.isFinite(ratio)) throw new TypeError('Invalid split divider ratio')
-    return host.tabs()!.setSplitDividerRatio(revision, ratio)
+    return host.tabs()!.splitDivider.setRatio(revision, ratio)
   })
 }

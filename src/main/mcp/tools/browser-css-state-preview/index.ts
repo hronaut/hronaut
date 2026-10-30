@@ -3,6 +3,7 @@ import { CSS_STATE_PREVIEW_LIMITS, CSS_STATE_PREVIEW_STATES } from '../../../../
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { cssStatePreviewAction } from '../../../browser/css-state-preview/browser-css-state-preview.js'
 
 export function registerBrowserCssStatePreview(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -31,6 +32,6 @@ export function registerBrowserCssStatePreview(context: McpToolContext): void {
       selector?: string
       states?: Array<'hover' | 'active'>
       durationMs?: number
-    }) => textResult(await manager.cssStatePreviewAction(action, tabId, options)))
+    }) => textResult(await cssStatePreviewAction(manager, action, tabId, options)))
   )
 }

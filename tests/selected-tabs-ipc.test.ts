@@ -24,7 +24,7 @@ type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown
 function selectedTabsIpc(options: { trusted?: boolean } = {}) {
   const handlers = new Map<string, Handler>()
   const state = { tabs: [] } as unknown as BrowserState
-  const tabs = { reorderTabs: vi.fn(() => state), showTabContextMenu: vi.fn(), closeTabsForPerson: vi.fn(async () => state), beforeStateReply: () => undefined }
+  const tabs = { reorderTabs: vi.fn(() => state), showTabContextMenu: vi.fn(), closeTabsForPerson: vi.fn(async () => state), statePublication: { beforeReply: () => undefined } }
   registerTabsIpc({
     assertTrustedSender: () => { if (options.trusted === false) throw new Error('Untrusted sender') },
     assertMainShellSender: () => undefined,

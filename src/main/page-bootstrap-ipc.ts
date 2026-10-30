@@ -4,7 +4,7 @@ import type { Browser } from './browser/browser.js'
 
 interface PageBootstrapIpcHost {
   ipcMain: Pick<IpcMain, 'on'>
-  tabs(): Pick<Browser, 'reactInspectionBootstrap' | 'fixedDateBootstrap'> | null
+  tabs(): Pick<Browser, 'reactInspectionBootstrap' | 'fixedDateController'> | null
 }
 
 /**
@@ -20,7 +20,7 @@ export function registerPageBootstrapIpc(host: PageBootstrapIpcHost): void {
     event.returnValue = (tabs && event.senderFrame && event.senderFrame === event.sender.mainFrame
       ? {
           reactInspection: tabs.reactInspectionBootstrap(event.sender),
-          fixedDate: tabs.fixedDateBootstrap(event.sender, event.senderFrame.origin)
+          fixedDate: tabs.fixedDateController.bootstrap(event.sender, event.senderFrame.origin)
         }
       : { reactInspection: { enabled: false }, fixedDate: { enabled: false } }) satisfies PageBootstrap
   })

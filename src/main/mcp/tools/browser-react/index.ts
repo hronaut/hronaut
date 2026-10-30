@@ -23,7 +23,7 @@ export function registerBrowserReact(context: McpToolContext): void {
         assertCurrent: call.requireCurrentTarget,
         epoch: createHash('sha256').update(JSON.stringify([client.id, call.controlRevision, call.writeLeaseGeneration, capabilityAuthorizationFingerprint])).digest('hex')
       }
-      return textResult(await manager.reactInspection(tabId, { action, subtreeId }, reactAuthority))
+      return textResult(await manager.reactInspectionController.run(tabId, { action, subtreeId }, reactAuthority))
     }, 'never')
   )
 }

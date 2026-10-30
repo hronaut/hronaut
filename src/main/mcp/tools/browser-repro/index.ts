@@ -4,6 +4,7 @@ import { formatReproAsPlaywright } from '../../../../shared/repro-export.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { reproRecording } from '../../../browser/repro-recorder/browser-repro-recorder.js'
 
 export function registerBrowserRepro(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -28,7 +29,7 @@ export function registerBrowserRepro(context: McpToolContext): void {
       format: 'json' | 'playwright'
       checkpoint?: z.infer<typeof reproCheckpointSchema>
     }) => {
-      const recording = await manager.reproRecording(action, tabId, checkpoint)
+      const recording = await reproRecording(manager, action, tabId, checkpoint)
       return textResult(format === 'playwright' ? formatReproAsPlaywright(recording) : recording)
     })
   )

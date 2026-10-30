@@ -9,6 +9,7 @@ import {
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { domMutationSourceAction } from '../../../browser/dom-mutation-source/browser-dom-mutation-source.js'
 
 export function registerBrowserDomMutationSource(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -39,7 +40,7 @@ export function registerBrowserDomMutationSource(context: McpToolContext): void 
       }
       // Checked again while armed and before a capture is kept, without renewing the agent's write ownership.
       const authority = { assertCurrent: (origin: string) => call.validateLifecycle(origin) }
-      return textResult(await manager.domMutationSourceAction(tabId, action, { selector, kind, durationMs, authority }))
+      return textResult(await domMutationSourceAction(manager, tabId, action, { selector, kind, durationMs, authority }))
     }),
     { readOnly: input => input.action === 'get' }
   )

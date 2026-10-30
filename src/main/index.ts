@@ -286,7 +286,7 @@ const mcpPortRecovery = new McpPortRecovery({
 })
 const appQuitState: AppQuitState = { quitting: false }
 const confirmQuitWithDownloads = createQuitWithDownloadsConfirmation({
-  downloads: () => tabRuntime.tabs?.listDownloads() ?? [],
+  downloads: () => tabRuntime.tabs?.downloadController.listDownloads() ?? [],
   window: () => mainWindowRefs.window ?? undefined,
   showWindow: () => showWindow(),
   showDialog: (options) => trustedDialogs.show(options),
@@ -1378,9 +1378,9 @@ async function createWindow(startMinimized = false): Promise<void> {
   registerPageBootstrapIpc({ ipcMain, tabs: () => tabRuntime.tabs })
   registerIpc()
 
-  mainWindowRefs.window.on('blur', () => tabRuntime.tabs?.cancelSplitDivider())
+  mainWindowRefs.window.on('blur', () => tabRuntime.tabs?.splitDivider.cancel())
   mainWindowRefs.window.webContents.on('render-process-gone', () => {
-    tabRuntime.tabs?.cancelSplitDivider()
+    tabRuntime.tabs?.splitDivider.cancel()
     clearWindowControlsScrim()
     shellTooltips.hide()
     agentCards.shellReset()

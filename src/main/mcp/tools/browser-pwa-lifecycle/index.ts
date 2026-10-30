@@ -3,6 +3,7 @@ import type { PwaLifecycleOptions } from '../../../../shared/pwa-lifecycle.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { pwaLifecycle } from '../../../browser/pwa-inspection/browser-pwa-lifecycle.js'
 
 export function registerBrowserPwaLifecycle(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -17,6 +18,6 @@ export function registerBrowserPwaLifecycle(context: McpToolContext): void {
       }
     },
     tabTool('browser_pwa_lifecycle', async (options: PwaLifecycleOptions, call) =>
-      textResult(await manager.pwaLifecycle(options, call.validateLifecycle)), 'never')
+      textResult(await pwaLifecycle(manager, options, call.validateLifecycle)), 'never')
   )
 }

@@ -20,7 +20,7 @@ function fixture() {
     async runRead<T>(event: IpcMainInvokeEvent, read: () => T): Promise<T> { host.assertTrustedSender(event); return read() },
     bookmarks: vi.fn(() => bookmarks),
     history: vi.fn(() => history),
-    downloads: vi.fn(() => downloads),
+    downloads: vi.fn(() => ({ downloadController: downloads })),
     tabs: vi.fn(() => [] as { url: string; title: string; mcpGroupId?: string }[]),
     publishBookmarks: vi.fn(() => []),
     publishVisitHistory: vi.fn(() => [])

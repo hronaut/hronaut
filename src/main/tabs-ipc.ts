@@ -40,7 +40,7 @@ interface TabsIpcHost {
  */
 async function stateReply(host: { tabs(): Browser | null }, reply: Promise<BrowserState>): Promise<BrowserState> {
   const state = await reply
-  host.tabs()?.beforeStateReply()
+  host.tabs()?.statePublication.beforeReply()
   return state
 }
 

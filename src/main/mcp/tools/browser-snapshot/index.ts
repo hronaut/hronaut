@@ -65,7 +65,7 @@ export function registerBrowserSnapshot(context: McpToolContext): void {
       if (frameSelector !== undefined) {
         const settlement = call.settlement
         if (!tabId || !('retain' in settlement)) throw new Error('Frame observation authority unavailable')
-        const pending = await manager.captureFrameObservation(tabId, frameSelector, maxChars ?? FRAME_OBSERVATION_LIMITS.defaultChars, call.requireCurrentTarget)
+        const pending = await manager.frameObservation.capture(tabId, frameSelector, maxChars ?? FRAME_OBSERVATION_LIMITS.defaultChars, call.requireCurrentTarget)
         settlement.retain(pending)
         return frameObservationResult(pending.snapshot)
       }
