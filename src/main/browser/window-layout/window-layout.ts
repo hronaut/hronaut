@@ -11,6 +11,7 @@ import { scheduleTabOverviewPreview } from '../tab-overview-previews/tab-overvie
 import { tabViewBounds } from '../emulation/tab-view-bounds.js'
 import { reconcileTabPresentation } from '../presented-view-visibility.js'
 import { SPLIT_DIVIDER_IPC } from '../../../shared/ipc/page-geometry.js'
+import { sendTo } from '../../typed-ipc.js'
 
 /**
  * Where the split view's divider is, in the shell's CSS pixels, with the
@@ -44,7 +45,7 @@ function publishSplitDivider(browser: Browser): void {
   const serialized = JSON.stringify(geometry)
   if (serialized === browser.lastSplitDividerGeometry) return
   browser.lastSplitDividerGeometry = serialized
-  if (!browser.window.webContents.isDestroyed()) browser.window.webContents.send(SPLIT_DIVIDER_IPC.changed, geometry)
+  if (!browser.window.webContents.isDestroyed()) sendTo(browser.window.webContents, SPLIT_DIVIDER_IPC.changed, geometry)
 }
 
 /** Rounds a page view's corners to the shell's page card, which scales with the shell's zoom. */

@@ -105,6 +105,46 @@ export function writtenIpcChannels(code: string, declared: ReadonlySet<string>, 
   return channels
 }
 
+/** The IpcMain methods that register a listener, which TypedIpcMain checks against the channel. */
+const IPC_MAIN_REGISTRATIONS = new Set(['handle', 'handleOnce', 'on', 'once', 'addListener', 'prependListener', 'prependOnceListener'])
+
+/**
+ * Where a main module goes around the checks of its channels' types: a channel of src/shared/ipc sent with a renderer's
+ * own `send` rather than `sendTo`, a listener registered on Electron's own ipcMain, or Electron's `IpcMain` type,
+ * whose handlers take any arguments and answer anything.
+ */
+export function untypedIpcUses(code: string, fileName = 'module.ts'): string[] {
+  const uses: string[] = []
+  const electronIpcMain = new Set<string>()
+  const visit = (node: ts.Node): void => {
+    if (ts.isImportDeclaration(node) && textOf(node.moduleSpecifier) === 'electron' && !node.importClause?.isTypeOnly) {
+      const bindings = node.importClause?.namedBindings
+      if (bindings && ts.isNamedImports(bindings)) {
+        for (const element of bindings.elements) {
+          if (!element.isTypeOnly && (element.propertyName ?? element.name).text === 'ipcMain') electronIpcMain.add(element.name.text)
+        }
+      }
+    }
+    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
+      const method = node.expression.name.text
+      const [first] = node.arguments
+      if (method === 'send' && first && ts.isPropertyAccessExpression(first) && ts.isIdentifier(first.expression) && first.expression.text.endsWith('_IPC')) {
+        uses.push(`send(${first.expression.text}.${first.name.text})`)
+      }
+      if (IPC_MAIN_REGISTRATIONS.has(method) && ts.isIdentifier(node.expression.expression) && electronIpcMain.has(node.expression.expression.text)) {
+        uses.push(`ipcMain.${method}`)
+      }
+    }
+    if (ts.isTypeReferenceNode(node)) {
+      const name = ts.isIdentifier(node.typeName) ? node.typeName.text : node.typeName.right.text
+      if (name === 'IpcMain') uses.push('IpcMain')
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(ts.createSourceFile(fileName, code, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS))
+  return uses
+}
+
 function importsTypesOnly(clause: ts.ImportClause | undefined): boolean {
   if (!clause) return false
   if (clause.isTypeOnly) return true

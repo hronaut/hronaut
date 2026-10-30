@@ -4,6 +4,7 @@ import { addressPasteText } from '../../shared/address-paste.js'
 import { selectionSearchLabelText } from '../browser/selection-search/selection-search.js'
 import { webAddress } from '../browser/url.js'
 import { SHELL_IPC } from '../../shared/ipc/shell.js'
+import { sendTo } from '../typed-ipc.js'
 
 /** The longest address Chrome loads (url::kMaxURLChars); longer text is not offered. */
 const MAX_PASTE_LENGTH = 2 * 1024 * 1024
@@ -41,6 +42,6 @@ export async function addressPasteAndGo(window: BrowserWindow): Promise<AddressP
   return {
     label: webAddress(text) ? 'native.context.pasteAndGoTo' : 'native.context.pasteAndSearchFor',
     parameters: { text: selectionSearchLabelText(text) },
-    go: () => { if (!window.isDestroyed()) window.webContents.send(SHELL_IPC.addressPasteAndGo, text) }
+    go: () => { if (!window.isDestroyed()) sendTo(window.webContents, SHELL_IPC.addressPasteAndGo, text) }
   }
 }

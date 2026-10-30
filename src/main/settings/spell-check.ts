@@ -1,4 +1,5 @@
-import type { IpcMain, IpcMainInvokeEvent, Session } from 'electron'
+import type { IpcMainInvokeEvent, Session } from 'electron'
+import type { TypedIpcMain } from '../typed-ipc.js'
 import type { AppSettings, SpellCheckLanguages } from '../../shared/types.js'
 import { SETTINGS_IPC } from '../../shared/ipc/settings.js'
 
@@ -122,7 +123,7 @@ export function createSpellCheck(host: SpellCheckHost): {
 
 /** The spell check switch and languages in Settings → General; main checks the values. */
 export function registerSpellCheckIpc(
-  ipcMain: Pick<IpcMain, 'handle'>,
+  ipcMain: Pick<TypedIpcMain, 'handle'>,
   host: {
     assertTrustedSender(event: IpcMainInvokeEvent): void
     setEnabled(enabled: boolean): Promise<AppSettings>

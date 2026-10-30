@@ -1,4 +1,5 @@
-import type { IpcMain, IpcMainEvent } from 'electron'
+import type { IpcMainEvent } from 'electron'
+import type { TypedIpcMain } from '../typed-ipc.js'
 import type { AgentCardOverlay } from './agent-card-overlay.js'
 import type { ShellOverlayView } from './shell-overlay-view.js'
 import type { ShellTooltipOverlay } from './shell-tooltip-overlay.js'
@@ -65,7 +66,7 @@ interface OverlayViewsIpcHost {
  * above the pages, and those views' own reports, with the status bubble's. Dependencies stay lazy because handlers are
  * registered before the window loads.
  */
-export function registerOverlayViewsIpc(ipcMain: Pick<IpcMain, 'on'>, host: OverlayViewsIpcHost): void {
+export function registerOverlayViewsIpc(ipcMain: Pick<TypedIpcMain, 'on'>, host: OverlayViewsIpcHost): void {
   // Each overlay view reports only for itself. Its last reports can still arrive after the window closed it, or after a
   // new view replaced it, and nothing waits for an answer to them, so a report from anything but the current view is
   // dropped rather than thrown, which would be an uncaught exception in main.

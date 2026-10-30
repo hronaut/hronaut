@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
-import type { App, IpcMain, IpcMainInvokeEvent } from 'electron'
+import type { App, IpcMainInvokeEvent } from 'electron'
+import type { TypedIpcMain } from './typed-ipc.js'
 import type { AppSettings } from '../shared/types.js'
 import { SETTINGS_IPC } from '../shared/ipc/settings.js'
 
@@ -42,7 +43,7 @@ interface GraphicsAccelerationIpcHost {
 
 /** Settings' Use graphics acceleration when available: saved now, used from the next start. */
 export function registerGraphicsAccelerationIpc(
-  ipcMain: Pick<IpcMain, 'handle'>,
+  ipcMain: Pick<TypedIpcMain, 'handle'>,
   host: GraphicsAccelerationIpcHost
 ): void {
   ipcMain.handle(SETTINGS_IPC.graphicsAccelerationInUse, (event) => {

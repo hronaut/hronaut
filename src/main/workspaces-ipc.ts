@@ -1,12 +1,12 @@
 import type {
   BrowserWindow,
-  IpcMain,
   IpcMainInvokeEvent,
   OpenDialogOptions,
   OpenDialogReturnValue,
   SaveDialogOptions,
   SaveDialogReturnValue
 } from 'electron'
+import type { TypedIpcMain } from './typed-ipc.js'
 import type { Browser } from './browser/browser.js'
 import { normalizeWorkspaceNavigationPolicy } from './browser/workspace-navigation-policy.js'
 import { LocalizedError } from './localized-error.js'
@@ -38,7 +38,7 @@ import { WORKSPACES_IPC } from '../shared/ipc/workspaces.js'
 interface WorkspacesIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
   /** Registers a handler that is refused while saved workspaces are still initializing or failed to start. */
-  handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void
+  handleBrowserIpc: TypedIpcMain['handle']
   tabs(): Browser | null
   /** Decisions agents wait on in a workspace; null until the MCP services start. */
   humanWaiting(): Pick<HumanWaitingService, 'list' | 'change'> | null

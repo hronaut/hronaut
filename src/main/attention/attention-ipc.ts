@@ -1,4 +1,5 @@
-import type { IpcMain, IpcMainInvokeEvent } from 'electron'
+import type { IpcMainInvokeEvent } from 'electron'
+import type { TypedIpcMain } from '../typed-ipc.js'
 import type { McpHttpServer } from '../mcp/server.js'
 import type { TakeOverOffers } from '../agents/take-over-offers.js'
 import type { UserAttentionLifecycle } from './user-attention-lifecycle.js'
@@ -22,7 +23,7 @@ interface AttentionIpcHost {
 }
 
 /** Dependencies stay lazy because handlers are registered before the window loads. */
-export function registerAttentionIpc(ipcMain: Pick<IpcMain, 'handle'>, host: AttentionIpcHost): void {
+export function registerAttentionIpc(ipcMain: Pick<TypedIpcMain, 'handle'>, host: AttentionIpcHost): void {
   ipcMain.handle(ATTENTION_IPC.get, (event) => {
     host.assertMainShellSender(event)
     return host.shellUserAttention()

@@ -1,4 +1,5 @@
-import type { IpcMain, IpcMainInvokeEvent } from 'electron'
+import type { IpcMainInvokeEvent } from 'electron'
+import type { TypedIpcMain } from '../typed-ipc.js'
 import { ReleaseHistoryService } from './release-history.js'
 import type { AppUpdateState } from '../../shared/types.js'
 import { UPDATES_IPC } from '../../shared/ipc/updates.js'
@@ -13,7 +14,7 @@ interface UpdatesIpcHost {
 }
 
 /** Dependencies stay lazy because handlers are registered before the window loads. */
-export function registerUpdatesIpc(ipcMain: Pick<IpcMain, 'handle'>, host: UpdatesIpcHost): void {
+export function registerUpdatesIpc(ipcMain: Pick<TypedIpcMain, 'handle'>, host: UpdatesIpcHost): void {
   const releaseHistoryService = new ReleaseHistoryService()
   ipcMain.handle(UPDATES_IPC.getState, (event) => { host.assertTrustedSender(event); return { ...host.updateState() } })
   ipcMain.handle(UPDATES_IPC.getReleaseHistory, (event, page: unknown, bypassCache: unknown) => {

@@ -20,6 +20,7 @@ import type {
 import { selectTabAndWait } from '../browser/tab-selection/tab-selection.js'
 import { UPDATES_IPC } from '../../shared/ipc/updates.js'
 import { ATTENTION_IPC } from '../../shared/ipc/attention.js'
+import { sendTo } from '../typed-ipc.js'
 
 /**
  * The attention request still open for the user, created once by index.ts. It shows as needs you until it is answered
@@ -160,7 +161,8 @@ export function createTrayAttention(host: TrayAttentionHost): {
         label: host.text('native.menu.checkUpdates'),
         click: () => {
           host.showWindow()
-          host.mainWindow()?.webContents.send(UPDATES_IPC.open)
+          const mainWindow = host.mainWindow()
+          if (mainWindow) sendTo(mainWindow.webContents, UPDATES_IPC.open)
           void host.checkForUpdates()
         }
       },
@@ -233,7 +235,7 @@ export function createTrayAttention(host: TrayAttentionHost): {
     attentionNotification = null
     if (!host.state.request && !attentionPulseTimer) return
     host.state.request = null
-    if (host.mainWindow() && !host.mainWindow()!.webContents.isDestroyed()) host.mainWindow()!.webContents.send(ATTENTION_IPC.changed, null)
+    if (host.mainWindow() && !host.mainWindow()!.webContents.isDestroyed()) sendTo(host.mainWindow()!.webContents, ATTENTION_IPC.changed, null)
     host.scheduleAgentPresencePublish()
     stopAttentionSignals()
     setTrayContextMenu()
@@ -286,7 +288,7 @@ export function createTrayAttention(host: TrayAttentionHost): {
     host.state.decisionId = input.humanWaitingDecisionId
     attentionNotification?.close()
     attentionNotification = null
-    if (host.mainWindow() && !host.mainWindow()!.webContents.isDestroyed()) host.mainWindow()!.webContents.send(ATTENTION_IPC.changed, shellUserAttention())
+    if (host.mainWindow() && !host.mainWindow()!.webContents.isDestroyed()) sendTo(host.mainWindow()!.webContents, ATTENTION_IPC.changed, shellUserAttention())
     host.scheduleAgentPresencePublish()
     if (attentionExpiryTimer) clearTimeout(attentionExpiryTimer)
     attentionExpiryTimer = null
@@ -305,7 +307,7 @@ export function createTrayAttention(host: TrayAttentionHost): {
     host.mainWindow()?.flashFrame(true)
     setTrayContextMenu()
     if (host.mainWindow() && !host.mainWindow()!.webContents.isDestroyed()) {
-      host.mainWindow()!.webContents.send(ATTENTION_IPC.requested)
+      sendTo(host.mainWindow()!.webContents, ATTENTION_IPC.requested)
     }
     if (Notification.isSupported()) {
       try {

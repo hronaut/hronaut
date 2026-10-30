@@ -1,4 +1,5 @@
-import { app, type IpcMain, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
+import { app, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
+import type { IpcHandler, TypedIpcMain } from './typed-ipc.js'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { Browser } from './browser/browser.js'
@@ -10,6 +11,7 @@ import { LocalizedError } from './localized-error.js'
 import { isLoopbackHost } from '../shared/mcp-network.js'
 import { EMULATION_FRAME_IPC, PAGE_CARD_IPC, SPLIT_DIVIDER_IPC } from '../shared/ipc/page-geometry.js'
 import { TABS_IPC } from '../shared/ipc/tabs.js'
+import type { InvokeChannel } from '../shared/ipc/channel.js'
 
 /** The trusted shell document: the development server on a loopback host, or the packaged renderer file. */
 export function trustedShellUrl(): string {
@@ -30,7 +32,7 @@ export function trustedUrlMatches(actual: string | undefined, expected: string):
 
 interface IpcGuardsHost {
   /** Registers invoke handlers; the browser IPC helper wraps each one in the readiness check. */
-  ipcMain: Pick<IpcMain, 'handle'>
+  ipcMain: Pick<TypedIpcMain, 'handle'>
   /** Why saved workspaces could not start, if they could not; every check then rejects with it. */
   workspaceStartupFailure(): Error | undefined
   /** The saved workspaces' initialization while it runs; reads wait for it and changes are refused meanwhile. */
@@ -63,7 +65,7 @@ export function createIpcGuards(host: IpcGuardsHost): {
   assertInitializedMainShellSender(event: IpcMainInvokeEvent): void
   assertInitializedTrustedShellSender(event: IpcMainInvokeEvent): void
   runWorkspaceRead<T>(event: IpcMainInvokeEvent, assertSender: (event: IpcMainInvokeEvent) => void, read: () => T): Promise<T>
-  handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void
+  handleBrowserIpc: TypedIpcMain['handle']
 } {
   /**
    * Whether a message came from the shell of the main window or of the detached panel, whether or not saved workspaces
@@ -138,10 +140,19 @@ export function createIpcGuards(host: IpcGuardsHost): {
     }, read)
   }
 
-  function handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void {
+  /**
+   * The reads handleBrowserIpc admits while saved workspaces are restored, each waiting for the restore in
+   * runWorkspaceRead; it refuses every other channel until then.
+   */
+  const admittedDuringRestore: readonly string[] = [
+    TABS_IPC.getState, TABS_IPC.getTabOverviewPreviews, TABS_IPC.getTabOverviewPagePreview,
+    SPLIT_DIVIDER_IPC.get, EMULATION_FRAME_IPC.get, PAGE_CARD_IPC.get
+  ]
+
+  function handleBrowserIpc<Args extends unknown[], Result>(channel: InvokeChannel<Args, Result>, listener: NoInfer<IpcHandler<Result>>): void {
     host.ipcMain.handle(channel, (event, ...args) => {
       if (host.workspaceStartupFailure()) throw host.workspaceStartupFailure()
-      if (![TABS_IPC.getState, TABS_IPC.getTabOverviewPreviews, TABS_IPC.getTabOverviewPagePreview, SPLIT_DIVIDER_IPC.get, EMULATION_FRAME_IPC.get, PAGE_CARD_IPC.get].includes(channel)) assertWorkspaceInitialized()
+      if (!admittedDuringRestore.includes(channel)) assertWorkspaceInitialized()
       return listener(event, ...args)
     })
   }

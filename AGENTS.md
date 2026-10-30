@@ -80,6 +80,9 @@ checks the first four.
 - IPC channels are declared once in `src/shared/ipc/<feature>.ts`, typed with
   their arguments and result, and main and the preloads use those constants
   instead of writing channel names out; the architecture guards allow none.
+  Main registers on `TypedIpcMain` and sends events with `sendTo`
+  (`src/main/typed-ipc.ts`), so each answer and event is checked against its
+  channel; arguments from a renderer arrive as `unknown` and are checked first.
 - A feature keeps the tab state it owns in one typed field of the tab, as
   `tab.emulation` does, with its type declared beside the feature, not as
   loose fields on the tab.

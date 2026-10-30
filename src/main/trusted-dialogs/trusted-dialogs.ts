@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import type { IpcMain, IpcMainEvent, MessageBoxOptions, MessageBoxReturnValue, WebContents } from 'electron'
+import type { IpcMainEvent, MessageBoxOptions, MessageBoxReturnValue, WebContents } from 'electron'
+import { sendTo, type TypedIpcMain } from '../typed-ipc.js'
 import {
   MAX_CREDENTIAL_LENGTH,
   type TrustedDialogCredentials,
@@ -133,7 +134,7 @@ export interface TrustedDialogs<Window extends TrustedDialogWindow = TrustedDial
   noteKeyboardPage(window: Window, page: WebContents): void
   /** Admits the shell's answers; only the shell document of the window a dialog is shown in may answer it. */
   registerIpc(ipc: {
-    ipcMain: Pick<IpcMain, 'on'>
+    ipcMain: Pick<TypedIpcMain, 'on'>
     /**
      * Whether the message came from the shell document of the main or the detached panel window. Unlike the checks of
      * browser changes, it admits the shell after saved workspaces failed to start, so a dialog shown while they
@@ -237,7 +238,7 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
     const shell = shells.get(contents)
     if (contents.isDestroyed() || !shell?.ready) return
     const state: TrustedDialogShellState = { afterInterruptedSignIn: afterInterruptedSignIn(shell) }
-    contents.send(TRUSTED_DIALOGS_IPC.changed, shell.visible?.request ?? null, state)
+    sendTo(contents, TRUSTED_DIALOGS_IPC.changed, shell.visible?.request ?? null, state)
   }
 
   function showNext(contents: WebContents): void {

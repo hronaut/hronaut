@@ -1,10 +1,10 @@
 import type {
   BrowserWindow,
-  IpcMain,
   IpcMainInvokeEvent,
   OpenDialogOptions,
   OpenDialogReturnValue
 } from 'electron'
+import type { TypedIpcMain } from '../typed-ipc.js'
 import { CredentialImportError, parseCredentialImportCsv } from './credential-import.js'
 import { readCredentialImportFile } from './credential-import-file.js'
 import { fillCredentialWhileMcpPaused } from './credential-fill-pause.js'
@@ -21,7 +21,7 @@ import { CREDENTIALS_IPC } from '../../shared/ipc/credentials.js'
 interface CredentialsIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
   /** Registers a handler that is refused while saved workspaces are still initializing or failed to start. */
-  handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void
+  handleBrowserIpc: TypedIpcMain['handle']
   /** Whether secure storage is available; read on every use because it is replaced once storage is configured. */
   credentialStorageStatus(): CredentialStorageStatus
   credentialStore(): Pick<CredentialStore, 'list' | 'remove' | 'clear' | 'password' | 'importMany'> | null
@@ -40,7 +40,7 @@ interface CredentialsIpcHost {
 }
 
 /** Dependencies stay lazy because handlers are registered before the window loads. */
-export function registerCredentialsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: CredentialsIpcHost): void {
+export function registerCredentialsIpc(ipcMain: Pick<TypedIpcMain, 'handle'>, host: CredentialsIpcHost): void {
   function credentialImportErrorMessage(error: unknown): string {
     if (!(error instanceof CredentialImportError)) return host.text('native.errors.passwordImportInvalid')
     const keys = {

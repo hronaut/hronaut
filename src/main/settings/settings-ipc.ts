@@ -1,4 +1,5 @@
-import type { IpcMain, IpcMainInvokeEvent, OpenDialogReturnValue } from 'electron'
+import type { IpcMainInvokeEvent, OpenDialogReturnValue } from 'electron'
+import type { TypedIpcMain } from '../typed-ipc.js'
 import { resolve } from 'node:path'
 import type { Browser } from '../browser/browser.js'
 import type { McpCapabilityProfileStore } from '../mcp/capability-profile-store.js'
@@ -34,7 +35,7 @@ type SettingsIpcCapabilityProfiles = Pick<McpCapabilityProfileStore, 'list' | 'c
 interface SettingsIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
   /** Registers a handler that is refused while saved workspaces are still initializing or failed to start. */
-  handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void
+  handleBrowserIpc: TypedIpcMain['handle']
   /** The current settings; read on every use because each committed update replaces the object. */
   settings(): AppSettings
   currentRendererSettingsState(): RendererSettingsState
@@ -112,7 +113,7 @@ function capabilityProfileInput(value: unknown): McpCapabilityProfileCreateInput
 }
 
 /** Dependencies stay lazy because handlers are registered before the window loads. */
-export function registerSettingsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: SettingsIpcHost): void {
+export function registerSettingsIpc(ipcMain: Pick<TypedIpcMain, 'handle'>, host: SettingsIpcHost): void {
   /** Counts Follow agent activity requests, so a failed save restores the setting only for the newest. */
   let followAgentActivityIntent = 0
   /** Turns Follow agent activity on or off in the browser, once it is up. */

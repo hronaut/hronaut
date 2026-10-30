@@ -1,4 +1,5 @@
-import type { IpcMain, IpcMainInvokeEvent } from 'electron'
+import type { IpcMainInvokeEvent } from 'electron'
+import type { TypedIpcMain } from '../typed-ipc.js'
 import type { BrowserImportResponse } from '../../shared/browser-import.js'
 import { BrowserImportService, type ImportDestination } from './service.js'
 import { BrowserImportError } from './contracts.js'
@@ -10,7 +11,7 @@ import { BROWSER_IMPORT_IPC } from '../../shared/ipc/browser-import.js'
 
 interface Options {
   /** Where the handlers register; index.ts passes the one that gives Hronaut's pages errors in the interface language. */
-  ipcMain: Pick<IpcMain, 'handle'>
+  ipcMain: Pick<TypedIpcMain, 'handle'>
   assertSender(event: IpcMainInvokeEvent): void
   destination(id: string): ImportDestination
   consent(profile: BrowserImportProfile, destination: ImportDestination): Promise<boolean>

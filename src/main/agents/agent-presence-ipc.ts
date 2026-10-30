@@ -1,4 +1,5 @@
-import type { IpcMain, IpcMainInvokeEvent } from 'electron'
+import type { IpcMainInvokeEvent } from 'electron'
+import type { TypedIpcMain } from '../typed-ipc.js'
 import type { McpHttpServer } from '../mcp/server.js'
 import {
   parseAgentStepHistoryRequest,
@@ -16,7 +17,7 @@ interface AgentPresenceIpcHost {
 }
 
 /** Dependencies stay lazy because handlers are registered before the window loads. */
-export function registerAgentPresenceIpc(ipcMain: Pick<IpcMain, 'handle'>, host: AgentPresenceIpcHost): void {
+export function registerAgentPresenceIpc(ipcMain: Pick<TypedIpcMain, 'handle'>, host: AgentPresenceIpcHost): void {
   ipcMain.handle(AGENT_PRESENCE_IPC.get, (event): AgentPresenceSnapshot => {
     host.assertMainShellSender(event)
     return host.agentPresenceSnapshot()

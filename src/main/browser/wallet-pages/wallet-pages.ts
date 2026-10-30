@@ -2,6 +2,7 @@ import type { Browser } from '../browser.js'
 import { findTab } from '../browser-core.js'
 import { requireTabInMcpGroup } from '../workspace-scope/workspace-scope.js'
 import { WALLET_PROVIDER_IPC } from '../../../shared/ipc/wallet-provider.js'
+import { sendTo } from '../../typed-ipc.js'
 
 /** The tab, workspace, navigation generation, top-level origin and address of the page a wallet request is for. */
 export interface BrowserWalletPageContext {
@@ -57,5 +58,5 @@ export function walletPageContextForMcpTab(browser: Browser, workspaceId: string
 export function sendWalletProviderEvent(browser: Browser, tabId: string, event: import('../../../shared/wallet.js').WalletProviderEvent): void {
   const tab = findTab(browser, tabId)
   if (!tab || tab.webContents.isDestroyed() || tab.sleeping) return
-  tab.webContents.send(WALLET_PROVIDER_IPC.event, structuredClone(event))
+  sendTo(tab.webContents, WALLET_PROVIDER_IPC.event, structuredClone(event))
 }

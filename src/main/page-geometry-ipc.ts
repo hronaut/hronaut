@@ -1,4 +1,5 @@
-import type { IpcMain, IpcMainInvokeEvent } from 'electron'
+import type { IpcMainInvokeEvent } from 'electron'
+import type { TypedIpcMain } from './typed-ipc.js'
 import type { Browser } from './browser/browser.js'
 import { getEmulationFrames, getPageCards } from './browser/page-geometry/page-geometry.js'
 import { getSplitDivider } from './browser/window-layout/window-layout.js'
@@ -11,7 +12,7 @@ interface PageGeometryIpcHost {
    * Registers a handler that is refused while saved workspaces are still initializing or failed to start;
    * the three geometry reads are admitted and wait in `runWorkspaceRead` instead.
    */
-  handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void
+  handleBrowserIpc: TypedIpcMain['handle']
   /** Checks the sender, then reads once saved workspaces are initialized, dropping the read if its sender navigates away. */
   runWorkspaceRead<T>(event: IpcMainInvokeEvent, assertSender: (event: IpcMainInvokeEvent) => void, read: () => T): Promise<T>
   tabs(): Browser | null

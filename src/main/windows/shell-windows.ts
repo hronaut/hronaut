@@ -6,6 +6,7 @@ import { personErrorMessage } from '../localized-error.js'
 import type { BrowserActionFailure } from '../../shared/types.js'
 import { SHELL_IPC } from '../../shared/ipc/shell.js'
 import type { EventSender } from '../../shared/ipc/channel.js'
+import { sendTo } from '../typed-ipc.js'
 
 interface ShellWindowsHost {
   /**
@@ -44,7 +45,7 @@ export function createShellWindows(host: ShellWindowsHost): {
         : rawMessage || host.text('native.errors.actionFailed')
     }
     if (host.mainWindowRefs.window && !host.mainWindowRefs.window.isDestroyed() && !host.mainWindowRefs.window.webContents.isDestroyed()) {
-      host.mainWindowRefs.window.webContents.send(SHELL_IPC.actionFailed, failure)
+      sendTo(host.mainWindowRefs.window.webContents, SHELL_IPC.actionFailed, failure)
     }
   }
 

@@ -3,6 +3,7 @@ import type { WebContents } from 'electron'
 import type { ReactInspectionBootstrap, ReactInspectionCommand, ReactInspectionResult, ReactInspectionStatus } from '../../../shared/react-inspection.js'
 import { observeReactTopology, type ReactInspectionProtocolResult } from './react-inspection-observer.js'
 import { PAGE_IPC } from '../../../shared/ipc/page.js'
+import { sendTo } from '../../typed-ipc.js'
 
 export interface ReactInspectionAuthority { assertCurrent(): void; epoch: string }
 export interface ReactInspectionTarget {
@@ -83,7 +84,7 @@ export class ReactInspectionController {
     const record = this.installations.get(tabId)
     if (record) {
       record.enabled = false
-      if (!record.target.page.isDestroyed()) record.target.page.send(PAGE_IPC.reactInspectionDisable)
+      if (!record.target.page.isDestroyed()) sendTo(record.target.page, PAGE_IPC.reactInspectionDisable)
     }
     return this.status(tabId)
   }

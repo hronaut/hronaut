@@ -19,6 +19,7 @@ import type { MessageKey } from '../../../shared/i18n.js'
 import { mediaPlayerActionAt, type MediaPlayerAction } from './media-player-actions.js'
 import { back, forward, reload, reloadIgnoringCache } from '../page-navigation/page-navigation.js'
 import { QR_CODE_IPC } from '../../../shared/ipc/qr-code.js'
+import { sendTo } from '../../typed-ipc.js'
 
 // The fields Chrome offers the emoji picker in: an editable element, which has no form control, a text, search,
 // address, email or password input, or a text area. A number, telephone or date field takes no emoji.
@@ -59,7 +60,7 @@ export function showContextMenu(browser: Browser, tab: BrowserTab, params: Conte
   }
   // The shell opens the Create QR Code dialog for the address, in the tab's window.
   const requestQrCode = (address: string): void => {
-    browser.window.webContents.send(QR_CODE_IPC.requested, { tabId: tab.id, address })
+    sendTo(browser.window.webContents, QR_CODE_IPC.requested, { tabId: tab.id, address })
   }
   const copyText = (text: string): void => {
     menuCopies++

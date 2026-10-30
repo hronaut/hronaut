@@ -1,4 +1,5 @@
-import type { App, ConfigureHostResolverOptions, IpcMain, IpcMainInvokeEvent } from 'electron'
+import type { App, ConfigureHostResolverOptions, IpcMainInvokeEvent } from 'electron'
+import type { TypedIpcMain } from '../typed-ipc.js'
 import { LocalizedError } from '../localized-error.js'
 import {
   DEFAULT_SECURE_DNS_MODE,
@@ -56,7 +57,7 @@ interface SecureDnsIpcHost {
  * The Secure DNS setting: main checks the mode and the provider's address, applies them to Chromium's host resolver
  * and saves them together, putting the previous setting back when either step fails.
  */
-export function registerSecureDnsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: SecureDnsIpcHost): void {
+export function registerSecureDnsIpc(ipcMain: Pick<TypedIpcMain, 'handle'>, host: SecureDnsIpcHost): void {
   ipcMain.handle(SETTINGS_IPC.setSecureDns, async (event, mode: unknown, template: unknown) => {
     host.assertTrustedSender(event)
     if (!isSecureDnsMode(mode)) throw new TypeError('Unsupported secure DNS mode')

@@ -1,4 +1,5 @@
-import type { IpcMain, IpcMainInvokeEvent } from 'electron'
+import type { IpcMainInvokeEvent } from 'electron'
+import type { TypedIpcMain } from './typed-ipc.js'
 import type { Browser } from './browser/browser.js'
 import { stopLogpoints } from './browser/logpoints/browser-logpoints.js'
 import { LOGPOINTS_IPC } from '../shared/ipc/logpoints.js'
@@ -6,7 +7,7 @@ import { LOGPOINTS_IPC } from '../shared/ipc/logpoints.js'
 interface LogpointIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
   /** Registers a handler that is refused while saved workspaces are still initializing or failed to start. */
-  handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void
+  handleBrowserIpc: TypedIpcMain['handle']
   tabs(): Browser | null
 }
 

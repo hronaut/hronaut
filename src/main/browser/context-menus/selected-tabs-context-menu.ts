@@ -10,6 +10,7 @@ import { setTabMuted } from '../tab-muting/tab-muting.js'
 import { closeTabsForPerson } from '../tab-close/close-tabs-for-person.js'
 import { duplicateTab, reopenClosedTab } from '../tab-reopening/tab-reopening.js'
 import { SHELL_IPC } from '../../../shared/ipc/shell.js'
+import { sendTo } from '../../typed-ipc.js'
 
 /**
  * The tabs a menu opened on a selected tab acts on, as Chrome's tab menu acts on the tabs selected in its strip: the
@@ -69,7 +70,7 @@ export function showSelectedTabsContextMenu(browser: Browser, tab: BrowserTab, s
     {
       id: 'new-tab',
       label: browser.text('native.context.newTab'),
-      click: () => runAction('open a new tab', () => browser.window.webContents.send(SHELL_IPC.newTabRequested, tab.mcpGroupId))
+      click: () => runAction('open a new tab', () => sendTo(browser.window.webContents, SHELL_IPC.newTabRequested, tab.mcpGroupId))
     },
     {
       id: 'reload-tabs',
@@ -137,7 +138,7 @@ export function showSelectedTabsContextMenu(browser: Browser, tab: BrowserTab, s
       id: 'bookmark-all-tabs',
       label: browser.text('native.context.bookmarkAllTabs'),
       enabled: workspaceTabs.some((candidate) => /^https?:/i.test(candidate.url)),
-      click: () => runAction('bookmark all tabs', () => browser.window.webContents.send(SHELL_IPC.bookmarkAllTabsRequested, tab.mcpGroupId ?? null))
+      click: () => runAction('bookmark all tabs', () => sendTo(browser.window.webContents, SHELL_IPC.bookmarkAllTabsRequested, tab.mcpGroupId ?? null))
     }
   ])
   menu.popup({ window: browser.window, ...(onClosed ? { callback: onClosed } : {}) })

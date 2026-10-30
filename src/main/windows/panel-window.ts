@@ -31,6 +31,7 @@ import { UPDATES_IPC } from '../../shared/ipc/updates.js'
 import { SETTINGS_IPC } from '../../shared/ipc/settings.js'
 import { PANEL_WINDOW_IPC } from '../../shared/ipc/panel-window.js'
 import { TABS_IPC } from '../../shared/ipc/tabs.js'
+import { sendTo } from '../typed-ipc.js'
 
 /**
  * The detached panel window and what it shows, created once by index.ts. The window opens and closes while the app
@@ -139,16 +140,16 @@ export function createPanelWindow(host: PanelWindowHost): {
     const browser = host.tabRuntime.tabs
     // As to the main window, the state goes only once saved workspaces are restored: a partial one would take the
     // place of the full state the panel's shell reads, which waits for the restore. Before the tabs exist there is none.
-    if (browser && !host.tabRuntime.initialization) target.webContents.send(TABS_IPC.stateChanged, browserState(browser))
-    target.webContents.send(DOWNLOADS_IPC.changed, browser?.downloadController.listDownloads() ?? [])
-    target.webContents.send(SETTINGS_IPC.changed, host.settings())
-    target.webContents.send(SETTINGS_IPC.rendererStateChanged, host.currentRendererSettingsState())
-    target.webContents.send(UPDATES_IPC.changed, host.updateState())
-    target.webContents.send(MCP_IPC.changed, host.currentMcpControlState())
-    target.webContents.send(CREDENTIALS_IPC.changed, host.credentialStore()?.list() ?? [])
-    target.webContents.send(PERMISSIONS_IPC.changed, host.sitePermissionStore()?.list() ?? [])
-    target.webContents.send(BOOKMARKS_IPC.changed, host.bookmarkStore()?.list() ?? [])
-    target.webContents.send(HISTORY_IPC.changed, host.historyStore()?.list() ?? [])
+    if (browser && !host.tabRuntime.initialization) sendTo(target.webContents, TABS_IPC.stateChanged, browserState(browser))
+    sendTo(target.webContents, DOWNLOADS_IPC.changed, browser?.downloadController.listDownloads() ?? [])
+    sendTo(target.webContents, SETTINGS_IPC.changed, host.settings())
+    sendTo(target.webContents, SETTINGS_IPC.rendererStateChanged, host.currentRendererSettingsState())
+    sendTo(target.webContents, UPDATES_IPC.changed, host.updateState())
+    sendTo(target.webContents, MCP_IPC.changed, host.currentMcpControlState())
+    sendTo(target.webContents, CREDENTIALS_IPC.changed, host.credentialStore()?.list() ?? [])
+    sendTo(target.webContents, PERMISSIONS_IPC.changed, host.sitePermissionStore()?.list() ?? [])
+    sendTo(target.webContents, BOOKMARKS_IPC.changed, host.bookmarkStore()?.list() ?? [])
+    sendTo(target.webContents, HISTORY_IPC.changed, host.historyStore()?.list() ?? [])
   }
 
   async function openPanelWindow(panel: DetachablePanelId): Promise<void> {
@@ -231,7 +232,7 @@ export function createPanelWindow(host: PanelWindowHost): {
         created.webContents.setZoomFactor(host.settings().interfaceScale)
         created.setTitle(detachedPanelTitle(requestedPanel))
         sendPanelWindowSnapshot(created)
-        created.webContents.send(PANEL_WINDOW_IPC.showPanel, requestedPanel)
+        sendTo(created.webContents, PANEL_WINDOW_IPC.showPanel, requestedPanel)
       })
       created.once('ready-to-show', () => {
         if (!created.isDestroyed()) created.show()
@@ -256,7 +257,7 @@ export function createPanelWindow(host: PanelWindowHost): {
         host.refs.redocking = false
         void host.flushPanelWindowState().catch((error) => console.error('[panel-window] Failed to flush state:', error))
         if (!redocking && host.mainWindow() && !host.mainWindow()!.isDestroyed() && !host.mainWindow()!.webContents.isDestroyed()) {
-          host.mainWindow()!.webContents.send(PANEL_WINDOW_IPC.closed)
+          sendTo(host.mainWindow()!.webContents, PANEL_WINDOW_IPC.closed)
         }
       })
 

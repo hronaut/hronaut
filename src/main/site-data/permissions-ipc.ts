@@ -1,4 +1,5 @@
-import type { IpcMain, IpcMainInvokeEvent } from 'electron'
+import type { IpcMainInvokeEvent } from 'electron'
+import type { TypedIpcMain } from '../typed-ipc.js'
 import {
   isSitePermissionDecision,
   normalizeSitePermissionOrigin,
@@ -32,7 +33,7 @@ function requestedDecision(origin: unknown, permission: unknown, scope: unknown)
 }
 
 /** Dependencies stay lazy because handlers are registered before the window loads. */
-export function registerPermissionsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: PermissionsIpcHost): void {
+export function registerPermissionsIpc(ipcMain: Pick<TypedIpcMain, 'handle'>, host: PermissionsIpcHost): void {
   ipcMain.handle(PERMISSIONS_IPC.list, (event) => {
     host.assertTrustedSender(event)
     return host.sitePermissionStore()!.list()
