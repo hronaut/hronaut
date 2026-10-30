@@ -36,7 +36,11 @@ interface ApplicationMenuHost {
  * The native application menu. `installApplicationMenu` builds it again in the current language. Dependencies stay
  * lazy because the menu is installed before the window exists.
  */
-export function createApplicationMenu(host: ApplicationMenuHost): { installApplicationMenu(): void } {
+export function createApplicationMenu(host: ApplicationMenuHost): {
+  installApplicationMenu(): void
+  /** Shows the window and asks its shell to open what a Help menu item or Settings opens. */
+  requestHelp(action: HelpMenuAction): void
+} {
   /** Runs an action on the browser once it is up, and gives back what the action returns for its failure report. */
   function withBrowser<T>(action: (browser: Browser) => T): T | undefined {
     const browser = host.tabs()
@@ -377,5 +381,5 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
     )
   }
 
-  return { installApplicationMenu }
+  return { installApplicationMenu, requestHelp }
 }

@@ -5,6 +5,7 @@ import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
 import { personErrorMessage } from '../localized-error.js'
 import type { BrowserActionFailure } from '../../shared/types.js'
 import { SHELL_IPC } from '../../shared/ipc/shell.js'
+import type { EventSender } from '../../shared/ipc/channel.js'
 
 interface ShellWindowsHost {
   /**
@@ -29,9 +30,9 @@ export function createShellWindows(host: ShellWindowsHost): {
   reportBrowserActionFailure(action: string, error: unknown): void
   showWindow(): void
   showWindowInactive(): void
-  sendToShellWindows(channel: string, ...args: unknown[]): void
-  sendToMainWindow(channel: string, ...args: unknown[]): void
-  sendToPanelWindow(channel: string, ...args: unknown[]): void
+  sendToShellWindows: EventSender
+  sendToMainWindow: EventSender
+  sendToPanelWindow: EventSender
   showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue>
 } {
   function reportBrowserActionFailure(action: string, error: unknown): void {
