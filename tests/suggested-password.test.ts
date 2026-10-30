@@ -9,13 +9,14 @@ import {
 } from '../src/main/browser/suggested-password/suggested-password.js'
 import type { Browser } from '../src/main/browser/browser.js'
 import type { BrowserTab } from '../src/main/browser/browser-tab.js'
-import type { CredentialFillPageResult } from '../src/main/browser/credential-fill-page.js'
+import type { CredentialFillPageResult } from '../src/main/browser/credential-fill/credential-fill.page.js'
 import { ISOLATED_WORLDS } from '../src/main/browser/isolated-worlds.js'
 import { LocalizedError } from '../src/main/localized-error.js'
 
 /** The fill recorder of the harness made last, which records a fill the page took as the person's input. */
 const trustedFill = vi.hoisted(() => ({ record: (..._args: unknown[]): boolean => false }))
-vi.mock('../src/main/browser/trusted-credential-fill.js', () => ({
+vi.mock('../src/main/browser/trusted-credential-fill.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/trusted-credential-fill.js')>(),
   recordTrustedCredentialFill: (...args: unknown[]) => trustedFill.record(...args)
 }))
 vi.mock('../src/main/browser/credential-fill/credential-fill.js', () => ({
@@ -83,11 +84,11 @@ function harness(options: {
   const executeJavaScriptInIsolatedWorld = vi.fn(async (worldId: number, scripts: Array<{ code: string }>, userGesture?: boolean) => {
     const code = scripts[0]!.code
     steps.push(`world ${worldId === ISOLATED_WORLDS.suggestedPassword ? 'suggested password' : worldId}`)
-    if (code.includes('return { minLength: field.minLength')) {
+    if (code.includes('function suggestedPasswordFieldInPage(')) {
       steps.push(`read field${userGesture ? ' with gesture' : ''}`)
       return options.field === undefined ? { minLength: -1, maxLength: -1 } : options.field
     }
-    filledWith = /const password = "([^"]*)";/u.exec(code)?.[1]
+    filledWith = /, "([^"]*)"\)$/u.exec(code)?.[1]
     steps.push(`fill${userGesture ? ' with gesture' : ''}`)
     if (options.fillError) throw options.fillError
     return options.fillOutcome ?? 'filled'

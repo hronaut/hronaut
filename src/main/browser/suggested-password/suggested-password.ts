@@ -1,6 +1,5 @@
 import { randomInt } from 'node:crypto'
 import { isCurrentCredentialFillContext, type CredentialFillContext } from '../credential-fill-context.js'
-import { isCredentialFillPageResult } from '../credential-fill-page.js'
 import { ISOLATED_WORLDS } from '../isolated-worlds.js'
 import { LocalizedError } from '../../localized-error.js'
 import type { Browser } from '../browser.js'
@@ -8,13 +7,9 @@ import { credentialContext } from '../credential-fill/credential-fill.js'
 import { findTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { withAgentInput } from '../agent-input-scope/agent-input-scope.js'
-import { recordTrustedCredentialFill } from '../trusted-credential-fill.js'
-import {
-  isSuggestedPasswordField,
-  suggestedPasswordFieldScript,
-  suggestedPasswordFillScript,
-  type SuggestedPasswordField
-} from './suggested-password-page.js'
+import { isCredentialFillPageResult, recordTrustedCredentialFill } from '../trusted-credential-fill.js'
+import { pageScript } from '../../../shared/page-script.js'
+import { fillSuggestedPasswordInPage, suggestedPasswordFieldInPage, type SuggestedPasswordField } from './suggested-password.page.js'
 
 /** What keeps a password Hronaut suggested: secure storage to save it in, paused agents, and the offer to save it. */
 export interface SuggestedPasswordOptions {
@@ -35,6 +30,13 @@ const SUGGESTED_PASSWORD_LENGTH = 15
 // A field that asks for more gets up to this many characters, and one that takes fewer than four gets none.
 const LONGEST_SUGGESTED_PASSWORD = 128
 const SHORTEST_SUGGESTED_PASSWORD = 4
+
+/** Whether the field script's answer is a field's length limits. */
+function isSuggestedPasswordField(value: unknown): value is SuggestedPasswordField {
+  if (typeof value !== 'object' || value === null) return false
+  const { minLength, maxLength } = value as Record<string, unknown>
+  return Number.isSafeInteger(minLength) && Number.isSafeInteger(maxLength)
+}
 
 /**
  * The length of the password suggested for a field: 15 characters, or more when the field needs more, or fewer when
@@ -101,7 +103,7 @@ export async function suggestStrongPassword(
     && !tab.webContents.isDestroyed()
     && isCurrentCredentialFillContext(expectedContext, credentialContext(browser, tab.id))
   if (!suggestions?.available() || !current()) return false
-  const field = await runInPage(tab, suggestedPasswordFieldScript(expectedContext), false)
+  const field = await runInPage(tab, pageScript(suggestedPasswordFieldInPage, expectedContext.origin, expectedContext.url), false)
   const length = isSuggestedPasswordField(field) ? suggestedPasswordLength(field) : null
   if (length === null) return false
   return suggestions.whileAgentsPaused(async () => {
@@ -112,7 +114,7 @@ export async function suggestStrongPassword(
     const outcome = await withAgentInput(
       browser,
       tab.webContents,
-      () => runInPage(tab, suggestedPasswordFillScript(expectedContext, password), true)
+      () => runInPage(tab, pageScript(fillSuggestedPasswordInPage, expectedContext.origin, expectedContext.url, password), true)
     )
     if (!isCredentialFillPageResult(outcome)) return false
     return recordTrustedCredentialFill(outcome, tab, Date.now(), browser.options.onUserInteraction)

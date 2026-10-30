@@ -151,7 +151,7 @@ describe('the architecture rules in AGENTS.md', { timeout: SCAN_TIMEOUT }, () =>
     ])
   })
 
-  it('counts the IPC channel names a module writes out, and leaves out typed channels, URLs and page events', () => {
+  it('counts the IPC channel names a module writes out, and leaves out typed channels, URLs, page events and CSS selectors', () => {
     const code = [
       "ipcMain.handle('license:activate', activate)",
       "host.handleBrowserIpc(`browser:tab-groups:update`, update)",
@@ -159,6 +159,7 @@ describe('the architecture rules in AGENTS.md', { timeout: SCAN_TIMEOUT }, () =>
       "ipcRenderer.removeListener('license:changed', handler)",
       "tab.webContents.loadURL('about:blank')",
       "globalThis.addEventListener('eip6963:requestProvider', announce)",
+      "document.querySelectorAll('dialog:modal')",
       "logger.info('license activated: ok')",
       "const name = 'license:refresh'"
     ].join('\n')

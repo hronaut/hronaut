@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { credentialFillContext } from '../src/main/browser/credential-fill-context.js'
-import { suggestedPasswordFieldScript, suggestedPasswordFillScript } from '../src/main/browser/suggested-password/suggested-password-page.js'
+import { fillSuggestedPasswordInPage, suggestedPasswordFieldInPage } from '../src/main/browser/suggested-password/suggested-password.page.js'
+import { pageScript } from '../src/shared/page-script.js'
 
 const PASSWORD = 'k7Gm2xPqR9sTv4w'
 const realClientRects = Element.prototype.getClientRects
@@ -12,11 +13,13 @@ function context(url = location.href) {
 
 /** Keeps the focused field and reads its limits, as the right-click's menu item does first. */
 function field(url?: string): unknown {
-  return window.eval(suggestedPasswordFieldScript(context(url)))
+  const { origin, url: address } = context(url)
+  return window.eval(pageScript(suggestedPasswordFieldInPage, origin, address))
 }
 
 function fill(password = PASSWORD, url?: string): unknown {
-  return window.eval(suggestedPasswordFillScript(context(url), password))
+  const { origin, url: address } = context(url)
+  return window.eval(pageScript(fillSuggestedPasswordInPage, origin, address, password))
 }
 
 /** Focuses the field, keeps it, and fills it. */

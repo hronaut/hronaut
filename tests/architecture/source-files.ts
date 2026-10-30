@@ -69,9 +69,10 @@ export function runtimeNamesFrom(code: string, specifier: string, fileName = 'mo
 
 // An IPC channel's name, `feature:action`, as in 'license:activate' or 'browser:tab-groups:update'.
 const IPC_CHANNEL = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*:[a-z][a-zA-Z0-9]*(?:[-:][a-zA-Z0-9]+)*$/
-// Text of the same shape that is no channel: URLs such as about:blank, and page events.
+// Text of the same shape that is no channel: URLs such as about:blank, page events, and CSS selectors such as
+// dialog:modal that page functions select elements with.
 const URL_SCHEMES = new Set(['about', 'blob', 'chrome', 'data', 'devtools', 'file', 'http', 'https', 'javascript', 'mailto', 'ws', 'wss'])
-const PAGE_EVENT_CALLS = new Set(['addEventListener', 'removeEventListener'])
+const PAGE_CALLS = new Set(['addEventListener', 'removeEventListener', 'querySelector', 'querySelectorAll', 'matches', 'closest'])
 
 /**
  * The IPC channel names a module writes out as text where it sends or listens, the first argument of a call such as
@@ -84,7 +85,7 @@ export function literalIpcChannels(code: string, fileName = 'module.ts'): string
       const [first] = node.arguments
       const callee = ts.isPropertyAccessExpression(node.expression) ? node.expression.name.text : ts.isIdentifier(node.expression) ? node.expression.text : ''
       if (first && (ts.isStringLiteral(first) || ts.isNoSubstitutionTemplateLiteral(first)) && IPC_CHANNEL.test(first.text)
-        && !URL_SCHEMES.has(first.text.slice(0, first.text.indexOf(':'))) && !PAGE_EVENT_CALLS.has(callee)) channels.push(first.text)
+        && !URL_SCHEMES.has(first.text.slice(0, first.text.indexOf(':'))) && !PAGE_CALLS.has(callee)) channels.push(first.text)
     }
     ts.forEachChild(node, visit)
   }
