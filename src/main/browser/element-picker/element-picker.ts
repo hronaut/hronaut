@@ -15,6 +15,7 @@ import type { Browser } from '../browser.js'
 import { getTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { syncHumanInteractionInputGuard } from '../interaction-lock/human-input-guard.js'
+import { screenshot } from '../screenshots/screenshots.js'
 
 /** What the element picker's page script resolves: the element's raw inspection, or that the person canceled. */
 export interface BrowserElementPickerScriptResult {
@@ -52,8 +53,8 @@ export async function pickElement(browser: Browser, tabId?: string): Promise<Bro
 export async function captureElementScreenshot(browser: Browser, tabId?: string): Promise<{ canceled: boolean; data?: Buffer }> {
   const report = await selectElement(browser, tabId)
   if (!report) return { canceled: true }
-  const screenshot = await browser.screenshot({ tabId: report.tabId, selector: report.selector })
-  return { canceled: false, data: screenshot.data }
+  const captured = await screenshot(browser, { tabId: report.tabId, selector: report.selector })
+  return { canceled: false, data: captured.data }
 }
 
 /**

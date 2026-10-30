@@ -12,8 +12,10 @@ import { workspaceContextMenuItems } from './workspace-context-menu.js'
 import { selectedMenuTabs, showSelectedTabsContextMenu } from './selected-tabs-context-menu.js'
 import { setTabPageLifecycle } from '../page-lifecycle/page-lifecycle.js'
 import { reload, reloadIgnoringCache } from '../page-navigation/page-navigation.js'
-import { openSplitViewAndWait, updateSplitView } from '../split-view/split-view.js'
+import { openSplitViewAndWait, updateSplitView, closeSplitView } from '../split-view/split-view.js'
 import { setTabMuted } from '../tab-muting/tab-muting.js'
+import { closeTabsForPerson } from '../tab-close/close-tabs-for-person.js'
+import { selectTabAndWait } from '../tab-selection/tab-selection.js'
 
 /**
  * Shows a website tab's context menu: attention, new tab, reload, duplicate,
@@ -71,7 +73,7 @@ export function showTabContextMenu(browser: Browser, tabId: string, onClosed?: (
         enabled: false
       }
   const openSplitWith = async (firstTabId: string, secondTabId: string): Promise<BrowserState> => {
-    const selected = await browser.selectTabAndWait(firstTabId)
+    const selected = await selectTabAndWait(browser, firstTabId)
     if (selected.activeTabId !== firstTabId) return selected
     return openSplitViewAndWait(browser, secondTabId)
   }
@@ -104,7 +106,7 @@ export function showTabContextMenu(browser: Browser, tabId: string, onClosed?: (
           {
             id: 'close-split-view',
             label: browser.text('native.context.exitSplit'),
-            click: () => runAction('close the split view', () => browser.closeSplitView())
+            click: () => runAction('close the split view', () => closeSplitView(browser))
           }
         ]
       }
@@ -232,25 +234,25 @@ export function showTabContextMenu(browser: Browser, tabId: string, onClosed?: (
     {
       id: 'close-tab',
       label: browser.text('native.context.closeTab'),
-      click: () => runAction('close the tab', () => browser.closeTabsForPerson([tab.id]))
+      click: () => runAction('close the tab', () => closeTabsForPerson(browser, [tab.id]))
     },
     {
       id: 'close-other-tabs',
       label: browser.text('native.context.closeOthers'),
       enabled: otherTabs.length > 0,
-      click: () => runAction('close other tabs', () => browser.closeTabsForPerson(otherTabs.map((candidate) => candidate.id)))
+      click: () => runAction('close other tabs', () => closeTabsForPerson(browser, otherTabs.map((candidate) => candidate.id)))
     },
     {
       id: 'close-tabs-to-right',
       label: browser.text(verticalTabs ? 'native.context.closeBelow' : 'native.context.closeRight'),
       enabled: tabsToRight.length > 0,
-      click: () => runAction('close tabs to the right', () => browser.closeTabsForPerson(tabsToRight.map((candidate) => candidate.id)))
+      click: () => runAction('close tabs to the right', () => closeTabsForPerson(browser, tabsToRight.map((candidate) => candidate.id)))
     },
     {
       id: 'close-duplicate-tabs',
       label: browser.text('native.context.closeDuplicates'),
       enabled: duplicateTabs.length > 0,
-      click: () => runAction('close duplicate tabs', () => browser.closeTabsForPerson(duplicateTabs.map((candidate) => candidate.id)))
+      click: () => runAction('close duplicate tabs', () => closeTabsForPerson(browser, duplicateTabs.map((candidate) => candidate.id)))
     },
     { type: 'separator' },
     {

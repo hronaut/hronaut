@@ -5,8 +5,9 @@ import { showHistoryMenu } from './browser/context-menus/history-menu.js'
 import { showDevToolsConsole, toggleDevTools } from './browser/devtools/devtools.js'
 import { openNavigationInNewTab } from './browser/navigation-new-tab/navigation-new-tab.js'
 import { findInPage, stopFindInPage } from './browser/page-find/page-find.js'
-import { back, forward, reload, reloadIgnoringCache, stop } from './browser/page-navigation/page-navigation.js'
+import { back, forward, reload, reloadIgnoringCache, stop, navigate } from './browser/page-navigation/page-navigation.js'
 import { setZoom } from './browser/page-zoom/page-zoom.js'
+import { savePdf } from './browser/pdf-export/pdf-export.js'
 
 interface NavigationIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
@@ -39,7 +40,7 @@ export function registerNavigationIpc(host: NavigationIpcHost): void {
     if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
     return showDevToolsConsole(host.tabs()!, tabId)
   })
-  host.handleBrowserIpc('browser:navigate', (event, options) => { host.assertTrustedSender(event); return stateReply(host, host.tabs()!.navigate(options.url, options.tabId, { byPerson: true })) })
+  host.handleBrowserIpc('browser:navigate', (event, options) => { host.assertTrustedSender(event); return stateReply(host, navigate(host.tabs()!, options.url, options.tabId, { byPerson: true })) })
   host.handleBrowserIpc('browser:back', (event, tabId) => { host.assertTrustedSender(event); return stateReply(host, back(host.tabs()!, tabId)) })
   host.handleBrowserIpc('browser:forward', (event, tabId) => { host.assertTrustedSender(event); return stateReply(host, forward(host.tabs()!, tabId)) })
   host.handleBrowserIpc('browser:show-history-menu', (event, options: unknown) => {
@@ -110,7 +111,7 @@ export function registerNavigationIpc(host: NavigationIpcHost): void {
       || (outline !== undefined && typeof outline !== 'boolean')
       || (preferCSSPageSize !== undefined && typeof preferCSSPageSize !== 'boolean')
     ) throw new TypeError('Invalid PDF options')
-    return host.tabs()!.savePdf({ tabId, filename, landscape, pageSize: pageSize ?? host.defaultPdfPageSize(), outline, preferCSSPageSize })
+    return savePdf(host.tabs()!, { tabId, filename, landscape, pageSize: pageSize ?? host.defaultPdfPageSize(), outline, preferCSSPageSize })
   })
 }
 

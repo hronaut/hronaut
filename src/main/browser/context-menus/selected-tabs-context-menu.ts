@@ -7,6 +7,7 @@ import { workspaceContextMenuItems } from './workspace-context-menu.js'
 import { reload } from '../page-navigation/page-navigation.js'
 import { setTabPinned } from '../tab-arrangement/tab-arrangement.js'
 import { setTabMuted } from '../tab-muting/tab-muting.js'
+import { closeTabsForPerson } from '../tab-close/close-tabs-for-person.js'
 
 /**
  * The tabs a menu opened on a selected tab acts on, as Chrome's tab menu acts on the tabs selected in its strip: the
@@ -109,19 +110,19 @@ export function showSelectedTabsContextMenu(browser: Browser, tab: BrowserTab, s
     {
       id: 'close-tabs',
       label: browser.text('native.context.closeTabs'),
-      click: () => runAction('close the tabs', () => browser.closeTabsForPerson(open().map((candidate) => candidate.id)))
+      click: () => runAction('close the tabs', () => closeTabsForPerson(browser, open().map((candidate) => candidate.id)))
     },
     {
       id: 'close-other-tabs',
       label: browser.text('native.context.closeOthers'),
       enabled: otherTabs.length > 0,
-      click: () => runAction('close other tabs', () => browser.closeTabsForPerson(otherTabs.map((candidate) => candidate.id)))
+      click: () => runAction('close other tabs', () => closeTabsForPerson(browser, otherTabs.map((candidate) => candidate.id)))
     },
     {
       id: 'close-tabs-to-right',
       label: browser.text(verticalTabs ? 'native.context.closeBelow' : 'native.context.closeRight'),
       enabled: tabsToRight.length > 0,
-      click: () => runAction('close tabs to the right', () => browser.closeTabsForPerson(tabsToRight.map((candidate) => candidate.id)))
+      click: () => runAction('close tabs to the right', () => closeTabsForPerson(browser, tabsToRight.map((candidate) => candidate.id)))
     },
     { type: 'separator' },
     {

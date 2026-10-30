@@ -42,6 +42,10 @@ vi.mock('../src/main/browser/tab-arrangement/tab-arrangement.js', async (importO
   ...await importOriginal<typeof import('../src/main/browser/tab-arrangement/tab-arrangement.js')>(),
   setTabPinned: (browser: { setTabPinned: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.setTabPinned(...args)
 }))
+vi.mock('../src/main/browser/tab-close/close-tabs-for-person.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-close/close-tabs-for-person.js')>(),
+  closeTabsForPerson: (browser: { closeTabsForPerson: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.closeTabsForPerson(...args)
+}))
 
 const { showTabContextMenu } = await import('../src/main/browser/context-menus/tab-context-menu.js')
 const { Browser } = await import('../src/main/browser/browser.js')

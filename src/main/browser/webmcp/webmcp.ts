@@ -10,6 +10,7 @@ import {
 import type { Browser } from '../browser.js'
 import { findTab, getTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
+import { snapshotDetails } from '../page-snapshots/page-snapshots.js'
 
 /** Whether the tab's top-level document exposes WebMCP, with the origin and navigation generation it was read from. */
 export type WebMcpStatus = {
@@ -160,7 +161,7 @@ export async function callWebMcpTool(browser: Browser, input: WebMcpToolCall): P
   }
   if (!navigationChanged && current) {
     try {
-      const snapshot = await browser.snapshotDetails(current.id, 8_000)
+      const snapshot = await snapshotDetails(browser, current.id, 8_000)
       observation.snapshot = { formatVersion: snapshot.formatVersion, text: snapshot.text }
     } catch (error) {
       observation.snapshot = { unavailable: true, reason: String(error).slice(0, 300) }

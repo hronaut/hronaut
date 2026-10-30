@@ -15,7 +15,10 @@ import { networkHar, networkRequestDetails, networkRequests, networkSearch, repl
 import { inspectPwa } from './browser/pwa-inspection/pwa-inspection.js'
 import { manageStorage } from './browser/site-storage/manage-storage.js'
 import { storageChanges } from './browser/site-storage/storage-changes.js'
-import { inspectIndexedDb } from './browser/site-storage/storage-inspection.js'
+import { inspectIndexedDb, inspectStorageUsage } from './browser/site-storage/storage-inspection.js'
+import { elementInspection } from './browser/element-inspection/element-inspection.js'
+import { snapshotDetails } from './browser/page-snapshots/page-snapshots.js'
+import { screenshot } from './browser/screenshots/screenshots.js'
 
 interface PageInspectionIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
@@ -49,7 +52,7 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
   host.handleBrowserIpc('browser:storage-usage', (event, tabId: unknown) => {
     host.assertTrustedSender(event)
     if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid storage usage request')
-    return host.tabs()!.inspectStorageUsage(tabId as string | undefined)
+    return inspectStorageUsage(host.tabs()!, tabId as string | undefined)
   })
   host.handleBrowserIpc('browser:storage-changes', (event, value: unknown) => {
     host.assertTrustedSender(event)
@@ -117,7 +120,7 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
     host.assertTrustedSender(event)
     if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid snapshot tab ID')
     const maxChars = 30_000
-    const snapshot = await host.tabs()!.snapshotDetails(tabId, maxChars)
+    const snapshot = await snapshotDetails(host.tabs()!, tabId, maxChars)
     await host.copyTextToClipboard(snapshot.text)
     return { copied: true, characters: snapshot.returnedChars, truncated: snapshot.truncated }
   })
@@ -149,8 +152,8 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
       ...(tabId !== undefined ? { tabId } : {}),
       ...(fullPage !== undefined ? { fullPage } : {})
     }
-    const screenshot = await host.tabs()!.screenshot(options)
-    const size = await host.copyPngToClipboard(screenshot.data)
+    const captured = await screenshot(host.tabs()!, options)
+    const size = await host.copyPngToClipboard(captured.data)
     return { copied: true, width: size.width, height: size.height }
   })
   host.handleBrowserIpc('browser:element-inspection', (event, value: unknown) => {
@@ -164,7 +167,7 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
     ) {
       throw new TypeError('Invalid element inspection options')
     }
-    return host.tabs()!.elementInspection(value as BrowserElementInspectionOptions)
+    return elementInspection(host.tabs()!, value as BrowserElementInspectionOptions)
   })
   host.handleBrowserIpc('browser:cancel-element-picker', (event, tabId) => {
     host.assertTrustedSender(event)

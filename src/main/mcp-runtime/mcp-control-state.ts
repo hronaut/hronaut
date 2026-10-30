@@ -5,6 +5,7 @@ import type { McpPauseState } from './mcp-pause-state.js'
 import type { McpPortRecovery } from './mcp-port-suggestion.js'
 import type { ConnectedAgent } from '../../shared/agent-status.js'
 import type { McpControlState, McpServerStatus } from '../../shared/types.js'
+import { setAllAgentsPaused } from '../browser/agent-pause/agent-pause.js'
 
 interface McpControlStateHost {
   /** The person's lasting pause and the temporary pauses a password or cookie fill holds; the MCP runtime and Home read it too. */
@@ -22,7 +23,7 @@ interface McpControlStateHost {
   /** Each connected agent once, with its strongest state; agent presence and Home read it too. */
   connectedAgents(): ConnectedAgent[]
   /** The tab runtime, which pauses page agents and tells Home to read again; null until the window opens. */
-  tabs(): Pick<Browser, 'setAllAgentsPaused' | 'notifyHomeChanged'> | null
+  tabs(): Browser | null
   sendToShellWindows(channel: string, ...args: unknown[]): void
   /** Reloads a visible Home after a committed change; settings changes use it too. */
   refreshHomeAfterCommittedChange(scope: 'mcp' | 'settings'): void
@@ -72,7 +73,8 @@ export function createMcpControlState(host: McpControlStateHost): {
   }
 
   function synchronizeAgentPauseControls(): void {
-    host.tabs()?.setAllAgentsPaused(host.mcpPauseState.paused, !host.mcpPauseState.temporarilyPaused)
+    const browser = host.tabs()
+    if (browser) setAllAgentsPaused(browser, host.mcpPauseState.paused, !host.mcpPauseState.temporarilyPaused)
     host.mcpServer()?.setPaused(host.mcpPauseState.paused, !host.mcpPauseState.temporarilyPaused)
   }
 

@@ -11,6 +11,7 @@ import { Browser } from '../src/main/browser/browser.js'
 import { closeTabTransition } from '../src/main/browser/tab-close/close-transition.js'
 import { orderedTabs } from '../src/main/browser/browser-core.js'
 import { workspaceContextMenuItems } from '../src/main/browser/context-menus/workspace-context-menu.js'
+import { setWorkspacePinned } from '../src/main/browser/mcp-tab-groups/workspace-pinning.js'
 
 afterEach(() => {
   vi.useRealTimers()
@@ -51,12 +52,12 @@ describe('pinning a workspace in main', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(Date.UTC(2026, 9, 17, 12))
     const { manager, internals } = fixture([group('alpha'), group('beta')])
-    manager.setWorkspacePinned('beta', true)
+    setWorkspacePinned(manager, 'beta', true)
     const beta = internals.mcpTabGroups.get('beta')!
     expect(beta.pinnedAt).toBe('2026-10-17T12:00:00.000Z')
     expect(beta.lastUsedAt).toBe('2026-10-17T09:00:00.000Z')
     expect(internals.changed).toHaveBeenCalledOnce()
-    manager.setWorkspacePinned('beta', false)
+    setWorkspacePinned(manager, 'beta', false)
     expect(beta.pinnedAt).toBeUndefined()
     expect(internals.changed).toHaveBeenCalledTimes(2)
   })
@@ -65,8 +66,8 @@ describe('pinning a workspace in main', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(Date.UTC(2026, 9, 17, 12))
     const { manager, internals } = fixture([group('alpha', '2026-10-01T00:00:00.000Z'), group('beta')])
-    manager.setWorkspacePinned('alpha', true)
-    manager.setWorkspacePinned('beta', false)
+    setWorkspacePinned(manager, 'alpha', true)
+    setWorkspacePinned(manager, 'beta', false)
     expect(internals.mcpTabGroups.get('alpha')!.pinnedAt).toBe('2026-10-01T00:00:00.000Z')
     expect(internals.mcpTabGroups.get('beta')!.pinnedAt).toBeUndefined()
     expect(internals.changed).not.toHaveBeenCalled()
@@ -76,11 +77,11 @@ describe('pinning a workspace in main', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     const { manager, internals } = fixture([group('alpha'), group('beta'), group('gamma')])
     vi.setSystemTime(Date.UTC(2026, 9, 17, 12))
-    manager.setWorkspacePinned('alpha', true)
+    setWorkspacePinned(manager, 'alpha', true)
     // The system clock is set back an hour before the next pin.
     vi.setSystemTime(Date.UTC(2026, 9, 17, 11))
-    manager.setWorkspacePinned('beta', true)
-    manager.setWorkspacePinned('gamma', true)
+    setWorkspacePinned(manager, 'beta', true)
+    setWorkspacePinned(manager, 'gamma', true)
     const times = ['alpha', 'beta', 'gamma'].map((id) => Date.parse(internals.mcpTabGroups.get(id)!.pinnedAt!))
     expect(times[1]).toBeGreaterThan(times[0]!)
     expect(times[2]).toBeGreaterThan(times[1]!)
@@ -90,13 +91,13 @@ describe('pinning a workspace in main', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(Date.UTC(2026, 9, 17, 12))
     const { manager, internals } = fixture([group('broken', 'not a time'), group('beta')])
-    manager.setWorkspacePinned('beta', true)
+    setWorkspacePinned(manager, 'beta', true)
     expect(internals.mcpTabGroups.get('beta')!.pinnedAt).toBe('2026-10-17T12:00:00.000Z')
   })
 
   it('refuses an unknown workspace', () => {
     const { manager } = fixture([group('alpha')])
-    expect(() => manager.setWorkspacePinned('missing', true)).toThrow('Unknown workspace: missing')
+    expect(() => setWorkspacePinned(manager, 'missing', true)).toThrow('Unknown workspace: missing')
   })
 })
 
@@ -123,9 +124,9 @@ describe('tab order in main with pinned workspaces', () => {
     const { manager, internals } = fixture([group('alpha'), group('beta'), group('gamma')], tabs)
     const stored = orderedTabs(internals as never).map((tab) => tab.id)
     expect(stored).toEqual(['home', 'alpha-1', 'alpha-2', 'beta-1', 'gamma-pinned', 'gamma-1'])
-    manager.setWorkspacePinned('beta', true)
+    setWorkspacePinned(manager, 'beta', true)
     expect(orderedTabs(internals as never).map((tab) => tab.id)).toEqual(['home', 'beta-1', 'alpha-1', 'alpha-2', 'gamma-pinned', 'gamma-1'])
-    manager.setWorkspacePinned('beta', false)
+    setWorkspacePinned(manager, 'beta', false)
     expect(orderedTabs(internals as never).map((tab) => tab.id)).toEqual(stored)
   })
 
@@ -173,13 +174,13 @@ describe('the workspace menu\'s pin item', () => {
     const alpha = internals.mcpTabGroups.get('alpha')!
     const pin = pinItem(menuItems(internals, alpha))
     // Another menu pinned it before this one's click.
-    manager.setWorkspacePinned('alpha', true)
+    setWorkspacePinned(manager, 'alpha', true)
     const pinnedAt = alpha.pinnedAt
     click(pin)
     expect(alpha.pinnedAt).toBe(pinnedAt)
 
     const unpin = pinItem(menuItems(internals, alpha))
-    manager.setWorkspacePinned('alpha', false)
+    setWorkspacePinned(manager, 'alpha', false)
     click(unpin)
     expect(alpha.pinnedAt).toBeUndefined()
   })

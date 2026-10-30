@@ -3,6 +3,11 @@ import { describe, expect, it, vi } from 'vitest'
 import type { AppSettings } from '../src/shared/types.js'
 
 vi.mock('electron', () => ({ app: { getPath: () => '' }, nativeTheme: {} }))
+// The fake browser below stubs the functions the code under test calls; these reach its stubs.
+vi.mock('../src/main/browser/tab-sleep/memory-saver.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-sleep/memory-saver.js')>(),
+  setMemorySaverSettings: (browser: { setMemorySaverSettings: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.setMemorySaverSettings(...args)
+}))
 
 const { registerSettingsIpc } = await import('../src/main/settings/settings-ipc.js')
 const { DEFAULT_SETTINGS } = await import('../src/main/settings/settings-store.js')

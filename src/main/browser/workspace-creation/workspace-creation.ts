@@ -8,6 +8,7 @@ import { openWorkspaceRoom } from './workspace-capacity.js'
 import { browserState } from '../browser-state/browser-state.js'
 import { createMcpTabGroup } from '../mcp-tab-groups/create-mcp-tab-group.js'
 import { updateMcpTabGroup } from '../mcp-tab-groups/mcp-tab-groups.js'
+import { closeMcpTabGroup } from '../mcp-tab-groups/close-mcp-tab-group.js'
 
 /**
  * Creates the workspaces a template describes, each without agent access
@@ -30,7 +31,7 @@ export async function importWorkspaceTemplate(browser: Browser, text: string): P
         await browser.createTab({ url, active: false, focus: false, mcpGroupId: workspaceId, loadsInTurn: true })
       }
     },
-    remove: async (workspaceId) => { await browser.closeMcpTabGroup(workspaceId) }
+    remove: async (workspaceId) => { await closeMcpTabGroup(browser, workspaceId) }
   })
   return browser.workspaceTemplateImporter.import(text)
 }
@@ -52,7 +53,7 @@ export async function createWorkspace(browser: Browser, options: BrowserWorkspac
     return browserState(browser)
   } catch (error) {
     try {
-      await browser.closeMcpTabGroup(workspace.id)
+      await closeMcpTabGroup(browser, workspace.id)
     } catch (cleanupError) {
       throw new RetainedBrowserWorkspaceError(
         [error, cleanupError],

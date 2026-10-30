@@ -7,6 +7,7 @@ vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOrigi
   browserState: (browser: { getState: () => unknown }) => browser.getState()
 }))
 import { Browser } from '../src/main/browser/browser.js'
+import { setAllAgentsPaused, setTabAgentPaused } from '../src/main/browser/agent-pause/agent-pause.js'
 
 // The fake browser below stubs the functions the code under test calls; these reach its stubs.
 vi.mock('../src/main/browser/page-navigation/page-navigation.js', async (importOriginal) => ({
@@ -41,7 +42,7 @@ function fixture() {
 
 it('marks a take over and hands the tab back with a note of what the person did', () => {
   const { manager, tab } = fixture()
-  manager.setTabAgentPaused(tab.id, true, { takeOver: true })
+  setTabAgentPaused(manager, tab.id, true, { takeOver: true })
   expect(manager.isTabTakenOver(tab.id)).toBe(true)
   expect(tab.takeOver?.at).toBe(1_000_000)
   // Pausing the tab ends a virtual passkey the agent started in it.
@@ -50,13 +51,13 @@ it('marks a take over and hands the tab back with a note of what the person did'
   expect((manager as unknown as { logpoints: { stop: ReturnType<typeof vi.fn> } }).logpoints.stop).toHaveBeenCalledWith(tab, 'authority-changed')
   // A second take over keeps the first mark, so the note covers the whole time.
   vi.setSystemTime(1_005_000)
-  manager.setTabAgentPaused(tab.id, true, { takeOver: true })
+  setTabAgentPaused(manager, tab.id, true, { takeOver: true })
   expect(tab.takeOver?.at).toBe(1_000_000)
   tab.url = 'https://shop.example/checkout?order=98765'
   tab.navigationGeneration += 1
   tab.humanInteractionGeneration += 2
   vi.setSystemTime(1_030_000)
-  manager.setTabAgentPaused(tab.id, false)
+  setTabAgentPaused(manager, tab.id, false)
   expect(manager.isTabTakenOver(tab.id)).toBe(false)
   expect(tab.takeOver).toBeUndefined()
   const note = (to: string) => `The person had this tab for 30 s and handed it back. The page moved from https://shop.example/cart to ${to}. `
@@ -64,36 +65,36 @@ it('marks a take over and hands the tab back with a note of what the person did'
   // The page moved, so agents kept from URL detail get a note of their own, without the query.
   expect(tab.handedBack).toEqual({ at: 1_030_000, note: note('https://shop.example/checkout?order=98765'), noteWithoutUrlDetail: note('https://shop.example/checkout') })
   // The next take over starts afresh.
-  manager.setTabAgentPaused(tab.id, true, { takeOver: true })
+  setTabAgentPaused(manager, tab.id, true, { takeOver: true })
   expect(tab.handedBack).toBeUndefined()
   expect(manager.isTabTakenOver(tab.id)).toBe(true)
 })
 
 it('keeps a plain pause apart from a take over, and takes over a tab already paused', () => {
   const { manager, tab } = fixture()
-  manager.setTabAgentPaused(tab.id, true)
+  setTabAgentPaused(manager, tab.id, true)
   expect(manager.isTabTakenOver(tab.id)).toBe(false)
-  manager.setTabAgentPaused(tab.id, false)
+  setTabAgentPaused(manager, tab.id, false)
   expect(tab.handedBack).toBeUndefined()
-  manager.setTabAgentPaused(tab.id, true)
-  manager.setTabAgentPaused(tab.id, true, { takeOver: true })
+  setTabAgentPaused(manager, tab.id, true)
+  setTabAgentPaused(manager, tab.id, true, { takeOver: true })
   expect(manager.isTabTakenOver(tab.id)).toBe(true)
 })
 
 it('hands the tab back when resuming all agents ends the take over, but not while they stay paused', () => {
   const { manager, tab } = fixture()
-  manager.setAllAgentsPaused(true)
-  manager.setTabAgentPaused(tab.id, true, { takeOver: true })
+  setAllAgentsPaused(manager, true)
+  setTabAgentPaused(manager, tab.id, true, { takeOver: true })
   expect(manager.isTabTakenOver(tab.id)).toBe(true)
   // The tab's own setting was never paused, so resuming everyone resumes it too.
-  manager.setAllAgentsPaused(false)
+  setAllAgentsPaused(manager, false)
   expect(manager.isTabTakenOver(tab.id)).toBe(false)
   expect(tab.takeOver).toBeUndefined()
   expect(tab.handedBack?.note).toMatch(/^The person had this tab for 0 s and handed it back\./)
 
   // A tab taken over on its own stays with the person through a pause of everyone and its end.
-  manager.setTabAgentPaused(tab.id, true, { takeOver: true })
-  manager.setAllAgentsPaused(true, false)
-  manager.setAllAgentsPaused(false)
+  setTabAgentPaused(manager, tab.id, true, { takeOver: true })
+  setAllAgentsPaused(manager, true, false)
+  setAllAgentsPaused(manager, false)
   expect(manager.isTabTakenOver(tab.id)).toBe(true)
 })

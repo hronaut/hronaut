@@ -19,6 +19,7 @@ import type {
   RendererSettingsState,
   ThemeName
 } from '../../shared/types.js'
+import { browserState } from '../browser/browser-state/browser-state.js'
 
 /**
  * The detached panel window and what it shows, created once by index.ts. The window opens and closes while the app
@@ -58,7 +59,7 @@ interface PanelWindowHost {
   resolvedTheme(theme: ThemeName): ResolvedThemeName
   /** Each theme's window background. */
   themeBackground: Record<ResolvedThemeName, string>
-  tabs(): Pick<Browser, 'getState' | 'listDownloads'> | null
+  tabs(): Browser | null
   currentRendererSettingsState(): RendererSettingsState
   /** The update state; read on every use because each update replaces the object. */
   updateState(): AppUpdateState
@@ -123,8 +124,9 @@ export function createPanelWindow(host: PanelWindowHost): {
 
   function sendPanelWindowSnapshot(target: BrowserWindow): void {
     if (target.isDestroyed() || target.webContents.isDestroyed()) return
-    target.webContents.send('browser:state-changed', host.tabs()?.getState())
-    target.webContents.send('browser:downloads-changed', host.tabs()?.listDownloads() ?? [])
+    const browser = host.tabs()
+    target.webContents.send('browser:state-changed', browser ? browserState(browser) : undefined)
+    target.webContents.send('browser:downloads-changed', browser?.listDownloads() ?? [])
     target.webContents.send('settings:changed', host.settings())
     target.webContents.send('settings:renderer-state-changed', host.currentRendererSettingsState())
     target.webContents.send('updates:changed', host.updateState())

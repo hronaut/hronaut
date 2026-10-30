@@ -33,7 +33,7 @@ import type { McpToolSet } from '../../shared/mcp-tool-sets.js'
 import type { BookmarkOperations, HistoryOperations, SiteDataOperations } from './browser-data-operations.js'
 import { type WalletAgentOperations, WalletAgentSessionRegistry } from './wallet-agent-sessions.js'
 import { createBrowserMcpServer } from './browser-mcp-server.js'
-import { hasAgentPauseExceptions } from '../browser/agent-pause/agent-pause.js'
+import { hasAgentPauseExceptions, setTabAgentPaused } from '../browser/agent-pause/agent-pause.js'
 import { listMcpTabGroups } from '../browser/mcp-tab-groups/mcp-tab-groups.js'
 import { suspendWorkspaceContinuity } from '../browser/workspace-continuity/workspace-continuity.js'
 import { tabBelongsToMcpGroup } from '../browser/workspace-scope/workspace-scope.js'
@@ -205,7 +205,7 @@ export class McpHttpServer {
 
   setTabAgentPaused(tabId: string, paused: boolean, options: { takeOver?: boolean } = {}): BrowserState {
     if (this.paused && !this.allowTabPauseOverrides) throw new Error('Agents are temporarily paused for a protected operation.')
-    const state = this.manager.setTabAgentPaused(tabId, paused, options)
+    const state = setTabAgentPaused(this.manager, tabId, paused, options)
     this.actionTracker.invalidatePendingDispatches()
     return state
   }

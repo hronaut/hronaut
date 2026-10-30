@@ -12,6 +12,10 @@ vi.mock('../src/main/browser/context-menus/tab-context-menu.js', async (importOr
   ...await importOriginal<typeof import('../src/main/browser/context-menus/tab-context-menu.js')>(),
   showTabContextMenu: (browser: { showTabContextMenu: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.showTabContextMenu(...args)
 }))
+vi.mock('../src/main/browser/tab-close/close-tabs-for-person.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-close/close-tabs-for-person.js')>(),
+  closeTabsForPerson: (browser: { closeTabsForPerson: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.closeTabsForPerson(...args)
+}))
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown
 

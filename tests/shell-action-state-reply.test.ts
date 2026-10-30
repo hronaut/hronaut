@@ -14,7 +14,8 @@ vi.mock('../src/main/browser/page-navigation/page-navigation.js', async (importO
   ...await importOriginal<typeof import('../src/main/browser/page-navigation/page-navigation.js')>(),
   back: (browser: { back: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.back(...args),
   forward: (browser: { forward: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.forward(...args),
-  reload: (browser: { reload: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.reload(...args)
+  reload: (browser: { reload: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.reload(...args),
+  navigate: (browser: { navigate: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.navigate(...args)
 }))
 // A fake browser that stubs no pause answers has no paused or taken-over tab.
 vi.mock('../src/main/browser/agent-pause/agent-pause.js', async (importOriginal) => ({
@@ -22,6 +23,14 @@ vi.mock('../src/main/browser/agent-pause/agent-pause.js', async (importOriginal)
   isTabAgentPaused: (browser: { isTabAgentPaused?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.isTabAgentPaused?.(...args) ?? false,
   hasPausedAgentTab: (browser: { hasPausedAgentTab?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.hasPausedAgentTab?.(...args) ?? false,
   isTabTakenOver: (browser: { isTabTakenOver?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.isTabTakenOver?.(...args) ?? false
+}))
+vi.mock('../src/main/browser/tab-close/close-tabs-for-person.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-close/close-tabs-for-person.js')>(),
+  closeTabsForPerson: (browser: { closeTabsForPerson: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.closeTabsForPerson(...args)
+}))
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  browserState: (browser: { getState: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.getState(...args)
 }))
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown

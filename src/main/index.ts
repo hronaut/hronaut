@@ -24,18 +24,7 @@ import { createTrayAttention, type UserAttentionState } from './attention/tray-a
 import { join } from 'node:path'
 import { createIpcGuards, trustedShellUrl, trustedUrlMatches } from './ipc-guards.js'
 import { LocalizedError, withTranslatedIpcErrors } from './localized-error.js'
-import {
-  app,
-  autoUpdater as nativeAutoUpdater,
-  BrowserWindow,
-  dialog,
-  ipcMain,
-  nativeImage,
-  nativeTheme,
-  protocol,
-  session,
-  shell
-} from 'electron'
+import { app, autoUpdater as nativeAutoUpdater, BrowserWindow, dialog, ipcMain, nativeImage, nativeTheme, protocol, session, shell } from 'electron'
 import electronUpdater from 'electron-updater'
 import { enableNativeWebMcp } from './native-webmcp-switch.js'
 import { createAppUpdates, type AppUpdatesState } from './updates/app-updates.js'
@@ -117,6 +106,14 @@ import { createRuntimeShutdown } from './runtime-shutdown.js'
 import { logUncaughtExceptions } from './uncaught-exceptions.js'
 import { isTabAgentPaused } from './browser/agent-pause/agent-pause.js'
 import { listMcpTabGroups } from './browser/mcp-tab-groups/mcp-tab-groups.js'
+import { captureAgentStepThumbnail } from './browser/agent-step-thumbnail/agent-step-thumbnail.js'
+import { initializeBrowser } from './browser/browser-lifecycle/initialize-browser.js'
+import { browserState } from './browser/browser-state/browser-state.js'
+import { browserImportDestination, importBrowserCookies } from './browser/workspace-data/browser-cookie-import.js'
+import { withholdFocusAfterTrustedChrome } from './browser/trusted-chrome-focus/trusted-chrome-focus.js'
+import { windowFullScreenToSave } from './browser/page-fullscreen/page-fullscreen.js'
+import { applySiteMutingToTabs } from './browser/site-muting/site-muting.js'
+import { handleMcpTabActivity } from './browser/agent-follow/agent-follow.js'
 
 logUncaughtExceptions()
 
@@ -191,7 +188,7 @@ const trustedDialogs = createTrustedDialogs({
   keyboardPage: () => tabRuntime.tabs?.keyboardPage() ?? null,
   // Only a page in view gets it back; the shell keeps its own focus on the control it restores.
   returnKeyboard: (page) => tabRuntime.tabs?.focusPageAfterQuestion(page),
-  withholdKeyboard: () => tabRuntime.tabs?.withholdKeyboardAfterQuestion()
+  withholdKeyboard: () => tabRuntime.tabs ? withholdFocusAfterTrustedChrome(tabRuntime.tabs) : undefined
 })
 const addressSuggestionOverlay = createAddressSuggestionOverlay({
   trustedShellUrl,
@@ -307,7 +304,7 @@ const {
 } = createWindowStatePersistence({
   window: () => mainWindowRefs.window,
   // A page's full screen, such as a video's, ends with the page, so the next start opens the window as the person had it.
-  fullScreen: () => tabRuntime.tabs?.windowFullScreenToSave() ?? Boolean(mainWindowRefs.window?.isFullScreen()),
+  fullScreen: () => tabRuntime.tabs ? windowFullScreenToSave(tabRuntime.tabs) : Boolean(mainWindowRefs.window?.isFullScreen()),
   store: () => mainWindowRefs.stateStore,
   lastState: () => mainWindowRefs.lastState,
   setLastState: (state) => { mainWindowRefs.lastState = state },
@@ -911,7 +908,7 @@ function registerIpc(): void {
   const cancelBrowserImport = registerBrowserImportIpc({
     ipcMain: hronautIpcMain,
     assertSender: assertInitializedMainShellSender,
-    destination: id => tabRuntime.tabs!.browserImportDestination(id),
+    destination: id => browserImportDestination(tabRuntime.tabs!, id),
     consent: async (profile, destination) => {
       const { response } = await trustedDialogs.show({
         type: 'question', title: text('browserImport.title', { name: destination.name }),
@@ -926,7 +923,7 @@ function registerIpc(): void {
       pausePersistently: () => { setMcpPaused(true) },
       acquireTemporaryPause: acquireTemporaryMcpPause,
       getActiveRequestCount: () => mcpRuntime.server?.getActiveRequestCount() ?? mcpActionTracker.activeCount,
-      fill: () => tabRuntime.tabs!.importBrowserCookies(destination, cookies)
+      fill: () => importBrowserCookies(tabRuntime.tabs!, destination, cookies)
     })
   })
   mainWindowRefs.window?.webContents.on('did-start-navigation', (_event, _url, _inPlace, isMainFrame) => { if (isMainFrame) cancelBrowserImport() })
@@ -966,7 +963,7 @@ function registerIpc(): void {
     bookmarks: () => bookmarksAndHistory.bookmarks!,
     history: () => bookmarksAndHistory.history!,
     downloads: () => tabRuntime.tabs!,
-    tabs: () => tabRuntime.tabs?.getState().tabs ?? [],
+    tabs: () => tabRuntime.tabs ? browserState(tabRuntime.tabs).tabs : [],
     publishBookmarks,
     publishVisitHistory,
     historyCleared,
@@ -1128,7 +1125,7 @@ function registerIpc(): void {
     publishSitePermissions: () => {
       publishSitePermissions()
       // A website's Sound setting changed or forgotten in Settings mutes or unmutes its open tabs at once, as in Chrome.
-      tabRuntime.tabs?.applySiteMutingToTabs()
+      if (tabRuntime.tabs) applySiteMutingToTabs(tabRuntime.tabs)
     }
   })
   registerCredentialsIpc(hronautIpcMain, {
@@ -1469,7 +1466,7 @@ async function createWindow(startMinimized = false): Promise<void> {
   mainWindowRefs.window.webContents.on('did-finish-load', () => {
     applyInterfaceScale(settingsState.current.interfaceScale)
     if (tabRuntime.tabs && mainWindowRefs.window && !mainWindowRefs.window.webContents.isDestroyed()) {
-      if (!tabRuntime.initialization) mainWindowRefs.window.webContents.send('browser:state-changed', tabRuntime.tabs.getState())
+      if (!tabRuntime.initialization) mainWindowRefs.window.webContents.send('browser:state-changed', browserState(tabRuntime.tabs))
       mainWindowRefs.window.webContents.send('updates:changed', appUpdates.current)
       mainWindowRefs.window.webContents.send('mcp:changed', currentMcpControlState())
       mainWindowRefs.window.webContents.send('bookmarks:changed', bookmarksAndHistory.bookmarks?.list() ?? [])
@@ -1493,7 +1490,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     } else {
       await mainWindowRefs.window.loadFile(join(__dirname, '../renderer/index.html'))
     }
-    await tabRuntime.tabs.initialize()
+    await initializeBrowser(tabRuntime.tabs)
     tabRuntime.initializedTabs = tabRuntime.tabs
     // Only workspaces that loaded can tell which decisions belong to none: a forget that failed, or a crash, leaves those.
     const loadedTabs = tabRuntime.tabs
@@ -1511,7 +1508,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     if (tabRuntime.initialization === currentTabsInitialization) tabRuntime.initialization = null
   }
   if (!mainWindowRefs.window.webContents.isDestroyed()) {
-    mainWindowRefs.window.webContents.send('browser:state-changed', tabRuntime.tabs.getState())
+    mainWindowRefs.window.webContents.send('browser:state-changed', browserState(tabRuntime.tabs))
     mainWindowRefs.window.webContents.send('settings:changed', settingsState.current)
     mainWindowRefs.window.webContents.send('settings:renderer-state-changed', currentRendererSettingsState())
     mainWindowRefs.window.webContents.send('updates:changed', appUpdates.current)
@@ -1571,13 +1568,13 @@ function createRuntimeMcpServer(
     wallets: agentWallets,
     onTabActivity: (activity, agent) => {
       noteMcpTabActivity(activity)
-      tabRuntime.tabs?.handleMcpTabActivity(activity, agent)
+      if (tabRuntime.tabs) handleMcpTabActivity(tabRuntime.tabs, activity, agent)
       if (mainWindowRefs.window && !mainWindowRefs.window.webContents.isDestroyed()) {
         mainWindowRefs.window.webContents.send('browser:mcp-tab-activity', activity)
       }
     },
     onAgentPresenceChanged: scheduleAgentPresencePublish,
-    captureAgentStepThumbnail: async (tabId, workspaceId) => tabRuntime.tabs ? tabRuntime.tabs.captureAgentStepThumbnail(tabId, workspaceId) : undefined
+    captureAgentStepThumbnail: async (tabId, workspaceId) => tabRuntime.tabs ? captureAgentStepThumbnail(tabRuntime.tabs, tabId, workspaceId) : undefined
   })
 }
 

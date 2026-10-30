@@ -2,6 +2,12 @@ import type { IpcMainInvokeEvent } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
 import { registerNavigationIpc } from '../src/main/navigation-ipc.js'
 
+// The fake browser below stubs the functions the code under test calls; these reach its stubs.
+vi.mock('../src/main/browser/pdf-export/pdf-export.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/pdf-export/pdf-export.js')>(),
+  savePdf: (browser: { savePdf: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.savePdf(...args)
+}))
+
 function savePdfHandler(paper: 'A4' | 'Letter') {
   const handlers = new Map<string, (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown>()
   const savePdf = vi.fn(async () => ({ filename: 'page.pdf', path: '/downloads/page.pdf', bytes: 1 }))

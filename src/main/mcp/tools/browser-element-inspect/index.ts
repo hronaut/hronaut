@@ -5,6 +5,7 @@ import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import { type ElementInspectionSettlement, elementInspectionSettlement } from '../element-inspection-settlement.js'
 import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
+import { elementInspection } from '../../../browser/element-inspection/element-inspection.js'
 
 export function registerBrowserElementInspect(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -41,7 +42,7 @@ export function registerBrowserElementInspect(context: McpToolContext): void {
       expectedValue?: string
     }, call: WorkspaceToolCall<ElementInspectionSettlement>) => {
       const previewBefore = manager.cssStatePreviewMarker(options.tabId)
-      const inspection = await manager.elementInspection(options, call.requireCurrentTarget, pending => { call.settlement.retain(pending) })
+      const inspection = await elementInspection(manager, options, call.requireCurrentTarget, pending => { call.settlement.retain(pending) })
       const cssStatePreview = previewBefore ?? manager.cssStatePreviewMarker(options.tabId)
       return textResult(cssStatePreview ? { ...inspection, cssStatePreview } : inspection)
     }),

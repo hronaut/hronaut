@@ -22,7 +22,8 @@ vi.mock('../src/main/browser/page-snapshots/page-snapshots.js', async (importOri
   ...await importOriginal<typeof import('../src/main/browser/page-snapshots/page-snapshots.js')>(),
   findSnapshot: (browser: { findSnapshot: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.findSnapshot(...args),
   setSnapshotBaseline: (browser: { setSnapshotBaseline: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.setSnapshotBaseline(...args),
-  snapshotDelta: (browser: { snapshotDelta: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.snapshotDelta(...args)
+  snapshotDelta: (browser: { snapshotDelta: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.snapshotDelta(...args),
+  snapshotDetails: (browser: { snapshotDetails: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.snapshotDetails(...args)
 }))
 vi.mock('../src/main/browser/workspace-scope/workspace-scope.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/workspace-scope/workspace-scope.js')>(),
@@ -42,7 +43,8 @@ vi.mock('../src/main/browser/mcp-tab-groups/mcp-tab-groups.js', async (importOri
 }))
 vi.mock('../src/main/browser/workspace-archive/workspace-archive.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/workspace-archive/workspace-archive.js')>(),
-  saveAndCloseTabGroup: (browser: { saveAndCloseTabGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.saveAndCloseTabGroup(...args)
+  saveAndCloseTabGroup: (browser: { saveAndCloseTabGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.saveAndCloseTabGroup(...args),
+  deleteSavedTabGroup: (browser: { deleteSavedTabGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.deleteSavedTabGroup(...args)
 }))
 // A fake browser that stubs no pause answers has no paused or taken-over tab.
 vi.mock('../src/main/browser/agent-pause/agent-pause.js', async (importOriginal) => ({

@@ -25,6 +25,10 @@ vi.mock('../src/main/browser/mcp-tab-groups/mcp-tab-groups.js', async (importOri
   listMcpTabGroups: (browser: { listMcpTabGroups: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.listMcpTabGroups(...args),
   requireMcpTabGroup: (browser: { requireMcpTabGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireMcpTabGroup(...args)
 }))
+vi.mock('../src/main/browser/tab-selection/tab-selection.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-selection/tab-selection.js')>(),
+  selectTabAndWait: (browser: { selectTabAndWait: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.selectTabAndWait(...args)
+}))
 // A fake browser that stubs no pause answers has no paused or taken-over tab.
 vi.mock('../src/main/browser/agent-pause/agent-pause.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/agent-pause/agent-pause.js')>(),

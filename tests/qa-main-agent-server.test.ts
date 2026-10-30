@@ -34,6 +34,10 @@ vi.mock('../src/main/browser/agent-pause/agent-pause.js', async (importOriginal)
   hasPausedAgentTab: (browser: { hasPausedAgentTab?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.hasPausedAgentTab?.(...args) ?? false,
   isTabTakenOver: (browser: { isTabTakenOver?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.isTabTakenOver?.(...args) ?? false
 }))
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  browserState: (browser: { getState: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.getState(...args)
+}))
 
 const workspaceId = '01912345-6789-7abc-8def-0123456789ab'
 const otherWorkspaceId = '01912345-6789-7abc-8def-0123456789ac'

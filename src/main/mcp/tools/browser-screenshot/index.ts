@@ -5,6 +5,7 @@ import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
 import { ScreenshotObservations } from './screenshot-observations.js'
 import { screenshotSettlement, type ScreenshotSettlement } from './screenshot-settlement.js'
 import { trackedViewportScreenshot } from '../../../browser/screenshot-observations/tracked-screenshot.js'
+import { screenshot } from '../../../browser/screenshots/screenshots.js'
 
 export function registerBrowserScreenshot(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -71,7 +72,7 @@ export function registerBrowserScreenshot(context: McpToolContext): void {
         ] }
       }
       const previewBefore = manager.cssStatePreviewMarker(options.tabId)
-      const image = await manager.screenshot(options)
+      const image = await screenshot(manager, options)
       const cssStatePreview = previewBefore ?? manager.cssStatePreviewMarker(options.tabId)
       return { content: [
         ...(image.annotations ? [{ type: 'text' as const, text: JSON.stringify(image.annotations) }] : []),

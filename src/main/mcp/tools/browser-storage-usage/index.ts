@@ -3,6 +3,7 @@ import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import { type StorageInspectionSettlement, storageInspectionSettlement } from '../storage-inspection-settlement.js'
 import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
+import { inspectStorageUsage } from '../../../browser/site-storage/storage-inspection.js'
 
 export function registerBrowserStorageUsage(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -25,7 +26,7 @@ export function registerBrowserStorageUsage(context: McpToolContext): void {
         readStarted: call.settlement.markStarted,
         retainPublication: call.settlement.retainPublication
       } satisfies StorageInspectionHooks
-      return textResult(await manager.inspectStorageUsage(tabId, storageInspectionHooks))
+      return textResult(await inspectStorageUsage(manager, tabId, storageInspectionHooks))
     }),
     { settlement: () => storageInspectionSettlement() }
   )

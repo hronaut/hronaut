@@ -44,6 +44,10 @@ vi.mock('../src/main/browser/agent-pause/agent-pause.js', async (importOriginal)
   hasPausedAgentTab: (browser: { hasPausedAgentTab?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.hasPausedAgentTab?.(...args) ?? false,
   isTabTakenOver: (browser: { isTabTakenOver?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.isTabTakenOver?.(...args) ?? false
 }))
+vi.mock('../src/main/browser/page-navigation/page-navigation.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/page-navigation/page-navigation.js')>(),
+  navigate: (browser: { navigate: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.navigate(...args)
+}))
 
 // Original failure: with Follow agents on, the browser state carries `agentFollow`, the tab in view and the
 // name of the agent being followed. The workspace-scoped state that browser_status and every state-returning

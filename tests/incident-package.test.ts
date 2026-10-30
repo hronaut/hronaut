@@ -12,6 +12,10 @@ vi.mock('../src/main/browser/network-inspection/network-inspection.js', async (i
   ...await importOriginal<typeof import('../src/main/browser/network-inspection/network-inspection.js')>(),
   networkHar: (browser: { networkHar: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.networkHar(...args)
 }))
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  browserState: (browser: { getState: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.getState(...args)
+}))
 
 const now = Date.parse('2026-10-01T01:00:00Z')
 function fixture() {

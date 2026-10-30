@@ -4,6 +4,7 @@ import type { PendingPdfExport } from '../../../browser/pdf-export-publication.j
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
+import { savePdf } from '../../../browser/pdf-export/pdf-export.js'
 
 // Holds the written PDF until the call settles: it is published only if the call still has its authority then.
 function pdfExportSettlement() {
@@ -49,7 +50,7 @@ export function registerBrowserPdfSave(context: McpToolContext): void {
         if (call.signal?.aborted) throw new Error('PDF export cancelled')
         call.requireCurrentTarget()
       }
-      return textResult(await manager.savePdf(options, validateExport, pending => { call.settlement.retain(pending) }))
+      return textResult(await savePdf(manager, options, validateExport, pending => { call.settlement.retain(pending) }))
     }),
     { settlement: pdfExportSettlement }
   )

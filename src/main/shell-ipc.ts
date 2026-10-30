@@ -7,7 +7,7 @@ import type { SidebarOverlay } from './overlays/sidebar-overlay.js'
 import { scaleShellMetric } from '../shared/interface-scale.js'
 import { parseScrimColor, type ScrimColor } from '../shared/title-bar.js'
 import { setContentInsets, setToolbarHeight } from './browser/window-layout/content-area.js'
-import { setFollowAgentActivitySuspended } from './browser/trusted-chrome-occlusion/trusted-chrome-occlusion.js'
+import { setFollowAgentActivitySuspended, setBrowserContentOccluded } from './browser/trusted-chrome-occlusion/trusted-chrome-occlusion.js'
 
 interface ShellIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
@@ -93,7 +93,7 @@ export function registerShellIpc(ipcMain: Pick<IpcMain, 'handle' | 'on'>, host: 
     // The report that the pages left the screen names this request, so the shell can tell it from one for an earlier request.
     if (typeof request !== 'number' || !Number.isSafeInteger(request) || request < 0) throw new TypeError('Invalid browser content occlusion request')
     const tabs = host.tabs()
-    if (tabs) tabs.setBrowserContentOccluded(occluded, request)
+    if (tabs) setBrowserContentOccluded(tabs, occluded, request)
     // Without the tab runtime no page is on screen, and the shell waits for this report before a question takes answers.
     else if (occluded && !event.sender.isDestroyed()) event.sender.send('browser:occlusion-pages-hidden', request)
     host.sidebarOverlay().occlusionChanged(occluded)

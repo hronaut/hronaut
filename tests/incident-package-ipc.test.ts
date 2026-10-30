@@ -3,6 +3,12 @@ import { expect, it, vi } from 'vitest'
 import { registerIncidentPackageIpc } from '../src/main/incident/incident-package-ipc.js'
 import type { IncidentDraft, IncidentPreview } from '../src/shared/incident-package.js'
 
+// The fake browser below stubs the functions the code under test calls; these reach its stubs.
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  browserState: (browser: { getState: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.getState(...args)
+}))
+
 function fixture() {
   const handlers = new Map<string, Parameters<IpcMain['handle']>[1]>()
   const event = { sender: { id: 1, once: vi.fn() } } as unknown as IpcMainInvokeEvent

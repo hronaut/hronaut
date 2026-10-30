@@ -43,6 +43,10 @@ vi.mock('../src/main/browser/page-audits/security-report.js', async (importOrigi
   ...await importOriginal<typeof import('../src/main/browser/page-audits/security-report.js')>(),
   securityReport: (browser: { securityReport: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.securityReport(...args)
 }))
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  browserState: (browser: { getState: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.getState(...args)
+}))
 
 type Listener = Parameters<IpcMain['handle']>[1]
 const channels = [

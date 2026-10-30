@@ -2,6 +2,7 @@ import { expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' } }))
 import { Browser } from '../src/main/browser/browser.js'
 import type { StorageInspectionHooks } from '../src/main/browser/storage-inspection-operation.js'
+import { inspectStorageUsage } from '../src/main/browser/site-storage/storage-inspection.js'
 
 for (const stage of ['queue', 'monitor', 'attach', 'Page.enable', 'Runtime.enable', 'Runtime.setAsyncCallStackDepth', 'Log.enable', 'primary', 'fallback', 'unchanged'] as const) it(`checks quota authority at ${stage} without fallback after a one-shot veto`, async () => {
   let veto = false
@@ -32,10 +33,10 @@ for (const stage of ['queue', 'monitor', 'attach', 'Page.enable', 'Runtime.enabl
   const started = vi.fn()
   const hooks: StorageInspectionHooks = { validate: () => { if (veto) { veto = false; throw new Error('private one-shot authority veto') } }, readStarted: started, retainPublication: guard => { publication = guard } }
   if (stage === 'unchanged') {
-    await expect(manager.inspectStorageUsage('tab', hooks)).resolves.toMatchObject({ source: 'chromium-quota', usage: 1 })
+    await expect(inspectStorageUsage(manager, 'tab', hooks)).resolves.toMatchObject({ source: 'chromium-quota', usage: 1 })
     expect(publication).not.toThrow()
   } else {
-    await expect(manager.inspectStorageUsage('tab', hooks)).rejects.toThrow('Storage observation was withheld')
+    await expect(inspectStorageUsage(manager, 'tab', hooks)).rejects.toThrow('Storage observation was withheld')
     expect(publication).toThrow('Storage observation was withheld')
   }
   const methods = contents.debugger.sendCommand.mock.calls.map(([method]) => method)
