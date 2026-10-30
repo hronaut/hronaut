@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- A panel moved to its own window and opened while Hronaut was still restoring your workspaces at startup now shows every workspace and tab once they are back. It could show only those restored by the time it opened, until the next change to a tab.
+
 ## [3.14.0] - 2026-10-29
 
 ### Added
