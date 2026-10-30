@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events'
 import type { WebContents } from 'electron'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { BrowserCssStatePreview, type CssStatePreviewHost } from '../src/main/browser/css-state-preview.js'
+import { BrowserCssStatePreview, type CssStatePreviewHost } from '../src/main/browser/css-state-preview/css-state-preview.js'
 import { CSS_STATE_PREVIEW_LIMITS, normalizeCssStatePreviewStates } from '../src/shared/css-state-preview.js'
 
 type Handler = (params: Record<string, unknown> | undefined) => unknown
