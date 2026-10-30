@@ -7,6 +7,8 @@ import type { BrowserCredentialCandidate } from '../browser/browser.js'
 import type { TrustedDialogOptions } from '../trusted-dialogs/trusted-dialogs.js'
 import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
 import type { CredentialStorageStatus } from '../../shared/types.js'
+import { CREDENTIALS_IPC } from '../../shared/ipc/credentials.js'
+import type { ShellWindowsSender } from '../../shared/ipc/channel.js'
 
 /**
  * Saved passwords' storage, created once by index.ts. Startup opens the store when secure storage allows it; the
@@ -29,7 +31,7 @@ interface CredentialRuntimeHost {
   mainWindow(): Pick<BrowserWindow, 'isDestroyed'> | null
   /** Secure storage's status and the password store; index.ts creates the record, and other features read it too. */
   state: CredentialRuntimeState
-  sendToShellWindows(channel: string, ...args: unknown[]): void
+  sendToShellWindows: ShellWindowsSender
   /** Tells the shell that a browser action failed, such as saving a password a page submitted. */
   reportBrowserActionFailure(action: string, error: unknown): void
 }
@@ -61,7 +63,7 @@ export function createCredentialRuntime(host: CredentialRuntimeHost): {
 
   /** Tells both shell windows which passwords are saved. */
   function publishCredentials(): void {
-    host.sendToShellWindows('credentials:changed', host.state.store?.list() ?? [])
+    host.sendToShellWindows(CREDENTIALS_IPC.changed, host.state.store?.list() ?? [])
   }
 
   /**
@@ -154,7 +156,7 @@ export function createCredentialRuntime(host: CredentialRuntimeHost): {
       host.state.store = null
       host.state.storageStatus = { available: false, backend, reason: host.text('native.errors.secureStorage') }
     }
-    host.sendToShellWindows('credentials:status-changed', host.state.storageStatus)
+    host.sendToShellWindows(CREDENTIALS_IPC.statusChanged, host.state.storageStatus)
     publishCredentials()
   }
 

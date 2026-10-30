@@ -11,6 +11,7 @@ import { saveShownPage } from '../browser/page-save/page-save.js'
 import { viewShownPageSource } from '../browser/page-source/page-source.js'
 import { setZoom } from '../browser/page-zoom/page-zoom.js'
 import { newTab } from '../browser/new-tabs/open-new-tab.js'
+import { UPDATES_IPC } from '../../shared/ipc/updates.js'
 
 interface ApplicationMenuHost {
   /** Translates into the current interface language; read on every build because the language can change. */
@@ -165,7 +166,7 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
               label: host.text('native.menu.checkUpdates'),
               click: () => {
                 host.showWindow()
-                host.mainWindow()?.webContents.send('updates:open')
+                host.mainWindow()?.webContents.send(UPDATES_IPC.open)
                 void host.checkForUpdates()
               }
             },
@@ -365,7 +366,7 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
               label: host.text('native.menu.checkUpdatesPlain'),
               click: () => {
                 host.showWindow()
-                host.mainWindow()?.webContents.send('updates:open')
+                host.mainWindow()?.webContents.send(UPDATES_IPC.open)
                 void host.checkForUpdates()
               }
             }

@@ -20,6 +20,9 @@ import type {
   ThemeName
 } from '../../shared/types.js'
 import { browserState } from '../browser/browser-state/browser-state.js'
+import { CREDENTIALS_IPC } from '../../shared/ipc/credentials.js'
+import { PERMISSIONS_IPC } from '../../shared/ipc/permissions.js'
+import { UPDATES_IPC } from '../../shared/ipc/updates.js'
 
 /**
  * The detached panel window and what it shows, created once by index.ts. The window opens and closes while the app
@@ -129,10 +132,10 @@ export function createPanelWindow(host: PanelWindowHost): {
     target.webContents.send('browser:downloads-changed', browser?.downloadController.listDownloads() ?? [])
     target.webContents.send('settings:changed', host.settings())
     target.webContents.send('settings:renderer-state-changed', host.currentRendererSettingsState())
-    target.webContents.send('updates:changed', host.updateState())
+    target.webContents.send(UPDATES_IPC.changed, host.updateState())
     target.webContents.send('mcp:changed', host.currentMcpControlState())
-    target.webContents.send('credentials:changed', host.credentialStore()?.list() ?? [])
-    target.webContents.send('permissions:changed', host.sitePermissionStore()?.list() ?? [])
+    target.webContents.send(CREDENTIALS_IPC.changed, host.credentialStore()?.list() ?? [])
+    target.webContents.send(PERMISSIONS_IPC.changed, host.sitePermissionStore()?.list() ?? [])
     target.webContents.send('bookmarks:changed', host.bookmarkStore()?.list() ?? [])
     target.webContents.send('visit-history:changed', host.historyStore()?.list() ?? [])
   }

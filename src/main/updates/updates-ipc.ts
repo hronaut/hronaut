@@ -1,6 +1,7 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import { ReleaseHistoryService } from './release-history.js'
 import type { AppUpdateState } from '../../shared/types.js'
+import { UPDATES_IPC } from '../../shared/ipc/updates.js'
 
 interface UpdatesIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
@@ -14,15 +15,15 @@ interface UpdatesIpcHost {
 /** Dependencies stay lazy because handlers are registered before the window loads. */
 export function registerUpdatesIpc(ipcMain: Pick<IpcMain, 'handle'>, host: UpdatesIpcHost): void {
   const releaseHistoryService = new ReleaseHistoryService()
-  ipcMain.handle('updates:get-state', (event) => { host.assertTrustedSender(event); return { ...host.updateState() } })
-  ipcMain.handle('updates:get-release-history', (event, page: unknown, bypassCache: unknown) => {
+  ipcMain.handle(UPDATES_IPC.getState, (event) => { host.assertTrustedSender(event); return { ...host.updateState() } })
+  ipcMain.handle(UPDATES_IPC.getReleaseHistory, (event, page: unknown, bypassCache: unknown) => {
     host.assertTrustedSender(event)
     if (typeof page !== 'number' || typeof bypassCache !== 'boolean') {
       throw new TypeError('Invalid release history request.')
     }
     return releaseHistoryService.getPage(page, bypassCache)
   })
-  ipcMain.handle('updates:check', (event) => { host.assertTrustedSender(event); return host.checkForUpdates() })
-  ipcMain.handle('updates:download', (event) => { host.assertTrustedSender(event); return host.downloadUpdate() })
-  ipcMain.handle('updates:install', (event) => { host.assertTrustedSender(event); return host.installDownloadedUpdate() })
+  ipcMain.handle(UPDATES_IPC.check, (event) => { host.assertTrustedSender(event); return host.checkForUpdates() })
+  ipcMain.handle(UPDATES_IPC.download, (event) => { host.assertTrustedSender(event); return host.downloadUpdate() })
+  ipcMain.handle(UPDATES_IPC.install, (event) => { host.assertTrustedSender(event); return host.installDownloadedUpdate() })
 }

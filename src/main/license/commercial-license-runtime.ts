@@ -8,6 +8,8 @@ import type { AppQuitState } from '../app-lifecycle.js'
 import { LocalizedError } from '../localized-error.js'
 import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
 import type { CommercialLicenseState, CredentialStorageStatus } from '../../shared/types.js'
+import { LICENSE_IPC } from '../../shared/ipc/license.js'
+import type { ShellWindowsSender } from '../../shared/ipc/channel.js'
 
 const COMMERCIAL_LICENSE_API_BASE = process.env.HRONAUT_LICENSE_API_BASE || COMMERCIAL_LICENSE_API_BASE_URL
 
@@ -30,7 +32,7 @@ interface CommercialLicenseRuntimeHost {
   credentialStorageStatus(): CredentialStorageStatus
   /** Whether the app is quitting, when the state stops refreshing itself; read on every publish. */
   quit: AppQuitState
-  sendToShellWindows(channel: string, ...args: unknown[]): void
+  sendToShellWindows: ShellWindowsSender
   /** The license store and its state timer; index.ts creates the record, and other features read it too. */
   state: CommercialLicenseRuntimeState
 }
@@ -82,7 +84,7 @@ export function createCommercialLicenseRuntime(host: CommercialLicenseRuntimeHos
    */
   function publishCommercialLicenseState(): CommercialLicenseState {
     const state = currentCommercialLicenseState()
-    host.sendToShellWindows('license:changed', state)
+    host.sendToShellWindows(LICENSE_IPC.changed, state)
     clearTimeout(host.state.stateTimer)
     if (!host.quit.quitting) host.state.stateTimer = setTimeout(publishCommercialLicenseState, commercialLicenseStateRefreshDelay(state)).unref()
     return state

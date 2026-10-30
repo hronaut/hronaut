@@ -1,6 +1,7 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import { commercialLicensePurchaseHandler } from './commercial-license-links.js'
 import type { CommercialLicenseState } from '../../shared/types.js'
+import { LICENSE_IPC } from '../../shared/ipc/license.js'
 
 interface LicenseIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
@@ -13,24 +14,24 @@ interface LicenseIpcHost {
 
 /** Dependencies stay lazy because handlers are registered before the window loads. */
 export function registerLicenseIpc(ipcMain: Pick<IpcMain, 'handle'>, host: LicenseIpcHost): void {
-  ipcMain.handle('license:get-state', (event) => {
+  ipcMain.handle(LICENSE_IPC.getState, (event) => {
     host.assertTrustedSender(event)
     return host.currentCommercialLicenseState()
   })
-  ipcMain.handle('license:activate', (event, licenseKey: unknown) => {
+  ipcMain.handle(LICENSE_IPC.activate, (event, licenseKey: unknown) => {
     host.assertTrustedSender(event)
     return host.activateCommercialLicense(licenseKey)
   })
-  ipcMain.handle('license:refresh', (event) => {
+  ipcMain.handle(LICENSE_IPC.refresh, (event) => {
     host.assertTrustedSender(event)
     return host.refreshCommercialLicense()
   })
-  ipcMain.handle('license:deactivate', (event) => {
+  ipcMain.handle(LICENSE_IPC.deactivate, (event) => {
     host.assertTrustedSender(event)
     return host.deactivateCommercialLicense()
   })
   ipcMain.handle(
-    'license:open-purchase',
+    LICENSE_IPC.openPurchase,
     commercialLicensePurchaseHandler(host.assertTrustedSender, (url) => host.openExternal(url))
   )
 }

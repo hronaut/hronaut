@@ -19,6 +19,7 @@ import {
 import { workspaceSession } from '../browser/workspace-data/workspace-data.js'
 import { browserState } from '../browser/browser-state/browser-state.js'
 import { forgetHistoryPages } from '../browser/tab-history-pages/forget-history-pages.js'
+import { BROWSING_DATA_IPC } from '../../shared/ipc/browsing-data.js'
 
 const HOUR_MS = 60 * 60 * 1000
 const TIME_RANGE_MS: Record<Exclude<HistoryTimeRange, 'allTime'>, number> = {
@@ -128,11 +129,11 @@ export function registerBrowsingDataIpc(host: BrowsingDataIpcHost): void {
     return currentBrowsingDataSummary()
   }
 
-  host.handleBrowserIpc('browsing-data:summary', (event) => {
+  host.handleBrowserIpc(BROWSING_DATA_IPC.summary, (event) => {
     host.assertTrustedSender(event)
     return currentBrowsingDataSummary()
   })
-  host.handleBrowserIpc('browsing-data:site-summary', (event, url: unknown, tabId: unknown) => {
+  host.handleBrowserIpc(BROWSING_DATA_IPC.siteSummary, (event, url: unknown, tabId: unknown) => {
     host.assertTrustedSender(event)
     if (typeof url !== 'string') throw new TypeError('Invalid website')
     if (typeof tabId !== 'string') throw new TypeError('Tab ID is required')
@@ -143,11 +144,11 @@ export function registerBrowsingDataIpc(host: BrowsingDataIpcHost): void {
     const browserSession = browser ? workspaceSession(browser, tab.mcpGroupId) : undefined
     return host.currentBrowsingDataSiteSummary(url, browserSession)
   })
-  host.handleBrowserIpc('browsing-data:websites', (event) => {
+  host.handleBrowserIpc(BROWSING_DATA_IPC.websites, (event) => {
     host.assertTrustedSender(event)
     return currentBrowsingDataWebsites()
   })
-  host.handleBrowserIpc('browsing-data:clear', (event, value: unknown) => {
+  host.handleBrowserIpc(BROWSING_DATA_IPC.clear, (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (!value || typeof value !== 'object') throw new TypeError('Invalid browsing-data options')
     const { history, origin, timeRange } = value as Record<string, unknown>
