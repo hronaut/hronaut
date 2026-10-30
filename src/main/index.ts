@@ -695,7 +695,7 @@ const { detachedPanelTitle, openPanelWindow, closePanelWindow } = createPanelWin
   settings: () => settingsState.current,
   resolvedTheme,
   themeBackground: THEME_BACKGROUND,
-  tabs: () => tabRuntime.tabs,
+  tabRuntime,
   currentRendererSettingsState,
   updateState: () => appUpdates.current,
   currentMcpControlState,

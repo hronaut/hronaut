@@ -5,7 +5,7 @@ const created: FakeWindow[] = []
 
 /**
  * A BrowserWindow that loads at once, or holds its load while `holdLoads` is set, and records whether it was shown,
- * retitled or closed.
+ * retitled or closed, and what was sent to its page.
  */
 class FakeWindow {
   static holdLoads = false
@@ -14,14 +14,16 @@ class FakeWindow {
   private closedEmitted = false
   shown = false
   title: string
+  readonly sent: unknown[][] = []
   private readonly listeners = new Map<string, Array<(...args: unknown[]) => void>>()
+  private readonly pageListeners = new Map<string, Array<() => void>>()
   webContents = {
     isDestroyed: () => this.destroyed,
     setZoomFactor: () => undefined,
     setWindowOpenHandler: () => undefined,
     on: () => undefined,
-    once: () => undefined,
-    send: () => undefined
+    once: (event: string, listener: () => void) => { this.pageListeners.set(event, [...(this.pageListeners.get(event) ?? []), listener]) },
+    send: (...message: unknown[]) => { this.sent.push(message) }
   }
 
   constructor(options: { title: string }) {
@@ -46,6 +48,8 @@ class FakeWindow {
     this.pendingLoad?.(error)
     this.pendingLoad = undefined
   }
+  /** The page finished loading, as Electron's did-finish-load reports. */
+  finishPageLoad() { for (const listener of this.pageListeners.get('did-finish-load') ?? []) listener() }
   show() { this.shown = true }
   focus() {}
   restore() {}
@@ -77,15 +81,17 @@ vi.mock('electron', () => ({
   app: { getPath: () => '/tmp' },
   session: {}
 }))
+// The state the snapshot sends, without a real tab runtime behind it.
+vi.mock('../src/main/browser/browser-state/browser-state.js', () => ({ browserState: () => ({ tabs: [], activeTabId: null }) }))
 
 const { createPanelWindow } = await import('../src/main/windows/panel-window.js')
 const { registerPanelWindowIpc } = await import('../src/main/panel-window-ipc.js')
 
 /**
  * The main process's panel window handlers, wired as index.ts wires them, where the first open of a launch waits for
- * its saved bounds until the test releases them.
+ * its saved bounds until the test releases them. The tab runtime has no tabs unless a test gives it some.
  */
-function panelWindowHandlers() {
+function panelWindowHandlers(tabRuntime: { tabs: unknown; initialization: Promise<void> | null } = { tabs: null, initialization: null }) {
   created.length = 0
   let releaseSavedBounds!: () => void
   const refs = {
@@ -111,7 +117,7 @@ function panelWindowHandlers() {
     settings: () => ({ theme: 'light', interfaceScale: 1 }) as never,
     resolvedTheme: () => 'light' as never,
     themeBackground: { light: '#fff', dark: '#000' } as never,
-    tabs: () => null,
+    tabRuntime: tabRuntime as never,
     currentRendererSettingsState: () => ({}) as never,
     updateState: () => ({}) as never,
     currentMcpControlState: () => ({}) as never,
@@ -253,6 +259,47 @@ describe('detached panel window', () => {
     expect(panels.refs.url).toBeNull()
     // The main window learns of the failure from the opening, so it is not also told a window closed.
     expect(panels.sentToMainWindow).toEqual([])
+  })
+
+  it('sends no browser state to a panel window that loads before the tabs exist', async () => {
+    const panels = panelWindowHandlers()
+    const opening = panels.open('console')
+    panels.releaseSavedBounds()
+    await opening
+
+    panels.loadingWindow().finishPageLoad()
+
+    // There is no state yet, and the shell could not read the tabs of an undefined one.
+    const sent = panels.loadingWindow().sent
+    expect(sent.map(([channel]) => channel)).not.toContain('browser:state-changed')
+    expect(sent).toContainEqual(['panel-window:show-panel', 'console'])
+  })
+
+  it('sends no browser state to a panel window that loads while saved workspaces are restored', async () => {
+    const tabs = { downloadController: { listDownloads: () => [] } }
+    const panels = panelWindowHandlers({ tabs, initialization: new Promise<void>(() => undefined) })
+    const opening = panels.open('console')
+    panels.releaseSavedBounds()
+    await opening
+
+    panels.loadingWindow().finishPageLoad()
+
+    // The partial state would take the place of the full one the panel's shell reads once the restore ends.
+    const sent = panels.loadingWindow().sent
+    expect(sent.map(([channel]) => channel)).not.toContain('browser:state-changed')
+    expect(sent).toContainEqual(['panel-window:show-panel', 'console'])
+  })
+
+  it('sends the browser state to a panel window that loads once saved workspaces are restored', async () => {
+    const tabs = { downloadController: { listDownloads: () => [] } }
+    const panels = panelWindowHandlers({ tabs, initialization: null })
+    const opening = panels.open('console')
+    panels.releaseSavedBounds()
+    await opening
+
+    panels.loadingWindow().finishPageLoad()
+
+    expect(panels.loadingWindow().sent).toContainEqual(['browser:state-changed', { tabs: [], activeTabId: null }])
   })
 
   it('docks the panel again when it is moved back while its window is still loading', async () => {

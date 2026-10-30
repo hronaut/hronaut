@@ -5,10 +5,10 @@ import { LocalizedError } from '../localized-error.js'
 import { restoreWindowBounds, type SavedWindowState, type WindowStateStore } from '../window-state.js'
 import { attachShellEditContextMenu } from './shell-edit-context-menu.js'
 import type { BookmarkStore } from '../bookmarks-history/bookmark-store.js'
-import type { Browser } from '../browser/browser.js'
 import type { CredentialStore } from '../credentials/credential-store.js'
 import type { HistoryStore } from '../bookmarks-history/history-store.js'
 import type { SitePermissionStore } from '../site-data/site-permission-store.js'
+import type { TabRuntimeState } from '../tab-runtime-startup.js'
 import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
 import type { ResolvedThemeName } from '../../shared/theme.js'
 import type {
@@ -70,7 +70,8 @@ interface PanelWindowHost {
   resolvedTheme(theme: ThemeName): ResolvedThemeName
   /** Each theme's window background. */
   themeBackground: Record<ResolvedThemeName, string>
-  tabs(): Browser | null
+  /** The tab runtime and its saved workspaces' restore; read on every use because both change. */
+  tabRuntime: Pick<TabRuntimeState, 'tabs' | 'initialization'>
   currentRendererSettingsState(): RendererSettingsState
   /** The update state; read on every use because each update replaces the object. */
   updateState(): AppUpdateState
@@ -135,8 +136,10 @@ export function createPanelWindow(host: PanelWindowHost): {
 
   function sendPanelWindowSnapshot(target: BrowserWindow): void {
     if (target.isDestroyed() || target.webContents.isDestroyed()) return
-    const browser = host.tabs()
-    target.webContents.send(TABS_IPC.stateChanged, browser ? browserState(browser) : undefined)
+    const browser = host.tabRuntime.tabs
+    // As to the main window, the state goes only once saved workspaces are restored: a partial one would take the
+    // place of the full state the panel's shell reads, which waits for the restore. Before the tabs exist there is none.
+    if (browser && !host.tabRuntime.initialization) target.webContents.send(TABS_IPC.stateChanged, browserState(browser))
     target.webContents.send(DOWNLOADS_IPC.changed, browser?.downloadController.listDownloads() ?? [])
     target.webContents.send(SETTINGS_IPC.changed, host.settings())
     target.webContents.send(SETTINGS_IPC.rendererStateChanged, host.currentRendererSettingsState())
