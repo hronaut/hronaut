@@ -8,7 +8,8 @@ type DomChangeBatch = Omit<BrowserDomChangeEntry, 'index' | 'occurredAt' | 'elap
 
 interface DomChangesPageState {
   startedAt: string
-  startedAtMs: number
+  /** When the recording started, on the page's monotonic clock, which each change's elapsed time counts from. */
+  startedAtPerf: number
   stoppedAt?: string
   active: boolean
   entries: BrowserDomChangeEntry[]
@@ -78,10 +79,9 @@ export function domChangesInPage(action: DomChangesPageAction, limits: typeof DO
   }
   if (action === 'start') {
     previous?.observer?.disconnect()
-    const startedAtMs = Date.now()
     const state: DomChangesPageState = {
-      startedAt: new Date(startedAtMs).toISOString(),
-      startedAtMs,
+      startedAt: new Date().toISOString(),
+      startedAtPerf: performance.now(),
       active: true,
       entries: [],
       changeCount: 0,
@@ -139,7 +139,8 @@ export function domChangesInPage(action: DomChangesPageAction, limits: typeof DO
           })
         }
       }
-      const occurredAtMs = Date.now()
+      const occurredAt = new Date().toISOString()
+      const elapsedMs = Math.max(0, Math.round(performance.now() - state.startedAtPerf))
       for (const batch of batches.values()) {
         if (state.entries.length >= limits.maxEntries) {
           state.truncated = true
@@ -148,8 +149,8 @@ export function domChangesInPage(action: DomChangesPageAction, limits: typeof DO
         }
         state.entries.push({
           index: state.entries.length + 1,
-          occurredAt: new Date(occurredAtMs).toISOString(),
-          elapsedMs: Math.max(0, occurredAtMs - state.startedAtMs),
+          occurredAt,
+          elapsedMs,
           ...batch
         })
       }

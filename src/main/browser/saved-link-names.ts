@@ -31,11 +31,12 @@ export function staysOnOrigin(urlChain: readonly string[]): boolean {
  * Chrome sends the name along with the download, but Electron's `downloadURL` cannot, so the downloads controller
  * takes it back by page and address when the download starts. The first download of that address from that page
  * takes it, which is the saved link's own unless the page fetches the same address as a download at the same time.
+ * A name waits on the monotonic clock, so a clock set back or forward neither keeps nor drops it.
  */
 export class SavedLinkNames {
   private readonly pending = new Map<number, PendingName[]>()
 
-  constructor(private readonly now: () => number = Date.now) {}
+  constructor(private readonly now: () => number = () => performance.now()) {}
 
   expect(webContentsId: number, url: string, filename: string): void {
     if (!filename) return

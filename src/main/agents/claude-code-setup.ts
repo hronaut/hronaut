@@ -169,7 +169,8 @@ interface Plan {
   next: string
   mode: number
   owner: number
-  expiresAt: number
+  /** When the plan ends, on the monotonic clock, so that a clock set back or forward neither keeps nor drops it. */
+  deadlineMonotonic: number
   preview: ClaudeCodeSetupPreview
 }
 
@@ -184,6 +185,7 @@ export interface ClaudeCodeSetupOptions {
   credential?: () => ClaudeCodeCredential | undefined
   /** Whether Hronaut may write the entry now. Checked again after the dialog and just before the file is replaced. */
   allowed?: () => boolean
+  /** The wall-clock time a backup's name carries. */
   now?: () => number
   /**
    * Asks the person in a dialog main shows, which no page can answer, whether to make exactly this change. The signal
@@ -242,7 +244,10 @@ export class ClaudeCodeSetup {
     const mode = token === undefined || this.platform === 'win32' ? config.mode : config.mode & 0o700
     // One plan per page: preparing again replaces what that page was shown.
     for (const [key, plan] of this.plans) if (plan.owner === owner) this.plans.delete(key)
-    this.plans.set(id, { endpoint, token, target: config.target, hash: config.hash, next: nextText, mode, owner, expiresAt: this.now() + PLAN_LIFETIME_MS, preview })
+    this.plans.set(id, {
+      endpoint, token, target: config.target, hash: config.hash, next: nextText, mode, owner,
+      deadlineMonotonic: performance.now() + PLAN_LIFETIME_MS, preview
+    })
     return preview
   }
 
@@ -326,8 +331,8 @@ export class ClaudeCodeSetup {
   }
 
   private forgetExpired(): void {
-    const now = this.now()
-    for (const [key, plan] of this.plans) if (plan.expiresAt <= now) this.plans.delete(key)
+    const now = performance.now()
+    for (const [key, plan] of this.plans) if (plan.deadlineMonotonic <= now) this.plans.delete(key)
   }
 }
 

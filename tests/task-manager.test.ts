@@ -215,6 +215,24 @@ describe('End process', () => {
     expect(marks.take(never)).toBe(false)
   })
 
+  it('times the person\'s End process on the monotonic clock, whatever the wall clock does', () => {
+    vi.useFakeTimers({ toFake: ['Date', 'performance'] })
+    try {
+      const marks = new EndedByPersonMarks()
+      const late = contents({ pid: 54 })
+      const soon = contents({ pid: 55 })
+      marks.note(late)
+      vi.setSystemTime(Date.now() - 3_600_000)
+      vi.advanceTimersByTime(ENDED_BY_PERSON_MS + 1)
+      expect(marks.take(late)).toBe(false)
+      marks.note(soon)
+      vi.setSystemTime(Date.now() + 3_600_000)
+      expect(marks.take(soon)).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('names its refusal for the person', () => {
     const { browser } = harness({ tabs: [], metrics: [metric(10, 'Browser')] })
     let refusal: unknown

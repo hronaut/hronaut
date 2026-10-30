@@ -15,6 +15,8 @@ const LIVE_REGION_WORLD_ID = ISOLATED_WORLDS.liveRegion
 export interface BrowserLiveRegionRecordingState {
   active: boolean
   startedAt: string
+  /** When main first saw the recording, on the monotonic clock, which a clock set back or forward does not move. */
+  startedMonotonic: number
   observationGeneration: number
 }
 
@@ -43,13 +45,13 @@ export const LIVE_REGION_CAVEATS = [
 /** The page stops itself at the duration limit, so an unread expired recording must not hold the tab awake. */
 export function liveRegionRecordingKeepsTabAwake(
   tab: Pick<LiveRegionRecordingTab, 'liveRegionRecording' | 'observationGeneration'>,
-  now = Date.now()
+  now = performance.now()
 ): boolean {
   const recording = tab.liveRegionRecording
   return !!recording
     && recording.active
     && recording.observationGeneration === tab.observationGeneration
-    && now - Date.parse(recording.startedAt) < LIVE_REGION_LIMITS.maxDurationMs
+    && now - recording.startedMonotonic < LIVE_REGION_LIMITS.maxDurationMs
 }
 
 /** Owns one selected-region text recording per tab with the same stale-response checks as DOM changes. */
@@ -106,8 +108,14 @@ export class BrowserLiveRegionRecorder<T extends LiveRegionRecordingTab> {
       tab.liveRegionRecording = undefined
       throw new Error(LIVE_REGION_ERRORS[result.error] ?? 'The live region could not be recorded')
     }
+    const previous = tab.liveRegionRecording
     tab.liveRegionRecording = result.startedAt
-      ? { active: result.active, startedAt: result.startedAt, observationGeneration }
+      ? {
+        active: result.active,
+        startedAt: result.startedAt,
+        startedMonotonic: previous?.startedAt === result.startedAt ? previous.startedMonotonic : performance.now(),
+        observationGeneration
+      }
       : undefined
     return {
       tabId: tab.id,
