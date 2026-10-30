@@ -6,7 +6,7 @@ import { normalizeTabTitle } from '../tab-metadata.js'
 import { isWebUrl } from '../url.js'
 import type { Browser } from '../browser.js'
 import type { BrowserTab } from '../browser-tab.js'
-import { certificateRefusal } from '../certificate-errors/certificate-errors.js'
+import { certificateRefusal, pageReplaced } from '../certificate-errors/certificate-errors.js'
 import { appendConsoleMessage } from '../console-messages/console-messages.js'
 import { watchCredentialSubmission } from '../credential-capture/credential-capture.js'
 import { recordAuthChallenge } from '../inspector-issues/inspector-issues.js'
@@ -249,6 +249,7 @@ export function attachNavigationEvents(browser: Browser, tab: BrowserTab, webCon
     // Reset only when a new main-frame document commits, never on a failed load.
     tab.performanceDocumentRouted = false
     tab.documentGeneration += 1
+    pageReplaced(webContents)
     walletDocumentReplaced()
     trackWorkspaceOrigin(browser, tab, url)
     tab.memoryBaseline = undefined
@@ -333,6 +334,7 @@ export function attachNavigationEvents(browser: Browser, tab: BrowserTab, webCon
   webContents.on('did-fail-provisional-load', (_event, _errorCode, _errorDescription, _validatedURL, isMainFrame) => {
     if (tab.sleeping || !isMainFrame) return
     walletDocumentReplaced()
+    pageReplaced(webContents)
   })
   webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
     // A newer navigation can start before the one it replaced reports its failure.

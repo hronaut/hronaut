@@ -20,12 +20,8 @@ export interface CertificateRefusal {
   locked?: 'strict' | 'blocked'
 }
 
-/**
- * The tab fields answering a certificate error reads: its page's session, which holds the person's choices, and which
- * document its page shows.
- */
+/** The tab fields answering a certificate error reads: its page's session, which holds the person's choices. */
 export interface CertificateErrorTab {
-  readonly documentGeneration: number
   webContents: { readonly session: object }
 }
 
@@ -57,8 +53,8 @@ const BLOCKED_ERRORS = new Set(['ERR_CERT_REVOKED', 'ERR_CERT_INVALID', 'ERR_CER
 const exceptions = new WeakMap<object, Set<string>>()
 /** The certificate each tab refused for the page it last tried to open. */
 const refusals = new WeakMap<object, CertificateRefusal>()
-/** The document of each tab's page that loaded content from a website whose certificate the person chose to trust. */
-const untrustedContent = new WeakMap<object, number>()
+/** The tabs showing a page that loaded content from a website whose certificate the person chose to trust. */
+const untrustedContent = new WeakSet<object>()
 
 function exceptionKey(host: string, fingerprint: string, error: string): string {
   return `${host}\u0000${fingerprint}\u0000${error}`
@@ -222,9 +218,19 @@ export function trustRefusedCertificate(tab: Pick<CertificateErrorTab, 'webConte
  * it over the connection it already accepted, without asking again.
  */
 export function contentLoaded(access: Pick<CertificateErrorAccess, 'changed'>, tab: CertificateErrorTab, url: string): void {
-  if (untrustedContent.get(tab.webContents) === tab.documentGeneration || !trustsRefusedCertificate(tab.webContents.session, url)) return
-  untrustedContent.set(tab.webContents, tab.documentGeneration)
+  if (untrustedContent.has(tab.webContents) || !trustsRefusedCertificate(tab.webContents.session, url)) return
+  untrustedContent.add(tab.webContents)
   access.changed()
+}
+
+/**
+ * Another page, or an error page, replaced the one the tab showed, which takes the content it loaded with it. A page
+ * the tab started to open but never showed, such as a download, a 204 or a load the person stopped, keeps the page
+ * shown not private, and so does a failure of the page shown to load the rest of its content, as in Chrome, which
+ * keeps a page's security state with the page shown.
+ */
+export function pageReplaced(webContents: object): void {
+  untrustedContent.delete(webContents)
 }
 
 /**
@@ -235,7 +241,7 @@ export function contentLoaded(access: Pick<CertificateErrorAccess, 'changed'>, t
 export function showsUntrustedCertificate(tab: CertificateErrorTab & { url: string, pageProblem?: { certificate?: object } }): boolean {
   return tab.pageProblem?.certificate !== undefined
     || trustsRefusedCertificate(tab.webContents.session, tab.url)
-    || untrustedContent.get(tab.webContents) === tab.documentGeneration
+    || untrustedContent.has(tab.webContents)
 }
 
 /** Whether the person chose to trust a certificate for the address's host in the workspace, so its pages are not private. */
