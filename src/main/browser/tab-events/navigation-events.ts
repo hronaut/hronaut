@@ -24,6 +24,7 @@ import { runWalletLifecycleAction } from '../background-action.js'
 import { answerTabCertificateError } from '../certificate-errors/browser-certificate-errors.js'
 import { answerTabHttpAuth } from '../http-auth/browser-http-auth.js'
 import { reconcileTabPresentation } from '../presented-view-visibility.js'
+import { reloadWhenWebsiteReachable } from '../network-error-reload/network-error-reload.js'
 
 /** Chromium's error code for a load that was aborted, which shows no load failure. */
 const ABORTED_LOAD_ERROR = -3
@@ -355,6 +356,8 @@ export function attachNavigationEvents(browser: Browser, tab: BrowserTab, webCon
     tab.pageProblem = refusal
       ? certificateProblem(locale, failedUrl, errorCode, errorDescription, refusal)
       : loadFailureProblem(locale, failedUrl, errorCode, errorDescription)
+    // As in Chrome, a page whose website could not be reached loads again once the network is back.
+    reloadWhenWebsiteReachable(browser, tab)
     appendConsoleMessage(tab, {
       timestamp: new Date().toISOString(),
       level: 'error',
