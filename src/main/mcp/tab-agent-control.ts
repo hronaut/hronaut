@@ -14,7 +14,9 @@ export function requireTabAgentControl(
   resolvedTabId?: string
 ): void {
   const denied = (): never => { throw new Error('Agents are paused for this target. Resume the tab or all agents from the Hronaut window.') }
-  if (!globallyPaused && !hasPausedAgentTab(manager)) return
+  // Read under a global pause too: reading the browser state sends a change still waiting to be published first.
+  const anyTabPaused = hasPausedAgentTab(manager)
+  if (!globallyPaused && !anyTabPaused) return
   // Discovery and re-establishing existing ownership are necessary after reconnect.
   // These actions do not grant page access; normal resume-key and lease checks remain.
   if (name === 'browser_workspaces' && ['list', 'resume', 'ownership-status', 'claim-ownership', 'release-ownership'].includes(String(input.action ?? 'list'))) return
