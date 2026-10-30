@@ -24,10 +24,7 @@ import AppTransientShellLayer from './components/AppTransientShellLayer.vue'
 import { useBrowserStore } from './stores/browser'
 import { useSettingsStore } from './stores/settings'
 import { useAppLifecycleController } from './composables/useAppLifecycleController'
-import {
-  useAppEmulationFeatureController,
-  type ResponsivePanelSurface
-} from './composables/useAppEmulationFeatureController'
+import { useAppEmulationFeatureController } from './composables/useAppEmulationFeatureController'
 import { useAppPageToolsPanelFeatureController } from './composables/useAppPageToolsPanelFeatureController'
 import { useAppSettingsFeatureController } from './composables/useAppSettingsFeatureController'
 import { useAppShellPresentationFeatureController } from './composables/useAppShellPresentationFeatureController'
@@ -172,30 +169,17 @@ const {
   agentStepsOpen,
   agentStepsTarget,
   showAgentSteps,
-  closeAgentSteps,
-  tabSearchPanel,
-  zoomBar,
-  commandPalettePanel,
   workspaceEditorOpen,
   openWorkspace: openTabGroupEditor,
   openWorkspaceDecisions,
   openNewWorkspace: openNewWorkspaceEditor,
-  closeWorkspace: closeWorkspaceEditor,
-  openFindForTab,
-  closeFind: closeTransientFind,
-  openCredentialPicker,
-  setZoom: setTransientZoom
+  closeFind,
+  openCredentialPicker
 } = appTransientShellLayerController
-const responsivePanelOpen = ref(false)
-const responsivePanel = ref<ResponsivePanelSurface | null>(null)
-const environmentPanelOpen = ref(false)
 const appEmulationFeatureController = useAppEmulationFeatureController({
   activeTab,
   browser,
   syncState,
-  responsivePanelOpen,
-  responsivePanel,
-  environmentPanelOpen,
   closeTransientPanels,
   translate,
   formatNumber: localNumber,
@@ -203,6 +187,8 @@ const appEmulationFeatureController = useAppEmulationFeatureController({
   showToast: showAppToast
 })
 const {
+  responsivePanelOpen,
+  environmentPanelOpen,
   emulationController,
   emulationDescription,
   environmentState,
@@ -219,7 +205,6 @@ const helpDialogController = useHelpDialogController({
 })
 const {
   open: helpDialogOpen,
-  openDialog: showHelpDialog,
   close: closeHelpDialog,
   dispose: disposeHelpDialogController
 } = helpDialogController
@@ -263,10 +248,7 @@ const {
   bootstrapTasks: settingsFeatureBootstrapTasks,
   dispose: disposeAppSettingsFeatureController
 } = appSettingsFeatureController
-const {
-  open: releaseHistoryOpen,
-  close: closeReleaseHistory
-} = appSettingsFeatureController.releaseHistoryController
+const { open: releaseHistoryOpen } = appSettingsFeatureController.releaseHistoryController
 const taskManagerController = useTaskManagerController({
   api: window.hronautTaskManager,
   beforeOpen: () => {
@@ -275,13 +257,7 @@ const taskManagerController = useTaskManagerController({
   },
   formatError: (error) => friendlyUiError(error, t('taskManager.unavailable'))
 })
-const {
-  open: taskManagerOpen,
-  openDialog: openTaskManager,
-  close: closeTaskManager,
-  toggle: toggleTaskManager,
-  dispose: disposeTaskManagerController
-} = taskManagerController
+const { open: taskManagerOpen, dispose: disposeTaskManagerController } = taskManagerController
 const qrCodeController = useQrCodeDialogController({
   api: browser,
   tabIds: computed(() => state.value.tabs.map((tab) => tab.id)),
@@ -291,7 +267,7 @@ const qrCodeController = useQrCodeDialogController({
   },
   formatError: (error) => friendlyUiError(error, t('native.errors.actionFailed'))
 })
-const { open: qrCodeOpen, close: closeQrCode } = qrCodeController
+const { open: qrCodeOpen } = qrCodeController
 const {
   entries: sitePermissions,
   replace: replaceSitePermissions
@@ -325,7 +301,6 @@ const pageRailWidth = computed(() => fullPageConcealed.value ? 0 : tabRailWidth.
 const walletApprovalOpen = computed(() => walletsController.awaitingApproval.value.length > 0)
 // Main's own questions, such as a website's permission request, drawn over the page instead of a system dialog.
 const trustedDialogController = useTrustedDialogController(window.hronautTrustedDialogs)
-const trustedDialogSurface = { open: trustedDialogController.open, close: trustedDialogController.cancel }
 const { walletWorkspaces, dataWorkspaces } = useSettingsWorkspaceLists(state)
 
 const {
@@ -459,6 +434,7 @@ const {
   pageToolsOpen,
   consolePanelOpen,
   networkMonitorOpen,
+  togglePageTools,
   layerHandles: pageToolsLayerHandles,
   dispose: disposeAppPageToolsPanelFeatureController
 } = useAppPageToolsPanelFeatureController({
@@ -515,7 +491,7 @@ const {
     dock: { panelDock, persistDock: persistPanelDock },
     onError: reportShellActionError
   },
-  responsivePanel,
+  setResponsivePanel: appEmulationFeatureController.setResponsivePanel,
   setSiteStoragePanel
 })
 const {
@@ -552,48 +528,22 @@ const {
   activeTab,
   browser,
   syncState,
-  isHome: () => activeIsHome.value,
-  transient: {
-    credentialPickerOpen,
-    workspaceEditorOpen,
-    findOpen,
-    zoomOpen,
-    tabSearchOpen,
-    commandPaletteOpen,
-    commandPaletteView,
-    tabSearchPanel,
-    zoomBar,
-    commandPalettePanel,
-    openFindForTab,
-    closeFind,
-    closeWorkspace: closeWorkspaceEditor,
-    setZoom: setTransientZoom
-  },
+  transient: appTransientShellLayerController,
   surfaces: {
-    settings: {
-      open: settingsOpen, close: closeSettings, openSection: openSettingsSection,
-      tabOpen: settingsDialogController.tabOpen, closeTab: settingsDialogController.closeTab,
-      activate: settingsDialogController.toggle
-    },
+    settings: settingsDialogController,
     updateNotice: updateNoticeOpen,
-    help: { open: helpDialogOpen, close: closeHelpDialog, openDialog: showHelpDialog },
-    releaseHistory: { open: releaseHistoryOpen, close: closeReleaseHistory },
-    taskManager: { open: taskManagerOpen, close: closeTaskManager, openDialog: openTaskManager, toggle: toggleTaskManager },
-    qrCode: { open: qrCodeOpen, close: closeQrCode },
+    help: helpDialogController,
+    releaseHistory: appSettingsFeatureController.releaseHistoryController,
+    taskManager: taskManagerController,
+    qrCode: qrCodeController,
     walletApproval: walletApprovalOpen,
-    trustedDialog: trustedDialogSurface,
-    agentSteps: { open: agentStepsOpen, close: closeAgentSteps },
+    trustedDialog: trustedDialogController,
     siteStorage: siteStorageOpen,
     siteControls: siteControlsOpen,
     addressSuggestions: addressSuggestionsOpen,
     pageTools: pageToolsOpen,
     console: consolePanelOpen,
     network: networkMonitorOpen,
-    responsive: {
-      open: responsivePanelOpen,
-      close: () => responsivePanel.value?.handleEscape()
-    },
-    environment: environmentPanelOpen,
     panelsInOwnWindow
   },
   features: {
@@ -805,8 +755,6 @@ const {
 } = appActiveTabFeatureController
 const appBrowserChromeFeatureController = useAppBrowserChromeFeatureController({
   browserChromeLayer,
-  pageToolsOpen,
-  closeTransientPanels,
   resize: {
     syncTitleBarGeometry,
     updateViewportWidth,
@@ -824,6 +772,7 @@ const appBrowserChromeFeatureController = useAppBrowserChromeFeatureController({
     toggleTabSearch,
     openFind,
     toggleZoom,
+    togglePageTools,
     openLicenseSettings: openSupportSettings,
     prepareSplitViewMenu,
     handleSplitViewError
@@ -838,16 +787,8 @@ async function syncState(next: Promise<BrowserState> | BrowserState): Promise<vo
   await browserStore.syncOperation(Promise.resolve(next))
 }
 
-async function closeFind(): Promise<void> {
-  await closeTransientFind()
-}
-
 function closeTransientPanels(options?: TransientPanelsCloseOptions): void {
   transientPanelsController.close(options)
-}
-
-function togglePageTools(): void {
-  appBrowserChromeFeatureController.togglePageTools()
 }
 
 useAppLifecycleController({

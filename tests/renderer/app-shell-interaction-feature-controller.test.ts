@@ -79,6 +79,9 @@ function createHarness(extraNavigation: { takeOverFromAgent?: () => unknown; sel
   const closeSettings = vi.fn(() => { refs.settings.value = false })
   const closeHelp = vi.fn(() => { refs.help.value = false })
   const toggleTaskManager = vi.fn()
+  const cancelTrustedDialog = vi.fn()
+  const closeAgentSteps = vi.fn()
+  const closeResponsivePreview = vi.fn()
   const reportActionError = vi.fn()
   const reportShortcutError = vi.fn()
   const browser = {
@@ -152,7 +155,6 @@ function createHarness(extraNavigation: { takeOverFromAgent?: () => unknown; sel
     activeTab,
     browser,
     syncState,
-    isHome: () => false,
     transient: {
       credentialPickerOpen: refs.credentialPicker,
       workspaceEditorOpen: refs.workspaceEditor,
@@ -164,6 +166,8 @@ function createHarness(extraNavigation: { takeOverFromAgent?: () => unknown; sel
       tabSearchPanel: computed(() => null),
       zoomBar: computed(() => null),
       commandPalettePanel: computed(() => null),
+      agentStepsOpen: refs.agentSteps,
+      closeAgentSteps,
       openFindForTab: asyncNoop,
       closeFind: asyncNoop,
       closeWorkspace: noop,
@@ -177,21 +181,24 @@ function createHarness(extraNavigation: { takeOverFromAgent?: () => unknown; sel
       taskManager: { open: refs.taskManager, close: noop, openDialog: noop, toggle: toggleTaskManager },
       qrCode: { open: refs.qrCode, close: noop },
       walletApproval: refs.walletApproval,
-      trustedDialog: { open: refs.trustedDialog, close: noop },
-      agentSteps: { open: refs.agentSteps, close: noop },
+      trustedDialog: { open: refs.trustedDialog, cancel: cancelTrustedDialog },
       siteStorage: refs.siteStorage,
       siteControls: refs.siteControls,
       addressSuggestions: refs.addressSuggestions,
       pageTools: refs.pageTools,
       console: refs.console,
       network: refs.network,
-      responsive: { open: refs.responsive, close: noop },
-      environment: refs.environment,
       panelsInOwnWindow: () => false
     },
     features: {
       collections,
-      emulation: { toggleResponsivePreview: noop, toggleEnvironment: noop },
+      emulation: {
+        responsivePanelOpen: refs.responsive,
+        environmentPanelOpen: refs.environment,
+        closeResponsivePreview,
+        toggleResponsivePreview: noop,
+        toggleEnvironment: noop
+      },
       pageTools,
       panels: { toggleConsole: noop, toggleNetworkMonitor: noop, openRequestConditions: noop },
       site: { toggleSiteStorage: noop, openPrivacySettings: noop, openUpdateSettings: noop }
@@ -222,6 +229,9 @@ function createHarness(extraNavigation: { takeOverFromAgent?: () => unknown; sel
     browser,
     syncState,
     toggleTaskManager,
+    cancelTrustedDialog,
+    closeAgentSteps,
+    closeResponsivePreview,
     reportActionError,
     reportShortcutError
   }
@@ -245,6 +255,22 @@ describe('app shell interaction feature controller', () => {
 
     expect(harness.browser.reload).toHaveBeenCalledWith('active')
     expect(harness.syncState).toHaveBeenCalledOnce()
+    harness.controller.dispose()
+  })
+
+  it('closes a site\'s request, All steps and the Responsive preview with Escape through their own controllers', () => {
+    const harness = createHarness()
+    const surfaces = [
+      ['trustedDialog', harness.cancelTrustedDialog],
+      ['agentSteps', harness.closeAgentSteps],
+      ['responsive', harness.closeResponsivePreview]
+    ] as const
+    for (const [surface, close] of surfaces) {
+      harness.refs[surface].value = true
+      harness.controller.handleKeyDown(new KeyboardEvent('keydown', { key: 'Escape', cancelable: true }))
+      expect(close, surface).toHaveBeenCalledOnce()
+      harness.refs[surface].value = false
+    }
     harness.controller.dispose()
   })
 

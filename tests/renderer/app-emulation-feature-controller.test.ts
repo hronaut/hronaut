@@ -50,14 +50,12 @@ function deferred<Value>() {
 
 function createFeature() {
   const activeTab = ref<BrowserTabState | undefined>(tab())
-  const responsivePanelOpen = ref(true)
   const responsivePanel = ref({
     loadDraft: vi.fn(),
     resetFeedback: vi.fn(),
     toggle: vi.fn(),
     handleEscape: vi.fn()
   })
-  const environmentPanelOpen = ref(false)
   const browser = {
     resetTabEmulation: vi.fn(async () => ({}) as BrowserState),
     recoverTabEmulation: vi.fn(async () => ({}) as BrowserState),
@@ -71,16 +69,15 @@ function createFeature() {
     activeTab,
     browser,
     syncState,
-    responsivePanelOpen,
-    responsivePanel,
-    environmentPanelOpen,
     closeTransientPanels: vi.fn(),
     translate: (key) => key,
     formatNumber: String,
     formatPercent: (value) => `${value}%`,
     showToast
   })
-  return { activeTab, browser, syncState, responsivePanel, responsivePanelOpen, feature, showToast }
+  feature.setResponsivePanel(responsivePanel.value)
+  feature.responsivePanelOpen.value = true
+  return { activeTab, browser, syncState, responsivePanel, feature, showToast }
 }
 
 describe('app emulation feature controller', () => {
@@ -94,12 +91,18 @@ describe('app emulation feature controller', () => {
     feature.loadResponsiveDraft()
     feature.resetResponsiveFeedback()
     feature.toggleResponsivePreview()
+    feature.closeResponsivePreview()
     await feature.setResponsiveTabViewport('tab-1', null)
 
     expect(responsivePanel.value.loadDraft).toHaveBeenCalledWith(emulation().viewport)
     expect(responsivePanel.value.resetFeedback).toHaveBeenCalledOnce()
     expect(responsivePanel.value.toggle).toHaveBeenCalledOnce()
+    expect(responsivePanel.value.handleEscape).toHaveBeenCalledOnce()
     expect(browser.setTabViewport).toHaveBeenCalledWith('tab-1', null)
+
+    feature.setResponsivePanel(null)
+    expect(() => feature.closeResponsivePreview()).not.toThrow()
+    expect(feature.environmentPanelOpen.value).toBe(false)
     feature.dispose()
   })
 
@@ -124,13 +127,13 @@ describe('app emulation feature controller', () => {
   })
 
   it('shows a viewport the emulation frame applied in an open Responsive preview of that tab', () => {
-    const { responsivePanel, responsivePanelOpen, feature } = createFeature()
+    const { responsivePanel, feature } = createFeature()
     // The other split view pane: the panel shows the active tab, so it stays as it is.
     feature.frameViewportApplied('tab-2')
     expect(responsivePanel.value.loadDraft).not.toHaveBeenCalled()
     feature.frameViewportApplied('tab-1')
     expect(responsivePanel.value.loadDraft).toHaveBeenCalledWith(emulation().viewport)
-    responsivePanelOpen.value = false
+    feature.responsivePanelOpen.value = false
     feature.frameViewportApplied('tab-1')
     expect(responsivePanel.value.loadDraft).toHaveBeenCalledOnce()
     feature.dispose()

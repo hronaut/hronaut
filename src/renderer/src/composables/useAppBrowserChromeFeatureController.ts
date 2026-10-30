@@ -7,8 +7,6 @@ export interface AppBrowserChromeLayerSurface {
 
 export interface AppBrowserChromeFeatureControllerOptions<Actions extends object> {
   browserChromeLayer: Readonly<Ref<AppBrowserChromeLayerSurface | null>>
-  pageToolsOpen: Ref<boolean>
-  closeTransientPanels: () => void
   resize: {
     syncTitleBarGeometry: () => void
     updateViewportWidth: () => void
@@ -32,25 +30,10 @@ export function useAppBrowserChromeFeatureController<Actions extends object>(
     options.resize.resizeAddressSuggestions()
   }
 
-  function togglePageTools(): void {
-    if (options.pageToolsOpen.value) {
-      options.pageToolsOpen.value = false
-      return
-    }
-    options.closeTransientPanels()
-    options.pageToolsOpen.value = true
-  }
-
-  const browserChromeActions = {
-    ...options.actions,
-    togglePageTools
-  }
-
   return {
     expandTabGroupForTab,
     handleWindowResize,
-    togglePageTools,
-    browserChromeActions
+    browserChromeActions: options.actions
   }
 }
 
