@@ -49,7 +49,7 @@ test('rejects stale snapshot and memory baselines after newer lifecycle changes'
       ;(globalThis as typeof globalThis & { __hronautBaselineCapture?: typeof state }).__hronautBaselineCapture = state
       page.executeJavaScriptInIsolatedWorld = async (worldId, scripts, userGesture) => {
         const value = await original(worldId, scripts, userGesture)
-        if (!intercept || !scripts.some(script => script.code.includes('const MAX_CHARS ='))) return value
+        if (!intercept || !scripts.some(script => script.code.includes('__hronautSnapshotIdentity'))) return value
         intercept = false
         state.held = true
         await gate

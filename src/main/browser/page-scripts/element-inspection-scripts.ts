@@ -7,8 +7,7 @@ import { snapshotTextHelpersSource } from '../snapshot-text.js'
 
 function elementInspectionHelpersSource(): string {
   return `
-    const MAX_CHARS = 500;
-    ${snapshotTextHelpersSource({ excludeFormControls: true, textContentFallback: true })}
+    ${snapshotTextHelpersSource({ excludeFormControls: true, textContentFallback: true }, 500)}
     const hronautCompact = (value, limit) => String(value || '').replace(/\\s+/g, ' ').trim().slice(0, limit);
     const hronautUnique = (selector) => {
       try { return document.querySelectorAll(selector).length === 1; } catch { return false; }
@@ -596,7 +595,7 @@ export function playwrightLocatorScript(target: { ref?: string; selector?: strin
     }
     // Filtered names need not equal Playwright's actual accessible name.
     // Keep non-text strategies, or let the caller use the unique CSS fallback.
-    const safeCandidates = snapshotTextExcluded || snapshotTextLimited
+    const safeCandidates = snapshotText.excluded() || snapshotText.limited()
       ? candidates.filter(candidate => candidate.strategy !== 'role' && candidate.strategy !== 'label')
       : candidates;
     return { selector, candidates: safeCandidates };

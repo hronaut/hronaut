@@ -129,7 +129,7 @@ test('captures and searches a component through MCP without unrelated content or
         } }
         ;(globalThis as typeof globalThis & { __scopedCapture?: typeof state }).__scopedCapture = state
         const hold = async <T>(code: string, result: T): Promise<T> => {
-          if (code.includes('const MAX_CHARS =')) {
+          if (code.includes('__hronautSnapshotIdentity')) {
             state.held = true
             await gate
             state.restore()

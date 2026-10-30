@@ -3,7 +3,7 @@ import { expect, it } from 'vitest'
 import { snapshotScript } from '../src/main/browser/page-scripts.js'
 import { BROWSER_SNAPSHOT_FORMAT_VERSION } from '../src/shared/snapshot.js'
 
-const capture = (body: string, limit = 1000) => runInNewContext(snapshotScript(limit, true), {
+const capture = (body: string, limit = 1000) => runInNewContext(snapshotScript(limit), {
   URL,
   location: { href: 'https://example.test/?token=private-canary#private-fragment' },
   document: { title: 'Snapshot', body: { innerText: body, closest: () => null, querySelector: () => null }, querySelectorAll: () => [] }
@@ -38,7 +38,7 @@ it.each(['headings', 'controls'])('reports the %s cap even below the character l
     getAttribute: () => null, setAttribute: () => undefined, closest: () => null, querySelector: () => null,
     matches: () => false
   }))
-  const result = runInNewContext(snapshotScript(100000, true), {
+  const result = runInNewContext(snapshotScript(100000), {
     URL, location: { href: 'https://example.test/' }, HTMLAnchorElement: class {},
     getComputedStyle: () => ({ visibility: 'visible', display: 'block' }),
     document: { title: 'Caps', body: { innerText: '', closest: () => null, querySelector: () => null }, querySelectorAll: (selector: string) =>

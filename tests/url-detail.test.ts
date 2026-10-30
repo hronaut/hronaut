@@ -147,7 +147,7 @@ describe('snapshot URL lines without detail', () => {
       isDestroyed: () => false,
       executeJavaScriptInIsolatedWorld: async (_world: number, sources: Array<{ code: string }>) => {
         scripts.push(sources[0]!.code)
-        const omitted = sources[0]!.code.includes("add(true ? 'URL: '")
+        const omitted = sources[0]!.code.includes('"omitUrlDetail":true')
         const text = `URL: ${omitted ? 'https://shop.example.test/checkout (query and fragment omitted)' : 'https://shop.example.test/checkout?view=cart'}\nTITLE: Checkout`
         return { formatVersion: BROWSER_SNAPSHOT_FORMAT_VERSION, text, maxChars: 30_000, returnedChars: text.length, truncated: false, omitted: { headings: false, controls: false, bodyText: false, characters: false } }
       }
@@ -169,11 +169,11 @@ describe('snapshot URL lines without detail', () => {
   it('asks the page for the URL line the setting calls for and marks the snapshot', async () => {
     const page = fakePage()
     expect(await snapshotDetails(page.browser, 'tab-1')).not.toHaveProperty('urlDetail')
-    expect(page.scripts[0]).toContain("add(false ? 'URL: '")
+    expect(page.scripts[0]).toContain('"omitUrlDetail":false')
     page.setOmit(true)
     const snapshot = await snapshotDetails(page.browser, 'tab-1')
     expect(snapshot).toMatchObject({ urlDetail: 'omitted', text: expect.stringContaining('(query and fragment omitted)') })
-    expect(page.scripts[1]).toContain("add(true ? 'URL: '")
+    expect(page.scripts[1]).toContain('"omitUrlDetail":true')
   })
 
   it('starts a delta over instead of comparing URL lines across a change of the setting', async () => {
