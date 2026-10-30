@@ -234,7 +234,7 @@ async function performCloseTab(
         // a different view before the asynchronous close probe.
         browser.window.contentView.addChildView(replacement.view)
         browser.tabSelectionGeneration += 1
-        replacement.lastActiveAt = Date.now()
+        replacement.lastActiveAt = performance.now()
         browser.activeTabId = replacement.id
         markTabActiveInGroup(browser, replacement)
       }

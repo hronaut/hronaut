@@ -84,7 +84,7 @@ export function selectTab(browser: Browser, tabId: string, options: BrowserTabSe
     throw new LocalizedError('appErrors.tabs.rendererUnavailable')
   }
   browser.tabSelectionGeneration += 1
-  next.lastActiveAt = Date.now()
+  next.lastActiveAt = performance.now()
   if (next.sleeping) void browser.wakeTab(next.id).catch((error) => console.error('[browser] Could not wake selected tab:', error))
   if (browser.splitView && browser.splitViewContains(tabId)) {
     exitPageFullscreenCovering(browser, next.id)
@@ -101,13 +101,13 @@ export function selectTab(browser: Browser, tabId: string, options: BrowserTabSe
     for (const visibleTabId of [browser.splitView.firstTabId, browser.splitView.secondTabId]) {
       const visibleTab = findTab(browser, visibleTabId)
       if (visibleTab && visibleTab.id !== next.id) {
-        visibleTab.lastActiveAt = Date.now()
+        visibleTab.lastActiveAt = performance.now()
         browser.window.contentView.removeChildView(visibleTab.view)
       }
     }
     browser.splitView = null
   } else if (current && current.id !== next.id) {
-    current.lastActiveAt = Date.now()
+    current.lastActiveAt = performance.now()
     browser.window.contentView.removeChildView(current.view)
   }
   if (current?.id !== next.id) browser.window.contentView.addChildView(next.view)

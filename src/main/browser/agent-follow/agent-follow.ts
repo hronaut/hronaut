@@ -40,7 +40,7 @@ export function handleMcpTabActivity(browser: Browser, activity: McpTabActivity,
     activities.delete(activity.activityId)
     if (activities.size) browser.mcpActivitiesByTab.set(tab.id, activities)
     else browser.mcpActivitiesByTab.delete(tab.id)
-    tab.lastActiveAt = activity.occurredAt
+    tab.lastActiveAt = performance.now()
   }
   browser.mcpActivityFollower.accept(activity, agent)
 }

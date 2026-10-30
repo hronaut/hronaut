@@ -58,7 +58,9 @@ describe('ending a page search', () => {
     expect(page.stopPageSearch).toHaveBeenCalledExactlyOnceWith(page.tab.webContents, 'activateSelection')
     // An agent's pending action and the take-over note see the person's click, as with their own click in the page.
     expect(page.tab.humanInteractionGeneration).toBe(8)
+    // On the monotonic clock, which the windows after a click and Memory Saver's sleep are timed on.
     expect(page.tab.lastHumanInteractionAt).toBeGreaterThan(1)
+    expect(page.tab.lastHumanInteractionAt).toBeLessThanOrEqual(performance.now())
     expect(page.tab.lastActiveAt).toBe(page.tab.lastHumanInteractionAt)
     expect(page.noteHumanInput).toHaveBeenCalledOnce()
     expect(page.onUserInteraction).toHaveBeenCalledExactlyOnceWith({ tabId: 'tab', workspaceId: 'workspace' })

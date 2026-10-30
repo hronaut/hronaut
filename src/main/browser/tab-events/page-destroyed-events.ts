@@ -70,7 +70,7 @@ export function recoverFromDestroyedPage(browser: Browser, tab: BrowserTab): voi
     if (partner && !partner.webContents.isDestroyed()) {
       if (browser.activeTabId === tab.id) {
         writeActiveTabId(browser, partner.id)
-        partner.lastActiveAt = Date.now()
+        partner.lastActiveAt = performance.now()
         markTabActiveInGroup(browser, partner)
       }
       browser.layout()

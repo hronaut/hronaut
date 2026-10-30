@@ -76,8 +76,8 @@ export function openSplitView(browser: Browser, tabId: string, options: OpenSpli
     throw new LocalizedError('appErrors.splitView.selectedUnavailable')
   }
   browser.splitViewGeneration += 1
-  current.lastActiveAt = Date.now()
-  target.lastActiveAt = Date.now()
+  current.lastActiveAt = performance.now()
+  target.lastActiveAt = performance.now()
   if (current.sleeping) void browser.wakeTab(current.id).catch((error) => console.error('[browser] Could not wake split tab:', error))
   if (target.sleeping) void browser.wakeTab(target.id).catch((error) => console.error('[browser] Could not wake split tab:', error))
 
@@ -86,7 +86,7 @@ export function openSplitView(browser: Browser, tabId: string, options: OpenSpli
       const visibleTab = findTab(browser, visibleTabId)
       if (visibleTab && visibleTab.id !== current.id && visibleTab.id !== target.id) {
         // It was in view until now, so Memory Saver counts its inactivity from here.
-        visibleTab.lastActiveAt = Date.now()
+        visibleTab.lastActiveAt = performance.now()
         browser.window.contentView.removeChildView(visibleTab.view)
       }
     }
@@ -179,7 +179,7 @@ export function closeSplitView(browser: Browser): BrowserState {
   const otherTab = findTab(browser, otherTabId)
   if (otherTab) {
     // It was in view until now, so Memory Saver counts its inactivity from here.
-    otherTab.lastActiveAt = Date.now()
+    otherTab.lastActiveAt = performance.now()
     browser.window.contentView.removeChildView(otherTab.view)
   }
   browser.splitView = null

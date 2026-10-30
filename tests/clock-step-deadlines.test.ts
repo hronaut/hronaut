@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Browser } from '../src/main/browser/browser.js'
+import { watchCredentialSubmission } from '../src/main/browser/credential-capture/credential-capture.js'
 import { imageState } from '../src/main/browser/element-inspection/element-inspection.js'
 import { ImageInspectionSlots } from '../src/main/browser/image-state.js'
 import { waitForElement, waitForText } from '../src/main/browser/page-waits/page-waits.js'
@@ -56,6 +57,20 @@ function imageStateBrowser(): { browser: Browser, scripts: string[] } {
   return { browser, scripts }
 }
 
+/** A website tab whose page reports one submitted sign-in form, then waits for the next, after a click or key at `touchedAt`. */
+function submittingTab(touchedAt: number): Parameters<typeof watchCredentialSubmission>[1] {
+  const executeJavaScriptInIsolatedWorld = vi.fn()
+    .mockResolvedValueOnce({ origin: 'https://example.test', username: 'ada', password: 'correct horse' })
+    .mockReturnValue(new Promise(() => undefined))
+  const webContents = { isDestroyed: () => false, executeJavaScriptInIsolatedWorld }
+  return { url: 'https://example.test/sign-in', webContents, lastHumanInteractionAt: touchedAt } as unknown as Parameters<typeof watchCredentialSubmission>[1]
+}
+
+/** Lets the promise callbacks already queued run. */
+async function settle(): Promise<void> {
+  for (let turn = 0; turn < 5; turn += 1) await Promise.resolve()
+}
+
 describe('deadlines when the wall clock steps back', () => {
   beforeEach(() => {
     vi.useFakeTimers()
@@ -80,6 +95,21 @@ describe('deadlines when the wall clock steps back', () => {
     const deadline = Number(/,\s*(\d+(?:\.\d+)?)\s*\)\s*;?\s*$/.exec(scripts[0]!)?.[1])
     expect(deadline).toBeGreaterThanOrEqual(Date.now() + 4_900)
     expect(deadline).toBeLessThanOrEqual(Date.now() + 5_000)
+  })
+
+  it('offers to save a submitted password only within 15 seconds of the person\'s last click or key', async () => {
+    const onCredentialSubmitted = vi.fn()
+    const browser = { options: { onCredentialSubmitted } } as unknown as Browser
+    const touchedAt = performance.now()
+    stepWallClockBack()
+    vi.advanceTimersByTime(15_000)
+    watchCredentialSubmission(browser, submittingTab(touchedAt))
+    await settle()
+    expect(onCredentialSubmitted).toHaveBeenCalledOnce()
+    vi.advanceTimersByTime(1)
+    watchCredentialSubmission(browser, submittingTab(touchedAt))
+    await settle()
+    expect(onCredentialSubmitted).toHaveBeenCalledOnce()
   })
 
   it('stops waiting for workspace operations at quit after eight seconds', async () => {
