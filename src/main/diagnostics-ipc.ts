@@ -25,6 +25,7 @@ import { designOverview } from './browser/page-audits/design-overview.js'
 import { performanceReport } from './browser/page-audits/performance-report.js'
 import { qualityAudit } from './browser/page-audits/quality-audit.js'
 import { securityReport } from './browser/page-audits/security-report.js'
+import { browserState } from './browser/browser-state/browser-state.js'
 
 interface DiagnosticsIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
@@ -152,7 +153,7 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
     host.assertTrustedSender(event)
     if (typeof tabId !== 'string' || typeof preserve !== 'boolean') throw new TypeError('Invalid diagnostic log preservation state')
     setDiagnosticLogPreservation(host.tabs(), tabId, preserve)
-    return host.tabs().getState()
+    return browserState(host.tabs())
   })
   ipcMain.handle('browser:video', (event, value: unknown) => {
     host.assertTrustedSender(event)

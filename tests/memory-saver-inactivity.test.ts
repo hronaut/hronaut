@@ -21,7 +21,8 @@ vi.mock('../src/main/browser/tab-sleep/tab-sleep.js', async (importOriginal) => 
   ) => browser.putTabToSleep(tab, reportBlocked, isCurrent)
 }))
 import { Browser } from '../src/main/browser/browser.js'
-import { sweepMemorySaver } from '../src/main/browser/tab-sleep/memory-saver.js'
+import { sweepMemorySaver, setMemorySaverSettings } from '../src/main/browser/tab-sleep/memory-saver.js'
+import { closeSplitView, openSplitView } from '../src/main/browser/split-view/split-view.js'
 
 afterEach(() => { vi.useRealTimers() })
 
@@ -94,10 +95,10 @@ describe('Memory Saver inactivity', () => {
   it('counts the time a page was in split view as activity when the split view closes', async () => {
     const { manager, sweep, askedToSleep } = browser()
     manager.selectTab('reading')
-    manager.openSplitView('other')
+    openSplitView(manager, 'other')
     // Both pages stay side by side for two hours.
     vi.setSystemTime(Date.now() + 2 * 60 * MINUTE)
-    manager.closeSplitView()
+    closeSplitView(manager)
     await sweep()
     // The page that left the window used to sleep at the next sweep.
     expect(askedToSleep()).not.toContain('other')
@@ -107,10 +108,10 @@ describe('Memory Saver inactivity', () => {
   it('counts the time a page was in split view as activity when another split view replaces it', async () => {
     const { manager, sweep, askedToSleep } = browser()
     manager.selectTab('reading')
-    manager.openSplitView('other')
+    openSplitView(manager, 'other')
     vi.setSystemTime(Date.now() + 2 * 60 * MINUTE)
     // The person pairs the page they are on with another one; the earlier partner leaves the window.
-    manager.openSplitView('idle')
+    openSplitView(manager, 'idle')
     await sweep()
     expect(askedToSleep()).not.toContain('other')
   })
@@ -134,7 +135,7 @@ describe('Memory Saver inactivity', () => {
     const { manager, tabs } = browser()
     tabs.get('idle')!.sleeping = true
     tabs.get('other')!.sleeping = true
-    manager.setMemorySaverSettings(false, 60)
+    setMemorySaverSettings(manager, false, 60)
     // Turning it off woke every sleeping tab at once, such as the dozens restored asleep, which loaded all their pages
     // together.
     expect((manager as unknown as { wakeTab: ReturnType<typeof vi.fn> }).wakeTab).not.toHaveBeenCalled()

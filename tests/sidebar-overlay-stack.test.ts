@@ -27,6 +27,11 @@ vi.mock('electron', () => ({
   screen: { getCursorScreenPoint: () => ({ x: 130, y: 500 }) },
   webContents: { getFocusedWebContents: () => focus.current }
 }))
+// The tab runtime below stubs pageArea, which the toast overlay is laid out in.
+vi.mock('../src/main/browser/window-layout/content-area.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/window-layout/content-area.js')>(),
+  pageArea: (browser: { pageArea: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.pageArea(...args)
+}))
 
 const { createShellOverlays } = await import('../src/main/windows/shell-overlays.js')
 

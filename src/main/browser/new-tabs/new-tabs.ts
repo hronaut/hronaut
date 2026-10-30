@@ -10,6 +10,7 @@ import { assertWorkspaceNavigationAllowed } from '../workspace-navigation/worksp
 import type { BrowserTab } from '../browser-tab.js'
 import { browserState } from '../browser-state/browser-state.js'
 import { requireMcpTabGroup } from '../mcp-tab-groups/mcp-tab-groups.js'
+import { closeMcpTabGroup } from '../mcp-tab-groups/close-mcp-tab-group.js'
 
 /** The browser's tab limit. */
 const MAX_TABS = MAX_BROWSER_TABS
@@ -81,7 +82,7 @@ export async function createNewTab(browser: Browser, options: NewTabOptions, sel
     })
   } catch (error) {
     if (createsWorkspace) {
-      try { await browser.closeMcpTabGroup(groupId) } catch (cleanupError) {
+      try { await closeMcpTabGroup(browser, groupId) } catch (cleanupError) {
         throw new LocalizedError('appErrors.tabs.workspaceCleanupFailed', undefined, { cause: new AggregateError([error, cleanupError]) })
       }
     }

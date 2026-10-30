@@ -15,6 +15,7 @@ import type { ToastOverlayEvent } from '../../shared/toast-overlay.js'
 import type { SidebarOverlayEvent } from '../../shared/sidebar-overlay.js'
 import { showTabContextMenu } from '../browser/context-menus/tab-context-menu.js'
 import { setFollowAgentActivitySuspended } from '../browser/trusted-chrome-occlusion/trusted-chrome-occlusion.js'
+import { pageArea } from '../browser/window-layout/content-area.js'
 
 interface ShellOverlaysHost {
   /** Whether a frame's address is the expected trusted page, with or without a fragment; each view admits only its own. */
@@ -112,7 +113,7 @@ export function createShellOverlays(host: ShellOverlaysHost): {
       if (host.tabRuntime.startupFailure || !host.mainWindowRefs.window || host.mainWindowRefs.window.isDestroyed() || host.mainWindowRefs.window.webContents.isDestroyed()) return null
       // No page area until the saved workspaces are up, or after they failed to come up; the shell shows its own copy.
       if (!host.tabRuntime.tabs || host.tabRuntime.initializedTabs !== host.tabRuntime.tabs) return null
-      const area = host.tabRuntime.tabs.pageArea()
+      const area = pageArea(host.tabRuntime.tabs)
       return area ? { area, zoom: host.mainWindowRefs.window.webContents.getZoomFactor() } : null
     },
     emit: (event: ToastOverlayEvent) => {

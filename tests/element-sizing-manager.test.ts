@@ -3,6 +3,7 @@ import { expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' } }))
 import { Browser } from '../src/main/browser/browser.js'
 import { ImageInspectionSlots } from '../src/main/browser/image-state.js'
+import { elementInspection } from '../src/main/browser/element-inspection/element-inspection.js'
 
 it.each(['validator', 'listener'])('releases sizing ownership after %s failure following acquisition', async stage => {
   const contents = Object.assign(new EventEmitter(), { isDestroyed: () => false, executeJavaScriptInIsolatedWorld: vi.fn(async () => true) })
@@ -17,7 +18,7 @@ it.each(['validator', 'listener'])('releases sizing ownership after %s failure f
   const on = contents.on
   if (stage === 'listener') contents.on = function (...args) { on.apply(this, args); throw Error('listener failure') }
   let checks = 0
-  await expect(manager.elementInspection({ tabId: 'tab', selector: '#target', includeSizingInputs: true }, () => {
+  await expect(elementInspection(manager, { tabId: 'tab', selector: '#target', includeSizingInputs: true }, () => {
     if (stage === 'validator' && ++checks === 2) throw Error('validator failure')
   })).rejects.toThrow(`${stage} failure`)
   contents.on = on
@@ -42,7 +43,7 @@ it('runs the parent flex context on the guarded sizing path, and only for one un
     tabs: new Map([['tab', tab]]), mcpTabGroups: new Map([['workspace', {}]]), inspectionPermissions: new WeakMap(),
     sizingInspectionSlots: new ImageInspectionSlots(), destroyed: false
   }) as Browser
-  const report = await manager.elementInspection({ tabId: 'tab', selector: '#target', includeFlexContainer: true })
+  const report = await elementInspection(manager, { tabId: 'tab', selector: '#target', includeFlexContainer: true })
   expect(report).toMatchObject({ sizingInputs: { 'flex-grow': 1 }, flexContainer: { status: 'unavailable', reason: 'not-flex-container' } })
   // The capture reads the parent and checks it again when it settles.
   expect(scripts[0]).toContain('element.parentElement===parent')
@@ -53,5 +54,5 @@ it('runs the parent flex context on the guarded sizing path, and only for one un
     [{ selector: '#target', includeFlexContainer: true, includeSizingInputs: false }, /omit includeSizingInputs or set it to true/],
     [{ selector: '#target', includeFlexContainer: 'true' as unknown as boolean }, /includeFlexContainer must be a boolean/],
     [{ selector: '#target', includeFlexContainer: true, includeValidity: true }, /cannot combine|cannot be combined/]
-  ] as const) await expect(manager.elementInspection({ tabId: 'tab', ...options }), JSON.stringify(options)).rejects.toThrow(message)
+  ] as const) await expect(elementInspection(manager, { tabId: 'tab', ...options }), JSON.stringify(options)).rejects.toThrow(message)
 })

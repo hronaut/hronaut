@@ -36,6 +36,14 @@ vi.mock('../src/main/browser/agent-pause/agent-pause.js', async (importOriginal)
   hasPausedAgentTab: (browser: { hasPausedAgentTab?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.hasPausedAgentTab?.(...args) ?? false,
   isTabTakenOver: (browser: { isTabTakenOver?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.isTabTakenOver?.(...args) ?? false
 }))
+vi.mock('../src/main/browser/screenshots/screenshots.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/screenshots/screenshots.js')>(),
+  screenshot: (browser: { screenshot: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.screenshot(...args)
+}))
+vi.mock('../src/main/browser/page-snapshots/page-snapshots.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/page-snapshots/page-snapshots.js')>(),
+  snapshotDetails: (browser: { snapshotDetails: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.snapshotDetails(...args)
+}))
 
 it.each(['browser_screenshot', 'browser_snapshot'])('withholds %s when cancellation arrives during audit persistence', async toolName => {
   const workspaceId = '01912345-6789-7abc-8def-0123456789ab'

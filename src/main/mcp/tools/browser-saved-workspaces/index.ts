@@ -5,7 +5,7 @@ import { workspaceIdSchema, workspaceResumeKeySchema } from '../../tool-schemas.
 import { WorkspaceWriteLeaseError } from '../../workspace-write-leases.js'
 import type { McpToolContext } from '../tool-context.js'
 import { listMcpTabGroups, requireMcpTabGroup } from '../../../browser/mcp-tab-groups/mcp-tab-groups.js'
-import { saveAndCloseTabGroup } from '../../../browser/workspace-archive/workspace-archive.js'
+import { saveAndCloseTabGroup, deleteSavedTabGroup } from '../../../browser/workspace-archive/workspace-archive.js'
 import { inspectWorkspaceContinuity, suspendWorkspaceContinuity } from '../../../browser/workspace-continuity/workspace-continuity.js'
 
 export function registerBrowserSavedWorkspaces(context: McpToolContext): void {
@@ -108,7 +108,7 @@ export function registerBrowserSavedWorkspaces(context: McpToolContext): void {
         }
       }
       const deletingLease = workspaceLeases.require(savedWorkspaceId, client.id)
-      await manager.deleteSavedTabGroup(savedWorkspaceId)
+      await deleteSavedTabGroup(manager, savedWorkspaceId)
       let leaseOutcome: CallToolResult | undefined
       try {
         if (deletingLease.generation) workspaceLeases.require(savedWorkspaceId, client.id, deletingLease.generation)

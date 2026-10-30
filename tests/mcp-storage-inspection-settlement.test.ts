@@ -37,7 +37,8 @@ vi.mock('../src/main/browser/agent-pause/agent-pause.js', async (importOriginal)
 }))
 vi.mock('../src/main/browser/site-storage/storage-inspection.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/site-storage/storage-inspection.js')>(),
-  inspectIndexedDb: (browser: { inspectIndexedDb: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.inspectIndexedDb(...args)
+  inspectIndexedDb: (browser: { inspectIndexedDb: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.inspectIndexedDb(...args),
+  inspectStorageUsage: (browser: { inspectStorageUsage: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.inspectStorageUsage(...args)
 }))
 
 for (const tool of ['browser_indexeddb', 'browser_storage_usage'] as const) it.each(['before-policy-review', 'native-error-late-navigation', 'input', 'missing-guard', 'hook-policy-review', 'late-review', 'late-audit', 'late-access', 'late-navigation', 'late-policy', 'before-submit', 'lost-read', 'success'] as const)(`withholds ${tool} data across %s settlement failure`, async failure => {

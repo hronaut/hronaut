@@ -13,7 +13,10 @@ import { getTabOverviewPagePreview, getTabOverviewPreviews } from './browser/tab
 import { sleepInactiveTabs } from './browser/tab-sleep/memory-saver.js'
 import { setTabSleeping } from './browser/tab-sleep/tab-sleep.js'
 import { setTabPageLifecycle } from './browser/page-lifecycle/page-lifecycle.js'
-import { openSplitViewAndWait, updateSplitView } from './browser/split-view/split-view.js'
+import { openSplitViewAndWait, updateSplitView, closeSplitView } from './browser/split-view/split-view.js'
+import { browserState } from './browser/browser-state/browser-state.js'
+import { closeTabsForPerson } from './browser/tab-close/close-tabs-for-person.js'
+import { saveTabLabel } from './browser/tab-labels/tab-labels.js'
 
 interface TabsIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
@@ -69,7 +72,7 @@ function selectedTabIds(value: unknown): string[] {
 /** Dependencies stay lazy because handlers are registered before the window loads. */
 export function registerTabsIpc(host: TabsIpcHost): void {
   host.handleBrowserIpc('browser:get-state', async (event) => {
-    return stateReply(host, host.runWorkspaceRead(event, host.assertTrustedSender, () => host.tabs()!.getState()))
+    return stateReply(host, host.runWorkspaceRead(event, host.assertTrustedSender, () => browserState(host.tabs()!)))
   })
   host.handleBrowserIpc('browser:get-tab-overview-previews', async (event, value: unknown) => {
     host.assertTrustedSender(event)
@@ -92,11 +95,11 @@ export function registerTabsIpc(host: TabsIpcHost): void {
   host.handleBrowserIpc('browser:close-tab', (event, tabId: unknown) => {
     host.assertTrustedSender(event)
     if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
-    return stateReply(host, host.tabs()!.closeTabsForPerson([tabId]))
+    return stateReply(host, closeTabsForPerson(host.tabs()!, [tabId]))
   })
   host.handleBrowserIpc('browser:close-tabs', (event, tabIds: unknown) => {
     host.assertTrustedSender(event)
-    return stateReply(host, host.tabs()!.closeTabsForPerson(selectedTabIds(tabIds)))
+    return stateReply(host, closeTabsForPerson(host.tabs()!, selectedTabIds(tabIds)))
   })
   host.handleBrowserIpc('browser:open-split-view', (event, tabId: unknown) => {
     host.assertTrustedSender(event)
@@ -122,12 +125,12 @@ export function registerTabsIpc(host: TabsIpcHost): void {
   })
   host.handleBrowserIpc('browser:close-split-view', (event) => {
     host.assertTrustedSender(event)
-    return host.tabs()!.closeSplitView()
+    return closeSplitView(host.tabs()!)
   })
   host.handleBrowserIpc('browser:set-tab-label', (event, tabId: unknown, label: unknown) => {
     host.assertMainShellSender(event)
     if (typeof tabId !== 'string' || typeof label !== 'string') throw new TypeError('Invalid tab label')
-    return host.tabs()!.setTabLabel(tabId, label)
+    return saveTabLabel(host.tabs()!, tabId, label)
   })
   host.handleBrowserIpc('browser:set-tab-pinned', (event, tabId: unknown, pinned: unknown) => {
     host.assertTrustedSender(event)

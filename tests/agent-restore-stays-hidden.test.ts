@@ -71,6 +71,7 @@ vi.mock('../src/main/browser/tab-events/attach-tab-events.js', () => ({
 const { Browser } = await import('../src/main/browser/browser.js')
 const { WorkspaceRegistry } = await import('../src/main/browser/workspace-registry/workspace-registry.js')
 const { restoreSavedTabGroup } = await import('../src/main/browser/workspace-archive/workspace-archive.js')
+const { openSplitView } = await import('../src/main/browser/split-view/split-view.js')
 
 const PERSON = '01912345-6789-7abc-8def-0123456789ab'
 const AGENT = '01912345-6789-7abc-8def-0123456789ac'
@@ -84,7 +85,6 @@ interface Manager {
   mcpTabGroups: Map<string, Workspace>
   createTab(options: { url: string; mcpGroupId: string; active: boolean }): Promise<Tab>
   selectTab(tabId: string): unknown
-  openSplitView(tabId: string): unknown
   restoreSavedTabGroupForAgent(id: string): Promise<unknown>
 }
 
@@ -157,7 +157,7 @@ async function personInSplitView(manager: Manager) {
   const statement = await manager.createTab({ url: 'https://bank.example/statement', mcpGroupId: PERSON, active: false })
   const transfer = await manager.createTab({ url: 'https://bank.example/transfer', mcpGroupId: PERSON, active: false })
   manager.selectTab(transfer.id)
-  manager.openSplitView(statement.id)
+  openSplitView(manager as never, statement.id)
   expect(manager.splitView).toMatchObject({ firstTabId: transfer.id, secondTabId: statement.id })
   focused.length = 0
   return { transfer, split: structuredClone(manager.splitView) }

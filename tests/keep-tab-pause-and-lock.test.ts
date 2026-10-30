@@ -92,6 +92,7 @@ const { WorkspaceRegistry } = await import('../src/main/browser/workspace-regist
 const { closeTabsForPerson } = await import('../src/main/browser/tab-close/close-tabs-for-person.js')
 const { duplicateTabAfterLabelSave, rememberClosedTab, reopenClosedTabEntry } = await import('../src/main/browser/tab-reopening/tab-reopening.js')
 const { setTabHumanInteractionLocked, setAllHumanInteractionLocked } = await import('../src/main/browser/interaction-lock/interaction-lock.js')
+const { setTabAgentPaused, setAllAgentsPaused } = await import('../src/main/browser/agent-pause/agent-pause.js')
 
 const WORKSPACE = '01912345-6789-7abc-8def-0123456789ab'
 
@@ -99,8 +100,6 @@ interface Tab { id: string; url: string; tabAgentPaused: boolean; humanInteracti
 interface Manager {
   tabs: Map<string, Tab>
   createTab(options: { url: string; mcpGroupId: string; active: boolean }): Promise<Tab>
-  setTabAgentPaused(tabId: string, paused: boolean): unknown
-  setAllAgentsPaused(paused: boolean): void
   isTabAgentPaused(tabId: string): boolean
   isHumanInteractionLocked(tab: Tab): boolean
   closeWithBookkeeping(tabId: string): Promise<unknown>
@@ -169,7 +168,7 @@ function browser() {
 /** A tab whose agents the person paused and whose input they locked, from the tab's own controls. */
 async function guardedTab(manager: Manager): Promise<Tab> {
   const tab = await manager.createTab({ url: 'https://bank.example/account', mcpGroupId: WORKSPACE, active: false })
-  manager.setTabAgentPaused(tab.id, true)
+  setTabAgentPaused(manager as never, tab.id, true)
   await setTabHumanInteractionLocked(manager as never, tab.id, true)
   expect(guards(manager, tab)).toEqual(GUARDED)
   return tab
@@ -233,11 +232,11 @@ describe('a paused and locked tab brought back', () => {
     // Pausing all agents covers the tab's own pause without changing it; the tab brought back meanwhile keeps it.
     const { manager } = browser()
     const tab = await guardedTab(manager)
-    manager.setAllAgentsPaused(true)
+    setAllAgentsPaused(manager as never, true)
     await manager.closeWithBookkeeping(tab.id)
     const reopened = await reopenLastClosed(manager)
 
-    manager.setAllAgentsPaused(false)
+    setAllAgentsPaused(manager as never, false)
 
     expect(guards(manager, reopened)).toEqual(GUARDED)
   })
@@ -248,13 +247,13 @@ describe('a tab paused and locked only because every tab was', () => {
   // turned off again, the tab brought back is open to agents and to the person.
   async function coveredTab(manager: Manager): Promise<Tab> {
     const tab = await manager.createTab({ url: 'https://docs.example/', mcpGroupId: WORKSPACE, active: false })
-    manager.setAllAgentsPaused(true)
+    setAllAgentsPaused(manager as never, true)
     await setAllHumanInteractionLocked(manager as never, true)
     expect(guards(manager, tab)).toEqual({ agentsPaused: true, tabAgentPaused: false, inputLocked: true, humanInteractionLocked: false })
     return tab
   }
   async function uncover(manager: Manager): Promise<void> {
-    manager.setAllAgentsPaused(false)
+    setAllAgentsPaused(manager as never, false)
     await setAllHumanInteractionLocked(manager as never, false)
   }
 

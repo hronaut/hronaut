@@ -64,6 +64,18 @@ vi.mock('../src/main/browser/agent-pause/agent-pause.js', async (importOriginal)
   hasPausedAgentTab: (browser: { hasPausedAgentTab?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.hasPausedAgentTab?.(...args) ?? false,
   isTabTakenOver: (browser: { isTabTakenOver?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.isTabTakenOver?.(...args) ?? false
 }))
+vi.mock('../src/main/browser/page-snapshots/page-snapshots.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/page-snapshots/page-snapshots.js')>(),
+  agentStepName: (browser: { agentStepName: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.agentStepName(...args)
+}))
+vi.mock('../src/main/browser/agent-step-thumbnail/agent-step-thumbnail.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/agent-step-thumbnail/agent-step-thumbnail.js')>(),
+  captureAgentStepThumbnail: (browser: { captureAgentStepThumbnail: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.captureAgentStepThumbnail(...args)
+}))
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  browserState: (browser: { getState: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.getState(...args)
+}))
 
 const workspace = 'workspace-a'
 const otherWorkspace = 'workspace-b'

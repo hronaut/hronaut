@@ -5,6 +5,11 @@ vi.mock('../src/main/browser/tab-overview-previews/tab-overview-previews.js', as
   ...await importOriginal<typeof import('../src/main/browser/tab-overview-previews/tab-overview-previews.js')>(),
   invalidateTabOverviewPreview: (browser: { invalidateTabOverviewPreview: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.invalidateTabOverviewPreview(...args)
 }))
+// It stubs selectTabAndWait too, which going to another tab waits on.
+vi.mock('../src/main/browser/tab-selection/tab-selection.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-selection/tab-selection.js')>(),
+  selectTabAndWait: (browser: { selectTabAndWait: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.selectTabAndWait(...args)
+}))
 import { Browser } from '../src/main/browser/browser.js'
 import { closeTabTransition } from '../src/main/browser/tab-close/close-transition.js'
 import { removeTabRecord } from '../src/main/browser/tab-close/remove-tab-record.js'

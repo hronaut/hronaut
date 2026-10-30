@@ -3,6 +3,7 @@ import type { ActiveWorkspace } from '../workspace-registry/workspace-registry.j
 import type { Browser } from '../browser.js'
 import { sleepBlockReason, sleepWorkspaceTabs } from '../tab-sleep/tab-sleep.js'
 import { archiveWorkspaceForPerson } from '../workspace-archive/workspace-archive.js'
+import { setWorkspacePinned } from '../mcp-tab-groups/workspace-pinning.js'
 
 /**
  * The workspace's context menu items: a new tab in it, importing browser
@@ -48,7 +49,7 @@ export function workspaceContextMenuItems(browser: Browser, group: ActiveWorkspa
     {
       id: 'pin-workspace',
       label: browser.text(pin ? 'native.context.pinWorkspace' : 'native.context.unpinWorkspace'),
-      click: () => runAction('pin the workspace', () => browser.setWorkspacePinned(group.id, pin))
+      click: () => runAction('pin the workspace', () => setWorkspacePinned(browser, group.id, pin))
     },
     { type: 'separator' },
     {

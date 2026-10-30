@@ -11,6 +11,7 @@ vi.mock('../src/main/browser/unique-download-file.js', () => ({
 }))
 import { Browser } from '../src/main/browser/browser.js'
 import type { BrowserPdfOptions } from '../src/shared/types.js'
+import { savePdf } from '../src/main/browser/pdf-export/pdf-export.js'
 
 const pages = (count: number): Buffer => Buffer.from(`%PDF-1.4\n3 0 obj\n<</Type /Pages /Count ${count} /Kids []>>\nendobj\n%%EOF`, 'latin1')
 
@@ -39,7 +40,7 @@ function exporter(output: Buffer = pages(1)) {
     withRenderableTab: (_tab: unknown, run: () => Promise<unknown>) => run()
   }) as Browser
   return {
-    save: (options: BrowserPdfOptions) => manager.savePdf({ tabId: tab.id, ...options }),
+    save: (options: BrowserPdfOptions) => savePdf(manager, { tabId: tab.id, ...options }),
     printed: () => (printToPDF.mock.calls[0] as unknown[])[0],
     writeUniqueDownload
   }

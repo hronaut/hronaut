@@ -9,7 +9,8 @@ vi.mock('../src/main/browser/agent-pause/agent-pause.js', async (importOriginal)
   hasAgentPauseExceptions: (browser: { hasAgentPauseExceptions: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.hasAgentPauseExceptions(...args),
   isTabAgentPaused: (browser: { isTabAgentPaused?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.isTabAgentPaused?.(...args) ?? false,
   hasPausedAgentTab: (browser: { hasPausedAgentTab?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.hasPausedAgentTab?.(...args) ?? false,
-  isTabTakenOver: (browser: { isTabTakenOver?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.isTabTakenOver?.(...args) ?? false
+  isTabTakenOver: (browser: { isTabTakenOver?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.isTabTakenOver?.(...args) ?? false,
+  setTabAgentPaused: (browser: { setTabAgentPaused: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.setTabAgentPaused(...args)
 }))
 vi.mock('../src/main/browser/mcp-tab-groups/mcp-tab-groups.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/mcp-tab-groups/mcp-tab-groups.js')>(),

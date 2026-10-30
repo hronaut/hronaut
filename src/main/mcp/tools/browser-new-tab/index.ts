@@ -6,6 +6,7 @@ import { classifyMcpActivityResult, mcpWorkspaceState, textResult, toolDescripti
 import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
 import { type LabeledCreationSettlement, labeledCreationSettlement } from './labeled-creation-settlement.js'
 import { getMcpGroupState, tabBelongsToMcpGroup } from '../../../browser/workspace-scope/workspace-scope.js'
+import { newLabeledAgentTab } from '../../../browser/new-tabs/new-tabs.js'
 
 export function registerBrowserNewTab(context: McpToolContext): void {
   const { manager, onTabActivity, registerWorkspaceTool, tool, workspaceAuthorizationError } = context
@@ -28,7 +29,7 @@ export function registerBrowserNewTab(context: McpToolContext): void {
         const creation = call.settlement!
         const validate = creation.publication()!
         validate()
-        const saved = await manager.newLabeledAgentTab({ url, active, mcpGroupId: workspaceId!, focus: false, ...construction }, label, () => creation.publication()!(), tabId => {
+        const saved = await newLabeledAgentTab(manager, { url, active, mcpGroupId: workspaceId!, focus: false, ...construction }, label, () => creation.publication()!(), tabId => {
           const activityId = randomUUID()
           onTabActivity?.({ activityId, tabId, toolName: 'browser_new_tab', phase: 'started', occurredAt: Date.now() }, workspaceId!)
           creation.retainPublication(() => {

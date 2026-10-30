@@ -1,10 +1,11 @@
 import type { Browser } from '../browser/browser.js'
 import { HOME_CARD_ICON_MAX_LENGTH, HOME_CARD_TAB_LIMIT, type HomeWorkspaceAction, type HomeWorkspaceEditorRequest, type HomeWorkspaceState } from '../../shared/home-workspaces.js'
-import { closeWorkspaceForPerson, restoreSavedTabGroup, updateArchivedWorkspacePreferences, archiveWorkspaceForPerson } from '../browser/workspace-archive/workspace-archive.js'
+import { closeWorkspaceForPerson, restoreSavedTabGroup, updateArchivedWorkspacePreferences, archiveWorkspaceForPerson, deleteSavedTabGroup } from '../browser/workspace-archive/workspace-archive.js'
 import { updateMcpTabGroup } from '../browser/mcp-tab-groups/mcp-tab-groups.js'
+import { browserState } from '../browser/browser-state/browser-state.js'
 
 export function homeWorkspaceState(manager: Browser): HomeWorkspaceState {
-  const state = manager.getState()
+  const state = browserState(manager)
   const shown = new Map<string | undefined, number>()
   // Only the tabs a card shows carry their icon, and only a small image one, so polling stays light.
   const icon = (tab: HomeWorkspaceState['tabs'][number]): string | undefined => {
@@ -33,7 +34,7 @@ export async function runHomeWorkspaceAction(
 ): Promise<HomeWorkspaceState> {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('Invalid workspace action')
   const request = input as HomeWorkspaceAction
-  const state = manager.getState()
+  const state = browserState(manager)
   if (request.view === 'create' || request.view === 'templates') {
     edit({ view: request.view })
     return homeWorkspaceState(manager)
@@ -72,7 +73,7 @@ export async function runHomeWorkspaceAction(
       break
     case 'delete':
       if (state.allHumanInteractionLocked) throw new Error('Unlock the browser before deleting a workspace.')
-      await manager.deleteSavedTabGroup(request.workspaceId)
+      await deleteSavedTabGroup(manager, request.workspaceId)
       break
     case 'preferences': {
       const updates: { hiddenFromSidebar?: boolean; deletionProtected?: boolean } = {}

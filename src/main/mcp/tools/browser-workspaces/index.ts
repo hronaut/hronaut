@@ -9,6 +9,7 @@ import { beginWorkspaceContinuityAction, requireWorkspaceContinuityDispatch, req
 import { createMcpTabGroup } from '../../../browser/mcp-tab-groups/create-mcp-tab-group.js'
 import { renameMcpTabGroup, requireMcpTabGroup, updateMcpTabGroup } from '../../../browser/mcp-tab-groups/mcp-tab-groups.js'
 import { listWorkspaceStorageOrigins } from '../../../browser/workspace-data/workspace-data.js'
+import { closeMcpTabGroup } from '../../../browser/mcp-tab-groups/close-mcp-tab-group.js'
 
 export function normalizePublicObserverOrigin(value: string): string {
   const parsed = new URL(value)
@@ -193,7 +194,7 @@ export function registerBrowserWorkspaces(context: McpToolContext): void {
       }
       if (action === 'list-origins') return textResult(listWorkspaceStorageOrigins(manager, workspaceId))
       const closingLease = workspaceLeases.require(workspaceId, client.id)
-      await manager.closeMcpTabGroup(workspaceId)
+      await closeMcpTabGroup(manager, workspaceId)
       let leaseOutcome: CallToolResult | undefined
       try {
         if (closingLease.generation) workspaceLeases.require(workspaceId, client.id, closingLease.generation)

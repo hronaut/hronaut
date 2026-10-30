@@ -71,6 +71,7 @@ vi.mock('../src/main/browser/tab-events/attach-tab-events.js', () => ({
 }))
 const { Browser } = await import('../src/main/browser/browser.js')
 const { attachPagePointerEvents } = await import('../src/main/browser/tab-events/page-pointer-events.js')
+const { openSplitView } = await import('../src/main/browser/split-view/split-view.js')
 
 const PERSON = '01912345-6789-7abc-8def-0123456789ab'
 
@@ -82,7 +83,6 @@ interface Manager {
   splitView: unknown
   createTab(options: { url: string; mcpGroupId: string; active: boolean }): Promise<Tab>
   selectTab(tabId: string): unknown
-  openSplitView(tabId: string): unknown
   tabSelectionGeneration: number
   browserContentOccluded: boolean
   allHumanInteractionLocked: boolean
@@ -124,7 +124,7 @@ async function personInSplitView(manager: Manager) {
   const right = await manager.createTab({ url: 'https://right.example/', mcpGroupId: PERSON, active: false })
   attachPagePointerEvents(manager as never, right as never, right.webContents as never)
   manager.selectTab(left.id)
-  manager.openSplitView(right.id)
+  openSplitView(manager as never, right.id)
   const split = structuredClone(manager.splitView)
   return { left, right, split }
 }

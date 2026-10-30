@@ -1,6 +1,7 @@
 import { SplitDividerController } from '../split-divider-controller.js'
 import type { Browser } from '../browser.js'
 import { publishChange } from '../browser-state/browser-state.js'
+import { getSplitDivider } from '../window-layout/window-layout.js'
 
 /**
  * The split view divider's drag, which owns only the split it began on and
@@ -10,7 +11,7 @@ import { publishChange } from '../browser-state/browser-state.js'
  */
 export function createSplitDivider(browser: Browser): SplitDividerController {
   return new SplitDividerController({
-    read: () => browser.getSplitDivider(),
+    read: () => getSplitDivider(browser),
     owns: (geometry) => browser.splitViewGeneration === geometry.revision
       && browser.splitView?.firstTabId === geometry.firstTabId
       && browser.splitView?.secondTabId === geometry.secondTabId

@@ -4,6 +4,7 @@ import { isBrowserEnvironmentSettings } from '../shared/browser-environment.js'
 import type { BrowserEnvironmentSettings, BrowserViewportEmulation } from '../shared/types.js'
 import { isBrowserViewportEmulation } from '../shared/viewport-presets.js'
 import { emulate } from './browser/emulation/emulation.js'
+import { browserState } from './browser/browser-state/browser-state.js'
 
 interface EmulationIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
@@ -32,7 +33,7 @@ export function registerEmulationIpc(host: EmulationIpcHost): void {
       orientation: viewport.orientation
     }
     await emulate(host.tabs()!, { tabId, viewport: normalizedViewport })
-    return host.tabs()!.getState()
+    return browserState(host.tabs()!)
   })
   host.handleBrowserIpc('browser:set-tab-environment', async (event, tabId: unknown, environment: unknown) => {
     host.assertTrustedSender(event)
@@ -40,18 +41,18 @@ export function registerEmulationIpc(host: EmulationIpcHost): void {
       throw new TypeError('Invalid browser environment')
     }
     await emulate(host.tabs()!, { tabId, ...(environment as BrowserEnvironmentSettings) })
-    return host.tabs()!.getState()
+    return browserState(host.tabs()!)
   })
   host.handleBrowserIpc('browser:reset-tab-emulation', async (event, tabId: unknown) => {
     host.assertTrustedSender(event)
     if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
     await emulate(host.tabs()!, { tabId, reset: true })
-    return host.tabs()!.getState()
+    return browserState(host.tabs()!)
   })
   host.handleBrowserIpc('browser:recover-tab-emulation', async (event, tabId: unknown) => {
     host.assertTrustedSender(event)
     if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
     await emulate(host.tabs()!, { tabId, recover: true })
-    return host.tabs()!.getState()
+    return browserState(host.tabs()!)
   })
 }

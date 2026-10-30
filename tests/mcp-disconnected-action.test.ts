@@ -30,6 +30,10 @@ vi.mock('../src/main/browser/agent-pause/agent-pause.js', async (importOriginal)
   hasPausedAgentTab: (browser: { hasPausedAgentTab?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.hasPausedAgentTab?.(...args) ?? false,
   isTabTakenOver: (browser: { isTabTakenOver?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.isTabTakenOver?.(...args) ?? false
 }))
+vi.mock('../src/main/browser/tab-selection/tab-selection.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-selection/tab-selection.js')>(),
+  selectAgentTabAndWait: (browser: { selectAgentTabAndWait: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.selectAgentTabAndWait(...args)
+}))
 
 it.each([
   { replaceEndpoint: false, rejectAction: false },

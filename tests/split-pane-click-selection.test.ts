@@ -73,7 +73,8 @@ vi.mock('../src/main/browser/tab-events/attach-tab-events.js', () => ({
 }))
 const { Browser } = await import('../src/main/browser/browser.js')
 const { attachPagePointerEvents } = await import('../src/main/browser/tab-events/page-pointer-events.js')
-const { openSplitViewAndWait } = await import('../src/main/browser/split-view/split-view.js')
+const { openSplitView, openSplitViewAndWait } = await import('../src/main/browser/split-view/split-view.js')
+const { selectTabAndWait } = await import('../src/main/browser/tab-selection/tab-selection.js')
 
 const PERSON = '01912345-6789-7abc-8def-0123456789ab'
 
@@ -86,8 +87,6 @@ interface Manager {
   wakeTab: (tabId: string) => Promise<unknown>
   createTab(options: { url: string; mcpGroupId: string; active: boolean }): Promise<Tab>
   selectTab(tabId: string): unknown
-  selectTabAndWait(tabId: string): Promise<unknown>
-  openSplitView(tabId: string): unknown
 }
 
 function browser() {
@@ -134,7 +133,7 @@ async function personInSplitViewWithASleepingTab(manager: Manager) {
   sleeper.sleeping = true
   attachPagePointerEvents(manager as never, right as never, right.webContents as never)
   manager.selectTab(left.id)
-  manager.openSplitView(right.id)
+  openSplitView(manager as never, right.id)
   const split = structuredClone(manager.splitView)
   focused.length = 0
   return { left, right, sleeper, split }
@@ -145,7 +144,7 @@ describe('a sleeping tab the person clicked, then went back to their split view 
     const { manager, finishWake } = browser()
     const { right, sleeper, split } = await personInSplitViewWithASleepingTab(manager)
 
-    const selecting = manager.selectTabAndWait(sleeper.id)
+    const selecting = selectTabAndWait(manager as never, sleeper.id)
     // The person clicks into the right-hand page, which makes it the active pane.
     right.webContents.emit('before-mouse-event', { preventDefault: vi.fn() }, { type: 'mouseDown', button: 'left', x: 40, y: 40 })
     expect(manager.activeTabId).toBe(right.id)
@@ -160,8 +159,8 @@ describe('a sleeping tab the person clicked, then went back to their split view 
     const { manager, finishWake } = browser()
     const { right, sleeper, split } = await personInSplitViewWithASleepingTab(manager)
 
-    const selecting = manager.selectTabAndWait(sleeper.id)
-    await manager.selectTabAndWait(right.id)
+    const selecting = selectTabAndWait(manager as never, sleeper.id)
+    await selectTabAndWait(manager as never, right.id)
     focused.length = 0
     finishWake()
     await selecting
@@ -180,7 +179,7 @@ describe('a sleeping tab the person clicked, then opened a split view instead wh
     sleeper.sleeping = true
     manager.selectTab(notes.id)
 
-    const selecting = manager.selectTabAndWait(sleeper.id)
+    const selecting = selectTabAndWait(manager as never, sleeper.id)
     // The person opens the reference beside their notes with the split view button.
     await openSplitViewAndWait(manager as never, reference.id)
     const split = structuredClone(manager.splitView)

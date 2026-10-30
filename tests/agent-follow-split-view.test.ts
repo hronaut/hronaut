@@ -75,6 +75,7 @@ vi.mock('../src/main/browser/tab-events/attach-tab-events.js', () => ({
 const { Browser } = await import('../src/main/browser/browser.js')
 const { McpActivityFollowController } = await import('../src/main/browser/mcp-activity-follow-controller.js')
 const { selectTabPassively } = await import('../src/main/browser/agent-follow/passive-selection.js')
+const { openSplitView } = await import('../src/main/browser/split-view/split-view.js')
 
 const PERSON = '01912345-6789-7abc-8def-0123456789ab'
 const AGENT = '01912345-6789-7abc-8def-0123456789ac'
@@ -92,7 +93,6 @@ interface Manager {
   mcpActivityFollower: InstanceType<typeof McpActivityFollowController>
   createTab(options: { url: string; mcpGroupId: string; active: boolean }): Promise<Tab>
   selectTab(tabId: string): unknown
-  openSplitView(tabId: string): unknown
   pageFullscreenShown(): boolean
   wakeTab(tabId: string): Promise<unknown>
 }
@@ -154,7 +154,7 @@ describe('Follow agents with the person\'s split view', () => {
     const agentTab = await manager.createTab({ url: 'https://agent.example/run', mcpGroupId: AGENT, active: false })
     // The person shows the agent's tab beside their own notes and types in the notes.
     manager.selectTab(notes.id)
-    manager.openSplitView(agentTab.id)
+    openSplitView(manager as never, agentTab.id)
     const split = structuredClone(manager.splitView)
     expect(electronFocus.id).toBe(notes.webContents.id)
     focused.length = 0
@@ -171,7 +171,7 @@ describe('Follow agents with the person\'s split view', () => {
     const reference = await manager.createTab({ url: 'https://notes.example/reference', mcpGroupId: PERSON, active: false })
     const agentTab = await manager.createTab({ url: 'https://agent.example/run', mcpGroupId: AGENT, active: false })
     manager.selectTab(notes.id)
-    manager.openSplitView(reference.id)
+    openSplitView(manager as never, reference.id)
     focused.length = 0
 
     agentCall(manager, agentTab.id)

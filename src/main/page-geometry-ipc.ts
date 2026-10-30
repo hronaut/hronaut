@@ -1,6 +1,7 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import type { Browser } from './browser/browser.js'
-import { getEmulationFrames } from './browser/page-geometry/page-geometry.js'
+import { getEmulationFrames, getPageCards } from './browser/page-geometry/page-geometry.js'
+import { getSplitDivider } from './browser/window-layout/window-layout.js'
 
 interface PageGeometryIpcHost {
   /** Admits only the main window's shell document, not a detached panel window. */
@@ -20,9 +21,9 @@ interface PageGeometryIpcHost {
  * frames around emulated pages. Dependencies stay lazy because handlers are registered before the window loads.
  */
 export function registerPageGeometryIpc(host: PageGeometryIpcHost): void {
-  host.handleBrowserIpc('split-divider:get', (event) => host.runWorkspaceRead(event, host.assertMainShellSender, () => host.tabs()!.getSplitDivider()))
+  host.handleBrowserIpc('split-divider:get', (event) => host.runWorkspaceRead(event, host.assertMainShellSender, () => getSplitDivider(host.tabs()!)))
   host.handleBrowserIpc('emulation-frame:get', (event) => host.runWorkspaceRead(event, host.assertMainShellSender, () => getEmulationFrames(host.tabs()!)))
-  host.handleBrowserIpc('page-card:get', (event) => host.runWorkspaceRead(event, host.assertMainShellSender, () => host.tabs()!.getPageCards()))
+  host.handleBrowserIpc('page-card:get', (event) => host.runWorkspaceRead(event, host.assertMainShellSender, () => getPageCards(host.tabs()!)))
   host.handleBrowserIpc('split-divider:begin', (event, revision: unknown) => {
     host.assertMainShellSender(event)
     if (typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 0) throw new TypeError('Invalid split revision')

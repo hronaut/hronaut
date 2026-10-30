@@ -17,6 +17,7 @@ import {
   type HistoryTimeRange
 } from '../../shared/types.js'
 import { workspaceSession } from '../browser/workspace-data/workspace-data.js'
+import { browserState } from '../browser/browser-state/browser-state.js'
 
 const HOUR_MS = 60 * 60 * 1000
 const TIME_RANGE_MS: Record<Exclude<HistoryTimeRange, 'allTime'>, number> = {
@@ -78,14 +79,15 @@ export function registerBrowsingDataIpc(host: BrowsingDataIpcHost): void {
   }
 
   async function currentBrowsingDataWebsites(): Promise<BrowsingDataWebsiteSummary[]> {
-    const browserState = host.tabs()?.getState()
+    const browser = host.tabs()
+    const state = browser ? browserState(browser) : undefined
     return buildBrowsingDataWebsiteInventory({
       history: host.historyStore()?.list() ?? [],
       cookies: [],
       bookmarks: host.bookmarkStore()?.list() ?? [],
       credentials: host.credentialStore()?.list() ?? [],
       permissions: host.sitePermissionStore()?.list() ?? [],
-      tabs: browserState?.tabs ?? []
+      tabs: state?.tabs ?? []
     })
   }
 
@@ -131,10 +133,10 @@ export function registerBrowsingDataIpc(host: BrowsingDataIpcHost): void {
     host.assertTrustedSender(event)
     if (typeof url !== 'string') throw new TypeError('Invalid website')
     if (typeof tabId !== 'string') throw new TypeError('Tab ID is required')
-    const tab = host.tabs()?.getState().tabs.find((candidate) => candidate.id === tabId)
+    const browser = host.tabs()
+    const tab = browser ? browserState(browser).tabs.find((candidate) => candidate.id === tabId) : undefined
     if (!tab) throw new LocalizedError('native.errors.tabUnavailable', undefined, { message: `Tab not found: ${tabId}` })
     if (!tab.mcpGroupId) throw new Error('Website workspace is required')
-    const browser = host.tabs()
     const browserSession = browser ? workspaceSession(browser, tab.mcpGroupId) : undefined
     return host.currentBrowsingDataSiteSummary(url, browserSession)
   })

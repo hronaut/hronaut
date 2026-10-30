@@ -6,7 +6,7 @@ import { tabIdSchema } from '../../tool-schemas.js'
 import { pageObservationSettlement, type PageObservationSettlement } from '../page-observation-settlement.js'
 import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
 import { frameObservationSettlement, type FrameObservationSettlement } from './frame-observation-settlement.js'
-import { clearSnapshotBaseline, observationQuality, setSnapshotBaseline, snapshotDelta } from '../../../browser/page-snapshots/page-snapshots.js'
+import { clearSnapshotBaseline, observationQuality, setSnapshotBaseline, snapshotDelta, snapshotDetails } from '../../../browser/page-snapshots/page-snapshots.js'
 import { shadowSnapshot } from '../../../browser/shadow-snapshot/shadow-snapshot.js'
 
 type SnapshotSettlement = FrameObservationSettlement | PageObservationSettlement
@@ -90,8 +90,8 @@ export function registerBrowserSnapshot(context: McpToolContext): void {
         return { ...textResult(cleared), structuredContent: cleared }
       }
       const snapshot = rootSelector === undefined
-        ? await manager.snapshotDetails(tabId, maxChars)
-        : await manager.snapshotDetails(tabId, maxChars, rootSelector)
+        ? await snapshotDetails(manager, tabId, maxChars)
+        : await snapshotDetails(manager, tabId, maxChars, rootSelector)
       return { ...textResult(snapshot.text), structuredContent: { ...snapshot } }
     }),
     {

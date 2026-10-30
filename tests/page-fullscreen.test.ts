@@ -34,6 +34,8 @@ import {
   watchWindowFullScreen,
   windowFullScreenToSave
 } from '../src/main/browser/page-fullscreen/page-fullscreen.js'
+import { pageArea } from '../src/main/browser/window-layout/content-area.js'
+import { getSplitDivider } from '../src/main/browser/window-layout/window-layout.js'
 
 function pageView() {
   return { setBounds: vi.fn(), setVisible: vi.fn(), setBorderRadius: vi.fn(), getVisible: () => true, getBounds: () => ({ x: 280, y: 60, width: 1150, height: 830 }) }
@@ -151,7 +153,7 @@ describe('page full screen layout', () => {
     manager.layout()
     expect(first.view.setBounds).toHaveBeenLastCalledWith({ x: 0, y: 0, width: 1440, height: 900 })
     expect(first.view.setBorderRadius).toHaveBeenLastCalledWith(0)
-    expect(manager.pageArea()).toEqual({ x: 0, y: 0, width: 1440, height: 900 })
+    expect(pageArea(manager)).toEqual({ x: 0, y: 0, width: 1440, height: 900 })
     first.pageFullscreen = false
     manager.layout()
     expect(first.view.setBounds).toHaveBeenLastCalledWith({ x: 280, y: 60, width: 1150, height: 830 })
@@ -165,7 +167,7 @@ describe('page full screen layout', () => {
     expect(second.view.setBounds).toHaveBeenLastCalledWith({ x: 0, y: 0, width: 1440, height: 900 })
     expect(second.view.setVisible).toHaveBeenLastCalledWith(true)
     expect(first.view.setVisible).toHaveBeenLastCalledWith(false)
-    expect(manager.getSplitDivider()).toBeNull()
+    expect(getSplitDivider(manager)).toBeNull()
     second.pageFullscreen = false
     manager.layout()
     expect(first.view.setVisible).toHaveBeenLastCalledWith(true)

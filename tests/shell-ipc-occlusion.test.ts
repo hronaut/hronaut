@@ -2,6 +2,12 @@ import type { IpcMainEvent } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
 import { registerShellIpc } from '../src/main/shell-ipc.js'
 
+// The fake browser below stubs the functions the code under test calls; these reach its stubs.
+vi.mock('../src/main/browser/trusted-chrome-occlusion/trusted-chrome-occlusion.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/trusted-chrome-occlusion/trusted-chrome-occlusion.js')>(),
+  setBrowserContentOccluded: (browser: { setBrowserContentOccluded: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.setBrowserContentOccluded(...args)
+}))
+
 type Listener = (event: IpcMainEvent, ...args: unknown[]) => void
 
 function shellIpc(tabs: { setBrowserContentOccluded: ReturnType<typeof vi.fn> } | null) {

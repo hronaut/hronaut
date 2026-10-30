@@ -2,6 +2,7 @@ import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import { parseNetworkRouteInput } from './browser/network-route-input.js'
 import type { Browser } from './browser/browser.js'
 import { addNetworkRoute, clearNetworkRoutes, moveNetworkRoute, networkRoutes, removeNetworkRoute, setNetworkRouteEnabled } from './browser/network-conditions/network-conditions.js'
+import { browserState } from './browser/browser-state/browser-state.js'
 
 interface NetworkRoutesIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
@@ -48,6 +49,6 @@ export function registerNetworkRoutesIpc(host: NetworkRoutesIpcHost): void {
     host.assertTrustedSender(event)
     if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
     await clearNetworkRoutes(host.tabs()!, tabId)
-    return host.tabs()!.getState()
+    return browserState(host.tabs()!)
   })
 }

@@ -12,6 +12,7 @@ vi.mock('../src/main/browser/page-geometry/page-geometry.js', async (importOrigi
 }))
 import { Browser } from '../src/main/browser/browser.js'
 import { PAGE_CARD_GUTTER, PAGE_CARD_RADIUS, pageCardInsets } from '../src/shared/page-card.js'
+import { getPageCards } from '../src/main/browser/page-geometry/page-geometry.js'
 
 function pageView() {
   return { setBounds: vi.fn(), setVisible: vi.fn(), setBorderRadius: vi.fn(), getVisible: () => true }
@@ -73,10 +74,10 @@ it('rounds both pages of a split view and repeats no native call while the radiu
 it('places a card under each pane in shell pixels, keeps it under a dialog only while the page picture shows, and drops it without a page', () => {
   const single = fixture(1.25)
   // 1440 x 900 window pixels at 1.25: the space below a 60 px toolbar, inside the rail and the gutters.
-  expect(single.manager.getPageCards()).toEqual([{ x: 224, y: 48, width: 920, height: 664, tabId: 'first' }])
+  expect(getPageCards(single.manager)).toEqual([{ x: 224, y: 48, width: 920, height: 664, tabId: 'first' }])
 
   const split = fixture(1, true).manager
-  const [left, right] = split.getPageCards()
+  const [left, right] = getPageCards(split)
   // Each card names the tab whose page it holds, so the shell can light the one that needs you.
   expect(left).toMatchObject({ x: 280, y: 60, height: 830, tabId: 'first' })
   expect(right).toMatchObject({ tabId: 'second' })
@@ -89,21 +90,21 @@ it('places a card under each pane in shell pixels, keeps it under a dialog only 
   }
   // A page out of the window, such as one closing behind its beforeunload check, leaves its card without a tab.
   internals.window.contentView.children = [internals.tabs.get('first')!.view]
-  expect(split.getPageCards().map((card) => card.tabId)).toEqual(['first', undefined])
+  expect(getPageCards(split).map((card) => card.tabId)).toEqual(['first', undefined])
   internals.window.contentView.children = [internals.tabs.get('first')!.view, internals.tabs.get('second')!.view]
   internals.browserContentOccluded = true
   internals.occludedPageCards = [left]
-  expect(split.getPageCards()).toEqual([])
+  expect(getPageCards(split)).toEqual([])
   // Under a dialog's picture of the page the card stays, naming no tab, so the edge light waits for the live page.
   internals.occlusionSnapshot.active = true
-  expect(split.getPageCards()).toEqual([{ x: left!.x, y: left!.y, width: left!.width, height: left!.height }])
+  expect(getPageCards(split)).toEqual([{ x: left!.x, y: left!.y, width: left!.width, height: left!.height }])
 
   internals.browserContentOccluded = false
   internals.toolbarHeight = 899
-  expect(split.getPageCards()).toEqual([])
+  expect(getPageCards(split)).toEqual([])
   internals.toolbarHeight = 60
   internals.activeTabId = undefined
-  expect(split.getPageCards()).toEqual([])
+  expect(getPageCards(split)).toEqual([])
 })
 
 it('leaves the gutter at the window edges and beside panels, and none beside the rail or under the toolbar', () => {

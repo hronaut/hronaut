@@ -3,6 +3,7 @@ import type { UserAttentionInput } from '../../../../shared/types.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { browserState } from '../../../browser/browser-state/browser-state.js'
 
 export function registerBrowserRequestUserAttention(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, requestUserAttention, tabTool } = context
@@ -17,7 +18,7 @@ export function registerBrowserRequestUserAttention(context: McpToolContext): vo
       }
     },
     tabTool('browser_request_user_attention', async ({ reason, notificationMessage, workspaceId, tabId }: UserAttentionInput) => {
-      if (tabId && !manager.getState().tabs.some((tab) => tab.id === tabId)) {
+      if (tabId && !browserState(manager).tabs.some((tab) => tab.id === tabId)) {
         throw new Error(`Unknown tab: ${tabId}`)
       }
       return textResult(await requestUserAttention({ reason, notificationMessage, workspaceId, tabId }))

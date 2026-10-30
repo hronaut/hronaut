@@ -26,6 +26,7 @@ import {
   type ThemeName
 } from '../../shared/types.js'
 import { setFollowAgentActivity } from '../browser/agent-follow/agent-follow.js'
+import { setMemorySaverSettings } from '../browser/tab-sleep/memory-saver.js'
 
 type SettingsIpcCapabilityProfiles = Pick<McpCapabilityProfileStore, 'list' | 'create' | 'derive' | 'update' | 'rotate' | 'revoke'>
 
@@ -246,7 +247,8 @@ export function registerSettingsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Sett
     host.assertTrustedSender(event)
     if (typeof enabled !== 'boolean') throw new TypeError('Memory Saver state must be a boolean')
     await host.updateSettings({ memorySaverEnabled: enabled })
-    host.tabs()?.setMemorySaverSettings(host.settings().memorySaverEnabled, host.settings().memorySaverTimeoutMinutes)
+    const browser = host.tabs()
+    if (browser) setMemorySaverSettings(browser, host.settings().memorySaverEnabled, host.settings().memorySaverTimeoutMinutes)
     host.publishSettings()
     return { ...host.settings() }
   })
@@ -254,7 +256,8 @@ export function registerSettingsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Sett
     host.assertTrustedSender(event)
     if (!isMemorySaverTimeoutMinutes(timeoutMinutes)) throw new TypeError('Unsupported Memory Saver timeout')
     await host.updateSettings({ memorySaverTimeoutMinutes: timeoutMinutes })
-    host.tabs()?.setMemorySaverSettings(host.settings().memorySaverEnabled, host.settings().memorySaverTimeoutMinutes)
+    const browser = host.tabs()
+    if (browser) setMemorySaverSettings(browser, host.settings().memorySaverEnabled, host.settings().memorySaverTimeoutMinutes)
     host.publishSettings()
     return { ...host.settings() }
   })
@@ -266,7 +269,8 @@ export function registerSettingsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Sett
       memorySaverTimeoutMinutes: DEFAULT_MEMORY_SAVER_TIMEOUT_MINUTES,
       graphicsAcceleration: DEFAULT_SETTINGS.graphicsAcceleration
     })
-    host.tabs()?.setMemorySaverSettings(host.settings().memorySaverEnabled, host.settings().memorySaverTimeoutMinutes)
+    const browser = host.tabs()
+    if (browser) setMemorySaverSettings(browser, host.settings().memorySaverEnabled, host.settings().memorySaverTimeoutMinutes)
     host.publishSettings()
     return { ...host.settings() }
   })

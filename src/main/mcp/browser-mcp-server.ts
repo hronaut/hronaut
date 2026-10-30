@@ -139,6 +139,7 @@ import { createWorkspaceToolRegistrar, requiresWorkspaceWriteLease } from './wor
 import { listMcpTabGroups, requireMcpTabGroup } from '../browser/mcp-tab-groups/mcp-tab-groups.js'
 import { suspendWorkspaceContinuity } from '../browser/workspace-continuity/workspace-continuity.js'
 import { getMcpGroupState } from '../browser/workspace-scope/workspace-scope.js'
+import { agentStepName } from '../browser/page-snapshots/page-snapshots.js'
 
 function matchesWorkspaceResumeKey(expected: string, supplied: string): boolean {
   const expectedBytes = Buffer.from(expected, 'utf8')
@@ -335,7 +336,7 @@ export function createBrowserMcpServer(
         const address = typeof target.url === 'string' && target.url.trim() ? webAddress(target.url) : undefined
         return address ? agentStepAddress(address) : undefined
       }
-      return typeof target.ref === 'string' ? manager.agentStepName(workspaceId, typeof input.tabId === 'string' ? input.tabId : undefined, target.ref) : undefined
+      return typeof target.ref === 'string' ? agentStepName(manager, workspaceId, typeof input.tabId === 'string' ? input.tabId : undefined, target.ref) : undefined
     } catch {
       return undefined
     }

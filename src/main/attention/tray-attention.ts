@@ -17,6 +17,7 @@ import type {
   UserAttentionInput,
   UserAttentionRequest
 } from '../../shared/types.js'
+import { selectTabAndWait } from '../browser/tab-selection/tab-selection.js'
 
 /**
  * The attention request still open for the user, created once by index.ts. It shows as needs you until it is answered
@@ -39,7 +40,7 @@ interface TrayAttentionHost {
   showWindow(): void
   /** The main window; read on every use because it opens after startup and goes when it closes. */
   mainWindow(): Pick<BrowserWindow, 'flashFrame' | 'webContents'> | null
-  tabs(): Pick<Browser, 'selectTabAndWait'> | null
+  tabs(): Browser | null
   mcpServer(): Pick<McpHttpServer, 'recordAgentAnswer'> | null
   /** Runs a browser action from native UI and reports its failure to the shell; skipped until saved workspaces are up. */
   runNativeBrowserAction(action: string, callback: () => unknown): void
@@ -129,7 +130,8 @@ export function createTrayAttention(host: TrayAttentionHost): {
                 const requestedTabId = requestedAttention?.tabId
                 if (requestedAttention && requestedTabId) {
                   host.runNativeBrowserAction('show the requested tab', async () => {
-                    await host.tabs()?.selectTabAndWait(requestedTabId)
+                    const browser = host.tabs()
+                    if (browser) await selectTabAndWait(browser, requestedTabId)
                     if (host.state.request?.id !== requestedAttention.id) return
                     host.showWindow()
                     quietUserAttention()
@@ -269,7 +271,8 @@ export function createTrayAttention(host: TrayAttentionHost): {
       ...(input.workspaceId && { workspaceId: input.workspaceId }),
       ...(input.tabId && { tabId: input.tabId })
     }
-    if (input.tabId) await host.tabs()?.selectTabAndWait(input.tabId, { focus: false })
+    const browser = host.tabs()
+    if (input.tabId && browser) await selectTabAndWait(browser, input.tabId, { focus: false })
     if (requestGeneration !== attentionRequestGeneration) {
       throw new Error('User attention request was superseded by a newer request.')
     }
@@ -309,7 +312,8 @@ export function createTrayAttention(host: TrayAttentionHost): {
         notification.on('click', () => {
           if (host.state.request?.id !== request.id) return
           host.runNativeBrowserAction('show the requested tab', async () => {
-            if (request.tabId) await host.tabs()?.selectTabAndWait(request.tabId)
+            const browser = host.tabs()
+            if (request.tabId && browser) await selectTabAndWait(browser, request.tabId)
             if (host.state.request?.id !== request.id) return
             host.showWindow()
             quietUserAttention()

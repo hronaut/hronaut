@@ -24,12 +24,13 @@ import type {
   UserAttentionRequest
 } from '../shared/types.js'
 import { parseWorkspaceTemplate, WORKSPACE_TEMPLATE_ERRORS } from '../shared/workspace-template.js'
-import { closeWorkspaceForPerson, restoreSavedTabGroup, saveAndCloseTabGroup } from './browser/workspace-archive/workspace-archive.js'
+import { closeWorkspaceForPerson, restoreSavedTabGroup, saveAndCloseTabGroup, deleteSavedTabGroup } from './browser/workspace-archive/workspace-archive.js'
 import { createWorkspace, importWorkspaceTemplate } from './browser/workspace-creation/workspace-creation.js'
 import { transferWorkspaceStorage, listWorkspaceStorageOrigins } from './browser/workspace-data/workspace-data.js'
 import { listWorkspaceNavigationAudit, updateWorkspaceNavigationPolicy } from './browser/workspace-navigation/workspace-navigation.js'
 import { renameMcpTabGroup, updateMcpTabGroup } from './browser/mcp-tab-groups/mcp-tab-groups.js'
 import { armWorkspaceContinuity, inspectWorkspaceContinuity, reconcileWorkspaceContinuity, suspendWorkspaceContinuity } from './browser/workspace-continuity/workspace-continuity.js'
+import { browserState } from './browser/browser-state/browser-state.js'
 
 interface WorkspacesIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
@@ -61,7 +62,7 @@ export function registerWorkspacesIpc(host: WorkspacesIpcHost): void {
     host.assertTrustedSender(event)
     if (typeof groupId !== 'string' || typeof name !== 'string') throw new TypeError('Invalid workspace rename request')
     renameMcpTabGroup(host.tabs()!, groupId, name)
-    return host.tabs()!.getState()
+    return browserState(host.tabs()!)
   })
   host.handleBrowserIpc('browser:update-tab-group', (event, groupId: unknown, updates: unknown) => {
     host.assertTrustedSender(event)
@@ -83,7 +84,7 @@ export function registerWorkspacesIpc(host: WorkspacesIpcHost): void {
       ...(typeof candidate.description === 'string' ? { description: candidate.description } : {}),
       ...(isBrowserTabGroupColor(candidate.color) ? { color: candidate.color } : {})
     } satisfies BrowserTabGroupUpdate)
-    return host.tabs()!.getState()
+    return browserState(host.tabs()!)
   })
   host.handleBrowserIpc('browser:review-workspace-continuity', (event, workspaceId: unknown) => {
     host.assertTrustedSender(event)
@@ -201,7 +202,7 @@ export function registerWorkspacesIpc(host: WorkspacesIpcHost): void {
     host.assertTrustedSender(event)
     if (typeof value !== 'string') throw new TypeError(WORKSPACE_TEMPLATE_ERRORS.invalidTemplate)
     const result = await importWorkspaceTemplate(host.tabs()!, value)
-    return { ...result, state: host.tabs()!.getState() }
+    return { ...result, state: browserState(host.tabs()!) }
   })
   host.handleBrowserIpc('browser:create-workspace', async (event, value: unknown) => {
     host.assertTrustedSender(event)
@@ -264,19 +265,19 @@ export function registerWorkspacesIpc(host: WorkspacesIpcHost): void {
     host.assertTrustedSender(event)
     if (typeof groupId !== 'string') throw new TypeError('Invalid workspace ID')
     await saveAndCloseTabGroup(host.tabs()!, groupId)
-    return host.tabs()!.getState()
+    return browserState(host.tabs()!)
   })
   host.handleBrowserIpc('browser:restore-saved-tab-group', async (event, savedGroupId: unknown) => {
     host.assertTrustedSender(event)
     if (typeof savedGroupId !== 'string') throw new TypeError('Invalid archived workspace ID')
     await restoreSavedTabGroup(host.tabs()!, savedGroupId)
-    return host.tabs()!.getState()
+    return browserState(host.tabs()!)
   })
   host.handleBrowserIpc('browser:delete-saved-tab-group', async (event, savedGroupId: unknown) => {
     host.assertTrustedSender(event)
     if (typeof savedGroupId !== 'string') throw new TypeError('Invalid archived workspace ID')
-    await host.tabs()!.deleteSavedTabGroup(savedGroupId)
-    return host.tabs()!.getState()
+    await deleteSavedTabGroup(host.tabs()!, savedGroupId)
+    return browserState(host.tabs()!)
   })
   host.handleBrowserIpc('browser:show-workspace-context-menu', (event, workspaceId: unknown) => {
     host.assertTrustedSender(event)

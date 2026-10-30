@@ -67,6 +67,9 @@ import { Browser } from '../src/main/browser/browser.js'
 import { McpActivityFollowController } from '../src/main/browser/mcp-activity-follow-controller.js'
 import { attachWindowOpenHandler } from '../src/main/browser/tab-events/window-open-handler.js'
 import { selectTabPassively } from '../src/main/browser/agent-follow/passive-selection.js'
+import { handleMcpTabActivity } from '../src/main/browser/agent-follow/agent-follow.js'
+import { newLabeledAgentTab } from '../src/main/browser/new-tabs/new-tabs.js'
+import { selectAgentTabAndWait } from '../src/main/browser/tab-selection/tab-selection.js'
 
 /** The manager's private state these cases set up and read. */
 interface ManagerInternals {
@@ -190,7 +193,7 @@ describe('a tab an agent opens or selects while Follow agents is on', () => {
       await manager.newAgentTab({ url: 'https://agent.test/new', mcpGroupId: 'Agent', focus: false })
       expect(internals.activeTabId).toBe('video')
       expect(internals.mcpTabGroups.get('Agent')?.activeTabId).toBe(openedSince(internals, before))
-      await manager.selectAgentTabAndWait('agent-tab')
+      await selectAgentTabAndWait(manager, 'agent-tab')
       expect(internals.activeTabId).toBe('video')
       expect(internals.mcpTabGroups.get('Agent')?.activeTabId).toBe('agent-tab')
       expect(internals.focusTabOrTrustedChrome).not.toHaveBeenCalled()
@@ -204,7 +207,7 @@ describe('a tab an agent opens or selects while Follow agents is on', () => {
       onCommitted?.()
       return { state: {}, status: 'saved' as const }
     })
-    const saved = await manager.newLabeledAgentTab({ url: 'https://agent.test/labeled', mcpGroupId: 'Agent', focus: false }, 'Checkout', () => undefined, () => undefined, () => undefined)
+    const saved = await newLabeledAgentTab(manager, { url: 'https://agent.test/labeled', mcpGroupId: 'Agent', focus: false }, 'Checkout', () => undefined, () => undefined, () => undefined)
     expect(saved.labelPersistence).toBe('saved')
     expect(internals.activeTabId).toBe('video')
     expect(internals.mcpTabGroups.get('Agent')?.activeTabId).toBe(saved.createdTabId)
@@ -219,7 +222,7 @@ describe('a tab an agent opens or selects while Follow agents is on', () => {
     await manager.newAgentTab({ url: 'https://agent.test/new', mcpGroupId: 'Agent', focus: false })
     const opened = openedSince(internals, before)!
     expect(internals.activeTabId).toBe('video')
-    manager.handleMcpTabActivity({ activityId: 'new-tab', tabId: opened, toolName: 'browser_new_tab', phase: 'started', occurredAt: Date.now() }, { id: 'agent', name: 'Agent' })
+    handleMcpTabActivity(manager, { activityId: 'new-tab', tabId: opened, toolName: 'browser_new_tab', phase: 'started', occurredAt: Date.now() }, { id: 'agent', name: 'Agent' })
     expect(internals.activeTabId).toBe(opened)
     expect(internals.focusTabOrTrustedChrome).not.toHaveBeenCalled()
     follower.dispose()
@@ -238,7 +241,7 @@ describe('a tab an agent opens or selects while Follow agents is on', () => {
     const { manager, internals } = fixture()
     const wake = deferred()
     internals.wakeTab = vi.fn(() => wake.promise)
-    const selecting = manager.selectAgentTabAndWait('agent-other')
+    const selecting = selectAgentTabAndWait(manager, 'agent-other')
     expect(internals.mcpTabGroups.get('Agent')?.activeTabId).toBe('agent-tab')
     wake.resolve()
     await selecting
@@ -250,7 +253,7 @@ describe('a tab an agent opens or selects while Follow agents is on', () => {
     const { manager, internals } = fixture()
     const wake = deferred()
     internals.wakeTab = vi.fn(() => wake.promise)
-    const selecting = manager.selectAgentTabAndWait('agent-tab')
+    const selecting = selectAgentTabAndWait(manager, 'agent-tab')
     manager.selectTab('agent-other')
     wake.resolve()
     await selecting
@@ -264,7 +267,7 @@ describe('a tab an agent opens or selects while Follow agents is on', () => {
     internals.mcpTabGroups.get('Agent')!.activeTabId = null
     const wake = deferred()
     internals.wakeTab = vi.fn(() => wake.promise)
-    const selecting = manager.selectAgentTabAndWait('agent-tab')
+    const selecting = selectAgentTabAndWait(manager, 'agent-tab')
     manager.selectTab('video')
     wake.resolve()
     await selecting
@@ -277,7 +280,7 @@ describe('a tab an agent opens or selects while Follow agents is on', () => {
     internals.mcpTabGroups.get('Agent')!.activeTabId = null
     const wake = deferred()
     internals.wakeTab = vi.fn(() => wake.promise)
-    const selecting = manager.selectAgentTabAndWait('agent-tab')
+    const selecting = selectAgentTabAndWait(manager, 'agent-tab')
     agentTab.webContents.isDestroyed.mockReturnValue(true)
     wake.resolve()
     await expect(selecting).rejects.toThrow('This tab renderer is no longer available')
@@ -287,7 +290,7 @@ describe('a tab an agent opens or selects while Follow agents is on', () => {
   it('leaves the page the person watches in full screen in view when the agent selects one of its tabs', async () => {
     const { manager, internals } = fixture({ pageFullscreen: true })
     internals.mcpTabGroups.get('Agent')!.activeTabId = null
-    await manager.selectAgentTabAndWait('agent-tab')
+    await selectAgentTabAndWait(manager, 'agent-tab')
     expect(internals.activeTabId).toBe('video')
     expect(internals.focusTabOrTrustedChrome).not.toHaveBeenCalled()
     expect(internals.mcpTabGroups.get('Agent')?.activeTabId).toBe('agent-tab')

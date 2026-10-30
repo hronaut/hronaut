@@ -5,6 +5,7 @@ import { redactDiagnosticText } from '../../shared/debug-report.js'
 import type { Browser } from '../browser/browser.js'
 import { debugReport } from '../browser/debug-report/debug-report.js'
 import { networkHar } from '../browser/network-inspection/network-inspection.js'
+import { browserState } from '../browser/browser-state/browser-state.js'
 
 const ARTIFACT_LIMIT = 256 * 1024
 const PACKAGE_LIMIT = 4 * 1024 * 1024
@@ -41,7 +42,7 @@ export class IncidentPackages {
     const generation = this.generations.get(owner)
     const host = this.host()
     const context = () => {
-      const tab = host.getState().tabs.find(tab => tab.id === request.tabId)
+      const tab = browserState(host).tabs.find(tab => tab.id === request.tabId)
       if (!tab) throw new Error('Incident tab is no longer available')
       return `${tab.id}:${tab.navigationGeneration}:${tab.observationGeneration ?? 0}`
     }

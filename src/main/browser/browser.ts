@@ -1,20 +1,12 @@
 import { assertExclusiveWorkspaceStorage, canonicalStorageId } from './workspace-storage-deletion.js'
 import { ImageInspectionSlots } from './image-state.js'
 import type { BrowserEmulationResult, BrowserUnconfirmedEmulation } from '../../shared/types.js'
-import { evaluateFile } from './page-evaluation/evaluate-file.js'
-import type { FileEvaluationSource, FileEvaluationHooks } from '../../shared/file-evaluation.js'
-import type { StorageInspectionHooks } from './storage-inspection-operation.js'
-import { inspectStorageUsage } from './site-storage/storage-inspection.js'
 import { type BrowserVisualCompareResult } from './visual-compare/visual-compare.js'
-import { elementInspection } from './element-inspection/element-inspection.js'
 import {
   performTabOverviewPreviewCapture,
   type TabOverviewPreviewCaptureRequest
 } from './tab-overview-previews/tab-overview-previews.js'
 import { workspaceContextMenuItems } from './context-menus/workspace-context-menu.js'
-import type { PendingElementInspection } from './element-inspection-publication.js'
-import type { PendingPdfExport } from './pdf-export-publication.js'
-import { savePdf } from './pdf-export/pdf-export.js'
 import { createFrameObservation } from './frame-observation/browser-frame-observation.js'
 import type { ReactInspectionAuthority } from './react-inspection/react-inspection.js'
 import { createReactInspectionController } from './react-inspection/browser-react-inspection.js'
@@ -68,7 +60,6 @@ import { WorkspaceContinuityEvidenceFactory } from '../mcp/workspace-continuity-
 import {
   retireWorkspaceContinuity
 } from './workspace-continuity/workspace-continuity.js'
-import type { AgentStepThumbnailImage } from '../mcp/agent-presence.js'
 import { reconcilePresentedViewVisibility } from './presented-view-visibility.js'
 import { createSplitDivider } from './split-view/split-divider.js'
 import { FaviconDecoder } from './favicon.js'
@@ -96,11 +87,8 @@ import { MAX_BROWSER_TABS } from '../../shared/types.js'
 import { translate, type MessageKey, type MessageParameters } from '../../shared/i18n.js'
 import type { SupportedLocale } from '../../shared/locale.js'
 import type { TabPosition } from '../../shared/tab-position.js'
-import type { BrowserSnapshot } from '../../shared/snapshot.js'
 import {
-  agentStepName,
   snapshot,
-  snapshotDetails,
   type BrowserSnapshotBaselineRecord
 } from './page-snapshots/page-snapshots.js'
 import {
@@ -110,12 +98,10 @@ import {
 import { safeNavigationHistorySnapshot } from './navigation-history.js'
 import { TabHistoryStore } from './saved-tab-history/saved-tab-history.js'
 import { ClosedTabsStore } from './saved-closed-tabs/saved-closed-tabs.js'
-import { McpActivityFollowController, type FollowAgent } from './mcp-activity-follow-controller.js'
+import { McpActivityFollowController } from './mcp-activity-follow-controller.js'
 import { MemorySaverSweepQueue } from '../memory-saver-sweep.js'
 import type { WorkspaceTemplateImporter } from './workspace-template-import.js'
 import { createPageMetadata } from './diagnostics/browser-page-metadata.js'
-import type { ScreenshotAnnotationReport } from '../../shared/screenshot-annotations.js'
-import { screenshot } from './screenshots/screenshots.js'
 import { answerHttpAuth, type HttpAuthQuestion, type SignInAnswer } from './http-auth/http-auth.js'
 import {
   answerCertificateError,
@@ -130,14 +116,12 @@ import type {
   SplitDividerSession,
   BrowserSplitViewState
 } from '../../shared/split-view.js'
-import { closeSplitView, openSplitView } from './split-view/split-view.js'
-import { getSplitDivider, layout } from './window-layout/window-layout.js'
-import { pageArea, shownPageFullscreenTab } from './window-layout/content-area.js'
-import { watchWindowFullScreen, windowFullScreenToSave } from './page-fullscreen/page-fullscreen.js'
-import { selectAgentTabAndWait, selectTab, selectTabAndWait, type BrowserTabSelectionOptions } from './tab-selection/tab-selection.js'
+import { layout } from './window-layout/window-layout.js'
+import { shownPageFullscreenTab } from './window-layout/content-area.js'
+import { watchWindowFullScreen } from './page-fullscreen/page-fullscreen.js'
+import { selectTab, selectTabAndWait, type BrowserTabSelectionOptions } from './tab-selection/tab-selection.js'
 import { EMULATION_FRAME_CAPTION_SPACE, emulatedViewBounds, type EmulationFrameGeometry } from '../../shared/emulation-frame.js'
 import type { PageCardGeometry } from '../../shared/page-card.js'
-import { getPageCards } from './page-geometry/page-geometry.js'
 import type { BrowserTabGroupColor } from '../../shared/tab-groups.js'
 import {
   DEFAULT_MEMORY_SAVER_TIMEOUT_MINUTES,
@@ -157,10 +141,6 @@ import type {
   BrowserCpuProfileResult,
   BrowserMemoryOptions,
   BrowserMemoryReport,
-  BrowserPdfExport,
-  BrowserPdfOptions,
-  BrowserScreenshotOptions,
-  BrowserStorageUsageReport,
   BrowserDownloadAction,
   BrowserDownloadState,
   BrowserReproAction,
@@ -172,20 +152,14 @@ import type {
   BrowserCssStatePreviewAction,
   BrowserCssStatePreviewReport,
   BrowserCssStatePreviewSummary,
-  BrowserElementInspection,
-  BrowserElementInspectionOptions,
   BrowserClosedTabState,
   BrowserSavedTabGroupState,
   BrowserState,
   BrowserTabGroupState,
   BrowserWorkspaceNavigationAuditSource,
   BrowserTabOverviewPreview,
-  McpTabActivity,
   NewTabOptions
 } from '../../shared/types.js'
-import type { ImportDestination } from '../browser-import/service.js'
-import { browserImportDestination, importBrowserCookies } from './workspace-data/browser-cookie-import.js'
-import type { Cookie } from 'electron'
 import { runBackgroundAction } from './background-action.js'
 import type { SearchEngineName } from '../../shared/search-engine.js'
 import { TabStateStore } from './tab-store.js'
@@ -193,7 +167,6 @@ import type { WorkspaceBeingDeleted } from './browser-state/persisted-state.js'
 import { browserState, publishChange } from './browser-state/browser-state.js'
 import { createStatePublication } from './browser-state/browser-state-publication.js'
 import { isHronautHomeUrl, isWebUrl } from './url.js'
-import { closeTabsForPerson } from './tab-close/close-tabs-for-person.js'
 import { navigate } from './page-navigation/page-navigation.js'
 import type { WorkspaceNavigationDecision } from './workspace-navigation-policy.js'
 import {
@@ -202,14 +175,13 @@ import {
 import { flushPersist } from './quit-flush/quit-flush.js'
 import { closeMcpTabGroup } from './mcp-tab-groups/close-mcp-tab-group.js'
 import { listMcpTabGroups } from './mcp-tab-groups/mcp-tab-groups.js'
-import { setWorkspacePinned } from './mcp-tab-groups/workspace-pinning.js'
 import {
   assertWorkspaceCanOpenTab,
   type BrowserWorkspaceOperation,
   type OpenWorkspaceOperationAction
 } from './workspace-operations/workspace-operations.js'
 import { OpenedTabObservation, type TabsOpenedDuringClick } from './click-opened-tabs.js'
-import { isTabAgentPaused, isTabTakenOver, setAllAgentsPaused, setTabAgentPaused } from './agent-pause/agent-pause.js'
+import { isTabAgentPaused, isTabTakenOver } from './agent-pause/agent-pause.js'
 import type {
   AuthorizedAgentKeyboardInput,
   AuthorizedAgentMouseInput
@@ -219,28 +191,23 @@ import {
   withoutSleepingPage
 } from './tab-sleep/tab-sleep.js'
 import { SLEEPING_PAGE_URL } from './tab-sleep/sleeping-page.js'
-import { setMemorySaverSettings } from './tab-sleep/memory-saver.js'
 import type { BackgroundLoads } from './tab-sleep/background-loads.js'
 import { closeTab } from './tab-close/close-tab.js'
-import { saveTabLabel, withTabLabelLifecycle } from './tab-labels/tab-labels.js'
+import { withTabLabelLifecycle } from './tab-labels/tab-labels.js'
 import { duplicateTabAfterLabelSave, forgetClosedTabs, reopenClosedTabAfterLabelSave } from './tab-reopening/tab-reopening.js'
 import { forgetTabHistoryPages } from './tab-history-pages/forget-tab-history-pages.js'
 import { forgetTabsOpenedFrom, switchLeavesOpenedTabs } from './link-tab-placement/link-tab-openers.js'
 import { walletPageContext, type BrowserWalletPageContext } from './wallet-pages/wallet-pages.js'
-import { createNewTab, newLabeledAgentTab } from './new-tabs/new-tabs.js'
+import { createNewTab } from './new-tabs/new-tabs.js'
 import { createTab } from './new-tabs/create-tab.js'
-import { initializeBrowser } from './browser-lifecycle/initialize-browser.js'
 import { saveForNextStart } from './browser-lifecycle/save-for-next-start.js'
-import { applySiteMutingToTabs, type SiteSoundStore } from './site-muting/site-muting.js'
-import { captureAgentStepThumbnail } from './agent-step-thumbnail/agent-step-thumbnail.js'
-import { cancelFocusAfterTrustedChrome, focusTabOrTrustedChrome, withholdFocusAfterTrustedChrome, type PendingTrustedChromeFocus } from './trusted-chrome-focus/trusted-chrome-focus.js'
-import { setBrowserContentOccluded } from './trusted-chrome-occlusion/trusted-chrome-occlusion.js'
-import { handleMcpTabActivity, publishAgentFollowChange } from './agent-follow/agent-follow.js'
+import { type SiteSoundStore } from './site-muting/site-muting.js'
+import { cancelFocusAfterTrustedChrome, focusTabOrTrustedChrome, type PendingTrustedChromeFocus } from './trusted-chrome-focus/trusted-chrome-focus.js'
+import { publishAgentFollowChange } from './agent-follow/agent-follow.js'
 import { publishedAgentFollow } from './agent-follow/published-agent-follow.js'
 import { selectTabPassively } from './agent-follow/passive-selection.js'
 import type { UndoableAction } from '../undo-offers.js'
 import {
-  deleteSavedTabGroup,
   isClosingWorkspace,
   restoreSavedTabGroup
 } from './workspace-archive/workspace-archive.js'
@@ -542,14 +509,6 @@ export class Browser {
   }
 
   /**
-   * Keeps every page from the keyboard until the questions over them close, as after a website's sign-in closed while
-   * the person typed in it: the rest of their password would go to the page in view then.
-   */
-  withholdKeyboardAfterQuestion(): void {
-    withholdFocusAfterTrustedChrome(this)
-  }
-
-  /**
    * The page that has the keyboard now, or that takes it once trusted chrome closes if it is still in view; null while
    * the person is elsewhere.
    */
@@ -675,10 +634,6 @@ export class Browser {
     return translate(this.options.getLocale(), key, parameters)
   }
 
-  initialize(): Promise<void> {
-    return initializeBrowser(this)
-  }
-
   /** The main window's shell drew the last browser state it was sent, so the next change can go out (see StatePublication). */
   stateDrawn(): void {
     this.statePublication.drawn()
@@ -687,15 +642,6 @@ export class Browser {
   /** The shell is about to get an action's reply; a change waiting for it to draw goes out first (see StatePublication). */
   beforeStateReply(): void {
     this.statePublication.beforeReply()
-  }
-
-  /** The browser state as it is now. A change still waiting to be published goes out first (see StatePublication). */
-  getState(): BrowserState {
-    return browserState(this)
-  }
-
-  captureAgentStepThumbnail(tabId: string, workspaceId: string): Promise<AgentStepThumbnailImage | 'later' | undefined> {
-    return captureAgentStepThumbnail(this, tabId, workspaceId)
   }
 
   screenshotPixelRatio(tab: BrowserTab): number {
@@ -748,10 +694,6 @@ export class Browser {
     }
   }
 
-  setWorkspacePinned(groupId: string, pinned: boolean): BrowserState {
-    return setWorkspacePinned(this, groupId, pinned)
-  }
-
   mcpWorkspaceResumeKey(workspaceId: string): string {
     const storageId = this.mcpTabGroups.get(workspaceId)?.storageId
       ?? this.savedTabGroups.get(workspaceId)?.storageId
@@ -763,16 +705,8 @@ export class Browser {
   }
 
   async closeWorkspace(workspaceId: string): Promise<BrowserState> {
-    await this.closeMcpTabGroup(workspaceId)
-    return this.getState()
-  }
-
-  browserImportDestination(id: string): ImportDestination {
-    return browserImportDestination(this, id)
-  }
-
-  importBrowserCookies(destination: ImportDestination, cookies: Cookie[]) {
-    return importBrowserCookies(this, destination, cookies)
+    await closeMcpTabGroup(this, workspaceId)
+    return browserState(this)
   }
 
   /** Whether the person chose to keep URL query strings and fragments out of what agents read. */
@@ -784,17 +718,9 @@ export class Browser {
     return walletPageContext(this, webContentsId)
   }
 
-  closeMcpTabGroup(groupId: string, preserveStorage = false): Promise<BrowserTabGroupState[]> {
-    return closeMcpTabGroup(this, groupId, preserveStorage)
-  }
-
   /** Restores an archived workspace for an agent without showing it, as an agent's other calls leave the window as it is. */
   restoreSavedTabGroupForAgent(savedGroupId: string): Promise<BrowserTabGroupState> {
     return restoreSavedTabGroup(this, savedGroupId, { show: false })
-  }
-
-  deleteSavedTabGroup(savedGroupId: string): Promise<BrowserSavedTabGroupState[]> {
-    return deleteSavedTabGroup(this, savedGroupId)
   }
 
   async assertStorageDeletionOwnership(workspaceId: string, storageId: string): Promise<void> {
@@ -831,7 +757,7 @@ export class Browser {
       return this.selectTab(home.id)
     }
     await this.createTab({ url: HRONAUT_HOME_URL, active: true })
-    return this.getState()
+    return browserState(this)
   }
 
   readonly homeRefresh = new HomeRefresh()
@@ -842,10 +768,6 @@ export class Browser {
     const contents = home.webContents
     return this.homeRefresh.request(contents, () => this.tabs.get(home.id) === home
       && home.webContents === contents && isHronautHomeUrl(home.url))
-  }
-
-  inspectStorageUsage(tabId?: string, hooks?: StorageInspectionHooks): Promise<BrowserStorageUsageReport> {
-    return inspectStorageUsage(this, tabId, hooks)
   }
 
   async pwaLifecycle(options: PwaLifecycleOptions, validate: (origin: string) => void = () => undefined) {
@@ -865,10 +787,6 @@ export class Browser {
    */
   async newAgentTab(options: NewTabOptions, onCreated?: (tabId: string) => void): Promise<BrowserState> {
     return createNewTab(this, options, false, onCreated && ((tab) => onCreated(tab.id)))
-  }
-
-  newLabeledAgentTab(options: NewTabOptions, value: string, validateAuthority: () => void, onCreated: (id: string) => void, onCreationAttempt: () => void): Promise<{ createdTabId: string; labelPersistence: 'saved' | 'durability-unconfirmed' | 'not-saved' }> {
-    return newLabeledAgentTab(this, options, value, validateAuthority, onCreated, onCreationAttempt)
   }
 
   async newTab(options: NewTabOptions = {}, selectVisible = true): Promise<BrowserState> {
@@ -914,19 +832,6 @@ export class Browser {
 
   stopTabLabelEdits(): void { this.tabLabelAdmissionClosed = true }
 
-  async setTabLabel(tabId: string, value: string): Promise<{ state: BrowserState; status: 'saved' | 'durability-unconfirmed' }> {
-    return saveTabLabel(this, tabId, value)
-  }
-
-  setMemorySaverSettings(enabled: boolean, timeoutMinutes: MemorySaverTimeoutMinutes): void {
-    setMemorySaverSettings(this, enabled, timeoutMinutes)
-  }
-
-  /** The agent is its session's opaque presence key and cleaned name; following holds on it and names it in the rail. */
-  handleMcpTabActivity(activity: McpTabActivity, agent?: FollowAgent): void {
-    handleMcpTabActivity(this, activity, agent)
-  }
-
   wakeTab(tabId: string): Promise<BrowserState> {
     return wakeTab(this, tabId)
   }
@@ -941,17 +846,13 @@ export class Browser {
   setMcpUrl(url: string): BrowserState {
     this.mcpUrl = url
     publishChange(this, false)
-    return this.getState()
+    return browserState(this)
   }
 
   setDownloadPreferences(downloadDirectory: string, askWhereToSaveDownloads: boolean): void {
     if (!isAbsolute(downloadDirectory)) throw new TypeError('Download directory must be absolute')
     this.options.downloadDirectory = downloadDirectory
     this.options.askWhereToSaveDownloads = askWhereToSaveDownloads
-  }
-
-  selectTabAndWait(tabId: string, options: BrowserTabSelectionOptions = {}): Promise<BrowserState> {
-    return selectTabAndWait(this, tabId, options)
   }
 
   /**
@@ -964,48 +865,20 @@ export class Browser {
     const shownId = to?.mcpGroupId ? this.mcpTabGroups.get(to.mcpGroupId)?.activeTabId : undefined
     const from = shownId ? this.tabs.get(shownId) : undefined
     if (from && to && switchLeavesOpenedTabs(from, to)) forgetTabsOpenedFrom(this.tabs.values(), to.mcpGroupId)
-    return this.selectTabAndWait(tabId)
-  }
-
-  selectAgentTabAndWait(tabId: string): Promise<BrowserState> {
-    return selectAgentTabAndWait(this, tabId)
+    return selectTabAndWait(this, tabId)
   }
 
   selectTab(tabId: string, options: BrowserTabSelectionOptions = {}): BrowserState {
     return selectTab(this, tabId, options)
   }
 
-  openSplitView(tabId: string): BrowserState {
-    return openSplitView(this, tabId)
-  }
-
-  closeSplitView(): BrowserState {
-    return closeSplitView(this)
-  }
-
   async closeTab(tabId: string, respectBeforeUnload = false): Promise<BrowserState> {
     return closeTab(this, tabId, true, respectBeforeUnload)
-  }
-
-  closeTabsForPerson(tabIds: readonly string[]): Promise<BrowserState> {
-    return closeTabsForPerson(this, tabIds)
-  }
-
-  navigate(url: string, tabId?: string, options?: { byPerson?: boolean }): Promise<BrowserState> {
-    return navigate(this, url, tabId, options)
   }
 
   pageSaving: Set<number> | undefined
 
   pagePrinting: Set<number> | undefined
-
-  setAllAgentsPaused(paused: boolean, allowTabOverrides = true): void {
-    setAllAgentsPaused(this, paused, allowTabOverrides)
-  }
-
-  setTabAgentPaused(tabId: string, paused: boolean, options: { takeOver?: boolean } = {}): BrowserState {
-    return setTabAgentPaused(this, tabId, paused, options)
-  }
 
   /** The person took this tab over from its agent and has not handed it back. */
   isTabTakenOver(tabId: string): boolean {
@@ -1016,26 +889,8 @@ export class Browser {
     return isTabAgentPaused(this, tabId)
   }
 
-  /** Applies each tab's website sound setting once the saved site permissions changed, such as in Settings. */
-  applySiteMutingToTabs(): void {
-    applySiteMutingToTabs(this)
-  }
-
   snapshot(tabId?: string, maxChars = 30_000): Promise<string> {
     return snapshot(this, tabId, maxChars)
-  }
-
-  snapshotDetails(tabId?: string, maxChars = 30_000, rootSelector?: string): Promise<BrowserSnapshot> {
-    return snapshotDetails(this, tabId, maxChars, rootSelector)
-  }
-
-  /**
-   * The name the latest snapshot of this page showed for a control ref, for the shell's plain-words steps.
-   * The tab defaults to the one a workspace tool would use. Loading another document forgets the names;
-   * a route change within the page keeps them, as it keeps the refs.
-   */
-  agentStepName(workspaceId: string, tabId: string | undefined, ref: string): string | undefined {
-    return agentStepName(this, workspaceId, tabId, ref)
   }
 
   snapshotDeltaContext(tab: BrowserTab): BrowserSnapshotDeltaContext {
@@ -1072,10 +927,6 @@ export class Browser {
 
   memoryReport(options: BrowserMemoryOptions = {}): Promise<BrowserMemoryReport> {
     return this.profiling.memoryReport(options)
-  }
-
-  elementInspection(options: BrowserElementInspectionOptions, validateInspection?: () => void, deferInspection?: (pending: PendingElementInspection) => void): Promise<BrowserElementInspection> {
-    return elementInspection(this, options, validateInspection, deferInspection)
   }
 
   emulationResult(tab: BrowserTab): BrowserEmulationResult {
@@ -1136,7 +987,7 @@ export class Browser {
   /** The trusted address-bar reset. It works whatever the agent's state, including while paused. */
   async clearCssStatePreview(tabId: string): Promise<BrowserState> {
     await this.cssStatePreview.clear(getTab(this, tabId), 'human-reset')
-    return this.getState()
+    return browserState(this)
   }
 
   virtualPasskey(tabId: string, action: VirtualPasskeyAction, options: VirtualPasskeyOptions, authority: VirtualPasskeyAuthority): Promise<VirtualPasskeyReport> {
@@ -1166,13 +1017,13 @@ export class Browser {
   /** The address bar's stop for a tab's logpoints. It works whatever the agent's state, including while paused. */
   stopLogpoints(tabId: string): BrowserState {
     this.logpoints.stop(getTab(this, tabId), 'person-stopped')
-    return this.getState()
+    return browserState(this)
   }
 
   /** The trusted address-bar stop. It works whatever the agent's state, including while paused. */
   stopVirtualPasskey(tabId: string): BrowserState {
     this.virtualPasskeys.stop(getTab(this, tabId), 'person-stopped')
-    return this.getState()
+    return browserState(this)
   }
 
   /** Asks the person to sign in for a challenge the tab's page received, or leaves Electron to cancel it. */
@@ -1214,10 +1065,10 @@ export class Browser {
     if (url) {
       await proceedPastCertificateError({
         confirm: (question) => this.options.confirmCertificateException?.(question) ?? Promise.resolve(false),
-        open: (pageUrl) => this.navigate(pageUrl, tab.id, { byPerson: true })
+        open: (pageUrl) => navigate(this, pageUrl, tab.id, { byPerson: true })
       }, tab, url)
     }
-    return this.getState()
+    return browserState(this)
   }
 
   networkConditionState(tabId?: string): import('../../shared/types.js').BrowserNetworkConditionState {
@@ -1272,30 +1123,9 @@ export class Browser {
     return this.downloadController.startDownloadDrag(downloadId, sender)
   }
 
-  evaluateFile(source: FileEvaluationSource, hooks: FileEvaluationHooks): Promise<Record<string, unknown>> {
-    return evaluateFile(this, source, hooks)
-  }
-
-  screenshot(options: BrowserScreenshotOptions = {}): Promise<{ annotations?: ScreenshotAnnotationReport; data: Buffer; mimeType: 'image/png' | 'image/jpeg' }> {
-    return screenshot(this, options)
-  }
-
-  savePdf(options: BrowserPdfOptions = {}, validateExport?: () => void, deferExport?: (pending: PendingPdfExport) => void): Promise<BrowserPdfExport> {
-    return savePdf(this, options, validateExport, deferExport)
-  }
-
-  setBrowserContentOccluded(occluded: boolean, request: number): void {
-    setBrowserContentOccluded(this, occluded, request)
-  }
-
   /** The shell shows the snapshot with this ID under trusted chrome, so the pages can leave the screen. */
   presentOcclusionSnapshot(id: number): void {
     this.occlusionSnapshot.present(id)
-  }
-
-  /** Where pages show, below the toolbar and beside the tab rail, in window coordinates; null once the window is gone. */
-  pageArea(): Rectangle | null {
-    return pageArea(this)
   }
 
   /** Whether the window shows a page in full screen, such as a video, which Follow agents does not switch away from. */
@@ -1316,24 +1146,11 @@ export class Browser {
     noteShellHeldKey(this.shellHeldKeys, input)
   }
 
-  /** The window's full screen to save: the person's own, not a page's, which ends with the page. */
-  windowFullScreenToSave(): boolean {
-    return windowFullScreenToSave(this)
-  }
-
-  getSplitDivider(): SplitDividerGeometry | null {
-    return getSplitDivider(this)
-  }
-
   cancelSplitDivider(): void { this.splitDivider.cancel() }
   beginSplitDivider(revision: number): SplitDividerSession | null { return this.splitDivider.begin(revision) }
   updateSplitDivider(token: string, ratio: number): SplitDividerGeometry | null { return this.splitDivider.update(token, ratio) }
   finishSplitDivider(token: string, commit: boolean, ratio?: number): SplitDividerGeometry | null { return this.splitDivider.finish(token, commit, ratio) }
   setSplitDividerRatio(revision: number, ratio: number): SplitDividerGeometry | null { return this.splitDivider.setRatio(revision, ratio) }
-
-  getPageCards(): PageCardGeometry[] {
-    return getPageCards(this)
-  }
 
   /** Where a tab's page goes in its space: see `emulationViewSize`. */
   tabViewBounds(tab: BrowserTab, space: Rectangle): Rectangle {
