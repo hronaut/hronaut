@@ -89,7 +89,6 @@ const destroyed = { isDestroyed: () => true }
 const homeTab = { id: 'home', url: 'hronaut://home/', pinned: false, nativeInputEnvironmentGeneration: 0 }
 const websiteTab = { id: 'site', url: 'https://example.test/', pinned: false, nativeInputEnvironmentGeneration: 0 }
 const manager = (activeTabId: string | null) => Object.assign(Object.create(Browser.prototype), { tabs: new Map(), activeTabId }) as InstanceType<typeof Browser>
-const noWorkspaces = { mcpTabGroups: () => new Map(), savedTabGroups: () => new Map() }
 const browserWithoutWorkspaces = { mcpTabGroups: new Map(), savedTabGroups: new Map() }
 const labels = { initialized: true, destroyed: false, tabLabelAdmissionClosed: false, tabLabelLifecycleHolds: 0, pendingTabLabels: new Set() }
 // The denial is recorded in the workspace's audit; with its window gone, nothing is published.
@@ -158,7 +157,7 @@ describe('main-process failures people see in tabs, navigation and new tabs', ()
     ['the tab limit', () => createNewTab({ options: {}, tabs: { size: MAX_BROWSER_TABS } } as never, { url: 'https://example.test/' }, true),
       `Tab limit reached (${MAX_BROWSER_TABS})`,
       `Досягнуто ліміту вкладок (${MAX_BROWSER_TABS}).`],
-    ['a new tab in a workspace that just closed', () => requireMcpTabGroup({ mcpTabGroups: () => new Map() } as never, 'workspace-id'),
+    ['a new tab in a workspace that just closed', () => requireMcpTabGroup({ mcpTabGroups: new Map() } as never, 'workspace-id'),
       'Unknown workspace: workspace-id. List workspaces with browser_workspaces or create one first.',
       'Робочий простір більше недоступний.'],
     ['a workspace being archived', () => assertWorkspaceIdle({
@@ -168,9 +167,9 @@ describe('main-process failures people see in tabs, navigation and new tabs', ()
     'Workspace "Research" is busy archiving the workspace. Try again after that operation finishes.',
     'Робочий простір «Research» зараз архівується. Спробуйте ще раз, коли це завершиться.'],
     // Workspaces that closed while the person acted on them
-    ['pinning a workspace that just closed', () => setWorkspacePinned(noWorkspaces as never, 'workspace-id', true),
+    ['pinning a workspace that just closed', () => setWorkspacePinned(browserWithoutWorkspaces as never, 'workspace-id', true),
       'Unknown workspace: workspace-id', 'Робочий простір більше недоступний.'],
-    ['closing a workspace that just closed', () => closeMcpTabGroupInternal({ ...noWorkspaces, withTabLabelLifecycle: (run: () => unknown) => run() } as never, 'workspace-id'),
+    ['closing a workspace that just closed', () => closeMcpTabGroupInternal({ ...browserWithoutWorkspaces, tabLabelLifecycleHolds: 0, pendingTabLabels: new Set() } as never, 'workspace-id'),
       'Unknown workspace: workspace-id.', 'Робочий простір більше недоступний.'],
     ['closing a workspace with Undo that just closed', () => closeWorkspaceForPerson(browserWithoutWorkspaces as never, 'workspace-id'),
       'Unknown workspace: workspace-id.', 'Робочий простір більше недоступний.'],
@@ -352,7 +351,7 @@ describe('main-process failures people see in page tools, workspace management a
     ['a Site access rule with credentials', () => canonicalizeWorkspaceNavigationRule('https://person:secret@example.com'),
       'Navigation rules cannot contain credentials.',
       'Правила доступу до сайтів не можуть містити облікові дані.'],
-    ['a checkpoint while workspace actions are pending', () => armWorkspaceContinuity({ continuityActions: () => new Set(['research']) } as never, 'research'),
+    ['a checkpoint while workspace actions are pending', () => armWorkspaceContinuity({ continuityActions: new Set(['research']) } as never, 'research'),
       'Wait for pending workspace actions before creating a checkpoint',
       'Дочекайтеся завершення дій у робочому просторі, перш ніж створювати контрольну точку.'],
     ['importing a template whose names collide', () => new WorkspaceTemplateImporter({ existingWorkspaces: () => [research] } as never).import(templateText),

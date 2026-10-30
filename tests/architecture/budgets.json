@@ -1,6 +1,6 @@
 {
   "oversizedFiles": {
-    "src/main/browser/browser.ts": 4124,
+    "src/main/browser/browser.ts": 4026,
     "src/main/browser/downloads-controller.ts": 811,
     "src/main/index.ts": 1662,
     "src/main/mcp/http-server.ts": 856,
@@ -9,8 +9,6 @@
     "src/renderer/src/App.vue": 1102
   },
   "accessFiles": [
-    "src/main/browser/agent-page-actions/agent-page-actions-access.ts",
-    "src/main/browser/mcp-tab-groups/mcp-tab-groups-access.ts",
-    "src/main/browser/workspace-continuity/workspace-continuity-access.ts"
+    "src/main/browser/agent-page-actions/agent-page-actions-access.ts"
   ]
 }
