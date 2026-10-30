@@ -11,13 +11,12 @@ vi.mock('../src/main/browser/unique-download-file.js', () => ({
 import { Browser } from '../src/main/browser/browser.js'
 import { ISOLATED_WORLDS } from '../src/main/browser/isolated-worlds.js'
 import { captureVisual } from '../src/main/browser/visual-compare/visual-capture.js'
+import { showAgentPointer } from '../src/main/browser/agent-pointer/agent-pointer.js'
 import type { AgentPointerIdentity } from '../src/main/browser/page-scripts.js'
 
 const CLAUDE: AgentPointerIdentity = { name: 'Claude Code', fill: '#2aa198', ink: '#111318' }
 
-type PointerManager = Pick<Browser, 'screenshot' | 'savePdf'> & {
-  showAgentPointer(webContents: unknown, point: { x: number; y: number }, effect: 'click', options?: { agent?: AgentPointerIdentity }): Promise<void>
-}
+type PointerManager = Pick<Browser, 'screenshot' | 'savePdf'>
 
 function fixture(showAgentCursor?: boolean, answer: () => Promise<unknown> = async () => true) {
   const order: string[] = []
@@ -68,14 +67,14 @@ afterEach(() => {
 
 it('draws the agent\'s named cursor in its own world, and nothing while agent cursors are off', async () => {
   const on = fixture()
-  await on.manager.showAgentPointer(on.webContents, { x: 10, y: 20 }, 'click', { agent: CLAUDE })
+  await showAgentPointer(on.manager as Browser, on.webContents as never, { x: 10, y: 20 }, 'click', { agent: CLAUDE })
   expect(on.webContents.executeJavaScriptInIsolatedWorld).toHaveBeenCalledOnce()
   expect(on.webContents.executeJavaScriptInIsolatedWorld.mock.calls[0]?.[0]).toBe(ISOLATED_WORLDS.agentPointer)
   expect(on.scripts[0]).toContain('"name":"Claude Code"')
   expect(on.scripts[0]).toContain('#2aa198')
 
   const off = fixture(false)
-  await off.manager.showAgentPointer(off.webContents, { x: 10, y: 20 }, 'click', { agent: CLAUDE })
+  await showAgentPointer(off.manager as Browser, off.webContents as never, { x: 10, y: 20 }, 'click', { agent: CLAUDE })
   expect(off.webContents.executeJavaScriptInIsolatedWorld).not.toHaveBeenCalled()
 })
 

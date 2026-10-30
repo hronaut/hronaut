@@ -1,7 +1,6 @@
 import type { WebContents } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
-import type { AgentPageActionsAccess, AgentPageActionsTab, BrowserClickTarget } from '../src/main/browser/agent-page-actions/agent-page-actions-access.js'
-import { click } from '../src/main/browser/agent-page-actions/click.js'
+import { click, type BrowserClickTarget } from '../src/main/browser/agent-page-actions/click.js'
 import { shouldBlockHumanMouseInput, type AuthorizedAgentMouseInput } from '../src/main/browser/agent-input-authorization/agent-input-authorization.js'
 import type { Browser } from '../src/main/browser/browser.js'
 import type { BrowserTab } from '../src/main/browser/browser-tab.js'
@@ -12,6 +11,11 @@ vi.mock('../src/main/browser/agent-input-authorization/agent-input-authorization
   ...await importOriginal<typeof import('../src/main/browser/agent-input-authorization/agent-input-authorization.js')>(),
   sendAuthorizedAgentInputCommand: (browser: { sendAuthorizedAgentInputCommand(...args: unknown[]): Promise<unknown> }, ...args: unknown[]) =>
     browser.sendAuthorizedAgentInputCommand(...args)
+}))
+// A native right-click is supported only on Linux; the right-click case checks its modifiers on any platform.
+vi.mock('../src/main/browser/owned-right-click.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/owned-right-click.js')>(),
+  assertRightClickPlatform: vi.fn()
 }))
 
 const webContents = {} as WebContents
@@ -59,14 +63,14 @@ describe('native modifier clicks', () => {
     ['neither a ref nor a selector', { selector: undefined }],
     ['dialog handling', { dialogAction: 'accept' }]
   ])('rejects %s before touching the page', async (_name, change) => {
-    const access = {} as AgentPageActionsAccess<AgentPageActionsTab>
-    await expect(click(access, { tabId: 'tab-1', selector: '#row', native: true, modifiers: ['Shift'], ...change }))
+    const tabManager = {} as Parameters<typeof click>[0]
+    await expect(click(tabManager, { tabId: 'tab-1', selector: '#row', native: true, modifiers: ['Shift'], ...change }))
       .rejects.toThrow('Modifier clicks require one native left click on a ref or selector')
   })
 
   it('rejects modifiers on a right click before touching the page', async () => {
-    const access = { assertRightClickPlatform: vi.fn() } as unknown as AgentPageActionsAccess<AgentPageActionsTab>
-    await expect(click(access, { tabId: 'tab-1', selector: '#row', native: true, button: 'right', modifiers: ['Control'] }))
+    const tabManager = {} as Parameters<typeof click>[0]
+    await expect(click(tabManager, { tabId: 'tab-1', selector: '#row', native: true, button: 'right', modifiers: ['Control'] }))
       .rejects.toThrow('Modifier clicks require one native left click on a ref or selector')
   })
 
@@ -74,8 +78,8 @@ describe('native modifier clicks', () => {
     const platform = Object.getOwnPropertyDescriptor(process, 'platform')!
     Object.defineProperty(process, 'platform', { value: 'darwin' })
     try {
-      const access = {} as AgentPageActionsAccess<AgentPageActionsTab>
-      await expect(click(access, { tabId: 'tab-1', selector: '#row', native: true, modifiers: ['Shift', 'Control'] }))
+      const tabManager = {} as Parameters<typeof click>[0]
+      await expect(click(tabManager, { tabId: 'tab-1', selector: '#row', native: true, modifiers: ['Shift', 'Control'] }))
         .rejects.toThrow('On macOS a Control click opens a context menu instead of clicking; use Meta or ControlOrMeta.')
     } finally {
       Object.defineProperty(process, 'platform', platform)
@@ -86,8 +90,8 @@ describe('native modifier clicks', () => {
     ['ControlOrMeta with Control', ['ControlOrMeta', 'Control']],
     ['ControlOrMeta with Meta', ['Meta', 'ControlOrMeta']]
   ])('rejects %s before touching the page', async (_name, modifiers) => {
-    const access = {} as AgentPageActionsAccess<AgentPageActionsTab>
-    await expect(click(access, { tabId: 'tab-1', selector: '#row', native: true, modifiers }))
+    const tabManager = {} as Parameters<typeof click>[0]
+    await expect(click(tabManager, { tabId: 'tab-1', selector: '#row', native: true, modifiers }))
       .rejects.toThrow('ControlOrMeta not combined with Control or Meta')
   })
 })

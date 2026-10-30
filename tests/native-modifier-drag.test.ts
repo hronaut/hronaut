@@ -3,13 +3,38 @@ import { describe, expect, it, vi } from 'vitest'
 import { shouldBlockHumanMouseInput, type AuthorizedAgentMouseInput } from '../src/main/browser/agent-input-authorization/agent-input-authorization.js'
 import type { Browser } from '../src/main/browser/browser.js'
 import type { BrowserTab } from '../src/main/browser/browser-tab.js'
-import type { AgentPageActionsAccess, AgentPageActionsTab } from '../src/main/browser/agent-page-actions/agent-page-actions-access.js'
 import { type BrowserDragModifier, drag } from '../src/main/browser/agent-page-actions/hover-and-drag.js'
-import { coordinateDragPointsOrValidateTargets } from '../src/main/browser/input-targets/input-targets.js'
 import { dispatchNativeDrag } from '../src/main/browser/native-pointer.js'
 import { browserActionPayloadFingerprint } from '../src/main/mcp/browser-action-authority.js'
 import { humanWaitingArtifactHash } from '../src/main/mcp/human-waiting-store.js'
 import { browserDragInputShape, browserDragSchema } from '../src/main/mcp/tools/browser-drag/input.js'
+
+// The drag below runs through the fake browser's stubs for the agent's input authority, pointer, input scope,
+// debugger lease and input debugger, and finds its points inside the viewport.
+vi.mock('../src/main/browser/native-input-authority/native-input-authority.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/native-input-authority/native-input-authority.js')>(),
+  nativeInputAuthority: (browser: { nativeInputAuthority: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.nativeInputAuthority(...args)
+}))
+vi.mock('../src/main/browser/agent-pointer/agent-pointer.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/agent-pointer/agent-pointer.js')>(),
+  showAgentPointer: (browser: { showAgentPointer: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.showAgentPointer(...args)
+}))
+vi.mock('../src/main/browser/agent-input-scope/agent-input-scope.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/agent-input-scope/agent-input-scope.js')>(),
+  withAgentInput: (browser: { withAgentInput: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.withAgentInput(...args)
+}))
+vi.mock('../src/main/browser/debugger-lease/debugger-lease.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/debugger-lease/debugger-lease.js')>(),
+  withDebugger: (browser: { withDebugger: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.withDebugger(...args)
+}))
+vi.mock('../src/main/browser/agent-input-authorization/agent-input-authorization.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/agent-input-authorization/agent-input-authorization.js')>(),
+  agentInputDebugger: (browser: { agentInputDebugger: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.agentInputDebugger(...args)
+}))
+vi.mock('../src/main/browser/input-targets/target-checks.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/input-targets/target-checks.js')>(),
+  assertPointInsideVisibleViewport: async () => {}
+}))
 
 function recordingDebugger(failAt?: number) {
   const commands: Array<Record<string, unknown>> = []
@@ -24,19 +49,17 @@ function recordingDebugger(failAt?: number) {
   }
 }
 
-function dragAccess() {
+function dragBrowser() {
   const { commands, debuggerApi } = recordingDebugger()
-  const access = {
-    coordinateDragPointsOrValidateTargets,
-    getTab: () => ({ webContents: {} as WebContents }),
+  const tabManager = {
+    tabs: new Map([['tab-1', { webContents: {} as WebContents }]]),
     nativeInputAuthority: () => ({ validate: () => {}, dispose: () => {} }),
-    assertPointInsideVisibleViewport: async () => {},
     showAgentPointer: async () => {},
     withAgentInput: async <T>(_webContents: WebContents, operation: () => Promise<T>) => operation(),
     withDebugger: async <T>(_webContents: WebContents, operation: () => Promise<T>) => operation(),
     agentInputDebugger: () => debuggerApi
-  } as unknown as AgentPageActionsAccess<AgentPageActionsTab>
-  return { access, commands }
+  } as unknown as Parameters<typeof drag>[0]
+  return { tabManager, commands }
 }
 
 const coordinates = { tabId: 'tab-1', startX: 10, startY: 20, endX: 90, endY: 60 }
@@ -77,8 +100,8 @@ describe('native modifier drags', () => {
     const original = Object.getOwnPropertyDescriptor(process, 'platform')!
     Object.defineProperty(process, 'platform', { value: platform })
     try {
-      const { access, commands } = dragAccess()
-      await expect(drag(access, { ...coordinates, modifiers })).resolves.toEqual({
+      const { tabManager, commands } = dragBrowser()
+      await expect(drag(tabManager, { ...coordinates, modifiers })).resolves.toEqual({
         ok: true, from: { x: 10, y: 20 }, to: { x: 90, y: 60 }, modifiers: [...modifiers]
       })
       expect(commands.map(command => command.modifiers)).toEqual(Array(11).fill(bits))
@@ -88,8 +111,8 @@ describe('native modifier drags', () => {
   })
 
   it('leaves a drag without keys unchanged', async () => {
-    const { access, commands } = dragAccess()
-    await expect(drag(access, coordinates)).resolves.toEqual({ ok: true, from: { x: 10, y: 20 }, to: { x: 90, y: 60 } })
+    const { tabManager, commands } = dragBrowser()
+    await expect(drag(tabManager, coordinates)).resolves.toEqual({ ok: true, from: { x: 10, y: 20 }, to: { x: 90, y: 60 } })
     expect(commands.some(command => 'modifiers' in command)).toBe(false)
   })
 
@@ -98,8 +121,8 @@ describe('native modifier drags', () => {
     ['a repeated key', ['Shift', 'Shift']],
     ['an unsupported key', ['Control']]
   ])('rejects %s before touching the page', async (_name, modifiers) => {
-    const access = {} as AgentPageActionsAccess<AgentPageActionsTab>
-    await expect(drag(access, { ...coordinates, modifiers: modifiers as BrowserDragModifier[] }))
+    const tabManager = {} as Parameters<typeof drag>[0]
+    await expect(drag(tabManager, { ...coordinates, modifiers: modifiers as BrowserDragModifier[] }))
       .rejects.toThrow('Drag modifiers must name one to three of Shift, Alt or ControlOrMeta, each once.')
   })
 })

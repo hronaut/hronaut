@@ -1,6 +1,6 @@
 {
   "oversizedFiles": {
-    "src/main/browser/browser.ts": 4026,
+    "src/main/browser/browser.ts": 3869,
     "src/main/browser/downloads-controller.ts": 811,
     "src/main/index.ts": 1662,
     "src/main/mcp/http-server.ts": 856,
@@ -8,7 +8,5 @@
     "src/preload/index.ts": 808,
     "src/renderer/src/App.vue": 1102
   },
-  "accessFiles": [
-    "src/main/browser/agent-page-actions/agent-page-actions-access.ts"
-  ]
+  "accessFiles": []
 }
