@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { guardPageCallsDuringPrintDialog, printDialogHolds, PrintDialogOpenError, whenPrintDialogCloses } from '../src/main/browser/print-dialog-guard.js'
-import { PAGE_PRINT_DIALOG_CHANNEL } from '../src/shared/page-print-dialog.js'
+import { PAGE_IPC } from '../src/shared/ipc/page.js'
 
 function deferred(): { promise: Promise<unknown>; resolve(value: unknown): void; reject(error: unknown): void } {
   let resolve!: (value: unknown) => void
@@ -29,7 +29,7 @@ function fakePage() {
   guardPageCallsDuringPrintDialog(page as never)
   const emit = (event: string, ...args: unknown[]): void => { for (const listener of listeners.get(event) ?? []) listener(...args) }
   // What the page's preload sends on the browser's beforeprint (true) and afterprint (false).
-  const printEvent = (open: unknown, channel = PAGE_PRINT_DIALOG_CHANNEL, senderFrame = page.mainFrame): void =>
+  const printEvent = (open: unknown, channel = PAGE_IPC.printDialog, senderFrame = page.mainFrame): void =>
     emit('ipc-message', { senderFrame }, channel, open)
   return { page, calls, emit, printEvent }
 }
@@ -130,8 +130,8 @@ describe('page calls during a print dialog', () => {
 
   it('ignores a report from a frame that is no longer the page\'s main frame', async () => {
     const { page, calls, printEvent } = fakePage()
-    printEvent(true, PAGE_PRINT_DIALOG_CHANNEL, { processId: 3, routingId: 1 })
-    printEvent(true, PAGE_PRINT_DIALOG_CHANNEL, null as never)
+    printEvent(true, PAGE_IPC.printDialog, { processId: 3, routingId: 1 })
+    printEvent(true, PAGE_IPC.printDialog, null as never)
     void page.executeJavaScript('1')
     expect(calls.map(call => call.kind)).toEqual(['script'])
     expect(printDialogHolds(page)).toBe(false)

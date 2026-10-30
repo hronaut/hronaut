@@ -79,8 +79,7 @@ checks the first four.
   file that imports it; imports of types only do not count.
 - IPC channels are declared once in `src/shared/ipc/<feature>.ts`, typed with
   their arguments and result, and main and the preloads use those constants
-  instead of writing channel names out. The count still written out,
-  `literalIpcChannels` in the budgets file, may only shrink.
+  instead of writing channel names out; the architecture guards allow none.
 - A feature keeps the tab state it owns in one typed field of the tab, as
   `tab.emulation` does, with its type declared beside the feature, not as
   loose fields on the tab.

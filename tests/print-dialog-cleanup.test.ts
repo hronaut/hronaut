@@ -14,7 +14,7 @@ vi.mock('../src/main/browser/debugger-lease/debugger-lease.js', async (importOri
 
 const { withAgentInput } = await import('../src/main/browser/agent-input-scope/agent-input-scope.js')
 const { guardPageCallsDuringPrintDialog, PrintDialogOpenError } = await import('../src/main/browser/print-dialog-guard.js')
-const { PAGE_PRINT_DIALOG_CHANNEL } = await import('../src/shared/page-print-dialog.js')
+const { PAGE_IPC } = await import('../src/shared/ipc/page.js')
 
 /** A page whose calls the print dialog guard holds, recording what reaches it. */
 function printablePage() {
@@ -38,7 +38,7 @@ function printablePage() {
     }
   })
   guardPageCallsDuringPrintDialog(page as never)
-  const print = (open: boolean): void => { page.emit('ipc-message', { senderFrame: page.mainFrame }, PAGE_PRINT_DIALOG_CHANNEL, open) }
+  const print = (open: boolean): void => { page.emit('ipc-message', { senderFrame: page.mainFrame }, PAGE_IPC.printDialog, open) }
   return { page, scripts, commands, print }
 }
 

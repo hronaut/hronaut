@@ -78,6 +78,33 @@ export function literalIpcChannels(code: string, fileName = 'module.ts'): string
   return channels
 }
 
+/** The channel names the typed channels of src/shared/ipc declare: each property's string, such as `'license:activate' as InvokeChannel<...>`. */
+export function declaredIpcChannels(code: string, fileName = 'channels.ts'): string[] {
+  const channels: string[] = []
+  const visit = (node: ts.Node): void => {
+    if (ts.isPropertyAssignment(node) && ts.isAsExpression(node.initializer) && ts.isStringLiteral(node.initializer.expression)) {
+      channels.push(node.initializer.expression.text)
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(ts.createSourceFile(fileName, code, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS))
+  return channels
+}
+
+/**
+ * The declared channel names a module writes out as text anywhere, not only where it sends or listens: in a cast, a
+ * constant, a comparison or a template literal without substitutions.
+ */
+export function writtenIpcChannels(code: string, declared: ReadonlySet<string>, fileName = 'module.ts'): string[] {
+  const channels: string[] = []
+  const visit = (node: ts.Node): void => {
+    if ((ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) && declared.has(node.text)) channels.push(node.text)
+    ts.forEachChild(node, visit)
+  }
+  visit(ts.createSourceFile(fileName, code, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS))
+  return channels
+}
+
 function importsTypesOnly(clause: ts.ImportClause | undefined): boolean {
   if (!clause) return false
   if (clause.isTypeOnly) return true

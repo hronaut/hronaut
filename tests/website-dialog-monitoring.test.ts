@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { firstLoadStarts, holdUntilFirstLoad, RendererExitedError } from '../src/main/browser/renderer-exit-guard.js'
 import { ensureDialogMonitoring } from '../src/main/browser/website-dialogs/website-dialogs.js'
 import { guardPageCallsDuringPrintDialog } from '../src/main/browser/print-dialog-guard.js'
-import { PAGE_PRINT_DIALOG_CHANNEL } from '../src/shared/page-print-dialog.js'
+import { PAGE_IPC } from '../src/shared/ipc/page.js'
 
 function fixture() {
   const state = { crashed: true, attached: false }
@@ -80,7 +80,7 @@ describe('dialog monitoring on a page its print dialog holds', () => {
       executeJavaScript: vi.fn(), executeJavaScriptInIsolatedWorld: vi.fn(), capturePage: vi.fn(), printToPDF: vi.fn()
     })
     guardPageCallsDuringPrintDialog(page as never)
-    const print = (open: boolean): void => { page.emit('ipc-message', { senderFrame: page.mainFrame }, PAGE_PRINT_DIALOG_CHANNEL, open) }
+    const print = (open: boolean): void => { page.emit('ipc-message', { senderFrame: page.mainFrame }, PAGE_IPC.printDialog, open) }
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     try {
       print(true)

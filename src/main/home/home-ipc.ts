@@ -11,6 +11,7 @@ import type { HomeSetupState } from '../../shared/claude-code-setup.js'
 import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
 import type { AppSettings, McpPortMoveResult } from '../../shared/types.js'
 import { SHELL_IPC } from '../../shared/ipc/shell.js'
+import { HOME_IPC } from '../../shared/ipc/home.js'
 
 interface HomeIpcHost {
   /** Registers a handler that is refused while saved workspaces are still initializing or failed to start. */
@@ -126,17 +127,17 @@ export function registerHomeIpc(host: HomeIpcHost): void {
     if (!claudeCodeSetupAllowed()) throw new Error('Claude Code setup is unavailable while the MCP token comes from HRONAUT_MCP_TOKEN. Use the command instead.')
   }
 
-  host.handleBrowserIpc('hronaut-home:workspaces', (event) => {
+  host.handleBrowserIpc(HOME_IPC.workspaces, (event) => {
     assertHomePageSender(event)
     return homeWorkspaceState(host.tabs()!)
   })
-  host.handleBrowserIpc('hronaut-home:workspace-action', async (event, input: unknown) => {
+  host.handleBrowserIpc(HOME_IPC.workspaceAction, async (event, input: unknown) => {
     assertHomePageSender(event)
     return runHomeWorkspaceAction(host.tabs()!, input, (request) => {
       host.mainWindow()?.webContents.send(SHELL_IPC.homeWorkspaceEditorRequested, request)
     })
   })
-  host.handleBrowserIpc('hronaut-home:copy-text', async (event, value: unknown) => {
+  host.handleBrowserIpc(HOME_IPC.copyText, async (event, value: unknown) => {
     assertHomePageSender(event)
     if (typeof value !== 'string') throw new TypeError('Clipboard text must be a string')
     try {
@@ -146,7 +147,7 @@ export function registerHomeIpc(host: HomeIpcHost): void {
       throw error
     }
   })
-  host.handleBrowserIpc('hronaut-home:open-vscode-install', async (event) => {
+  host.handleBrowserIpc(HOME_IPC.openVsCodeInstall, async (event) => {
     assertHomePageSender(event)
     await openVsCodeMcpInstall({
       endpoint: host.mcpUrl(),
@@ -155,22 +156,22 @@ export function registerHomeIpc(host: HomeIpcHost): void {
     })
   })
   host.handleBrowserIpc(
-    'hronaut-home:open-setup-help',
+    HOME_IPC.openSetupHelp,
     setupHelpHandler(assertHomePageSender, (url) => host.openExternal(url))
   )
   host.handleBrowserIpc(
-    'hronaut-home:open-setup-feedback',
+    HOME_IPC.openSetupFeedback,
     setupFeedbackHandler(assertHomePageSender, (url) => host.openExternal(url))
   )
   host.handleBrowserIpc(
-    'hronaut-home:open-agent-guide',
+    HOME_IPC.openAgentGuide,
     agentGuideHandler(assertHomePageSender, (url) => host.openExternal(url))
   )
-  host.handleBrowserIpc('hronaut-home:use-mcp-port', async (event, port: unknown): Promise<McpPortMoveResult> => {
+  host.handleBrowserIpc(HOME_IPC.useMcpPort, async (event, port: unknown): Promise<McpPortMoveResult> => {
     assertHomeMainFrame(event)
     return host.mcpPortRecovery().move(port)
   })
-  host.handleBrowserIpc('hronaut-home:setup-state', async (event): Promise<HomeSetupState> => {
+  host.handleBrowserIpc(HOME_IPC.setupState, async (event): Promise<HomeSetupState> => {
     assertHomeMainFrame(event)
     const setup = claudeCodeSetupService()
     const [detected, claudeCode] = await Promise.all([
@@ -179,12 +180,12 @@ export function registerHomeIpc(host: HomeIpcHost): void {
     ])
     return { detected, ...(claudeCode ? { claudeCode } : {}) }
   })
-  host.handleBrowserIpc('hronaut-home:claude-code-prepare', (event) => {
+  host.handleBrowserIpc(HOME_IPC.claudeCodePrepare, (event) => {
     assertHomeMainFrame(event)
     assertClaudeCodeSetupAllowed()
     return claudeCodeSetupService().prepare(event.sender.id)
   })
-  host.handleBrowserIpc('hronaut-home:claude-code-apply', async (event, planId: unknown) => {
+  host.handleBrowserIpc(HOME_IPC.claudeCodeApply, async (event, planId: unknown) => {
     assertHomeMainFrame(event)
     assertClaudeCodeSetupAllowed()
     // Home going away while the dialog asks, such as its tab closing, takes the question with it and writes nothing.

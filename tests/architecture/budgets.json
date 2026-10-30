@@ -6,6 +6,5 @@
     "src/main/wallet/broker.ts": 884,
     "src/renderer/src/App.vue": 1102
   },
-  "accessFiles": [],
-  "literalIpcChannels": 40
+  "accessFiles": []
 }

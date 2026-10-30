@@ -9,6 +9,7 @@ import type { WalletBroker, WalletBrokerContext } from './broker.js'
 import type { WalletService } from './service.js'
 import { LocalizedError } from '../localized-error.js'
 import { WALLETS_IPC } from '../../shared/ipc/wallets.js'
+import { WALLET_PROVIDER_IPC } from '../../shared/ipc/wallet-provider.js'
 
 type WalletIpcService = Pick<WalletService,
   'list' | 'setupPassphrase' | 'unlock' | 'prepareImport' | 'confirmImport' |
@@ -51,7 +52,7 @@ export function registerWalletIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Wallet
     if (!broker) throw new LocalizedError('appErrors.wallet.serviceUnavailable', undefined, { message: 'Wallet broker is unavailable' })
     return broker
   }
-  ipcMain.handle('wallet-provider:request', (event, input: WalletProviderRequest) => (
+  ipcMain.handle(WALLET_PROVIDER_IPC.request, (event, input: WalletProviderRequest) => (
     requireWalletBroker().providerRequest(host.assertWalletPageSender(event), input)
   ))
   ipcMain.handle(WALLETS_IPC.status, (event) => {

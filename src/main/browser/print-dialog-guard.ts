@@ -1,5 +1,5 @@
 import type { Debugger, WebContents } from 'electron'
-import { PAGE_PRINT_DIALOG_CHANNEL } from '../../shared/page-print-dialog.js'
+import { PAGE_IPC } from '../../shared/ipc/page.js'
 import { LocalizedError } from '../localized-error.js'
 import { answeredByBrowserProcess } from './renderer-exit-guard.js'
 
@@ -69,7 +69,7 @@ export function guardPageCallsDuringPrintDialog(page: GuardedPage): void {
     for (const resolve of state.closed.splice(0)) resolve()
   }
   page.on('ipc-message', (event, channel, open) => {
-    if (channel !== PAGE_PRINT_DIALOG_CHANNEL || typeof open !== 'boolean') return
+    if (channel !== PAGE_IPC.printDialog || typeof open !== 'boolean') return
     // Only the current main frame's dialog holds the page the guarded calls go to; a report from a frame a new
     // document replaced meanwhile does not.
     const sender = event.senderFrame
