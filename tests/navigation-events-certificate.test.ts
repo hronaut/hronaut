@@ -6,6 +6,9 @@ vi.mock('../src/main/browser/certificate-errors/certificate-errors.js', async (i
   ...await importOriginal<typeof import('../src/main/browser/certificate-errors/certificate-errors.js')>(),
   certificateRefusal
 }))
+// The problem each failure showed when it asked for its page to load again once the website can be reached.
+const { reloadWhenWebsiteReachable } = vi.hoisted(() => ({ reloadWhenWebsiteReachable: vi.fn<(browser: unknown, tab: { pageProblem: unknown }) => void>() }))
+vi.mock('../src/main/browser/network-error-reload/network-error-reload.js', () => ({ reloadWhenWebsiteReachable }))
 import { attachNavigationEvents } from '../src/main/browser/tab-events/navigation-events.js'
 
 // The fake browser stubs these, which are functions now; the mock reaches its stubs.
@@ -98,6 +101,24 @@ describe('a page whose website presented a certificate the tab refused', () => {
       expect(tab.pageProblem, description).toMatchObject({ title: 'This site could not be reached', errorDescription: description })
       expect(tab.pageProblem, description).not.toHaveProperty('certificate')
       if (description !== 'ERR_NAME_NOT_RESOLVED') expect(certificateRefusal).toHaveBeenCalledWith(contents, PAGE)
+    }
+  })
+
+  it('asks for the page to load again once its website can be reached, after the tab shows the failure', () => {
+    for (const [refusal, errorCode, description] of [
+      [undefined, -105, 'ERR_NAME_NOT_RESOLVED'],
+      [{ host: 'staging.example', canProceed: true }, -202, 'ERR_CERT_AUTHORITY_INVALID']
+    ] as const) {
+      const shown: unknown[] = []
+      reloadWhenWebsiteReachable.mockReset().mockImplementation((_browser, failed) => { shown.push(failed.pageProblem) })
+      const { tab, fail } = tabWithRefusal(refusal)
+      fail(-3, 'ERR_ABORTED')
+      fail(errorCode, description, false)
+      expect(reloadWhenWebsiteReachable, description).not.toHaveBeenCalled()
+      fail(errorCode, description)
+      expect(reloadWhenWebsiteReachable, description).toHaveBeenCalledExactlyOnceWith(expect.anything(), tab)
+      expect(shown, description).toEqual([tab.pageProblem])
+      expect(tab.pageProblem, description).toMatchObject({ errorDescription: description })
     }
   })
 })
