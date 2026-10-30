@@ -2,6 +2,7 @@ import { computed, onBeforeUnmount, ref, watch, type ComputedRef, type Ref } fro
 import type {
   AddressSuggestionOverlayTheme
 } from '../../../shared/address-suggestions.js'
+import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import type { SupportedLocale } from '../../../shared/locale.js'
 import type { SiteSearch } from '../../../shared/site-search.js'
 import type {
@@ -16,6 +17,7 @@ import { useAddressBarController } from '../features/address-bar/useAddressBarCo
 import { useAppSiteManagementFeatureController } from './useAppSiteManagementFeatureController.js'
 import { useBrowserTabActionsController } from '../features/tabs/useBrowserTabActionsController.js'
 import { disposeAll } from './dispose-all.js'
+import { friendlyUiError, type AppToastTone } from './useAppToastController.js'
 import type { SettingsSection } from '../features/settings/useSettingsDialogController.js'
 import { useSiteDataSummaryController } from '../features/site-controls/useSiteDataSummaryController.js'
 import type { SiteStorageShellPanel } from '../features/site-storage/useSiteStorageShellController.js'
@@ -50,7 +52,6 @@ export interface AppSiteNavigationFeatureControllerOptions {
   activeTab: ComputedRef<BrowserTabState | undefined>
   browser: SiteNavigationBrowserApi
   syncState: (operation: Promise<BrowserState> | BrowserState) => Promise<void>
-  isHome: () => boolean
   collections: {
     bookmarks: Ref<BrowserBookmark[]>
     history: Ref<BrowserHistoryEntry[]>
@@ -93,8 +94,7 @@ export interface AppSiteNavigationFeatureControllerOptions {
     openSettingsSection: (section: SettingsSection) => void
     loadSiteSummary: (context: { tabId: string; url: string }) => Promise<BrowsingDataSiteSummary>
     onActionError: (error: unknown) => void
-    onSelectError: (error: unknown) => void
-    onNavigateError: (error: unknown) => void
+    showToast: (tone: AppToastTone, title: string, message: string) => void
   }
 }
 
@@ -102,6 +102,7 @@ export function useAppSiteNavigationFeatureController(
   options: AppSiteNavigationFeatureControllerOptions
 ) {
   const { shell, collections, actions } = options
+  const { translate } = options.address
   const siteStorageOpen = ref(false)
   const siteStoragePanel = ref<SiteStorageShellPanel | null>(null)
   const siteControlsOpen = ref(false)
@@ -117,7 +118,7 @@ export function useAppSiteNavigationFeatureController(
   const browserTabActionsController = useBrowserTabActionsController({
     state: options.state,
     activeTab: options.activeTab,
-    isHome: options.isHome,
+    isHome: () => !options.activeTab.value || isHronautHomeUrl(options.activeTab.value.url),
     browser: options.browser,
     syncState: options.syncState,
     beforeToggleDeveloperTools: () => {
@@ -125,8 +126,16 @@ export function useAppSiteNavigationFeatureController(
       shell.settingsOpen.value = false
       actions.closeTransientPanels()
     },
-    onSelectError: actions.onSelectError,
-    onNavigateError: actions.onNavigateError
+    onSelectError: (error) => actions.showToast(
+      'error',
+      translate('runtime.workspace.openFailed'),
+      friendlyUiError(error, translate('runtime.workspace.openDescription'))
+    ),
+    onNavigateError: (error) => actions.showToast(
+      'error',
+      translate('runtime.navigation.failed'),
+      friendlyUiError(error, translate('runtime.navigation.failedDescription'))
+    )
   })
   const addressBarController = useAddressBarController({
     activeTab: options.activeTab,

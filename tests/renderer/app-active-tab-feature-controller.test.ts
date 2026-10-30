@@ -66,8 +66,8 @@ function createHarness() {
   const activePanelId = ref<DetachablePanelId | null>(null)
   const openPicker = vi.fn(() => { pickerOpen.value = true })
   const fillCredential = vi.fn(async () => true)
-  const onFilled = vi.fn()
-  const onError = vi.fn()
+  const showToast = vi.fn()
+  const translate = vi.fn((key: string) => key)
   const context = {
     keepsSeparatePanelOpen: vi.fn(() => false),
     siteControlsOpen: ref(true),
@@ -100,7 +100,7 @@ function createHarness() {
       credentials,
       downloads: ref<BrowserDownloadState[]>([]),
       bookmarks: ref<BrowserBookmark[]>([]),
-      translate: (key) => key,
+      translate,
       formatNumber: String,
       describeEmulation: () => 'mobile viewport'
     },
@@ -108,15 +108,12 @@ function createHarness() {
       pickerOpen,
       openPicker,
       fillCredential,
-      missingCredentialMessage: () => 'Credential no longer matches',
-      onFilled,
-      onError
+      showToast
     },
     detachedPanel: {
       window: true,
       activePanelId,
-      label: (panelId) => `Panel: ${panelId}`,
-      fallbackLabel: () => 'Page tools'
+      label: (panelId) => `Panel: ${panelId}`
     },
     context
   })
@@ -128,8 +125,8 @@ function createHarness() {
     activePanelId,
     openPicker,
     fillCredential,
-    onFilled,
-    onError,
+    showToast,
+    translate,
     context
   }
 }
@@ -143,9 +140,13 @@ describe('useAppActiveTabFeatureController', () => {
     await harness.controller.fillSavedPassword()
 
     expect(harness.fillCredential).toHaveBeenCalledWith('tab-1', 'matching')
-    expect(harness.onFilled).toHaveBeenCalledWith(expect.objectContaining({ id: 'matching' }))
+    expect(harness.showToast).toHaveBeenCalledExactlyOnceWith(
+      'success',
+      'runtime.toast.passwordFilled',
+      'runtime.toast.passwordFilledDescription'
+    )
+    expect(harness.translate).toHaveBeenCalledWith('runtime.toast.passwordFilledDescription', { username: 'matching' })
     expect(harness.openPicker).not.toHaveBeenCalled()
-    expect(harness.onError).not.toHaveBeenCalled()
 
     harness.credentials.value.push(credential('second-match'))
     await harness.controller.fillSavedPassword()
@@ -153,6 +154,19 @@ describe('useAppActiveTabFeatureController', () => {
     expect(harness.openPicker).toHaveBeenCalledOnce()
     expect(harness.pickerOpen.value).toBe(true)
     expect(harness.fillCredential).toHaveBeenCalledOnce()
+    harness.controller.dispose()
+  })
+
+  it('says when a saved password could not be filled, or no longer matches the page', async () => {
+    const harness = createHarness()
+    harness.fillCredential.mockRejectedValueOnce(new Error(''))
+    await harness.controller.fillSavedPassword()
+    expect(harness.showToast).toHaveBeenLastCalledWith('error', 'runtime.toast.passwordFillFailed', 'runtime.toast.passwordFillDescription')
+
+    harness.fillCredential.mockResolvedValueOnce(false)
+    await harness.controller.fillSavedPassword()
+    expect(harness.showToast).toHaveBeenLastCalledWith('error', 'runtime.toast.passwordFillFailed', 'runtimeActions.credential.noLongerMatches')
+    expect(harness.showToast).toHaveBeenCalledTimes(2)
     harness.controller.dispose()
   })
 
@@ -164,7 +178,7 @@ describe('useAppActiveTabFeatureController', () => {
     })
 
     expect(harness.controller.detachedPanelUnavailable.value).toBe(false)
-    expect(harness.controller.detachedPanelLabelText.value).toBe('Page tools')
+    expect(harness.controller.detachedPanelLabelText.value).toBe('shell.pageTools.heading')
     expect(harness.controller.describeTabEmulation(emulated)).toBe('mobile viewport')
     expect(harness.controller.describeTabEmulation(tab())).toBe('')
 

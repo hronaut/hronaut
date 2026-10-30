@@ -306,6 +306,26 @@ describe('browser Pinia store lifecycle', () => {
     store.dispose()
   })
 
+  it('syncs a state in hand or a pending one, and still lets a newer response win', async () => {
+    installBrowserApi({
+      getState: async () => browserState('initial'),
+      onStateChanged: () => vi.fn()
+    })
+    const store = useBrowserStore()
+    await store.initialize()
+
+    await store.sync(browserState('in-hand'))
+    expect(store.state.activeTabId).toBe('in-hand')
+
+    const older = deferred<BrowserState>()
+    const olderSync = store.sync(older.promise)
+    await store.sync(browserState('newer'))
+    older.resolve(browserState('older'))
+    await olderSync
+    expect(store.state.activeTabId).toBe('newer')
+    store.dispose()
+  })
+
   it('keeps the latest browser action authoritative when responses settle in request order', async () => {
     installBrowserApi({
       getState: async () => browserState('initial'),
