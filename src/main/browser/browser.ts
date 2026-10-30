@@ -22,7 +22,6 @@ import {
   performTabOverviewPreviewCapture,
   type TabOverviewPreviewCaptureRequest
 } from './tab-overview-previews/tab-overview-previews.js'
-import { attachPageContextMenuEvents } from './context-menus/page-context-menu-events.js'
 import { workspaceContextMenuItems } from './context-menus/workspace-context-menu.js'
 import { fillForm, scroll, select, type } from './agent-page-actions/form-input-and-scroll.js'
 import type { NativeWheelInput } from './native-wheel.js'
@@ -42,7 +41,6 @@ import { showHistoryMenu } from './context-menus/history-menu.js'
 import { ReactInspectionController, type ReactInspectionAuthority } from './react-inspection.js'
 import { FixedDateController, type FixedDateAuthority } from './fixed-date/fixed-date.js'
 import type { ReactInspectionCommand } from '../../shared/react-inspection.js'
-import { UNTITLED_TAB_TITLE } from '../../shared/tab-title.js'
 import type { FixedDateAction, FixedDateBootstrap, FixedDateResult } from '../../shared/fixed-date.js'
 import type { DomMutationSourceAction, DomMutationSourceKind, DomMutationSourceReport } from '../../shared/dom-mutation-source.js'
 import { BrowserPwaLifecycle } from './pwa-lifecycle.js'
@@ -61,7 +59,7 @@ import type { BrowserCredentialCandidate } from './credential-capture/credential
 import type { BrowserNetworkRequestRecord } from './network-recording.js'
 import { installSessionHooks } from './session-hooks/session-hooks.js'
 import { emulate } from './emulation/emulation.js'
-import { DEFAULT_EMULATION, cloneEmulationState, hasEmulationOverrides } from './emulation-state.js'
+import { cloneEmulationState, hasEmulationOverrides } from './emulation-state.js'
 import {
   cancelElementPicker,
   captureElementScreenshot,
@@ -87,7 +85,6 @@ import type { ComputedAccessibilityReport } from '../../shared/computed-accessib
 import { DomMutationSourceCaptures, type DomMutationSourceAuthority } from './dom-mutation-source/dom-mutation-source.js'
 import { LogpointSets, type LogpointAuthority } from './logpoints/logpoints.js'
 import type { LogpointAction, LogpointReport, LogpointRequest, LogpointScriptsReport } from '../../shared/logpoint.js'
-import { normalizeDefaultFontSize } from '../../shared/default-font-size.js'
 import { BrowserLiveRegionRecorder } from './live-region-recorder.js'
 import { BrowserReproRecorder } from './repro-recorder.js'
 import {
@@ -154,7 +151,6 @@ import {
   screen,
   webContents as electronWebContents,
   WebContentsView,
-  type LoadURLOptions,
   type MenuItemConstructorOptions,
   type NavigationEntry,
   type Input,
@@ -165,12 +161,10 @@ import {
   type WebPreferences
 } from 'electron'
 import type { BrowserShortcutAction } from '../../shared/browser-shortcuts.js'
-import { attachPageKeyboardEvents } from './tab-events/page-keyboard-events.js'
 import { noteShellHeldKey, trackShellHeldKeys } from './tab-events/shell-held-keys.js'
 import { MAX_BROWSER_TABS } from '../../shared/types.js'
 import { findInPage, stopFindInPage } from './page-find/page-find.js'
 import { translate, type MessageKey, type MessageParameters } from '../../shared/i18n.js'
-import { loadFailureProblem } from './page-load-problem.js'
 import type { SupportedLocale } from '../../shared/locale.js'
 import type { TabPosition } from '../../shared/tab-position.js'
 import type { SnapshotSearchOptions, SnapshotSearchResult } from '../../shared/snapshot-search.js'
@@ -194,15 +188,12 @@ import {
 import { safeNavigationHistorySnapshot, type NavigationHistorySnapshot } from './navigation-history.js'
 import { historyAroundShownPage, savedHistoryPosition, savedTabHistories, savedTabHistory, TabHistoryStore, type SavedTabHistoryAccess } from './saved-tab-history/saved-tab-history.js'
 import { ClosedTabsStore, restoredClosedTabs, savedClosedTabs } from './saved-closed-tabs/saved-closed-tabs.js'
-import { keepSessionCookies } from './session-cookies/saved-session-cookies.js'
-import { nextPageLoadTurn } from './page-load-turns/page-load-turns.js'
 import { McpActivityFollowController, type FollowAgent } from './mcp-activity-follow-controller.js'
 import { type BrowserDragModifier, drag, hover } from './agent-page-actions/hover-and-drag.js'
 import { click, type BrowserClickTarget } from './agent-page-actions/click.js'
 import { MemorySaverSweepQueue } from '../memory-saver-sweep.js'
 import { accessibilityAudit } from './page-audits/accessibility-audit.js'
 import { auditEvidenceAvailability, clearDiagnosticLogs, debugReport, diagnosticLogState, setDiagnosticLogPreservation } from './debug-report/debug-report.js'
-import { attachConsoleMessageEvents } from './console-messages/console-message-events.js'
 import { securityReport } from './page-audits/security-report.js'
 import { createWorkspace, importWorkspaceTemplate } from './workspace-creation/workspace-creation.js'
 import type { WorkspaceTemplateImporter } from './workspace-template-import.js'
@@ -227,7 +218,7 @@ import type { NormalizedBrowserNetworkWaitOptions } from '../../shared/network-w
 import type { ScreenshotAnnotationReport } from '../../shared/screenshot-annotations.js'
 import { screenshot } from './screenshots/screenshots.js'
 import { inspectorIssues } from './inspector-issues/inspector-issues.js'
-import { answerHttpAuth, followSignIns, type HttpAuthQuestion, type SignInAnswer } from './http-auth/http-auth.js'
+import { answerHttpAuth, type HttpAuthQuestion, type SignInAnswer } from './http-auth/http-auth.js'
 import {
   answerCertificateError,
   certificateRefusal,
@@ -243,9 +234,9 @@ import type {
   BrowserSplitViewState
 } from '../../shared/split-view.js'
 import { closeSplitView, openSplitView, openSplitViewAndWait, updateSplitView } from './split-view/split-view.js'
-import { getSplitDivider, layout, roundPageCorners } from './window-layout/window-layout.js'
-import { contentAreaBounds, pageArea, setContentInsets, setToolbarHeight, shownPageFullscreenTab } from './window-layout/content-area.js'
-import { attachPageFullscreenEvents, exitPageFullscreen, watchWindowFullScreen, windowFullScreenToSave } from './page-fullscreen/page-fullscreen.js'
+import { getSplitDivider, layout } from './window-layout/window-layout.js'
+import { pageArea, setContentInsets, setToolbarHeight, shownPageFullscreenTab } from './window-layout/content-area.js'
+import { exitPageFullscreen, watchWindowFullScreen, windowFullScreenToSave } from './page-fullscreen/page-fullscreen.js'
 import { selectAgentTabAndWait, selectTab, selectTabAndWait, type BrowserTabSelectionOptions } from './tab-selection/tab-selection.js'
 import { EMULATION_FRAME_CAPTION_SPACE, emulatedViewBounds, type EmulationFrameGeometry } from '../../shared/emulation-frame.js'
 import type { PageCardGeometry } from '../../shared/page-card.js'
@@ -256,14 +247,9 @@ import {
   isMemorySaverTimeoutMinutes,
   type MemorySaverTimeoutMinutes
 } from '../../shared/memory-saver.js'
-import { uuidV7 } from '../uuid-v7.js'
 import { LocalizedError } from '../localized-error.js'
 import { RendererRecovery } from './renderer-recovery.js'
 import { EndedByPersonMarks, endTaskManagerProcess, taskManagerProcesses } from './task-manager/task-manager.js'
-import { guardPageCallsAcrossRendererExit, holdUntilFirstLoad } from './renderer-exit-guard.js'
-import { refusePageScriptsInSourceView } from './source-view-guard.js'
-import { guardPageCallsDuringPrintDialog } from './print-dialog-guard.js'
-import { runPageScriptsOnceDocumentReady } from './page-script-readiness.js'
 import type { CredentialFillContext } from './credential-fill-context.js'
 import { credentialContext, fillCredential } from './credential-fill/credential-fill.js'
 import type { SuggestedPasswordOptions } from './suggested-password/suggested-password.js'
@@ -362,12 +348,9 @@ import { TabStateStore, type PersistedBrowserState } from './tab-store.js'
 import { persistedState, type WorkspaceBeingDeleted } from './browser-state/persisted-state.js'
 import { browserState, buildBrowserState, publishChange } from './browser-state/browser-state.js'
 import { shownTabIds, StatePublication } from './browser-state/state-publication.js'
-import { normalizeTabTitle } from './tab-metadata.js'
-import { TabDiscoveryTitle } from './tab-discovery-title.js'
-import { isHronautHomeUrl, isWebUrl, normalizeAddress } from './url.js'
+import { isHronautHomeUrl, isWebUrl } from './url.js'
 import { closeTabsForPerson } from './tab-close/close-tabs-for-person.js'
 import { showDevToolsConsole, toggleDevTools } from './devtools/devtools.js'
-import { attachDevToolsEvents } from './devtools/devtools-events.js'
 import { controlPageLifecycle, pageLifecycle, setTabPageLifecycle } from './page-lifecycle/page-lifecycle.js'
 import { back, forward, navigate, reload, reloadIgnoringCache, stop, stopFocusedPageLoading } from './page-navigation/page-navigation.js'
 import { setZoom } from './page-zoom/page-zoom.js'
@@ -376,21 +359,18 @@ import { printShownPage } from './page-print/page-print.js'
 import { saveShownPage } from './page-save/page-save.js'
 import { viewShownPageSource } from './page-source/page-source.js'
 import { openNavigationInNewTab } from './navigation-new-tab/navigation-new-tab.js'
-import { closeTabLeftEmptyByDownload, opensFromPage } from './download-tab-close/download-tab-close.js'
-import { attachPageWheelZoom } from './page-zoom/page-wheel-zoom.js'
+import { closeTabLeftEmptyByDownload } from './download-tab-close/download-tab-close.js'
 import {
   normalizeWorkspaceNavigationPolicy,
   type WorkspaceNavigationDecision
 } from './workspace-navigation-policy.js'
 import {
-  assertWorkspaceNavigationAllowed,
   listWorkspaceNavigationAudit,
   updateWorkspaceNavigationPolicy,
   workspaceNavigationAllowed
 } from './workspace-navigation/workspace-navigation.js'
 import {
-  normalizeWorkspaceStorageOrigins,
-  workspacePartition
+  normalizeWorkspaceStorageOrigins
 } from './workspace-storage.js'
 import { drainWorkspaceOperations, flushPersist, flushWorkspaceProfiles } from './quit-flush/quit-flush.js'
 import { closeMcpTabGroup, closeMcpTabGroupInternal } from './mcp-tab-groups/close-mcp-tab-group.js'
@@ -411,25 +391,14 @@ import { hasAgentPauseExceptions, isTabAgentPaused, isTabTakenOver, setAllAgents
 import { setAllHumanInteractionLocked, setTabHumanInteractionLocked } from './interaction-lock/interaction-lock.js'
 import {
   detachDialogMonitoring,
-  ensureDialogMonitoring,
   handleDialog
 } from './website-dialogs/website-dialogs.js'
 import type {
   AuthorizedAgentKeyboardInput,
   AuthorizedAgentMouseInput
 } from './agent-input-authorization/agent-input-authorization.js'
-import { attachPageDestroyedEvents } from './tab-events/page-destroyed-events.js'
-import { attachPageCloseEvents } from './tab-events/page-close-events.js'
-import { attachDebuggerEvents } from './tab-events/debugger-events.js'
-import { attachNavigationEvents } from './tab-events/navigation-events.js'
-import { attachPageFocusEvents } from './tab-events/page-focus-events.js'
-import { attachPagePointerEvents } from './tab-events/page-pointer-events.js'
-import { attachPageTargetUrlEvents } from './tab-events/page-target-url-events.js'
-import { attachRendererHealthEvents } from './tab-events/renderer-health-events.js'
-import { attachWindowOpenHandler } from './tab-events/window-open-handler.js'
 import {
   setTabSleeping,
-  sleepBeforeFirstLoad,
   wakeTab,
   withoutSleepingPage
 } from './tab-sleep/tab-sleep.js'
@@ -444,14 +413,14 @@ import { duplicateTabAfterLabelSave, forgetClosedTabs, rememberSavedClosedTabs, 
 import { forgetTabHistoryPages } from './tab-history-pages/forget-tab-history-pages.js'
 import { reorderTab, reorderTabs, setTabPinned } from './tab-arrangement/tab-arrangement.js'
 import { openDroppedLink } from './dropped-links/dropped-links.js'
-import { placeTabOpenedFromPage } from './link-tab-placement/link-tab-placement.js'
 import { forgetTabsOpenedFrom, switchLeavesOpenedTabs } from './link-tab-placement/link-tab-openers.js'
 import { sendWalletProviderEvent, walletPageContext, walletPageContextForMcpTab, type BrowserWalletPageContext } from './wallet-pages/wallet-pages.js'
 import { getMcpDiscoveryTabs, getMcpGroupState, requireTabInMcpGroup, tabBelongsToMcpGroup } from './workspace-scope/workspace-scope.js'
 import { createNewTab, newLabeledAgentTab } from './new-tabs/new-tabs.js'
+import { createTab } from './new-tabs/create-tab.js'
 import { matchingNetworkWaitRequest } from './network-inspection/network-request-records.js'
 import { setAllTabsMuted, setTabMuted } from './tab-muting/tab-muting.js'
-import { applySiteMuting, applySiteMutingToTabs, setSiteMuted, type SiteSoundStore } from './site-muting/site-muting.js'
+import { applySiteMutingToTabs, setSiteMuted, type SiteSoundStore } from './site-muting/site-muting.js'
 import { captureAgentStepThumbnail } from './agent-step-thumbnail/agent-step-thumbnail.js'
 import { cancelFocusAfterTrustedChrome, focusTabOrTrustedChrome, withholdFocusAfterTrustedChrome, type PendingTrustedChromeFocus } from './trusted-chrome-focus/trusted-chrome-focus.js'
 import { occlusionLayout, occlusionSnapshotPanes, setBrowserContentOccluded, setFollowAgentActivitySuspended } from './trusted-chrome-occlusion/trusted-chrome-occlusion.js'
@@ -486,32 +455,10 @@ function workspaceNameKey(name: string): string {
 }
 
 const TAB_OVERVIEW_CAPTURE_TIMEOUT_MS = 2_000
-const ABORTED_LOAD_ERROR = -3
 const MEMORY_SAVER_SWEEP_MS = 30_000
 /** How often the tabs' history is saved, with their pages' scroll and form state, as Chrome saves its session a moment after each change. */
 const TAB_HISTORY_SAVE_MS = 5_000
 
-function isAbortedLoad(error: unknown): boolean {
-  if (!(error instanceof Error)) return false
-  const details = error as Error & { code?: unknown; errno?: unknown }
-  return details.code === ABORTED_LOAD_ERROR
-    || details.errno === ABORTED_LOAD_ERROR
-    || details.code === 'ERR_ABORTED'
-    || /\bERR_ABORTED\b|\(-3\)\s+loading\b/.test(error.message)
-}
-
-/**
- * Restores a tab's Back and Forward history and loads the page it shows, or, when Electron cannot take the history and
- * the tab has none, loads its address instead.
- */
-async function restoreHistoryOrLoad(webContents: WebContents, history: NavigationHistorySnapshot, url: string, loadOptions?: LoadURLOptions): Promise<void> {
-  try {
-    await webContents.navigationHistory.restore(history)
-  } catch (error) {
-    if (webContents.isDestroyed() || webContents.navigationHistory.length() > 0) throw error
-    await webContents.loadURL(url, loadOptions)
-  }
-}
 
 import type { BrowserTab } from './browser-tab.js'
 import { getTab, orderedTabs } from './browser-core.js'
@@ -1471,14 +1418,6 @@ export class Browser {
     return workspaceNavigationAllowed(this, groupId, url, source)
   }
 
-  private assertWorkspaceNavigationAllowed(
-    groupId: string,
-    url: string,
-    source: BrowserWorkspaceNavigationAuditSource
-  ): void {
-    assertWorkspaceNavigationAllowed(this, groupId, url, source)
-  }
-
   mcpWorkspaceResumeKey(workspaceId: string): string {
     const storageId = this.mcpTabGroups.get(workspaceId)?.storageId
       ?? this.savedTabGroups.get(workspaceId)?.storageId
@@ -1787,18 +1726,6 @@ export class Browser {
 
   wakeTab(tabId: string): Promise<BrowserState> {
     return wakeTab(this, tabId)
-  }
-
-  /** The tabs waiting asleep to load in their turn. Made when first used, as managers made without the constructor are. */
-  private backgroundLoads(): BackgroundLoads {
-    this.backgroundTabLoads ??= new BackgroundLoads({
-      waiting: (tabId) => {
-        const tab = this.tabs.get(tabId)
-        return Boolean(!this.destroyed && tab?.waitsForTurn && tab.sleeping && !tab.wakePromise && !tab.webContents.isDestroyed())
-      },
-      wake: (tabId) => this.wakeTab(tabId)
-    })
-    return this.backgroundTabLoads
   }
 
   /** Every process of Hronaut's with its memory and CPU use, for the Task manager. */
@@ -3013,239 +2940,8 @@ export class Browser {
     if (mcpGroupId && !allowBusyWorkspace) this.assertWorkspaceCanOpenTab(mcpGroupId)
   }
 
-  async createTab(options: {
-    id?: string
-    title?: string
-    label?: string
-    url: string
-    pinned?: boolean
-    muted?: boolean
-    humanInteractionLocked?: boolean
-    tabAgentPaused?: boolean
-    zoomIsolated?: boolean
-    defaultFontSize?: number
-    faviconDataUrl?: string
-    focus?: boolean
-    navigationGeneration?: number
-    suppressInitialHistory?: boolean
-    navigationHistory?: { entries: NavigationEntry[]; index: number }
-    /**
-     * Whether the tab starts asleep, with its address and history, and loads its page only once it is shown or used,
-     * as Chrome restores the tabs behind the one shown. Only a website tab that is not pinned does.
-     */
-    asleep?: boolean
-    /**
-     * Whether the tab starts asleep as above and loads in its turn among the tabs opened behind the one shown,
-     * BACKGROUND_LOADS at a time, as when Open all opens many at once.
-     */
-    loadsInTurn?: boolean
-    loadOptions?: LoadURLOptions
-    /**
-     * The page Chromium created for a window a workspace tab opened, which this tab shows; it loads itself. The
-     * opener's tab id is there while the two pages can reach each other.
-     */
-    adopt?: { webContents: WebContents; webPreferences?: WebPreferences; openerTabId?: string }
-    /**
-     * The tab whose page opened this one, and whether it opens behind, which places it beside that tab as in Chrome,
-     * and whether it is a window that asked for its own size or position, which Chrome opens as a window of its own.
-     */
-    openedFrom?: { tabId: string; background: boolean; window?: boolean }
-    active: boolean
-    selectVisible?: boolean
-    mcpGroupId?: string
-    allowBusyWorkspace?: boolean
-    onCreated?: (tab: BrowserTab) => void
-    onCreationAttempt?: () => void
-  }): Promise<BrowserTab> {
-    this.assertCanCreateTab(options.mcpGroupId, options.allowBusyWorkspace === true)
-    const id = options.id ?? uuidV7()
-    const url = normalizeAddress(options.url, this.options.getSearchEngine?.())
-    // The window open handler checked the address of a page opened for a window, and its navigation is checked too.
-    if (options.mcpGroupId && !options.adopt) {
-      this.assertWorkspaceNavigationAllowed(options.mcpGroupId, url, 'direct')
-    }
-    const defaultFontSize = isHronautHomeUrl(url) ? undefined : normalizeDefaultFontSize(options.defaultFontSize)
-    const asleep = (options.asleep === true || options.loadsInTurn === true) && !options.adopt && options.pinned !== true && isWebUrl(url) && !isHronautHomeUrl(url)
-    const opener = options.adopt?.openerTabId ? this.tabs.get(options.adopt.openerTabId) : undefined
-    const workspace = options.mcpGroupId ? this.mcpTabGroups.get(options.mcpGroupId) : undefined
-    const partition = isHronautHomeUrl(url)
-      ? workspacePartition(this.options.partition, 'home')
-      : workspacePartition(this.options.partition, workspace!.storageId)
-    options.onCreationAttempt?.()
-    // An adopted page already belongs to its opener's session, the workspace's.
-    const view = options.adopt
-      ? new WebContentsView({ webContents: options.adopt.webContents, webPreferences: options.adopt.webPreferences })
-      : new WebContentsView({
-        webPreferences: {
-          partition,
-          ...this.pageWebPreferences(),
-          // Construction-time only: switching a live view back to shared mode can
-          // write its level into the origin zoom map.
-          ...(options.zoomIsolated === true && !isHronautHomeUrl(url) ? { zoomMode: 'isolated' } : {}),
-          // Also construction-time only: Electron has no API to change it on a live view.
-          ...(defaultFontSize ? { defaultFontSize } : {})
-        }
-      })
-    try {
-      view.setBackgroundColor('#ffffff')
-      // Background tabs need a real initial layout even before their first selection.
-      // A zero-sized viewport cannot paint a meaningful explicit page preview.
-      // Their space is the page card's, even while a shown page in full screen fills the window.
-      view.setBounds(contentAreaBounds(this))
-      roundPageCorners(this, view)
-    } catch (error) {
-      // This view has no registered tab or owner yet, so normal tab rollback
-      // cannot find and close its WebContents after initialization fails.
-      if (!view.webContents.isDestroyed()) view.webContents.close()
-      throw error
-    }
-    const tab: BrowserTab = {
-      label: isHronautHomeUrl(url) ? undefined : options.label,
-      id,
-      discoveryTitle: new TabDiscoveryTitle(),
-      title: normalizeTabTitle(
-        options.title || (url === HRONAUT_HOME_URL ? 'Hronaut Home' : url === 'about:blank' ? UNTITLED_TAB_TITLE : url)
-      ),
-      url,
-      loading: !asleep,
-      navigationGeneration: options.navigationGeneration ?? 0,
-      walletNavigationGeneration: options.navigationGeneration ?? 0,
-      documentGeneration: 0,
-      observationGeneration: options.mcpGroupId
-        ? this.workspaceObservationGeneration(options.mcpGroupId)
-        : 0,
-      humanInteractionGeneration: 0,
-      nativeInputEnvironmentGeneration: 0,
-      browserSessionGeneration: 0,
-      overviewPreviewSequence: 0,
-      navigationPolicyDenialSequence: 0,
-      pinned: options.pinned === true && !isHronautHomeUrl(url),
-      sleeping: asleep,
-      pageLifecycleState: 'active',
-      lastActiveAt: Date.now(),
-      tabAgentPaused: options.tabAgentPaused === true,
-      zoomIsolated: options.zoomIsolated === true && !isHronautHomeUrl(url),
-      ...(defaultFontSize ? { defaultFontSize } : {}),
-      humanInteractionLocked: options.humanInteractionLocked === true || workspace?.contextClass === 'public-observer',
-      preserveDiagnosticLogs: true,
-      ...(options.faviconDataUrl ? { faviconDataUrl: options.faviconDataUrl } : {}),
-      faviconRequestId: 0,
-      audible: false,
-      tabMuted: options.muted === true,
-      muted: (this.allTabsMuted || options.muted === true) && !isHronautHomeUrl(url),
-      mutedBySite: false,
-      siteMuteApplied: false,
-      view,
-      webContents: view.webContents,
-      browserSession: view.webContents.session,
-      consoleMessages: [],
-      pendingRuntimeConsoleMessages: [],
-      networkRequests: [],
-      networkCaptureSequence: 0,
-      networkRoutes: [],
-      networkConditionApplication: 'confirmed',
-      networkConditionEpoch: 0,
-      networkDebuggerEpoch: 0,
-      inspectorIssues: [],
-      authChallenges: [],
-      authChallengesTruncated: false,
-      authNavigationPending: false,
-      inspectorIssuesTruncated: false,
-      networkDebuggerEnabled: false,
-      lastHumanInteractionAt: 0,
-      suppressInitialHistory: options.suppressInitialHistory === true,
-      pendingHistoryUrl: null,
-      emulation: { ...DEFAULT_EMULATION },
-      emulationApplication: 'confirmed',
-      emulationRevision: 0,
-      emulationContextGeneration: 0,
-      emulationExtraHttpHeaders: {},
-      snapshotBaselineGeneration: 0,
-      accessibilityBaselineGeneration: 0,
-      memoryBaselineGeneration: 0,
-      performanceBaselineGeneration: 0,
-      visualComparisonGeneration: 0,
-      storageComparisonGeneration: 0,
-      ...(options.mcpGroupId ? { mcpGroupId: options.mcpGroupId } : {}),
-      ...(opener ? { openerTabId: opener.id } : {}),
-      ...(options.openedFrom ? { openedFromTabId: options.openedFrom.tabId } : {}),
-      ...(opensFromPage(options) ? { openedFromPage: true } : {})
-    }
-    // A tab restored or reopened asleep shows its website's sound setting before its page loads.
-    applySiteMuting(this, tab)
-    tab.webContents.setAudioMuted(tab.muted)
-    // A page's tab opened in front starts a new task, so its workspace forgets which page opened its other tabs. A
-    // window such as a sign-in popup leaves them, as in Chrome, where it opens beside the tabs rather than among them.
-    if (options.openedFrom && !options.openedFrom.background && !options.openedFrom.window) {
-      forgetTabsOpenedFrom(this.tabs.values(), options.mcpGroupId)
-    }
-    this.tabs.set(id, tab)
-    const placed = options.openedFrom ? placeTabOpenedFromPage(orderedTabs(this), tab, options.openedFrom.background) : undefined
-    if (placed) {
-      this.tabs.clear()
-      for (const placedTab of placed) this.tabs.set(placedTab.id, placedTab)
-    }
-    if (tab.mcpGroupId) {
-      const group = this.mcpTabGroups.get(tab.mcpGroupId)!
-      if (options.active || !group.activeTabId) group.activeTabId = id
-      // Putting the saved tabs back at startup is not a use of their workspace.
-      if (!this.restoringLayout) group.lastUsedAt = new Date().toISOString()
-    }
-    this.webContentsToTab.set(view.webContents.id, id)
-    this.options.configureSession?.(view.webContents.session, isHronautHomeUrl(url) ? undefined : workspace?.id)
-    this.installSessionHooks(view.webContents.session)
-    // A tab created asleep loads nothing, so it has no renderer to answer the page's calls until it wakes.
-    if (asleep) holdUntilFirstLoad(view.webContents)
-    const openedBy = options.adopt && options.openedFrom ? this.tabs.get(options.openedFrom.tabId) : undefined
-    this.attachTabEvents(tab, openedBy?.webContents)
-    // A page opened for a window closes its tab when it closes itself. Other tabs keep their recovery from a page
-    // destroyed under them, as tests and Electron destroy pages for other reasons.
-    if (options.adopt) attachPageCloseEvents(this, tab, view.webContents)
-    // Restore all tabs before selecting the saved global tab. Selecting the first
-    // recreated tab here would overwrite its workspace's remembered selection.
-    if ((options.active && options.selectVisible !== false) || (!this.activeTabId && !this.restoringLayout)) {
-      this.selectTab(id, { focus: options.focus })
-    }
-    if (options.navigationHistory) tab.discoveryTitle.restoring(options.navigationHistory.entries)
-    // A workspace's first page waits for its session cookies saved at the last quit, so its sites keep the sign-ins.
-    const cookiesBack = isHronautHomeUrl(url) ? Promise.resolve() : keepSessionCookies(view.webContents.session)
-    if (asleep) {
-      tab.sleepNavigationHistory = options.navigationHistory ?? { entries: [{ url, title: tab.title }], index: 0 }
-      tab.pageReady = sleepBeforeFirstLoad(cookiesBack)
-    }
-    const loading = options.adopt || asleep
-      ? Promise.resolve()
-      : cookiesBack.then(nextPageLoadTurn).then(() => {
-        // A tab closed before its turn has nothing to load.
-        if (view.webContents.isDestroyed() || this.tabs.get(id) !== tab) return undefined
-        // A navigation that began meanwhile, such as an agent's to the tab it just opened, is newer than its address.
-        if (view.webContents.isLoading() || view.webContents.getURL() !== '') return undefined
-        return options.navigationHistory
-          ? restoreHistoryOrLoad(view.webContents, options.navigationHistory, url, options.loadOptions)
-          : view.webContents.loadURL(url, options.loadOptions)
-      })
-    void loading.catch((error: unknown) => {
-      if (isAbortedLoad(error)) return
-      if (tab.navigationPolicyDenialSequence > 0) {
-        tab.loading = false
-        this.changed(false)
-        return
-      }
-      tab.loading = false
-      if (!tab.pageProblem) {
-        tab.title = this.text('native.pageProblem.loadTabTitle')
-        tab.pageProblem = loadFailureProblem(this.options.getLocale(), url, 0, 'ERR_FAILED')
-      }
-      this.changed()
-      console.error(`[browser] Failed to load ${url}:`, error)
-    })
-    if (asleep && options.loadsInTurn) {
-      tab.waitsForTurn = true
-      this.backgroundLoads().add(tab.id)
-    }
-    options.onCreated?.(tab)
-    this.changed()
-    return tab
+  createTab(options: Parameters<typeof createTab>[1]): Promise<BrowserTab> {
+    return createTab(this, options)
   }
 
   assertWorkspaceNameAvailable(
@@ -3289,33 +2985,6 @@ export class Browser {
     operation: () => Promise<T>
   ): Promise<T> {
     return withSavedWorkspaceOperation(this, savedWorkspaceId, action, operation)
-  }
-
-  /** Follows the tab's page from before its first page starts; `openedBy` is the page that opened it as a window. */
-  private attachTabEvents(tab: BrowserTab, openedBy?: WebContents): void {
-    const webContents = tab.webContents
-    // A page a page opened refuses the sign-ins its opener's tab refuses.
-    followSignIns(webContents, openedBy)
-    refusePageScriptsInSourceView(webContents)
-    guardPageCallsAcrossRendererExit(webContents)
-    guardPageCallsDuringPrintDialog(webContents)
-    runPageScriptsOnceDocumentReady(webContents)
-    attachPageDestroyedEvents(this, tab, webContents)
-    attachPageFocusEvents(this, tab, webContents)
-    attachPageKeyboardEvents(this, tab, webContents)
-    attachPagePointerEvents(this, tab, webContents)
-    attachPageTargetUrlEvents(this, tab, webContents)
-    attachPageWheelZoom(this, tab, webContents)
-    attachPageContextMenuEvents(this, tab, webContents)
-    attachDevToolsEvents(this, tab, webContents)
-    this.frameObservation.track(webContents)
-    attachDebuggerEvents(this, tab, webContents)
-    void this.ensureDialogMonitoring(tab)
-    attachNavigationEvents(this, tab, webContents)
-    attachPageFullscreenEvents(this, tab, webContents)
-    attachConsoleMessageEvents(tab, webContents)
-    attachRendererHealthEvents(this, tab, webContents)
-    attachWindowOpenHandler(this, tab, webContents)
   }
 
   /**
@@ -3442,10 +3111,6 @@ export class Browser {
 
   private detachDialogMonitoring(webContents: BrowserTab['view']['webContents']): void {
     detachDialogMonitoring(this, webContents)
-  }
-
-  private ensureDialogMonitoring(tab: BrowserTab): Promise<void> {
-    return ensureDialogMonitoring(this, tab)
   }
 
   prepareDiagnosticNavigation(tab: BrowserTab): void {
