@@ -81,15 +81,17 @@ vi.mock('electron', () => ({
   app: { getPath: () => '/tmp' },
   session: {}
 }))
+// The state the snapshot sends, without a real tab runtime behind it.
+vi.mock('../src/main/browser/browser-state/browser-state.js', () => ({ browserState: () => ({ tabs: [], activeTabId: null }) }))
 
 const { createPanelWindow } = await import('../src/main/windows/panel-window.js')
 const { registerPanelWindowIpc } = await import('../src/main/panel-window-ipc.js')
 
 /**
  * The main process's panel window handlers, wired as index.ts wires them, where the first open of a launch waits for
- * its saved bounds until the test releases them.
+ * its saved bounds until the test releases them. The tab runtime has no tabs unless a test gives it some.
  */
-function panelWindowHandlers() {
+function panelWindowHandlers(tabRuntime: { tabs: unknown; initialization: Promise<void> | null } = { tabs: null, initialization: null }) {
   created.length = 0
   let releaseSavedBounds!: () => void
   const refs = {
@@ -115,7 +117,7 @@ function panelWindowHandlers() {
     settings: () => ({ theme: 'light', interfaceScale: 1 }) as never,
     resolvedTheme: () => 'light' as never,
     themeBackground: { light: '#fff', dark: '#000' } as never,
-    tabs: () => null,
+    tabRuntime: tabRuntime as never,
     currentRendererSettingsState: () => ({}) as never,
     updateState: () => ({}) as never,
     currentMcpControlState: () => ({}) as never,
@@ -267,10 +269,37 @@ describe('detached panel window', () => {
 
     panels.loadingWindow().finishPageLoad()
 
-    // It was sent an undefined state, and its shell failed reading the tabs of it; it reads the state once there is one.
+    // There is no state yet, and the shell could not read the tabs of an undefined one.
     const sent = panels.loadingWindow().sent
     expect(sent.map(([channel]) => channel)).not.toContain('browser:state-changed')
     expect(sent).toContainEqual(['panel-window:show-panel', 'console'])
+  })
+
+  it('sends no browser state to a panel window that loads while saved workspaces are restored', async () => {
+    const tabs = { downloadController: { listDownloads: () => [] } }
+    const panels = panelWindowHandlers({ tabs, initialization: new Promise<void>(() => undefined) })
+    const opening = panels.open('console')
+    panels.releaseSavedBounds()
+    await opening
+
+    panels.loadingWindow().finishPageLoad()
+
+    // The partial state would take the place of the full one the panel's shell reads once the restore ends.
+    const sent = panels.loadingWindow().sent
+    expect(sent.map(([channel]) => channel)).not.toContain('browser:state-changed')
+    expect(sent).toContainEqual(['panel-window:show-panel', 'console'])
+  })
+
+  it('sends the browser state to a panel window that loads once saved workspaces are restored', async () => {
+    const tabs = { downloadController: { listDownloads: () => [] } }
+    const panels = panelWindowHandlers({ tabs, initialization: null })
+    const opening = panels.open('console')
+    panels.releaseSavedBounds()
+    await opening
+
+    panels.loadingWindow().finishPageLoad()
+
+    expect(panels.loadingWindow().sent).toContainEqual(['browser:state-changed', { tabs: [], activeTabId: null }])
   })
 
   it('docks the panel again when it is moved back while its window is still loading', async () => {
