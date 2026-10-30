@@ -1,6 +1,6 @@
 {
   "oversizedFiles": {
-    "src/main/browser/browser.ts": 4284,
+    "src/main/browser/browser.ts": 4124,
     "src/main/browser/downloads-controller.ts": 811,
     "src/main/index.ts": 1662,
     "src/main/mcp/http-server.ts": 856,
@@ -11,10 +11,6 @@
   "accessFiles": [
     "src/main/browser/agent-page-actions/agent-page-actions-access.ts",
     "src/main/browser/mcp-tab-groups/mcp-tab-groups-access.ts",
-    "src/main/browser/tab-selection/tab-selection-access.ts",
-    "src/main/browser/trusted-chrome-occlusion/trusted-chrome-occlusion-access.ts",
-    "src/main/browser/workspace-archive/workspace-archive-access.ts",
-    "src/main/browser/workspace-continuity/workspace-continuity-access.ts",
-    "src/main/browser/workspace-data/workspace-data-access.ts"
+    "src/main/browser/workspace-continuity/workspace-continuity-access.ts"
   ]
 }
