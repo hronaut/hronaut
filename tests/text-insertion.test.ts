@@ -38,6 +38,12 @@ const observation = (overrides: Partial<TextInsertionObservation> = {}): TextIns
  * A page whose isolated-world scripts answer from queues, and a browser showing it whose
  * authorized debugger records each command and checks the insertion's authority first.
  */
+/** The phase, text length and line breaks a locate script passes its page function, before the guard's lifetime. */
+function locateArguments(code: string): { phase: string; textLength: number; lineBreaks: boolean } | undefined {
+  const match = /, "(check|arm)", (\d+), (true|false), \d+\)$/u.exec(code)
+  return match ? { phase: match[1]!, textLength: Number(match[2]), lineBreaks: match[3] === 'true' } : undefined
+}
+
 function editorPage(options: {
   locations?: Array<TextInsertionLocation | Error>
   observations?: Array<Partial<TextInsertionObservation> | Error>
@@ -52,14 +58,14 @@ function editorPage(options: {
   const webContents = Object.assign(events, {
     executeJavaScriptInIsolatedWorld: async (world: number, sources: Array<{ code: string }>) => {
       const code = sources[0]?.code ?? ''
-      const phase = /const phase = "(check|arm)"/u.exec(code)?.[1]
+      const phase = code.includes('function textInsertionLocateInPage(') ? locateArguments(code)?.phase : undefined
       if (phase) {
         scripts.push({ world, kind: phase, code })
         const next = locations.shift() ?? { problem: 'replaced' }
         if (next instanceof Error) throw next
         return next
       }
-      if (code.includes('MessageChannel')) {
+      if (code.includes('function textInsertionObserveInPage(')) {
         scripts.push({ world, kind: 'observe', code })
         const next = observations.shift() ?? {}
         if (next instanceof Error) throw next
@@ -133,14 +139,12 @@ describe('text insertion', () => {
   it('tells the page scripts only the text\'s length and whether it has line breaks, for length limits and single-line fields', async () => {
     const page = editorPage()
     await insertText(page.browser, { selector: '#notes' }, 'first\nsecond')
-    expect(page.scripts[0]!.code).toContain('const lineBreaks = true')
-    expect(page.scripts[0]!.code).toContain('const textLength = 12')
-    expect(page.scripts[1]!.code).toContain('const textLength = 12')
+    expect(locateArguments(page.scripts[0]!.code)).toEqual({ phase: 'check', textLength: 12, lineBreaks: true })
+    expect(locateArguments(page.scripts[1]!.code)).toEqual({ phase: 'arm', textLength: 12, lineBreaks: true })
     const plain = editorPage()
     await insertText(plain.browser, { selector: '#notes' }, 'first\tsecond 😀')
-    expect(plain.scripts[0]!.code).toContain('const lineBreaks = false')
     // Counted in UTF-16 code units, as maxlength is.
-    expect(plain.scripts[0]!.code).toContain('const textLength = 15')
+    expect(locateArguments(plain.scripts[0]!.code)).toEqual({ phase: 'check', textLength: 15, lineBreaks: false })
   })
 
   it('reports an editor that applied the text itself, a cancelled or unchanged one, and a blocked insertion', async () => {
