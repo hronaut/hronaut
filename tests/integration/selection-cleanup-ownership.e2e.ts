@@ -29,13 +29,12 @@ for (const kind of ['element', 'area'] as const) {
         const page = webContents.getAllWebContents().find(page => page.getURL() === url)
         if (!page) throw new Error('Missing selection fixture')
         const original = page.executeJavaScript
-        const key = kind === 'element' ? '__hronautElementPicker' : '__hronautScreenshotArea'
         const control = { starts: 0, cancels: 0, held: false, skipCancel: false, release: () => {}, restore: () => { page.executeJavaScript = original } }
         page.executeJavaScript = (...args) => {
           const [code] = args
-          const starts = kind === 'element' ? code.includes('function elementPickerInPage(') : code.includes(`const pickerKey = '${key}'`)
+          const starts = kind === 'element' ? code.includes('function elementPickerInPage(') : code.includes('function screenshotAreaInPage(')
           const cancels = kind === 'element' ? code.includes('function cancelElementPickerInPage(')
-            : code.includes(`const picker = window.${key};`) && code.includes('picker.cancel();')
+            : code.includes('function cancelScreenshotAreaInPage(')
           if (starts) control.starts += 1
           if (cancels) {
             control.cancels += 1

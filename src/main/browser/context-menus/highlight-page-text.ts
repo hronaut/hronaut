@@ -1,5 +1,7 @@
 import type { WebContents } from 'electron'
+import { pageScript } from '../../../shared/page-script.js'
 import { ISOLATED_WORLDS } from '../isolated-worlds.js'
+import { highlightPageTextInPage } from './highlight-page-text.page.js'
 import type { HighlightPageText } from './text-fragment-link.js'
 
 /** How long the page may take to give its text before the link is made from the menu's selected text alone. */
@@ -7,7 +9,8 @@ const READ_TIMEOUT_MS = 2_000
 /** Pages larger than this give no text, and get the link from the selected text alone. */
 const TEXT_NODES_MAX = 200_000
 const TEXT_MAX_LENGTH = 4_000_000
-// Two noncharacters mark where the selection starts and ends in the page's text, since no page text holds them.
+// Two noncharacters mark where the selection starts and ends in the page's text, since no page text holds them;
+// highlightPageTextInPage writes the same two.
 const START = '\uFDD0'
 const END = '\uFDD1'
 
@@ -23,7 +26,7 @@ export async function readHighlightPageText(webContents: WebContents, selectionT
   try {
     if (webContents.isDestroyed()) return undefined
     const raw: unknown = await Promise.race([
-      webContents.executeJavaScriptInIsolatedWorld(ISOLATED_WORLDS.linkToHighlight, [{ code: pageTextScript(Date.now() + READ_TIMEOUT_MS) }]),
+      webContents.executeJavaScriptInIsolatedWorld(ISOLATED_WORLDS.linkToHighlight, [{ code: pageScript(highlightPageTextInPage, Date.now() + READ_TIMEOUT_MS, TEXT_NODES_MAX, TEXT_MAX_LENGTH) }]),
       new Promise<undefined>((resolve) => { timer = setTimeout(() => resolve(undefined), READ_TIMEOUT_MS) })
     ])
     const page = markedPageText(raw)
@@ -33,118 +36,6 @@ export async function readHighlightPageText(webContents: WebContents, selectionT
   } finally {
     clearTimeout(timer)
   }
-}
-
-function pageTextScript(deadline: number): string {
-  return `(() => {
-    const deadline = ${deadline}, start = '\\uFDD0', end = '\\uFDD1'
-    const selection = getSelection()
-    if (!document.body || !selection || selection.rangeCount !== 1 || selection.isCollapsed) return null
-    const range = selection.getRangeAt(0)
-    const styles = new Map(), blocks = new Map()
-    const style = (element) => {
-      let known = styles.get(element)
-      if (!known) {
-        const computed = getComputedStyle(element)
-        // An element with no box of its own is shown as its parent is.
-        const shown = computed.display === 'contents'
-          ? computed.visibility === 'visible' && (!element.parentElement || style(element.parentElement).shown)
-          : element.checkVisibility({ visibilityProperty: true })
-        known = { display: computed.display, collapse: computed.whiteSpaceCollapse, shown }
-        styles.set(element, known)
-      }
-      return known
-    }
-    // Text runs on across inline elements, and a block, an inline block or a table cell starts a run of its own.
-    const blockOf = (element) => {
-      let block = blocks.get(element)
-      if (!block) {
-        const display = style(element).display
-        block = element === document.body || !element.parentElement || !['inline', 'contents', 'ruby'].includes(display) ? element : blockOf(element.parentElement)
-        blocks.set(element, block)
-      }
-      return block
-    }
-    // Chromium finds no text across an image, a control, an embedded page, a script or text drawn by CSS, nor across
-    // text it lays out hidden, so each of these ends the run, and its own text is left out.
-    const atomic = new Set(['img', 'svg', 'math', 'video', 'audio', 'canvas', 'iframe', 'object', 'embed', 'input', 'textarea', 'select', 'button', 'meter', 'progress', 'script', 'style', 'noscript', 'template'])
-    const drawn = (element, pseudo) => !['none', 'normal', '""'].includes(getComputedStyle(element, pseudo).content)
-    const runs = [], closingRuns = []
-    let run = '', runBlock = null, skipped = null, nodes = 0, length = 0, started = false, ended = false
-    const endRun = () => {
-      run = run.replace(/ +$/, '')
-      if (run) runs.push(run)
-      run = ''
-    }
-    const markEnd = () => {
-      if (run || !runs.length) run += end
-      else runs[runs.length - 1] += end
-      ended = true
-    }
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT)
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      if (++nodes > ${TEXT_NODES_MAX} || Date.now() > deadline) return null
-      if (!ended && node !== range.startContainer && range.comparePoint(node, 0) === 1) {
-        if (!started) return null
-        markEnd()
-      }
-      while (closingRuns.length && !closingRuns.at(-1).contains(node)) {
-        closingRuns.pop()
-        endRun()
-      }
-      if (skipped && skipped.contains(node)) continue
-      skipped = null
-      if (node.nodeType === Node.ELEMENT_NODE) {
-        if (node.localName === 'br') endRun()
-        else if (atomic.has(node.localName) || node.inert || (!style(node).shown && node.checkVisibility())) {
-          endRun()
-          skipped = node
-        } else if (['inline', 'contents', 'ruby'].includes(style(node).display)) {
-          if (drawn(node, '::before')) endRun()
-          if (drawn(node, '::after')) closingRuns.push(node)
-        }
-        continue
-      }
-      const parent = node.parentElement
-      // Chromium also finds text in a closed details element or hidden until found, and opens it, so that text is kept
-      // where it is, as the link could find the selected text there.
-      if (!parent || (!style(parent).shown && !parent.closest('details:not([open]), [hidden="until-found"]'))) continue
-      const block = blockOf(parent)
-      if (block !== runBlock) {
-        endRun()
-        runBlock = block
-      }
-      let text = node.data
-      const startsHere = !started && (node === range.startContainer || range.comparePoint(node, 0) === 0)
-      const endsHere = !ended && node === range.endContainer
-      if (endsHere) text = text.slice(0, range.endOffset) + end + text.slice(range.endOffset)
-      if (startsHere) {
-        const offset = node === range.startContainer ? range.startOffset : 0
-        text = text.slice(0, offset) + start + text.slice(offset)
-        started = true
-      }
-      if (endsHere) {
-        if (!started) return null
-        ended = true
-      }
-      const collapse = style(parent).collapse
-      if (collapse === 'collapse') text = text.replace(/[ \\t\\n\\r\\f]+/g, ' ')
-      else if (collapse === 'preserve-breaks') text = text.replace(/[ \\t\\f]+/g, ' ')
-      // A line the page keeps ends the run, as a line break does.
-      const lines = collapse === 'collapse' ? [text] : text.split(/\\r\\n|[\\n\\r]/)
-      lines.forEach((line, index) => {
-        if (index) endRun()
-        if ((collapse === 'collapse' || collapse === 'preserve-breaks') && line.startsWith(' ') && (!run || run.endsWith(' '))) line = line.slice(1)
-        run += line
-      })
-      length += text.length
-      if (length > ${TEXT_MAX_LENGTH}) return null
-    }
-    if (!started) return null
-    if (!ended) markEnd()
-    endRun()
-    return { runs }
-  })()`
 }
 
 // The runs with the selection's marks taken out and kept as places, or undefined unless there is one start before one end.
