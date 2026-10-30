@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createSuggestedPasswordMemory } from '../src/main/browser/suggested-password/suggested-password-memory.js'
 
 describe('remembering the passwords Hronaut suggested', () => {
@@ -13,6 +13,21 @@ describe('remembering the passwords Hronaut suggested', () => {
     expect(memory.suggested('https://accounts.example', 'k7Gm2xPqR9sTv4w')).toBe(true)
     now += 1
     expect(memory.suggested('https://accounts.example', 'k7Gm2xPqR9sTv4w')).toBe(false)
+  })
+
+  it('keeps a password for an hour on the monotonic clock, whatever the wall clock does', () => {
+    vi.useFakeTimers({ toFake: ['Date', 'performance'] })
+    try {
+      const memory = createSuggestedPasswordMemory()
+      memory.remember('https://accounts.example', 'k7Gm2xPqR9sTv4w')
+      vi.setSystemTime(Date.now() + 2 * 60 * 60_000)
+      expect(memory.suggested('https://accounts.example', 'k7Gm2xPqR9sTv4w')).toBe(true)
+      vi.setSystemTime(Date.now() - 4 * 60 * 60_000)
+      vi.advanceTimersByTime(60 * 60_000)
+      expect(memory.suggested('https://accounts.example', 'k7Gm2xPqR9sTv4w')).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('keeps the latest 20', () => {

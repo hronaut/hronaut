@@ -89,15 +89,25 @@ describe('Claude Code setup', () => {
 
   it('refuses a plan after the file changed, after two minutes, or after another prepare from the same page', async () => {
     await writeFile(path, settings({}))
-    let now = 0
     const confirm = vi.fn(async () => true)
-    const service = new ClaudeCodeSetup({ path, endpoint: () => endpoint, confirm, now: () => now })
+    const service = new ClaudeCodeSetup({ path, endpoint: () => endpoint, confirm })
     const changed = await service.prepare(1)
     await writeFile(path, settings({ numStartups: 4 }))
     expect(await code(service.apply(changed.planId, 1))).toBe('changed')
-    const late = await service.prepare(1)
-    now += 2 * 60_000
-    expect(await code(service.apply(late.planId, 1))).toBe('expired')
+    vi.useFakeTimers({ toFake: ['Date', 'performance'] })
+    try {
+      // A plan lasts two minutes on the monotonic clock, whatever the wall clock does.
+      const kept = await service.prepare(1)
+      vi.setSystemTime(Date.now() + 60 * 60_000)
+      expect((await service.apply(kept.planId, 1)).outcome).toBe('applied')
+      await writeFile(path, settings({}))
+      const late = await service.prepare(1)
+      vi.setSystemTime(Date.now() - 2 * 60 * 60_000)
+      vi.advanceTimersByTime(2 * 60_000)
+      expect(await code(service.apply(late.planId, 1))).toBe('expired')
+    } finally {
+      vi.useRealTimers()
+    }
     const first = await service.prepare(1)
     const second = await service.prepare(1)
     expect(await code(service.apply(first.planId, 1))).toBe('expired')

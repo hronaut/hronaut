@@ -40,7 +40,7 @@ describe('live region recorder ownership', () => {
     expect(report).toMatchObject({ tabId: 'live-tab', active: true, initial: { text: 'Idle' }, limits: { maxObservations: 100, maxTotalChars: 50_000 } })
     expect(report.url).not.toContain('private')
     expect(report.caveats.join(' ')).toMatch(/private information/)
-    expect(f.tab.liveRegionRecording).toEqual({ active: true, startedAt: f.pageReport.startedAt, observationGeneration: 1 })
+    expect(f.tab.liveRegionRecording).toEqual({ active: true, startedAt: f.pageReport.startedAt, startedMonotonic: expect.any(Number), observationGeneration: 1 })
   })
 
   it('requires a bounded selector before touching the page', async () => {
@@ -76,7 +76,7 @@ describe('live region recorder ownership', () => {
 
   it('clears a previous workspace observation instead of returning its text', async () => {
     const f = fixture()
-    f.tab.liveRegionRecording = { active: true, startedAt: f.pageReport.startedAt, observationGeneration: 0 }
+    f.tab.liveRegionRecording = { active: true, startedAt: f.pageReport.startedAt, startedMonotonic: 0, observationGeneration: 0 }
     f.execute.mockResolvedValueOnce({ active: false, observations: [], callbackCount: 0, unchangedCallbacks: 0, totalChars: 0 })
     const report = await f.recorder.manage(f.tab, 'get')
     expect(f.execute).toHaveBeenCalledWith(1024, [{ code: liveRegionPageScript('clear') }], false)
@@ -101,7 +101,7 @@ describe('live region recorder ownership', () => {
     const f = fixture()
     f.recorder.release(f.tab)
     expect(f.execute).not.toHaveBeenCalled()
-    f.tab.liveRegionRecording = { active: true, startedAt: f.pageReport.startedAt, observationGeneration: 1 }
+    f.tab.liveRegionRecording = { active: true, startedAt: f.pageReport.startedAt, startedMonotonic: 0, observationGeneration: 1 }
     f.destroyed.mockReturnValue(true)
     f.recorder.release(f.tab)
     expect(f.execute).not.toHaveBeenCalled()
@@ -126,14 +126,33 @@ describe('live region recorder ownership', () => {
 
 describe('live region sleep guard', () => {
   const startedAt = '2026-10-15T00:00:00.000Z'
-  const started = Date.parse(startedAt)
+  const started = 1_000
 
   it('keeps a tab awake only while a current recording can still be active', () => {
-    const recording = { active: true, startedAt, observationGeneration: 2 }
+    const recording = { active: true, startedAt, startedMonotonic: started, observationGeneration: 2 }
     expect(liveRegionRecordingKeepsTabAwake({ liveRegionRecording: recording, observationGeneration: 2 }, started + 1_000)).toBe(true)
     expect(liveRegionRecordingKeepsTabAwake({ liveRegionRecording: recording, observationGeneration: 2 }, started + LIVE_REGION_LIMITS.maxDurationMs)).toBe(false)
     expect(liveRegionRecordingKeepsTabAwake({ liveRegionRecording: recording, observationGeneration: 3 }, started + 1_000)).toBe(false)
     expect(liveRegionRecordingKeepsTabAwake({ liveRegionRecording: { ...recording, active: false }, observationGeneration: 2 }, started)).toBe(false)
     expect(liveRegionRecordingKeepsTabAwake({ liveRegionRecording: undefined, observationGeneration: 2 }, started)).toBe(false)
+  })
+
+  it('times the recording from when it started on the monotonic clock, whatever the wall clock does', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'performance'] })
+    try {
+      const f = fixture()
+      f.pageReport.startedAt = new Date().toISOString()
+      await f.recorder.manage(f.tab, 'start', '#status')
+      vi.setSystemTime(Date.now() + 60 * 60_000)
+      vi.advanceTimersByTime(LIVE_REGION_LIMITS.maxDurationMs - 1)
+      // Reading the recording again keeps when it started.
+      await f.recorder.manage(f.tab, 'get')
+      expect(liveRegionRecordingKeepsTabAwake(f.tab)).toBe(true)
+      vi.setSystemTime(Date.now() - 2 * 60 * 60_000)
+      vi.advanceTimersByTime(1)
+      expect(liveRegionRecordingKeepsTabAwake(f.tab)).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

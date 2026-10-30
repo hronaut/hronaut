@@ -16,7 +16,8 @@ interface LiveRegionPageState {
   selector: string
   region: Element | null
   startedAt: string
-  startedAtMs: number
+  /** When the recording started, on the page's monotonic clock, which its duration limit counts from. */
+  startedAtPerf: number
   stoppedAt?: string
   stopReason?: BrowserLiveRegionStopReason
   active: boolean
@@ -153,7 +154,7 @@ export function liveRegionInPage(action: LiveRegionPageAction, selector: string,
   if (previous) {
     const reason = previous.active ? ineligible(previous.region!) : ''
     if (reason) stop(previous, reason)
-    if (previous.active && Date.now() - previous.startedAtMs >= limits.maxDurationMs) stop(previous, 'expired')
+    if (previous.active && performance.now() - previous.startedAtPerf >= limits.maxDurationMs) stop(previous, 'expired')
   }
   if (action === 'clear') {
     if (previous) stop(previous, 'stopped')
@@ -180,14 +181,13 @@ export function liveRegionInPage(action: LiveRegionPageAction, selector: string,
   const region = matches[0]!
   if (region === document.documentElement || region === document.head || region === document.body) return { error: 'too-broad' }
   if (ineligible(region)) return { error: 'excluded-region' }
-  const startedAtMs = Date.now()
   const startedAtPerf = performance.now()
   const initial = readText(region)
   const state: LiveRegionPageState = {
     selector,
     region,
-    startedAt: new Date(startedAtMs).toISOString(),
-    startedAtMs,
+    startedAt: new Date().toISOString(),
+    startedAtPerf,
     active: true,
     metadata: metadataFor(region),
     initial,

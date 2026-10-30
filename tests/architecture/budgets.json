@@ -8,7 +8,7 @@
   },
   "accessFiles": [],
   "longLines": {
-    "src/main/agents/claude-code-setup.ts": 2,
+    "src/main/agents/claude-code-setup.ts": 1,
     "src/main/attention/tray-attention.ts": 1,
     "src/main/browser/agent-keys/agent-keys.ts": 2,
     "src/main/browser/agent-page-actions/click.ts": 4,

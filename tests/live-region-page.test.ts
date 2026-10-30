@@ -248,11 +248,16 @@ describe('live region page script', () => {
     expect(JSON.stringify(report)).not.toContain('canary')
   })
 
-  it('expires at the duration limit even when nothing reads it', () => {
+  it('expires at the duration limit even when nothing reads it, on the page\'s monotonic clock', () => {
     document.body.innerHTML = '<div id="status"></div>'
-    const now = vi.spyOn((window as unknown as { Date: DateConstructor }).Date, 'now')
+    const now = vi.spyOn(window.performance, 'now')
+    const wallNow = vi.spyOn((window as unknown as { Date: DateConstructor }).Date, 'now')
     now.mockReturnValue(1_000)
+    wallNow.mockReturnValue(1_000)
     run('start', '#status')
+    // The computer's clock is set forward.
+    wallNow.mockReturnValue(1_000 + 60 * 60_000)
+    expect(run('get')).toMatchObject({ active: true })
     now.mockReturnValue(1_000 + LIVE_REGION_LIMITS.maxDurationMs)
     expect(run('get')).toMatchObject({ active: false, stopReason: 'expired' })
   })

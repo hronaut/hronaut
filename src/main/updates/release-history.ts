@@ -103,7 +103,8 @@ export class ReleaseHistoryService {
 
   constructor(options: ReleaseHistoryServiceOptions = {}) {
     this.#fetch = options.fetch ?? globalThis.fetch
-    this.#now = options.now ?? Date.now
+    // The cache's lifetime runs on the monotonic clock, so a clock set back or forward neither keeps nor drops it.
+    this.#now = options.now ?? (() => performance.now())
     this.#cacheTtlMs = options.cacheTtlMs ?? DEFAULT_CACHE_TTL_MS
   }
 

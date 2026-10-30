@@ -7,9 +7,10 @@ const MOST_REMEMBERED = 20
 /**
  * The passwords Hronaut suggested in the last hour, at most the latest 20, so the offer to save a password a page
  * submits can say that Hronaut made it. Only a digest of each website and password is kept, in memory, never on
- * disk, keyed with a secret of this memory's own, so that even a short password cannot be found from it.
+ * disk, keyed with a secret of this memory's own, so that even a short password cannot be found from it. The hour is
+ * timed on the monotonic clock, so a clock set back or forward neither keeps nor drops them.
  */
-export function createSuggestedPasswordMemory(now: () => number = Date.now): {
+export function createSuggestedPasswordMemory(now: () => number = () => performance.now()): {
   remember(origin: string, password: string): void
   suggested(origin: string, password: string): boolean
 } {
