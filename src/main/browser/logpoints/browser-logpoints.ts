@@ -3,6 +3,9 @@ import type { BrowserTab } from '../browser-tab.js'
 import type { Browser } from '../browser.js'
 import { withDebugger } from '../debugger-lease/debugger-lease.js'
 import { LogpointSets } from './logpoints.js'
+import { getTab } from '../browser-core.js'
+import type { LogpointAction, LogpointReport, LogpointRequest, LogpointScriptsReport } from '../../../shared/logpoint.js'
+import type { LogpointAuthority } from './logpoints.js'
 
 /**
  * Logpoints in the browser's tabs, through Hronaut's own DevTools session on each page, unless another of its
@@ -22,4 +25,14 @@ export function createLogpoints(browser: Browser): LogpointSets<BrowserTab> {
     isDevToolsOpening: tab => browser.devToolsOpening.has(tab.webContents.id),
     changed: () => publishChange(browser, false)
   })
+}
+
+/** Adds, reads or removes a tab's logpoints, or lists the scripts they can go in. */
+export function logpoint(
+  browser: Browser,
+  tabId: string,
+  action: LogpointAction,
+  options: { probes?: LogpointRequest[]; maxHits?: number; durationMs?: number; authority?: LogpointAuthority } = {}
+): Promise<LogpointReport | LogpointScriptsReport> {
+  return browser.logpoints.manage(getTab(browser, tabId), action, options)
 }

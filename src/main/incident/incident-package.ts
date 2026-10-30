@@ -6,6 +6,7 @@ import type { Browser } from '../browser/browser.js'
 import { debugReport } from '../browser/debug-report/debug-report.js'
 import { networkHar } from '../browser/network-inspection/network-inspection.js'
 import { browserState } from '../browser/browser-state/browser-state.js'
+import { reproRecording } from '../browser/repro-recorder/browser-repro-recorder.js'
 
 const ARTIFACT_LIMIT = 256 * 1024
 const PACKAGE_LIMIT = 4 * 1024 * 1024
@@ -57,7 +58,7 @@ export class IncidentPackages {
       let count: number
       try {
         if (kind === 'repro') {
-          const report = await deadline(host.reproRecording('get', request.tabId), end + 30_000 - this.now())
+          const report = await deadline(reproRecording(host, 'get', request.tabId), end + 30_000 - this.now())
           const steps = report.steps.filter(step => inWindow(step.occurredAt))
           count = steps.length; truncated = report.truncated
           data = { formatVersion: report.formatVersion ?? 1, activeAtCapture: report.active, steps, caveats: report.caveats }

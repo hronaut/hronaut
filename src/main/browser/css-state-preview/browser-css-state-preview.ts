@@ -3,6 +3,8 @@ import type { BrowserTab } from '../browser-tab.js'
 import type { Browser } from '../browser.js'
 import { withDebugger } from '../debugger-lease/debugger-lease.js'
 import { BrowserCssStatePreview } from './css-state-preview.js'
+import { getTab } from '../browser-core.js'
+import type { BrowserCssStatePreviewAction, BrowserCssStatePreviewReport } from '../../../shared/types.js'
 
 /**
  * Previews a forced :hover or :active state in the browser's tabs, through Hronaut's own DevTools session on each
@@ -19,4 +21,14 @@ export function createCssStatePreview(browser: Browser): BrowserCssStatePreview<
     keepDomEnabled: tab => Boolean(tab.emulation.renderingDebug && Object.values(tab.emulation.renderingDebug).some(Boolean)),
     changed: () => publishChange(browser, false)
   })
+}
+
+/** Sets, reads or clears a forced CSS state preview in a tab (the shown one when none is named). */
+export async function cssStatePreviewAction(
+  browser: Browser,
+  action: BrowserCssStatePreviewAction,
+  tabId?: string,
+  options: { selector?: string; states?: readonly string[]; durationMs?: number } = {}
+): Promise<BrowserCssStatePreviewReport> {
+  return browser.cssStatePreview.manage(getTab(browser, tabId), action, options)
 }

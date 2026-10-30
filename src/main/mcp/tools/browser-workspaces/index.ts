@@ -181,7 +181,7 @@ export function registerBrowserWorkspaces(context: McpToolContext): void {
       if (action === 'claim-ownership') return textResult({ workspaceId, writeLease: workspaceLeases.claim(workspaceId, client.id) })
       if (action === 'release-ownership') {
         const writeLease = workspaceLeases.release(workspaceId, client.id)
-        manager.interruptPwaLifecycleWorkspace(workspaceId, 'ownership-released')
+        manager.pwaLifecycleRecorder.interruptWorkspace(workspaceId, 'ownership-released')
         return textResult({ workspaceId, writeLease })
       }
       if (action === 'rename') {

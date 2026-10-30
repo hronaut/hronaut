@@ -174,7 +174,7 @@ export function createShellOverlays(host: ShellOverlaysHost): {
       if (!window.isVisible() || window.isMinimized()) return null
       const tabs = host.tabRuntime.tabs
       // Nothing of the shell's is drawn over a page in full screen, nor before the saved workspaces are up.
-      if (!tabs || host.tabRuntime.initializedTabs !== tabs || tabs.showsPageFullscreen()) return null
+      if (!tabs || host.tabRuntime.initializedTabs !== tabs || tabs.pageFullscreenShown()) return null
       const [width = 0, height = 0] = window.getContentSize()
       return { content: { width, height }, zoom: window.webContents.getZoomFactor() }
     },
@@ -253,7 +253,7 @@ export function createShellOverlays(host: ShellOverlaysHost): {
       const tabs = host.tabRuntime.tabs
       if (host.tabRuntime.startupFailure || !window || window.isDestroyed() || !window.isVisible() || window.isMinimized()) return null
       // Nothing of the shell's is drawn over a page in full screen, nor before the saved workspaces are up.
-      if (!tabs || host.tabRuntime.initializedTabs !== tabs || tabs.showsPageFullscreen()) return null
+      if (!tabs || host.tabRuntime.initializedTabs !== tabs || tabs.pageFullscreenShown()) return null
       return tabs.statusBubblePane(tabId) satisfies StatusBubblePane | null
     },
     zoom: () => {

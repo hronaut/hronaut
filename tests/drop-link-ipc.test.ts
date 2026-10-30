@@ -14,7 +14,7 @@ type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown
 function dropLinkIpc(options: { trusted?: boolean } = {}) {
   const handlers = new Map<string, Handler>()
   const state = { tabs: [] } as unknown as BrowserState
-  const tabs = { openDroppedLink: vi.fn(async () => state), beforeStateReply: () => undefined }
+  const tabs = { openDroppedLink: vi.fn(async () => state), statePublication: { beforeReply: () => undefined } }
   registerTabsIpc({
     assertTrustedSender: () => { if (options.trusted === false) throw new Error('Untrusted sender') },
     assertMainShellSender: () => undefined,

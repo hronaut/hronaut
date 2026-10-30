@@ -3,6 +3,7 @@ import { COMPUTED_ACCESSIBILITY_LIMITS } from '../../../../shared/computed-acces
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
+import { computedAccessibility } from '../../../browser/computed-accessibility/browser-computed-accessibility.js'
 
 function computedAccessibilitySettlement() {
   return {
@@ -32,7 +33,7 @@ export function registerBrowserComputedAccessibility(context: McpToolContext): v
       ref?: string
       selector?: string
     }, call: WorkspaceToolCall<ReturnType<typeof computedAccessibilitySettlement>>) =>
-      textResult(await manager.computedAccessibility(tabId, { ref, selector }, { assertCurrent: () => call.requireCurrentTarget() }))),
+      textResult(await computedAccessibility(manager, tabId, { ref, selector }, { assertCurrent: () => call.requireCurrentTarget() }))),
     { settlement: computedAccessibilitySettlement }
   )
 }

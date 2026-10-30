@@ -112,7 +112,7 @@ describe('MCP workspace fork sources and direct access', () => {
       requireTabInMcpGroup: vi.fn(() => targetId),
       tabBelongsToMcpGroup: vi.fn(() => true),
       wakeTab: vi.fn(async () => undefined),
-      reactInspection: vi.fn(async () => ({ status: 'disabled' })),
+      reactInspectionController: { run: vi.fn(async () => ({ status: 'disabled' })) },
       click: vi.fn(async () => 'Clicked'),
       closeTab: vi.fn(async () => 'Closed'),
       findSnapshot: vi.fn(async () => ({ matches: [], sourceSnapshot: { scope: { kind: 'component', outsideScopeOmitted: true } } })),
@@ -164,7 +164,7 @@ describe('MCP workspace fork sources and direct access', () => {
     await call('browser_workspaces', { action: 'create', name: 'Task' })
     const result = await call('browser_react', { workspaceId: ownId, tabId: targetId, action })
     expect(result.isError).not.toBe(true)
-    expect(manager.reactInspection).toHaveBeenCalledWith(targetId, { action, subtreeId: undefined }, expect.objectContaining({ assertCurrent: expect.any(Function) }))
+    expect(manager.reactInspectionController.run).toHaveBeenCalledWith(targetId, { action, subtreeId: undefined }, expect.objectContaining({ assertCurrent: expect.any(Function) }))
     expect(manager.wakeTab).not.toHaveBeenCalled()
   })
 

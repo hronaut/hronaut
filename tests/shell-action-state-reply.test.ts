@@ -45,7 +45,7 @@ function shellActions() {
     getState: () => { order.push('action ended'); return state },
     openHome: action, newTab: action, selectTabForPerson: action, closeTabsForPerson: action,
     navigate: action, back: action, forward: action, reload: action, openDroppedLink: action,
-    beforeStateReply: () => { order.push('waiting change sent') }
+    statePublication: { beforeReply: () => { order.push('waiting change sent') } }
   }
   const host = {
     assertTrustedSender: () => undefined,

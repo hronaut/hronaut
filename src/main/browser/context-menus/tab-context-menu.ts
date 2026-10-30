@@ -167,7 +167,7 @@ export function showTabContextMenu(browser: Browser, tabId: string, onClosed?: (
       title: browser.text('reactInspection.title'), enable: browser.text('reactInspection.enable'),
       disabled: browser.text('reactInspection.disabled'), reloadRequired: browser.text('reactInspection.reloadRequired'),
       installed: browser.text('reactInspection.installed'), residue: browser.text('reactInspection.residue')
-    }, enabled => runAction('change React inspection', () => browser.reactInspection(tab.id, { action: enabled ? 'enable' : 'disable' }, {
+    }, enabled => runAction('change React inspection', () => browser.reactInspectionController.run(tab.id, { action: enabled ? 'enable' : 'disable' }, {
       epoch: 'human-tab-control',
       assertCurrent: () => { if (findTab(browser, tab.id) !== tab || tab.webContents.isDestroyed()) throw new Error('The tab changed') }
     })), /^https?:/.test(tab.url) && !tab.sleeping),

@@ -8,6 +8,10 @@ vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOrigi
   ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
   browserState: (browser: { getState: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.getState(...args)
 }))
+vi.mock('../src/main/browser/repro-recorder/browser-repro-recorder.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/repro-recorder/browser-repro-recorder.js')>(),
+  reproRecording: (browser: { reproRecording: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.reproRecording(...args)
+}))
 
 function fixture() {
   const handlers = new Map<string, Parameters<IpcMain['handle']>[1]>()

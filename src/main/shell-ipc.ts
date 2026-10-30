@@ -102,12 +102,12 @@ export function registerShellIpc(ipcMain: Pick<IpcMain, 'handle' | 'on'>, host: 
     if (host.workspaceStartupFailure()) return
     host.assertMainShellSender(event)
     if (!Number.isSafeInteger(id) || (id as number) < 1) throw new TypeError('Invalid occlusion snapshot')
-    host.tabs()?.presentOcclusionSnapshot(id as number)
+    host.tabs()?.occlusionSnapshot.present(id as number)
   })
   // Detached panel windows draw the same states, but only the main window's shell paces them.
   ipcMain.on('browser:state-drawn', (event) => {
     if (!host.isMainShellSender(event)) return
-    host.tabs()?.stateDrawn()
+    host.tabs()?.statePublication.drawn()
   })
   ipcMain.on('shell:window-controls-scrim', (event, color: unknown) => {
     if (host.workspaceStartupFailure()) return

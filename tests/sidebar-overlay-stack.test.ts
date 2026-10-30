@@ -62,7 +62,7 @@ function setup() {
   }
   const fullscreen = { page: false }
   const tabs = {
-    showsPageFullscreen: () => fullscreen.page,
+    pageFullscreenShown: () => fullscreen.page,
     showWorkspaceContextMenu: vi.fn(),
     pageArea: () => null,
     statusBubblePane: () => ({ bounds: { x: 56, y: 48, width: 900, height: 600 }, corner: 12 })

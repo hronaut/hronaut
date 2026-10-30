@@ -2,6 +2,9 @@ import type { BrowserTab } from '../browser-tab.js'
 import type { Browser } from '../browser.js'
 import { withDebugger } from '../debugger-lease/debugger-lease.js'
 import { DomMutationSourceCaptures } from './dom-mutation-source.js'
+import { getTab } from '../browser-core.js'
+import type { DomMutationSourceAction, DomMutationSourceKind, DomMutationSourceReport } from '../../../shared/dom-mutation-source.js'
+import type { DomMutationSourceAuthority } from './dom-mutation-source.js'
 
 /**
  * Captures the script that changes an element in the browser's tabs, through Hronaut's own DevTools session on
@@ -23,4 +26,14 @@ export function createDomMutationSource(browser: Browser): DomMutationSourceCapt
     keepDebuggerEnabled: tab => Boolean(tab.codeCoverage?.recording) || browser.logpoints.active(tab),
     isDevToolsOpening: tab => browser.devToolsOpening.has(tab.webContents.id)
   })
+}
+
+/** Arms, reads or cancels a capture of the script that changes an element in a tab. */
+export function domMutationSourceAction(
+  browser: Browser,
+  tabId: string,
+  action: DomMutationSourceAction,
+  options: { selector?: string; kind?: DomMutationSourceKind; durationMs?: number; authority?: DomMutationSourceAuthority } = {}
+): Promise<DomMutationSourceReport> {
+  return browser.domMutationSource.manage(getTab(browser, tabId), action, options)
 }

@@ -17,7 +17,7 @@ function proceedHandler() {
   registerNavigationIpc({
     assertTrustedSender,
     handleBrowserIpc: (channel, listener) => { handlers.set(channel, listener as never) },
-    tabs: () => ({ proceedPastCertificateError, beforeStateReply }) as never,
+    tabs: () => ({ proceedPastCertificateError, statePublication: { beforeReply: beforeStateReply } }) as never,
     defaultPdfPageSize: () => 'A4'
   })
   const handler = handlers.get('browser:proceed-past-certificate')!

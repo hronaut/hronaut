@@ -39,7 +39,6 @@ interface Inspection {
   getTab(tabId?: string): BrowserTab
   findTab(tabId: string): BrowserTab | undefined
   withDebugger<T>(webContents: WebContents, operation: () => Promise<T>): Promise<T>
-  isUnavailableCdpMethod(error: unknown): boolean
   networkWaitController: { wait(tab: BrowserTab, options: { timeoutMs: number }, minCaptureSequence: number): Promise<never> }
 }
 
@@ -58,7 +57,6 @@ function inspection(requests: BrowserNetworkRequestRecord[], overrides: Partial<
     getTab: () => tab,
     findTab: () => tab,
     withDebugger: async (_webContents, operation) => await operation(),
-    isUnavailableCdpMethod: () => false,
     networkWaitController: { wait: async () => { throw new Error('Not used') } },
     ...overrides
   }
@@ -99,8 +97,7 @@ describe('Network panel request errors', () => {
 
   it('names a Chromium that cannot replay requests', async () => {
     const browser = inspection([record()], {
-      withDebugger: async () => { throw new Error("'Network.replayXHR' wasn't found") },
-      isUnavailableCdpMethod: () => true
+      withDebugger: async () => { throw new Error("'Network.replayXHR' wasn't found") }
     })
     const error = await failure(replayNetworkRequest(browser, 'tab-1', 'request-1'))
     expect(error.key).toBe('appErrors.network.replayUnsupported')

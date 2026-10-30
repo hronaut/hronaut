@@ -126,7 +126,7 @@ export function createPanelWindow(host: PanelWindowHost): {
     if (target.isDestroyed() || target.webContents.isDestroyed()) return
     const browser = host.tabs()
     target.webContents.send('browser:state-changed', browser ? browserState(browser) : undefined)
-    target.webContents.send('browser:downloads-changed', browser?.listDownloads() ?? [])
+    target.webContents.send('browser:downloads-changed', browser?.downloadController.listDownloads() ?? [])
     target.webContents.send('settings:changed', host.settings())
     target.webContents.send('settings:renderer-state-changed', host.currentRendererSettingsState())
     target.webContents.send('updates:changed', host.updateState())

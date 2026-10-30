@@ -11,6 +11,6 @@ export function registerBrowserPageMetadata(context: McpToolContext): void {
       inputSchema: { tabId: tabIdSchema.optional() }
     },
     tabTool('browser_page_metadata', async ({ tabId }: { tabId?: string }) =>
-      textResult(await manager.pageMetadata(tabId)))
+      textResult(await manager.metadata.inspect(tabId)))
   )
 }
