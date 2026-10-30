@@ -4,7 +4,8 @@ import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { credentialFillContext } from '../../src/main/browser/credential-fill-context.js'
 import { ISOLATED_WORLDS } from '../../src/main/browser/isolated-worlds.js'
-import { suggestedPasswordFieldScript, suggestedPasswordFillScript } from '../../src/main/browser/suggested-password/suggested-password-page.js'
+import { fillSuggestedPasswordInPage, suggestedPasswordFieldInPage } from '../../src/main/browser/suggested-password/suggested-password.page.js'
+import { pageScript } from '../../src/shared/page-script.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 import type { CredentialStorageStatus } from '../../src/shared/types.js'
 
@@ -64,8 +65,8 @@ test('fills a suggested password into a real page and the field confirming it, a
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)')).toBe('Sign up fixture')
 
     await run(`document.querySelector('#new').focus()`)
-    expect(await suggest(suggestedPasswordFieldScript(context))).toEqual({ minLength: -1, maxLength: -1 })
-    expect(await suggest(suggestedPasswordFillScript(context, 'k7Gm2xPqR9sTv4w'))).toBe('filled')
+    expect(await suggest(pageScript(suggestedPasswordFieldInPage, context.origin, context.url))).toEqual({ minLength: -1, maxLength: -1 })
+    expect(await suggest(pageScript(fillSuggestedPasswordInPage, context.origin, context.url, 'k7Gm2xPqR9sTv4w'))).toBe('filled')
     // The field shown nowhere sits between the two, so the second password field still confirms the first; the
     // transparent one after them gets nothing.
     expect(await run(`({
@@ -92,8 +93,8 @@ test('fills a suggested password into a real page and the field confirming it, a
 
     // A sign-up form built in a shadow root, whose submission Hronaut could not see, gets no suggestion.
     await run(`document.querySelector('account-form').shadowRoot.querySelector('#shadow-new').focus()`)
-    expect(await suggest(suggestedPasswordFieldScript(context))).toBeNull()
-    expect(await suggest(suggestedPasswordFillScript(context, 'k7Gm2xPqR9sTv4w'))).toBe('none')
+    expect(await suggest(pageScript(suggestedPasswordFieldInPage, context.origin, context.url))).toBeNull()
+    expect(await suggest(pageScript(fillSuggestedPasswordInPage, context.origin, context.url, 'k7Gm2xPqR9sTv4w'))).toBe('none')
     expect(await run(`document.querySelector('account-form').shadowRoot.querySelector('#shadow-new').value`)).toBe('')
   } finally {
     await closeFixtureServer(server)

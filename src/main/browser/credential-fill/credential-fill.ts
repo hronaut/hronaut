@@ -3,11 +3,12 @@ import {
   isCurrentCredentialFillContext,
   type CredentialFillContext
 } from '../credential-fill-context.js'
-import { credentialFillPageScript, isCredentialFillPageResult } from '../credential-fill-page.js'
+import { pageScript } from '../../../shared/page-script.js'
+import { fillCredentialInPage } from './credential-fill.page.js'
 import type { Browser } from '../browser.js'
 import { getTab } from '../browser-core.js'
 import { withAgentInput } from '../agent-input-scope/agent-input-scope.js'
-import { recordTrustedCredentialFill } from '../trusted-credential-fill.js'
+import { isCredentialFillPageResult, recordTrustedCredentialFill } from '../trusted-credential-fill.js'
 
 /** What a credential fill must still match: the active tab's address, navigation and selection; null when the tab is not active. */
 export function credentialContext(browser: Browser, tabId?: string): CredentialFillContext | null {
@@ -31,7 +32,7 @@ export async function fillCredential(
 ): Promise<boolean> {
   const tab = getTab(browser, tabId)
   if (!isCurrentCredentialFillContext(expectedContext, credentialContext(browser, tabId))) return false
-  const script = credentialFillPageScript(expectedContext, username, password)
+  const script = pageScript(fillCredentialInPage, expectedContext.origin, expectedContext.url, username, password)
   const outcome: unknown = await withAgentInput(
     browser,
     tab.webContents,

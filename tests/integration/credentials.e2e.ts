@@ -1,7 +1,8 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { join } from 'node:path'
-import { credentialFillPageScript, type CredentialFillPageResult } from '../../src/main/browser/credential-fill-page.js'
+import { fillCredentialInPage, type CredentialFillPageResult } from '../../src/main/browser/credential-fill/credential-fill.page.js'
+import { pageScript } from '../../src/shared/page-script.js'
 import { blockFileDestination, closeFixtureServer, expect, test } from './fixtures.js'
 import { answerTrustedDialog, trustedDialog } from './trusted-dialog-fixture.js'
 import type { BrowserState, CredentialStorageStatus, CredentialSummary } from '../../src/shared/types.js'
@@ -154,12 +155,7 @@ test('fills the visible login form instead of hidden or unrelated fields', async
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)')).toBe('Credential fill fixture')
     const username = 'person</script>";globalThis.__hronautCredentialFillPwned=true;//\u2028@example.test'
     const password = 'private</script>\u2029password'
-    const script = credentialFillPageScript({
-      origin: new URL(url).origin,
-      url,
-      navigationGeneration: 0,
-      tabSelectionGeneration: 0
-    }, username, password)
+    const script = pageScript(fillCredentialInPage, new URL(url).origin, url, username, password)
 
     expect(await electronApp.evaluate(async ({ webContents }, input) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === input.url)
@@ -233,12 +229,7 @@ test('reports a partial credential mutation when the username event invalidates 
     const url = `http://127.0.0.1:${address.port}/login`
     await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true })`)
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)')).toBe('Partial credential fill fixture')
-    const script = credentialFillPageScript({
-      origin: new URL(url).origin,
-      url,
-      navigationGeneration: 0,
-      tabSelectionGeneration: 0
-    }, 'selected-person', 'selected-password')
+    const script = pageScript(fillCredentialInPage, new URL(url).origin, url, 'selected-person', 'selected-password')
 
     const outcome = await electronApp.evaluate(async ({ webContents }, input) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === input.url)
@@ -293,12 +284,7 @@ test('requires focus to disambiguate multiple visible login forms', async ({
     const url = `http://127.0.0.1:${address.port}/login`
     await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true })`)
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)')).toBe('Ambiguous credential fixture')
-    const script = credentialFillPageScript({
-      origin: new URL(url).origin,
-      url,
-      navigationGeneration: 0,
-      tabSelectionGeneration: 0
-    }, 'selected-person', 'selected-password')
+    const script = pageScript(fillCredentialInPage, new URL(url).origin, url, 'selected-person', 'selected-password')
     const execute = async (): Promise<CredentialFillPageResult> => electronApp.evaluate(async ({ webContents }, input) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === input.url)
       if (!page) throw new Error('Ambiguous credential fixture WebContents was not found')
@@ -356,12 +342,7 @@ test('rejects new-password forms and leaves formless usernames untouched', async
     if (!address || typeof address === 'string') throw new Error('Password-purpose fixture did not expose a port')
     const origin = `http://127.0.0.1:${address.port}`
     const execute = async (url: string): Promise<CredentialFillPageResult> => {
-      const script = credentialFillPageScript({
-        origin,
-        url,
-        navigationGeneration: 0,
-        tabSelectionGeneration: 0
-      }, 'person', 'private-password')
+      const script = pageScript(fillCredentialInPage, origin, url, 'person', 'private-password')
       return electronApp.evaluate(async ({ webContents }, input) => {
         const page = webContents.getAllWebContents().find((contents) => contents.getURL() === input.url)
         if (!page) throw new Error('Password-purpose fixture WebContents was not found')
