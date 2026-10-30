@@ -189,7 +189,7 @@ function forgetSleepingPageOnNextPage(browser: Browser, tab: BrowserTab): void {
  */
 export async function wakeTab(browser: Browser, tabId: string): Promise<BrowserState> {
   const tab = getTab(browser, tabId)
-  tab.lastActiveAt = Date.now()
+  tab.lastActiveAt = performance.now()
   if (tab.wakePromise) {
     await awaitWake(tab, tab.wakePromise)
     return browserState(browser)

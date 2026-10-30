@@ -49,9 +49,9 @@ function page(id: string, number: number, lastActiveAt: number): Tab {
  * test sees which tabs the sweep finds inactive for longer than the timeout, before checking whether each may sleep.
  */
 function browser() {
-  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.useFakeTimers({ toFake: ['Date', 'performance'] })
   vi.setSystemTime(10 * 60 * MINUTE)
-  const now = Date.now()
+  const now = performance.now()
   const tabs = new Map([
     ['reading', page('reading', 1, now)],
     ['other', page('other', 2, now)],
@@ -78,7 +78,7 @@ describe('Memory Saver inactivity', () => {
     const { manager, sweep, askedToSleep } = browser()
     manager.selectTab('reading')
     // The person reads the page for two hours, scrolling but never clicking or typing in it.
-    vi.setSystemTime(Date.now() + 2 * 60 * MINUTE)
+    vi.advanceTimersByTime(2 * 60 * MINUTE)
     manager.selectTab('other')
     await sweep()
     // The page the person was reading until a moment ago used to go to sleep at the next sweep, within 30 seconds of
@@ -87,9 +87,18 @@ describe('Memory Saver inactivity', () => {
     expect(askedToSleep()).toContain('idle')
 
     // Once it has been out of view for longer than the timeout, it may sleep.
-    vi.setSystemTime(Date.now() + 61 * MINUTE)
+    vi.advanceTimersByTime(61 * MINUTE)
     await sweep()
     expect(askedToSleep()).toContain('reading')
+  })
+
+  it('times inactivity on the monotonic clock, so a clock set forward does not put the tabs just used to sleep', async () => {
+    const { manager, sweep, askedToSleep } = browser()
+    manager.selectTab('reading')
+    // As a Linux clock kept in local time is corrected soon after login west of UTC: the wall clock steps five hours on.
+    vi.setSystemTime(Date.now() + 5 * 60 * MINUTE)
+    await sweep()
+    expect(askedToSleep()).toEqual(['idle'])
   })
 
   it('counts the time a page was in split view as activity when the split view closes', async () => {
@@ -97,7 +106,7 @@ describe('Memory Saver inactivity', () => {
     manager.selectTab('reading')
     openSplitView(manager, 'other')
     // Both pages stay side by side for two hours.
-    vi.setSystemTime(Date.now() + 2 * 60 * MINUTE)
+    vi.advanceTimersByTime(2 * 60 * MINUTE)
     closeSplitView(manager)
     await sweep()
     // The page that left the window used to sleep at the next sweep.
@@ -109,7 +118,7 @@ describe('Memory Saver inactivity', () => {
     const { manager, sweep, askedToSleep } = browser()
     manager.selectTab('reading')
     openSplitView(manager, 'other')
-    vi.setSystemTime(Date.now() + 2 * 60 * MINUTE)
+    vi.advanceTimersByTime(2 * 60 * MINUTE)
     // The person pairs the page they are on with another one; the earlier partner leaves the window.
     openSplitView(manager, 'idle')
     await sweep()
@@ -118,7 +127,7 @@ describe('Memory Saver inactivity', () => {
 
   it('asks each tab once when the tabs are put in a new order during the sweep', async () => {
     const { tabs, putTabToSleep, sweep, askedToSleep } = browser()
-    vi.setSystemTime(Date.now() + 2 * 60 * MINUTE)
+    vi.advanceTimersByTime(2 * 60 * MINUTE)
     putTabToSleep.mockImplementationOnce(async () => {
       // A page opens a tab beside another, which puts the open tabs in a new order.
       const entries = [...tabs.entries()].reverse()

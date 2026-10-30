@@ -75,7 +75,7 @@ export function attachPagePointerEvents(browser: Browser, tab: BrowserTab, webCo
     if (mouse.type === 'mouseUp') scheduleTabOverviewPreview(browser, tab, TAB_OVERVIEW_INPUT_SETTLE_MS)
     if ((mouse.type === 'mouseDown' || mouse.type === 'contextMenu') && !browser.agentInputWebContents.has(webContents.id)) {
       tab.humanInteractionGeneration += 1
-      tab.lastHumanInteractionAt = Date.now()
+      tab.lastHumanInteractionAt = performance.now()
       tab.lastActiveAt = tab.lastHumanInteractionAt
       browser.mcpActivityFollower.noteHumanInput()
       selectOtherPane(browser, tab)

@@ -44,7 +44,7 @@ export function stopFindInPage(
     && !browser.elementPickerSessions.has(tab.webContents.id)
   if (!browser.pageFind.stop(tab.webContents, activate ? 'activateSelection' : 'clearSelection')) return
   tab.humanInteractionGeneration += 1
-  tab.lastHumanInteractionAt = Date.now()
+  tab.lastHumanInteractionAt = performance.now()
   tab.lastActiveAt = tab.lastHumanInteractionAt
   browser.mcpActivityFollower.noteHumanInput()
   browser.options.onUserInteraction?.({ tabId: tab.id, workspaceId: tab.mcpGroupId })

@@ -137,7 +137,7 @@ export function attachNavigationEvents(browser: Browser, tab: BrowserTab, webCon
     if (tab.sleeping) return
     tab.loading = true
     tab.sleeping = false
-    tab.lastActiveAt = Date.now()
+    tab.lastActiveAt = performance.now()
     tab.pageProblem = undefined
     publishChange(browser, false)
   })

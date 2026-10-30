@@ -39,5 +39,5 @@ export async function fillCredential(
     () => tab.webContents.executeJavaScript(script, true)
   )
   if (!isCredentialFillPageResult(outcome)) return false
-  return recordTrustedCredentialFill(outcome, tab, Date.now(), browser.options.onUserInteraction)
+  return recordTrustedCredentialFill(outcome, tab, performance.now(), browser.options.onUserInteraction)
 }

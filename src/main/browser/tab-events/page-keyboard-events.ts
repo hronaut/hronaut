@@ -126,7 +126,7 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
     if (input.type === 'keyUp') scheduleTabOverviewPreview(browser, tab, TAB_OVERVIEW_INPUT_SETTLE_MS)
     if ((input.type === 'keyDown' || input.type === 'rawKeyDown') && !expectedAgentInput) {
       tab.humanInteractionGeneration += 1
-      tab.lastHumanInteractionAt = Date.now()
+      tab.lastHumanInteractionAt = performance.now()
       tab.lastActiveAt = tab.lastHumanInteractionAt
       browser.mcpActivityFollower.noteHumanInput()
       browser.options.onUserInteraction?.({ tabId: tab.id, workspaceId: tab.mcpGroupId })

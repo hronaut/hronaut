@@ -11,6 +11,7 @@ interface CredentialFillAuthorityState {
   lastActiveAt: number
 }
 
+/** A fill that changed the page counts as the person's input at `now`, on the monotonic clock. */
 export function recordTrustedCredentialFill(
   outcome: CredentialFillPageResult,
   tab: CredentialFillAuthorityState,

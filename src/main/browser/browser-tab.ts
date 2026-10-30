@@ -94,6 +94,7 @@ export interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordi
     promise: Promise<BrowserPageLifecycleResult>
   }
   pageLifecycleAnimations?: Array<{ currentTime: number | null; playbackRate: number }>
+  /** When the tab was last in view or used, on the monotonic clock, from which Memory Saver times its sleep whatever the wall clock does. */
   lastActiveAt: number
   sleepNavigationHistory?: { entries: NavigationEntry[]; index: number }
   wakePromise?: Promise<void>
@@ -143,6 +144,10 @@ export interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordi
   /** Between a main-frame document navigation start and its commit or failure. */
   authNavigationPending: boolean
   networkDebuggerEnabled: boolean
+  /**
+   * When the person last clicked or pressed a key in the tab's page, on the monotonic clock, so that a clock set back
+   * does not stretch the window it opens; never, for a tab they have not touched.
+   */
   lastHumanInteractionAt: number
   suppressInitialHistory: boolean
   pendingHistoryUrl: string | null

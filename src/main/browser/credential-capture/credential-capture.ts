@@ -20,7 +20,7 @@ const CREDENTIAL_CAPTURE_WORLD_ID = ISOLATED_WORLDS.credentialCapture
 /**
  * Watches the website tab's page for a submitted sign-in form and reports the
  * credentials when the person interacted with the page in the last 15
- * seconds and the form's origin is a valid origin. After each submission it
+ * seconds, on the monotonic clock, and the form's origin is a valid origin. After each submission it
  * watches again. Nothing is watched without a submission listener.
  */
 export function watchCredentialSubmission(browser: Browser, tab: Pick<BrowserTab, 'url' | 'webContents' | 'lastHumanInteractionAt'>): void {
@@ -30,7 +30,7 @@ export function watchCredentialSubmission(browser: Browser, tab: Pick<BrowserTab
     .then((candidate: BrowserCredentialCandidate | null) => {
       if (!candidate) return
       watchCredentialSubmission(browser, tab)
-      if (Date.now() - tab.lastHumanInteractionAt > 15_000) return
+      if (performance.now() - tab.lastHumanInteractionAt > 15_000) return
       let currentOrigin: string | null = null
       try {
         currentOrigin = new URL(candidate.origin).origin

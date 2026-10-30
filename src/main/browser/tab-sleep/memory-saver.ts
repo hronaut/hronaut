@@ -42,7 +42,7 @@ async function runMemorySaverSweep(browser: Browser, force: boolean): Promise<vo
   if (!browser.memorySaverEnabled) return
   const generation = browser.memorySaverSettingsGeneration
   const isCurrent = () => !browser.destroyed && browser.memorySaverEnabled && generation === browser.memorySaverSettingsGeneration
-  const cutoff = memorySaverCutoff(Date.now(), browser.memorySaverTimeoutMinutes)
+  const cutoff = memorySaverCutoff(performance.now(), browser.memorySaverTimeoutMinutes)
   // A copy, since a page can open a tab beside another while one goes to sleep, which puts the tabs in a new order.
   for (const tab of [...browser.tabs.values()]) {
     if (!isCurrent()) return
