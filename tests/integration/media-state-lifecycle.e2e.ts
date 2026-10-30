@@ -57,7 +57,7 @@ for (const change of ['navigation', 'close', 'pause', 'global pause', 'workspace
         const held = { held: false, settlements: 0, release, restore: () => { page.executeJavaScriptInIsolatedWorld = original } }
         ;(globalThis as typeof globalThis & { __inspectionHeld?: typeof held }).__inspectionHeld = held
         page.executeJavaScriptInIsolatedWorld = async function (...args) {
-          if (args[1].some(script => script.code.includes('handle.settle()'))) held.settlements += 1
+          if (args[1].some(script => script.code.includes('SettlementInPage(') && script.code.endsWith(', false)'))) held.settlements += 1
           const value = await original.apply(this, args)
           if (args[0] === 1020 && !held.held) {
             held.held = true

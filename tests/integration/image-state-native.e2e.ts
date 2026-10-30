@@ -23,7 +23,7 @@ test('probes native image scalars without page accessors or loading mutations', 
       const page = window.webContents
       const read = async (selector: string) => {
         const pair = scripts[selector]!
-        const result = await page.executeJavaScriptInIsolatedWorld(1022, [{ code: pair.read.replace('deadline=0', 'deadline=' + (Date.now() + 5000)) }], false)
+        const result = await page.executeJavaScriptInIsolatedWorld(1022, [{ code: pair.read.replace(/, 0\)$/, ', ' + (Date.now() + 5000) + ')') }], false)
         if (!result.failure) {
           const valid = await page.executeJavaScriptInIsolatedWorld(1022, [{ code: pair.settle }], false)
           if (valid !== true) throw new Error('Native image handle failed settlement')

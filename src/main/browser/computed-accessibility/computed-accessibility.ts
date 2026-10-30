@@ -9,7 +9,9 @@ import {
   type ComputedAccessibilityState,
   type ComputedAccessibilityStateValue
 } from '../../../shared/computed-accessibility.js'
+import { pageFunctionSource } from '../../../shared/page-script.js'
 import { RendererExitedError } from '../renderer-exit-guard.js'
+import { textBoundInPage } from './computed-accessibility.page.js'
 
 interface ComputedAccessibilityTab {
   id: string
@@ -63,47 +65,6 @@ const IGNORED_REASONS = new Set<string>(COMPUTED_ACCESSIBILITY_IGNORED_REASONS)
 const STATE_NAMES = Object.keys(COMPUTED_ACCESSIBILITY_STATES) as ComputedAccessibilityState[]
 /** Entries read from Chromium's lists at most; real nodes carry a few dozen. */
 const MAX_LIST_ENTRIES = 64
-
-/**
- * Counts, in an isolated world, the text Chromium may draw on for the
- * element's name, description and value: its subtree with open shadow trees,
- * text and CDATA, attributes other than class and style, form values,
- * generated content, its labels, and for every element it visits the elements
- * named by aria-labelledby, aria-describedby and aria-owns (as attributes or
- * as element references) and by popover and interest targets. Closed shadow
- * trees and a custom element's internals are out of reach here; the answer is
- * checked against this count afterwards for that reason. It stops counting
- * once either limit is passed.
- */
-const TEXT_BOUND_FUNCTION = `function (maxChars, maxElements) {
-  let chars = 0, elements = 0
-  const seen = new Set([this]), stack = [this]
-  const add = node => { if (node && !seen.has(node)) { seen.add(node); stack.push(node) } }
-  for (const label of this.labels || []) add(label)
-  while (stack.length && chars <= maxChars && elements <= maxElements) {
-    const node = stack.pop()
-    if (node.nodeType === Node.TEXT_NODE || node.nodeType === Node.CDATA_SECTION_NODE) { chars += node.data.length; continue }
-    if (node.nodeType === Node.ELEMENT_NODE) {
-      elements++
-      for (const attribute of node.attributes) if (attribute.name !== 'class' && attribute.name !== 'style') chars += attribute.value.length
-      if (typeof node.value === 'string') chars += node.value.length
-      for (const pseudo of ['::before', '::after', '::marker']) {
-        const content = getComputedStyle(node, pseudo).content
-        if (content && content !== 'none' && content !== 'normal') chars += content.length
-      }
-      if (node.shadowRoot) add(node.shadowRoot)
-      const root = node.getRootNode()
-      for (const name of ['aria-labelledby', 'aria-describedby', 'aria-owns']) {
-        for (const id of (node.getAttribute(name) || '').split(/\\s+/)) if (id && root.getElementById) add(root.getElementById(id))
-      }
-      for (const property of ['ariaLabelledByElements', 'ariaDescribedByElements', 'ariaOwnsElements']) for (const element of node[property] || []) add(element)
-      add(node.popoverTargetElement)
-      add(node.interestForElement)
-    } else if (node.nodeType !== Node.DOCUMENT_FRAGMENT_NODE) continue
-    for (const child of node.childNodes) add(child)
-  }
-  return { chars, elements }
-}`
 
 function httpOrigin(url: string): string | undefined {
   try {
@@ -274,7 +235,7 @@ export class ComputedAccessibilityReader<T extends ComputedAccessibilityTab> {
         if (!object.objectId) throw new Error(PAGE_CHANGED)
         const bound = readBound(await send('Runtime.callFunctionOn', {
           objectId: object.objectId,
-          functionDeclaration: TEXT_BOUND_FUNCTION,
+          functionDeclaration: pageFunctionSource(textBoundInPage),
           arguments: [{ value: COMPUTED_ACCESSIBILITY_LIMITS.maxTextChars }, { value: COMPUTED_ACCESSIBILITY_LIMITS.maxElements }],
           returnByValue: true
         }))

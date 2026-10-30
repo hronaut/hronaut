@@ -1,6 +1,6 @@
 import { runInNewContext } from 'node:vm'
 import { describe, expect, it } from 'vitest'
-import { pageScript } from '../src/shared/page-script.js'
+import { pageFunctionSource, pageScript } from '../src/shared/page-script.js'
 
 function describeInPage(limits: { max: number }, label: string | undefined, format: (value: string) => string): string {
   return format(`${label ?? 'none'}:${limits.max}`)
@@ -18,5 +18,13 @@ describe('page scripts', () => {
     const helpers = { read(value: string) { return value } }
     expect(() => pageScript(helpers.read, 'value')).toThrow('read cannot run in a page')
     expect(() => pageScript(describeInPage.bind(null), { max: 1 }, 'label', (value: string) => value)).toThrow('bound describeInPage cannot run in a page')
+  })
+
+  it('gives an API that calls the function itself, such as the debugger, the same source and the same refusals', () => {
+    function countInPage(this: { items: number[] }, max: number): number { return Math.min(this.items.length, max) }
+    const source = pageFunctionSource(countInPage)
+    expect(source).toBe(countInPage.toString())
+    expect(runInNewContext(`(${source}).call({ items: [1, 2, 3] }, 2)`, {})).toBe(2)
+    expect(() => pageFunctionSource({ read() { return 1 } }.read)).toThrow('read cannot run in a page')
   })
 })
