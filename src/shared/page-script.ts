@@ -12,6 +12,11 @@ function callableSource(fn: (...args: never[]) => unknown): string {
   return source
 }
 
+/** A page function's own source, for an API that calls the function itself, such as the debugger's Runtime.callFunctionOn. */
+export function pageFunctionSource(fn: (...args: never[]) => unknown): string {
+  return callableSource(fn)
+}
+
 /**
  * The script that runs a page function in a page: the function's own source, called with these arguments. A value
  * goes as a JavaScript literal, and a function, such as a helper the page function takes, as its own source. So a page

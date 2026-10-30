@@ -29,14 +29,14 @@ test('actual image client disconnect retains native work and cleanup ownership',
     ;(globalThis as Scope).__imageSlotGate = state
     page.executeJavaScriptInIsolatedWorld = async function (...args) {
       const code = args[1][0]!.code
-      if (args[0] === 1022 && code.includes('handle.settle()')) state.settlements++
-      if (args[0] === 1022 && code.includes('const selector=')) {
+      if (args[0] === 1022 && code.includes('SettlementInPage(') && code.endsWith(', false)')) state.settlements++
+      if (args[0] === 1022 && code.includes('function imageStateInPage(')) {
         state.reads++
         const value = await original.apply(this, args)
         await reads
         return value
       }
-      if (args[0] === 1022 && code.includes('handle?.cleanup()')) {
+      if (args[0] === 1022 && code.includes('SettlementInPage(') && code.endsWith(', true)')) {
         state.cleanups++
         await cleanup
         const value = await original.apply(this, args)
