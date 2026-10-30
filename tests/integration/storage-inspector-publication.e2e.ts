@@ -23,15 +23,19 @@ for (const mode of ['indexeddb', 'primary', 'fallback'] as const) for (const cha
       })`)
     }, fixtureUrl)
     const args = { tabId, ...(tool === 'browser_indexeddb' ? { database: 'synthetic-inspector-db', objectStore: 'records', includeValues: true } : {}) }
-    const initial = await client.callTool({ name: tool, arguments: args }) as CallToolResult
-    expect(initial.isError, text(initial)).not.toBe(true)
-    if (tool === 'browser_indexeddb') expect(text(initial)).toContain('synthetic-indexeddb-canary')
-    else expect(JSON.parse(text(initial))).toMatchObject({ source: 'chromium-quota' })
     await appWindow.evaluate(tool => {
       const scope = window as unknown as { hronaut: HronautApi; inspectorActivities: McpTabActivity[]; stopInspector(): void }
       scope.inspectorActivities = []
       scope.stopInspector = scope.hronaut.onMcpTabActivity(activity => { if (activity.toolName === tool) scope.inspectorActivities.push(activity) })
     }, tool)
+    const initial = await client.callTool({ name: tool, arguments: args }) as CallToolResult
+    expect(initial.isError, text(initial)).not.toBe(true)
+    if (tool === 'browser_indexeddb') expect(text(initial)).toContain('synthetic-indexeddb-canary')
+    else expect(JSON.parse(text(initial))).toMatchObject({ source: 'chromium-quota' })
+    // The window learns of a call's activity over IPC, which can arrive after the MCP response. Only the gated call
+    // below is counted: once the first call's end has arrived, nothing of it is still on the way, and the list restarts.
+    await expect.poll(() => appWindow.evaluate(() => (window as unknown as { inspectorActivities: McpTabActivity[] }).inspectorActivities.filter(a => a.phase !== 'started').length)).toBe(1)
+    await appWindow.evaluate(() => { (window as unknown as { inspectorActivities: McpTabActivity[] }).inspectorActivities = [] })
     const abort = new AbortController()
     const transport = client.transport!, send = transport.send.bind(transport)
     let cancelled = false

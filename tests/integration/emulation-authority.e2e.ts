@@ -11,6 +11,11 @@ for (const operation of ['apply', 'recover'] as const) {
     for (const change of ['pause', 'cancel', 'access', 'navigation', 'close', 'workspace-close', 'detach'] as const) {
       test(`emulation ${operation} revalidates ${change} at ${phase}`, async ({ capabilities, appWindow, electronApp }) => {
         const { client, tabId, fixtureUrl } = capabilities
+        await appWindow.evaluate(() => {
+          const scope = window as unknown as { hronaut: HronautApi; conditionActivities: McpTabActivity[]; stopConditions(): void }
+          scope.conditionActivities = []
+          scope.stopConditions = scope.hronaut.onMcpTabActivity(activity => { if (activity.toolName === 'browser_emulate') scope.conditionActivities.push(activity) })
+        })
         if (operation === 'recover') {
           await electronApp.evaluate(({ webContents }, url) => {
             const page = webContents.getAllWebContents().find(p => p.getURL() === url)!
@@ -40,11 +45,13 @@ for (const operation of ['apply', 'recover'] as const) {
             return result
           }
         }, { fixtureUrl, phase })
-        await appWindow.evaluate(() => {
-          const scope = window as unknown as { hronaut: HronautApi; conditionActivities: McpTabActivity[]; stopConditions(): void }
-          scope.conditionActivities = []
-          scope.stopConditions = scope.hronaut.onMcpTabActivity(activity => { if (activity.toolName === 'browser_emulate') scope.conditionActivities.push(activity) })
-        })
+        if (operation === 'recover') {
+          // The window learns of a call's activity over IPC, which can arrive after the MCP response. Only the gated
+          // call below is counted: once the failed first call's end has arrived, nothing of it is still on the way,
+          // and the list restarts.
+          await expect.poll(() => appWindow.evaluate(() => (window as unknown as { conditionActivities: McpTabActivity[] }).conditionActivities.filter(a => a.phase !== 'started').length)).toBe(1)
+          await appWindow.evaluate(() => { (window as unknown as { conditionActivities: McpTabActivity[] }).conditionActivities = [] })
+        }
         const abort = new AbortController()
         const transport = client.transport!, originalSend = transport.send.bind(transport)
         let cancellationDelivered = false
