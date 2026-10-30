@@ -162,9 +162,7 @@ import {
   isClosingWorkspace
 } from './workspace-archive/workspace-archive.js'
 
-export const HRONAUT_HOME_URL = 'hronaut://home/'
 const TAB_OVERVIEW_CAPTURE_TIMEOUT_MS = 2_000
-
 
 import type { BrowserTab } from './browser-tab.js'
 import { getTab } from './browser-core.js'

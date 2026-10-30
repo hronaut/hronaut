@@ -144,7 +144,7 @@ export function forgetClosedTabs(browser: Browser, matches: (url: string) => boo
       const closed = closedTabs[index]!
       if (workspaceId !== undefined && closed.mcpGroupId !== workspaceId) continue
       if (!matches(closed.url)) {
-        forgetHistoryPages(closed, matches)
+        forgetClosedTabHistoryPages(closed, matches)
         continue
       }
       closedTabs.splice(index, 1)
@@ -165,7 +165,7 @@ export function forgetWorkspaceClosedTabs(browser: Browser, workspaceId: string,
       const closed = closedTabs[index]!
       if (closed.mcpGroupId !== workspaceId) continue
       if (!matches(closed.url)) {
-        forgetHistoryPages(closed, matches)
+        forgetClosedTabHistoryPages(closed, matches)
         continue
       }
       closedTabs.splice(index, 1)
@@ -250,7 +250,7 @@ function copyHistory(history: NavigationHistorySnapshot): NavigationHistorySnaps
  * Forgets the pages of a closed tab's back and forward history whose address matches, so a page whose history was
  * cleared does not come back with Back once the tab reopens; the page it showed is kept, as its address does not match.
  */
-function forgetHistoryPages(closed: BrowserClosedTabState, matches: (url: string) => boolean): void {
+function forgetClosedTabHistoryPages(closed: BrowserClosedTabState, matches: (url: string) => boolean): void {
   const history = closedTabHistories.get(closed)
   if (!history?.pages) return
   const { entries, index } = history.pages

@@ -34,7 +34,7 @@ export function createBrowserShortcutRouting(host: BrowserShortcutRoutingHost): 
     // Ctrl/Cmd+Shift+O takes the page over only while an agent is working on it; the page keeps it otherwise.
     return action === 'take-over' ? host.takeOvers.available(tabId, workspaceId) !== undefined
       // Ctrl/Cmd+K is a common website key, such as for a site's own search, so websites keep it; Home does not use it.
-      : action === 'switch-workspace' ? browser !== null && isHomeTab(browser, tabId)
+      : action === 'switch-workspace' ? (browser ? isHomeTab(browser, tabId) : false)
       // A page keeps a workspace key while there is no workspace for it to go to.
       : action === 'previous-workspace' ? (browser ? listMcpTabGroups(browser) : []).some((workspace) => workspace.id !== workspaceId)
       : action.startsWith('select-workspace-') ? pinnedWorkspaceAt(browser ? listMcpTabGroups(browser) : [], Number(action.slice(-1))) !== undefined

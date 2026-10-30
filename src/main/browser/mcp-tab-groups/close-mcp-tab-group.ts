@@ -180,7 +180,10 @@ async function closeMcpTabGroupAfterLabelSave(browser: Browser, groupId: string,
   return listMcpTabGroups(browser)
 }
 
-/** Closes the workspace, returning the browser's state after. */
+/**
+ * Closes the workspace and deletes its storage, with no Undo (unlike a person's close), returning the browser's state
+ * after.
+ */
 export async function closeWorkspace(browser: Browser, workspaceId: string): Promise<BrowserState> {
   await closeMcpTabGroup(browser, workspaceId)
   return browserState(browser)

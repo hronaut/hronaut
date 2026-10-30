@@ -3,6 +3,7 @@ import { isHronautHomeUrl } from '../url.js'
 import type { Browser } from '../browser.js'
 import { browserState } from '../browser-state/browser-state.js'
 
+/** Hronaut Home, which opening Home creates when no tab shows it; the browser's Home address. */
 const HRONAUT_HOME_URL = 'hronaut://home/'
 
 /** Whether the tab in view shows Hronaut Home. */
@@ -34,7 +35,7 @@ export async function openHome(browser: Browser): Promise<BrowserState> {
   return browserState(browser)
 }
 
-/** Reloads the open Home, if any, after a load in progress stops. */
+/** Reloads the open Home, if any, at once, or once a load in progress stops. */
 export async function reloadHome(browser: Browser): Promise<void> {
   const home = [...browser.tabs.values()].find((tab) => isHronautHomeUrl(tab.url))
   if (!home) return
