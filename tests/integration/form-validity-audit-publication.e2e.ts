@@ -61,7 +61,7 @@ for (const change of ['navigation', 'close', 'replacement', 'type ABA', 'autocom
         const held = { held: false, settlements: 0, actionId: '', release, restore: () => { page.executeJavaScriptInIsolatedWorld = execute; fs.open = original; syncBuiltinESMExports() } }
         ;(globalThis as typeof globalThis & { __auditHeld?: typeof held }).__auditHeld = held
         page.executeJavaScriptInIsolatedWorld = async function (...args) {
-          if (args[0] === 1006 && args[1].some(script => script.code.includes('handle.settle()'))) held.settlements += 1
+          if (args[0] === 1006 && args[1].some(script => script.code.includes('SettlementInPage(') && script.code.endsWith(', false)'))) held.settlements += 1
           return execute.apply(this, args)
         }
         fs.open = async function (...args) {
