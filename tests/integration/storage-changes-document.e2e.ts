@@ -59,7 +59,7 @@ for (const action of ['baseline', 'compare'] as const) for (const stage of ['dom
         const probe: Probe = { held: false, cookieUrls: [], release, listeners: page.listenerCount('did-navigate'), restore: () => { page.executeJavaScript = execute; cookieStore.get = get } }
         ;(globalThis as Scope).__storageDocumentProbe = probe
         page.executeJavaScript = async (code, userGesture) => {
-          const snapshotRead = code.includes('const fingerprint = (value) =>')
+          const snapshotRead = code.includes('function storageSnapshotInPage(')
           if (change === 'pending-reload' && snapshotRead) { probe.held = true; await gate }
           const result = await execute(code, userGesture)
           if (change !== 'pending-reload' && stage === 'dom' && snapshotRead) { probe.held = true; await gate }

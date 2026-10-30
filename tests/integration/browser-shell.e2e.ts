@@ -6039,7 +6039,7 @@ test('does not override a newer tab selection while a context-menu sleep check i
       Object.defineProperty(page, 'executeJavaScript', {
         configurable: true,
         value: (code: string, userGesture?: boolean) => {
-          if (code.includes('window.__hronautContentEditableDirty === true')) {
+          if (code.includes('function formStateChangedInPage(')) {
             control.calls += 1
             if (control.calls === 1) {
               control.started = true

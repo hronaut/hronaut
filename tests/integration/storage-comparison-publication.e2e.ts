@@ -62,7 +62,7 @@ for (const scenario of ['get', 'baseline', 'compare', 'clear', 'clear empty', 'm
         const gate: PublicationGate = { reads: { dom: 0, cookies: 0 }, listenerCount: page.listenerCount('did-navigate'), pageId: page.id, held: false, release, restore: () => { page.executeJavaScript = execute; cookies.get = get; fs.open = open; syncBuiltinESMExports() } }
         page.executeJavaScript = async (code, userGesture) => {
           const result = await execute(code, userGesture)
-          if (code.includes('const fingerprint = (value) =>')) { gate.reads.dom++; if (stage === 'dom') { gate.held = true; await barrier } }
+          if (code.includes('function storageSnapshotInPage(')) { gate.reads.dom++; if (stage === 'dom') { gate.held = true; await barrier } }
           return result
         }
         cookies.get = async filter => {

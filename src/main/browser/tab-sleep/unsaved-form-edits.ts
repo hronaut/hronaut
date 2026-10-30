@@ -1,18 +1,10 @@
 import type { WebFrameMain } from 'electron'
+import { pageScript } from '../../../shared/page-script.js'
 import type { BrowserTab } from '../browser-tab.js'
+import { watchFormEditsInPage } from './unsaved-form-edits.page.js'
 
 /** Records in a document whether the person edits editable content, which forms do not show, inside shadow roots too. */
-const WATCH_FORM_EDITS_SCRIPT = `(() => {
-    if (window.__hronautFormEditTrackingInstalled) return;
-    window.__hronautFormEditTrackingInstalled = true;
-    window.__hronautContentEditableDirty = false;
-    document.addEventListener('input', (event) => {
-      const target = event.composedPath()[0];
-      if (target instanceof HTMLElement && target.isContentEditable) {
-        window.__hronautContentEditableDirty = true;
-      }
-    }, true);
-  })()`
+const WATCH_FORM_EDITS_SCRIPT = pageScript(watchFormEditsInPage)
 
 /**
  * Starts recording in the page, or in one of its frames once it loads, whether the person edits editable content,

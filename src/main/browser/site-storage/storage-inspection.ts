@@ -2,6 +2,7 @@ import { redactDiagnosticText } from '../../../shared/debug-report.js'
 import { INDEXEDDB_CAVEATS, indexedDbPageScript, normalizeBrowserIndexedDbOptions } from '../../../shared/indexeddb.js'
 import type { IndexedDbPageReport } from '../../../shared/indexeddb.page.js'
 import { redactNetworkUrl } from '../../../shared/network-details.js'
+import { pageScript } from '../../../shared/page-script.js'
 import { snapshotDeltaInvalidationReason } from '../../../shared/snapshot-delta.js'
 import { buildBrowserStorageUsageReport, storageManagerUsageBreakdown } from '../../../shared/storage-usage.js'
 import type { BrowserIndexedDbOptions, BrowserIndexedDbReport, BrowserStorageUsageReport } from '../../../shared/types.js'
@@ -11,6 +12,7 @@ import type { Browser } from '../browser.js'
 import { findTab, getTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { withDebugger } from '../debugger-lease/debugger-lease.js'
+import { storageEstimateInPage, type StorageEstimateAnswer } from './storage-inspection.page.js'
 
 const INDEXED_DB_WORLD_ID = ISOLATED_WORLDS.indexedDb
 const STORAGE_USAGE_WORLD_ID = ISOLATED_WORLDS.storageUsage
@@ -102,13 +104,9 @@ export async function inspectStorageUsage(browser: Browser, tabId?: string, hook
     hooks?.readStarted()
     const estimate = await tab.webContents.executeJavaScriptInIsolatedWorld(
       STORAGE_USAGE_WORLD_ID,
-      [{ code: `(() => navigator.storage?.estimate?.().then((value) => ({
-          usage: value.usage,
-          quota: value.quota,
-          usageDetails: value.usageDetails
-        })).catch(() => null) ?? Promise.resolve(null))()` }],
+      [{ code: pageScript(storageEstimateInPage) }],
       false
-    ).catch(() => null) as { usage?: number; quota?: number; usageDetails?: Record<string, number> } | null
+    ).catch(() => null) as StorageEstimateAnswer | null
     requireCurrentPage()
     if (!estimate) throw error
     const reason = redactDiagnosticText(error instanceof Error ? error.message : String(error)).slice(0, 500)
