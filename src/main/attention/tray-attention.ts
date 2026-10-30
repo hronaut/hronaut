@@ -18,6 +18,7 @@ import type {
   UserAttentionRequest
 } from '../../shared/types.js'
 import { selectTabAndWait } from '../browser/tab-selection/tab-selection.js'
+import { UPDATES_IPC } from '../../shared/ipc/updates.js'
 
 /**
  * The attention request still open for the user, created once by index.ts. It shows as needs you until it is answered
@@ -158,7 +159,7 @@ export function createTrayAttention(host: TrayAttentionHost): {
         label: host.text('native.menu.checkUpdates'),
         click: () => {
           host.showWindow()
-          host.mainWindow()?.webContents.send('updates:open')
+          host.mainWindow()?.webContents.send(UPDATES_IPC.open)
           void host.checkForUpdates()
         }
       },

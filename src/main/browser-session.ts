@@ -9,6 +9,7 @@ import { sitePermissionName } from '../shared/site-permission-names.js'
 import type { SitePermissionDecision } from '../shared/types.js'
 import type { SitePermissionDialogVariant } from '../shared/trusted-dialogs.js'
 import type { TrustedDialogOptions } from './trusted-dialogs/trusted-dialogs.js'
+import { PERMISSIONS_IPC } from '../shared/ipc/permissions.js'
 
 /**
  * The profile's persistent browser session and the site permissions the person chose, created once by index.ts and
@@ -660,7 +661,7 @@ export function createBrowserSession(host: BrowserSessionHost): {
 
   /** Tells both shell windows the site permissions the person chose. */
   function publishSitePermissions(): void {
-    host.sendToShellWindows('permissions:changed', host.state.sitePermissionStore?.list() ?? [])
+    host.sendToShellWindows(PERMISSIONS_IPC.changed, host.state.sitePermissionStore?.list() ?? [])
   }
 
   /**

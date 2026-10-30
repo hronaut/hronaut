@@ -53,6 +53,31 @@ export function runtimeNamesFrom(code: string, specifier: string, fileName = 'mo
   return names.filter(name => name !== 'default')
 }
 
+// An IPC channel's name, `feature:action`, as in 'license:activate' or 'browser:tab-groups:update'.
+const IPC_CHANNEL = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*:[a-z][a-zA-Z0-9]*(?:[-:][a-zA-Z0-9]+)*$/
+// Text of the same shape that is no channel: URLs, and the page events a wallet provider listens for.
+const URL_SCHEMES = new Set(['about', 'blob', 'chrome', 'data', 'devtools', 'file', 'http', 'https', 'hronaut', 'javascript', 'mailto', 'ws', 'wss'])
+const PAGE_EVENT_CALLS = new Set(['addEventListener', 'removeEventListener'])
+
+/**
+ * The IPC channel names a module writes out as text where it sends or listens, the first argument of a call such as
+ * `ipcMain.handle('license:activate', ...)`, rather than taking them from the typed channels of src/shared/ipc.
+ */
+export function literalIpcChannels(code: string, fileName = 'module.ts'): string[] {
+  const channels: string[] = []
+  const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node)) {
+      const [first] = node.arguments
+      const callee = ts.isPropertyAccessExpression(node.expression) ? node.expression.name.text : ts.isIdentifier(node.expression) ? node.expression.text : ''
+      if (first && (ts.isStringLiteral(first) || ts.isNoSubstitutionTemplateLiteral(first)) && IPC_CHANNEL.test(first.text)
+        && !URL_SCHEMES.has(first.text.slice(0, first.text.indexOf(':'))) && !PAGE_EVENT_CALLS.has(callee)) channels.push(first.text)
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(ts.createSourceFile(fileName, code, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS))
+  return channels
+}
+
 function importsTypesOnly(clause: ts.ImportClause | undefined): boolean {
   if (!clause) return false
   if (clause.isTypeOnly) return true

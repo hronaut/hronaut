@@ -1,16 +1,17 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { importCycles, lineCount, resolveImport, ROOT, runtimeImports, runtimeNamesFrom, runtimeSpecifiers, sourceFiles } from './architecture/source-files.js'
+import { importCycles, lineCount, literalIpcChannels, resolveImport, ROOT, runtimeImports, runtimeNamesFrom, runtimeSpecifiers, sourceFiles } from './architecture/source-files.js'
 
 const MAX_LINES = 800
 const BUDGETS_FILE = 'tests/architecture/budgets.json'
 
 /**
  * What the code may still carry from before the architecture rules: the files over the line limit, each with the most
- * lines it may have, and the access object files. Both lists only shrink.
+ * lines it may have, the access object files, and how many IPC channel names main and the preloads write out as
+ * text. All three only shrink.
  */
-const budgets = JSON.parse(readFileSync(join(ROOT, BUDGETS_FILE), 'utf8')) as { oversizedFiles: Record<string, number>, accessFiles: string[] }
+const budgets = JSON.parse(readFileSync(join(ROOT, BUDGETS_FILE), 'utf8')) as { oversizedFiles: Record<string, number>, accessFiles: string[], literalIpcChannels: number }
 
 const files = sourceFiles()
 // Locale files hold one translated string per line and grow with every string, in every language.
@@ -36,6 +37,28 @@ describe('the architecture rules in AGENTS.md', () => {
     const accessFiles = files.filter(file => file.endsWith('-access.ts'))
     expect(accessFiles.filter(file => !budgets.accessFiles.includes(file)), 'new access object files: let features import each other directly').toEqual([])
     expect(budgets.accessFiles.filter(file => !accessFiles.includes(file)), `access object files that are gone: remove them from ${BUDGETS_FILE}`).toEqual([])
+  })
+
+  it('lets the IPC channel names written out as text only go away, as features move to the typed channels of src/shared/ipc', () => {
+    const literals = files.filter(file => file.startsWith('src/main/') || file.startsWith('src/preload/'))
+      .reduce((count, file) => count + literalIpcChannels(readFileSync(join(ROOT, file), 'utf8'), file).length, 0)
+    expect(literals, literals > budgets.literalIpcChannels
+      ? 'new IPC channel names written as text: declare the channels in src/shared/ipc and use those'
+      : `fewer IPC channel names written as text: lower literalIpcChannels in ${BUDGETS_FILE} to ${literals}`).toBe(budgets.literalIpcChannels)
+  })
+
+  it('counts the IPC channel names a module writes out, and leaves out typed channels, URLs and page events', () => {
+    const code = [
+      "ipcMain.handle('license:activate', activate)",
+      "host.handleBrowserIpc(`browser:tab-groups:update`, update)",
+      "ipcRenderer.invoke(LICENSE_IPC.activate, key)",
+      "ipcRenderer.removeListener('license:changed', handler)",
+      "shell.openExternal('https:example')",
+      "globalThis.addEventListener('eip6963:requestProvider', announce)",
+      "logger.info('license activated: ok')",
+      "const name = 'license:refresh'"
+    ].join('\n')
+    expect(literalIpcChannels(code)).toEqual(['license:activate', 'browser:tab-groups:update', 'license:changed'])
   })
 
   it('has no import cycles in the code Hronaut runs, so imports only go down the layers', () => {

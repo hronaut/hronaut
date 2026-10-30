@@ -9,6 +9,12 @@ import { TRUSTED_DIALOG_CHANNELS, type HronautTrustedDialogsApi, type TrustedDia
 import type { AgentPresenceSnapshot, AgentTakeOverOffer, HronautAgentPresenceApi } from '../shared/agent-presence.js'
 import { contextBridge, ipcRenderer } from 'electron'
 import { createPanelRequestBuffer } from './panel-requests.js'
+import { browsingDataApi } from './bridges/browsing-data.js'
+import { credentialsApi } from './bridges/credentials.js'
+import { licenseApi } from './bridges/license.js'
+import { permissionsApi } from './bridges/permissions.js'
+import { taskManagerApi } from './bridges/task-manager.js'
+import { updatesApi } from './bridges/updates.js'
 import type {
   AppSettings,
   BrowserOcclusionSnapshot,
@@ -16,16 +22,11 @@ import type {
   RendererSettingsState,
   InterfaceScale,
   TabPosition,
-  AppUpdateState,
   HronautApi,
   HronautBookmarksApi,
-  HronautBrowsingDataApi,
   HronautHistoryApi,
   HronautShellApi,
-  HronautLicenseApi,
-  HronautPermissionsApi,
   HronautSettingsApi,
-  HronautUpdatesApi,
   BrowserActionFailure,
   BrowserState,
   UserAttentionRequest,
@@ -62,19 +63,11 @@ import type {
   PanelRedockRequest,
   HronautMcpApi,
   HronautWalletsApi,
-  HronautCredentialsApi,
   HronautDownloadsApi,
-  HronautTaskManagerApi,
-  BrowsingDataClearOptions,
   McpTabActivity,
   DroppedLinkTarget,
   NavigateOptions,
   NewTabOptions,
-  SitePermissionDecision,
-  SitePermissionEntry,
-  SitePermissionScope,
-  CredentialStorageStatus,
-  CredentialSummary,
   HelpMenuAction,
   McpControlState,
   AttentionSoundCue,
@@ -366,10 +359,6 @@ const downloadsApi: HronautDownloadsApi = {
   }
 }
 contextBridge.exposeInMainWorld('hronautDownloads', downloadsApi)
-const taskManagerApi: HronautTaskManagerApi = {
-  list: () => ipcRenderer.invoke('task-manager:list'),
-  endProcess: (pid: number) => ipcRenderer.invoke('task-manager:end-process', pid)
-}
 contextBridge.exposeInMainWorld('hronautTaskManager', taskManagerApi)
 const bookmarksApi: HronautBookmarksApi = {
   collections: {
@@ -416,12 +405,6 @@ const historyApi: HronautHistoryApi = {
   }
 }
 contextBridge.exposeInMainWorld('hronautHistory', historyApi)
-const browsingDataApi: HronautBrowsingDataApi = {
-  summary: () => ipcRenderer.invoke('browsing-data:summary'),
-  siteSummary: (url: string, tabId: string) => ipcRenderer.invoke('browsing-data:site-summary', url, tabId),
-  websites: () => ipcRenderer.invoke('browsing-data:websites'),
-  clear: (options: BrowsingDataClearOptions) => ipcRenderer.invoke('browsing-data:clear', options)
-}
 contextBridge.exposeInMainWorld('hronautBrowsingData', browsingDataApi)
 const mcpApi: HronautMcpApi = {
   getState: () => ipcRenderer.invoke('mcp:get-state'),
@@ -546,73 +529,10 @@ const settingsApi: HronautSettingsApi = {
 }
 
 contextBridge.exposeInMainWorld('hronautSettings', settingsApi)
-const permissionsApi: HronautPermissionsApi = {
-  list: () => ipcRenderer.invoke('permissions:list'),
-  set: (origin: string, permission: string, decision: SitePermissionDecision, scope: SitePermissionScope) =>
-    ipcRenderer.invoke('permissions:set', origin, permission, decision, scope),
-  remove: (origin: string, permission: string, scope: SitePermissionScope) =>
-    ipcRenderer.invoke('permissions:remove', origin, permission, scope),
-  clear: () => ipcRenderer.invoke('permissions:clear'),
-  onChanged: (listener: (permissions: SitePermissionEntry[]) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, permissions: SitePermissionEntry[]): void => listener(permissions)
-    ipcRenderer.on('permissions:changed', handler)
-    return () => ipcRenderer.removeListener('permissions:changed', handler)
-  }
-}
 
 contextBridge.exposeInMainWorld('hronautPermissions', permissionsApi)
-const credentialsApi: HronautCredentialsApi = {
-  status: () => ipcRenderer.invoke('credentials:status'),
-  list: () => ipcRenderer.invoke('credentials:list'),
-  importFromCsv: () => ipcRenderer.invoke('credentials:import-csv'),
-  fill: (tabId: string, credentialId: string) => ipcRenderer.invoke('credentials:fill', tabId, credentialId),
-  remove: (id: string) => ipcRenderer.invoke('credentials:remove', id),
-  clear: () => ipcRenderer.invoke('credentials:clear'),
-  onChanged: (listener: (credentials: CredentialSummary[]) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, credentials: CredentialSummary[]): void => listener(credentials)
-    ipcRenderer.on('credentials:changed', handler)
-    return () => ipcRenderer.removeListener('credentials:changed', handler)
-  },
-  onStatusChanged: (listener: (status: CredentialStorageStatus) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, status: CredentialStorageStatus): void => listener(status)
-    ipcRenderer.on('credentials:status-changed', handler)
-    return () => ipcRenderer.removeListener('credentials:status-changed', handler)
-  }
-}
-
 contextBridge.exposeInMainWorld('hronautCredentials', credentialsApi)
-const licenseApi: HronautLicenseApi = {
-  getState: () => ipcRenderer.invoke('license:get-state'),
-  activate: (licenseKey: string) => ipcRenderer.invoke('license:activate', licenseKey),
-  refresh: () => ipcRenderer.invoke('license:refresh'),
-  deactivate: () => ipcRenderer.invoke('license:deactivate'),
-  openPurchase: () => ipcRenderer.invoke('license:open-purchase'),
-  onChanged: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, state: import('../shared/types.js').CommercialLicenseState): void => listener(state)
-    ipcRenderer.on('license:changed', handler)
-    return () => ipcRenderer.removeListener('license:changed', handler)
-  }
-}
 contextBridge.exposeInMainWorld('hronautLicense', licenseApi)
-const updatesApi: HronautUpdatesApi = {
-  getState: () => ipcRenderer.invoke('updates:get-state'),
-  getReleaseHistory: (page: number, bypassCache: boolean) =>
-    ipcRenderer.invoke('updates:get-release-history', page, bypassCache),
-  check: () => ipcRenderer.invoke('updates:check'),
-  download: () => ipcRenderer.invoke('updates:download'),
-  install: () => ipcRenderer.invoke('updates:install'),
-  onChanged: (listener: (state: AppUpdateState) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, state: AppUpdateState): void => listener(state)
-    ipcRenderer.on('updates:changed', handler)
-    return () => ipcRenderer.removeListener('updates:changed', handler)
-  },
-  onOpenRequested: (listener: () => void) => {
-    const handler = (): void => listener()
-    ipcRenderer.on('updates:open', handler)
-    return () => ipcRenderer.removeListener('updates:open', handler)
-  }
-}
-
 contextBridge.exposeInMainWorld('hronautUpdates', updatesApi)
 const panelRequests = createPanelRequestBuffer()
 ipcRenderer.on('panel-window:show-panel', (_event, panel: DetachablePanelId) => panelRequests.receive(panel))

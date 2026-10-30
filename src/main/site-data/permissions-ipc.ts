@@ -6,6 +6,7 @@ import {
   type SitePermissionStore
 } from './site-permission-store.js'
 import type { SitePermissionScope } from '../../shared/types.js'
+import { PERMISSIONS_IPC } from '../../shared/ipc/permissions.js'
 
 interface PermissionsIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
@@ -32,12 +33,12 @@ function requestedDecision(origin: unknown, permission: unknown, scope: unknown)
 
 /** Dependencies stay lazy because handlers are registered before the window loads. */
 export function registerPermissionsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: PermissionsIpcHost): void {
-  ipcMain.handle('permissions:list', (event) => {
+  ipcMain.handle(PERMISSIONS_IPC.list, (event) => {
     host.assertTrustedSender(event)
     return host.sitePermissionStore()!.list()
   })
   ipcMain.handle(
-    'permissions:set',
+    PERMISSIONS_IPC.set,
     async (event, origin: unknown, permission: unknown, decision: unknown, scope: unknown) => {
       host.assertTrustedSender(event)
       if (!isSitePermissionDecision(decision)) throw new TypeError('Invalid site permission')
@@ -47,14 +48,14 @@ export function registerPermissionsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: P
       return entry
     }
   )
-  ipcMain.handle('permissions:remove', async (event, origin: unknown, permission: unknown, scope: unknown) => {
+  ipcMain.handle(PERMISSIONS_IPC.remove, async (event, origin: unknown, permission: unknown, scope: unknown) => {
     host.assertTrustedSender(event)
     const requested = requestedDecision(origin, permission, scope)
     const removed = await host.sitePermissionStore()!.remove(requested.origin, requested.permission, requested.scope)
     host.publishSitePermissions()
     return removed
   })
-  ipcMain.handle('permissions:clear', async (event) => {
+  ipcMain.handle(PERMISSIONS_IPC.clear, async (event) => {
     host.assertTrustedSender(event)
     await host.sitePermissionStore()!.clear()
     host.publishSitePermissions()

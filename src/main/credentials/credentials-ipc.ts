@@ -16,6 +16,7 @@ import type { TrustedDialogOptions } from '../trusted-dialogs/trusted-dialogs.js
 import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
 import type { CredentialImportResult, CredentialStorageStatus } from '../../shared/types.js'
 import { credentialContext, fillCredential } from '../browser/credential-fill/credential-fill.js'
+import { CREDENTIALS_IPC } from '../../shared/ipc/credentials.js'
 
 interface CredentialsIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
@@ -118,19 +119,19 @@ export function registerCredentialsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: C
     }
   }
 
-  ipcMain.handle('credentials:status', (event) => {
+  ipcMain.handle(CREDENTIALS_IPC.status, (event) => {
     host.assertTrustedSender(event)
     return { ...host.credentialStorageStatus() }
   })
-  ipcMain.handle('credentials:list', (event) => {
+  ipcMain.handle(CREDENTIALS_IPC.list, (event) => {
     host.assertTrustedSender(event)
     return host.credentialStore()?.list() ?? []
   })
-  ipcMain.handle('credentials:import-csv', async (event) => {
+  ipcMain.handle(CREDENTIALS_IPC.importCsv, async (event) => {
     host.assertTrustedSender(event)
     return importCredentialsFromCsv()
   })
-  host.handleBrowserIpc('credentials:fill', async (event, tabId: unknown, credentialId: unknown) => {
+  host.handleBrowserIpc(CREDENTIALS_IPC.fill, async (event, tabId: unknown, credentialId: unknown) => {
     host.assertTrustedSender(event)
     if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
     if (typeof credentialId !== 'string') throw new TypeError('Invalid credential ID')
@@ -151,14 +152,14 @@ export function registerCredentialsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: C
       }
     })
   })
-  ipcMain.handle('credentials:remove', async (event, id: unknown) => {
+  ipcMain.handle(CREDENTIALS_IPC.remove, async (event, id: unknown) => {
     host.assertTrustedSender(event)
     if (typeof id !== 'string') throw new TypeError('Invalid credential ID')
     const removed = await host.credentialStore()?.remove(id) ?? false
     if (removed) host.publishCredentials()
     return removed
   })
-  ipcMain.handle('credentials:clear', async (event) => {
+  ipcMain.handle(CREDENTIALS_IPC.clear, async (event) => {
     host.assertTrustedSender(event)
     await host.credentialStore()?.clear()
     host.publishCredentials()
