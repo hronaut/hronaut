@@ -1,5 +1,5 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import { type NativeTouchProgress, notStartedTouchProgress } from '../../../browser/agent-touch/agent-touch.js'
+import { type NativeTouchProgress, notStartedTouchProgress } from '../../../browser/agent-touch/touch-input.js'
 import { McpCapabilityAuthorizationError } from '../../capability-profile-store.js'
 import { errorResult, textResult } from '../../tool-results.js'
 import type { ToolActivityClassification, WorkspaceToolCall } from '../tool-context.js'

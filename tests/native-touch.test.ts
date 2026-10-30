@@ -1,7 +1,21 @@
 import { EventEmitter } from 'node:events'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { AgentTouchAccess, AgentTouchTab } from '../src/main/browser/agent-touch/agent-touch-access.js'
-import { nativeTouchInput, NativeTouchOutcomeUnknownError, touch, type NativeTouchProgress } from '../src/main/browser/agent-touch/agent-touch.js'
+
+// The browser below stubs nativeInputAuthority, withAgentInput and withDebugger, which the gesture reaches through these.
+vi.mock('../src/main/browser/native-input-authority/native-input-authority.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/native-input-authority/native-input-authority.js')>(),
+  nativeInputAuthority: (browser: { nativeInputAuthority: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.nativeInputAuthority(...args)
+}))
+vi.mock('../src/main/browser/agent-input-scope/agent-input-scope.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/agent-input-scope/agent-input-scope.js')>(),
+  withAgentInput: (browser: { withAgentInput: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.withAgentInput(...args)
+}))
+vi.mock('../src/main/browser/debugger-lease/debugger-lease.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/debugger-lease/debugger-lease.js')>(),
+  withDebugger: (browser: { withDebugger: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.withDebugger(...args)
+}))
+import { NativeTouchOutcomeUnknownError, touch } from '../src/main/browser/agent-touch/agent-touch.js'
+import { nativeTouchInput, type NativeTouchProgress } from '../src/main/browser/agent-touch/touch-input.js'
 import { McpCapabilityAuthorizationError } from '../src/main/mcp/capability-profile-store.js'
 import { nativeTouchUnknownResult, touchSettlement } from '../src/main/mcp/tools/browser-touch/touch-settlement.js'
 
@@ -43,7 +57,7 @@ function touchPage(options: {
     })
   })
   const view = Object.assign(new EventEmitter(), { getBounds: () => ({ x: 0, y: 0, width: 800, height: 700 }), getVisible: () => true })
-  const tab: AgentTouchTab = {
+  const tab = {
     id: 'tab-1',
     webContents: webContents as never,
     view: view as never,
@@ -57,20 +71,20 @@ function touchPage(options: {
   let locked = false
   let lockChanges = 0
   let authorityCurrent = true
-  const access: AgentTouchAccess<AgentTouchTab> = {
-    getTab: () => tab,
-    tabSelectionGeneration: () => 0,
-    splitViewGeneration: () => 0,
-    splitView: () => null,
-    window: () => window as never,
-    activeTabId: () => tab.id,
-    browserContentOccluded: () => false,
-    nativeInputLockMutations: () => lockChanges,
+  const browser = {
+    tabs: new Map([[tab.id, tab]]),
+    tabSelectionGeneration: 0,
+    splitViewGeneration: 0,
+    splitView: null,
+    window,
+    activeTabId: tab.id,
+    browserContentOccluded: false,
+    get nativeInputLockMutations() { return lockChanges },
     isHumanInteractionLocked: () => locked,
-    screenshotAreaSessions: () => new Map(),
-    elementPickerSessions: () => new Map(),
-    devToolsOpening: () => new Set(),
-    nativeInputAuthority: (_tab, validateInput) => ({
+    screenshotAreaSessions: new Map(),
+    elementPickerSessions: new Map(),
+    devToolsOpening: new Set(),
+    nativeInputAuthority: (_tab: unknown, validateInput?: (validateContext: () => void) => void) => ({
       validate: () => {
         // The real authority also fails once the page navigated, within the document too.
         if (!authorityCurrent) throw new Error('Native input authority changed')
@@ -78,11 +92,11 @@ function touchPage(options: {
       },
       dispose: () => undefined
     }),
-    withAgentInput: (_webContents, operation) => operation(),
-    withDebugger: (_webContents, operation) => operation()
-  }
+    withAgentInput: <T>(_webContents: unknown, operation: () => Promise<T>) => operation(),
+    withDebugger: <T>(_webContents: unknown, operation: () => Promise<T>) => operation()
+  } as never
   const page = {
-    access, tab, view, window, webContents, debuggerEvents, commands,
+    browser, tab, view, window, webContents, debuggerEvents, commands,
     lock: () => { locked = true },
     beginLockChange: () => { lockChanges += 1 },
     revokeAuthority: () => { authorityCurrent = false },
@@ -133,7 +147,7 @@ describe('touch gestures', () => {
   it('taps with one touchStart and one touchEnd at the point and leaves no listeners behind', async () => {
     const page = touchPage()
     const progress: NativeTouchProgress[] = []
-    const result = await touch(page.access, { tabId: 'tab-1', gesture: 'tap', x: 100.5, y: 120 }, check => check(), next => progress.push(next))
+    const result = await touch(page.browser, { tabId: 'tab-1', gesture: 'tap', x: 100.5, y: 120 }, check => check(), next => progress.push(next))
     expect(page.commands).toEqual([
       { method: 'Input.dispatchTouchEvent', params: { type: 'touchStart', touchPoints: [{ x: 100.5, y: 120 }], modifiers: 0 } },
       { method: 'Input.dispatchTouchEvent', params: { type: 'touchEnd', touchPoints: [], modifiers: 0 } }
@@ -147,7 +161,7 @@ describe('touch gestures', () => {
 
   it('swipes in ten even moves that end at the end point', async () => {
     const page = touchPage()
-    const result = await touch(page.access, { tabId: 'tab-1', gesture: 'swipe', x: 300, y: 100, endX: 100, endY: 300, durationMs: 50 }, check => check(), () => undefined)
+    const result = await touch(page.browser, { tabId: 'tab-1', gesture: 'swipe', x: 300, y: 100, endX: 100, endY: 300, durationMs: 50 }, check => check(), () => undefined)
     expect(types(page.commands)).toEqual(['touchStart', ...Array(10).fill('touchMove'), 'touchEnd'])
     expect(page.commands[1]!.params!.touchPoints).toEqual([{ x: 280, y: 120 }])
     expect(page.commands[10]!.params!.touchPoints).toEqual([{ x: 100, y: 300 }])
@@ -157,39 +171,39 @@ describe('touch gestures', () => {
   it('sends nothing without touch emulation, on a locked page, during a lock change, or outside the viewport', async () => {
     const noEmulation = touchPage()
     noEmulation.tab.emulation = {} as never
-    await expect(touch(noEmulation.access, tap, check => check(), () => undefined)).rejects.toThrow('touch emulation')
+    await expect(touch(noEmulation.browser, tap, check => check(), () => undefined)).rejects.toThrow('touch emulation')
     const locked = touchPage()
     locked.lock()
-    await expect(touch(locked.access, tap, check => check(), () => undefined)).rejects.toThrow('requires an unlocked page')
+    await expect(touch(locked.browser, tap, check => check(), () => undefined)).rejects.toThrow('requires an unlocked page')
     const lockChanging = touchPage()
     lockChanging.beginLockChange()
-    await expect(touch(lockChanging.access, tap, check => check(), () => undefined)).rejects.toThrow('lock is changing')
+    await expect(touch(lockChanging.browser, tap, check => check(), () => undefined)).rejects.toThrow('lock is changing')
     const outside = touchPage()
-    await expect(touch(outside.access, { tabId: 'tab-1', gesture: 'swipe', x: 10, y: 10, endX: 390, endY: 10 }, check => check(), () => undefined)).rejects.toThrow('inside the visible CSS viewport')
+    await expect(touch(outside.browser, { tabId: 'tab-1', gesture: 'swipe', x: 10, y: 10, endX: 390, endY: 10 }, check => check(), () => undefined)).rejects.toThrow('inside the visible CSS viewport')
     expect([...noEmulation.commands, ...locked.commands, ...lockChanging.commands, ...outside.commands]).toEqual([])
   })
 
   it('cancels the contact when a change stops the swipe, and a fresh gesture then works', async () => {
     const page = touchPage({ onTouch: onMove(3, current => { current.tab.nativeInputEnvironmentGeneration += 1 }) })
     const progress: NativeTouchProgress[] = []
-    await expect(touch(page.access, swipe(200), check => check(), next => progress.push(next))).rejects.toBeInstanceOf(NativeTouchOutcomeUnknownError)
+    await expect(touch(page.browser, swipe(200), check => check(), next => progress.push(next))).rejects.toBeInstanceOf(NativeTouchOutcomeUnknownError)
     expect(types(page.commands)).toEqual(['touchStart', 'touchMove', 'touchMove', 'touchMove', 'touchCancel'])
     expect(progress.at(-1)).toMatchObject({ movesAcknowledged: 3, endAcknowledged: false, cancelAcknowledged: true })
     expect(nativeTouchUnknownResult(progress.at(-1)!).structuredContent).toMatchObject({ contact: 'CANCELLED', moves: 3 })
     page.tab.nativeInputEnvironmentGeneration = 0
-    await expect(touch(page.access, tap, check => check(), () => undefined)).resolves.toMatchObject({ contact: 'ENDED' })
+    await expect(touch(page.browser, tap, check => check(), () => undefined)).resolves.toMatchObject({ contact: 'ENDED' })
   })
 
   it('checks again before the end, so a change during the last move cancels instead of ending', async () => {
     const page = touchPage({ onTouch: onMove(10, current => { current.tab.nativeInputEnvironmentGeneration += 1 }) })
-    await expect(touch(page.access, swipe(50), check => check(), () => undefined)).rejects.toBeInstanceOf(NativeTouchOutcomeUnknownError)
+    await expect(touch(page.browser, swipe(50), check => check(), () => undefined)).rejects.toBeInstanceOf(NativeTouchOutcomeUnknownError)
     expect(types(page.commands)).toEqual(['touchStart', ...Array(10).fill('touchMove'), 'touchCancel'])
   })
 
   it('checks the environment while a swipe waits between moves', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
     const page = touchPage()
-    const stopped = touch(page.access, swipe(2000), check => check(), () => undefined).catch((error: unknown) => error)
+    const stopped = touch(page.browser, swipe(2000), check => check(), () => undefined).catch((error: unknown) => error)
     await vi.advanceTimersByTimeAsync(40)
     expect(types(page.commands)).toEqual(['touchStart'])
     page.view.emit('bounds-changed')
@@ -205,7 +219,7 @@ describe('touch gestures', () => {
       current.webContents.emit('did-start-navigation', { isMainFrame: true, isSameDocument: true })
     }) })
     const progress: NativeTouchProgress[] = []
-    await expect(touch(page.access, swipe(200), check => check(), next => progress.push(next))).rejects.toBeInstanceOf(NativeTouchOutcomeUnknownError)
+    await expect(touch(page.browser, swipe(200), check => check(), next => progress.push(next))).rejects.toBeInstanceOf(NativeTouchOutcomeUnknownError)
     expect(types(page.commands)).toEqual(['touchStart', 'touchMove', 'touchMove', 'touchCancel'])
     expect(nativeTouchUnknownResult(progress.at(-1)!).structuredContent).toMatchObject({ status: 'OUTCOME_UNKNOWN', contact: 'CANCELLED', moves: 2, retrySafe: false })
   })
@@ -214,16 +228,16 @@ describe('touch gestures', () => {
     const page = touchPage({ onTouch: onMove(2, current => {
       current.webContents.emit('did-start-navigation', { isMainFrame: true, isSameDocument: false })
     }) })
-    await expect(touch(page.access, swipe(200), check => check(), () => undefined)).rejects.toThrow(NativeTouchOutcomeUnknownError)
+    await expect(touch(page.browser, swipe(200), check => check(), () => undefined)).rejects.toThrow(NativeTouchOutcomeUnknownError)
     expect(types(page.commands)).toEqual(['touchStart', 'touchMove', 'touchMove', 'touchCancel'])
     expect(page.held()).toBe(false)
-    await expect(touch(page.access, tap, check => check(), () => undefined)).resolves.toMatchObject({ contact: 'ENDED' })
+    await expect(touch(page.browser, tap, check => check(), () => undefined)).resolves.toMatchObject({ contact: 'ENDED' })
   })
 
   it('cancels the contact when the person locks the page mid-swipe', async () => {
     const page = touchPage({ onTouch: onMove(1, current => { current.lock() }) })
     const progress: NativeTouchProgress[] = []
-    await expect(touch(page.access, swipe(50), check => check(), next => progress.push(next))).rejects.toBeInstanceOf(NativeTouchOutcomeUnknownError)
+    await expect(touch(page.browser, swipe(50), check => check(), next => progress.push(next))).rejects.toBeInstanceOf(NativeTouchOutcomeUnknownError)
     expect(types(page.commands)).toEqual(['touchStart', 'touchMove', 'touchCancel'])
     expect(progress.at(-1)).toMatchObject({ cancelAcknowledged: true })
     expect(page.held()).toBe(false)
@@ -231,7 +245,7 @@ describe('touch gestures', () => {
 
   it('cancels the contact when a lock changes on any tab mid-swipe', async () => {
     const page = touchPage({ onTouch: onMove(1, current => { current.beginLockChange() }) })
-    await expect(touch(page.access, swipe(50), check => check(), () => undefined)).rejects.toThrow(NativeTouchOutcomeUnknownError)
+    await expect(touch(page.browser, swipe(50), check => check(), () => undefined)).rejects.toThrow(NativeTouchOutcomeUnknownError)
     expect(types(page.commands)).toEqual(['touchStart', 'touchMove', 'touchCancel'])
     expect(page.held()).toBe(false)
   })
@@ -240,7 +254,7 @@ describe('touch gestures', () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
     const page = touchPage({ unacknowledged: type => type === 'touchEnd' })
     const progress: NativeTouchProgress[] = []
-    const stopped = touch(page.access, tap, check => check(), next => progress.push(next)).catch((error: unknown) => error)
+    const stopped = touch(page.browser, tap, check => check(), next => progress.push(next)).catch((error: unknown) => error)
     await vi.advanceTimersByTimeAsync(4_999)
     expect(types(page.commands)).toEqual(['touchStart', 'touchEnd'])
     await vi.advanceTimersByTimeAsync(1)
@@ -258,7 +272,7 @@ describe('touch gestures', () => {
       unacknowledged: type => type === 'touchCancel'
     })
     const progress: NativeTouchProgress[] = []
-    const stopped = touch(page.access, swipe(50), check => check(), next => progress.push(next)).catch((error: unknown) => error)
+    const stopped = touch(page.browser, swipe(50), check => check(), next => progress.push(next)).catch((error: unknown) => error)
     await vi.advanceTimersByTimeAsync(5_100)
     expect(await stopped).toBeInstanceOf(NativeTouchOutcomeUnknownError)
     expect(types(page.commands)).toEqual(['touchStart', 'touchMove', 'touchCancel'])
@@ -272,30 +286,30 @@ describe('touch gestures', () => {
       cancelRejection: new Error('Internal error')
     })
     const progress: NativeTouchProgress[] = []
-    await expect(touch(page.access, swipe(50), check => check(), next => progress.push(next))).rejects.toBeInstanceOf(NativeTouchOutcomeUnknownError)
+    await expect(touch(page.browser, swipe(50), check => check(), next => progress.push(next))).rejects.toBeInstanceOf(NativeTouchOutcomeUnknownError)
     expect(types(page.commands)).toEqual(['touchStart', 'touchMove', 'touchCancel'])
     expect(progress.at(-1)).toMatchObject({ cancelAcknowledged: false, contactCleared: true })
     expect(nativeTouchUnknownResult(progress.at(-1)!).structuredContent).toMatchObject({ contact: 'CLEARED' })
     expect(page.held()).toBe(false)
     page.tab.nativeInputEnvironmentGeneration = 0
-    await expect(touch(page.access, tap, check => check(), () => undefined)).resolves.toMatchObject({ contact: 'ENDED' })
+    await expect(touch(page.browser, tap, check => check(), () => undefined)).resolves.toMatchObject({ contact: 'ENDED' })
   })
 
   it('sends no cancel once the debugger detached, which already cleared the contact', async () => {
     const page = touchPage({ onTouch: onMove(2, current => { current.debuggerEvents.emit('detach') }) })
     const progress: NativeTouchProgress[] = []
-    await expect(touch(page.access, swipe(200), check => check(), next => progress.push(next))).rejects.toBeInstanceOf(NativeTouchOutcomeUnknownError)
+    await expect(touch(page.browser, swipe(200), check => check(), next => progress.push(next))).rejects.toBeInstanceOf(NativeTouchOutcomeUnknownError)
     expect(types(page.commands)).toEqual(['touchStart', 'touchMove', 'touchMove'])
     expect(progress.at(-1)).toMatchObject({ cancelAttempted: false, contactCleared: true })
     expect(nativeTouchUnknownResult(progress.at(-1)!).structuredContent).toMatchObject({ contact: 'CLEARED' })
     // The fake debugger keeps its record; a real detach drops it.
-    await expect(touch(page.access, tap, check => check(), () => undefined)).resolves.toMatchObject({ contact: 'ENDED' })
+    await expect(touch(page.browser, tap, check => check(), () => undefined)).resolves.toMatchObject({ contact: 'ENDED' })
   })
 
   it('reports an unknown outcome when the call loses its authority after the end', async () => {
     const page = touchPage({ onTouch: command => { if (command.params?.type === 'touchEnd') page.revokeAuthority() } })
     const progress: NativeTouchProgress[] = []
-    await expect(touch(page.access, tap, check => check(), next => progress.push(next))).rejects.toBeInstanceOf(NativeTouchOutcomeUnknownError)
+    await expect(touch(page.browser, tap, check => check(), next => progress.push(next))).rejects.toBeInstanceOf(NativeTouchOutcomeUnknownError)
     expect(types(page.commands)).toEqual(['touchStart', 'touchEnd'])
     expect(nativeTouchUnknownResult(progress.at(-1)!).structuredContent).toMatchObject({ contact: 'ENDED' })
   })
@@ -303,7 +317,7 @@ describe('touch gestures', () => {
   it('stops between moves when the call is cancelled', async () => {
     const abort = new AbortController()
     const page = touchPage({ onTouch: command => { if (command.params?.type === 'touchStart') abort.abort() } })
-    await expect(touch(page.access, swipe(200), check => check(), () => undefined, abort.signal))
+    await expect(touch(page.browser, swipe(200), check => check(), () => undefined, abort.signal))
       .rejects.toBeInstanceOf(NativeTouchOutcomeUnknownError)
     expect(types(page.commands)).toEqual(['touchStart', 'touchCancel'])
   })
