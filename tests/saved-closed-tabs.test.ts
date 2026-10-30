@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { NavigationEntry } from 'electron'
 import { Browser } from '../src/main/browser/browser.js'
-import { ClosedTabsStore, restoredClosedTabs, savedClosedTabs, type SavedClosedTab, type SavedClosedTabsAccess } from '../src/main/browser/saved-closed-tabs/saved-closed-tabs.js'
+import { ClosedTabsStore, restoredClosedTabs, savedClosedTabs, type SavedClosedTab } from '../src/main/browser/saved-closed-tabs/saved-closed-tabs.js'
 import { closedTabHistory, rememberClosedTab, rememberSavedClosedTabs, reopenClosedTabEntry } from '../src/main/browser/tab-reopening/tab-reopening.js'
 import type { BrowserTab } from '../src/main/browser/browser-tab.js'
 import type { NavigationHistorySnapshot } from '../src/main/browser/navigation-history.js'
@@ -50,11 +50,11 @@ function browser(policies: Record<string, BrowserWorkspaceNavigationPolicy> = { 
       return { id: `reopened-${created.length}`, url: options.url, title: '', pinned: false, zoomIsolated: false, tabMuted: false, tabAgentPaused: false, humanInteractionLocked: false }
     }
   } as unknown as Browser
-  const saving: SavedClosedTabsAccess = {
-    closedTabs: () => closedTabs,
-    closedTabHistory,
-    navigationPolicy: (workspaceId) => policies[workspaceId]
-  }
+  const saving = {
+    closedTabs,
+    mcpTabGroups: new Map(Object.entries(policies).map(([id, navigationPolicy]) => [id, { navigationPolicy }])),
+    workspacesBeingDeleted: new Map()
+  } as unknown as Browser
   return {
     closedTabs,
     created,
@@ -337,7 +337,6 @@ describe('the tab manager saving Recently closed', () => {
       mcpTabGroups: new Map([['work', { navigationPolicy: anywhere }]]),
       workspacesBeingDeleted: new Map([['work', {}]])
     }) as Browser
-    const access = (manager as unknown as { savedClosedTabsAccess(): SavedClosedTabsAccess }).savedClosedTabsAccess()
-    expect(savedClosedTabs(access)).toEqual([])
+    expect(savedClosedTabs(manager)).toEqual([])
   })
 })

@@ -10,6 +10,8 @@ import { savedTabHistory } from '../saved-tab-history/saved-tab-history.js'
 import { normalizeTabTitle } from '../tab-metadata.js'
 import { isAgentWorkspaceNavigationUrl } from '../url.js'
 import { evaluateWorkspaceNavigation } from '../workspace-navigation-policy.js'
+import type { Browser } from '../browser.js'
+import { closedTabHistory } from '../tab-reopening/tab-reopening.js'
 
 /** As many as Recently closed remembers. */
 const MAX_SAVED_CLOSED_TABS = MAX_BROWSER_TABS
@@ -31,16 +33,6 @@ export interface SavedClosedTab {
   visited?: true
 }
 
-/** What saving Recently closed needs from the tab manager. */
-export interface SavedClosedTabsAccess {
-  /** The recently closed tabs, oldest first. */
-  closedTabs(): readonly BrowserClosedTabState[]
-  /** The history a closed tab restores when it reopens, and whether History counted its page. */
-  closedTabHistory(closed: BrowserClosedTabState): { pages?: NavigationHistorySnapshot; visited: boolean } | undefined
-  /** The Site access rules of an open workspace, or undefined when it is not open or is being deleted. */
-  navigationPolicy(workspaceId: string): BrowserWorkspaceNavigationPolicy | undefined
-}
-
 /**
  * Each closed tab as last saved, with the history and rules it was saved from: a closed tab changes only when clearing
  * the history forgets its pages or the rules change, so a save in between reads none of its pages again.
@@ -49,6 +41,12 @@ const savedForms = new WeakMap<BrowserClosedTabState, { pages: NavigationHistory
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** The Site access rules of an open workspace, or undefined when it is not open or is being deleted. */
+function openWorkspacePolicy(browser: Browser, workspaceId: string): BrowserWorkspaceNavigationPolicy | undefined {
+  // A workspace being deleted keeps its tabs in Recently closed only until the deletion ends.
+  return browser.workspacesBeingDeleted.has(workspaceId) ? undefined : browser.mcpTabGroups.get(workspaceId)?.navigationPolicy
 }
 
 /** Whether a closed tab of a workspace can come back after a restart: one at an address its Site access rules allow. */
@@ -60,12 +58,12 @@ function reopenableAddress(url: string, policy: BrowserWorkspaceNavigationPolicy
  * The recently closed tabs a restart keeps, oldest first, as Chrome keeps them: those of open workspaces at an address
  * their Site access rules allow, each with the Back and Forward history a restart keeps of an open tab.
  */
-export function savedClosedTabs(access: SavedClosedTabsAccess): SavedClosedTab[] {
+export function savedClosedTabs(browser: Browser): SavedClosedTab[] {
   const saved: SavedClosedTab[] = []
-  for (const closed of access.closedTabs().slice(-MAX_SAVED_CLOSED_TABS)) {
-    const policy = closed.mcpGroupId ? access.navigationPolicy(closed.mcpGroupId) : undefined
+  for (const closed of browser.closedTabs.slice(-MAX_SAVED_CLOSED_TABS)) {
+    const policy = closed.mcpGroupId ? openWorkspacePolicy(browser, closed.mcpGroupId) : undefined
     if (!policy || !reopenableAddress(closed.url, policy)) continue
-    const { pages, visited = false } = access.closedTabHistory(closed) ?? {}
+    const { pages, visited = false } = closedTabHistory(closed) ?? {}
     const rules = JSON.stringify(policy)
     const before = savedForms.get(closed)
     if (before && before.pages === pages && before.visited === visited && before.policy === rules) {

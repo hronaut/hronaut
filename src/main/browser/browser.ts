@@ -146,10 +146,9 @@ import { dropFiles, type FileDropResult } from './file-drop/file-drop.js'
 import { insertText, type TextInsertionProgress, type TextInsertionResult } from './text-insertion/text-insertion.js'
 import { fillFromFile, type TextFileFillProgress, type TextFileFillResult } from './text-file-fill/text-file-fill.js'
 import { shadowSnapshot, type BrowserShadowSnapshot } from './shadow-snapshot/shadow-snapshot.js'
-import { trackedViewportScreenshot, type TrackedScreenshot, type TrackedScreenshotAccess, type TrackedScreenshotOptions } from './screenshot-observations/tracked-screenshot.js'
+import { trackedViewportScreenshot, type TrackedScreenshot, type TrackedScreenshotOptions } from './screenshot-observations/tracked-screenshot.js'
 import { basename, isAbsolute, join } from 'node:path'
 import {
-  app,
   BrowserWindow,
   Menu,
   net,
@@ -197,7 +196,7 @@ import {
 } from '../../shared/snapshot-delta.js'
 import { safeNavigationHistorySnapshot, type NavigationHistorySnapshot } from './navigation-history.js'
 import { historyAroundShownPage, savedHistoryPosition, savedTabHistories, savedTabHistory, TabHistoryStore, type SavedTabHistoryAccess } from './saved-tab-history/saved-tab-history.js'
-import { ClosedTabsStore, restoredClosedTabs, savedClosedTabs, type SavedClosedTabsAccess } from './saved-closed-tabs/saved-closed-tabs.js'
+import { ClosedTabsStore, restoredClosedTabs, savedClosedTabs } from './saved-closed-tabs/saved-closed-tabs.js'
 import { keepSessionCookies } from './session-cookies/saved-session-cookies.js'
 import { nextPageLoadTurn } from './page-load-turns/page-load-turns.js'
 import { McpActivityFollowController, type FollowAgent } from './mcp-activity-follow-controller.js'
@@ -263,7 +262,7 @@ import {
 import { uuidV7 } from '../uuid-v7.js'
 import { LocalizedError } from '../localized-error.js'
 import { RendererRecovery } from './renderer-recovery.js'
-import { EndedByPersonMarks, endTaskManagerProcess, taskManagerProcesses, type TaskManagerAccess } from './task-manager/task-manager.js'
+import { EndedByPersonMarks, endTaskManagerProcess, taskManagerProcesses } from './task-manager/task-manager.js'
 import { guardPageCallsAcrossRendererExit, holdUntilFirstLoad } from './renderer-exit-guard.js'
 import { refusePageScriptsInSourceView } from './source-view-guard.js'
 import { guardPageCallsDuringPrintDialog } from './print-dialog-guard.js'
@@ -446,7 +445,7 @@ import { attemptBeforeUnloadClose } from './tab-close/before-unload-close.js'
 import { stageBeforeUnloadClose } from './tab-close/before-unload-staging.js'
 import { closeTabAfterLabelSave } from './tab-close/close-tab.js'
 import { saveTabLabel, withTabLabelLifecycle } from './tab-labels/tab-labels.js'
-import { closedTabHistory, duplicateTabAfterLabelSave, forgetClosedTabs, rememberClosedTab, rememberSavedClosedTabs, reopenClosedTabAfterLabelSave } from './tab-reopening/tab-reopening.js'
+import { duplicateTabAfterLabelSave, forgetClosedTabs, rememberClosedTab, rememberSavedClosedTabs, reopenClosedTabAfterLabelSave } from './tab-reopening/tab-reopening.js'
 import { forgetTabHistoryPages, holdTabHistory } from './tab-history-pages/forget-tab-history-pages.js'
 import { reorderTab, reorderTabs, setTabPinned } from './tab-arrangement/tab-arrangement.js'
 import { openDroppedLink } from './dropped-links/dropped-links.js'
@@ -1809,28 +1808,12 @@ export class Browser {
 
   /** Every process of Hronaut's with its memory and CPU use, for the Task manager. */
   taskManagerProcesses(): TaskManagerProcess[] {
-    return taskManagerProcesses(this.taskManagerAccess())
+    return taskManagerProcesses(this)
   }
 
   /** Ends a page process the person chose in the Task manager, as Chrome's End process. */
   endTaskManagerProcess(pid: number): void {
-    endTaskManagerProcess(this.taskManagerAccess(), pid)
-  }
-
-  /**
-   * The narrow view the Task manager gets of this manager's private tabs, renderer recovery and the pages the person
-   * ended, with Electron's process readings. It is a prototype method rather than a field, so managers created without
-   * the constructor (as unit tests do) still provide it. Each member reads the manager when called.
-   */
-  private taskManagerAccess(): TaskManagerAccess<BrowserTab> {
-    return {
-      tabs: () => orderedTabs(this).filter((tab) => !tab.webContents.isDestroyed()),
-      appMetrics: () => app.getAppMetrics(),
-      allWebContents: () => electronWebContents.getAllWebContents(),
-      isInterfacePage: (url) => this.options.isInterfacePage?.(url) === true,
-      rendererRecovering: (contents) => this.rendererRecovery.isRecovering(contents),
-      noteEndedByPerson: (contents) => { this.endedByPerson.note(contents) }
-    }
+    endTaskManagerProcess(this, pid)
   }
 
   setTabSleeping(tabId: string, sleeping: boolean): Promise<BrowserState> {
@@ -3056,27 +3039,8 @@ export class Browser {
     return screenshot(this, options)
   }
 
-  /**
-   * The narrow view a tracked screenshot gets of this manager's private tabs,
-   * observation context and CSS state preview, and its ordinary viewport
-   * capture. It is a prototype method rather than a field, so managers
-   * created without the constructor (as unit tests do) still provide it.
-   */
-  private trackedScreenshotAccess(): TrackedScreenshotAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      findTab: (tabId) => this.tabs.get(tabId),
-      snapshotDeltaContext: (tab) => this.snapshotDeltaContext(tab),
-      cssStatePreview: (tab) => {
-        const summary = this.cssStatePreview.summary(tab)
-        return summary ? { states: [...summary.states], selector: summary.selector, startedAt: summary.startedAt, ...(summary.resetUncertain ? { resetUncertain: true } : {}) } : undefined
-      },
-      captureViewport: (options) => screenshot(this, options)
-    }
-  }
-
   trackedScreenshot(options: TrackedScreenshotOptions): Promise<TrackedScreenshot> {
-    return trackedViewportScreenshot(this.trackedScreenshotAccess(), options)
+    return trackedViewportScreenshot(this, options)
   }
 
   savePdf(options: BrowserPdfOptions = {}, validateExport?: () => void, deferExport?: (pending: PendingPdfExport) => void): Promise<BrowserPdfExport> {
@@ -3242,19 +3206,9 @@ export class Browser {
     await Promise.all([
       this.tabHistoryStore?.save((previous) => this.destroyed ? undefined : savedTabHistories(this.savedTabHistoryAccess(everyTab), previous))
         .catch((error: unknown) => console.error('[browser] Failed to save tab history:', error)),
-      this.closedTabsStore?.save(() => this.destroyed ? undefined : savedClosedTabs(this.savedClosedTabsAccess()))
+      this.closedTabsStore?.save(() => this.destroyed ? undefined : savedClosedTabs(this))
         .catch((error: unknown) => console.error('[browser] Failed to save recently closed tabs:', error))
     ])
-  }
-
-  /** The narrow view saving Recently closed gets of this manager's closed tabs, their history and the workspaces' rules. */
-  private savedClosedTabsAccess(): SavedClosedTabsAccess {
-    return {
-      closedTabs: () => this.closedTabs,
-      closedTabHistory,
-      // A workspace being deleted keeps its tabs in Recently closed only until the deletion ends.
-      navigationPolicy: (workspaceId) => this.workspacesBeingDeleted.has(workspaceId) ? undefined : this.mcpTabGroups.get(workspaceId)?.navigationPolicy
-    }
   }
 
   /** The narrow view saving the tabs' history gets of this manager's tabs, their history and the workspaces' rules. */
