@@ -22,7 +22,6 @@ import {
   getTabOverviewPreviews,
   invalidateTabOverviewPreview,
   performTabOverviewPreviewCapture,
-  storeTabOverviewPreview,
   type TabOverviewPreviewCaptureRequest
 } from './tab-overview-previews/tab-overview-previews.js'
 import type { PageContextMenuAccess } from './context-menus/page-context-menu-access.js'
@@ -145,7 +144,7 @@ import {
 } from './workspace-data/workspace-data.js'
 import { assertActiveWorkspaceCapacity } from './workspace-creation/workspace-capacity.js'
 import { normalizeWorkspaceDescription } from '../../shared/workspace-description.js'
-import { reconcilePresentedViewVisibility, showResumedPresentedView, watchPresentedViewVisibility } from './presented-view-visibility.js'
+import { reconcilePresentedViewVisibility, watchPresentedViewVisibility } from './presented-view-visibility.js'
 import { resizeViewport } from './emulation/resize-viewport.js'
 import { createSplitDivider } from './split-view/split-divider.js'
 import { FaviconDecoder } from './favicon.js'
@@ -221,7 +220,6 @@ import { click } from './agent-page-actions/click.js'
 import { MemorySaverSweepQueue } from '../memory-saver-sweep.js'
 import type { PageAuditsAccess } from './page-audits/page-audits-access.js'
 import { accessibilityAudit } from './page-audits/accessibility-audit.js'
-import type { DebugReportAccess } from './debug-report/debug-report-access.js'
 import { auditEvidenceAvailability, clearDiagnosticLogs, debugReport, diagnosticLogState, setDiagnosticLogPreservation } from './debug-report/debug-report.js'
 import { attachConsoleMessageEvents } from './console-messages/console-message-events.js'
 import { securityReport } from './page-audits/security-report.js'
@@ -246,7 +244,6 @@ import {
 } from './network-inspection/network-inspection.js'
 import type { NormalizedBrowserNetworkWaitOptions } from '../../shared/network-wait.js'
 import type { ScreenshotAnnotationReport } from '../../shared/screenshot-annotations.js'
-import type { ScreenshotsAccess } from './screenshots/screenshots-access.js'
 import { screenshot } from './screenshots/screenshots.js'
 import { inspectorIssues } from './inspector-issues/inspector-issues.js'
 import { answerHttpAuth, followSignIns, type HttpAuthQuestion, type SignInAnswer } from './http-auth/http-auth.js'
@@ -314,7 +311,6 @@ import type {
   BrowserPdfOptions,
   BrowserScreenshotOptions,
   BrowserVisualCompareOptions,
-  BrowserVisualCompareContext,
   BrowserStorageOptions,
   BrowserStorageResult,
   BrowserStorageUsageReport,
@@ -394,7 +390,6 @@ import { closeTabsForPerson } from './tab-close/close-tabs-for-person.js'
 import type { DevToolsAccess } from './devtools/devtools-access.js'
 import { openDevTools, showDevToolsConsole, toggleDevTools } from './devtools/devtools.js'
 import { attachDevToolsEvents } from './devtools/devtools-events.js'
-import type { PageLifecycleAccess } from './page-lifecycle/page-lifecycle-access.js'
 import { controlPageLifecycle, pageLifecycle, setTabPageLifecycle } from './page-lifecycle/page-lifecycle.js'
 import { back, forward, navigate, reload, reloadIgnoringCache, stop, stopFocusedPageLoading } from './page-navigation/page-navigation.js'
 import { setZoom } from './page-zoom/page-zoom.js'
@@ -465,7 +460,6 @@ import { attachPagePointerEvents } from './tab-events/page-pointer-events.js'
 import { attachPageTargetUrlEvents } from './tab-events/page-target-url-events.js'
 import { attachRendererHealthEvents } from './tab-events/renderer-health-events.js'
 import { attachWindowOpenHandler } from './tab-events/window-open-handler.js'
-import { withRenderableTab } from './renderable-tab/renderable-tab.js'
 import {
   setTabSleeping,
   sleepBeforeFirstLoad,
@@ -494,9 +488,8 @@ import { forgetTabsOpenedFrom, handOverTabsOpenedFrom, switchLeavesOpenedTabs, t
 import { sendWalletProviderEvent, walletPageContext, walletPageContextForMcpTab, type BrowserWalletPageContext } from './wallet-pages/wallet-pages.js'
 import { getMcpDiscoveryTabs, getMcpGroupState, requireTabInMcpGroup, tabBelongsToMcpGroup } from './workspace-scope/workspace-scope.js'
 import { createNewTab, newLabeledAgentTab } from './new-tabs/new-tabs.js'
-import { dismissAgentPointer, showAgentPointer } from './agent-pointer/agent-pointer.js'
-import { visualCompareContext } from './visual-compare/visual-capture.js'
-import { currentNetworkRequests, matchingNetworkWaitRequest } from './network-inspection/network-request-records.js'
+import { showAgentPointer } from './agent-pointer/agent-pointer.js'
+import { matchingNetworkWaitRequest } from './network-inspection/network-request-records.js'
 import { setAllTabsMuted, setTabMuted } from './tab-muting/tab-muting.js'
 import { applySiteMuting, applySiteMutingToTabs, setSiteMuted, type SiteSoundStore } from './site-muting/site-muting.js'
 import { captureAgentStepThumbnail } from './agent-step-thumbnail/agent-step-thumbnail.js'
@@ -2091,47 +2084,22 @@ export class Browser {
     return setTabSleeping(this, tabId, sleeping)
   }
 
-  /**
-   * The narrow view freezing and resuming a page gets of this manager's
-   * private tabs, debugger queue, dialog monitoring, DevTools opening, the
-   * showing of a resumed page and state publication. It is a prototype method rather than a
-   * field, so managers created without the constructor (as unit tests do)
-   * still provide it. The delegates below return the feature's promise
-   * directly, so callers see the same ticks as before.
-   */
-  private pageLifecycleAccess(): PageLifecycleAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      findTab: (tabId) => this.tabs.get(tabId),
-      isDestroyed: () => this.destroyed,
-      inDebuggerQueue: (webContentsId, operation) => this.debuggerQueue.run(webContentsId, operation),
-      dialogMonitorAttach: (webContentsId) => this.dialogMonitorAttachPromises.get(webContentsId),
-      isDevToolsOpening: (webContentsId) => this.devToolsOpening.has(webContentsId),
-      showResumedPage: (tab, wasFrozen) => {
-        if (wasFrozen) showResumedPresentedView(this.window, tab.view)
-        else this.reconcileTabPresentation(tab)
-      },
-      changed: (persist) => this.changed(persist),
-      getState: () => this.getState()
-    }
-  }
-
   pageLifecycle(tabId: string): BrowserPageLifecycleResult {
-    return pageLifecycle(this.pageLifecycleAccess(), tabId)
+    return pageLifecycle(this, tabId)
   }
 
   setTabPageLifecycle(
     tabId: string,
     state: Exclude<BrowserPageLifecycleState, 'unknown'>
   ): Promise<BrowserState> {
-    return setTabPageLifecycle(this.pageLifecycleAccess(), tabId, state)
+    return setTabPageLifecycle(this, tabId, state)
   }
 
   controlPageLifecycle(
     tabId: string,
     requestedState: Exclude<BrowserPageLifecycleState, 'unknown'>
   ): Promise<BrowserPageLifecycleResult> {
-    return controlPageLifecycle(this.pageLifecycleAccess(), tabId, requestedState)
+    return controlPageLifecycle(this, tabId, requestedState)
   }
 
   sleepInactiveTabs(): Promise<BrowserState> {
@@ -3053,10 +3021,6 @@ export class Browser {
     return showAgentPointer(this, webContents, point, effect, options)
   }
 
-  private dismissAgentPointer(webContents: BrowserTab['view']['webContents']): Promise<void> {
-    return dismissAgentPointer(webContents)
-  }
-
   type(target: {
     tabId?: string
     ref?: string
@@ -3174,27 +3138,8 @@ export class Browser {
     return saveNetworkHar(this, options)
   }
 
-  /**
-   * The narrow view the debug report and the diagnostic logs get of this
-   * manager's private tabs, emulation projection, console message reading,
-   * current request list, request summaries and state publication. It is a
-   * prototype method rather than a field, so managers created without the
-   * constructor (as unit tests do) still provide it. The delegates below
-   * return the feature's value directly, and stay synchronous.
-   */
-  private debugReportAccess(): DebugReportAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      emulationProjection: (tab) => this.emulationProjection(tab),
-      consoleMessages: (tabId) => this.consoleMessages(tabId),
-      currentNetworkRequests: (tab) => this.currentNetworkRequests(tab),
-      networkRequestSummary: (request) => this.networkRequestSummary(request),
-      changed: (persist) => this.changed(persist)
-    }
-  }
-
   debugReport(options: BrowserDebugReportOptions = {}): BrowserDebugReport {
-    return debugReport(this.debugReportAccess(), options)
+    return debugReport(this, options)
   }
 
   auditEvidenceAvailability(tabId: string): {
@@ -3205,19 +3150,19 @@ export class Browser {
     storageSupported: boolean
     reproduction: boolean
   } {
-    return auditEvidenceAvailability(this.debugReportAccess(), tabId)
+    return auditEvidenceAvailability(this, tabId)
   }
 
   diagnosticLogState(tabId?: string): BrowserDiagnosticLogState {
-    return diagnosticLogState(this.debugReportAccess(), tabId)
+    return diagnosticLogState(this, tabId)
   }
 
   setDiagnosticLogPreservation(tabId: string, preserve: boolean): BrowserDiagnosticLogState {
-    return setDiagnosticLogPreservation(this.debugReportAccess(), tabId, preserve)
+    return setDiagnosticLogPreservation(this, tabId, preserve)
   }
 
   clearDiagnosticLogs(tabId?: string): BrowserDiagnosticLogState {
-    return clearDiagnosticLogs(this.debugReportAccess(), tabId)
+    return clearDiagnosticLogs(this, tabId)
   }
 
   videoRecording(options: BrowserVideoOptions, validateAuthority?: () => void, signal?: AbortSignal): Promise<BrowserVideoState> {
@@ -3584,10 +3529,6 @@ export class Browser {
     return handleDialog(this, action, tabId)
   }
 
-  private visualCompareContext(tab: BrowserTab): Promise<BrowserVisualCompareContext> {
-    return visualCompareContext(this, tab)
-  }
-
   visualCompare(options: BrowserVisualCompareOptions, validateCapture?: () => void): Promise<BrowserVisualCompareResult> {
     return visualCompare(this, options, validateCapture)
   }
@@ -3596,36 +3537,8 @@ export class Browser {
     return visualDiff(this, tabId)
   }
 
-  /**
-   * The narrow view screenshots get of this manager's private tabs, active tab
-   * and split view, target validation, page presentation, agent pointer,
-   * debugger lease, display scaling, CSS state preview, observation context,
-   * visual viewport reading and tab overview previews. It is a prototype
-   * method rather than a field, so managers created without the constructor
-   * (as unit tests do) still provide it. The delegate below returns the
-   * feature's promise directly, so no extra ticks separate its final checks
-   * from the caller.
-   */
-  private screenshotsAccess(): ScreenshotsAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      findTab: (tabId) => this.tabs.get(tabId),
-      validateTarget: (target) => this.validateTarget(target),
-      activeTabId: () => this.activeTabId,
-      splitViewContains: (tabId) => this.splitViewContains(tabId),
-      withRenderableTab: (tab, operation, mode) => this.withRenderableTab(tab, operation, mode),
-      dismissAgentPointer: (webContents) => this.dismissAgentPointer(webContents),
-      withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
-      screenshotPixelRatio: (tab) => this.screenshotPixelRatio(tab),
-      cssStatePreviewActive: (tab) => this.cssStatePreview.active(tab),
-      snapshotDeltaContext: (tab) => this.snapshotDeltaContext(tab),
-      visualCompareContext: (tab) => this.visualCompareContext(tab),
-      storeTabOverviewPreview: (tab, captured, navigationGeneration, enlarged) => storeTabOverviewPreview(this, tab, captured, navigationGeneration, enlarged)
-    }
-  }
-
   screenshot(options: BrowserScreenshotOptions = {}): Promise<{ annotations?: ScreenshotAnnotationReport; data: Buffer; mimeType: 'image/png' | 'image/jpeg' }> {
-    return screenshot(this.screenshotsAccess(), options)
+    return screenshot(this, options)
   }
 
   /**
@@ -3643,7 +3556,7 @@ export class Browser {
         const summary = this.cssStatePreview.summary(tab)
         return summary ? { states: [...summary.states], selector: summary.selector, startedAt: summary.startedAt, ...(summary.resetUncertain ? { resetUncertain: true } : {}) } : undefined
       },
-      captureViewport: (options) => screenshot(this.screenshotsAccess(), options)
+      captureViewport: (options) => screenshot(this, options)
     }
   }
 
@@ -4463,10 +4376,6 @@ export class Browser {
     return networkRequestSummary(request)
   }
 
-  private currentNetworkRequests(tab: BrowserTab): BrowserNetworkRequestRecord[] {
-    return currentNetworkRequests(tab)
-  }
-
   private matchingNetworkWaitRequest(
     tab: BrowserTab,
     options: NormalizedBrowserNetworkWaitOptions,
@@ -4547,14 +4456,6 @@ export class Browser {
 
   private withBackgroundAgentFocusGuard<T>(operation: () => Promise<T>): Promise<T> {
     return withBackgroundAgentFocusGuard(this, operation)
-  }
-
-  private withRenderableTab<T>(
-    tab: BrowserTab,
-    operation: () => Promise<T>,
-    mode: 'presented-frame' | 'surface' | 'print' = 'presented-frame'
-  ): Promise<T> {
-    return withRenderableTab(this, tab, operation, mode)
   }
 
   private performanceEnvironment(tab: BrowserTab): BrowserPerformanceEnvironment {

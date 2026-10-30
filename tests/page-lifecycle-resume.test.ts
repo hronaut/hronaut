@@ -1,14 +1,25 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { WebContents } from 'electron'
-import type { BrowserState } from '../src/shared/types.js'
+import type { BrowserTab } from '../src/main/browser/browser-tab.js'
 
 vi.mock('electron', () => ({ app: { isPackaged: false } }))
+// Showing a resumed page at once is recorded rather than done, so each case can tell how the page was shown.
+const { showResumedPresentedView } = vi.hoisted(() => ({ showResumedPresentedView: vi.fn() }))
+vi.mock('../src/main/browser/presented-view-visibility.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/presented-view-visibility.js')>(),
+  showResumedPresentedView
+}))
+// The browser below records with changed each time the page's new state is published.
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist)
+}))
 
 const { controlPageLifecycle } = await import('../src/main/browser/page-lifecycle/page-lifecycle.js')
-type PageLifecycleAccess = import('../src/main/browser/page-lifecycle/page-lifecycle-access.js').PageLifecycleAccess<PageTab>
-type PageTab = import('../src/main/browser/page-lifecycle/page-lifecycle-access.js').PageLifecycleTab
+type PageTab = Pick<BrowserTab, 'id' | 'url' | 'navigationGeneration' | 'nativeInputEnvironmentGeneration' | 'sleeping' | 'webContents'
+  | 'view' | 'pageLifecycleState' | 'pageLifecycleUnknownRequest' | 'pageLifecycleAnimations'>
 
-/** A frozen tab on screen, and a manager that notes when it shows the tab's page. */
+/** A frozen tab on screen, and a browser that notes when it shows the tab's page. */
 function frozenTab() {
   const commands: string[] = []
   const webContents = {
@@ -30,22 +41,24 @@ function frozenTab() {
     nativeInputEnvironmentGeneration: 0,
     sleeping: false,
     webContents,
+    view: {} as BrowserTab['view'],
     pageLifecycleState: 'frozen',
     pageLifecycleAnimations: []
   }
-  const showResumedPage = vi.fn((_tab: PageTab, wasFrozen: boolean) => { commands.push(`show ${tab.pageLifecycleState}${wasFrozen ? ' at once' : ''}`) })
-  const access: PageLifecycleAccess = {
-    getTab: () => tab,
-    findTab: () => tab,
-    isDestroyed: () => false,
-    inDebuggerQueue: (_id, operation) => operation(),
-    dialogMonitorAttach: () => undefined,
-    isDevToolsOpening: () => false,
-    showResumedPage,
-    changed: vi.fn(),
-    getState: () => ({}) as BrowserState
+  showResumedPresentedView.mockReset().mockImplementation(() => { commands.push(`show ${tab.pageLifecycleState} at once`) })
+  const reconcileTabPresentation = vi.fn(() => { commands.push(`show ${tab.pageLifecycleState}`) })
+  const window = {}
+  const browser = {
+    tabs: new Map([[tab.id, tab]]),
+    destroyed: false,
+    debuggerQueue: { run: (_id: number, operation: () => Promise<unknown>) => operation() },
+    dialogMonitorAttachPromises: new Map(),
+    devToolsOpening: new Set(),
+    window,
+    reconcileTabPresentation,
+    changed: vi.fn()
   }
-  return { tab, access, commands, showResumedPage }
+  return { tab, browser, window, commands, reconcileTabPresentation }
 }
 
 describe('resuming a frozen page', () => {
@@ -53,9 +66,12 @@ describe('resuming a frozen page', () => {
     // Chromium hides a page it freezes and leaves it hidden when it resumes, so the resumed page's timers and frames
     // stayed throttled until a later check found it hidden.
     const page = frozenTab()
-    await expect(controlPageLifecycle(page.access, 'tab', 'active')).resolves.toMatchObject({ state: 'active', status: 'changed' })
-    expect(page.showResumedPage).toHaveBeenCalledExactlyOnceWith(page.tab, true)
+    await expect(controlPageLifecycle(page.browser as never, 'tab', 'active')).resolves.toMatchObject({ state: 'active', status: 'changed' })
+    expect(showResumedPresentedView).toHaveBeenCalledExactlyOnceWith(page.window, page.tab.view)
+    expect(page.reconcileTabPresentation).not.toHaveBeenCalled()
     expect(page.commands).toEqual(['Page.setWebLifecycleState active', 'show active at once'])
+    // The new state is published without saving the tabs.
+    expect(page.browser.changed).toHaveBeenCalledExactlyOnceWith(false)
   })
 
   it('has a page whose freeze may not have reached Chromium shown only if it is hidden', async () => {
@@ -63,15 +79,19 @@ describe('resuming a frozen page', () => {
     const page = frozenTab()
     page.tab.pageLifecycleState = 'unknown'
     page.tab.pageLifecycleUnknownRequest = 'frozen'
-    await expect(controlPageLifecycle(page.access, 'tab', 'active')).resolves.toMatchObject({ state: 'active', status: 'changed' })
-    expect(page.showResumedPage).toHaveBeenCalledExactlyOnceWith(page.tab, false)
+    await expect(controlPageLifecycle(page.browser as never, 'tab', 'active')).resolves.toMatchObject({ state: 'active', status: 'changed' })
+    expect(page.reconcileTabPresentation).toHaveBeenCalledExactlyOnceWith(page.tab)
+    expect(showResumedPresentedView).not.toHaveBeenCalled()
     expect(page.commands).toEqual(['Page.setWebLifecycleState active', 'show active'])
+    expect(page.browser.changed).toHaveBeenCalledExactlyOnceWith(false)
   })
 
   it('does not show a page it freezes', async () => {
     const page = frozenTab()
     page.tab.pageLifecycleState = 'active'
-    await expect(controlPageLifecycle(page.access, 'tab', 'frozen')).resolves.toMatchObject({ state: 'frozen', status: 'changed' })
-    expect(page.showResumedPage).not.toHaveBeenCalled()
+    await expect(controlPageLifecycle(page.browser as never, 'tab', 'frozen')).resolves.toMatchObject({ state: 'frozen', status: 'changed' })
+    expect(showResumedPresentedView).not.toHaveBeenCalled()
+    expect(page.reconcileTabPresentation).not.toHaveBeenCalled()
+    expect(page.browser.changed).toHaveBeenCalledExactlyOnceWith(false)
   })
 })
