@@ -46,7 +46,10 @@ interface SignIn {
   session: object
   /** Whether a page opening in the tab asks, or waits for the same answer, so its load waits for the person. */
   opensPage: boolean
-  /** That page's address without its fragment, which shows only once the question has its answer. */
+  /**
+   * That page's address without its fragment. Only that page's own failure or showing closes the question: a page
+   * that started before it can still fail or show after it asked.
+   */
   page?: string
   waiting: LoginCallback[]
   closing: AbortController
@@ -289,19 +292,20 @@ export function answerHttpAuth(access: HttpAuthAccess, tab: HttpAuthTab, event: 
   }
   // A page on its way stops counting once another starts or its load stops or fails, which Electron reports as a
   // provisional failure; the page shown, once another replaces it, an error page included. A page that started before
-  // the one on its way can still show after it asked, as when an agent sends a new tab on before its first page showed:
-  // only the page on its way showing counts then.
+  // the one on its way can still fail or show after it asked, as when an agent sends a new tab on before its first page
+  // showed: only the page on its way failing or showing counts then.
+  const ownPage = (url: string): boolean => signIn.page === undefined || withoutFragment(url) === signIn.page
   const started = (details: Pick<WebContentsDidStartNavigationEventParams, 'isMainFrame' | 'isSameDocument'>): void => {
     if (signIn.opensPage && details.isMainFrame && !details.isSameDocument) movedOn()
   }
-  const failedProvisionally = (_event: unknown, _errorCode: number, _description: string, _url: string, isMainFrame: boolean): void => {
-    if (signIn.opensPage && isMainFrame) movedOn()
+  const failedProvisionally = (_event: unknown, _errorCode: number, _description: string, url: string, isMainFrame: boolean): void => {
+    if (signIn.opensPage && isMainFrame && ownPage(url)) movedOn()
   }
-  const failed = (_event: unknown, errorCode: number, _description: string, _url: string, isMainFrame: boolean): void => {
-    if (isMainFrame && errorCode !== ABORTED_LOAD_ERROR) movedOn()
+  const failed = (_event: unknown, errorCode: number, _description: string, url: string, isMainFrame: boolean): void => {
+    if (isMainFrame && errorCode !== ABORTED_LOAD_ERROR && ownPage(url)) movedOn()
   }
   const shown = (_event: unknown, url: string): void => {
-    if (signIn.page === undefined || withoutFragment(url) === signIn.page) movedOn()
+    if (ownPage(url)) movedOn()
   }
   webContents.on('did-start-navigation', started)
   webContents.on('did-fail-provisional-load', failedProvisionally)

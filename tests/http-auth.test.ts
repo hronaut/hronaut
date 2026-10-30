@@ -193,6 +193,20 @@ describe('a website asking for a username and password', () => {
     }
   })
 
+  it('keeps the question for a page opening while the page before it fails late, and closes it once the page that asked fails', () => {
+    for (const [event, code] of [['did-fail-provisional-load', -105], ['did-fail-load', -105], ['did-fail-provisional-load', -3]] as const) {
+      const { challenge, questions, webContents } = harness('about:blank')
+      webContents.emit('did-start-navigation', navigation('https://intranet.example/start', 'browser'))
+      webContents.emit('did-start-navigation', navigation(PAGE, 'browser'))
+      challenge(PAGE, { navigation: true, mainFrame: true })
+      // The first page's error page was already on its way to show.
+      webContents.emit(event, {}, code, 'ERR', 'https://intranet.example/start', true)
+      expect(questions[0]!.signal.aborted, `${event} ${code}`).toBe(false)
+      webContents.emit(event, {}, code, 'ERR', PAGE, true)
+      expect(questions[0]!.signal.aborted, `${event} ${code}`).toBe(true)
+    }
+  })
+
   it('keeps the question for a page opening that joined one the page shown asked, while the page before it shows late', () => {
     const { challenge, questions, webContents } = harness()
     challenge('https://intranet.example/api/a')
@@ -616,6 +630,34 @@ describe('an agent opening a page that asks the person to sign in', () => {
         { isProxy: false, scheme: 'basic', host: 'intranet.example', port: 443, realm: 'Reports' }, vi.fn())
       await vi.advanceTimersByTimeAsync(PAGE_LOAD_WAIT_MS)
       await outcome
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps an agent\'s load waiting for the person while a page that started before it finishes loading', async () => {
+    vi.useFakeTimers()
+    try {
+      const { tab, webContents, go } = signInPage()
+      let pageBeforeLoaded!: () => void
+      webContents.loadURL.mockImplementation(() => new Promise<void>((resolve) => { pageBeforeLoaded = resolve }))
+      const opening = go()
+      let settled = false
+      void opening.then(() => { settled = true }, () => { settled = true })
+      await vi.advanceTimersByTimeAsync(0)
+      webContents.emit('did-start-navigation', navigation(PAGE, 'browser'))
+      answerHttpAuth({ askToSignIn: () => new Promise(() => {}) }, tab as never, { preventDefault: vi.fn() },
+        { url: PAGE, pid: 1, isRequestForNavigation: true, firstAuthAttempt: true, isMainFrame: true } as AuthenticationResponseDetails,
+        { isProxy: false, scheme: 'basic', host: 'intranet.example', port: 443, realm: 'Reports' }, vi.fn())
+      // The tab's first page shows and finishes loading after this one asked, and Electron settles this load.
+      webContents.emit('did-navigate', {}, 'https://start.example/')
+      pageBeforeLoaded()
+      await vi.advanceTimersByTimeAsync(PAGE_LOAD_WAIT_MS - 1)
+      expect(settled).toBe(false)
+      const outcome = expect(opening).rejects.toMatchObject({ key: 'appErrors.page.signInAsked' })
+      await vi.advanceTimersByTimeAsync(1)
+      await outcome
+      expect(webContents.listenerCount('did-stop-loading')).toBe(0)
     } finally {
       vi.useRealTimers()
     }

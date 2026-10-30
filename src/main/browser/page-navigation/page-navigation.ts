@@ -1,7 +1,7 @@
 import { webContents as electronWebContents, type WebContents } from 'electron'
 import type { BrowserState } from '../../../shared/types.js'
 import { LocalizedError } from '../../localized-error.js'
-import { pageLoadTimedOut } from '../http-auth/http-auth.js'
+import { asksToSignIn, pageLoadTimedOut } from '../http-auth/http-auth.js'
 import { localizedLoadFailure } from '../load-failure-error.js'
 import { PAGE_LOAD_WAIT_MS, settledWithin } from '../page-waits/page-load-limit.js'
 import { RendererExitedError } from '../renderer-exit-guard.js'
@@ -168,6 +168,15 @@ async function loadAddress(browser: Browser, tab: BrowserTab, normalized: string
   }
   let shown = false
   const onShown = (): void => { shown = true }
+  let stopWaitingForStop = (): void => undefined
+  const stopsLoading = (): Promise<void> => new Promise((resolve) => {
+    const stopped = (): void => {
+      stopWaitingForStop()
+      resolve()
+    }
+    stopWaitingForStop = () => webContents.removeListener('did-stop-loading', stopped)
+    webContents.on('did-stop-loading', stopped)
+  })
   const stopWatchingUnload = (): void => {
     webContents.removeListener('will-prevent-unload', onPreventUnload)
     webContents.removeListener('did-start-navigation', onNavigationStart)
@@ -183,7 +192,10 @@ async function loadAddress(browser: Browser, tab: BrowserTab, normalized: string
       webContents.on('did-start-navigation', onNavigationStart)
       webContents.on('did-navigate', onShown)
       const load = webContents.loadURL(normalized).then<NavigationOutcome, NavigationOutcome>(
-        () => ({ kind: 'loaded' }),
+        // A page that started before this one can finish loading while this one waits for the person to sign in, as
+        // when an agent sends a new tab on before its first page showed, and Electron then settles this load: it
+        // has loaded only once the tab stops loading.
+        () => asksToSignIn(webContents) ? stopsLoading().then(() => ({ kind: 'loaded' })) : { kind: 'loaded' },
         (error: unknown) => ({ kind: 'failed', error })
       )
       // A page whose load never ends, such as one with an image its server never answers, keeps loading in the tab, as
@@ -201,9 +213,11 @@ async function loadAddress(browser: Browser, tab: BrowserTab, normalized: string
       webContents.removeListener('will-frame-navigate', detectPolicyDenial)
       webContents.removeListener('will-redirect', detectPolicyDenial)
       webContents.removeListener('did-navigate', onShown)
+      stopWaitingForStop()
       stopWatchingUnload()
     }
-    if (outcome.kind === 'loading') return shown ? 'done' : 'not-shown'
+    // A page that showed before it is the one shown while this one waits for the person to sign in.
+    if (outcome.kind === 'loading') return shown && !asksToSignIn(webContents) ? 'done' : 'not-shown'
     if (outcome.kind !== 'failed' || findTab(browser, tab.id) !== tab
       || tab.navigationPolicyDenialSequence !== navigationPolicyDenialSequence) return 'done'
     if (askedToStay) return 'asked-to-stay'
