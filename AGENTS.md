@@ -62,12 +62,15 @@ tab access.
 ## Architecture rules
 
 These hold for new code and for code you move; `tests/architecture-guards.test.ts`
-checks the first five.
+checks the first six.
 
 - Files stay within 800 lines, locale files aside. The few larger today, with
   their budgets in `tests/architecture/budgets.json`, may only shrink: move code
   out to a feature module rather than growing them, and lower a budget when its
   file shrinks.
+- TypeScript and Vue lines in `src/` stay within 160 characters, locale files
+  aside. The files that have longer ones, with their counts in the same budgets
+  file, may only lose them: wrap a line you touch, and lower the count.
 - Feature functions import each other directly. Do not add access objects
   (`*-access.ts` files, or `...Access` interfaces of delegates) or `Browser`
   methods that only pass a call on; the existing ones go away as features
