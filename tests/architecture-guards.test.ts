@@ -4,13 +4,19 @@ import { describe, expect, it } from 'vitest'
 import { declaredIpcChannels, importCycles, lineCount, literalIpcChannels, pageFunctionModuleUses, resolveImport, ROOT, runtimeImports, runtimeNamesFrom, runtimeSpecifiers, sourceFiles, untypedIpcUses, writtenIpcChannels } from './architecture/source-files.js'
 
 const MAX_LINES = 800
+const MAX_LINE_LENGTH = 160
 const BUDGETS_FILE = 'tests/architecture/budgets.json'
 
 /**
  * What the code may still carry from before the architecture rules: the files over the line limit, each with the most
- * lines it may have, and the access object files. Both only shrink.
+ * lines it may have, the access object files, and the files with lines over the length limit, each with how many. All
+ * only shrink.
  */
-const budgets = JSON.parse(readFileSync(join(ROOT, BUDGETS_FILE), 'utf8')) as { oversizedFiles: Record<string, number>, accessFiles: string[] }
+const budgets = JSON.parse(readFileSync(join(ROOT, BUDGETS_FILE), 'utf8')) as {
+  oversizedFiles: Record<string, number>
+  accessFiles: string[]
+  longLines: Record<string, number>
+}
 
 const files = sourceFiles()
 // Locale files hold one translated string per line and grow with every string, in every language.
@@ -31,6 +37,21 @@ describe('the architecture rules in AGENTS.md', { timeout: SCAN_TIMEOUT }, () =>
       else if (budget !== undefined && lines < budget) problems.push(`${file} shrank to ${lines} lines: lower its budget in ${BUDGETS_FILE} to ${lines > MAX_LINES ? lines : 'nothing, removing it'}`)
     }
     for (const file of Object.keys(budgets.oversizedFiles)) {
+      if (!sizedFiles.includes(file)) problems.push(`${file} is gone: remove it from ${BUDGETS_FILE}`)
+    }
+    expect(problems).toEqual([])
+  })
+
+  it(`keeps lines within ${MAX_LINE_LENGTH} characters, and lets the files with longer ones only lose them`, () => {
+    const problems: string[] = []
+    for (const file of sizedFiles) {
+      const long = readFileSync(join(ROOT, file), 'utf8').split('\n').filter(line => line.length > MAX_LINE_LENGTH).length
+      const budget = budgets.longLines[file] ?? 0
+      const found = `${file} has ${long} lines over ${MAX_LINE_LENGTH} characters`
+      if (long > budget) problems.push(`${found}, ${long - budget} more than before; wrap the new ones`)
+      else if (long < budget) problems.push(`${found}: lower its count in ${BUDGETS_FILE} to ${long || 'nothing, removing it'}`)
+    }
+    for (const file of Object.keys(budgets.longLines)) {
       if (!sizedFiles.includes(file)) problems.push(`${file} is gone: remove it from ${BUDGETS_FILE}`)
     }
     expect(problems).toEqual([])
