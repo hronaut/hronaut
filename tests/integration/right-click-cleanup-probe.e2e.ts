@@ -4,6 +4,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { connectMcpWorkspace } from '../../scripts/mcp-workspace.js'
 import type { HronautApi } from '../../src/shared/types.js'
 import { expect, test, text } from './capability-fixtures.js'
+import { homeStatus } from './home-status.js'
 
 const faults = ['lost-down', 'up-preparation', 'lost-up', 'down-relock', 'lost-down-and-relock', 'emergency-up-preparation', 'emergency-lost-up', 'emergency-up-relock', 'persistent-relock', 'hold-up', 'hold-up-relock', 'hold-lost-up', 'hold-failed-relock'] as const
 type Probe = { commands: string[]; releasePreparations: number; popups: number; held: boolean; release(): void; restore(): void }
@@ -88,11 +89,8 @@ for (const fault of faults) {
         await electronApp.evaluate(() => (globalThis as Scope).__cleanupProbe!.release())
         await expect.poll(async () => (await replacement!.callTool({ name: 'browser_workspaces', arguments: { action: 'claim-ownership', workspaceId: workspace.workspaceId } }) as CallToolResult).isError === true).toBe(false)
         await expect.poll(async () => {
-          terminalActivity = await electronApp.evaluate(async ({ webContents }, id) => {
-            const home = webContents.getAllWebContents().find(page => page.getURL().startsWith('hronaut://home'))!
-            const status = await (await home.session.fetch('hronaut://home/api/status', { signal: AbortSignal.timeout(2_000) })).json() as { recentActivity: Array<{ toolName: string; tabId: string; result?: { outcome?: string } }> }
-            return status.recentActivity.find(row => row.toolName === 'browser_click' && row.tabId === id)?.result
-          }, tabId)
+          const status = await homeStatus<{ recentActivity: Array<{ toolName: string; tabId: string; result?: { outcome?: string } }> }>(electronApp)
+          terminalActivity = status.recentActivity.find(row => row.toolName === 'browser_click' && row.tabId === tabId)?.result
           return terminalActivity
         }).toMatchObject({ outcome: 'cancelled', effects: 'possible' })
       }

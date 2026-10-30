@@ -3,6 +3,7 @@ import type { McpToolActivity } from '../../src/main/mcp/activity-history.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { HronautApi } from '../../src/shared/types.js'
 import { expect, test, text } from './capability-fixtures.js'
+import { homeStatus } from './home-status.js'
 
 type InputCheckpoint = { at: number; stage: 'send' | 'ack'; method: string; type?: unknown; ignore?: unknown }
 type MouseDecision = { at: number; type: string; x: number; y: number; prevented: boolean }
@@ -30,14 +31,8 @@ function assertEffects(actual: { moves: number; downs: number; keys: number }, e
 type DispatchGlobal = typeof globalThis & { nativeDispatchGate?: DispatchGate }
 
 async function terminalActivities(app: ElectronApplication, tabId: string, toolName: string): Promise<McpToolActivity[]> {
-  return app.evaluate(async ({ webContents }, { id, name }) => {
-    const home = webContents.getAllWebContents().find(page => page.getURL().startsWith('hronaut://home'))
-    if (!home) throw new Error('Missing Home session for native input settlement observation')
-    const response = await home.session.fetch('hronaut://home/api/status', { signal: AbortSignal.timeout(2_000) })
-    if (!response.ok) throw new Error(`Native input settlement observation failed: ${response.status}`)
-    const state = await response.json() as { recentActivity: McpToolActivity[] }
-    return state.recentActivity.filter(activity => activity.toolName === name && activity.tabId === id)
-  }, { id: tabId, name: toolName })
+  const state = await homeStatus<{ recentActivity: McpToolActivity[] }>(app)
+  return state.recentActivity.filter(activity => activity.toolName === toolName && activity.tabId === tabId)
 }
 
 for (const action of ['hover', 'drag', 'press'] as const) {

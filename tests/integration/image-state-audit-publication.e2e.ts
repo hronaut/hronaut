@@ -4,6 +4,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { BrowserState, HronautApi, HronautSettingsApi } from '../../src/shared/types.js'
 import { closeFixtureServer, expect, expectFixtureSuccess, test } from './fixtures.js'
+import { homeStatus } from './home-status.js'
 
 const text = (result: CallToolResult) => result.content.filter(item => item.type === 'text').map(item => item.text).join('\n')
 
@@ -40,11 +41,10 @@ for (const change of ['navigation', 'close', 'replacement', 'selector id ABA', '
       await client.connect(transport)
       if (credential) {
         // Home never sees capability profile ids, so this waits for the profile's session to be initialized.
-        await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
-          const home = webContents.getAllWebContents().find(page => page.getURL().startsWith('hronaut://home'))!
-          const state = await (await home.session.fetch('hronaut://home/api/status', { signal: AbortSignal.timeout(2_000) })).json() as { clients: Array<{ name: string; initializedAt?: string }> }
+        await expect.poll(async () => {
+          const state = await homeStatus<{ clients: Array<{ name: string; initializedAt?: string }> }>(electronApp)
           return state.clients.some(client => client.name === 'inspection-lifecycle' && Boolean(client.initializedAt))
-        })).toBe(true)
+        }).toBe(true)
       }
       const onmessage = transport.onmessage!
       transport.onmessage = message => { received.push(JSON.stringify(message)); onmessage(message) }
@@ -160,13 +160,11 @@ for (const change of ['navigation', 'close', 'replacement', 'selector id ABA', '
       }
       await electronApp.evaluate(() => (globalThis as typeof globalThis & { __auditHeld?: { release(): void } }).__auditHeld?.release())
       const result = await pending
-      const activity = () => electronApp.evaluate(async ({ webContents }) => {
-        const home = webContents.getAllWebContents().find(p => p.getURL().startsWith('hronaut://home'))!
-        // Query the trusted session directly; activity is main-owned and must not depend on Home renderer navigation.
-        const response = await home.session.fetch('hronaut://home/api/status', { signal: AbortSignal.timeout(2_000) })
-        const state = await response.json() as { recentActivity: Array<{ toolName: string; result: { outcome: string; effects: string } }> }
+      // Query the trusted session directly; activity is main-owned and must not depend on Home renderer navigation.
+      const activity = async () => {
+        const state = await homeStatus<{ recentActivity: Array<{ toolName: string; result: { outcome: string; effects: string } }> }>(electronApp)
         return state.recentActivity.filter(item => item.toolName === 'browser_image_state')
-      })
+      }
       await expect.poll(async () => (await activity()).length).toBe(1)
       const terminal = await activity()
       await info.attach('image-final-activity', { body: JSON.stringify({ change, result, terminal }), contentType: 'application/json' })

@@ -1,6 +1,7 @@
 import type { HronautApi } from '../../src/shared/types.js'
 import { test, expect } from './capability-fixtures.js'
 import { installReplacementProbe, readReplacementProbe, restoreReplacementProbe } from './semantic-replacement-fixture.js'
+import { homeStatus } from './home-status.js'
 
 type Probe = { commands: Array<Record<string, unknown>>; cleanup: number; finals: number; restores(): void }
 type Scope = typeof globalThis & { __admissionProbe?: Probe }
@@ -186,12 +187,9 @@ test('semantic admission remains reserved through renderer cleanup and taints af
   expect(first.structuredContent).toMatchObject({status:'OUTCOME_UNKNOWN',progress:{inputCleanupFailed:true,downAcknowledged:1,upAcknowledged:1}})
   const after=await client.callTool({name:'browser_click',arguments:{tabId,selector:'#target',native:true}})
   expect(after.structuredContent).toMatchObject({status:'NOT_DISPATCHED',reason:'CLICK_STATE_UNCONFIRMED'})
-  const observed=await electronApp.evaluate(async({webContents},id)=>{
-   const gate=(globalThis as CleanupScope).__clickCleanup!
-   const home=webContents.getAllWebContents().find(p=>p.getURL().startsWith('hronaut://home'))!
-   const state=await (await home.session.fetch('hronaut://home/api/status', { signal: AbortSignal.timeout(2_000) })).json() as {recentActivity:Array<{toolName:string;tabId:string;result:unknown}>}
-   return{downs:gate.downs,acquisitions:gate.acquisitions,activities:state.recentActivity.filter(a=>a.toolName==='browser_click'&&a.tabId===id)}
-  },tabId)
+  const gate=await electronApp.evaluate(()=>{const{downs,acquisitions}=(globalThis as CleanupScope).__clickCleanup!;return{downs,acquisitions}})
+  const state=await homeStatus<{recentActivity:Array<{toolName:string;tabId:string;result:unknown}>}>(electronApp)
+  const observed={...gate,activities:state.recentActivity.filter(a=>a.toolName==='browser_click'&&a.tabId===tabId)}
   expect(observed.downs).toBe(1);expect(observed.acquisitions).toBe(1)
   expect(observed.activities).toHaveLength(2)
   expect(observed.activities.filter(a=>(a.result as {effects:string}).effects==='none')).toHaveLength(1)

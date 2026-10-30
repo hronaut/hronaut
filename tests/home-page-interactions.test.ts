@@ -818,9 +818,18 @@ describe('Home status reads', () => {
     await vi.advanceTimersByTimeAsync(2_000)
     expect(load).toHaveBeenCalledTimes(2)
     expect(document.querySelector('#server-state')?.textContent).not.toMatch(/unavailable/i)
-    // A read that is answered stops its limit, and closing Home leaves no timer behind.
-    expect(signals[1]!.aborted).toBe(false)
+    // A read that is answered stops its limit, so it is not aborted 10 s later.
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(load.mock.calls.length).toBeGreaterThan(2)
+    expect(signals.slice(1).some(read => read.aborted)).toBe(false)
+    // Closing Home leaves no timer behind, and a read that ended no longer follows Home's lifetime.
     mounted.dispose()
+    expect(vi.getTimerCount()).toBe(0)
+    expect(signals.slice(1).some(read => read.aborted)).toBe(false)
+    // A refresh asked for once Home is closed reads nothing.
+    const reads = load.mock.calls.length
+    await mounted.refresh()
+    expect(load).toHaveBeenCalledTimes(reads)
     expect(vi.getTimerCount()).toBe(0)
   })
 })

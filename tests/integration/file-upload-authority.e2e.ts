@@ -5,19 +5,14 @@ import { writeFile } from 'node:fs/promises'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { HronautApi } from '../../src/shared/types.js'
 import { expect, test, text } from './capability-fixtures.js'
+import { homeStatus } from './home-status.js'
 
 type UploadGate = { ready: boolean; releaseReady: boolean; completeRelease(): void; commits: number; releases: number; objectId?: string; documentListeners: number; release(): void; restore(): void }
 type UploadGlobal = typeof globalThis & { __uploadGate?: UploadGate }
 
 async function uploadActivities(app: ElectronApplication, tabId: string): Promise<McpToolActivity[]> {
-  return app.evaluate(async ({ webContents }, id) => {
-    const home = webContents.getAllWebContents().find(page => page.getURL().startsWith('hronaut://home'))
-    if (!home) throw new Error('Missing Home session for upload settlement observation')
-    const response = await home.session.fetch('hronaut://home/api/status', { signal: AbortSignal.timeout(2_000) })
-    if (!response.ok) throw new Error(`Upload settlement observation failed: ${response.status}`)
-    const state = await response.json() as { recentActivity: McpToolActivity[] }
-    return state.recentActivity.filter(activity => activity.toolName === 'browser_file_upload' && activity.tabId === id)
-  }, tabId)
+  const state = await homeStatus<{ recentActivity: McpToolActivity[] }>(app)
+  return state.recentActivity.filter(activity => activity.toolName === 'browser_file_upload' && activity.tabId === tabId)
 }
 
 const changes = ['unchanged', 'pause', 'access', 'pause ABA', 'access ABA', 'route', 'document', 'cancel'] as const

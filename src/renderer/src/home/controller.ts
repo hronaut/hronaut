@@ -513,6 +513,7 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
   // never stops showing what agents do; it would otherwise wait for that read forever.
   const READ_LIMIT_MS = 10_000
   async function read(): Promise<void> {
+    if (signal.aborted) return
     void workspaces.refresh()
     const sequence = ++requestSequence
     const attempt = new AbortController()

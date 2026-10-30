@@ -1,6 +1,7 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { test, expect, text } from './capability-fixtures.js'
 import { setupHoldPage, observeHold, restoreHold, type HoldScope } from './key-hold-fixture.js'
+import { homeStatus } from './home-status.js'
 
 type CleanupScope = HoldScope & { cleanupProbe?: {
   entered: boolean; acknowledged: boolean; destroyed: boolean; release: () => void; restore: () => void
@@ -62,11 +63,10 @@ for (const mode of ['destroy', 'live'] as const) {
         ? { status: 'OUTCOME_UNKNOWN', retrySafe: false, release: 'ACKNOWLEDGED' }
         : { status: 'DISPATCH_ACKNOWLEDGED', release: 'ACKNOWLEDGED' })
       expect(result?.isError === true).toBe(mode === 'destroy')
-      const terminal = () => electronApp.evaluate(async ({ webContents }, id) => {
-        const home = webContents.getAllWebContents().find(p => p.getURL().startsWith('hronaut://home'))!
-        const state = await (await home.session.fetch('hronaut://home/api/status', { signal: AbortSignal.timeout(2_000) })).json() as { recentActivity: Array<{ toolName: string; tabId: string; result: { outcome: string; effects: string; dispatch: string } }> }
-        return state.recentActivity.filter(a => a.toolName === 'browser_hold_key' && a.tabId === id).map(a => a.result)
-      }, tabId)
+      const terminal = async () => {
+        const state = await homeStatus<{ recentActivity: Array<{ toolName: string; tabId: string; result: { outcome: string; effects: string; dispatch: string } }> }>(electronApp)
+        return state.recentActivity.filter(a => a.toolName === 'browser_hold_key' && a.tabId === tabId).map(a => a.result)
+      }
       await expect.poll(terminal).toHaveLength(1)
       expect((await terminal())[0]).toMatchObject(mode === 'destroy' ? { outcome: 'outcome-unknown', effects: 'possible', dispatch: 'dispatched' } : { outcome: 'succeeded', dispatch: 'dispatched' })
       expect(await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.isFocusable())).toBe(focusable)

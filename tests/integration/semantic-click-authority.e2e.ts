@@ -1,6 +1,7 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { HronautApi } from '../../src/shared/types.js'
 import { expect, test, text } from './capability-fixtures.js'
+import { homeStatus } from './home-status.js'
 
 type Gate = {
   ready: boolean
@@ -118,13 +119,8 @@ for (const [phase, change, target, dialog] of cases) {
       const result = await pending
       let terminalActivity: unknown
       if (change === 'cancel') await expect.poll(async () => {
-        terminalActivity = await electronApp.evaluate(async ({ webContents }, id) => {
-          const home = webContents.getAllWebContents().find(page => page.getURL().startsWith('hronaut://home'))!
-          const response = await home.session.fetch('hronaut://home/api/status', { signal: AbortSignal.timeout(2_000) })
-          if (!response.ok) throw new Error(`Activity observation failed: ${response.status}`)
-          const state = await response.json() as { recentActivity: { tabId: string; toolName: string; result: unknown }[] }
-          return state.recentActivity.find(activity => activity.tabId === id && activity.toolName === 'browser_click')?.result
-        }, tabId)
+        const state = await homeStatus<{ recentActivity: { tabId: string; toolName: string; result: unknown }[] }>(electronApp)
+        terminalActivity = state.recentActivity.find(activity => activity.tabId === tabId && activity.toolName === 'browser_click')?.result
         return terminalActivity
       }).toMatchObject({ dispatch: 'dispatched', effects: 'possible', outcome: 'cancelled' })
       const observation = await electronApp.evaluate(async ({ webContents }, url) => {
