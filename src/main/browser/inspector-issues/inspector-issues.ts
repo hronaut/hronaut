@@ -126,7 +126,7 @@ export async function inspectorIssues(browser: Browser, tabId?: string, clear = 
     caveats: [
       'Issues are browser-generated diagnostics for the current document, not a complete quality audit.',
       'URLs are bounded and redact credentials, fragments, and security-related query values; cookie values and raw issue payloads are never returned.',
-      'authChallenges lists HTTP Basic challenges that Hronaut observed and cancelled without supplying credentials. It reports origin and request kind only, not realm, path or login success; subresource challenges are not recorded while a top-level navigation is pending.',
+      'authChallenges lists HTTP Basic challenges that Hronaut observed. For a page that opens, or a request from the shown page\'s own website, Hronaut may ask the person to sign in in its own dialog, as Chrome does; it cancels the others. Agents never see or supply credentials. It reports origin and request kind only, not realm, path or whether a sign-in succeeded; subresource challenges are not recorded while a top-level navigation is pending.',
       tab.webContents.isDevToolsOpened()
         ? 'Developer Tools currently owns diagnostics for this tab; close it and reload to collect new issues in Hronaut.'
         : 'Reload the page before reproducing a problem when you need issues emitted during startup.'
