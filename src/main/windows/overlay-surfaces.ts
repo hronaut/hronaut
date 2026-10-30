@@ -9,6 +9,11 @@ import type { ToastOverlay, ToastOverlaySurface } from '../overlays/toast-overla
 import { SIDEBAR_OVERLAY_TOOLTIP_ID_OFFSET, type SidebarOverlay, type SidebarOverlaySurface } from '../overlays/sidebar-overlay.js'
 import { attachSidebarOverlayKeyboard, type SidebarOverlayKeyboardHost } from '../overlays/sidebar-overlay-keyboard.js'
 import type { ShellTooltipOverlay } from '../overlays/shell-tooltip-overlay.js'
+import { AGENT_CARD_VIEW_IPC } from '../../shared/ipc/agent-card.js'
+import { TOOLTIP_OVERLAY_VIEW_IPC } from '../../shared/ipc/shell-tooltip.js'
+import { SIDEBAR_OVERLAY_VIEW_IPC } from '../../shared/ipc/sidebar-overlay.js'
+import { STATUS_BUBBLE_VIEW_IPC } from '../../shared/ipc/status-bubble.js'
+import { TOAST_OVERLAY_VIEW_IPC } from '../../shared/ipc/toast-overlay.js'
 
 interface OverlaySurfacesHost {
   /** The trusted shell document; the overlay documents are its siblings. */
@@ -65,7 +70,7 @@ export function createOverlaySurfaces(host: OverlaySurfacesHost): {
       webContents.on('blur', () => host.agentCards.blurred())
     }
     return {
-      send: (state) => { if (!webContents.isDestroyed()) webContents.send('agent-card-view:state', state) },
+      send: (state) => { if (!webContents.isDestroyed()) webContents.send(AGENT_CARD_VIEW_IPC.state, state) },
       setZoomFactor: (zoom) => { if (!webContents.isDestroyed()) webContents.setZoomFactor(zoom) },
       setBounds: (bounds) => view.setBounds(bounds),
       present: () => host.agentCardView.present(),
@@ -95,7 +100,7 @@ export function createOverlaySurfaces(host: OverlaySurfacesHost): {
       webContents.on('focus', () => host.toastOverlay.viewFocused())
     }
     return {
-      send: (state) => { if (!webContents.isDestroyed()) webContents.send('toast-overlay-view:state', state) },
+      send: (state) => { if (!webContents.isDestroyed()) webContents.send(TOAST_OVERLAY_VIEW_IPC.state, state) },
       setZoomFactor: (zoom) => { if (!webContents.isDestroyed()) webContents.setZoomFactor(zoom) },
       setBounds: (bounds) => view.setBounds(bounds),
       present: () => host.toastOverlayView.present(),
@@ -118,7 +123,7 @@ export function createOverlaySurfaces(host: OverlaySurfacesHost): {
   async function ensureTooltipSurface(): Promise<ShellTooltipSurface> {
     const { view, webContents } = await host.tooltipView.ensure()
     return {
-      send: (state) => { if (!webContents.isDestroyed()) webContents.send('tooltip-overlay:state', state) },
+      send: (state) => { if (!webContents.isDestroyed()) webContents.send(TOOLTIP_OVERLAY_VIEW_IPC.state, state) },
       setZoomFactor: (zoom) => { if (!webContents.isDestroyed()) webContents.setZoomFactor(zoom) },
       setBounds: (bounds) => view.setBounds(bounds),
       present: () => host.tooltipView.present(),
@@ -146,7 +151,7 @@ export function createOverlaySurfaces(host: OverlaySurfacesHost): {
       attachSidebarOverlayKeyboard(webContents, host.sidebarOverlayKeyboard)
     }
     return {
-      send: (state) => { if (!webContents.isDestroyed()) webContents.send('sidebar-overlay-view:state', state) },
+      send: (state) => { if (!webContents.isDestroyed()) webContents.send(SIDEBAR_OVERLAY_VIEW_IPC.state, state) },
       setZoomFactor: (zoom) => { if (!webContents.isDestroyed()) webContents.setZoomFactor(zoom) },
       setBounds: (bounds) => view.setBounds(bounds),
       present: () => host.sidebarOverlayView.present(),
@@ -183,7 +188,7 @@ export function createOverlaySurfaces(host: OverlaySurfacesHost): {
       webContents.on('focus', () => host.statusBubble.viewFocused())
     }
     return {
-      send: (state) => { if (!webContents.isDestroyed()) webContents.send('status-bubble:state', state) },
+      send: (state) => { if (!webContents.isDestroyed()) webContents.send(STATUS_BUBBLE_VIEW_IPC.state, state) },
       setZoomFactor: (zoom) => { if (!webContents.isDestroyed()) webContents.setZoomFactor(zoom) },
       setBounds: (bounds) => view.setBounds(bounds),
       present: () => host.statusBubbleView.present(),

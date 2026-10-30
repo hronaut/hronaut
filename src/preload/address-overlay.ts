@@ -1,5 +1,7 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge } from 'electron'
 import type { AddressSuggestionOverlayState, AddressSuggestionSelection } from '../shared/address-suggestions.js'
+import { ADDRESS_OVERLAY_VIEW_IPC } from '../shared/ipc/address-overlay.js'
+import { send, subscribe } from './bridges/ipc.js'
 
 export interface HronautAddressOverlayViewApi {
   onState(listener: (state: AddressSuggestionOverlayState) => void): () => void
@@ -8,13 +10,9 @@ export interface HronautAddressOverlayViewApi {
 }
 
 const api: HronautAddressOverlayViewApi = {
-  onState: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, state: AddressSuggestionOverlayState): void => listener(state)
-    ipcRenderer.on('address-overlay:state', handler)
-    return () => ipcRenderer.removeListener('address-overlay:state', handler)
-  },
-  select: (selection) => ipcRenderer.send('address-overlay:select', selection),
-  measured: (height) => ipcRenderer.send('address-overlay:measured', height)
+  onState: (listener) => subscribe(ADDRESS_OVERLAY_VIEW_IPC.state, (state) => listener(state)),
+  select: (selection) => send(ADDRESS_OVERLAY_VIEW_IPC.select, selection),
+  measured: (height) => send(ADDRESS_OVERLAY_VIEW_IPC.measured, height)
 }
 
 contextBridge.exposeInMainWorld('hronautAddressOverlayView', api)

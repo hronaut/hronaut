@@ -1,17 +1,15 @@
-import { contextBridge, ipcRenderer } from 'electron'
-import type { HronautSidebarOverlayViewApi, SidebarOverlayState } from '../shared/sidebar-overlay.js'
+import { contextBridge } from 'electron'
+import { SIDEBAR_OVERLAY_VIEW_IPC } from '../shared/ipc/sidebar-overlay.js'
+import type { HronautSidebarOverlayViewApi } from '../shared/sidebar-overlay.js'
+import { send, subscribe } from './bridges/ipc.js'
 
 const api: HronautSidebarOverlayViewApi = {
-  onState: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, state: SidebarOverlayState): void => listener(state)
-    ipcRenderer.on('sidebar-overlay-view:state', handler)
-    return () => ipcRenderer.removeListener('sidebar-overlay-view:state', handler)
-  },
-  rendered: (report) => ipcRenderer.send('sidebar-overlay-view:rendered', report),
-  pointer: (pointer) => ipcRenderer.send('sidebar-overlay-view:pointer', pointer),
-  intent: (intent) => ipcRenderer.send('sidebar-overlay-view:intent', intent),
-  showTooltip: (request) => ipcRenderer.send('sidebar-overlay-view:tooltip-show', request),
-  hideTooltip: (id) => ipcRenderer.send('sidebar-overlay-view:tooltip-hide', id)
+  onState: (listener) => subscribe(SIDEBAR_OVERLAY_VIEW_IPC.state, (state) => listener(state)),
+  rendered: (report) => send(SIDEBAR_OVERLAY_VIEW_IPC.rendered, report),
+  pointer: (pointer) => send(SIDEBAR_OVERLAY_VIEW_IPC.pointer, pointer),
+  intent: (intent) => send(SIDEBAR_OVERLAY_VIEW_IPC.intent, intent),
+  showTooltip: (request) => send(SIDEBAR_OVERLAY_VIEW_IPC.tooltipShow, request),
+  hideTooltip: (id) => send(SIDEBAR_OVERLAY_VIEW_IPC.tooltipHide, id)
 }
 
 contextBridge.exposeInMainWorld('hronautSidebarOverlayView', api)

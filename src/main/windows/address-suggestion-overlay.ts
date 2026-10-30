@@ -9,6 +9,7 @@ import type {
   AddressSuggestionSelection
 } from '../../shared/address-suggestions.js'
 import type { AppSettings, SupportedLocale } from '../../shared/types.js'
+import { ADDRESS_OVERLAY_IPC, ADDRESS_OVERLAY_VIEW_IPC } from '../../shared/ipc/address-overlay.js'
 
 interface AddressSuggestionSurface {
   view: WebContentsView
@@ -139,7 +140,7 @@ export function createAddressSuggestionOverlay(host: AddressSuggestionOverlayHos
           hideAddressSuggestionOverlay()
           addressSuggestionSurface = null
           if (host.mainWindowRefs.window && !host.mainWindowRefs.window.isDestroyed() && !host.mainWindowRefs.window.webContents.isDestroyed()) {
-            host.mainWindowRefs.window.webContents.send('address-overlay:dismissed', surface.sessionId)
+            host.mainWindowRefs.window.webContents.send(ADDRESS_OVERLAY_IPC.dismissed, surface.sessionId)
           }
         })
         webContents.on('render-process-gone', () => {
@@ -203,7 +204,7 @@ export function createAddressSuggestionOverlay(host: AddressSuggestionOverlayHos
       const height = view.getVisible() ? Math.min(view.getBounds().height, bounds.maxHeight) : 1
       view.setBounds({ x: bounds.x, y: bounds.y, width: bounds.width, height: Math.max(1, height) })
       host.mainWindowRefs.window.contentView.addChildView(view)
-      webContents.send('address-overlay:state', state)
+      webContents.send(ADDRESS_OVERLAY_VIEW_IPC.state, state)
     }).catch((error) => console.error('[address-overlay] Failed to show suggestions:', error))
   }
 
@@ -243,7 +244,7 @@ export function createAddressSuggestionOverlay(host: AddressSuggestionOverlayHos
   function select(selection: AddressSuggestionSelection): void {
     if (selection.sessionId !== addressSuggestionSurface?.sessionId) return
     if (host.mainWindowRefs.window && !host.mainWindowRefs.window.isDestroyed() && !host.mainWindowRefs.window.webContents.isDestroyed()) {
-      host.mainWindowRefs.window.webContents.send('address-overlay:selected', selection)
+      host.mainWindowRefs.window.webContents.send(ADDRESS_OVERLAY_IPC.selected, selection)
     }
     // A row opened behind leaves the suggestions open, as in Chrome; the shell hides them itself if its field lost focus.
     if (selection.disposition) return

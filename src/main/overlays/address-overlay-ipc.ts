@@ -7,6 +7,7 @@ import type {
 } from '../../shared/address-suggestions.js'
 import { ADDRESS_SUGGESTION_TITLE_MAX_LENGTH, ADDRESS_SUGGESTION_URL_MAX_LENGTH, hasSwitchToTabButton } from '../../shared/address-suggestions.js'
 import { isResolvedThemeName } from '../../shared/theme.js'
+import { ADDRESS_OVERLAY_IPC, ADDRESS_OVERLAY_VIEW_IPC } from '../../shared/ipc/address-overlay.js'
 
 interface AddressOverlayIpcHost {
   /** Admits only the main window's shell document, not a detached panel window. */
@@ -99,28 +100,28 @@ function validatedAddressOverlayRequest(value: unknown): AddressSuggestionOverla
  * registered before the window loads.
  */
 export function registerAddressOverlayIpc(ipcMain: Pick<IpcMain, 'on'>, host: AddressOverlayIpcHost): void {
-  ipcMain.on('address-overlay:show', (event, value: unknown) => {
+  ipcMain.on(ADDRESS_OVERLAY_IPC.show, (event, value: unknown) => {
     if (host.workspaceStartupFailure()) return
     host.assertMainShellSender(event)
     const request = validatedAddressOverlayRequest(value)
     host.addressOverlay().show(request, event.sender)
   })
-  ipcMain.on('address-overlay:hide', (event) => {
+  ipcMain.on(ADDRESS_OVERLAY_IPC.hide, (event) => {
     if (host.workspaceStartupFailure()) return
     host.assertMainShellSender(event)
     host.addressOverlay().hide()
   })
-  ipcMain.on('address-overlay:return-focus', (event) => {
+  ipcMain.on(ADDRESS_OVERLAY_IPC.returnFocus, (event) => {
     if (host.workspaceStartupFailure()) return
     host.assertMainShellSender(event)
     host.addressOverlay().returnFocus()
   })
-  ipcMain.on('address-overlay:measured', (event, value: unknown) => {
+  ipcMain.on(ADDRESS_OVERLAY_VIEW_IPC.measured, (event, value: unknown) => {
     if (host.workspaceStartupFailure()) return
     if (!host.addressOverlay().isAddressOverlaySender(event)) return
     host.addressOverlay().measured(value, event.sender)
   })
-  ipcMain.on('address-overlay:select', (event, value: unknown) => {
+  ipcMain.on(ADDRESS_OVERLAY_VIEW_IPC.select, (event, value: unknown) => {
     if (host.workspaceStartupFailure()) return
     if (!host.addressOverlay().isAddressOverlaySender(event)) return
     if (!value || typeof value !== 'object' || Array.isArray(value)) {

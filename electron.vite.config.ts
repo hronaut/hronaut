@@ -9,6 +9,8 @@ export default defineConfig({
   main: {},
   preload: {
     build: {
+      // Sandboxed preloads can require only "electron", so each entry is bundled whole instead of sharing chunks.
+      isolatedEntries: true,
       rolldownOptions: {
         input: {
           index: resolve('src/preload/index.ts'),

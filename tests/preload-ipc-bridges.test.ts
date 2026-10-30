@@ -1,15 +1,30 @@
-import { afterEach, expect, it, vi } from 'vitest'
-import type { EventChannel, InvokeChannel } from '../src/shared/ipc/channel.js'
+import { afterAll, afterEach, beforeAll, expect, it, vi } from 'vitest'
+import type { EventChannel, InvokeChannel, SendChannel } from '../src/shared/ipc/channel.js'
 
 const electron = vi.hoisted(() => ({ exposeInMainWorld: vi.fn(), invoke: vi.fn(), on: vi.fn(), removeListener: vi.fn(), send: vi.fn() }))
 vi.mock('electron', () => ({ contextBridge: { exposeInMainWorld: electron.exposeInMainWorld }, ipcRenderer: electron }))
 afterEach(() => { vi.resetModules(); vi.clearAllMocks() })
 
+// The main window's shell, which alone gets the tab rail over the page.
+const argv = process.argv
+beforeAll(() => { process.argv = [...argv, '--hronaut-window-kind=main'] })
+afterAll(() => { process.argv = argv })
+
 type Method = (...args: unknown[]) => unknown
+
+// The overlay views' own preloads; every other API comes from the shell's.
+const viewPreloads: Record<string, () => Promise<unknown>> = {
+  hronautAddressOverlayView: () => import('../src/preload/address-overlay.js'),
+  hronautAgentCardView: () => import('../src/preload/agent-card.js'),
+  hronautToastOverlayView: () => import('../src/preload/toast-overlay.js'),
+  hronautSidebarOverlayView: () => import('../src/preload/sidebar-overlay.js'),
+  hronautTooltipOverlayView: () => import('../src/preload/tooltip-overlay.js'),
+  hronautStatusBubbleView: () => import('../src/preload/status-bubble.js')
+}
 
 // A method of an exposed API by its path, as `collections.list` on window.hronautBookmarks.
 async function exposed(name: string, path: string): Promise<Method> {
-  await import('../src/preload/index.js')
+  await (viewPreloads[name] ?? (() => import('../src/preload/index.js')))()
   const api: unknown = electron.exposeInMainWorld.mock.calls.find(([exposedName]) => exposedName === name)?.[1]
   const method = path.split('.').reduce<unknown>((owner, key) => (owner as Record<string, unknown> | undefined)?.[key], api)
   if (typeof method !== 'function') throw new Error(`${name}.${path} is not exposed`)
@@ -156,6 +171,42 @@ it.each(invokes)('%s.%s asks main on its channel with its arguments and returns 
   expect(electron.invoke).toHaveBeenCalledExactlyOnceWith(channel, ...sent)
 })
 
+// Each message the shell and the overlay views send without waiting for an answer, with what main receives.
+const sends: Array<[api: string, method: string, args: unknown[], channel: string, sent: unknown[]]> = [
+  ['hronautAddressOverlay', 'show', [{ sessionId: 1 }], 'address-overlay:show', [{ sessionId: 1 }]],
+  ['hronautAddressOverlay', 'hide', [], 'address-overlay:hide', []],
+  ['hronautAddressOverlay', 'returnFocus', [], 'address-overlay:return-focus', []],
+  ['hronautAgentCard', 'show', [{ cardId: 1 }], 'agent-card:show', [{ cardId: 1 }]],
+  ['hronautAgentCard', 'hide', [1], 'agent-card:hide', [1]],
+  ['hronautToastOverlay', 'show', [{ toast: null }], 'toast-overlay:show', [{ toast: null }]],
+  ['hronautSidebarOverlay', 'show', [{ id: 1 }], 'sidebar-overlay:show', [{ id: 1 }]],
+  ['hronautSidebarOverlay', 'hide', [1], 'sidebar-overlay:hide', [1]],
+  ['hronautShell', 'showTooltip', [{ id: 1, text: 'Back' }], 'shell-tooltip:show', [{ id: 1, text: 'Back' }]],
+  ['hronautShell', 'hideTooltip', [1], 'shell-tooltip:hide', [1]],
+  ['hronautShell', 'hideTooltip', [], 'shell-tooltip:hide', [undefined]],
+  ['hronautAddressOverlayView', 'select', [{ sessionId: 1, suggestionId: 's-1' }], 'address-overlay:select', [{ sessionId: 1, suggestionId: 's-1' }]],
+  ['hronautAddressOverlayView', 'measured', [120], 'address-overlay:measured', [120]],
+  ['hronautAgentCardView', 'measured', [{ cardId: 1 }], 'agent-card-view:measured', [{ cardId: 1 }]],
+  ['hronautAgentCardView', 'send', [{ cardId: 1, kind: 'close', reason: 'escape' }], 'agent-card-view:message', [{ cardId: 1, kind: 'close', reason: 'escape' }]],
+  ['hronautToastOverlayView', 'measured', [{ revision: 1 }], 'toast-overlay-view:measured', [{ revision: 1 }]],
+  ['hronautToastOverlayView', 'send', [{ id: 1, kind: 'act' }], 'toast-overlay-view:message', [{ id: 1, kind: 'act' }]],
+  ['hronautSidebarOverlayView', 'rendered', [{ revision: 1 }], 'sidebar-overlay-view:rendered', [{ revision: 1 }]],
+  ['hronautSidebarOverlayView', 'pointer', [{ hovered: true, held: false }], 'sidebar-overlay-view:pointer', [{ hovered: true, held: false }]],
+  ['hronautSidebarOverlayView', 'intent', [{ kind: 'open-home' }], 'sidebar-overlay-view:intent', [{ kind: 'open-home' }]],
+  ['hronautSidebarOverlayView', 'showTooltip', [{ id: 1, text: 'Pin' }], 'sidebar-overlay-view:tooltip-show', [{ id: 1, text: 'Pin' }]],
+  ['hronautSidebarOverlayView', 'hideTooltip', [1], 'sidebar-overlay-view:tooltip-hide', [1]],
+  ['hronautSidebarOverlayView', 'hideTooltip', [], 'sidebar-overlay-view:tooltip-hide', [undefined]],
+  ['hronautTooltipOverlayView', 'measured', [{ id: 1 }], 'tooltip-overlay:measured', [{ id: 1 }]],
+  ['hronautStatusBubbleView', 'measured', [{ id: 1 }], 'status-bubble:measured', [{ id: 1 }]]
+]
+
+it.each(sends)('%s.%s tells main on its channel with its arguments', async (api, method, args, channel, sent) => {
+  const call = await exposed(api, method)
+  expect(call(...args)).toBeUndefined()
+  expect(electron.send).toHaveBeenCalledExactlyOnceWith(channel, ...sent)
+  expect(electron.invoke).not.toHaveBeenCalled()
+})
+
 // Each listener the shell registers, with the channel main sends on and what the listener receives of it.
 const listeners: Array<[api: string, method: string, channel: string, received: unknown[]]> = [
   ['hronautLicense', 'onChanged', 'license:changed', [{ status: 'trial' }]],
@@ -175,6 +226,17 @@ const listeners: Array<[api: string, method: string, channel: string, received: 
   ['hronautWallets', 'onRequestsChanged', 'wallets:requests-changed', [[{ id: 'request-1' }]]],
   ['hronautSettings', 'onChanged', 'settings:changed', [{ theme: 'dark' }]],
   ['hronautSettings', 'onSystemThemeChanged', 'settings:system-theme-changed', ['light']],
+  ['hronautAddressOverlay', 'onSelected', 'address-overlay:selected', [{ sessionId: 1, suggestionId: 's-1' }]],
+  ['hronautAddressOverlay', 'onDismissed', 'address-overlay:dismissed', [1]],
+  ['hronautAgentCard', 'onEvent', 'agent-card:event', [{ cardId: 1, kind: 'closed', reason: 'escape' }]],
+  ['hronautToastOverlay', 'onEvent', 'toast-overlay:event', [{ id: 1, kind: 'shown' }]],
+  ['hronautSidebarOverlay', 'onEvent', 'sidebar-overlay:event', [{ id: 1, kind: 'shown' }]],
+  ['hronautAddressOverlayView', 'onState', 'address-overlay:state', [{ sessionId: 1, suggestions: [] }]],
+  ['hronautAgentCardView', 'onState', 'agent-card-view:state', [{ cardId: 1, revision: 1 }]],
+  ['hronautToastOverlayView', 'onState', 'toast-overlay-view:state', [{ revision: 1, width: 360 }]],
+  ['hronautSidebarOverlayView', 'onState', 'sidebar-overlay-view:state', [{ revision: 1 }]],
+  ['hronautTooltipOverlayView', 'onState', 'tooltip-overlay:state', [{ id: 1, text: 'Back' }]],
+  ['hronautStatusBubbleView', 'onState', 'status-bubble:state', [{ id: 1, maxWidth: 300 }]],
   ['hronautSettings', 'onRendererStateChanged', 'settings:renderer-state-changed', [{ settings: { theme: 'dark' }, systemTheme: 'dark', systemLocale: 'en-US', resolvedLocale: 'en-US' }]]
 ]
 
@@ -192,8 +254,9 @@ it.each(listeners)('%s.%s passes on only what the channel carries, without the e
 it('checks at compile time that calls and listeners match their channel', () => {
   const ask = 'example:ask' as InvokeChannel<[id: string], number>
   const changed = 'example:changed' as EventChannel<[count: number]>
+  const tell = 'example:tell' as SendChannel<[id: string, count?: number]>
   const typeOnly = async (): Promise<void> => {
-    const { invoke, subscribe } = await import('../src/preload/bridges/ipc.js')
+    const { invoke, send, subscribe } = await import('../src/preload/bridges/ipc.js')
     const answer: number = await invoke(ask, 'id-1')
     // @ts-expect-error The answer is a number.
     const wrongAnswer: string = await invoke(ask, 'id-1')
@@ -207,6 +270,12 @@ it('checks at compile time that calls and listeners match their channel', () => 
     void invoke(ask, JSON.parse('"id-1"') as unknown)
     // @ts-expect-error The listener receives a number.
     subscribe(changed, (count: string) => count)
+    send(tell, 'id-1')
+    send(tell, 'id-1', 2)
+    // @ts-expect-error The second argument is a number.
+    send(tell, 'id-1', '2')
+    // @ts-expect-error The first argument is required.
+    send(tell)
     void [answer, wrongAnswer]
   }
   expect(typeof typeOnly).toBe('function')

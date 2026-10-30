@@ -1,9 +1,14 @@
 import { ipcRenderer, type IpcRendererEvent } from 'electron'
-import type { EventChannel, InvokeChannel } from '../../shared/ipc/channel.js'
+import type { EventChannel, InvokeChannel, SendChannel } from '../../shared/ipc/channel.js'
 
 /** Asks main on the channel, resolving with its answer. */
 export function invoke<Args extends unknown[], Result>(channel: InvokeChannel<Args, Result>, ...args: NoInfer<Args>): Promise<Result> {
   return ipcRenderer.invoke(channel, ...args)
+}
+
+/** Tells main on the channel, which answers nothing. */
+export function send<Args extends unknown[]>(channel: SendChannel<Args>, ...args: NoInfer<Args>): void {
+  ipcRenderer.send(channel, ...args)
 }
 
 /**
