@@ -65,7 +65,7 @@ async function openPageTool(appWindow: Page, name: string | RegExp): Promise<voi
 // Each case gets its own HTTP server, MCP connection, workspace, tab and Electron profile.
 // Assertions live in the cases; this fixture only establishes and tears down their prerequisites.
 export const test = base.extend<{ capabilities: CapabilityFixture }>({
-  capabilities: async ({ appWindow, mcpPort, mcpToken }, use) => {
+  capabilities: async ({ appWindow, electronApp, mcpPort, mcpToken }, use) => {
     const counters = { memorySaverTicks: 0, cacheProbeRequests: 0, routeRequests: 0 }
     const server = createServer((request, response) => {
       if (request.url?.startsWith('/background-video')) {
@@ -505,6 +505,15 @@ export const test = base.extend<{ capabilities: CapabilityFixture }>({
       const tabId = (JSON.parse(text(opened)) as { activeTabId: string }).activeTabId
       await client.callTool({ name: 'browser_wait', arguments: { tabId } })
       await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
+      // Showing the website tab shows the toolbar, and main then moves the page below it. Wait for that move, so a
+      // case's first step does not span it: a performance measurement across it reports a changed environment.
+      await expect(appWindow.getByRole('combobox', { name: 'Address', exact: true })).toBeVisible()
+      const shellHeight = await appWindow.evaluate(() => Math.ceil(document.querySelector('header.shell')!.getBoundingClientRect().height))
+      await expect.poll(() => electronApp.evaluate(({ BrowserWindow }, { url, shellHeight }) => BrowserWindow.getAllWindows()
+        .some(window => window.contentView.children.some(view => 'webContents' in view
+          && (view as Electron.WebContentsView).webContents.getURL() === url
+          && view.getBounds().y >= Math.ceil(shellHeight * window.webContents.getZoomFactor()))),
+      { url: fixtureUrl, shellHeight })).toBe(true)
       await use({
         workspace,
         client, tabId, address, fixtureUrl, fixtureOrigin, redactedFixtureUrl, counters,
