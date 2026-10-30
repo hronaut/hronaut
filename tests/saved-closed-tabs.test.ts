@@ -332,11 +332,11 @@ describe('the tab manager saving Recently closed', () => {
   it('leaves out the closed tabs of a workspace being deleted', () => {
     const tabs = browser()
     tabs.close([address('a')], 0)
-    const manager = Object.assign(Object.create(Browser.prototype), {
+    const manager = {
       closedTabs: tabs.closedTabs,
       mcpTabGroups: new Map([['work', { navigationPolicy: anywhere }]]),
       workspacesBeingDeleted: new Map([['work', {}]])
-    }) as Browser
+    } as unknown as Browser
     expect(savedClosedTabs(manager)).toEqual([])
   })
 })

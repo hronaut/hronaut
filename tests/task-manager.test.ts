@@ -53,7 +53,8 @@ function harness(options: { tabs: Array<TaskManagerTab>; metrics: ProcessMetric[
   electron.metrics = options.metrics
   electron.all = [...options.tabs.map((tab) => tab.webContents), ...(options.others ?? [])]
   const browser = {
-    tabs: new Map(options.tabs.map((tab) => [tab.id, { url: 'https://example.com/', pinned: false, ...tab }])),
+    // Each tab shows its page's address, so Home sorts first as in the tab strip.
+    tabs: new Map(options.tabs.map((tab) => [tab.id, { url: tab.webContents.getURL(), pinned: false, ...tab }])),
     mcpTabGroups: new Map(),
     options: { isInterfacePage: (url: string) => url.startsWith('file:///app/renderer/') },
     rendererRecovery: { isRecovering: (page: WebContents) => options.recovering?.includes(page) === true },
