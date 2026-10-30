@@ -75,6 +75,8 @@ interface ArmedRecord {
   origin: string
   armedAt: number
   expiresAt: number
+  /** When it ends, on the monotonic clock its timer runs on, from which a report gives the time left whatever the wall clock does. */
+  deadlineMonotonic: number
   webContents: WebContents
   authority: LogpointAuthority
   observationGeneration: number
@@ -333,7 +335,7 @@ export class LogpointSets<T extends LogpointTab> {
         return result
       }
       const record: ArmedRecord = {
-        origin, armedAt: 0, expiresAt: 0, webContents, authority, observationGeneration, marker: randomBytes(16).toString('hex'),
+        origin, armedAt: 0, expiresAt: 0, deadlineMonotonic: 0, webContents, authority, observationGeneration, marker: randomBytes(16).toString('hex'),
         probes: [], scripts: new Map(), scriptWorlds: new Map(), adding: true, ending: true,
         rendererGone: false, awaitingRenderer: false, removing: false, timers: [], detach: () => undefined
       }
@@ -406,7 +408,7 @@ export class LogpointSets<T extends LogpointTab> {
         }
         assertCurrent()
         const armedAt = Date.now()
-        Object.assign(record, { armedAt, expiresAt: armedAt + durationMs, adding: false, ending: false })
+        Object.assign(record, { armedAt, expiresAt: armedAt + durationMs, deadlineMonotonic: performance.now() + durationMs, adding: false, ending: false })
         record.timers.push(setTimeout(() => { void this.finish(tab, record, 'expired').catch(() => undefined) }, durationMs))
         record.timers.push(setInterval(() => {
           if (httpOrigin(record.webContents.isDestroyed() ? '' : record.webContents.getURL()) !== record.origin) void this.finish(tab, record, 'origin-left').catch(() => undefined)

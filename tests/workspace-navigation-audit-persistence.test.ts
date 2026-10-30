@@ -116,4 +116,30 @@ describe('workspace navigation audit persistence', () => {
     expect(workspaceNavigationAllowed(recordingBrowser(workspace), WORKSPACE_ID, 'file:///etc/hosts', 'direct')).toBe(false)
     expect(workspace.navigationAudit[0]).toMatchObject({ targetOrigin: 'file:', reason: 'unsupported-scheme' })
   })
+
+  it('records a repeat of the latest denial again a second later, whatever the wall clock does', () => {
+    vi.useFakeTimers({ toFake: ['Date', 'performance'] })
+    try {
+      const workspace: WorkspaceNavigationWorkspace = {
+        contextClass: 'standard',
+        lastUsedAt: '2026-08-20T09:01:00.000Z',
+        navigationPolicy: { mode: 'unrestricted', rules: [] },
+        navigationAudit: []
+      }
+      const deny = (): boolean => workspaceNavigationAllowed(recordingBrowser(workspace), WORKSPACE_ID, 'file:///etc/hosts', 'direct')
+      expect(deny()).toBe(false)
+      vi.setSystemTime(Date.now() - 3_600_000)
+      vi.advanceTimersByTime(999)
+      expect(deny()).toBe(false)
+      expect(workspace.navigationAudit).toHaveLength(1)
+      vi.advanceTimersByTime(1)
+      expect(deny()).toBe(false)
+      expect(workspace.navigationAudit).toHaveLength(2)
+      vi.setSystemTime(Date.now() + 7_200_000)
+      expect(deny()).toBe(false)
+      expect(workspace.navigationAudit).toHaveLength(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

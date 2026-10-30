@@ -296,7 +296,13 @@ describe('virtual passkey controller', () => {
 
     const expiring = fixture()
     await expiring.start({ durationMs: 60_000 })
-    await vi.advanceTimersByTimeAsync(59_999)
+    // The time left counts down on the clock the expiry runs on, whatever the wall clock does.
+    vi.setSystemTime(Date.now() - 3_600_000)
+    await vi.advanceTimersByTimeAsync(59_000)
+    expect((await expiring.status()).passkey?.remainingMs).toBe(1_000)
+    vi.setSystemTime(Date.now() + 7_200_000)
+    expect((await expiring.status()).passkey?.remainingMs).toBe(1_000)
+    await vi.advanceTimersByTimeAsync(999)
     expect(expiring.controller.active(expiring.tab)).toBe(true)
     await vi.advanceTimersByTimeAsync(1)
     expect(await expiring.status()).toMatchObject({ status: 'inactive', lastEnded: { reason: 'expired' } })

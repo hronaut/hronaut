@@ -45,6 +45,8 @@ interface ArmedRecord {
   kind: DomMutationSourceKind
   armedAt: number
   expiresAt: number
+  /** When it ends, on the monotonic clock its timer runs on, from which a report gives the time left whatever the wall clock does. */
+  deadlineMonotonic: number
   nodeId: number
   webContents: WebContents
   origin: string
@@ -309,7 +311,8 @@ export class DomMutationSourceCaptures<T extends MutationSourceTab> {
         return result
       }
       const record: ArmedRecord = {
-        selector, kind, armedAt: 0, expiresAt: 0, nodeId: 0, webContents, origin, url: redactNetworkUrl(tab.url), authority, observationGeneration,
+        selector, kind, armedAt: 0, expiresAt: 0, deadlineMonotonic: 0, nodeId: 0, webContents, origin, url: redactNetworkUrl(tab.url),
+        authority, observationGeneration,
         scripts: new Map(), isolatedScripts: new Set(), ending: true, rendererGone: false, awaitingRenderer: false, removing: false,
         verifying: false, timers: [], detach: () => undefined
       }
@@ -348,7 +351,7 @@ export class DomMutationSourceCaptures<T extends MutationSourceTab> {
         breakpointSet = true
         await send('DOMDebugger.setDOMBreakpoint', { nodeId, type: kind })
         const armedAt = Date.now()
-        Object.assign(record, { armedAt, expiresAt: armedAt + durationMs, ending: false })
+        Object.assign(record, { armedAt, expiresAt: armedAt + durationMs, deadlineMonotonic: performance.now() + durationMs, ending: false })
         record.timers.push(setTimeout(() => { void this.finish(tab, record, 'expired').catch(() => undefined) }, durationMs))
         const check = setInterval(() => {
           if (!this.recordCurrent(tab, record)) void this.finish(tab, record, 'authority-changed').catch(() => undefined)
@@ -653,7 +656,7 @@ export class DomMutationSourceCaptures<T extends MutationSourceTab> {
           kind: record.kind,
           armedAt: new Date(record.armedAt).toISOString(),
           expiresAt: new Date(record.expiresAt).toISOString(),
-          remainingMs: Math.max(0, record.expiresAt - Date.now())
+          remainingMs: Math.max(0, Math.round(record.deadlineMonotonic - performance.now()))
         }
       } : {}),
       ...(status !== 'armed' && ended?.capture ? { capture: ended.capture } : {}),

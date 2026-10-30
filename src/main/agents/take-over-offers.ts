@@ -10,7 +10,6 @@ export interface TakeOverOffersOptions {
   /** Tells the shell the person can take this tab over. */
   sendOffer(offer: AgentTakeOverOffer): void
   onError?(error: unknown): void
-  now?(): number
 }
 
 /** While the person keeps typing in a page, the shell hears of the offer at most this often. */
@@ -27,13 +26,10 @@ export function tabAgentPauseOptions(value: unknown): { takeOver: boolean } {
 
 /** Main's side of taking a page over from the agent working on it. */
 export class TakeOverOffers {
+  /** The latest offer sent, with when, on the monotonic clock, so that a clock set back does not hold the next offers back for as long. */
   private lastOffer: { tabId: string; clientKey: string; sentAt: number } | undefined
 
   constructor(private readonly options: TakeOverOffersOptions) {}
-
-  private now(): number {
-    return this.options.now?.() ?? Date.now()
-  }
 
   /** The agent working on this tab, which the person can take it over from. */
   available(tabId: string, workspaceId: string | undefined): AgentPresence | undefined {
@@ -49,7 +45,7 @@ export class TakeOverOffers {
   touched(tabId: string, workspaceId: string | undefined): void {
     const agent = this.available(tabId, workspaceId)
     if (!agent) return
-    const now = this.now()
+    const now = performance.now()
     const last = this.lastOffer
     // The shell's offer lasts from the latest touch, so a repeat within the interval adds nothing.
     if (last?.tabId === tabId && last.clientKey === agent.clientKey && now - last.sentAt < TAKE_OVER_OFFER_INTERVAL_MS) return

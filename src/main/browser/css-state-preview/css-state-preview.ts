@@ -36,6 +36,8 @@ interface PreviewRecord {
   selector: string
   startedAt: number
   expiresAt: number
+  /** When it ends, on the monotonic clock its timer runs on, from which a report gives the time left whatever the wall clock does. */
+  deadlineMonotonic: number
   nodeId: number
   webContents: WebContents
   resetUncertain: boolean
@@ -169,6 +171,7 @@ export class BrowserCssStatePreview<T extends CssStatePreviewTab> {
           selector,
           startedAt,
           expiresAt: startedAt + durationMs,
+          deadlineMonotonic: performance.now() + durationMs,
           nodeId,
           webContents,
           resetUncertain: false,
@@ -308,7 +311,7 @@ export class BrowserCssStatePreview<T extends CssStatePreviewTab> {
       ...(record ? {
         preview: {
           ...this.summary(tab)!,
-          remainingMs: Math.max(0, record.expiresAt - Date.now())
+          remainingMs: Math.max(0, Math.round(record.deadlineMonotonic - performance.now()))
         }
       } : {}),
       ...(lastEnded ? { lastEnded: { ...lastEnded } } : {}),
