@@ -49,7 +49,7 @@ describe('what main takes from the WebMCP page bridge, which runs where the page
       [{ name: 'read', title: 't'.repeat(WEBMCP_LIMITS.maxTitleChars + 1) }],
       [{ name: 'read', description: 'd'.repeat(WEBMCP_LIMITS.maxDescriptionChars + 1) }],
       [{ name: 'read', inputSchema: { description: 's'.repeat(WEBMCP_LIMITS.maxSchemaChars) } }],
-      [{ name: 'read', inputSchema: nested(65) }],
+      [{ name: 'read', inputSchema: nested(64) }],
       [{ name: 'read', annotations: { readOnlyHint: 'yes' } }],
       [{ name: 'read', annotations: { trusted: true } }],
       [{ name: 'read', execute: 'code' }],
@@ -147,7 +147,17 @@ describe('what main takes from the WebMCP page bridge, which runs where the page
     const cyclic: Record<string, unknown> = { name: 'loop' }
     cyclic.self = cyclic
     expect(resultOf({ value: cyclic })).toEqual({ value: { name: 'loop', self: '[truncated]' }, truncated: true })
-    expect(resultOf({ value: { map: new Map([['a', 1]]), missing: undefined } })).toEqual({ value: { map: {}, missing: 'undefined' } })
+    expect(resultOf({ value: { missing: undefined } })).toEqual({ value: { missing: 'undefined' } })
+  })
+
+  it('keeps no object JSON.parse does not make, so a page cannot make main list a key for each byte or character', () => {
+    const bytes = new Uint8Array(1_000_000)
+    expect(resultOf({ value: { bytes, map: new Map([['a', 1]]), text: Object('long text') as object } })).toEqual({
+      value: { bytes: '[truncated]', map: '[truncated]', text: '[truncated]' }, truncated: true
+    })
+    expect(resultOf({ value: bytes, truncated: true })).toEqual({ value: '[truncated]', truncated: true })
+    expect(webMcpCallFromPage(bytes)).toEqual(unknownOutcome)
+    expect(resultOf({ value: Object.assign(Object.create(null) as object, { kept: 1 }) })).toEqual({ value: { kept: 1 } })
   })
 
   it('keeps no big integer, which the bridge gives as its digits, so a page cannot make main write out a huge one', () => {

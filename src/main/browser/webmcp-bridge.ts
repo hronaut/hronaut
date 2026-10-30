@@ -6,6 +6,8 @@ export const WEBMCP_LIMITS = {
   maxTitleChars: 256,
   maxDescriptionChars: 2_000,
   maxSchemaChars: 32_000,
+  // Deeper than any tool's input schema needs, and shallow enough for main to read and write one without running out
+  // of stack.
   maxSchemaDepth: 64,
   maxArgumentsChars: 64_000,
   maxResultChars: 64_000,

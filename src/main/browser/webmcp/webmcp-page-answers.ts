@@ -90,7 +90,17 @@ export function webMcpCallFromPage(answer: unknown): Record<string, unknown> {
 }
 
 function recordOf(value: unknown): Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
+  return isPlainObject(value) ? value : {}
+}
+
+/**
+ * Whether a value is an object of the kind JSON.parse makes, as every object the bridge answers with is. Any other
+ * object the page can send, such as a typed array or a String object, lists a key for each byte or character.
+ */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false
+  const prototype: unknown = Object.getPrototypeOf(value)
+  return prototype === Object.prototype || prototype === null
 }
 
 function textOf(value: unknown): string | undefined {
@@ -179,7 +189,11 @@ function boundedResult(value: unknown): { value: unknown; truncated?: true } {
       if (candidate.length > MAX_RESULT_ENTRIES) truncated = true
       return candidate.slice(0, MAX_RESULT_ENTRIES).map(item => visit(item, depth + 1))
     }
-    const source = candidate as Record<string, unknown>
+    if (!isPlainObject(candidate)) {
+      truncated = true
+      return '[truncated]'
+    }
+    const source = candidate
     const keys = Object.keys(source).sort()
     if (keys.length > MAX_RESULT_ENTRIES) truncated = true
     return Object.fromEntries(keys.slice(0, MAX_RESULT_ENTRIES).map(key => [key, visit(source[key], depth + 1)]))
