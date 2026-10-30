@@ -49,8 +49,16 @@ const STRICT_TRANSPORT_PROBE_LIMIT_MS = 5_000
 /** Chromium's certificate errors no one can choose to proceed past, in Chrome either. */
 const BLOCKED_ERRORS = new Set(['ERR_CERT_REVOKED', 'ERR_CERT_INVALID', 'ERR_CERT_KNOWN_INTERCEPTION_BLOCKED'])
 
-/** The certificates the person chose to trust in each workspace's session, until Hronaut quits, as host, fingerprint and error. */
-const exceptions = new WeakMap<object, Set<string>>()
+/**
+ * The certificates the person chose to trust in each workspace's session, as host, fingerprint and error, until Hronaut
+ * quits or the history of their website is cleared.
+ */
+const exceptions = new Map<object, Set<string>>()
+/**
+ * The hosts each workspace's session accepted a certificate Chromium does not trust for, until Hronaut quits, also once
+ * the person's choice is forgotten: Chromium may still load their pages over a connection it accepted before.
+ */
+const acceptedHosts = new WeakMap<object, Set<string>>()
 /** The certificate each tab refused for the page it last tried to open. */
 const refusals = new WeakMap<object, CertificateRefusal>()
 /** The tabs showing a page that loaded content from a website whose certificate the person chose to trust. */
@@ -113,7 +121,8 @@ export function acceptsOnlySecureConnections(access: Pick<CertificateErrorAccess
  * Answers Chromium when a website presents a certificate it does not trust, as Chrome does: a certificate the person
  * chose to trust for the host in the tab's workspace is accepted, for the page and its requests; any other is refused,
  * and for a page the tab tried to open, the tab keeps what was refused, so the person can choose to open it anyway.
- * Only the person can choose that, never the website or an agent; Hronaut keeps the choice until it quits.
+ * Only the person can choose that, never the website or an agent; Hronaut keeps the choice until it quits or the
+ * history of the website is cleared.
  */
 export function answerCertificateError(access: CertificateErrorAccess, tab: CertificateErrorTab, event: Pick<Event, 'preventDefault'>,
   url: string, error: string, certificate: Pick<Certificate, 'fingerprint'>, callback: (trusted: boolean) => void, isMainFrame: boolean): void {
@@ -171,9 +180,9 @@ export interface CertificateProceedTab {
 
 /**
  * Asks the person whether to open the page anyway, as Chrome's "Proceed (unsafe)", when the tab refused its website's
- * certificate and the person can choose to; if they do, trusts the certificate for its host in the workspace until
- * Hronaut quits and opens the page. The question closes, changing nothing, when the tab closes or starts loading
- * another page meanwhile. Resolves whether the page opens.
+ * certificate and the person can choose to; if they do, trusts the certificate for its host in the workspace and
+ * opens the page. The question closes, changing nothing, when the tab closes or starts loading another page meanwhile.
+ * Resolves whether the page opens.
  */
 export async function proceedPastCertificateError(access: CertificateProceedAccess, tab: CertificateProceedTab, url: string): Promise<boolean> {
   const refusal = certificateRefusal(tab.webContents, url)
@@ -200,7 +209,10 @@ export async function proceedPastCertificateError(access: CertificateProceedAcce
   return true
 }
 
-/** Trusts the refused certificate for its host in the tab's workspace until Hronaut quits, once the person chose to. */
+/**
+ * Trusts the refused certificate for its host in the tab's workspace, once the person chose to, until Hronaut quits or
+ * the history of the website is cleared.
+ */
 export function trustRefusedCertificate(tab: Pick<CertificateErrorTab, 'webContents'>, refusal: CertificateRefusal): void {
   if (refusal.canProceed !== true) throw new Error('The certificate cannot be trusted')
   const session = tab.webContents.session
@@ -210,6 +222,24 @@ export function trustRefusedCertificate(tab: Pick<CertificateErrorTab, 'webConte
     exceptions.set(session, trusted)
   }
   trusted.add(exceptionKey(refusal.host, refusal.fingerprint, refusal.error))
+  let hosts = acceptedHosts.get(session)
+  if (!hosts) {
+    hosts = new Set()
+    acceptedHosts.set(session, hosts)
+  }
+  hosts.add(refusal.host)
+}
+
+/**
+ * Forgets the certificates the person chose to trust for the host, or for every host, in the workspace's session or in
+ * every workspace, as Chrome does when the history is cleared: the host's pages ask again once Chromium connects to it
+ * anew. They stay not private until Hronaut quits, as Chromium may still load them over a connection it accepted before.
+ */
+export function forgetTrustedCertificates(scope: { host?: string, session?: object } = {}): void {
+  for (const [session, trusted] of exceptions) {
+    if (scope.session !== undefined && session !== scope.session) continue
+    for (const key of trusted) if (scope.host === undefined || key.startsWith(`${scope.host}\u0000`)) trusted.delete(key)
+  }
 }
 
 /**
@@ -244,12 +274,11 @@ export function showsUntrustedCertificate(tab: CertificateErrorTab & { url: stri
     || untrustedContent.has(tab.webContents)
 }
 
-/** Whether the person chose to trust a certificate for the address's host in the workspace, so its pages are not private. */
+/**
+ * Whether the workspace accepted a certificate for the address's host since Hronaut opened, because the person chose to
+ * trust it, so its pages are not private.
+ */
 export function trustsRefusedCertificate(session: object, url: string): boolean {
   const host = httpsHost(url)
-  const trusted = exceptions.get(session)
-  if (!host || !trusted) return false
-  const prefix = `${host}\u0000`
-  for (const key of trusted) if (key.startsWith(prefix)) return true
-  return false
+  return host !== undefined && acceptedHosts.get(session)?.has(host) === true
 }

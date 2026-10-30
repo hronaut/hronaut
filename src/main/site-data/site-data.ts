@@ -7,6 +7,7 @@ import type { SiteDataOperations, SiteDataType } from '../mcp/server.js'
 import type { BrowsingDataSiteSummary } from '../../shared/types.js'
 import { withWorkspaceSiteDataCleanup, workspaceSession } from '../browser/workspace-data/workspace-data.js'
 import { forgetHistoryPages } from '../browser/tab-history-pages/forget-history-pages.js'
+import { forgetTrustedCertificates } from '../browser/certificate-errors/certificate-errors.js'
 
 function closedTabOrigin(url: string): string | undefined {
   try {
@@ -84,6 +85,8 @@ export function createSiteData(host: SiteDataHost): {
         const browser = host.tabs()
         if (browser) forgetHistoryPages(browser, (url) => closedTabOrigin(url) === site.origin, workspaceId)
         host.publishVisitHistory()
+        // The certificates the person chose to trust anyway for the website in the workspace go too, as in Chrome.
+        forgetTrustedCertificates({ host: new URL(site.origin).hostname, session: browserSession })
       }
       if (selected.has('cookies-and-storage') && selected.has('cache')) {
         await browserSession.clearData({

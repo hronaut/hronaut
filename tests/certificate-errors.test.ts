@@ -5,6 +5,7 @@ import {
   answerCertificateError,
   certificateRefusal,
   contentLoaded,
+  forgetTrustedCertificates,
   pageReplaced,
   proceedPastCertificateError,
   showsUntrustedCertificate,
@@ -196,6 +197,34 @@ describe('a certificate Chromium does not trust', () => {
     expect(trustsRefusedCertificate(workspace, 'http://staging.example/')).toBe(false)
     const elsewhere = harness(undefined, {})
     expect(elsewhere.report(PAGE).trusted).toBe(false)
+  })
+
+  it('is forgotten for a host or every host, in a workspace or in all, as when the history is cleared, and its pages stay not private', async () => {
+    const intranet = 'https://intranet.example/'
+    const workspaces = [harness(undefined, {}), harness(undefined, {})]
+    for (const { tab, report, settled } of workspaces) {
+      for (const url of [PAGE, intranet]) {
+        report(url)
+        await settled()
+        trustRefusedCertificate(tab, certificateRefusal(tab.webContents, url)!)
+      }
+    }
+    const [here, there] = workspaces as [ReturnType<typeof harness>, ReturnType<typeof harness>]
+    const trusted = (workspace: ReturnType<typeof harness>, url: string) => workspace.report(url, { mainFrame: false }).trusted
+    forgetTrustedCertificates({ host: 'staging.example', session: here.session })
+    expect([trusted(here, PAGE), trusted(here, intranet), trusted(there, PAGE), trusted(there, intranet)]).toEqual([false, true, true, true])
+    // Chromium may still load the website's pages over a connection it accepted before, so they stay not private.
+    expect(trustsRefusedCertificate(here.session, PAGE)).toBe(true)
+    forgetTrustedCertificates({ host: 'staging.example' })
+    expect([trusted(here, intranet), trusted(there, PAGE), trusted(there, intranet)]).toEqual([true, false, true])
+    forgetTrustedCertificates()
+    expect([trusted(here, intranet), trusted(there, intranet)]).toEqual([false, false])
+    expect(workspaces.map(({ session }) => trustsRefusedCertificate(session, intranet))).toEqual([true, true])
+    // The person can choose to trust it again.
+    here.report(PAGE)
+    await here.settled()
+    trustRefusedCertificate(here.tab, certificateRefusal(here.tab.webContents, PAGE)!)
+    expect(trusted(here, PAGE)).toBe(true)
   })
 })
 

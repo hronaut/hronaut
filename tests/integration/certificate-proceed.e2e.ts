@@ -77,6 +77,16 @@ test('refuses a website whose certificate is not trusted, as Chrome does, and op
     await expect.poll(async () => (await activeTab()).title).toBe('Dashboard')
     await expect.poll(async () => (await activeTab()).untrustedCertificate).toBe(true)
     await expect(appWindow.getByRole('button', { name: 'Not secure. Site controls for localhost' })).toBeVisible()
+
+    // Clearing the website's history forgets the person's choice, as in Chrome: once Chromium connects to the website
+    // anew, as after its idle connections close, its page warns again.
+    await appWindow.evaluate(origin => (window as unknown as { hronautBrowsingData: { clear(options: { history: true; origin: string }): Promise<unknown> } })
+      .hronautBrowsingData.clear({ history: true, origin }), new URL(page).origin)
+    server.closeAllConnections()
+    await appWindow.evaluate(url => { void (window as unknown as { hronaut: { navigate(options: { url: string }): Promise<unknown> } }).hronaut.navigate({ url }) }, page)
+    await expect(problem).toContainText('Your connection is not private')
+    await expect.poll(async () => (await activeTab()).title).toBe('Privacy error')
+    await expect(proceed).toHaveText('Proceed to 127.0.0.1…')
   } finally {
     if (server) await closeFixtureServer(server)
     if (framing) await closeFixtureServer(framing)

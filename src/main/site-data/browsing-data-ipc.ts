@@ -18,6 +18,7 @@ import {
   type HistoryTimeRange
 } from '../../shared/types.js'
 import { workspaceSession } from '../browser/workspace-data/workspace-data.js'
+import { forgetTrustedCertificates } from '../browser/certificate-errors/certificate-errors.js'
 import { browserState } from '../browser/browser-state/browser-state.js'
 import { forgetHistoryPages } from '../browser/tab-history-pages/forget-history-pages.js'
 import { BROWSING_DATA_IPC } from '../../shared/ipc/browsing-data.js'
@@ -104,6 +105,9 @@ export function registerBrowsingDataIpc(host: BrowsingDataIpcHost): void {
       // As Chrome's time ranges: the visits from then, the steps agents took from then (in Home's feed and in each agent's
       // "All steps", pictures included), and the pages visited then in Recently closed and in tabs' Back and Forward lists.
       const since = Date.now() - duration
+      // As in Chrome, whatever the time range, the certificates the person chose to trust anyway go too, in every
+      // workspace, so their websites' pages warn again.
+      forgetTrustedCertificates()
       const cleared = new Set(await host.historyStore()!.clearSince(since))
       host.mcpServer()?.forgetAgentStepsSince(since)
       // Electron gives a tab's pages no visit times, so those lists keep only the pages the history shows a visit to from
@@ -118,6 +122,9 @@ export function registerBrowsingDataIpc(host: BrowsingDataIpcHost): void {
       host.publishVisitHistory()
       return currentBrowsingDataSummary()
     }
+    // As in Chrome, the certificates the person chose to trust anyway for the websites cleared go too, in every
+    // workspace, so their pages warn again.
+    forgetTrustedCertificates(origin ? { host: new URL(origin).hostname } : undefined)
     if (origin) await host.historyStore()!.clearOrigin(origin)
     else await host.historyStore()!.clear()
     // Agents' finished steps name and picture pages they acted on, so Home's feed and each agent's "All steps" go with any
