@@ -7,6 +7,8 @@ import type { ConnectedAgent } from '../../shared/agent-status.js'
 import type { McpControlState, McpServerStatus } from '../../shared/types.js'
 import { setAllAgentsPaused } from '../browser/agent-pause/agent-pause.js'
 import { notifyHomeChanged } from '../browser/home-tabs/home-tabs.js'
+import type { ShellWindowsSender } from '../../shared/ipc/channel.js'
+import { MCP_IPC } from '../../shared/ipc/mcp.js'
 
 interface McpControlStateHost {
   /** The person's lasting pause and the temporary pauses a password or cookie fill holds; the MCP runtime and Home read it too. */
@@ -25,7 +27,7 @@ interface McpControlStateHost {
   connectedAgents(): ConnectedAgent[]
   /** The tab runtime, which pauses page agents and tells Home to read again; null until the window opens. */
   tabs(): Browser | null
-  sendToShellWindows(channel: string, ...args: unknown[]): void
+  sendToShellWindows: ShellWindowsSender
   /** Reloads a visible Home after a committed change; settings changes use it too. */
   refreshHomeAfterCommittedChange(scope: 'mcp' | 'settings'): void
 }
@@ -67,7 +69,7 @@ export function createMcpControlState(host: McpControlStateHost): {
 
   function publishMcpControlState({ refreshHome = true }: { refreshHome?: boolean } = {}): McpControlState {
     const state = currentMcpControlState()
-    host.sendToShellWindows('mcp:changed', state)
+    host.sendToShellWindows(MCP_IPC.changed, state)
     if (refreshHome) host.refreshHomeAfterCommittedChange('mcp')
     else {
       const browser = host.tabs()

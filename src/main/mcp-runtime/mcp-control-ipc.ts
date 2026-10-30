@@ -1,6 +1,7 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import type { McpPortRecovery } from './mcp-port-suggestion.js'
 import type { McpControlState, McpPortMoveResponse } from '../../shared/types.js'
+import { MCP_IPC } from '../../shared/ipc/mcp.js'
 
 interface McpControlIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
@@ -15,16 +16,16 @@ interface McpControlIpcHost {
 
 /** Dependencies stay lazy because handlers are registered before the window loads. */
 export function registerMcpControlIpc(ipcMain: Pick<IpcMain, 'handle'>, host: McpControlIpcHost): void {
-  ipcMain.handle('mcp:get-state', (event) => {
+  ipcMain.handle(MCP_IPC.getState, (event) => {
     host.assertTrustedSender(event)
     return host.currentMcpControlState()
   })
-  host.handleBrowserIpc('mcp:move-to-suggested-port', async (event, port: unknown): Promise<McpPortMoveResponse> => {
+  host.handleBrowserIpc(MCP_IPC.moveToSuggestedPort, async (event, port: unknown): Promise<McpPortMoveResponse> => {
     host.assertTrustedSender(event)
     const result = await host.mcpPortRecovery().move(port)
     return { result, state: host.currentMcpControlState() }
   })
-  host.handleBrowserIpc('mcp:set-paused', (event, paused: unknown) => {
+  host.handleBrowserIpc(MCP_IPC.setPaused, (event, paused: unknown) => {
     host.assertTrustedSender(event)
     if (typeof paused !== 'boolean') throw new TypeError('MCP paused state must be a boolean')
     const state = host.setMcpPaused(paused)

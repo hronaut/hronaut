@@ -9,9 +9,13 @@ import { TRUSTED_DIALOG_CHANNELS, type HronautTrustedDialogsApi, type TrustedDia
 import type { AgentPresenceSnapshot, AgentTakeOverOffer, HronautAgentPresenceApi } from '../shared/agent-presence.js'
 import { contextBridge, ipcRenderer } from 'electron'
 import { createPanelRequestBuffer } from './panel-requests.js'
+import { bookmarksApi } from './bridges/bookmarks.js'
 import { browsingDataApi } from './bridges/browsing-data.js'
 import { credentialsApi } from './bridges/credentials.js'
+import { downloadsApi } from './bridges/downloads.js'
+import { historyApi } from './bridges/history.js'
 import { licenseApi } from './bridges/license.js'
+import { mcpApi } from './bridges/mcp.js'
 import { permissionsApi } from './bridges/permissions.js'
 import { taskManagerApi } from './bridges/task-manager.js'
 import { updatesApi } from './bridges/updates.js'
@@ -23,8 +27,6 @@ import type {
   InterfaceScale,
   TabPosition,
   HronautApi,
-  HronautBookmarksApi,
-  HronautHistoryApi,
   HronautShellApi,
   HronautSettingsApi,
   BrowserActionFailure,
@@ -61,15 +63,12 @@ import type {
   DetachablePanelId,
   PanelDock,
   PanelRedockRequest,
-  HronautMcpApi,
   HronautWalletsApi,
-  HronautDownloadsApi,
   McpTabActivity,
   DroppedLinkTarget,
   NavigateOptions,
   NewTabOptions,
   HelpMenuAction,
-  McpControlState,
   AttentionSoundCue,
   SearchEngineName,
   ThemeName,
@@ -342,81 +341,11 @@ const api: HronautApi = {
 }
 
 contextBridge.exposeInMainWorld('hronaut', api)
-const downloadsApi: HronautDownloadsApi = {
-  list: (checkFiles?: boolean) => ipcRenderer.invoke('downloads:list', checkFiles === true),
-  pause: (downloadId: string) => ipcRenderer.invoke('downloads:pause', downloadId),
-  resume: (downloadId: string) => ipcRenderer.invoke('downloads:resume', downloadId),
-  cancel: (downloadId: string) => ipcRenderer.invoke('downloads:cancel', downloadId),
-  retry: (downloadId: string) => ipcRenderer.invoke('downloads:retry', downloadId),
-  removeFinished: (downloadId: string) => ipcRenderer.invoke('downloads:remove-finished', downloadId),
-  clearFinished: () => ipcRenderer.invoke('downloads:clear-finished'),
-  showInFolder: (downloadId: string) => ipcRenderer.invoke('downloads:show-in-folder', downloadId),
-  startDrag: (downloadId: string) => ipcRenderer.invoke('downloads:start-drag', downloadId),
-  onChanged: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, downloads: import('../shared/types.js').BrowserDownloadState[]): void => listener(downloads)
-    ipcRenderer.on('browser:downloads-changed', handler)
-    return () => ipcRenderer.removeListener('browser:downloads-changed', handler)
-  }
-}
 contextBridge.exposeInMainWorld('hronautDownloads', downloadsApi)
 contextBridge.exposeInMainWorld('hronautTaskManager', taskManagerApi)
-const bookmarksApi: HronautBookmarksApi = {
-  collections: {
-    list: () => ipcRenderer.invoke('bookmark-collections:list'),
-    create: (name) => ipcRenderer.invoke('bookmark-collections:create', name),
-    rename: (id, name) => ipcRenderer.invoke('bookmark-collections:rename', id, name),
-    remove: (id) => ipcRenderer.invoke('bookmark-collections:remove', id),
-    assign: (bookmarkId, collectionId) => ipcRenderer.invoke('bookmark-collections:assign', bookmarkId, collectionId),
-    bookmarkTabs: (workspaceId, name) => ipcRenderer.invoke('bookmark-collections:bookmark-tabs', workspaceId, name),
-    onChanged: (listener) => {
-      const handler = (_event: Electron.IpcRendererEvent, snapshot: import('../shared/types.js').BookmarkCollectionSnapshot): void => listener(snapshot)
-      ipcRenderer.on('bookmark-collections:changed', handler)
-      return () => ipcRenderer.removeListener('bookmark-collections:changed', handler)
-    }
-  },
-  list: () => ipcRenderer.invoke('bookmarks:list'),
-  add: (url: string, title: string) => ipcRenderer.invoke('bookmarks:add', url, title),
-  addIfMissing: (url: string, title: string) => ipcRenderer.invoke('bookmarks:add-if-missing', url, title),
-  rename: (id: string, title: string) => ipcRenderer.invoke('bookmarks:rename', id, title),
-  updateDestination: (id: string, url: string) => ipcRenderer.invoke('bookmarks:update-destination', id, url),
-  remove: (id: string) => ipcRenderer.invoke('bookmarks:remove', id),
-  exportFile: () => ipcRenderer.invoke('bookmarks:export-file'),
-  importFile: () => ipcRenderer.invoke('bookmarks:import-file'),
-  onChanged: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, bookmarks: import('../shared/types.js').BrowserBookmark[]): void => listener(bookmarks)
-    ipcRenderer.on('bookmarks:changed', handler)
-    return () => ipcRenderer.removeListener('bookmarks:changed', handler)
-  }
-}
 contextBridge.exposeInMainWorld('hronautBookmarks', bookmarksApi)
-const historyApi: HronautHistoryApi = {
-  list: () => ipcRenderer.invoke('visit-history:list'),
-  remove: (id: string) => ipcRenderer.invoke('visit-history:remove', id),
-  clear: () => ipcRenderer.invoke('visit-history:clear'),
-  onChanged: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, entries: import('../shared/types.js').BrowserHistoryEntry[]): void => listener(entries)
-    ipcRenderer.on('visit-history:changed', handler)
-    return () => ipcRenderer.removeListener('visit-history:changed', handler)
-  },
-  onUpdated: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, changes: import('../shared/types.js').BrowserHistoryChanges): void => listener(changes)
-    ipcRenderer.on('visit-history:updated', handler)
-    return () => ipcRenderer.removeListener('visit-history:updated', handler)
-  }
-}
 contextBridge.exposeInMainWorld('hronautHistory', historyApi)
 contextBridge.exposeInMainWorld('hronautBrowsingData', browsingDataApi)
-const mcpApi: HronautMcpApi = {
-  getState: () => ipcRenderer.invoke('mcp:get-state'),
-  setPaused: (paused: boolean) => ipcRenderer.invoke('mcp:set-paused', paused),
-  moveToSuggestedPort: (port: number) => ipcRenderer.invoke('mcp:move-to-suggested-port', port),
-  onChanged: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, state: McpControlState): void => listener(state)
-    ipcRenderer.on('mcp:changed', handler)
-    return () => ipcRenderer.removeListener('mcp:changed', handler)
-  }
-}
-
 contextBridge.exposeInMainWorld('hronautMcp', mcpApi)
 const walletsApi: HronautWalletsApi = {
   status: () => ipcRenderer.invoke('wallets:status'),

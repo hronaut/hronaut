@@ -6,6 +6,7 @@ import { writeTextFileAtomically } from '../atomic-file.js'
 import type { BookmarkStore } from './bookmark-store.js'
 import { bookmarksHtml, decodeBookmarksFile, parseBookmarksHtml } from './bookmarks-html.js'
 import { LocalizedError } from '../localized-error.js'
+import { BOOKMARKS_IPC } from '../../shared/ipc/bookmarks.js'
 
 /** Far larger than the bookmarks file of anyone with thousands of bookmarks. */
 export const MAX_BOOKMARKS_FILE_BYTES = 16 * 1024 * 1024
@@ -66,7 +67,7 @@ async function readBookmarksFile(path: string): Promise<Buffer> {
  * own dialogs; the window only asks for the dialog and hears what happened.
  */
 export function registerBookmarksFileIpc(ipcMain: Pick<IpcMain, 'handle'>, host: BookmarksFileIpcHost): void {
-  ipcMain.handle('bookmarks:export-file', async (event): Promise<number | null> => {
+  ipcMain.handle(BOOKMARKS_IPC.exportFile, async (event): Promise<number | null> => {
     host.assertTrustedSender(event)
     const path = await host.pickExportFile(event.sender, exportFileName(host.now?.() ?? new Date()))
     if (!path) return null
@@ -79,7 +80,7 @@ export function registerBookmarksFileIpc(ipcMain: Pick<IpcMain, 'handle'>, host:
     }
     return bookmarks.length
   })
-  ipcMain.handle('bookmarks:import-file', async (event): Promise<BookmarkImportResult | null> => {
+  ipcMain.handle(BOOKMARKS_IPC.importFile, async (event): Promise<BookmarkImportResult | null> => {
     host.assertTrustedSender(event)
     const path = await host.pickImportFile(event.sender)
     if (!path) return null
