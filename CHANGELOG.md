@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- A website can no longer change the fields Hronaut sets in a `browser_webmcp` answer, such as its workspace and tab, or send an agent a tool list or tool result past WebMCP's limits, by replacing the JavaScript built-ins that Hronaut's WebMCP code uses in the page. Hronaut now checks the page's answer itself, keeps only the fields it knows, and holds a returned result to 64,000 characters.
 - The browser issues an agent reads no longer say that Hronaut cancels every HTTP sign-in request a website makes: since 3.14.0 it asks you to sign in for the page's own website, as Chrome does, and the issues now say so.
 - A panel moved to its own window and opened while Hronaut was still restoring your workspaces at startup now shows every workspace and tab once they are back. It could show only those restored by the time it opened, until the next change to a tab.
 

@@ -8,6 +8,7 @@ import {
   webMcpStatusScript,
   type WebMcpPageListing
 } from '../src/main/browser/webmcp-bridge.js'
+import { webMcpCallFromPage, webMcpListingFromPage } from '../src/main/browser/webmcp/webmcp-page-answers.js'
 
 interface TestTool extends Record<string, unknown> {
   name: string
@@ -63,7 +64,7 @@ describe('WebMCP page bridge', () => {
     }
     installModelContext([iframe, topLevel])
     const listed = await window.eval(webMcpListScript()) as WebMcpPageListing
-    expect(listed.descriptors).toEqual([
+    expect(JSON.parse(listed.descriptorJson!)).toEqual([
       expect.objectContaining({
         name: 'increment',
         inputSchema: { type: 'object', properties: { amount: { type: 'number' } } }
@@ -100,6 +101,33 @@ describe('WebMCP page bridge', () => {
     expect(called).toMatchObject({
       status: 'TOOL_RETURNED', dispatch: 'dispatched', effects: 'possible',
       result: { value: { marker: 'ok' } }
+    })
+  })
+
+  it('gives main a listing and a long result that pass its own checks unchanged', async () => {
+    const tool: TestTool = {
+      name: 'read',
+      title: 'Quotes " and \\ slashes\u0001',
+      inputSchema: JSON.stringify({ type: 'object' }),
+      window,
+      origin: location.origin,
+      execute: () => ({ parts: Array.from({ length: 10 }, () => 'y'.repeat(19_000)) })
+    }
+    installModelContext([tool])
+    const listed = await window.eval(webMcpListScript()) as WebMcpPageListing
+    expect(webMcpListingFromPage(listed)).toEqual({
+      listed: true,
+      descriptorJson: listed.descriptorJson,
+      tools: [{ name: 'read', title: tool.title, inputSchema: { type: 'object' } }]
+    })
+    const called = await window.eval(webMcpCallScript({
+      descriptorJson: listed.descriptorJson!,
+      toolName: 'read',
+      arguments: {}
+    })) as Record<string, unknown>
+    expect(called.result).toMatchObject({ value: { serialization: 'truncated-json' }, truncated: true })
+    expect(webMcpCallFromPage(called)).toEqual({
+      supported: true, status: 'TOOL_RETURNED', dispatch: 'dispatched', effects: 'possible', result: called.result
     })
   })
 

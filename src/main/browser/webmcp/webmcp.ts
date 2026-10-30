@@ -4,13 +4,13 @@ import {
   webMcpDescriptorDigest,
   webMcpListScript,
   webMcpStatusScript,
-  type WebMcpPageListing,
   type WebMcpToolDescriptor
 } from '../webmcp-bridge.js'
 import type { Browser } from '../browser.js'
 import { findTab, getTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { snapshotDetails } from '../page-snapshots/page-snapshots.js'
+import { webMcpCallFromPage, webMcpListingFromPage, webMcpStatusFromPage } from './webmcp-page-answers.js'
 
 /** Whether the tab's top-level document exposes WebMCP, with the origin and navigation generation it was read from. */
 export type WebMcpStatus = {
@@ -57,11 +57,10 @@ export async function webMcpStatus(browser: Browser, tabId?: string): Promise<We
       navigationGeneration: generation
     }
   }
-  const result = await tab.webContents.executeJavaScript(webMcpStatusScript(), false) as WebMcpPageListing
+  const result = webMcpStatusFromPage(await tab.webContents.executeJavaScript(webMcpStatusScript(), false))
   requireUnchangedWebMcpTarget(browser, tab.id, tab, origin, generation)
   return {
-    supported: result.supported === true,
-    ...(result.reason ? { reason: result.reason } : {}),
+    ...result,
     tabId: tab.id,
     origin,
     navigationGeneration: generation
@@ -74,15 +73,12 @@ export async function listWebMcpTools(browser: Browser, tabId?: string): Promise
   const origin = webMcpHttpOrigin(tab.url)
   const generation = tab.navigationGeneration
   if (!origin) return webMcpStatus(browser, tab.id)
-  const result = await tab.webContents.executeJavaScript(webMcpListScript(), false) as WebMcpPageListing & {
-    status?: string
-    error?: string
-  }
+  const result = webMcpListingFromPage(await tab.webContents.executeJavaScript(webMcpListScript(), false))
   requireUnchangedWebMcpTarget(browser, tab.id, tab, origin, generation)
-  if (!result.supported || !result.descriptors || !result.descriptorJson) {
+  if (!result.listed) {
     return {
-      supported: result.supported === true,
-      reason: result.error ?? result.reason ?? result.status ?? 'The page did not return a valid WebMCP descriptor',
+      supported: result.supported,
+      reason: result.reason,
       ...(result.status ? { status: result.status } : {}),
       tabId: tab.id,
       origin,
@@ -103,7 +99,7 @@ export async function listWebMcpTools(browser: Browser, tabId?: string): Promise
     origin,
     navigationGeneration: generation,
     descriptorDigest,
-    tools: result.descriptors
+    tools: result.tools
   }
 }
 
@@ -131,11 +127,11 @@ export async function callWebMcpTool(browser: Browser, input: WebMcpToolCall): P
   }
   let result: Record<string, unknown>
   try {
-    result = await tab.webContents.executeJavaScript(webMcpCallScript({
+    result = webMcpCallFromPage(await tab.webContents.executeJavaScript(webMcpCallScript({
       descriptorJson,
       toolName: input.toolName,
       arguments: input.arguments
-    }), false) as Record<string, unknown>
+    }), false))
   } catch (error) {
     const current = findTab(browser, tab.id)
     const navigationChanged = !current || current !== tab || current.navigationGeneration !== input.navigationGeneration

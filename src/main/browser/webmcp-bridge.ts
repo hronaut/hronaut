@@ -30,7 +30,6 @@ export interface WebMcpPageListing {
   supported: boolean
   reason?: string
   status?: string
-  descriptors?: WebMcpToolDescriptor[]
   descriptorJson?: string
 }
 
@@ -183,7 +182,7 @@ function pageBridgeSource(mode: 'status' | 'list' | 'call', payload: Record<stri
       const listing = normalize(enumeration.__hronautTools as unknown[])
       if (mode === 'list') {
         clearDeadline()
-        return { supported: true, descriptors: listing.descriptors, descriptorJson: listing.descriptorJson }
+        return { supported: true, descriptorJson: listing.descriptorJson }
       }
       if (listing.descriptorJson !== payload.descriptorJson) {
         clearDeadline()
