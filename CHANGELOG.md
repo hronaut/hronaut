@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [3.14.1] - 2026-10-30
+
 ### Fixed
 
 - A website could read the saved username and password Hronaut was about to fill into it, even when Hronaut then filled nothing, by replacing a JavaScript built-in the fill used and looking at the code that called it. The fill now runs as strict code a website cannot reach, so the website gets the username and password only when Hronaut puts them in its fields.
