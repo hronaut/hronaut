@@ -6,7 +6,8 @@ import { snapshotDeltaInvalidationReason } from '../../../shared/snapshot-delta.
 import type { BrowserScreenshotOptions } from '../../../shared/types.js'
 import { LocalizedError } from '../../localized-error.js'
 import { ISOLATED_WORLDS } from '../isolated-worlds.js'
-import { targetExpression } from '../page-scripts.js'
+import { pageScript } from '../../../shared/page-script.js'
+import { targetElementInPage } from '../page-scripts/target-action.page.js'
 import type { Browser } from '../browser.js'
 import { findTab, getTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
@@ -17,6 +18,7 @@ import { withRenderableTab } from '../renderable-tab/renderable-tab.js'
 import { dismissAgentPointer } from '../agent-pointer/agent-pointer.js'
 import { validateTarget } from '../input-targets/input-targets.js'
 import { screenshotPixelRatio } from './screenshot-scale.js'
+import { screenshotClipInPage, screenshotTargetClipInPage } from './screenshots.page.js'
 
 const SCREENSHOT_ANNOTATION_WORLD_ID = ISOLATED_WORLDS.screenshotAnnotation
 
@@ -62,29 +64,11 @@ export async function screenshot(browser: Browser, options: BrowserScreenshotOpt
     await dismissAgentPointer(webContents)
     if (hasTarget || options.clip) {
       const requestedClip = hasTarget
-        ? await webContents.executeJavaScript(`(async () => {
-              const element = ${targetExpression(options)};
-              if (!element) throw new Error(${JSON.stringify(TARGET_MISSING)});
-              element.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
-              await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-              const rect = element.getBoundingClientRect();
-              if (rect.width <= 0 || rect.height <= 0) throw new Error(${JSON.stringify(TARGET_HIDDEN)});
-              const x = Math.max(0, rect.left + scrollX);
-              const y = Math.max(0, rect.top + scrollY);
-              return {
-                x,
-                y,
-                width: Math.min(rect.width - Math.max(0, -(rect.left + scrollX)), document.documentElement.scrollWidth - x),
-                height: Math.min(rect.height - Math.max(0, -(rect.top + scrollY)), document.documentElement.scrollHeight - y)
-              };
-            })()`, false).catch((error: unknown) => { throw screenshotTargetError(error) }) as { x: number; y: number; width: number; height: number }
-        : await webContents.executeJavaScript(`(() => {
-              const clip = ${JSON.stringify(options.clip)};
-              if (clip.x + clip.width > innerWidth || clip.y + clip.height > innerHeight) {
-                throw new Error('Screenshot clip must fit inside the visible viewport.');
-              }
-              return { x: scrollX + clip.x, y: scrollY + clip.y, width: clip.width, height: clip.height };
-            })()`, false) as { x: number; y: number; width: number; height: number }
+        ? await webContents.executeJavaScript(
+          pageScript(screenshotTargetClipInPage, { ref: options.ref, selector: options.selector }, targetElementInPage, TARGET_MISSING, TARGET_HIDDEN),
+          false
+        ).catch((error: unknown) => { throw screenshotTargetError(error) }) as { x: number; y: number; width: number; height: number }
+        : await webContents.executeJavaScript(pageScript(screenshotClipInPage, options.clip!), false) as { x: number; y: number; width: number; height: number }
       if (![requestedClip.x, requestedClip.y, requestedClip.width, requestedClip.height].every(Number.isFinite)) {
         throw new LocalizedError('appErrors.pageTools.areaNotFinite')
       }

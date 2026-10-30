@@ -8,6 +8,13 @@ import {
   type WebContents
 } from 'electron'
 import { LocalizedError } from '../localized-error.js'
+import { pageScript } from '../../shared/page-script.js'
+import {
+  mergeLocalStorageInPage,
+  readLocalStorageInPage,
+  removeUnchangedLocalStorageInPage,
+  restoreLocalStorageInPage
+} from './workspace-storage.page.js'
 import { forgetSessionCookies, keepSessionCookies, saveSessionCookies } from './session-cookies/saved-session-cookies.js'
 
 const STORAGE_TRANSFER_TIMEOUT_MS = 8_000
@@ -254,44 +261,19 @@ class LocalStorageSurface {
   }
 
   async read(): Promise<Array<[string, string]>> {
-    return this.executeScript(`(() => {
-      const items = [];
-      for (let index = 0; index < localStorage.length; index += 1) {
-        const key = localStorage.key(index);
-        if (key !== null) items.push([key, localStorage.getItem(key) ?? '']);
-      }
-      return items;
-    })()`) as Promise<Array<[string, string]>>
+    return this.executeScript(pageScript(readLocalStorageInPage)) as Promise<Array<[string, string]>>
   }
 
   async merge(items: Array<[string, string]>): Promise<void> {
-    await this.executeScript(`(() => {
-      for (const [key, value] of ${JSON.stringify(items)}) localStorage.setItem(key, value);
-    })()`)
+    await this.executeScript(pageScript(mergeLocalStorageInPage, items))
   }
 
   async removeUnchanged(items: Array<[string, string]>): Promise<number> {
-    return this.executeScript(`(() => {
-      let removed = 0;
-      for (const [key, value] of ${JSON.stringify(items)}) {
-        if (localStorage.getItem(key) === null) { removed += 1; continue; }
-        if (localStorage.getItem(key) !== value) continue;
-        localStorage.removeItem(key);
-        if (localStorage.getItem(key) === null) removed += 1;
-      }
-      return removed;
-    })()`) as Promise<number>
+    return this.executeScript(pageScript(removeUnchangedLocalStorageInPage, items)) as Promise<number>
   }
 
   async restore(entry: LocalStorageRollbackEntry): Promise<void> {
-    await this.executeScript(`(() => {
-      const previous = new Map(${JSON.stringify(entry.previous)});
-      for (const [key, copiedValue] of ${JSON.stringify(entry.items)}) {
-        if (localStorage.getItem(key) !== copiedValue) continue;
-        if (previous.has(key)) localStorage.setItem(key, previous.get(key));
-        else localStorage.removeItem(key);
-      }
-    })()`)
+    await this.executeScript(pageScript(restoreLocalStorageInPage, entry.previous, entry.items))
   }
 
   close(): void {

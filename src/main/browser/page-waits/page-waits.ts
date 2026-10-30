@@ -1,4 +1,4 @@
-import { javascriptLiteral } from '../../../shared/javascript-literal.js'
+import { pageScript } from '../../../shared/page-script.js'
 import { redactNetworkUrl } from '../../../shared/network-details.js'
 import { normalizePageUrlWaitPattern, pageUrlMatchesWait } from '../../../shared/page-url-wait.js'
 import { LocalizedError } from '../../localized-error.js'
@@ -7,6 +7,7 @@ import type { Browser } from '../browser.js'
 import { getTab } from '../browser-core.js'
 import { validateTarget } from '../input-targets/input-targets.js'
 import { targetStateScript } from '../page-scripts.js'
+import { pageTextMatchInPage } from './page-waits.page.js'
 
 /** Waits until the tab stops loading, rejecting if it closes, loses its renderer or times out. */
 export async function waitForPage(browser: Browser, tabId?: string, timeoutMs = 30_000): Promise<void> {
@@ -135,7 +136,7 @@ export async function waitForText(
     try {
       // Without a user gesture, so that waiting never gives the page a person's activation.
       const evaluation = webContents.executeJavaScript(
-        `(() => { const pageText = document.body?.innerText ?? ''; return ${javascriptLiteral(candidates)}.find((candidate) => pageText.includes(candidate)) ?? null })()`,
+        pageScript(pageTextMatchInPage, candidates),
         false
       )
       const closed = new Promise<never>((_resolve, reject) => {
