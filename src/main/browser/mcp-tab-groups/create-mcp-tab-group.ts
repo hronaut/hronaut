@@ -13,7 +13,10 @@ import {
   transferWorkspaceStorage,
   workspacePartition
 } from '../workspace-storage.js'
-import type { McpTabGroupsAccess, McpTabGroupsTab } from './mcp-tab-groups-access.js'
+import type { Browser } from '../browser.js'
+import { withGlobalWorkspaceStorageOperation, withSavedWorkspaceOperation, withWorkspaceOperation } from '../workspace-operations/workspace-operations.js'
+import { assertActiveWorkspaceCapacity } from '../workspace-creation/workspace-capacity.js'
+import { publishChange } from '../browser-state/browser-state.js'
 import { normalizedWorkspaceName, requireMcpTabGroup } from './mcp-tab-groups.js'
 
 /**
@@ -57,8 +60,8 @@ function forkNavigationPolicy(
  * new storage, or keeps the workspace listed when that cleanup fails too, so
  * its isolated data can still be deleted.
  */
-export async function createMcpTabGroup<Tab extends McpTabGroupsTab>(
-  access: McpTabGroupsAccess<Tab>,
+export async function createMcpTabGroup(
+  browser: Browser,
   name: string,
   color?: BrowserTabGroupColor,
   storage: 'scratch' | 'fork-workspace' = 'scratch',
@@ -74,8 +77,8 @@ export async function createMcpTabGroup<Tab extends McpTabGroupsTab>(
     throw new LocalizedError('appErrors.workspace.observerRequirements')
   }
   const normalizedName = normalizedWorkspaceName(name)
-  access.assertWorkspaceNameAvailable(normalizedName, undefined, undefined, allowDuplicateName)
-  access.assertActiveWorkspaceCapacity()
+  browser.assertWorkspaceNameAvailable(normalizedName, undefined, undefined, allowDuplicateName)
+  assertActiveWorkspaceCapacity(browser)
   const now = new Date().toISOString()
   const id = uuidV7()
   const storageId = randomUUID()
@@ -95,59 +98,59 @@ export async function createMcpTabGroup<Tab extends McpTabGroupsTab>(
   }
   if (storage === 'fork-workspace') {
     const sourceId = sourceWorkspaceId
-    const source = sourceId ? access.mcpTabGroups().get(sourceId) ?? access.savedTabGroups().get(sourceId) : undefined
+    const source = sourceId ? browser.mcpTabGroups.get(sourceId) ?? browser.savedTabGroups.get(sourceId) : undefined
     if (!source) throw new LocalizedError('appErrors.workspace.sourceUnavailable')
-    if (access.isClosingWorkspace(sourceId!)) throw new LocalizedError('appErrors.workspace.sourceJustClosed', { name: source.name })
+    if (browser.isClosingWorkspace(sourceId!)) throw new LocalizedError('appErrors.workspace.sourceJustClosed', { name: source.name })
     group.navigationPolicy = forkNavigationPolicy(source, normalizedPolicy)
     const fork = async () => {
-      access.mcpTabGroups().set(group.id, group)
+      browser.mcpTabGroups.set(group.id, group)
       // Home can already read this workspace while its storage is copying.
       // Publish it to chrome too, without persisting an unfinished fork.
-      access.changed(false)
+      publishChange(browser, false)
       let selectedOrigins: string[] = []
       try {
         selectedOrigins = normalizeWorkspaceStorageOrigins(origins ?? source.origins)
-        await access.withWorkspaceOperation(group.id, 'forking workspace data', () => (
+        await withWorkspaceOperation(browser, group.id, 'forking workspace data', () => (
           transferWorkspaceStorage({
-            sourcePartition: workspacePartition(access.options().partition, source.storageId),
-            targetPartition: workspacePartition(access.options().partition, storageId),
+            sourcePartition: workspacePartition(browser.options.partition, source.storageId),
+            targetPartition: workspacePartition(browser.options.partition, storageId),
             origins: selectedOrigins,
             copyAllCookies: origins === undefined,
             copyLocalStorage: true,
-            configureSession: access.options().configureSession
+            configureSession: browser.options.configureSession
           })
         ), true)
         group.origins = selectedOrigins
-        if (storage === 'fork-workspace') await access.createTab({ url: 'about:blank', active: false, mcpGroupId: group.id })
+        if (storage === 'fork-workspace') await browser.createTab({ url: 'about:blank', active: false, mcpGroupId: group.id })
       } catch (error) {
         try {
           await destroyWorkspaceStorage(
-            workspacePartition(access.options().partition, storageId),
-            access.options().configureSession
+            workspacePartition(browser.options.partition, storageId),
+            browser.options.configureSession
           )
         } catch (cleanupError) {
           group.origins = selectedOrigins
-          access.changed()
+          publishChange(browser)
           throw new RetainedBrowserWorkspaceError(
             [error, cleanupError],
             group.id,
             `Workspace ${group.id} could not be created or cleaned up. It remains listed so its isolated data can be deleted safely.`
           )
         }
-        access.mcpTabGroups().delete(group.id)
-        access.changed()
+        browser.mcpTabGroups.delete(group.id)
+        publishChange(browser)
         throw error
       }
-      access.changed()
-      return requireMcpTabGroup(access, group.id)
+      publishChange(browser)
+      return requireMcpTabGroup(browser, group.id)
     }
-    return access.withGlobalWorkspaceStorageOperation('forking workspace data', () => (
-      access.mcpTabGroups().has(source.id)
-        ? access.withWorkspaceOperation(source.id, 'forking workspace data', fork, false)
-        : access.withSavedWorkspaceOperation(source.id, 'forking workspace data', fork)
+    return withGlobalWorkspaceStorageOperation(browser, 'forking workspace data', () => (
+      browser.mcpTabGroups.has(source.id)
+        ? withWorkspaceOperation(browser, source.id, 'forking workspace data', fork, false)
+        : withSavedWorkspaceOperation(browser, source.id, 'forking workspace data', fork)
     ))
   }
-  access.mcpTabGroups().set(group.id, group)
-  access.changed()
-  return requireMcpTabGroup(access, group.id)
+  browser.mcpTabGroups.set(group.id, group)
+  publishChange(browser)
+  return requireMcpTabGroup(browser, group.id)
 }

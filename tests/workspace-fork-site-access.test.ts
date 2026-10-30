@@ -8,6 +8,12 @@ vi.mock('../src/main/browser/workspace-storage.js', async (importOriginal) => ({
   destroyWorkspaceStorage: vi.fn(async () => undefined)
 }))
 
+// The browser below stubs changed, which creating a workspace publishes through this.
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist)
+}))
+
 const { createMcpTabGroup } = await import('../src/main/browser/mcp-tab-groups/create-mcp-tab-group.js')
 const { LocalizedError } = await import('../src/main/localized-error.js')
 
@@ -15,21 +21,21 @@ const { LocalizedError } = await import('../src/main/localized-error.js')
 async function copyWorkspace(sourcePolicy: BrowserWorkspaceNavigationPolicy, chosen?: BrowserWorkspaceNavigationPolicy) {
   const source = { id: 'source', name: 'Research', storageId: 'source-storage', origins: [], navigationPolicy: sourcePolicy }
   const workspaces = new Map<string, unknown>([['source', source]])
-  const access = {
-    mcpTabGroups: () => workspaces,
-    savedTabGroups: () => new Map(),
-    tabs: () => new Map(),
-    options: () => ({ partition: 'persist:test', configureSession: () => undefined }),
+  const tabManager = {
+    mcpTabGroups: workspaces,
+    savedTabGroups: new Map(),
+    tabs: new Map(),
+    options: { partition: 'persist:test', configureSession: () => undefined },
+    workspaceOperations: new Map(),
+    workspaceStorageOperation: null,
+    pendingWorkspaceOperationPromises: new Set(),
     assertWorkspaceNameAvailable: () => undefined,
-    assertActiveWorkspaceCapacity: () => undefined,
     isClosingWorkspace: () => false,
-    withGlobalWorkspaceStorageOperation: (_action: string, run: () => unknown) => run(),
-    withWorkspaceOperation: (_id: string, _action: string, run: () => unknown) => run(),
     createTab: async () => ({}),
     changed: () => undefined
   }
   try {
-    const copy = await createMcpTabGroup(access as never, 'Copy', undefined, 'fork-workspace', undefined, false, chosen, 'source')
+    const copy = await createMcpTabGroup(tabManager as never, 'Copy', undefined, 'fork-workspace', undefined, false, chosen, 'source')
     return { policy: copy.navigationPolicy, workspaces: workspaces.size }
   } catch (error) {
     return { refused: error, workspaces: workspaces.size }
@@ -70,20 +76,20 @@ describe('Site access of a workspace copy', () => {
 describe('Site access of a public observer', () => {
   it('refuses a subdomain wildcard as the one origin of a public observer', async () => {
     const workspaces = new Map<string, unknown>()
-    const access = {
-      mcpTabGroups: () => workspaces,
-      savedTabGroups: () => new Map(),
-      tabs: () => new Map(),
-      options: () => ({ partition: 'persist:test', configureSession: () => undefined }),
+    const tabManager = {
+      mcpTabGroups: workspaces,
+      savedTabGroups: new Map(),
+      tabs: new Map(),
+      options: { partition: 'persist:test', configureSession: () => undefined },
+      workspaceOperations: new Map(),
+      workspaceStorageOperation: null,
+      pendingWorkspaceOperationPromises: new Set(),
       assertWorkspaceNameAvailable: () => undefined,
-      assertActiveWorkspaceCapacity: () => undefined,
       isClosingWorkspace: () => false,
-      withGlobalWorkspaceStorageOperation: (_action: string, run: () => unknown) => run(),
-      withWorkspaceOperation: (_id: string, _action: string, run: () => unknown) => run(),
       createTab: async () => ({}),
       changed: () => undefined
     }
-    const observe = (origin: string) => createMcpTabGroup(access as never, `Observer ${origin}`, undefined, 'scratch', undefined, true,
+    const observe = (origin: string) => createMcpTabGroup(tabManager as never, `Observer ${origin}`, undefined, 'scratch', undefined, true,
       listed(origin), undefined, undefined, 'public-observer')
 
     // `https://*.example.com/`, or `https://%2A.example.com/`, parses as this origin and was kept as a subdomain

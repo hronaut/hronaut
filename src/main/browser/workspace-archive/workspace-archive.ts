@@ -187,7 +187,7 @@ export async function restoreSavedTabGroup(
 ): Promise<BrowserTabGroupState> {
   // Any attempt to bring back a workspace the person just closed keeps it, even one that fails.
   if (browser.closingWorkspace?.id === savedGroupId) {
-    browser.closingWorkspace!.kept = true
+    browser.closingWorkspace.kept = true
     browser.closingWorkspace = undefined
   }
   return withTabLabelLifecycle(browser, () => browser.workspaceRegistry.restore(savedGroupId, placement, show))

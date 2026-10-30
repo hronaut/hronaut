@@ -113,7 +113,6 @@ import { WorkspaceContinuityEvidenceFactory } from '../mcp/workspace-continuity-
 import type { BrowserPostcondition } from '../../shared/post-write-postcondition.js'
 import type { BrowserReconciliationCondition, BrowserReconciliationEvidence } from '../../shared/browser-reconciliation.js'
 import type { PostconditionReadResult } from '../mcp/post-write-browser-read.js'
-import type { WorkspaceContinuityAccess } from './workspace-continuity/workspace-continuity-access.js'
 import {
   armWorkspaceContinuity,
   beginWorkspaceContinuityAction,
@@ -402,7 +401,6 @@ import {
   workspacePartition
 } from './workspace-storage.js'
 import { drainWorkspaceOperations, flushPersist, flushWorkspaceProfiles } from './quit-flush/quit-flush.js'
-import type { McpTabGroupsAccess } from './mcp-tab-groups/mcp-tab-groups-access.js'
 import { closeMcpTabGroup, closeMcpTabGroupInternal } from './mcp-tab-groups/close-mcp-tab-group.js'
 import { createMcpTabGroup } from './mcp-tab-groups/create-mcp-tab-group.js'
 import { listMcpTabGroups, renameMcpTabGroup, requireMcpTabGroup, updateMcpTabGroup } from './mcp-tab-groups/mcp-tab-groups.js'
@@ -413,7 +411,6 @@ import {
   type BrowserWorkspaceOperation,
   type OpenWorkspaceOperationAction,
   type WorkspaceOperationAction,
-  withGlobalWorkspaceStorageOperation,
   withSavedWorkspaceOperation,
   withWorkspaceOperation
 } from './workspace-operations/workspace-operations.js'
@@ -691,92 +688,55 @@ export class Browser {
   readonly continuityEvidence = new WorkspaceContinuityEvidenceFactory()
   readonly continuityActions = new Map<string, { reads: number; writes: number }>()
 
-  /**
-   * The narrow view workspace continuity gets of this manager's private tabs,
-   * workspaces, persisted state and continuity fields, and of the recorders,
-   * previews, network waits and downloads a new observation generation ends.
-   * It is a prototype method rather than a field, so managers created without
-   * the constructor (as unit tests do) still provide it. The delegates below
-   * return the feature's value or promise directly, so no extra ticks separate
-   * its final checks from the caller.
-   */
-  private workspaceContinuityAccess(): WorkspaceContinuityAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      tabs: () => this.tabs.values(),
-      getMcpGroupState: (workspaceId) => this.getMcpGroupState(workspaceId),
-      requireMcpTabGroup: (workspaceId) => this.requireMcpTabGroup(workspaceId),
-      tabBelongsToMcpGroup: (workspaceId, tabId) => this.tabBelongsToMcpGroup(workspaceId, tabId),
-      updateMcpTabGroup: (workspaceId, updates) => this.updateMcpTabGroup(workspaceId, updates),
-      hasArchivedWorkspace: (workspaceId) => this.savedTabGroups.has(workspaceId),
-      store: () => this.store,
-      persistedState: () => this.persistedState(),
-      workspaceContinuity: () => this.workspaceContinuity,
-      continuityEvidence: () => this.continuityEvidence,
-      continuityMarkers: () => this.continuityMarkers,
-      workspaceObservationGenerations: () => this.workspaceObservationGenerations,
-      continuityActions: () => this.continuityActions,
-      continuityRevision: () => this.continuityRevision,
-      setContinuityRevision: (revision) => { this.continuityRevision = revision },
-      interruptPwaLifecycle: (workspaceId, reason) => this.pwaLifecycleRecorder.interruptWorkspace(workspaceId, reason),
-      releaseLiveRegion: (tab) => this.liveRegionRecorder.release(tab),
-      clearCssStatePreview: (tab, reason) => this.cssStatePreview.clear(tab, reason),
-      stopVirtualPasskey: (tab, reason) => this.virtualPasskeys.stop(tab, reason),
-      stopLogpoints: (tab, reason) => this.logpoints.stop(tab, reason),
-      rejectNetworkWait: (tabId, message) => this.networkWaitController.reject(tabId, message),
-      advanceDownloadObservationGeneration: (workspaceId, observationGeneration) => this.downloadController.advanceWorkspaceObservationGeneration(workspaceId, observationGeneration)
-    }
-  }
-
   beginWorkspaceContinuityAction(workspaceId: string, readOnly: boolean): () => void {
-    return beginWorkspaceContinuityAction(this.workspaceContinuityAccess(), workspaceId, readOnly)
+    return beginWorkspaceContinuityAction(this, workspaceId, readOnly)
   }
 
   /** Forgets a workspace deleted with its data: its continuity, and its downloads in the history kept for the next start. */
   retireWorkspaceContinuity(workspaceId: string): void {
-    retireWorkspaceContinuity(this.workspaceContinuityAccess(), workspaceId)
+    retireWorkspaceContinuity(this, workspaceId)
     this.downloadController.forgetWorkspace(workspaceId)
   }
 
   postWriteContextFingerprint(workspaceId: string, tabId: string, condition: BrowserPostcondition): string {
-    return postWriteContextFingerprint(this.workspaceContinuityAccess(), workspaceId, tabId, condition)
+    return postWriteContextFingerprint(this, workspaceId, tabId, condition)
   }
 
   readPostWritePostcondition(workspaceId: string, tabId: string, condition: BrowserPostcondition, validateCurrent: () => void, signal?: AbortSignal): Promise<PostconditionReadResult> {
-    return readPostWritePostcondition(this.workspaceContinuityAccess(), workspaceId, tabId, condition, validateCurrent, signal)
+    return readPostWritePostcondition(this, workspaceId, tabId, condition, validateCurrent, signal)
   }
 
   readBrowserReconciliation(workspaceId: string, tabId: string, condition: BrowserReconciliationCondition,
     validateCurrent: () => void, signal?: AbortSignal): Promise<BrowserReconciliationEvidence> {
-    return readBrowserReconciliation(this.workspaceContinuityAccess(), workspaceId, tabId, condition, validateCurrent, signal)
+    return readBrowserReconciliation(this, workspaceId, tabId, condition, validateCurrent, signal)
   }
 
   armWorkspaceContinuity(workspaceId: string, markerSelector?: string, validateCurrent: () => void = () => undefined): Promise<string> {
-    return armWorkspaceContinuity(this.workspaceContinuityAccess(), workspaceId, markerSelector, validateCurrent)
+    return armWorkspaceContinuity(this, workspaceId, markerSelector, validateCurrent)
   }
 
   requireWorkspaceContinuityReview(workspaceId: string): Promise<boolean> {
-    return requireWorkspaceContinuityReview(this.workspaceContinuityAccess(), workspaceId)
+    return requireWorkspaceContinuityReview(this, workspaceId)
   }
 
   suspendWorkspaceContinuity(workspaceId: string, outcome: WorkspaceContinuityResult['priorOutcome'] = 'NONE'): boolean {
-    return suspendWorkspaceContinuity(this.workspaceContinuityAccess(), workspaceId, outcome)
+    return suspendWorkspaceContinuity(this, workspaceId, outcome)
   }
 
   private workspaceObservationGeneration(workspaceId: string): number {
-    return workspaceObservationGeneration(this.workspaceContinuityAccess(), workspaceId)
+    return workspaceObservationGeneration(this, workspaceId)
   }
 
   inspectWorkspaceContinuity(workspaceId: string) {
-    return inspectWorkspaceContinuity(this.workspaceContinuityAccess(), workspaceId)
+    return inspectWorkspaceContinuity(this, workspaceId)
   }
 
   reconcileWorkspaceContinuity(workspaceId: string, reviewId: string, acknowledgeUnknownOutcome: boolean, validateCurrent: () => void = () => undefined): Promise<void> {
-    return reconcileWorkspaceContinuity(this.workspaceContinuityAccess(), workspaceId, reviewId, acknowledgeUnknownOutcome, validateCurrent)
+    return reconcileWorkspaceContinuity(this, workspaceId, reviewId, acknowledgeUnknownOutcome, validateCurrent)
   }
 
   requireWorkspaceContinuityDispatch(workspaceId: string): void {
-    requireWorkspaceContinuityDispatch(this.workspaceContinuityAccess(), workspaceId)
+    requireWorkspaceContinuityDispatch(this, workspaceId)
   }
 
   readonly tabs = new Map<string, BrowserTab>()
@@ -1435,59 +1395,8 @@ export class Browser {
     return getTabOverviewPagePreview(this, tabId)
   }
 
-  /**
-   * The narrow view workspaces get of this manager's private tabs, open and
-   * archived workspaces, recently closed tabs, options, workspace operations,
-   * tab label edits, workspace continuity, session store and state
-   * publication. It is a prototype method rather than a field, so managers
-   * created without the constructor (as unit tests do) still provide it, and
-   * the changed and getState they stub are reached through it. The delegates
-   * below return the feature's value or promise directly, so callers see the
-   * same ticks as before.
-   */
-  private mcpTabGroupsAccess(): McpTabGroupsAccess<BrowserTab> {
-    return {
-      mcpTabGroups: () => this.mcpTabGroups,
-      savedTabGroups: () => this.savedTabGroups,
-      tabs: () => this.tabs,
-      orderedTabs: () => orderedTabs(this),
-      closedTabs: () => this.closedTabs,
-      detachedClosedTabs: () => this.detachedClosedTabs,
-      activeTabId: () => this.activeTabId,
-      tabSelectionGeneration: () => this.tabSelectionGeneration,
-      options: () => this.options,
-      inspectionPermissions: () => this.inspectionPermissions,
-      deletedWorkspaceStorageIds: () => this.deletedWorkspaceStorageIds,
-      workspacesBeingDeleted: () => this.workspacesBeingDeleted,
-      store: () => this.store,
-      persistedState: () => this.persistedState(),
-      assertWorkspaceNameAvailable: (name, excludeActiveWorkspaceId, excludeSavedWorkspaceId, allowDuplicateName) => (
-        this.assertWorkspaceNameAvailable(name, excludeActiveWorkspaceId, excludeSavedWorkspaceId, allowDuplicateName)
-      ),
-      assertActiveWorkspaceCapacity: () => assertActiveWorkspaceCapacity(this),
-      assertWorkspaceIdle: (workspaceId) => this.assertWorkspaceIdle(workspaceId),
-      isClosingWorkspace: (workspaceId) => this.isClosingWorkspace(workspaceId),
-      withWorkspaceOperation: (workspaceId, action, operation, blocksNewTabs) => this.withWorkspaceOperation(workspaceId, action, operation, blocksNewTabs),
-      withSavedWorkspaceOperation: (savedWorkspaceId, action, operation) => this.withSavedWorkspaceOperation(savedWorkspaceId, action, operation),
-      withGlobalWorkspaceStorageOperation: (action, operation) => this.withGlobalWorkspaceStorageOperation(action, operation),
-      withTabLabelLifecycle: (run) => withTabLabelLifecycle(this, run),
-      createTab: (options) => this.createTab(options),
-      closeTabs: (tabIds, ensureReplacement) => this.closeTabs(tabIds, ensureReplacement),
-      selectTab: (tabId) => this.selectTab(tabId),
-      navigationHistorySnapshot: (tab) => this.navigationHistorySnapshot(tab),
-      runWalletLifecycleAction: (action, callback) => this.runWalletLifecycleAction(action, callback),
-      assertStorageDeletionOwnership: (workspaceId, storageId) => this.assertStorageDeletionOwnership(workspaceId, storageId),
-      downloadsEnd: (browserSession) => this.downloadController.downloadsEnd(browserSession),
-      suspendWorkspaceContinuity: (workspaceId) => this.suspendWorkspaceContinuity(workspaceId),
-      retireWorkspaceContinuity: (workspaceId) => this.retireWorkspaceContinuity(workspaceId),
-      invalidateReactInspectionWorkspace: (workspaceId) => this.reactInspectionController.invalidateWorkspace(workspaceId),
-      changed: (persist) => this.changed(persist),
-      getState: () => this.getState()
-    }
-  }
-
   listMcpTabGroups(): BrowserTabGroupState[] {
-    return listMcpTabGroups(this.mcpTabGroupsAccess())
+    return listMcpTabGroups(this)
   }
 
   listSavedTabGroups(): BrowserSavedTabGroupState[] {
@@ -1540,11 +1449,11 @@ export class Browser {
     description = '',
     contextClass: BrowserWorkspaceContextClass = 'standard'
   ): Promise<BrowserTabGroupState> {
-    return createMcpTabGroup(this.mcpTabGroupsAccess(), name, color, storage, origins, allowDuplicateName, navigationPolicy, sourceWorkspaceId, description, contextClass)
+    return createMcpTabGroup(this, name, color, storage, origins, allowDuplicateName, navigationPolicy, sourceWorkspaceId, description, contextClass)
   }
 
   renameMcpTabGroup(groupId: string, name: string, allowDuplicateName = false): BrowserTabGroupState {
-    return renameMcpTabGroup(this.mcpTabGroupsAccess(), groupId, name, allowDuplicateName)
+    return renameMcpTabGroup(this, groupId, name, allowDuplicateName)
   }
 
   updateMcpTabGroup(
@@ -1552,15 +1461,15 @@ export class Browser {
     updates: { name?: string; description?: string; color?: BrowserTabGroupColor; agentAccess?: boolean; hiddenFromSidebar?: boolean; deletionProtected?: boolean },
     allowDuplicateName = false
   ): BrowserTabGroupState {
-    return updateMcpTabGroup(this.mcpTabGroupsAccess(), groupId, updates, allowDuplicateName)
+    return updateMcpTabGroup(this, groupId, updates, allowDuplicateName)
   }
 
   setWorkspacePinned(groupId: string, pinned: boolean): BrowserState {
-    return setWorkspacePinned(this.mcpTabGroupsAccess(), groupId, pinned)
+    return setWorkspacePinned(this, groupId, pinned)
   }
 
   requireMcpTabGroup(groupId: string): BrowserTabGroupState {
-    return requireMcpTabGroup(this.mcpTabGroupsAccess(), groupId)
+    return requireMcpTabGroup(this, groupId)
   }
 
   listWorkspaceNavigationAudit(groupId: string): BrowserWorkspaceNavigationAuditEntry[] {
@@ -1676,11 +1585,11 @@ export class Browser {
   }
 
   closeMcpTabGroup(groupId: string, preserveStorage = false): Promise<BrowserTabGroupState[]> {
-    return closeMcpTabGroup(this.mcpTabGroupsAccess(), groupId, preserveStorage)
+    return closeMcpTabGroup(this, groupId, preserveStorage)
   }
 
   private closeMcpTabGroupInternal(groupId: string, preserveStorage = false): Promise<BrowserTabGroupState[]> {
-    return closeMcpTabGroupInternal(this.mcpTabGroupsAccess(), groupId, preserveStorage)
+    return closeMcpTabGroupInternal(this, groupId, preserveStorage)
   }
 
   saveAndCloseTabGroup(groupId: string): Promise<BrowserSavedTabGroupState> {
@@ -2333,7 +2242,7 @@ export class Browser {
    * so it hands over to a tab that stays open rather than waking a sleeping
    * one only to close it next.
    */
-  private async closeTabs(tabIds: string[], ensureReplacement = true): Promise<BrowserState> {
+  async closeTabs(tabIds: string[], ensureReplacement = true): Promise<BrowserState> {
     const pending = [...tabIds]
     while (pending.length) {
       const inactiveIndex = pending.findIndex((tabId) => tabId !== this.activeTabId)
@@ -3802,7 +3711,7 @@ export class Browser {
     return tab
   }
 
-  private assertWorkspaceNameAvailable(
+  assertWorkspaceNameAvailable(
     name: string,
     excludeActiveWorkspaceId?: string,
     excludeSavedWorkspaceId?: string,
@@ -3843,13 +3752,6 @@ export class Browser {
     operation: () => Promise<T>
   ): Promise<T> {
     return withSavedWorkspaceOperation(this, savedWorkspaceId, action, operation)
-  }
-
-  private withGlobalWorkspaceStorageOperation<T>(
-    action: WorkspaceOperationAction,
-    operation: () => Promise<T>
-  ): Promise<T> {
-    return withGlobalWorkspaceStorageOperation(this, action, operation)
   }
 
   /** Follows the tab's page from before its first page starts; `openedBy` is the page that opened it as a window. */

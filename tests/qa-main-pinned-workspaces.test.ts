@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, Menu: {} }))
+// The prototype-built browser below stubs changed and getState, which pinning a workspace publishes and returns through these.
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist),
+  browserState: (browser: { getState: () => unknown }) => browser.getState()
+}))
 import type { MenuItemConstructorOptions } from 'electron'
 import { Browser } from '../src/main/browser/browser.js'
 import { orderedTabs } from '../src/main/browser/browser-core.js'
