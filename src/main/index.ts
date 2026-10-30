@@ -94,6 +94,12 @@ import { registerConfirmDialogIpc } from './confirm-dialog-ipc.js'
 import { createTrustedDialogs } from './trusted-dialogs/trusted-dialogs.js'
 import { createClipboardOperations } from './clipboard-operations.js'
 import { createPanelWindow, type PanelWindowRefs } from './windows/panel-window.js'
+import { createMainWindowSnapshot } from './windows/main-window-snapshot.js'
+import { AGENT_PRESENCE_IPC } from '../shared/ipc/agent-presence.js'
+import { DOWNLOADS_IPC } from '../shared/ipc/downloads.js'
+import { MCP_IPC } from '../shared/ipc/mcp.js'
+import { TABS_IPC } from '../shared/ipc/tabs.js'
+import { UNDO_IPC } from '../shared/ipc/undo.js'
 import { createApplicationMenu } from './windows/application-menu.js'
 import { attachHistoryMouseButtons } from './windows/history-mouse-buttons.js'
 import { createWindowStatePersistence } from './windows/window-state-persistence.js'
@@ -276,7 +282,7 @@ const {
 const mcpPauseState = new McpPauseState()
 const mcpActionTracker = new McpActionTracker(() => {
   // Command progress updates the shell without reloading a visible Home tab.
-  sendToShellWindows('mcp:changed', currentMcpControlState())
+  sendToShellWindows(MCP_IPC.changed, currentMcpControlState())
 })
 /** Why the listener could not start on its port, and the free port to offer instead; cleared once it listens. */
 const mcpPortRecovery = new McpPortRecovery({
@@ -430,14 +436,14 @@ const {
   offerUndo: (action) => undoOffers.offer(action)
 })
 // The person's latest reversible action, until its Undo toast closes.
-const undoOffers = new UndoOffers((offer) => {
-  if (mainWindowRefs.window && !mainWindowRefs.window.isDestroyed() && !mainWindowRefs.window.webContents.isDestroyed()) mainWindowRefs.window.webContents.send('undo:offered', offer)
-}, (token) => {
-  if (mainWindowRefs.window && !mainWindowRefs.window.isDestroyed() && !mainWindowRefs.window.webContents.isDestroyed()) mainWindowRefs.window.webContents.send('undo:ended', token)
-}, (action, error) => {
-  console.error(`[undo] Could not ${action}:`, error)
-  reportBrowserActionFailure(action, error)
-})
+const undoOffers = new UndoOffers(
+  (offer) => sendToMainWindow(UNDO_IPC.offered, offer),
+  (token) => sendToMainWindow(UNDO_IPC.ended, token),
+  (action, error) => {
+    console.error(`[undo] Could not ${action}:`, error)
+    reportBrowserActionFailure(action, error)
+  }
+)
 const appUpdates: AppUpdatesState = { current: { status: 'idle', currentVersion: app.getVersion() } }
 const { configureAutoUpdater, checkForUpdates, downloadUpdate, installDownloadedUpdate } = createAppUpdates({
   autoUpdater,
@@ -530,7 +536,7 @@ const takeOvers = new TakeOverOffers({
     if (!mcpRuntime.server) throw new Error('Agent service is unavailable')
     mcpRuntime.server.setTabAgentPaused(tabId, paused, options)
   },
-  sendOffer: (offer) => sendToMainWindow('agent-presence:take-over-offer', offer),
+  sendOffer: (offer) => sendToMainWindow(AGENT_PRESENCE_IPC.takeOverOffer, offer),
   onError: () => console.error('[take-over] Failed to change agent control for a tab.')
 })
 
@@ -639,7 +645,7 @@ if (process.env.HRONAUT_INTEGRATION_TEST_HOOKS === '1') {
   }).__hronautRequestUserAttentionForTest = requestUserAttention
 }
 
-const { installApplicationMenu } = createApplicationMenu({
+const { installApplicationMenu, requestHelp } = createApplicationMenu({
   text,
   showWindow,
   mainWindow: () => mainWindowRefs.window,
@@ -706,6 +712,17 @@ const { detachedPanelTitle, openPanelWindow, closePanelWindow } = createPanelWin
   currentPanelWindowState,
   schedulePanelWindowStateSave,
   flushPanelWindowState
+})
+const { sendPageLoadedSnapshot, sendWorkspacesRestoredSnapshot } = createMainWindowSnapshot({
+  sendToMainWindow,
+  tabRuntime,
+  settings: () => settingsState.current,
+  currentRendererSettingsState,
+  updateState: () => appUpdates.current,
+  currentMcpControlState,
+  credentialStore: () => credentialRuntime.store,
+  bookmarkStore: () => bookmarksAndHistory.bookmarks,
+  historyStore: () => bookmarksAndHistory.history
 })
 
 const { applyLanguagePreferenceRuntime } = createInterfaceLanguage({
@@ -1218,11 +1235,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     getSpellCheck: () => spellCheck.isEnabled(),
     setSpellCheck: (enabled) => spellCheck.setEnabled(enabled),
     offersSpellCheckLanguages: () => spellCheck.languages().available.length > 0,
-    openSpellCheckSettings: () => {
-      showWindow()
-      const window = mainWindowRefs.window
-      if (window && !window.webContents.isDestroyed()) window.webContents.send('help:open', 'settings')
-    },
+    openSpellCheckSettings: () => requestHelp('settings'),
     sitePermissionStore: () => browserSessionState.sitePermissionStore,
     onSitePermissionsChanged: publishSitePermissions,
     getLocale: () => settingsState.resolvedLocale,
@@ -1261,7 +1274,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     endUndo: () => undoOffers.end(),
     onStateChanged: (state) => {
       reconcileUserAttention(state)
-      sendToPanelWindow('browser:state-changed', state)
+      sendToPanelWindow(TABS_IPC.stateChanged, state)
       scheduleAgentPresencePublish()
     },
     onChanged: () => {
@@ -1286,7 +1299,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     },
     onPagesLaidOut: () => statusBubble.layoutChanged(),
     onDownloadsChanged: (downloads) => {
-      sendToPanelWindow('browser:downloads-changed', downloads)
+      sendToPanelWindow(DOWNLOADS_IPC.changed, downloads)
       downloadsUnderWayIcons.show(downloads)
     },
     confirmBeforeUnloadClose: async () => {
@@ -1466,13 +1479,7 @@ async function createWindow(startMinimized = false): Promise<void> {
   attachHistoryMouseButtons(mainWindowRefs.window, { runNativeBrowserAction, tabs: () => tabRuntime.tabs })
   mainWindowRefs.window.webContents.on('did-finish-load', () => {
     applyInterfaceScale(settingsState.current.interfaceScale)
-    if (tabRuntime.tabs && mainWindowRefs.window && !mainWindowRefs.window.webContents.isDestroyed()) {
-      if (!tabRuntime.initialization) mainWindowRefs.window.webContents.send('browser:state-changed', browserState(tabRuntime.tabs))
-      mainWindowRefs.window.webContents.send('updates:changed', appUpdates.current)
-      mainWindowRefs.window.webContents.send('mcp:changed', currentMcpControlState())
-      mainWindowRefs.window.webContents.send('bookmarks:changed', bookmarksAndHistory.bookmarks?.list() ?? [])
-      mainWindowRefs.window.webContents.send('visit-history:changed', bookmarksAndHistory.history?.list() ?? [])
-    }
+    sendPageLoadedSnapshot()
   })
   mainWindowRefs.window.webContents.on('will-navigate', (event, url) => {
     if (url !== trustedShellUrl()) event.preventDefault()
@@ -1508,16 +1515,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     releaseTabsInitialization()
     if (tabRuntime.initialization === currentTabsInitialization) tabRuntime.initialization = null
   }
-  if (!mainWindowRefs.window.webContents.isDestroyed()) {
-    mainWindowRefs.window.webContents.send('browser:state-changed', browserState(tabRuntime.tabs))
-    mainWindowRefs.window.webContents.send('settings:changed', settingsState.current)
-    mainWindowRefs.window.webContents.send('settings:renderer-state-changed', currentRendererSettingsState())
-    mainWindowRefs.window.webContents.send('updates:changed', appUpdates.current)
-    mainWindowRefs.window.webContents.send('mcp:changed', currentMcpControlState())
-    mainWindowRefs.window.webContents.send('credentials:changed', credentialRuntime.store?.list() ?? [])
-    mainWindowRefs.window.webContents.send('bookmarks:changed', bookmarksAndHistory.bookmarks?.list() ?? [])
-    mainWindowRefs.window.webContents.send('visit-history:changed', bookmarksAndHistory.history?.list() ?? [])
-  }
+  sendWorkspacesRestoredSnapshot()
   if (savedWindowState?.maximized) mainWindowRefs.window.maximize()
   if (savedWindowState?.fullScreen) mainWindowRefs.window.setFullScreen(true)
   if (!startMinimized || mainWindowRefs.showRequested) mainWindowRefs.window.show()
@@ -1570,9 +1568,7 @@ function createRuntimeMcpServer(
     onTabActivity: (activity, agent) => {
       noteMcpTabActivity(activity)
       if (tabRuntime.tabs) handleMcpTabActivity(tabRuntime.tabs, activity, agent)
-      if (mainWindowRefs.window && !mainWindowRefs.window.webContents.isDestroyed()) {
-        mainWindowRefs.window.webContents.send('browser:mcp-tab-activity', activity)
-      }
+      sendToMainWindow(TABS_IPC.mcpTabActivity, activity)
     },
     onAgentPresenceChanged: scheduleAgentPresencePublish,
     captureAgentStepThumbnail: async (tabId, workspaceId) => tabRuntime.tabs ? captureAgentStepThumbnail(tabRuntime.tabs, tabId, workspaceId) : undefined

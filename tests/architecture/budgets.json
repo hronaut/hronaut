@@ -1,11 +1,11 @@
 {
   "oversizedFiles": {
     "src/main/browser/downloads/downloads-controller.ts": 811,
-    "src/main/index.ts": 1656,
+    "src/main/index.ts": 1652,
     "src/main/mcp/http-server.ts": 854,
     "src/main/wallet/broker.ts": 884,
     "src/renderer/src/App.vue": 1102
   },
   "accessFiles": [],
-  "literalIpcChannels": 61
+  "literalIpcChannels": 40
 }
