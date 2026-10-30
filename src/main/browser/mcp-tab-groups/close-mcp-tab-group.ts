@@ -9,6 +9,7 @@ import { withTabLabelLifecycle } from '../tab-labels/tab-labels.js'
 import { orderedTabs } from '../browser-core.js'
 import { publishChange } from '../browser-state/browser-state.js'
 import { listMcpTabGroups } from './mcp-tab-groups.js'
+import { closeTabs } from '../tab-close/close-tab.js'
 
 /** Hronaut Home, which closing a workspace opens when it leaves no tab; the tab manager's Home address. */
 const HRONAUT_HOME_URL = 'hronaut://home/'
@@ -127,7 +128,7 @@ async function closeMcpTabGroupAfterLabelSave(browser: Browser, groupId: string,
   // meanwhile brings it back with its tabs instead of empty.
   if (!preserveStorage) browser.workspacesBeingDeleted.set(groupId, { activeTabId: previousGroupActiveTabId, tabs: tabs.map(persistedTab) })
   try {
-    await browser.closeTabs(tabSnapshots.map((tab) => tab.id), false)
+    await closeTabs(browser, tabSnapshots.map((tab) => tab.id), false)
     // A tab left open would name a workspace the saved session no longer has, which the next start refuses to load.
     if ([...browser.tabs.values()].some((tab) => tab.mcpGroupId === groupId)) {
       throw new LocalizedError('appErrors.workspace.tabStillOpen', { name: group.name })

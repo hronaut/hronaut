@@ -25,6 +25,7 @@ import {
   type RendererSettingsState,
   type ThemeName
 } from '../../shared/types.js'
+import { setFollowAgentActivity } from '../browser/agent-follow/agent-follow.js'
 
 type SettingsIpcCapabilityProfiles = Pick<McpCapabilityProfileStore, 'list' | 'create' | 'derive' | 'update' | 'rotate' | 'revoke'>
 
@@ -59,7 +60,7 @@ interface SettingsIpcHost {
   applyDownloadSettings(updates: Partial<AppSettings>): Promise<AppSettings>
   /** Opens a folder in the system file manager; resolves to an error message, or an empty string on success. */
   openPath(path: string): Promise<string>
-  tabs(): Pick<Browser, 'setMemorySaverSettings' | 'setFollowAgentActivity'> | null
+  tabs(): Browser | null
   mcpServer(): Pick<McpHttpServer, 'setAuthenticationToken' | 'setToolSet'> | null
   mcpTokenConfiguration(): Pick<McpTokenConfiguration, 'token'> | null
   refreshHomeAfterCommittedChange(scope: 'mcp'): void
@@ -112,6 +113,11 @@ function capabilityProfileInput(value: unknown): McpCapabilityProfileCreateInput
 export function registerSettingsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: SettingsIpcHost): void {
   /** Counts Follow agent activity requests, so a failed save restores the setting only for the newest. */
   let followAgentActivityIntent = 0
+  /** Turns Follow agent activity on or off in the browser, once it is up. */
+  const followAgentActivity = (enabled: boolean): void => {
+    const browser = host.tabs()
+    if (browser) setFollowAgentActivity(browser, enabled)
+  }
   const requireCapabilityProfiles = (): SettingsIpcCapabilityProfiles => {
     const profiles = host.mcpCapabilityProfiles()
     if (!profiles) throw new LocalizedError('appErrors.settings.capabilityProfilesUnavailable')
@@ -323,11 +329,11 @@ export function registerSettingsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Sett
     // Applied at once, in the order asked, so following cannot move the view after the person
     // turned it off, such as with Stay here, while the setting is still being saved.
     const intent = ++followAgentActivityIntent
-    host.tabs()?.setFollowAgentActivity(enabled)
+    followAgentActivity(enabled)
     try {
       await host.updateSettings({ followAgentActivity: enabled })
     } catch (error) {
-      if (intent === followAgentActivityIntent) host.tabs()?.setFollowAgentActivity(host.settings().followAgentActivity)
+      if (intent === followAgentActivityIntent) followAgentActivity(host.settings().followAgentActivity)
       throw error
     }
     host.publishSettings()

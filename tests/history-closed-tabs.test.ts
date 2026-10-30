@@ -14,6 +14,17 @@ import { createSiteData } from '../src/main/site-data/site-data.js'
 vi.mock('electron', () => ({
   session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => tmpdir() }, powerMonitor: { on: () => undefined }
 }))
+// The browsers below stub changed, which forgetting cleared pages publishes through.
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist)
+}))
+// The tab runtime below stubs workspaceSession and withWorkspaceSiteDataCleanup, through which an agent clears a website's data.
+vi.mock('../src/main/browser/workspace-data/workspace-data.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-data/workspace-data.js')>(),
+  workspaceSession: (browser: { workspaceSession: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.workspaceSession(...args),
+  withWorkspaceSiteDataCleanup: (browser: { withWorkspaceSiteDataCleanup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.withWorkspaceSiteDataCleanup(...args)
+}))
 
 const temporaryDirectories: string[] = []
 

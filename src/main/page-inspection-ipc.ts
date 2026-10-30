@@ -8,18 +8,14 @@ import type {
   BrowserNetworkSearchOptions,
   BrowserPageCaptureOptions
 } from '../shared/types.js'
-
-type PageInspectionIpcTabs = Pick<Browser,
-  | 'manageStorage' | 'inspectStorageUsage' | 'storageChanges' | 'inspectIndexedDb' | 'pwaLifecycle' | 'inspectPwa'
-  | 'snapshotDetails' | 'pickElement' | 'captureElementScreenshot' | 'screenshot' | 'elementInspection'
-  | 'cancelElementPicker' | 'consoleMessages' | 'networkRequests' | 'networkRequestDetails' | 'replayNetworkRequest'
-  | 'networkSearch' | 'networkHar' | 'saveNetworkHar' | 'captureScreenshotArea' | 'cancelScreenshotArea'>
+import { captureElementScreenshot, pickElement } from './browser/element-picker/element-picker.js'
+import { captureScreenshotArea } from './browser/screenshot-area/screenshot-area.js'
 
 interface PageInspectionIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
   /** Registers a handler that is refused while saved workspaces are still initializing or failed to start. */
   handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void
-  tabs(): PageInspectionIpcTabs | null
+  tabs(): Browser | null
   /** Writes text to the system clipboard after earlier clipboard writes, verifying it arrived. */
   copyTextToClipboard(text: string): Promise<void>
   /** Writes a PNG image to the system clipboard after earlier clipboard writes; resolves to its size. */
@@ -121,14 +117,14 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
   })
   host.handleBrowserIpc('browser:pick-element', async (event, tabId) => {
     host.assertTrustedSender(event)
-    const result = await host.tabs()!.pickElement(tabId)
+    const result = await pickElement(host.tabs()!, tabId)
     if (result.canceled || !result.content) return { canceled: true, copied: false }
     await host.copyTextToClipboard(result.content)
     return { canceled: false, copied: true }
   })
   host.handleBrowserIpc('browser:capture-element', async (event, tabId) => {
     host.assertTrustedSender(event)
-    const screenshot = await host.tabs()!.captureElementScreenshot(tabId)
+    const screenshot = await captureElementScreenshot(host.tabs()!, tabId)
     if (screenshot.canceled || !screenshot.data) return { canceled: true, copied: false }
     const size = await host.copyPngToClipboard(screenshot.data)
     return { canceled: false, copied: true, width: size.width, height: size.height }
@@ -267,7 +263,7 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
   })
   host.handleBrowserIpc('browser:capture-area', async (event, tabId) => {
     host.assertTrustedSender(event)
-    const screenshot = await host.tabs()!.captureScreenshotArea(tabId)
+    const screenshot = await captureScreenshotArea(host.tabs()!, tabId)
     if (screenshot.canceled || !screenshot.data) return { canceled: true, copied: false }
     const size = await host.copyPngToClipboard(screenshot.data)
     return { canceled: false, copied: true, width: size.width, height: size.height }

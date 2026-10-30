@@ -24,20 +24,16 @@ import type {
   UserAttentionRequest
 } from '../shared/types.js'
 import { parseWorkspaceTemplate, WORKSPACE_TEMPLATE_ERRORS } from '../shared/workspace-template.js'
-
-type WorkspacesIpcTabs = Pick<Browser,
-  | 'getState' | 'renameMcpTabGroup' | 'updateMcpTabGroup'
-  | 'inspectWorkspaceContinuity' | 'suspendWorkspaceContinuity' | 'armWorkspaceContinuity' | 'reconcileWorkspaceContinuity'
-  | 'updateWorkspaceNavigationPolicy' | 'listWorkspaceNavigationAudit'
-  | 'importWorkspaceTemplate' | 'createWorkspace' | 'listWorkspaceStorageOrigins' | 'transferWorkspaceStorage'
-  | 'closeWorkspaceForPerson' | 'closeWorkspace' | 'saveAndCloseTabGroup' | 'restoreSavedTabGroup' | 'deleteSavedTabGroup'
-  | 'showWorkspaceContextMenu'>
+import { closeWorkspaceForPerson, restoreSavedTabGroup } from './browser/workspace-archive/workspace-archive.js'
+import { createWorkspace, importWorkspaceTemplate } from './browser/workspace-creation/workspace-creation.js'
+import { transferWorkspaceStorage } from './browser/workspace-data/workspace-data.js'
+import { listWorkspaceNavigationAudit, updateWorkspaceNavigationPolicy } from './browser/workspace-navigation/workspace-navigation.js'
 
 interface WorkspacesIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
   /** Registers a handler that is refused while saved workspaces are still initializing or failed to start. */
   handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void
-  tabs(): WorkspacesIpcTabs | null
+  tabs(): Browser | null
   /** Decisions agents wait on in a workspace; null until the MCP services start. */
   humanWaiting(): Pick<HumanWaitingService, 'list' | 'change'> | null
   /** The attention request the shell shows now; read on every check because a newer request replaces it. */
@@ -158,12 +154,12 @@ export function registerWorkspacesIpc(host: WorkspacesIpcHost): void {
     host.assertTrustedSender(event)
     if (typeof groupId !== 'string') throw new TypeError('Invalid workspace ID')
     const normalized = normalizeWorkspaceNavigationPolicy(policy)
-    return host.tabs()!.updateWorkspaceNavigationPolicy(groupId, normalized)
+    return updateWorkspaceNavigationPolicy(host.tabs()!, groupId, normalized)
   })
   host.handleBrowserIpc('browser:list-workspace-navigation-audit', (event, groupId: unknown) => {
     host.assertTrustedSender(event)
     if (typeof groupId !== 'string') throw new TypeError('Invalid workspace ID')
-    return host.tabs()!.listWorkspaceNavigationAudit(groupId)
+    return listWorkspaceNavigationAudit(host.tabs()!, groupId)
   })
   host.handleBrowserIpc('browser:open-workspace-template-file', async (event) => {
     host.assertTrustedSender(event)
@@ -202,7 +198,7 @@ export function registerWorkspacesIpc(host: WorkspacesIpcHost): void {
   host.handleBrowserIpc('browser:import-workspace-template', async (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (typeof value !== 'string') throw new TypeError(WORKSPACE_TEMPLATE_ERRORS.invalidTemplate)
-    const result = await host.tabs()!.importWorkspaceTemplate(value)
+    const result = await importWorkspaceTemplate(host.tabs()!, value)
     return { ...result, state: host.tabs()!.getState() }
   })
   host.handleBrowserIpc('browser:create-workspace', async (event, value: unknown) => {
@@ -223,7 +219,7 @@ export function registerWorkspacesIpc(host: WorkspacesIpcHost): void {
     const navigationPolicy = candidate.navigationPolicy === undefined
       ? undefined
       : normalizeWorkspaceNavigationPolicy(candidate.navigationPolicy)
-    return host.tabs()!.createWorkspace({
+    return createWorkspace(host.tabs()!, {
       name: candidate.name,
       ...(typeof candidate.description === 'string' ? { description: candidate.description } : {}),
       ...(isBrowserTabGroupColor(candidate.color) ? { color: candidate.color } : {}),
@@ -248,7 +244,7 @@ export function registerWorkspacesIpc(host: WorkspacesIpcHost): void {
     if (typeof candidate.sourceWorkspaceId !== 'string' || typeof candidate.targetWorkspaceId !== 'string') throw new TypeError('Source and destination workspaces are required')
     if (candidate.mode !== 'copy' && candidate.mode !== 'move') throw new TypeError('Invalid workspace transfer mode')
     if (candidate.origins !== undefined && (!Array.isArray(candidate.origins) || candidate.origins.some((origin) => typeof origin !== 'string'))) throw new TypeError('Invalid workspace storage origins')
-    return host.tabs()!.transferWorkspaceStorage({
+    return transferWorkspaceStorage(host.tabs()!, {
       sourceWorkspaceId: candidate.sourceWorkspaceId,
       targetWorkspaceId: candidate.targetWorkspaceId,
       mode: candidate.mode,
@@ -260,7 +256,7 @@ export function registerWorkspacesIpc(host: WorkspacesIpcHost): void {
     if (typeof workspaceId !== 'string') throw new TypeError('Invalid workspace ID')
     if (options !== undefined && (!options || typeof options !== 'object' || Array.isArray(options))) throw new TypeError('Invalid workspace close options')
     const undoable = (options as { undoable?: unknown } | undefined)?.undoable === true
-    return undoable ? host.tabs()!.closeWorkspaceForPerson(workspaceId) : host.tabs()!.closeWorkspace(workspaceId)
+    return undoable ? closeWorkspaceForPerson(host.tabs()!, workspaceId) : host.tabs()!.closeWorkspace(workspaceId)
   })
   host.handleBrowserIpc('browser:save-and-close-tab-group', async (event, groupId: unknown) => {
     host.assertTrustedSender(event)
@@ -271,7 +267,7 @@ export function registerWorkspacesIpc(host: WorkspacesIpcHost): void {
   host.handleBrowserIpc('browser:restore-saved-tab-group', async (event, savedGroupId: unknown) => {
     host.assertTrustedSender(event)
     if (typeof savedGroupId !== 'string') throw new TypeError('Invalid archived workspace ID')
-    await host.tabs()!.restoreSavedTabGroup(savedGroupId)
+    await restoreSavedTabGroup(host.tabs()!, savedGroupId)
     return host.tabs()!.getState()
   })
   host.handleBrowserIpc('browser:delete-saved-tab-group', async (event, savedGroupId: unknown) => {

@@ -4,12 +4,13 @@ import type { TakeOverOffers } from './agents/take-over-offers.js'
 import type { MainWindowRefs } from './windows/main-window.js'
 import type { AgentPresenceSnapshot } from '../shared/agent-presence.js'
 import type { BrowserShortcutAction } from '../shared/browser-shortcuts.js'
+import { exitPageFullscreen } from './browser/page-fullscreen/page-fullscreen.js'
 
 interface BrowserShortcutRoutingHost {
   /** The take over offers, which a page's take over key asks and acts on. */
   takeOvers: Pick<TakeOverOffers, 'available' | 'takeOverFromPage'>
   /** The tab runtime, whose Home tab and workspaces decide which keys a page keeps; null until the window opens. */
-  tabs(): Pick<Browser, 'isHomeTab' | 'shownTabIsHome' | 'listMcpTabGroups' | 'exitPageFullscreen'> | null
+  tabs(): Browser | null
   /** The agents in each workspace; a page keeps the agent card key while its workspace has none. */
   agentPresenceSnapshot(): AgentPresenceSnapshot
   /** The main window, whose shell runs a shortcut pressed in a page; read when the key is pressed. */
@@ -46,7 +47,8 @@ export function createBrowserShortcutRouting(host: BrowserShortcutRoutingHost): 
     }
     // A page in full screen covers the toolbar, the Find bar and the shell's other controls, so it leaves full
     // screen first; zooming keeps it there.
-    if (!action.startsWith('zoom-')) host.tabs()?.exitPageFullscreen()
+    const browser = host.tabs()
+    if (browser && !action.startsWith('zoom-')) exitPageFullscreen(browser)
     if (host.mainWindowRefs.window && !host.mainWindowRefs.window.webContents.isDestroyed()) {
       // The page WebContentsView owns native focus when a website shortcut is
       // pressed. Move it to trusted chrome before the renderer focuses a

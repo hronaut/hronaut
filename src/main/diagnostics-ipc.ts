@@ -16,30 +16,12 @@ import type {
   BrowserSecurityReport,
   BrowserVisualCompareOptions
 } from '../shared/types.js'
+import { videoPreview } from './browser/video-recording/video-recording.js'
+import { visualDiff } from './browser/visual-compare/visual-compare.js'
 
 interface DiagnosticsIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
-  tabs(): Pick<Browser,
-    | 'accessibilityAudit'
-    | 'codeCoverage'
-    | 'cpuProfile'
-    | 'debugReport'
-    | 'designOverview'
-    | 'domChanges'
-    | 'getState'
-    | 'inspectorIssues'
-    | 'memoryReport'
-    | 'pageMetadata'
-    | 'performanceReport'
-    | 'qualityAudit'
-    | 'reproRecording'
-    | 'videoRecording'
-    | 'videoPreview'
-    | 'securityReport'
-    | 'setDiagnosticLogPreservation'
-    | 'visualCompare'
-    | 'visualDiff'
-  >
+  tabs(): Browser
   pngDataUrl(data: Buffer): string
   copyPng(data: Buffer): Promise<{ width: number; height: number }>
   pickVideoAudio?(): Promise<string | undefined>
@@ -173,7 +155,7 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
   ipcMain.handle('browser:video-preview', (event, tabId: unknown) => {
     host.assertTrustedSender(event)
     if (typeof tabId !== 'string') throw new TypeError('Invalid video tab')
-    return host.tabs().videoPreview(tabId)
+    return videoPreview(host.tabs(), tabId)
   })
   ipcMain.handle('browser:video-import-audio', async (event, tabId: unknown, provenance: unknown) => {
     host.assertTrustedSender(event)
@@ -230,7 +212,7 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
   ipcMain.handle('browser:copy-visual-diff', async (event, tabId: unknown) => {
     host.assertTrustedSender(event)
     if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid visual comparison tab')
-    const size = await host.copyPng(host.tabs().visualDiff(tabId as string | undefined))
+    const size = await host.copyPng(visualDiff(host.tabs(), tabId as string | undefined))
     return { copied: true, width: size.width, height: size.height }
   })
   ipcMain.handle('browser:inspector-issues', (event, value: unknown) => {

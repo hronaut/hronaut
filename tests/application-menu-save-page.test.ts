@@ -4,6 +4,12 @@ const installed = vi.hoisted(() => ({ template: [] as Array<{ label?: string; su
 vi.mock('electron', () => ({ Menu: { buildFromTemplate: (template: typeof installed.template) => template, setApplicationMenu: (menu: typeof installed.template) => { installed.template = menu } } }))
 import { createApplicationMenu } from '../src/main/windows/application-menu.js'
 
+// The menu saves with the browser; saving runs on the fake browser's stub.
+vi.mock('../src/main/browser/page-save/page-save.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/page-save/page-save.js')>(),
+  saveShownPage: (browser: { saveShownPage: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.saveShownPage(...args)
+}))
+
 // Hronaut could not save a page: Ctrl/Cmd+S did nothing and no menu offered it.
 
 const platform = process.platform

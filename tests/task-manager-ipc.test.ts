@@ -2,6 +2,13 @@ import { describe, expect, it, vi } from 'vitest'
 import type { IpcMainInvokeEvent } from 'electron'
 import { registerTaskManagerIpc } from '../src/main/task-manager-ipc.js'
 
+// The handlers read and end processes with the browser; those run on the fake browser's stubs.
+vi.mock('../src/main/browser/task-manager/task-manager.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/task-manager/task-manager.js')>(),
+  taskManagerProcesses: (browser: { taskManagerProcesses: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.taskManagerProcesses(...args),
+  endTaskManagerProcess: (browser: { endTaskManagerProcess: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.endTaskManagerProcess(...args)
+}))
+
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown
 
 function register() {

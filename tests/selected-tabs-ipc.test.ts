@@ -3,6 +3,16 @@ import { describe, expect, it, vi } from 'vitest'
 import { registerTabsIpc } from '../src/main/tabs-ipc.js'
 import type { BrowserState } from '../src/shared/types.js'
 
+// The handlers move tabs and open the tab menu with the browser; those run on the fake browser's stubs.
+vi.mock('../src/main/browser/tab-arrangement/tab-arrangement.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-arrangement/tab-arrangement.js')>(),
+  reorderTabs: (browser: { reorderTabs: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.reorderTabs(...args)
+}))
+vi.mock('../src/main/browser/context-menus/tab-context-menu.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/context-menus/tab-context-menu.js')>(),
+  showTabContextMenu: (browser: { showTabContextMenu: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.showTabContextMenu(...args)
+}))
+
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown
 
 // The shell names the tabs selected in its strip when it moves them or opens the menu of one of them.

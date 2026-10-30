@@ -7,6 +7,7 @@ import type { Browser } from '../browser.js'
 import { getTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { withRenderableTab } from '../renderable-tab/renderable-tab.js'
+import { syncHumanInteractionInputGuard } from '../interaction-lock/human-input-guard.js'
 
 /** The area a person dragged on a page, in its viewport, or that they canceled. */
 export interface BrowserScreenshotAreaResult {
@@ -49,7 +50,7 @@ export async function captureScreenshotArea(browser: Browser, tabId?: string): P
   tab.nativeInputEnvironmentGeneration += 1
   browser.screenshotAreaSessions.set(webContents.id, session)
   try {
-    if (browser.isHumanInteractionLocked(tab)) await browser.syncHumanInteractionInputGuard(tab)
+    if (browser.isHumanInteractionLocked(tab)) await syncHumanInteractionInputGuard(browser, tab)
     void webContents.executeJavaScript(screenshotAreaScript(), true)
       .then((selection: BrowserScreenshotAreaResult) => {
         if (selection?.canceled || (selection?.clip && selection?.viewport)) session.resolve(selection)
@@ -77,7 +78,7 @@ export async function captureScreenshotArea(browser: Browser, tabId?: string): P
       // Cleanup can finish after a replacement selection starts.
       if (browser.screenshotAreaSessions.get(webContents.id) === session) {
         browser.screenshotAreaSessions.delete(webContents.id)
-        if (browser.isHumanInteractionLocked(tab)) await browser.syncHumanInteractionInputGuard(tab)
+        if (browser.isHumanInteractionLocked(tab)) await syncHumanInteractionInputGuard(browser, tab)
       }
     }
   }

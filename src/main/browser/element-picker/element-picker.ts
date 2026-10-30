@@ -14,6 +14,7 @@ import { isHronautHomeUrl } from '../url.js'
 import type { Browser } from '../browser.js'
 import { getTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
+import { syncHumanInteractionInputGuard } from '../interaction-lock/human-input-guard.js'
 
 /** What the element picker's page script resolves: the element's raw inspection, or that the person canceled. */
 export interface BrowserElementPickerScriptResult {
@@ -75,7 +76,7 @@ async function selectElement(browser: Browser, tabId?: string): Promise<BrowserE
   tab.nativeInputEnvironmentGeneration += 1
   browser.elementPickerSessions.set(webContents.id, session)
   try {
-    if (browser.isHumanInteractionLocked(tab)) await browser.syncHumanInteractionInputGuard(tab)
+    if (browser.isHumanInteractionLocked(tab)) await syncHumanInteractionInputGuard(browser, tab)
     void webContents.executeJavaScript(elementPickerScript(), true)
       .then((selected: BrowserElementPickerScriptResult) => {
         if (selected?.canceled || selected?.inspection) session.resolve(selected)
@@ -104,7 +105,7 @@ async function selectElement(browser: Browser, tabId?: string): Promise<BrowserE
       // Cleanup can finish after a replacement selection starts.
       if (browser.elementPickerSessions.get(webContents.id) === session) {
         browser.elementPickerSessions.delete(webContents.id)
-        if (browser.isHumanInteractionLocked(tab)) await browser.syncHumanInteractionInputGuard(tab)
+        if (browser.isHumanInteractionLocked(tab)) await syncHumanInteractionInputGuard(browser, tab)
       }
     }
   }

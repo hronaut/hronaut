@@ -26,7 +26,7 @@ function stateOf(url: string, session: object, destroyed = false, shown: object 
     splitView: null,
     listMcpTabGroups: () => [],
     listSavedTabGroups: () => [],
-    publishedAgentFollow: () => undefined,
+    agentFollow: undefined,
     options: { profilePath: '/profile' },
     isTabTakenOver: () => false
   }

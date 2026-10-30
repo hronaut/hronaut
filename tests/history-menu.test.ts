@@ -220,40 +220,46 @@ describe('going to a page picked from the list', () => {
 describe('the history list request from the shell', () => {
   function handler() {
     const handlers = new Map<string, (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown>()
-    const showHistoryMenu = vi.fn(() => true)
     const assertTrustedSender = vi.fn()
+    const { browser } = setup(pages(3), 1)
     registerNavigationIpc({
       assertTrustedSender,
       handleBrowserIpc: (channel, listener) => { handlers.set(channel, listener as never) },
-      tabs: () => ({ showHistoryMenu }) as never,
+      tabs: () => browser,
       defaultPdfPageSize: () => 'A4'
     })
     const listener = handlers.get('browser:show-history-menu')!
-    return { show: (options: unknown) => listener({} as IpcMainInvokeEvent, options), showHistoryMenu, assertTrustedSender }
+    return { show: (options: unknown) => listener({} as IpcMainInvokeEvent, options), assertTrustedSender }
   }
 
   it('passes on a tab, a direction and a place on the window', () => {
-    const { show, showHistoryMenu, assertTrustedSender } = handler()
+    const { show, assertTrustedSender } = handler()
+    const before = built.menus.length
     expect(show({ tabId: 'tab-1', direction: 'back', anchor: { x: 12, y: 72 } })).toBe(true)
     show({ tabId: 'tab-1', direction: 'forward' })
     show({ tabId: 'tab-1', direction: 'forward', anchor: { x: Number.NaN, y: 2 } })
     show({ tabId: 'tab-1', direction: 'forward', anchor: { x: -5, y: 2 } })
     show({ tabId: 'tab-1', direction: 'forward', anchor: 'below' })
     expect(assertTrustedSender).toHaveBeenCalledTimes(5)
-    expect(showHistoryMenu.mock.calls).toEqual([
-      ['tab-1', 'back', { x: 12, y: 72 }],
-      ['tab-1', 'forward', undefined],
-      ['tab-1', 'forward', undefined],
-      ['tab-1', 'forward', undefined],
-      ['tab-1', 'forward', undefined]
+    // Each list shows the tab's pages that way and opens at the place given in the window's CSS pixels, or at the pointer.
+    expect(built.menus.slice(before).map((menu) => {
+      const { x, y } = menu.popup[0] as { x?: number; y?: number }
+      return [menu.template[0]?.label, x, y]
+    })).toEqual([
+      ['Page 0', 15, 90],
+      ['Page 2', undefined, undefined],
+      ['Page 2', undefined, undefined],
+      ['Page 2', undefined, undefined],
+      ['Page 2', undefined, undefined]
     ])
   })
 
   it('refuses a request without a tab or a direction', () => {
-    const { show, showHistoryMenu } = handler()
+    const { show } = handler()
+    const before = built.menus.length
     expect(() => show({ direction: 'back' })).toThrow(TypeError)
     expect(() => show({ tabId: 'tab-1', direction: 'up' })).toThrow(TypeError)
     expect(() => show(null)).toThrow(TypeError)
-    expect(showHistoryMenu).not.toHaveBeenCalled()
+    expect(built.menus).toHaveLength(before)
   })
 })

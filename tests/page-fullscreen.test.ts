@@ -428,7 +428,9 @@ describe('page full screen lifecycle', () => {
 describe('browser shortcuts from a page in full screen', () => {
   it('asks the page to leave full screen before the shell opens a control, but keeps it for zooming', () => {
     // Ctrl/Cmd+L focused the address field and opened its suggestions behind the page in full screen.
-    const tabs = { isHomeTab: () => false, shownTabIsHome: () => false, listMcpTabGroups: () => [], exitPageFullscreen: vi.fn() }
+    const { tabs: pages, enter, browser } = fullscreenFixture()
+    enter('video')
+    const tabs = Object.assign(browser, { isHomeTab: () => false, shownTabIsHome: () => false, listMcpTabGroups: () => [] })
     const shell = { isDestroyed: () => false, focus: vi.fn(), send: vi.fn() }
     const { runPageShortcut } = createBrowserShortcutRouting({
       takeOvers: { available: () => undefined, takeOverFromPage: vi.fn() },
@@ -437,9 +439,9 @@ describe('browser shortcuts from a page in full screen', () => {
       mainWindowRefs: { window: { webContents: shell } as never }
     })
     runPageShortcut('zoom-in', { tabId: 'video', workspaceId: undefined })
-    expect(tabs.exitPageFullscreen).not.toHaveBeenCalled()
+    expect(pages.get('video')!.webContents.executeJavaScriptInIsolatedWorld).not.toHaveBeenCalled()
     runPageShortcut('focus-address', { tabId: 'video', workspaceId: undefined })
-    expect(tabs.exitPageFullscreen).toHaveBeenCalledOnce()
+    expect(pages.get('video')!.webContents.executeJavaScriptInIsolatedWorld).toHaveBeenCalledOnce()
     expect(shell.send).toHaveBeenLastCalledWith('browser:shortcut-requested', 'focus-address')
   })
 

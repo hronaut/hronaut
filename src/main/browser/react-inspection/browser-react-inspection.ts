@@ -5,7 +5,7 @@ import { ReactInspectionController } from './react-inspection.js'
 
 /**
  * Inspects React components in the browser's tabs through Hronaut's own DevTools session, with the permission each
- * tab's workspace granted, while no DevTools or profiling owns the page's debugger.
+ * tab's workspace granted, while neither DevTools nor a code coverage or CPU profile recording owns the page's debugger.
  */
 export function createReactInspectionController(browser: Browser): ReactInspectionController {
   return new ReactInspectionController({

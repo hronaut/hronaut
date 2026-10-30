@@ -18,6 +18,7 @@ import { watchUnsavedFormEdits } from '../tab-sleep/unsaved-form-edits.js'
 import { workspaceNavigationAllowed } from '../workspace-navigation/workspace-navigation.js'
 import { publishChange } from '../browser-state/browser-state.js'
 import { isStaleAddressTitle, untitledPageTitle } from './untitled-page-title.js'
+import { syncHumanInteractionInputGuard } from '../interaction-lock/human-input-guard.js'
 
 /** Chromium's error code for a load that was aborted, which shows no load failure. */
 const ABORTED_LOAD_ERROR = -3
@@ -376,7 +377,7 @@ export function attachNavigationEvents(browser: Browser, tab: BrowserTab, webCon
     recordPendingHistory()
     watchCredentialSubmission(browser, tab)
     watchUnsavedFormEdits(tab)
-    void browser.syncHumanInteractionInputGuard(tab).catch((error) => {
+    void syncHumanInteractionInputGuard(browser, tab).catch((error) => {
       console.error('[browser] Could not synchronize the page interaction lock:', error)
     })
   })
@@ -393,7 +394,7 @@ export function attachNavigationEvents(browser: Browser, tab: BrowserTab, webCon
       }
     }
     if (!browser.isHumanInteractionLocked(tab)) return
-    void browser.syncHumanInteractionInputGuard(tab).catch((error) => {
+    void syncHumanInteractionInputGuard(browser, tab).catch((error) => {
       console.error('[browser] Could not synchronize a frame interaction lock:', error)
     })
   })

@@ -47,6 +47,11 @@ vi.mock('../src/main/browser/tab-arrangement/tab-arrangement.js', async (importO
     placement: 'before' | 'after'
   ) => browser.reorderTab(tabId, targetTabId, placement)
 }))
+// Their closeTab stub does a real close's bookkeeping, which closing tabs for the person reaches through this.
+vi.mock('../src/main/browser/tab-close/close-tab.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-close/close-tab.js')>(),
+  closeTab: (browser: { closeTab: (tabId: string) => Promise<unknown> }, tabId: string) => browser.closeTab(tabId)
+}))
 
 // The prototype-built browser below stubs withDebugger, under which the input lock's native guard is applied.
 vi.mock('../src/main/browser/debugger-lease/debugger-lease.js', async (importOriginal) => ({
@@ -79,7 +84,8 @@ vi.mock('../src/main/browser/tab-events/attach-tab-events.js', () => ({
 const { Browser } = await import('../src/main/browser/browser.js')
 const { WorkspaceRegistry } = await import('../src/main/browser/workspace-registry/workspace-registry.js')
 const { closeTabsForPerson } = await import('../src/main/browser/tab-close/close-tabs-for-person.js')
-const { rememberClosedTab, reopenClosedTabEntry } = await import('../src/main/browser/tab-reopening/tab-reopening.js')
+const { duplicateTabAfterLabelSave, rememberClosedTab, reopenClosedTabEntry } = await import('../src/main/browser/tab-reopening/tab-reopening.js')
+const { setTabHumanInteractionLocked, setAllHumanInteractionLocked } = await import('../src/main/browser/interaction-lock/interaction-lock.js')
 
 const WORKSPACE = '01912345-6789-7abc-8def-0123456789ab'
 
@@ -89,12 +95,9 @@ interface Manager {
   createTab(options: { url: string; mcpGroupId: string; active: boolean }): Promise<Tab>
   setTabAgentPaused(tabId: string, paused: boolean): unknown
   setAllAgentsPaused(paused: boolean): void
-  setTabHumanInteractionLocked(tabId: string, locked: boolean): Promise<unknown>
-  setAllHumanInteractionLocked(locked: boolean): Promise<unknown>
   isTabAgentPaused(tabId: string): boolean
   isHumanInteractionLocked(tab: Tab): boolean
-  duplicateTabAfterLabelSave(tabId: string): Promise<unknown>
-  closeTabInternal(tabId: string): Promise<unknown>
+  closeTab(tabId: string): Promise<unknown>
 }
 
 /**
@@ -124,7 +127,7 @@ function browser() {
     roundPageCorners: vi.fn(), installSessionHooks: vi.fn(), attachTabEvents: vi.fn(), layout: vi.fn(), changed: vi.fn(),
     selectTab: vi.fn(), reorderTab: vi.fn(), navigationHistorySnapshot: () => ({ entries: [], index: -1 }),
     withTabLabelLifecycle: (run: () => Promise<unknown>) => run(), getState: () => ({}), text: (key: string) => key,
-    async closeTabInternal(this: Manager, tabId: string) {
+    async closeTab(this: Manager, tabId: string) {
       // The close bookkeeping of a real close: the tab is remembered, then removed.
       rememberClosedTab(this as never, this.tabs.get(tabId)! as never)
       this.tabs.delete(tabId)
@@ -161,7 +164,7 @@ function browser() {
 async function guardedTab(manager: Manager): Promise<Tab> {
   const tab = await manager.createTab({ url: 'https://bank.example/account', mcpGroupId: WORKSPACE, active: false })
   manager.setTabAgentPaused(tab.id, true)
-  await manager.setTabHumanInteractionLocked(tab.id, true)
+  await setTabHumanInteractionLocked(manager as never, tab.id, true)
   expect(guards(manager, tab)).toEqual(GUARDED)
   return tab
 }
@@ -183,7 +186,7 @@ describe('a paused and locked tab brought back', () => {
   it('stays paused and locked after Reopen Closed Tab', async () => {
     const { manager } = browser()
     const tab = await guardedTab(manager)
-    await manager.closeTabInternal(tab.id)
+    await manager.closeTab(tab.id)
 
     const reopened = await reopenLastClosed(manager)
 
@@ -204,7 +207,7 @@ describe('a paused and locked tab brought back', () => {
     const { manager } = browser()
     const tab = await guardedTab(manager)
 
-    await manager.duplicateTabAfterLabelSave(tab.id)
+    await duplicateTabAfterLabelSave(manager as never, tab.id)
 
     expect(guards(manager, [...manager.tabs.values()].find((candidate) => candidate.id !== tab.id))).toEqual(GUARDED)
   })
@@ -225,7 +228,7 @@ describe('a paused and locked tab brought back', () => {
     const { manager } = browser()
     const tab = await guardedTab(manager)
     manager.setAllAgentsPaused(true)
-    await manager.closeTabInternal(tab.id)
+    await manager.closeTab(tab.id)
     const reopened = await reopenLastClosed(manager)
 
     manager.setAllAgentsPaused(false)
@@ -240,19 +243,19 @@ describe('a tab paused and locked only because every tab was', () => {
   async function coveredTab(manager: Manager): Promise<Tab> {
     const tab = await manager.createTab({ url: 'https://docs.example/', mcpGroupId: WORKSPACE, active: false })
     manager.setAllAgentsPaused(true)
-    await manager.setAllHumanInteractionLocked(true)
+    await setAllHumanInteractionLocked(manager as never, true)
     expect(guards(manager, tab)).toEqual({ agentsPaused: true, tabAgentPaused: false, inputLocked: true, humanInteractionLocked: false })
     return tab
   }
   async function uncover(manager: Manager): Promise<void> {
     manager.setAllAgentsPaused(false)
-    await manager.setAllHumanInteractionLocked(false)
+    await setAllHumanInteractionLocked(manager as never, false)
   }
 
   it('comes back open after Reopen Closed Tab', async () => {
     const { manager } = browser()
     const tab = await coveredTab(manager)
-    await manager.closeTabInternal(tab.id)
+    await manager.closeTab(tab.id)
     await uncover(manager)
 
     expect(guards(manager, await reopenLastClosed(manager))).toEqual(OPEN)
@@ -261,7 +264,7 @@ describe('a tab paused and locked only because every tab was', () => {
   it('has an open duplicate', async () => {
     const { manager } = browser()
     const tab = await coveredTab(manager)
-    await manager.duplicateTabAfterLabelSave(tab.id)
+    await duplicateTabAfterLabelSave(manager as never, tab.id)
     await uncover(manager)
 
     expect(guards(manager, [...manager.tabs.values()].find((candidate) => candidate.id !== tab.id))).toEqual(OPEN)

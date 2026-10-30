@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import { attachHistoryMouseButtons } from '../src/main/windows/history-mouse-buttons.js'
 
+// The buttons call the history gesture with the browser; it runs on the fake browser's stub.
+vi.mock('../src/main/browser/history-gesture/history-gesture.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/history-gesture/history-gesture.js')>(),
+  historyGesture: (browser: { historyGesture: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.historyGesture(...args)
+}))
+
 // Hronaut had no way back or forward from the mouse: its side buttons did nothing.
 
 function attached() {

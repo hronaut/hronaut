@@ -3,12 +3,13 @@ import type { McpRuntimeState } from '../mcp-runtime/mcp-runtime.js'
 import type { AgentPresenceSnapshot } from '../../shared/agent-presence.js'
 import type { ConnectedAgent } from '../../shared/agent-status.js'
 import type { McpControlState } from '../../shared/types.js'
+import { retainAgentFollow } from '../browser/agent-follow/agent-follow.js'
 
 interface AgentPresenceHost {
   /** The MCP listener, whose server knows the agents in each workspace; its server is null while it is not running. */
   mcpRuntime: Pick<McpRuntimeState, 'server'>
   /** The tab runtime, which follows only agents still present and reloads Home; null until the window opens. */
-  tabs(): Pick<Browser, 'retainAgentFollow' | 'notifyHomeChanged'> | null
+  tabs(): Browser | null
   /** Publishes the MCP status, whose toolbar names the connected agents. */
   publishMcpControlState(options?: { refreshHome?: boolean }): McpControlState
   /** Whether the person already responded to the open request for their attention; the tray and agents read it too. */
@@ -61,7 +62,8 @@ export function createAgentPresence(host: AgentPresenceHost): {
     setImmediate(() => {
       agentPresencePublishScheduled = false
       const snapshot = agentPresenceSnapshot()
-      host.tabs()?.retainAgentFollow(new Set(Object.values(snapshot.workspaces).flat().map((agent) => agent.clientKey)))
+      const browser = host.tabs()
+      if (browser) retainAgentFollow(browser, new Set(Object.values(snapshot.workspaces).flat().map((agent) => agent.clientKey)))
       // The toolbar status names connected agents from the MCP state, so it follows them too.
       const agents = JSON.stringify(connectedAgents(snapshot.workspaces))
       const feedRevision = host.mcpRuntime.server?.homeFeedRevision ?? 0

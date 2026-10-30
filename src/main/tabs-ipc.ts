@@ -4,14 +4,14 @@ import type { McpHttpServer } from './mcp/server.js'
 import { LocalizedError } from './localized-error.js'
 import { tabAgentPauseOptions, type TakeOverOffers } from './agents/take-over-offers.js'
 import { validateTabOverviewPreviewIds, type BrowserState, type DroppedLinkTarget } from '../shared/types.js'
-
-type TabsIpcTabs = Pick<Browser,
-  | 'getState' | 'beforeStateReply' | 'getTabOverviewPreviews' | 'getTabOverviewPagePreview'
-  | 'openHome' | 'newTab' | 'reopenClosedTab' | 'selectTabForPerson' | 'closeTabsForPerson'
-  | 'openSplitViewAndWait' | 'updateSplitView' | 'closeSplitView'
-  | 'setTabLabel' | 'setTabPinned' | 'setTabSleeping' | 'setTabPageLifecycle' | 'sleepInactiveTabs'
-  | 'reorderTab' | 'reorderTabs' | 'openDroppedLink' | 'focusActivePage' | 'showTabContextMenu' | 'setTabMuted' | 'setAllTabsMuted'
-  | 'setTabHumanInteractionLocked' | 'setAllHumanInteractionLocked'>
+import { showTabContextMenu } from './browser/context-menus/tab-context-menu.js'
+import { openDroppedLink } from './browser/dropped-links/dropped-links.js'
+import { setAllHumanInteractionLocked, setTabHumanInteractionLocked } from './browser/interaction-lock/interaction-lock.js'
+import { reorderTab, reorderTabs } from './browser/tab-arrangement/tab-arrangement.js'
+import { setAllTabsMuted } from './browser/tab-muting/tab-muting.js'
+import { getTabOverviewPagePreview, getTabOverviewPreviews } from './browser/tab-overview-previews/tab-overview-previews.js'
+import { sleepInactiveTabs } from './browser/tab-sleep/memory-saver.js'
+import { setTabSleeping } from './browser/tab-sleep/tab-sleep.js'
 
 interface TabsIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
@@ -24,7 +24,7 @@ interface TabsIpcHost {
   handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void
   /** Checks the sender, then reads once saved workspaces are initialized, dropping the read if its sender navigates away. */
   runWorkspaceRead<T>(event: IpcMainInvokeEvent, assertSender: (event: IpcMainInvokeEvent) => void, read: () => T): Promise<T>
-  tabs(): TabsIpcTabs | null
+  tabs(): Browser | null
   mcpServer(): Pick<McpHttpServer, 'setTabAgentPaused'> | null
   takeOvers(): Pick<TakeOverOffers, 'paused'>
 }
@@ -33,7 +33,7 @@ interface TabsIpcHost {
  * Replies to a shell action with the browser state it returned. The shell drops a reply if a state arrived meanwhile,
  * which a state it has not drawn yet always does, so a change waiting for that draw is sent first, before the reply.
  */
-async function stateReply(host: { tabs(): Pick<Browser, 'beforeStateReply'> | null }, reply: Promise<BrowserState>): Promise<BrowserState> {
+async function stateReply(host: { tabs(): Browser | null }, reply: Promise<BrowserState>): Promise<BrowserState> {
   const state = await reply
   host.tabs()?.beforeStateReply()
   return state
@@ -72,12 +72,12 @@ export function registerTabsIpc(host: TabsIpcHost): void {
   host.handleBrowserIpc('browser:get-tab-overview-previews', async (event, value: unknown) => {
     host.assertTrustedSender(event)
     const tabIds = validateTabOverviewPreviewIds(value)
-    return host.runWorkspaceRead(event, host.assertTrustedSender, () => host.tabs()!.getTabOverviewPreviews(tabIds))
+    return host.runWorkspaceRead(event, host.assertTrustedSender, () => getTabOverviewPreviews(host.tabs()!, tabIds))
   })
   host.handleBrowserIpc('browser:get-tab-overview-page-preview', async (event, value: unknown) => {
     host.assertTrustedSender(event)
     const [tabId] = validateTabOverviewPreviewIds([value])
-    return host.runWorkspaceRead(event, host.assertTrustedSender, () => host.tabs()!.getTabOverviewPagePreview(tabId!))
+    return host.runWorkspaceRead(event, host.assertTrustedSender, () => getTabOverviewPagePreview(host.tabs()!, tabId!))
   })
   host.handleBrowserIpc('browser:open-home', (event) => { host.assertTrustedSender(event); return stateReply(host, host.tabs()!.openHome()) })
   host.handleBrowserIpc('browser:new-tab', (event, options) => { host.assertTrustedSender(event); return stateReply(host, host.tabs()!.newTab(options)) })
@@ -135,7 +135,7 @@ export function registerTabsIpc(host: TabsIpcHost): void {
   host.handleBrowserIpc('browser:set-tab-sleeping', (event, tabId: unknown, sleeping: unknown) => {
     host.assertTrustedSender(event)
     if (typeof tabId !== 'string' || typeof sleeping !== 'boolean') throw new TypeError('Invalid tab sleeping state')
-    return host.tabs()!.setTabSleeping(tabId, sleeping)
+    return setTabSleeping(host.tabs()!, tabId, sleeping)
   })
   host.handleBrowserIpc('browser:set-tab-agent-paused', (event, tabId: unknown, paused: unknown, options: unknown) => {
     host.assertTrustedSender(event)
@@ -153,7 +153,7 @@ export function registerTabsIpc(host: TabsIpcHost): void {
   })
   host.handleBrowserIpc('browser:sleep-inactive-tabs', (event) => {
     host.assertTrustedSender(event)
-    return host.tabs()!.sleepInactiveTabs()
+    return sleepInactiveTabs(host.tabs()!)
   })
   host.handleBrowserIpc('browser:reorder-tab', (event, tabId: unknown, targetTabId: unknown, placement: unknown) => {
     host.assertTrustedSender(event)
@@ -162,17 +162,17 @@ export function registerTabsIpc(host: TabsIpcHost): void {
       || typeof targetTabId !== 'string'
       || (placement !== 'before' && placement !== 'after')
     ) throw new TypeError('Invalid tab reorder request')
-    return host.tabs()!.reorderTab(tabId, targetTabId, placement)
+    return reorderTab(host.tabs()!, tabId, targetTabId, placement)
   })
   host.handleBrowserIpc('browser:reorder-tabs', (event, tabIds: unknown, targetTabId: unknown, placement: unknown) => {
     host.assertTrustedSender(event)
     if (typeof targetTabId !== 'string' || (placement !== 'before' && placement !== 'after')) throw new TypeError('Invalid tab reorder request')
-    return host.tabs()!.reorderTabs(selectedTabIds(tabIds), targetTabId, placement)
+    return reorderTabs(host.tabs()!, selectedTabIds(tabIds), targetTabId, placement)
   })
   host.handleBrowserIpc('browser:drop-link', (event, text: unknown, target: unknown) => {
     host.assertTrustedSender(event)
     if (typeof text !== 'string') throw new TypeError('Invalid dropped link')
-    return stateReply(host, host.tabs()!.openDroppedLink(text, droppedLinkTarget(target)))
+    return stateReply(host, openDroppedLink(host.tabs()!, text, droppedLinkTarget(target)))
   })
   host.handleBrowserIpc('browser:focus-active-page', (event) => {
     host.assertTrustedSender(event)
@@ -181,7 +181,7 @@ export function registerTabsIpc(host: TabsIpcHost): void {
   host.handleBrowserIpc('browser:show-tab-context-menu', (event, tabId: unknown, selected: unknown) => {
     host.assertTrustedSender(event)
     if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
-    host.tabs()!.showTabContextMenu(tabId, undefined, selected === undefined ? undefined : selectedTabIds(selected))
+    showTabContextMenu(host.tabs()!, tabId, undefined, selected === undefined ? undefined : selectedTabIds(selected))
   })
   host.handleBrowserIpc('browser:set-tab-muted', (event, tabId: unknown, muted: unknown) => {
     host.assertTrustedSender(event)
@@ -191,16 +191,16 @@ export function registerTabsIpc(host: TabsIpcHost): void {
   host.handleBrowserIpc('browser:set-all-tabs-muted', (event, muted: unknown) => {
     host.assertTrustedSender(event)
     if (typeof muted !== 'boolean') throw new TypeError('Invalid global tab audio state')
-    return host.tabs()!.setAllTabsMuted(muted)
+    return setAllTabsMuted(host.tabs()!, muted)
   })
   host.handleBrowserIpc('browser:set-tab-human-interaction-locked', (event, tabId: unknown, locked: unknown) => {
     host.assertTrustedSender(event)
     if (typeof tabId !== 'string' || typeof locked !== 'boolean') throw new TypeError('Invalid tab interaction lock')
-    return host.tabs()!.setTabHumanInteractionLocked(tabId, locked)
+    return setTabHumanInteractionLocked(host.tabs()!, tabId, locked)
   })
   host.handleBrowserIpc('browser:set-all-human-interaction-locked', (event, locked: unknown) => {
     host.assertTrustedSender(event)
     if (typeof locked !== 'boolean') throw new TypeError('Invalid global interaction lock')
-    return host.tabs()!.setAllHumanInteractionLocked(locked)
+    return setAllHumanInteractionLocked(host.tabs()!, locked)
   })
 }

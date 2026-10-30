@@ -8,6 +8,7 @@ import { withTabLabelLifecycle } from '../tab-labels/tab-labels.js'
 import { reopenClosedTabEntry } from '../tab-reopening/tab-reopening.js'
 import { browserState } from '../browser-state/browser-state.js'
 import { reorderTab } from '../tab-arrangement/tab-arrangement.js'
+import { closeTab } from './close-tab.js'
 
 /**
  * Closes tabs for the person, in order, stopping at one whose page asks to stay. The shown tab closes last, so it
@@ -26,7 +27,7 @@ export async function closeTabsForPerson(browser: Browser, tabIds: readonly stri
       const index = tabPeers(browser, tab).indexOf(tab)
       const remembered = new Set(browser.closedTabs.map((entry) => entry.id))
       // The person's own close yields to a tab they select while the one that replaces it wakes.
-      await browser.closeTabInternal(tabId, true, true, true)
+      await closeTab(browser, tabId, true, true, true)
       if (findTab(browser, tabId) === tab) break
       const entry = browser.closedTabs.findLast((candidate) => !remembered.has(candidate.id) && candidate.url === tab.url && candidate.mcpGroupId === tab.mcpGroupId)
       if (entry) closed.push({ closedTabId: entry.id, index, title: entry.label || tabTitleForDisplay(entry, browser.text('tabSearch.newTabTitle')) })

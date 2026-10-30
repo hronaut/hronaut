@@ -4,6 +4,12 @@ const installed = vi.hoisted(() => ({ template: [] as Array<{ label?: string; su
 vi.mock('electron', () => ({ Menu: { buildFromTemplate: (template: typeof installed.template) => template, setApplicationMenu: (menu: typeof installed.template) => { installed.template = menu } } }))
 import { createApplicationMenu } from '../src/main/windows/application-menu.js'
 
+// The menu prints with the browser; printing runs on the fake browser's stub.
+vi.mock('../src/main/browser/page-print/page-print.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/page-print/page-print.js')>(),
+  printShownPage: (browser: { printShownPage: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.printShownPage(...args)
+}))
+
 // Hronaut had no Print: Ctrl/Cmd+P did nothing and no menu offered it.
 
 const platform = process.platform

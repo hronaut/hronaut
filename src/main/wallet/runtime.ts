@@ -14,6 +14,7 @@ import type { TrustedDialogOptions } from '../trusted-dialogs/trusted-dialogs.js
 import { LocalizedError } from '../localized-error.js'
 import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
 import type { WalletCreateInput, WalletDescriptor, WalletServiceStatus } from '../../shared/wallet.js'
+import { sendWalletProviderEvent, walletPageContextForMcpTab } from '../browser/wallet-pages/wallet-pages.js'
 
 /**
  * The wallet service and its broker, created once by index.ts. They start together after the license store and are
@@ -36,7 +37,7 @@ interface WalletRuntimeHost {
   /** The license store, which admits agents to wallets; null until startup configures it. */
   commercialLicenseStore(): Pick<CommercialLicenseStore, 'assertAutomationAccess'> | null
   /** The tab runtime, which owns the pages wallets serve; null until the window opens. */
-  tabs(): Pick<Browser, 'walletPageContext' | 'walletPageContextForMcpTab' | 'sendWalletProviderEvent'> | null
+  tabs(): Browser | null
   /** Why saved workspaces could not start, if they could not; read on every page request. */
   workspaceStartupFailure(): Error | undefined
   /** The main window, which shows the recovery phrase dialog; read on every use because it can close. */
@@ -88,7 +89,10 @@ export function createWalletRuntime(host: WalletRuntimeHost): {
           host.commercialLicenseStore()!.assertAutomationAccess()
         },
         onPendingChanged: (requests) => host.sendToMainWindow('wallets:requests-changed', requests),
-        onProviderEvent: (tabId, event) => host.tabs()?.sendWalletProviderEvent(tabId, event)
+        onProviderEvent: (tabId, event) => {
+          const browser = host.tabs()
+          if (browser) sendWalletProviderEvent(browser, tabId, event)
+        }
       })
     } catch (error) {
       candidateWalletService.dispose()
@@ -123,7 +127,7 @@ export function createWalletRuntime(host: WalletRuntimeHost): {
 
   function walletAgentContext(target: WalletAgentToolTarget): WalletBrokerContext {
     if (!host.tabs()) throw new Error('Wallet requests are unavailable before browser initialization')
-    const page = host.tabs()!.walletPageContextForMcpTab(target.workspaceId, target.tabId)
+    const page = walletPageContextForMcpTab(host.tabs()!, target.workspaceId, target.tabId)
     return {
       workspaceId: page.workspaceId,
       tabId: page.tabId,

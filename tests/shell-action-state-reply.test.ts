@@ -1,8 +1,14 @@
 import type { IpcMainInvokeEvent } from 'electron'
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import { registerNavigationIpc } from '../src/main/navigation-ipc.js'
 import { registerTabsIpc } from '../src/main/tabs-ipc.js'
 import type { BrowserState } from '../src/shared/types.js'
+
+// The drop handler opens the link with the browser; that runs on the fake browser's stub.
+vi.mock('../src/main/browser/dropped-links/dropped-links.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/dropped-links/dropped-links.js')>(),
+  openDroppedLink: (browser: { openDroppedLink: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.openDroppedLink(...args)
+}))
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown
 

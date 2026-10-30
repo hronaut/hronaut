@@ -18,6 +18,7 @@ import { withGlobalWorkspaceStorageOperation, withSavedWorkspaceOperation, withW
 import { assertActiveWorkspaceCapacity } from '../workspace-creation/workspace-capacity.js'
 import { publishChange } from '../browser-state/browser-state.js'
 import { normalizedWorkspaceName, requireMcpTabGroup } from './mcp-tab-groups.js'
+import { isClosingWorkspace } from '../workspace-archive/workspace-archive.js'
 
 /**
  * The one HTTP(S) origin a restricted policy allows, which a public observer workspace requires, or undefined. A
@@ -100,7 +101,7 @@ export async function createMcpTabGroup(
     const sourceId = sourceWorkspaceId
     const source = sourceId ? browser.mcpTabGroups.get(sourceId) ?? browser.savedTabGroups.get(sourceId) : undefined
     if (!source) throw new LocalizedError('appErrors.workspace.sourceUnavailable')
-    if (browser.isClosingWorkspace(sourceId!)) throw new LocalizedError('appErrors.workspace.sourceJustClosed', { name: source.name })
+    if (isClosingWorkspace(browser, sourceId!)) throw new LocalizedError('appErrors.workspace.sourceJustClosed', { name: source.name })
     group.navigationPolicy = forkNavigationPolicy(source, normalizedPolicy)
     const fork = async () => {
       browser.mcpTabGroups.set(group.id, group)

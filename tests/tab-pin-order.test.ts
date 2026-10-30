@@ -8,13 +8,13 @@ vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOrigi
 }))
 import { Browser } from '../src/main/browser/browser.js'
 import { orderedTabs } from '../src/main/browser/browser-core.js'
+import { reorderTab } from '../src/main/browser/tab-arrangement/tab-arrangement.js'
 
 interface Tab { id: string; url: string; pinned: boolean; sleeping: boolean; mcpGroupId?: string; webContents: { isDestroyed: () => boolean } }
 interface Internals {
   tabs: Map<string, Tab>
   wakeTab: (tabId: string) => Promise<unknown>
   setTabPinned(tabId: string, pinned: boolean): Promise<unknown>
-  reorderTab(tabId: string, targetTabId: string, placement: 'before' | 'after'): unknown
 }
 
 /**
@@ -92,7 +92,7 @@ describe('pinning a tab moves it to the pinned tabs\' edge, as in Chrome', () =>
     tabs.wakeTab = () => new Promise((_resolve, reject) => { fail = reject })
     const pinning = tabs.setTabPinned('b', true)
     expect(order(tabs)).toEqual(['b*', 'a', 'c'])
-    tabs.reorderTab('c', 'a', 'before')
+    reorderTab(tabs as never, 'c', 'a', 'before')
     fail(new Error('Wake failed'))
     await expect(pinning).rejects.toThrow('Wake failed')
     expect(order(tabs)).toEqual(['b', 'c', 'a'])

@@ -74,6 +74,7 @@ vi.mock('../src/main/browser/tab-events/attach-tab-events.js', () => ({
 }))
 const { Browser } = await import('../src/main/browser/browser.js')
 const { McpActivityFollowController } = await import('../src/main/browser/mcp-activity-follow-controller.js')
+const { selectTabPassively } = await import('../src/main/browser/agent-follow/passive-selection.js')
 
 const PERSON = '01912345-6789-7abc-8def-0123456789ab'
 const AGENT = '01912345-6789-7abc-8def-0123456789ac'
@@ -92,7 +93,6 @@ interface Manager {
   createTab(options: { url: string; mcpGroupId: string; active: boolean }): Promise<Tab>
   selectTab(tabId: string): unknown
   openSplitView(tabId: string): unknown
-  selectTabPassively(tabId: string): boolean
   pageFullscreenShown(): boolean
   wakeTab(tabId: string): Promise<unknown>
 }
@@ -133,7 +133,7 @@ function browser(): Manager {
     tabExists: (tabId) => manager.tabs.get(tabId)?.webContents.isDestroyed() === false,
     canSelectWithoutWake: (tabId) => manager.tabs.get(tabId)?.sleeping === false,
     wakeTab: (tabId) => manager.wakeTab(tabId),
-    selectTabPassively: (tabId) => manager.selectTabPassively(tabId),
+    selectTabPassively: (tabId) => selectTabPassively(manager as never, tabId),
     onError: (error) => { throw error }
   })
   return manager

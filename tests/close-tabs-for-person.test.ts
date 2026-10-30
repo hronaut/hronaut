@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-// The browser below stubs getState, reopenClosedTabEntry and reorderTab, which closing tabs and their Undo reach through these.
+// The browser below stubs getState, closeTab, reopenClosedTabEntry and reorderTab, which closing tabs and their Undo reach
+// through these.
 vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
   browserState: (browser: { getState: () => unknown }) => browser.getState()
@@ -11,6 +12,10 @@ vi.mock('../src/main/browser/tab-reopening/tab-reopening.js', async (importOrigi
 vi.mock('../src/main/browser/tab-arrangement/tab-arrangement.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/tab-arrangement/tab-arrangement.js')>(),
   reorderTab: (browser: { reorderTab: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.reorderTab(...args)
+}))
+vi.mock('../src/main/browser/tab-close/close-tab.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-close/close-tab.js')>(),
+  closeTab: (browser: { closeTab: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.closeTab(...args)
 }))
 import { closeTabsForPerson } from '../src/main/browser/tab-close/close-tabs-for-person.js'
 import type { UndoableAction } from '../src/main/undo-offers.js'
@@ -36,7 +41,7 @@ function openBrowser(tabs: Tab[], options: { active?: string; staying?: string[]
     mcpTabGroups: new Map(),
     get activeTabId() { return active },
     closedTabs: closed,
-    closeTabInternal: vi.fn(async (tabId: string) => {
+    closeTab: vi.fn(async (tabId: string) => {
       if (options.staying?.includes(tabId)) return state
       const index = open.findIndex(tab => tab.id === tabId)
       const [tab] = open.splice(index, 1)
@@ -68,7 +73,7 @@ function openBrowser(tabs: Tab[], options: { active?: string; staying?: string[]
     options: { offerUndo: (action: UndoableAction) => offers.push(action) },
     text: (key: string) => key === 'tabSearch.newTabTitle' ? 'Нова вкладка' : key
   }
-  const closedOrder = () => browser.closeTabInternal.mock.calls.map(([tabId]) => tabId)
+  const closedOrder = () => browser.closeTab.mock.calls.map(([tabId]) => tabId)
   return { browser, offers, woken, closedOrder, active: () => active, openIds: () => open.map(tab => tab.id) }
 }
 

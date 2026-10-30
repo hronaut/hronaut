@@ -4,6 +4,7 @@ import { orderedTabs } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { showsUntrustedCertificate } from '../certificate-errors/certificate-errors.js'
 import { persistedState } from './persisted-state.js'
+import { publishedAgentFollow } from '../agent-follow/published-agent-follow.js'
 
 /** The browser state as it is now. A change still waiting to be published goes out first (see StatePublication). */
 export function browserState(browser: Browser): BrowserState {
@@ -35,7 +36,7 @@ export function publishChange(browser: Browser, persist = true): void {
  * followed agent. State publication sends what it builds.
  */
 export function buildBrowserState(browser: Browser): BrowserState {
-  const agentFollow = browser.publishedAgentFollow()
+  const agentFollow = publishedAgentFollow(browser)
   return {
     tabs: orderedTabs(browser).map((tab) => toState(browser, tab)),
     closedTabs: [...browser.closedTabs].reverse().map((tab) => ({ ...tab })),

@@ -24,6 +24,7 @@ vi.mock('../src/main/browser/workspace-navigation/workspace-navigation.js', asyn
   assertWorkspaceNavigationAllowed: (browser: { assertWorkspaceNavigationAllowed: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.assertWorkspaceNavigationAllowed(...args)
 }))
 import { Browser } from '../src/main/browser/browser.js'
+import { duplicateTabAfterLabelSave } from '../src/main/browser/tab-reopening/tab-reopening.js'
 
 function fixture() {
   const source = { id: 'source', title: 'Page', url: 'https://example.test/', label: undefined, pinned: false, mcpGroupId: 'workspace', zoomIsolated: false, defaultFontSize: 32 }
@@ -55,6 +56,6 @@ it('passes a valid defaultFontSize to tab construction', async () => {
 
 it('carries the source defaultFontSize into a duplicate', async () => {
   const f = fixture()
-  await (f.manager as unknown as { duplicateTabAfterLabelSave(id: string): Promise<unknown> }).duplicateTabAfterLabelSave('source')
+  await duplicateTabAfterLabelSave(f.manager, 'source')
   expect(f.createTab.mock.calls[0]?.[0]).toMatchObject({ url: 'https://example.test/', defaultFontSize: 32 })
 })
