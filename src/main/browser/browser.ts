@@ -1,6 +1,6 @@
 import { assertExclusiveWorkspaceStorage, canonicalStorageId } from './workspace-storage-deletion.js'
 import { ImageInspectionSlots } from './image-state.js'
-import type { BrowserEmulationResult, BrowserUnconfirmedEmulation, TaskManagerProcess } from '../../shared/types.js'
+import type { BrowserEmulationResult, BrowserUnconfirmedEmulation } from '../../shared/types.js'
 import { evaluateFile } from './page-evaluation/evaluate-file.js'
 import type { FileEvaluationSource, FileEvaluationHooks } from '../../shared/file-evaluation.js'
 import type { StorageComparisonHooks } from './storage-comparison-operation.js'
@@ -11,14 +11,12 @@ import { manageStorage } from './site-storage/manage-storage.js'
 import { inspectIndexedDb, inspectStorageUsage } from './site-storage/storage-inspection.js'
 import { storageChanges } from './site-storage/storage-changes.js'
 import { waitForElement, waitForPage, waitForText, waitForUrlPattern } from './page-waits/page-waits.js'
-import { visualCompare, visualDiff, type BrowserVisualCompareResult } from './visual-compare/visual-compare.js'
+import { visualCompare, type BrowserVisualCompareResult } from './visual-compare/visual-compare.js'
 import { callWebMcpTool, listWebMcpTools, webMcpStatus, type WebMcpStatus, type WebMcpToolCall, type WebMcpToolList } from './webmcp/webmcp.js'
 import { inspectPwa } from './pwa-inspection/pwa-inspection.js'
 import { elementInspection, imageState, mediaState } from './element-inspection/element-inspection.js'
 import { consoleMessages } from './console-messages/console-messages.js'
 import {
-  getTabOverviewPagePreview,
-  getTabOverviewPreviews,
   performTabOverviewPreviewCapture,
   type TabOverviewPreviewCaptureRequest
 } from './tab-overview-previews/tab-overview-previews.js'
@@ -36,8 +34,6 @@ import type { PendingPdfExport } from './pdf-export-publication.js'
 import { savePdf } from './pdf-export/pdf-export.js'
 import { saveScreenshot, type PendingScreenshotExport, type ScreenshotExport, type ScreenshotExportOptions } from './screenshot-export/screenshot-export.js'
 import { createFrameObservation } from './frame-observation/browser-frame-observation.js'
-import { showTabContextMenu } from './context-menus/tab-context-menu.js'
-import { showHistoryMenu } from './context-menus/history-menu.js'
 import type { ReactInspectionAuthority } from './react-inspection/react-inspection.js'
 import { createReactInspectionController } from './react-inspection/browser-react-inspection.js'
 import type { FixedDateAuthority } from './fixed-date/fixed-date.js'
@@ -52,19 +48,16 @@ import type { CookieWriteHooks } from './cookie-write-operation.js'
 import type { BrowserVideoInspectionOptions } from '../../shared/video-inspection.js'
 import type { PendingVideoInspection, VideoSourceBinding } from './video-recorder.js'
 import { createVideoRecorder } from './video-recording/browser-video-recorder.js'
-import { inspectVideo, videoPreview, videoRecording } from './video-recording/video-recording.js'
+import { inspectVideo, videoRecording } from './video-recording/video-recording.js'
 import { VIDEO_RECORDING_NOTICES, type BrowserVideoOptions, type BrowserVideoState } from '../../shared/video.js'
 import type { BrowserCredentialCandidate } from './credential-capture/credential-capture.js'
 import { emulate } from './emulation/emulation.js'
 import { cloneEmulationState, hasEmulationOverrides } from './emulation-state.js'
 import {
   cancelElementPicker,
-  captureElementScreenshot,
-  pickElement,
-  type BrowserElementPickerResult,
   type BrowserElementPickerSession
 } from './element-picker/element-picker.js'
-import { cancelScreenshotArea, captureScreenshotArea, type BrowserScreenshotAreaSession } from './screenshot-area/screenshot-area.js'
+import { cancelScreenshotArea, type BrowserScreenshotAreaSession } from './screenshot-area/screenshot-area.js'
 import { createNetworkWaitController } from './network-inspection/browser-network-waits.js'
 import { PreviewCaptureQueue } from './preview-capture-queue.js'
 import { NativePreviewCapture } from './native-preview-capture.js'
@@ -125,10 +118,7 @@ import {
 import type { AgentStepThumbnailImage } from '../mcp/agent-presence.js'
 import type { WorkspaceContinuityResult } from '../mcp/workspace-continuity.js'
 import {
-  listWorkspaceStorageOrigins,
-  transferWorkspaceStorage,
-  withWorkspaceSiteDataCleanup,
-  workspaceSession
+  listWorkspaceStorageOrigins
 } from './workspace-data/workspace-data.js'
 import { reconcilePresentedViewVisibility } from './presented-view-visibility.js'
 import { resizeViewport } from './emulation/resize-viewport.js'
@@ -150,7 +140,6 @@ import {
   screen,
   webContents as electronWebContents,
   type WebContentsView,
-  type MenuItemConstructorOptions,
   type NavigationEntry,
   type Input,
   type Rectangle,
@@ -162,7 +151,6 @@ import {
 import type { BrowserShortcutAction } from '../../shared/browser-shortcuts.js'
 import { noteShellHeldKey, trackShellHeldKeys } from './tab-events/shell-held-keys.js'
 import { MAX_BROWSER_TABS } from '../../shared/types.js'
-import { findInPage, stopFindInPage } from './page-find/page-find.js'
 import { translate, type MessageKey, type MessageParameters } from '../../shared/i18n.js'
 import type { SupportedLocale } from '../../shared/locale.js'
 import type { TabPosition } from '../../shared/tab-position.js'
@@ -194,9 +182,7 @@ import { MemorySaverSweepQueue } from '../memory-saver-sweep.js'
 import { accessibilityAudit } from './page-audits/accessibility-audit.js'
 import { auditEvidenceAvailability, clearDiagnosticLogs, debugReport, diagnosticLogState, setDiagnosticLogPreservation } from './debug-report/debug-report.js'
 import { securityReport } from './page-audits/security-report.js'
-import { createWorkspace, importWorkspaceTemplate } from './workspace-creation/workspace-creation.js'
 import type { WorkspaceTemplateImporter } from './workspace-template-import.js'
-import type { WorkspaceTemplateImportResult } from '../../shared/workspace-template.js'
 import { performanceReport } from './page-audits/performance-report.js'
 import { designOverview } from './page-audits/design-overview.js'
 import { createPageMetadata } from './diagnostics/browser-page-metadata.js'
@@ -232,8 +218,8 @@ import type {
 } from '../../shared/split-view.js'
 import { closeSplitView, openSplitView, openSplitViewAndWait, updateSplitView } from './split-view/split-view.js'
 import { getSplitDivider, layout } from './window-layout/window-layout.js'
-import { pageArea, setContentInsets, setToolbarHeight, shownPageFullscreenTab } from './window-layout/content-area.js'
-import { exitPageFullscreen, watchWindowFullScreen, windowFullScreenToSave } from './page-fullscreen/page-fullscreen.js'
+import { pageArea, shownPageFullscreenTab } from './window-layout/content-area.js'
+import { watchWindowFullScreen, windowFullScreenToSave } from './page-fullscreen/page-fullscreen.js'
 import { selectAgentTabAndWait, selectTab, selectTabAndWait, type BrowserTabSelectionOptions } from './tab-selection/tab-selection.js'
 import { EMULATION_FRAME_CAPTION_SPACE, emulatedViewBounds, type EmulationFrameGeometry } from '../../shared/emulation-frame.js'
 import type { PageCardGeometry } from '../../shared/page-card.js'
@@ -246,9 +232,7 @@ import {
 } from '../../shared/memory-saver.js'
 import { LocalizedError } from '../localized-error.js'
 import { RendererRecovery } from './renderer-recovery.js'
-import { EndedByPersonMarks, endTaskManagerProcess, taskManagerProcesses } from './task-manager/task-manager.js'
-import type { CredentialFillContext } from './credential-fill-context.js'
-import { credentialContext, fillCredential } from './credential-fill/credential-fill.js'
+import { EndedByPersonMarks } from './task-manager/task-manager.js'
 import type { SuggestedPasswordOptions } from './suggested-password/suggested-password.js'
 import type {
   BrowserEmulationOptions,
@@ -321,16 +305,11 @@ import type {
   BrowserSavedTabGroupState,
   BrowserState,
   BrowserTabGroupState,
-  BrowserWorkspaceNavigationAuditEntry,
   BrowserWorkspaceContextClass,
   BrowserWorkspaceNavigationAuditSource,
   BrowserWorkspaceNavigationPolicy,
-  BrowserWorkspaceCreateOptions,
-  BrowserWorkspaceStorageTransferOptions,
-  BrowserWorkspaceStorageTransferResult,
   BrowserTabState,
   BrowserTabOverviewPreview,
-  DroppedLinkTarget,
   McpTabActivity,
   NewTabOptions
 } from '../../shared/types.js'
@@ -347,24 +326,14 @@ import { browserState, publishChange } from './browser-state/browser-state.js'
 import { createStatePublication } from './browser-state/browser-state-publication.js'
 import { isHronautHomeUrl, isWebUrl } from './url.js'
 import { closeTabsForPerson } from './tab-close/close-tabs-for-person.js'
-import { showDevToolsConsole, toggleDevTools } from './devtools/devtools.js'
 import { controlPageLifecycle, pageLifecycle, setTabPageLifecycle } from './page-lifecycle/page-lifecycle.js'
-import { back, forward, navigate, reload, reloadIgnoringCache, stop, stopFocusedPageLoading } from './page-navigation/page-navigation.js'
+import { back, forward, navigate, reload, reloadIgnoringCache, stop } from './page-navigation/page-navigation.js'
 import { setZoom } from './page-zoom/page-zoom.js'
-import { historyGesture } from './history-gesture/history-gesture.js'
-import { printShownPage } from './page-print/page-print.js'
-import { saveShownPage } from './page-save/page-save.js'
-import { viewShownPageSource } from './page-source/page-source.js'
-import { openNavigationInNewTab } from './navigation-new-tab/navigation-new-tab.js'
 import type { WorkspaceNavigationDecision } from './workspace-navigation-policy.js'
-import {
-  listWorkspaceNavigationAudit,
-  updateWorkspaceNavigationPolicy
-} from './workspace-navigation/workspace-navigation.js'
 import {
   normalizeWorkspaceStorageOrigins
 } from './workspace-storage.js'
-import { drainWorkspaceOperations, flushPersist, flushWorkspaceProfiles } from './quit-flush/quit-flush.js'
+import { flushPersist } from './quit-flush/quit-flush.js'
 import { closeMcpTabGroup } from './mcp-tab-groups/close-mcp-tab-group.js'
 import { createMcpTabGroup } from './mcp-tab-groups/create-mcp-tab-group.js'
 import { listMcpTabGroups, renameMcpTabGroup, requireMcpTabGroup, updateMcpTabGroup } from './mcp-tab-groups/mcp-tab-groups.js'
@@ -376,7 +345,6 @@ import {
 } from './workspace-operations/workspace-operations.js'
 import { OpenedTabObservation, type TabsOpenedDuringClick } from './click-opened-tabs.js'
 import { hasAgentPauseExceptions, isTabAgentPaused, isTabTakenOver, setAllAgentsPaused, setTabAgentPaused } from './agent-pause/agent-pause.js'
-import { setAllHumanInteractionLocked, setTabHumanInteractionLocked } from './interaction-lock/interaction-lock.js'
 import {
   handleDialog
 } from './website-dialogs/website-dialogs.js'
@@ -385,44 +353,39 @@ import type {
   AuthorizedAgentMouseInput
 } from './agent-input-authorization/agent-input-authorization.js'
 import {
-  setTabSleeping,
   wakeTab,
   withoutSleepingPage
 } from './tab-sleep/tab-sleep.js'
 import { SLEEPING_PAGE_URL } from './tab-sleep/sleeping-page.js'
-import { setMemorySaverSettings, sleepInactiveTabs } from './tab-sleep/memory-saver.js'
+import { setMemorySaverSettings } from './tab-sleep/memory-saver.js'
 import type { BackgroundLoads } from './tab-sleep/background-loads.js'
-import { closeTab, closeTabs } from './tab-close/close-tab.js'
+import { closeTab } from './tab-close/close-tab.js'
 import { saveTabLabel, withTabLabelLifecycle } from './tab-labels/tab-labels.js'
 import { duplicateTabAfterLabelSave, forgetClosedTabs, reopenClosedTabAfterLabelSave } from './tab-reopening/tab-reopening.js'
 import { forgetTabHistoryPages } from './tab-history-pages/forget-tab-history-pages.js'
-import { reorderTab, reorderTabs, setTabPinned } from './tab-arrangement/tab-arrangement.js'
-import { openDroppedLink } from './dropped-links/dropped-links.js'
+import { setTabPinned } from './tab-arrangement/tab-arrangement.js'
 import { forgetTabsOpenedFrom, switchLeavesOpenedTabs } from './link-tab-placement/link-tab-openers.js'
-import { sendWalletProviderEvent, walletPageContext, walletPageContextForMcpTab, type BrowserWalletPageContext } from './wallet-pages/wallet-pages.js'
+import { walletPageContext, type BrowserWalletPageContext } from './wallet-pages/wallet-pages.js'
 import { getMcpDiscoveryTabs, getMcpGroupState, requireTabInMcpGroup, tabBelongsToMcpGroup } from './workspace-scope/workspace-scope.js'
 import { createNewTab, newLabeledAgentTab } from './new-tabs/new-tabs.js'
 import { createTab } from './new-tabs/create-tab.js'
-import { destroyBrowser } from './browser-lifecycle/destroy-browser.js'
 import { initializeBrowser } from './browser-lifecycle/initialize-browser.js'
 import { saveForNextStart } from './browser-lifecycle/save-for-next-start.js'
-import { setAllTabsMuted, setTabMuted } from './tab-muting/tab-muting.js'
-import { applySiteMutingToTabs, setSiteMuted, type SiteSoundStore } from './site-muting/site-muting.js'
+import { setTabMuted } from './tab-muting/tab-muting.js'
+import { applySiteMutingToTabs, type SiteSoundStore } from './site-muting/site-muting.js'
 import { captureAgentStepThumbnail } from './agent-step-thumbnail/agent-step-thumbnail.js'
 import { cancelFocusAfterTrustedChrome, focusTabOrTrustedChrome, withholdFocusAfterTrustedChrome, type PendingTrustedChromeFocus } from './trusted-chrome-focus/trusted-chrome-focus.js'
-import { setBrowserContentOccluded, setFollowAgentActivitySuspended } from './trusted-chrome-occlusion/trusted-chrome-occlusion.js'
-import { handleMcpTabActivity, publishAgentFollowChange, publishedAgentFollow, retainAgentFollow, setFollowAgentActivity } from './agent-follow/agent-follow.js'
+import { setBrowserContentOccluded } from './trusted-chrome-occlusion/trusted-chrome-occlusion.js'
+import { handleMcpTabActivity, publishAgentFollowChange } from './agent-follow/agent-follow.js'
+import { publishedAgentFollow } from './agent-follow/published-agent-follow.js'
 import { selectTabPassively } from './agent-follow/passive-selection.js'
-import { syncHumanInteractionInputGuard } from './interaction-lock/human-input-guard.js'
 import type { UndoableAction } from '../undo-offers.js'
 import {
   archiveWorkspaceForPerson,
-  closeWorkspaceForPerson,
   deleteSavedTabGroup,
   isClosingWorkspace,
   restoreSavedTabGroup,
-  saveAndCloseTabGroup,
-  updateArchivedWorkspacePreferences
+  saveAndCloseTabGroup
 } from './workspace-archive/workspace-archive.js'
 
 export const HRONAUT_HOME_URL = 'hronaut://home/'
@@ -437,7 +400,6 @@ const TAB_OVERVIEW_CAPTURE_TIMEOUT_MS = 2_000
 
 import type { BrowserTab } from './browser-tab.js'
 import { getTab } from './browser-core.js'
-import type { ActiveWorkspace as BrowserTabGroup } from './workspace-registry/workspace-registry.js'
 import { createWorkspaceRegistry } from './workspace-registry/browser-workspace-registry.js'
 
 export type { BrowserElementPickerResult } from './element-picker/element-picker.js'
@@ -760,7 +722,7 @@ export class Browser {
     const tabId = this.webContentsToTab.get(page.id)
     const tab = tabId ? this.tabs.get(tabId) : undefined
     if (!tab || (tab.id !== this.activeTabId && !this.splitViewContains(tab.id))) return
-    this.focusTabOrTrustedChrome(tab)
+    focusTabOrTrustedChrome(this, tab)
   }
 
   /**
@@ -790,7 +752,7 @@ export class Browser {
   focusActivePage(shell: WebContents): void {
     if (shell !== this.window.webContents) return
     const tab = this.activeTabId ? this.tabs.get(this.activeTabId) : undefined
-    if (tab && !tab.webContents.isDestroyed()) this.focusTabOrTrustedChrome(tab)
+    if (tab && !tab.webContents.isDestroyed()) focusTabOrTrustedChrome(this, tab)
   }
 
   fixedDateBootstrap(page: WebContents, frameOrigin: string): FixedDateBootstrap {
@@ -880,13 +842,13 @@ export class Browser {
         return Boolean(tab && !tab.sleeping && !tab.wakePromise && !tab.webContents.isDestroyed())
       },
       wakeTab: async (tabId) => this.wakeTab(tabId),
-      selectTabPassively: (tabId) => this.selectTabPassively(tabId),
+      selectTabPassively: (tabId) => selectTabPassively(this, tabId),
       onFollow: ({ tabId, agent }) => {
-        const before = this.publishedAgentFollow()
+        const before = publishedAgentFollow(this)
         this.agentFollow = agent
           ? { tabId, agentId: agent.id, agentName: agent.name, selectionGeneration: this.tabSelectionGeneration }
           : undefined
-        this.publishAgentFollowChange(before)
+        publishAgentFollowChange(this, before)
       },
       onError: (error) => console.error('[browser] Could not follow MCP activity:', error)
     })
@@ -916,22 +878,6 @@ export class Browser {
     return browserState(this)
   }
 
-  publishedAgentFollow(): { tabId: string; agentName: string } | undefined {
-    return publishedAgentFollow(this)
-  }
-
-  private publishAgentFollowChange(before: { tabId: string; agentName: string } | undefined): void {
-    publishAgentFollowChange(this, before)
-  }
-
-  retainAgentFollow(agentIds: ReadonlySet<string>): void {
-    retainAgentFollow(this, agentIds)
-  }
-
-  getTabOverviewPreviews(tabIds: readonly string[]): BrowserTabOverviewPreview[] {
-    return getTabOverviewPreviews(this, tabIds)
-  }
-
   captureAgentStepThumbnail(tabId: string, workspaceId: string): Promise<AgentStepThumbnailImage | 'later' | undefined> {
     return captureAgentStepThumbnail(this, tabId, workspaceId)
   }
@@ -941,10 +887,6 @@ export class Browser {
     const ratio = Math.max(1, screen.getDisplayMatching(this.window.getBounds()).scaleFactor, tab.emulation.viewport?.deviceScaleFactor ?? 1)
     if (!Number.isFinite(ratio) || ratio > 32) throw new LocalizedError('appErrors.pageTools.pageScale')
     return ratio
-  }
-
-  getTabOverviewPagePreview(tabId: string): Promise<BrowserTabOverviewPreview> {
-    return getTabOverviewPagePreview(this, tabId)
   }
 
   listMcpTabGroups(): BrowserTabGroupState[] {
@@ -959,7 +901,7 @@ export class Browser {
     return [
       ...[...this.mcpTabGroups.values()].map((group) => ({ group, archived: false })),
       // A workspace the person just closed is not copied while it waits to be deleted.
-      ...[...this.savedTabGroups.values()].filter((group) => !this.isClosingWorkspace(group.id)).map((group) => ({ group, archived: true }))
+      ...[...this.savedTabGroups.values()].filter((group) => !isClosingWorkspace(this, group.id)).map((group) => ({ group, archived: true }))
     ].map(({ group, archived }) => ({
       id: group.id, name: group.name, description: group.description, color: group.color, archived,
       agentAccess: group.agentAccess !== false
@@ -975,7 +917,7 @@ export class Browser {
   isWorkspaceAgentAccessible(workspaceId: string): boolean {
     const group = this.mcpTabGroups.get(workspaceId) ?? this.savedTabGroups.get(workspaceId)
     // Agents cannot bring back a workspace the person just closed while it waits to be deleted.
-    return !!group && group.agentAccess !== false && !this.isClosingWorkspace(workspaceId)
+    return !!group && group.agentAccess !== false && !isClosingWorkspace(this, workspaceId)
   }
 
   captureWorkspaceObservationGuard(workspaceId: string): () => void {
@@ -1024,17 +966,6 @@ export class Browser {
     return requireMcpTabGroup(this, groupId)
   }
 
-  listWorkspaceNavigationAudit(groupId: string): BrowserWorkspaceNavigationAuditEntry[] {
-    return listWorkspaceNavigationAudit(this, groupId)
-  }
-
-  updateWorkspaceNavigationPolicy(
-    groupId: string,
-    value: BrowserWorkspaceNavigationPolicy
-  ): Promise<BrowserState> {
-    return updateWorkspaceNavigationPolicy(this, groupId, value)
-  }
-
   mcpWorkspaceResumeKey(workspaceId: string): string {
     const storageId = this.mcpTabGroups.get(workspaceId)?.storageId
       ?? this.savedTabGroups.get(workspaceId)?.storageId
@@ -1043,14 +974,6 @@ export class Browser {
       .update('Hronaut MCP workspace resume key v1\0', 'utf8')
       .update(storageId, 'utf8')
       .digest('base64url')}`
-  }
-
-  importWorkspaceTemplate(text: string): Promise<WorkspaceTemplateImportResult> {
-    return importWorkspaceTemplate(this, text)
-  }
-
-  createWorkspace(options: BrowserWorkspaceCreateOptions): Promise<BrowserState> {
-    return createWorkspace(this, options)
   }
 
   async closeWorkspace(workspaceId: string): Promise<BrowserState> {
@@ -1068,23 +991,6 @@ export class Browser {
 
   listWorkspaceStorageOrigins(workspaceId: string): string[] {
     return listWorkspaceStorageOrigins(this, workspaceId)
-  }
-
-  workspaceSession(workspaceId: string): Session {
-    return workspaceSession(this, workspaceId)
-  }
-
-  withWorkspaceSiteDataCleanup<T>(
-    workspaceId: string,
-    operation: (browserSession: Session) => Promise<T>
-  ): Promise<T> {
-    return withWorkspaceSiteDataCleanup(this, workspaceId, operation)
-  }
-
-  transferWorkspaceStorage(
-    options: BrowserWorkspaceStorageTransferOptions
-  ): Promise<BrowserWorkspaceStorageTransferResult> {
-    return transferWorkspaceStorage(this, options)
   }
 
   requireTabInMcpGroup(groupId: string, tabId?: string, preserveSelection = false): string {
@@ -1112,14 +1018,6 @@ export class Browser {
     return walletPageContext(this, webContentsId)
   }
 
-  walletPageContextForMcpTab(workspaceId: string, tabId: string): BrowserWalletPageContext {
-    return walletPageContextForMcpTab(this, workspaceId, tabId)
-  }
-
-  sendWalletProviderEvent(tabId: string, event: import('../../shared/wallet.js').WalletProviderEvent): void {
-    sendWalletProviderEvent(this, tabId, event)
-  }
-
   closeMcpTabGroup(groupId: string, preserveStorage = false): Promise<BrowserTabGroupState[]> {
     return closeMcpTabGroup(this, groupId, preserveStorage)
   }
@@ -1132,25 +1030,9 @@ export class Browser {
     return archiveWorkspaceForPerson(this, groupId)
   }
 
-  isClosingWorkspace(workspaceId: string): boolean {
-    return isClosingWorkspace(this, workspaceId)
-  }
-
-  closeWorkspaceForPerson(groupId: string): Promise<BrowserState> {
-    return closeWorkspaceForPerson(this, groupId)
-  }
-
-  restoreSavedTabGroup(savedGroupId: string): Promise<BrowserTabGroupState> {
-    return restoreSavedTabGroup(this, savedGroupId)
-  }
-
   /** Restores an archived workspace for an agent without showing it, as an agent's other calls leave the window as it is. */
   restoreSavedTabGroupForAgent(savedGroupId: string): Promise<BrowserTabGroupState> {
     return restoreSavedTabGroup(this, savedGroupId, { show: false })
-  }
-
-  updateArchivedWorkspacePreferences(workspaceId: string, updates: { hiddenFromSidebar?: boolean; deletionProtected?: boolean }): void {
-    updateArchivedWorkspacePreferences(this, workspaceId, updates)
   }
 
   deleteSavedTabGroup(savedGroupId: string): Promise<BrowserSavedTabGroupState[]> {
@@ -1241,19 +1123,6 @@ export class Browser {
     return storageChanges(this, action, tabId, includeValues, hooks)
   }
 
-  credentialContext(tabId?: string): CredentialFillContext | null {
-    return credentialContext(this, tabId)
-  }
-
-  fillCredential(
-    tabId: string,
-    expectedContext: CredentialFillContext,
-    username: string,
-    password: string
-  ): Promise<boolean> {
-    return fillCredential(this, tabId, expectedContext, username, password)
-  }
-
   /**
    * Opens an agent's tab, which becomes its workspace's active tab without
    * being shown. Follow agents shows it through the agent's call on it, so it
@@ -1293,7 +1162,7 @@ export class Browser {
     const closedTabsForgotten = forgetClosedTabs(this, matches, workspaceId)
     const tabs = [...this.tabs.values()].filter((tab) => workspaceId === undefined || tab.mcpGroupId === workspaceId)
     const openTabPagesForgotten = forgetTabHistoryPages(tabs, matches)
-    if (closedTabsForgotten || openTabPagesForgotten) this.changed(false)
+    if (closedTabsForgotten || openTabPagesForgotten) publishChange(this, false)
     // The open tabs' history saved before forgets the pages too, for a tab whose history cannot be read when it is saved
     // next and keeps what was saved before. Both are saved without the pages at once; before the saved tabs are back,
     // Recently closed cannot be saved yet, so the saved one goes.
@@ -1303,11 +1172,7 @@ export class Browser {
   }
 
   duplicateTab(tabId: string): Promise<BrowserState> {
-    return withTabLabelLifecycle(this, () => this.duplicateTabAfterLabelSave(tabId))
-  }
-
-  private duplicateTabAfterLabelSave(tabId: string): Promise<BrowserState> {
-    return duplicateTabAfterLabelSave(this, tabId)
+    return withTabLabelLifecycle(this, () => duplicateTabAfterLabelSave(this, tabId))
   }
 
   readonly pendingTabLabels = new Set<Promise<unknown>>()
@@ -1328,10 +1193,6 @@ export class Browser {
     setMemorySaverSettings(this, enabled, timeoutMinutes)
   }
 
-  setFollowAgentActivity(enabled: boolean): void {
-    setFollowAgentActivity(this, enabled)
-  }
-
   /** The agent is its session's opaque presence key and cleaned name; following holds on it and names it in the rail. */
   handleMcpTabActivity(activity: McpTabActivity, agent?: FollowAgent): void {
     handleMcpTabActivity(this, activity, agent)
@@ -1339,20 +1200,6 @@ export class Browser {
 
   wakeTab(tabId: string): Promise<BrowserState> {
     return wakeTab(this, tabId)
-  }
-
-  /** Every process of Hronaut's with its memory and CPU use, for the Task manager. */
-  taskManagerProcesses(): TaskManagerProcess[] {
-    return taskManagerProcesses(this)
-  }
-
-  /** Ends a page process the person chose in the Task manager, as Chrome's End process. */
-  endTaskManagerProcess(pid: number): void {
-    endTaskManagerProcess(this, pid)
-  }
-
-  setTabSleeping(tabId: string, sleeping: boolean): Promise<BrowserState> {
-    return setTabSleeping(this, tabId, sleeping)
   }
 
   pageLifecycle(tabId: string): BrowserPageLifecycleResult {
@@ -1373,51 +1220,16 @@ export class Browser {
     return controlPageLifecycle(this, tabId, requestedState)
   }
 
-  sleepInactiveTabs(): Promise<BrowserState> {
-    return sleepInactiveTabs(this)
-  }
-
-  reorderTab(tabId: string, targetTabId: string, placement: 'before' | 'after'): BrowserState {
-    return reorderTab(this, tabId, targetTabId, placement)
-  }
-
-  /** Moves the tabs selected in the strip or rail together, before or after the target tab. */
-  reorderTabs(tabIds: readonly string[], targetTabId: string, placement: 'before' | 'after'): BrowserState {
-    return reorderTabs(this, tabIds, targetTabId, placement)
-  }
-
-  /** Opens a link or other text the person dropped on the tab strip or rail, in a tab or beside one, as Chrome does. */
-  openDroppedLink(text: string, target: DroppedLinkTarget): Promise<BrowserState> {
-    return openDroppedLink(this, text, target)
-  }
-
-  private workspaceContextMenuItems(group: BrowserTabGroup): MenuItemConstructorOptions[] {
-    return workspaceContextMenuItems(this, group)
-  }
-
   /** Opens a workspace's menu where the pointer is; `onClosed` runs once it closes. */
   showWorkspaceContextMenu(groupId: string, onClosed?: () => void): void {
     const group = this.mcpTabGroups.get(groupId)
     if (!group) throw new LocalizedError('appErrors.workspace.unavailable', undefined, { message: `Unknown workspace: ${groupId}` })
-    Menu.buildFromTemplate(this.workspaceContextMenuItems(group)).popup({ window: this.window, ...(onClosed ? { callback: onClosed } : {}) })
-  }
-
-  /** Opens a tab's menu where the pointer is; `onClosed` runs once it closes, or at once when the tab has none. */
-  showTabContextMenu(tabId: string, onClosed?: () => void, selectedTabIds?: readonly string[]): void {
-    showTabContextMenu(this, tabId, onClosed, selectedTabIds)
-  }
-
-  toggleDevTools(tabId?: string): Promise<boolean> {
-    return toggleDevTools(this, tabId)
-  }
-
-  showDevToolsConsole(tabId?: string): Promise<boolean> {
-    return showDevToolsConsole(this, tabId)
+    Menu.buildFromTemplate(workspaceContextMenuItems(this, group)).popup({ window: this.window, ...(onClosed ? { callback: onClosed } : {}) })
   }
 
   setMcpUrl(url: string): BrowserState {
     this.mcpUrl = url
-    this.changed(false)
+    publishChange(this, false)
     return this.getState()
   }
 
@@ -1452,10 +1264,6 @@ export class Browser {
     return selectTab(this, tabId, options)
   }
 
-  private selectTabPassively(tabId: string): boolean {
-    return selectTabPassively(this, tabId)
-  }
-
   openSplitViewAndWait(tabId: string): Promise<BrowserState> {
     return openSplitViewAndWait(this, tabId)
   }
@@ -1473,34 +1281,11 @@ export class Browser {
   }
 
   async closeTab(tabId: string, respectBeforeUnload = false): Promise<BrowserState> {
-    return this.closeTabInternal(tabId, true, respectBeforeUnload)
+    return closeTab(this, tabId, true, respectBeforeUnload)
   }
 
   closeTabsForPerson(tabIds: readonly string[]): Promise<BrowserState> {
     return closeTabsForPerson(this, tabIds)
-  }
-
-  /**
-   * Closes a tab, opening a replacement when it was the last, letting its page ask to stay when respectBeforeUnload
-   * is set, and keeping a shown tab open when yieldsToNewerSelection is set and another tab is selected while the tab
-   * that replaces it wakes.
-   */
-  closeTabInternal(
-    tabId: string,
-    ensureReplacement: boolean,
-    respectBeforeUnload = false,
-    yieldsToNewerSelection = false
-  ): Promise<BrowserState> {
-    return closeTab(this, tabId, ensureReplacement, respectBeforeUnload, yieldsToNewerSelection)
-  }
-
-  /**
-   * Closes tabs together, such as a workspace's. The active one closes last,
-   * so it hands over to a tab that stays open rather than waking a sleeping
-   * one only to close it next.
-   */
-  closeTabs(tabIds: string[], ensureReplacement = true): Promise<BrowserState> {
-    return closeTabs(this, tabIds, ensureReplacement)
   }
 
   navigate(url: string, tabId?: string, options?: { byPerson?: boolean }): Promise<BrowserState> {
@@ -1515,38 +1300,6 @@ export class Browser {
     return forward(this, tabId)
   }
 
-  /** Shows the pages the tab's Back or Forward arrow goes through, for the person to pick one, as Chrome does. */
-  showHistoryMenu(tabId: string, direction: 'back' | 'forward', anchor?: { x: number; y: number }): boolean {
-    return showHistoryMenu(this, tabId, direction, anchor)
-  }
-
-  /**
-   * Opens the page Back or Forward goes to, or the tab's own page for Reload, in a new tab beside the tab, as a
-   * middle-click on Chrome's toolbar buttons does.
-   */
-  openNavigationInNewTab(tabId: string, target: 'back' | 'forward' | 'reload', active: boolean): Promise<BrowserState> {
-    return openNavigationInNewTab(this, tabId, target, active)
-  }
-
-  /** Goes back or forward in the shown tab for the person's Back or Forward key or mouse button, unless its page keeps its input. */
-  historyGesture(direction: 'back' | 'forward'): Promise<void> {
-    return historyGesture(this, direction)
-  }
-
-  /** Opens the print dialog for the page the window shows, for Print in the menu and its key. */
-  printShownPage(): Promise<void> {
-    return printShownPage(this)
-  }
-
-  viewShownPageSource(): Promise<boolean> {
-    return viewShownPageSource(this)
-  }
-
-  /** Save Page As for the page the window shows, for the menu and its key. */
-  saveShownPage(): Promise<boolean> {
-    return saveShownPage(this)
-  }
-
   pageSaving: Set<number> | undefined
 
   pagePrinting: Set<number> | undefined
@@ -1557,17 +1310,6 @@ export class Browser {
 
   reloadIgnoringCache(tabId?: string): Promise<BrowserState> {
     return reloadIgnoringCache(this, tabId)
-  }
-
-  findInPage(
-    query: string,
-    options: { tabId?: string; forward?: boolean; findNext?: boolean; caseSensitive?: boolean } = {}
-  ): Promise<{ activeMatchOrdinal: number; matches: number }> {
-    return findInPage(this, query, options)
-  }
-
-  stopFindInPage(tabId?: string, options?: { activateMatch?: boolean }): void {
-    stopFindInPage(this, tabId, options)
   }
 
   setZoom(options: { tabId?: string; action: 'in' | 'out' | 'reset' | 'set'; percent?: number }): BrowserState {
@@ -1599,14 +1341,6 @@ export class Browser {
     return setTabMuted(this, tabId, muted)
   }
 
-  setAllTabsMuted(muted: boolean): BrowserState {
-    return setAllTabsMuted(this, muted)
-  }
-
-  setSiteMuted(tabId: string, muted: boolean): Promise<BrowserState> {
-    return setSiteMuted(this, tabId, muted)
-  }
-
   /** Applies each tab's website sound setting once the saved site permissions changed, such as in Settings. */
   applySiteMutingToTabs(): void {
     applySiteMutingToTabs(this)
@@ -1614,18 +1348,6 @@ export class Browser {
 
   stop(tabId?: string): BrowserState {
     return stop(this, tabId)
-  }
-
-  stopFocusedPageLoading(): void {
-    stopFocusedPageLoading(this)
-  }
-
-  setTabHumanInteractionLocked(tabId: string, locked: boolean): Promise<BrowserState> {
-    return setTabHumanInteractionLocked(this, tabId, locked)
-  }
-
-  setAllHumanInteractionLocked(locked: boolean): Promise<BrowserState> {
-    return setAllHumanInteractionLocked(this, locked)
   }
 
   snapshot(tabId?: string, maxChars = 30_000): Promise<string> {
@@ -1736,14 +1458,6 @@ export class Browser {
     return this.profiling.memoryReport(options)
   }
 
-  pickElement(tabId?: string): Promise<BrowserElementPickerResult> {
-    return pickElement(this, tabId)
-  }
-
-  captureElementScreenshot(tabId?: string): Promise<{ canceled: boolean; data?: Buffer }> {
-    return captureElementScreenshot(this, tabId)
-  }
-
   elementInspection(options: BrowserElementInspectionOptions, validateInspection?: () => void, deferInspection?: (pending: PendingElementInspection) => void): Promise<BrowserElementInspection> {
     return elementInspection(this, options, validateInspection, deferInspection)
   }
@@ -1762,10 +1476,6 @@ export class Browser {
 
   cancelElementPicker(tabId?: string): Promise<boolean> {
     return cancelElementPicker(this, tabId)
-  }
-
-  captureScreenshotArea(tabId?: string): Promise<{ canceled: boolean; data?: Buffer }> {
-    return captureScreenshotArea(this, tabId)
   }
 
   cancelScreenshotArea(tabId?: string): Promise<boolean> {
@@ -1924,10 +1634,6 @@ export class Browser {
     return inspectVideo(this, options, authorize, signal)
   }
 
-  videoPreview(tabId: string): Uint8Array {
-    return videoPreview(this, tabId)
-  }
-
   async reproRecording(action: BrowserReproAction, tabId?: string, checkpoint?: unknown): Promise<BrowserReproRecording> {
     return this.reproRecorder.manage(getTab(this, tabId), action, checkpoint)
   }
@@ -2031,7 +1737,7 @@ export class Browser {
     if (problem && refusal) {
       tab.pageProblem = certificateProblem(this.options.getLocale(), problem.url, problem.errorCode ?? 0, problem.errorDescription ?? refusal.error, refusal)
     }
-    this.changed(false)
+    publishChange(this, false)
   }
 
   /**
@@ -2244,10 +1950,6 @@ export class Browser {
     return visualCompare(this, options, validateCapture)
   }
 
-  visualDiff(tabId?: string): Buffer {
-    return visualDiff(this, tabId)
-  }
-
   screenshot(options: BrowserScreenshotOptions = {}): Promise<{ annotations?: ScreenshotAnnotationReport; data: Buffer; mimeType: 'image/png' | 'image/jpeg' }> {
     return screenshot(this, options)
   }
@@ -2294,14 +1996,6 @@ export class Browser {
     return waitForUrlPattern(this, urlPattern, tabId, timeoutMs)
   }
 
-  setToolbarHeight(height: number): void {
-    setToolbarHeight(this, height)
-  }
-
-  setContentInsets(insets: { top: number; right: number; bottom: number; left: number }): void {
-    setContentInsets(this, insets)
-  }
-
   setBrowserContentOccluded(occluded: boolean, request: number): void {
     setBrowserContentOccluded(this, occluded, request)
   }
@@ -2309,10 +2003,6 @@ export class Browser {
   /** The shell shows the snapshot with this ID under trusted chrome, so the pages can leave the screen. */
   presentOcclusionSnapshot(id: number): void {
     this.occlusionSnapshot.present(id)
-  }
-
-  setFollowAgentActivitySuspended(suspended: boolean): void {
-    setFollowAgentActivitySuspended(this, suspended)
   }
 
   /** Where pages show, below the toolbar and beside the tab rail, in window coordinates; null once the window is gone. */
@@ -2336,11 +2026,6 @@ export class Browser {
    */
   noteShellKey(input: Pick<Input, 'code' | 'isAutoRepeat' | 'type'>): void {
     noteShellHeldKey(this.shellHeldKeys, input)
-  }
-
-  /** Asks the page in full screen, if any, to leave it so the browser's own controls show. */
-  exitPageFullscreen(): void {
-    exitPageFullscreen(this)
   }
 
   /** The window's full screen to save: the person's own, not a page's, which ends with the page. */
@@ -2404,18 +2089,6 @@ export class Browser {
     await Promise.all([flushPersist(this), saveForNextStart(this, true), this.downloadController.saveHistory()])
   }
 
-  drainWorkspaceOperations(): Promise<void> {
-    return drainWorkspaceOperations(this)
-  }
-
-  flushWorkspaceProfiles(): Promise<void> {
-    return flushWorkspaceProfiles(this)
-  }
-
-  destroy(): void {
-    destroyBrowser(this)
-  }
-
   /**
    * The web preferences of every website tab: Hronaut's page script in an isolated world, a sandboxed renderer without
    * Node, and the web's own security. A page a tab opens for a window gets them too.
@@ -2437,7 +2110,7 @@ export class Browser {
     if (mcpGroupId && !this.mcpTabGroups.has(mcpGroupId)) {
       throw new LocalizedError('appErrors.workspace.unavailable', undefined, { message: `Unknown workspace: ${mcpGroupId}` })
     }
-    if (mcpGroupId && !allowBusyWorkspace) this.assertWorkspaceCanOpenTab(mcpGroupId)
+    if (mcpGroupId && !allowBusyWorkspace) assertWorkspaceCanOpenTab(this, mcpGroupId)
   }
 
   createTab(options: Parameters<typeof createTab>[1]): Promise<BrowserTab> {
@@ -2460,10 +2133,6 @@ export class Browser {
     ))
     const collision = activeCollision ?? savedCollision
     if (collision) throw new LocalizedError('appErrors.workspace.nameTaken', { name })
-  }
-
-  private assertWorkspaceCanOpenTab(workspaceId: string): void {
-    assertWorkspaceCanOpenTab(this, workspaceId)
   }
 
   /**
@@ -2528,14 +2197,6 @@ export class Browser {
       && (this.allHumanInteractionLocked || tab.humanInteractionLocked)
   }
 
-  private focusTabOrTrustedChrome(tab: BrowserTab): void {
-    focusTabOrTrustedChrome(this, tab)
-  }
-
-  syncHumanInteractionInputGuard(tab: BrowserTab): Promise<void> {
-    return syncHumanInteractionInputGuard(this, tab)
-  }
-
   readonly unconfirmedSemanticClicks = new WeakSet<BrowserTab['view']['webContents']>()
   readonly openedTabObservations = new Map<BrowserTab, Set<OpenedTabObservation>>()
 
@@ -2569,10 +2230,6 @@ export class Browser {
     tab.consoleMessages = []
     tab.pendingRuntimeConsoleMessages = []
     tab.networkRequests = []
-  }
-
-  private changed(persist = true): void {
-    publishChange(this, persist)
   }
 
   splitViewContains(tabId: string): boolean {

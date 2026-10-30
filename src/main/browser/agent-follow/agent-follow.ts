@@ -3,20 +3,7 @@ import type { FollowAgent } from '../mcp-activity-follow-controller.js'
 import type { Browser } from '../browser.js'
 import { findTab } from '../browser-core.js'
 import { publishChange } from '../browser-state/browser-state.js'
-
-/** What the shell shows of following: only while the tab it showed is still the one in view. */
-export function publishedAgentFollow(browser: Browser): { tabId: string; agentName: string } | undefined {
-  const follow = browser.agentFollow
-  if (
-    !follow
-    || !browser.followAgentActivity
-    || follow.tabId !== browser.activeTabId
-    // A tab the person picked, even the same one again, is not being followed.
-    || follow.selectionGeneration !== browser.tabSelectionGeneration
-    || !browser.tabs.has(follow.tabId)
-  ) return undefined
-  return { tabId: follow.tabId, agentName: follow.agentName }
-}
+import { publishedAgentFollow } from './published-agent-follow.js'
 
 /** Publishes the browser state, unsaved, when what the shell shows of following changed since before. */
 export function publishAgentFollowChange(browser: Browser, before: { tabId: string; agentName: string } | undefined): void {

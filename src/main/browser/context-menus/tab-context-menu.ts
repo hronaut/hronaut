@@ -4,7 +4,7 @@ import { tabTitleForDisplay } from '../../../shared/tab-title.js'
 import { reactInspectionMenu } from '../react-inspection/react-inspection-menu.js'
 import { isHronautHomeUrl } from '../url.js'
 import type { Browser } from '../browser.js'
-import { canMuteSite, isSiteMuted } from '../site-muting/site-muting.js'
+import { canMuteSite, isSiteMuted, setSiteMuted } from '../site-muting/site-muting.js'
 import { setTabSleepingFromContextMenu, sleepBlockReason, sleepFallbackTab } from '../tab-sleep/tab-sleep.js'
 import { findTab, getTab, orderedTabs } from '../browser-core.js'
 import { reorderTab } from '../tab-arrangement/tab-arrangement.js'
@@ -174,7 +174,7 @@ export function showTabContextMenu(browser: Browser, tabId: string, onClosed?: (
     ...(canMuteSite(browser, tab) ? [{
       id: siteMuted ? 'unmute-site' : 'mute-site',
       label: browser.text(siteMuted ? 'native.context.unmuteSite' : 'native.context.muteSite'),
-      click: () => runAction(siteMuted ? 'unmute the site' : 'mute the site', () => browser.setSiteMuted(tab.id, !siteMuted))
+      click: () => runAction(siteMuted ? 'unmute the site' : 'mute the site', () => setSiteMuted(browser, tab.id, !siteMuted))
     }] : []),
     { type: 'separator' },
     {

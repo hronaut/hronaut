@@ -2,6 +2,16 @@ import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import { expect, it, vi } from 'vitest'
 import { registerDiagnosticsIpc } from '../src/main/diagnostics-ipc.js'
 
+// The handlers call the visual diff and video preview with the browser; they run on the fake browser's stubs.
+vi.mock('../src/main/browser/visual-compare/visual-compare.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/visual-compare/visual-compare.js')>(),
+  visualDiff: (browser: { visualDiff: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.visualDiff(...args)
+}))
+vi.mock('../src/main/browser/video-recording/video-recording.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/video-recording/video-recording.js')>(),
+  videoPreview: (browser: { videoPreview: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.videoPreview(...args)
+}))
+
 type Listener = Parameters<IpcMain['handle']>[1]
 const channels = [
   'accessibility-audit', 'quality-audit', 'performance', 'design-overview',
@@ -22,7 +32,7 @@ function fixture() {
     visualDiff: vi.fn(), inspectorIssues: vi.fn()
   }
   const host = {
-    assertTrustedSender: vi.fn(), tabs: vi.fn(() => tabs),
+    assertTrustedSender: vi.fn(), tabs: vi.fn(() => tabs as never),
     pngDataUrl: vi.fn(() => 'data:image/png;base64,diff'),
     copyPng: vi.fn(async () => ({ width: 20, height: 30 })), pickVideoAudio: vi.fn<() => Promise<string | undefined>>()
   }

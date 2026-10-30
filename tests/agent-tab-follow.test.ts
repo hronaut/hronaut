@@ -66,6 +66,7 @@ vi.mock('../src/main/browser/tab-events/attach-tab-events.js', () => ({
 import { Browser } from '../src/main/browser/browser.js'
 import { McpActivityFollowController } from '../src/main/browser/mcp-activity-follow-controller.js'
 import { attachWindowOpenHandler } from '../src/main/browser/tab-events/window-open-handler.js'
+import { selectTabPassively } from '../src/main/browser/agent-follow/passive-selection.js'
 
 /** The manager's private state these cases set up and read. */
 interface ManagerInternals {
@@ -85,7 +86,6 @@ interface ManagerInternals {
   assertTabLabelAdmission: () => void
   saveTabLabel: (tabId: string, value: string, validateAuthority?: () => void, onCommitted?: () => void) => Promise<{ state: unknown; status: 'saved' }>
   pageFullscreenShown(): boolean
-  selectTabPassively(tabId: string): boolean
 }
 
 function workspace(id: string, activeTabId: string | null = null) {
@@ -163,7 +163,7 @@ function followAgents(internals: ManagerInternals): McpActivityFollowController 
     tabExists: (tabId) => internals.tabs.get(tabId)?.webContents.isDestroyed() === false,
     canSelectWithoutWake: (tabId) => internals.tabs.get(tabId)?.sleeping === false,
     wakeTab: (tabId) => internals.wakeTab(tabId),
-    selectTabPassively: (tabId) => internals.selectTabPassively(tabId),
+    selectTabPassively: (tabId) => selectTabPassively(internals as never, tabId),
     onError: (error) => { throw error }
   })
   return internals.mcpActivityFollower

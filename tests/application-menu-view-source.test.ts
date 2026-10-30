@@ -4,6 +4,12 @@ const installed = vi.hoisted(() => ({ template: [] as Array<{ label?: string; su
 vi.mock('electron', () => ({ Menu: { buildFromTemplate: (template: typeof installed.template) => template, setApplicationMenu: (menu: typeof installed.template) => { installed.template = menu } } }))
 import { createApplicationMenu } from '../src/main/windows/application-menu.js'
 
+// The menu opens the source with the browser; that runs on the fake browser's stub.
+vi.mock('../src/main/browser/page-source/page-source.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/page-source/page-source.js')>(),
+  viewShownPageSource: (browser: { viewShownPageSource: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.viewShownPageSource(...args)
+}))
+
 // Hronaut had no View Page Source: Ctrl+U and Cmd+Option+U did nothing and no menu offered it.
 
 const platform = process.platform

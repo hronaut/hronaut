@@ -1,17 +1,16 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import type { BrowserPdfPageSize, BrowserState } from '../shared/types.js'
 import type { Browser } from './browser/browser.js'
-
-type NavigationIpcTabs = Pick<Browser,
-  | 'beforeStateReply' | 'toggleDevTools' | 'showDevToolsConsole' | 'navigate' | 'back' | 'forward' | 'showHistoryMenu' | 'openNavigationInNewTab' | 'reload' | 'reloadIgnoringCache' | 'stop'
-  | 'proceedPastCertificateError'
-  | 'findInPage' | 'stopFindInPage' | 'setZoom' | 'savePdf'>
+import { showHistoryMenu } from './browser/context-menus/history-menu.js'
+import { showDevToolsConsole, toggleDevTools } from './browser/devtools/devtools.js'
+import { openNavigationInNewTab } from './browser/navigation-new-tab/navigation-new-tab.js'
+import { findInPage, stopFindInPage } from './browser/page-find/page-find.js'
 
 interface NavigationIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
   /** Registers a handler that is refused while saved workspaces are still initializing or failed to start. */
   handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void
-  tabs(): NavigationIpcTabs | null
+  tabs(): Browser | null
   /** The paper a PDF saved from Hronaut's controls uses when they name none: the standard paper of the person's region. */
   defaultPdfPageSize(): BrowserPdfPageSize
 }
@@ -20,7 +19,7 @@ interface NavigationIpcHost {
  * Replies to a shell action with the browser state it returned. The shell drops a reply if a state arrived meanwhile,
  * which a state it has not drawn yet always does, so a change waiting for that draw is sent first, before the reply.
  */
-async function stateReply(host: { tabs(): Pick<Browser, 'beforeStateReply'> | null }, reply: Promise<BrowserState>): Promise<BrowserState> {
+async function stateReply(host: { tabs(): Browser | null }, reply: Promise<BrowserState>): Promise<BrowserState> {
   const state = await reply
   host.tabs()?.beforeStateReply()
   return state
@@ -31,12 +30,12 @@ export function registerNavigationIpc(host: NavigationIpcHost): void {
   host.handleBrowserIpc('browser:toggle-devtools', (event, tabId: unknown) => {
     host.assertTrustedSender(event)
     if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
-    return host.tabs()!.toggleDevTools(tabId)
+    return toggleDevTools(host.tabs()!, tabId)
   })
   host.handleBrowserIpc('browser:show-devtools-console', (event, tabId: unknown) => {
     host.assertTrustedSender(event)
     if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
-    return host.tabs()!.showDevToolsConsole(tabId)
+    return showDevToolsConsole(host.tabs()!, tabId)
   })
   host.handleBrowserIpc('browser:navigate', (event, options) => { host.assertTrustedSender(event); return stateReply(host, host.tabs()!.navigate(options.url, options.tabId, { byPerson: true })) })
   host.handleBrowserIpc('browser:back', (event, tabId) => { host.assertTrustedSender(event); return stateReply(host, host.tabs()!.back(tabId)) })
@@ -46,7 +45,7 @@ export function registerNavigationIpc(host: NavigationIpcHost): void {
     if (typeof options !== 'object' || options === null) throw new TypeError('Invalid history list options')
     const { tabId, direction, anchor } = options as Record<string, unknown>
     if (typeof tabId !== 'string' || (direction !== 'back' && direction !== 'forward')) throw new TypeError('Invalid history list options')
-    return host.tabs()!.showHistoryMenu(tabId, direction, validAnchor(anchor))
+    return showHistoryMenu(host.tabs()!, tabId, direction, validAnchor(anchor))
   })
   host.handleBrowserIpc('browser:open-navigation-in-new-tab', (event, options: unknown) => {
     host.assertTrustedSender(event)
@@ -55,7 +54,7 @@ export function registerNavigationIpc(host: NavigationIpcHost): void {
     if (typeof tabId !== 'string' || (target !== 'back' && target !== 'forward' && target !== 'reload') || typeof active !== 'boolean') {
       throw new TypeError('Invalid new tab options')
     }
-    return host.tabs()!.openNavigationInNewTab(tabId, target, active)
+    return openNavigationInNewTab(host.tabs()!, tabId, target, active)
   })
   host.handleBrowserIpc('browser:reload', (event, tabId) => { host.assertTrustedSender(event); return stateReply(host, host.tabs()!.reload(tabId)) })
   host.handleBrowserIpc('browser:proceed-past-certificate', (event, tabId: unknown) => {
@@ -76,7 +75,7 @@ export function registerNavigationIpc(host: NavigationIpcHost): void {
       || (findNext !== undefined && typeof findNext !== 'boolean')
       || (caseSensitive !== undefined && typeof caseSensitive !== 'boolean')
     ) throw new TypeError('Invalid find options')
-    return host.tabs()!.findInPage(query, { tabId, forward, findNext, caseSensitive })
+    return findInPage(host.tabs()!, query, { tabId, forward, findNext, caseSensitive })
   })
   host.handleBrowserIpc('browser:stop-find-in-page', (event, tabId: unknown, options: unknown = {}) => {
     host.assertTrustedSender(event)
@@ -84,7 +83,7 @@ export function registerNavigationIpc(host: NavigationIpcHost): void {
     if (typeof options !== 'object' || options === null) throw new TypeError('Invalid stop find options')
     const { activateMatch } = options as Record<string, unknown>
     if (activateMatch !== undefined && typeof activateMatch !== 'boolean') throw new TypeError('Invalid stop find options')
-    host.tabs()!.stopFindInPage(tabId, { activateMatch })
+    stopFindInPage(host.tabs()!, tabId, { activateMatch })
   })
   host.handleBrowserIpc('browser:set-zoom', (event, options: unknown) => {
     host.assertTrustedSender(event)

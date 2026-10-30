@@ -15,6 +15,7 @@ import type { McpHttpServer } from '../mcp/server.js'
 import type { TrustedDialogOptions } from '../trusted-dialogs/trusted-dialogs.js'
 import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
 import type { CredentialImportResult, CredentialStorageStatus } from '../../shared/types.js'
+import { credentialContext, fillCredential } from '../browser/credential-fill/credential-fill.js'
 
 interface CredentialsIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
@@ -24,7 +25,7 @@ interface CredentialsIpcHost {
   credentialStorageStatus(): CredentialStorageStatus
   credentialStore(): Pick<CredentialStore, 'list' | 'remove' | 'clear' | 'password' | 'importMany'> | null
   publishCredentials(): void
-  tabs(): Pick<Browser, 'credentialContext' | 'fillCredential'> | null
+  tabs(): Browser | null
   mainWindow(): BrowserWindow | null
   /** Electron's `dialog.showOpenDialog` on the given window. */
   showOpenDialog(window: BrowserWindow, options: OpenDialogOptions): Promise<OpenDialogReturnValue>
@@ -136,7 +137,7 @@ export function registerCredentialsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: C
     const activeCredentialStore = host.credentialStore()
     const activeTabsManager = host.tabs()
     if (!host.credentialStorageStatus().available || !activeCredentialStore || !activeTabsManager) return false
-    const context = activeTabsManager.credentialContext(tabId)
+    const context = credentialContext(activeTabsManager, tabId)
     if (!context) return false
     const selected = activeCredentialStore.list().find((credential) => credential.id === credentialId && credential.origin === context.origin)
     if (!selected) return false
@@ -146,7 +147,7 @@ export function registerCredentialsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: C
       getActiveRequestCount: () => host.mcpServer()?.getActiveRequestCount() ?? host.mcpActionTracker().activeCount,
       fill: async () => {
         const password = await activeCredentialStore.password(selected.id)
-        return activeTabsManager.fillCredential(tabId, context, selected.username, password)
+        return fillCredential(activeTabsManager, tabId, context, selected.username, password)
       }
     })
   })

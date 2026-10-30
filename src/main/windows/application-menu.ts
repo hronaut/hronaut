@@ -3,6 +3,12 @@ import type { Browser } from '../browser/browser.js'
 import type { BrowserShortcutAction } from '../../shared/browser-shortcuts.js'
 import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
 import type { AppUpdateState, HelpMenuAction } from '../../shared/types.js'
+import { toggleDevTools } from '../browser/devtools/devtools.js'
+import { historyGesture } from '../browser/history-gesture/history-gesture.js'
+import { stopFocusedPageLoading } from '../browser/page-navigation/page-navigation.js'
+import { printShownPage } from '../browser/page-print/page-print.js'
+import { saveShownPage } from '../browser/page-save/page-save.js'
+import { viewShownPageSource } from '../browser/page-source/page-source.js'
 
 interface ApplicationMenuHost {
   /** Translates into the current interface language; read on every build because the language can change. */
@@ -19,8 +25,7 @@ interface ApplicationMenuHost {
   runShortcut(action: BrowserShortcutAction): void
   /** Goes to the pane after the page in focus, for an F6 the page left alone. */
   runPageNextPane(): void
-  tabs(): Pick<Browser, 'newTab' | 'back' | 'forward' | 'historyGesture' | 'reload' | 'reloadIgnoringCache' | 'printShownPage' | 'saveShownPage' | 'viewShownPageSource' | 'toggleDevTools' | 'setZoom'
-    | 'stopFocusedPageLoading'> | null
+  tabs(): Browser | null
 }
 
 /**
@@ -28,6 +33,12 @@ interface ApplicationMenuHost {
  * lazy because the menu is installed before the window exists.
  */
 export function createApplicationMenu(host: ApplicationMenuHost): { installApplicationMenu(): void } {
+  /** Runs an action on the browser once it is up, and gives back what the action returns for its failure report. */
+  function withBrowser<T>(action: (browser: Browser) => T): T | undefined {
+    const browser = host.tabs()
+    return browser ? action(browser) : undefined
+  }
+
   function requestHelp(action: HelpMenuAction): void {
     host.showWindow()
     if (host.mainWindow() && !host.mainWindow()!.webContents.isDestroyed()) host.mainWindow()!.webContents.send('help:open', action)
@@ -47,7 +58,7 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
     if (!event.triggeredByAccelerator) {
       host.runNativeBrowserAction(`go ${direction}`, () => direction === 'back' ? host.tabs()?.back() : host.tabs()?.forward())
     } else if (window !== undefined && window.id === host.mainWindow()?.id) {
-      host.runNativeBrowserAction(`go ${direction}`, () => host.tabs()?.historyGesture(direction))
+      host.runNativeBrowserAction(`go ${direction}`, () => withBrowser((browser) => historyGesture(browser, direction)))
     }
   }
 
@@ -69,7 +80,7 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
   // menu's Find Next and Find Previous already show their main keys.
   function websiteKeptKeys(): MenuItemConstructorOptions[] {
     if (process.platform === 'darwin') return []
-    const stopFocusedPageLoading = (): void => host.runNativeBrowserAction('stop loading the page', () => host.tabs()?.stopFocusedPageLoading())
+    const stopLoading = (): void => host.runNativeBrowserAction('stop loading the page', () => withBrowser(stopFocusedPageLoading))
     const item = (label: string, accelerator: string, action: BrowserShortcutAction | (() => void)): MenuItemConstructorOptions => ({
       label,
       accelerator,
@@ -87,7 +98,7 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
       item(host.text('native.menu.reloadWithoutCache'), 'Ctrl+F5', 'reload-ignoring-cache'),
       // Escape runs here rather than in Hronaut's window: it stops the page that has the keyboard, and only while that
       // page loads, so a page in full screen stays there.
-      item(host.text('runtime.shortcuts.stop'), 'Escape', stopFocusedPageLoading),
+      item(host.text('runtime.shortcuts.stop'), 'Escape', stopLoading),
       item(host.text('runtime.shortcuts.address'), 'Alt+D', 'focus-address'),
       item(host.text('runtime.shortcuts.address'), 'Ctrl+E', 'focus-address'),
       item(host.text('shell.home.open'), 'Alt+Home', 'open-home'),
@@ -265,7 +276,7 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
             ...websiteKeptKeys(),
             {
               label: host.text('native.menu.developerTools'),
-              click: () => host.runNativeBrowserAction('toggle Developer Tools', () => host.tabs()?.toggleDevTools())
+              click: () => host.runNativeBrowserAction('toggle Developer Tools', () => withBrowser(toggleDevTools))
             },
             {
               label: host.text('native.menu.viewSource'),
@@ -277,7 +288,7 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
                 if (event.triggeredByAccelerator && (window === undefined || window.id !== host.mainWindow()?.id)) return
                 // Chosen from the menu, the main window may be hidden behind a panel in its own window or in the tray.
                 if (!event.triggeredByAccelerator) host.showWindow()
-                host.runNativeBrowserAction('view page source', () => host.tabs()?.viewShownPageSource())
+                host.runNativeBrowserAction('view page source', () => withBrowser(viewShownPageSource))
               }
             },
             {
@@ -299,7 +310,7 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
                 if (event.triggeredByAccelerator && (window === undefined || window.id !== host.mainWindow()?.id)) return
                 // Chosen from the menu, the main window may be hidden behind a panel in its own window or in the tray.
                 if (!event.triggeredByAccelerator) host.showWindow()
-                host.runNativeBrowserAction('save the page', () => host.tabs()?.saveShownPage())
+                host.runNativeBrowserAction('save the page', () => withBrowser(saveShownPage))
               }
             },
             {
@@ -310,7 +321,7 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
               accelerator: 'CmdOrCtrl+P',
               click: (_item, window, event) => {
                 if (event.triggeredByAccelerator && (window === undefined || window.id !== host.mainWindow()?.id)) return
-                host.runNativeBrowserAction('print the page', () => host.tabs()?.printShownPage())
+                host.runNativeBrowserAction('print the page', () => withBrowser(printShownPage))
               }
             },
             { type: 'separator' },

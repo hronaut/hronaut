@@ -6,6 +6,11 @@ import type { BrowserClosedTabState } from '../src/shared/types.js'
 vi.mock('electron', () => ({
   session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, powerMonitor: { on: () => undefined }
 }))
+// The browsers below stub changed, which forgetting cleared pages publishes through.
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist)
+}))
 
 const SLEEPING_PAGE = 'data:text/html;charset=utf-8,%3C!doctype%20html%3E%3Cmeta%20charset%3D%22utf-8%22%3E%3Ctitle%3ESleeping%20tab%3C%2Ftitle%3E'
 const page = (name: string) => `https://example.test/${name}`

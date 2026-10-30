@@ -4,6 +4,12 @@ const installed = vi.hoisted(() => ({ template: [] as Array<{ label?: string; su
 vi.mock('electron', () => ({ Menu: { buildFromTemplate: (template: typeof installed.template) => template, setApplicationMenu: (menu: typeof installed.template) => { installed.template = menu } } }))
 import { createApplicationMenu } from '../src/main/windows/application-menu.js'
 
+// The menu stops loading with the browser; that runs on the fake browser's stub.
+vi.mock('../src/main/browser/page-navigation/page-navigation.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/page-navigation/page-navigation.js')>(),
+  stopFocusedPageLoading: (browser: { stopFocusedPageLoading: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.stopFocusedPageLoading(...args)
+}))
+
 // F5, Shift+F5, Ctrl+F5 and Alt+D did nothing, where Chrome reloads or goes to the address bar once the website in
 // focus leaves the key alone.
 

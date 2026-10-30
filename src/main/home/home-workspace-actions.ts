@@ -1,7 +1,8 @@
 import type { Browser } from '../browser/browser.js'
 import { HOME_CARD_ICON_MAX_LENGTH, HOME_CARD_TAB_LIMIT, type HomeWorkspaceAction, type HomeWorkspaceEditorRequest, type HomeWorkspaceState } from '../../shared/home-workspaces.js'
+import { closeWorkspaceForPerson, restoreSavedTabGroup, updateArchivedWorkspacePreferences } from '../browser/workspace-archive/workspace-archive.js'
 
-export function homeWorkspaceState(manager: Pick<Browser, 'getState'>): HomeWorkspaceState {
+export function homeWorkspaceState(manager: Browser): HomeWorkspaceState {
   const state = manager.getState()
   const shown = new Map<string | undefined, number>()
   // Only the tabs a card shows carry their icon, and only a small image one, so polling stays light.
@@ -25,7 +26,7 @@ export function homeWorkspaceState(manager: Pick<Browser, 'getState'>): HomeWork
 }
 
 export async function runHomeWorkspaceAction(
-  manager: Pick<Browser, 'getState' | 'openHome' | 'selectTab' | 'newTab' | 'archiveWorkspaceForPerson' | 'closeWorkspace' | 'closeWorkspaceForPerson' | 'restoreSavedTabGroup' | 'deleteSavedTabGroup' | 'updateMcpTabGroup' | 'updateArchivedWorkspacePreferences'>,
+  manager: Browser,
   input: unknown,
   edit: (request: HomeWorkspaceEditorRequest) => void
 ): Promise<HomeWorkspaceState> {
@@ -48,7 +49,7 @@ export async function runHomeWorkspaceAction(
     case 'transfer': edit({ view: 'transfer', workspaceId: request.workspaceId }); break
     case 'open':
     case 'restore':
-      if (archived) await manager.restoreSavedTabGroup(archived.id)
+      if (archived) await restoreSavedTabGroup(manager, archived.id)
       else if (active) {
         const tabId = active.activeTabId ?? state.tabs.find(tab => tab.mcpGroupId === active.id)?.id
         if (tabId) manager.selectTab(tabId)
@@ -65,7 +66,7 @@ export async function runHomeWorkspaceAction(
       if (!active) throw new Error('Only an open workspace can be cleared from this view.')
       if (request.undoable !== undefined && typeof request.undoable !== 'boolean') throw new TypeError('Invalid workspace action')
       // With Undo it is archived and deleted once Undo ends; Home asked first when the archive had no room for that.
-      if (request.undoable) await manager.closeWorkspaceForPerson(request.workspaceId)
+      if (request.undoable) await closeWorkspaceForPerson(manager, request.workspaceId)
       else await manager.closeWorkspace(request.workspaceId)
       break
     case 'delete':
@@ -82,7 +83,7 @@ export async function runHomeWorkspaceAction(
       }
       if (!Object.keys(updates).length) throw new TypeError('Choose a workspace preference')
       if (active) manager.updateMcpTabGroup(active.id, updates)
-      else manager.updateArchivedWorkspacePreferences(request.workspaceId, updates)
+      else updateArchivedWorkspacePreferences(manager, request.workspaceId, updates)
       break
     }
     default: throw new TypeError('Invalid workspace action')

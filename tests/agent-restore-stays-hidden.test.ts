@@ -70,6 +70,7 @@ vi.mock('../src/main/browser/tab-events/attach-tab-events.js', () => ({
 }))
 const { Browser } = await import('../src/main/browser/browser.js')
 const { WorkspaceRegistry } = await import('../src/main/browser/workspace-registry/workspace-registry.js')
+const { restoreSavedTabGroup } = await import('../src/main/browser/workspace-archive/workspace-archive.js')
 
 const PERSON = '01912345-6789-7abc-8def-0123456789ab'
 const AGENT = '01912345-6789-7abc-8def-0123456789ac'
@@ -84,7 +85,6 @@ interface Manager {
   createTab(options: { url: string; mcpGroupId: string; active: boolean }): Promise<Tab>
   selectTab(tabId: string): unknown
   openSplitView(tabId: string): unknown
-  restoreSavedTabGroup(id: string): Promise<unknown>
   restoreSavedTabGroupForAgent(id: string): Promise<unknown>
 }
 
@@ -168,7 +168,7 @@ const agentTab = (manager: Manager, url: string) => [...manager.tabs.values()].f
 it('opens the tab it shows at once and the others to load in their turn, a few at a time', async () => {
   // An archived workspace opened every tab's page at once.
   const shown = browser()
-  await shown.manager.restoreSavedTabGroup(AGENT)
+  await restoreSavedTabGroup(shown.manager as never, AGENT)
   expect(shown.opened).toEqual([
     { url: 'https://agent.example/sources', loadsInTurn: true },
     { url: 'https://agent.example/draft', loadsInTurn: false },
@@ -197,7 +197,7 @@ describe('restoring an archived workspace', () => {
     const { manager } = browser()
     await personInSplitView(manager)
 
-    await manager.restoreSavedTabGroup(AGENT)
+    await restoreSavedTabGroup(manager as never, AGENT)
 
     const draft = agentTab(manager, 'https://agent.example/draft')
     expect({ splitView: manager.splitView, activeTabId: manager.activeTabId, focused })

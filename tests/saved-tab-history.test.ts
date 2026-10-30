@@ -11,6 +11,11 @@ import type { BrowserWorkspaceNavigationPolicy } from '../src/shared/types.js'
 vi.mock('electron', () => ({
   session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => tmpdir() }, powerMonitor: { on: () => undefined }
 }))
+// The browsers below stub changed, which forgetting cleared pages publishes through.
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist)
+}))
 
 const temporaryDirectories: string[] = []
 

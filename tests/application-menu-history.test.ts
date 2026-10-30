@@ -4,6 +4,12 @@ const installed = vi.hoisted(() => ({ template: [] as Array<{ label?: string; su
 vi.mock('electron', () => ({ Menu: { buildFromTemplate: (template: typeof installed.template) => template, setApplicationMenu: (menu: typeof installed.template) => { installed.template = menu } } }))
 import { createApplicationMenu } from '../src/main/windows/application-menu.js'
 
+// The menu calls the history gesture with the browser; it runs on the fake browser's stub.
+vi.mock('../src/main/browser/history-gesture/history-gesture.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/history-gesture/history-gesture.js')>(),
+  historyGesture: (browser: { historyGesture: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.historyGesture(...args)
+}))
+
 // Hronaut had no keys for Back and Forward: Alt+Left and Alt+Right, or Cmd+[ and Cmd+] on macOS, did nothing.
 
 const platform = process.platform

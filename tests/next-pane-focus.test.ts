@@ -5,16 +5,21 @@ import { describe, expect, it, vi } from 'vitest'
 // goes to Hronaut's window instead; and F6 in a panel in its own window, which has no page beside it, does nothing.
 
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, powerMonitor: { on: () => undefined }, Menu: {} }))
+// The browser below stubs focusTabOrTrustedChrome, which focusing the page in view goes through.
+vi.mock('../src/main/browser/trusted-chrome-focus/trusted-chrome-focus.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/trusted-chrome-focus/trusted-chrome-focus.js')>(),
+  focusTabOrTrustedChrome: (browser: { focusTabOrTrustedChrome: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.focusTabOrTrustedChrome(...args)
+}))
 
 const { Browser } = await import('../src/main/browser/browser.js')
 const { createBrowserShortcutRouting } = await import('../src/main/browser-shortcut-routing.js')
 
 function routing(home: boolean) {
   const shell = { isDestroyed: () => false, focus: vi.fn(), send: vi.fn() }
-  const tabs = { isHomeTab: () => home, shownTabIsHome: () => home, listMcpTabGroups: () => [], exitPageFullscreen: vi.fn() }
+  const tabs = { isHomeTab: () => home, shownTabIsHome: () => home, listMcpTabGroups: () => [], tabs: new Map() }
   const { runPageNextPane } = createBrowserShortcutRouting({
     takeOvers: { available: () => undefined, takeOverFromPage: vi.fn() },
-    tabs: () => tabs,
+    tabs: () => tabs as never,
     agentPresenceSnapshot: () => ({ workspaces: {} }) as never,
     mainWindowRefs: { window: { webContents: shell } as never }
   })
@@ -40,10 +45,10 @@ describe('F6 from a page', () => {
 describe('Bookmark all tabs from the application menu', () => {
   it('moves the keyboard to Hronaut\'s window first, so the collection\'s name gets it from a page, as Find does', () => {
     const shell = { isDestroyed: () => false, focus: vi.fn(), send: vi.fn() }
-    const tabs = { isHomeTab: () => false, shownTabIsHome: () => false, listMcpTabGroups: () => [], exitPageFullscreen: vi.fn() }
+    const tabs = { isHomeTab: () => false, shownTabIsHome: () => false, listMcpTabGroups: () => [], tabs: new Map() }
     const { runPageShortcut } = createBrowserShortcutRouting({
       takeOvers: { available: () => undefined, takeOverFromPage: vi.fn() },
-      tabs: () => tabs,
+      tabs: () => tabs as never,
       agentPresenceSnapshot: () => ({ workspaces: {} }) as never,
       mainWindowRefs: { window: { webContents: shell } as never }
     })

@@ -1,10 +1,11 @@
 import type { BrowserWindow } from 'electron'
 import type { Browser } from '../browser/browser.js'
+import { historyGesture } from '../browser/history-gesture/history-gesture.js'
 
 interface HistoryMouseButtonsHost {
   /** Runs a browser action from native UI and reports its failure to the shell; skipped until saved workspaces are up. */
   runNativeBrowserAction(action: string, callback: () => unknown): void
-  tabs(): Pick<Browser, 'historyGesture'> | null
+  tabs(): Browser | null
 }
 
 /**
@@ -18,6 +19,9 @@ export function attachHistoryMouseButtons(window: Pick<BrowserWindow, 'on'>, hos
     const direction = command === 'browser-backward' ? 'back' : 'forward'
     // Linux reports the button as it goes down, before the press reaches the page under the pointer, which in split
     // view makes that pane the shown tab. Going once the press is through goes back in the pane the person pressed.
-    setImmediate(() => host.runNativeBrowserAction(`go ${direction}`, () => host.tabs()?.historyGesture(direction)))
+    setImmediate(() => host.runNativeBrowserAction(`go ${direction}`, () => {
+      const browser = host.tabs()
+      return browser ? historyGesture(browser, direction) : undefined
+    }))
   })
 }

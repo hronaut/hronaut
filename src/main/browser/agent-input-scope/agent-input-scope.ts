@@ -4,6 +4,7 @@ import { printDialogHolds, whenPrintDialogCloses } from '../print-dialog-guard.j
 import type { Browser } from '../browser.js'
 import { findTab } from '../browser-core.js'
 import { beginAgentFocusIsolation, restoreHumanFocusAfterAgentInput } from './focus-isolation.js'
+import { syncHumanInteractionInputGuard } from '../interaction-lock/human-input-guard.js'
 
 /**
  * Runs an agent's input to a page. The outermost run isolates window focus,
@@ -63,7 +64,7 @@ export async function withAgentInput<T>(
             const tab = tabId ? findTab(browser, tabId) : undefined
             if (!webContents.isDestroyed() && tab && browser.isHumanInteractionLocked(tab)) {
               try {
-                await browser.syncHumanInteractionInputGuard(tab)
+                await syncHumanInteractionInputGuard(browser, tab)
               } catch (error) {
                 options.onCleanupFailure?.()
                 // Preserve acknowledged input uncertainty, but otherwise keep

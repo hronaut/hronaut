@@ -4,6 +4,7 @@ import type { Browser } from '../browser.js'
 import { findTab, getTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { browserState, publishChange } from '../browser-state/browser-state.js'
+import { syncHumanInteractionInputGuard } from './human-input-guard.js'
 
 /**
  * Waits briefly for the tabs' pending debugger commands and dialog monitor
@@ -76,13 +77,13 @@ async function applyTabHumanInteractionLocked(browser: Browser, tabId: string, l
     if (tab.webContents.isDevToolsOpened()) tab.webContents.closeDevTools()
   }
   try {
-    await browser.syncHumanInteractionInputGuard(tab)
+    await syncHumanInteractionInputGuard(browser, tab)
   } catch (error) {
     tab.humanInteractionLocked = previousLocked
     if (wasGloballyUnlocked) browser.globallyUnlockedTabIds.add(tabId)
     else browser.globallyUnlockedTabIds.delete(tabId)
     try {
-      await browser.syncHumanInteractionInputGuard(tab)
+      await syncHumanInteractionInputGuard(browser, tab)
     } catch (rollbackError) {
       publishChange(browser)
       // The message names the tab for logs; a person reads that this tab's lock is in doubt.
@@ -125,7 +126,7 @@ async function applyAllHumanInteractionLocked(browser: Browser, locked: boolean)
     }
   }
   const results = await Promise.allSettled(
-    [...browser.tabs.values()].map((tab) => browser.syncHumanInteractionInputGuard(tab))
+    [...browser.tabs.values()].map((tab) => syncHumanInteractionInputGuard(browser, tab))
   )
   const errors = results
     .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
@@ -135,7 +136,7 @@ async function applyAllHumanInteractionLocked(browser: Browser, locked: boolean)
     for (const tabId of previousGloballyUnlockedTabIds) browser.globallyUnlockedTabIds.add(tabId)
     browser.layout()
     const rollbackResults = await Promise.allSettled(
-      [...browser.tabs.values()].map((tab) => browser.syncHumanInteractionInputGuard(tab))
+      [...browser.tabs.values()].map((tab) => syncHumanInteractionInputGuard(browser, tab))
     )
     const rollbackErrors = rollbackResults
       .filter((result): result is PromiseRejectedResult => result.status === 'rejected')

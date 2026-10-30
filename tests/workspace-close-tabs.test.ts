@@ -31,8 +31,14 @@ vi.mock('../src/main/browser/website-dialogs/website-dialogs.js', async (importO
 vi.mock('../src/main/browser/tab-close/remove-tab-record.js', () => ({
   removeTabRecord: (browser: { removeTabRecord: (tab: unknown) => void }, tab: unknown) => browser.removeTabRecord(tab)
 }))
+// A test below has closing the workspace's tabs leave one behind.
+vi.mock('../src/main/browser/tab-close/close-tab.js', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../src/main/browser/tab-close/close-tab.js')>()
+  return { ...original, closeTabs: vi.fn(original.closeTabs) }
+})
 import { Browser } from '../src/main/browser/browser.js'
 import { persistedState } from '../src/main/browser/browser-state/persisted-state.js'
+import { closeTabs } from '../src/main/browser/tab-close/close-tab.js'
 import { MAX_TABS, TabStateStore } from '../src/main/browser/tab-store.js'
 import { destroyWorkspaceStorage } from '../src/main/browser/workspace-storage.js'
 
@@ -174,7 +180,7 @@ describe('closing a whole workspace', () => {
     const { manager, internals, release, workspaceTabs } = await browser()
     release()
     // A close that leaves the shown tab behind, which the workspace must not be forgotten or deleted under.
-    Object.assign(manager, { closeTabs: vi.fn(async () => { internals.tabs.delete(ASLEEP); return {} }) })
+    vi.mocked(closeTabs).mockImplementationOnce(async () => { internals.tabs.delete(ASLEEP); return {} as never })
     await expect(manager.closeMcpTabGroup(CLOSING)).rejects.toThrow('still has an open tab')
     // It stopped before touching the workspace's storage.
     expect(internals.assertStorageDeletionOwnership).not.toHaveBeenCalled()

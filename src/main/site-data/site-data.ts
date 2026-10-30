@@ -5,6 +5,7 @@ import type { Browser } from '../browser/browser.js'
 import type { HistoryStore } from '../bookmarks-history/history-store.js'
 import type { SiteDataOperations, SiteDataType } from '../mcp/server.js'
 import type { BrowsingDataSiteSummary } from '../../shared/types.js'
+import { withWorkspaceSiteDataCleanup, workspaceSession } from '../browser/workspace-data/workspace-data.js'
 
 function closedTabOrigin(url: string): string | undefined {
   try {
@@ -16,7 +17,7 @@ function closedTabOrigin(url: string): string | undefined {
 
 interface SiteDataHost {
   /** The tab runtime, which clears a workspace's site data between its storage operations; null until the window opens. */
-  tabs(): Pick<Browser, 'withWorkspaceSiteDataCleanup' | 'workspaceSession' | 'forgetHistoryPages'> | null
+  tabs(): Browser | null
   /** The visit history, once loaded; the collection and browsing data IPC, the MCP server and shutdown read it too. */
   historyStore(): Pick<HistoryStore, 'list' | 'clearOrigin'> | null
   publishVisitHistory(): void
@@ -71,7 +72,7 @@ export function createSiteData(host: SiteDataHost): {
   ): Promise<{ origin: string; cleared: SiteDataType[]; remaining: BrowsingDataSiteSummary }> {
     if (!host.tabs() || !host.historyStore()) throw new Error('Workspace browser storage is unavailable')
     const store = host.historyStore()!
-    return host.tabs()!.withWorkspaceSiteDataCleanup(workspaceId, async (browserSession) => {
+    return withWorkspaceSiteDataCleanup(host.tabs()!, workspaceId, async (browserSession) => {
       const site = await currentBrowsingDataSiteSummary(value, browserSession)
       const selected = new Set(dataTypes)
       const originScope = { origins: [site.origin], originMatchingMode: 'origin-in-all-contexts' as const }
@@ -109,7 +110,8 @@ export function createSiteData(host: SiteDataHost): {
   /** Agents' site data operations, each in the session of the workspace they name. */
   const agentSiteData: SiteDataOperations = {
     inspect: async (workspaceId, origin) => {
-      const browserSession = host.tabs()?.workspaceSession(workspaceId)
+      const browser = host.tabs()
+      const browserSession = browser ? workspaceSession(browser, workspaceId) : undefined
       // A workspace without tabs has its saved session cookies back first, as the sites it shows would.
       await keepSessionCookies(browserSession)
       return currentBrowsingDataSiteSummary(origin, browserSession)

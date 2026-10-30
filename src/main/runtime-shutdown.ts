@@ -8,6 +8,8 @@ import type { SettingsState } from './settings/settings-runtime.js'
 import type { TabRuntimeState } from './tab-runtime-startup.js'
 import type { UndoOffers } from './undo-offers.js'
 import type { WalletRuntimeState } from './wallet/runtime.js'
+import { destroyBrowser } from './browser/browser-lifecycle/destroy-browser.js'
+import { drainWorkspaceOperations, flushWorkspaceProfiles } from './browser/quit-flush/quit-flush.js'
 
 interface RuntimeShutdownHost {
   /** The tab runtime, whose label edits stop, operations drain and state is flushed; destroyed and cleared last. */
@@ -62,11 +64,11 @@ export function createRuntimeShutdown(host: RuntimeShutdownHost): { releaseRunti
         ...await Promise.allSettled([host.agentServices.auditReceipts?.stopAll()]),
         // A workspace closed with Undo still on offer is deleted now, and so is one closed while quitting.
         ...await Promise.allSettled([host.undoOffers.close()]),
-        ...await Promise.allSettled([manager?.drainWorkspaceOperations()]),
+        ...await Promise.allSettled([manager ? drainWorkspaceOperations(manager) : undefined]),
         ...await Promise.allSettled([broker?.shutdown()]),
         ...await Promise.allSettled([
           manager?.flushPersist(),
-          manager?.flushWorkspaceProfiles(),
+          manager ? flushWorkspaceProfiles(manager) : undefined,
           host.bookmarksAndHistory.bookmarks?.flush(),
           host.credentialRuntime.store?.flush(),
           host.bookmarksAndHistory.history?.flush(),
@@ -82,7 +84,7 @@ export function createRuntimeShutdown(host: RuntimeShutdownHost): { releaseRunti
       for (const result of results) {
         if (result.status === 'rejected') console.error('[shutdown] Runtime cleanup failed:', result.reason)
       }
-      manager?.destroy()
+      if (manager) destroyBrowser(manager)
       wallets?.dispose()
       if (host.tabRuntime.tabs === manager) host.tabRuntime.tabs = null
       if (host.walletRuntime.service === wallets) host.walletRuntime.service = null

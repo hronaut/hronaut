@@ -6,8 +6,8 @@ vi.mock('electron', () => ({
   Menu: { buildFromTemplate: (template: MenuItemConstructorOptions[]) => { built.templates.push(template); return { popup: () => undefined } } }
 }))
 
-// The browser below stubs workspaceContextMenuItems, sleepBlockReason, sleepFallbackTab, canMuteSite and isSiteMuted, which
-// the menu asks through these.
+// The browser below stubs workspaceContextMenuItems, sleepBlockReason, sleepFallbackTab, canMuteSite, isSiteMuted and
+// setSiteMuted, which the menu asks and mutes through these.
 vi.mock('../src/main/browser/context-menus/workspace-context-menu.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/context-menus/workspace-context-menu.js')>(),
   workspaceContextMenuItems: (browser: { workspaceContextMenuItems: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.workspaceContextMenuItems(...args)
@@ -20,7 +20,8 @@ vi.mock('../src/main/browser/tab-sleep/tab-sleep.js', async (importOriginal) => 
 vi.mock('../src/main/browser/site-muting/site-muting.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/site-muting/site-muting.js')>(),
   canMuteSite: (browser: { canMuteSite: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.canMuteSite(...args),
-  isSiteMuted: (browser: { isSiteMuted: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.isSiteMuted(...args)
+  isSiteMuted: (browser: { isSiteMuted: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.isSiteMuted(...args),
+  setSiteMuted: (browser: { setSiteMuted: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.setSiteMuted(...args)
 }))
 
 const { showTabContextMenu } = await import('../src/main/browser/context-menus/tab-context-menu.js')

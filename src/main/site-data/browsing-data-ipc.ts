@@ -16,6 +16,7 @@ import {
   type BrowsingDataWebsiteSummary,
   type HistoryTimeRange
 } from '../../shared/types.js'
+import { workspaceSession } from '../browser/workspace-data/workspace-data.js'
 
 const HOUR_MS = 60 * 60 * 1000
 const TIME_RANGE_MS: Record<Exclude<HistoryTimeRange, 'allTime'>, number> = {
@@ -29,7 +30,7 @@ interface BrowsingDataIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
   /** Registers a handler that is refused while saved workspaces are still initializing or failed to start. */
   handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void
-  tabs(): Pick<Browser, 'getState' | 'workspaceSession' | 'forgetHistoryPages'> | null
+  tabs(): Browser | null
   historyStore(): Pick<HistoryStore, 'list' | 'clearOrigin' | 'clearSince' | 'clear'> | null
   bookmarkStore(): Pick<BookmarkStore, 'list'> | null
   credentialStore(): Pick<CredentialStore, 'list'> | null
@@ -133,7 +134,8 @@ export function registerBrowsingDataIpc(host: BrowsingDataIpcHost): void {
     const tab = host.tabs()?.getState().tabs.find((candidate) => candidate.id === tabId)
     if (!tab) throw new LocalizedError('native.errors.tabUnavailable', undefined, { message: `Tab not found: ${tabId}` })
     if (!tab.mcpGroupId) throw new Error('Website workspace is required')
-    const browserSession = host.tabs()?.workspaceSession(tab.mcpGroupId)
+    const browser = host.tabs()
+    const browserSession = browser ? workspaceSession(browser, tab.mcpGroupId) : undefined
     return host.currentBrowsingDataSiteSummary(url, browserSession)
   })
   host.handleBrowserIpc('browsing-data:websites', (event) => {

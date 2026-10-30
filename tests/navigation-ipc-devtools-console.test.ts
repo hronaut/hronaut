@@ -4,6 +4,11 @@ import { registerNavigationIpc } from '../src/main/navigation-ipc.js'
 
 const electron = vi.hoisted(() => ({ exposeInMainWorld: vi.fn(), invoke: vi.fn(), on: vi.fn(), removeListener: vi.fn(), send: vi.fn() }))
 vi.mock('electron', () => ({ contextBridge: { exposeInMainWorld: electron.exposeInMainWorld }, ipcRenderer: electron }))
+// The handler opens Developer Tools with the browser; that runs on the fake browser's stub.
+vi.mock('../src/main/browser/devtools/devtools.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/devtools/devtools.js')>(),
+  showDevToolsConsole: (browser: { showDevToolsConsole: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.showDevToolsConsole(...args)
+}))
 afterEach(() => { vi.resetModules(); vi.clearAllMocks() })
 
 function consoleHandler() {

@@ -1,5 +1,6 @@
 import type { Browser } from '../browser.js'
 import type { BrowserTab } from '../browser-tab.js'
+import { syncHumanInteractionInputGuard } from '../interaction-lock/human-input-guard.js'
 
 /**
  * Ends the screenshot area selection and the element picker in progress on
@@ -23,6 +24,6 @@ export function cancelNativeSelectionSessions(browser: Browser, tab: BrowserTab)
     browser.elementPickerSessions.delete(webContentsId)
   }
   if ((screenshotSession || elementPickerSession) && browser.isHumanInteractionLocked(tab)) {
-    void browser.syncHumanInteractionInputGuard(tab).catch(() => undefined)
+    void syncHumanInteractionInputGuard(browser, tab).catch(() => undefined)
   }
 }

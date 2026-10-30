@@ -10,12 +10,9 @@ vi.mock('electron', () => ({
   webContents: { getFocusedWebContents: () => electron.focused }
 }))
 import { Browser } from '../src/main/browser/browser.js'
+import { focusTabOrTrustedChrome } from '../src/main/browser/trusted-chrome-focus/trusted-chrome-focus.js'
 
 afterEach(() => { electron.focused = null })
-
-interface PageFocusInternals {
-  focusTabOrTrustedChrome(tab: unknown): void
-}
 
 function fixture() {
   const shell = Object.assign(new EventEmitter(), { focus: vi.fn(), isDestroyed: () => false })
@@ -39,13 +36,13 @@ function fixture() {
     occlusionSnapshot: { begin: vi.fn(), end: vi.fn(), confirmPagesHidden: vi.fn() },
     layout: vi.fn()
   }) as Browser
-  return { manager, internals: manager as unknown as PageFocusInternals, shell, page, tab }
+  return { manager, shell, page, tab }
 }
 
 it('focuses a tab picked while trusted chrome plays its exit once the page is shown again', () => {
-  const { manager, internals, shell, page, tab } = fixture()
+  const { manager, shell, page, tab } = fixture()
 
-  internals.focusTabOrTrustedChrome(tab)
+  focusTabOrTrustedChrome(manager, tab as never)
   // The page is still under the closing overlay, where it would take keys typed into the shell.
   expect(page.focus).not.toHaveBeenCalled()
   expect(shell.listenerCount('input-event')).toBe(1)
@@ -57,8 +54,8 @@ it('focuses a tab picked while trusted chrome plays its exit once the page is sh
 
 it('keeps a click or key press in the shell during the exit instead of focusing the picked tab', () => {
   for (const type of ['mouseDown', 'rawKeyDown', 'keyDown']) {
-    const { manager, internals, shell, page, tab } = fixture()
-    internals.focusTabOrTrustedChrome(tab)
+    const { manager, shell, page, tab } = fixture()
+    focusTabOrTrustedChrome(manager, tab as never)
     shell.emit('input-event', {}, { type: 'mouseMove' })
     expect(shell.listenerCount('input-event')).toBe(1)
     shell.emit('input-event', {}, { type })
@@ -70,8 +67,8 @@ it('keeps a click or key press in the shell during the exit instead of focusing 
 })
 
 it('still focuses the page when the key that closed trusted chrome repeats while held', () => {
-  const { manager, internals, shell, page, tab } = fixture()
-  internals.focusTabOrTrustedChrome(tab)
+  const { manager, shell, page, tab } = fixture()
+  focusTabOrTrustedChrome(manager, tab as never)
   // Enter held on a dialog's button: its repeats used to keep the page from getting the keyboard back.
   for (const type of ['rawKeyDown', 'keyDown']) shell.emit('input-event', {}, { type, modifiers: ['isautorepeat'] })
   expect(shell.listenerCount('input-event')).toBe(1)
@@ -81,22 +78,22 @@ it('still focuses the page when the key that closed trusted chrome repeats while
 })
 
 it('names the page that has the keyboard, or takes it once trusted chrome closes, and no page while the shell has it', () => {
-  const { manager, internals, shell, page, tab } = fixture()
+  const { manager, shell, page, tab } = fixture()
   electron.focused = page
   expect(manager.keyboardPage()).toBe(page)
   electron.focused = shell
   expect(manager.keyboardPage()).toBeNull()
 
   // A second question asked while the first one's exit plays: the shell has the keyboard, which the page takes next.
-  internals.focusTabOrTrustedChrome(tab)
+  focusTabOrTrustedChrome(manager, tab as never)
   expect(manager.keyboardPage()).toBe(page)
   shell.emit('input-event', {}, { type: 'mouseDown' })
   expect(manager.keyboardPage()).toBeNull()
 })
 
 it('drops the pending focus when another tab became active during the exit', () => {
-  const { manager, internals, shell, page, tab } = fixture()
-  internals.focusTabOrTrustedChrome(tab)
+  const { manager, shell, page, tab } = fixture()
+  focusTabOrTrustedChrome(manager, tab as never)
   ;(manager as unknown as { activeTabId: string }).activeTabId = 'other'
 
   manager.setBrowserContentOccluded(false, 1)
@@ -116,11 +113,11 @@ it('says once more that the pages are off the screen when asked to cover pages i
 
 it('keeps every page from the keyboard until trusted chrome closes once a sign-in closed while the person typed in it', () => {
   for (const order of ['picked first', 'withheld first'] as const) {
-    const { manager, internals, shell, page, tab } = fixture()
+    const { manager, shell, page, tab } = fixture()
     // The tab that asked closed, and the next one is picked while the sign-in's overlay plays its exit.
-    if (order === 'picked first') internals.focusTabOrTrustedChrome(tab)
+    if (order === 'picked first') focusTabOrTrustedChrome(manager, tab as never)
     manager.withholdKeyboardAfterQuestion()
-    if (order === 'withheld first') internals.focusTabOrTrustedChrome(tab)
+    if (order === 'withheld first') focusTabOrTrustedChrome(manager, tab as never)
     expect(manager.keyboardPage(), order).toBeNull()
     // A key the person types meanwhile is the rest of their password, not a choice to stay in the shell.
     shell.emit('input-event', {}, { type: 'keyDown' })
@@ -129,7 +126,7 @@ it('keeps every page from the keyboard until trusted chrome closes once a sign-i
     manager.setBrowserContentOccluded(false, 1)
     expect(page.focus, order).not.toHaveBeenCalled()
     // Once trusted chrome is gone, nothing waits, and a page picked later takes the keyboard as usual.
-    internals.focusTabOrTrustedChrome(tab)
+    focusTabOrTrustedChrome(manager, tab as never)
     expect(page.focus, order).toHaveBeenCalledOnce()
   }
 })
@@ -146,14 +143,14 @@ it('gives the keyboard back to the page once the person answers the question tha
 })
 
 it('withholds nothing once trusted chrome no longer covers the pages', () => {
-  const { manager, internals, page, tab } = fixture()
+  const { manager, page, tab } = fixture()
   manager.setBrowserContentOccluded(false, 1)
   manager.withholdKeyboardAfterQuestion()
-  internals.focusTabOrTrustedChrome(tab)
+  focusTabOrTrustedChrome(manager, tab as never)
   expect(page.focus).toHaveBeenCalledOnce()
   // Nor the next time trusted chrome covers them: the tab picked under it takes the keyboard once it closes.
   Object.assign(manager, { browserContentOccluded: true })
-  internals.focusTabOrTrustedChrome(tab)
+  focusTabOrTrustedChrome(manager, tab as never)
   manager.setBrowserContentOccluded(false, 3)
   expect(page.focus).toHaveBeenCalledTimes(2)
 })

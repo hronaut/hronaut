@@ -13,6 +13,8 @@ import type { MainWindowRefs } from './main-window.js'
 import type { AgentCardEvent } from '../../shared/agent-card.js'
 import type { ToastOverlayEvent } from '../../shared/toast-overlay.js'
 import type { SidebarOverlayEvent } from '../../shared/sidebar-overlay.js'
+import { showTabContextMenu } from '../browser/context-menus/tab-context-menu.js'
+import { setFollowAgentActivitySuspended } from '../browser/trusted-chrome-occlusion/trusted-chrome-occlusion.js'
 
 interface ShellOverlaysHost {
   /** Whether a frame's address is the expected trusted page, with or without a fragment; each view admits only its own. */
@@ -90,7 +92,7 @@ export function createShellOverlays(host: ShellOverlaysHost): {
     openChanged: (open) => {
       host.followSuspension.agentCardOpen = open
       // Follow would switch tabs under the open card.
-      host.tabRuntime.tabs?.setFollowAgentActivitySuspended(host.followSuspension.shellSuspended || host.followSuspension.agentCardOpen)
+      if (host.tabRuntime.tabs) setFollowAgentActivitySuspended(host.tabRuntime.tabs, host.followSuspension.shellSuspended || host.followSuspension.agentCardOpen)
     },
     focusOwner: () => allWebContents.getFocusedWebContents()?.id ?? null
   })
@@ -189,7 +191,7 @@ export function createShellOverlays(host: ShellOverlaysHost): {
     showMenu: (menu, closed) => {
       const tabs = host.tabRuntime.tabs
       if (!tabs) return false
-      if (menu.kind === 'tab') tabs.showTabContextMenu(menu.tabId, closed)
+      if (menu.kind === 'tab') showTabContextMenu(tabs, menu.tabId, closed)
       else tabs.showWorkspaceContextMenu(menu.workspaceId, closed)
       return true
     },

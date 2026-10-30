@@ -11,6 +11,7 @@ import {
 import type { Browser } from '../browser.js'
 import { withGlobalWorkspaceStorageOperation, withSavedWorkspaceOperation, withWorkspaceOperation, withWorkspaceStorageOperation } from '../workspace-operations/workspace-operations.js'
 import { publishChange } from '../browser-state/browser-state.js'
+import { isClosingWorkspace } from '../workspace-archive/workspace-archive.js'
 
 /** A workspace that is gone: agents read its id, the person that it is no longer available. */
 function unknownWorkspace(workspaceId: string): LocalizedError {
@@ -75,7 +76,7 @@ export async function transferWorkspaceStorage(
   const source = browser.mcpTabGroups.get(sourceId) ?? browser.savedTabGroups.get(sourceId)
   const target = browser.mcpTabGroups.get(targetId) ?? browser.savedTabGroups.get(targetId)
   if (!source || !target) throw new LocalizedError('appErrors.workspaceData.unavailable')
-  const closing = [source, target].find((workspace) => browser.isClosingWorkspace(workspace.id))
+  const closing = [source, target].find((workspace) => isClosingWorkspace(browser, workspace.id))
   if (closing) throw new LocalizedError('appErrors.workspaceData.justClosed', { name: closing.name })
   const mode = options.mode
   if (mode === 'move' && (!browser.savedTabGroups.has(sourceId) || !browser.savedTabGroups.has(targetId))) throw new LocalizedError('appErrors.workspaceData.moveRequiresArchive')

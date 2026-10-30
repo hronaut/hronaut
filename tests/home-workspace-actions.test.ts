@@ -2,6 +2,14 @@ import { describe, expect, it, vi } from 'vitest'
 import { runHomeWorkspaceAction } from '../src/main/home/home-workspace-actions.js'
 import type { BrowserState } from '../src/shared/types.js'
 
+// Home closes, restores and edits archived workspaces with the browser; those run on the fake browser's stubs.
+vi.mock('../src/main/browser/workspace-archive/workspace-archive.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-archive/workspace-archive.js')>(),
+  closeWorkspaceForPerson: (browser: { closeWorkspaceForPerson: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.closeWorkspaceForPerson(...args),
+  restoreSavedTabGroup: (browser: { restoreSavedTabGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.restoreSavedTabGroup(...args),
+  updateArchivedWorkspacePreferences: (browser: { updateArchivedWorkspacePreferences: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.updateArchivedWorkspacePreferences(...args)
+}))
+
 function harness() {
   const state = {
     activeTabId: 'home', allHumanInteractionLocked: false,
@@ -15,7 +23,7 @@ function harness() {
     updateMcpTabGroup: vi.fn(), updateArchivedWorkspacePreferences: vi.fn()
   }
   const edit = vi.fn()
-  return { state, manager, edit, run: (input: unknown) => runHomeWorkspaceAction(manager, input, edit) }
+  return { state, manager, edit, run: (input: unknown) => runHomeWorkspaceAction(manager as never, input, edit) }
 }
 
 describe('trusted Home workspace actions', () => {

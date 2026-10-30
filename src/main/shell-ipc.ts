@@ -6,10 +6,8 @@ import type { ToastOverlay } from './overlays/toast-overlay.js'
 import type { SidebarOverlay } from './overlays/sidebar-overlay.js'
 import { scaleShellMetric } from '../shared/interface-scale.js'
 import { parseScrimColor, type ScrimColor } from '../shared/title-bar.js'
-
-type ShellIpcTabs = Pick<Browser,
-  | 'setToolbarHeight' | 'setContentInsets' | 'setBrowserContentOccluded' | 'presentOcclusionSnapshot'
-  | 'setFollowAgentActivitySuspended' | 'stateDrawn'>
+import { setContentInsets, setToolbarHeight } from './browser/window-layout/content-area.js'
+import { setFollowAgentActivitySuspended } from './browser/trusted-chrome-occlusion/trusted-chrome-occlusion.js'
 
 interface ShellIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
@@ -30,7 +28,7 @@ interface ShellIpcHost {
   quitApp(): void
   /** Electron's `BrowserWindow.fromWebContents`. */
   windowFromWebContents(webContents: WebContents): Pick<BrowserWindow, 'isFocused'> | null
-  tabs(): ShellIpcTabs | null
+  tabs(): Browser | null
   toastOverlay(): Pick<ToastOverlay, 'relayout'>
   /** The tab rail opened over the page, which a dialog over the page closes. */
   sidebarOverlay(): Pick<SidebarOverlay, 'occlusionChanged'>
@@ -65,7 +63,8 @@ export function registerShellIpc(ipcMain: Pick<IpcMain, 'handle' | 'on'>, host: 
   ipcMain.on('browser:toolbar-height', (event, height: number) => {
     if (host.workspaceStartupFailure()) return
     host.assertMainShellSender(event)
-    host.tabs()?.setToolbarHeight(scaleShellMetric(height, event.sender.getZoomFactor()))
+    const browser = host.tabs()
+    if (browser) setToolbarHeight(browser, scaleShellMetric(height, event.sender.getZoomFactor()))
     host.toastOverlay().relayout()
   })
   ipcMain.on('browser:content-insets', (event, value: unknown) => {
@@ -76,12 +75,15 @@ export function registerShellIpc(ipcMain: Pick<IpcMain, 'handle' | 'on'>, host: 
     if (![top, right, bottom, left].every((inset) => typeof inset === 'number' && Number.isFinite(inset))) {
       throw new TypeError('Invalid browser content insets')
     }
-    host.tabs()?.setContentInsets({
-      top: scaleShellMetric(top as number, event.sender.getZoomFactor()),
-      right: scaleShellMetric(right as number, event.sender.getZoomFactor()),
-      bottom: scaleShellMetric(bottom as number, event.sender.getZoomFactor()),
-      left: scaleShellMetric(left as number, event.sender.getZoomFactor())
-    })
+    const browser = host.tabs()
+    if (browser) {
+      setContentInsets(browser, {
+        top: scaleShellMetric(top as number, event.sender.getZoomFactor()),
+        right: scaleShellMetric(right as number, event.sender.getZoomFactor()),
+        bottom: scaleShellMetric(bottom as number, event.sender.getZoomFactor()),
+        left: scaleShellMetric(left as number, event.sender.getZoomFactor())
+      })
+    }
     host.toastOverlay().relayout()
   })
   ipcMain.on('browser:content-occluded', (event, occluded: unknown, request: unknown) => {
@@ -120,6 +122,7 @@ export function registerShellIpc(ipcMain: Pick<IpcMain, 'handle' | 'on'>, host: 
     host.assertMainShellSender(event)
     if (typeof suspended !== 'boolean') throw new TypeError('Invalid follow-agent activity suspension state')
     host.followSuspension.shellSuspended = suspended
-    host.tabs()?.setFollowAgentActivitySuspended(host.followSuspension.shellSuspended || host.followSuspension.agentCardOpen)
+    const browser = host.tabs()
+    if (browser) setFollowAgentActivitySuspended(browser, host.followSuspension.shellSuspended || host.followSuspension.agentCardOpen)
   })
 }

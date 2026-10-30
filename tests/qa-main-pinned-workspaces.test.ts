@@ -10,6 +10,7 @@ import type { MenuItemConstructorOptions } from 'electron'
 import { Browser } from '../src/main/browser/browser.js'
 import { closeTabTransition } from '../src/main/browser/tab-close/close-transition.js'
 import { orderedTabs } from '../src/main/browser/browser-core.js'
+import { workspaceContextMenuItems } from '../src/main/browser/context-menus/workspace-context-menu.js'
 
 afterEach(() => {
   vi.useRealTimers()
@@ -24,7 +25,6 @@ interface Internals {
   activeTabId: string | null
   changed: ReturnType<typeof vi.fn>
   window: { webContents: { send: ReturnType<typeof vi.fn> } }
-  workspaceContextMenuItems(group: Group): MenuItemConstructorOptions[]
 }
 
 function fixture(groups: Group[], tabs: Omit<Tab, 'webContents'>[] = []) {
@@ -42,6 +42,8 @@ function fixture(groups: Group[], tabs: Omit<Tab, 'webContents'>[] = []) {
   return { manager, internals: manager as unknown as Internals }
 }
 
+/** The workspace's menu items, as its menu builds them. */
+const menuItems = (internals: Internals, workspace: Group) => workspaceContextMenuItems(internals as never, workspace as never)
 const group = (id: string, pinnedAt?: string): Group => ({ id, name: id, lastUsedAt: '2026-10-17T09:00:00.000Z', ...(pinnedAt ? { pinnedAt } : {}) })
 
 describe('pinning a workspace in main', () => {
@@ -160,8 +162,8 @@ describe('the workspace menu\'s pin item', () => {
 
   it('reads Pin for an unpinned workspace and Unpin for a pinned one', () => {
     const { internals } = fixture([group('alpha'), group('beta', '2026-10-17T12:00:00.000Z')])
-    expect(pinItem(internals.workspaceContextMenuItems(internals.mcpTabGroups.get('alpha')!)).label).toBe('Pin Workspace to Top')
-    expect(pinItem(internals.workspaceContextMenuItems(internals.mcpTabGroups.get('beta')!)).label).toBe('Unpin Workspace')
+    expect(pinItem(menuItems(internals, internals.mcpTabGroups.get('alpha')!)).label).toBe('Pin Workspace to Top')
+    expect(pinItem(menuItems(internals, internals.mcpTabGroups.get('beta')!)).label).toBe('Unpin Workspace')
   })
 
   it('does what its label said when the menu opened, even if the pin changed meanwhile', () => {
@@ -169,14 +171,14 @@ describe('the workspace menu\'s pin item', () => {
     vi.setSystemTime(Date.UTC(2026, 9, 17, 12))
     const { manager, internals } = fixture([group('alpha')])
     const alpha = internals.mcpTabGroups.get('alpha')!
-    const pin = pinItem(internals.workspaceContextMenuItems(alpha))
+    const pin = pinItem(menuItems(internals, alpha))
     // Another menu pinned it before this one's click.
     manager.setWorkspacePinned('alpha', true)
     const pinnedAt = alpha.pinnedAt
     click(pin)
     expect(alpha.pinnedAt).toBe(pinnedAt)
 
-    const unpin = pinItem(internals.workspaceContextMenuItems(alpha))
+    const unpin = pinItem(menuItems(internals, alpha))
     manager.setWorkspacePinned('alpha', false)
     click(unpin)
     expect(alpha.pinnedAt).toBeUndefined()
@@ -185,9 +187,9 @@ describe('the workspace menu\'s pin item', () => {
   it('pins with a click on Pin and unpins with a click on Unpin', () => {
     const { internals } = fixture([group('alpha')])
     const alpha = internals.mcpTabGroups.get('alpha')!
-    click(pinItem(internals.workspaceContextMenuItems(alpha)))
+    click(pinItem(menuItems(internals, alpha)))
     expect(alpha.pinnedAt).toEqual(expect.any(String))
-    click(pinItem(internals.workspaceContextMenuItems(alpha)))
+    click(pinItem(menuItems(internals, alpha)))
     expect(alpha.pinnedAt).toBeUndefined()
   })
 })
@@ -197,7 +199,7 @@ describe('the workspace menu\'s new tab item', () => {
   // as its + button does.
   it('asks the window for a new tab in the workspace with New Tab in Workspace', () => {
     const { internals } = fixture([group('alpha')])
-    const item = internals.workspaceContextMenuItems(internals.mcpTabGroups.get('alpha')!).find((candidate) => candidate.id === 'new-tab-in-workspace')!
+    const item = menuItems(internals, internals.mcpTabGroups.get('alpha')!).find((candidate) => candidate.id === 'new-tab-in-workspace')!
     ;(item.click as () => void)()
     expect(internals.window.webContents.send).toHaveBeenCalledExactlyOnceWith('browser:new-tab-requested', 'alpha')
   })
