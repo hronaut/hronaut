@@ -92,6 +92,31 @@ describe('workspace write leases', () => {
     }
   })
 
+  it('keeps a claim, and a call running with it, when the computer\'s clock is set forward or back', () => {
+    vi.useFakeTimers()
+    try {
+      const leases = new WorkspaceWriteLeaseRegistry()
+      const claimed = leases.claim(workspaceId, 'first')
+      const finish = leases.beginMutation(workspaceId, 'first')
+      // Set forward an hour while a call runs, as when a clock kept in local time is corrected soon after login.
+      vi.setSystemTime(Date.now() + 3_600_000)
+      vi.advanceTimersByTime(1_000)
+      expect(leases.status(workspaceId, 'first')).toMatchObject({ status: 'owned', holder: 'self' })
+      finish()
+      expect(leases.require(workspaceId, 'first', claimed.generation)).toMatchObject({ status: 'owned', holder: 'self' })
+      // Its end, given as a time of day, is on the computer's clock as it is now.
+      expect(Date.parse(leases.status(workspaceId, 'first').expiresAt!)).toBe(Date.now() + WorkspaceWriteLeaseRegistry.LIFETIME_MS)
+      // Set back, the lease still ends after its own lifetime.
+      vi.setSystemTime(Date.now() - 2 * 3_600_000)
+      vi.advanceTimersByTime(WorkspaceWriteLeaseRegistry.LIFETIME_MS - 1)
+      expect(leases.status(workspaceId, 'second')).toMatchObject({ status: 'busy', holder: 'other' })
+      vi.advanceTimersByTime(1)
+      expect(leases.status(workspaceId, 'second')).toMatchObject({ status: 'unclaimed', holder: 'none' })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   describe('two MCP transports', () => {
     let server: McpHttpServer | undefined
     const clients: Client[] = []
