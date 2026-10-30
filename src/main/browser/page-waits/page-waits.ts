@@ -124,9 +124,9 @@ export async function waitForText(
   const webContents = tab.webContents
   const candidates = typeof text === 'string' ? [text] : [...text]
   if (!candidates.length) throw new TypeError('At least one text candidate is required.')
-  const deadline = Date.now() + Math.min(Math.max(timeoutMs, 1), 60_000)
+  const deadline = performance.now() + Math.min(Math.max(timeoutMs, 1), 60_000)
   const evaluationDeadline = Symbol('text-wait-deadline')
-  while (Date.now() < deadline) {
+  while (performance.now() < deadline) {
     if (!browser.tabs.has(tab.id) || webContents.isDestroyed()) {
       throw new Error('The tab closed while waiting for page text.')
     }
@@ -144,7 +144,7 @@ export async function waitForText(
         webContents.once('destroyed', onDestroyed)
       })
       const timedOut = new Promise<typeof evaluationDeadline>((resolve) => {
-        evaluationTimer = setTimeout(() => resolve(evaluationDeadline), Math.max(1, deadline - Date.now()))
+        evaluationTimer = setTimeout(() => resolve(evaluationDeadline), Math.max(1, deadline - performance.now()))
       })
       // Register the close race before checking state again so no teardown
       // gap can strand executeJavaScript while an unfinished page is loading.
@@ -167,7 +167,7 @@ export async function waitForText(
     if (state === 'visible' ? match !== null : match === null) {
       return state === 'visible' ? match : (candidates[0] ?? null)
     }
-    if (Date.now() >= deadline) return null
+    if (performance.now() >= deadline) return null
     await new Promise((resolve) => setTimeout(resolve, 200))
   }
   return null
@@ -184,10 +184,10 @@ export async function waitForElement(
   validateTarget(target)
   const tab = getTab(browser, tabId)
   const webContents = tab.webContents
-  const deadline = Date.now() + Math.min(Math.max(timeoutMs, 1), 60_000)
+  const deadline = performance.now() + Math.min(Math.max(timeoutMs, 1), 60_000)
   const evaluationDeadline = Symbol('element-wait-deadline')
   const expression = targetStateScript(target, state)
-  while (Date.now() < deadline) {
+  while (performance.now() < deadline) {
     if (!browser.tabs.has(tab.id) || webContents.isDestroyed()) {
       throw new Error('The tab closed while waiting for the page element.')
     }
@@ -201,7 +201,7 @@ export async function waitForElement(
         webContents.once('destroyed', onDestroyed)
       })
       const timedOut = new Promise<typeof evaluationDeadline>((resolve) => {
-        evaluationTimer = setTimeout(() => resolve(evaluationDeadline), Math.max(1, deadline - Date.now()))
+        evaluationTimer = setTimeout(() => resolve(evaluationDeadline), Math.max(1, deadline - performance.now()))
       })
       const pending = Promise.race([evaluation, closed, timedOut])
       if (!browser.tabs.has(tab.id) || webContents.isDestroyed()) {
@@ -219,7 +219,7 @@ export async function waitForElement(
       if (evaluationTimer) clearTimeout(evaluationTimer)
       webContents.removeListener('destroyed', onDestroyed)
     }
-    if (Date.now() >= deadline) return false
+    if (performance.now() >= deadline) return false
     await new Promise((resolve) => setTimeout(resolve, 200))
   }
   return false

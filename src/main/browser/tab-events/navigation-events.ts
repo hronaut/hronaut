@@ -103,7 +103,7 @@ export function attachNavigationEvents(browser: Browser, tab: BrowserTab, webCon
   const mainFrameLoaded = (): void => {
     if (!mainFrameLoading) return
     mainFrameLoading = false
-    historyTitleWindowEnd = Date.now() + HISTORY_TITLE_WINDOW_MS
+    historyTitleWindowEnd = performance.now() + HISTORY_TITLE_WINDOW_MS
   }
   // A restored, duplicated or waking tab loads its page again, which is not another visit. Only the first document that
   // load commits is that page: a page opened before the load ends, such as through a link while an image of the
@@ -122,7 +122,7 @@ export function attachNavigationEvents(browser: Browser, tab: BrowserTab, webCon
     const titleChanged = nextTitle !== tab.title
     tab.title = nextTitle
     if (titleChanged && historyTitleChanges < HISTORY_TITLE_CHANGES
-      && (mainFrameLoading || Date.now() < historyTitleWindowEnd)) {
+      && (mainFrameLoading || performance.now() < historyTitleWindowEnd)) {
       historyTitleChanges += 1
       browser.options.onPageTitleUpdated?.({
         url: webContents.getURL() || tab.url,

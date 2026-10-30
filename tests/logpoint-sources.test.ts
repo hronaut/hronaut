@@ -31,7 +31,7 @@ function script(overrides: Partial<LogpointScriptRecord> = {}): LogpointScriptRe
   }
 }
 
-const budget = (overrides: Partial<SourceMapBudget> = {}): SourceMapBudget => ({ remainingBytes: 64 * 1024 * 1024, deadline: Date.now() + 10_000, ...overrides })
+const budget = (overrides: Partial<SourceMapBudget> = {}): SourceMapBudget => ({ remainingBytes: 64 * 1024 * 1024, deadline: performance.now() + 10_000, ...overrides })
 
 /** A page's network stack serving one body in chunks of the given size. */
 function network(body: string | undefined, chunkSize = 1024 * 1024) {
@@ -155,7 +155,7 @@ describe('source maps', () => {
     expect(large).toHaveBeenLastCalledWith('IO.close', { handle: 'stream-1' })
     expect(small.remainingBytes).toBe(0)
     expect(await loadSourceMap(network('{}'), 'main', script({ sourceMapUrl: 'bundle.js.map' }), small)).toEqual({ problem: 'too-large' })
-    expect(await loadSourceMap(network('{}'), 'main', script({ sourceMapUrl: 'bundle.js.map' }), budget({ deadline: Date.now() - 1 }))).toEqual({ problem: 'timeout' })
+    expect(await loadSourceMap(network('{}'), 'main', script({ sourceMapUrl: 'bundle.js.map' }), budget({ deadline: performance.now() - 1 }))).toEqual({ problem: 'timeout' })
     expect(await loadSourceMap(network('[1, 2]'), 'main', script({ sourceMapUrl: 'bundle.js.map' }), budget())).toEqual({ problem: 'invalid' })
     expect(describeScript(script({ sourceMapUrl: 'bundle.js.map' }), { problem: 'timeout' })).toEqual({ url: `${ORIGIN}/bundle.js`, sourceMap: 'unavailable', sourceMapProblem: 'timeout' })
     expect(describeScript(script({ sourceMapUrl: 'bundle.js.map' }), 'not-checked')).toEqual({ url: `${ORIGIN}/bundle.js`, sourceMap: 'not-checked' })

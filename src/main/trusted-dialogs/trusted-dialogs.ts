@@ -231,7 +231,7 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
 
   /** Whether a website's sign-in shown in the window closed unanswered moments ago, while the person may still type. */
   function afterInterruptedSignIn(shell: ShellDialogs<Window>): boolean {
-    return shell.signInInterruptedAt !== undefined && Date.now() - shell.signInInterruptedAt < INTERRUPTED_SIGN_IN_MS
+    return shell.signInInterruptedAt !== undefined && performance.now() - shell.signInInterruptedAt < INTERRUPTED_SIGN_IN_MS
   }
 
   function publish(contents: WebContents): void {
@@ -261,7 +261,7 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
     // So does any dialog that closes unanswered moments after, while they may still be typing.
     const interrupted = closed === 'unanswered' && shell?.visible === pending
       && (pending.request.variant.kind === 'http-auth' || afterInterruptedSignIn(shell))
-    if (shell && interrupted) shell.signInInterruptedAt = Date.now()
+    if (shell && interrupted) shell.signInInterruptedAt = performance.now()
     else if (shell && !closed) shell.signInInterruptedAt = undefined
     if (shell?.visible === pending) {
       shell.visible = null

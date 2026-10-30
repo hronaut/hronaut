@@ -26,10 +26,10 @@ export async function flushPersist(browser: Browser): Promise<void> {
 
 /** Waits for the workspace operations in progress, including ones they start, for at most eight seconds. */
 export async function drainWorkspaceOperations(browser: Browser): Promise<void> {
-  const deadline = Date.now() + WORKSPACE_OPERATION_DRAIN_TIMEOUT_MS
+  const deadline = performance.now() + WORKSPACE_OPERATION_DRAIN_TIMEOUT_MS
   while (browser.pendingWorkspaceOperationPromises.size) {
     const pending = [...browser.pendingWorkspaceOperationPromises]
-    const remainingMs = deadline - Date.now()
+    const remainingMs = deadline - performance.now()
     if (remainingMs <= 0) {
       throw new Error(`Workspace operations did not finish within ${WORKSPACE_OPERATION_DRAIN_TIMEOUT_MS} ms.`)
     }

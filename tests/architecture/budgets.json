@@ -36,7 +36,7 @@
     "src/main/browser/dom-mutation-source/dom-mutation-source.ts": 5,
     "src/main/browser/download-copy/download-copy.ts": 2,
     "src/main/browser/downloads/downloads-controller.ts": 2,
-    "src/main/browser/element-inspection/element-inspection.ts": 23,
+    "src/main/browser/element-inspection/element-inspection.ts": 22,
     "src/main/browser/emulation/emulation.ts": 6,
     "src/main/browser/emulation/resize-viewport.ts": 1,
     "src/main/browser/file-drop/file-drop.page.ts": 1,
