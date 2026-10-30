@@ -7,6 +7,8 @@ import {
   frameReleaseScript,
   frameSelectionScript
 } from '../src/main/browser/frame-observation/frame-observation-script.js'
+import { observeHeldFrameInPage } from '../src/main/browser/frame-observation/frame-observation.page.js'
+import { pageScript } from '../src/shared/page-script.js'
 
 describe('frame script literal boundaries', () => {
   it.each([
@@ -58,6 +60,17 @@ describe('what the frame observation keeps in its private world', () => {
     expect(close).toHaveBeenCalledOnce()
     expect('__frame_test' in changed).toBe(false)
     expect(() => vm.runInContext(frameObservationCheckScript('__frame_test'), held({ frame: {}, close }))).toThrow(/check is not a function/)
+  })
+
+  it('observes the frame held under its key and keeps the observation in its place', () => {
+    const frame = { localName: 'iframe' }
+    const context = held({ frame, close: vi.fn() })
+    const observe = (selector: string, maxChars: number, expected: unknown, frameLink: () => string) => (
+      { frame: expected, read: () => ({ text: [selector, maxChars, frameLink()].join(' '), omissions: [] }), check: () => true, close: () => undefined }
+    )
+    expect(vm.runInContext(pageScript(observeHeldFrameInPage, '__frame_test', '#chosen', 50, observe as never, (() => 'link') as never), context)).toBe(true)
+    expect((context.__frame_test as { frame: unknown }).frame).toBe(frame)
+    expect(vm.runInContext(frameObservationReadScript('__frame_test'), context)).toMatchObject({ text: '#chosen 50 link' })
   })
 
   it('releases what its key holds, or nothing', () => {

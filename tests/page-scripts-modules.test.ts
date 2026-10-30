@@ -4,8 +4,8 @@ import { describe, expect, it } from 'vitest'
 const barrelFile = 'src/main/browser/page-scripts.ts'
 const modulesDirectory = 'src/main/browser/page-scripts'
 const files = readdirSync(modulesDirectory).filter(file => file.endsWith('.ts')).sort()
-// A feature module's page code lives beside it in `<feature>.page.ts`. Other modules import a page function from there
-// only to pass it to their own page function as a helper argument.
+// A feature module's page code lives beside it in `<feature>.page.ts`. Modules outside page-scripts/ may also import a
+// page function from there, to pass it to their own page function as a helper argument.
 const moduleFiles = files.filter(file => !file.endsWith('.page.ts'))
 const ownPageFile = (file: string): string => `./${file.replace(/-scripts?\.ts$/u, '')}.page.js`
 const lineCount = (text: string): number => text.split('\n').length - (text.endsWith('\n') ? 1 : 0)

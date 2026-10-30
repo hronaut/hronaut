@@ -22,6 +22,7 @@ describe('the browser reconciliation page read', () => {
     expect(read()).toBe('differs')
     expect(read({ mode: 'update', expectedCurrentText: 'Draft' })).toBe('differs')
     expect(read({ mode: 'update', expectedCurrentText: 'Published' })).toBe('precondition-changed')
+    expect(read({ mode: 'update', expectedText: 'Draft', expectedCurrentText: 'Draft' })).toBe('matches')
     document.querySelector('#state')!.remove()
     expect(read()).toBe('missing')
     document.body.insertAdjacentHTML('beforeend', '<div id="state">Saved</div><div id="state">Saved</div>')
@@ -43,6 +44,12 @@ describe('the browser reconciliation page read', () => {
   it('reads nothing past its bounds and treats selectors as data', () => {
     document.body.innerHTML = '<div id="account">QA team</div><div id="state"></div>'
     const state = document.querySelector('#state')!
+    state.textContent = 'x'.repeat(512)
+    expect(read({ expectedText: 'x'.repeat(512) })).toBe('matches')
+    state.replaceChildren(...Array.from({ length: 1024 }, () => document.createTextNode('')), 'Saved')
+    expect(read()).toBe('unavailable')
+    state.replaceChildren(...Array.from({ length: 1023 }, () => document.createTextNode('')), 'Saved')
+    expect(read()).toBe('matches')
     state.textContent = 'é'.repeat(256)
     expect(read({ expectedText: 'é'.repeat(256) })).toBe('matches')
     state.textContent += 'x'
