@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- A website could read the saved username and password Hronaut was about to fill into it, even when Hronaut then filled nothing, by replacing a JavaScript built-in the fill used and looking at the code that called it. The fill now runs as strict code a website cannot reach, so the website gets the username and password only when Hronaut puts them in its fields.
 - A website can no longer change the fields Hronaut sets in a `browser_webmcp` answer, such as its workspace and tab, or send an agent a tool list or tool result past WebMCP's limits, by replacing the JavaScript built-ins that Hronaut's WebMCP code uses in the page. Hronaut now checks the page's answer itself and keeps only the fields it knows, within WebMCP's limits, and the answer's text is compact JSON.
 - When a website's WebMCP tool ran but its result or error could not be read, `browser_webmcp` now says the tool ran and may have had effects (`OUTCOME_UNKNOWN` for a result, `TOOL_ERROR` for an error) instead of that it never ran, so an agent does not repeat it.
 - The browser issues an agent reads no longer say that Hronaut cancels every HTTP sign-in request a website makes: since 3.14.0 it asks you to sign in for the page's own website, as Chrome does, and the issues now say so.
