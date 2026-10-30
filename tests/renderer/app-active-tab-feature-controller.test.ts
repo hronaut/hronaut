@@ -67,6 +67,7 @@ function createHarness() {
   const openPicker = vi.fn(() => { pickerOpen.value = true })
   const fillCredential = vi.fn(async () => true)
   const showToast = vi.fn()
+  const translate = vi.fn((key: string) => key)
   const context = {
     keepsSeparatePanelOpen: vi.fn(() => false),
     siteControlsOpen: ref(true),
@@ -99,7 +100,7 @@ function createHarness() {
       credentials,
       downloads: ref<BrowserDownloadState[]>([]),
       bookmarks: ref<BrowserBookmark[]>([]),
-      translate: (key) => key,
+      translate,
       formatNumber: String,
       describeEmulation: () => 'mobile viewport'
     },
@@ -125,6 +126,7 @@ function createHarness() {
     openPicker,
     fillCredential,
     showToast,
+    translate,
     context
   }
 }
@@ -143,6 +145,7 @@ describe('useAppActiveTabFeatureController', () => {
       'runtime.toast.passwordFilled',
       'runtime.toast.passwordFilledDescription'
     )
+    expect(harness.translate).toHaveBeenCalledWith('runtime.toast.passwordFilledDescription', { username: 'matching' })
     expect(harness.openPicker).not.toHaveBeenCalled()
 
     harness.credentials.value.push(credential('second-match'))
@@ -154,13 +157,16 @@ describe('useAppActiveTabFeatureController', () => {
     harness.controller.dispose()
   })
 
-  it('says when a saved password could not be filled', async () => {
+  it('says when a saved password could not be filled, or no longer matches the page', async () => {
     const harness = createHarness()
-    harness.fillCredential.mockRejectedValueOnce(new Error('The page changed'))
-
+    harness.fillCredential.mockRejectedValueOnce(new Error(''))
     await harness.controller.fillSavedPassword()
+    expect(harness.showToast).toHaveBeenLastCalledWith('error', 'runtime.toast.passwordFillFailed', 'runtime.toast.passwordFillDescription')
 
-    expect(harness.showToast).toHaveBeenCalledExactlyOnceWith('error', 'runtime.toast.passwordFillFailed', expect.any(String))
+    harness.fillCredential.mockResolvedValueOnce(false)
+    await harness.controller.fillSavedPassword()
+    expect(harness.showToast).toHaveBeenLastCalledWith('error', 'runtime.toast.passwordFillFailed', 'runtimeActions.credential.noLongerMatches')
+    expect(harness.showToast).toHaveBeenCalledTimes(2)
     harness.controller.dispose()
   })
 

@@ -216,13 +216,16 @@ describe('app site navigation feature controller', () => {
     harness.view.unmount()
   })
 
-  it('says when an address could not be opened', async () => {
+  it('says when an address or a tab could not be opened', async () => {
     const harness = createHarness()
-    harness.browser.navigate.mockRejectedValueOnce(new Error('Navigation refused'))
-
+    harness.browser.navigate.mockRejectedValueOnce(new Error(''))
     await harness.controller.browserTabActionsController.navigateAddress('https://refused.test/')
+    expect(harness.showToast).toHaveBeenLastCalledWith('error', 'runtime.navigation.failed', 'runtime.navigation.failedDescription')
 
-    expect(harness.showToast).toHaveBeenCalledExactlyOnceWith('error', 'runtime.navigation.failed', expect.any(String))
+    harness.browser.selectTab.mockRejectedValueOnce(new Error(''))
+    await expect(harness.controller.browserTabActionsController.selectBrowserTab('active')).resolves.toBe(false)
+    expect(harness.showToast).toHaveBeenLastCalledWith('error', 'runtime.workspace.openFailed', 'runtime.workspace.openDescription')
+    expect(harness.showToast).toHaveBeenCalledTimes(2)
     harness.view.unmount()
   })
 
