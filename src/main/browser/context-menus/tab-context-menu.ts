@@ -16,6 +16,7 @@ import { openSplitViewAndWait, updateSplitView, closeSplitView } from '../split-
 import { setTabMuted } from '../tab-muting/tab-muting.js'
 import { closeTabsForPerson } from '../tab-close/close-tabs-for-person.js'
 import { selectTabAndWait } from '../tab-selection/tab-selection.js'
+import { duplicateTab, reopenClosedTab } from '../tab-reopening/tab-reopening.js'
 
 /**
  * Shows a website tab's context menu: attention, new tab, reload, duplicate,
@@ -160,7 +161,7 @@ export function showTabContextMenu(browser: Browser, tabId: string, onClosed?: (
     {
       id: 'duplicate-tab',
       label: browser.text('native.context.duplicateTab'),
-      click: () => runAction('duplicate the tab', () => browser.duplicateTab(tab.id))
+      click: () => runAction('duplicate the tab', () => duplicateTab(browser, tab.id))
     },
     splitMenu,
     reactInspectionMenu(browser.reactInspectionController.status(tab.id), {
@@ -259,7 +260,7 @@ export function showTabContextMenu(browser: Browser, tabId: string, onClosed?: (
       id: 'reopen-closed-tab',
       label: browser.text('native.context.reopenClosed'),
       enabled: browser.closedTabs.length > 0,
-      click: () => runAction('reopen a closed tab', () => browser.reopenClosedTab())
+      click: () => runAction('reopen a closed tab', () => reopenClosedTab(browser))
     },
     {
       id: 'bookmark-all-tabs',

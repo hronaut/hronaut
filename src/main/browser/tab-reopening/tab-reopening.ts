@@ -9,6 +9,7 @@ import { getTab, orderedTabs } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { browserState } from '../browser-state/browser-state.js'
 import { reorderTab } from '../tab-arrangement/tab-arrangement.js'
+import { withTabLabelLifecycle } from '../tab-labels/tab-labels.js'
 
 const MAX_TABS = MAX_BROWSER_TABS
 const MAX_CLOSED_TABS = MAX_TABS
@@ -256,4 +257,14 @@ function forgetHistoryPages(closed: BrowserClosedTabState, matches: (url: string
   const kept = entries.filter((entry, entryIndex) => entryIndex === index || !matches(entry.url))
   if (kept.length === entries.length) return
   history.pages = { entries: kept, index: entries.slice(0, index).filter((entry) => !matches(entry.url)).length }
+}
+
+/** Reopens the most recently closed tab, or the one with this id, and shows it, once tab label saves have settled. */
+export function reopenClosedTab(browser: Browser, closedTabId?: string): Promise<BrowserState> {
+  return withTabLabelLifecycle(browser, () => reopenClosedTabAfterLabelSave(browser, closedTabId))
+}
+
+/** Opens a copy of the tab right after it, once tab label saves have settled. */
+export function duplicateTab(browser: Browser, tabId: string): Promise<BrowserState> {
+  return withTabLabelLifecycle(browser, () => duplicateTabAfterLabelSave(browser, tabId))
 }

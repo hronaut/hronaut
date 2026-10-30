@@ -85,7 +85,6 @@ interface Manager {
   mcpTabGroups: Map<string, Workspace>
   createTab(options: { url: string; mcpGroupId: string; active: boolean }): Promise<Tab>
   selectTab(tabId: string): unknown
-  restoreSavedTabGroupForAgent(id: string): Promise<unknown>
 }
 
 function workspace(id: string, name: string) {
@@ -176,7 +175,7 @@ it('opens the tab it shows at once and the others to load in their turn, a few a
   ])
   // Restored for an agent, the tab it shows is the agent's, which tools that do not wake tabs read.
   const hidden = browser()
-  await hidden.manager.restoreSavedTabGroupForAgent(AGENT)
+  await restoreSavedTabGroup(hidden.manager as never, AGENT, { show: false })
   expect(hidden.opened).toEqual(shown.opened)
 })
 
@@ -185,7 +184,7 @@ describe('restoring an archived workspace', () => {
     const { manager } = browser()
     const { transfer, split } = await personInSplitView(manager)
 
-    await manager.restoreSavedTabGroupForAgent(AGENT)
+    await restoreSavedTabGroup(manager as never, AGENT, { show: false })
 
     expect({ splitView: manager.splitView, activeTabId: manager.activeTabId, focused })
       .toEqual({ splitView: split, activeTabId: transfer.id, focused: [] })

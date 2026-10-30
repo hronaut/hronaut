@@ -7,6 +7,7 @@ import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
 import { type LabeledCreationSettlement, labeledCreationSettlement } from './labeled-creation-settlement.js'
 import { getMcpGroupState, tabBelongsToMcpGroup } from '../../../browser/workspace-scope/workspace-scope.js'
 import { newLabeledAgentTab } from '../../../browser/new-tabs/new-tabs.js'
+import { newAgentTab } from '../../../browser/new-tabs/open-new-tab.js'
 
 export function registerBrowserNewTab(context: McpToolContext): void {
   const { manager, onTabActivity, registerWorkspaceTool, tool, workspaceAuthorizationError } = context
@@ -48,7 +49,7 @@ export function registerBrowserNewTab(context: McpToolContext): void {
       // The tab this call opened, named as it is made: before the call settles, another agent or the person can open
       // tabs too, in this workspace or another.
       let createdTabId: string | undefined
-      await manager.newAgentTab({ url, active, mcpGroupId: workspaceId!, focus: false, ...construction }, (tabId) => { createdTabId = tabId })
+      await newAgentTab(manager, { url, active, mcpGroupId: workspaceId!, focus: false, ...construction }, (tabId) => { createdTabId = tabId })
       if (createdTabId && tabBelongsToMcpGroup(manager, workspaceId!, createdTabId)) {
         const activityId = randomUUID()
         onTabActivity?.({ activityId, tabId: createdTabId, toolName: 'browser_new_tab', phase: 'started', occurredAt: Date.now() }, workspaceId!)

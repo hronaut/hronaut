@@ -5,7 +5,7 @@ import { workspaceIdSchema, workspaceResumeKeySchema } from '../../tool-schemas.
 import { WorkspaceWriteLeaseError } from '../../workspace-write-leases.js'
 import type { McpToolContext } from '../tool-context.js'
 import { listMcpTabGroups, requireMcpTabGroup } from '../../../browser/mcp-tab-groups/mcp-tab-groups.js'
-import { saveAndCloseTabGroup, deleteSavedTabGroup } from '../../../browser/workspace-archive/workspace-archive.js'
+import { saveAndCloseTabGroup, deleteSavedTabGroup, restoreSavedTabGroup } from '../../../browser/workspace-archive/workspace-archive.js'
 import { inspectWorkspaceContinuity, suspendWorkspaceContinuity } from '../../../browser/workspace-continuity/workspace-continuity.js'
 
 export function registerBrowserSavedWorkspaces(context: McpToolContext): void {
@@ -90,7 +90,7 @@ export function registerBrowserSavedWorkspaces(context: McpToolContext): void {
         const writeLease = workspaceLeases.require(savedWorkspaceId, client.id)
         try {
           // Like the agent's other calls, opening it leaves the person's window as it is.
-          const opened = await manager.restoreSavedTabGroupForAgent(savedWorkspaceId)
+          const opened = await restoreSavedTabGroup(manager, savedWorkspaceId, { show: false })
           workspaceLeases.require(savedWorkspaceId, client.id, writeLease.generation)
           savedWorkspaceIds.delete(savedWorkspaceId)
           activeWorkspaceIds.add(opened.id)

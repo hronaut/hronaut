@@ -7,6 +7,13 @@ vi.mock('../src/main/browser/workspace-navigation/workspace-navigation.js', asyn
 }))
 import { OpenedTabObservation } from '../src/main/browser/click-opened-tabs.js'
 import { attachWindowOpenHandler } from '../src/main/browser/tab-events/window-open-handler.js'
+import { pageWebPreferences } from '../src/main/browser/new-tabs/tab-admission.js'
+
+// Checking that the workspace can take a tab is a function now; it reaches the fake's stub.
+vi.mock('../src/main/browser/new-tabs/tab-admission.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/new-tabs/tab-admission.js')>(),
+  assertCanCreateTab: (browser: { assertCanCreateTab: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.assertCanCreateTab(...args)
+}))
 
 // A website's sign-in popup got no window: Hronaut denied every new window and loaded its address in a new tab, so
 // window.open() returned null and the new page had no window.opener to send the result back to.
@@ -22,7 +29,7 @@ interface Response {
 /** How the browser creates a tab for the new page, which it hands over as soon as the tab exists. */
 type CreateTab = (tabOptions: { onCreated?: (tab: { id: string; sleeping: boolean }) => void }) => Promise<unknown>
 
-const PAGE_PREFERENCES = { preload: '/app/preload/page.cjs', contextIsolation: true, nodeIntegration: false, sandbox: true }
+const PAGE_PREFERENCES = pageWebPreferences()
 
 /** The page Chromium created for the window; window.open() gives it an opener, a target="_blank" link does not. */
 function guestPage(options: { opener?: boolean } = {}): WebContents & { close: ReturnType<typeof vi.fn> } {
@@ -40,7 +47,6 @@ function fixture(options: { mcpGroupId?: string; allowed?: boolean; canOpenTab?:
     return created
   }))
   const browser = {
-    pageWebPreferences: () => PAGE_PREFERENCES,
     openedTabObservations: new Map([[tab, new Set([observation])]]),
     workspaceNavigationAllowed: () => options.allowed ?? true,
     options: { onActionFailed },

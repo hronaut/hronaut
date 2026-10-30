@@ -25,6 +25,7 @@ vi.mock('../src/main/browser/workspace-navigation/workspace-navigation.js', asyn
 }))
 import { Browser } from '../src/main/browser/browser.js'
 import { duplicateTabAfterLabelSave } from '../src/main/browser/tab-reopening/tab-reopening.js'
+import { newTab } from '../src/main/browser/new-tabs/open-new-tab.js'
 
 // The fake browser below stubs the functions the code under test calls; these reach its stubs.
 vi.mock('../src/main/browser/mcp-tab-groups/mcp-tab-groups.js', async (importOriginal) => ({
@@ -47,7 +48,7 @@ function fixture() {
 for (const value of [8, 73, 24.5, Number.NaN]) {
   it(`rejects defaultFontSize ${value} before creating a tab or workspace`, async () => {
     const f = fixture()
-    await expect(f.manager.newTab({ url: 'https://example.test/', defaultFontSize: value })).rejects.toThrow('defaultFontSize must be an integer from 9 to 72 CSS pixels')
+    await expect(newTab(f.manager, { url: 'https://example.test/', defaultFontSize: value })).rejects.toThrow('defaultFontSize must be an integer from 9 to 72 CSS pixels')
     expect(f.createTab).not.toHaveBeenCalled()
     expect(f.ensureHumanWorkspace).not.toHaveBeenCalled()
   })
@@ -55,7 +56,7 @@ for (const value of [8, 73, 24.5, Number.NaN]) {
 
 it('passes a valid defaultFontSize to tab construction', async () => {
   const f = fixture()
-  await f.manager.newTab({ url: 'https://example.test/', defaultFontSize: 32 })
+  await newTab(f.manager, { url: 'https://example.test/', defaultFontSize: 32 })
   expect(f.createTab).toHaveBeenCalledOnce()
   expect(f.createTab.mock.calls[0]?.[0]).toMatchObject({ url: 'https://example.test/', defaultFontSize: 32, zoomIsolated: false })
 })

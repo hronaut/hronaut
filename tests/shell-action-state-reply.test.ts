@@ -32,6 +32,19 @@ vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOrigi
   ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
   browserState: (browser: { getState: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.getState(...args)
 }))
+// These shell actions are functions now; they reach the fake's stubs.
+vi.mock('../src/main/browser/new-tabs/open-new-tab.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/new-tabs/open-new-tab.js')>(),
+  newTab: (browser: { newTab: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.newTab(...args)
+}))
+vi.mock('../src/main/browser/home-tabs/home-tabs.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/home-tabs/home-tabs.js')>(),
+  openHome: (browser: { openHome: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.openHome(...args)
+}))
+vi.mock('../src/main/browser/tab-selection/person-tab-switch.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-selection/person-tab-switch.js')>(),
+  selectTabForPerson: (browser: { selectTabForPerson: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.selectTabForPerson(...args)
+}))
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown
 

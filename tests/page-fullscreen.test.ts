@@ -432,11 +432,10 @@ describe('browser shortcuts from a page in full screen', () => {
     // Ctrl/Cmd+L focused the address field and opened its suggestions behind the page in full screen.
     const { tabs: pages, enter, browser } = fullscreenFixture()
     enter('video')
-    const tabs = Object.assign(browser, { isHomeTab: () => false, shownTabIsHome: () => false })
     const shell = { isDestroyed: () => false, focus: vi.fn(), send: vi.fn() }
     const { runPageShortcut } = createBrowserShortcutRouting({
       takeOvers: { available: () => undefined, takeOverFromPage: vi.fn() },
-      tabs: () => tabs,
+      tabs: () => browser,
       agentPresenceSnapshot: () => ({ workspaces: {} }) as never,
       mainWindowRefs: { window: { webContents: shell } as never }
     })

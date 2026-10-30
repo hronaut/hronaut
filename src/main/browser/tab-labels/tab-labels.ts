@@ -73,3 +73,6 @@ export async function saveTabLabel(browser: Browser, tabId: string, value: strin
     browser.pendingTabLabels.delete(operation)
   }
 }
+
+/** Refuses tab label edits from now on, as Hronaut shuts down. */
+export function stopTabLabelEdits(browser: Browser): void { browser.tabLabelAdmissionClosed = true }

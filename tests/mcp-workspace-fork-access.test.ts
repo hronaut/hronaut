@@ -44,7 +44,8 @@ vi.mock('../src/main/browser/mcp-tab-groups/mcp-tab-groups.js', async (importOri
 vi.mock('../src/main/browser/workspace-archive/workspace-archive.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/workspace-archive/workspace-archive.js')>(),
   saveAndCloseTabGroup: (browser: { saveAndCloseTabGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.saveAndCloseTabGroup(...args),
-  deleteSavedTabGroup: (browser: { deleteSavedTabGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.deleteSavedTabGroup(...args)
+  deleteSavedTabGroup: (browser: { deleteSavedTabGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.deleteSavedTabGroup(...args),
+  restoreSavedTabGroup: (browser: { restoreSavedTabGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.restoreSavedTabGroup(...args)
 }))
 // A fake browser that stubs no pause answers has no paused or taken-over tab.
 vi.mock('../src/main/browser/agent-pause/agent-pause.js', async (importOriginal) => ({
@@ -127,7 +128,7 @@ describe('MCP workspace fork sources and direct access', () => {
         mcpTabGroups: [{ id: ownId, navigationPolicy: { mode: 'unrestricted', rules: [] } }]
       })),
       deleteSavedTabGroup: vi.fn(),
-      restoreSavedTabGroupForAgent: vi.fn(async () => workspace),
+      restoreSavedTabGroup: vi.fn(async () => workspace),
       transferWorkspaceStorage: vi.fn(async () => ({ copied: true })),
       saveAndCloseTabGroup: vi.fn(async () => workspace)
     }
@@ -269,7 +270,7 @@ describe('MCP workspace fork sources and direct access', () => {
     })
     const result = await call('browser_saved_workspaces', { action, savedWorkspaceId: ownId, ...(action === 'resume' ? { resumeKey: key } : {}) })
     expect(manager.inspectWorkspaceContinuity).toHaveBeenCalledWith(ownId)
-    if (action === 'open') expect(manager.restoreSavedTabGroupForAgent).toHaveBeenCalledWith(ownId)
+    if (action === 'open') expect(manager.restoreSavedTabGroup).toHaveBeenCalledWith(ownId, { show: false })
     expect(result.isError).toBe(true)
     expect(JSON.stringify(result)).not.toContain(key)
     expect(JSON.stringify(result)).not.toContain('continuity')
@@ -300,7 +301,7 @@ describe('MCP workspace fork sources and direct access', () => {
     for (const action of ['open', 'delete', 'resume']) {
       expect((await call('browser_saved_workspaces', { action, savedWorkspaceId: ownId, resumeKey: key })).isError).toBe(true)
     }
-    expect(manager.restoreSavedTabGroupForAgent).not.toHaveBeenCalled()
+    expect(manager.restoreSavedTabGroup).not.toHaveBeenCalled()
     expect(manager.deleteSavedTabGroup).not.toHaveBeenCalled()
   })
 

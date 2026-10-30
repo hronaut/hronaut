@@ -10,6 +10,7 @@ import type { UndoOffers } from './undo-offers.js'
 import type { WalletRuntimeState } from './wallet/runtime.js'
 import { destroyBrowser } from './browser/browser-lifecycle/destroy-browser.js'
 import { drainWorkspaceOperations, flushWorkspaceProfiles } from './browser/quit-flush/quit-flush.js'
+import { stopTabLabelEdits } from './browser/tab-labels/tab-labels.js'
 
 interface RuntimeShutdownHost {
   /** The tab runtime, whose label edits stop, operations drain and state is flushed; destroyed and cleared last. */
@@ -48,7 +49,7 @@ export function createRuntimeShutdown(host: RuntimeShutdownHost): { releaseRunti
   async function releaseRuntimeResources(): Promise<void> {
     if (runtimeShutdown) return runtimeShutdown
     const manager = host.tabRuntime.tabs
-    manager?.stopTabLabelEdits()
+    if (manager) stopTabLabelEdits(manager)
     const server = host.mcpRuntime.server
     const wallets = host.walletRuntime.service
     const broker = host.walletRuntime.broker

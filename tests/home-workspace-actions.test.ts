@@ -20,6 +20,19 @@ vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOrigi
   ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
   browserState: (browser: { getState: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.getState(...args)
 }))
+// The browser's workspace, Home and tab actions are functions now; these reach the fake's stubs.
+vi.mock('../src/main/browser/mcp-tab-groups/close-mcp-tab-group.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/mcp-tab-groups/close-mcp-tab-group.js')>(),
+  closeWorkspace: (browser: { closeWorkspace: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.closeWorkspace(...args)
+}))
+vi.mock('../src/main/browser/new-tabs/open-new-tab.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/new-tabs/open-new-tab.js')>(),
+  newTab: (browser: { newTab: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.newTab(...args)
+}))
+vi.mock('../src/main/browser/home-tabs/home-tabs.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/home-tabs/home-tabs.js')>(),
+  openHome: (browser: { openHome: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.openHome(...args)
+}))
 
 function harness() {
   const state = {

@@ -2,6 +2,7 @@ import { lstat, readFile, readdir, realpath, rm } from 'node:fs/promises'
 import { basename, dirname, join, parse, resolve } from 'node:path'
 import { writeTextFileAtomically } from '../atomic-file.js'
 import { LocalizedError } from '../localized-error.js'
+import type { Browser } from './browser.js'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 export function canonicalStorageId(value: unknown): string | undefined {
@@ -105,4 +106,17 @@ export async function cleanExplicitlyDeletedWorkspaceStorage(
     }
   }
   return { metadataBlocked: false }
+}
+
+/**
+ * Refuses to delete a workspace's storage while storage cleanup is blocked, for a storage id that is not one, or when
+ * another workspace, open or archived, uses the same storage; then checks the same in the state saved on disk.
+ */
+export async function assertStorageDeletionOwnership(browser: Browser, workspaceId: string, storageId: string): Promise<void> {
+  const canonical = canonicalStorageId(storageId)
+  if (browser.workspaceStorageCleanupBlocked || !canonical || [...browser.mcpTabGroups.values(), ...browser.savedTabGroups.values()]
+    .some(group => group.id !== workspaceId && canonicalStorageId(group.storageId) === canonical)) {
+    throw new LocalizedError('appErrors.workspaceStorage.ambiguousOwnership')
+  }
+  await browser.store.withStableSnapshot(() => assertExclusiveWorkspaceStorage(browser.options.storePath, workspaceId, storageId))
 }

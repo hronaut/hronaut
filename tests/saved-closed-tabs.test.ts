@@ -10,6 +10,7 @@ import { closedTabHistory, rememberClosedTab, rememberSavedClosedTabs, reopenClo
 import type { BrowserTab } from '../src/main/browser/browser-tab.js'
 import type { NavigationHistorySnapshot } from '../src/main/browser/navigation-history.js'
 import type { BrowserClosedTabState, BrowserWorkspaceNavigationPolicy } from '../src/shared/types.js'
+import { forgetHistoryPages } from '../src/main/browser/tab-history-pages/forget-history-pages.js'
 
 vi.mock('electron', () => ({
   session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => tmpdir() }, powerMonitor: { on: () => undefined }
@@ -290,7 +291,7 @@ describe('the tab manager saving Recently closed', () => {
       changed: vi.fn(),
       closedTabsStore: { save: async (closedTabs: () => readonly SavedClosedTab[] | undefined) => { saved.push(closedTabs()) } }
     }) as Browser
-    manager.forgetHistoryPages((url) => url === address('cleared'))
+    forgetHistoryPages(manager, (url) => url === address('cleared'))
     await vi.waitFor(() => expect(saved).toHaveLength(1))
     expect(saved[0]!.map(({ closed }) => closed.url)).toEqual([address('a')])
   })
@@ -312,7 +313,7 @@ describe('the tab manager saving Recently closed', () => {
     }) as Browser
     // Saved once with the page, as every few seconds, and then once its history is cleared.
     await saveForNextStart(manager)
-    manager.forgetHistoryPages((url) => url === address('cleared'))
+    forgetHistoryPages(manager, (url) => url === address('cleared'))
     await vi.waitFor(() => expect(saved).toHaveLength(2))
     expect(JSON.stringify(saved[0])).toContain(address('cleared'))
     expect(saved[1]!.map(({ closed }) => closed.url)).toEqual([address('kept')])
@@ -331,7 +332,7 @@ describe('the tab manager saving Recently closed', () => {
       changed: vi.fn(),
       closedTabsStore: { discard, save: vi.fn() }
     }) as Browser
-    manager.forgetHistoryPages(() => true)
+    forgetHistoryPages(manager, () => true)
     expect(discard).toHaveBeenCalledOnce()
   })
 

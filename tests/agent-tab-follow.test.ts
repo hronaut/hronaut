@@ -69,6 +69,7 @@ import { attachWindowOpenHandler } from '../src/main/browser/tab-events/window-o
 import { selectTabPassively } from '../src/main/browser/agent-follow/passive-selection.js'
 import { handleMcpTabActivity } from '../src/main/browser/agent-follow/agent-follow.js'
 import { newLabeledAgentTab } from '../src/main/browser/new-tabs/new-tabs.js'
+import { newAgentTab } from '../src/main/browser/new-tabs/open-new-tab.js'
 import { selectAgentTabAndWait } from '../src/main/browser/tab-selection/tab-selection.js'
 
 /** The manager's private state these cases set up and read. */
@@ -190,7 +191,7 @@ describe('a tab an agent opens or selects while Follow agents is on', () => {
     for (const options of [{}, { pageFullscreen: true }, { followAgentActivitySuspended: true }, { browserContentOccluded: true }]) {
       const { manager, internals } = fixture(options)
       const before = new Set(internals.tabs.keys())
-      await manager.newAgentTab({ url: 'https://agent.test/new', mcpGroupId: 'Agent', focus: false })
+      await newAgentTab(manager, { url: 'https://agent.test/new', mcpGroupId: 'Agent', focus: false })
       expect(internals.activeTabId).toBe('video')
       expect(internals.mcpTabGroups.get('Agent')?.activeTabId).toBe(openedSince(internals, before))
       await selectAgentTabAndWait(manager, 'agent-tab')
@@ -219,7 +220,7 @@ describe('a tab an agent opens or selects while Follow agents is on', () => {
     // Passive selection keeps a focused window's keyboard focus in trusted chrome, which needs a real page.
     internals.window.isFocused = () => false
     const before = new Set(internals.tabs.keys())
-    await manager.newAgentTab({ url: 'https://agent.test/new', mcpGroupId: 'Agent', focus: false })
+    await newAgentTab(manager, { url: 'https://agent.test/new', mcpGroupId: 'Agent', focus: false })
     const opened = openedSince(internals, before)!
     expect(internals.activeTabId).toBe('video')
     handleMcpTabActivity(manager, { activityId: 'new-tab', tabId: opened, toolName: 'browser_new_tab', phase: 'started', occurredAt: Date.now() }, { id: 'agent', name: 'Agent' })
@@ -232,7 +233,7 @@ describe('a tab an agent opens or selects while Follow agents is on', () => {
     const { manager, internals } = fixture()
     const before = new Set(internals.tabs.keys())
     const created: string[] = []
-    const opening = manager.newAgentTab({ url: 'https://agent.test/named', mcpGroupId: 'Agent', focus: false }, (tabId) => { created.push(tabId) })
+    const opening = newAgentTab(manager, { url: 'https://agent.test/named', mcpGroupId: 'Agent', focus: false }, (tabId) => { created.push(tabId) })
     expect(created).toEqual([openedSince(internals, before)])
     await opening
   })
@@ -319,7 +320,7 @@ describe('a tab opened behind a page in full screen', () => {
   it('gets the page card\'s size, not the whole window the page in full screen fills', async () => {
     // A background tab used to be sized for the whole window, so its page and captures had a size it never shows at.
     const { manager } = fixture({ pageFullscreen: true })
-    await manager.newAgentTab({ url: 'https://agent.test/background', mcpGroupId: 'Agent', active: false, focus: false })
+    await newAgentTab(manager, { url: 'https://agent.test/background', mcpGroupId: 'Agent', active: false, focus: false })
     expect(viewBounds.at(-1)).toEqual({ x: 280, y: 60, width: 1150, height: 830 })
   })
 })

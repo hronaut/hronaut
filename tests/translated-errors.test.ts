@@ -28,7 +28,7 @@ const { setTabHumanInteractionLocked } = await import('../src/main/browser/inter
 const { BookmarkStore } = await import('../src/main/bookmarks-history/bookmark-store.js')
 const { selectTabAndWait } = await import('../src/main/browser/tab-selection/tab-selection.js')
 const { createNewTab } = await import('../src/main/browser/new-tabs/new-tabs.js')
-const { requireMcpTabGroup } = await import('../src/main/browser/mcp-tab-groups/mcp-tab-groups.js')
+const { assertWorkspaceNameAvailable, requireMcpTabGroup } = await import('../src/main/browser/mcp-tab-groups/mcp-tab-groups.js')
 const { assertWorkspaceIdle, withSavedWorkspaceOperation, withWorkspaceOperation } = await import('../src/main/browser/workspace-operations/workspace-operations.js')
 const { setWorkspacePinned } = await import('../src/main/browser/mcp-tab-groups/workspace-pinning.js')
 const { closeMcpTabGroupInternal } = await import('../src/main/browser/mcp-tab-groups/close-mcp-tab-group.js')
@@ -59,6 +59,7 @@ const { commitRuntimeSetting } = await import('../src/main/settings/runtime-sett
 const { HumanWaitingService } = await import('../src/main/mcp/human-waiting-service.js')
 const { WorkspaceContinuityStore } = await import('../src/main/mcp/workspace-continuity-store.js')
 const { screenshot } = await import('../src/main/browser/screenshots/screenshots.js')
+const { showWorkspaceContextMenu } = await import('../src/main/browser/context-menus/workspace-context-menu.js')
 
 const SHELL_URL = 'http://127.0.0.1:5173/'
 const ukrainian = (key: Parameters<typeof translate>[1], parameters?: Parameters<typeof translate>[2]) => translate('uk-UA', key, parameters)
@@ -173,7 +174,7 @@ describe('main-process failures people see in tabs, navigation and new tabs', ()
       'Unknown workspace: workspace-id.', 'Робочий простір більше недоступний.'],
     ['closing a workspace with Undo that just closed', () => closeWorkspaceForPerson(browserWithoutWorkspaces as never, 'workspace-id'),
       'Unknown workspace: workspace-id.', 'Робочий простір більше недоступний.'],
-    ['the menu of a workspace that just closed', () => Object.assign(Object.create(Browser.prototype), { mcpTabGroups: new Map() }).showWorkspaceContextMenu('workspace-id'),
+    ['the menu of a workspace that just closed', () => showWorkspaceContextMenu(Object.assign(Object.create(Browser.prototype), { mcpTabGroups: new Map() }), 'workspace-id'),
       'Unknown workspace: workspace-id', 'Робочий простір більше недоступний.'],
     ['putting the tabs of a workspace that just closed to sleep', () => sleepWorkspaceTabs({ mcpTabGroups: new Map() } as never, 'workspace-id'),
       'Unknown workspace: workspace-id', 'Робочий простір більше недоступний.'],
@@ -303,9 +304,9 @@ describe('main-process failures people see in page tools, workspace management a
     ['an empty workspace name', () => normalizedWorkspaceName('   '),
       'Workspace name cannot be empty.',
       'Назва робочого простору не може бути порожньою.'],
-    ['a workspace name already in use', () => Object.assign(Object.create(Browser.prototype), {
+    ['a workspace name already in use', () => assertWorkspaceNameAvailable(Object.assign(Object.create(Browser.prototype), {
       mcpTabGroups: new Map([['research', research]]), savedTabGroups: new Map()
-    }).assertWorkspaceNameAvailable('Research'),
+    }), 'Research'),
     'A workspace named "Research" already exists. Workspace names must be unique.',
     'Робочий простір із назвою «Research» уже існує. Назви робочих просторів мають бути унікальними.'],
     ['closing a protected workspace with Undo', () => closeWorkspaceForPerson({ mcpTabGroups: new Map([['research', { ...research, deletionProtected: true }]]) } as never, 'research'),

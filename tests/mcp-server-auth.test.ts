@@ -57,6 +57,11 @@ vi.mock('../src/main/browser/pwa-inspection/browser-pwa-lifecycle.js', async (im
   ...await importOriginal<typeof import('../src/main/browser/pwa-inspection/browser-pwa-lifecycle.js')>(),
   pwaLifecycle: (browser: { pwaLifecycle: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.pwaLifecycle(...args)
 }))
+// The bookmarks and history tools open a page through newAgentTab, a function; it reaches the fake's stub, so a refused page is seen not to open.
+vi.mock('../src/main/browser/new-tabs/open-new-tab.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/new-tabs/open-new-tab.js')>(),
+  newAgentTab: (browser: { newAgentTab: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.newAgentTab(...args)
+}))
 
 const TOKEN = 'abcdefghijklmnopqrstuvwxyz_ABCDEFG-1234567890'
 const WORKSPACE_ID = '01912345-6789-7abc-8def-0123456789ab'
@@ -729,7 +734,7 @@ describe('MCP capability profile authentication', () => {
       beginWorkspaceContinuityAction: () => () => undefined,
       getMcpGroupState: () => ({}),
       createMcpTabGroup: vi.fn(async () => workspace),
-      newTab: vi.fn(async ({ url }: { url: string }) => ({ url })),
+      newAgentTab: vi.fn(async ({ url }: { url: string }) => ({ url })),
       mcpWorkspaceResumeKey: () => `hrw1_${'a'.repeat(43)}`
     }
     const bookmarks = {
@@ -778,7 +783,7 @@ describe('MCP capability profile authentication', () => {
       await expect(client!.callTool({ name, arguments: { workspaceId: WORKSPACE_ID, action: 'open', id } }))
         .resolves.toMatchObject({ isError: true })
     }
-    expect(manager.newTab).not.toHaveBeenCalled()
+    expect(manager.newAgentTab).not.toHaveBeenCalled()
     await expect(client!.callTool({
       name: 'browser_visit_history', arguments: { workspaceId: WORKSPACE_ID, action: 'clear' }
     })).resolves.toMatchObject({ isError: true })

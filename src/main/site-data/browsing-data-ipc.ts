@@ -18,6 +18,7 @@ import {
 } from '../../shared/types.js'
 import { workspaceSession } from '../browser/workspace-data/workspace-data.js'
 import { browserState } from '../browser/browser-state/browser-state.js'
+import { forgetHistoryPages } from '../browser/tab-history-pages/forget-history-pages.js'
 
 const HOUR_MS = 60 * 60 * 1000
 const TIME_RANGE_MS: Record<Exclude<HistoryTimeRange, 'allTime'>, number> = {
@@ -107,7 +108,8 @@ export function registerBrowsingDataIpc(host: BrowsingDataIpcHost): void {
       // before then and none from then: a page the history cannot hold, such as a page's source or a file, or one left
       // before it was ready, which the history never got, goes too.
       const held = new Set(host.historyStore()!.list().map((entry) => entry.url))
-      host.tabs()?.forgetHistoryPages((url) => {
+      const browser = host.tabs()
+      if (browser) forgetHistoryPages(browser, (url) => {
         const address = tabHistoryAddress(url)
         return address === null || cleared.has(address) || !held.has(address)
       })
@@ -120,7 +122,8 @@ export function registerBrowsingDataIpc(host: BrowsingDataIpcHost): void {
     // history clearing. The cleared website's pages in Recently closed and in tabs' Back and Forward lists go too, as
     // Chrome forgets them with the history.
     host.mcpServer()?.forgetAgentStepsSince()
-    host.tabs()?.forgetHistoryPages((url) => !origin || closedTabOrigin(url) === origin)
+    const browser = host.tabs()
+    if (browser) forgetHistoryPages(browser, (url) => !origin || closedTabOrigin(url) === origin)
     host.publishVisitHistory()
     return currentBrowsingDataSummary()
   }

@@ -17,6 +17,11 @@ import { openSplitViewAndWait, updateSplitView, closeSplitView } from './browser
 import { browserState } from './browser/browser-state/browser-state.js'
 import { closeTabsForPerson } from './browser/tab-close/close-tabs-for-person.js'
 import { saveTabLabel } from './browser/tab-labels/tab-labels.js'
+import { openHome } from './browser/home-tabs/home-tabs.js'
+import { newTab } from './browser/new-tabs/open-new-tab.js'
+import { reopenClosedTab } from './browser/tab-reopening/tab-reopening.js'
+import { selectTabForPerson } from './browser/tab-selection/person-tab-switch.js'
+import { focusActivePage } from './browser/trusted-chrome-focus/trusted-chrome-focus.js'
 
 interface TabsIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
@@ -84,14 +89,14 @@ export function registerTabsIpc(host: TabsIpcHost): void {
     const [tabId] = validateTabOverviewPreviewIds([value])
     return host.runWorkspaceRead(event, host.assertTrustedSender, () => getTabOverviewPagePreview(host.tabs()!, tabId!))
   })
-  host.handleBrowserIpc('browser:open-home', (event) => { host.assertTrustedSender(event); return stateReply(host, host.tabs()!.openHome()) })
-  host.handleBrowserIpc('browser:new-tab', (event, options) => { host.assertTrustedSender(event); return stateReply(host, host.tabs()!.newTab(options)) })
+  host.handleBrowserIpc('browser:open-home', (event) => { host.assertTrustedSender(event); return stateReply(host, openHome(host.tabs()!)) })
+  host.handleBrowserIpc('browser:new-tab', (event, options) => { host.assertTrustedSender(event); return stateReply(host, newTab(host.tabs()!, options)) })
   host.handleBrowserIpc('browser:reopen-closed-tab', (event, closedTabId: unknown) => {
     host.assertTrustedSender(event)
     if (closedTabId !== undefined && typeof closedTabId !== 'string') throw new TypeError('Invalid closed tab ID')
-    return host.tabs()!.reopenClosedTab(closedTabId)
+    return reopenClosedTab(host.tabs()!, closedTabId)
   })
-  host.handleBrowserIpc('browser:select-tab', (event, tabId) => { host.assertTrustedSender(event); return stateReply(host, host.tabs()!.selectTabForPerson(tabId)) })
+  host.handleBrowserIpc('browser:select-tab', (event, tabId) => { host.assertTrustedSender(event); return stateReply(host, selectTabForPerson(host.tabs()!, tabId)) })
   host.handleBrowserIpc('browser:close-tab', (event, tabId: unknown) => {
     host.assertTrustedSender(event)
     if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
@@ -181,7 +186,7 @@ export function registerTabsIpc(host: TabsIpcHost): void {
   })
   host.handleBrowserIpc('browser:focus-active-page', (event) => {
     host.assertTrustedSender(event)
-    host.tabs()!.focusActivePage(event.sender)
+    focusActivePage(host.tabs()!, event.sender)
   })
   host.handleBrowserIpc('browser:show-tab-context-menu', (event, tabId: unknown, selected: unknown) => {
     host.assertTrustedSender(event)

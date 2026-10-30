@@ -7,6 +7,15 @@ vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOrigi
   ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
   browserState: (browser: { getState: () => unknown }) => browser.getState()
 }))
+// Giving a page the keyboard back and the person's own tab switch are functions now; they reach the fake's stubs.
+vi.mock('../src/main/browser/trusted-chrome-focus/trusted-chrome-focus.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/trusted-chrome-focus/trusted-chrome-focus.js')>(),
+  focusPageAfterQuestion: (browser: { focusPageAfterQuestion: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.focusPageAfterQuestion(...args)
+}))
+vi.mock('../src/main/browser/tab-selection/person-tab-switch.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-selection/person-tab-switch.js')>(),
+  selectTabForPerson: (browser: { selectTabForPerson: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.selectTabForPerson(...args)
+}))
 
 // A page that asks before it is left kept itself open when an address was loaded in its tab: Electron cancels the load
 // as an abort, which navigate swallowed, so the address bar did nothing and browser_navigate reported success.

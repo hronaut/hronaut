@@ -8,12 +8,13 @@ import { cancelNativeSelectionSessions } from '../native-selections/native-selec
 import { holdTabHistory } from '../tab-history-pages/forget-tab-history-pages.js'
 import { withTabLabelLifecycle } from '../tab-labels/tab-labels.js'
 import { rememberClosedTab } from '../tab-reopening/tab-reopening.js'
-import { focusTabOrTrustedChrome } from '../trusted-chrome-focus/trusted-chrome-focus.js'
+import { focusTabOrTrustedChrome, focusPageAfterQuestion, keyboardPage } from '../trusted-chrome-focus/trusted-chrome-focus.js'
 import { detachDialogMonitoring, ensureDialogMonitoring } from '../website-dialogs/website-dialogs.js'
 import { attemptBeforeUnloadClose } from './before-unload-close.js'
 import { stageBeforeUnloadClose } from './before-unload-staging.js'
 import { closeTabTransition } from './close-transition.js'
 import { removeTabRecord } from './remove-tab-record.js'
+import { markTabActiveInGroup } from '../tab-selection/active-tab.js'
 
 const HRONAUT_HOME_URL = 'hronaut://home/'
 
@@ -148,7 +149,7 @@ async function performCloseTab(
     closingHistory = holdTabHistory(browser.navigationHistorySnapshot(tab))
     const navigationGeneration = tab.navigationGeneration
     // Taking the page out of view while it decides takes the keyboard from it, which it gets back only if it had it.
-    const pageHadKeyboard = browser.keyboardPage() === webContents
+    const pageHadKeyboard = keyboardPage(browser) === webContents
     stagedClose = stageBeforeUnloadClose(browser, tab)
     browser.expectedTabClosures.add(webContents)
     let disposition: 'closed' | 'prevented'
@@ -171,7 +172,7 @@ async function performCloseTab(
       // The question over the page takes the keyboard now; a page that had it gets it back once the person keeps it.
       stagedClose.rollback(false)
       const keepPage = (): void => {
-        if (pageHadKeyboard && !webContents.isDestroyed()) browser.focusPageAfterQuestion(webContents)
+        if (pageHadKeyboard && !webContents.isDestroyed()) focusPageAfterQuestion(browser, webContents)
       }
       if (!webContents.isDestroyed() && browser.tabs.get(tab.id) === tab) {
         await ensureDialogMonitoring(browser, tab)
@@ -235,7 +236,7 @@ async function performCloseTab(
         browser.tabSelectionGeneration += 1
         replacement.lastActiveAt = Date.now()
         browser.activeTabId = replacement.id
-        browser.markTabActiveInGroup(replacement)
+        markTabActiveInGroup(browser, replacement)
       }
     } else {
       browser.selectTab(nextId)

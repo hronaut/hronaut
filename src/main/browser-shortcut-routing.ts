@@ -6,6 +6,7 @@ import type { AgentPresenceSnapshot } from '../shared/agent-presence.js'
 import type { BrowserShortcutAction } from '../shared/browser-shortcuts.js'
 import { exitPageFullscreen } from './browser/page-fullscreen/page-fullscreen.js'
 import { listMcpTabGroups } from './browser/mcp-tab-groups/mcp-tab-groups.js'
+import { isHomeTab, shownTabIsHome } from './browser/home-tabs/home-tabs.js'
 
 interface BrowserShortcutRoutingHost {
   /** The take over offers, which a page's take over key asks and acts on. */
@@ -33,7 +34,7 @@ export function createBrowserShortcutRouting(host: BrowserShortcutRoutingHost): 
     // Ctrl/Cmd+Shift+O takes the page over only while an agent is working on it; the page keeps it otherwise.
     return action === 'take-over' ? host.takeOvers.available(tabId, workspaceId) !== undefined
       // Ctrl/Cmd+K is a common website key, such as for a site's own search, so websites keep it; Home does not use it.
-      : action === 'switch-workspace' ? browser?.isHomeTab(tabId) === true
+      : action === 'switch-workspace' ? browser !== null && isHomeTab(browser, tabId)
       // A page keeps a workspace key while there is no workspace for it to go to.
       : action === 'previous-workspace' ? (browser ? listMcpTabGroups(browser) : []).some((workspace) => workspace.id !== workspaceId)
       : action.startsWith('select-workspace-') ? pinnedWorkspaceAt(browser ? listMcpTabGroups(browser) : [], Number(action.slice(-1))) !== undefined
@@ -68,7 +69,8 @@ export function createBrowserShortcutRouting(host: BrowserShortcutRoutingHost): 
    * and the address bar's keys leave Home for a website tab, so from Home it is Hronaut's window instead.
    */
   function runPageNextPane(): void {
-    if (!host.tabs()?.shownTabIsHome()) {
+    const browser = host.tabs()
+    if (!browser || !shownTabIsHome(browser)) {
       runPageShortcut('focus-address')
       return
     }

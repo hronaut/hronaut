@@ -13,6 +13,8 @@ vi.mock('../src/main/browser/tab-overview-previews/tab-overview-previews.js', as
 import { Browser } from '../src/main/browser/browser.js'
 import { closeTabTransition } from '../src/main/browser/tab-close/close-transition.js'
 import { removeTabRecord } from '../src/main/browser/tab-close/remove-tab-record.js'
+import { newTab } from '../src/main/browser/new-tabs/open-new-tab.js'
+import { markTabActiveInGroup, writeActiveTabId } from '../src/main/browser/tab-selection/active-tab.js'
 
 // A new tab from + or Ctrl/Cmd+T, closed right away, showed the tab beside it (the workspace's last tab), where Chrome
 // shows the tab the person was on.
@@ -26,9 +28,6 @@ interface Internals {
   tabs: Map<string, Tab>
   mcpTabGroups: Map<string, { id: string; activeTabId: string | null; lastUsedAt: string }>
   createNewTab: (options: unknown, selectVisible: boolean, onCreated?: (tab: Tab) => void) => Promise<unknown>
-  newTab(options?: { active?: boolean; url?: string }, selectVisible?: boolean): Promise<unknown>
-  markTabActiveInGroup(tab: Tab): void
-  writeActiveTabId(tabId: string | null): void
 }
 
 const forgets = () => ({ forget: vi.fn() })
@@ -59,7 +58,7 @@ describe('a new tab the person opens', () => {
     manager.activeTabId = shown
     const created: Tab = { id: 'new', url: 'about:blank', pinned: false, mcpGroupId: workspace, webContents: { id: 9, isDestroyed: () => false } }
     manager.createNewTab = vi.fn(async (_options, _selectVisible, onCreated) => { onCreated?.(created) })
-    await manager.newTab(options, selectVisible)
+    await newTab(manager as never, options, selectVisible)
     return created
   }
 
@@ -97,12 +96,12 @@ describe('closing a new tab', () => {
     manager.activeTabId = 'new'
     manager.mcpTabGroups.get('work')!.activeTabId = 'new'
     // An agent's tab becomes its workspace's tab without showing, which leaves the shown new tab as it was.
-    manager.markTabActiveInGroup(manager.tabs.get('two')!)
-    manager.writeActiveTabId('new')
+    markTabActiveInGroup(manager as never, manager.tabs.get('two')! as never)
+    writeActiveTabId(manager as never, 'new')
     expect(manager.tabs.get('new')!.returnsToTabId).toBe('one')
-    manager.writeActiveTabId('two')
+    writeActiveTabId(manager as never, 'two')
     expect(manager.tabs.get('new')).not.toHaveProperty('returnsToTabId')
-    manager.writeActiveTabId('new')
+    writeActiveTabId(manager as never, 'new')
     expect(closeTabTransition(manager as never, manager.tabs.get('new')! as never).nextId).toBe('three')
   })
 

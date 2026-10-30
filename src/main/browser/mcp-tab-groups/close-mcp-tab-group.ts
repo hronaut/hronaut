@@ -1,16 +1,16 @@
-import { MAX_BROWSER_TABS, type BrowserTabGroupState } from '../../../shared/types.js'
+import { MAX_BROWSER_TABS, type BrowserState, type BrowserTabGroupState } from '../../../shared/types.js'
 import { LocalizedError } from '../../localized-error.js'
 import { persistedState, persistedTab } from '../browser-state/persisted-state.js'
-import { canonicalStorageId } from '../workspace-storage-deletion.js'
+import { canonicalStorageId, assertStorageDeletionOwnership } from '../workspace-storage-deletion.js'
 import { destroyWorkspaceStorage, workspacePartition } from '../workspace-storage.js'
 import type { Browser } from '../browser.js'
 import { withWorkspaceOperation } from '../workspace-operations/workspace-operations.js'
 import { withTabLabelLifecycle } from '../tab-labels/tab-labels.js'
 import { orderedTabs } from '../browser-core.js'
-import { publishChange } from '../browser-state/browser-state.js'
+import { browserState, publishChange } from '../browser-state/browser-state.js'
 import { listMcpTabGroups } from './mcp-tab-groups.js'
 import { closeTabs } from '../tab-close/close-tab.js'
-import { suspendWorkspaceContinuity } from '../workspace-continuity/workspace-continuity.js'
+import { suspendWorkspaceContinuity, retireWorkspaceContinuity } from '../workspace-continuity/workspace-continuity.js'
 
 /** Hronaut Home, which closing a workspace opens when it leaves no tab; the tab manager's Home address. */
 const HRONAUT_HOME_URL = 'hronaut://home/'
@@ -135,7 +135,7 @@ async function closeMcpTabGroupAfterLabelSave(browser: Browser, groupId: string,
       throw new LocalizedError('appErrors.workspace.tabStillOpen', { name: group.name })
     }
     if (!preserveStorage) {
-      await browser.assertStorageDeletionOwnership(groupId, group.storageId)
+      await assertStorageDeletionOwnership(browser, groupId, group.storageId)
       await destroyWorkspaceStorage(
         workspacePartition(browser.options.partition, group.storageId),
         browser.options.configureSession,
@@ -160,7 +160,7 @@ async function closeMcpTabGroupAfterLabelSave(browser: Browser, groupId: string,
   browser.mcpTabGroups.delete(groupId)
   if (!preserveStorage) browser.deletedWorkspaceStorageIds.add(canonicalStorageId(group.storageId)!)
   if (preserveStorage) suspendWorkspaceContinuity(browser, groupId)
-  else browser.retireWorkspaceContinuity(groupId)
+  else retireWorkspaceContinuity(browser, groupId)
   browser.options.onWorkspaceClosed?.(groupId)
   if (!preserveStorage) browser.options.onWorkspaceForgotten?.(groupId)
   browser.runWalletLifecycleAction('cancel wallet access after closing a workspace', () => (
@@ -178,4 +178,10 @@ async function closeMcpTabGroupAfterLabelSave(browser: Browser, groupId: string,
   publishChange(browser)
   if (!preserveStorage) await browser.store.save(() => persistedState(browser))
   return listMcpTabGroups(browser)
+}
+
+/** Closes the workspace, returning the browser's state after. */
+export async function closeWorkspace(browser: Browser, workspaceId: string): Promise<BrowserState> {
+  await closeMcpTabGroup(browser, workspaceId)
+  return browserState(browser)
 }

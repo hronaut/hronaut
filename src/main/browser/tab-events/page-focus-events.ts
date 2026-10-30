@@ -2,6 +2,7 @@ import { webContents as electronWebContents, type WebContents } from 'electron'
 import type { Browser } from '../browser.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { publishChange } from '../browser-state/browser-state.js'
+import { markTabActiveInGroup, writeActiveTabId } from '../tab-selection/active-tab.js'
 
 /**
  * Follows focus moving into the page. While trusted chrome covers the pages,
@@ -38,8 +39,8 @@ export function attachPageFocusEvents(browser: Browser, tab: BrowserTab, webCont
     // sibling is being restored. Human split-pane activation is handled by
     // the native mouse event below; explicit agent focus remains intentional.
     if (!browser.agentInputWebContents.has(webContents.id) || !browser.splitViewContains(tab.id) || browser.activeTabId === tab.id) return
-    browser.writeActiveTabId(tab.id)
-    browser.markTabActiveInGroup(tab)
+    writeActiveTabId(browser, tab.id)
+    markTabActiveInGroup(browser, tab)
     publishChange(browser)
   })
 }

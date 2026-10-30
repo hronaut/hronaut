@@ -6,6 +6,7 @@ import { focusTabOrTrustedChrome } from '../trusted-chrome-focus/trusted-chrome-
 import { findTab, getTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { browserState, publishChange } from '../browser-state/browser-state.js'
+import { markTabActiveInGroup, writeActiveTabId } from './active-tab.js'
 
 /** How a tab is selected. */
 export interface BrowserTabSelectionOptions {
@@ -61,7 +62,7 @@ export async function selectAgentTabAndWait(browser: Browser, tabId: string): Pr
   if (tab.webContents.isDestroyed()) {
     throw new Error('This tab renderer is no longer available. Close the tab and reopen it from Recently closed.')
   }
-  browser.markTabActiveInGroup(tab)
+  markTabActiveInGroup(browser, tab)
   publishChange(browser)
   return browserState(browser)
 }
@@ -87,8 +88,8 @@ export function selectTab(browser: Browser, tabId: string, options: BrowserTabSe
   if (next.sleeping) void browser.wakeTab(next.id).catch((error) => console.error('[browser] Could not wake selected tab:', error))
   if (browser.splitView && browser.splitViewContains(tabId)) {
     exitPageFullscreenCovering(browser, next.id)
-    browser.writeActiveTabId(next.id)
-    browser.markTabActiveInGroup(next)
+    writeActiveTabId(browser, next.id)
+    markTabActiveInGroup(browser, next)
     browser.layout()
     if (options.focus !== false) focusTabOrTrustedChrome(browser, next)
     publishChange(browser)
@@ -110,8 +111,8 @@ export function selectTab(browser: Browser, tabId: string, options: BrowserTabSe
     browser.window.contentView.removeChildView(current.view)
   }
   if (current?.id !== next.id) browser.window.contentView.addChildView(next.view)
-  browser.writeActiveTabId(next.id)
-  browser.markTabActiveInGroup(next)
+  writeActiveTabId(browser, next.id)
+  markTabActiveInGroup(browser, next)
   browser.layout()
   if (options.focus !== false) focusTabOrTrustedChrome(browser, next)
   publishChange(browser)

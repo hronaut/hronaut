@@ -25,6 +25,11 @@ vi.mock('../src/main/browser/workspace-data/workspace-data.js', async (importOri
   workspaceSession: (browser: { workspaceSession: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.workspaceSession(...args),
   withWorkspaceSiteDataCleanup: (browser: { withWorkspaceSiteDataCleanup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.withWorkspaceSiteDataCleanup(...args)
 }))
+// Forgetting history pages is a function now; the hosts' tests below reach the fake's stub, and the tab manager's own test runs the real one.
+vi.mock('../src/main/browser/tab-history-pages/forget-history-pages.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-history-pages/forget-history-pages.js')>(),
+  forgetHistoryPages: (browser: { forgetHistoryPages: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.forgetHistoryPages(...args)
+}))
 
 const temporaryDirectories: string[] = []
 
@@ -86,7 +91,7 @@ describe('recently closed tabs and the history', () => {
       state: { bookmarks: null, history },
       sendToShellWindows: vi.fn(),
       mcpServer: () => null,
-      tabs: () => tabs,
+      tabs: () => tabs as never,
       offerUndo: vi.fn()
     })
     await runtime.agentHistory.clear()
@@ -107,7 +112,7 @@ describe('recently closed tabs and the history', () => {
       state: { bookmarks: null, history },
       sendToShellWindows: vi.fn(),
       mcpServer: () => null,
-      tabs: () => tabs,
+      tabs: () => tabs as never,
       offerUndo: vi.fn()
     })
     const guide = history.list().find((entry) => entry.url === 'https://docs.example/guide')!
@@ -266,7 +271,8 @@ describe('recently closed tabs and the history', () => {
 })
 
 describe('the tab manager forgetting recently closed tabs', () => {
-  it('publishes the state, without saving the session, only when it forgets one, also one held aside', () => {
+  it('publishes the state, without saving the session, only when it forgets one, also one held aside', async () => {
+    const { forgetHistoryPages } = await vi.importActual<typeof import('../src/main/browser/tab-history-pages/forget-history-pages.js')>('../src/main/browser/tab-history-pages/forget-history-pages.js')
     const reopening = [closedTab('https://bank.example/statement')]
     const changed = vi.fn()
     const internals = {
@@ -276,15 +282,15 @@ describe('the tab manager forgetting recently closed tabs', () => {
       changed
     }
     const manager = Object.assign(Object.create(Browser.prototype), internals) as Browser
-    manager.forgetHistoryPages((url) => url.startsWith('https://mail.example/'))
+    forgetHistoryPages(manager, (url) => url.startsWith('https://mail.example/'))
     expect(changed).not.toHaveBeenCalled()
 
     // A tab held aside while it reopens is forgotten too, so it cannot come back.
-    manager.forgetHistoryPages((url) => url === 'https://bank.example/statement')
+    forgetHistoryPages(manager, (url) => url === 'https://bank.example/statement')
     expect(reopening).toEqual([])
     expect(changed).toHaveBeenCalledExactlyOnceWith(false)
 
-    manager.forgetHistoryPages((url) => url.startsWith('https://bank.example/'))
+    forgetHistoryPages(manager, (url) => url.startsWith('https://bank.example/'))
     expect(internals.closedTabs.map((tab) => tab.url)).toEqual(['https://news.example/'])
     expect(changed).toHaveBeenCalledTimes(2)
     expect(changed).toHaveBeenLastCalledWith(false)

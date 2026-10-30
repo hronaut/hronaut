@@ -110,7 +110,7 @@ import { captureAgentStepThumbnail } from './browser/agent-step-thumbnail/agent-
 import { initializeBrowser } from './browser/browser-lifecycle/initialize-browser.js'
 import { browserState } from './browser/browser-state/browser-state.js'
 import { browserImportDestination, importBrowserCookies } from './browser/workspace-data/browser-cookie-import.js'
-import { withholdFocusAfterTrustedChrome } from './browser/trusted-chrome-focus/trusted-chrome-focus.js'
+import { withholdFocusAfterTrustedChrome, keyboardPage, focusPageAfterQuestion } from './browser/trusted-chrome-focus/trusted-chrome-focus.js'
 import { windowFullScreenToSave } from './browser/page-fullscreen/page-fullscreen.js'
 import { applySiteMutingToTabs } from './browser/site-muting/site-muting.js'
 import { handleMcpTabActivity } from './browser/agent-follow/agent-follow.js'
@@ -185,9 +185,9 @@ const trustedDialogs = createTrustedDialogs({
   mainWindow: () => mainWindowRefs.window,
   quitting: () => appQuitState.quitting,
   showNativeMessageBox: (window, options) => window ? dialog.showMessageBox(window, options) : dialog.showMessageBox(options),
-  keyboardPage: () => tabRuntime.tabs?.keyboardPage() ?? null,
+  keyboardPage: () => tabRuntime.tabs ? keyboardPage(tabRuntime.tabs) : null,
   // Only a page in view gets it back; the shell keeps its own focus on the control it restores.
-  returnKeyboard: (page) => tabRuntime.tabs?.focusPageAfterQuestion(page),
+  returnKeyboard: (page) => tabRuntime.tabs ? focusPageAfterQuestion(tabRuntime.tabs, page) : undefined,
   withholdKeyboard: () => tabRuntime.tabs ? withholdFocusAfterTrustedChrome(tabRuntime.tabs) : undefined
 })
 const addressSuggestionOverlay = createAddressSuggestionOverlay({
@@ -830,7 +830,7 @@ function registerIpc(): void {
     assertTrustedShellSender,
     senderWindow: (event) => BrowserWindow.fromWebContents(event.sender),
     mainWindow: () => mainWindowRefs.window,
-    focusAskingPage: (event) => tabRuntime.tabs?.focusPageAfterQuestion(event.sender),
+    focusAskingPage: (event) => tabRuntime.tabs ? focusPageAfterQuestion(tabRuntime.tabs, event.sender) : undefined,
     showDialog: (options) => trustedDialogs.show(options),
     text
   })
@@ -866,7 +866,7 @@ function registerIpc(): void {
     openExternal: (url) => shell.openExternal(url),
     mcpPortRecovery: () => mcpPortRecovery,
     showDialog: (options) => trustedDialogs.show(options),
-    focusAskingPage: (event) => tabRuntime.tabs?.focusPageAfterQuestion(event.sender),
+    focusAskingPage: (event) => tabRuntime.tabs ? focusPageAfterQuestion(tabRuntime.tabs, event.sender) : undefined,
     text
   })
   registerPageGeometryIpc({

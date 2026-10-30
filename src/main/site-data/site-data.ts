@@ -6,6 +6,7 @@ import type { HistoryStore } from '../bookmarks-history/history-store.js'
 import type { SiteDataOperations, SiteDataType } from '../mcp/server.js'
 import type { BrowsingDataSiteSummary } from '../../shared/types.js'
 import { withWorkspaceSiteDataCleanup, workspaceSession } from '../browser/workspace-data/workspace-data.js'
+import { forgetHistoryPages } from '../browser/tab-history-pages/forget-history-pages.js'
 
 function closedTabOrigin(url: string): string | undefined {
   try {
@@ -80,7 +81,8 @@ export function createSiteData(host: SiteDataHost): {
         await store.clearOrigin(site.origin)
         // The website's pages in the workspace's Recently closed tabs and in its tabs' Back and Forward lists go with its
         // history, as in Chrome; other workspaces' tabs are not the agent's to change.
-        host.tabs()?.forgetHistoryPages((url) => closedTabOrigin(url) === site.origin, workspaceId)
+        const browser = host.tabs()
+        if (browser) forgetHistoryPages(browser, (url) => closedTabOrigin(url) === site.origin, workspaceId)
         host.publishVisitHistory()
       }
       if (selected.has('cookies-and-storage') && selected.has('cache')) {

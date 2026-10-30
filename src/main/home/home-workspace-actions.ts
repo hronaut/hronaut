@@ -3,6 +3,9 @@ import { HOME_CARD_ICON_MAX_LENGTH, HOME_CARD_TAB_LIMIT, type HomeWorkspaceActio
 import { closeWorkspaceForPerson, restoreSavedTabGroup, updateArchivedWorkspacePreferences, archiveWorkspaceForPerson, deleteSavedTabGroup } from '../browser/workspace-archive/workspace-archive.js'
 import { updateMcpTabGroup } from '../browser/mcp-tab-groups/mcp-tab-groups.js'
 import { browserState } from '../browser/browser-state/browser-state.js'
+import { openHome } from '../browser/home-tabs/home-tabs.js'
+import { closeWorkspace } from '../browser/mcp-tab-groups/close-mcp-tab-group.js'
+import { newTab } from '../browser/new-tabs/open-new-tab.js'
 
 export function homeWorkspaceState(manager: Browser): HomeWorkspaceState {
   const state = browserState(manager)
@@ -55,9 +58,9 @@ export async function runHomeWorkspaceAction(
       else if (active) {
         const tabId = active.activeTabId ?? state.tabs.find(tab => tab.mcpGroupId === active.id)?.id
         if (tabId) manager.selectTab(tabId)
-        else await manager.newTab({ mcpGroupId: active.id, active: true })
+        else await newTab(manager, { mcpGroupId: active.id, active: true })
       }
-      if (request.view === 'restore') await manager.openHome()
+      if (request.view === 'restore') await openHome(manager)
       break
     case 'archive':
       if (state.allHumanInteractionLocked && state.tabs.some(tab => tab.mcpGroupId === request.workspaceId)) throw new Error('Unlock the browser before archiving a workspace.')
@@ -69,7 +72,7 @@ export async function runHomeWorkspaceAction(
       if (request.undoable !== undefined && typeof request.undoable !== 'boolean') throw new TypeError('Invalid workspace action')
       // With Undo it is archived and deleted once Undo ends; Home asked first when the archive had no room for that.
       if (request.undoable) await closeWorkspaceForPerson(manager, request.workspaceId)
-      else await manager.closeWorkspace(request.workspaceId)
+      else await closeWorkspace(manager, request.workspaceId)
       break
     case 'delete':
       if (state.allHumanInteractionLocked) throw new Error('Unlock the browser before deleting a workspace.')

@@ -6,6 +6,7 @@ import type { McpPortRecovery } from './mcp-port-suggestion.js'
 import type { ConnectedAgent } from '../../shared/agent-status.js'
 import type { McpControlState, McpServerStatus } from '../../shared/types.js'
 import { setAllAgentsPaused } from '../browser/agent-pause/agent-pause.js'
+import { notifyHomeChanged } from '../browser/home-tabs/home-tabs.js'
 
 interface McpControlStateHost {
   /** The person's lasting pause and the temporary pauses a password or cookie fill holds; the MCP runtime and Home read it too. */
@@ -68,7 +69,10 @@ export function createMcpControlState(host: McpControlStateHost): {
     const state = currentMcpControlState()
     host.sendToShellWindows('mcp:changed', state)
     if (refreshHome) host.refreshHomeAfterCommittedChange('mcp')
-    else host.tabs()?.notifyHomeChanged()
+    else {
+      const browser = host.tabs()
+      if (browser) notifyHomeChanged(browser)
+    }
     return state
   }
 

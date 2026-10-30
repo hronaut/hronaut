@@ -4,7 +4,7 @@ import { orderedTabs } from '../browser-core.js'
 import { publishChange } from '../browser-state/browser-state.js'
 import type { Browser } from '../browser.js'
 import { closeMcpTabGroupInternal } from '../mcp-tab-groups/close-mcp-tab-group.js'
-import { requireMcpTabGroup } from '../mcp-tab-groups/mcp-tab-groups.js'
+import { requireMcpTabGroup, assertWorkspaceNameAvailable } from '../mcp-tab-groups/mcp-tab-groups.js'
 import { createTab } from '../new-tabs/create-tab.js'
 import { assertActiveWorkspaceCapacity } from '../workspace-creation/workspace-capacity.js'
 import { withSavedWorkspaceOperation, withWorkspaceOperation } from '../workspace-operations/workspace-operations.js'
@@ -21,7 +21,7 @@ export function createWorkspaceRegistry(browser: Browser): WorkspaceRegistry {
     tabs: () => orderedTabs(browser),
     requireActive: id => requireMcpTabGroup(browser, id),
     assertRestoreCapacity: (name, id) => {
-      browser.assertWorkspaceNameAvailable(name, undefined, id, true)
+      assertWorkspaceNameAvailable(browser, name, undefined, id, true)
       assertActiveWorkspaceCapacity(browser)
     },
     withActiveOperation: (id, action, run) => withWorkspaceOperation(browser, id, action, run),

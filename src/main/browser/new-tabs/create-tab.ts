@@ -29,6 +29,7 @@ import { roundPageCorners } from '../window-layout/window-layout.js'
 import { workspaceObservationGeneration } from '../workspace-continuity/workspace-continuity.js'
 import { assertWorkspaceNavigationAllowed } from '../workspace-navigation/workspace-navigation.js'
 import { workspacePartition } from '../workspace-storage.js'
+import { assertCanCreateTab, pageWebPreferences } from './tab-admission.js'
 
 const HRONAUT_HOME_URL = 'hronaut://home/'
 const ABORTED_LOAD_ERROR = -3
@@ -115,7 +116,7 @@ export async function createTab(browser: Browser, options: {
   onCreated?: (tab: BrowserTab) => void
   onCreationAttempt?: () => void
 }): Promise<BrowserTab> {
-  browser.assertCanCreateTab(options.mcpGroupId, options.allowBusyWorkspace === true)
+  assertCanCreateTab(browser, options.mcpGroupId, options.allowBusyWorkspace === true)
   const id = options.id ?? uuidV7()
   const url = normalizeAddress(options.url, browser.options.getSearchEngine?.())
   // The window open handler checked the address of a page opened for a window, and its navigation is checked too.
@@ -136,7 +137,7 @@ export async function createTab(browser: Browser, options: {
     : new WebContentsView({
       webPreferences: {
         partition,
-        ...browser.pageWebPreferences(),
+        ...pageWebPreferences(),
         // Construction-time only: switching a live view back to shared mode can
         // write its level into the origin zoom map.
         ...(options.zoomIsolated === true && !isHronautHomeUrl(url) ? { zoomMode: 'isolated' } : {}),

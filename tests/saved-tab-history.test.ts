@@ -7,6 +7,7 @@ import { Browser } from '../src/main/browser/browser.js'
 import { historyAroundShownPage, savedTabHistories, savedTabHistory, TabHistoryStore } from '../src/main/browser/saved-tab-history/saved-tab-history.js'
 import type { NavigationHistorySnapshot } from '../src/main/browser/navigation-history.js'
 import type { BrowserWorkspaceNavigationPolicy } from '../src/shared/types.js'
+import { forgetHistoryPages } from '../src/main/browser/tab-history-pages/forget-history-pages.js'
 
 vi.mock('electron', () => ({
   session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => tmpdir() }, powerMonitor: { on: () => undefined }
@@ -281,7 +282,7 @@ describe('the tab manager saving the tabs\' history', () => {
         save: async (histories: (previous: ReadonlyMap<string, NavigationHistorySnapshot>) => ReadonlyMap<string, NavigationHistorySnapshot> | undefined) => { saved.push(histories(new Map())) }
       }
     }) as Browser
-    manager.forgetHistoryPages((url) => url === page('a'))
+    forgetHistoryPages(manager, (url) => url === page('a'))
     await vi.waitFor(() => expect(saved).toHaveLength(1))
     expect(saved[0]).toEqual(new Map([[TAB_ID, history(['b'], 0)]]))
     expect((manager as unknown as { tabHistoryStore: { forgetPages: ReturnType<typeof vi.fn> } }).tabHistoryStore.forgetPages)
