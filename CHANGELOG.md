@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [3.14.2] - 2026-10-30
+
 ### Fixed
 
 - When the computer's clock was set back while Hronaut ran, such as on Linux when a clock kept in local time is corrected soon after Hronaut opened at login, an agent that had just finished a step showed as working, and an agent that quit stayed listed as connected, for as long as the clock was set back, often an hour. Set forward, agents disappeared at once. Both now keep their own times, and the steps an agent took still show the time they happened.
