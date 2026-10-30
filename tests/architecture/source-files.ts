@@ -27,7 +27,10 @@ export function lineCount(path: string): number {
 /** The module the guards parsed last, since a guard often asks two questions of the same file in a row. */
 let lastParsed: { fileName: string; code: string; source: ts.SourceFile } | undefined
 
-/** A module's syntax tree, parsed once for the questions asked of it in a row. */
+/**
+ * A module's syntax tree, parsed once for the questions asked of it in a row. It has no parent nodes and is never bound,
+ * so a question that needs either, as pageFunctionModuleUses does, parses on its own.
+ */
 function parsedModule(code: string, fileName: string): ts.SourceFile {
   if (lastParsed?.fileName === fileName && lastParsed.code === code) return lastParsed.source
   const source = ts.createSourceFile(fileName, code, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS)
