@@ -1,4 +1,4 @@
-import { continuityMarkerScript, readContinuityMarker } from '../../../shared/workspace-continuity-marker.js'
+import { continuityMarkerScript, readContinuityMarker, validateContinuityMarkerSelector } from '../../../shared/workspace-continuity-marker.js'
 import { browserPostconditionScript, type BrowserPostcondition } from '../../../shared/post-write-postcondition.js'
 import {
   browserReconciliationScript,
@@ -172,7 +172,7 @@ export async function readBrowserReconciliation(browser: Browser, workspaceId: s
  */
 export async function armWorkspaceContinuity(browser: Browser, workspaceId: string, markerSelector?: string, validateCurrent: () => void = () => undefined): Promise<string> {
   if (browser.continuityActions.has(workspaceId)) throw new LocalizedError('appErrors.continuity.checkpointPending')
-  if (markerSelector !== undefined) continuityMarkerScript(markerSelector)
+  if (markerSelector !== undefined) validateContinuityMarkerSelector(markerSelector)
   const revision = browser.continuityRevision
   const { evidence, pageSettled } = await currentWorkspaceContinuity(browser, workspaceId, markerSelector)
   if (browser.continuityActions.has(workspaceId) || revision !== browser.continuityRevision) throw new LocalizedError('appErrors.continuity.controlChanged')

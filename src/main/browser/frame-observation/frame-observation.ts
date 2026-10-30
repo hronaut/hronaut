@@ -1,10 +1,15 @@
-import { javascriptLiteral } from '../../../shared/javascript-literal.js'
 import { randomUUID } from 'node:crypto'
 import type { WebContents } from 'electron'
 import { FRAME_OBSERVATION_LIMITS, type BrowserFrameSnapshot, type FrameObservationOmission } from '../../../shared/frame-observation.js'
 import { redactDiagnosticText } from '../../../shared/debug-report.js'
 import { FrameProvenance, type ObservedFrame } from './frame-provenance.js'
-import { frameObservationScript, frameSelectorScript } from './frame-observation-script.js'
+import {
+  frameObservationCheckScript,
+  frameObservationReadScript,
+  frameObservationScript,
+  frameReleaseScript,
+  frameSelectionScript
+} from './frame-observation-script.js'
 import { RendererExitedError } from '../renderer-exit-guard.js'
 interface Target { page: WebContents; identity: object; workspace: object | undefined; generation: number; observationGeneration: number; permissionGeneration: number }
 interface Host {
@@ -96,7 +101,7 @@ export class FrameObservationController {
       // Keep the slot quarantined until cleanup really finishes or the page dies.
       void this.host.run(page.id, async () => {
         if (page.isDestroyed()) { clearSlot(); return }
-        if (contextId !== undefined) await evaluate(`(()=>{const h=this[${javascriptLiteral(key)}];if(h)h.close();delete this[${javascriptLiteral(key)}];return true})()`)
+        if (contextId !== undefined) await evaluate(frameReleaseScript(key))
         await send('Runtime.releaseObjectGroup', { objectGroup: group })
         clearSlot()
       }).catch(error => {
@@ -130,7 +135,7 @@ export class FrameObservationController {
         if (!uniqueContextId) throw unavailable('isolated-context-identity')
         assertCurrent()
         stage = 'selection'
-        const object = await evaluate(`this[${javascriptLiteral(key)}]={frame:${frameSelectorScript(selector)},close:()=>{}};this[${javascriptLiteral(key)}].frame`, false)
+        const object = await evaluate(frameSelectionScript(key, selector), false)
         if (!object?.objectId) throw unavailable()
         const described = await send<{node:{frameId?:string;backendNodeId:number}}>('DOM.describeNode', { objectId: object.objectId, depth: 0, pierce: false })
         if (!described.node.frameId) throw unavailable()
@@ -140,9 +145,9 @@ export class FrameObservationController {
         stage = 'child-provenance'
         if (owner.backendNodeId !== described.node.backendNodeId || !child || current.frameTree.frame.loaderId !== parent.loaderId || !history.pair(parent,child)) throw unavailable()
         stage = 'viewport-or-sop'
-        await evaluate(`this[${javascriptLiteral(key)}]=${frameObservationScript(selector,maxChars,`this[${javascriptLiteral(key)}].frame`)};true`)
+        await evaluate(frameObservationScript(key, selector, maxChars))
         stage = 'collection'
-        const raw = (await evaluate(`this[${javascriptLiteral(key)}].read()`))?.value as {text?:unknown;omissions?:unknown}
+        const raw = (await evaluate(frameObservationReadScript(key)))?.value as {text?:unknown;omissions?:unknown}
         if (!raw || typeof raw.text !== 'string' || raw.text.length > maxChars || !Array.isArray(raw.omissions)
           || raw.omissions.some(v => !omissions.includes(v))) throw unavailable()
         assertCurrent()
@@ -165,7 +170,7 @@ export class FrameObservationController {
               // Release remote handles BEFORE the final renderer check. The private
               // world owns the bounded guard until that last check closes it.
               await send('Runtime.releaseObjectGroup', { objectGroup: group })
-              const valid = (await evaluate(`(()=>{const h=this[${javascriptLiteral(key)}];const ok=!!h&&h.check();if(h)h.close();delete this[${javascriptLiteral(key)}];return ok})()`))?.value
+              const valid = (await evaluate(frameObservationCheckScript(key)))?.value
               if (valid !== true) throw unavailable()
               assertCurrent(); clearSlot()
             }))

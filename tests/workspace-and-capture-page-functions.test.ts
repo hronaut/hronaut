@@ -75,10 +75,15 @@ describe('the workspace storage, wait, screenshot, scroll, full screen, favicon 
     stub(document.documentElement, 'scrollHeight', 60)
     await expect(run<Promise<unknown>>(pageScript(screenshotTargetClipInPage, { selector: '#shot' }, targetElementInPage, missing, hidden)))
       .resolves.toEqual({ x: 0, y: 20, width: 90, height: 40 })
+    // A scrolled page moves the element's place in the document by the scroll offsets.
+    stub(window, 'scrollX', 30)
+    stub(window, 'scrollY', 5)
+    await expect(run<Promise<unknown>>(pageScript(screenshotTargetClipInPage, { selector: '#shot' }, targetElementInPage, missing, hidden)))
+      .resolves.toEqual({ x: 20, y: 25, width: 100, height: 35 })
 
     stub(window, 'innerWidth', 800)
     stub(window, 'innerHeight', 600)
-    expect(run(pageScript(screenshotClipInPage, { x: 10, y: 20, width: 100, height: 50 }))).toEqual({ x: 10, y: 20, width: 100, height: 50 })
+    expect(run(pageScript(screenshotClipInPage, { x: 10, y: 20, width: 100, height: 50 }))).toEqual({ x: 40, y: 25, width: 100, height: 50 })
     expect(() => run(pageScript(screenshotClipInPage, { x: 750, y: 0, width: 100, height: 50 }))).toThrow('Screenshot clip must fit inside the visible viewport.')
   })
 
@@ -88,6 +93,9 @@ describe('the workspace storage, wait, screenshot, scroll, full screen, favicon 
     stub(document, 'scrollingElement', document.documentElement)
     expect(run(pageScript(scrollTargetInPage, null, 5, 600, targetElementInPage))).toEqual({ x: 0, y: 0 })
     expect(pageScroll).toHaveBeenCalledWith({ left: 5, top: 600, behavior: 'instant' })
+    // A target that is the page's scrolling element scrolls the window too.
+    run(pageScript(scrollTargetInPage, { selector: 'html' }, 2, 3, targetElementInPage))
+    expect(pageScroll).toHaveBeenLastCalledWith({ left: 2, top: 3, behavior: 'instant' })
     document.body.innerHTML = '<div id="list"></div>'
     const list = document.querySelector('#list')!
     const listScroll = vi.fn()
