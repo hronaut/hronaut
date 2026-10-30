@@ -1,15 +1,10 @@
-import { runInNewContext } from 'node:vm'
 import { expect, it } from 'vitest'
-import { frameObservationScript } from '../src/main/browser/frame-observation/frame-observation-script.js'
+import { frameLinkInPage } from '../src/main/browser/frame-observation/frame-observation.page.js'
+import type { FrameObservationOmission } from '../src/shared/frame-observation.js'
 
-/** The link sanitizer of the frame observation script, as its source carries it. */
+/** The link sanitizer the frame observation script runs, for a link in a frame at https://frame.example/page. */
 function frameLinkSanitizer(): (href: string) => string {
-  const source = frameObservationScript('iframe', 1_000, 'expectedFrame')
-  const sanitizer = /const safeUrl=(node=>\{[\s\S]*?\n {6}\});\n {6}const append=/u.exec(source)?.[1]
-  if (!sanitizer) throw new Error('The frame observation script has no link sanitizer')
-  return href => runInNewContext(`(${sanitizer})(node)`, {
-    node: { getAttribute: () => href }, child: { baseURI: 'https://frame.example/page' }, omissions: new Set(), URL
-  }) as string
+  return href => frameLinkInPage({ getAttribute: () => href } as unknown as Element, 'https://frame.example/page', new Set<FrameObservationOmission>())
 }
 
 it('redacts keys, session ids and signatures in the links of a same-origin frame', () => {

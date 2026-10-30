@@ -1,9 +1,8 @@
 import { createServer } from 'node:http'
 import type { BrowserReproRecording, HronautApi } from '../../src/shared/types.js'
-import { reproCheckpointScript } from '../../src/main/browser/repro-recorder/repro-checkpoint-script.js'
-import { renderedVisibilityInPage } from '../../src/main/browser/rendered-visibility.page.js'
+import { reproCheckpointInPage } from '../../src/main/browser/repro-recorder/repro-checkpoint.page.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
-import { aroundPageFunction } from './page-script-parts.js'
+import { pageScriptStart } from './page-script-parts.js'
 
 test('times out a held checkpoint response without blocking Stop or recording a late expectation', async ({ appWindow, electronApp }) => {
   const server = createServer((_request, response) => {
@@ -28,12 +27,12 @@ test('times out a held checkpoint response without blocking Stop or recording a 
       state.__checkpointRestore = () => { page.executeJavaScript = original }
       page.executeJavaScript = async function (...args) {
         const result = await original.apply(this, args)
-        if (typeof args[0] !== 'string' || !args[0].startsWith(input.script.before) || !args[0].endsWith(input.script.after)) return result
+        if (typeof args[0] !== 'string' || !args[0].startsWith(input.script)) return result
         page.executeJavaScript = original
         await new Promise<void>(resolve => { state.__checkpointRelease = resolve; state.__checkpointHeld = true })
         return result
       }
-    }, { url, script: aroundPageFunction(reproCheckpointScript(checkpoint), renderedVisibilityInPage) })
+    }, { url, script: pageScriptStart(reproCheckpointInPage) })
     await appWindow.evaluate(({ tabId, checkpoint }) => {
       const state = globalThis as typeof globalThis & { __checkpointOutcome?: { ok: boolean; error?: string } }
       void (window as unknown as { hronaut: HronautApi }).hronaut.manageRepro('checkpoint', tabId, checkpoint).then(

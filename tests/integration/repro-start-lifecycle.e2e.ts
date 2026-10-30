@@ -1,7 +1,8 @@
 import { createServer } from 'node:http'
 import type { BrowserReproRecording, BrowserState } from '../../src/shared/types.js'
-import { reproScrollScript } from '../../src/main/browser/repro-recorder/repro-page-scripts.js'
+import { reproScrollInPage } from '../../src/main/browser/repro-recorder/repro-page.page.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
+import { pageScriptStart } from './page-script-parts.js'
 
 for (const action of ['clear', 'stop', 'restart', 'navigate', 'close'] as const) {
   test(`does not resurrect a pending reproduction recording after ${action}`, async ({ appWindow, electronApp }) => {
@@ -34,7 +35,7 @@ for (const action of ['clear', 'stop', 'restart', 'navigate', 'close'] as const)
         testState.__reproStartRestore = () => { page.executeJavaScript = original }
         page.executeJavaScript = async function (...args) {
           const result = await original.apply(this, args)
-          if (args[0] !== input.script) return result
+          if (!args[0].startsWith(input.script)) return result
           page.executeJavaScript = original
           await new Promise<void>(resolve => {
             testState.__reproStartRelease = resolve
@@ -42,7 +43,7 @@ for (const action of ['clear', 'stop', 'restart', 'navigate', 'close'] as const)
           })
           return result
         }
-      }, { url, script: reproScrollScript() })
+      }, { url, script: pageScriptStart(reproScrollInPage) })
       pending = appWindow.evaluate(`window.hronaut.manageRepro('start', ${JSON.stringify(tabId)}).then(
         () => ({ ok: true }), error => ({ ok: false, error: String(error) })
       )`)
