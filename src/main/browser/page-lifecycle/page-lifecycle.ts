@@ -1,4 +1,5 @@
 import type { BrowserPageLifecycleResult, BrowserPageLifecycleState, BrowserState } from '../../../shared/types.js'
+import { pageScript } from '../../../shared/page-script.js'
 import { LocalizedError } from '../../localized-error.js'
 import { isHronautHomeUrl } from '../url.js'
 import type { Browser } from '../browser.js'
@@ -6,21 +7,12 @@ import { findTab, getTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { showResumedPresentedView, reconcileTabPresentation } from '../presented-view-visibility.js'
 import { browserState, publishChange } from '../browser-state/browser-state.js'
+import { holdPageAnimationsInPage, restorePageAnimationsInPage } from './page-lifecycle.page.js'
 
 const PAGE_LIFECYCLE_COMMAND_TIMEOUT_MS = 5_000
 
-const HOLD_PAGE_ANIMATIONS_SCRIPT = `(() => {
-  try {
-    return Array.from(document.getAnimations()).slice(0, 10000).map(animation => {
-      const record = {
-        currentTime: animation.currentTime,
-        playbackRate: animation.playbackRate
-      };
-      animation.playbackRate = 0;
-      return record;
-    });
-  } catch { return []; }
-})()`
+// At most this many of a page's animations are held while it is frozen.
+const MAX_HELD_ANIMATIONS = 10_000
 
 /**
  * Reports the tab's page lifecycle state without changing it, with the next
@@ -141,8 +133,8 @@ async function controlPageLifecycleInternal(
     if (requestedState === 'frozen') {
       dispatched = true
       let records: unknown = []
-      try { records = await webContents.executeJavaScript(HOLD_PAGE_ANIMATIONS_SCRIPT, false) } catch { /* best effort */ }
-      const validRecords = Array.isArray(records) && records.length <= 10_000 && !records.some(record => {
+      try { records = await webContents.executeJavaScript(pageScript(holdPageAnimationsInPage, MAX_HELD_ANIMATIONS), false) } catch { /* best effort */ }
+      const validRecords = Array.isArray(records) && records.length <= MAX_HELD_ANIMATIONS && !records.some(record => {
         if (!record || typeof record !== 'object') return true
         const candidate = record as { currentTime?: unknown; playbackRate?: unknown }
         return (candidate.currentTime !== null && (
@@ -163,18 +155,7 @@ async function controlPageLifecycleInternal(
       if (backgroundThrottling) webContents.setBackgroundThrottling(false)
       try {
         await new Promise(resolve => setTimeout(resolve, 34))
-        await webContents.executeJavaScript(`(() => {
-            try {
-              const records = ${JSON.stringify(records)};
-              const animations = Array.from(document.getAnimations());
-              for (let index = 0; index < records.length; index += 1) {
-                const animation = animations[index];
-                if (!animation) continue;
-                animation.playbackRate = records[index].playbackRate;
-                animation.currentTime = records[index].currentTime;
-              }
-            } catch { /* Animation restoration is best effort for adversarial pages. */ }
-          })()`, false)
+        await webContents.executeJavaScript(pageScript(restorePageAnimationsInPage, records), false)
       } finally {
         if (backgroundThrottling) webContents.setBackgroundThrottling(true)
       }

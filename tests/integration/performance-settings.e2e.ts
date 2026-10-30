@@ -243,7 +243,7 @@ for (const interruption of ['tab activation', 'disabling Memory Saver', 'changin
         Object.defineProperty(page, 'executeJavaScript', {
           configurable: true,
           value: (code: string, userGesture?: boolean) => {
-            if (code.includes('window.__hronautContentEditableDirty === true')) {
+            if (code.includes('function formStateChangedInPage(')) {
               control.started = true
               return new Promise<boolean>((resolve) => {
                 control.release = () => resolve(false)

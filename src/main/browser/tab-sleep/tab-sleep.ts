@@ -1,6 +1,7 @@
 import type { Event, WebContents } from 'electron'
 import type { MessageKey } from '../../../shared/i18n.js'
 import type { BrowserState } from '../../../shared/types.js'
+import { pageScript } from '../../../shared/page-script.js'
 import { LocalizedError } from '../../localized-error.js'
 import { pageLoadTimedOut } from '../http-auth/http-auth.js'
 import { ISOLATED_WORLDS } from '../isolated-worlds.js'
@@ -12,6 +13,7 @@ import { firstLoadStarts, RendererExitedError } from '../renderer-exit-guard.js'
 import { holdTabHistory } from '../tab-history-pages/forget-tab-history-pages.js'
 import { isHronautHomeUrl, isWebUrl } from '../url.js'
 import { SLEEPING_PAGE_URL } from './sleeping-page.js'
+import { formStateChangedInPage, pictureInPictureShownInPage } from './tab-sleep.page.js'
 import type { Browser } from '../browser.js'
 import { ensureDialogMonitoring } from '../website-dialogs/website-dialogs.js'
 import { findTab, getTab, orderedTabs } from '../browser-core.js'
@@ -432,33 +434,7 @@ export function sleepBlockReason(browser: Browser, tab: BrowserTab, allowActiveT
  * Whether one document holds form input the person changed, including fields inside open shadow roots, or edited
  * content its watcher recorded.
  */
-const CHANGED_FORM_STATE_SCRIPT = `(() => {
-    const changed = (field) => {
-      if (field instanceof HTMLInputElement) {
-        const type = (field.getAttribute('type') || 'text').toLowerCase();
-        if (['button', 'submit', 'reset', 'image', 'hidden'].includes(type)) return false;
-        if (type === 'checkbox' || type === 'radio') return field.checked !== field.defaultChecked;
-        if (type === 'file') return (field.files?.length || 0) > 0;
-        return field.value !== field.defaultValue;
-      }
-      if (field instanceof HTMLTextAreaElement) return field.value !== field.defaultValue;
-      if (field instanceof HTMLSelectElement) {
-        if (field.multiple) return [...field.options].some((option) => option.selected !== option.defaultSelected);
-        const explicitDefault = [...field.options].findIndex((option) => option.defaultSelected);
-        const defaultIndex = explicitDefault >= 0 ? explicitDefault : field.options.length > 0 ? 0 : -1;
-        return field.selectedIndex !== defaultIndex;
-      }
-      return false;
-    };
-    const roots = [document];
-    for (let index = 0; index < roots.length; index += 1) {
-      for (const element of roots[index].querySelectorAll('*')) {
-        if (changed(element)) return true;
-        if (element.shadowRoot) roots.push(element.shadowRoot);
-      }
-    }
-    return window.__hronautContentEditableDirty === true;
-  })()`
+const CHANGED_FORM_STATE_SCRIPT = pageScript(formStateChangedInPage)
 
 /** How long an embedded frame has to answer the page checks, so a busy or vanishing frame cannot hold up sleeping. */
 const FRAME_CHECK_TIMEOUT_MS = 1_000
@@ -467,7 +443,7 @@ const FRAME_CHECK_TIMEOUT_MS = 1_000
  * Whether a video of the document shows in Picture in picture, or the document opened a Picture in picture window of
  * its own; a video in a shadow root shows as its root's host. A document without these APIs shows none.
  */
-const PICTURE_IN_PICTURE_SCRIPT = "document.pictureInPictureElement != null || (typeof documentPictureInPicture === 'object' && documentPictureInPicture?.window != null)"
+const PICTURE_IN_PICTURE_SCRIPT = pageScript(pictureInPictureShownInPage)
 
 /**
  * What in the page keeps the tab awake, as the message saying so, or undefined when nothing does: form input the person

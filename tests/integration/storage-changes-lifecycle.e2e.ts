@@ -71,7 +71,7 @@ test('does not restore a storage baseline captured before a newer clear', async 
       mainGlobal.__hronautRestoreStorageCapture = () => { page.executeJavaScript = originalExecuteJavaScript }
       page.executeJavaScript = async (code: string, userGesture?: boolean) => {
         const value = await originalExecuteJavaScript(code, userGesture)
-        if (!code.includes('const fingerprint = (value) =>')) return value
+        if (!code.includes('function storageSnapshotInPage(')) return value
         mainGlobal.__hronautStorageCaptureHeld = true
         await gate
         page.executeJavaScript = originalExecuteJavaScript

@@ -1,10 +1,12 @@
 import { redactNetworkUrl } from '../../../shared/network-details.js'
+import { pageScript } from '../../../shared/page-script.js'
 import { snapshotDeltaInvalidationReason } from '../../../shared/snapshot-delta.js'
 import type { BrowserStorageOptions, BrowserStorageResult } from '../../../shared/types.js'
 import type { CookieWriteHooks } from '../cookie-write-operation.js'
 import { boundStorageItems } from '../storage-items.js'
 import { executeWebStorage, WebStorageInputError, type WebStorageHooks } from '../web-storage-operation.js'
 import { manageCookies } from './cookies.js'
+import { webStorageInPage, type WebStorageAnswer } from './manage-storage.page.js'
 import type { Browser } from '../browser.js'
 import { findTab, getTab } from '../browser-core.js'
 
@@ -71,31 +73,10 @@ export async function manageStorage(browser: Browser, options: BrowserStorageOpt
   }
   webStorageHooks?.retainPublication(assertCurrent)
   const storageName = options.kind === 'local-storage' ? 'localStorage' : 'sessionStorage'
-  const raw = await executeWebStorage(['set', 'delete', 'clear'].includes(action), assertCurrent, () => contents.executeJavaScript(`(() => {
-      if (window.location.href !== ${JSON.stringify(pageUrl.href)}) {
-        return { pageChanged: true };
-      }
-      const storage = window[${JSON.stringify(storageName)}];
-      const action = ${JSON.stringify(action)};
-      const key = ${JSON.stringify(key)};
-      const value = ${JSON.stringify(options.value)};
-      let changed = false;
-      if (action === 'set') { storage.setItem(key, value); changed = true; }
-      else if (action === 'delete') { changed = storage.getItem(key) !== null; storage.removeItem(key); }
-      else if (action === 'clear') { changed = storage.length > 0; storage.clear(); }
-      const items = [];
-      if (action === 'get') {
-        const itemValue = storage.getItem(key);
-        if (itemValue !== null) items.push([key, itemValue]);
-      } else {
-        for (let index = 0; index < storage.length; index += 1) {
-          const itemKey = storage.key(index);
-          if (itemKey !== null) items.push([itemKey, storage.getItem(itemKey) ?? '']);
-        }
-        items.sort((left, right) => left[0].localeCompare(right[0]));
-      }
-      return { changed, itemCount: storage.length, items };
-    })()`, false), webStorageHooks?.progress) as { pageChanged: true } | { changed: boolean; itemCount: number; items: Array<[string, string]> }
+  const raw = await executeWebStorage(['set', 'delete', 'clear'].includes(action), assertCurrent, () => contents.executeJavaScript(
+    pageScript(webStorageInPage, pageUrl.href, storageName, action, key, options.value),
+    false
+  ), webStorageHooks?.progress) as WebStorageAnswer
   if ('pageChanged' in raw) throw new Error('The page changed before the storage operation. Run a fresh operation.')
   const bounded = boundStorageItems(raw.items, options.includeValues === true || action === 'get')
   return {
