@@ -509,11 +509,19 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     if (reading) readAgain = true
     else void refresh()
   }
+  // Main answers a read at once. A read with no answer by then counts as failed, so the next one still comes and Home
+  // never stops showing what agents do; it would otherwise wait for that read forever.
+  const READ_LIMIT_MS = 10_000
   async function read(): Promise<void> {
+    if (signal.aborted) return
     void workspaces.refresh()
     const sequence = ++requestSequence
+    const attempt = new AbortController()
+    const abandon = (): void => attempt.abort()
+    signal.addEventListener('abort', abandon, { once: true })
+    const limit = later(abandon, READ_LIMIT_MS)
     try {
-      const response = await load('hronaut://home/api/status', { cache: 'no-store', signal })
+      const response = await load('hronaut://home/api/status', { cache: 'no-store', signal: attempt.signal })
       if (!response.ok) throw new Error('Local status unavailable')
       const next = await response.json() as HomeDashboard
       if (signal.aborted || sequence !== requestSequence) return
@@ -525,6 +533,9 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
       renderStatus(element('server-state'), 'error', messages.status.unavailable)
       text('server-detail', messages.status.reconnecting); text('active-count', messages.status.unavailable); text('request-count', messages.status.reconnecting); text('connection-note', messages.journey.unavailable)
       text('connection-probe', messages.journey.unavailable)
+    } finally {
+      clearTimeout(limit); timers.delete(limit)
+      signal.removeEventListener('abort', abandon)
     }
   }
   async function poll(): Promise<void> { await refresh(); if (!signal.aborted) later(() => void poll(), 2000) }

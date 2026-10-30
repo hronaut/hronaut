@@ -3,6 +3,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { connectMcpWorkspace } from '../../scripts/mcp-workspace.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { test, expect, text } from './capability-fixtures.js'
+import { homeStatus } from './home-status.js'
 
 type Gate = { baselineListeners: number; reads: number; settlements: number; cleanups: number; finishedCleanups: number; releaseReads(): void; releaseCleanup(): void; restore(): void }
 type Scope = typeof globalThis & { __imageSlotGate?: Gate }
@@ -72,12 +73,8 @@ test('actual sizing client disconnect retains native work and cleanup ownership'
     const receipt = await electronApp.evaluate(() => { const s = (globalThis as Scope).__imageSlotGate!; return { reads: s.reads, cleanups: s.cleanups, finishedCleanups: s.finishedCleanups, settlements: s.settlements } })
     await info.attach('native-slot-lifetime', { body: JSON.stringify(receipt), contentType: 'application/json' })
     expect(receipt).toEqual({ reads: 8, cleanups: 8, finishedCleanups: 8, settlements: 0 })
-    const activity = await electronApp.evaluate(async ({ webContents }) => {
-      const home = webContents.getAllWebContents().find(p => p.getURL().startsWith('hronaut://home'))!
-      const response = await home.session.fetch('hronaut://home/api/status')
-      const state = await response.json() as { recentActivity: Array<{ toolName: string; result: { outcome: string; effects: string } }> }
-      return state.recentActivity.filter(item => item.toolName === 'browser_element_inspect')
-    })
+    const state = await homeStatus<{ recentActivity: Array<{ toolName: string; result: { outcome: string; effects: string } }> }>(electronApp)
+    const activity = state.recentActivity.filter(item => item.toolName === 'browser_element_inspect')
     expect(activity).toHaveLength(11)
     expect(activity.every(item => item.result.outcome !== 'succeeded' && item.result.effects === 'none')).toBe(true)
     expect(activity.filter(item => item.result.outcome === 'cancelled')).toHaveLength(8)

@@ -2,6 +2,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { HronautApi } from '../../src/shared/types.js'
 import { test, expect, text } from './capability-fixtures.js'
 import { setupHoldPage, observeHold, holdObservation, restoreHold, type HoldScope } from './key-hold-fixture.js'
+import { homeStatus } from './home-status.js'
 
 for (const phase of ['before-down', 'held'] as const) for (const change of ['pause-aba', 'global-pause-aba', 'access-aba', 'selection-aba', 'route', 'navigation', 'close', 'cancel', 'tab-lock', 'global-lock', 'lock-aba', 'child-frame'] as const) {
   test(`key hold rejects ${change} ${phase} and contains cleanup`, async ({ capabilities, electronApp, appWindow }, testInfo) => {
@@ -64,11 +65,10 @@ for (const phase of ['before-down', 'held'] as const) for (const change of ['pau
       if (phase === 'before-down') await electronApp.evaluate(() => (globalThis as HoldScope).holdProbe!.release())
       const result = await pending
       await locking // A lock request must succeed within its existing preparation budget.
-      const activity = () => electronApp.evaluate(async ({ webContents }, id) => {
-        const home = webContents.getAllWebContents().find(p => p.getURL().startsWith('hronaut://home'))!
-        const state = await (await home.session.fetch('hronaut://home/api/status')).json() as { recentActivity: Array<{ toolName: string; tabId: string; result: { outcome: string; effects: string; dispatch: string } }> }
-        return state.recentActivity.filter(a => a.toolName === 'browser_hold_key' && a.tabId === id)
-      }, tabId)
+      const activity = async () => {
+        const state = await homeStatus<{ recentActivity: Array<{ toolName: string; tabId: string; result: { outcome: string; effects: string; dispatch: string } }> }>(electronApp)
+        return state.recentActivity.filter(a => a.toolName === 'browser_hold_key' && a.tabId === tabId)
+      }
       await expect.poll(activity).toHaveLength(1)
       const terminal = (await activity())[0]!.result
       expect(terminal).toMatchObject({ effects: phase === 'held' ? 'possible' : 'none', dispatch: phase === 'held' ? 'dispatched' : 'not-dispatched' })

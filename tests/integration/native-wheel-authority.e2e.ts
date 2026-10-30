@@ -2,6 +2,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { HronautApi } from '../../src/shared/types.js'
 import { test, expect, text } from './capability-fixtures.js'
 import { waitForSettledPageBounds } from './settled-page-bounds.js'
+import { homeStatus } from './home-status.js'
 
 type WheelGate = { held: boolean; commands: string[]; release: () => void; restore: () => void }
 type WheelScope = typeof globalThis & { wheelGate?: WheelGate }
@@ -108,11 +109,10 @@ for (const change of ['unchanged', 'zoom-aba', 'selection-aba', 'bounds-aba', 'p
       await locking
       // Cancellation can settle the transport before the server. Observe the
       // terminal activity from the trusted Home endpoint before checking input.
-      await expect.poll(() => electronApp.evaluate(async ({ webContents }, id) => {
-        const home = webContents.getAllWebContents().find(p => p.getURL().startsWith('hronaut://home'))!
-        const state = await (await home.session.fetch('hronaut://home/api/status')).json() as { recentActivity: Array<{ toolName: string; tabId: string }> }
-        return state.recentActivity.filter(activity => activity.toolName === 'browser_wheel' && activity.tabId === id).length
-      }, tabId)).toBe(1)
+      await expect.poll(async () => {
+        const state = await homeStatus<{ recentActivity: Array<{ toolName: string; tabId: string }> }>(electronApp)
+        return state.recentActivity.filter(activity => activity.toolName === 'browser_wheel' && activity.tabId === tabId).length
+      }).toBe(1)
       const commands = await electronApp.evaluate(() => (globalThis as WheelScope).wheelGate!.commands)
       await testInfo.attach('wheel-authority', { body: JSON.stringify({ change, result, commands }), contentType: 'application/json' })
       expect(result.isError === true, text(result)).toBe(change !== 'unchanged')

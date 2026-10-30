@@ -5,21 +5,16 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { HronautApi } from '../../src/shared/types.js'
 import { expect, test, text } from './capability-fixtures.js'
 import { closeFixtureServer } from './fixtures.js'
+import { homeStatus } from './home-status.js'
 
 type ClickGate = { ready: boolean; presses: number; releases: number; ignores: boolean[]; documentListeners: number; release(): void; restore(): void }
 type ClickGlobal = typeof globalThis & { __clickAuthorityGate?: ClickGate }
 
 async function clickActivities(app: ElectronApplication, tabId: string): Promise<McpToolActivity[]> {
-  return app.evaluate(async ({ webContents }, id) => {
-    const home = webContents.getAllWebContents().find(page => page.getURL().startsWith('hronaut://home'))
-    if (!home) throw new Error('Missing Home session for activity observation')
-    // Pause/resume reloads Home asynchronously. Read the same protocol snapshot
-    // through its owning session, independent of the replaced renderer context.
-    const response = await home.session.fetch('hronaut://home/api/status')
-    if (!response.ok) throw new Error(`Activity observation failed: ${response.status}`)
-    const state = await response.json() as { recentActivity: McpToolActivity[] }
-    return state.recentActivity.filter(activity => activity.toolName === 'browser_click' && activity.tabId === id)
-  }, tabId)
+  // Pause/resume reloads Home asynchronously. Read the same protocol snapshot
+  // through its owning session, independent of the replaced renderer context.
+  const state = await homeStatus<{ recentActivity: McpToolActivity[] }>(app)
+  return state.recentActivity.filter(activity => activity.toolName === 'browser_click' && activity.tabId === tabId)
 }
 
 const cases = [

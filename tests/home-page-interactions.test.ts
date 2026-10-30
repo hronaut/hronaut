@@ -793,3 +793,43 @@ describe('Home tool-reference search terms', () => {
     expect(document.activeElement).toBe(search)
   })
 })
+
+describe('Home status reads', () => {
+  it('counts a read with no answer after 10 s as failed and keeps reading, so Home never stops updating', async () => {
+    mounted?.dispose()
+    const html = renderHomePage({ endpoint: state.endpoint, initialState: state, locale: 'en-US' })
+    document.documentElement.innerHTML = html
+    Object.defineProperty(window, 'hronautHome', { configurable: true, value: {} })
+    const data = JSON.parse(document.querySelector('#home-bootstrap')!.textContent!) as HomeBootstrap
+    // The first read never gets an answer; the next ones do.
+    const signals: AbortSignal[] = []
+    const load = vi.fn((_url: string, init: RequestInit) => {
+      signals.push(init.signal!)
+      if (load.mock.calls.length > 1) return Promise.resolve({ ok: true, json: async () => ({ ...state, totalRequests: 7 }) })
+      return new Promise((_resolve, reject) => init.signal!.addEventListener('abort', () => reject(new Error('Aborted'))))
+    })
+    mounted = mountHome(data, {} as HronautHomeApi, load as unknown as typeof fetch)
+    await vi.advanceTimersByTimeAsync(9_999)
+    expect(load).toHaveBeenCalledOnce()
+    expect(document.querySelector('#server-state')?.textContent).not.toMatch(/unavailable/i)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(signals[0]!.aborted).toBe(true)
+    expect(document.querySelector('#server-state')?.textContent).toMatch(/unavailable/i)
+    await vi.advanceTimersByTimeAsync(2_000)
+    expect(load).toHaveBeenCalledTimes(2)
+    expect(document.querySelector('#server-state')?.textContent).not.toMatch(/unavailable/i)
+    // A read that is answered stops its limit, so it is not aborted 10 s later.
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(load.mock.calls.length).toBeGreaterThan(2)
+    expect(signals.slice(1).some(read => read.aborted)).toBe(false)
+    // Closing Home leaves no timer behind, and a read that ended no longer follows Home's lifetime.
+    mounted.dispose()
+    expect(vi.getTimerCount()).toBe(0)
+    expect(signals.slice(1).some(read => read.aborted)).toBe(false)
+    // A refresh asked for once Home is closed reads nothing.
+    const reads = load.mock.calls.length
+    await mounted.refresh()
+    expect(load).toHaveBeenCalledTimes(reads)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+})

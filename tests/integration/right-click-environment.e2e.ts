@@ -1,6 +1,7 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { HronautApi } from '../../src/shared/types.js'
 import { test, expect, text } from './capability-fixtures.js'
+import { homeStatus } from './home-status.js'
 
 type RightGate = { held: boolean; commands: string[]; release: () => void; restore: () => void }
 type RightScope = typeof globalThis & { rightClickGate?: RightGate }
@@ -94,16 +95,14 @@ for (const change of ['unchanged', 'zoom-aba', 'selection-aba', 'bounds-aba', 'p
       const result = await pending
       // Cancellation can settle the transport before the server. Observe the
       // terminal activity from the trusted Home endpoint before checking input.
-      await expect.poll(() => electronApp.evaluate(async ({ webContents }, id) => {
-        const home = webContents.getAllWebContents().find(p => p.getURL().startsWith('hronaut://home'))!
-        const state = await (await home.session.fetch('hronaut://home/api/status')).json() as { recentActivity: Array<{ toolName: string; tabId: string }> }
-        return state.recentActivity.filter(activity => activity.toolName === 'browser_click' && activity.tabId === id).length
-      }, tabId)).toBe(1)
-      if (change === 'cancel') await expect.poll(() => electronApp.evaluate(async ({ webContents }, id) => {
-        const home = webContents.getAllWebContents().find(page => page.getURL().startsWith('hronaut://home'))!
-        const state = await (await home.session.fetch('hronaut://home/api/status')).json() as { recentActivity: Array<{ toolName: string; tabId: string; result: unknown }> }
-        return state.recentActivity.find(row => row.toolName === 'browser_click' && row.tabId === id)?.result
-      }, tabId)).toMatchObject({ outcome: 'cancelled', reasonCode: 'REQUEST_CANCELLED', effects: 'possible' })
+      await expect.poll(async () => {
+        const state = await homeStatus<{ recentActivity: Array<{ toolName: string; tabId: string }> }>(electronApp)
+        return state.recentActivity.filter(activity => activity.toolName === 'browser_click' && activity.tabId === tabId).length
+      }).toBe(1)
+      if (change === 'cancel') await expect.poll(async () => {
+        const state = await homeStatus<{ recentActivity: Array<{ toolName: string; tabId: string; result: unknown }> }>(electronApp)
+        return state.recentActivity.find(row => row.toolName === 'browser_click' && row.tabId === tabId)?.result
+      }).toMatchObject({ outcome: 'cancelled', reasonCode: 'REQUEST_CANCELLED', effects: 'possible' })
       const commands = await electronApp.evaluate(() => (globalThis as RightScope).rightClickGate!.commands)
       await testInfo.attach('rightClick-authority', { body: JSON.stringify({ change, result, commands }), contentType: 'application/json' })
       expect(result.isError === true, text(result)).toBe(change !== 'unchanged')

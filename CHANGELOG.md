@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - Since 3.14.2, when a form you sent could not reach its website, such as while the computer was offline, Hronaut loaded the form's address again by itself a second later, without what the form sent, so the tab showed whatever that address shows, such as the empty form, instead of the failure. As in Chrome, a page a form sent is no longer loaded again by itself.
+- When one of Home's status reads never got an answer, Home stopped updating: the dashboard, the connected agents and their recent steps stayed as they were until Home was reloaded. Home now counts a read with no answer after 10 seconds as failed, shows that it is reconnecting and reads again 2 seconds later.
 
 ## [3.14.2] - 2026-10-30
 
