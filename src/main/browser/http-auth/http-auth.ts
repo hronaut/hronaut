@@ -85,7 +85,7 @@ interface SignInGuard {
   refusing: boolean
   /**
    * When the person, or an agent's input, last clicked or pressed a key in the tab's page, until a page used it up; on the
-   * monotonic clock, so that a clock set back after a click does not let the page count as the person's for an hour.
+   * monotonic clock, so that a clock set back after a click does not let a page count as the person's for that long.
    */
   activatedAt: number
   /** The page opening in the tab now, or the one it shows once it opened; none after a Cancel left its page refusing. */
