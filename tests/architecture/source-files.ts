@@ -24,13 +24,24 @@ export function lineCount(path: string): number {
   return text.length === 0 ? 0 : text.split('\n').length - (text.endsWith('\n') ? 1 : 0)
 }
 
+/** The module the guards parsed last, since a guard often asks two questions of the same file in a row. */
+let lastParsed: { fileName: string; code: string; source: ts.SourceFile } | undefined
+
+/** A module's syntax tree, parsed once for the questions asked of it in a row. */
+function parsedModule(code: string, fileName: string): ts.SourceFile {
+  if (lastParsed?.fileName === fileName && lastParsed.code === code) return lastParsed.source
+  const source = ts.createSourceFile(fileName, code, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS)
+  lastParsed = { fileName, code, source }
+  return source
+}
+
 /**
  * What a module imports or re-exports from for its code: the static `import` and `export ... from` declarations,
  * leaving out those of types only, which the build drops (`consistent-type-imports` marks them).
  */
 export function runtimeSpecifiers(code: string, fileName = 'module.ts'): string[] {
   const specifiers: string[] = []
-  for (const statement of ts.createSourceFile(fileName, code, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS).statements) {
+  for (const statement of parsedModule(code, fileName).statements) {
     if (ts.isImportDeclaration(statement) && !importsTypesOnly(statement.importClause)) specifiers.push(textOf(statement.moduleSpecifier))
     if (ts.isExportDeclaration(statement) && statement.moduleSpecifier && !exportsTypesOnly(statement)) specifiers.push(textOf(statement.moduleSpecifier))
   }
@@ -40,7 +51,7 @@ export function runtimeSpecifiers(code: string, fileName = 'module.ts'): string[
 /** The names a module imports or re-exports from one package for its code, leaving out types and the default export. */
 export function runtimeNamesFrom(code: string, specifier: string, fileName = 'module.ts'): string[] {
   const names: string[] = []
-  for (const statement of ts.createSourceFile(fileName, code, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS).statements) {
+  for (const statement of parsedModule(code, fileName).statements) {
     if (ts.isImportDeclaration(statement) && textOf(statement.moduleSpecifier) === specifier && !statement.importClause?.isTypeOnly) {
       const bindings = statement.importClause?.namedBindings
       if (bindings && ts.isNamedImports(bindings)) names.push(...bindings.elements.filter(element => !element.isTypeOnly).map(element => (element.propertyName ?? element.name).text))
@@ -74,7 +85,7 @@ export function literalIpcChannels(code: string, fileName = 'module.ts'): string
     }
     ts.forEachChild(node, visit)
   }
-  visit(ts.createSourceFile(fileName, code, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS))
+  visit(parsedModule(code, fileName))
   return channels
 }
 
@@ -87,7 +98,7 @@ export function declaredIpcChannels(code: string, fileName = 'channels.ts'): str
     }
     ts.forEachChild(node, visit)
   }
-  visit(ts.createSourceFile(fileName, code, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS))
+  visit(parsedModule(code, fileName))
   return channels
 }
 
@@ -101,7 +112,7 @@ export function writtenIpcChannels(code: string, declared: ReadonlySet<string>, 
     if ((ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) && declared.has(node.text)) channels.push(node.text)
     ts.forEachChild(node, visit)
   }
-  visit(ts.createSourceFile(fileName, code, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS))
+  visit(parsedModule(code, fileName))
   return channels
 }
 
@@ -141,7 +152,7 @@ export function untypedIpcUses(code: string, fileName = 'module.ts'): string[] {
     }
     ts.forEachChild(node, visit)
   }
-  visit(ts.createSourceFile(fileName, code, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS))
+  visit(parsedModule(code, fileName))
   return uses
 }
 
