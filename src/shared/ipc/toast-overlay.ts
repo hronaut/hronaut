@@ -13,7 +13,7 @@ export const TOAST_OVERLAY_IPC = {
 export const TOAST_OVERLAY_VIEW_IPC = {
   /** Main → view: the toast to draw and the width to lay it out at. */
   state: 'toast-overlay-view:state' as EventChannel<[state: ToastOverlayState]>,
-  /** View → main: the toast's measured size, for the same revision. */
+  /** View → main: the toast's measured height, for the same revision. */
   measured: 'toast-overlay-view:measured' as SendChannel<[measurement: ToastOverlayMeasurement]>,
   /** View → main: a click or hover on the toast. */
   message: 'toast-overlay-view:message' as SendChannel<[message: ToastOverlayMessage]>

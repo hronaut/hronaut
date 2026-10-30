@@ -74,7 +74,7 @@ export interface AddressSuggestionSelection {
   action?: 'switch-tab'
 }
 
-/** The address field's suggestions, which main draws over the page; the main window's shell only. */
+/** The address field's suggestions, which main draws over the page; main takes these only from the main window's shell. */
 export interface HronautAddressOverlayApi {
   show(request: AddressSuggestionOverlayRequest): void
   hide(): void

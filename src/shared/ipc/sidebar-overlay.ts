@@ -15,7 +15,7 @@ export const SIDEBAR_OVERLAY_IPC = {
   show: 'sidebar-overlay:show' as SendChannel<[request: SidebarOverlayRequest]>,
   /** Shell → main: closes the rail opened with this id. */
   hide: 'sidebar-overlay:hide' as SendChannel<[id: number]>,
-  /** Main → shell: what happened to the rail: shown, refused, taken down, the pointer, or what the person did. */
+  /** Main → shell: what happened to the rail: shown, cannot be shown, taken down, the pointer, or what the person did. */
   event: 'sidebar-overlay:event' as EventChannel<[event: SidebarOverlayEvent]>
 } as const
 
@@ -29,7 +29,7 @@ export const SIDEBAR_OVERLAY_VIEW_IPC = {
   pointer: 'sidebar-overlay-view:pointer' as SendChannel<[pointer: SidebarOverlayPointer]>,
   /** View → main: what the person did in the rail. */
   intent: 'sidebar-overlay-view:intent' as SendChannel<[intent: SidebarOverlayIntent]>,
-  /** View → main: shows a control's tooltip beside it, as the shell's are shown. */
+  /** View → main: shows a control's tooltip beside it while the rail shows, as the shell's are shown. */
   tooltipShow: 'sidebar-overlay-view:tooltip-show' as SendChannel<[request: ShellTooltipRequest]>,
   /** View → main: hides the rail's tooltip with this id, or the rail's tooltip shown when none is given. */
   tooltipHide: 'sidebar-overlay-view:tooltip-hide' as SendChannel<[id?: number]>

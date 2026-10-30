@@ -11,7 +11,7 @@ export const ADDRESS_OVERLAY_IPC = {
   returnFocus: 'address-overlay:return-focus' as SendChannel<[]>,
   /** Main → shell: the person chose a suggestion. */
   selected: 'address-overlay:selected' as EventChannel<[selection: AddressSuggestionSelection]>,
-  /** Main → shell: the suggestions view of this session is gone, so nothing shows its suggestions any more. */
+  /** Main → shell: the suggestions view of this session is gone; main ignores show until the shell hides them. */
   dismissed: 'address-overlay:dismissed' as EventChannel<[sessionId: number]>
 } as const
 

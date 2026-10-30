@@ -1,9 +1,12 @@
 import type { AgentCardEvent, AgentCardMeasurement, AgentCardShowRequest, AgentCardState, AgentCardViewMessage } from '../agent-card.js'
 import type { EventChannel, SendChannel } from './channel.js'
 
-/** The agent card, which main draws in its own view above the page views, for the main window's shell. */
+/**
+ * The agent card under an agent's avatar, which main draws in its own view above the page views, for the main window's
+ * shell.
+ */
 export const AGENT_CARD_IPC = {
-  /** Shell → main: shows a card beside an agent's avatar; the same card id updates an open card. */
+  /** Shell → main: shows a card under an agent's avatar; the same card id updates an open card. */
   show: 'agent-card:show' as SendChannel<[request: AgentCardShowRequest]>,
   /** Shell → main: hides the card with this id. */
   hide: 'agent-card:hide' as SendChannel<[cardId: number]>,
