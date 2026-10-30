@@ -1,4 +1,4 @@
-import { javascriptLiteral } from '../../shared/javascript-literal.js'
+import { javascriptLiteral } from '../../../shared/javascript-literal.js'
 /** Runs only in a private parent isolated world, never in a child's main world. */
 export function frameObservationScript(selector: string, maxChars: number, expected: string): string {
   return String.raw`(() => {

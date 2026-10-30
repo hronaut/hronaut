@@ -78,7 +78,7 @@ browser access, sender authorization, and image/clipboard adapters; the extracte
 module retains argument checks and result forwarding. This keeps native setup
 out of focused boundary tests without moving browser authority into the renderer.
 
-Reproduction recording now lives in `src/main/browser/repro-recorder.ts`.
+Reproduction recording now lives in `src/main/browser/repro-recorder/repro-recorder.ts`.
 Public actions, pending start/stop ownership, input queues, scroll debounce,
 navigation updates, and cleanup move together. `Browser` retains tab
 lookup, workspace authority, and native event wiring; it supplies current-tab and
@@ -86,7 +86,7 @@ agent-input checks plus state-change notification. Existing navigation, clear,
 restart, closure, and concurrent-stop regression suites cover this boundary.
 
 DOM recording now has a matching focused module in
-`src/main/browser/dom-recorder.ts`. It owns isolated-world execution and request
+`src/main/browser/dom-recorder/dom-recorder.ts`. It owns isolated-world execution and request
 ordering, while the manager retains authoritative tab lookup and navigation
 cleanup. The eleven lifecycle regressions cover obsolete pages, later actions,
 and refresh results arriving out of order. Six focused unit cases additionally
@@ -337,7 +337,7 @@ commit, and detached panels retain their separate open-state behavior.
   timing, failed responses, and emulation isolation. Cases use the normal
   45-second deadline and can be sharded independently.
 - Extracted coverage, CPU profiling, and memory sampling into
-  `src/main/browser/profiling-controller.ts`. The browser manager still owns
+  `src/main/browser/profiling/profiling-controller.ts`. The browser manager still owns
   tab lookup, debugger leases, navigation preparation, and state publication;
   the controller preserves tab identity and generation checks for pending memory
   measurements. Continue extracting cohesive responsibilities incrementally.

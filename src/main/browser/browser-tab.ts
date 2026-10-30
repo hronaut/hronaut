@@ -16,12 +16,12 @@ import type {
   BrowserVisualSnapshot
 } from '../../shared/types.js'
 import type { BrowserConsoleMessageRecord, ConsoleCapture } from './console-messages/console-messages.js'
-import type { BrowserDomRecordingState } from './dom-recorder.js'
-import type { BrowserLiveRegionRecordingState } from './live-region-recorder.js'
+import type { BrowserDomRecordingState } from './dom-recorder/dom-recorder.js'
+import type { BrowserLiveRegionRecordingState } from './live-region-recorder/live-region-recorder.js'
 import type { BrowserNetworkRouteRecord } from './network-conditions/network-conditions.js'
 import type { BrowserNetworkRecordingState } from './network-recording.js'
-import type { BrowserProfilingState } from './profiling-controller.js'
-import type { BrowserReproRecordingInternal } from './repro-recorder.js'
+import type { BrowserProfilingState } from './profiling/profiling-controller.js'
+import type { BrowserReproRecordingInternal } from './repro-recorder/repro-recorder.js'
 import type { TabDiscoveryTitle } from './tab-discovery-title.js'
 import type { TakeOverMark } from './take-over.js'
 

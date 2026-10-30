@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto'
-import { reproCheckpointSchema } from '../../shared/repro-checkpoint.js'
+import { reproCheckpointSchema } from '../../../shared/repro-checkpoint.js'
 import { reproCheckpointScript } from './repro-checkpoint-script.js'
 import type { WebContents, WebContentsView } from 'electron'
-import type { BrowserReproAction, BrowserReproRecording, BrowserReproStep, BrowserReproTarget } from '../../shared/types.js'
-import { redactDiagnosticText } from '../../shared/debug-report.js'
-import { redactNetworkUrl } from '../../shared/network-details.js'
+import type { BrowserReproAction, BrowserReproRecording, BrowserReproStep, BrowserReproTarget } from '../../../shared/types.js'
+import { redactDiagnosticText } from '../../../shared/debug-report.js'
+import { redactNetworkUrl } from '../../../shared/network-details.js'
 import {
   REPRO_NAVIGATION_PREFIXES,
   REPRO_UNRESOLVED_ACTION,
@@ -13,9 +13,9 @@ import {
   reproInputText,
   reproKeyText,
   reproScrollText
-} from '../../shared/repro-step-text.js'
+} from '../../../shared/repro-step-text.js'
 import { reproScrollScript, reproTargetScript } from './repro-page-scripts.js'
-import { isHronautHomeUrl } from './url.js'
+import { isHronautHomeUrl } from '../url.js'
 
 const MAX_REPRO_STEPS = 200
 const REPRO_PAGE_READ_TIMEOUT_MS = 5_000

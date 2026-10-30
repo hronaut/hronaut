@@ -1,14 +1,14 @@
 import type { WebContents } from 'electron'
-import type { BrowserLiveRegionAction, BrowserLiveRegionReport } from '../../shared/types.js'
+import type { BrowserLiveRegionAction, BrowserLiveRegionReport } from '../../../shared/types.js'
 import {
   LIVE_REGION_ERRORS,
   LIVE_REGION_LIMITS,
   liveRegionPageScript,
   type LiveRegionErrorCode
-} from '../../shared/live-region.js'
-import { redactNetworkUrl } from '../../shared/network-details.js'
-import { isHronautHomeUrl } from './url.js'
-import { ISOLATED_WORLDS } from './isolated-worlds.js'
+} from '../../../shared/live-region.js'
+import { redactNetworkUrl } from '../../../shared/network-details.js'
+import { isHronautHomeUrl } from '../url.js'
+import { ISOLATED_WORLDS } from '../isolated-worlds.js'
 
 const LIVE_REGION_WORLD_ID = ISOLATED_WORLDS.liveRegion
 

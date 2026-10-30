@@ -77,7 +77,7 @@ vi.mock('../src/main/browser/tab-events/attach-tab-events.js', () => ({
   attachTabEvents: (browser: { attachTabEvents: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.attachTabEvents(...args)
 }))
 const { Browser } = await import('../src/main/browser/browser.js')
-const { WorkspaceRegistry } = await import('../src/main/browser/workspace-registry.js')
+const { WorkspaceRegistry } = await import('../src/main/browser/workspace-registry/workspace-registry.js')
 const { closeTabsForPerson } = await import('../src/main/browser/tab-close/close-tabs-for-person.js')
 const { rememberClosedTab, reopenClosedTabEntry } = await import('../src/main/browser/tab-reopening/tab-reopening.js')
 

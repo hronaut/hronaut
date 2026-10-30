@@ -1,9 +1,9 @@
 import type { WebContents } from 'electron'
-import type { BrowserDomChangesAction, BrowserDomChangesReport } from '../../shared/types.js'
-import { domChangesPageScript } from '../../shared/dom-changes.js'
-import { redactNetworkUrl } from '../../shared/network-details.js'
-import { isHronautHomeUrl } from './url.js'
-import { ISOLATED_WORLDS } from './isolated-worlds.js'
+import type { BrowserDomChangesAction, BrowserDomChangesReport } from '../../../shared/types.js'
+import { domChangesPageScript } from '../../../shared/dom-changes.js'
+import { redactNetworkUrl } from '../../../shared/network-details.js'
+import { isHronautHomeUrl } from '../url.js'
+import { ISOLATED_WORLDS } from '../isolated-worlds.js'
 
 const DOM_CHANGES_WORLD_ID = ISOLATED_WORLDS.domChanges
 

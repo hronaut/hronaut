@@ -1,4 +1,4 @@
-import { snapshotTextHelpersSource } from './snapshot-text.js'
+import { snapshotTextHelpersSource } from '../snapshot-text.js'
 
 export function reproTargetScript(point?: {
   x: number

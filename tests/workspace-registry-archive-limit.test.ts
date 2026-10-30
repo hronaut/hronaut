@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { WorkspaceRegistry, type ActiveWorkspace, type ArchivedWorkspace } from '../src/main/browser/workspace-registry.js'
+import { WorkspaceRegistry, type ActiveWorkspace, type ArchivedWorkspace } from '../src/main/browser/workspace-registry/workspace-registry.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../src/shared/undo.js'
 
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, Menu: {} }))

@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { BrowserState, BrowserWorkspaceNavigationPolicy } from '../src/shared/types.js'
 import { updateWorkspaceNavigationPolicy } from '../src/main/browser/workspace-navigation/workspace-navigation.js'
 import type { Browser } from '../src/main/browser/browser.js'
-import type { ActiveWorkspace } from '../src/main/browser/workspace-registry.js'
+import type { ActiveWorkspace } from '../src/main/browser/workspace-registry/workspace-registry.js'
 
 // The browser below stubs changed and getState, which the navigation policy publishes through, and keeps the
 // workspace's recently closed tabs by address, which forgetting them reaches through tab reopening.

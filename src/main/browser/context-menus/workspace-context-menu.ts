@@ -1,5 +1,5 @@
 import type { MenuItemConstructorOptions } from 'electron'
-import type { ActiveWorkspace } from '../workspace-registry.js'
+import type { ActiveWorkspace } from '../workspace-registry/workspace-registry.js'
 import type { Browser } from '../browser.js'
 import { sleepBlockReason, sleepWorkspaceTabs } from '../tab-sleep/tab-sleep.js'
 

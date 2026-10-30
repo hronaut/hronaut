@@ -35,16 +35,17 @@ import type { PendingElementInspection } from './element-inspection-publication.
 import type { PendingPdfExport } from './pdf-export-publication.js'
 import { savePdf } from './pdf-export/pdf-export.js'
 import { saveScreenshot, type PendingScreenshotExport, type ScreenshotExport, type ScreenshotExportOptions } from './screenshot-export/screenshot-export.js'
-import { FrameObservationController } from './frame-observation.js'
+import { createFrameObservation } from './frame-observation/browser-frame-observation.js'
 import { showTabContextMenu } from './context-menus/tab-context-menu.js'
 import { showHistoryMenu } from './context-menus/history-menu.js'
-import { ReactInspectionController, type ReactInspectionAuthority } from './react-inspection.js'
+import type { ReactInspectionAuthority } from './react-inspection/react-inspection.js'
+import { createReactInspectionController } from './react-inspection/browser-react-inspection.js'
 import type { FixedDateAuthority } from './fixed-date/fixed-date.js'
 import { createFixedDateController } from './fixed-date/browser-fixed-date.js'
 import type { ReactInspectionCommand } from '../../shared/react-inspection.js'
 import type { FixedDateAction, FixedDateBootstrap, FixedDateResult } from '../../shared/fixed-date.js'
 import type { DomMutationSourceAction, DomMutationSourceKind, DomMutationSourceReport } from '../../shared/dom-mutation-source.js'
-import { BrowserPwaLifecycle } from './pwa-lifecycle.js'
+import { createPwaLifecycleRecorder } from './pwa-inspection/browser-pwa-lifecycle.js'
 import type { PwaLifecycleOptions } from '../../shared/pwa-lifecycle.js'
 import { PageFindController } from './page-find-controller.js'
 import type { CookieWriteHooks } from './cookie-write-operation.js'
@@ -70,7 +71,7 @@ import { NativePreviewCapture } from './native-preview-capture.js'
 import { createOcclusionSnapshot } from './trusted-chrome-occlusion/browser-occlusion-snapshot.js'
 import { HomeRefresh } from './home-refresh.js'
 import { BrowserDebuggerQueue } from './debugger-queue.js'
-import { BrowserDomRecorder } from './dom-recorder.js'
+import { createDomRecorder } from './dom-recorder/browser-dom-recorder.js'
 import { createCssStatePreview } from './css-state-preview/browser-css-state-preview.js'
 import type { VirtualPasskeyAuthority, VirtualPasskeyOptions } from './virtual-passkey/virtual-passkey.js'
 import { createVirtualPasskeys } from './virtual-passkey/browser-virtual-passkeys.js'
@@ -86,8 +87,8 @@ import { createDomMutationSource } from './dom-mutation-source/browser-dom-mutat
 import type { LogpointAuthority } from './logpoints/logpoints.js'
 import { createLogpoints } from './logpoints/browser-logpoints.js'
 import type { LogpointAction, LogpointReport, LogpointRequest, LogpointScriptsReport } from '../../shared/logpoint.js'
-import { BrowserLiveRegionRecorder } from './live-region-recorder.js'
-import { BrowserReproRecorder } from './repro-recorder.js'
+import { createLiveRegionRecorder } from './live-region-recorder/browser-live-region-recorder.js'
+import { createReproRecorder } from './repro-recorder/browser-repro-recorder.js'
 import {
   addNetworkRoute,
   clearNetworkRoutes,
@@ -102,7 +103,7 @@ import { cancelHeldResponse, failAllHeldResponses, heldResponseSummaries, releas
 import { createDownloadsController } from './downloads/browser-downloads.js'
 import type { DownloadHistoryStore, SavedDownload } from './download-history/download-history.js'
 import { copyDownload, type DownloadCopyProgress, type DownloadCopyRequest, type DownloadCopyResult } from './download-copy/download-copy.js'
-import { BrowserProfilingController } from './profiling-controller.js'
+import { createProfilingController } from './profiling/browser-profiling.js'
 import { WorkspaceContinuityStore } from '../mcp/workspace-continuity-store.js'
 import { WorkspaceContinuityEvidenceFactory } from '../mcp/workspace-continuity-evidence.js'
 import type { BrowserPostcondition } from '../../shared/post-write-postcondition.js'
@@ -129,7 +130,6 @@ import {
   withWorkspaceSiteDataCleanup,
   workspaceSession
 } from './workspace-data/workspace-data.js'
-import { assertActiveWorkspaceCapacity } from './workspace-creation/workspace-capacity.js'
 import { reconcilePresentedViewVisibility } from './presented-view-visibility.js'
 import { resizeViewport } from './emulation/resize-viewport.js'
 import { createSplitDivider } from './split-view/split-divider.js'
@@ -365,17 +365,14 @@ import {
   normalizeWorkspaceStorageOrigins
 } from './workspace-storage.js'
 import { drainWorkspaceOperations, flushPersist, flushWorkspaceProfiles } from './quit-flush/quit-flush.js'
-import { closeMcpTabGroup, closeMcpTabGroupInternal } from './mcp-tab-groups/close-mcp-tab-group.js'
+import { closeMcpTabGroup } from './mcp-tab-groups/close-mcp-tab-group.js'
 import { createMcpTabGroup } from './mcp-tab-groups/create-mcp-tab-group.js'
 import { listMcpTabGroups, renameMcpTabGroup, requireMcpTabGroup, updateMcpTabGroup } from './mcp-tab-groups/mcp-tab-groups.js'
 import { setWorkspacePinned } from './mcp-tab-groups/workspace-pinning.js'
 import {
   assertWorkspaceCanOpenTab,
   type BrowserWorkspaceOperation,
-  type OpenWorkspaceOperationAction,
-  type WorkspaceOperationAction,
-  withSavedWorkspaceOperation,
-  withWorkspaceOperation
+  type OpenWorkspaceOperationAction
 } from './workspace-operations/workspace-operations.js'
 import { OpenedTabObservation, type TabsOpenedDuringClick } from './click-opened-tabs.js'
 import { hasAgentPauseExceptions, isTabAgentPaused, isTabTakenOver, setAllAgentsPaused, setTabAgentPaused } from './agent-pause/agent-pause.js'
@@ -395,8 +392,6 @@ import {
 import { SLEEPING_PAGE_URL } from './tab-sleep/sleeping-page.js'
 import { setMemorySaverSettings, sleepInactiveTabs } from './tab-sleep/memory-saver.js'
 import type { BackgroundLoads } from './tab-sleep/background-loads.js'
-import { mainWorldContextId } from './debugger-evaluation/debugger-evaluation.js'
-import { withDebugger } from './debugger-lease/debugger-lease.js'
 import { closeTab, closeTabs } from './tab-close/close-tab.js'
 import { saveTabLabel, withTabLabelLifecycle } from './tab-labels/tab-labels.js'
 import { duplicateTabAfterLabelSave, forgetClosedTabs, reopenClosedTabAfterLabelSave } from './tab-reopening/tab-reopening.js'
@@ -420,7 +415,6 @@ import { handleMcpTabActivity, publishAgentFollowChange, publishedAgentFollow, r
 import { selectTabPassively } from './agent-follow/passive-selection.js'
 import { syncHumanInteractionInputGuard } from './interaction-lock/human-input-guard.js'
 import type { UndoableAction } from '../undo-offers.js'
-import { MAX_ARCHIVED_WORKSPACES } from '../../shared/undo.js'
 import {
   archiveWorkspaceForPerson,
   closeWorkspaceForPerson,
@@ -433,7 +427,6 @@ import {
 
 export const HRONAUT_HOME_URL = 'hronaut://home/'
 const MAX_TABS = MAX_BROWSER_TABS
-const MAX_SAVED_TAB_GROUPS = MAX_ARCHIVED_WORKSPACES
 
 function workspaceNameKey(name: string): string {
   return name.trim().normalize('NFKC').toLowerCase()
@@ -443,8 +436,9 @@ const TAB_OVERVIEW_CAPTURE_TIMEOUT_MS = 2_000
 
 
 import type { BrowserTab } from './browser-tab.js'
-import { getTab, orderedTabs } from './browser-core.js'
-import { WorkspaceRegistry, type ActiveWorkspace as BrowserTabGroup } from './workspace-registry.js'
+import { getTab } from './browser-core.js'
+import type { ActiveWorkspace as BrowserTabGroup } from './workspace-registry/workspace-registry.js'
+import { createWorkspaceRegistry } from './workspace-registry/browser-workspace-registry.js'
 
 export type { BrowserElementPickerResult } from './element-picker/element-picker.js'
 
@@ -580,13 +574,7 @@ export class Browser {
   readonly pageFind = new PageFindController()
   readonly faviconDecoder = new FaviconDecoder()
   readonly metadata = createPageMetadata(this)
-  readonly profiling = new BrowserProfilingController<BrowserTab>({
-    getTab: (tabId) => getTab(this, tabId),
-    findTab: (tabId) => this.tabs.get(tabId),
-    withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
-    changed: () => this.changed(false),
-    prepareNavigation: (tab) => this.prepareDiagnosticNavigation(tab)
-  })
+  readonly profiling = createProfilingController(this)
   readonly workspaceContinuity = new WorkspaceContinuityStore()
   readonly continuityMarkers = new Map<string, string>()
   readonly workspaceObservationGenerations = new Map<string, number>()
@@ -642,47 +630,22 @@ export class Browser {
   }
 
   readonly tabs = new Map<string, BrowserTab>()
-  readonly domRecorder = new BrowserDomRecorder<BrowserTab>({
-    isCurrent: tab => this.tabs.get(tab.id) === tab,
-    changed: () => this.changed(false)
-  })
-  readonly liveRegionRecorder = new BrowserLiveRegionRecorder<BrowserTab>({
-    isCurrent: tab => this.tabs.get(tab.id) === tab
-  })
+  readonly domRecorder = createDomRecorder(this)
+  readonly liveRegionRecorder = createLiveRegionRecorder(this)
   readonly cssStatePreview = createCssStatePreview(this)
   readonly virtualPasskeys = createVirtualPasskeys(this)
   readonly workerEvaluations = createWorkerEvaluations(this)
   readonly computedAccessibilityReader = createComputedAccessibilityReader(this)
   readonly domMutationSource = createDomMutationSource(this)
   readonly logpoints = createLogpoints(this)
-  readonly reproRecorder = new BrowserReproRecorder<BrowserTab>({
-    isCurrent: tab => this.tabs.get(tab.id) === tab,
-    isAgentInput: webContents => this.agentInputWebContents.has(webContents.id),
-    changed: () => this.changed(false)
-  })
+  readonly reproRecorder = createReproRecorder(this)
   readonly pauseVideoForSuspend = (): void => { this.videoRecorder.pauseAll(VIDEO_RECORDING_NOTICES.sleep) }
   readonly videoRecorder = createVideoRecorder(this)
   readonly snapshotBaselines = new Map<string, BrowserSnapshotBaselineRecord>()
   readonly snapshotBaselineIdsByTab = new Map<string, string>()
   readonly webMcpDescriptorCache = new Map<string, string>()
   backgroundTabLoads?: BackgroundLoads
-  readonly workspaceRegistry = new WorkspaceRegistry({
-    maxTabs: MAX_TABS,
-    maxArchived: MAX_SAVED_TAB_GROUPS,
-    tabs: () => orderedTabs(this),
-    requireActive: id => this.requireMcpTabGroup(id),
-    assertRestoreCapacity: (name, id) => {
-      this.assertWorkspaceNameAvailable(name, undefined, id, true)
-      assertActiveWorkspaceCapacity(this)
-    },
-    withActiveOperation: (id, action, run) => this.withWorkspaceOperation(id, action, run),
-    withArchivedOperation: (id, action, run) => this.withSavedWorkspaceOperation(id, action, run),
-    closeActive: (id, preserve) => this.closeMcpTabGroupInternal(id, preserve),
-    createTab: tab => this.createTab(tab),
-    selectTab: id => this.selectTab(id),
-    remapDownloads: (from, to) => this.remapDownloadWorkspaceOwnership(from, to),
-    changed: () => this.changed()
-  })
+  readonly workspaceRegistry = createWorkspaceRegistry(this)
   readonly mcpTabGroups = this.workspaceRegistry.active
   readonly deletedWorkspaceStorageIds = new Set<string>()
   /** Open workspaces whose deletion closed their tabs but has not committed, which the saved session keeps meanwhile. */
@@ -772,26 +735,9 @@ export class Browser {
   readonly browserSessionAuthorityHooks = new Map<Session, () => void>()
   readonly browserCookieImportSessions = new Set<Session>()
   readonly webContentsToTab = new Map<number, string>()
-  readonly pwaLifecycleRecorder = new BrowserPwaLifecycle<BrowserTab>({
-    isCurrent: tab => !this.destroyed && this.tabs.get(tab.id) === tab,
-    changed: () => this.changed(false)
-  })
+  readonly pwaLifecycleRecorder = createPwaLifecycleRecorder(this)
   readonly debuggerQueue = new BrowserDebuggerQueue()
-  readonly frameObservation = new FrameObservationController({
-    resolve: tabId => {
-      const tab = getTab(this, tabId)
-      if (tab.sleeping || tab.pageLifecycleState !== 'active') throw new Error('Frame observation requires an already active tab')
-      return { page: tab.webContents, identity: tab, workspace: tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined, generation: tab.navigationGeneration, observationGeneration: tab.observationGeneration, permissionGeneration: tab.mcpGroupId ? this.inspectionPermissions.get(this.mcpTabGroups.get(tab.mcpGroupId)!) ?? 0 : 0 }
-    },
-    run: (id, operation) => this.debuggerQueue.run(id, operation),
-    requireOwner: (tabId, page) => {
-      const tab = getTab(this, tabId)
-      if (tab.webContents !== page || page.isDestroyed() || !page.debugger.isAttached() || !tab.networkDebuggerEnabled
-        || this.devToolsOpening.has(page.id) || page.isDevToolsOpened() || tab.codeCoverage?.recording
-        || tab.cpuProfile?.recording || tab.memoryAllocation?.recording || tab.reproRecording?.active
-        || this.videoRecorder.state(tab.id).status === 'recording') throw new Error('Frame observation debugger unavailable')
-    }
-  })
+  readonly frameObservation = createFrameObservation(this)
   captureFrameObservation(tabId: string, selector: string, maxChars: number, authority: () => void) {
     return this.frameObservation.capture(tabId, selector, maxChars, authority)
   }
@@ -799,30 +745,7 @@ export class Browser {
   readonly sizingInspectionSlots = new ImageInspectionSlots('Sizing inputs')
   readonly imageInspectionSlots = new ImageInspectionSlots()
   readonly inspectionPermissions = new WeakMap<object, number>()
-  readonly reactInspectionController = new ReactInspectionController({
-    resolve: tabId => {
-      const tab = getTab(this, tabId)
-      const workspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
-      return {
-        identity: tab, page: tab.webContents, workspaceId: tab.mcpGroupId, workspaceIdentity: workspace,
-        permissionGeneration: workspace ? this.inspectionPermissions.get(workspace) ?? 0 : 0,
-        navigationGeneration: tab.navigationGeneration, observationGeneration: tab.observationGeneration
-      }
-    },
-    run: (id, operation) => this.debuggerQueue.run(id, operation),
-    requireDebuggerOwner: tabId => {
-      const tab = getTab(this, tabId)
-      if (this.devToolsOpening.has(tab.webContents.id) || tab.webContents.isDevToolsOpened()
-        || tab.codeCoverage?.recording || tab.cpuProfile?.recording) throw new Error('React inspection debugger unavailable')
-    },
-    requireDebuggerCleanupOwner: (tabId, page) => {
-      const tab = getTab(this, tabId)
-      if (tab.webContents !== page || this.devToolsOpening.has(page.id) || page.isDevToolsOpened()) {
-        throw new Error('React inspection debugger cleanup unavailable')
-      }
-    },
-    mainWorldContextId: page => this.mainWorldContextId(page)
-  })
+  readonly reactInspectionController = createReactInspectionController(this)
 
   readonly fixedDateController = createFixedDateController(this)
 
@@ -1199,10 +1122,6 @@ export class Browser {
 
   closeMcpTabGroup(groupId: string, preserveStorage = false): Promise<BrowserTabGroupState[]> {
     return closeMcpTabGroup(this, groupId, preserveStorage)
-  }
-
-  private closeMcpTabGroupInternal(groupId: string, preserveStorage = false): Promise<BrowserTabGroupState[]> {
-    return closeMcpTabGroupInternal(this, groupId, preserveStorage)
   }
 
   saveAndCloseTabGroup(groupId: string): Promise<BrowserSavedTabGroupState> {
@@ -2238,10 +2157,6 @@ export class Browser {
     return copyDownload(this, workspaceId, request, validate, progress)
   }
 
-  private remapDownloadWorkspaceOwnership(sourceWorkspaceId: string, targetWorkspaceId: string): void {
-    this.downloadController.remapDownloadWorkspaceOwnership(sourceWorkspaceId, targetWorkspaceId)
-  }
-
   listDownloadsCheckingFiles(): BrowserDownloadState[] {
     return this.downloadController.listDownloadsCheckingFiles()
   }
@@ -2551,23 +2466,6 @@ export class Browser {
     assertWorkspaceCanOpenTab(this, workspaceId)
   }
 
-  private withWorkspaceOperation<T>(
-    workspaceId: string,
-    action: OpenWorkspaceOperationAction,
-    operation: () => Promise<T>,
-    blocksNewTabs?: boolean
-  ): Promise<T> {
-    return withWorkspaceOperation(this, workspaceId, action, operation, blocksNewTabs)
-  }
-
-  private withSavedWorkspaceOperation<T>(
-    savedWorkspaceId: string,
-    action: WorkspaceOperationAction,
-    operation: () => Promise<T>
-  ): Promise<T> {
-    return withSavedWorkspaceOperation(this, savedWorkspaceId, action, operation)
-  }
-
   /**
    * Records a visit to the tab's web page in history and its workspace's origins; samePage when the tab opened the page
    * it showed again, by a reload or a change of only its fragment, which is not another visit.
@@ -2664,14 +2562,6 @@ export class Browser {
 
   isUnavailableCdpMethod(error: unknown): boolean {
     return /(?:method not found|wasn't found|-32601)/i.test(String(error))
-  }
-
-  private withDebugger<T>(webContents: BrowserTab['view']['webContents'], operation: () => Promise<T>, validateAdmission?: () => void): Promise<T> {
-    return withDebugger(this, webContents, operation, validateAdmission)
-  }
-
-  private mainWorldContextId(webContents: BrowserTab['view']['webContents']): Promise<number> {
-    return mainWorldContextId(this, webContents)
   }
 
   prepareDiagnosticNavigation(tab: BrowserTab): void {

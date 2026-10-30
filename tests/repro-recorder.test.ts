@@ -1,7 +1,7 @@
 import type { Input, WebContents } from 'electron'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { BrowserReproRecorder, type BrowserReproRecordingInternal } from '../src/main/browser/repro-recorder.js'
-import { reproScrollScript } from '../src/main/browser/repro-page-scripts.js'
+import { BrowserReproRecorder, type BrowserReproRecordingInternal } from '../src/main/browser/repro-recorder/repro-recorder.js'
+import { reproScrollScript } from '../src/main/browser/repro-recorder/repro-page-scripts.js'
 
 const enterKey: Input = {
   type: 'keyDown', key: 'Enter', code: 'Enter', isAutoRepeat: false,

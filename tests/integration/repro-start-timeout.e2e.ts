@@ -1,5 +1,5 @@
 import type { HronautApi } from '../../src/shared/types.js'
-import { reproScrollScript } from '../../src/main/browser/repro-page-scripts.js'
+import { reproScrollScript } from '../../src/main/browser/repro-recorder/repro-page-scripts.js'
 import { expect, test } from './fixtures.js'
 
 type StartProbe = { held: boolean; release(): void; restore(): void }

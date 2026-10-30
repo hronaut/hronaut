@@ -69,7 +69,7 @@ vi.mock('../src/main/browser/tab-events/attach-tab-events.js', () => ({
   attachTabEvents: (browser: { attachTabEvents: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.attachTabEvents(...args)
 }))
 const { Browser } = await import('../src/main/browser/browser.js')
-const { WorkspaceRegistry } = await import('../src/main/browser/workspace-registry.js')
+const { WorkspaceRegistry } = await import('../src/main/browser/workspace-registry/workspace-registry.js')
 
 const PERSON = '01912345-6789-7abc-8def-0123456789ab'
 const AGENT = '01912345-6789-7abc-8def-0123456789ac'

@@ -1,6 +1,6 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { FRAME_OBSERVATION_LIMITS } from '../../../../shared/frame-observation.js'
-import type { PendingFrameObservation } from '../../../browser/frame-observation.js'
+import type { PendingFrameObservation } from '../../../browser/frame-observation/frame-observation.js'
 import { frameObservationResult } from '../../frame-observation-result.js'
 import type { WorkspaceToolCall } from '../tool-context.js'
 

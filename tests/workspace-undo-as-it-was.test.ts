@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { BrowserClosedTabState } from '../src/shared/types.js'
-import { WorkspaceRegistry, type ActiveWorkspace } from '../src/main/browser/workspace-registry.js'
+import { WorkspaceRegistry, type ActiveWorkspace } from '../src/main/browser/workspace-registry/workspace-registry.js'
 import type { UndoableAction } from '../src/main/undo-offers.js'
 
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, Menu: {} }))

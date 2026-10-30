@@ -1,5 +1,5 @@
 import type { MenuItemConstructorOptions } from 'electron'
-import type { ReactInspectionResult } from '../../shared/react-inspection.js'
+import type { ReactInspectionResult } from '../../../shared/react-inspection.js'
 
 export interface ReactInspectionMenuLabels {
   title: string; enable: string; disabled: string; reloadRequired: string; installed: string; residue: string

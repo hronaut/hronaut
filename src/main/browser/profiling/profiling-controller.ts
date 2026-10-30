@@ -4,11 +4,11 @@ import {
   coverageByteUsage,
   summarizeCoverageResources,
   type CoverageRange
-} from '../../shared/code-coverage.js'
-import { summarizeCpuProfile, type CdpCpuProfile } from '../../shared/cpu-profile.js'
-import { summarizeAllocationProfile, type CdpSamplingHeapProfile } from '../../shared/allocation-profile.js'
-import { redactNetworkUrl } from '../../shared/network-details.js'
-import { isHronautHomeUrl, isWebUrl } from './url.js'
+} from '../../../shared/code-coverage.js'
+import { summarizeCpuProfile, type CdpCpuProfile } from '../../../shared/cpu-profile.js'
+import { summarizeAllocationProfile, type CdpSamplingHeapProfile } from '../../../shared/allocation-profile.js'
+import { redactNetworkUrl } from '../../../shared/network-details.js'
+import { isHronautHomeUrl, isWebUrl } from '../url.js'
 import type {
   BrowserCodeCoverageMode,
   BrowserCodeCoverageOptions,
@@ -24,7 +24,7 @@ import type {
   BrowserMemoryOptions,
   BrowserMemoryReport,
   BrowserEmulationState
-} from '../../shared/types.js'
+} from '../../../shared/types.js'
 
 interface BrowserCodeCoverageStyleSheet {
   id: string

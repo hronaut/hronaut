@@ -1,6 +1,6 @@
 import { createServer } from 'node:http'
 import type { BrowserReproRecording, HronautApi } from '../../src/shared/types.js'
-import { reproCheckpointScript } from '../../src/main/browser/repro-checkpoint-script.js'
+import { reproCheckpointScript } from '../../src/main/browser/repro-recorder/repro-checkpoint-script.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
 test('times out a held checkpoint response without blocking Stop or recording a late expectation', async ({ appWindow, electronApp }) => {

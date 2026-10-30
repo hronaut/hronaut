@@ -1,6 +1,6 @@
 import { runInNewContext } from 'node:vm'
 import { expect, it } from 'vitest'
-import { frameObservationScript } from '../src/main/browser/frame-observation-script.js'
+import { frameObservationScript } from '../src/main/browser/frame-observation/frame-observation-script.js'
 
 /** The link sanitizer of the frame observation script, as its source carries it. */
 function frameLinkSanitizer(): (href: string) => string {
