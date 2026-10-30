@@ -2,6 +2,12 @@ import { expect, it, vi } from 'vitest'
 import { McpHttpServer } from '../src/main/mcp/server.js'
 import { stageMcpRuntimeCandidate, synchronizeMcpRuntimeCandidate } from '../src/main/mcp-runtime/mcp-runtime-candidate.js'
 
+// The fake browser below stubs the functions its tool calls go through; these reach its stubs.
+vi.mock('../src/main/browser/agent-pause/agent-pause.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/agent-pause/agent-pause.js')>(),
+  hasAgentPauseExceptions: (browser: { hasAgentPauseExceptions: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.hasAgentPauseExceptions(...args)
+}))
+
 it('never lets existing tab exceptions bypass a staged listener or protected pause', async () => {
   const manager = {
     hasAgentPauseExceptions: () => true,

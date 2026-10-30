@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { scroll } from '../../../browser/agent-page-actions/form-input-and-scroll.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
@@ -18,7 +19,7 @@ export function registerBrowserScroll(context: McpToolContext): void {
       }
     },
     tabTool('browser_scroll', async (input: { tabId?: string; ref?: string; selector?: string; deltaX?: number; deltaY?: number }) =>
-      textResult(await manager.scroll(input))
+      textResult(await scroll(manager, input))
     )
   )
 }

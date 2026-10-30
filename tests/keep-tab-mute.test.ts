@@ -48,10 +48,11 @@ vi.mock('../src/main/browser/tab-arrangement/tab-arrangement.js', async (importO
     placement: 'before' | 'after'
   ) => browser.reorderTab(tabId, targetTabId, placement)
 }))
-// Their closeTab stub does a real close's bookkeeping, which closing tabs for the person reaches through this.
+// Their closeWithBookkeeping stub does a real close's bookkeeping, which closing tabs for the person reaches through
+// closeTab.
 vi.mock('../src/main/browser/tab-close/close-tab.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/tab-close/close-tab.js')>(),
-  closeTab: (browser: { closeTab: (tabId: string) => Promise<unknown> }, tabId: string) => browser.closeTab(tabId)
+  closeTab: (browser: { closeWithBookkeeping: (tabId: string) => Promise<unknown> }, tabId: string) => browser.closeWithBookkeeping(tabId)
 }))
 
 // The prototype-built browser below stubs roundPageCorners, with which a new tab's page gets the page card's corners.
@@ -90,7 +91,7 @@ interface Manager {
   tabs: Map<string, Tab>
   createTab(options: { url: string; mcpGroupId: string; active: boolean }): Promise<Tab>
   setTabMuted(tabId: string, muted: boolean): unknown
-  closeTab(tabId: string): Promise<unknown>
+  closeWithBookkeeping(tabId: string): Promise<unknown>
 }
 
 /**
@@ -114,7 +115,7 @@ function browser() {
     roundPageCorners: vi.fn(), installSessionHooks: vi.fn(), attachTabEvents: vi.fn(), layout: vi.fn(), changed: vi.fn(),
     selectTab: vi.fn(), reorderTab: vi.fn(), navigationHistorySnapshot: () => ({ entries: [], index: -1 }),
     withTabLabelLifecycle: (run: () => Promise<unknown>) => run(), getState: () => ({}), text: (key: string) => key,
-    async closeTab(this: Manager, tabId: string) {
+    async closeWithBookkeeping(this: Manager, tabId: string) {
       // The close bookkeeping of a real close: the tab is remembered, then removed.
       rememberClosedTab(this as never, this.tabs.get(tabId)! as never)
       this.tabs.delete(tabId)
@@ -165,7 +166,7 @@ describe('a muted tab brought back', () => {
   it('stays muted after Reopen Closed Tab', async () => {
     const { manager } = browser()
     const tab = await mutedTab(manager)
-    await manager.closeTab(tab.id)
+    await manager.closeWithBookkeeping(tab.id)
 
     expect(sound(await reopenLastClosed(manager))).toEqual(MUTED)
   })
@@ -215,7 +216,7 @@ describe('a tab muted only because every tab was muted', () => {
   it('comes back with sound after Reopen Closed Tab', async () => {
     const { manager } = browser()
     const tab = await quietTab(manager)
-    await manager.closeTab(tab.id)
+    await manager.closeWithBookkeeping(tab.id)
     setAllTabsMuted(manager as never, false)
 
     expect(sound(await reopenLastClosed(manager))).toEqual(SOUND)

@@ -3,6 +3,7 @@ import type { BrowserNetworkWaitOptions } from '../../../../shared/types.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { waitForNetworkRequest } from '../../../browser/network-inspection/network-inspection.js'
 
 export function registerBrowserNetworkWait(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -28,7 +29,7 @@ export function registerBrowserNetworkWait(context: McpToolContext): void {
       }
     },
     tabTool('browser_network_wait', async (options: BrowserNetworkWaitOptions) =>
-      textResult(await manager.waitForNetworkRequest(options))),
+      textResult(await waitForNetworkRequest(manager, options))),
     { waitsOnTab: true }
   )
 }

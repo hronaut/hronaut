@@ -16,10 +16,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import type { AuditReceiptService } from './audit-receipt-service.js'
 import type { HumanWaitingService } from './human-waiting-service.js'
 import type { TaskRunService } from './task-run-service.js'
-import {
-  buildMcpReadinessDiagnostic,
-  type McpReadinessDiagnostic
-} from './readiness.js'
+import { buildMcpReadinessDiagnostic, type McpReadinessDiagnostic } from './readiness.js'
 import type { McpCapabilityGrant, McpCapabilityProfileStore } from './capability-profile-store.js'
 import { McpActionTracker } from './action-tracker.js'
 import type { McpToolActivity, McpToolMetric } from './activity-history.js'
@@ -36,6 +33,7 @@ import type { McpToolSet } from '../../shared/mcp-tool-sets.js'
 import type { BookmarkOperations, HistoryOperations, SiteDataOperations } from './browser-data-operations.js'
 import { type WalletAgentOperations, WalletAgentSessionRegistry } from './wallet-agent-sessions.js'
 import { createBrowserMcpServer } from './browser-mcp-server.js'
+import { hasAgentPauseExceptions } from '../browser/agent-pause/agent-pause.js'
 
 export const MCP_FAILED_AUTH_LIMIT = 120
 const MCP_FAILED_AUTH_WINDOW_MS = 60_000
@@ -298,7 +296,7 @@ export class McpHttpServer {
         response.status(405).set('Allow', 'POST, GET, DELETE').json({ error: 'Unsupported MCP transport method' })
         return
       }
-      if (this.paused && !(this.allowTabPauseOverrides && this.manager.hasAgentPauseExceptions?.()) && request.method !== 'DELETE') {
+      if (this.paused && !(this.allowTabPauseOverrides && hasAgentPauseExceptions(this.manager)) && request.method !== 'DELETE') {
         const activeCommands = this.actionTracker.activeCount
         response.status(503).json({
           error: 'Hronaut is paused by the user. Resume agents from the Hronaut window.',

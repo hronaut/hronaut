@@ -5,6 +5,23 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { expect, it, vi } from 'vitest'
 import { McpHttpServer } from '../src/main/mcp/server.js'
 
+// The fake browser below stubs the functions its tool calls go through; these reach its stubs.
+vi.mock('../src/main/browser/workspace-continuity/workspace-continuity.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-continuity/workspace-continuity.js')>(),
+  beginWorkspaceContinuityAction: (browser: { beginWorkspaceContinuityAction: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.beginWorkspaceContinuityAction(...args),
+  postWriteContextFingerprint: (browser: { postWriteContextFingerprint: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.postWriteContextFingerprint(...args),
+  readPostWritePostcondition: (browser: { readPostWritePostcondition: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.readPostWritePostcondition(...args),
+  requireWorkspaceContinuityDispatch: (browser: { requireWorkspaceContinuityDispatch: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireWorkspaceContinuityDispatch(...args)
+}))
+vi.mock('../src/main/browser/agent-page-actions/click.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/agent-page-actions/click.js')>(),
+  click: (browser: { click: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.click(...args)
+}))
+vi.mock('../src/main/browser/workspace-scope/workspace-scope.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-scope/workspace-scope.js')>(),
+  requireTabInMcpGroup: (browser: { requireTabInMcpGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireTabInMcpGroup(...args)
+}))
+
 it.each([['verified', 'storage'], ['failed', 'storage'], ['cleanup', 'storage'], ['cleanup', 'authorization']] as const)('settles %s activity when review finalization fails: %s', async (phase, failure) => {
   const verified = phase === 'verified'
   const workspaceId = '01912345-6789-7abc-8def-0123456789ab'

@@ -4,6 +4,7 @@ import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
 import { type WheelSettlement, wheelSettlement } from './wheel-settlement.js'
+import { wheel } from '../../../browser/agent-wheel/agent-wheel.js'
 
 export function registerBrowserWheel(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -30,7 +31,7 @@ export function registerBrowserWheel(context: McpToolContext): void {
           throw error
         }
       }
-      return textResult(await manager.wheel({ tabId, x, y, deltaX, deltaY }, validateNativeInput, call.settlement.markAttempted))
+      return textResult(await wheel(manager, { tabId, x, y, deltaX, deltaY }, validateNativeInput, call.settlement.markAttempted))
     }, 'never'),
     {
       settlement: () => wheelSettlement(),

@@ -3,6 +3,7 @@ import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import { type ElementInspectionSettlement, elementInspectionSettlement } from '../element-inspection-settlement.js'
 import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
+import { mediaState } from '../../../browser/element-inspection/element-inspection.js'
 
 export function registerBrowserMediaState(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -17,7 +18,7 @@ export function registerBrowserMediaState(context: McpToolContext): void {
       }
     },
     tabTool('browser_media_state', async (options: { tabId?: string; ref?: never; selector: string }, call: WorkspaceToolCall<ElementInspectionSettlement>) =>
-      textResult(await manager.mediaState(options, call.requireCurrentTarget, pending => { call.settlement.retain(pending) }))),
+      textResult(await mediaState(manager, options, call.requireCurrentTarget, pending => { call.settlement.retain(pending) }))),
     { settlement: () => elementInspectionSettlement(false), preservesPresentation: () => true }
   )
 }

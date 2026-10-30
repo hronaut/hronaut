@@ -3,6 +3,7 @@ import { MAX_BROWSER_KEY_PRESS_LENGTH } from '../../../../shared/keyboard-input.
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { press } from '../../../browser/agent-keys/agent-keys.js'
 
 export function registerBrowserPress(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -33,7 +34,7 @@ export function registerBrowserPress(context: McpToolContext): void {
           throw error
         }
       }
-      await manager.press(key, tabId, validateNativeInput)
+      await press(manager, key, tabId, validateNativeInput)
       return textResult(`Pressed ${key}`)
     })
   )

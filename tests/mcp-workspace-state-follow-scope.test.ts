@@ -11,6 +11,16 @@ import { mcpWorkspaceState } from '../src/main/mcp/tool-results.js'
 // The whole browser's state, as the browser would publish it.
 const published = vi.hoisted(() => ({ state: undefined as unknown }))
 vi.mock('../src/main/browser/browser-state/browser-state.js', () => ({ browserState: () => published.state }))
+// The fake browser below stubs the functions its tool calls go through; these reach its stubs.
+vi.mock('../src/main/browser/workspace-continuity/workspace-continuity.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-continuity/workspace-continuity.js')>(),
+  beginWorkspaceContinuityAction: (browser: { beginWorkspaceContinuityAction: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.beginWorkspaceContinuityAction(...args),
+  requireWorkspaceContinuityDispatch: (browser: { requireWorkspaceContinuityDispatch: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireWorkspaceContinuityDispatch(...args)
+}))
+vi.mock('../src/main/browser/workspace-scope/workspace-scope.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-scope/workspace-scope.js')>(),
+  requireTabInMcpGroup: (browser: { requireTabInMcpGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireTabInMcpGroup(...args)
+}))
 
 // Original failure: with Follow agents on, the browser state carries `agentFollow`, the tab in view and the
 // name of the agent being followed. The workspace-scoped state that browser_status and every state-returning

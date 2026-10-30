@@ -3,6 +3,7 @@ import { URL_DETAIL_OMITTED_NOTE, urlWithoutDetail } from '../../../../shared/ur
 import { closedTabWaitResult, errorResult, textResult, toolDescription, urlDetailOmitted } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { waitForElement, waitForText, waitForUrlPattern } from '../../../browser/page-waits/page-waits.js'
 
 export function registerBrowserWait(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -49,28 +50,28 @@ export function registerBrowserWait(context: McpToolContext): void {
         if (hasTarget && (text || textGone)) throw new TypeError('Choose page text or an element target, not both.')
         if (state && !hasTarget) throw new TypeError('Provide ref or selector when waiting for an element state.')
         if (urlPattern) {
-          const matchedUrl = await manager.waitForUrlPattern(urlPattern, tabId, timeoutMs)
+          const matchedUrl = await waitForUrlPattern(manager, urlPattern, tabId, timeoutMs)
           return matchedUrl
             ? textResult(`URL matched: ${urlDetailOmitted(manager) ? `${urlWithoutDetail(matchedUrl)} ${URL_DETAIL_OMITTED_NOTE}` : matchedUrl}`)
             : errorResult(new Error('Timed out waiting for the page URL pattern.'))
         }
         if (hasTarget) {
           const elementState = state ?? 'visible'
-          const matched = await manager.waitForElement({ ref, selector }, tabId, timeoutMs, elementState)
+          const matched = await waitForElement(manager, { ref, selector }, tabId, timeoutMs, elementState)
           const targetLabel = ref ? `[${ref}]` : selector!
           return matched
             ? textResult(`Element is ${elementState}: ${targetLabel}`)
             : errorResult(new Error(`Timed out waiting for element to become ${elementState}: ${targetLabel}`))
         }
         if (text) {
-          const found = await manager.waitForText(text, tabId, timeoutMs, 'visible')
+          const found = await waitForText(manager, text, tabId, timeoutMs, 'visible')
           if (found) return textResult(`Found text: ${found}`)
           return errorResult(new Error(Array.isArray(text)
             ? `Timed out waiting for any of ${text.length} requested texts.`
             : `Timed out waiting for text: ${text}`))
         }
         if (textGone) {
-          const disappeared = await manager.waitForText(textGone, tabId, timeoutMs, 'hidden')
+          const disappeared = await waitForText(manager, textGone, tabId, timeoutMs, 'hidden')
           return disappeared
             ? textResult(`Text disappeared: ${textGone}`)
             : errorResult(new Error(`Timed out waiting for text to disappear: ${textGone}`))

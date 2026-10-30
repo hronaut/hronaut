@@ -6,6 +6,25 @@ import { networkRouteRefusal, normalizeNetworkRouteInput } from '../src/main/bro
 import { McpCapabilityAuthorizationError } from '../src/main/mcp/capability-profile-store.js'
 import { McpHttpServer } from '../src/main/mcp/server.js'
 
+// The fake browser below stubs the functions its tool calls go through; these reach its stubs.
+vi.mock('../src/main/browser/workspace-continuity/workspace-continuity.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-continuity/workspace-continuity.js')>(),
+  beginWorkspaceContinuityAction: (browser: { beginWorkspaceContinuityAction: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.beginWorkspaceContinuityAction(...args),
+  requireWorkspaceContinuityDispatch: (browser: { requireWorkspaceContinuityDispatch: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireWorkspaceContinuityDispatch(...args)
+}))
+vi.mock('../src/main/browser/network-conditions/held-responses.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/network-conditions/held-responses.js')>(),
+  heldResponseSummaries: (browser: { heldNetworkResponses: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.heldNetworkResponses(...args)
+}))
+vi.mock('../src/main/browser/network-conditions/network-conditions.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/network-conditions/network-conditions.js')>(),
+  networkConditionPublication: (browser: { networkConditionPublication: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.networkConditionPublication(...args)
+}))
+vi.mock('../src/main/browser/workspace-scope/workspace-scope.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-scope/workspace-scope.js')>(),
+  requireTabInMcpGroup: (browser: { requireTabInMcpGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireTabInMcpGroup(...args)
+}))
+
 const CHANGE_REQUEST = 'No configuration command was submitted. Change the request as message says before sending it again.'
 const INSPECT_AUTHORITY = 'No configuration command was submitted. Inspect current authority and application health before proceeding.'
 

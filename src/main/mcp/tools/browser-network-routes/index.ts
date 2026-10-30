@@ -1,12 +1,13 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
 import type { BrowserNetworkAbortReason } from '../../../../shared/types.js'
-import { HoldUnavailableError } from '../../../browser/network-conditions/held-responses.js'
+import { HoldUnavailableError, heldResponseSummaries, cancelHeldResponse, releaseHeldResponse } from '../../../browser/network-conditions/held-responses.js'
 import { isNetworkRouteRefusal, networkRouteInputSchema, networkRouteRefusal } from '../../../browser/network-route-input.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import { type RequestConditionsSettlement, requestConditionsSettlement } from '../request-conditions-settlement.js'
 import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
+import { networkConditionPublication } from '../../../browser/network-conditions/network-conditions.js'
 
 export function registerBrowserNetworkRoutes(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -81,12 +82,12 @@ export function registerBrowserNetworkRoutes(context: McpToolContext): void {
       }
       validateConditions()
       const publish = (routes: import('../../../../shared/types.js').BrowserNetworkRouteSummary[]): CallToolResult => {
-        const assert = manager.networkConditionPublication(tabId, routes)
+        const assert = networkConditionPublication(manager, tabId, routes)
         call.settlement.retainPublication(() => { validateConditions(); assert() })
         return textResult(routes)
       }
       // Holds answer one captured request; their failures are not rule application failures.
-      if (action === 'held') return textResult(manager.heldNetworkResponses(tabId))
+      if (action === 'held') return textResult(heldResponseSummaries(manager, tabId))
       if (action === 'release' || action === 'cancel') {
         if (!routeId) {
           const refusal = networkRouteRefusal(new Error(`routeId is required to ${action} a held request`))
@@ -95,8 +96,8 @@ export function registerBrowserNetworkRoutes(context: McpToolContext): void {
           throw refusal
         }
         try {
-          if (action === 'release') await manager.releaseHeldNetworkResponse(tabId, routeId, validateConditions, markConditionsSubmitted)
-          else await manager.cancelHeldNetworkResponse(tabId, routeId, validateConditions, markConditionsSubmitted)
+          if (action === 'release') await releaseHeldResponse(manager, tabId, routeId, validateConditions, markConditionsSubmitted)
+          else await cancelHeldResponse(manager, tabId, routeId, validateConditions, markConditionsSubmitted)
         } catch (error) {
           if (!(error instanceof HoldUnavailableError)) throw error
           const refused = { reason: error.reason, message: error.message, routeId, nextAction: error.nextAction }
@@ -132,7 +133,7 @@ export function registerBrowserNetworkRoutes(context: McpToolContext): void {
           throw error
         }
         // Clearing would fail a held request, so an agent holding one is pointed at its hold instead.
-        const holding = manager.heldNetworkResponses(tabId).length > 0
+        const holding = heldResponseSummaries(manager, tabId).length > 0
         const outcome = { status: 'NETWORK_CONDITIONS_UNCONFIRMED', ...state, retrySafe: false,
           nextAction: holding
             ? 'A request is held: use action held, release or cancel for it, and retry this action shortly if application is pending. Clearing conditions fails held requests.'

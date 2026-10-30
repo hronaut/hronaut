@@ -2,10 +2,10 @@ import { createHmac } from 'node:crypto'
 import { z } from 'zod'
 import { type PublicObservationOutcome, classifyPublicObservationOutcome, classifyWriterContextOutcome, summarizePublicOutcomeAssessment } from '../../../../shared/public-outcome.js'
 import type { BrowserTabState } from '../../../../shared/types.js'
-import type { Browser } from '../../../browser/browser.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema, workspaceIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { observationQuality } from '../../../browser/page-snapshots/page-snapshots.js'
 
 export function normalizePublicOutcomeTarget(value: string): URL {
   const parsed = new URL(value)
@@ -132,8 +132,8 @@ export function registerBrowserPublicOutcome(context: McpToolContext): void {
         && (before.tab.browserSessionGeneration ?? 0) === (after.tab.browserSessionGeneration ?? 0)
       )
       const receipt = (
-        writerAssessment: Awaited<ReturnType<Browser['observationQuality']>> | null,
-        observerAssessment: Awaited<ReturnType<Browser['observationQuality']>> | null,
+        writerAssessment: Awaited<ReturnType<typeof observationQuality>> | null,
+        observerAssessment: Awaited<ReturnType<typeof observationQuality>> | null,
         writerStable: boolean,
         observerStable: boolean
       ) => {
@@ -181,13 +181,13 @@ export function registerBrowserPublicOutcome(context: McpToolContext): void {
         return { ...textResult(result), structuredContent: result }
       }
       const [writerResult, observerResult] = await Promise.allSettled([
-        manager.observationQuality({
+        observationQuality(manager, {
           tabId: input.writerTabId,
           expectedOrigin: target.origin,
           expectedText: input.expectedText,
           expectedSelector: input.expectedSelector
         }),
-        manager.observationQuality({
+        observationQuality(manager, {
           tabId: input.tabId,
           expectedOrigin: target.origin,
           expectedText: input.expectedText,

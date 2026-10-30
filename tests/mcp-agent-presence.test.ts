@@ -26,6 +26,26 @@ import { AGENT_AVATAR_COLORS, AGENT_AVATAR_INK, agentAvatarColorHex } from '../s
 import { WalletRequesterSchema } from '../src/shared/wallet.js'
 import type { McpTabActivity } from '../src/shared/types.js'
 
+// The fake browser below stubs the functions its tool calls go through; these reach its stubs.
+vi.mock('../src/main/browser/workspace-continuity/workspace-continuity.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-continuity/workspace-continuity.js')>(),
+  beginWorkspaceContinuityAction: (browser: { beginWorkspaceContinuityAction: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.beginWorkspaceContinuityAction(...args),
+  requireWorkspaceContinuityDispatch: (browser: { requireWorkspaceContinuityDispatch: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireWorkspaceContinuityDispatch(...args)
+}))
+vi.mock('../src/main/browser/agent-page-actions/click.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/agent-page-actions/click.js')>(),
+  click: (browser: { click: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.click(...args)
+}))
+vi.mock('../src/main/browser/agent-page-actions/hover-and-drag.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/agent-page-actions/hover-and-drag.js')>(),
+  drag: (browser: { drag: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.drag(...args),
+  hover: (browser: { hover: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.hover(...args)
+}))
+vi.mock('../src/main/browser/workspace-scope/workspace-scope.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-scope/workspace-scope.js')>(),
+  requireTabInMcpGroup: (browser: { requireTabInMcpGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireTabInMcpGroup(...args)
+}))
+
 const workspace = 'workspace-a'
 const otherWorkspace = 'workspace-b'
 const claude = { id: 'session-claude', name: 'Claude Code' }

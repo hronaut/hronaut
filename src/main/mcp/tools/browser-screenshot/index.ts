@@ -4,6 +4,7 @@ import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
 import { ScreenshotObservations } from './screenshot-observations.js'
 import { screenshotSettlement, type ScreenshotSettlement } from './screenshot-settlement.js'
+import { trackedViewportScreenshot } from '../../../browser/screenshot-observations/tracked-screenshot.js'
 
 export function registerBrowserScreenshot(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -56,7 +57,7 @@ export function registerBrowserScreenshot(context: McpToolContext): void {
         }
         const { tabId, format, quality, maxWidth, maxHeight } = captureOptions
         const previewBefore = manager.cssStatePreviewMarker(tabId)
-        const capture = await manager.trackedScreenshot({ tabId, format, quality, maxWidth, maxHeight })
+        const capture = await trackedViewportScreenshot(manager, { tabId, format, quality, maxWidth, maxHeight })
         const { report: observation, commit } = observations.observe(call.workspaceId, capture, ifChangedSince)
         call.settlement.retainObservation(commit)
         const cssStatePreview = previewBefore ?? manager.cssStatePreviewMarker(tabId)

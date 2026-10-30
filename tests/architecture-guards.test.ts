@@ -107,7 +107,7 @@ describe('the code the e2e tests load', () => {
       if (names.length > 0) problems.push(`${chain.join(' -> ')} imports { ${names.join(', ')} } from 'electron'`)
       for (const subpath of subpaths) problems.push(`${chain.join(' -> ')} imports from '${subpath}'`)
     }
-    expect(importedBy.has('src/main/mcp/server.ts')).toBe(true)
+    expect(importedBy.has('src/main/mcp/tool-catalog.ts')).toBe(true)
     expect(problems).toEqual([])
   }, 30_000)
 

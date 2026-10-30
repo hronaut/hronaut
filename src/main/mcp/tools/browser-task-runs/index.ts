@@ -6,6 +6,7 @@ import { BROWSER_TOOL_METADATA } from '../../tool-catalog.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema, workspaceIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { requireTabInMcpGroup } from '../../../browser/workspace-scope/workspace-scope.js'
 
 export function registerBrowserTaskRuns(context: McpToolContext): void {
   const {
@@ -127,7 +128,7 @@ export function registerBrowserTaskRuns(context: McpToolContext): void {
       const taskPreview = (definition: SavedTaskDefinition) => {
         authorizeActive()
         if (!tabId) throw new TypeError(`tabId is required to ${action} a saved task`)
-        manager.requireTabInMcpGroup(workspaceId, tabId)
+        requireTabInMcpGroup(manager, workspaceId, tabId)
         const tab = manager.getMcpGroupState(workspaceId).tabs.find(candidate => candidate.id === tabId)
         if (!tab) throw new Error('Saved-task browser context is unavailable')
         const parsedOrigin = exactOrigin()
@@ -287,7 +288,7 @@ export function registerBrowserTaskRuns(context: McpToolContext): void {
         authorizeActive()
         const definitions: TaskRunCheckDefinition[] = (checks ?? []).map(check => {
           if (check.type === 'audit-run') return { id: check.id, type: check.type, artifactId: check.runId }
-          manager.requireTabInMcpGroup(workspaceId, check.tabId)
+          requireTabInMcpGroup(manager, workspaceId, check.tabId)
           if (check.type === 'page-settled') return check
           const parsed = new URL(check.expectedOrigin)
           if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password
@@ -322,7 +323,7 @@ export function registerBrowserTaskRuns(context: McpToolContext): void {
           if (check.type === 'context-binding') {
             let tab
             try {
-              manager.requireTabInMcpGroup(workspaceId, check.tabId)
+              requireTabInMcpGroup(manager, workspaceId, check.tabId)
               tab = manager.getMcpGroupState(workspaceId).tabs.find(candidate => candidate.id === check.tabId)
             } catch { /* Report bounded unavailability below. */ }
             const lease = workspaceLeases.status(workspaceId, client.id)
@@ -370,7 +371,7 @@ export function registerBrowserTaskRuns(context: McpToolContext): void {
           }
           let tab
           try {
-            manager.requireTabInMcpGroup(workspaceId, check.tabId)
+            requireTabInMcpGroup(manager, workspaceId, check.tabId)
             tab = manager.getMcpGroupState(workspaceId).tabs.find(candidate => candidate.id === check.tabId)
           } catch { /* Report bounded unavailability below. */ }
           if (!tab) {

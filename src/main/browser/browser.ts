@@ -4,35 +4,24 @@ import type { BrowserEmulationResult, BrowserUnconfirmedEmulation } from '../../
 import { evaluateFile } from './page-evaluation/evaluate-file.js'
 import type { FileEvaluationSource, FileEvaluationHooks } from '../../shared/file-evaluation.js'
 import type { StorageComparisonHooks } from './storage-comparison-operation.js'
-import type { NativeClickProgress } from './native-click-admission.js'
 import type { StorageInspectionHooks } from './storage-inspection-operation.js'
 import type { WebStorageHooks } from './web-storage-operation.js'
 import { manageStorage } from './site-storage/manage-storage.js'
 import { inspectIndexedDb, inspectStorageUsage } from './site-storage/storage-inspection.js'
 import { storageChanges } from './site-storage/storage-changes.js'
-import { waitForElement, waitForPage, waitForText, waitForUrlPattern } from './page-waits/page-waits.js'
+import { waitForPage } from './page-waits/page-waits.js'
 import { visualCompare, type BrowserVisualCompareResult } from './visual-compare/visual-compare.js'
-import { callWebMcpTool, listWebMcpTools, webMcpStatus, type WebMcpStatus, type WebMcpToolCall, type WebMcpToolList } from './webmcp/webmcp.js'
 import { inspectPwa } from './pwa-inspection/pwa-inspection.js'
-import { elementInspection, imageState, mediaState } from './element-inspection/element-inspection.js'
+import { elementInspection } from './element-inspection/element-inspection.js'
 import { consoleMessages } from './console-messages/console-messages.js'
 import {
   performTabOverviewPreviewCapture,
   type TabOverviewPreviewCaptureRequest
 } from './tab-overview-previews/tab-overview-previews.js'
 import { workspaceContextMenuItems } from './context-menus/workspace-context-menu.js'
-import { fillForm, scroll, select, type } from './agent-page-actions/form-input-and-scroll.js'
-import type { NativeWheelInput } from './native-wheel.js'
-import { wheel } from './agent-wheel/agent-wheel.js'
-import { touch } from './agent-touch/agent-touch.js'
-import type { NativeTouchInput, NativeTouchProgress } from './agent-touch/touch-input.js'
-import type { NativeKeyHoldInput, NativeKeyHoldProgress } from './native-key-hold.js'
-import { holdKey, press } from './agent-keys/agent-keys.js'
-import type { BrowserImageState, BrowserMediaState } from '../../shared/types.js'
 import type { PendingElementInspection } from './element-inspection-publication.js'
 import type { PendingPdfExport } from './pdf-export-publication.js'
 import { savePdf } from './pdf-export/pdf-export.js'
-import { saveScreenshot, type PendingScreenshotExport, type ScreenshotExport, type ScreenshotExportOptions } from './screenshot-export/screenshot-export.js'
 import { createFrameObservation } from './frame-observation/browser-frame-observation.js'
 import type { ReactInspectionAuthority } from './react-inspection/react-inspection.js'
 import { createReactInspectionController } from './react-inspection/browser-react-inspection.js'
@@ -45,10 +34,8 @@ import { createPwaLifecycleRecorder } from './pwa-inspection/browser-pwa-lifecyc
 import type { PwaLifecycleOptions } from '../../shared/pwa-lifecycle.js'
 import { PageFindController } from './page-find-controller.js'
 import type { CookieWriteHooks } from './cookie-write-operation.js'
-import type { BrowserVideoInspectionOptions } from '../../shared/video-inspection.js'
-import type { PendingVideoInspection, VideoSourceBinding } from './video-recorder.js'
 import { createVideoRecorder } from './video-recording/browser-video-recorder.js'
-import { inspectVideo, videoRecording } from './video-recording/video-recording.js'
+import { videoRecording } from './video-recording/video-recording.js'
 import { VIDEO_RECORDING_NOTICES, type BrowserVideoOptions, type BrowserVideoState } from '../../shared/video.js'
 import type { BrowserCredentialCandidate } from './credential-capture/credential-capture.js'
 import { emulate } from './emulation/emulation.js'
@@ -86,32 +73,21 @@ import {
   addNetworkRoute,
   clearNetworkRoutes,
   moveNetworkRoute,
-  networkConditionPublication,
   networkConditionState,
   networkRoutes,
   removeNetworkRoute,
   setNetworkRouteEnabled
 } from './network-conditions/network-conditions.js'
-import { cancelHeldResponse, failAllHeldResponses, heldResponseSummaries, releaseHeldResponse, type HeldResponses } from './network-conditions/held-responses.js'
+import { failAllHeldResponses, type HeldResponses } from './network-conditions/held-responses.js'
 import { createDownloadsController } from './downloads/browser-downloads.js'
 import type { DownloadHistoryStore, SavedDownload } from './download-history/download-history.js'
-import { copyDownload, type DownloadCopyProgress, type DownloadCopyRequest, type DownloadCopyResult } from './download-copy/download-copy.js'
 import { createProfilingController } from './profiling/browser-profiling.js'
 import { WorkspaceContinuityStore } from '../mcp/workspace-continuity-store.js'
 import { WorkspaceContinuityEvidenceFactory } from '../mcp/workspace-continuity-evidence.js'
-import type { BrowserPostcondition } from '../../shared/post-write-postcondition.js'
-import type { BrowserReconciliationCondition, BrowserReconciliationEvidence } from '../../shared/browser-reconciliation.js'
-import type { PostconditionReadResult } from '../mcp/post-write-browser-read.js'
 import {
   armWorkspaceContinuity,
-  beginWorkspaceContinuityAction,
   inspectWorkspaceContinuity,
-  postWriteContextFingerprint,
-  readBrowserReconciliation,
-  readPostWritePostcondition,
   reconcileWorkspaceContinuity,
-  requireWorkspaceContinuityDispatch,
-  requireWorkspaceContinuityReview,
   retireWorkspaceContinuity,
   suspendWorkspaceContinuity
 } from './workspace-continuity/workspace-continuity.js'
@@ -121,16 +97,9 @@ import {
   listWorkspaceStorageOrigins
 } from './workspace-data/workspace-data.js'
 import { reconcilePresentedViewVisibility } from './presented-view-visibility.js'
-import { resizeViewport } from './emulation/resize-viewport.js'
 import { createSplitDivider } from './split-view/split-divider.js'
 import { FaviconDecoder } from './favicon.js'
 import { createHash } from 'node:crypto'
-import { uploadFiles } from './file-upload/file-upload.js'
-import { dropFiles, type FileDropResult } from './file-drop/file-drop.js'
-import { insertText, type TextInsertionProgress, type TextInsertionResult } from './text-insertion/text-insertion.js'
-import { fillFromFile, type TextFileFillProgress, type TextFileFillResult } from './text-file-fill/text-file-fill.js'
-import { shadowSnapshot, type BrowserShadowSnapshot } from './shadow-snapshot/shadow-snapshot.js'
-import { trackedViewportScreenshot, type TrackedScreenshot, type TrackedScreenshotOptions } from './screenshot-observations/tracked-screenshot.js'
 import { isAbsolute, join } from 'node:path'
 import {
   type BrowserWindow,
@@ -154,17 +123,10 @@ import { MAX_BROWSER_TABS } from '../../shared/types.js'
 import { translate, type MessageKey, type MessageParameters } from '../../shared/i18n.js'
 import type { SupportedLocale } from '../../shared/locale.js'
 import type { TabPosition } from '../../shared/tab-position.js'
-import type { SnapshotSearchOptions, SnapshotSearchResult } from '../../shared/snapshot-search.js'
 import type { BrowserSnapshot } from '../../shared/snapshot.js'
-import type { BrowserObservationQualityResult } from '../../shared/observation-quality.js'
 import {
   agentStepName,
-  clearSnapshotBaseline,
-  findSnapshot,
-  observationQuality,
-  setSnapshotBaseline,
   snapshot,
-  snapshotDelta,
   snapshotDetails,
   type BrowserSnapshotBaselineRecord
 } from './page-snapshots/page-snapshots.js'
@@ -176,27 +138,22 @@ import { safeNavigationHistorySnapshot } from './navigation-history.js'
 import { TabHistoryStore } from './saved-tab-history/saved-tab-history.js'
 import { ClosedTabsStore } from './saved-closed-tabs/saved-closed-tabs.js'
 import { McpActivityFollowController, type FollowAgent } from './mcp-activity-follow-controller.js'
-import { type BrowserDragModifier, drag, hover } from './agent-page-actions/hover-and-drag.js'
-import { click, type BrowserClickTarget } from './agent-page-actions/click.js'
 import { MemorySaverSweepQueue } from '../memory-saver-sweep.js'
 import { accessibilityAudit } from './page-audits/accessibility-audit.js'
-import { auditEvidenceAvailability, clearDiagnosticLogs, debugReport, diagnosticLogState, setDiagnosticLogPreservation } from './debug-report/debug-report.js'
+import { debugReport, setDiagnosticLogPreservation } from './debug-report/debug-report.js'
 import { securityReport } from './page-audits/security-report.js'
 import type { WorkspaceTemplateImporter } from './workspace-template-import.js'
 import { performanceReport } from './page-audits/performance-report.js'
 import { designOverview } from './page-audits/design-overview.js'
 import { createPageMetadata } from './diagnostics/browser-page-metadata.js'
 import { qualityAudit } from './page-audits/quality-audit.js'
-import type { BrowserGeneratedLocator } from '../../shared/playwright-locator.js'
-import { generatePlaywrightLocator } from './element-inspection/playwright-locator.js'
 import {
   networkHar,
   networkRequestDetails,
   networkRequests,
   networkSearch,
   replayNetworkRequest,
-  saveNetworkHar,
-  waitForNetworkRequest
+  saveNetworkHar
 } from './network-inspection/network-inspection.js'
 import type { ScreenshotAnnotationReport } from '../../shared/screenshot-annotations.js'
 import { screenshot } from './screenshots/screenshots.js'
@@ -251,8 +208,6 @@ import type {
   BrowserCpuProfileResult,
   BrowserMemoryOptions,
   BrowserMemoryReport,
-  BrowserDialogAction,
-  BrowserDialogHandlingOptions,
   BrowserPdfExport,
   BrowserPdfOptions,
   BrowserScreenshotOptions,
@@ -282,8 +237,6 @@ import type {
   BrowserCssStatePreviewReport,
   BrowserCssStatePreviewSummary,
   BrowserNetworkRequest,
-  BrowserNetworkWaitOptions,
-  BrowserNetworkWaitResult,
   BrowserNetworkReplayResult,
   BrowserNetworkRequestDetails,
   BrowserNetworkSearchOptions,
@@ -295,12 +248,10 @@ import type {
   BrowserNetworkRouteInput,
   BrowserNetworkRouteMoveDirection,
   BrowserNetworkRouteSummary,
-  BrowserHeldNetworkResponse,
   BrowserElementInspection,
   BrowserElementInspectionOptions,
   BrowserInspectorIssuesReport,
   BrowserClosedTabState,
-  BrowserPageLifecycleResult,
   BrowserPageLifecycleState,
   BrowserSavedTabGroupState,
   BrowserState,
@@ -308,7 +259,6 @@ import type {
   BrowserWorkspaceContextClass,
   BrowserWorkspaceNavigationAuditSource,
   BrowserWorkspaceNavigationPolicy,
-  BrowserTabState,
   BrowserTabOverviewPreview,
   McpTabActivity,
   NewTabOptions
@@ -318,15 +268,13 @@ import { browserImportDestination, importBrowserCookies } from './workspace-data
 import type { Cookie } from 'electron'
 import { runBackgroundAction } from './background-action.js'
 import type { SearchEngineName } from '../../shared/search-engine.js'
-import type { AgentPointerIdentity, BrowserFormField } from './page-scripts.js'
-import { evaluate, type EvaluationDeadline } from './page-evaluation/evaluate.js'
 import { TabStateStore } from './tab-store.js'
 import type { WorkspaceBeingDeleted } from './browser-state/persisted-state.js'
 import { browserState, publishChange } from './browser-state/browser-state.js'
 import { createStatePublication } from './browser-state/browser-state-publication.js'
 import { isHronautHomeUrl, isWebUrl } from './url.js'
 import { closeTabsForPerson } from './tab-close/close-tabs-for-person.js'
-import { controlPageLifecycle, pageLifecycle, setTabPageLifecycle } from './page-lifecycle/page-lifecycle.js'
+import { setTabPageLifecycle } from './page-lifecycle/page-lifecycle.js'
 import { back, forward, navigate, reload, reloadIgnoringCache, stop } from './page-navigation/page-navigation.js'
 import { setZoom } from './page-zoom/page-zoom.js'
 import type { WorkspaceNavigationDecision } from './workspace-navigation-policy.js'
@@ -344,10 +292,7 @@ import {
   type OpenWorkspaceOperationAction
 } from './workspace-operations/workspace-operations.js'
 import { OpenedTabObservation, type TabsOpenedDuringClick } from './click-opened-tabs.js'
-import { hasAgentPauseExceptions, isTabAgentPaused, isTabTakenOver, setAllAgentsPaused, setTabAgentPaused } from './agent-pause/agent-pause.js'
-import {
-  handleDialog
-} from './website-dialogs/website-dialogs.js'
+import { isTabAgentPaused, isTabTakenOver, setAllAgentsPaused, setTabAgentPaused } from './agent-pause/agent-pause.js'
 import type {
   AuthorizedAgentKeyboardInput,
   AuthorizedAgentMouseInput
@@ -366,7 +311,7 @@ import { forgetTabHistoryPages } from './tab-history-pages/forget-tab-history-pa
 import { setTabPinned } from './tab-arrangement/tab-arrangement.js'
 import { forgetTabsOpenedFrom, switchLeavesOpenedTabs } from './link-tab-placement/link-tab-openers.js'
 import { walletPageContext, type BrowserWalletPageContext } from './wallet-pages/wallet-pages.js'
-import { getMcpDiscoveryTabs, getMcpGroupState, requireTabInMcpGroup, tabBelongsToMcpGroup } from './workspace-scope/workspace-scope.js'
+import { getMcpGroupState, tabBelongsToMcpGroup } from './workspace-scope/workspace-scope.js'
 import { createNewTab, newLabeledAgentTab } from './new-tabs/new-tabs.js'
 import { createTab } from './new-tabs/create-tab.js'
 import { initializeBrowser } from './browser-lifecycle/initialize-browser.js'
@@ -544,35 +489,14 @@ export class Browser {
   readonly continuityEvidence = new WorkspaceContinuityEvidenceFactory()
   readonly continuityActions = new Map<string, { reads: number; writes: number }>()
 
-  beginWorkspaceContinuityAction(workspaceId: string, readOnly: boolean): () => void {
-    return beginWorkspaceContinuityAction(this, workspaceId, readOnly)
-  }
-
   /** Forgets a workspace deleted with its data: its continuity, and its downloads in the history kept for the next start. */
   retireWorkspaceContinuity(workspaceId: string): void {
     retireWorkspaceContinuity(this, workspaceId)
     this.downloadController.forgetWorkspace(workspaceId)
   }
 
-  postWriteContextFingerprint(workspaceId: string, tabId: string, condition: BrowserPostcondition): string {
-    return postWriteContextFingerprint(this, workspaceId, tabId, condition)
-  }
-
-  readPostWritePostcondition(workspaceId: string, tabId: string, condition: BrowserPostcondition, validateCurrent: () => void, signal?: AbortSignal): Promise<PostconditionReadResult> {
-    return readPostWritePostcondition(this, workspaceId, tabId, condition, validateCurrent, signal)
-  }
-
-  readBrowserReconciliation(workspaceId: string, tabId: string, condition: BrowserReconciliationCondition,
-    validateCurrent: () => void, signal?: AbortSignal): Promise<BrowserReconciliationEvidence> {
-    return readBrowserReconciliation(this, workspaceId, tabId, condition, validateCurrent, signal)
-  }
-
   armWorkspaceContinuity(workspaceId: string, markerSelector?: string, validateCurrent: () => void = () => undefined): Promise<string> {
     return armWorkspaceContinuity(this, workspaceId, markerSelector, validateCurrent)
-  }
-
-  requireWorkspaceContinuityReview(workspaceId: string): Promise<boolean> {
-    return requireWorkspaceContinuityReview(this, workspaceId)
   }
 
   suspendWorkspaceContinuity(workspaceId: string, outcome: WorkspaceContinuityResult['priorOutcome'] = 'NONE'): boolean {
@@ -585,10 +509,6 @@ export class Browser {
 
   reconcileWorkspaceContinuity(workspaceId: string, reviewId: string, acknowledgeUnknownOutcome: boolean, validateCurrent: () => void = () => undefined): Promise<void> {
     return reconcileWorkspaceContinuity(this, workspaceId, reviewId, acknowledgeUnknownOutcome, validateCurrent)
-  }
-
-  requireWorkspaceContinuityDispatch(workspaceId: string): void {
-    requireWorkspaceContinuityDispatch(this, workspaceId)
   }
 
   readonly tabs = new Map<string, BrowserTab>()
@@ -993,10 +913,6 @@ export class Browser {
     return listWorkspaceStorageOrigins(this, workspaceId)
   }
 
-  requireTabInMcpGroup(groupId: string, tabId?: string, preserveSelection = false): string {
-    return requireTabInMcpGroup(this, groupId, tabId, preserveSelection)
-  }
-
   tabBelongsToMcpGroup(groupId: string, tabId: string): boolean {
     return tabBelongsToMcpGroup(this, groupId, tabId)
   }
@@ -1008,10 +924,6 @@ export class Browser {
   /** Whether the person chose to keep URL query strings and fragments out of what agents read. */
   omitAgentUrlDetail(): boolean {
     return this.options.getOmitAgentUrlDetail?.() === true
-  }
-
-  getMcpDiscoveryTabs(groupId: string): Array<Pick<BrowserTabState, 'id' | 'title' | 'url'>> {
-    return getMcpDiscoveryTabs(this, groupId)
   }
 
   walletPageContext(webContentsId: number): BrowserWalletPageContext & { pageUnloading: boolean } {
@@ -1046,10 +958,6 @@ export class Browser {
       throw new LocalizedError('appErrors.workspaceStorage.ambiguousOwnership')
     }
     await this.store.withStableSnapshot(() => assertExclusiveWorkspaceStorage(this.options.storePath, workspaceId, storageId))
-  }
-
-  getActiveTab(): BrowserTab {
-    return getTab(this)
   }
 
   /** Whether the tab in view shows Hronaut Home. */
@@ -1202,22 +1110,11 @@ export class Browser {
     return wakeTab(this, tabId)
   }
 
-  pageLifecycle(tabId: string): BrowserPageLifecycleResult {
-    return pageLifecycle(this, tabId)
-  }
-
   setTabPageLifecycle(
     tabId: string,
     state: Exclude<BrowserPageLifecycleState, 'unknown'>
   ): Promise<BrowserState> {
     return setTabPageLifecycle(this, tabId, state)
-  }
-
-  controlPageLifecycle(
-    tabId: string,
-    requestedState: Exclude<BrowserPageLifecycleState, 'unknown'>
-  ): Promise<BrowserPageLifecycleResult> {
-    return controlPageLifecycle(this, tabId, requestedState)
   }
 
   /** Opens a workspace's menu where the pointer is; `onClosed` runs once it closes. */
@@ -1333,10 +1230,6 @@ export class Browser {
     return isTabAgentPaused(this, tabId)
   }
 
-  hasAgentPauseExceptions(): boolean {
-    return hasAgentPauseExceptions(this)
-  }
-
   setTabMuted(tabId: string, muted: boolean): BrowserState {
     return setTabMuted(this, tabId, muted)
   }
@@ -1358,10 +1251,6 @@ export class Browser {
     return snapshotDetails(this, tabId, maxChars, rootSelector)
   }
 
-  shadowSnapshot(tabId: string | undefined, hostSelector: string, maxChars?: number): Promise<BrowserShadowSnapshot> {
-    return shadowSnapshot(this, tabId, hostSelector, maxChars)
-  }
-
   /**
    * The name the latest snapshot of this page showed for a control ref, for the shell's plain-words steps.
    * The tab defaults to the one a workspace tool would use. Loading another document forgets the names;
@@ -1369,33 +1258,6 @@ export class Browser {
    */
   agentStepName(workspaceId: string, tabId: string | undefined, ref: string): string | undefined {
     return agentStepName(this, workspaceId, tabId, ref)
-  }
-
-  observationQuality(options: {
-    tabId?: string
-    expectedOrigin?: string
-    expectedText?: string
-    expectedSelector?: string
-  } = {}): Promise<BrowserObservationQualityResult> {
-    return observationQuality(this, options)
-  }
-
-  setSnapshotBaseline(tabId?: string, maxChars = 30_000, rootSelector?: string) {
-    return setSnapshotBaseline(this, tabId, maxChars, rootSelector)
-  }
-
-  clearSnapshotBaseline(tabId?: string, baselineId?: string) {
-    return clearSnapshotBaseline(this, tabId, baselineId)
-  }
-
-  snapshotDelta(options: {
-    tabId?: string
-    baselineId: string
-    rootSelector?: string
-    maxOutputChars?: number
-    advanceBaseline?: boolean
-  }) {
-    return snapshotDelta(this, options)
   }
 
   snapshotDeltaContext(tab: BrowserTab): BrowserSnapshotDeltaContext {
@@ -1407,10 +1269,6 @@ export class Browser {
       humanInteractionGeneration: tab.humanInteractionGeneration,
       snapshotFormatVersion: BROWSER_SNAPSHOT_FORMAT_VERSION
     }
-  }
-
-  findSnapshot(options: SnapshotSearchOptions & { tabId?: string; rootSelector?: string }): Promise<SnapshotSearchResult & { tabId: string; sourceSnapshot: Omit<BrowserSnapshot, 'text'> }> {
-    return findSnapshot(this, options)
   }
 
   accessibilityAudit(options: BrowserAccessibilityAuditOptions = {}): Promise<BrowserAccessibilityAudit> {
@@ -1462,75 +1320,12 @@ export class Browser {
     return elementInspection(this, options, validateInspection, deferInspection)
   }
 
-  mediaState(options: { tabId?: string; ref?: never; selector: string }, validateInspection?: () => void, deferInspection?: (pending: PendingElementInspection) => void): Promise<BrowserMediaState> {
-    return mediaState(this, options, validateInspection, deferInspection)
-  }
-
-  imageState(options: { tabId?: string; ref?: never; selector: string }, validateInspection?: () => void, deferInspection?: (pending: PendingElementInspection) => void): Promise<BrowserImageState> {
-    return imageState(this, options, validateInspection, deferInspection)
-  }
-
-  generatePlaywrightLocator(options: BrowserElementInspectionOptions): Promise<BrowserGeneratedLocator> {
-    return generatePlaywrightLocator(this, options)
-  }
-
   cancelElementPicker(tabId?: string): Promise<boolean> {
     return cancelElementPicker(this, tabId)
   }
 
   cancelScreenshotArea(tabId?: string): Promise<boolean> {
     return cancelScreenshotArea(this, tabId)
-  }
-
-  click(target: BrowserClickTarget, validateClick?: (validateContext: () => void) => void, recordClickProgress?: (progress: NativeClickProgress) => void, retainClickAuthority?: (authority: { validate(): void; dispose(): void }) => void, agent?: AgentPointerIdentity): Promise<unknown> {
-    return click(this, target, validateClick, recordClickProgress, retainClickAuthority, agent)
-  }
-
-  type(target: {
-    tabId?: string
-    ref?: string
-    selector?: string
-    text: string
-    submit?: boolean
-  }): Promise<unknown> {
-    return type(this, target)
-  }
-
-  select(target: { tabId?: string; ref?: string; selector?: string; value?: string; values?: string[] }, validateSelect?: (validateContext: () => void) => void, retainSelection?: (authority: { validate: () => void; dispose: () => void }) => void, markSelectionSubmitted?: () => void): Promise<unknown> {
-    return select(this, target, validateSelect, retainSelection, markSelectionSubmitted)
-  }
-
-  fillForm(tabId: string | undefined, fields: BrowserFormField[]): Promise<unknown> {
-    return fillForm(this, tabId, fields)
-  }
-
-  hover(target: {
-    tabId?: string
-    ref?: string
-    selector?: string
-    x?: number
-    y?: number
-  }, validateInput?: (validateContext: () => void) => void, agent?: AgentPointerIdentity): Promise<unknown> {
-    return hover(this, target, validateInput, agent)
-  }
-
-  drag(options: {
-    tabId?: string
-    sourceRef?: string
-    sourceSelector?: string
-    targetRef?: string
-    targetSelector?: string
-    startX?: number
-    startY?: number
-    endX?: number
-    endY?: number
-    modifiers?: readonly BrowserDragModifier[]
-  }, validateInput?: (validateContext: () => void) => void, agent?: AgentPointerIdentity): Promise<unknown> {
-    return drag(this, options, validateInput, agent)
-  }
-
-  resizeViewport(width: number | undefined, height: number | undefined, reset: boolean, tabId?: string): Promise<unknown> {
-    return resizeViewport(this, width, height, reset, tabId)
   }
 
   emulationResult(tab: BrowserTab): BrowserEmulationResult {
@@ -1557,34 +1352,12 @@ export class Browser {
     return emulate(this, options, validate, markSubmitted, retainPublication)
   }
 
-  wheel(input: NativeWheelInput, validateInput: (validateContext: () => void) => void, markAttempted: () => void): Promise<unknown> {
-    return wheel(this, input, validateInput, markAttempted)
-  }
-
-  touch(input: NativeTouchInput, validateInput: (validateContext: () => void) => void, recordProgress: (progress: NativeTouchProgress) => void, signal?: AbortSignal): Promise<unknown> {
-    return touch(this, input, validateInput, recordProgress, signal)
-  }
-
-  scroll(options: {
-    tabId?: string
-    ref?: string
-    selector?: string
-    deltaX?: number
-    deltaY?: number
-  }): Promise<unknown> {
-    return scroll(this, options)
-  }
-
   consoleMessages(tabId?: string, clear = false): BrowserConsoleMessage[] {
     return consoleMessages(this, tabId, clear)
   }
 
   networkRequests(tabId?: string, clear = false): Promise<BrowserNetworkRequest[]> {
     return networkRequests(this, tabId, clear)
-  }
-
-  waitForNetworkRequest(options: BrowserNetworkWaitOptions): Promise<BrowserNetworkWaitResult> {
-    return waitForNetworkRequest(this, options)
   }
 
   networkSearch(options: BrowserNetworkSearchOptions): Promise<BrowserNetworkSearchResult> {
@@ -1603,35 +1376,12 @@ export class Browser {
     return debugReport(this, options)
   }
 
-  auditEvidenceAvailability(tabId: string): {
-    diagnostic: boolean
-    network: boolean
-    domChanges: boolean
-    storageChanges: boolean
-    storageSupported: boolean
-    reproduction: boolean
-  } {
-    return auditEvidenceAvailability(this, tabId)
-  }
-
-  diagnosticLogState(tabId?: string): BrowserDiagnosticLogState {
-    return diagnosticLogState(this, tabId)
-  }
-
   setDiagnosticLogPreservation(tabId: string, preserve: boolean): BrowserDiagnosticLogState {
     return setDiagnosticLogPreservation(this, tabId, preserve)
   }
 
-  clearDiagnosticLogs(tabId?: string): BrowserDiagnosticLogState {
-    return clearDiagnosticLogs(this, tabId)
-  }
-
   videoRecording(options: BrowserVideoOptions, validateAuthority?: () => void, signal?: AbortSignal): Promise<BrowserVideoState> {
     return videoRecording(this, options, validateAuthority, signal)
-  }
-
-  inspectVideo(options: BrowserVideoInspectionOptions, authorize: (source: VideoSourceBinding) => void, signal?: AbortSignal): Promise<PendingVideoInspection> {
-    return inspectVideo(this, options, authorize, signal)
   }
 
   async reproRecording(action: BrowserReproAction, tabId?: string, checkpoint?: unknown): Promise<BrowserReproRecording> {
@@ -1786,10 +1536,6 @@ export class Browser {
     return networkRoutes(this, tabId)
   }
 
-  networkConditionPublication(tabId: string | undefined, expected: BrowserNetworkRouteSummary[]): () => void {
-    return networkConditionPublication(this, tabId, expected)
-  }
-
   addNetworkRoute(tabId: string | undefined, input: BrowserNetworkRouteInput, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
     return addNetworkRoute(this, tabId, input, validate, markSubmitted)
   }
@@ -1808,18 +1554,6 @@ export class Browser {
 
   clearNetworkRoutes(tabId?: string, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
     return clearNetworkRoutes(this, tabId, validate, markSubmitted)
-  }
-
-  heldNetworkResponses(tabId?: string): BrowserHeldNetworkResponse[] {
-    return heldResponseSummaries(this, tabId)
-  }
-
-  releaseHeldNetworkResponse(tabId: string | undefined, routeId: string, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<void> {
-    return releaseHeldResponse(this, tabId, routeId, validate, markSubmitted)
-  }
-
-  cancelHeldNetworkResponse(tabId: string | undefined, routeId: string, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<void> {
-    return cancelHeldResponse(this, tabId, routeId, validate, markSubmitted)
   }
 
   /** Fails every held request as Hronaut starts to quit. */
@@ -1858,11 +1592,6 @@ export class Browser {
     return this.downloadController.manageWorkspaceDownloads(workspaceId, action, downloadId)
   }
 
-  /** Copies a download the workspace finished into an existing folder under a new name; see copyDownload. */
-  copyWorkspaceDownload(workspaceId: string, request: DownloadCopyRequest, validate?: () => void, progress?: DownloadCopyProgress): Promise<DownloadCopyResult> {
-    return copyDownload(this, workspaceId, request, validate, progress)
-  }
-
   listDownloadsCheckingFiles(): BrowserDownloadState[] {
     return this.downloadController.listDownloadsCheckingFiles()
   }
@@ -1875,75 +1604,8 @@ export class Browser {
     return this.downloadController.startDownloadDrag(downloadId, sender)
   }
 
-  uploadFiles(
-    target: { tabId?: string; ref?: string; selector?: string },
-    paths: string[],
-    validateUpload?: (validateContext: () => void) => void
-  ): Promise<{ files: string[] }> {
-    return uploadFiles(this, target, paths, validateUpload)
-  }
-
-  dropFiles(
-    target: { tabId?: string; ref?: string; selector?: string },
-    paths: string[],
-    validateDrop?: (validateContext: () => void) => void,
-    agent?: AgentPointerIdentity
-  ): Promise<FileDropResult> {
-    return dropFiles(this, target, paths, validateDrop, agent)
-  }
-
-  insertText(
-    target: { tabId?: string; ref?: string; selector?: string },
-    text: string,
-    validateInsertion?: (validateContext: () => void) => void,
-    progress?: TextInsertionProgress
-  ): Promise<TextInsertionResult> {
-    return insertText(this, target, text, validateInsertion, progress)
-  }
-
-  fillFromFile(
-    target: { tabId?: string; ref?: string; selector?: string },
-    source: { path: string; expectedOrigin: string; sha256?: string },
-    validateFill?: (validateContext: () => void) => void,
-    progress?: TextFileFillProgress
-  ): Promise<TextFileFillResult> {
-    return fillFromFile(this, target, source, validateFill, progress)
-  }
-
-  holdKey(input: NativeKeyHoldInput, validateInput: (validateContext: () => void) => void,
-    recordProgress: (progress: NativeKeyHoldProgress) => void, signal?: AbortSignal): Promise<unknown> {
-    return holdKey(this, input, validateInput, recordProgress, signal)
-  }
-
-  press(key: string, tabId?: string, validateInput?: (validateContext: () => void) => void): Promise<void> {
-    return press(this, key, tabId, validateInput)
-  }
-
   evaluateFile(source: FileEvaluationSource, hooks: FileEvaluationHooks): Promise<Record<string, unknown>> {
     return evaluateFile(this, source, hooks)
-  }
-
-  evaluate(script: string, tabId?: string, dialog: BrowserDialogHandlingOptions = {}, deadline?: EvaluationDeadline): Promise<unknown> {
-    return evaluate(this, script, tabId, dialog, deadline)
-  }
-
-  webMcpStatus(tabId?: string): Promise<WebMcpStatus> {
-    return webMcpStatus(this, tabId)
-  }
-
-  listWebMcpTools(tabId?: string): Promise<WebMcpToolList> {
-    return listWebMcpTools(this, tabId)
-  }
-
-  callWebMcpTool(input: WebMcpToolCall): Promise<Record<string, unknown>> {
-    return callWebMcpTool(this, input)
-  }
-
-  handleDialog(action: BrowserDialogAction, tabId?: string): Promise<{
-    handled: true
-    action: BrowserDialogAction
-  }> {
-    return handleDialog(this, action, tabId)
   }
 
   visualCompare(options: BrowserVisualCompareOptions, validateCapture?: () => void): Promise<BrowserVisualCompareResult> {
@@ -1954,46 +1616,12 @@ export class Browser {
     return screenshot(this, options)
   }
 
-  trackedScreenshot(options: TrackedScreenshotOptions): Promise<TrackedScreenshot> {
-    return trackedViewportScreenshot(this, options)
-  }
-
   savePdf(options: BrowserPdfOptions = {}, validateExport?: () => void, deferExport?: (pending: PendingPdfExport) => void): Promise<BrowserPdfExport> {
     return savePdf(this, options, validateExport, deferExport)
   }
 
-  saveScreenshot(options: ScreenshotExportOptions = {}, validateExport?: () => void, deferExport?: (pending: PendingScreenshotExport) => void): Promise<ScreenshotExport> {
-    return saveScreenshot(this, options, validateExport, deferExport)
-  }
-
   waitForPage(tabId?: string, timeoutMs = 30_000): Promise<void> {
     return waitForPage(this, tabId, timeoutMs)
-  }
-
-  waitForText(
-    text: string | readonly string[],
-    tabId?: string,
-    timeoutMs = 30_000,
-    state: 'visible' | 'hidden' = 'visible'
-  ): Promise<string | null> {
-    return waitForText(this, text, tabId, timeoutMs, state)
-  }
-
-  waitForElement(
-    target: { ref?: string; selector?: string },
-    tabId?: string,
-    timeoutMs = 30_000,
-    state: 'attached' | 'detached' | 'visible' | 'hidden' = 'visible'
-  ): Promise<boolean> {
-    return waitForElement(this, target, tabId, timeoutMs, state)
-  }
-
-  waitForUrlPattern(
-    urlPattern: string,
-    tabId?: string,
-    timeoutMs = 30_000
-  ): Promise<string | null> {
-    return waitForUrlPattern(this, urlPattern, tabId, timeoutMs)
   }
 
   setBrowserContentOccluded(occluded: boolean, request: number): void {

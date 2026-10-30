@@ -6,6 +6,8 @@ import { tabIdSchema } from '../../tool-schemas.js'
 import { pageObservationSettlement, type PageObservationSettlement } from '../page-observation-settlement.js'
 import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
 import { frameObservationSettlement, type FrameObservationSettlement } from './frame-observation-settlement.js'
+import { clearSnapshotBaseline, observationQuality, setSnapshotBaseline, snapshotDelta } from '../../../browser/page-snapshots/page-snapshots.js'
+import { shadowSnapshot } from '../../../browser/shadow-snapshot/shadow-snapshot.js'
 
 type SnapshotSettlement = FrameObservationSettlement | PageObservationSettlement
 
@@ -57,7 +59,7 @@ export function registerBrowserSnapshot(context: McpToolContext): void {
         if (action !== 'capture' || [rootSelector, frameSelector, baselineId, maxOutputChars, advanceBaseline, expectedOrigin, expectedText, expectedSelector].some(option => option !== undefined)) {
           throw new TypeError('shadowHostSelector is supported only for capture, without root, frame, baseline, delta or quality options')
         }
-        const capture = await manager.shadowSnapshot(tabId, shadowHostSelector, maxChars)
+        const capture = await shadowSnapshot(manager, tabId, shadowHostSelector, maxChars)
         return { ...textResult(capture.text), structuredContent: { ...capture } }
       }
       if (frameSelector !== undefined) {
@@ -71,20 +73,20 @@ export function registerBrowserSnapshot(context: McpToolContext): void {
         throw new TypeError('rootSelector is supported only for capture, set-baseline and delta')
       }
       if (action === 'assess-quality') {
-        const assessment = await manager.observationQuality({ tabId, expectedOrigin, expectedText, expectedSelector })
+        const assessment = await observationQuality(manager, { tabId, expectedOrigin, expectedText, expectedSelector })
         return { ...textResult(assessment), structuredContent: { ...assessment } }
       }
       if (action === 'set-baseline') {
-        const snapshot = await manager.setSnapshotBaseline(tabId, maxChars, rootSelector)
+        const snapshot = await setSnapshotBaseline(manager, tabId, maxChars, rootSelector)
         return { ...textResult(snapshot.text), structuredContent: snapshot }
       }
       if (action === 'delta') {
         if (!baselineId) throw new TypeError('baselineId is required for a snapshot delta')
-        const delta = await manager.snapshotDelta({ tabId, baselineId, rootSelector, maxOutputChars, advanceBaseline })
+        const delta = await snapshotDelta(manager, { tabId, baselineId, rootSelector, maxOutputChars, advanceBaseline })
         return { content: [{ type: 'text', text: JSON.stringify(delta) }], structuredContent: delta }
       }
       if (action === 'clear-baseline') {
-        const cleared = manager.clearSnapshotBaseline(tabId, baselineId)
+        const cleared = clearSnapshotBaseline(manager, tabId, baselineId)
         return { ...textResult(cleared), structuredContent: cleared }
       }
       const snapshot = rootSelector === undefined

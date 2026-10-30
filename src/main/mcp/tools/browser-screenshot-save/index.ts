@@ -3,6 +3,7 @@ import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
 import { type ScreenshotExportSettlement, screenshotExportSettlement } from './screenshot-save-settlement.js'
+import { saveScreenshot } from '../../../browser/screenshot-export/screenshot-export.js'
 
 export function registerBrowserScreenshotSave(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -28,7 +29,7 @@ export function registerBrowserScreenshotSave(context: McpToolContext): void {
         call.requireCurrentTarget()
       }
       const previewBefore = manager.cssStatePreviewMarker(options.tabId)
-      const exported = await manager.saveScreenshot(options, validateExport, pending => { call.settlement.retain(pending) })
+      const exported = await saveScreenshot(manager, options, validateExport, pending => { call.settlement.retain(pending) })
       const cssStatePreview = previewBefore ?? manager.cssStatePreviewMarker(options.tabId)
       return textResult({
         ...exported,

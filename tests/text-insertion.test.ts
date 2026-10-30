@@ -22,6 +22,11 @@ vi.mock('../src/main/browser/agent-input-authorization/agent-input-authorization
   ...await importOriginal<typeof import('../src/main/browser/agent-input-authorization/agent-input-authorization.js')>(),
   agentInputDebugger: (browser: { agentInputDebugger(...args: unknown[]): unknown }, ...args: unknown[]) => browser.agentInputDebugger(...args)
 }))
+// The tool tests below give the insertion their own steps; the other tests run the real one.
+vi.mock('../src/main/browser/text-insertion/text-insertion.js', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../src/main/browser/text-insertion/text-insertion.js')>()
+  return { ...original, insertText: vi.fn(original.insertText) }
+})
 
 const TEXT = 'private-draft-canary 😀 мир'
 
@@ -257,12 +262,16 @@ describe('text insertion', () => {
 })
 
 describe('browser_insert_text tool', () => {
+  afterEach(() => { vi.mocked(insertText).mockReset() })
   type Validate = (validateContext: () => void) => void
   /** The tool's handler, over a manager whose insertion runs the given steps, and a call that records its outcome class. */
   function tool(insert: (validateInsertion: Validate, progress: TextInsertionProgress) => Promise<unknown>, overrides: Record<string, unknown> = {}) {
     let handler: ((input: Record<string, unknown>, call: unknown) => Promise<unknown>) | undefined
+    vi.mocked(insertText).mockImplementation(async (_browser, _target, _text, validateInsertion, progress) => (
+      await insert(validateInsertion!, progress!) as never
+    ))
     registerBrowserInsertText({
-      manager: { insertText: (_target: unknown, _text: string, validateInsertion: Validate, progress: TextInsertionProgress) => insert(validateInsertion, progress) },
+      manager: {},
       tabTool: (_name: string, callback: unknown) => callback,
       registerWorkspaceTool: (_name: string, _config: unknown, callback: typeof handler) => { handler = callback }
     } as never)

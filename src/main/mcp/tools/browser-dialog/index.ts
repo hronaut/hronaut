@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { handleDialog } from '../../../browser/website-dialogs/website-dialogs.js'
 
 export function registerBrowserDialog(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -17,6 +18,6 @@ export function registerBrowserDialog(context: McpToolContext): void {
     tabTool('browser_dialog', async ({ action, tabId }: {
       action: 'accept' | 'dismiss'
       tabId?: string
-    }) => textResult(await manager.handleDialog(action, tabId)))
+    }) => textResult(await handleDialog(manager, action, tabId)))
   )
 }

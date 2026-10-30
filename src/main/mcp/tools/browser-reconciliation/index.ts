@@ -1,6 +1,7 @@
 import { publicBrowserReconciliation, textResult, toolDescription } from '../../tool-results.js'
 import { type ReconciliationConditionRequest, reconciliationRequestSchema, tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { readBrowserReconciliation } from '../../../browser/workspace-continuity/workspace-continuity.js'
 
 export function registerBrowserReconciliation(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, requireAgentWorkspace, tabTool } = context
@@ -20,12 +21,7 @@ export function registerBrowserReconciliation(context: McpToolContext): void {
       targetIdentity: string
       sourceRevision: string
     }) => {
-      const evidence = await manager.readBrowserReconciliation(
-        input.workspaceId,
-        input.tabId,
-        input,
-        () => { requireAgentWorkspace(input.workspaceId) }
-      )
+      const evidence = await readBrowserReconciliation(manager, input.workspaceId, input.tabId, input, () => { requireAgentWorkspace(input.workspaceId) })
       return textResult(publicBrowserReconciliation(input, evidence))
     }),
     { continuityInspection: () => true }

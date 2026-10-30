@@ -5,6 +5,7 @@ import { RetainedBrowserWorkspaceError } from '../../../browser/workspace-errors
 import { textResult, toolDescription } from '../../tool-results.js'
 import { workspaceIdSchema, workspaceResumeKeySchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { beginWorkspaceContinuityAction, requireWorkspaceContinuityDispatch, requireWorkspaceContinuityReview } from '../../../browser/workspace-continuity/workspace-continuity.js'
 
 export function normalizePublicObserverOrigin(value: string): string {
   const parsed = new URL(value)
@@ -92,29 +93,29 @@ export function registerBrowserWorkspaces(context: McpToolContext): void {
         const forkRevision = actionTracker.controlRevision
         if (forkSourceId && humanWaiting) await humanWaiting.requireDispatch(
           forkSourceId,
-          () => { manager.requireWorkspaceContinuityDispatch(forkSourceId) },
+          () => { requireWorkspaceContinuityDispatch(manager, forkSourceId) },
           undefined,
           humanReviewSessionBinding
         )
-        if (forkSourceId) manager.requireWorkspaceContinuityDispatch(forkSourceId)
-        const finishFork = forkSourceId ? manager.beginWorkspaceContinuityAction(forkSourceId, false) : undefined
+        if (forkSourceId) requireWorkspaceContinuityDispatch(manager, forkSourceId)
+        const finishFork = forkSourceId ? beginWorkspaceContinuityAction(manager, forkSourceId, false) : undefined
         const forkContextCurrent = async (): Promise<boolean> => {
           if (!forkSourceId) return true
           try {
             if (humanWaiting) await humanWaiting.requireDispatch(
               forkSourceId,
-              () => { manager.requireWorkspaceContinuityDispatch(forkSourceId) },
+              () => { requireWorkspaceContinuityDispatch(manager, forkSourceId) },
               undefined,
               humanReviewSessionBinding
             )
             if (getPaused() || actionTracker.controlRevision !== forkRevision) return false
-            manager.requireWorkspaceContinuityDispatch(forkSourceId)
+            requireWorkspaceContinuityDispatch(manager, forkSourceId)
             return true
           } catch { return false }
         }
         const interruptedFork = async (id: string): Promise<CallToolResult> => {
           if (forkSourceId) manager.suspendWorkspaceContinuity(forkSourceId, 'OUTCOME_UNKNOWN')
-          const guardPersisted = await manager.requireWorkspaceContinuityReview(id)
+          const guardPersisted = await requireWorkspaceContinuityReview(manager, id)
           const outcome = {
             status: 'OUTCOME_UNKNOWN', effects: 'possible', workspaceId: id,
             resumeKey: manager.mcpWorkspaceResumeKey(id), retained: true, reviewRequired: true, guardPersisted,

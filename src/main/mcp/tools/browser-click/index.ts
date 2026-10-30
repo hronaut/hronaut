@@ -5,6 +5,7 @@ import type { PostWriteRequest, PreWriteReconciliationRequest } from '../../tool
 import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
 import { type ClickSettlement, clickSettlement } from './click-settlement.js'
 import { browserClickInputShape } from './input-shape.js'
+import { click } from '../../../browser/agent-page-actions/click.js'
 
 export function browserClickPageInput<T extends object>(input: T & { postcondition?: unknown; reconciliation?: unknown }): Omit<T, 'postcondition' | 'reconciliation'> {
   const { postcondition: _postcondition, reconciliation: _reconciliation, ...pageInput } = input
@@ -50,7 +51,7 @@ export function registerBrowserClick(context: McpToolContext): void {
           throw error
         }
       }
-      return textResult(await manager.click(browserClickPageInput(input), validateNativeInput, call.settlement.recordProgress, call.settlement.retainAuthority, agentCursorIdentity(client.name)))
+      return textResult(await click(manager, browserClickPageInput(input), validateNativeInput, call.settlement.recordProgress, call.settlement.retainAuthority, agentCursorIdentity(client.name)))
     }),
     {
       settlement: input => clickSettlement(manager, input.button === 'right'),
