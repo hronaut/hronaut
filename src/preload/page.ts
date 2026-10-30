@@ -1,24 +1,23 @@
 import { installReactInspection } from './react-inspection-bootstrap.js'
-import type { PageBootstrap } from '../shared/page-bootstrap.js'
-import { contextBridge, ipcRenderer } from 'electron'
-import type { HomeWorkspaceAction } from '../shared/home-workspaces.js'
+import { contextBridge } from 'electron'
 import type { HronautHomeApi } from '../shared/home.js'
-import type { Confirmation } from '../shared/confirmation.js'
-import type { AgentGuideId } from '../shared/agent-guides.js'
 import type { WalletProviderEvent, WalletProviderRequest } from '../shared/wallet.js'
 import { installHronautWalletProviders } from './wallet-provider-bootstrap.js'
 import { installFixedDate } from './fixed-date-bootstrap.js'
-import { PAGE_PRINT_DIALOG_CHANNEL } from '../shared/page-print-dialog.js'
+import { HOME_IPC } from '../shared/ipc/home.js'
+import { PAGE_IPC } from '../shared/ipc/page.js'
+import { WALLET_PROVIDER_IPC } from '../shared/ipc/wallet-provider.js'
+import { invoke, send, sendSync, subscribe } from './bridges/ipc.js'
 
 // Synchronous, main-owned opt-ins are resolved before any page scripts execute, in one answer, which the page waits
 // for. Embedded frames never receive an installation authorization.
 const bootstrap = location.protocol === 'http:' || location.protocol === 'https:'
-  ? ipcRenderer.sendSync('page:bootstrap') as PageBootstrap | undefined
+  ? sendSync(PAGE_IPC.bootstrap)
   : undefined
 const reactInspection = bootstrap?.reactInspection
 if (reactInspection?.enabled && typeof reactInspection.installationId === 'string') {
   contextBridge.executeInMainWorld({ func: installReactInspection, args: [reactInspection.installationId] })
-  ipcRenderer.on('react-inspection:disable', () => window.dispatchEvent(new Event('hronaut:react-inspection:disable')))
+  subscribe(PAGE_IPC.reactInspectionDisable, () => window.dispatchEvent(new Event('hronaut:react-inspection:disable')))
 }
 
 
@@ -49,36 +48,28 @@ const pageLocation = (globalThis as unknown as {
 
 if (pageLocation?.protocol === 'hronaut:' && pageLocation.hostname === 'home') {
   contextBridge.exposeInMainWorld('hronautHome', {
-    onShowWorkspaces: (listener: () => void) => {
-      const handler = (): void => listener()
-      ipcRenderer.on('hronaut-home:show-workspaces', handler)
-      return () => ipcRenderer.removeListener('hronaut-home:show-workspaces', handler)
-    },
-    onChanged: (listener: () => void) => {
-      const handler = (): void => listener()
-      ipcRenderer.on('hronaut-home:changed', handler)
-      return () => ipcRenderer.removeListener('hronaut-home:changed', handler)
-    },
-    getWorkspaces: () => ipcRenderer.invoke('hronaut-home:workspaces'),
-    workspaceAction: (request: HomeWorkspaceAction) => ipcRenderer.invoke('hronaut-home:workspace-action', request),
-    copyText: (text: string) => ipcRenderer.invoke('hronaut-home:copy-text', text),
-    confirm: async (question: Confirmation) => await ipcRenderer.invoke('hronaut-home:confirm', question) === true,
-    openAgentGuide: (clientId: AgentGuideId) => ipcRenderer.invoke('hronaut-home:open-agent-guide', clientId),
-    openVsCodeInstall: () => ipcRenderer.invoke('hronaut-home:open-vscode-install'),
-    openSetupHelp: () => ipcRenderer.invoke('hronaut-home:open-setup-help'),
-    openSetupFeedback: () => ipcRenderer.invoke('hronaut-home:open-setup-feedback'),
-    getSetupState: () => ipcRenderer.invoke('hronaut-home:setup-state'),
-    prepareClaudeCodeSetup: () => ipcRenderer.invoke('hronaut-home:claude-code-prepare'),
-    applyClaudeCodeSetup: (planId: string) => ipcRenderer.invoke('hronaut-home:claude-code-apply', planId),
-    useMcpPort: (port: number) => ipcRenderer.invoke('hronaut-home:use-mcp-port', port)
+    onShowWorkspaces: (listener) => subscribe(HOME_IPC.showWorkspaces, () => listener()),
+    onChanged: (listener) => subscribe(HOME_IPC.changed, () => listener()),
+    getWorkspaces: () => invoke(HOME_IPC.workspaces),
+    workspaceAction: (request) => invoke(HOME_IPC.workspaceAction, request),
+    copyText: (text) => invoke(HOME_IPC.copyText, text),
+    confirm: async (question) => await invoke(HOME_IPC.confirm, question) === true,
+    openAgentGuide: (clientId) => invoke(HOME_IPC.openAgentGuide, clientId),
+    openVsCodeInstall: () => invoke(HOME_IPC.openVsCodeInstall),
+    openSetupHelp: () => invoke(HOME_IPC.openSetupHelp),
+    openSetupFeedback: () => invoke(HOME_IPC.openSetupFeedback),
+    getSetupState: () => invoke(HOME_IPC.setupState),
+    prepareClaudeCodeSetup: () => invoke(HOME_IPC.claudeCodePrepare),
+    applyClaudeCodeSetup: (planId) => invoke(HOME_IPC.claudeCodeApply, planId),
+    useMcpPort: (port) => invoke(HOME_IPC.useMcpPort, port)
   } satisfies HronautHomeApi)
 } else if (pageLocation?.protocol === 'http:' || pageLocation?.protocol === 'https:') {
   const walletListeners = new Set<(event: WalletProviderEvent) => void>()
-  ipcRenderer.on('wallet-provider:event', (_event, message: WalletProviderEvent) => {
+  subscribe(WALLET_PROVIDER_IPC.event, (message) => {
     for (const listener of walletListeners) listener(message)
   })
   contextBridge.exposeInMainWorld('__hronautWalletBridge', {
-    request: (input: WalletProviderRequest) => ipcRenderer.invoke('wallet-provider:request', input),
+    request: (input: WalletProviderRequest) => invoke(WALLET_PROVIDER_IPC.request, input),
     subscribe: (listener: (event: WalletProviderEvent) => void) => { walletListeners.add(listener) },
     unsubscribe: (listener: (event: WalletProviderEvent) => void) => { walletListeners.delete(listener) }
   })
@@ -108,7 +99,7 @@ function errorDetails(value: unknown): { message?: string; stack?: string } {
 
 pageWindow.addEventListener('error', (event) => {
   const error = errorDetails(event.error)
-  ipcRenderer.send('hronaut:page-exception', {
+  send(PAGE_IPC.exception, {
     timestamp: Date.now(),
     message: error.message ?? bounded(event.message) ?? 'Unhandled JavaScript exception',
     stack: error.stack,
@@ -124,7 +115,7 @@ pageWindow.addEventListener('unhandledrejection', (event) => {
   const primitiveReason = ['string', 'number', 'boolean', 'bigint'].includes(typeof reason)
     ? bounded(String(reason))
     : undefined
-  ipcRenderer.send('hronaut:page-exception', {
+  send(PAGE_IPC.exception, {
     timestamp: Date.now(),
     message: error.message ?? primitiveReason ?? 'Unhandled promise rejection',
     stack: error.stack,
@@ -136,6 +127,6 @@ pageWindow.addEventListener('unhandledrejection', (event) => {
 // page go instead of keeping the agent's workspace busy. Only the browser's own print events count, not a page's copy.
 for (const type of ['beforeprint', 'afterprint'] as const) {
   pageWindow.addEventListener(type, (event) => {
-    if (event.isTrusted) ipcRenderer.send(PAGE_PRINT_DIALOG_CHANNEL, type === 'beforeprint')
+    if (event.isTrusted) send(PAGE_IPC.printDialog, type === 'beforeprint')
   }, true)
 }

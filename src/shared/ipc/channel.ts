@@ -6,6 +6,12 @@ declare const contract: unique symbol
  */
 export type InvokeChannel<Args extends unknown[], Result> = string & { readonly [contract]?: { invoke: Args; result: Result } }
 
+/**
+ * A channel a renderer sends these arguments on and waits for main's answer, holding its page until main gives it; for
+ * what a page needs before its own scripts run.
+ */
+export type SyncChannel<Args extends unknown[], Result> = string & { readonly [contract]?: { sendSync: Args; result: Result } }
+
 /** A channel a renderer sends these arguments on to main, which answers nothing. */
 export type SendChannel<Args extends unknown[]> = string & { readonly [contract]?: { send: Args } }
 

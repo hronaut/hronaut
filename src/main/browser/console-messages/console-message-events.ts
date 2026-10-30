@@ -2,6 +2,7 @@ import type { WebContents } from 'electron'
 import { normalizePageException, type PageExceptionPayload } from '../../../shared/console-exceptions.js'
 import type { ConsoleMessagesTab } from './console-messages.js'
 import { appendConsoleMessage, withPendingRuntimeConsoleMessage } from './console-messages.js'
+import { PAGE_IPC } from '../../../shared/ipc/page.js'
 
 /**
  * Captures the page's console messages from Electron's console events, taking
@@ -22,7 +23,7 @@ export function attachConsoleMessageEvents(tab: ConsoleMessagesTab, webContents:
     if (runtimeMatched) tab.consoleMessages.at(-1)?.captureSources.add('runtime-console')
   })
   webContents.on('ipc-message', (_event, channel, payload: unknown) => {
-    if (channel !== 'hronaut:page-exception') return
+    if (channel !== PAGE_IPC.exception) return
     const message = normalizePageException(payload as PageExceptionPayload)
     if (message) appendConsoleMessage(tab, message, 'preload')
   })

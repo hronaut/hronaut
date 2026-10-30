@@ -2,6 +2,7 @@ import type { IpcMain } from 'electron'
 import type { PageBootstrap } from '../shared/page-bootstrap.js'
 import type { Browser } from './browser/browser.js'
 import { reactInspectionBootstrap } from './browser/react-inspection/browser-react-inspection.js'
+import { PAGE_IPC } from '../shared/ipc/page.js'
 
 interface PageBootstrapIpcHost {
   ipcMain: Pick<IpcMain, 'on'>
@@ -16,7 +17,7 @@ interface PageBootstrapIpcHost {
  * with many pages loading. Embedded frames are never answered with either.
  */
 export function registerPageBootstrapIpc(host: PageBootstrapIpcHost): void {
-  host.ipcMain.on('page:bootstrap', event => {
+  host.ipcMain.on(PAGE_IPC.bootstrap, event => {
     const tabs = host.tabs()
     event.returnValue = (tabs && event.senderFrame && event.senderFrame === event.sender.mainFrame
       ? {
