@@ -11,6 +11,7 @@ import {
   type SiteSearchDraft
 } from '../shared/site-search.js'
 import type { AppSettings } from '../shared/types.js'
+import { SETTINGS_IPC } from '../shared/ipc/settings.js'
 
 interface SiteSearchIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
@@ -43,7 +44,7 @@ export function registerSiteSearchIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Si
     return siteSearchFromDraft(id, draft)
   }
 
-  ipcMain.handle('settings:add-site-search', (event, draft: unknown) => {
+  ipcMain.handle(SETTINGS_IPC.addSiteSearch, (event, draft: unknown) => {
     host.assertTrustedSender(event)
     if (!isSiteSearchDraft(draft)) throw new TypeError('Invalid site search')
     return change((current) => {
@@ -51,7 +52,7 @@ export function registerSiteSearchIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Si
       return [...current, checked(randomUUID(), draft, current)]
     })
   })
-  ipcMain.handle('settings:update-site-search', (event, id: unknown, draft: unknown) => {
+  ipcMain.handle(SETTINGS_IPC.updateSiteSearch, (event, id: unknown, draft: unknown) => {
     host.assertTrustedSender(event)
     if (!isSiteSearchId(id) || !isSiteSearchDraft(draft)) throw new TypeError('Invalid site search')
     return change((current) => {
@@ -61,7 +62,7 @@ export function registerSiteSearchIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Si
       return current.map((entry) => entry.id === id ? updated : entry)
     })
   })
-  ipcMain.handle('settings:remove-site-search', (event, id: unknown) => {
+  ipcMain.handle(SETTINGS_IPC.removeSiteSearch, (event, id: unknown) => {
     host.assertTrustedSender(event)
     if (!isSiteSearchId(id)) throw new TypeError('Invalid site search')
     // A site search another window deleted first is gone already, as it should be.

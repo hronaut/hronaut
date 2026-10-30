@@ -13,6 +13,8 @@ import { mcpLocalHost } from '../../shared/mcp-network.js'
 import { isValidMcpPort } from '../../shared/mcp-port.js'
 import type { AppSettings, RendererSettingsState, SupportedLocale } from '../../shared/types.js'
 import { setDownloadPreferences } from '../browser/downloads/browser-downloads.js'
+import type { EventSender } from '../../shared/ipc/channel.js'
+import { SETTINGS_IPC } from '../../shared/ipc/settings.js'
 
 /**
  * The settings the app runs with, the interface language and the operating system's launch at login setting, created
@@ -41,7 +43,7 @@ interface SettingsRuntimeHost {
   state: SettingsState
   /** The material behind the main window's tab rail, which the renderer settings state reports. */
   mainWindowRefs: Pick<MainWindowRefs, 'material'>
-  sendToShellWindows(channel: string, ...args: unknown[]): void
+  sendToShellWindows: EventSender
   /** The MCP listener's address, which loading settings sets from the port and remote access settings. */
   mcpRuntime: Pick<McpRuntimeState, 'host' | 'port' | 'url'>
   /** Whether HRONAUT_DISABLE_MCP_AUTH turned MCP authentication off for this run; index.ts reads it while loading. */
@@ -135,8 +137,8 @@ export function createSettingsRuntime(host: SettingsRuntimeHost): {
   }
 
   function publishSettings(): void {
-    host.sendToShellWindows('settings:changed', host.state.current)
-    host.sendToShellWindows('settings:renderer-state-changed', currentRendererSettingsState())
+    host.sendToShellWindows(SETTINGS_IPC.changed, host.state.current)
+    host.sendToShellWindows(SETTINGS_IPC.rendererStateChanged, currentRendererSettingsState())
   }
 
   /** Creates the manager of the operating system's launch at login setting, keeps it in the state and returns it. */

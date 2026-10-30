@@ -11,6 +11,6 @@ export type EventChannel<Args extends unknown[]> = string & { readonly [contract
 
 /**
  * Sends an event on a channel with the arguments it takes, as main's sendToShellWindows does to the main and the
- * detached panel window, and sendToMainWindow to the main window alone.
+ * detached panel windows, and sendToMainWindow to the main window alone.
  */
 export type EventSender = <Args extends unknown[]>(channel: EventChannel<Args>, ...args: NoInfer<Args>) => void

@@ -17,7 +17,7 @@ import type { EventChannel, InvokeChannel } from './channel.js'
  * a recovery phrase is shown only in the trusted overlay.
  */
 export const WALLETS_IPC = {
-  /** Main window → main: whether the wallet vault is set up and unlocked. */
+  /** Main window → main: whether managed wallets are ready, locked, need a passphrase or are off, and why. */
   status: 'wallets:status' as InvokeChannel<[], WalletServiceStatus>,
   /** Main window → main: every wallet. */
   list: 'wallets:list' as InvokeChannel<[], WalletDescriptor[]>,
@@ -27,7 +27,10 @@ export const WALLETS_IPC = {
   unlock: 'wallets:unlock' as InvokeChannel<[passphrase: string], WalletServiceStatus>,
   /** Main window → main: locks the vault, answering with the status after. */
   lock: 'wallets:lock' as InvokeChannel<[], WalletServiceStatus>,
-  /** Main window → main: creates a wallet with a new key. */
+  /**
+   * Main window → main: creates a wallet with a new key, answering once the person confirms in the trusted overlay that
+   * they saved its recovery phrase; otherwise the wallet is discarded and the call fails.
+   */
   generate: 'wallets:generate' as InvokeChannel<[input: WalletCreateInput], WalletDescriptor>,
   /** Main window → main: checks recovery material for an import, answering with the address it adds and a token. */
   prepareImport: 'wallets:prepare-import' as InvokeChannel<

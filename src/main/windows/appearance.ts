@@ -7,6 +7,8 @@ import type { MainWindowRefs } from './main-window.js'
 import type { PanelWindowRefs } from './panel-window.js'
 import { CYBERPUNK_TURBO_COLORS, themeColorScheme, type ResolvedThemeName } from '../../shared/theme.js'
 import type { AppSettings, RendererSettingsState, ThemeName } from '../../shared/types.js'
+import type { EventSender } from '../../shared/ipc/channel.js'
+import { SETTINGS_IPC } from '../../shared/ipc/settings.js'
 
 /** Each theme's window background, which the main and panel windows show before and behind the shell. */
 export const THEME_BACKGROUND: Record<ResolvedThemeName, string> = {
@@ -45,7 +47,7 @@ interface WindowAppearanceHost {
   sidebarOverlay: Pick<SidebarOverlay, 'relayout'>
   /** The status bubble at a page's corner, which the scale resizes and the theme colors. */
   statusBubble: Pick<StatusBubbleOverlay, 'layoutChanged'>
-  sendToShellWindows(channel: string, ...args: unknown[]): void
+  sendToShellWindows: EventSender
   currentRendererSettingsState(): RendererSettingsState
 }
 
@@ -90,8 +92,8 @@ export function createWindowAppearance(host: WindowAppearanceHost): {
       }
       // The system theme, reduced transparency or a high-contrast mode can each bring the material or take it away.
       host.applyMainWindowBackground()
-      host.sendToShellWindows('settings:system-theme-changed', systemTheme)
-      host.sendToShellWindows('settings:renderer-state-changed', host.currentRendererSettingsState())
+      host.sendToShellWindows(SETTINGS_IPC.systemThemeChanged, systemTheme)
+      host.sendToShellWindows(SETTINGS_IPC.rendererStateChanged, host.currentRendererSettingsState())
     })
   }
 

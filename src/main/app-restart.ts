@@ -2,6 +2,7 @@ import { dirname, resolve, win32 } from 'node:path'
 import type { IpcMain, IpcMainInvokeEvent, RelaunchOptions } from 'electron'
 import type { AppQuitState } from './app-lifecycle.js'
 import { STARTUP_LAUNCH_ARGUMENT } from './startup-launch.js'
+import { SETTINGS_IPC } from '../shared/ipc/settings.js'
 
 /**
  * Switches about the run they started rather than the next one: Chromium's --disable-gpu, the way back from a window
@@ -70,7 +71,7 @@ interface AppRestartIpcHost {
 export function registerAppRestartIpc(ipcMain: Pick<IpcMain, 'handle'>, host: AppRestartIpcHost): void {
   // Electron starts one more Hronaut for every relaunch it is asked for, so a second click restarts only once.
   let restarting = false
-  ipcMain.handle('app:restart', async (event) => {
+  ipcMain.handle(SETTINGS_IPC.restart, async (event) => {
     host.assertTrustedSender(event)
     if (restarting) return true
     if (!await host.confirmQuit()) return false

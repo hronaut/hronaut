@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import type { App, IpcMain, IpcMainInvokeEvent } from 'electron'
 import type { AppSettings } from '../shared/types.js'
+import { SETTINGS_IPC } from '../shared/ipc/settings.js'
 
 /**
  * Whether the saved settings keep Use graphics acceleration when available on, read before Electron is ready, when
@@ -44,11 +45,11 @@ export function registerGraphicsAccelerationIpc(
   ipcMain: Pick<IpcMain, 'handle'>,
   host: GraphicsAccelerationIpcHost
 ): void {
-  ipcMain.handle('settings:graphics-acceleration-in-use', (event) => {
+  ipcMain.handle(SETTINGS_IPC.graphicsAccelerationInUse, (event) => {
     host.assertTrustedSender(event)
     return host.inUse
   })
-  ipcMain.handle('settings:set-graphics-acceleration', async (event, enabled: unknown) => {
+  ipcMain.handle(SETTINGS_IPC.setGraphicsAcceleration, async (event, enabled: unknown) => {
     host.assertTrustedSender(event)
     if (typeof enabled !== 'boolean') throw new TypeError('Graphics acceleration preference must be a boolean')
     await host.updateSettings({ graphicsAcceleration: enabled })
