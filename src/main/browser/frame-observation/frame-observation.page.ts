@@ -215,3 +215,53 @@ export function frameObservationInPage(selector: string, maxChars: number, expec
     return { frame, read: () => result, check, close: () => observer.disconnect() }
   } catch (e) { observer.disconnect(); throw e }
 }
+
+/** What the observation's private world keeps under its key: the selected frame, then the observation in its place. */
+type HeldFrames = Record<string, Partial<FrameObservation> & Pick<FrameObservation, 'frame' | 'close'> | undefined>
+
+/**
+ * Runs in the frame observation's private parent world: keeps the one iframe the selector names under the key, and
+ * gives it. `selectFrame` is frameSelectorInPage.
+ */
+export function holdSelectedFrameInPage(key: string, selector: string, selectFrame: (selector: string) => HTMLIFrameElement): HTMLIFrameElement {
+  const held = globalThis as unknown as HeldFrames
+  held[key] = { frame: selectFrame(selector), close: () => undefined }
+  return held[key]!.frame
+}
+
+/**
+ * Runs in the frame observation's private parent world: observes the frame held under the key, and keeps the
+ * observation there in its place. `observe` is frameObservationInPage and `frameLink` frameLinkInPage.
+ */
+export function observeHeldFrameInPage(key: string, selector: string, maxChars: number, observe: typeof frameObservationInPage, frameLink: FrameLink): true {
+  const held = globalThis as unknown as HeldFrames
+  held[key] = observe(selector, maxChars, held[key]!.frame, frameLink)
+  return true
+}
+
+/** Runs in the frame observation's private parent world: the text the observation held under the key read. */
+export function readHeldFrameInPage(key: string): ReturnType<FrameObservation['read']> {
+  return (globalThis as unknown as HeldFrames)[key]!.read!()
+}
+
+/**
+ * Runs in the frame observation's private parent world: whether the observation held under the key still watches the
+ * same frame. It closes and forgets what the key holds either way.
+ */
+export function checkAndReleaseHeldFrameInPage(key: string): boolean {
+  const held = globalThis as unknown as HeldFrames
+  const frame = held[key]
+  const ok = !!frame && frame.check!()
+  if (frame) frame.close()
+  delete held[key]
+  return ok
+}
+
+/** Runs in the frame observation's private parent world: closes and forgets what the key holds. */
+export function releaseHeldFrameInPage(key: string): true {
+  const held = globalThis as unknown as HeldFrames
+  const frame = held[key]
+  if (frame) frame.close()
+  delete held[key]
+  return true
+}

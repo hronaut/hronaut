@@ -1,22 +1,18 @@
-/** Opt-in marker extraction. Neither the selector nor page text belongs in a
- * continuity report or persisted checkpoint. The page result is untrusted. */
-export function continuityMarkerScript(selector: string): string {
+import { pageScript } from './page-script.js'
+import { continuityMarkerInPage } from './workspace-continuity-marker.page.js'
+
+/** Throws unless the marker selector has 1 to 256 UTF-8 bytes. */
+export function validateContinuityMarkerSelector(selector: string): void {
   if (typeof selector !== 'string' || !selector.trim() || new TextEncoder().encode(selector).length > 256) {
     throw new TypeError('Continuity marker selector must contain 1 to 256 UTF-8 bytes')
   }
-  return `(() => {
-    try {
-      const matches = document.querySelectorAll(${JSON.stringify(selector)});
-      if (matches.length !== 1) return null;
-      const walker = document.createTreeWalker(matches[0], NodeFilter.SHOW_TEXT);
-      let value = '', nodes = 0, node;
-      while ((node = walker.nextNode())) {
-        if (++nodes > 1024 || value.length + node.data.length > 512) return null;
-        value += node.data;
-      }
-      return new TextEncoder().encode(value).length <= 512 ? value : null;
-    } catch { return null; }
-  })()`
+}
+
+/** Opt-in marker extraction. Neither the selector nor page text belongs in a
+ * continuity report or persisted checkpoint. The page result is untrusted. */
+export function continuityMarkerScript(selector: string): string {
+  validateContinuityMarkerSelector(selector)
+  return pageScript(continuityMarkerInPage, selector)
 }
 
 export async function readContinuityMarker(evaluate: () => Promise<unknown>, signal?: AbortSignal): Promise<string | null> {

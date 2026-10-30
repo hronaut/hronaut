@@ -1,16 +1,39 @@
-import { javascriptLiteral } from '../../../shared/javascript-literal.js'
-import { pageFunctionExpression, pageScript } from '../../../shared/page-script.js'
-import { frameLinkInPage, frameObservationInPage, frameSelectorInPage } from './frame-observation.page.js'
+import { pageScript } from '../../../shared/page-script.js'
+import {
+  checkAndReleaseHeldFrameInPage,
+  frameLinkInPage,
+  frameObservationInPage,
+  frameSelectorInPage,
+  holdSelectedFrameInPage,
+  observeHeldFrameInPage,
+  readHeldFrameInPage,
+  releaseHeldFrameInPage
+} from './frame-observation.page.js'
 
-/**
- * Runs only in a private parent isolated world, never in a child's main world. `expected` is an expression the world
- * evaluates to the frame the selection found, so the observation's call is composed here, with it rather than a literal.
- */
-export function frameObservationScript(selector: string, maxChars: number, expected: string): string {
-  return `${pageFunctionExpression(frameObservationInPage)}(${javascriptLiteral(selector)}, ${javascriptLiteral(maxChars)}, (${expected}), ${pageFunctionExpression(frameLinkInPage)})`
+// Each script runs only in the observation's private parent isolated world, never in a child's main world, and keeps
+// what it holds there under the observation's key.
+
+/** Keeps the one iframe the selector names under the key, and gives it; see frameSelectorInPage. */
+export function frameSelectionScript(key: string, selector: string): string {
+  return pageScript(holdSelectedFrameInPage, key, selector, frameSelectorInPage)
 }
 
-/** The one iframe the selector names; see frameSelectorInPage. */
-export function frameSelectorScript(selector: string): string {
-  return pageScript(frameSelectorInPage, selector)
+/** Observes the frame held under the key and keeps the observation in its place; see frameObservationInPage. */
+export function frameObservationScript(key: string, selector: string, maxChars: number): string {
+  return pageScript(observeHeldFrameInPage, key, selector, maxChars, frameObservationInPage, frameLinkInPage)
+}
+
+/** The text the observation held under the key read. */
+export function frameObservationReadScript(key: string): string {
+  return pageScript(readHeldFrameInPage, key)
+}
+
+/** Whether the observation held under the key still watches the same frame, closing and forgetting it either way. */
+export function frameObservationCheckScript(key: string): string {
+  return pageScript(checkAndReleaseHeldFrameInPage, key)
+}
+
+/** Closes and forgets what the key holds. */
+export function frameReleaseScript(key: string): string {
+  return pageScript(releaseHeldFrameInPage, key)
 }
