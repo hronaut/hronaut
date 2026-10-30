@@ -1,4 +1,5 @@
-import type { IpcMain, IpcMainInvokeEvent } from 'electron'
+import type { IpcMainInvokeEvent } from 'electron'
+import type { TypedIpcMain } from './typed-ipc.js'
 import type { Browser } from './browser/browser.js'
 import { isBrowserEnvironmentSettings } from '../shared/browser-environment.js'
 import type { BrowserEnvironmentSettings, BrowserViewportEmulation } from '../shared/types.js'
@@ -11,7 +12,7 @@ import { EMULATION_IPC } from '../shared/ipc/emulation.js'
 interface EmulationIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
   /** Registers a handler that is refused while saved workspaces are still initializing or failed to start. */
-  handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void
+  handleBrowserIpc: TypedIpcMain['handle']
   tabs(): Browser | null
 }
 

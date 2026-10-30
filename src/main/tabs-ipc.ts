@@ -1,9 +1,10 @@
-import type { IpcMain, IpcMainInvokeEvent } from 'electron'
+import type { IpcMainInvokeEvent } from 'electron'
+import type { TypedIpcMain } from './typed-ipc.js'
 import type { Browser } from './browser/browser.js'
 import type { McpHttpServer } from './mcp/server.js'
 import { LocalizedError } from './localized-error.js'
 import { tabAgentPauseOptions, type TakeOverOffers } from './agents/take-over-offers.js'
-import { validateTabOverviewPreviewIds, type BrowserState, type DroppedLinkTarget } from '../shared/types.js'
+import { validateTabOverviewPreviewIds, type BrowserState, type DroppedLinkTarget, type NewTabOptions } from '../shared/types.js'
 import { showTabContextMenu } from './browser/context-menus/tab-context-menu.js'
 import { openDroppedLink } from './browser/dropped-links/dropped-links.js'
 import { setAllHumanInteractionLocked, setTabHumanInteractionLocked } from './browser/interaction-lock/interaction-lock.js'
@@ -32,7 +33,7 @@ interface TabsIpcHost {
    * Registers a handler that is refused while saved workspaces are still initializing or failed to start;
    * the state and tab overview reads are admitted and wait in `runWorkspaceRead` instead.
    */
-  handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void
+  handleBrowserIpc: TypedIpcMain['handle']
   /** Checks the sender, then reads once saved workspaces are initialized, dropping the read if its sender navigates away. */
   runWorkspaceRead<T>(event: IpcMainInvokeEvent, assertSender: (event: IpcMainInvokeEvent) => void, read: () => T): Promise<T>
   tabs(): Browser | null
@@ -75,6 +76,24 @@ function selectedTabIds(value: unknown): string[] {
   return [...value as string[]]
 }
 
+/** The shell's options for a new tab, each of the type newTab reads; newTab checks the address, workspace and font size itself. */
+function newTabOptions(value: unknown): NewTabOptions {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError('Invalid new tab options')
+  const { url, active, mcpGroupId, focus, zoomIsolated, defaultFontSize, loadsInTurn } = value as Record<string, unknown>
+  if (
+    (url !== undefined && typeof url !== 'string')
+    || (mcpGroupId !== undefined && typeof mcpGroupId !== 'string')
+    || (defaultFontSize !== undefined && typeof defaultFontSize !== 'number')
+    || (active !== undefined && typeof active !== 'boolean')
+    || (focus !== undefined && typeof focus !== 'boolean')
+    || (zoomIsolated !== undefined && typeof zoomIsolated !== 'boolean')
+    || (loadsInTurn !== undefined && typeof loadsInTurn !== 'boolean')
+  ) {
+    throw new TypeError('Invalid new tab options')
+  }
+  return value as NewTabOptions
+}
+
 /** Dependencies stay lazy because handlers are registered before the window loads. */
 export function registerTabsIpc(host: TabsIpcHost): void {
   host.handleBrowserIpc(TABS_IPC.getState, async (event) => {
@@ -91,13 +110,17 @@ export function registerTabsIpc(host: TabsIpcHost): void {
     return host.runWorkspaceRead(event, host.assertTrustedSender, () => getTabOverviewPagePreview(host.tabs()!, tabId!))
   })
   host.handleBrowserIpc(TABS_IPC.openHome, (event) => { host.assertTrustedSender(event); return stateReply(host, openHome(host.tabs()!)) })
-  host.handleBrowserIpc(TABS_IPC.newTab, (event, options) => { host.assertTrustedSender(event); return stateReply(host, newTab(host.tabs()!, options)) })
+  host.handleBrowserIpc(TABS_IPC.newTab, (event, options) => { host.assertTrustedSender(event); return stateReply(host, newTab(host.tabs()!, newTabOptions(options))) })
   host.handleBrowserIpc(TABS_IPC.reopenClosedTab, (event, closedTabId: unknown) => {
     host.assertTrustedSender(event)
     if (closedTabId !== undefined && typeof closedTabId !== 'string') throw new TypeError('Invalid closed tab ID')
     return reopenClosedTab(host.tabs()!, closedTabId)
   })
-  host.handleBrowserIpc(TABS_IPC.selectTab, (event, tabId) => { host.assertTrustedSender(event); return stateReply(host, selectTabForPerson(host.tabs()!, tabId)) })
+  host.handleBrowserIpc(TABS_IPC.selectTab, (event, tabId: unknown) => {
+    host.assertTrustedSender(event)
+    if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
+    return stateReply(host, selectTabForPerson(host.tabs()!, tabId))
+  })
   host.handleBrowserIpc(TABS_IPC.closeTab, (event, tabId: unknown) => {
     host.assertTrustedSender(event)
     if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')

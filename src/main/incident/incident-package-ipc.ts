@@ -1,11 +1,12 @@
-import type { IpcMain, IpcMainInvokeEvent } from 'electron'
+import type { IpcMainInvokeEvent } from 'electron'
+import type { TypedIpcMain } from '../typed-ipc.js'
 import { z } from 'zod'
 import { IncidentPackages } from './incident-package.js'
 import { writeTextFileAtomically } from '../atomic-file.js'
 import type { Browser } from '../browser/browser.js'
 import { INCIDENTS_IPC } from '../../shared/ipc/incidents.js'
 
-export function registerIncidentPackageIpc(ipc: Pick<IpcMain, 'handle'>, host: {
+export function registerIncidentPackageIpc(ipc: Pick<TypedIpcMain, 'handle'>, host: {
   assertTrustedSender(event: IpcMainInvokeEvent): void
   tabs(): Browser
   version: string

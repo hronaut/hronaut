@@ -1,4 +1,5 @@
-import type { IpcMain, IpcMainInvokeEvent } from 'electron'
+import type { IpcMainInvokeEvent } from 'electron'
+import type { TypedIpcMain } from '../typed-ipc.js'
 import { commercialLicensePurchaseHandler } from './commercial-license-links.js'
 import type { CommercialLicenseState } from '../../shared/types.js'
 import { LICENSE_IPC } from '../../shared/ipc/license.js'
@@ -13,7 +14,7 @@ interface LicenseIpcHost {
 }
 
 /** Dependencies stay lazy because handlers are registered before the window loads. */
-export function registerLicenseIpc(ipcMain: Pick<IpcMain, 'handle'>, host: LicenseIpcHost): void {
+export function registerLicenseIpc(ipcMain: Pick<TypedIpcMain, 'handle'>, host: LicenseIpcHost): void {
   ipcMain.handle(LICENSE_IPC.getState, (event) => {
     host.assertTrustedSender(event)
     return host.currentCommercialLicenseState()

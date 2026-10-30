@@ -1,4 +1,5 @@
-import type { IpcMain, IpcMainInvokeEvent } from 'electron'
+import type { IpcMainInvokeEvent } from 'electron'
+import type { TypedIpcMain } from './typed-ipc.js'
 import type { Browser } from './browser/browser.js'
 import { qrCodeFilename, qrCodePng } from './browser/qr-code/qr-code-image.js'
 import { downloadGeneratedFile } from './browser/downloads/browser-downloads.js'
@@ -10,7 +11,7 @@ const QR_CODE_TEXT_MAX_LENGTH = 8192
 interface QrCodeIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
   /** Registers a handler that is refused while saved workspaces are still initializing or failed to start. */
-  handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void
+  handleBrowserIpc: TypedIpcMain['handle']
   tabs(): Browser | null
   /** Writes a PNG image to the system clipboard after earlier clipboard writes; resolves to its size. */
   copyPngToClipboard(data: Buffer): Promise<{ width: number; height: number }>

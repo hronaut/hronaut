@@ -1,4 +1,5 @@
-import type { BrowserWindow, IpcMain, IpcMainInvokeEvent } from 'electron'
+import type { BrowserWindow, IpcMainInvokeEvent } from 'electron'
+import { sendTo, type TypedIpcMain } from '../typed-ipc.js'
 import { homeWorkspaceState, runHomeWorkspaceAction } from './home-workspace-actions.js'
 import { openVsCodeMcpInstall } from '../agents/vscode-mcp-install.js'
 import { ClaudeCodeSetup, claudeCodeConfigPath } from '../agents/claude-code-setup.js'
@@ -15,7 +16,7 @@ import { HOME_IPC } from '../../shared/ipc/home.js'
 
 interface HomeIpcHost {
   /** Registers a handler that is refused while saved workspaces are still initializing or failed to start. */
-  handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void
+  handleBrowserIpc: TypedIpcMain['handle']
   /** Why saved workspaces could not start, if they could not; read on every check. */
   workspaceStartupFailure(): Error | undefined
   /** The tab manager Home reads and changes workspaces through; it also covers what `homeWorkspaceState` reads. */
@@ -134,7 +135,8 @@ export function registerHomeIpc(host: HomeIpcHost): void {
   host.handleBrowserIpc(HOME_IPC.workspaceAction, async (event, input: unknown) => {
     assertHomePageSender(event)
     return runHomeWorkspaceAction(host.tabs()!, input, (request) => {
-      host.mainWindow()?.webContents.send(SHELL_IPC.homeWorkspaceEditorRequested, request)
+      const mainWindow = host.mainWindow()
+      if (mainWindow) sendTo(mainWindow.webContents, SHELL_IPC.homeWorkspaceEditorRequested, request)
     })
   })
   host.handleBrowserIpc(HOME_IPC.copyText, async (event, value: unknown) => {

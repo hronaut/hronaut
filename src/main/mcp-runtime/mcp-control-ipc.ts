@@ -1,4 +1,5 @@
-import type { IpcMain, IpcMainInvokeEvent } from 'electron'
+import type { IpcMainInvokeEvent } from 'electron'
+import type { TypedIpcMain } from '../typed-ipc.js'
 import type { McpPortRecovery } from './mcp-port-suggestion.js'
 import type { McpControlState, McpPortMoveResponse } from '../../shared/types.js'
 import { MCP_IPC } from '../../shared/ipc/mcp.js'
@@ -6,7 +7,7 @@ import { MCP_IPC } from '../../shared/ipc/mcp.js'
 interface McpControlIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
   /** Registers a handler that is refused while saved workspaces are still initializing or failed to start. */
-  handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void
+  handleBrowserIpc: TypedIpcMain['handle']
   /** The MCP server status, pause state and connected agents as the shell shows them. */
   currentMcpControlState(): McpControlState
   mcpPortRecovery(): Pick<McpPortRecovery, 'move'>
@@ -15,7 +16,7 @@ interface McpControlIpcHost {
 }
 
 /** Dependencies stay lazy because handlers are registered before the window loads. */
-export function registerMcpControlIpc(ipcMain: Pick<IpcMain, 'handle'>, host: McpControlIpcHost): void {
+export function registerMcpControlIpc(ipcMain: Pick<TypedIpcMain, 'handle'>, host: McpControlIpcHost): void {
   ipcMain.handle(MCP_IPC.getState, (event) => {
     host.assertTrustedSender(event)
     return host.currentMcpControlState()

@@ -1,4 +1,5 @@
-import type { IpcMain, IpcMainInvokeEvent, MessageBoxReturnValue } from 'electron'
+import type { IpcMainInvokeEvent, MessageBoxReturnValue } from 'electron'
+import type { TypedIpcMain } from './typed-ipc.js'
 import type { Confirmation } from '../shared/confirmation.js'
 import type { MessageKey, MessageParameters } from '../shared/i18n.js'
 import type { TrustedDialogOptions, TrustedDialogWindow } from './trusted-dialogs/trusted-dialogs.js'
@@ -9,7 +10,7 @@ import { HOME_IPC } from '../shared/ipc/home.js'
 export const MAX_CONFIRMATION_MESSAGE_LENGTH = 1_000
 
 interface ConfirmDialogIpcHost<Window extends TrustedDialogWindow> {
-  ipcMain: Pick<IpcMain, 'handle'>
+  ipcMain: Pick<TypedIpcMain, 'handle'>
   /** Throws unless the message came from the shell document of the main or the detached panel window. */
   assertTrustedShellSender(event: IpcMainInvokeEvent): void
   /** The window whose own document sent the message, which the confirmation belongs to. */

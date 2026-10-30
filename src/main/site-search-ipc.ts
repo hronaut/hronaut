@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import type { IpcMain, IpcMainInvokeEvent } from 'electron'
+import type { IpcMainInvokeEvent } from 'electron'
+import type { TypedIpcMain } from './typed-ipc.js'
 import { LocalizedError } from './localized-error.js'
 import {
   SITE_SEARCH_LIMIT,
@@ -26,7 +27,7 @@ interface SiteSearchIpcHost {
  * bar. Main checks each change with the rules the form shows (site-search.ts), and makes the changes one after
  * another, each from the list the one before it saved, so that two quick changes both stay.
  */
-export function registerSiteSearchIpc(ipcMain: Pick<IpcMain, 'handle'>, host: SiteSearchIpcHost): void {
+export function registerSiteSearchIpc(ipcMain: Pick<TypedIpcMain, 'handle'>, host: SiteSearchIpcHost): void {
   let changes: Promise<unknown> = Promise.resolve()
 
   function change(edit: (current: readonly SiteSearch[]) => SiteSearch[]): Promise<AppSettings> {

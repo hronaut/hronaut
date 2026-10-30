@@ -1,4 +1,5 @@
-import type { IpcMain, IpcMainInvokeEvent } from 'electron'
+import type { IpcMainInvokeEvent } from 'electron'
+import type { TypedIpcMain } from './typed-ipc.js'
 import type { Browser } from './browser/browser.js'
 import { sanitizeConsoleMessages } from '../shared/debug-report.js'
 import type {
@@ -25,7 +26,7 @@ import { PAGE_INSPECTION_IPC } from '../shared/ipc/page-inspection.js'
 interface PageInspectionIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
   /** Registers a handler that is refused while saved workspaces are still initializing or failed to start. */
-  handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void
+  handleBrowserIpc: TypedIpcMain['handle']
   tabs(): Browser | null
   /** Writes text to the system clipboard after earlier clipboard writes, verifying it arrived. */
   copyTextToClipboard(text: string): Promise<void>
@@ -126,15 +127,17 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
     await host.copyTextToClipboard(snapshot.text)
     return { copied: true, characters: snapshot.returnedChars, truncated: snapshot.truncated }
   })
-  host.handleBrowserIpc(PAGE_INSPECTION_IPC.pickElement, async (event, tabId) => {
+  host.handleBrowserIpc(PAGE_INSPECTION_IPC.pickElement, async (event, tabId: unknown) => {
     host.assertTrustedSender(event)
+    if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
     const result = await pickElement(host.tabs()!, tabId)
     if (result.canceled || !result.content) return { canceled: true, copied: false }
     await host.copyTextToClipboard(result.content)
     return { canceled: false, copied: true }
   })
-  host.handleBrowserIpc(PAGE_INSPECTION_IPC.captureElement, async (event, tabId) => {
+  host.handleBrowserIpc(PAGE_INSPECTION_IPC.captureElement, async (event, tabId: unknown) => {
     host.assertTrustedSender(event)
+    if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
     const screenshot = await captureElementScreenshot(host.tabs()!, tabId)
     if (screenshot.canceled || !screenshot.data) return { canceled: true, copied: false }
     const size = await host.copyPngToClipboard(screenshot.data)
@@ -171,8 +174,9 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
     }
     return elementInspection(host.tabs()!, value as BrowserElementInspectionOptions)
   })
-  host.handleBrowserIpc(PAGE_INSPECTION_IPC.cancelElementPicker, (event, tabId) => {
+  host.handleBrowserIpc(PAGE_INSPECTION_IPC.cancelElementPicker, (event, tabId: unknown) => {
     host.assertTrustedSender(event)
+    if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
     return cancelElementPicker(host.tabs()!, tabId)
   })
   host.handleBrowserIpc(PAGE_INSPECTION_IPC.consoleMessages, (event, value: unknown) => {
@@ -272,15 +276,17 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
     }
     return saveNetworkHar(host.tabs()!, value as BrowserNetworkHarSaveOptions)
   })
-  host.handleBrowserIpc(PAGE_INSPECTION_IPC.captureArea, async (event, tabId) => {
+  host.handleBrowserIpc(PAGE_INSPECTION_IPC.captureArea, async (event, tabId: unknown) => {
     host.assertTrustedSender(event)
+    if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
     const screenshot = await captureScreenshotArea(host.tabs()!, tabId)
     if (screenshot.canceled || !screenshot.data) return { canceled: true, copied: false }
     const size = await host.copyPngToClipboard(screenshot.data)
     return { canceled: false, copied: true, width: size.width, height: size.height }
   })
-  host.handleBrowserIpc(PAGE_INSPECTION_IPC.cancelAreaCapture, (event, tabId) => {
+  host.handleBrowserIpc(PAGE_INSPECTION_IPC.cancelAreaCapture, (event, tabId: unknown) => {
     host.assertTrustedSender(event)
+    if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
     return cancelScreenshotArea(host.tabs()!, tabId)
   })
 }

@@ -8,6 +8,7 @@ import type { BrowserTab } from '../browser-tab.js'
 import { browserViewBounds } from '../window-layout/content-area.js'
 import { tabViewBounds } from '../emulation/tab-view-bounds.js'
 import { EMULATION_FRAME_IPC, PAGE_CARD_IPC } from '../../../shared/ipc/page-geometry.js'
+import { sendTo } from '../../typed-ipc.js'
 
 /**
  * Tabs emulating a viewport smaller than their space, for the renderer to
@@ -82,13 +83,13 @@ export function publishPageGeometry(browser: Browser): void {
   const serializedFrames = JSON.stringify(frames)
   if (serializedFrames !== browser.lastEmulationFrames) {
     browser.lastEmulationFrames = serializedFrames
-    browser.window.webContents.send(EMULATION_FRAME_IPC.changed, frames)
+    sendTo(browser.window.webContents, EMULATION_FRAME_IPC.changed, frames)
   }
   const cards = getPageCards(browser)
   const serializedCards = JSON.stringify(cards)
   if (serializedCards !== browser.lastPageCards) {
     browser.lastPageCards = serializedCards
-    browser.window.webContents.send(PAGE_CARD_IPC.changed, cards)
+    sendTo(browser.window.webContents, PAGE_CARD_IPC.changed, cards)
   }
 }
 

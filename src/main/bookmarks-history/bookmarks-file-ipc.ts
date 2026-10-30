@@ -1,6 +1,7 @@
 import { constants } from 'node:fs'
 import { open } from 'node:fs/promises'
-import type { IpcMain, IpcMainInvokeEvent, WebContents } from 'electron'
+import type { IpcMainInvokeEvent, WebContents } from 'electron'
+import type { TypedIpcMain } from '../typed-ipc.js'
 import type { BookmarkImportResult, BrowserBookmark } from '../../shared/types.js'
 import { writeTextFileAtomically } from '../atomic-file.js'
 import type { BookmarkStore } from './bookmark-store.js'
@@ -66,7 +67,7 @@ async function readBookmarksFile(path: string): Promise<Buffer> {
  * move between Hronaut and Chrome, Firefox, Safari or Edge. The files are the ones the person picks in the system's
  * own dialogs; the window only asks for the dialog and hears what happened.
  */
-export function registerBookmarksFileIpc(ipcMain: Pick<IpcMain, 'handle'>, host: BookmarksFileIpcHost): void {
+export function registerBookmarksFileIpc(ipcMain: Pick<TypedIpcMain, 'handle'>, host: BookmarksFileIpcHost): void {
   ipcMain.handle(BOOKMARKS_IPC.exportFile, async (event): Promise<number | null> => {
     host.assertTrustedSender(event)
     const path = await host.pickExportFile(event.sender, exportFileName(host.now?.() ?? new Date()))

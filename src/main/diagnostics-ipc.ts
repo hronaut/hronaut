@@ -1,5 +1,6 @@
 import { videoOptionsSchema } from '../shared/video.js'
-import type { IpcMain, IpcMainInvokeEvent } from 'electron'
+import type { IpcMainInvokeEvent } from 'electron'
+import type { TypedIpcMain } from './typed-ipc.js'
 import type { Browser } from './browser/browser.js'
 import { LocalizedError } from './localized-error.js'
 import type {
@@ -44,7 +45,7 @@ function isAllowedString(value: unknown, allowed: readonly string[]): value is s
 }
 
 /** Keep services lazy: registration precedes browser-window initialization. */
-export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: DiagnosticsIpcHost): void {
+export function registerDiagnosticsIpc(ipcMain: Pick<TypedIpcMain, 'handle'>, host: DiagnosticsIpcHost): void {
   ipcMain.handle(DIAGNOSTICS_IPC.accessibilityAudit, (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid accessibility audit options')

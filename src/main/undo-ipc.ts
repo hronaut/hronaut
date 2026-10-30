@@ -1,4 +1,5 @@
-import type { IpcMain, IpcMainInvokeEvent } from 'electron'
+import type { IpcMainInvokeEvent } from 'electron'
+import type { TypedIpcMain } from './typed-ipc.js'
 import type { UndoOffers } from './undo-offers.js'
 import { isUndoToken } from '../shared/undo.js'
 import { UNDO_IPC } from '../shared/ipc/undo.js'
@@ -11,7 +12,7 @@ interface UndoIpcHost {
 }
 
 /** Dependencies stay lazy because handlers are registered before the window loads. */
-export function registerUndoIpc(ipcMain: Pick<IpcMain, 'handle'>, host: UndoIpcHost): void {
+export function registerUndoIpc(ipcMain: Pick<TypedIpcMain, 'handle'>, host: UndoIpcHost): void {
   ipcMain.handle(UNDO_IPC.run, (event, token: unknown) => {
     host.assertMainShellSender(event)
     if (!isUndoToken(token)) throw new TypeError('Invalid undo token')

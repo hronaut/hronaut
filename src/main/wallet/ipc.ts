@@ -1,9 +1,9 @@
-import type { IpcMain, IpcMainInvokeEvent } from 'electron'
+import type { IpcMainInvokeEvent } from 'electron'
+import type { TypedIpcMain } from '../typed-ipc.js'
 import {
-  WalletChainFamilySchema, WalletPolicySchema, WalletSecretFormatSchema,
-  type WalletCreateInput, type WalletDescriptor, type WalletImportDetails,
-  type WalletProviderRequest, type WalletServiceStatus, type WalletUpdateInput,
-  type WalletWatchOnlyInput
+  WalletChainFamilySchema, WalletCreateInputSchema, WalletImportDetailsSchema, WalletPolicySchema,
+  WalletSecretFormatSchema, WalletUpdateInputSchema, WalletWatchOnlyInputSchema,
+  type WalletCreateInput, type WalletDescriptor, type WalletProviderRequest, type WalletServiceStatus
 } from '../../shared/wallet.js'
 import type { WalletBroker, WalletBrokerContext } from './broker.js'
 import type { WalletService } from './service.js'
@@ -40,7 +40,7 @@ function walletIdentifier(value: unknown, label: string): string {
 }
 
 /** Services are looked up per request; the recovery confirmation stays with the main window. */
-export function registerWalletIpc(ipcMain: Pick<IpcMain, 'handle'>, host: WalletIpcHost): void {
+export function registerWalletIpc(ipcMain: Pick<TypedIpcMain, 'handle'>, host: WalletIpcHost): void {
   const requireWalletService = (): WalletIpcService => {
     const service = host.service()
     if (!service) throw new LocalizedError('appErrors.wallet.serviceUnavailable')
@@ -52,8 +52,9 @@ export function registerWalletIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Wallet
     if (!broker) throw new LocalizedError('appErrors.wallet.serviceUnavailable', undefined, { message: 'Wallet broker is unavailable' })
     return broker
   }
-  ipcMain.handle(WALLET_PROVIDER_IPC.request, (event, input: WalletProviderRequest) => (
-    requireWalletBroker().providerRequest(host.assertWalletPageSender(event), input)
+  // The broker parses the request itself, so a website's malformed one gets the broker's sanitized error.
+  ipcMain.handle(WALLET_PROVIDER_IPC.request, (event, input: unknown) => (
+    requireWalletBroker().providerRequest(host.assertWalletPageSender(event), input as WalletProviderRequest)
   ))
   ipcMain.handle(WALLETS_IPC.status, (event) => {
     host.assertMainShellSender(event)
@@ -77,9 +78,9 @@ export function registerWalletIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Wallet
     host.assertMainShellSender(event)
     return requireWalletBroker().lock()
   })
-  ipcMain.handle(WALLETS_IPC.generate, (event, input: WalletCreateInput) => {
+  ipcMain.handle(WALLETS_IPC.generate, (event, input: unknown) => {
     host.assertMainShellSender(event)
-    return host.generateWallet(input)
+    return host.generateWallet(WalletCreateInputSchema.parse(input))
   })
   ipcMain.handle(WALLETS_IPC.prepareImport, (event, chainFamily: unknown, format: unknown, recoveryMaterial: unknown) => {
     host.assertMainShellSender(event)
@@ -90,21 +91,21 @@ export function registerWalletIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Wallet
       recoveryMaterial
     )
   })
-  ipcMain.handle(WALLETS_IPC.confirmImport, (event, token: unknown, details: WalletImportDetails) => {
+  ipcMain.handle(WALLETS_IPC.confirmImport, (event, token: unknown, details: unknown) => {
     host.assertMainShellSender(event)
-    return requireWalletService().confirmImport(walletIdentifier(token, 'wallet import token'), details)
+    return requireWalletService().confirmImport(walletIdentifier(token, 'wallet import token'), WalletImportDetailsSchema.parse(details))
   })
   ipcMain.handle(WALLETS_IPC.cancelImport, (event, token: unknown) => {
     host.assertMainShellSender(event)
     return requireWalletService().cancelImport(walletIdentifier(token, 'wallet import token'))
   })
-  ipcMain.handle(WALLETS_IPC.addWatchOnly, (event, input: WalletWatchOnlyInput) => {
+  ipcMain.handle(WALLETS_IPC.addWatchOnly, (event, input: unknown) => {
     host.assertMainShellSender(event)
-    return requireWalletService().addWatchOnly(input)
+    return requireWalletService().addWatchOnly(WalletWatchOnlyInputSchema.parse(input))
   })
-  ipcMain.handle(WALLETS_IPC.update, (event, walletId: unknown, changes: WalletUpdateInput) => {
+  ipcMain.handle(WALLETS_IPC.update, (event, walletId: unknown, changes: unknown) => {
     host.assertMainShellSender(event)
-    return requireWalletBroker().updateWallet(walletIdentifier(walletId, 'wallet identifier'), changes)
+    return requireWalletBroker().updateWallet(walletIdentifier(walletId, 'wallet identifier'), WalletUpdateInputSchema.parse(changes))
   })
   ipcMain.handle(WALLETS_IPC.remove, (event, walletId: unknown) => {
     host.assertMainShellSender(event)

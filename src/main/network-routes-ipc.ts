@@ -1,4 +1,5 @@
-import type { IpcMain, IpcMainInvokeEvent } from 'electron'
+import type { IpcMainInvokeEvent } from 'electron'
+import type { TypedIpcMain } from './typed-ipc.js'
 import { parseNetworkRouteInput } from './browser/network-route-input.js'
 import type { Browser } from './browser/browser.js'
 import { addNetworkRoute, clearNetworkRoutes, moveNetworkRoute, networkRoutes, removeNetworkRoute, setNetworkRouteEnabled } from './browser/network-conditions/network-conditions.js'
@@ -8,7 +9,7 @@ import { NETWORK_ROUTES_IPC } from '../shared/ipc/network-routes.js'
 interface NetworkRoutesIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
   /** Registers a handler that is refused while saved workspaces are still initializing or failed to start. */
-  handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void
+  handleBrowserIpc: TypedIpcMain['handle']
   tabs(): Browser | null
 }
 

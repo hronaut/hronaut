@@ -1,4 +1,5 @@
-import type { IpcMain, IpcMainInvokeEvent } from 'electron'
+import type { IpcMainInvokeEvent } from 'electron'
+import type { TypedIpcMain } from './typed-ipc.js'
 import type { Browser } from './browser/browser.js'
 import { stopVirtualPasskey } from './browser/virtual-passkey/browser-virtual-passkeys.js'
 import { VIRTUAL_PASSKEY_IPC } from '../shared/ipc/virtual-passkey.js'
@@ -6,7 +7,7 @@ import { VIRTUAL_PASSKEY_IPC } from '../shared/ipc/virtual-passkey.js'
 interface VirtualPasskeyIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
   /** Registers a handler that is refused while saved workspaces are still initializing or failed to start. */
-  handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void
+  handleBrowserIpc: TypedIpcMain['handle']
   tabs(): Browser | null
 }
 

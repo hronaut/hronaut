@@ -1,11 +1,11 @@
-import type { IpcMain } from 'electron'
+import type { TypedIpcMain } from './typed-ipc.js'
 import type { PageBootstrap } from '../shared/page-bootstrap.js'
 import type { Browser } from './browser/browser.js'
 import { reactInspectionBootstrap } from './browser/react-inspection/browser-react-inspection.js'
 import { PAGE_IPC } from '../shared/ipc/page.js'
 
 interface PageBootstrapIpcHost {
-  ipcMain: Pick<IpcMain, 'on'>
+  ipcMain: Pick<TypedIpcMain, 'on'>
   tabs(): Browser | null
 }
 

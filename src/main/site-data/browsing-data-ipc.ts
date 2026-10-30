@@ -1,4 +1,5 @@
-import type { IpcMain, IpcMainInvokeEvent, Session } from 'electron'
+import type { IpcMainInvokeEvent, Session } from 'electron'
+import type { TypedIpcMain } from '../typed-ipc.js'
 import { buildBrowsingDataWebsiteInventory } from './browsing-data-websites.js'
 import { LocalizedError } from '../localized-error.js'
 import type { BookmarkStore } from '../bookmarks-history/bookmark-store.js'
@@ -32,7 +33,7 @@ const TIME_RANGE_MS: Record<Exclude<HistoryTimeRange, 'allTime'>, number> = {
 interface BrowsingDataIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
   /** Registers a handler that is refused while saved workspaces are still initializing or failed to start. */
-  handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void
+  handleBrowserIpc: TypedIpcMain['handle']
   tabs(): Browser | null
   historyStore(): Pick<HistoryStore, 'list' | 'clearOrigin' | 'clearSince' | 'clear'> | null
   bookmarkStore(): Pick<BookmarkStore, 'list'> | null

@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { declaredIpcChannels, importCycles, lineCount, literalIpcChannels, resolveImport, ROOT, runtimeImports, runtimeNamesFrom, runtimeSpecifiers, sourceFiles, writtenIpcChannels } from './architecture/source-files.js'
+import { declaredIpcChannels, importCycles, lineCount, literalIpcChannels, resolveImport, ROOT, runtimeImports, runtimeNamesFrom, runtimeSpecifiers, sourceFiles, untypedIpcUses, writtenIpcChannels } from './architecture/source-files.js'
 
 const MAX_LINES = 800
 const BUDGETS_FILE = 'tests/architecture/budgets.json'
@@ -64,6 +64,31 @@ describe('the architecture rules in AGENTS.md', () => {
       "logger.info('hronaut-home:other')"
     ].join('\n')
     expect(writtenIpcChannels(code, declared)).toEqual(['hronaut-home:changed', 'hronaut-home:confirm', 'hronaut-home:changed'])
+  })
+
+  it('checks what main answers and sends against the channels: listeners register on TypedIpcMain and events go through sendTo', () => {
+    const uses = files.filter(file => file.startsWith('src/main/')).flatMap(file => (
+      untypedIpcUses(readFileSync(join(ROOT, file), 'utf8'), file).map(use => `${file}: ${use}`)
+    ))
+    expect(uses, 'untyped IPC in main: take TypedIpcMain and use sendTo from src/main/typed-ipc.ts').toEqual([])
+  })
+
+  it('finds a channel sent with a renderer\'s own send, a listener on Electron\'s ipcMain and the IpcMain type, and leaves out sendTo and other sends', () => {
+    const code = [
+      "import type { IpcMain } from 'electron'",
+      "import { app, ipcMain as electronIpcMain } from 'electron'",
+      "electronIpcMain.handle(HOME_IPC.confirm, () => true)",
+      "registerHomeIpc(withTranslatedIpcErrors(electronIpcMain, host))",
+      "typedIpcMain.handle(HOME_IPC.confirm, () => true)",
+      "function register(ipcMain: Pick<IpcMain, 'handle'>, other: Electron.IpcMain) {}",
+      "window.webContents.send(HOME_IPC.changed, state)",
+      "host.mainWindow()?.webContents.send(SHELL_IPC.helpRequested, action)",
+      "sendTo(window.webContents, HOME_IPC.changed, state)",
+      "surface.send({ id: request.id })",
+      "cdp.send('Runtime.evaluate', { expression })",
+      "function typed(ipcMain: Pick<TypedIpcMain, 'handle'>) {}"
+    ].join('\n')
+    expect(untypedIpcUses(code)).toEqual(['ipcMain.handle', 'IpcMain', 'IpcMain', 'send(HOME_IPC.changed)', 'send(SHELL_IPC.helpRequested)'])
   })
 
   it('counts the IPC channel names a module writes out, and leaves out typed channels, URLs and page events', () => {

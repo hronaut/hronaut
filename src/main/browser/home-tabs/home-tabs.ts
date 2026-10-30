@@ -3,6 +3,7 @@ import { isHronautHomeUrl } from '../url.js'
 import type { Browser } from '../browser.js'
 import { browserState } from '../browser-state/browser-state.js'
 import { HOME_IPC } from '../../../shared/ipc/home.js'
+import { sendTo } from '../../typed-ipc.js'
 
 /** Hronaut Home, which opening Home creates when no tab shows it; the browser's Home address. */
 const HRONAUT_HOME_URL = 'hronaut://home/'
@@ -21,7 +22,7 @@ export function isHomeTab(browser: Browser, tabId: string): boolean {
 /** Tells each open Home that what it shows changed, so it reads its status again. The message carries nothing. */
 export function notifyHomeChanged(browser: Browser): void {
   for (const tab of browser.tabs.values()) {
-    if (isHronautHomeUrl(tab.url) && !tab.webContents.isDestroyed()) tab.webContents.send(HOME_IPC.changed)
+    if (isHronautHomeUrl(tab.url) && !tab.webContents.isDestroyed()) sendTo(tab.webContents, HOME_IPC.changed)
   }
 }
 
@@ -29,7 +30,7 @@ export function notifyHomeChanged(browser: Browser): void {
 export async function openHome(browser: Browser): Promise<BrowserState> {
   const home = [...browser.tabs.values()].find((tab) => isHronautHomeUrl(tab.url))
   if (home) {
-    home.webContents.send(HOME_IPC.showWorkspaces)
+    sendTo(home.webContents, HOME_IPC.showWorkspaces)
     return browser.selectTab(home.id)
   }
   await browser.createTab({ url: HRONAUT_HOME_URL, active: true })

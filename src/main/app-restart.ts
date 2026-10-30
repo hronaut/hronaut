@@ -1,5 +1,6 @@
 import { dirname, resolve, win32 } from 'node:path'
-import type { IpcMain, IpcMainInvokeEvent, RelaunchOptions } from 'electron'
+import type { IpcMainInvokeEvent, RelaunchOptions } from 'electron'
+import type { TypedIpcMain } from './typed-ipc.js'
 import type { AppQuitState } from './app-lifecycle.js'
 import { STARTUP_LAUNCH_ARGUMENT } from './startup-launch.js'
 import { SETTINGS_IPC } from '../shared/ipc/settings.js'
@@ -68,7 +69,7 @@ interface AppRestartIpcHost {
  * the next run once this one has exited, so the next run takes the single-instance lock, and from this run's login
  * session and environment, so it opens the same profile.
  */
-export function registerAppRestartIpc(ipcMain: Pick<IpcMain, 'handle'>, host: AppRestartIpcHost): void {
+export function registerAppRestartIpc(ipcMain: Pick<TypedIpcMain, 'handle'>, host: AppRestartIpcHost): void {
   // Electron starts one more Hronaut for every relaunch it is asked for, so a second click restarts only once.
   let restarting = false
   ipcMain.handle(SETTINGS_IPC.restart, async (event) => {

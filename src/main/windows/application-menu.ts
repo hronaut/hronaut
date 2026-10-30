@@ -13,6 +13,7 @@ import { setZoom } from '../browser/page-zoom/page-zoom.js'
 import { newTab } from '../browser/new-tabs/open-new-tab.js'
 import { UPDATES_IPC } from '../../shared/ipc/updates.js'
 import { SHELL_IPC } from '../../shared/ipc/shell.js'
+import { sendTo } from '../typed-ipc.js'
 
 interface ApplicationMenuHost {
   /** Translates into the current interface language; read on every build because the language can change. */
@@ -49,7 +50,7 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
 
   function requestHelp(action: HelpMenuAction): void {
     host.showWindow()
-    if (host.mainWindow() && !host.mainWindow()!.webContents.isDestroyed()) host.mainWindow()!.webContents.send(SHELL_IPC.helpRequested, action)
+    if (host.mainWindow() && !host.mainWindow()!.webContents.isDestroyed()) sendTo(host.mainWindow()!.webContents, SHELL_IPC.helpRequested, action)
   }
 
   function openRepository(): void {
@@ -171,7 +172,8 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
               label: host.text('native.menu.checkUpdates'),
               click: () => {
                 host.showWindow()
-                host.mainWindow()?.webContents.send(UPDATES_IPC.open)
+                const mainWindow = host.mainWindow()
+                if (mainWindow) sendTo(mainWindow.webContents, UPDATES_IPC.open)
                 void host.checkForUpdates()
               }
             },
@@ -215,7 +217,8 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
               accelerator: 'CmdOrCtrl+Shift+P',
               click: () => {
                 host.showWindow()
-                host.mainWindow()?.webContents.send(SHELL_IPC.shortcutRequested, 'command-palette')
+                const mainWindow = host.mainWindow()
+                if (mainWindow) sendTo(mainWindow.webContents, SHELL_IPC.shortcutRequested, 'command-palette')
               }
             },
             {
@@ -223,7 +226,8 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
               accelerator: process.platform === 'darwin' ? 'Cmd+Alt+C' : 'Ctrl+Shift+C',
               click: () => {
                 host.showWindow()
-                host.mainWindow()?.webContents.send(SHELL_IPC.shortcutRequested, 'pick-element')
+                const mainWindow = host.mainWindow()
+                if (mainWindow) sendTo(mainWindow.webContents, SHELL_IPC.shortcutRequested, 'pick-element')
               }
             },
             {
@@ -304,7 +308,8 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
               accelerator: 'CmdOrCtrl+Shift+F',
               click: () => {
                 host.showWindow()
-                host.mainWindow()?.webContents.send(SHELL_IPC.shortcutRequested, 'toggle-full-page')
+                const mainWindow = host.mainWindow()
+                if (mainWindow) sendTo(mainWindow.webContents, SHELL_IPC.shortcutRequested, 'toggle-full-page')
               }
             },
             { type: 'separator' },
@@ -371,7 +376,8 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
               label: host.text('native.menu.checkUpdatesPlain'),
               click: () => {
                 host.showWindow()
-                host.mainWindow()?.webContents.send(UPDATES_IPC.open)
+                const mainWindow = host.mainWindow()
+                if (mainWindow) sendTo(mainWindow.webContents, UPDATES_IPC.open)
                 void host.checkForUpdates()
               }
             }

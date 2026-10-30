@@ -1,4 +1,5 @@
-import type { IpcMain, IpcMainEvent } from 'electron'
+import type { IpcMainEvent } from 'electron'
+import type { TypedIpcMain } from '../typed-ipc.js'
 import type { AddressSuggestionOverlay } from '../windows/address-suggestion-overlay.js'
 import type {
   AddressSuggestion,
@@ -99,7 +100,7 @@ function validatedAddressOverlayRequest(value: unknown): AddressSuggestionOverla
  * suggestions view that is no longer the current one is dropped. Dependencies stay lazy because handlers are
  * registered before the window loads.
  */
-export function registerAddressOverlayIpc(ipcMain: Pick<IpcMain, 'on'>, host: AddressOverlayIpcHost): void {
+export function registerAddressOverlayIpc(ipcMain: Pick<TypedIpcMain, 'on'>, host: AddressOverlayIpcHost): void {
   ipcMain.on(ADDRESS_OVERLAY_IPC.show, (event, value: unknown) => {
     if (host.workspaceStartupFailure()) return
     host.assertMainShellSender(event)

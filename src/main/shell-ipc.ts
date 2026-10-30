@@ -1,4 +1,5 @@
-import type { BrowserWindow, IpcMain, IpcMainEvent, IpcMainInvokeEvent, WebContents } from 'electron'
+import type { BrowserWindow, IpcMainEvent, IpcMainInvokeEvent, WebContents } from 'electron'
+import { sendTo, type TypedIpcMain } from './typed-ipc.js'
 import type { AppQuitState } from './app-lifecycle.js'
 import type { FollowSuspensionState } from './overlays/agent-card-overlay.js'
 import type { Browser } from './browser/browser.js'
@@ -18,7 +19,7 @@ interface ShellIpcHost {
   /** Whether a message came from the main window's shell document, not a detached panel window. */
   isMainShellSender(event: IpcMainEvent): boolean
   /** Registers a handler that is refused while saved workspaces are still initializing or failed to start. */
-  handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void
+  handleBrowserIpc: TypedIpcMain['handle']
   /** Why saved workspaces could not start, if they could not; read on every check. */
   workspaceStartupFailure(): Error | undefined
   /** Writes text to the system clipboard after earlier clipboard writes, verifying it arrived. */
@@ -46,7 +47,7 @@ interface ShellIpcHost {
  * The shell's window, layout and clipboard requests. Dependencies stay lazy because handlers are
  * registered before the window loads.
  */
-export function registerShellIpc(ipcMain: Pick<IpcMain, 'handle' | 'on'>, host: ShellIpcHost): void {
+export function registerShellIpc(ipcMain: Pick<TypedIpcMain, 'handle' | 'on'>, host: ShellIpcHost): void {
   host.handleBrowserIpc(SHELL_IPC.copyText, async (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (typeof value !== 'string') throw new TypeError('Clipboard text must be a string')
@@ -62,9 +63,10 @@ export function registerShellIpc(ipcMain: Pick<IpcMain, 'handle' | 'on'>, host: 
     host.assertTrustedSender(event)
     return host.windowFromWebContents(event.sender)?.isFocused() ?? false
   })
-  ipcMain.on(SHELL_IPC.toolbarHeight, (event, height: number) => {
+  ipcMain.on(SHELL_IPC.toolbarHeight, (event, height: unknown) => {
     if (host.workspaceStartupFailure()) return
     host.assertMainShellSender(event)
+    if (typeof height !== 'number' || !Number.isFinite(height)) throw new TypeError('Invalid toolbar height')
     const browser = host.tabs()
     if (browser) setToolbarHeight(browser, scaleShellMetric(height, event.sender.getZoomFactor()))
     host.toastOverlay().relayout()
@@ -97,7 +99,7 @@ export function registerShellIpc(ipcMain: Pick<IpcMain, 'handle' | 'on'>, host: 
     const tabs = host.tabs()
     if (tabs) setBrowserContentOccluded(tabs, occluded, request)
     // Without the tab runtime no page is on screen, and the shell waits for this report before a question takes answers.
-    else if (occluded && !event.sender.isDestroyed()) event.sender.send(SHELL_IPC.occlusionPagesHidden, request)
+    else if (occluded && !event.sender.isDestroyed()) sendTo(event.sender, SHELL_IPC.occlusionPagesHidden, request)
     host.sidebarOverlay().occlusionChanged(occluded)
   })
   ipcMain.on(SHELL_IPC.occlusionSnapshotPresented, (event, id: unknown) => {

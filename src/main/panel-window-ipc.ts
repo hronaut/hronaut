@@ -1,4 +1,5 @@
-import type { BrowserWindow, IpcMain, IpcMainInvokeEvent } from 'electron'
+import type { BrowserWindow, IpcMainInvokeEvent } from 'electron'
+import { sendTo, type TypedIpcMain } from './typed-ipc.js'
 import type { PanelWindowRefs } from './windows/panel-window.js'
 import { DETACHABLE_PANEL_IDS, PANEL_DOCKS, type DetachablePanelId, type PanelDock } from '../shared/types.js'
 import { PANEL_WINDOW_IPC } from '../shared/ipc/panel-window.js'
@@ -36,7 +37,7 @@ function isPanelDock(value: unknown): value is PanelDock {
  * The detached panel window: open it, close it, switch its panel and dock the panel again. Dependencies stay
  * lazy because handlers are registered before the window loads.
  */
-export function registerPanelWindowIpc(ipcMain: Pick<IpcMain, 'handle'>, host: PanelWindowIpcHost): void {
+export function registerPanelWindowIpc(ipcMain: Pick<TypedIpcMain, 'handle'>, host: PanelWindowIpcHost): void {
   ipcMain.handle(PANEL_WINDOW_IPC.open, async (event, panel: unknown) => {
     host.assertMainShellSender(event)
     if (!isDetachablePanelId(panel)) throw new TypeError('Invalid detachable panel')
@@ -52,7 +53,7 @@ export function registerPanelWindowIpc(ipcMain: Pick<IpcMain, 'handle'>, host: P
     host.panelWindowRefs.panel = panel
     host.panelWindowRefs.window?.setTitle(host.detachedPanelTitle(panel))
     if (host.mainWindow() && !host.mainWindow()!.isDestroyed() && !host.mainWindow()!.webContents.isDestroyed()) {
-      host.mainWindow()!.webContents.send(PANEL_WINDOW_IPC.activePanel, panel)
+      sendTo(host.mainWindow()!.webContents, PANEL_WINDOW_IPC.activePanel, panel)
     }
   })
   // Bookmark all tabs with Bookmarks in its own window: the name is asked for there, once it shows Bookmarks. Main
@@ -68,7 +69,7 @@ export function registerPanelWindowIpc(ipcMain: Pick<IpcMain, 'handle'>, host: P
     if (!isDetachablePanelId(panel) || !isPanelDock(dock) || dock === 'window') throw new TypeError('Invalid panel redock request')
     host.panelWindowRefs.redocking = true
     if (host.mainWindow() && !host.mainWindow()!.isDestroyed() && !host.mainWindow()!.webContents.isDestroyed()) {
-      host.mainWindow()!.webContents.send(PANEL_WINDOW_IPC.redockRequested, { panel, dock })
+      sendTo(host.mainWindow()!.webContents, PANEL_WINDOW_IPC.redockRequested, { panel, dock })
     }
     host.panelWindowRefs.window?.close()
   })

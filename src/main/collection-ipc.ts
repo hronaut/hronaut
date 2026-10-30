@@ -1,8 +1,9 @@
-import type { IpcMain, IpcMainInvokeEvent } from 'electron'
+import type { IpcMainInvokeEvent } from 'electron'
+import type { TypedIpcMain } from './typed-ipc.js'
 import type { BookmarkStore, RemovedBookmark } from './bookmarks-history/bookmark-store.js'
 import type { HistoryStore } from './bookmarks-history/history-store.js'
 import type { Browser } from './browser/browser.js'
-import type { BookmarkTabsOutcome, BrowserBookmark, BrowserHistoryEntry } from '../shared/types.js'
+import type { BookmarkCollectionSnapshot, BookmarkTabsOutcome, BrowserBookmark, BrowserHistoryEntry } from '../shared/types.js'
 import { isHronautHomeUrl } from '../shared/home-url.js'
 import { BOOKMARKS_IPC, BOOKMARK_COLLECTIONS_IPC } from '../shared/ipc/bookmarks.js'
 import { DOWNLOADS_IPC } from '../shared/ipc/downloads.js'
@@ -27,7 +28,7 @@ interface CollectionIpcHost {
 }
 
 /** Dependencies stay lazy because handlers are registered before the window loads. */
-export function registerCollectionIpc(ipcMain: Pick<IpcMain, 'handle'>, host: CollectionIpcHost): void {
+export function registerCollectionIpc(ipcMain: Pick<TypedIpcMain, 'handle'>, host: CollectionIpcHost): void {
   // Files are checked only when asked, as when the Downloads panel opens, not by the shell's list at startup.
   ipcMain.handle(DOWNLOADS_IPC.list, (event, checkFiles: unknown) => host.runRead(event, () => (
     checkFiles === true ? host.downloads().downloadController.listDownloadsCheckingFiles() : host.downloads().downloadController.listDownloads()
@@ -94,7 +95,8 @@ export function registerCollectionIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Co
   })
   ipcMain.handle(BOOKMARK_COLLECTIONS_IPC.list, (event) => host.runRead(event, () => host.bookmarks().collectionSnapshot()))
   for (const action of ['create', 'rename', 'remove', 'assign'] as const) {
-    ipcMain.handle(BOOKMARK_COLLECTIONS_IPC[action], async (event, first: unknown, second: unknown) => {
+    // The four channels take different arguments and all answer with the collections.
+    ipcMain.handle<unknown[], BookmarkCollectionSnapshot>(BOOKMARK_COLLECTIONS_IPC[action], async (event, first: unknown, second: unknown) => {
       host.assertTrustedSender(event)
       if (typeof first !== 'string'
         || (action === 'rename' && typeof second !== 'string')
