@@ -17,7 +17,7 @@ export function createProfilingController(browser: Browser): BrowserProfilingCon
   })
 }
 
-/** Starts, reads or stops code coverage; it does not start while a CSS state preview, DOM mutation capture or logpoints run in the tab. */
+/** Starts, reads, stops or clears code coverage; it does not start while a CSS state preview, DOM mutation capture or logpoints run in the tab. */
 export function codeCoverage(browser: Browser, options: BrowserCodeCoverageOptions = {}): Promise<BrowserCodeCoverageResult> {
   if (options.action === 'start' && browser.cssStatePreview.active(getTab(browser, options.tabId))) {
     return Promise.reject(new Error('Clear the CSS state preview before recording code coverage'))

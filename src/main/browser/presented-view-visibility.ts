@@ -124,7 +124,7 @@ export function watchPresentedViewVisibility(
   return () => clearInterval(timer)
 }
 
-/** Repairs the tab's view showing as hidden to its page while it is in view, unless its page is held frozen. */
+/** Repairs the tab's view showing as hidden to its page while it is in view, only while its page is active and not being frozen. */
 export function reconcileTabPresentation(browser: Browser, tab: BrowserTab): void {
   // The Linux visibility repair intentionally performs a WasShown
   // transition. Skip it while an explicit lifecycle hold is active or
