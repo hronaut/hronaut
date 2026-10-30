@@ -47,7 +47,7 @@ export interface BrowserInspectorIssue {
   firstSeenAt: string
 }
 
-/** A passively observed HTTP Basic challenge; Hronaut never answers it. */
+/** An observed HTTP Basic challenge; Hronaut may have asked the person to sign in for it. */
 export interface BrowserAuthChallengeObservation {
   observedAt: string
   scheme: 'basic'

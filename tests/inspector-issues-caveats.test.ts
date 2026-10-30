@@ -26,7 +26,7 @@ it('tells agents that Hronaut may ask the person to sign in for the HTTP Basic c
 
   expect(report.authChallenges).toEqual(tab.authChallenges)
   const caveat = report.caveats.find((text) => text.startsWith('authChallenges '))
-  expect(caveat).toContain('Hronaut may ask the person to sign in in its own dialog')
-  expect(caveat).toContain('Agents never see or supply credentials')
+  expect(caveat).toContain('own origin, Hronaut may ask the person to sign in with its own dialog')
+  expect(caveat).toContain('Agents never see what the person types and cannot answer the dialog')
   expect(caveat).not.toContain('cancelled without supplying credentials')
 })
