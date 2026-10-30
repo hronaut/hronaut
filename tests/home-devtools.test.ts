@@ -12,9 +12,21 @@ vi.mock('electron', () => ({
   }
 }))
 
+// The page menu's browser below stubs openDevTools, which Inspect reaches through this; the Developer Tools cases, whose
+// browser has no such stub of its own, run the real one, even if a Browser method of that name comes back.
+vi.mock('../src/main/browser/devtools/devtools.js', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../src/main/browser/devtools/devtools.js')>()
+  return {
+    ...original,
+    openDevTools: (browser: { openDevTools?: (tab: unknown) => Promise<void> }, tab: never) => (
+      Object.hasOwn(browser, 'openDevTools') ? browser.openDevTools!(tab) : original.openDevTools(browser as never, tab)
+    )
+  }
+})
+
 const { showContextMenu } = await import('../src/main/browser/context-menus/page-context-menu.js')
 const { openDevTools, toggleDevTools } = await import('../src/main/browser/devtools/devtools.js')
-type PageContextMenuAccess = import('../src/main/browser/context-menus/page-context-menu-access.js').PageContextMenuAccess<PageTab>
+type MenuBrowser = Parameters<typeof showContextMenu>[0]
 
 interface PageTab {
   id: string
@@ -62,18 +74,18 @@ function devToolsBrowser(tab: ReturnType<typeof devToolsTab>, dialogMonitorAttac
 function menuFor(url: string, onOpenDevTools: (tab: PageTab) => void = () => undefined): { ids: Array<string | undefined>, tab: PageTab, openDevToolsCalls: PageTab[] } {
   const tab: PageTab = { id: 'tab', url, webContents: pageWebContents() }
   const openDevToolsCalls: PageTab[] = []
-  const access = {
-    findTab: () => tab,
-    window: () => ({}),
-    options: () => ({ copyText: async () => undefined, copyImageAt: async () => undefined }),
+  const browser = {
+    tabs: new Map([[tab.id, tab]]),
+    window: {},
+    options: { copyText: async () => undefined, copyImageAt: async () => undefined },
     text: (key: string) => key,
     isHumanInteractionLocked: () => false,
     openDevTools: async (target: PageTab) => {
       openDevToolsCalls.push(target)
       onOpenDevTools(target)
     }
-  } as unknown as PageContextMenuAccess
-  showContextMenu(access, tab, { x: 10, y: 20, linkURL: '', srcURL: '', selectionText: '', isEditable: false, mediaType: 'none', editFlags: {} } as unknown as ContextMenuParams)
+  } as unknown as MenuBrowser
+  showContextMenu(browser, tab as never, { x: 10, y: 20, linkURL: '', srcURL: '', selectionText: '', isEditable: false, mediaType: 'none', editFlags: {} } as unknown as ContextMenuParams)
   return { ids: built.templates.at(-1)!.map(item => item.id), tab, openDevToolsCalls }
 }
 

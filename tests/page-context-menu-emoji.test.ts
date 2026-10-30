@@ -22,7 +22,7 @@ vi.mock('electron', () => ({
 
 const { showContextMenu } = await import('../src/main/browser/context-menus/page-context-menu.js')
 type PageTab = { id: string, url: string, webContents: WebContents }
-type PageContextMenuAccess = import('../src/main/browser/context-menus/page-context-menu-access.js').PageContextMenuAccess<PageTab>
+type MenuBrowser = Parameters<typeof showContextMenu>[0]
 
 const PAGE = 'https://chat.example/room/7'
 
@@ -36,20 +36,21 @@ function menu(params: Partial<ContextMenuParams>, tabOpen = true) {
   } as unknown as WebContents
   const tab: PageTab = { id: 'tab', url: PAGE, webContents }
   const onActionFailed = vi.fn()
-  const access = {
-    findTab: () => tabOpen ? tab : undefined,
-    window: () => ({}),
-    options: () => ({ copyText: async () => undefined, copyImageAt: async () => undefined, onActionFailed }),
+  const browser = {
+    get tabs() { return new Map(tabOpen ? [[tab.id, tab]] : []) },
+    window: {},
+    options: {
+      copyText: async () => undefined, copyImageAt: async () => undefined, onActionFailed,
+      getSearchEngine: () => 'google',
+      getSpellCheck: () => true,
+      setSpellCheck: async () => undefined,
+      offersSpellCheckLanguages: () => true,
+      openSpellCheckSettings: () => undefined
+    },
     text: (key: string) => key === 'native.context.emojiSymbols' ? 'Emoji & Symbols' : key,
-    isHumanInteractionLocked: () => false,
-    searchEngine: () => 'google',
-    spellCheck: () => true,
-    setSpellCheck: async () => undefined,
-    offersSpellCheckLanguages: () => true,
-    openSpellCheckSettings: () => undefined,
-    passwordSuggestion: () => null
-  } as unknown as PageContextMenuAccess
-  showContextMenu(access, tab, {
+    isHumanInteractionLocked: () => false
+  } as unknown as MenuBrowser
+  showContextMenu(browser, tab as never, {
     x: 10, y: 20, linkURL: '', srcURL: '', selectionText: '', isEditable: false, mediaType: 'none', editFlags: {},
     misspelledWord: '', dictionarySuggestions: [], formControlType: 'none',
     pageURL: PAGE, frameURL: PAGE, referrerPolicy: 'strict-origin-when-cross-origin', ...params

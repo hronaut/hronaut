@@ -14,7 +14,7 @@ vi.mock('electron', () => ({
 
 const { showContextMenu } = await import('../src/main/browser/context-menus/page-context-menu.js')
 type PageTab = { id: string, url: string, webContents: WebContents }
-type PageContextMenuAccess = import('../src/main/browser/context-menus/page-context-menu-access.js').PageContextMenuAccess<PageTab>
+type MenuBrowser = Parameters<typeof showContextMenu>[0]
 
 const PAGE = 'https://gallery.example/album/7?sort=new'
 
@@ -29,15 +29,15 @@ function saveFromMenu(itemId: 'save-link' | 'save-image', params: Partial<Contex
     downloadURL
   } as unknown as WebContents
   const tab: PageTab = { id: 'tab', url: PAGE, webContents }
-  const access = {
-    findTab: () => tab,
-    window: () => ({}),
-    options: () => ({ copyText: async () => undefined, copyImageAt: async () => undefined }),
+  const browser = {
+    tabs: new Map([[tab.id, tab]]),
+    window: {},
+    options: { copyText: async () => undefined, copyImageAt: async () => undefined },
     text: (key: string) => key,
     isHumanInteractionLocked: () => false,
-    expectSavedLinkName
-  } as unknown as PageContextMenuAccess
-  showContextMenu(access, tab, {
+    downloadController: { expectSavedLinkName }
+  } as unknown as MenuBrowser
+  showContextMenu(browser, tab as never, {
     x: 10, y: 20, linkURL: '', srcURL: '', selectionText: '', isEditable: false, mediaType: 'none', editFlags: {},
     pageURL: PAGE, frameURL: PAGE, referrerPolicy: 'strict-origin-when-cross-origin', ...params
   } as unknown as ContextMenuParams)
@@ -81,7 +81,7 @@ describe('saving from the page menu', () => {
   it('gives Save Link the link\'s download name before starting the download, and Save Image none', () => {
     // downloadURL cannot carry the name, so Save Link saved `/export?id=5` as export.csv instead of report.csv.
     const link = saveFromMenu('save-link', { linkURL: 'https://gallery.example/export?id=5', suggestedFilename: 'report.csv' })
-    expect(expectSavedLinkName).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 7 }), 'https://gallery.example/export?id=5', 'report.csv')
+    expect(expectSavedLinkName).toHaveBeenCalledExactlyOnceWith(7, 'https://gallery.example/export?id=5', 'report.csv')
     expect(expectSavedLinkName.mock.invocationCallOrder[0]).toBeLessThan(link.mock.invocationCallOrder[0]!)
     expectSavedLinkName.mockReset()
     saveFromMenu('save-link', { linkURL: 'https://gallery.example/files/a.zip', suggestedFilename: '' })

@@ -12,9 +12,15 @@ vi.mock('electron', () => ({
   }
 }))
 
+// The browser below stubs savePageAs, which the menu reaches through this.
+vi.mock('../src/main/browser/page-save/page-save.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/page-save/page-save.js')>(),
+  savePageAs: (browser: { savePageAs: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.savePageAs(...args)
+}))
+
 const { showContextMenu } = await import('../src/main/browser/context-menus/page-context-menu.js')
 type PageTab = { id: string, url: string, mcpGroupId?: string, webContents: WebContents }
-type PageContextMenuAccess = import('../src/main/browser/context-menus/page-context-menu-access.js').PageContextMenuAccess<PageTab>
+type MenuBrowser = Parameters<typeof showContextMenu>[0]
 
 // The page's context menu had no Save As, as Chrome's has.
 
@@ -25,15 +31,15 @@ function openMenu(url: string, savePage = vi.fn(async () => true), onActionFaile
     navigationHistory: { canGoBack: () => false, canGoForward: () => false }
   } as unknown as WebContents
   const tab: PageTab = { id: 'tab', url, mcpGroupId: 'client', webContents }
-  const access = {
-    findTab: () => built.closed ? undefined : tab,
-    window: () => ({}),
-    options: () => ({ copyText: async () => undefined, copyImageAt: async () => undefined, onActionFailed }),
+  const browser = {
+    get tabs() { return new Map(built.closed ? [] : [[tab.id, tab]]) },
+    window: {},
+    options: { copyText: async () => undefined, copyImageAt: async () => undefined, onActionFailed },
     text: (key: string) => key,
     isHumanInteractionLocked: () => false,
-    savePage
-  } as unknown as PageContextMenuAccess
-  showContextMenu(access, tab, {
+    savePageAs: savePage
+  } as unknown as MenuBrowser
+  showContextMenu(browser, tab as never, {
     x: 10, y: 20, linkURL: '', srcURL: '', selectionText: '', isEditable: false, mediaType: 'none', editFlags: {},
     pageURL: url, frameURL: url, referrerPolicy: 'strict-origin-when-cross-origin'
   } as unknown as ContextMenuParams)

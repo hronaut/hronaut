@@ -16,7 +16,7 @@ vi.mock('electron', () => ({
 
 const { showContextMenu } = await import('../src/main/browser/context-menus/page-context-menu.js')
 type PageTab = { id: string, url: string, mcpGroupId?: string, webContents: WebContents }
-type PageContextMenuAccess = import('../src/main/browser/context-menus/page-context-menu-access.js').PageContextMenuAccess<PageTab>
+type MenuBrowser = Parameters<typeof showContextMenu>[0]
 
 // Hronaut had no Create QR Code for this Page or for this Image, as Chrome's page menu has.
 
@@ -25,16 +25,18 @@ function openMenu(params: Partial<ContextMenuParams>, url = 'https://docs.exampl
   const webContents = { id: 7, isDestroyed: () => destroyed, navigationHistory: { canGoBack: () => false, canGoForward: () => false } } as unknown as WebContents
   const tab: PageTab = { id: 'tab-7', url, mcpGroupId: 'client', webContents }
   const send = vi.fn()
-  const access = {
-    findTab: () => tab,
-    window: () => ({ webContents: { send } }),
-    options: () => ({ copyText: async () => undefined, copyImageAt: async () => undefined }),
+  const browser = {
+    tabs: new Map([[tab.id, tab]]),
+    window: { webContents: { send } },
+    options: {
+      copyText: async () => undefined, copyImageAt: async () => undefined,
+      getSearchEngine: () => 'google'
+    },
     text: (key: string) => key,
     isHumanInteractionLocked: () => false,
-    searchEngine: () => 'google',
-    browserContentOccluded: () => false
-  } as unknown as PageContextMenuAccess
-  showContextMenu(access, tab, {
+    browserContentOccluded: false
+  } as unknown as MenuBrowser
+  showContextMenu(browser, tab as never, {
     x: 10, y: 20, linkURL: '', srcURL: '', selectionText: '', isEditable: false, mediaType: 'none', editFlags: {}, mediaFlags: { canSave: true },
     pageURL: url, frameURL: url, referrerPolicy: 'strict-origin-when-cross-origin', ...params
   } as unknown as ContextMenuParams)

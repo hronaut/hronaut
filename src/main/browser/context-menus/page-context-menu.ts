@@ -1,8 +1,16 @@
 import { app, clipboard, Menu, type ContextMenuParams, type MenuItemConstructorOptions, type WebFrameMain } from 'electron'
 import { isHronautHomeUrl, isWebUrl } from '../url.js'
-import { pageSourceAddress } from '../page-source/page-source.js'
+import { pageSourceAddress, viewFrameSource, viewPageSource } from '../page-source/page-source.js'
 import { searchEngineLabel, selectionAddressKept, selectionGoToUrl, selectionSearchLabelText, selectionSearchQuery, selectionSearchUrl } from '../selection-search/selection-search.js'
-import type { PageContextMenuAccess, PageContextMenuTab } from './page-context-menu-access.js'
+import type { Browser } from '../browser.js'
+import { DEFAULT_SEARCH_ENGINE } from '../../../shared/search-engine.js'
+import { openDevTools } from '../devtools/devtools.js'
+import { printPage } from '../page-print/page-print.js'
+import { savePageAs } from '../page-save/page-save.js'
+import { openSplitViewAndWait } from '../split-view/split-view.js'
+import { strongPasswordSuggestion } from '../suggested-password/suggested-password.js'
+import { findTab } from '../browser-core.js'
+import type { BrowserTab } from '../browser-tab.js'
 import { openedResourceReferrer, savedResourceReferrer } from './page-context-menu-referrer.js'
 import { readHighlightPageText } from './highlight-page-text.js'
 import { textFragmentLink } from './text-fragment-link.js'
@@ -23,17 +31,17 @@ let menuCopies = 0
  * selected text and a search for it or a visit to a selected address, then page navigation, copy address, save, print, view source, the
  * source and reload of a frame inside the page, and inspect. Each action checks that its tab is still open.
  */
-export function showContextMenu<Tab extends PageContextMenuTab>(access: PageContextMenuAccess<Tab>, tab: Tab, params: ContextMenuParams): void {
+export function showContextMenu(browser: Browser, tab: BrowserTab, params: ContextMenuParams): void {
   const webContents = tab.webContents
   if (webContents.isDestroyed()) return
   const groups: MenuItemConstructorOptions[][] = []
   const frame = subframe(params.frame)
   const reportActionFailure = (action: string, error: unknown): void => {
     console.error(`[browser] Could not ${action} from page context menu:`, error)
-    access.options().onActionFailed?.(action, error)
+    browser.options.onActionFailed?.(action, error)
   }
   const withLiveContents = (actionName: string, action: () => void): (() => void) => () => {
-    if (webContents.isDestroyed() || access.findTab(tab.id) !== tab) {
+    if (webContents.isDestroyed() || findTab(browser, tab.id) !== tab) {
       reportActionFailure(actionName, new Error('The tab is no longer available.'))
       return
     }
@@ -45,15 +53,15 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
   }
   const reportCopyFailure = (kind: 'text' | 'image', error: unknown): void => {
     console.error(`[browser] Could not copy context-menu ${kind}:`, error)
-    access.options().onClipboardCopyFailed?.(error)
+    browser.options.onClipboardCopyFailed?.(error)
   }
   // The shell opens the Create QR Code dialog for the address, in the tab's window.
   const requestQrCode = (address: string): void => {
-    access.window().webContents.send('browser:qr-code-requested', { tabId: tab.id, address })
+    browser.window.webContents.send('browser:qr-code-requested', { tabId: tab.id, address })
   }
   const copyText = (text: string): void => {
     menuCopies++
-    void access.options().copyText(text).catch((error) => reportCopyFailure('text', error))
+    void browser.options.copyText(text).catch((error) => reportCopyFailure('text', error))
   }
   // Electron types the frame's referrer policy as a Referrer, but reports the policy name.
   const referrerPolicy = params.referrerPolicy as unknown as string | Partial<Electron.Referrer> | undefined
@@ -61,9 +69,9 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
   // A sandboxed frame or page has an opaque origin and sends no referrer, as a click in it does. It is read now, since
   // the frame can be gone by the time an item is chosen.
   const sandboxedFrame = hasOpaqueOrigin(params.frame)
-  const createBackgroundTab = (url: string): Promise<Tab> => {
+  const createBackgroundTab = (url: string): Promise<BrowserTab> => {
     const referrer = sandboxedFrame ? undefined : openedResourceReferrer(params.frameURL, policy)
-    return access.createTab({
+    return browser.createTab({
       url,
       active: false,
       mcpGroupId: tab.mcpGroupId,
@@ -75,27 +83,27 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
     void createBackgroundTab(url)
       .catch((error) => {
         console.error(`[browser] Could not open context-menu URL ${url}:`, error)
-        access.options().onActionFailed?.('open link in new tab', error)
+        browser.options.onActionFailed?.('open link in new tab', error)
       })
   }
   // Chrome's Open Link in Split View: the link opens in a new tab beside this page, which keeps the keyboard.
   const openLinkInSplitView = (url: string): void => {
     void createBackgroundTab(url)
-      .then((created) => access.showBeside(tab, created.id))
+      .then((created) => showTabBeside(browser, tab, created.id))
       .catch((error) => reportActionFailure('open link in split view', error))
   }
   const download = (url: string, linkName = ''): void => {
     const referrer = sandboxedFrame ? undefined : savedResourceReferrer(params.frameURL, url, policy)
     // Blink gives a same-origin link's `download` name, which Chrome saves the link under.
-    if (linkName) access.expectSavedLinkName(webContents, url, linkName)
+    if (linkName) browser.downloadController.expectSavedLinkName(webContents.id, url, linkName)
     if (referrer) webContents.downloadURL(url, { headers: { Referer: referrer } })
     else webContents.downloadURL(url)
   }
   // The search or address opens in front, beside the page and in its workspace, under its navigation policy, and not
   // behind trusted chrome, as View Page Source does not.
   const openSelectionTab = (actionName: string, url: string): (() => void) => withLiveContents(actionName, () => {
-    if (access.browserContentOccluded()) return
-    void access.createTab({
+    if (browser.browserContentOccluded) return
+    void browser.createTab({
       url,
       active: true,
       mcpGroupId: tab.mcpGroupId,
@@ -115,14 +123,14 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
       if (selectionAddressKept(address, params.linkURL)) return []
       return [{
         id: 'go-to-selection',
-        label: access.text('native.context.goTo', { text: selectionSearchLabelText(query) }),
+        label: browser.text('native.context.goTo', { text: selectionSearchLabelText(query) }),
         click: openSelectionTab('go to the selected address', address)
       }]
     }
-    const engine = access.searchEngine()
+    const engine = browser.options.getSearchEngine?.() ?? DEFAULT_SEARCH_ENGINE
     return [{
       id: 'search-selection',
-      label: access.text('native.context.searchFor', { engine: searchEngineLabel(engine), text: selectionSearchLabelText(query) }),
+      label: browser.text('native.context.searchFor', { engine: searchEngineLabel(engine), text: selectionSearchLabelText(query) }),
       click: openSelectionTab('search for the selection', selectionSearchUrl(query, engine))
     }]
   }
@@ -142,29 +150,29 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
       if (copy !== menuCopies || clipboardNow !== clipboardBefore) return
       copyText((page && textFragmentLink(params.pageURL, page)) ?? selectedTextLink)
     }
-    return [{ id: 'copy-link-to-highlight', label: access.text('native.context.copyLinkToHighlight'), click: () => void copyLink() }]
+    return [{ id: 'copy-link-to-highlight', label: browser.text('native.context.copyLinkToHighlight'), click: () => void copyLink() }]
   }
   const copyImage = (): void => {
-    void access.options().copyImageAt(webContents, params.x, params.y)
+    void browser.options.copyImageAt(webContents, params.x, params.y)
       .catch((error) => reportCopyFailure('image', error))
   }
   // A video's or audio's open, save and copy of its address.
   const addressedMediaItems = (video: boolean, savable: boolean): MenuItemConstructorOptions[] => [
     {
       id: video ? 'open-video-new-tab' : 'open-audio-new-tab',
-      label: access.text(video ? 'native.context.openVideo' : 'native.context.openAudio'),
+      label: browser.text(video ? 'native.context.openVideo' : 'native.context.openAudio'),
       enabled: savable,
       click: () => openBackgroundTab(params.srcURL)
     },
     {
       id: video ? 'save-video' : 'save-audio',
-      label: access.text(video ? 'native.context.saveVideo' : 'native.context.saveAudio'),
+      label: browser.text(video ? 'native.context.saveVideo' : 'native.context.saveAudio'),
       enabled: savable,
       click: withLiveContents(video ? 'save video' : 'save audio', () => download(params.srcURL))
     },
     {
       id: video ? 'copy-video-address' : 'copy-audio-address',
-      label: access.text(video ? 'native.context.copyVideoAddress' : 'native.context.copyAudioAddress'),
+      label: browser.text(video ? 'native.context.copyVideoAddress' : 'native.context.copyAudioAddress'),
       click: () => copyText(params.srcURL)
     }
   ]
@@ -181,7 +189,7 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
   const mediaPlayerItem = (id: string, label: MessageKey, action: MediaPlayerAction, available: boolean, checked: boolean): MenuItemConstructorOptions => ({
     id,
     type: 'checkbox',
-    label: access.text(label),
+    label: browser.text(label),
     checked,
     enabled: available && Boolean(params.frame),
     click: withLiveContents(`turn ${action} ${checked ? 'off' : 'on'}`, () => {
@@ -201,18 +209,18 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
     return [
       {
         id: 'copy-video-frame',
-        label: access.text('native.context.copyVideoFrame'),
+        label: browser.text('native.context.copyVideoFrame'),
         enabled,
         click: withLiveContents('copy video frame', () => {
           const current = mediaFrame()
           if (!current) return
-          void access.options().copyVideoFrameAt(current, params.x, params.y)
+          void browser.options.copyVideoFrameAt(current, params.x, params.y)
             .catch((error) => reportCopyFailure('image', error))
         })
       },
       {
         id: 'save-video-frame',
-        label: access.text('native.context.saveVideoFrame'),
+        label: browser.text('native.context.saveVideoFrame'),
         enabled,
         click: withLiveContents('save video frame', () => mediaFrame()?.saveVideoFrameAs(params.x, params.y))
       }
@@ -225,25 +233,25 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
     groups.push([
       {
         id: 'open-link-new-tab',
-        label: access.text('native.context.openLink'),
+        label: browser.text('native.context.openLink'),
         enabled: webLink,
         click: () => openBackgroundTab(params.linkURL)
       },
       // Hronaut Home is never shown in split view.
       ...isHronautHomeUrl(tab.url) ? [] : [{
         id: 'open-link-split-view',
-        label: access.text('native.context.openLinkSplit'),
+        label: browser.text('native.context.openLinkSplit'),
         enabled: webLink,
         click: () => openLinkInSplitView(params.linkURL)
       }],
       {
         id: 'copy-link-address',
-        label: access.text(email ? 'native.context.copyEmail' : 'native.context.copyLink'),
+        label: browser.text(email ? 'native.context.copyEmail' : 'native.context.copyLink'),
         click: () => copyText(email || params.linkURL)
       },
       {
         id: 'save-link',
-        label: access.text('native.context.saveLink'),
+        label: browser.text('native.context.saveLink'),
         enabled: webLink,
         click: withLiveContents('save link', () => download(params.linkURL, params.suggestedFilename))
       }
@@ -254,30 +262,30 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
     groups.push([
       {
         id: 'open-image-new-tab',
-        label: access.text('native.context.openImage'),
+        label: browser.text('native.context.openImage'),
         enabled: isWebUrl(params.srcURL),
         click: () => openBackgroundTab(params.srcURL)
       },
       {
         id: 'copy-image',
-        label: access.text('native.context.copyImage'),
+        label: browser.text('native.context.copyImage'),
         enabled: params.hasImageContents,
         click: copyImage
       },
       {
         id: 'copy-image-address',
-        label: access.text('native.context.copyImageAddress'),
+        label: browser.text('native.context.copyImageAddress'),
         click: () => copyText(params.srcURL)
       },
       // As in Chrome, for an image that is not a link, whose address is http or https.
       ...!params.linkURL && isWebUrl(params.srcURL) ? [{
         id: 'create-qr-code-image',
-        label: access.text('native.context.createQrCodeImage'),
+        label: browser.text('native.context.createQrCodeImage'),
         click: withLiveContents('create a QR code', () => requestQrCode(params.srcURL))
       }] : [],
       {
         id: 'save-image',
-        label: access.text('native.context.saveImage'),
+        label: browser.text('native.context.saveImage'),
         enabled: isWebUrl(params.srcURL),
         click: withLiveContents('save image', () => download(params.srcURL))
       }
@@ -312,7 +320,7 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
     if (!params.misspelledWord && EMOJI_FIELDS.has(params.formControlType) && app.isEmojiPanelSupported()) {
       groups.push([{
         id: 'emoji',
-        label: access.text(process.platform === 'darwin' ? 'native.context.emojiSymbols' : 'native.context.emoji').replaceAll('&', '&&'),
+        label: browser.text(process.platform === 'darwin' ? 'native.context.emojiSymbols' : 'native.context.emoji').replaceAll('&', '&&'),
         click: withLiveContents('open the emoji picker', () => app.showEmojiPanel())
       }])
     }
@@ -324,30 +332,30 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
       }))
       spellingItems.push({
         id: 'add-to-dictionary',
-        label: access.text('native.context.addDictionary', { word: params.misspelledWord }),
+        label: browser.text('native.context.addDictionary', { word: params.misspelledWord }),
         click: withLiveContents('add word to dictionary', () => { webContents.session.addWordToSpellCheckerDictionary(params.misspelledWord) })
       })
       groups.push(spellingItems)
     }
     groups.push([
-      { id: 'undo', label: access.text('native.context.undo'), enabled: params.editFlags.canUndo, click: withLiveContents('undo', () => webContents.undo()) },
-      { id: 'redo', label: access.text('native.context.redo'), enabled: params.editFlags.canRedo, click: withLiveContents('redo', () => webContents.redo()) },
+      { id: 'undo', label: browser.text('native.context.undo'), enabled: params.editFlags.canUndo, click: withLiveContents('undo', () => webContents.undo()) },
+      { id: 'redo', label: browser.text('native.context.redo'), enabled: params.editFlags.canRedo, click: withLiveContents('redo', () => webContents.redo()) },
       { type: 'separator' },
-      { id: 'cut', label: access.text('native.context.cut'), enabled: params.editFlags.canCut, click: withLiveContents('cut', () => webContents.cut()) },
-      { id: 'copy', label: access.text('native.context.copy'), enabled: params.editFlags.canCopy, click: withLiveContents('copy', () => webContents.copy()) },
-      { id: 'paste', label: access.text('native.context.paste'), enabled: params.editFlags.canPaste, click: withLiveContents('paste', () => webContents.paste()) },
-      { id: 'paste-and-match-style', label: access.text('native.context.pasteMatchStyle'), enabled: params.editFlags.canPaste, click: withLiveContents('paste and match style', () => webContents.pasteAndMatchStyle()) },
-      { id: 'delete', label: access.text('native.context.delete'), enabled: params.editFlags.canDelete, click: withLiveContents('delete', () => webContents.delete()) },
+      { id: 'cut', label: browser.text('native.context.cut'), enabled: params.editFlags.canCut, click: withLiveContents('cut', () => webContents.cut()) },
+      { id: 'copy', label: browser.text('native.context.copy'), enabled: params.editFlags.canCopy, click: withLiveContents('copy', () => webContents.copy()) },
+      { id: 'paste', label: browser.text('native.context.paste'), enabled: params.editFlags.canPaste, click: withLiveContents('paste', () => webContents.paste()) },
+      { id: 'paste-and-match-style', label: browser.text('native.context.pasteMatchStyle'), enabled: params.editFlags.canPaste, click: withLiveContents('paste and match style', () => webContents.pasteAndMatchStyle()) },
+      { id: 'delete', label: browser.text('native.context.delete'), enabled: params.editFlags.canDelete, click: withLiveContents('delete', () => webContents.delete()) },
       { type: 'separator' },
-      { id: 'select-all', label: access.text('native.context.selectAll'), enabled: params.editFlags.canSelectAll, click: withLiveContents('select all', () => webContents.selectAll()) }
+      { id: 'select-all', label: browser.text('native.context.selectAll'), enabled: params.editFlags.canSelectAll, click: withLiveContents('select all', () => webContents.selectAll()) }
     ])
     // Chrome's Suggest strong password, for a password field of the page itself while passwords can be saved: Hronaut
     // makes the password, fills it in with the field that confirms it, and offers to save it when the page submits it.
-    const suggestPassword = params.formControlType === 'input-password' && !frame ? access.passwordSuggestion(tab) : null
+    const suggestPassword = params.formControlType === 'input-password' && !frame ? strongPasswordSuggestion(browser, tab) : null
     if (suggestPassword) {
       groups.push([{
         id: 'suggest-strong-password',
-        label: access.text('native.context.suggestStrongPassword'),
+        label: browser.text('native.context.suggestStrongPassword'),
         click: withLiveContents('suggest a strong password', () => {
           void suggestPassword().then((filled) => {
             if (!filled) reportActionFailure('suggest a strong password', new LocalizedError('appErrors.credentials.suggestFailed'))
@@ -362,27 +370,27 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
     if (params.formControlType !== 'input-password') {
       groups.push([{
         id: 'spell-check',
-        label: access.text('native.context.spellCheck'),
+        label: browser.text('native.context.spellCheck'),
         submenu: [{
           id: 'check-spelling',
           type: 'checkbox',
-          label: access.text('native.context.checkSpelling'),
-          checked: access.spellCheck(),
+          label: browser.text('native.context.checkSpelling'),
+          checked: browser.options.getSpellCheck?.() !== false,
           click: (item) => {
-            void access.setSpellCheck(item.checked).catch((error) => reportActionFailure('change spell check', error))
+            void setSpellCheck(browser, item.checked).catch((error) => reportActionFailure('change spell check', error))
           }
-        }, ...(access.offersSpellCheckLanguages()
+        }, ...(browser.options.offersSpellCheckLanguages?.() === true
           ? [{
               id: 'spell-check-language-settings',
-              label: access.text('native.context.spellCheckLanguageSettings'),
-              click: () => access.openSpellCheckSettings()
+              label: browser.text('native.context.spellCheckLanguageSettings'),
+              click: () => browser.options.openSpellCheckSettings?.()
             }]
           : [])]
       }])
     }
   } else if (params.selectionText) {
     groups.push([
-      { id: 'copy-selection', label: access.text('native.context.copy'), click: withLiveContents('copy selection', () => webContents.copy()) },
+      { id: 'copy-selection', label: browser.text('native.context.copy'), click: withLiveContents('copy selection', () => webContents.copy()) },
       ...linkToHighlight(),
       ...searchSelection()
     ])
@@ -392,66 +400,66 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
   groups.push([
     {
       id: 'back',
-      label: access.text('native.context.back'),
+      label: browser.text('native.context.back'),
       enabled: navigation.canGoBack(),
       click: () => {
-        void access.back(tab.id).catch((error) => access.options().onActionFailed?.('go back', error))
+        void browser.back(tab.id).catch((error) => browser.options.onActionFailed?.('go back', error))
       }
     },
     {
       id: 'forward',
-      label: access.text('native.context.forward'),
+      label: browser.text('native.context.forward'),
       enabled: navigation.canGoForward(),
       click: () => {
-        void access.forward(tab.id).catch((error) => access.options().onActionFailed?.('go forward', error))
+        void browser.forward(tab.id).catch((error) => browser.options.onActionFailed?.('go forward', error))
       }
     },
     {
       id: 'reload',
-      label: access.text('native.context.reload'),
+      label: browser.text('native.context.reload'),
       click: () => {
-        void access.reload(tab.id).catch((error) => access.options().onActionFailed?.('reload', error))
+        void browser.reload(tab.id).catch((error) => browser.options.onActionFailed?.('reload', error))
       }
     },
     {
       id: 'reload-ignoring-cache',
-      label: access.text('native.context.reloadWithoutCache'),
+      label: browser.text('native.context.reloadWithoutCache'),
       click: () => {
-        void access.reloadIgnoringCache(tab.id)
-          .catch((error) => access.options().onActionFailed?.('reload without cache', error))
+        void browser.reloadIgnoringCache(tab.id)
+          .catch((error) => browser.options.onActionFailed?.('reload without cache', error))
       }
     },
     {
       id: 'copy-page-address',
-      label: access.text('native.context.copyPageAddress'),
+      label: browser.text('native.context.copyPageAddress'),
       click: () => copyText(tab.url)
     },
     // Hronaut Home is Hronaut's own page, with nothing on it to save or print. Save As comes before Print, as in Chrome.
     ...isHronautHomeUrl(tab.url) ? [] : [{
       id: 'save-page',
-      label: access.text('native.context.savePage'),
+      label: browser.text('native.context.savePage'),
       click: withLiveContents('save the page', () => {
-        void access.savePage(tab).catch((error) => reportActionFailure('save the page', error))
+        void savePageAs(browser, tab).catch((error) => reportActionFailure('save the page', error))
       })
     }, {
       id: 'print',
-      label: access.text('native.context.print'),
+      label: browser.text('native.context.print'),
       click: withLiveContents('print the page', () => {
-        void access.print(tab).catch((error) => access.options().onActionFailed?.('print the page', error))
+        void printPage(browser, tab).catch((error) => browser.options.onActionFailed?.('print the page', error))
       })
     }],
     // As in Chrome, after Print, for a web page: its address as a QR code, in Hronaut's own dialog.
     ...isWebUrl(tab.url) ? [{
       id: 'create-qr-code-page',
-      label: access.text('native.context.createQrCodePage'),
+      label: browser.text('native.context.createQrCodePage'),
       click: withLiveContents('create a QR code', () => requestQrCode(tab.url))
     }] : [],
     // As in Chrome, between Print and Inspect, for a web page; a page's source has no source of its own.
     ...pageSourceAddress(tab.url) ? [{
       id: 'view-page-source',
-      label: access.text('native.context.viewSource'),
+      label: browser.text('native.context.viewSource'),
       click: withLiveContents('view page source', () => {
-        void access.viewSource(tab).catch((error) => reportActionFailure('view page source', error))
+        void viewPageSource(browser, tab).catch((error) => reportActionFailure('view page source', error))
       })
     }] : [],
     // A right-click inside a frame of the page offers, as in Chrome, the frame's own source, for a frame showing a web
@@ -459,14 +467,14 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
     ...frame && !isHronautHomeUrl(tab.url) ? [
       ...pageSourceAddress(params.frameURL) ? [{
         id: 'view-frame-source',
-        label: access.text('native.context.viewFrameSource'),
+        label: browser.text('native.context.viewFrameSource'),
         click: withLiveContents('view frame source', () => {
-          void access.viewFrameSource(tab, params.frameURL).catch((error) => reportActionFailure('view frame source', error))
+          void viewFrameSource(browser, tab, params.frameURL).catch((error) => reportActionFailure('view frame source', error))
         })
       }] : [],
       {
         id: 'reload-frame',
-        label: access.text('native.context.reloadFrame'),
+        label: browser.text('native.context.reloadFrame'),
         click: withLiveContents('reload the frame', () => {
           // A frame the page removed while the menu was open has nothing to reload, as in Chrome.
           if (frame.isDestroyed() || frame.detached) return
@@ -478,12 +486,12 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
     // privileged Home bridge.
     ...isHronautHomeUrl(tab.url) ? [] : [{
       id: 'inspect-element',
-      label: access.text('native.context.inspect'),
+      label: browser.text('native.context.inspect'),
       click: () => {
-        void inspectElement(access, tab, params.x, params.y)
+        void inspectElement(browser, tab, params.x, params.y)
           .catch((error) => {
             console.error('[browser] Could not inspect the selected element:', error)
-            access.options().onActionFailed?.('inspect element', error)
+            browser.options.onActionFailed?.('inspect element', error)
           })
       }
     }]
@@ -494,7 +502,7 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
     : [{ type: 'separator' as const }, ...group])
   const menu = Menu.buildFromTemplate(template)
   menu.popup({
-    window: access.window(),
+    window: browser.window,
     ...(params.frame ? { frame: params.frame } : {})
   })
 }
@@ -542,12 +550,26 @@ function hasOpaqueOrigin(frame: WebFrameMain | null | undefined): boolean {
   }
 }
 
-async function inspectElement<Tab extends PageContextMenuTab>(access: PageContextMenuAccess<Tab>, tab: Tab, x: number, y: number): Promise<void> {
-  if (access.isHumanInteractionLocked(tab) || isHronautHomeUrl(tab.url)) return
-  await access.openDevTools(tab)
+async function inspectElement(browser: Browser, tab: BrowserTab, x: number, y: number): Promise<void> {
+  if (browser.isHumanInteractionLocked(tab) || isHronautHomeUrl(tab.url)) return
+  await openDevTools(browser, tab)
   const webContents = tab.webContents
   // Inspecting opens Developer Tools by itself, so check again for a tab that shows Home by now.
   if (!webContents.isDestroyed() && !isHronautHomeUrl(tab.url)) webContents.inspectElement(Math.round(x), Math.round(y))
+}
+
+/**
+ * Shows a tab beside the page's tab in split view, replacing any other split, while the page's tab is still the one
+ * shown; a tab the person went to meanwhile stays in front, and the other tab stays where it opened.
+ */
+export async function showTabBeside(browser: Browser, tab: BrowserTab, besideTabId: string): Promise<void> {
+  if (findTab(browser, tab.id) !== tab || browser.activeTabId !== tab.id) return
+  await openSplitViewAndWait(browser, besideTabId, { openedBeside: true })
+}
+
+/** Turns spell checking on or off for every website and saves it, as Settings does. */
+async function setSpellCheck(browser: Browser, enabled: boolean): Promise<void> {
+  await browser.options.setSpellCheck?.(enabled)
 }
 
 // The clipboard's text, to tell whether anything was copied since; it stays in main.
