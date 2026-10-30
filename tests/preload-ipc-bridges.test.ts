@@ -178,7 +178,7 @@ const invokes: Array<[api: string, method: string, args: unknown[], channel: str
   ['hronautEmulationFrame', 'get', [], 'emulation-frame:get', []],
   ['hronautPageCard', 'get', [], 'page-card:get', []],
   ['hronautAgentPresence', 'get', [], 'agent-presence:get', []],
-  ['hronautAgentPresence', 'steps', [{ clientKey: 'client-1', workspaceId: 'workspace-1', known: [] }], 'agent-presence:steps', [{ clientKey: 'client-1', workspaceId: 'workspace-1', known: [] }]]
+  ['hronautAgentPresence', 'steps', [{ clientKey: 'AbCdEfGhIjKlMnOpQrStUv', workspaceId: 'workspace-1', known: [] }], 'agent-presence:steps', [{ clientKey: 'AbCdEfGhIjKlMnOpQrStUv', workspaceId: 'workspace-1', known: [] }]]
 ]
 
 it.each(invokes)('%s.%s asks main on its channel with its arguments and returns main\'s answer', async (api, method, args, channel, sent) => {
@@ -219,7 +219,7 @@ const sends: Array<[api: string, method: string, args: unknown[], channel: strin
   ['hronautShell', 'setContentInsets', [{ top: 0, right: 0, bottom: 0, left: 240 }], 'browser:content-insets', [{ top: 0, right: 0, bottom: 0, left: 240 }]],
   ['hronautShell', 'setBrowserContentOccluded', [true, 2], 'browser:content-occluded', [true, 2]],
   ['hronautShell', 'presentOcclusionSnapshot', [5], 'browser:occlusion-snapshot-presented', [5]],
-  ['hronautShell', 'setWindowControlsScrim', ['rgb(0 0 0 / 50%)'], 'shell:window-controls-scrim', ['rgb(0 0 0 / 50%)']],
+  ['hronautShell', 'setWindowControlsScrim', ['rgba(0, 0, 0, 0.5)'], 'shell:window-controls-scrim', ['rgba(0, 0, 0, 0.5)']],
   ['hronautShell', 'setWindowControlsScrim', [null], 'shell:window-controls-scrim', [null]],
   ['hronautShell', 'setFollowAgentActivitySuspended', [true], 'browser:follow-agent-activity-suspended', [true]],
   ['hronautTrustedDialogs', 'ready', [], 'trusted-dialogs:ready', []],
@@ -277,7 +277,7 @@ const listeners: Array<[api: string, method: string, channel: string, received: 
   ['hronautEmulationFrame', 'onChanged', 'emulation-frame:changed', [[]]],
   ['hronautPageCard', 'onChanged', 'page-card:changed', [[]]],
   ['hronautAgentPresence', 'onChanged', 'agent-presence:changed', [{ revision: 1, workspaces: {} }]],
-  ['hronautAgentPresence', 'onTakeOverOffer', 'agent-presence:take-over-offer', [{ tabId: 'tab-1', clientKey: 'client-1' }]],
+  ['hronautAgentPresence', 'onTakeOverOffer', 'agent-presence:take-over-offer', [{ tabId: 'tab-1', clientKey: 'AbCdEfGhIjKlMnOpQrStUv' }]],
   ['hronautTrustedDialogs', 'onChanged', 'trusted-dialogs:changed', [null, { afterInterruptedSignIn: true }]],
   ['hronautSettings', 'onRendererStateChanged', 'settings:renderer-state-changed', [{ settings: { theme: 'dark' }, systemTheme: 'dark', systemLocale: 'en-US', resolvedLocale: 'en-US' }]]
 ]
@@ -291,6 +291,13 @@ it.each(listeners)('%s.%s passes on only what the channel carries, without the e
   expect(listener.mock.calls).toEqual([received])
   expect(stop()).toBeUndefined()
   expect(electron.removeListener).toHaveBeenCalledExactlyOnceWith(channel, handler)
+})
+
+it('hronautShell.windowChrome describes the window the preload runs in', async () => {
+  await import('../src/preload/index.js')
+  const shell = electron.exposeInMainWorld.mock.calls.find(([name]) => name === 'hronautShell')?.[1] as { windowChrome: unknown }
+  const platform = process.platform === 'darwin' || process.platform === 'win32' ? process.platform : 'linux'
+  expect(shell.windowChrome).toEqual({ platform, mode: 'system', mainWindow: true })
 })
 
 it('hronautShell.confirm is true only when main answers true', async () => {
@@ -318,9 +325,11 @@ it('hronautTrustedDialogs.onChanged passes on only whether a sign-in was just in
   const listener = vi.fn()
   subscribe(listener)
   const [, handler] = electron.on.mock.calls.find(([name]) => name === 'trusted-dialogs:changed')!
-  handler({}, { id: 'dialog-1' })
-  handler({}, { id: 'dialog-1' }, { afterInterruptedSignIn: 'yes', extra: true })
-  expect(listener.mock.calls).toEqual([[{ id: 'dialog-1' }, { afterInterruptedSignIn: false }], [{ id: 'dialog-1' }, { afterInterruptedSignIn: false }]])
+  const request = { id: 'dialog-1', type: 'question', message: 'Leave site?', buttons: ['Leave', 'Cancel'], defaultId: 0, cancelId: 1, variant: { kind: 'message' } }
+  handler({}, request)
+  handler({}, request, { afterInterruptedSignIn: 'yes', extra: true })
+  handler({}, null, { afterInterruptedSignIn: true })
+  expect(listener.mock.calls).toEqual([[request, { afterInterruptedSignIn: false }], [request, { afterInterruptedSignIn: false }], [null, { afterInterruptedSignIn: true }]])
 })
 
 it('hronautPanelWindow keeps the panel main asked for until the shell listens', async () => {

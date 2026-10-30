@@ -6,7 +6,7 @@ import type { EventChannel, InvokeChannel, SendChannel } from './channel.js'
 export const SHELL_IPC = {
   /** Shell → main: whether the shell's window has the focus. */
   isWindowFocused: 'shell:is-window-focused' as InvokeChannel<[], boolean>,
-  /** Shell → main: asks in Hronaut's own dialog over the window; true only when the person chose OK. */
+  /** Shell → main: asks in Hronaut's own dialog over the window, or the system's when the shell cannot show one; true only when the person chose OK. */
   confirm: 'shell:confirm' as InvokeChannel<[question: Confirmation], boolean>,
   /** Main window → main: the toolbar's height, in the shell's CSS pixels, which the pages go below. */
   toolbarHeight: 'browser:toolbar-height' as SendChannel<[height: number]>,

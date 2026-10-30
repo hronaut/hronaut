@@ -5,7 +5,7 @@ import type { EventChannel, InvokeChannel } from './channel.js'
 export const AGENT_PRESENCE_IPC = {
   /** Main window → main: the agents in each open workspace. */
   get: 'agent-presence:get' as InvokeChannel<[], AgentPresenceSnapshot>,
-  /** Main window → main: one agent's last steps in a workspace, newest first; null once its session has closed. */
+  /** Main window → main: one agent's last steps in a workspace, newest first; null once its session has closed, for a workspace that is not an open agent workspace, or while the MCP server is off. */
   steps: 'agent-presence:steps' as InvokeChannel<[request: AgentStepHistoryRequest], AgentStepHistoryEntry[] | null>,
   /** Main → main window: the agents changed. */
   changed: 'agent-presence:changed' as EventChannel<[snapshot: AgentPresenceSnapshot]>,

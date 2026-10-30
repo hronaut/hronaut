@@ -11,7 +11,7 @@ export const SPLIT_DIVIDER_IPC = {
   begin: 'split-divider:begin' as InvokeChannel<[revision: number], SplitDividerSession | null>,
   /** Main window → main: previews the dragged divider at this ratio; null when the drag is no longer current. */
   update: 'split-divider:update' as InvokeChannel<[token: string, ratio: number], SplitDividerGeometry | null>,
-  /** Main window → main: ends the drag, keeping this ratio or the last one previewed, or without commit putting it back. */
+  /** Main window → main: ends the drag, keeping this ratio or the last one previewed, or without commit putting it back; null when the drag is no longer current. */
   finish: 'split-divider:finish' as InvokeChannel<[token: string, commit: boolean, ratio?: number], SplitDividerGeometry | null>,
   /** Main window → main: sets the ratio of the divider shown at this revision; null when it has changed since. */
   setRatio: 'split-divider:set-ratio' as InvokeChannel<[revision: number, ratio: number], SplitDividerGeometry | null>,

@@ -19,6 +19,6 @@ export const PANEL_WINDOW_IPC = {
   activePanel: 'panel-window:active-panel' as EventChannel<[panel: DetachablePanelId]>,
   /** Main → main window: dock this panel again, on this side; the panel window closes. */
   redockRequested: 'panel-window:redock-requested' as EventChannel<[request: PanelRedockRequest]>,
-  /** Main → main window: the panel window closed. */
+  /** Main → main window: the panel window closed, other than to redock its panel. */
   closed: 'panel-window:closed' as EventChannel<[]>
 } as const
