@@ -8,6 +8,7 @@ import { compactTabDiscovery } from '../src/main/mcp/tab-discovery.js'
 import { mcpWorkspaceState, mcpWorkspaceTab, savedWorkspaceWithoutUrlDetail } from '../src/main/mcp/tool-results.js'
 import { BROWSER_SNAPSHOT_FORMAT_VERSION, type BrowserSnapshotDeltaContext } from '../src/shared/snapshot-delta.js'
 import type { BrowserState } from '../src/shared/types.js'
+import { pageFunctionExpression } from '../src/shared/page-script.js'
 import { titleShowsUrlDetail, urlWithoutDetail } from '../src/shared/url-detail.js'
 
 const SECRET_URL = 'https://user-canary:pass-canary@shop.example.test:8443/checkout/step%202?session=query-canary&view=cart#fragment-canary'
@@ -33,9 +34,9 @@ describe('URL detail omission', () => {
   })
 
   it('runs from its source text alone, as the snapshot scripts embed it', () => {
-    expect(runInNewContext(`(${urlWithoutDetail.toString()})(value)`, { value: SECRET_URL, URL })).toBe('https://shop.example.test:8443/checkout/step%202')
-    expect(runInNewContext(`(${urlWithoutDetail.toString()})(value)`, { value: 'https://shop.example/cart;jsessionid=SECRET', URL })).toBe('https://shop.example/cart;jsessionid=[REDACTED]')
-    expect(runInNewContext(`(${urlWithoutDetail.toString()})(value)`, { value: 'nope', URL })).toBe('')
+    expect(runInNewContext(`${pageFunctionExpression(urlWithoutDetail)}(value)`, { value: SECRET_URL, URL })).toBe('https://shop.example.test:8443/checkout/step%202')
+    expect(runInNewContext(`${pageFunctionExpression(urlWithoutDetail)}(value)`, { value: 'https://shop.example/cart;jsessionid=SECRET', URL })).toBe('https://shop.example/cart;jsessionid=[REDACTED]')
+    expect(runInNewContext(`${pageFunctionExpression(urlWithoutDetail)}(value)`, { value: 'nope', URL })).toBe('')
   })
 
   it('recognizes a title that shows the address instead of one the page set', () => {

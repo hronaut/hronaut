@@ -54,7 +54,7 @@ for (const delayed of [false, true]) {
           }
           return result
         } })
-      }, { url, target: { start: pageScriptStart(reproTargetInPage), focused: `})(undefined, ${pageScriptStart(snapshotTextInPage)}` } })
+      }, { url, target: { start: pageScriptStart(reproTargetInPage), focused: `(undefined, ${pageScriptStart(snapshotTextInPage)}` } })
       await page.getByRole('button', { name: 'Submit request' }).click()
       await expect(page.locator('p')).toHaveText('Request received')
       expect(posts).toBe(1)

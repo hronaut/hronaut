@@ -7,6 +7,7 @@ import { registerBrowserElementInspect } from '../src/main/mcp/tools/browser-ele
 import { SIZING_INPUT_PROPERTIES, sizingInputValue } from '../src/shared/element-sizing-inputs.js'
 import { flexContainerContext, normalizeFlexContainer } from '../src/shared/element-flex-container.js'
 import { formatElementInspectionForAgent, normalizeElementInspection } from '../src/shared/element-inspection.js'
+import { pageFunctionExpression } from '../src/shared/page-script.js'
 
 type Style = Record<string, string>
 
@@ -120,7 +121,7 @@ describe('flex container context', () => {
         element: tree.element, document: tree.document, getComputedStyle: tree.getComputedStyle, setTimeout, clearTimeout,
         __hronautSizingInputs: new Map()
       }
-      const read = `(${sizingInputsInPage})(element, { selector: '#target' }, ${JSON.stringify(token)}, ${JSON.stringify(SIZING_INPUT_PROPERTIES)}, ${includeFlexContainer}, () => [element], (${sizingInputValue}), (${flexContainerContext}))`
+      const read = `${pageFunctionExpression(sizingInputsInPage)}(element, { selector: '#target' }, ${JSON.stringify(token)}, ${JSON.stringify(SIZING_INPUT_PROPERTIES)}, ${includeFlexContainer}, () => [element], ${pageFunctionExpression(sizingInputValue)}, ${pageFunctionExpression(flexContainerContext)})`
       const raw = runInNewContext(read, scope) as Record<string, unknown>
       expect(raw.sizingInputs).toMatchObject({ 'flex-grow': 1 })
       expect('flexContainer' in raw).toBe(includeFlexContainer)
