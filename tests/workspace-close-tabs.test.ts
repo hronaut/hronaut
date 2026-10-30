@@ -32,7 +32,8 @@ vi.mock('../src/main/browser/tab-close/remove-tab-record.js', () => ({
   removeTabRecord: (browser: { removeTabRecord: (tab: unknown) => void }, tab: unknown) => browser.removeTabRecord(tab)
 }))
 import { Browser } from '../src/main/browser/browser.js'
-import { MAX_TABS, TabStateStore, type PersistedBrowserState } from '../src/main/browser/tab-store.js'
+import { persistedState } from '../src/main/browser/browser-state/persisted-state.js'
+import { MAX_TABS, TabStateStore } from '../src/main/browser/tab-store.js'
 import { destroyWorkspaceStorage } from '../src/main/browser/workspace-storage.js'
 
 const CLOSING = '01912345-6789-7abc-8def-0123456789ab'
@@ -61,7 +62,6 @@ interface Internals {
   wakeTab: ReturnType<typeof vi.fn>
   createTab: ReturnType<typeof vi.fn>
   assertStorageDeletionOwnership: ReturnType<typeof vi.fn>
-  persistedState(): PersistedBrowserState
 }
 
 function page(id: string, mcpGroupId: string, sleeping = false) {
@@ -155,7 +155,7 @@ describe('closing a whole workspace', () => {
     expect(internals.mcpTabGroups.has(CLOSING)).toBe(false)
     expect(workspaceTabs(CLOSING)).toEqual([])
     expect(internals.activeTabId).toBe(OTHER_AWAKE)
-    await store.save(internals.persistedState())
+    await store.save(persistedState(internals as never))
     await expect(new TabStateStore(join(directory, 'tabs.json')).load()).resolves.toMatchObject({ activeTabId: OTHER_AWAKE })
   })
 
@@ -250,7 +250,7 @@ describe('closing a whole workspace', () => {
     const deleting = manager.closeMcpTabGroup(CLOSING)
     await vi.waitFor(() => expect(destroyWorkspaceStorage).toHaveBeenCalled())
     // A save while the storage is deleted, which is what the next start finds when Hronaut stops here, as in a crash.
-    await store.save(internals.persistedState())
+    await store.save(persistedState(internals as never))
     const interrupted = await new TabStateStore(join(directory, 'tabs.json')).load()
     // It used to come back empty, its tabs gone and its storage kept.
     expect(interrupted?.tabs.filter((tab) => tab.mcpGroupId === CLOSING).map((tab) => tab.id)).toEqual([SHOWN, ASLEEP])
@@ -270,7 +270,7 @@ describe('closing a whole workspace', () => {
     const savedWhileReopening: string[][] = []
     internals.createTab.mockImplementation(async (options: { id: string; mcpGroupId: string }) => {
       const tab = await reopen(options)
-      savedWhileReopening.push(internals.persistedState().tabs.map((saved) => saved.id))
+      savedWhileReopening.push(persistedState(internals as never).tabs.map((saved) => saved.id))
       return tab
     })
     await expect(manager.closeMcpTabGroup(CLOSING)).rejects.toThrow('ambiguous ownership')
@@ -278,7 +278,7 @@ describe('closing a whole workspace', () => {
     for (const saved of savedWhileReopening) expect(saved.toSorted()).toEqual([SHOWN, ASLEEP, OTHER_ASLEEP, OTHER_AWAKE].toSorted())
     // Once they are back, a tab the person then closes is not saved from before.
     internals.tabs.delete(ASLEEP)
-    expect(internals.persistedState().tabs.map((saved) => saved.id)).not.toContain(ASLEEP)
+    expect(persistedState(internals as never).tabs.map((saved) => saved.id)).not.toContain(ASLEEP)
   })
 
   it('stays saved with its tabs in their order while they close', async () => {
@@ -293,7 +293,7 @@ describe('closing a whole workspace', () => {
     expect([...internals.tabs.keys()]).toContain(SHOWN)
     expect([...internals.tabs.keys()]).not.toContain(ASLEEP)
     // The tab closed first used to be saved after the one still closing.
-    expect(internals.persistedState().tabs.filter((tab) => tab.mcpGroupId === CLOSING).map((tab) => tab.id)).toEqual([ASLEEP, SHOWN])
+    expect(persistedState(internals as never).tabs.filter((tab) => tab.mcpGroupId === CLOSING).map((tab) => tab.id)).toEqual([ASLEEP, SHOWN])
     release()
     await deleting
   })
@@ -307,7 +307,7 @@ describe('closing a whole workspace', () => {
     const deleting = manager.closeMcpTabGroup(CLOSING)
     await vi.waitFor(() => expect(destroyWorkspaceStorage).toHaveBeenCalled())
     const load = async () => {
-      await store.save(internals.persistedState())
+      await store.save(persistedState(internals as never))
       return new TabStateStore(join(directory, 'tabs.json')).load()
     }
     // Room for one of its two tabs beside the open ones: the first, which it showed.
@@ -337,7 +337,7 @@ describe('closing a whole workspace', () => {
     internals.createTab.mockRejectedValueOnce(new Error('Could not open the tab.'))
     await expect(manager.closeMcpTabGroup(CLOSING)).rejects.toThrow()
     // The workspace stays, with the tabs that are open, and nothing saved names a tab that is not.
-    const saved = internals.persistedState().tabs.map((tab) => tab.id)
+    const saved = persistedState(internals as never).tabs.map((tab) => tab.id)
     expect(saved.toSorted()).toEqual([...internals.tabs.keys()].toSorted())
   })
 })

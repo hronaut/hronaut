@@ -1,4 +1,4 @@
-import { assertExclusiveWorkspaceStorage, canonicalStorageId, cleanExplicitlyDeletedWorkspaceStorage } from './workspace-storage-deletion.js'
+import { assertExclusiveWorkspaceStorage, canonicalStorageId } from './workspace-storage-deletion.js'
 import { ImageInspectionSlots } from './image-state.js'
 import type { BrowserEmulationResult, BrowserUnconfirmedEmulation, TaskManagerProcess } from '../../shared/types.js'
 import { evaluateFile } from './page-evaluation/evaluate-file.js'
@@ -97,7 +97,7 @@ import {
   removeNetworkRoute,
   setNetworkRouteEnabled
 } from './network-conditions/network-conditions.js'
-import { cancelHeldResponse, disposeHeldResponses, failAllHeldResponses, heldResponseSummaries, releaseHeldResponse, type HeldResponses } from './network-conditions/held-responses.js'
+import { cancelHeldResponse, failAllHeldResponses, heldResponseSummaries, releaseHeldResponse, type HeldResponses } from './network-conditions/held-responses.js'
 import { BrowserDownloadsController } from './downloads-controller.js'
 import type { DownloadHistoryStore, SavedDownload } from './download-history/download-history.js'
 import { copyDownload, type DownloadCopyProgress, type DownloadCopyRequest, type DownloadCopyResult } from './download-copy/download-copy.js'
@@ -130,8 +130,7 @@ import {
   workspaceSession
 } from './workspace-data/workspace-data.js'
 import { assertActiveWorkspaceCapacity } from './workspace-creation/workspace-capacity.js'
-import { normalizeWorkspaceDescription } from '../../shared/workspace-description.js'
-import { reconcilePresentedViewVisibility, watchPresentedViewVisibility } from './presented-view-visibility.js'
+import { reconcilePresentedViewVisibility } from './presented-view-visibility.js'
 import { resizeViewport } from './emulation/resize-viewport.js'
 import { createSplitDivider } from './split-view/split-divider.js'
 import { FaviconDecoder } from './favicon.js'
@@ -144,13 +143,13 @@ import { shadowSnapshot, type BrowserShadowSnapshot } from './shadow-snapshot/sh
 import { trackedViewportScreenshot, type TrackedScreenshot, type TrackedScreenshotOptions } from './screenshot-observations/tracked-screenshot.js'
 import { basename, isAbsolute, join } from 'node:path'
 import {
-  BrowserWindow,
+  type BrowserWindow,
   Menu,
   net,
   powerMonitor,
   screen,
   webContents as electronWebContents,
-  WebContentsView,
+  type WebContentsView,
   type MenuItemConstructorOptions,
   type NavigationEntry,
   type Input,
@@ -185,9 +184,9 @@ import {
   BROWSER_SNAPSHOT_FORMAT_VERSION,
   type BrowserSnapshotDeltaContext
 } from '../../shared/snapshot-delta.js'
-import { safeNavigationHistorySnapshot, type NavigationHistorySnapshot } from './navigation-history.js'
-import { historyAroundShownPage, savedHistoryPosition, savedTabHistories, savedTabHistory, TabHistoryStore, type SavedTabHistoryAccess } from './saved-tab-history/saved-tab-history.js'
-import { ClosedTabsStore, restoredClosedTabs, savedClosedTabs } from './saved-closed-tabs/saved-closed-tabs.js'
+import { safeNavigationHistorySnapshot } from './navigation-history.js'
+import { TabHistoryStore } from './saved-tab-history/saved-tab-history.js'
+import { ClosedTabsStore } from './saved-closed-tabs/saved-closed-tabs.js'
 import { McpActivityFollowController, type FollowAgent } from './mcp-activity-follow-controller.js'
 import { type BrowserDragModifier, drag, hover } from './agent-page-actions/hover-and-drag.js'
 import { click, type BrowserClickTarget } from './agent-page-actions/click.js'
@@ -344,8 +343,8 @@ import { runBackgroundAction } from './background-action.js'
 import type { SearchEngineName } from '../../shared/search-engine.js'
 import type { AgentPointerIdentity, BrowserFormField } from './page-scripts.js'
 import { evaluate, type EvaluationDeadline } from './page-evaluation/evaluate.js'
-import { TabStateStore, type PersistedBrowserState } from './tab-store.js'
-import { persistedState, type WorkspaceBeingDeleted } from './browser-state/persisted-state.js'
+import { TabStateStore } from './tab-store.js'
+import { type WorkspaceBeingDeleted } from './browser-state/persisted-state.js'
 import { browserState, buildBrowserState, publishChange } from './browser-state/browser-state.js'
 import { shownTabIds, StatePublication } from './browser-state/state-publication.js'
 import { isHronautHomeUrl, isWebUrl } from './url.js'
@@ -361,7 +360,6 @@ import { viewShownPageSource } from './page-source/page-source.js'
 import { openNavigationInNewTab } from './navigation-new-tab/navigation-new-tab.js'
 import { closeTabLeftEmptyByDownload } from './download-tab-close/download-tab-close.js'
 import {
-  normalizeWorkspaceNavigationPolicy,
   type WorkspaceNavigationDecision
 } from './workspace-navigation-policy.js'
 import {
@@ -390,7 +388,6 @@ import { OpenedTabObservation, type TabsOpenedDuringClick } from './click-opened
 import { hasAgentPauseExceptions, isTabAgentPaused, isTabTakenOver, setAllAgentsPaused, setTabAgentPaused } from './agent-pause/agent-pause.js'
 import { setAllHumanInteractionLocked, setTabHumanInteractionLocked } from './interaction-lock/interaction-lock.js'
 import {
-  detachDialogMonitoring,
   handleDialog
 } from './website-dialogs/website-dialogs.js'
 import type {
@@ -403,13 +400,13 @@ import {
   withoutSleepingPage
 } from './tab-sleep/tab-sleep.js'
 import { SLEEPING_PAGE_URL } from './tab-sleep/sleeping-page.js'
-import { setMemorySaverSettings, sleepInactiveTabs, sweepMemorySaver } from './tab-sleep/memory-saver.js'
-import { BackgroundLoads } from './tab-sleep/background-loads.js'
+import { setMemorySaverSettings, sleepInactiveTabs } from './tab-sleep/memory-saver.js'
+import type { BackgroundLoads } from './tab-sleep/background-loads.js'
 import { mainWorldContextId } from './debugger-evaluation/debugger-evaluation.js'
 import { withDebugger } from './debugger-lease/debugger-lease.js'
 import { closeTab, closeTabs } from './tab-close/close-tab.js'
 import { saveTabLabel, withTabLabelLifecycle } from './tab-labels/tab-labels.js'
-import { duplicateTabAfterLabelSave, forgetClosedTabs, rememberSavedClosedTabs, reopenClosedTabAfterLabelSave } from './tab-reopening/tab-reopening.js'
+import { duplicateTabAfterLabelSave, forgetClosedTabs, reopenClosedTabAfterLabelSave } from './tab-reopening/tab-reopening.js'
 import { forgetTabHistoryPages } from './tab-history-pages/forget-tab-history-pages.js'
 import { reorderTab, reorderTabs, setTabPinned } from './tab-arrangement/tab-arrangement.js'
 import { openDroppedLink } from './dropped-links/dropped-links.js'
@@ -418,6 +415,9 @@ import { sendWalletProviderEvent, walletPageContext, walletPageContextForMcpTab,
 import { getMcpDiscoveryTabs, getMcpGroupState, requireTabInMcpGroup, tabBelongsToMcpGroup } from './workspace-scope/workspace-scope.js'
 import { createNewTab, newLabeledAgentTab } from './new-tabs/new-tabs.js'
 import { createTab } from './new-tabs/create-tab.js'
+import { destroyBrowser } from './browser-lifecycle/destroy-browser.js'
+import { initializeBrowser } from './browser-lifecycle/initialize-browser.js'
+import { saveForNextStart } from './browser-lifecycle/save-for-next-start.js'
 import { matchingNetworkWaitRequest } from './network-inspection/network-request-records.js'
 import { setAllTabsMuted, setTabMuted } from './tab-muting/tab-muting.js'
 import { applySiteMutingToTabs, setSiteMuted, type SiteSoundStore } from './site-muting/site-muting.js'
@@ -455,9 +455,6 @@ function workspaceNameKey(name: string): string {
 }
 
 const TAB_OVERVIEW_CAPTURE_TIMEOUT_MS = 2_000
-const MEMORY_SAVER_SWEEP_MS = 30_000
-/** How often the tabs' history is saved, with their pages' scroll and form state, as Chrome saves its session a moment after each change. */
-const TAB_HISTORY_SAVE_MS = 5_000
 
 
 import type { BrowserTab } from './browser-tab.js'
@@ -1134,146 +1131,8 @@ export class Browser {
     return translate(this.options.getLocale(), key, parameters)
   }
 
-  async initialize(): Promise<void> {
-    this.restoringLayout = true
-    // The tabs' saved history and Recently closed are read meanwhile: neither waits for the workspaces' storage. Neither
-    // read fails; one that cannot read its file starts empty.
-    const historiesRead = this.tabHistoryStore?.load()
-    const closedRead = this.closedTabsStore?.load()
-    // Full, nonmutating validation precedes both deletion and normalization.
-    const accepted = await this.store.load({ persistRepairs: false, requireExisting: this.options.requireExistingMetadata })
-    const cleanup = accepted && this.options.sessionDataPath
-      ? await cleanExplicitlyDeletedWorkspaceStorage(this.options.storePath, this.options.sessionDataPath, this.options.partition)
-      : { metadataBlocked: false }
-    // Cleanup can retire deletion intent. Reread rather than resurrecting a
-    // stale prepared snapshot; disappearance is no longer a fresh profile.
-    const saved = await this.store.load({ blockStorageCleanup: cleanup.metadataBlocked, requireExisting: accepted !== null || this.options.requireExistingMetadata })
-    for (const id of saved?.deletedWorkspaceStorageIds ?? []) this.deletedWorkspaceStorageIds.add(id)
-    this.workspaceStorageCleanupBlocked = saved?.workspaceStorageCleanupBlocked === true
-      || (cleanup.metadataBlocked && saved !== null)
-    for (const workspaceId of saved?.continuityWorkspaceIds ?? []) this.workspaceContinuity.restoreStale(workspaceId)
-    this.allTabsMuted = saved?.allTabsMuted === true
-    this.allHumanInteractionLocked = saved?.allHumanInteractionLocked === true
-    const persistedTabs = saved?.tabs ?? []
-    const savedHistories = await historiesRead ?? new Map<string, NavigationHistorySnapshot>()
-    const savedClosed = await closedRead ?? []
-    for (const group of saved?.mcpTabGroups ?? []) {
-      this.mcpTabGroups.set(group.id, {
-        ...group,
-        description: normalizeWorkspaceDescription(group.description ?? ''),
-        activeTabId: group.activeTabId ?? null,
-        origins: [...(group.origins ?? [])],
-        navigationPolicy: normalizeWorkspaceNavigationPolicy(group.navigationPolicy),
-        navigationAudit: [...(group.navigationAudit ?? [])]
-      })
-    }
-    for (const group of saved?.savedTabGroups ?? []) {
-      this.savedTabGroups.set(group.id, {
-        ...group,
-        description: normalizeWorkspaceDescription(group.description ?? ''),
-        storageOriginCount: group.origins?.length ?? 0,
-        origins: [...(group.origins ?? [])],
-        navigationPolicy: normalizeWorkspaceNavigationPolicy(group.navigationPolicy),
-        navigationAudit: [...(group.navigationAudit ?? [])],
-        tabs: group.tabs.map((tab) => ({
-          title: tab.title, url: tab.url, pinned: tab.pinned === true, ...(tab.label ? { label: tab.label } : {}),
-          ...(tab.zoomIsolated ? { zoomIsolated: true as const } : {}), ...(tab.defaultFontSize ? { defaultFontSize: tab.defaultFontSize } : {}),
-          ...(tab.muted ? { muted: true as const } : {}),
-          ...(tab.tabAgentPaused ? { tabAgentPaused: true as const } : {}),
-          ...(tab.humanInteractionLocked ? { humanInteractionLocked: true as const } : {})
-        }))
-      })
-    }
-    // Recently closed comes back as Chrome's does, with the closed tabs of workspaces that are open again.
-    rememberSavedClosedTabs(this.closedTabs, restoredClosedTabs(savedClosed, (workspaceId) => this.mcpTabGroups.get(workspaceId)?.navigationPolicy))
-    if (persistedTabs.length) {
-      let restoredHome = false
-      // The tabs shown come back loaded: the window's, and each workspace's own, which its agent reads and acts in as
-      // Chrome loads each window's. The tabs behind them come back asleep, as in Chrome: each loads its page once it is
-      // shown or used, so a restart loads the shown pages rather than every tab's.
-      const shownTabIds = new Set([
-        saved?.activeTabId, saved?.splitView?.firstTabId, saved?.splitView?.secondTabId,
-        ...[...this.mcpTabGroups.values()].map(group => group.activeTabId)
-      ])
-      for (const tab of persistedTabs) {
-        if (this.tabs.size >= MAX_TABS) break
-        if (isHronautHomeUrl(tab.url)) {
-          if (restoredHome) continue
-          restoredHome = true
-        }
-        // A workspace tab comes back with its Back and Forward history and the scroll of its pages, as in Chrome.
-        const workspacePolicy = tab.mcpGroupId && !isHronautHomeUrl(tab.url) ? this.mcpTabGroups.get(tab.mcpGroupId)?.navigationPolicy : undefined
-        const navigationHistory = workspacePolicy ? savedTabHistory(savedHistories.get(tab.id), tab.url, workspacePolicy) : undefined
-        await this.createTab({
-          id: tab.id,
-          label: tab.label,
-          title: isHronautHomeUrl(tab.url) ? undefined : tab.title,
-          url: isHronautHomeUrl(tab.url) ? HRONAUT_HOME_URL : tab.url,
-          pinned: tab.pinned === true && !isHronautHomeUrl(tab.url),
-          muted: tab.muted === true,
-          humanInteractionLocked: tab.humanInteractionLocked === true,
-          tabAgentPaused: tab.tabAgentPaused === true,
-          zoomIsolated: tab.zoomIsolated === true,
-          defaultFontSize: tab.defaultFontSize,
-          faviconDataUrl: tab.faviconDataUrl,
-          mcpGroupId: isHronautHomeUrl(tab.url)
-            ? undefined
-            : tab.mcpGroupId,
-          ...(navigationHistory ? { navigationHistory } : {}),
-          asleep: !shownTabIds.has(tab.id),
-          suppressInitialHistory: true,
-          active: false
-        })
-      }
-      const fallbackId = this.tabs.keys().next().value as string | undefined
-      if (fallbackId) {
-        const restoredActiveTabId = saved?.activeTabId && this.tabs.has(saved.activeTabId) ? saved.activeTabId : fallbackId
-        this.selectTab(restoredActiveTabId)
-        const savedSplit = saved?.splitView
-        if (
-          savedSplit
-          && this.tabs.has(savedSplit.firstTabId)
-          && this.tabs.has(savedSplit.secondTabId)
-          && !isHronautHomeUrl(this.tabs.get(savedSplit.firstTabId)!.url)
-          && !isHronautHomeUrl(this.tabs.get(savedSplit.secondTabId)!.url)
-          && (restoredActiveTabId === savedSplit.firstTabId || restoredActiveTabId === savedSplit.secondTabId)
-        ) {
-          this.splitView = savedSplit
-          const otherTabId = restoredActiveTabId === savedSplit.firstTabId ? savedSplit.secondTabId : savedSplit.firstTabId
-          this.window.contentView.addChildView(this.tabs.get(otherTabId)!.view)
-        }
-      }
-    } else {
-      await this.createTab({ url: HRONAUT_HOME_URL, active: true })
-    }
-    this.layout()
-    this.restoringLayout = false
-    await this.store.initializeState(() => this.persistedState())
-    this.initialized = true
-    // The saved history leaves out tabs that did not come back; from then on it is saved every few seconds, with
-    // Recently closed.
-    void this.saveForNextStart()
-    this.tabHistoryTimer = setInterval(() => { void this.saveForNextStart() }, TAB_HISTORY_SAVE_MS)
-    this.tabHistoryTimer.unref()
-    if (this.activeTabId) {
-      const activeTab = this.tabs.get(this.activeTabId)
-      if (activeTab) this.focusTabOrTrustedChrome(activeTab)
-    }
-    this.stopPresentationWatcher = watchPresentedViewVisibility(this.window, () => {
-      const ids = this.splitView
-        ? [this.splitView.firstTabId, this.splitView.secondTabId]
-        : this.activeTabId ? [this.activeTabId] : []
-      return ids.flatMap(id => {
-        const tab = this.tabs.get(id)
-        return tab?.pageLifecycleState === 'active' && tab.pageLifecycleOperation?.requestedState !== 'frozen'
-          ? [tab.view]
-          : []
-      })
-    })
-    this.memorySaverTimer = setInterval(() => {
-      void this.sweepMemorySaver(false).catch((error) => console.error('[browser] Memory Saver sweep failed:', error))
-    }, MEMORY_SAVER_SWEEP_MS)
-    this.memorySaverTimer.unref()
+  initialize(): Promise<void> {
+    return initializeBrowser(this)
   }
 
   /** The main window's shell drew the last browser state it was sent, so the next change can go out (see StatePublication). */
@@ -1686,7 +1545,7 @@ export class Browser {
     // Recently closed cannot be saved yet, so the saved one goes.
     this.tabHistoryStore?.forgetPages(matches, workspaceId === undefined ? undefined : new Set(tabs.map((tab) => tab.id)))
     if (!this.initialized) void this.closedTabsStore?.discard().catch((error: unknown) => console.error('[browser] Failed to remove recently closed tabs:', error))
-    void this.saveForNextStart(true)
+    void saveForNextStart(this, true)
   }
 
   duplicateTab(tabId: string): Promise<BrowserState> {
@@ -2697,10 +2556,6 @@ export class Browser {
     setBrowserContentOccluded(this, occluded, request)
   }
 
-  private cancelFocusAfterTrustedChrome(): BrowserTab | undefined {
-    return cancelFocusAfterTrustedChrome(this)
-  }
-
   /** The shell shows the snapshot with this ID under trusted chrome, so the pages can leave the screen. */
   presentOcclusionSnapshot(id: number): void {
     this.occlusionSnapshot.present(id)
@@ -2796,45 +2651,7 @@ export class Browser {
   }
 
   async flushPersist(): Promise<void> {
-    await Promise.all([flushPersist(this), this.saveForNextStart(true), this.downloadController.saveHistory()])
-  }
-
-  /**
-   * Saves the tabs' Back and Forward history and Recently closed for the next start, once the saved tabs are back and
-   * until the browser closes. A failure is logged: the tabs then restart at their addresses, and Recently closed starts
-   * empty. Every few seconds only the histories that moved are read again, and the shown tabs' for their scroll and
-   * form state; `everyTab` reads all, as when the browser closes.
-   */
-  private async saveForNextStart(everyTab = false): Promise<void> {
-    if (!this.initialized) return
-    await Promise.all([
-      this.tabHistoryStore?.save((previous) => this.destroyed ? undefined : savedTabHistories(this.savedTabHistoryAccess(everyTab), previous))
-        .catch((error: unknown) => console.error('[browser] Failed to save tab history:', error)),
-      this.closedTabsStore?.save(() => this.destroyed ? undefined : savedClosedTabs(this))
-        .catch((error: unknown) => console.error('[browser] Failed to save recently closed tabs:', error))
-    ])
-  }
-
-  /** The narrow view saving the tabs' history gets of this manager's tabs, their history and the workspaces' rules. */
-  private savedTabHistoryAccess(everyTab: boolean): SavedTabHistoryAccess<BrowserTab> {
-    return {
-      tabs: () => this.tabs.values(),
-      navigationHistory: (tab) => {
-        if (tab.sleepNavigationHistory) return tab.sleepNavigationHistory
-        if (tab.webContents.isDestroyed()) return undefined
-        const history = historyAroundShownPage(tab.webContents.navigationHistory)
-        return history && withoutSleepingPage(history)
-      },
-      unchanged: (tab) => {
-        const position = savedHistoryPosition(tab)
-        const unchanged = !everyTab && position !== undefined && position === tab.savedHistoryPosition
-          // The pages shown change their scroll and form state as people use them, which moves no history.
-          && tab.id !== this.activeTabId && !this.splitViewContains(tab.id)
-        tab.savedHistoryPosition = position
-        return unchanged
-      },
-      navigationPolicy: (workspaceId) => this.mcpTabGroups.get(workspaceId)?.navigationPolicy
-    }
+    await Promise.all([flushPersist(this), saveForNextStart(this, true), this.downloadController.saveHistory()])
   }
 
   drainWorkspaceOperations(): Promise<void> {
@@ -2846,74 +2663,7 @@ export class Browser {
   }
 
   destroy(): void {
-    powerMonitor.removeListener('suspend', this.pauseVideoForSuspend)
-    this.videoRecorder.destroy()
-    if (this.destroyed) return
-    this.splitDivider.cancel()
-    this.cancelFocusAfterTrustedChrome()
-    this.destroyed = true
-    this.pwaLifecycleRecorder.dispose()
-    this.faviconDecoder.dispose()
-    this.mcpActivityFollower.dispose()
-    this.stopPresentationWatcher?.()
-    if (this.persistTimer) clearTimeout(this.persistTimer)
-    this.statePublication.dispose()
-    if (this.tabHistoryTimer) clearInterval(this.tabHistoryTimer)
-    if (this.memorySaverTimer) clearInterval(this.memorySaverTimer)
-    this.downloadController.clearPendingNotification()
-    for (const timer of this.tabOverviewPreviewTimers.values()) clearTimeout(timer)
-    this.tabOverviewPreviewTimers.clear()
-    this.tabOverviewPreviewCaptures.clear()
-    this.tabOverviewPreviewableTabs.clear()
-    this.tabOverviewPreviews.clear()
-    this.tabOverviewSleepPreviews.clear()
-    this.networkWaitController.dispose()
-    for (const session of this.screenshotAreaSessions.values()) {
-      session.canceled = true
-      session.resolve({ canceled: true })
-    }
-    this.screenshotAreaSessions.clear()
-    for (const session of this.elementPickerSessions.values()) {
-      session.canceled = true
-      session.resolve({ canceled: true })
-    }
-    this.elementPickerSessions.clear()
-    for (const tab of this.tabs.values()) {
-      this.reproRecorder.clearReproRecording(tab)
-      try {
-        if (!tab.webContents.isDestroyed()) {
-          this.detachDialogMonitoring(tab.webContents)
-          tab.webContents.close()
-        }
-      } catch {
-        // The parent BrowserWindow may already have destroyed its child views during shutdown.
-      }
-    }
-    this.tabs.clear()
-    this.workspaceRegistry.dispose()
-    this.mcpActivitiesByTab.clear()
-    this.webContentsToTab.clear()
-    this.authorizedAgentMouseInput.clear()
-    this.authorizedAgentKeyboardInput.clear()
-    this.downloadController.destroy()
-    this.reactInspectionController.dispose()
-    this.fixedDateController.dispose()
-    this.debuggerQueue.clear()
-    this.networkRouteQueues.clear()
-    for (const timer of this.networkRouteRefreshTimers.values()) clearTimeout(timer)
-    this.networkRouteRefreshTimers.clear()
-    disposeHeldResponses(this.heldNetworkResponseStates)
-    this.defaultExecutionContexts.clear()
-    this.renderQueues.clear()
-    this.occlusionSnapshot.dispose()
-    for (const releaseFocusGuard of this.agentInputFocusGuardReleases.values()) releaseFocusGuard()
-    this.agentInputFocusGuardReleases.clear()
-    this.agentInputWebContents.clear()
-    this.agentInputFocusSnapshots.clear()
-    for (const [browserSession, listener] of this.browserSessionAuthorityHooks) {
-      browserSession.cookies.removeListener('changed', listener)
-    }
-    this.browserSessionAuthorityHooks.clear()
+    destroyBrowser(this)
   }
 
   /**
@@ -3003,10 +2753,6 @@ export class Browser {
     const workspace = this.mcpTabGroups.get(tab.mcpGroupId)
     if (!workspace) return
     workspace.origins = normalizeWorkspaceStorageOrigins([...workspace.origins, new URL(url).origin])
-  }
-
-  private sweepMemorySaver(force: boolean): Promise<void> {
-    return sweepMemorySaver(this, force)
   }
 
   /** A copy of the tab's Back and Forward history: the one kept while it sleeps, or else its page's without the sleeping page. */
@@ -3109,10 +2855,6 @@ export class Browser {
     return mainWorldContextId(this, webContents)
   }
 
-  private detachDialogMonitoring(webContents: BrowserTab['view']['webContents']): void {
-    detachDialogMonitoring(this, webContents)
-  }
-
   prepareDiagnosticNavigation(tab: BrowserTab): void {
     if (tab.preserveDiagnosticLogs) return
     tab.consoleMessages = []
@@ -3157,9 +2899,5 @@ export class Browser {
       console.error(`[wallet] Could not ${failedAction}:`, error)
       this.options.onActionFailed?.(failedAction, error)
     })
-  }
-
-  private persistedState(): PersistedBrowserState {
-    return persistedState(this)
   }
 }
