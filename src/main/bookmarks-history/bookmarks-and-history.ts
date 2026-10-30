@@ -8,6 +8,7 @@ import type { BookmarkOperations, HistoryOperations, McpHttpServer } from '../mc
 import type { UndoableAction } from '../undo-offers.js'
 import type { BrowserBookmark, BrowserHistoryEntry } from '../../shared/types.js'
 import { forgetHistoryPages } from '../browser/tab-history-pages/forget-history-pages.js'
+import { forgetTrustedCertificates } from '../browser/certificate-errors/certificate-errors.js'
 import type { EventSender } from '../../shared/ipc/channel.js'
 import { BOOKMARKS_IPC, BOOKMARK_COLLECTIONS_IPC } from '../../shared/ipc/bookmarks.js'
 import { HISTORY_IPC } from '../../shared/ipc/history.js'
@@ -128,10 +129,12 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
   /**
    * The history was cleared, by the person or an agent. Agents' finished steps (Home's feed and each agent's "All steps")
    * name and picture pages they acted on, Recently closed names pages tabs showed and tabs' Back and Forward lists hold
-   * pages, so they all go too, as Chrome forgets them with it.
+   * pages, so they all go too, as Chrome forgets them with it. So do the certificates the person chose to trust anyway, in
+   * every workspace, so their websites' pages warn again.
    */
   function historyCleared(): void {
     host.mcpServer()?.forgetAgentStepsSince()
+    forgetTrustedCertificates()
     const browser = host.tabs()
     if (browser) forgetHistoryPages(browser, () => true)
   }

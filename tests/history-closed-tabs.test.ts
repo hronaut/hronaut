@@ -32,11 +32,14 @@ vi.mock('../src/main/browser/tab-history-pages/forget-history-pages.js', async (
 }))
 
 // Clearing history forgets the certificates the person chose to trust anyway, which certificate-errors.test.ts covers.
-const { forgetTrustedCertificates } = vi.hoisted(() => ({ forgetTrustedCertificates: vi.fn() }))
+const { forgetTrustedCertificates } = vi.hoisted(() => ({ forgetTrustedCertificates: vi.fn<(scope?: { host?: string, session?: object }) => void>() }))
 vi.mock('../src/main/browser/certificate-errors/certificate-errors.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/certificate-errors/certificate-errors.js')>(),
   forgetTrustedCertificates
 }))
+/** Whether every call so far forgot the certificates for every host in every workspace. */
+const forgotAll = () => forgetTrustedCertificates.mock.calls.length > 0
+  && forgetTrustedCertificates.mock.calls.every(([scope]) => scope?.host === undefined && scope?.session === undefined)
 
 const temporaryDirectories: string[] = []
 
@@ -101,12 +104,17 @@ describe('recently closed tabs and the history', () => {
       tabs: () => tabs as never,
       offerUndo: vi.fn()
     })
+    forgetTrustedCertificates.mockClear()
     await runtime.agentHistory.clear()
     expect(closedTabs).toEqual([])
+    // So do the certificates the person chose to trust anyway, in every workspace, as in Chrome.
+    expect(forgotAll()).toBe(true)
 
     closedTabs.push(closedTab('https://mail.example/inbox'))
+    forgetTrustedCertificates.mockClear()
     runtime.historyCleared()
     expect(closedTabs).toEqual([])
+    expect(forgotAll()).toBe(true)
   })
 
   it('forgets the closed tabs of one removed history page, fragment and sign-in aside', async () => {
@@ -180,9 +188,10 @@ describe('recently closed tabs and the history', () => {
     expect(closedTabs.map((tab) => tab.url)).toEqual([...otherWebsites, 'https://news.example/', 'not a url'])
     // The certificates the person chose to trust anyway for the website go too, in every workspace, as in Chrome.
     expect(forgetTrustedCertificates).toHaveBeenCalledExactlyOnceWith({ host: 'shop.example' })
+    forgetTrustedCertificates.mockClear()
     await handlers.get('browsing-data:clear')!({}, { history: true })
     expect(closedTabs).toEqual([])
-    expect(forgetTrustedCertificates).toHaveBeenLastCalledWith(undefined)
+    expect(forgotAll()).toBe(true)
   })
 
   // As Chrome's Delete browsing data, the last hour goes and what was visited before it stays. Electron gives a tab's
@@ -222,7 +231,8 @@ describe('recently closed tabs and the history', () => {
     forgetTrustedCertificates.mockClear()
     await clear({ history: true, timeRange: 'lastHour' })
     // As in Chrome, every certificate the person chose to trust anyway goes, whatever the time range.
-    expect(forgetTrustedCertificates).toHaveBeenCalledExactlyOnceWith()
+    expect(forgetTrustedCertificates).toHaveBeenCalledOnce()
+    expect(forgotAll()).toBe(true)
     expect(history.list().map(({ url, visitCount }) => [url, visitCount])).toEqual([['https://both.example/', 1], ['https://old.example/', 1]])
     expect(closedTabs.map((tab) => tab.url)).toEqual(['https://old.example/', 'view-source:https://old.example/'])
     expect(forgetAgentStepsSince).toHaveBeenCalledOnce()
@@ -249,7 +259,7 @@ describe('recently closed tabs and the history', () => {
     // The person's tab on the website in another workspace is not the agent's to forget.
     closedTabs.push(closedTab('https://shop.example/orders', 'other-workspace'))
     const history = await historyWith(['https://shop.example/cart'])
-    const browserSession = { cookies: { get: async () => [] } }
+    const browserSession = { cookies: { get: async () => [] }, clearData: vi.fn(async () => undefined) }
     const { agentSiteData } = createSiteData({
       tabs: () => ({
         ...tabs,
@@ -264,6 +274,10 @@ describe('recently closed tabs and the history', () => {
     expect(tabs.forgetHistoryPages).toHaveBeenCalledWith(expect.any(Function), 'workspace')
     expect(forgetTrustedCertificates).toHaveBeenCalledExactlyOnceWith({ host: 'shop.example', session: browserSession })
     expect(closedTabs.map((tab) => tab.url)).toEqual([...otherWebsites, 'https://news.example/', 'https://shop.example/orders'])
+    // Clearing only the website's cache keeps them, as in Chrome.
+    await agentSiteData.clear('workspace', 'https://shop.example', ['cache'])
+    expect(browserSession.clearData).toHaveBeenCalledOnce()
+    expect(forgetTrustedCertificates).toHaveBeenCalledOnce()
   })
 
   it('keeps a closed tab forgotten when the history is cleared while it reopens and reopening it fails', async () => {

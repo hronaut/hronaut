@@ -85,7 +85,7 @@ export function createSiteData(host: SiteDataHost): {
         const browser = host.tabs()
         if (browser) forgetHistoryPages(browser, (url) => closedTabOrigin(url) === site.origin, workspaceId)
         host.publishVisitHistory()
-        // So are the certificates the person chose to trust anyway for the website in the workspace, as in Chrome.
+        // The certificates the person chose to trust anyway for the website in the workspace go too, as in Chrome.
         forgetTrustedCertificates({ host: new URL(site.origin).hostname, session: browserSession })
       }
       if (selected.has('cookies-and-storage') && selected.has('cache')) {
