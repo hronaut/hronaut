@@ -25,11 +25,9 @@ import { trustedDialogsApi } from './bridges/trusted-dialogs.js'
 import { undoApi } from './bridges/undo.js'
 import { updatesApi } from './bridges/updates.js'
 import { walletsApi } from './bridges/wallets.js'
+import { workspacesApi } from './bridges/workspaces.js'
 import type {
   HronautApi,
-  BrowserTabGroupUpdate,
-  BrowserWorkspaceCreateOptions,
-  BrowserWorkspaceStorageTransferOptions,
   BrowserPageCaptureOptions,
   BrowserElementInspectionOptions,
   BrowserAccessibilityAuditOptions,
@@ -61,35 +59,10 @@ const api: HronautApi = {
   ...qrCodeApi,
   ...appApi,
   ...shellRequestsApi,
+  ...workspacesApi,
   clearCssStatePreview: (tabId: string) => ipcRenderer.invoke('browser:clear-css-state-preview', tabId),
   stopVirtualPasskey: (tabId: string) => ipcRenderer.invoke('browser:stop-virtual-passkey', tabId),
   stopLogpoints: (tabId: string) => ipcRenderer.invoke('browser:stop-logpoints', tabId),
-  createWorkspace: (options: BrowserWorkspaceCreateOptions) => ipcRenderer.invoke('browser:create-workspace', options),
-  openWorkspaceTemplateFile: () => ipcRenderer.invoke('browser:open-workspace-template-file'),
-  saveWorkspaceTemplateFile: (reviewedText: string) => ipcRenderer.invoke('browser:save-workspace-template-file', reviewedText),
-  importWorkspaceTemplate: (text: string) => ipcRenderer.invoke('browser:import-workspace-template', text),
-  renameTabGroup: (groupId: string, name: string) => ipcRenderer.invoke('browser:rename-tab-group', groupId, name),
-  updateTabGroup: (groupId: string, updates: BrowserTabGroupUpdate) => ipcRenderer.invoke('browser:update-tab-group', groupId, updates),
-  reviewWorkspaceContinuity: (id) => ipcRenderer.invoke('browser:review-workspace-continuity', id),
-  listHumanWaiting: (id) => ipcRenderer.invoke('browser:list-human-waiting', id),
-  changeHumanWaiting: (workspaceId, id, revision, action, confirmation, note) => ipcRenderer.invoke('browser:change-human-waiting', workspaceId, id, revision, action, confirmation, note),
-  checkpointWorkspaceContinuity: (id, selector) => ipcRenderer.invoke('browser:checkpoint-workspace-continuity', id, selector),
-  reconcileWorkspaceContinuity: (id, reviewId, acknowledge) => ipcRenderer.invoke('browser:reconcile-workspace-continuity', id, reviewId, acknowledge),
-  updateWorkspaceNavigationPolicy: (groupId, policy) => ipcRenderer.invoke('browser:update-workspace-navigation-policy', groupId, policy),
-  listWorkspaceNavigationAudit: (groupId) => ipcRenderer.invoke('browser:list-workspace-navigation-audit', groupId),
-  browserImport: {
-    list: (id: string) => ipcRenderer.invoke('browser-import:list', id),
-    preview: (id: string, profile: string) => ipcRenderer.invoke('browser-import:preview', id, profile),
-    commit: (id: string, domains: string[]) => ipcRenderer.invoke('browser-import:commit', id, domains),
-    cancel: () => ipcRenderer.invoke('browser-import:cancel')
-  },
-  listWorkspaceStorageOrigins: (workspaceId: string) => ipcRenderer.invoke('browser:list-workspace-storage-origins', workspaceId),
-  transferWorkspaceStorage: (options: BrowserWorkspaceStorageTransferOptions) => ipcRenderer.invoke('browser:transfer-workspace-storage', options),
-  closeWorkspace: (workspaceId: string, options?: { undoable?: boolean }) => ipcRenderer.invoke('browser:close-workspace', workspaceId, options),
-  saveAndCloseTabGroup: (groupId: string) => ipcRenderer.invoke('browser:save-and-close-tab-group', groupId),
-  restoreSavedTabGroup: (savedGroupId: string) => ipcRenderer.invoke('browser:restore-saved-tab-group', savedGroupId),
-  deleteSavedTabGroup: (savedGroupId: string) => ipcRenderer.invoke('browser:delete-saved-tab-group', savedGroupId),
-  showWorkspaceContextMenu: (workspaceId: string) => ipcRenderer.invoke('browser:show-workspace-context-menu', workspaceId),
   setTabViewport: (tabId: string, viewport: BrowserViewportEmulation | null) =>
     ipcRenderer.invoke('browser:set-tab-viewport', tabId, viewport),
   setTabEnvironment: (tabId: string, environment: BrowserEnvironmentSettings) =>
