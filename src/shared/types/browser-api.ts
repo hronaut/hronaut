@@ -304,6 +304,46 @@ export interface HronautConsoleNetworkApi {
   saveNetworkHar(options?: BrowserNetworkHarSaveOptions): Promise<BrowserNetworkHarExport>
 }
 
+/** A tab's accessibility, quality, performance, design, metadata and security reports. */
+export interface HronautPageAuditsApi {
+  runAccessibilityAudit(options?: BrowserAccessibilityAuditOptions): Promise<BrowserAccessibilityAudit>
+  runQualityAudit(tabId?: string): Promise<BrowserQualityAudit>
+  measurePerformance(options?: BrowserPerformanceOptions): Promise<BrowserPerformanceReport>
+  inspectDesign(tabId?: string): Promise<BrowserDesignOverviewReport>
+  inspectPageMetadata(tabId?: string): Promise<BrowserPageMetadataReport>
+  inspectSecurity(tabId?: string): Promise<BrowserSecurityReport>
+}
+
+/** A tab's code coverage, JavaScript CPU profile and memory. */
+export interface HronautProfilingApi {
+  manageCodeCoverage(options?: BrowserCodeCoverageOptions): Promise<BrowserCodeCoverageResult>
+  manageCpuProfile(options?: BrowserCpuProfileOptions): Promise<BrowserCpuProfileResult>
+  measureMemory(options?: BrowserMemoryOptions): Promise<BrowserMemoryReport>
+}
+
+/** A tab's debug report, kept diagnostic logs and inspector issues. */
+export interface HronautDebugReportApi {
+  createDebugReport(options?: BrowserDebugReportOptions): Promise<BrowserDebugReport>
+  setDiagnosticLogPreservation(tabId: string, preserve: boolean): Promise<BrowserState>
+  listInspectorIssues(tabId?: string, clear?: boolean): Promise<BrowserInspectorIssuesReport>
+}
+
+/** Recording a tab: its video, the person's steps to reproduce a problem, and its DOM changes. */
+export interface HronautRecordingApi {
+  manageVideo(options: BrowserVideoOptions): Promise<BrowserVideoState>
+  importVideoAudio(tabId: string, provenance: string): Promise<BrowserVideoState>
+  videoPreview(tabId: string): Promise<Uint8Array>
+  manageRepro(action: BrowserReproAction, tabId?: string, checkpoint?: BrowserReproCheckpointInput): Promise<BrowserReproRecording>
+  manageDomChanges(action: BrowserDomChangesAction, tabId?: string): Promise<BrowserDomChangesReport>
+}
+
+/** Comparing a tab's page with a baseline picture of it. */
+export interface HronautVisualCompareApi {
+  visualCompare(options: BrowserVisualCompareOptions): Promise<BrowserVisualCompareView>
+  copyVisualDiff(tabId?: string): Promise<{ copied: true; width: number; height: number }>
+}
+
+/** window.hronaut in the shell of the main and detached panel windows: every feature's part of it. */
 export interface HronautApi extends
   HronautTabsApi,
   HronautNavigationApi,
@@ -319,24 +359,9 @@ export interface HronautApi extends
   HronautIncidentsApi,
   HronautPageStorageApi,
   HronautPageCaptureApi,
-  HronautConsoleNetworkApi {
-  runAccessibilityAudit(options?: BrowserAccessibilityAuditOptions): Promise<BrowserAccessibilityAudit>
-  measurePerformance(options?: BrowserPerformanceOptions): Promise<BrowserPerformanceReport>
-  inspectDesign(tabId?: string): Promise<BrowserDesignOverviewReport>
-  inspectPageMetadata(tabId?: string): Promise<BrowserPageMetadataReport>
-  inspectSecurity(tabId?: string): Promise<BrowserSecurityReport>
-  runQualityAudit(tabId?: string): Promise<BrowserQualityAudit>
-  manageCodeCoverage(options?: BrowserCodeCoverageOptions): Promise<BrowserCodeCoverageResult>
-  manageCpuProfile(options?: BrowserCpuProfileOptions): Promise<BrowserCpuProfileResult>
-  measureMemory(options?: BrowserMemoryOptions): Promise<BrowserMemoryReport>
-  createDebugReport(options?: BrowserDebugReportOptions): Promise<BrowserDebugReport>
-  setDiagnosticLogPreservation(tabId: string, preserve: boolean): Promise<BrowserState>
-  manageVideo(options: BrowserVideoOptions): Promise<BrowserVideoState>
-  importVideoAudio(tabId: string, provenance: string): Promise<BrowserVideoState>
-  videoPreview(tabId: string): Promise<Uint8Array>
-  manageRepro(action: BrowserReproAction, tabId?: string, checkpoint?: BrowserReproCheckpointInput): Promise<BrowserReproRecording>
-  manageDomChanges(action: BrowserDomChangesAction, tabId?: string): Promise<BrowserDomChangesReport>
-  visualCompare(options: BrowserVisualCompareOptions): Promise<BrowserVisualCompareView>
-  copyVisualDiff(tabId?: string): Promise<{ copied: true; width: number; height: number }>
-  listInspectorIssues(tabId?: string, clear?: boolean): Promise<BrowserInspectorIssuesReport>
-}
+  HronautConsoleNetworkApi,
+  HronautPageAuditsApi,
+  HronautProfilingApi,
+  HronautDebugReportApi,
+  HronautRecordingApi,
+  HronautVisualCompareApi {}

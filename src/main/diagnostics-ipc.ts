@@ -29,6 +29,7 @@ import { browserState } from './browser/browser-state/browser-state.js'
 import { domChanges } from './browser/dom-recorder/browser-dom-recorder.js'
 import { reproRecording } from './browser/repro-recorder/browser-repro-recorder.js'
 import { codeCoverage } from './browser/profiling/browser-profiling.js'
+import { DIAGNOSTICS_IPC } from '../shared/ipc/diagnostics.js'
 
 interface DiagnosticsIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
@@ -44,7 +45,7 @@ function isAllowedString(value: unknown, allowed: readonly string[]): value is s
 
 /** Keep services lazy: registration precedes browser-window initialization. */
 export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: DiagnosticsIpcHost): void {
-  ipcMain.handle('browser:accessibility-audit', (event, value: unknown) => {
+  ipcMain.handle(DIAGNOSTICS_IPC.accessibilityAudit, (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid accessibility audit options')
     const { tabId, action, selector, standard, maxViolations, maxNodesPerViolation } = value as Record<string, unknown>
@@ -60,12 +61,12 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
     }
     return accessibilityAudit(host.tabs(), value as BrowserAccessibilityAuditOptions)
   })
-  ipcMain.handle('browser:quality-audit', (event, tabId: unknown) => {
+  ipcMain.handle(DIAGNOSTICS_IPC.qualityAudit, (event, tabId: unknown) => {
     host.assertTrustedSender(event)
     if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid quality audit tab')
     return qualityAudit(host.tabs(), tabId)
   })
-  ipcMain.handle('browser:performance', (event, value: unknown) => {
+  ipcMain.handle(DIAGNOSTICS_IPC.performance, (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid performance options')
     const { tabId, settleMs } = value as Record<string, unknown>
@@ -77,22 +78,22 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
     }
     return performanceReport(host.tabs(), value as BrowserPerformanceOptions)
   })
-  ipcMain.handle('browser:design-overview', (event, tabId: unknown): Promise<BrowserDesignOverviewReport> => {
+  ipcMain.handle(DIAGNOSTICS_IPC.designOverview, (event, tabId: unknown): Promise<BrowserDesignOverviewReport> => {
     host.assertTrustedSender(event)
     if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid design overview tab')
     return designOverview(host.tabs(), tabId)
   })
-  ipcMain.handle('browser:page-metadata', (event, tabId: unknown): Promise<BrowserPageMetadataReport> => {
+  ipcMain.handle(DIAGNOSTICS_IPC.pageMetadata, (event, tabId: unknown): Promise<BrowserPageMetadataReport> => {
     host.assertTrustedSender(event)
     if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid page metadata tab')
     return host.tabs().metadata.inspect(tabId)
   })
-  ipcMain.handle('browser:security', (event, tabId: unknown): BrowserSecurityReport => {
+  ipcMain.handle(DIAGNOSTICS_IPC.security, (event, tabId: unknown): BrowserSecurityReport => {
     host.assertTrustedSender(event)
     if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid security report tab')
     return securityReport(host.tabs(), tabId)
   })
-  ipcMain.handle('browser:code-coverage', (event, value: unknown) => {
+  ipcMain.handle(DIAGNOSTICS_IPC.codeCoverage, (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid code coverage options')
     const { tabId, action, mode, reload } = value as Record<string, unknown>
@@ -106,7 +107,7 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
     }
     return codeCoverage(host.tabs(), value as BrowserCodeCoverageOptions)
   })
-  ipcMain.handle('browser:cpu-profile', (event, value: unknown) => {
+  ipcMain.handle(DIAGNOSTICS_IPC.cpuProfile, (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid JavaScript CPU profile options')
     const { tabId, action } = value as Record<string, unknown>
@@ -118,7 +119,7 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
     }
     return host.tabs().profiling.cpuProfile(value as BrowserCpuProfileOptions)
   })
-  ipcMain.handle('browser:memory', (event, value: unknown) => {
+  ipcMain.handle(DIAGNOSTICS_IPC.memory, (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid memory options')
     const { tabId, action, collectGarbage } = value as Record<string, unknown>
@@ -138,7 +139,7 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
     }
     return host.tabs().profiling.memoryReport(value as BrowserMemoryOptions)
   })
-  ipcMain.handle('browser:debug-report', (event, value: unknown) => {
+  ipcMain.handle(DIAGNOSTICS_IPC.debugReport, (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid debug report options')
     const { tabId, maxConsoleMessages, maxNetworkRequests, includeSuccessfulRequests } = value as Record<string, unknown>
@@ -152,23 +153,23 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
     }
     return debugReport(host.tabs(), value as BrowserDebugReportOptions)
   })
-  ipcMain.handle('browser:set-diagnostic-log-preservation', (event, tabId: unknown, preserve: unknown) => {
+  ipcMain.handle(DIAGNOSTICS_IPC.setDiagnosticLogPreservation, (event, tabId: unknown, preserve: unknown) => {
     host.assertTrustedSender(event)
     if (typeof tabId !== 'string' || typeof preserve !== 'boolean') throw new TypeError('Invalid diagnostic log preservation state')
     setDiagnosticLogPreservation(host.tabs(), tabId, preserve)
     return browserState(host.tabs())
   })
-  ipcMain.handle('browser:video', (event, value: unknown) => {
+  ipcMain.handle(DIAGNOSTICS_IPC.video, (event, value: unknown) => {
     host.assertTrustedSender(event)
     const options = videoOptionsSchema.parse(value)
     return videoRecording(host.tabs(), options)
   })
-  ipcMain.handle('browser:video-preview', (event, tabId: unknown) => {
+  ipcMain.handle(DIAGNOSTICS_IPC.videoPreview, (event, tabId: unknown) => {
     host.assertTrustedSender(event)
     if (typeof tabId !== 'string') throw new TypeError('Invalid video tab')
     return videoPreview(host.tabs(), tabId)
   })
-  ipcMain.handle('browser:video-import-audio', async (event, tabId: unknown, provenance: unknown) => {
+  ipcMain.handle(DIAGNOSTICS_IPC.importVideoAudio, async (event, tabId: unknown, provenance: unknown) => {
     host.assertTrustedSender(event)
     if (typeof tabId !== 'string' || !tabId || typeof provenance !== 'string' || !provenance.trim() || provenance.length > 240) throw new TypeError('Audio import requires a tab and source/usage rights')
     const tabs = host.tabs()
@@ -182,7 +183,7 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
     if (!path) return current
     return videoRecording(tabs, { tabId, action: 'import-audio', audioPath: path, audioProvenance: provenance.trim() }, () => host.assertTrustedSender(event))
   })
-  ipcMain.handle('browser:repro-recording', (event, value: unknown) => {
+  ipcMain.handle(DIAGNOSTICS_IPC.reproRecording, (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid repro recording options')
     const { action, tabId, checkpoint } = value as Record<string, unknown>
@@ -194,7 +195,7 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
       ? reproRecording(host.tabs(), action, tabId as string | undefined, checkpoint)
       : reproRecording(host.tabs(), action as BrowserReproAction, tabId as string | undefined)
   })
-  ipcMain.handle('browser:dom-changes', (event, value: unknown) => {
+  ipcMain.handle(DIAGNOSTICS_IPC.domChanges, (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid DOM changes options')
     const { action, tabId } = value as Record<string, unknown>
@@ -204,7 +205,7 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
     ) throw new TypeError('Invalid DOM changes options')
     return domChanges(host.tabs(), action as BrowserDomChangesAction, tabId as string | undefined)
   })
-  ipcMain.handle('browser:visual-compare', async (event, value: unknown) => {
+  ipcMain.handle(DIAGNOSTICS_IPC.visualCompare, async (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid visual comparison options')
     const { action, tabId, threshold, settleMs } = value as Record<string, unknown>
@@ -220,13 +221,13 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
       ...(result.diffPng ? { diffPngDataUrl: host.pngDataUrl(result.diffPng) } : {})
     }
   })
-  ipcMain.handle('browser:copy-visual-diff', async (event, tabId: unknown) => {
+  ipcMain.handle(DIAGNOSTICS_IPC.copyVisualDiff, async (event, tabId: unknown) => {
     host.assertTrustedSender(event)
     if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid visual comparison tab')
     const size = await host.copyPng(visualDiff(host.tabs(), tabId as string | undefined))
     return { copied: true, width: size.width, height: size.height }
   })
-  ipcMain.handle('browser:inspector-issues', (event, value: unknown) => {
+  ipcMain.handle(DIAGNOSTICS_IPC.inspectorIssues, (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid inspector issue options')
     const { tabId, clear } = value as Record<string, unknown>
