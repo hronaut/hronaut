@@ -15,7 +15,7 @@ async function clickActivities(app: ElectronApplication, tabId: string): Promise
     if (!home) throw new Error('Missing Home session for activity observation')
     // Pause/resume reloads Home asynchronously. Read the same protocol snapshot
     // through its owning session, independent of the replaced renderer context.
-    const response = await home.session.fetch('hronaut://home/api/status')
+    const response = await home.session.fetch('hronaut://home/api/status', { signal: AbortSignal.timeout(2_000) })
     if (!response.ok) throw new Error(`Activity observation failed: ${response.status}`)
     const state = await response.json() as { recentActivity: McpToolActivity[] }
     return state.recentActivity.filter(activity => activity.toolName === 'browser_click' && activity.tabId === id)

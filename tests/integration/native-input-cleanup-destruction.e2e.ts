@@ -64,7 +64,7 @@ for (const mode of ['destroy', 'live'] as const) {
       expect(result?.isError === true).toBe(mode === 'destroy')
       const terminal = () => electronApp.evaluate(async ({ webContents }, id) => {
         const home = webContents.getAllWebContents().find(p => p.getURL().startsWith('hronaut://home'))!
-        const state = await (await home.session.fetch('hronaut://home/api/status')).json() as { recentActivity: Array<{ toolName: string; tabId: string; result: { outcome: string; effects: string; dispatch: string } }> }
+        const state = await (await home.session.fetch('hronaut://home/api/status', { signal: AbortSignal.timeout(2_000) })).json() as { recentActivity: Array<{ toolName: string; tabId: string; result: { outcome: string; effects: string; dispatch: string } }> }
         return state.recentActivity.filter(a => a.toolName === 'browser_hold_key' && a.tabId === id).map(a => a.result)
       }, tabId)
       await expect.poll(terminal).toHaveLength(1)

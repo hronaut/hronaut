@@ -90,7 +90,7 @@ for (const fault of faults) {
         await expect.poll(async () => {
           terminalActivity = await electronApp.evaluate(async ({ webContents }, id) => {
             const home = webContents.getAllWebContents().find(page => page.getURL().startsWith('hronaut://home'))!
-            const status = await (await home.session.fetch('hronaut://home/api/status')).json() as { recentActivity: Array<{ toolName: string; tabId: string; result?: { outcome?: string } }> }
+            const status = await (await home.session.fetch('hronaut://home/api/status', { signal: AbortSignal.timeout(2_000) })).json() as { recentActivity: Array<{ toolName: string; tabId: string; result?: { outcome?: string } }> }
             return status.recentActivity.find(row => row.toolName === 'browser_click' && row.tabId === id)?.result
           }, tabId)
           return terminalActivity

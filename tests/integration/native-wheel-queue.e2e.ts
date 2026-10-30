@@ -103,7 +103,7 @@ for (const change of ['pause', 'cancel'] as const) {
       const result = await pending
       const terminal = () => electronApp.evaluate(async ({ webContents }, id) => {
         const home = webContents.getAllWebContents().find(p => p.getURL().startsWith('hronaut://home'))!
-        const state = await (await home.session.fetch('hronaut://home/api/status')).json() as { recentActivity: Array<{ toolName: string; tabId: string; result: unknown }> }
+        const state = await (await home.session.fetch('hronaut://home/api/status', { signal: AbortSignal.timeout(2_000) })).json() as { recentActivity: Array<{ toolName: string; tabId: string; result: unknown }> }
         return state.recentActivity.filter(activity => activity.toolName === 'browser_wheel' && activity.tabId === id)
       }, tabId)
       await expect.poll(terminal).toHaveLength(1)

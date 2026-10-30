@@ -74,7 +74,7 @@ test('actual sizing client disconnect retains native work and cleanup ownership'
     expect(receipt).toEqual({ reads: 8, cleanups: 8, finishedCleanups: 8, settlements: 0 })
     const activity = await electronApp.evaluate(async ({ webContents }) => {
       const home = webContents.getAllWebContents().find(p => p.getURL().startsWith('hronaut://home'))!
-      const response = await home.session.fetch('hronaut://home/api/status')
+      const response = await home.session.fetch('hronaut://home/api/status', { signal: AbortSignal.timeout(2_000) })
       const state = await response.json() as { recentActivity: Array<{ toolName: string; result: { outcome: string; effects: string } }> }
       return state.recentActivity.filter(item => item.toolName === 'browser_element_inspect')
     })

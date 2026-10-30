@@ -42,7 +42,7 @@ for (const change of ['navigation', 'close', 'replacement', 'selector id ABA', '
         // Home never sees capability profile ids, so this waits for the profile's session to be initialized.
         await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
           const home = webContents.getAllWebContents().find(page => page.getURL().startsWith('hronaut://home'))!
-          const state = await (await home.session.fetch('hronaut://home/api/status')).json() as { clients: Array<{ name: string; initializedAt?: string }> }
+          const state = await (await home.session.fetch('hronaut://home/api/status', { signal: AbortSignal.timeout(2_000) })).json() as { clients: Array<{ name: string; initializedAt?: string }> }
           return state.clients.some(client => client.name === 'inspection-lifecycle' && Boolean(client.initializedAt))
         })).toBe(true)
       }
@@ -163,7 +163,7 @@ for (const change of ['navigation', 'close', 'replacement', 'selector id ABA', '
       const activity = () => electronApp.evaluate(async ({ webContents }) => {
         const home = webContents.getAllWebContents().find(p => p.getURL().startsWith('hronaut://home'))!
         // Query the trusted session directly; activity is main-owned and must not depend on Home renderer navigation.
-        const response = await home.session.fetch('hronaut://home/api/status')
+        const response = await home.session.fetch('hronaut://home/api/status', { signal: AbortSignal.timeout(2_000) })
         const state = await response.json() as { recentActivity: Array<{ toolName: string; result: { outcome: string; effects: string } }> }
         return state.recentActivity.filter(item => item.toolName === 'browser_element_inspect')
       })

@@ -120,7 +120,7 @@ for (const [phase, change, target, dialog] of cases) {
       if (change === 'cancel') await expect.poll(async () => {
         terminalActivity = await electronApp.evaluate(async ({ webContents }, id) => {
           const home = webContents.getAllWebContents().find(page => page.getURL().startsWith('hronaut://home'))!
-          const response = await home.session.fetch('hronaut://home/api/status')
+          const response = await home.session.fetch('hronaut://home/api/status', { signal: AbortSignal.timeout(2_000) })
           if (!response.ok) throw new Error(`Activity observation failed: ${response.status}`)
           const state = await response.json() as { recentActivity: { tabId: string; toolName: string; result: unknown }[] }
           return state.recentActivity.find(activity => activity.tabId === id && activity.toolName === 'browser_click')?.result

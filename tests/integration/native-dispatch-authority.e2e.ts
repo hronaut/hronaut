@@ -33,7 +33,7 @@ async function terminalActivities(app: ElectronApplication, tabId: string, toolN
   return app.evaluate(async ({ webContents }, { id, name }) => {
     const home = webContents.getAllWebContents().find(page => page.getURL().startsWith('hronaut://home'))
     if (!home) throw new Error('Missing Home session for native input settlement observation')
-    const response = await home.session.fetch('hronaut://home/api/status')
+    const response = await home.session.fetch('hronaut://home/api/status', { signal: AbortSignal.timeout(2_000) })
     if (!response.ok) throw new Error(`Native input settlement observation failed: ${response.status}`)
     const state = await response.json() as { recentActivity: McpToolActivity[] }
     return state.recentActivity.filter(activity => activity.toolName === name && activity.tabId === id)

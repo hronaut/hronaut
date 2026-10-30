@@ -94,14 +94,16 @@ for (const change of ['unchanged', 'zoom-aba', 'selection-aba', 'bounds-aba', 'p
       const result = await pending
       // Cancellation can settle the transport before the server. Observe the
       // terminal activity from the trusted Home endpoint before checking input.
+      // A status read once got no answer here; each read gives up after 2 s so
+      // the poll reads again.
       await expect.poll(() => electronApp.evaluate(async ({ webContents }, id) => {
         const home = webContents.getAllWebContents().find(p => p.getURL().startsWith('hronaut://home'))!
-        const state = await (await home.session.fetch('hronaut://home/api/status')).json() as { recentActivity: Array<{ toolName: string; tabId: string }> }
+        const state = await (await home.session.fetch('hronaut://home/api/status', { signal: AbortSignal.timeout(2_000) })).json() as { recentActivity: Array<{ toolName: string; tabId: string }> }
         return state.recentActivity.filter(activity => activity.toolName === 'browser_click' && activity.tabId === id).length
       }, tabId)).toBe(1)
       if (change === 'cancel') await expect.poll(() => electronApp.evaluate(async ({ webContents }, id) => {
         const home = webContents.getAllWebContents().find(page => page.getURL().startsWith('hronaut://home'))!
-        const state = await (await home.session.fetch('hronaut://home/api/status')).json() as { recentActivity: Array<{ toolName: string; tabId: string; result: unknown }> }
+        const state = await (await home.session.fetch('hronaut://home/api/status', { signal: AbortSignal.timeout(2_000) })).json() as { recentActivity: Array<{ toolName: string; tabId: string; result: unknown }> }
         return state.recentActivity.find(row => row.toolName === 'browser_click' && row.tabId === id)?.result
       }, tabId)).toMatchObject({ outcome: 'cancelled', reasonCode: 'REQUEST_CANCELLED', effects: 'possible' })
       const commands = await electronApp.evaluate(() => (globalThis as RightScope).rightClickGate!.commands)

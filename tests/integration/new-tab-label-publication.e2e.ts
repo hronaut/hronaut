@@ -44,7 +44,7 @@ for (const change of ['newer label', 'workspace access ABA', 'capability revoke'
         // Home never sees capability profile ids, so this waits for the profile's session to be initialized.
         await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
           const home = webContents.getAllWebContents().find(page => page.getURL().startsWith('hronaut://home'))!
-          const state = await (await home.session.fetch('hronaut://home/api/status')).json() as { clients: Array<{ name: string; initializedAt?: string }> }
+          const state = await (await home.session.fetch('hronaut://home/api/status', { signal: AbortSignal.timeout(2_000) })).json() as { clients: Array<{ name: string; initializedAt?: string }> }
           return state.clients.some(client => client.name === 'label-publication' && Boolean(client.initializedAt))
         })).toBe(true)
       }
@@ -121,7 +121,7 @@ for (const change of ['newer label', 'workspace access ABA', 'capability revoke'
       }
       await expect.poll(() => electronApp.evaluate(async ({ webContents }, id) => {
         const home = webContents.getAllWebContents().find(page => page.getURL().startsWith('hronaut://home'))!
-        const state = await (await home.session.fetch('hronaut://home/api/status')).json() as { recentActivity: Array<{ toolName: string; tabId: string; result: { outcome: string } }> }
+        const state = await (await home.session.fetch('hronaut://home/api/status', { signal: AbortSignal.timeout(2_000) })).json() as { recentActivity: Array<{ toolName: string; tabId: string; result: { outcome: string } }> }
         return state.recentActivity.filter(activity => activity.toolName === 'browser_new_tab' && activity.tabId === id).map(activity => activity.result.outcome)
       }, id)).toEqual([change === 'newer label' ? 'succeeded' : change === 'cancel' || change === 'disconnect' ? 'cancelled' : 'outcome-unknown'])
       if (change !== 'newer label') expect(received.join('\n')).not.toContain(marker)

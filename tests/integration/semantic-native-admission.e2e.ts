@@ -189,7 +189,7 @@ test('semantic admission remains reserved through renderer cleanup and taints af
   const observed=await electronApp.evaluate(async({webContents},id)=>{
    const gate=(globalThis as CleanupScope).__clickCleanup!
    const home=webContents.getAllWebContents().find(p=>p.getURL().startsWith('hronaut://home'))!
-   const state=await (await home.session.fetch('hronaut://home/api/status')).json() as {recentActivity:Array<{toolName:string;tabId:string;result:unknown}>}
+   const state=await (await home.session.fetch('hronaut://home/api/status', { signal: AbortSignal.timeout(2_000) })).json() as {recentActivity:Array<{toolName:string;tabId:string;result:unknown}>}
    return{downs:gate.downs,acquisitions:gate.acquisitions,activities:state.recentActivity.filter(a=>a.toolName==='browser_click'&&a.tabId===id)}
   },tabId)
   expect(observed.downs).toBe(1);expect(observed.acquisitions).toBe(1)

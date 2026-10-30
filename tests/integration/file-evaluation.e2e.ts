@@ -262,7 +262,7 @@ for (const phase of ['preparation', 'result', 'audit'] as const) {
     await electronApp.evaluate(() => (globalThis as Scope).fileProbe!.release())
     await expect.poll(() => electronApp.evaluate(async ({ webContents }, tabId) => {
       const home = webContents.getAllWebContents().find(page => page.getURL().startsWith('hronaut://home'))!
-      const status = await (await home.session.fetch('hronaut://home/api/status')).json() as { recentActivity: Array<{ toolName: string; tabId: string; result?: { outcome?: string; dispatch?: string; effects?: string } }> }
+      const status = await (await home.session.fetch('hronaut://home/api/status', { signal: AbortSignal.timeout(2_000) })).json() as { recentActivity: Array<{ toolName: string; tabId: string; result?: { outcome?: string; dispatch?: string; effects?: string } }> }
       return status.recentActivity.find(item => item.toolName === 'browser_evaluate_file' && item.tabId === tabId)?.result
     }, evaluation.source.tabId)).toMatchObject({ outcome: 'cancelled', dispatch: phase !== 'preparation' ? 'dispatched' : 'not-dispatched', effects: phase !== 'preparation' ? 'possible' : 'none' })
     expect(await electronApp.evaluate(() => (globalThis as Scope).fileProbe!.submissions.length)).toBe(phase !== 'preparation' ? 1 : 0)
@@ -288,7 +288,7 @@ for (const change of ['unchanged', 'pause', 'navigation', 'revoke'] as const) {
     expect(await electronApp.evaluate(() => (globalThis as Scope).fileProbe!.submissions.length)).toBe(1)
     const activity = await electronApp.evaluate(async ({ webContents }, tabId) => {
       const home = webContents.getAllWebContents().find(page => page.getURL().startsWith('hronaut://home'))!
-      const status = await (await home.session.fetch('hronaut://home/api/status')).json() as { recentActivity: Array<{ toolName: string; tabId: string; result?: { outcome?: string; dispatch?: string; effects?: string } }> }
+      const status = await (await home.session.fetch('hronaut://home/api/status', { signal: AbortSignal.timeout(2_000) })).json() as { recentActivity: Array<{ toolName: string; tabId: string; result?: { outcome?: string; dispatch?: string; effects?: string } }> }
       return status.recentActivity.find(item => item.toolName === 'browser_evaluate_file' && item.tabId === tabId)?.result
     }, evaluation.source.tabId)
     expect(activity?.dispatch).toBe('dispatched')
@@ -385,7 +385,7 @@ test('retains workspace mutation ownership after cancellation and transport term
   abort.abort(); await pending
   await expect.poll(() => electronApp.evaluate(async ({ webContents }, tabId) => {
     const home = webContents.getAllWebContents().find(page => page.getURL().startsWith('hronaut://home'))!
-    const status = await (await home.session.fetch('hronaut://home/api/status')).json() as { recentActivity: Array<{ toolName: string; tabId: string; result?: { outcome?: string } }> }
+    const status = await (await home.session.fetch('hronaut://home/api/status', { signal: AbortSignal.timeout(2_000) })).json() as { recentActivity: Array<{ toolName: string; tabId: string; result?: { outcome?: string } }> }
     return status.recentActivity.find(item => item.toolName === 'browser_evaluate_file' && item.tabId === tabId)?.result?.outcome
   }, evaluation.source.tabId)).toBe('cancelled')
   await transport.terminateSession()

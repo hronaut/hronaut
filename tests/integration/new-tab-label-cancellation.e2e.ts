@@ -43,7 +43,7 @@ for (const stage of ['hold-write', 'hold-rename', 'hold-flush'] as const) {
         expect(text(result)).not.toContain('createdTabId')
         await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
           const home = webContents.getAllWebContents().find(page => page.getURL().startsWith('hronaut://home'))!
-          const state = await (await home.session.fetch('hronaut://home/api/status')).json() as { recentActivity: Array<{ toolName: string; result: unknown }> }
+          const state = await (await home.session.fetch('hronaut://home/api/status', { signal: AbortSignal.timeout(2_000) })).json() as { recentActivity: Array<{ toolName: string; result: unknown }> }
           return state.recentActivity.filter(activity => activity.toolName === 'browser_new_tab').map(activity => ({ result: activity.result }))
         })).toContainEqual(expect.objectContaining({ result: expect.objectContaining({ outcome: change === 'cancel' ? 'cancelled' : 'outcome-unknown', effects: 'possible' }) }))
         const current = await appWindow.evaluate(() => (window as unknown as { hronaut: HronautApi }).hronaut.getState())
