@@ -2,7 +2,10 @@ import { createServer } from 'node:http'
 import type { Page } from '@playwright/test'
 import type { HronautApi } from '../../src/shared/types.js'
 import { formatReproAsPlaywright } from '../../src/shared/repro-export.js'
+import { reproTargetInPage } from '../../src/main/browser/repro-recorder/repro-page.page.js'
+import { snapshotTextInPage } from '../../src/main/browser/snapshot-text.page.js'
 import { closeFixtureServer, expect, test, pageAt } from './fixtures.js'
+import { pageScriptStart } from './page-script-parts.js'
 
 for (const kind of ['click', 'key'] as const) {
   for (const rejected of [false, true]) {
@@ -32,18 +35,19 @@ for (const kind of ['click', 'key'] as const) {
         const page = await pageAt(electronApp, url)
         if (kind === 'key') await page.locator('button').focus()
         await appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.manageRepro('start', id), tabId)
-        if (rejected) await electronApp.evaluate(({ webContents }, { url, kind }) => {
+        if (rejected) await electronApp.evaluate(({ webContents }, { url, kind, target }) => {
           const contents = webContents.getAllWebContents().find(contents => contents.getURL() === url)!
           const original = contents.executeJavaScript.bind(contents)
           Object.defineProperty(contents, 'executeJavaScript', { configurable: true, value: (code: string, gesture?: boolean) => {
-            if (code.includes(kind === 'click' ? 'const point = {' : 'const point = undefined')) {
+            // A click's target is read at its point, a key's from the focused element, with no point.
+            if (code.startsWith(target.start) && code.includes(target.focused) === (kind === 'key')) {
               Object.defineProperty(contents, 'executeJavaScript', { configurable: true, value: original })
               ;(globalThis as typeof globalThis & { rejectedTarget?: boolean }).rejectedTarget = true
               return Promise.reject(new Error('Synthetic target failure'))
             }
             return original(code, gesture)
           } })
-        }, { url, kind })
+        }, { url, kind, target: { start: pageScriptStart(reproTargetInPage), focused: `})(undefined, ${pageScriptStart(snapshotTextInPage)}` } })
         if (kind === 'click') await page.getByRole('button', { name: 'Submit request' }).click()
         else await electronApp.evaluate(({ webContents }, url) => {
           const contents = webContents.getAllWebContents().find(contents => contents.getURL() === url)!

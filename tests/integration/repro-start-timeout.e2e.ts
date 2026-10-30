@@ -1,6 +1,7 @@
 import type { HronautApi } from '../../src/shared/types.js'
-import { reproScrollScript } from '../../src/main/browser/repro-recorder/repro-page-scripts.js'
+import { reproScrollInPage } from '../../src/main/browser/repro-recorder/repro-page.page.js'
 import { expect, test } from './fixtures.js'
+import { pageScriptStart } from './page-script-parts.js'
 
 type StartProbe = { held: boolean; release(): void; restore(): void }
 type ProbeGlobal = typeof globalThis & { __reproStartProbe?: StartProbe }
@@ -18,14 +19,14 @@ test('times out a stalled Repro start and preserves a retry when the old respons
     const probe: StartProbe = { held: false, release, restore: () => { page.executeJavaScript = original; release() } }
     page.executeJavaScript = async function (...args) {
       const result = await original.apply(this, args)
-      if (args[0] !== input.script) return result
+      if (!args[0].startsWith(input.script)) return result
       page.executeJavaScript = original
       probe.held = true
       await gate
       return result
     }
     ;(globalThis as ProbeGlobal).__reproStartProbe = probe
-  }, { url, script: reproScrollScript() })
+  }, { url, script: pageScriptStart(reproScrollInPage) })
   try {
     const pending = appWindow.evaluate(async tabId => {
       try {
