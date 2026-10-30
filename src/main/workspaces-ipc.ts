@@ -33,6 +33,7 @@ import { armWorkspaceContinuity, inspectWorkspaceContinuity, reconcileWorkspaceC
 import { browserState } from './browser/browser-state/browser-state.js'
 import { showWorkspaceContextMenu } from './browser/context-menus/workspace-context-menu.js'
 import { closeWorkspace } from './browser/mcp-tab-groups/close-mcp-tab-group.js'
+import { WORKSPACES_IPC } from '../shared/ipc/workspaces.js'
 
 interface WorkspacesIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
@@ -60,13 +61,13 @@ interface WorkspacesIpcHost {
 
 /** Dependencies stay lazy because handlers are registered before the window loads. */
 export function registerWorkspacesIpc(host: WorkspacesIpcHost): void {
-  host.handleBrowserIpc('browser:rename-tab-group', (event, groupId: unknown, name: unknown) => {
+  host.handleBrowserIpc(WORKSPACES_IPC.rename, (event, groupId: unknown, name: unknown) => {
     host.assertTrustedSender(event)
     if (typeof groupId !== 'string' || typeof name !== 'string') throw new TypeError('Invalid workspace rename request')
     renameMcpTabGroup(host.tabs()!, groupId, name)
     return browserState(host.tabs()!)
   })
-  host.handleBrowserIpc('browser:update-tab-group', (event, groupId: unknown, updates: unknown) => {
+  host.handleBrowserIpc(WORKSPACES_IPC.update, (event, groupId: unknown, updates: unknown) => {
     host.assertTrustedSender(event)
     if (typeof groupId !== 'string' || !updates || typeof updates !== 'object' || Array.isArray(updates)) {
       throw new TypeError('Invalid workspace update request')
@@ -88,18 +89,18 @@ export function registerWorkspacesIpc(host: WorkspacesIpcHost): void {
     } satisfies BrowserTabGroupUpdate)
     return browserState(host.tabs()!)
   })
-  host.handleBrowserIpc('browser:review-workspace-continuity', (event, workspaceId: unknown) => {
+  host.handleBrowserIpc(WORKSPACES_IPC.reviewContinuity, (event, workspaceId: unknown) => {
     host.assertTrustedSender(event)
     if (typeof workspaceId !== 'string') throw new TypeError('Invalid workspace ID')
     return inspectWorkspaceContinuity(host.tabs()!, workspaceId)
   })
-  host.handleBrowserIpc('browser:list-human-waiting', (event, workspaceId: unknown) => {
+  host.handleBrowserIpc(WORKSPACES_IPC.listHumanWaiting, (event, workspaceId: unknown) => {
     const authorize = (): void => { host.assertTrustedSender(event) }
     authorize()
     if (typeof workspaceId !== 'string' || workspaceId.length > 128 || !host.humanWaiting()) throw new LocalizedError('appErrors.continuity.waitingWorkspaceUnavailable')
     return host.humanWaiting()!.list(workspaceId, authorize)
   })
-  host.handleBrowserIpc('browser:change-human-waiting', async (event, workspaceId: unknown, id: unknown, revision: unknown, action: unknown, confirmation: unknown, note: unknown) => {
+  host.handleBrowserIpc(WORKSPACES_IPC.changeHumanWaiting, async (event, workspaceId: unknown, id: unknown, revision: unknown, action: unknown, confirmation: unknown, note: unknown) => {
     const authorize = (): void => { host.assertTrustedSender(event) }
     authorize()
     if (typeof workspaceId !== 'string' || typeof id !== 'string' || typeof revision !== 'string'
@@ -143,30 +144,30 @@ export function registerWorkspacesIpc(host: WorkspacesIpcHost): void {
     }
     return record
   })
-  host.handleBrowserIpc('browser:checkpoint-workspace-continuity', async (event, workspaceId: unknown, markerSelector: unknown) => {
+  host.handleBrowserIpc(WORKSPACES_IPC.checkpointContinuity, async (event, workspaceId: unknown, markerSelector: unknown) => {
     host.assertTrustedSender(event)
     if (typeof workspaceId !== 'string' || (markerSelector !== undefined && typeof markerSelector !== 'string')) throw new TypeError('Invalid continuity checkpoint')
     await armWorkspaceContinuity(host.tabs()!, workspaceId, markerSelector)
     return inspectWorkspaceContinuity(host.tabs()!, workspaceId)
   })
-  host.handleBrowserIpc('browser:reconcile-workspace-continuity', async (event, workspaceId: unknown, reviewId: unknown, acknowledge: unknown) => {
+  host.handleBrowserIpc(WORKSPACES_IPC.reconcileContinuity, async (event, workspaceId: unknown, reviewId: unknown, acknowledge: unknown) => {
     host.assertTrustedSender(event)
     if (typeof workspaceId !== 'string' || typeof reviewId !== 'string' || typeof acknowledge !== 'boolean') throw new TypeError('Invalid continuity review')
     await reconcileWorkspaceContinuity(host.tabs()!, workspaceId, reviewId, acknowledge)
     return inspectWorkspaceContinuity(host.tabs()!, workspaceId)
   })
-  host.handleBrowserIpc('browser:update-workspace-navigation-policy', (event, groupId: unknown, policy: unknown) => {
+  host.handleBrowserIpc(WORKSPACES_IPC.updateNavigationPolicy, (event, groupId: unknown, policy: unknown) => {
     host.assertTrustedSender(event)
     if (typeof groupId !== 'string') throw new TypeError('Invalid workspace ID')
     const normalized = normalizeWorkspaceNavigationPolicy(policy)
     return updateWorkspaceNavigationPolicy(host.tabs()!, groupId, normalized)
   })
-  host.handleBrowserIpc('browser:list-workspace-navigation-audit', (event, groupId: unknown) => {
+  host.handleBrowserIpc(WORKSPACES_IPC.listNavigationAudit, (event, groupId: unknown) => {
     host.assertTrustedSender(event)
     if (typeof groupId !== 'string') throw new TypeError('Invalid workspace ID')
     return listWorkspaceNavigationAudit(host.tabs()!, groupId)
   })
-  host.handleBrowserIpc('browser:open-workspace-template-file', async (event) => {
+  host.handleBrowserIpc(WORKSPACES_IPC.openTemplateFile, async (event) => {
     host.assertTrustedSender(event)
     if (!host.mainWindow() || host.mainWindow()!.isDestroyed()) throw new Error(host.text('native.errors.actionFailed'))
     const selection = await host.showOpenDialog(host.mainWindow()!, {
@@ -181,7 +182,7 @@ export function registerWorkspacesIpc(host: WorkspacesIpcHost): void {
       throw new Error(host.text('workspaceTemplates.readFailed'))
     }
   })
-  host.handleBrowserIpc('browser:save-workspace-template-file', async (event, value: unknown) => {
+  host.handleBrowserIpc(WORKSPACES_IPC.saveTemplateFile, async (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (typeof value !== 'string') throw new TypeError(WORKSPACE_TEMPLATE_ERRORS.invalidTemplate)
     parseWorkspaceTemplate(value)
@@ -200,13 +201,13 @@ export function registerWorkspacesIpc(host: WorkspacesIpcHost): void {
       throw new Error(host.text('workspaceTemplates.writeFailed'))
     }
   })
-  host.handleBrowserIpc('browser:import-workspace-template', async (event, value: unknown) => {
+  host.handleBrowserIpc(WORKSPACES_IPC.importTemplate, async (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (typeof value !== 'string') throw new TypeError(WORKSPACE_TEMPLATE_ERRORS.invalidTemplate)
     const result = await importWorkspaceTemplate(host.tabs()!, value)
     return { ...result, state: browserState(host.tabs()!) }
   })
-  host.handleBrowserIpc('browser:create-workspace', async (event, value: unknown) => {
+  host.handleBrowserIpc(WORKSPACES_IPC.create, async (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid workspace creation request')
     const candidate = value as Record<string, unknown>
@@ -237,12 +238,12 @@ export function registerWorkspacesIpc(host: WorkspacesIpcHost): void {
       ...(navigationPolicy ? { navigationPolicy } : {})
     } satisfies BrowserWorkspaceCreateOptions)
   })
-  host.handleBrowserIpc('browser:list-workspace-storage-origins', (event, workspaceId: unknown) => {
+  host.handleBrowserIpc(WORKSPACES_IPC.listStorageOrigins, (event, workspaceId: unknown) => {
     host.assertTrustedSender(event)
     if (typeof workspaceId !== 'string') throw new TypeError('Invalid workspace ID')
     return listWorkspaceStorageOrigins(host.tabs()!, workspaceId)
   })
-  host.handleBrowserIpc('browser:transfer-workspace-storage', (event, value: unknown) => {
+  host.handleBrowserIpc(WORKSPACES_IPC.transferStorage, (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid workspace storage transfer')
     const candidate = value as Record<string, unknown>
@@ -256,32 +257,32 @@ export function registerWorkspacesIpc(host: WorkspacesIpcHost): void {
       ...(Array.isArray(candidate.origins) ? { origins: candidate.origins as string[] } : {})
     } satisfies BrowserWorkspaceStorageTransferOptions)
   })
-  host.handleBrowserIpc('browser:close-workspace', async (event, workspaceId: unknown, options: unknown) => {
+  host.handleBrowserIpc(WORKSPACES_IPC.close, async (event, workspaceId: unknown, options: unknown) => {
     host.assertTrustedSender(event)
     if (typeof workspaceId !== 'string') throw new TypeError('Invalid workspace ID')
     if (options !== undefined && (!options || typeof options !== 'object' || Array.isArray(options))) throw new TypeError('Invalid workspace close options')
     const undoable = (options as { undoable?: unknown } | undefined)?.undoable === true
     return undoable ? closeWorkspaceForPerson(host.tabs()!, workspaceId) : closeWorkspace(host.tabs()!, workspaceId)
   })
-  host.handleBrowserIpc('browser:save-and-close-tab-group', async (event, groupId: unknown) => {
+  host.handleBrowserIpc(WORKSPACES_IPC.saveAndClose, async (event, groupId: unknown) => {
     host.assertTrustedSender(event)
     if (typeof groupId !== 'string') throw new TypeError('Invalid workspace ID')
     await saveAndCloseTabGroup(host.tabs()!, groupId)
     return browserState(host.tabs()!)
   })
-  host.handleBrowserIpc('browser:restore-saved-tab-group', async (event, savedGroupId: unknown) => {
+  host.handleBrowserIpc(WORKSPACES_IPC.restoreSaved, async (event, savedGroupId: unknown) => {
     host.assertTrustedSender(event)
     if (typeof savedGroupId !== 'string') throw new TypeError('Invalid archived workspace ID')
     await restoreSavedTabGroup(host.tabs()!, savedGroupId)
     return browserState(host.tabs()!)
   })
-  host.handleBrowserIpc('browser:delete-saved-tab-group', async (event, savedGroupId: unknown) => {
+  host.handleBrowserIpc(WORKSPACES_IPC.deleteSaved, async (event, savedGroupId: unknown) => {
     host.assertTrustedSender(event)
     if (typeof savedGroupId !== 'string') throw new TypeError('Invalid archived workspace ID')
     await deleteSavedTabGroup(host.tabs()!, savedGroupId)
     return browserState(host.tabs()!)
   })
-  host.handleBrowserIpc('browser:show-workspace-context-menu', (event, workspaceId: unknown) => {
+  host.handleBrowserIpc(WORKSPACES_IPC.showContextMenu, (event, workspaceId: unknown) => {
     host.assertTrustedSender(event)
     if (typeof workspaceId !== 'string') throw new TypeError('Invalid workspace ID')
     showWorkspaceContextMenu(host.tabs()!, workspaceId)

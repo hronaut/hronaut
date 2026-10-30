@@ -211,16 +211,8 @@ export interface HronautShellRequestsApi {
   onAddressPasteAndGo(listener: (text: string) => void): () => void
 }
 
-export interface HronautApi extends HronautTabsApi, HronautNavigationApi, HronautUndoApi, HronautAttentionApi, HronautQrCodeApi, HronautAppApi, HronautShellRequestsApi {
-  captureIncident(input: IncidentCaptureInput): Promise<IncidentDraft>
-  reviewIncident(input: IncidentReviewInput): Promise<IncidentPreview>
-  invalidateIncidentPreview(draftId: string): Promise<void>
-  discardIncident(): Promise<void>
-  saveIncident(input: { draftId: string; previewId: string; reviewed: true }): Promise<{ saved: boolean; sha256?: string; bytes?: number }>
-  browserImport: BrowserImportApi
-  clearCssStatePreview(tabId: string): Promise<BrowserState>
-  stopVirtualPasskey(tabId: string): Promise<BrowserState>
-  stopLogpoints(tabId: string): Promise<BrowserState>
+/** Workspaces and their templates, data, navigation policy, continuity and agents' decisions, and importing another browser's sign-ins into one. */
+export interface HronautWorkspacesApi {
   createWorkspace(options: BrowserWorkspaceCreateOptions): Promise<BrowserState>
   openWorkspaceTemplateFile(): Promise<string | null>
   saveWorkspaceTemplateFile(reviewedText: string): Promise<boolean>
@@ -242,6 +234,26 @@ export interface HronautApi extends HronautTabsApi, HronautNavigationApi, Hronau
   restoreSavedTabGroup(savedGroupId: string): Promise<BrowserState>
   deleteSavedTabGroup(savedGroupId: string): Promise<BrowserState>
   showWorkspaceContextMenu(workspaceId: string): Promise<void>
+  browserImport: BrowserImportApi
+}
+
+export interface HronautApi extends
+  HronautTabsApi,
+  HronautNavigationApi,
+  HronautUndoApi,
+  HronautAttentionApi,
+  HronautQrCodeApi,
+  HronautAppApi,
+  HronautShellRequestsApi,
+  HronautWorkspacesApi {
+  captureIncident(input: IncidentCaptureInput): Promise<IncidentDraft>
+  reviewIncident(input: IncidentReviewInput): Promise<IncidentPreview>
+  invalidateIncidentPreview(draftId: string): Promise<void>
+  discardIncident(): Promise<void>
+  saveIncident(input: { draftId: string; previewId: string; reviewed: true }): Promise<{ saved: boolean; sha256?: string; bytes?: number }>
+  clearCssStatePreview(tabId: string): Promise<BrowserState>
+  stopVirtualPasskey(tabId: string): Promise<BrowserState>
+  stopLogpoints(tabId: string): Promise<BrowserState>
   setTabViewport(tabId: string, viewport: BrowserViewportEmulation | null): Promise<BrowserState>
   setTabEnvironment(tabId: string, environment: BrowserEnvironmentSettings): Promise<BrowserState>
   resetTabEmulation(tabId: string): Promise<BrowserState>

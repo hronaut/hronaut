@@ -31,12 +31,40 @@ async function exposed(name: string, path: string): Promise<Method> {
   return method as Method
 }
 
-// Values as main sends and takes them: a state with no tabs open, and an Undo offer's token.
+// Values as main sends and takes them: a state with no tabs open, an Undo offer's token and a workspace template.
 const browserState = { tabs: [], closedTabs: [], activeTabId: null, allHumanInteractionLocked: false, mcpUrl: 'http://127.0.0.1:47321/mcp', profilePath: '/home/person/.config/Hronaut', mcpTabGroups: [], savedTabGroups: [] }
 const undoToken = 'c0ffee00-0000-4000-8000-000000000001'
+const workspaceTemplate = JSON.stringify({ format: 'hronaut-workspace-template', version: 1, sourcePlatform: 'linux', workspaces: [{ name: 'Research', color: 'blue', startPages: ['https://example.com/'] }] })
 
 // Each call the shell makes, with the channel and arguments main receives; the names are the wire's and stay as they were.
 const invokes: Array<[api: string, method: string, args: unknown[], channel: string, sent: unknown[]]> = [
+  ['hronaut', 'createWorkspace', [{ name: 'Research', color: 'blue', storage: 'scratch' }], 'browser:create-workspace', [{ name: 'Research', color: 'blue', storage: 'scratch' }]],
+  ['hronaut', 'openWorkspaceTemplateFile', [], 'browser:open-workspace-template-file', []],
+  ['hronaut', 'saveWorkspaceTemplateFile', [workspaceTemplate], 'browser:save-workspace-template-file', [workspaceTemplate]],
+  ['hronaut', 'importWorkspaceTemplate', [workspaceTemplate], 'browser:import-workspace-template', [workspaceTemplate]],
+  ['hronaut', 'renameTabGroup', ['workspace-1', 'Research'], 'browser:rename-tab-group', ['workspace-1', 'Research']],
+  ['hronaut', 'updateTabGroup', ['workspace-1', { color: 'green', agentAccess: false }], 'browser:update-tab-group', ['workspace-1', { color: 'green', agentAccess: false }]],
+  ['hronaut', 'reviewWorkspaceContinuity', ['workspace-1'], 'browser:review-workspace-continuity', ['workspace-1']],
+  ['hronaut', 'listHumanWaiting', ['workspace-1'], 'browser:list-human-waiting', ['workspace-1']],
+  ['hronaut', 'changeHumanWaiting', ['workspace-1', 'decision-1', 'revision-1', 'resolve', { accountAndTargetVerified: true }, 'Paid'], 'browser:change-human-waiting', ['workspace-1', 'decision-1', 'revision-1', 'resolve', { accountAndTargetVerified: true }, 'Paid']],
+  ['hronaut', 'changeHumanWaiting', ['workspace-1', 'decision-1', 'revision-1', 'acknowledge'], 'browser:change-human-waiting', ['workspace-1', 'decision-1', 'revision-1', 'acknowledge', undefined, undefined]],
+  ['hronaut', 'checkpointWorkspaceContinuity', ['workspace-1', '#order-confirmation'], 'browser:checkpoint-workspace-continuity', ['workspace-1', '#order-confirmation']],
+  ['hronaut', 'checkpointWorkspaceContinuity', ['workspace-1'], 'browser:checkpoint-workspace-continuity', ['workspace-1', undefined]],
+  ['hronaut', 'reconcileWorkspaceContinuity', ['workspace-1', 'review-1', true], 'browser:reconcile-workspace-continuity', ['workspace-1', 'review-1', true]],
+  ['hronaut', 'updateWorkspaceNavigationPolicy', ['workspace-1', { mode: 'restricted', rules: ['https://example.com'] }], 'browser:update-workspace-navigation-policy', ['workspace-1', { mode: 'restricted', rules: ['https://example.com'] }]],
+  ['hronaut', 'listWorkspaceNavigationAudit', ['workspace-1'], 'browser:list-workspace-navigation-audit', ['workspace-1']],
+  ['hronaut', 'listWorkspaceStorageOrigins', ['workspace-1'], 'browser:list-workspace-storage-origins', ['workspace-1']],
+  ['hronaut', 'transferWorkspaceStorage', [{ sourceWorkspaceId: 'workspace-1', targetWorkspaceId: 'workspace-2', mode: 'copy', origins: ['https://example.com'] }], 'browser:transfer-workspace-storage', [{ sourceWorkspaceId: 'workspace-1', targetWorkspaceId: 'workspace-2', mode: 'copy', origins: ['https://example.com'] }]],
+  ['hronaut', 'closeWorkspace', ['workspace-1', { undoable: true }], 'browser:close-workspace', ['workspace-1', { undoable: true }]],
+  ['hronaut', 'closeWorkspace', ['workspace-1'], 'browser:close-workspace', ['workspace-1', undefined]],
+  ['hronaut', 'saveAndCloseTabGroup', ['workspace-1'], 'browser:save-and-close-tab-group', ['workspace-1']],
+  ['hronaut', 'restoreSavedTabGroup', ['saved-1'], 'browser:restore-saved-tab-group', ['saved-1']],
+  ['hronaut', 'deleteSavedTabGroup', ['saved-1'], 'browser:delete-saved-tab-group', ['saved-1']],
+  ['hronaut', 'showWorkspaceContextMenu', ['workspace-1'], 'browser:show-workspace-context-menu', ['workspace-1']],
+  ['hronaut', 'browserImport.list', ['workspace-1'], 'browser-import:list', ['workspace-1']],
+  ['hronaut', 'browserImport.preview', ['workspace-1', 'c0ffee00-0000-4000-8000-000000000002'], 'browser-import:preview', ['workspace-1', 'c0ffee00-0000-4000-8000-000000000002']],
+  ['hronaut', 'browserImport.commit', ['c0ffee00-0000-4000-8000-000000000003', ['example.com']], 'browser-import:commit', ['c0ffee00-0000-4000-8000-000000000003', ['example.com']]],
+  ['hronaut', 'browserImport.cancel', [], 'browser-import:cancel', []],
   ['hronaut', 'getState', [], 'browser:get-state', []],
   ['hronaut', 'getTabOverviewPreviews', [['tab-1', 'tab-2']], 'browser:get-tab-overview-previews', [['tab-1', 'tab-2']]],
   ['hronaut', 'getTabOverviewPagePreview', ['tab-1'], 'browser:get-tab-overview-page-preview', ['tab-1']],
