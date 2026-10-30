@@ -146,7 +146,7 @@ const invokes: Array<[api: string, method: string, args: unknown[], channel: str
   ['hronautSettings', 'graphicsAccelerationInUse', [], 'settings:graphics-acceleration-in-use', []],
   ['hronautSettings', 'restart', [], 'app:restart', []],
   ['hronautSettings', 'setCheckForUpdatesOnStartup', [true], 'settings:set-check-on-startup', [true]],
-  ['hronautSettings', 'setLanguagePreference', ['uk'], 'settings:set-language-preference', ['uk']]
+  ['hronautSettings', 'setLanguagePreference', ['uk-UA'], 'settings:set-language-preference', ['uk-UA']]
 ]
 
 it.each(invokes)('%s.%s asks main on its channel with its arguments and returns main\'s answer', async (api, method, args, channel, sent) => {
@@ -175,7 +175,7 @@ const listeners: Array<[api: string, method: string, channel: string, received: 
   ['hronautWallets', 'onRequestsChanged', 'wallets:requests-changed', [[{ id: 'request-1' }]]],
   ['hronautSettings', 'onChanged', 'settings:changed', [{ theme: 'dark' }]],
   ['hronautSettings', 'onSystemThemeChanged', 'settings:system-theme-changed', ['light']],
-  ['hronautSettings', 'onRendererStateChanged', 'settings:renderer-state-changed', [{ theme: 'dark', resolvedTheme: 'dark' }]]
+  ['hronautSettings', 'onRendererStateChanged', 'settings:renderer-state-changed', [{ settings: { theme: 'dark' }, systemTheme: 'dark', systemLocale: 'en-US', resolvedLocale: 'en-US' }]]
 ]
 
 it.each(listeners)('%s.%s passes on only what the channel carries, without the event or extras, until it is stopped', async (api, method, channel, received) => {
