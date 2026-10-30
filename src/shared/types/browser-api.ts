@@ -271,6 +271,39 @@ export interface HronautIncidentsApi {
   saveIncident(input: { draftId: string; previewId: string; reviewed: true }): Promise<{ saved: boolean; sha256?: string; bytes?: number }>
 }
 
+/** A tab's site storage, IndexedDB and offline app. */
+export interface HronautPageStorageApi {
+  manageStorage(options: BrowserStorageOptions): Promise<BrowserStorageResult>
+  inspectStorageUsage(tabId?: string): Promise<BrowserStorageUsageReport>
+  inspectIndexedDb(options?: BrowserIndexedDbOptions): Promise<BrowserIndexedDbReport>
+  pwaLifecycle(options: PwaLifecycleOptions): Promise<PwaLifecycleReport | null>
+  inspectPwa(options?: BrowserPwaOptions): Promise<BrowserPwaReport>
+  storageChanges(options?: BrowserStorageChangesOptions): Promise<BrowserStorageChangesReport>
+}
+
+/** Copying a tab's page snapshot, elements and pictures, and inspecting an element. */
+export interface HronautPageCaptureApi {
+  copySnapshot(tabId?: string): Promise<BrowserSnapshotCopyResult>
+  pickElement(tabId?: string): Promise<BrowserElementSelection>
+  captureElement(tabId?: string): Promise<BrowserElementCaptureResult>
+  capturePage(options?: BrowserPageCaptureOptions): Promise<BrowserPageCaptureResult>
+  inspectElement(options: BrowserElementInspectionOptions): Promise<BrowserElementInspection>
+  cancelElementPicker(tabId?: string): Promise<boolean>
+  captureArea(tabId?: string): Promise<BrowserAreaCaptureResult>
+  cancelAreaCapture(tabId?: string): Promise<boolean>
+}
+
+/** A tab's console messages and network requests. */
+export interface HronautConsoleNetworkApi {
+  listConsoleMessages(tabId?: string, clear?: boolean): Promise<BrowserConsoleMessage[]>
+  listNetworkRequests(tabId?: string, clear?: boolean): Promise<BrowserNetworkRequest[]>
+  getNetworkRequestDetails(tabId: string, requestId: string, maxChars?: number): Promise<BrowserNetworkRequestDetails>
+  replayNetworkRequest(tabId: string, requestId: string, confirmSideEffects?: boolean): Promise<BrowserNetworkReplayResult>
+  searchNetwork(options: BrowserNetworkSearchOptions): Promise<BrowserNetworkSearchResult>
+  createNetworkHar(options?: BrowserNetworkHarOptions): Promise<BrowserNetworkHar>
+  saveNetworkHar(options?: BrowserNetworkHarSaveOptions): Promise<BrowserNetworkHarExport>
+}
+
 export interface HronautApi extends
   HronautTabsApi,
   HronautNavigationApi,
@@ -283,19 +316,10 @@ export interface HronautApi extends
   HronautEmulationApi,
   HronautNetworkRoutesApi,
   HronautAddressBarStopsApi,
-  HronautIncidentsApi {
-  manageStorage(options: BrowserStorageOptions): Promise<BrowserStorageResult>
-  inspectStorageUsage(tabId?: string): Promise<BrowserStorageUsageReport>
-  inspectIndexedDb(options?: BrowserIndexedDbOptions): Promise<BrowserIndexedDbReport>
-  pwaLifecycle(options: PwaLifecycleOptions): Promise<PwaLifecycleReport | null>
-  inspectPwa(options?: BrowserPwaOptions): Promise<BrowserPwaReport>
-  storageChanges(options?: BrowserStorageChangesOptions): Promise<BrowserStorageChangesReport>
-  copySnapshot(tabId?: string): Promise<BrowserSnapshotCopyResult>
-  pickElement(tabId?: string): Promise<BrowserElementSelection>
-  captureElement(tabId?: string): Promise<BrowserElementCaptureResult>
-  capturePage(options?: BrowserPageCaptureOptions): Promise<BrowserPageCaptureResult>
-  inspectElement(options: BrowserElementInspectionOptions): Promise<BrowserElementInspection>
-  cancelElementPicker(tabId?: string): Promise<boolean>
+  HronautIncidentsApi,
+  HronautPageStorageApi,
+  HronautPageCaptureApi,
+  HronautConsoleNetworkApi {
   runAccessibilityAudit(options?: BrowserAccessibilityAuditOptions): Promise<BrowserAccessibilityAudit>
   measurePerformance(options?: BrowserPerformanceOptions): Promise<BrowserPerformanceReport>
   inspectDesign(tabId?: string): Promise<BrowserDesignOverviewReport>
@@ -315,13 +339,4 @@ export interface HronautApi extends
   visualCompare(options: BrowserVisualCompareOptions): Promise<BrowserVisualCompareView>
   copyVisualDiff(tabId?: string): Promise<{ copied: true; width: number; height: number }>
   listInspectorIssues(tabId?: string, clear?: boolean): Promise<BrowserInspectorIssuesReport>
-  listConsoleMessages(tabId?: string, clear?: boolean): Promise<BrowserConsoleMessage[]>
-  listNetworkRequests(tabId?: string, clear?: boolean): Promise<BrowserNetworkRequest[]>
-  getNetworkRequestDetails(tabId: string, requestId: string, maxChars?: number): Promise<BrowserNetworkRequestDetails>
-  replayNetworkRequest(tabId: string, requestId: string, confirmSideEffects?: boolean): Promise<BrowserNetworkReplayResult>
-  searchNetwork(options: BrowserNetworkSearchOptions): Promise<BrowserNetworkSearchResult>
-  createNetworkHar(options?: BrowserNetworkHarOptions): Promise<BrowserNetworkHar>
-  saveNetworkHar(options?: BrowserNetworkHarSaveOptions): Promise<BrowserNetworkHarExport>
-  captureArea(tabId?: string): Promise<BrowserAreaCaptureResult>
-  cancelAreaCapture(tabId?: string): Promise<boolean>
 }

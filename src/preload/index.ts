@@ -16,6 +16,7 @@ import { mcpApi } from './bridges/mcp.js'
 import { navigationApi } from './bridges/navigation.js'
 import { networkRoutesApi } from './bridges/network-routes.js'
 import { emulationFrameApi, pageCardApi, splitDividerApi } from './bridges/page-geometry.js'
+import { consoleNetworkApi, pageCaptureApi, pageStorageApi } from './bridges/page-inspection.js'
 import { panelWindowApi } from './bridges/panel-window.js'
 import { permissionsApi } from './bridges/permissions.js'
 import { qrCodeApi } from './bridges/qr-code.js'
@@ -32,8 +33,6 @@ import { walletsApi } from './bridges/wallets.js'
 import { workspacesApi } from './bridges/workspaces.js'
 import type {
   HronautApi,
-  BrowserPageCaptureOptions,
-  BrowserElementInspectionOptions,
   BrowserAccessibilityAuditOptions,
   BrowserPerformanceOptions,
   BrowserCodeCoverageOptions,
@@ -41,14 +40,7 @@ import type {
   BrowserMemoryOptions,
   BrowserDebugReportOptions,
   BrowserDomChangesAction,
-  BrowserVisualCompareOptions,
-  BrowserNetworkHarOptions,
-  BrowserNetworkHarSaveOptions,
-  BrowserNetworkSearchOptions,
-  BrowserStorageOptions,
-  BrowserStorageChangesOptions,
-  BrowserIndexedDbOptions,
-  BrowserPwaOptions
+  BrowserVisualCompareOptions
 } from '../shared/types.js'
 
 const api: HronautApi = {
@@ -64,18 +56,9 @@ const api: HronautApi = {
   ...networkRoutesApi,
   ...addressBarStopsApi,
   ...incidentsApi,
-  manageStorage: (options: BrowserStorageOptions) => ipcRenderer.invoke('browser:manage-storage', options),
-  inspectStorageUsage: (tabId?: string) => ipcRenderer.invoke('browser:storage-usage', tabId),
-  storageChanges: (options: BrowserStorageChangesOptions = {}) => ipcRenderer.invoke('browser:storage-changes', options),
-  inspectIndexedDb: (options: BrowserIndexedDbOptions = {}) => ipcRenderer.invoke('browser:indexeddb', options),
-  pwaLifecycle: options => ipcRenderer.invoke('browser:pwa-lifecycle', options),
-  inspectPwa: (options: BrowserPwaOptions = {}) => ipcRenderer.invoke('browser:pwa', options),
-  copySnapshot: (tabId?: string) => ipcRenderer.invoke('browser:copy-snapshot', tabId),
-  pickElement: (tabId?: string) => ipcRenderer.invoke('browser:pick-element', tabId),
-  captureElement: (tabId?: string) => ipcRenderer.invoke('browser:capture-element', tabId),
-  capturePage: (options: BrowserPageCaptureOptions = {}) => ipcRenderer.invoke('browser:capture-page', options),
-  inspectElement: (options: BrowserElementInspectionOptions) => ipcRenderer.invoke('browser:element-inspection', options),
-  cancelElementPicker: (tabId?: string) => ipcRenderer.invoke('browser:cancel-element-picker', tabId),
+  ...pageStorageApi,
+  ...pageCaptureApi,
+  ...consoleNetworkApi,
   runAccessibilityAudit: (options: BrowserAccessibilityAuditOptions = {}) =>
     ipcRenderer.invoke('browser:accessibility-audit', options),
   runQualityAudit: (tabId?: string) => ipcRenderer.invoke('browser:quality-audit', tabId),
@@ -105,23 +88,7 @@ const api: HronautApi = {
     ipcRenderer.invoke('browser:visual-compare', options),
   copyVisualDiff: (tabId?: string) => ipcRenderer.invoke('browser:copy-visual-diff', tabId),
   listInspectorIssues: (tabId?: string, clear = false) =>
-    ipcRenderer.invoke('browser:inspector-issues', { tabId, clear }),
-  listConsoleMessages: (tabId?: string, clear = false) =>
-    ipcRenderer.invoke('browser:console', { tabId, clear }),
-  listNetworkRequests: (tabId?: string, clear = false) =>
-    ipcRenderer.invoke('browser:network', { tabId, clear }),
-  getNetworkRequestDetails: (tabId: string, requestId: string, maxChars?: number) =>
-    ipcRenderer.invoke('browser:network-request', { tabId, requestId, maxChars }),
-  replayNetworkRequest: (tabId: string, requestId: string, confirmSideEffects = false) =>
-    ipcRenderer.invoke('browser:network-replay', { tabId, requestId, confirmSideEffects }),
-  searchNetwork: (options: BrowserNetworkSearchOptions) =>
-    ipcRenderer.invoke('browser:network-search', options),
-  createNetworkHar: (options: BrowserNetworkHarOptions = {}) =>
-    ipcRenderer.invoke('browser:network-har', options),
-  saveNetworkHar: (options: BrowserNetworkHarSaveOptions = {}) =>
-    ipcRenderer.invoke('browser:save-network-har', options),
-  captureArea: (tabId?: string) => ipcRenderer.invoke('browser:capture-area', tabId),
-  cancelAreaCapture: (tabId?: string) => ipcRenderer.invoke('browser:cancel-area-capture', tabId)
+    ipcRenderer.invoke('browser:inspector-issues', { tabId, clear })
 }
 
 contextBridge.exposeInMainWorld('hronaut', api)
