@@ -32,13 +32,14 @@ async function exposed(name: string, path: string): Promise<Method> {
   return method as Method
 }
 
-// Values as main sends and takes them: a state with no tabs open, an Undo offer's token, a workspace template, emulation and incident ids.
+// Values as main sends and takes them: a state with no tabs open, an Undo offer's token, a workspace template, emulation and incident ids, a reproduction checkpoint.
 const browserState = { tabs: [], closedTabs: [], activeTabId: null, allHumanInteractionLocked: false, mcpUrl: 'http://127.0.0.1:47321/mcp', profilePath: '/home/person/.config/Hronaut', mcpTabGroups: [], savedTabGroups: [] }
 const undoToken = 'c0ffee00-0000-4000-8000-000000000001'
 const phoneViewport = { width: 390, height: 844, deviceScaleFactor: 3, mobile: true, touch: true, orientation: 'portrait' }
 const darkEnvironment = { ...DEFAULT_BROWSER_ENVIRONMENT, colorScheme: 'dark' }
 const draftId = 'c0ffee00-0000-4000-8000-000000000004'
 const previewId = 'c0ffee00-0000-4000-8000-000000000005'
+const reproCheckpoint = { context: 'c0ffee00-0000-4000-8000-000000000006', condition: 'urlPath', path: '/checkout', reviewed: true }
 const workspaceTemplate = JSON.stringify({ format: 'hronaut-workspace-template', version: 1, sourcePlatform: 'linux', workspaces: [{ name: 'Research', color: 'blue', startPages: ['https://example.com/'] }] })
 
 // Each call the shell makes, with the channel and arguments main receives; the names are the wire's and stay as they were.
@@ -83,6 +84,33 @@ const invokes: Array<[api: string, method: string, args: unknown[], channel: str
   ['hronaut', 'createNetworkHar', [], 'browser:network-har', [{}]],
   ['hronaut', 'saveNetworkHar', [{ tabId: 'tab-1', filename: 'checkout.har' }], 'browser:save-network-har', [{ tabId: 'tab-1', filename: 'checkout.har' }]],
   ['hronaut', 'saveNetworkHar', [], 'browser:save-network-har', [{}]],
+  ['hronaut', 'runAccessibilityAudit', [{ tabId: 'tab-1', standard: 'wcag-aa' }], 'browser:accessibility-audit', [{ tabId: 'tab-1', standard: 'wcag-aa' }]],
+  ['hronaut', 'runAccessibilityAudit', [], 'browser:accessibility-audit', [{}]],
+  ['hronaut', 'runQualityAudit', ['tab-1'], 'browser:quality-audit', ['tab-1']],
+  ['hronaut', 'measurePerformance', [{ tabId: 'tab-1', settleMs: 500 }], 'browser:performance', [{ tabId: 'tab-1', settleMs: 500 }]],
+  ['hronaut', 'measurePerformance', [], 'browser:performance', [{}]],
+  ['hronaut', 'inspectDesign', ['tab-1'], 'browser:design-overview', ['tab-1']],
+  ['hronaut', 'inspectPageMetadata', ['tab-1'], 'browser:page-metadata', ['tab-1']],
+  ['hronaut', 'inspectSecurity', ['tab-1'], 'browser:security', ['tab-1']],
+  ['hronaut', 'manageCodeCoverage', [{ tabId: 'tab-1', action: 'start', mode: 'block', reload: true }], 'browser:code-coverage', [{ tabId: 'tab-1', action: 'start', mode: 'block', reload: true }]],
+  ['hronaut', 'manageCodeCoverage', [], 'browser:code-coverage', [{}]],
+  ['hronaut', 'manageCpuProfile', [{ tabId: 'tab-1', action: 'stop' }], 'browser:cpu-profile', [{ tabId: 'tab-1', action: 'stop' }]],
+  ['hronaut', 'manageCpuProfile', [], 'browser:cpu-profile', [{}]],
+  ['hronaut', 'measureMemory', [{ tabId: 'tab-1', action: 'set-baseline', collectGarbage: true }], 'browser:memory', [{ tabId: 'tab-1', action: 'set-baseline', collectGarbage: true }]],
+  ['hronaut', 'measureMemory', [], 'browser:memory', [{}]],
+  ['hronaut', 'createDebugReport', [{ tabId: 'tab-1', maxConsoleMessages: 50 }], 'browser:debug-report', [{ tabId: 'tab-1', maxConsoleMessages: 50 }]],
+  ['hronaut', 'createDebugReport', [], 'browser:debug-report', [{}]],
+  ['hronaut', 'setDiagnosticLogPreservation', ['tab-1', true], 'browser:set-diagnostic-log-preservation', ['tab-1', true]],
+  ['hronaut', 'listInspectorIssues', ['tab-1', true], 'browser:inspector-issues', [{ tabId: 'tab-1', clear: true }]],
+  ['hronaut', 'listInspectorIssues', [], 'browser:inspector-issues', [{ tabId: undefined, clear: false }]],
+  ['hronaut', 'manageVideo', [{ tabId: 'tab-1', action: 'start' }], 'browser:video', [{ tabId: 'tab-1', action: 'start' }]],
+  ['hronaut', 'importVideoAudio', ['tab-1', 'Recorded by me'], 'browser:video-import-audio', ['tab-1', 'Recorded by me']],
+  ['hronaut', 'videoPreview', ['tab-1'], 'browser:video-preview', ['tab-1']],
+  ['hronaut', 'manageRepro', ['checkpoint', 'tab-1', reproCheckpoint], 'browser:repro-recording', [{ action: 'checkpoint', tabId: 'tab-1', checkpoint: reproCheckpoint }]],
+  ['hronaut', 'manageRepro', ['start'], 'browser:repro-recording', [{ action: 'start', tabId: undefined }]],
+  ['hronaut', 'manageDomChanges', ['get', 'tab-1'], 'browser:dom-changes', [{ action: 'get', tabId: 'tab-1' }]],
+  ['hronaut', 'visualCompare', [{ tabId: 'tab-1', action: 'compare', threshold: 24 }], 'browser:visual-compare', [{ tabId: 'tab-1', action: 'compare', threshold: 24 }]],
+  ['hronaut', 'copyVisualDiff', ['tab-1'], 'browser:copy-visual-diff', ['tab-1']],
   ['hronaut', 'setTabViewport', ['tab-1', phoneViewport], 'browser:set-tab-viewport', ['tab-1', phoneViewport]],
   ['hronaut', 'setTabViewport', ['tab-1', null], 'browser:set-tab-viewport', ['tab-1', null]],
   ['hronaut', 'setTabEnvironment', ['tab-1', darkEnvironment], 'browser:set-tab-environment', ['tab-1', darkEnvironment]],

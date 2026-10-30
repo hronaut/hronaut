@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge } from 'electron'
 import { addressBarStopsApi } from './bridges/address-bar-stops.js'
 import { addressOverlayApi } from './bridges/address-overlay.js'
 import { agentCardApi } from './bridges/agent-card.js'
@@ -7,6 +7,7 @@ import { attentionApi } from './bridges/attention.js'
 import { bookmarksApi } from './bridges/bookmarks.js'
 import { browsingDataApi } from './bridges/browsing-data.js'
 import { credentialsApi } from './bridges/credentials.js'
+import { debugReportApi, pageAuditsApi, profilingApi, recordingApi, visualCompareApi } from './bridges/diagnostics.js'
 import { downloadsApi } from './bridges/downloads.js'
 import { emulationApi } from './bridges/emulation.js'
 import { historyApi } from './bridges/history.js'
@@ -31,17 +32,7 @@ import { undoApi } from './bridges/undo.js'
 import { updatesApi } from './bridges/updates.js'
 import { walletsApi } from './bridges/wallets.js'
 import { workspacesApi } from './bridges/workspaces.js'
-import type {
-  HronautApi,
-  BrowserAccessibilityAuditOptions,
-  BrowserPerformanceOptions,
-  BrowserCodeCoverageOptions,
-  BrowserCpuProfileOptions,
-  BrowserMemoryOptions,
-  BrowserDebugReportOptions,
-  BrowserDomChangesAction,
-  BrowserVisualCompareOptions
-} from '../shared/types.js'
+import type { HronautApi } from '../shared/types.js'
 
 const api: HronautApi = {
   ...tabsApi,
@@ -59,36 +50,11 @@ const api: HronautApi = {
   ...pageStorageApi,
   ...pageCaptureApi,
   ...consoleNetworkApi,
-  runAccessibilityAudit: (options: BrowserAccessibilityAuditOptions = {}) =>
-    ipcRenderer.invoke('browser:accessibility-audit', options),
-  runQualityAudit: (tabId?: string) => ipcRenderer.invoke('browser:quality-audit', tabId),
-  measurePerformance: (options: BrowserPerformanceOptions = {}) =>
-    ipcRenderer.invoke('browser:performance', options),
-  inspectDesign: (tabId?: string) => ipcRenderer.invoke('browser:design-overview', tabId),
-  inspectPageMetadata: (tabId?: string) => ipcRenderer.invoke('browser:page-metadata', tabId),
-  inspectSecurity: (tabId?: string) => ipcRenderer.invoke('browser:security', tabId),
-  manageCodeCoverage: (options: BrowserCodeCoverageOptions = {}) =>
-    ipcRenderer.invoke('browser:code-coverage', options),
-  manageCpuProfile: (options: BrowserCpuProfileOptions = {}) =>
-    ipcRenderer.invoke('browser:cpu-profile', options),
-  measureMemory: (options: BrowserMemoryOptions = {}) =>
-    ipcRenderer.invoke('browser:memory', options),
-  createDebugReport: (options: BrowserDebugReportOptions = {}) =>
-    ipcRenderer.invoke('browser:debug-report', options),
-  setDiagnosticLogPreservation: (tabId: string, preserve: boolean) =>
-    ipcRenderer.invoke('browser:set-diagnostic-log-preservation', tabId, preserve),
-  manageVideo: options => ipcRenderer.invoke('browser:video', options),
-  importVideoAudio: (tabId, provenance) => ipcRenderer.invoke('browser:video-import-audio', tabId, provenance),
-  videoPreview: tabId => ipcRenderer.invoke('browser:video-preview', tabId),
-  manageRepro: (action, tabId, checkpoint) =>
-    ipcRenderer.invoke('browser:repro-recording', { action, tabId, ...(checkpoint ? { checkpoint } : {}) }),
-  manageDomChanges: (action: BrowserDomChangesAction, tabId?: string) =>
-    ipcRenderer.invoke('browser:dom-changes', { action, tabId }),
-  visualCompare: (options: BrowserVisualCompareOptions) =>
-    ipcRenderer.invoke('browser:visual-compare', options),
-  copyVisualDiff: (tabId?: string) => ipcRenderer.invoke('browser:copy-visual-diff', tabId),
-  listInspectorIssues: (tabId?: string, clear = false) =>
-    ipcRenderer.invoke('browser:inspector-issues', { tabId, clear })
+  ...pageAuditsApi,
+  ...profilingApi,
+  ...debugReportApi,
+  ...recordingApi,
+  ...visualCompareApi
 }
 
 contextBridge.exposeInMainWorld('hronaut', api)

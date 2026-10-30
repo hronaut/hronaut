@@ -58,7 +58,7 @@ export async function inspectVideo(browser: Browser, options: BrowserVideoInspec
   }, signal)
 }
 
-/** The tab's latest recorded frame. */
+/** The tab's rendered recording, for the shell to play; it throws until the recording is rendered. */
 export function videoPreview(browser: Browser, tabId: string): Uint8Array {
   return browser.videoRecorder.preview(getTab(browser, tabId).id)
 }
