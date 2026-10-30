@@ -15,6 +15,8 @@ import { LocalizedError } from '../localized-error.js'
 import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
 import type { WalletCreateInput, WalletDescriptor, WalletServiceStatus } from '../../shared/wallet.js'
 import { sendWalletProviderEvent, walletPageContextForMcpTab } from '../browser/wallet-pages/wallet-pages.js'
+import type { EventSender } from '../../shared/ipc/channel.js'
+import { WALLETS_IPC } from '../../shared/ipc/wallets.js'
 
 /**
  * The wallet service and its broker, created once by index.ts. They start together after the license store and are
@@ -33,7 +35,7 @@ export interface WalletRuntimeState {
 interface WalletRuntimeHost {
   /** The wallet service and broker; index.ts creates the record, and the wallet IPC, tab callbacks and shutdown read it. */
   state: WalletRuntimeState
-  sendToMainWindow(channel: string, ...args: unknown[]): void
+  sendToMainWindow: EventSender
   /** The license store, which admits agents to wallets; null until startup configures it. */
   commercialLicenseStore(): Pick<CommercialLicenseStore, 'assertAutomationAccess'> | null
   /** The tab runtime, which owns the pages wallets serve; null until the window opens. */
@@ -74,10 +76,10 @@ export function createWalletRuntime(host: WalletRuntimeHost): {
       platform: process.platform,
       safeStorage: safeStorage as unknown as WalletSafeStorage,
       onChanged: (wallets) => {
-        host.sendToMainWindow('wallets:changed', wallets)
+        host.sendToMainWindow(WALLETS_IPC.changed, wallets)
         host.state.broker?.refreshProviderSessions()
       },
-      onStatusChanged: (status) => host.sendToMainWindow('wallets:status-changed', status),
+      onStatusChanged: (status) => host.sendToMainWindow(WALLETS_IPC.statusChanged, status),
       warn: (message) => console.warn(`[wallet] ${message}`)
     })
     try {
@@ -88,7 +90,7 @@ export function createWalletRuntime(host: WalletRuntimeHost): {
           if (!host.commercialLicenseStore()) throw new Error('License storage is unavailable')
           host.commercialLicenseStore()!.assertAutomationAccess()
         },
-        onPendingChanged: (requests) => host.sendToMainWindow('wallets:requests-changed', requests),
+        onPendingChanged: (requests) => host.sendToMainWindow(WALLETS_IPC.requestsChanged, requests),
         onProviderEvent: (tabId, event) => {
           const browser = host.tabs()
           if (browser) sendWalletProviderEvent(browser, tabId, event)
@@ -101,8 +103,8 @@ export function createWalletRuntime(host: WalletRuntimeHost): {
       host.state.unavailableStatus = walletStartupFailureStatus(error)
       console.error(`[wallet] Wallet startup disabled (${host.state.unavailableStatus.backend}).`)
     }
-    host.sendToMainWindow('wallets:status-changed', currentWalletServiceStatus())
-    host.sendToMainWindow('wallets:changed', host.state.service?.list() ?? [])
+    host.sendToMainWindow(WALLETS_IPC.statusChanged, currentWalletServiceStatus())
+    host.sendToMainWindow(WALLETS_IPC.changed, host.state.service?.list() ?? [])
   }
 
   function assertWalletPageSender(event: Electron.IpcMainInvokeEvent) {

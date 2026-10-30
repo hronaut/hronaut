@@ -73,7 +73,29 @@ const invokes: Array<[api: string, method: string, args: unknown[], channel: str
   ['hronautHistory', 'clear', [], 'visit-history:clear', []],
   ['hronautMcp', 'getState', [], 'mcp:get-state', []],
   ['hronautMcp', 'setPaused', [true], 'mcp:set-paused', [true]],
-  ['hronautMcp', 'moveToSuggestedPort', [9334], 'mcp:move-to-suggested-port', [9334]]
+  ['hronautMcp', 'moveToSuggestedPort', [9334], 'mcp:move-to-suggested-port', [9334]],
+  ['hronautWallets', 'status', [], 'wallets:status', []],
+  ['hronautWallets', 'list', [], 'wallets:list', []],
+  ['hronautWallets', 'setupPassphrase', ['correct horse'], 'wallets:setup-passphrase', ['correct horse']],
+  ['hronautWallets', 'unlock', ['correct horse'], 'wallets:unlock', ['correct horse']],
+  ['hronautWallets', 'lock', [], 'wallets:lock', []],
+  ['hronautWallets', 'generate', [{ chainFamily: 'evm', name: 'Test' }], 'wallets:generate', [{ chainFamily: 'evm', name: 'Test' }]],
+  ['hronautWallets', 'prepareImport', ['evm', 'mnemonic', 'words'], 'wallets:prepare-import', ['evm', 'mnemonic', 'words']],
+  ['hronautWallets', 'confirmImport', ['token-1', { name: 'Imported' }], 'wallets:confirm-import', ['token-1', { name: 'Imported' }]],
+  ['hronautWallets', 'cancelImport', ['token-1'], 'wallets:cancel-import', ['token-1']],
+  ['hronautWallets', 'addWatchOnly', [{ chainFamily: 'evm', publicAddress: '0x1' }], 'wallets:add-watch-only', [{ chainFamily: 'evm', publicAddress: '0x1' }]],
+  ['hronautWallets', 'update', ['wallet-1', { name: 'Renamed' }], 'wallets:update', ['wallet-1', { name: 'Renamed' }]],
+  ['hronautWallets', 'remove', ['wallet-1'], 'wallets:remove', ['wallet-1']],
+  ['hronautWallets', 'listPolicies', [], 'wallets:list-policies', [undefined]],
+  ['hronautWallets', 'listPolicies', ['wallet-1'], 'wallets:list-policies', ['wallet-1']],
+  ['hronautWallets', 'setPolicy', [{ id: 'policy-1' }], 'wallets:set-policy', [{ id: 'policy-1' }]],
+  ['hronautWallets', 'removePolicy', ['policy-1'], 'wallets:remove-policy', ['policy-1']],
+  ['hronautWallets', 'listPermissions', [], 'wallets:list-permissions', []],
+  ['hronautWallets', 'revokePermission', ['permission-1'], 'wallets:revoke-permission', ['permission-1']],
+  ['hronautWallets', 'listRequests', [], 'wallets:list-requests', []],
+  ['hronautWallets', 'approveRequest', ['request-1'], 'wallets:approve-request', ['request-1']],
+  ['hronautWallets', 'rejectRequest', ['request-1'], 'wallets:reject-request', ['request-1']],
+  ['hronautWallets', 'auditHistory', [], 'wallets:audit-history', []]
 ]
 
 it.each(invokes)('%s.%s asks main on its channel with its arguments and returns main\'s answer', async (api, method, args, channel, sent) => {
@@ -96,7 +118,10 @@ const listeners: Array<[api: string, method: string, channel: string, received: 
   ['hronautBookmarks', 'collections.onChanged', 'bookmark-collections:changed', [{ revision: 1, collections: [] }]],
   ['hronautHistory', 'onChanged', 'visit-history:changed', [[{ id: 'entry-1' }]]],
   ['hronautHistory', 'onUpdated', 'visit-history:updated', [{ entries: [], removedIds: ['entry-1'] }]],
-  ['hronautMcp', 'onChanged', 'mcp:changed', [{ paused: false }]]
+  ['hronautMcp', 'onChanged', 'mcp:changed', [{ paused: false }]],
+  ['hronautWallets', 'onChanged', 'wallets:changed', [[{ id: 'wallet-1' }]]],
+  ['hronautWallets', 'onStatusChanged', 'wallets:status-changed', [{ managedWallets: 'locked', backend: 'keyring', watchOnlyAvailable: true }]],
+  ['hronautWallets', 'onRequestsChanged', 'wallets:requests-changed', [[{ id: 'request-1' }]]]
 ]
 
 it.each(listeners)('%s.%s passes on only what the channel carries, without the event or extras, until it is stopped', async (api, method, channel, received) => {
