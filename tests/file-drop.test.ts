@@ -56,11 +56,11 @@ function dropPage(options: {
   const webContents = {
     executeJavaScriptInIsolatedWorld: async (world: number, sources: Array<{ code: string }>) => {
       const code = sources[0]?.code ?? ''
-      if (code.includes('querySelectorAll')) {
-        scripts.push({ world, kind: code.includes('const install = true') ? 'locate' : 'relocate' })
+      if (code.includes('function fileDropLocateInPage(')) {
+        scripts.push({ world, kind: code.endsWith(', true)') ? 'locate' : 'relocate' })
         return locations.shift() ?? { problem: 'replaced' }
       }
-      const phase = /const phase = "(enter|over|drop)"/.exec(code)?.[1] as 'enter' | 'over' | 'drop' | undefined
+      const phase = code.includes('function fileDropObserveInPage(') ? /, "(enter|over|drop)"\)$/.exec(code)?.[1] as 'enter' | 'over' | 'drop' | undefined : undefined
       if (phase) {
         scripts.push({ world, kind: phase })
         const next = observations[phase].shift() ?? {}
