@@ -1,7 +1,7 @@
 import type { McpControlState, McpPortMoveResponse } from '../types.js'
 import type { EventChannel, InvokeChannel } from './channel.js'
 
-/** The MCP server's state and the person's controls over it, for the toolbar, Settings and Home. */
+/** The MCP server's state and the person's controls over it, for the shell's toolbar and Settings. */
 export const MCP_IPC = {
   /** Shell → main: the MCP server's state. */
   getState: 'mcp:get-state' as InvokeChannel<[], McpControlState>,

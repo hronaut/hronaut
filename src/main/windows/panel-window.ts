@@ -20,13 +20,13 @@ import type {
   ThemeName
 } from '../../shared/types.js'
 import { browserState } from '../browser/browser-state/browser-state.js'
-import { CREDENTIALS_IPC } from '../../shared/ipc/credentials.js'
-import { PERMISSIONS_IPC } from '../../shared/ipc/permissions.js'
-import { UPDATES_IPC } from '../../shared/ipc/updates.js'
 import { BOOKMARKS_IPC } from '../../shared/ipc/bookmarks.js'
+import { CREDENTIALS_IPC } from '../../shared/ipc/credentials.js'
 import { DOWNLOADS_IPC } from '../../shared/ipc/downloads.js'
 import { HISTORY_IPC } from '../../shared/ipc/history.js'
 import { MCP_IPC } from '../../shared/ipc/mcp.js'
+import { PERMISSIONS_IPC } from '../../shared/ipc/permissions.js'
+import { UPDATES_IPC } from '../../shared/ipc/updates.js'
 
 /**
  * The detached panel window and what it shows, created once by index.ts. The window opens and closes while the app

@@ -1,7 +1,7 @@
 import type { BookmarkCollectionSnapshot, BookmarkImportResult, BookmarkTabsOutcome, BrowserBookmark } from '../types.js'
 import type { EventChannel, InvokeChannel } from './channel.js'
 
-/** The person's bookmarks, for the Bookmarks panel, the bookmark star and Home. */
+/** The person's bookmarks, as the shell shows and edits them. */
 export const BOOKMARKS_IPC = {
   /** Shell → main: every bookmark. */
   list: 'bookmarks:list' as InvokeChannel<[], BrowserBookmark[]>,
@@ -17,13 +17,13 @@ export const BOOKMARKS_IPC = {
   remove: 'bookmarks:remove' as InvokeChannel<[id: string], BrowserBookmark[]>,
   /** Shell → main: saves every bookmark to an HTML file the person picks: how many, or null when they cancel. */
   exportFile: 'bookmarks:export-file' as InvokeChannel<[], number | null>,
-  /** Shell → main: adds the bookmarks of an HTML file the person picks, or null when they cancel. */
+  /** Shell → main: adds the bookmarks of an HTML file the person picks: what it added, or null when they cancel. */
   importFile: 'bookmarks:import-file' as InvokeChannel<[], BookmarkImportResult | null>,
   /** Main → shells: the bookmarks changed. */
   changed: 'bookmarks:changed' as EventChannel<[bookmarks: BrowserBookmark[]]>
 } as const
 
-/** The collections bookmarks are sorted into. */
+/** The collections bookmarks are sorted into, as the shell shows and edits them. */
 export const BOOKMARK_COLLECTIONS_IPC = {
   /** Shell → main: every collection. */
   list: 'bookmark-collections:list' as InvokeChannel<[], BookmarkCollectionSnapshot>,
@@ -35,8 +35,11 @@ export const BOOKMARK_COLLECTIONS_IPC = {
   remove: 'bookmark-collections:remove' as InvokeChannel<[id: string], BookmarkCollectionSnapshot>,
   /** Shell → main: puts a bookmark in a collection, or in none for null, answering with the collections after. */
   assign: 'bookmark-collections:assign' as InvokeChannel<[bookmarkId: string, collectionId: string | null], BookmarkCollectionSnapshot>,
-  /** Shell → main: Bookmark all tabs, the open tabs of a workspace (none for null) in a new collection with this name. */
+  /**
+   * Shell → main: Bookmark all tabs, the open tabs of a workspace, or of no workspace for null, go in a new collection
+   * with this name; answers with the collections after and what was added.
+   */
   bookmarkTabs: 'bookmark-collections:bookmark-tabs' as InvokeChannel<[workspaceId: string | null, name: string], BookmarkTabsOutcome>,
-  /** Main → shells: the collections changed. */
+  /** Main → shells: the collections, sent with every change to the bookmarks. */
   changed: 'bookmark-collections:changed' as EventChannel<[snapshot: BookmarkCollectionSnapshot]>
 } as const

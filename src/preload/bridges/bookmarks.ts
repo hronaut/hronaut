@@ -1,5 +1,5 @@
 import type { HronautBookmarksApi } from '../../shared/types.js'
-import { BOOKMARK_COLLECTIONS_IPC, BOOKMARKS_IPC } from '../../shared/ipc/bookmarks.js'
+import { BOOKMARKS_IPC, BOOKMARK_COLLECTIONS_IPC } from '../../shared/ipc/bookmarks.js'
 import { invoke, subscribe } from './ipc.js'
 
 /** window.hronautBookmarks: the person's bookmarks and the collections they are sorted into. */
