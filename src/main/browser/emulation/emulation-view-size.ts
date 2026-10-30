@@ -3,6 +3,7 @@ import { findTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { publishPageGeometry } from '../page-geometry/page-geometry.js'
 import { contentAreaBounds } from '../window-layout/content-area.js'
+import { tabViewBounds } from './tab-view-bounds.js'
 
 /**
  * Sizes a tab's page for the emulated viewport it now has, or for its whole
@@ -22,7 +23,7 @@ export function setEmulationViewSize(browser: Browser, tab: BrowserTab, viewport
       // The caption can change without the size, such as the pixel ratio.
       else publishPageGeometry(browser)
     } else if (resized && !attached) {
-      tab.view.setBounds(browser.tabViewBounds(tab, contentAreaBounds(browser)))
+      tab.view.setBounds(tabViewBounds(browser, tab, contentAreaBounds(browser)))
     }
     // An attached tab that is not in front stands in for a tab closing behind
     // its beforeunload check, and gets its size when it is next laid out.

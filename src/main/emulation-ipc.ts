@@ -5,6 +5,7 @@ import type { BrowserEnvironmentSettings, BrowserViewportEmulation } from '../sh
 import { isBrowserViewportEmulation } from '../shared/viewport-presets.js'
 import { emulate } from './browser/emulation/emulation.js'
 import { browserState } from './browser/browser-state/browser-state.js'
+import { clearCssStatePreview } from './browser/css-state-preview/browser-css-state-preview.js'
 
 interface EmulationIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
@@ -18,7 +19,7 @@ export function registerEmulationIpc(host: EmulationIpcHost): void {
   host.handleBrowserIpc('browser:clear-css-state-preview', (event, tabId: unknown) => {
     host.assertTrustedSender(event)
     if (typeof tabId !== 'string') throw new TypeError('Invalid CSS state preview tab')
-    return host.tabs()!.clearCssStatePreview(tabId)
+    return clearCssStatePreview(host.tabs()!, tabId)
   })
   host.handleBrowserIpc('browser:set-tab-viewport', async (event, tabId: unknown, viewport: unknown) => {
     host.assertTrustedSender(event)

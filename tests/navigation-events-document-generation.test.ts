@@ -15,6 +15,12 @@ vi.mock('../src/main/browser/workspace-navigation/workspace-navigation.js', asyn
 }))
 import { attachNavigationEvents } from '../src/main/browser/tab-events/navigation-events.js'
 
+// The fake browser stubs these, which are functions now; the mock reaches its stubs.
+vi.mock('../src/main/browser/background-action.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/background-action.js')>(),
+  runWalletLifecycleAction: (browser: { runWalletLifecycleAction: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.runWalletLifecycleAction(...args)
+}))
+
 // Find in page ends its search when the tab's document generation changes. A Find opened while the next page was still
 // loading searched the old page; the generation had already advanced when that navigation started, so when the next
 // page replaced it, Find stayed open with the old page's matches and Chromium repeated the query on the new page.

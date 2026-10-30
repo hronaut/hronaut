@@ -4,6 +4,7 @@ vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage
 import { Browser } from '../src/main/browser/browser.js'
 import { attachPageKeyboardEvents } from '../src/main/browser/tab-events/page-keyboard-events.js'
 import { createOverlaySurfaces } from '../src/main/windows/overlay-surfaces.js'
+import { noteShellKey } from '../src/main/browser/tab-events/shell-held-keys.js'
 
 type KeyInput = Partial<Electron.Input> & { type: Electron.Input['type'] }
 
@@ -35,7 +36,7 @@ async function railView() {
     tooltipView: {} as never,
     sidebarOverlayView: { ensure: async () => loaded as never, present: vi.fn(), withdraw: vi.fn() },
     sidebarOverlay: { pointerActivity },
-    sidebarOverlayKeyboard: { noteKey: (input) => tabs.noteShellKey(input), runShortcut },
+    sidebarOverlayKeyboard: { noteKey: (input) => noteShellKey(tabs, input), runShortcut },
     shellTooltips: { shownId: undefined, hide: vi.fn() },
     statusBubbleView: {} as never,
     statusBubble: {} as never

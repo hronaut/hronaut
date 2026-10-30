@@ -6,6 +6,7 @@ import { contentLoaded } from '../certificate-errors/certificate-errors.js'
 import { findTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { publishChange } from '../browser-state/browser-state.js'
+import { certificatesChanged } from '../certificate-errors/browser-certificate-errors.js'
 
 /**
  * Hooks a browser session once: its cookie changes advance the generation of
@@ -84,7 +85,7 @@ export function installSessionHooks(browser: Browser, browserSession: Session): 
     browserSession.webRequest.onCompleted((details) => {
       const tab = requestTab(details)
       // What a page loads counts for whether it is private; its own document counts once it shows.
-      if (tab && details.resourceType !== 'mainFrame') contentLoaded({ changed: () => browser.certificatesChanged(tab) }, tab, details.url)
+      if (tab && details.resourceType !== 'mainFrame') contentLoaded({ changed: () => certificatesChanged(browser, tab) }, tab, details.url)
       const request = tab && latestRecord(tab, details.id)
       if (!tab || !request || request.completedAt !== undefined) return
       request.completedAt = new Date().toISOString()

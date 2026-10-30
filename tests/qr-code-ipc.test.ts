@@ -6,6 +6,11 @@ vi.mock('electron', () => ({
     createFromBitmap: (data: Buffer, size: { width: number }) => ({ toPNG: () => Buffer.concat([Buffer.from(`${size.width}:`), data.subarray(0, 64)]) })
   }
 }))
+// Saving the image is a function now; it reaches the fake's stub.
+vi.mock('../src/main/browser/downloads/browser-downloads.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/downloads/browser-downloads.js')>(),
+  downloadGeneratedFile: (browser: { downloadGeneratedFile: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.downloadGeneratedFile(...args)
+}))
 
 const { registerQrCodeIpc } = await import('../src/main/qr-code-ipc.js')
 const { qrCodePng } = await import('../src/main/browser/qr-code/qr-code-image.js')
@@ -21,7 +26,7 @@ function harness() {
   registerQrCodeIpc({
     assertTrustedSender: (event) => { if (event !== trusted) throw new Error('Untrusted sender') },
     handleBrowserIpc: (channel, listener) => { handlers.set(channel, listener as never) },
-    tabs: () => ({ downloadGeneratedFile }),
+    tabs: () => ({ downloadGeneratedFile }) as never,
     copyPngToClipboard
   })
   const invoke = async (channel: string, event: IpcMainInvokeEvent, value: unknown) => handlers.get(channel)!(event, value)

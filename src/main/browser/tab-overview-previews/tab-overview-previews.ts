@@ -10,6 +10,7 @@ import { findTab, getTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { withDebugger } from '../debugger-lease/debugger-lease.js'
 import { withRenderableTab } from '../renderable-tab/renderable-tab.js'
+import { screenshotPixelRatio } from '../screenshots/screenshot-scale.js'
 
 /** How an overview capture reads the page: the frame in view, or a hidden page behind the overview. */
 export type TabOverviewPreviewCaptureMode = 'visible' | 'overview'
@@ -114,7 +115,7 @@ export async function getTabOverviewPagePreview(browser: Browser, tabId: string)
   let viewportIdentity: string | undefined = undefined
   const currentViewportIdentity = (): string => {
     const { width, height } = tab.view.getBounds()
-    return JSON.stringify([width, height, webContents.getZoomFactor(), browser.screenshotPixelRatio(tab), tab.emulation.viewport])
+    return JSON.stringify([width, height, webContents.getZoomFactor(), screenshotPixelRatio(browser, tab), tab.emulation.viewport])
   }
   const assertCurrent = (): void => {
     if (expired) throw new LocalizedError('appErrors.previews.timedOut')
@@ -156,7 +157,7 @@ export async function getTabOverviewPagePreview(browser: Browser, tabId: string)
     }
     // Page JavaScript can replace devicePixelRatio. Only trusted native and
     // Hronaut emulation values may influence capture allocation limits.
-    const pixelRatio = browser.screenshotPixelRatio(tab)
+    const pixelRatio = screenshotPixelRatio(browser, tab)
     // Page.Viewport takes DIP, while cssContentSize is CSS pixels. Native
     // page zoom changes that ratio; scaling only the output crops the page.
     const clip = fullPageScreenshotBounds(metrics, webContents.getZoomFactor())

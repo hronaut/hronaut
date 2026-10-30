@@ -1,3 +1,5 @@
+import type { Browser } from './browser.js'
+
 export async function runBackgroundAction(
   action: string,
   callback: () => unknown,
@@ -13,4 +15,12 @@ export async function runBackgroundAction(
       // The owning reporter is responsible for logging before notifying UI.
     }
   }
+}
+
+/** Runs a wallet step a tab's lifecycle starts in the background, logging and reporting a failure. */
+export function runWalletLifecycleAction(browser: Browser, action: string, callback: () => unknown): void {
+  void runBackgroundAction(action, callback, (failedAction, error) => {
+    console.error(`[wallet] Could not ${failedAction}:`, error)
+    browser.options.onActionFailed?.(failedAction, error)
+  })
 }

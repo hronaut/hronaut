@@ -6,6 +6,7 @@ import type { SavedWindowState } from './window-state.js'
 import type { MainWindowRefs } from './windows/main-window.js'
 import type { PanelWindowRefs } from './windows/panel-window.js'
 import type { AppSettings } from '../shared/types.js'
+import { failHeldNetworkResponses } from './browser/network-conditions/held-responses.js'
 
 /**
  * Whether the app is quitting, created once by index.ts. It is set once and stays set: closing the main window then
@@ -78,7 +79,8 @@ export function registerAppLifecycle(app: Pick<App, 'on' | 'whenReady' | 'quit' 
     host.mainWindowRefs.lastState = host.currentWindowState() ?? host.mainWindowRefs.lastState
     host.panelWindowRefs.lastState = host.currentPanelWindowState() ?? host.panelWindowRefs.lastState
     // A page that closes with a request still held lets Chromium send it to its real destination.
-    host.tabs()?.failHeldNetworkResponses()
+    const browser = host.tabs()
+    if (browser) failHeldNetworkResponses(browser)
   })
 
   app.whenReady().then(async () => {

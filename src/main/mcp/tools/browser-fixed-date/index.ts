@@ -3,6 +3,7 @@ import { FIXED_DATE_ACTIONS, FIXED_DATE_MAX_EPOCH_MS, type FixedDateAction } fro
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { fixedDate } from '../../../browser/fixed-date/browser-fixed-date.js'
 
 /** An ISO 8601 instant with a date, a time and an explicit Z or UTC offset, so it never depends on a time zone. */
 const ISO_INSTANT = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?(?:Z|([+-])(\d{2}):(\d{2}))$/
@@ -50,7 +51,7 @@ export function registerBrowserFixedDate(context: McpToolContext): void {
       const instant = action === 'stage' ? stagedEpochMs(at, epochMs) : undefined
       if (action !== 'stage' && (at !== undefined || epochMs !== undefined)) throw new Error('at and epochMs are only for action stage')
       // Checked again at each installation and status, without renewing the agent's write ownership.
-      return textResult(manager.fixedDate(tabId, action, instant, { assertCurrent: origin => call.validateLifecycle(origin) }))
+      return textResult(fixedDate(manager, tabId, action, instant, { assertCurrent: origin => call.validateLifecycle(origin) }))
     }, 'never'),
     { readOnly: input => input.action === 'status' }
   )

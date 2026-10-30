@@ -44,6 +44,11 @@ vi.mock('../src/main/browser/page-snapshots/page-snapshots.js', async (importOri
   ...await importOriginal<typeof import('../src/main/browser/page-snapshots/page-snapshots.js')>(),
   snapshotDetails: (browser: { snapshotDetails: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.snapshotDetails(...args)
 }))
+// The fake browser stubs these, which are functions now; the mock reaches its stubs.
+vi.mock('../src/main/browser/css-state-preview/browser-css-state-preview.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/css-state-preview/browser-css-state-preview.js')>(),
+  cssStatePreviewMarker: (browser: { cssStatePreviewMarker: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.cssStatePreviewMarker(...args)
+}))
 
 it.each(['browser_screenshot', 'browser_snapshot'])('withholds %s when cancellation arrives during audit persistence', async toolName => {
   const workspaceId = '01912345-6789-7abc-8def-0123456789ab'

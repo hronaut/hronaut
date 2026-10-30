@@ -15,6 +15,12 @@ import { closeTabTransition } from '../src/main/browser/tab-close/close-transiti
 import { removeTabRecord } from '../src/main/browser/tab-close/remove-tab-record.js'
 import { selectTabForPerson } from '../src/main/browser/tab-selection/person-tab-switch.js'
 
+// The fake browser stubs these, which are functions now; the mock reaches its stubs.
+vi.mock('../src/main/browser/background-action.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/background-action.js')>(),
+  runWalletLifecycleAction: (browser: { runWalletLifecycleAction: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.runWalletLifecycleAction(...args)
+}))
+
 // Closing a tab opened from a page's link showed the tab to its right, where Chrome shows the page's next tab or the
 // page itself; a workspace whose remembered tab closed off screen remembered that tab too.
 

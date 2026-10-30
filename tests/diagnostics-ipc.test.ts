@@ -55,6 +55,11 @@ vi.mock('../src/main/browser/dom-recorder/browser-dom-recorder.js', async (impor
   ...await importOriginal<typeof import('../src/main/browser/dom-recorder/browser-dom-recorder.js')>(),
   domChanges: (browser: { domChanges: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.domChanges(...args)
 }))
+// The fake browser stubs these, which are functions now; the mock reaches its stubs.
+vi.mock('../src/main/browser/profiling/browser-profiling.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/profiling/browser-profiling.js')>(),
+  codeCoverage: (browser: { codeCoverage: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.codeCoverage(...args)
+}))
 
 type Listener = Parameters<IpcMain['handle']>[1]
 const channels = [

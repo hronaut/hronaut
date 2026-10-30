@@ -8,6 +8,12 @@ vi.mock('../src/main/browser/tab-overview-previews/tab-overview-previews.js', as
 import { Browser } from '../src/main/browser/browser.js'
 import { removeTabRecord } from '../src/main/browser/tab-close/remove-tab-record.js'
 
+// The fake browser stubs these, which are functions now; the mock reaches its stubs.
+vi.mock('../src/main/browser/background-action.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/background-action.js')>(),
+  runWalletLifecycleAction: (browser: { runWalletLifecycleAction: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.runWalletLifecycleAction(...args)
+}))
+
 // When the tab a workspace remembered closed while another workspace was on screen, for example when an agent closed
 // it, the workspace remembered its first tab. Going back to the workspace showed that tab, and agent commands without
 // a tab ID used it, where closing the same tab on screen shows, and remembers, the popup's opener or the tab beside it.

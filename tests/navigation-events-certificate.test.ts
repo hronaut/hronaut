@@ -8,6 +8,12 @@ vi.mock('../src/main/browser/certificate-errors/certificate-errors.js', async (i
 }))
 import { attachNavigationEvents } from '../src/main/browser/tab-events/navigation-events.js'
 
+// The fake browser stubs these, which are functions now; the mock reaches its stubs.
+vi.mock('../src/main/browser/certificate-errors/browser-certificate-errors.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/certificate-errors/browser-certificate-errors.js')>(),
+  answerTabCertificateError: (browser: { answerCertificateError: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.answerCertificateError(...args)
+}))
+
 const PAGE = 'https://staging.example/login'
 
 /** A stand-in for whatever the handlers call on the tab manager: any call or property gives another stand-in. */

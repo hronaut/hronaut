@@ -23,6 +23,7 @@ import type { BrowserTab } from '../browser-tab.js'
 import { withDebugger } from '../debugger-lease/debugger-lease.js'
 import { withAgentInput } from '../agent-input-scope/agent-input-scope.js'
 import { nativeInputAuthority } from '../native-input-authority/native-input-authority.js'
+import { observeOpenedTabs, stopObservingOpenedTabs } from '../click-opened-tabs.js'
 
 /** A key held for one native click; ControlOrMeta is Meta on macOS and Control elsewhere. */
 export type BrowserClickModifier = 'Shift' | 'Control' | 'Meta' | 'ControlOrMeta'
@@ -48,14 +49,14 @@ export async function click(browser: Browser, target: BrowserClickTarget, valida
   let observed: { tab: BrowserTab; observation: OpenedTabObservation } | undefined
   try {
     const result = await dispatchClick(browser, target, validateClick, recordClickProgress, retainClickAuthority, (tab) => {
-      observed = { tab, observation: browser.observeOpenedTabs(tab) }
+      observed = { tab, observation: observeOpenedTabs(browser, tab) }
     }, agent)
     const current = observed
     observed = undefined
-    const opened = current && browser.stopObservingOpenedTabs(current.tab, current.observation)
+    const opened = current && stopObservingOpenedTabs(browser, current.tab, current.observation)
     return opened && result && typeof result === 'object' ? { ...result, tabsOpenedDuringClick: opened } : result
   } finally {
-    if (observed) browser.stopObservingOpenedTabs(observed.tab, observed.observation)
+    if (observed) stopObservingOpenedTabs(browser, observed.tab, observed.observation)
   }
 }
 

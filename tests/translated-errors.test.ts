@@ -10,6 +10,11 @@ vi.mock('node:fs/promises', async (importOriginal) => {
   const fs = await importOriginal<typeof import('node:fs/promises')>()
   return { ...fs, open: vi.fn(fs.open) }
 })
+// The fake browser stubs these, which are functions now; the mock reaches its stubs.
+vi.mock('../src/main/browser/presented-view-visibility.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/presented-view-visibility.js')>(),
+  reconcileTabPresentation: (browser: { reconcileTabPresentation: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.reconcileTabPresentation(...args)
+}))
 
 const { LocalizedError, withTranslatedIpcErrors } = await import('../src/main/localized-error.js')
 const { translate } = await import('../src/shared/i18n.js')

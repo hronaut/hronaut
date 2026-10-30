@@ -11,6 +11,7 @@ import type { TrustedDialogOptions } from '../trusted-dialogs/trusted-dialogs.js
 import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
 import { LocalizedError } from '../localized-error.js'
 import type { AppSettings, McpControlState, McpServerStatus } from '../../shared/types.js'
+import { setMcpUrl } from '../browser/browser-state/browser-state.js'
 
 /**
  * The MCP listener's runtime state, created once by index.ts. Startup and port changes replace the server and its
@@ -54,7 +55,7 @@ interface McpRuntimeHost {
   /** Refuses a change while saved workspaces are still initializing or failed to start. */
   assertWorkspaceInitialized(): void
   /** The tab runtime, which shows pages the current endpoint; null until the window opens. */
-  tabs(): Pick<Browser, 'setMcpUrl'> | null
+  tabs(): Browser | null
   /** Translates into the current interface language; read on every use because the language can change. */
   text(key: MessageKey, parameters?: MessageParameters): string
   /** Asks in Hronaut's own dialog over the main window's pages, or in the system dialog while that window cannot show it. */
@@ -189,7 +190,8 @@ export function createMcpRuntime(host: McpRuntimeHost): {
     host.state.status = 'ready'
     host.state.startupError = undefined
     host.mcpPortRecovery.clear()
-    host.tabs()?.setMcpUrl(host.state.url)
+    const browser = host.tabs()
+    if (browser) setMcpUrl(browser, host.state.url)
     host.publishSettings()
     host.publishMcpControlState()
     await previous?.stop().catch((error) => console.error('[mcp] Failed to stop previous listener:', error))
@@ -258,7 +260,8 @@ export function createMcpRuntime(host: McpRuntimeHost): {
     host.state.status = 'ready'
     host.state.startupError = undefined
     host.mcpPortRecovery.clear()
-    host.tabs()?.setMcpUrl(host.state.url)
+    const browser = host.tabs()
+    if (browser) setMcpUrl(browser, host.state.url)
     host.publishSettings()
     host.publishMcpControlState()
     await previous?.stop().catch((error) => console.error('[mcp] Failed to stop previous listener:', error))

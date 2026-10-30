@@ -6,6 +6,7 @@ import { ScreenshotObservations } from './screenshot-observations.js'
 import { screenshotSettlement, type ScreenshotSettlement } from './screenshot-settlement.js'
 import { trackedViewportScreenshot } from '../../../browser/screenshot-observations/tracked-screenshot.js'
 import { screenshot } from '../../../browser/screenshots/screenshots.js'
+import { cssStatePreviewMarker } from '../../../browser/css-state-preview/browser-css-state-preview.js'
 
 export function registerBrowserScreenshot(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -57,11 +58,11 @@ export function registerBrowserScreenshot(context: McpToolContext): void {
           throw new TypeError('trackChanges and ifChangedSince support plain viewport screenshots only; omit fullPage, ref, selector, clip and annotateRefs, and do not set trackChanges to false')
         }
         const { tabId, format, quality, maxWidth, maxHeight } = captureOptions
-        const previewBefore = manager.cssStatePreviewMarker(tabId)
+        const previewBefore = cssStatePreviewMarker(manager, tabId)
         const capture = await trackedViewportScreenshot(manager, { tabId, format, quality, maxWidth, maxHeight })
         const { report: observation, commit } = observations.observe(call.workspaceId, capture, ifChangedSince)
         call.settlement.retainObservation(commit)
-        const cssStatePreview = previewBefore ?? manager.cssStatePreviewMarker(tabId)
+        const cssStatePreview = previewBefore ?? cssStatePreviewMarker(manager, tabId)
         const note = observation.status === 'UNCHANGED'
           ? 'The viewport pixels match that observation, so no image is returned. This does not prove that the page or its state is unchanged, that nothing changed in between, that an action failed or succeeded, or that it may be repeated.'
           : undefined
@@ -71,9 +72,9 @@ export function registerBrowserScreenshot(context: McpToolContext): void {
           ...(observation.status === 'UNCHANGED' ? [] : [{ type: 'image' as const, data: capture.data.toString('base64'), mimeType: capture.mimeType }])
         ] }
       }
-      const previewBefore = manager.cssStatePreviewMarker(options.tabId)
+      const previewBefore = cssStatePreviewMarker(manager, options.tabId)
       const image = await screenshot(manager, options)
-      const cssStatePreview = previewBefore ?? manager.cssStatePreviewMarker(options.tabId)
+      const cssStatePreview = previewBefore ?? cssStatePreviewMarker(manager, options.tabId)
       return { content: [
         ...(image.annotations ? [{ type: 'text' as const, text: JSON.stringify(image.annotations) }] : []),
         ...(cssStatePreview ? [{ type: 'text' as const, text: JSON.stringify({ cssStatePreview, note: 'Captured while a forced CSS state was applied; this is not natural page state.' }) }] : []),

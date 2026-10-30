@@ -28,6 +28,16 @@ import { withRenderableTab } from '../src/main/browser/renderable-tab/renderable
 import type { Browser } from '../src/main/browser/browser.js'
 import type { BrowserTab } from '../src/main/browser/browser-tab.js'
 
+// The fake browser stubs these, which are functions now; the mock reaches its stubs.
+vi.mock('../src/main/browser/emulation/tab-view-bounds.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/emulation/tab-view-bounds.js')>(),
+  tabViewBounds: (browser: { tabViewBounds: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.tabViewBounds(...args)
+}))
+vi.mock('../src/main/browser/presented-view-visibility.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/presented-view-visibility.js')>(),
+  reconcileTabPresentation: (browser: { reconcileTabPresentation: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.reconcileTabPresentation(...args)
+}))
+
 type Lease = (page: unknown, operation: () => Promise<unknown>) => Promise<unknown>
 
 const REDRAW = ['Page.captureScreenshot', { format: 'jpeg', quality: 10, fromSurface: true }] as const

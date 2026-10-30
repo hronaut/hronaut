@@ -1,6 +1,7 @@
-import { publishChange } from '../browser-state/browser-state.js'
+import { browserState, publishChange } from '../browser-state/browser-state.js'
 import type { BrowserTab } from '../browser-tab.js'
 import type { Browser } from '../browser.js'
+import type { BrowserState } from '../../../shared/types.js'
 import { withDebugger } from '../debugger-lease/debugger-lease.js'
 import { LogpointSets } from './logpoints.js'
 import { getTab } from '../browser-core.js'
@@ -35,4 +36,10 @@ export function logpoint(
   options: { probes?: LogpointRequest[]; maxHits?: number; durationMs?: number; authority?: LogpointAuthority } = {}
 ): Promise<LogpointReport | LogpointScriptsReport> {
   return browser.logpoints.manage(getTab(browser, tabId), action, options)
+}
+
+/** The address bar's stop for a tab's logpoints. It works whatever the agent's state, including while paused. */
+export function stopLogpoints(browser: Browser, tabId: string): BrowserState {
+  browser.logpoints.stop(getTab(browser, tabId), 'person-stopped')
+  return browserState(browser)
 }

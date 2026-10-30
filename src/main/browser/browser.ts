@@ -7,9 +7,7 @@ import {
 } from './tab-overview-previews/tab-overview-previews.js'
 import { createFrameObservation } from './frame-observation/browser-frame-observation.js'
 import { createReactInspectionController } from './react-inspection/browser-react-inspection.js'
-import type { FixedDateAuthority } from './fixed-date/fixed-date.js'
 import { createFixedDateController } from './fixed-date/browser-fixed-date.js'
-import type { FixedDateAction, FixedDateResult } from '../../shared/fixed-date.js'
 import { createPwaLifecycleRecorder } from './pwa-inspection/browser-pwa-lifecycle.js'
 import { PageFindController } from './page-find-controller.js'
 import { createVideoRecorder } from './video-recording/browser-video-recorder.js'
@@ -36,32 +34,26 @@ import { createLogpoints } from './logpoints/browser-logpoints.js'
 import { createLiveRegionRecorder } from './live-region-recorder/browser-live-region-recorder.js'
 import { createReproRecorder } from './repro-recorder/browser-repro-recorder.js'
 import { networkConditionState } from './network-conditions/network-conditions.js'
-import { failAllHeldResponses, type HeldResponses } from './network-conditions/held-responses.js'
+import { type HeldResponses } from './network-conditions/held-responses.js'
 import { createDownloadsController } from './downloads/browser-downloads.js'
 import type { DownloadHistoryStore, SavedDownload } from './download-history/download-history.js'
 import { createProfilingController } from './profiling/browser-profiling.js'
 import { WorkspaceContinuityStore } from '../mcp/workspace-continuity-store.js'
 import { WorkspaceContinuityEvidenceFactory } from '../mcp/workspace-continuity-evidence.js'
-import { reconcilePresentedViewVisibility } from './presented-view-visibility.js'
 import { createSplitDivider } from './split-view/split-divider.js'
 import { FaviconDecoder } from './favicon.js'
 import { createHash } from 'node:crypto'
-import { isAbsolute } from 'node:path'
 import {
   type BrowserWindow,
-  net,
   powerMonitor,
-  screen,
   type WebContentsView,
   type NavigationEntry,
-  type Input,
-  type Rectangle,
   type Session,
   type WebContents,
   type WebFrameMain
 } from 'electron'
 import type { BrowserShortcutAction } from '../../shared/browser-shortcuts.js'
-import { noteShellHeldKey, trackShellHeldKeys } from './tab-events/shell-held-keys.js'
+import { trackShellHeldKeys } from './tab-events/shell-held-keys.js'
 import { translate, type MessageKey, type MessageParameters } from '../../shared/i18n.js'
 import type { SupportedLocale } from '../../shared/locale.js'
 import type { TabPosition } from '../../shared/tab-position.js'
@@ -80,23 +72,17 @@ import { McpActivityFollowController } from './mcp-activity-follow-controller.js
 import { MemorySaverSweepQueue } from '../memory-saver-sweep.js'
 import type { WorkspaceTemplateImporter } from './workspace-template-import.js'
 import { createPageMetadata } from './diagnostics/browser-page-metadata.js'
-import { answerHttpAuth, type HttpAuthQuestion, type SignInAnswer } from './http-auth/http-auth.js'
+import { type HttpAuthQuestion, type SignInAnswer } from './http-auth/http-auth.js'
 import {
-  answerCertificateError,
-  certificateRefusal,
-  proceedPastCertificateError,
-  type CertificateQuestion,
-  type StrictTransportProbe
+  type CertificateQuestion
 } from './certificate-errors/certificate-errors.js'
-import { certificateProblem } from './page-load-problem.js'
 import type {
   BrowserSplitViewState
 } from '../../shared/split-view.js'
 import { layout } from './window-layout/window-layout.js'
-import { shownPageFullscreenTab } from './window-layout/content-area.js'
-import { watchWindowFullScreen } from './page-fullscreen/page-fullscreen.js'
+import { watchWindowFullScreen, pageFullscreenShown } from './page-fullscreen/page-fullscreen.js'
 import { selectTab, type BrowserTabSelectionOptions } from './tab-selection/tab-selection.js'
-import { EMULATION_FRAME_CAPTION_SPACE, emulatedViewBounds, type EmulationFrameGeometry } from '../../shared/emulation-frame.js'
+import { type EmulationFrameGeometry } from '../../shared/emulation-frame.js'
 import type { PageCardGeometry } from '../../shared/page-card.js'
 import type { BrowserTabGroupColor } from '../../shared/tab-groups.js'
 import {
@@ -110,10 +96,7 @@ import { EndedByPersonMarks } from './task-manager/task-manager.js'
 import type { SuggestedPasswordOptions } from './suggested-password/suggested-password.js'
 import type {
   BrowserEmulationState,
-  BrowserCodeCoverageOptions,
-  BrowserCodeCoverageResult,
   BrowserDownloadState,
-  BrowserCssStatePreviewSummary,
   BrowserClosedTabState,
   BrowserSavedTabGroupState,
   BrowserState,
@@ -121,22 +104,18 @@ import type {
   BrowserWorkspaceNavigationAuditSource,
   BrowserTabOverviewPreview
 } from '../../shared/types.js'
-import { runBackgroundAction } from './background-action.js'
 import type { SearchEngineName } from '../../shared/search-engine.js'
 import { TabStateStore } from './tab-store.js'
 import type { WorkspaceBeingDeleted } from './browser-state/persisted-state.js'
-import { browserState, publishChange } from './browser-state/browser-state.js'
 import { createStatePublication } from './browser-state/browser-state-publication.js'
 import { isHronautHomeUrl } from './url.js'
-import { navigate } from './page-navigation/page-navigation.js'
 import type { WorkspaceNavigationDecision } from './workspace-navigation-policy.js'
-import { flushPersist } from './quit-flush/quit-flush.js'
 import { listMcpTabGroups } from './mcp-tab-groups/mcp-tab-groups.js'
 import {
   type BrowserWorkspaceOperation,
   type OpenWorkspaceOperationAction
 } from './workspace-operations/workspace-operations.js'
-import { OpenedTabObservation, type TabsOpenedDuringClick } from './click-opened-tabs.js'
+import { OpenedTabObservation } from './click-opened-tabs.js'
 import { isTabAgentPaused, isTabTakenOver } from './agent-pause/agent-pause.js'
 import type {
   AuthorizedAgentKeyboardInput,
@@ -146,12 +125,10 @@ import {
   wakeTab,
   withoutSleepingPage
 } from './tab-sleep/tab-sleep.js'
-import { SLEEPING_PAGE_URL } from './tab-sleep/sleeping-page.js'
 import type { BackgroundLoads } from './tab-sleep/background-loads.js'
 import { closeTab } from './tab-close/close-tab.js'
 import { walletPageContext, type BrowserWalletPageContext } from './wallet-pages/wallet-pages.js'
 import { createTab } from './new-tabs/create-tab.js'
-import { saveForNextStart } from './browser-lifecycle/save-for-next-start.js'
 import { type SiteSoundStore } from './site-muting/site-muting.js'
 import { type PendingTrustedChromeFocus } from './trusted-chrome-focus/trusted-chrome-focus.js'
 import { publishAgentFollowChange } from './agent-follow/agent-follow.js'
@@ -165,7 +142,6 @@ import {
 const TAB_OVERVIEW_CAPTURE_TIMEOUT_MS = 2_000
 
 import type { BrowserTab } from './browser-tab.js'
-import { getTab } from './browser-core.js'
 import { createWorkspaceRegistry } from './workspace-registry/browser-workspace-registry.js'
 
 export type { BrowserElementPickerResult } from './element-picker/element-picker.js'
@@ -427,18 +403,6 @@ export class Browser {
 
   readonly fixedDateController = createFixedDateController(this)
 
-  fixedDate(tabId: string, action: FixedDateAction, epochMs: number | undefined, authority: FixedDateAuthority): FixedDateResult {
-    if (action === 'status') return this.fixedDateController.status(tabId)
-    if (action === 'reset') return this.fixedDateController.reset(tabId)
-    if (epochMs === undefined) throw new Error('Give the instant to stage as at or epochMs')
-    return this.fixedDateController.stage(tabId, epochMs, authority)
-  }
-
-  reactInspectionBootstrap(contents: WebContents) {
-    const tab = this.tabs.get(this.webContentsToTab.get(contents.id) ?? '')
-    return tab?.webContents === contents ? this.reactInspectionController.bootstrap(tab.id) : { enabled: false }
-  }
-
   interactionLockTail: Promise<void> = Promise.resolve()
   readonly networkRouteQueues = new Map<number, Promise<void>>()
   readonly networkWaitController = createNetworkWaitController()
@@ -495,7 +459,7 @@ export class Browser {
       : DEFAULT_MEMORY_SAVER_TIMEOUT_MINUTES
     this.mcpActivityFollower = new McpActivityFollowController({
       isEnabled: () => this.followAgentActivity,
-      isOccluded: () => this.browserContentOccluded || this.followAgentActivitySuspended || this.pageFullscreenShown(),
+      isOccluded: () => this.browserContentOccluded || this.followAgentActivitySuspended || pageFullscreenShown(this),
       getSelectionGeneration: () => this.tabSelectionGeneration,
       tabExists: (tabId) => {
         const tab = this.tabs.get(tabId)
@@ -521,13 +485,6 @@ export class Browser {
 
   text(key: MessageKey, parameters?: MessageParameters): string {
     return translate(this.options.getLocale(), key, parameters)
-  }
-
-  screenshotPixelRatio(tab: BrowserTab): number {
-    this.requireEmulationConfirmed(tab)
-    const ratio = Math.max(1, screen.getDisplayMatching(this.window.getBounds()).scaleFactor, tab.emulation.viewport?.deviceScaleFactor ?? 1)
-    if (!Number.isFinite(ratio) || ratio > 32) throw new LocalizedError('appErrors.pageTools.pageScale')
-    return ratio
   }
 
   listMcpTabGroups(): BrowserTabGroupState[] {
@@ -602,18 +559,6 @@ export class Browser {
     return wakeTab(this, tabId)
   }
 
-  setMcpUrl(url: string): BrowserState {
-    this.mcpUrl = url
-    publishChange(this, false)
-    return browserState(this)
-  }
-
-  setDownloadPreferences(downloadDirectory: string, askWhereToSaveDownloads: boolean): void {
-    if (!isAbsolute(downloadDirectory)) throw new TypeError('Download directory must be absolute')
-    this.options.downloadDirectory = downloadDirectory
-    this.options.askWhereToSaveDownloads = askWhereToSaveDownloads
-  }
-
   selectTab(tabId: string, options: BrowserTabSelectionOptions = {}): BrowserState {
     return selectTab(this, tabId, options)
   }
@@ -650,19 +595,6 @@ export class Browser {
     }
   }
 
-  codeCoverage(options: BrowserCodeCoverageOptions = {}): Promise<BrowserCodeCoverageResult> {
-    if (options.action === 'start' && this.cssStatePreview.active(getTab(this, options.tabId))) {
-      return Promise.reject(new Error('Clear the CSS state preview before recording code coverage'))
-    }
-    if (options.action === 'start' && this.domMutationSource.active(getTab(this, options.tabId))) {
-      return Promise.reject(new Error('Cancel the DOM mutation source capture before recording code coverage'))
-    }
-    if (options.action === 'start' && this.logpoints.active(getTab(this, options.tabId))) {
-      return Promise.reject(new Error('Remove the logpoints before recording code coverage'))
-    }
-    return this.profiling.codeCoverage(options)
-  }
-
   emulationResult(tab: BrowserTab): BrowserEmulationResult {
     return tab.emulationApplication === 'confirmed'
       ? cloneEmulationState(tab.emulation)
@@ -683,145 +615,13 @@ export class Browser {
     }
   }
 
-  /** Marks screenshots and inspections taken while a forced CSS state was applied. */
-  cssStatePreviewMarker(tabId?: string): BrowserCssStatePreviewSummary | undefined {
-    const tab = this.tabs.get(tabId ?? this.activeTabId ?? '')
-    const summary = tab ? this.cssStatePreview.summary(tab) : undefined
-    return summary ? { states: summary.states, selector: summary.selector, startedAt: summary.startedAt, expiresAt: summary.expiresAt } : undefined
-  }
-
-  /** The trusted address-bar reset. It works whatever the agent's state, including while paused. */
-  async clearCssStatePreview(tabId: string): Promise<BrowserState> {
-    await this.cssStatePreview.clear(getTab(this, tabId), 'human-reset')
-    return browserState(this)
-  }
-
-  /** The address bar's stop for a tab's logpoints. It works whatever the agent's state, including while paused. */
-  stopLogpoints(tabId: string): BrowserState {
-    this.logpoints.stop(getTab(this, tabId), 'person-stopped')
-    return browserState(this)
-  }
-
-  /** The trusted address-bar stop. It works whatever the agent's state, including while paused. */
-  stopVirtualPasskey(tabId: string): BrowserState {
-    this.virtualPasskeys.stop(getTab(this, tabId), 'person-stopped')
-    return browserState(this)
-  }
-
-  /** Asks the person to sign in for a challenge the tab's page received, or leaves Electron to cancel it. */
-  answerHttpAuth(tab: BrowserTab, event: Electron.Event, details: Electron.AuthenticationResponseDetails,
-    authInfo: Electron.AuthInfo, callback: (username?: string, password?: string) => void): void {
-    answerHttpAuth({ askToSignIn: async (question) => this.options.askToSignIn?.(question) ?? null }, tab, event, details, authInfo, callback)
-  }
-
-  /** Accepts a certificate Chromium does not trust only when the person chose to trust it, as certificate-errors.ts decides. */
-  answerCertificateError(tab: BrowserTab, event: Electron.Event, url: string, error: string, certificate: Electron.Certificate,
-    callback: (trusted: boolean) => void, isMainFrame: boolean): void {
-    answerCertificateError({
-      probe: (session, probeUrl) => net.request({ url: probeUrl, session: session as Session, redirect: 'manual' }) as StrictTransportProbe,
-      changed: () => this.certificatesChanged(tab)
-    }, tab, event, url, error, certificate, callback, isMainFrame)
-  }
-
-  /**
-   * Shows what the person can do about the certificate the tab refused, once Hronaut knows whether they can open it, and
-   * whether its page is not private.
-   */
-  certificatesChanged(tab: BrowserTab): void {
-    if (this.tabs.get(tab.id) !== tab) return
-    const problem = tab.pageProblem
-    const refusal = problem?.certificate ? certificateRefusal(tab.webContents, problem.url) : undefined
-    if (problem && refusal) {
-      tab.pageProblem = certificateProblem(this.options.getLocale(), problem.url, problem.errorCode ?? 0, problem.errorDescription ?? refusal.error, refusal)
-    }
-    publishChange(this, false)
-  }
-
-  /**
-   * Asks the person whether to open the page the tab could not open because its website's certificate is not trusted,
-   * and opens it if they choose to, as Chrome's "Proceed (unsafe)". Only the shell asks for this, never an agent.
-   */
-  async proceedPastCertificateError(tabId: string): Promise<BrowserState> {
-    const tab = getTab(this, tabId)
-    const url = tab.pageProblem?.certificate?.canProceed ? tab.pageProblem.url : undefined
-    if (url) {
-      await proceedPastCertificateError({
-        confirm: (question) => this.options.confirmCertificateException?.(question) ?? Promise.resolve(false),
-        open: (pageUrl) => navigate(this, pageUrl, tab.id, { byPerson: true })
-      }, tab, url)
-    }
-    return browserState(this)
-  }
-
   networkConditionState(tabId?: string): import('../../shared/types.js').BrowserNetworkConditionState {
     return networkConditionState(this, tabId)
-  }
-
-  /** Fails every held request as Hronaut starts to quit. */
-  failHeldNetworkResponses(): void {
-    failAllHeldResponses(this, [...this.tabs.values()].map(tab => tab.webContents))
-  }
-
-  /**
-   * Saves a file Hronaut made, such as a QR code's image, as a download from the tab's workspace under the given name,
-   * as Chrome saves its QR code through its downloads.
-   */
-  downloadGeneratedFile(tabId: string, dataUrl: string, filename: string): void {
-    const tab = getTab(this, tabId)
-    if (tab.webContents.isDestroyed()) throw new LocalizedError('native.errors.tabUnavailable', undefined, { message: `Tab not found: ${tabId}` })
-    this.downloadController.expectGeneratedFile(tab.webContents.id, dataUrl, filename)
-    tab.webContents.downloadURL(dataUrl)
-  }
-
-  /** Whether the window shows a page in full screen, such as a video: nothing of the shell's is drawn over it, and Follow agents does not switch away from it. */
-  pageFullscreenShown(): boolean {
-    return shownPageFullscreenTab(this) !== undefined
-  }
-
-  /**
-   * A key pressed or released in another view of the shell's own, such as the tab rail opened over the page: held
-   * there, it does not repeat into a page that view hands the focus to, as for a key held in the shell.
-   */
-  noteShellKey(input: Pick<Input, 'code' | 'isAutoRepeat' | 'type'>): void {
-    noteShellHeldKey(this.shellHeldKeys, input)
-  }
-
-  /** Where a tab's page goes in its space: see `emulationViewSize`. */
-  tabViewBounds(tab: BrowserTab, space: Rectangle): Rectangle {
-    // Rounded up, so the space is never less than the caption needs in shell pixels.
-    const captionSpace = Math.ceil(EMULATION_FRAME_CAPTION_SPACE * (this.window.webContents.getZoomFactor?.() ?? 1))
-    return emulatedViewBounds(space, tab.emulationViewSize, captionSpace)
-  }
-
-  reconcileTabPresentation(tab: BrowserTab): void {
-    // The Linux visibility repair intentionally performs a WasShown
-    // transition. Skip it while an explicit lifecycle hold is active or
-    // ambiguous, otherwise the repair would silently thaw the page.
-    if (tab.pageLifecycleState !== 'active' || tab.pageLifecycleOperation?.requestedState === 'frozen') return
-    reconcilePresentedViewVisibility(this.window, tab.view)
   }
 
   layout(): void {
     layout(this)
     this.options.onPagesLaidOut?.()
-  }
-
-  /**
-   * Where a tab's page shows for the status bubble, in window coordinates, with its corner radius: only the page in
-   * view or a split pane, while it is on screen and not covered by trusted chrome.
-   */
-  statusBubblePane(tabId: string): { bounds: Rectangle; corner: number } | null {
-    const tab = this.tabs.get(tabId)
-    if (this.destroyed || !tab || tab.webContents.isDestroyed() || this.browserContentOccluded) return null
-    if (tab.id !== this.activeTabId && !this.splitViewContains(tab.id)) return null
-    if (!tab.view.getVisible() || !this.window.contentView.children.includes(tab.view)) return null
-    const bounds = tab.view.getBounds()
-    if (bounds.width < 1 || bounds.height < 1) return null
-    return { bounds, corner: this.pageCornerRadii.get(tab.view) ?? 0 }
-  }
-
-  async flushPersist(): Promise<void> {
-    await Promise.all([flushPersist(this), saveForNextStart(this, true), this.downloadController.saveHistory()])
   }
 
   createTab(options: Parameters<typeof createTab>[1]): Promise<BrowserTab> {
@@ -839,31 +639,6 @@ export class Browser {
     return withoutSleepingPage(safeNavigationHistorySnapshot(tab.webContents))
   }
 
-  /**
-   * Whether the tab can go Back and Forward, read without its history's pages: the state is built many times a second
-   * while pages load, and reading every tab's whole history took a good part of it. The sleeping page is none to go to.
-   */
-  navigationButtons(tab: BrowserTab): { canGoBack: boolean; canGoForward: boolean } {
-    const history = tab.sleepNavigationHistory
-    if (history) return { canGoBack: history.index > 0, canGoForward: history.index < history.entries.length - 1 }
-    if (tab.webContents.isDestroyed()) return { canGoBack: false, canGoForward: false }
-    try {
-      const navigation = tab.webContents.navigationHistory
-      const shown = navigation.getActiveIndex()
-      const length = navigation.length()
-      const pageTo = (step: number): boolean => {
-        for (let index = shown + step; index >= 0 && index < length; index += step) {
-          if (navigation.getEntryAtIndex(index)?.url !== SLEEPING_PAGE_URL) return true
-        }
-        return false
-      }
-      return shown < 0 ? { canGoBack: false, canGoForward: false } : { canGoBack: pageTo(-1), canGoForward: pageTo(1) }
-    } catch {
-      // Electron can destroy the page between the calls.
-      return { canGoBack: false, canGoForward: false }
-    }
-  }
-
   isHumanInteractionLocked(tab: BrowserTab): boolean {
     // Hronaut Home is application chrome, not a website tab. The global lock
     // protects page input while leaving Home controls usable for the human.
@@ -875,27 +650,6 @@ export class Browser {
   readonly unconfirmedSemanticClicks = new WeakSet<BrowserTab['view']['webContents']>()
   readonly openedTabObservations = new Map<BrowserTab, Set<OpenedTabObservation>>()
 
-  observeOpenedTabs(tab: BrowserTab): OpenedTabObservation {
-    const observation = new OpenedTabObservation()
-    const observations = this.openedTabObservations.get(tab) ?? new Set()
-    observations.add(observation)
-    this.openedTabObservations.set(tab, observations)
-    return observation
-  }
-
-  /** Publishes only tabs that are still open in the source tab's current workspace. */
-  stopObservingOpenedTabs(tab: BrowserTab, observation: OpenedTabObservation): TabsOpenedDuringClick | undefined {
-    const observations = this.openedTabObservations.get(tab)
-    observations?.delete(observation)
-    if (observations?.size === 0) this.openedTabObservations.delete(tab)
-    const sourceCurrent = this.tabs.get(tab.id) === tab
-    const report = observation.stop((tabId) => {
-      const opened = this.tabs.get(tabId)
-      return sourceCurrent && opened !== undefined && opened.mcpGroupId === tab.mcpGroupId
-    })
-    return sourceCurrent ? report : undefined
-  }
-
   prepareDiagnosticNavigation(tab: BrowserTab): void {
     if (tab.preserveDiagnosticLogs) return
     tab.consoleMessages = []
@@ -905,13 +659,5 @@ export class Browser {
 
   splitViewContains(tabId: string): boolean {
     return this.splitView?.firstTabId === tabId || this.splitView?.secondTabId === tabId
-  }
-
-  /** Runs a wallet step a tab's lifecycle starts in the background, logging and reporting a failure. */
-  runWalletLifecycleAction(action: string, callback: () => unknown): void {
-    void runBackgroundAction(action, callback, (failedAction, error) => {
-      console.error(`[wallet] Could not ${failedAction}:`, error)
-      this.options.onActionFailed?.(failedAction, error)
-    })
   }
 }

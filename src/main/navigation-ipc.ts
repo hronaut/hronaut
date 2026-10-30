@@ -8,6 +8,7 @@ import { findInPage, stopFindInPage } from './browser/page-find/page-find.js'
 import { back, forward, reload, reloadIgnoringCache, stop, navigate } from './browser/page-navigation/page-navigation.js'
 import { setZoom } from './browser/page-zoom/page-zoom.js'
 import { savePdf } from './browser/pdf-export/pdf-export.js'
+import { proceedPastTabCertificateError } from './browser/certificate-errors/browser-certificate-errors.js'
 
 interface NavigationIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
@@ -63,7 +64,7 @@ export function registerNavigationIpc(host: NavigationIpcHost): void {
   host.handleBrowserIpc('browser:proceed-past-certificate', (event, tabId: unknown) => {
     host.assertTrustedSender(event)
     if (typeof tabId !== 'string') throw new TypeError('Invalid tab')
-    return stateReply(host, host.tabs()!.proceedPastCertificateError(tabId))
+    return stateReply(host, proceedPastTabCertificateError(host.tabs()!, tabId))
   })
   host.handleBrowserIpc('browser:reload-ignoring-cache', (event, tabId) => { host.assertTrustedSender(event); return reloadIgnoringCache(host.tabs()!, tabId) })
   host.handleBrowserIpc('browser:stop', (event, tabId) => { host.assertTrustedSender(event); return stop(host.tabs()!, tabId) })

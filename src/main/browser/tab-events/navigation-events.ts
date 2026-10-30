@@ -20,6 +20,10 @@ import { publishChange } from '../browser-state/browser-state.js'
 import { isStaleAddressTitle, untitledPageTitle } from './untitled-page-title.js'
 import { syncHumanInteractionInputGuard } from '../interaction-lock/human-input-guard.js'
 import { recordVisit, trackWorkspaceOrigin } from './page-visits.js'
+import { runWalletLifecycleAction } from '../background-action.js'
+import { answerTabCertificateError } from '../certificate-errors/browser-certificate-errors.js'
+import { answerTabHttpAuth } from '../http-auth/browser-http-auth.js'
+import { reconcileTabPresentation } from '../presented-view-visibility.js'
 
 /** Chromium's error code for a load that was aborted, which shows no load failure. */
 const ABORTED_LOAD_ERROR = -3
@@ -56,7 +60,7 @@ export function attachNavigationEvents(browser: Browser, tab: BrowserTab, webCon
   // has already started by then.
   const walletDocumentReplaced = (): void => {
     tab.walletNavigationGeneration += 1
-    browser.runWalletLifecycleAction('cancel wallet requests after tab navigation', () => (
+    runWalletLifecycleAction(browser, 'cancel wallet requests after tab navigation', () => (
       browser.options.onWalletNavigation?.(tab.id, tab.walletNavigationGeneration)
     ))
   }
@@ -204,12 +208,12 @@ export function attachNavigationEvents(browser: Browser, tab: BrowserTab, webCon
   // not ask about, such as one from another website's frame, Electron cancels.
   webContents.on('login', (event, details, authInfo, callback) => {
     recordAuthChallenge(tab, details, authInfo)
-    browser.answerHttpAuth(tab, event, details, authInfo, callback)
+    answerTabHttpAuth(browser, tab, event, details, authInfo, callback)
   })
   // A certificate Chromium does not trust is refused, as Chrome does, unless the person chose to trust it in the tab's
   // workspace; the tab keeps what it refused for its page, so the person can choose to open it anyway.
   webContents.on('certificate-error', (event, url, error, certificate, callback, isMainFrame) => {
-    browser.answerCertificateError(tab, event, url, error, certificate, callback, isMainFrame)
+    answerTabCertificateError(browser, tab, event, url, error, certificate, callback, isMainFrame)
   })
   webContents.on('audio-state-changed', (event) => {
     tab.audible = event.audible
@@ -223,7 +227,7 @@ export function attachNavigationEvents(browser: Browser, tab: BrowserTab, webCon
       tab.pendingMainFrameUrl = undefined
     }
     if (tab.sleeping) return
-    browser.reconcileTabPresentation(tab)
+    reconcileTabPresentation(browser, tab)
     syncNavigation()
     browser.reproRecorder.refreshReproScrollPosition(tab)
     scheduleTabOverviewPreview(browser, tab)

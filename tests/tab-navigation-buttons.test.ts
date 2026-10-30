@@ -2,15 +2,12 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, powerMonitor: { on: () => undefined } }))
 import { Browser } from '../src/main/browser/browser.js'
 import { savedTabHistoryAccess } from '../src/main/browser/browser-lifecycle/save-for-next-start.js'
+import { navigationButtons } from '../src/main/browser/navigation-history.js'
 import { SLEEPING_PAGE_URL } from '../src/main/browser/tab-sleep/sleeping-page.js'
 import { withoutSleepingPage } from '../src/main/browser/tab-sleep/tab-sleep.js'
 
 // The browser state is built many times a second while pages load, and it read every tab's whole history, page by page,
 // to say whether Back and Forward work; the saved history of each tab was also read again every few seconds.
-
-interface Manager {
-  navigationButtons(tab: unknown): { canGoBack: boolean; canGoForward: boolean }
-}
 
 /** Saving the tabs' history for the browser below, for the fake tabs these tests read. */
 function savedHistory(browser: unknown, everyTab: boolean): { unchanged(tab: unknown): boolean } {
@@ -33,8 +30,8 @@ function liveTab(urls: string[], index: number, options: { destroyed?: boolean; 
   }
 }
 
-function manager(fields: Record<string, unknown> = {}): Manager {
-  return Object.assign(Object.create(Browser.prototype), { activeTabId: null, splitView: null, ...fields }) as Manager
+function manager(fields: Record<string, unknown> = {}): unknown {
+  return Object.assign(Object.create(Browser.prototype), { activeTabId: null, splitView: null, ...fields })
 }
 
 const PAGE = 'https://example.test/'
@@ -51,7 +48,7 @@ describe('Back and Forward of a tab in the browser state', () => {
     for (const [urls, index] of histories) {
       const tab = liveTab(urls, index)
       const expected = withoutSleepingPage({ entries: urls.map(url => ({ url, title: '' })), index })
-      expect(manager().navigationButtons(tab), `${urls.join(' ')} at ${index}`).toEqual({
+      expect(navigationButtons(tab as never), `${urls.join(' ')} at ${index}`).toEqual({
         canGoBack: expected.index > 0,
         canGoForward: expected.index >= 0 && expected.index < expected.entries.length - 1
       })
@@ -61,12 +58,12 @@ describe('Back and Forward of a tab in the browser state', () => {
 
   it('come from the history a sleeping tab keeps', () => {
     const tab = { ...liveTab([SLEEP], 0), sleepNavigationHistory: { entries: [{ url: PAGE + 'a', title: '' }, { url: PAGE + 'b', title: '' }], index: 1 } }
-    expect(manager().navigationButtons(tab)).toEqual({ canGoBack: true, canGoForward: false })
+    expect(navigationButtons(tab as never)).toEqual({ canGoBack: true, canGoForward: false })
   })
 
   it('are off for a page that is gone, or goes while it is read', () => {
-    expect(manager().navigationButtons(liveTab([PAGE + 'a', PAGE + 'b'], 1, { destroyed: true }))).toEqual({ canGoBack: false, canGoForward: false })
-    expect(manager().navigationButtons(liveTab([PAGE + 'a', PAGE + 'b'], 1, { throws: true }))).toEqual({ canGoBack: false, canGoForward: false })
+    expect(navigationButtons(liveTab([PAGE + 'a', PAGE + 'b'], 1, { destroyed: true }) as never)).toEqual({ canGoBack: false, canGoForward: false })
+    expect(navigationButtons(liveTab([PAGE + 'a', PAGE + 'b'], 1, { throws: true }) as never)).toEqual({ canGoBack: false, canGoForward: false })
   })
 })
 

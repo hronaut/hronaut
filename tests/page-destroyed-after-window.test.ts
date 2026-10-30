@@ -5,6 +5,12 @@ import type { Browser } from '../src/main/browser/browser.js'
 import type { BrowserTab } from '../src/main/browser/browser-tab.js'
 import { recoverFromDestroyedPage } from '../src/main/browser/tab-events/page-destroyed-events.js'
 
+// The fake browser stubs these, which are functions now; the mock reaches its stubs.
+vi.mock('../src/main/browser/background-action.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/background-action.js')>(),
+  runWalletLifecycleAction: (browser: { runWalletLifecycleAction: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.runWalletLifecycleAction(...args)
+}))
+
 // When Hronaut exited at once, Electron destroyed the window before the tabs' pages, and each page's recovery read the
 // window's webContents: "Object has been destroyed" was an uncaught exception in the main process.
 

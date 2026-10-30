@@ -7,7 +7,8 @@ vi.mock('electron', () => ({ app: { isPackaged: false } }))
 const { showResumedPresentedView } = vi.hoisted(() => ({ showResumedPresentedView: vi.fn() }))
 vi.mock('../src/main/browser/presented-view-visibility.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/presented-view-visibility.js')>(),
-  showResumedPresentedView
+  showResumedPresentedView,
+  reconcileTabPresentation: (browser: { reconcileTabPresentation: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.reconcileTabPresentation(...args)
 }))
 // The browser below records with changed each time the page's new state is published.
 vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({

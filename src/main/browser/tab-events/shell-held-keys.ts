@@ -1,4 +1,5 @@
 import type { BrowserWindow, Input } from 'electron'
+import type { Browser } from '../browser.js'
 
 /**
  * The physical keys held down in the shell. A shell control pressed with a key can hand the keyboard focus to a page,
@@ -21,4 +22,12 @@ export function noteShellHeldKey(held: Set<string>, input: Pick<Input, 'code' | 
   if (!input.code || input.isAutoRepeat) return
   if (input.type === 'keyUp') held.delete(input.code)
   else if (input.type === 'keyDown' || input.type === 'rawKeyDown') held.add(input.code)
+}
+
+/**
+ * A key pressed or released in another view of the shell's own, such as the tab rail opened over the page: held
+ * there, it does not repeat into a page that view hands the focus to, as for a key held in the shell.
+ */
+export function noteShellKey(browser: Browser, input: Pick<Input, 'code' | 'isAutoRepeat' | 'type'>): void {
+  noteShellHeldKey(browser.shellHeldKeys, input)
 }

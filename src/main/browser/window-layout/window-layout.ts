@@ -8,6 +8,8 @@ import type { BrowserTab } from '../browser-tab.js'
 import { exitHiddenPageFullscreen } from '../page-fullscreen/page-fullscreen.js'
 import { publishPageGeometry } from '../page-geometry/page-geometry.js'
 import { scheduleTabOverviewPreview } from '../tab-overview-previews/tab-overview-previews.js'
+import { tabViewBounds } from '../emulation/tab-view-bounds.js'
+import { reconcileTabPresentation } from '../presented-view-visibility.js'
 
 /**
  * Where the split view's divider is, in the shell's CSS pixels, with the
@@ -101,15 +103,15 @@ export function layout(browser: Browser): void {
     if (firstTab && secondTab && !fullscreenTab) {
       const splitBounds = splitViewBounds(browserViewBounds(browser), browser.splitView!.orientation, browser.splitView!.ratio, Math.round(SPLIT_VIEW_GAP * (browser.window.webContents.getZoomFactor?.() ?? 1)))
       if (placeViews) {
-        firstTab.view.setBounds(browser.tabViewBounds(firstTab, splitBounds.first))
-        secondTab.view.setBounds(browser.tabViewBounds(secondTab, splitBounds.second))
+        firstTab.view.setBounds(tabViewBounds(browser, firstTab, splitBounds.first))
+        secondTab.view.setBounds(tabViewBounds(browser, secondTab, splitBounds.second))
         roundPageCorners(browser, firstTab.view)
         roundPageCorners(browser, secondTab.view)
       }
       showView(firstTab, browserContentVisible && splitBounds.first.width > 0 && splitBounds.first.height > 0)
       showView(secondTab, browserContentVisible && splitBounds.second.width > 0 && splitBounds.second.height > 0)
-      browser.reconcileTabPresentation(firstTab)
-      browser.reconcileTabPresentation(secondTab)
+      reconcileTabPresentation(browser, firstTab)
+      reconcileTabPresentation(browser, secondTab)
       scheduleTabOverviewPreview(browser, firstTab)
       scheduleTabOverviewPreview(browser, secondTab)
       publishSplitDivider(browser)
@@ -125,12 +127,12 @@ export function layout(browser: Browser): void {
   // Closing the split view can leave the pane in full screen out of view, with the active tab in its card.
   const fillsWindow = shownPageFullscreenTab(browser) === shownTab
   if (placeViews) {
-    shownTab.view.setBounds(browser.tabViewBounds(shownTab, browserViewBounds(browser)))
+    shownTab.view.setBounds(tabViewBounds(browser, shownTab, browserViewBounds(browser)))
     if (fillsWindow) squarePageCorners(browser, shownTab.view)
     else roundPageCorners(browser, shownTab.view)
   }
   showView(shownTab, browserContentVisible)
-  browser.reconcileTabPresentation(shownTab)
+  reconcileTabPresentation(browser, shownTab)
   scheduleTabOverviewPreview(browser, shownTab)
   publishSplitDivider(browser)
   publishPageGeometry(browser)

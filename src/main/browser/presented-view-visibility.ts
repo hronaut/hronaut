@@ -1,5 +1,7 @@
 import type { BrowserWindow, WebContents, WebContentsView } from 'electron'
 import { ISOLATED_WORLDS } from './isolated-worlds.js'
+import type { Browser } from './browser.js'
+import type { BrowserTab } from './browser-tab.js'
 
 const pending = new WeakSet<WebContentsView>()
 const VISIBILITY_WORLD_ID = ISOLATED_WORLDS.presentedViewVisibility
@@ -120,4 +122,13 @@ export function watchPresentedViewVisibility(
   }, 1_000)
   timer.unref()
   return () => clearInterval(timer)
+}
+
+/** Repairs the tab's view showing as hidden to its page while it is in view, only while its page is active and not being frozen. */
+export function reconcileTabPresentation(browser: Browser, tab: BrowserTab): void {
+  // The Linux visibility repair intentionally performs a WasShown
+  // transition. Skip it while an explicit lifecycle hold is active or
+  // ambiguous, otherwise the repair would silently thaw the page.
+  if (tab.pageLifecycleState !== 'active' || tab.pageLifecycleOperation?.requestedState === 'frozen') return
+  reconcilePresentedViewVisibility(browser.window, tab.view)
 }

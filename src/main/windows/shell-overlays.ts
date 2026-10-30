@@ -17,6 +17,8 @@ import { showTabContextMenu } from '../browser/context-menus/tab-context-menu.js
 import { setFollowAgentActivitySuspended } from '../browser/trusted-chrome-occlusion/trusted-chrome-occlusion.js'
 import { pageArea } from '../browser/window-layout/content-area.js'
 import { showWorkspaceContextMenu } from '../browser/context-menus/workspace-context-menu.js'
+import { pageFullscreenShown } from '../browser/page-fullscreen/page-fullscreen.js'
+import { statusBubblePane } from '../browser/page-geometry/page-geometry.js'
 
 interface ShellOverlaysHost {
   /** Whether a frame's address is the expected trusted page, with or without a fragment; each view admits only its own. */
@@ -175,7 +177,7 @@ export function createShellOverlays(host: ShellOverlaysHost): {
       if (!window.isVisible() || window.isMinimized()) return null
       const tabs = host.tabRuntime.tabs
       // Nothing of the shell's is drawn over a page in full screen, nor before the saved workspaces are up.
-      if (!tabs || host.tabRuntime.initializedTabs !== tabs || tabs.pageFullscreenShown()) return null
+      if (!tabs || host.tabRuntime.initializedTabs !== tabs || pageFullscreenShown(tabs)) return null
       const [width = 0, height = 0] = window.getContentSize()
       return { content: { width, height }, zoom: window.webContents.getZoomFactor() }
     },
@@ -254,8 +256,8 @@ export function createShellOverlays(host: ShellOverlaysHost): {
       const tabs = host.tabRuntime.tabs
       if (host.tabRuntime.startupFailure || !window || window.isDestroyed() || !window.isVisible() || window.isMinimized()) return null
       // Nothing of the shell's is drawn over a page in full screen, nor before the saved workspaces are up.
-      if (!tabs || host.tabRuntime.initializedTabs !== tabs || tabs.pageFullscreenShown()) return null
-      return tabs.statusBubblePane(tabId) satisfies StatusBubblePane | null
+      if (!tabs || host.tabRuntime.initializedTabs !== tabs || pageFullscreenShown(tabs)) return null
+      return statusBubblePane(tabs, tabId) satisfies StatusBubblePane | null
     },
     zoom: () => {
       const window = host.mainWindowRefs.window

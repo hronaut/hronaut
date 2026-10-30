@@ -6,6 +6,7 @@ import type { Browser } from '../browser.js'
 import { findTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { browserViewBounds } from '../window-layout/content-area.js'
+import { tabViewBounds } from '../emulation/tab-view-bounds.js'
 
 /**
  * Tabs emulating a viewport smaller than their space, for the renderer to
@@ -33,7 +34,7 @@ export function getEmulationFrames(browser: Browser): EmulationFrameGeometry[] {
     const viewport = tab?.emulation.viewport
     // A tab whose page is out of the window, such as one closing behind its beforeunload check, has no frame.
     if (!tab || !viewport || !tab.emulationViewSize || !browser.window.contentView.children.includes(tab.view)) continue
-    const bounds = browser.tabViewBounds(tab, space)
+    const bounds = tabViewBounds(browser, tab, space)
     if (bounds.width === space.width && bounds.height === space.height) continue
     frames.push({
       tabId: tab.id, bounds: cssBounds(bounds), area: cssBounds(space),
@@ -88,4 +89,18 @@ export function publishPageGeometry(browser: Browser): void {
     browser.lastPageCards = serializedCards
     browser.window.webContents.send('page-card:changed', cards)
   }
+}
+
+/**
+ * Where a tab's page shows for the status bubble, in window coordinates, with its corner radius: only the page in
+ * view or a split pane, while it is on screen and not covered by trusted chrome.
+ */
+export function statusBubblePane(browser: Browser, tabId: string): { bounds: Rectangle; corner: number } | null {
+  const tab = browser.tabs.get(tabId)
+  if (browser.destroyed || !tab || tab.webContents.isDestroyed() || browser.browserContentOccluded) return null
+  if (tab.id !== browser.activeTabId && !browser.splitViewContains(tab.id)) return null
+  if (!tab.view.getVisible() || !browser.window.contentView.children.includes(tab.view)) return null
+  const bounds = tab.view.getBounds()
+  if (bounds.width < 1 || bounds.height < 1) return null
+  return { bounds, corner: browser.pageCornerRadii.get(tab.view) ?? 0 }
 }

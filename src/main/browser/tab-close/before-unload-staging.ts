@@ -6,6 +6,7 @@ import { focusTabOrTrustedChrome } from '../trusted-chrome-focus/trusted-chrome-
 import { contentAreaBounds } from '../window-layout/content-area.js'
 import { closeTabTransition } from './close-transition.js'
 import { roundPageCorners } from '../window-layout/window-layout.js'
+import { tabViewBounds } from '../emulation/tab-view-bounds.js'
 
 /**
  * Takes the closing page out of view while its beforeunload handler runs: the
@@ -40,7 +41,7 @@ export function stageBeforeUnloadClose(browser: Browser, tab: BrowserTab): {
       browser.window.contentView.addChildView(replacement.view)
       replacementWasAttached = true
       // The closing tab's bounds can be sized for its own emulated viewport, or fill the window in full screen.
-      replacement.view.setBounds(browser.tabViewBounds(replacement, contentAreaBounds(browser)))
+      replacement.view.setBounds(tabViewBounds(browser, replacement, contentAreaBounds(browser)))
       roundPageCorners(browser, replacement.view)
       replacement.view.setVisible(visible)
     }
