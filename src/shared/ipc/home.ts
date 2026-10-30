@@ -14,13 +14,16 @@ export const HOME_IPC = {
   /** Home → main: the workspaces Home lists. */
   workspaces: 'hronaut-home:workspaces' as InvokeChannel<[], HomeWorkspaceState>,
   /**
-   * Home → main: opens, archives, restores, deletes or clears a workspace, changes its preferences, or opens its editor in
-   * the shell; answers the list after it.
+   * Home → main: opens, archives, restores, deletes or clears a workspace or changes its preferences, or opens the
+   * shell's editor to create one, start one from a template, edit one or transfer one; answers the list after it.
    */
   workspaceAction: 'hronaut-home:workspace-action' as InvokeChannel<[request: HomeWorkspaceAction], HomeWorkspaceState>,
   /** Home → main: copies the text. */
   copyText: 'hronaut-home:copy-text' as InvokeChannel<[text: string], void>,
-  /** Home → main: asks in Hronaut's own dialog over the window, with Cancel focused; true only for OK. */
+  /**
+   * Home's main frame → main: asks in Hronaut's own dialog over the window, with Cancel focused; true only for OK, and
+   * false at once for any other sender or a question without text.
+   */
   confirm: 'hronaut-home:confirm' as InvokeChannel<[question: Confirmation], boolean>,
   /** Home → main: opens the agent's setup guide outside Hronaut. */
   openAgentGuide: 'hronaut-home:open-agent-guide' as InvokeChannel<[clientId: AgentGuideId], void>,
@@ -32,9 +35,15 @@ export const HOME_IPC = {
   openSetupFeedback: 'hronaut-home:open-setup-feedback' as InvokeChannel<[], void>,
   /** Home's main frame → main: agents found on this computer, and whether Hronaut can add itself to Claude Code. */
   setupState: 'hronaut-home:setup-state' as InvokeChannel<[], HomeSetupState>,
-  /** Home's main frame → main: the exact change to Claude Code's settings, as a single-use plan. */
+  /**
+   * Home's main frame → main: the exact change to Claude Code's settings, as a single-use plan; refused while the MCP
+   * token comes from HRONAUT_MCP_TOKEN.
+   */
   claudeCodePrepare: 'hronaut-home:claude-code-prepare' as InvokeChannel<[], ClaudeCodeSetupPreview>,
-  /** Home's main frame → main: asks the person in main's own dialog, then makes the planned change. */
+  /**
+   * Home's main frame → main: asks the person in main's own dialog, then makes the planned change; refused while the MCP
+   * token comes from HRONAUT_MCP_TOKEN.
+   */
   claudeCodeApply: 'hronaut-home:claude-code-apply' as InvokeChannel<[planId: string], ClaudeCodeSetupResult>,
   /** Home's main frame → main: moves a listener that could not start to the free port main offered; only that port is accepted. */
   useMcpPort: 'hronaut-home:use-mcp-port' as InvokeChannel<[port: number], McpPortMoveResult>

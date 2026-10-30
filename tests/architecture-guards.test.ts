@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { importCycles, lineCount, literalIpcChannels, resolveImport, ROOT, runtimeImports, runtimeNamesFrom, runtimeSpecifiers, sourceFiles } from './architecture/source-files.js'
+import { declaredIpcChannels, importCycles, lineCount, literalIpcChannels, resolveImport, ROOT, runtimeImports, runtimeNamesFrom, runtimeSpecifiers, sourceFiles, writtenIpcChannels } from './architecture/source-files.js'
 
 const MAX_LINES = 800
 const BUDGETS_FILE = 'tests/architecture/budgets.json'
@@ -39,9 +39,31 @@ describe('the architecture rules in AGENTS.md', () => {
   })
 
   it('writes no IPC channel name out as text in main or the preloads, which use the typed channels of src/shared/ipc', () => {
-    const literals = files.filter(file => file.startsWith('src/main/') || file.startsWith('src/preload/'))
-      .flatMap(file => literalIpcChannels(readFileSync(join(ROOT, file), 'utf8'), file).map(channel => `${file}: ${channel}`))
+    const declared = new Set(files.filter(file => file.startsWith('src/shared/ipc/'))
+      .flatMap(file => declaredIpcChannels(readFileSync(join(ROOT, file), 'utf8'), file)))
+    const literals = files.filter(file => file.startsWith('src/main/') || file.startsWith('src/preload/')).flatMap(file => {
+      const code = readFileSync(join(ROOT, file), 'utf8')
+      return [...new Set([...literalIpcChannels(code, file), ...writtenIpcChannels(code, declared, file)])].map(channel => `${file}: ${channel}`)
+    })
     expect(literals, 'IPC channel names written as text: declare the channels in src/shared/ipc and use those').toEqual([])
+  })
+
+  it('finds a declared channel name written out anywhere: in a cast, a constant, a comparison or a template literal', () => {
+    const declared = new Set(declaredIpcChannels([
+      "export const HOME_IPC = {",
+      "  changed: 'hronaut-home:changed' as EventChannel<[]>,",
+      "  confirm: 'hronaut-home:confirm' as InvokeChannel<[question: Confirmation], boolean>",
+      "} as const"
+    ].join('\n')))
+    expect([...declared]).toEqual(['hronaut-home:changed', 'hronaut-home:confirm'])
+    const code = [
+      "webContents.send('hronaut-home:changed' as EventChannel<[]>)",
+      "const channel = 'hronaut-home:confirm'",
+      "if (name !== `hronaut-home:changed`) return",
+      "ipcRenderer.invoke(HOME_IPC.confirm, question)",
+      "logger.info('hronaut-home:other')"
+    ].join('\n')
+    expect(writtenIpcChannels(code, declared)).toEqual(['hronaut-home:changed', 'hronaut-home:confirm', 'hronaut-home:changed'])
   })
 
   it('counts the IPC channel names a module writes out, and leaves out typed channels, URLs and page events', () => {

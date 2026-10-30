@@ -18,7 +18,8 @@ export function send<Args extends unknown[]>(channel: SendChannel<Args>, ...args
 
 /**
  * Calls the listener with what main sends on the channel, without the event, until the returned function is called.
- * Bridges pass on only the arguments their API names, so anything else main adds never reaches the shell.
+ * Bridges pass on only the arguments their API names, so anything else main adds never reaches the page, whether the
+ * shell, Home or a website.
  */
 export function subscribe<Args extends unknown[]>(channel: EventChannel<Args>, listener: (...args: NoInfer<Args>) => void): () => void {
   const handler = (_event: IpcRendererEvent, ...args: unknown[]): void => listener(...args as Args)

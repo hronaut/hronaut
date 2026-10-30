@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, expect, it, vi } from 'vitest'
-import type { EventChannel, InvokeChannel, SendChannel } from '../src/shared/ipc/channel.js'
+import type { EventChannel, InvokeChannel, SendChannel, SyncChannel } from '../src/shared/ipc/channel.js'
 import { DEFAULT_BROWSER_ENVIRONMENT } from '../src/shared/browser-environment.js'
 
 const electron = vi.hoisted(() => ({ exposeInMainWorld: vi.fn(), invoke: vi.fn(), on: vi.fn(), removeListener: vi.fn(), send: vi.fn() }))
@@ -572,8 +572,9 @@ it('checks at compile time that calls and listeners match their channel', () => 
   const ask = 'example:ask' as InvokeChannel<[id: string], number>
   const changed = 'example:changed' as EventChannel<[count: number]>
   const tell = 'example:tell' as SendChannel<[id: string, count?: number]>
+  const bootstrap = 'example:bootstrap' as SyncChannel<[id: string], { enabled: boolean }>
   const typeOnly = async (): Promise<void> => {
-    const { invoke, send, subscribe } = await import('../src/preload/bridges/ipc.js')
+    const { invoke, send, sendSync, subscribe } = await import('../src/preload/bridges/ipc.js')
     const answer: number = await invoke(ask, 'id-1')
     // @ts-expect-error The answer is a number.
     const wrongAnswer: string = await invoke(ask, 'id-1')
@@ -593,7 +594,16 @@ it('checks at compile time that calls and listeners match their channel', () => 
     send(tell, 'id-1', '2')
     // @ts-expect-error The first argument is required.
     send(tell)
-    void [answer, wrongAnswer]
+    const enabled: boolean = sendSync(bootstrap, 'id-1').enabled
+    // @ts-expect-error A synchronous answer is not a promise.
+    void sendSync(bootstrap, 'id-1').then
+    // @ts-expect-error The argument is a string.
+    void sendSync(bootstrap, 1)
+    // @ts-expect-error A synchronous channel cannot be asked asynchronously.
+    void invoke(bootstrap, 'id-1')
+    // @ts-expect-error An asynchronous channel cannot be asked synchronously.
+    void sendSync(ask, 'id-1')
+    void [answer, wrongAnswer, enabled]
   }
   expect(typeof typeOnly).toBe('function')
 })

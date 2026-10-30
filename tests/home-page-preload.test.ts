@@ -109,7 +109,7 @@ describe('Hronaut Home page preload', () => {
     await import('../src/preload/page.js')
     const api = electron.exposeInMainWorld.mock.calls.find(([name]) => name === 'hronautHome')?.[1] as Record<string, (...values: unknown[]) => Promise<unknown>>
     await expect(api[method]!(...args)).resolves.toBe('answer')
-    expect(electron.invoke).toHaveBeenCalledExactlyOnceWith(channel, ...sent)
+    expect(electron.invoke.mock.calls).toStrictEqual([[channel, ...sent]])
   })
 
   it('answers Home\'s confirm true only when main answers true', async () => {
@@ -117,7 +117,7 @@ describe('Hronaut Home page preload', () => {
     vi.stubGlobal('addEventListener', vi.fn())
     await import('../src/preload/page.js')
     const api = electron.exposeInMainWorld.mock.calls.find(([name]) => name === 'hronautHome')?.[1] as { confirm: (question: unknown) => Promise<boolean> }
-    const question = { title: 'Remove the workspace?', confirmLabel: 'Remove' }
+    const question = { message: 'Delete the workspace Research?', detail: 'Its tabs close.' }
     electron.invoke.mockResolvedValueOnce(true as never)
     await expect(api.confirm(question)).resolves.toBe(true)
     electron.invoke.mockResolvedValueOnce('yes' as never)
@@ -154,22 +154,27 @@ describe('Hronaut Home page preload', () => {
     const listener = vi.fn()
     bridge.subscribe(listener)
     const registered = electron.on.mock.calls.find(([channel]) => channel === 'wallet-provider:event')?.[1] as (...values: unknown[]) => void
-    const event = { family: 'evm', event: 'chainChanged', data: '0x1' }
+    const event = { family: 'evm', event: 'chainChanged', payload: '0x1' }
     registered({ sender: 'event' }, event, 'unexpected payload')
     expect(listener).toHaveBeenCalledExactlyOnceWith(event)
   })
 
-  it('reports a website\'s uncaught exception and its print dialog to main', async () => {
+  it('reports a website\'s uncaught exceptions and rejections and its print dialog to main', async () => {
     vi.stubGlobal('location', { protocol: 'https:', hostname: 'example.com' })
     const listeners = new Map<string, (event: unknown) => void>()
     vi.stubGlobal('addEventListener', vi.fn((type: string, listener: (event: unknown) => void) => { listeners.set(type, listener) }))
     await import('../src/preload/page.js')
     listeners.get('error')!({ error: new Error('Boom'), filename: 'https://example.com/app.js', lineno: 3, colno: 7 })
+    listeners.get('unhandledrejection')!({ reason: 'Not found' })
     listeners.get('beforeprint')!({ isTrusted: true })
+    // Only the browser's own print events count; a page's synthetic one is ignored.
     listeners.get('afterprint')!({ isTrusted: false })
-    expect(electron.send.mock.calls).toEqual([
-      ['hronaut:page-exception', expect.objectContaining({ message: 'Boom', sourceId: 'https://example.com/app.js', lineNumber: 3, columnNumber: 7 })],
-      ['hronaut:page-print', true]
+    listeners.get('afterprint')!({ isTrusted: true })
+    expect(electron.send.mock.calls).toStrictEqual([
+      ['hronaut:page-exception', { timestamp: expect.any(Number), message: 'Boom', stack: expect.any(String), sourceId: 'https://example.com/app.js', lineNumber: 3, columnNumber: 7 }],
+      ['hronaut:page-exception', { timestamp: expect.any(Number), message: 'Not found', stack: undefined, promiseRejection: true }],
+      ['hronaut:page-print', true],
+      ['hronaut:page-print', false]
     ])
   })
 })
