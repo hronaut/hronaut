@@ -600,7 +600,7 @@ describe('translated failures keep the English and the cause agents and logs rea
     webContents: { id: 4, isDestroyed: () => false, isCrashed: () => false, executeJavaScript: vi.fn(), executeJavaScriptInIsolatedWorld: async () => undefined }
   }
   // The element's tab shown in a visible window, which a screenshot captures as it is.
-  const screenshots = {
+  const screenshotBrowser = {
     tabs: new Map([[elementTab.id, elementTab]]), activeTabId: elementTab.id, destroyed: false, renderQueues: new Map(),
     window: { isDestroyed: () => false, isVisible: () => true, isMinimized: () => false },
     splitViewContains: () => false, reconcileTabPresentation: () => undefined
@@ -612,7 +612,7 @@ describe('translated failures keep the English and the cause agents and logs rea
   ])('keeps the page script error for an element screenshot target that is %s', async (_state, pageError, inUkrainian) => {
     const rejected = new Error(`Error: ${pageError}`)
     elementTab.webContents.executeJavaScript.mockRejectedValueOnce(rejected)
-    const error = await failure(() => screenshot(screenshots as never, { selector: '#target' }))
+    const error = await failure(() => screenshot(screenshotBrowser as never, { selector: '#target' }))
     expect(error).toBeInstanceOf(LocalizedError)
     expect(error).toMatchObject({ message: rejected.message, cause: rejected })
     await expect(shownTo(SHELL_URL, error)).resolves.toBe(inUkrainian)
@@ -622,7 +622,7 @@ describe('translated failures keep the English and the cause agents and logs rea
   it('passes any other element screenshot failure through as it is', async () => {
     const rejected = new Error('Script failed to execute')
     elementTab.webContents.executeJavaScript.mockRejectedValueOnce(rejected)
-    await expect(failure(() => screenshot(screenshots as never, { selector: '#target' }))).resolves.toBe(rejected)
+    await expect(failure(() => screenshot(screenshotBrowser as never, { selector: '#target' }))).resolves.toBe(rejected)
   })
 
   it.each([
