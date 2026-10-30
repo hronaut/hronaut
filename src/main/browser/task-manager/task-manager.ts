@@ -26,11 +26,14 @@ interface PageProcess {
  */
 export const ENDED_BY_PERSON_MS = 5_000
 
-/** The pages End process ended, each with when it asked, so only their exit soon after says the person ended it. */
+/**
+ * The pages End process ended, each with when it asked on the monotonic clock, so only their exit soon after says the
+ * person ended it, whatever the wall clock does.
+ */
 export class EndedByPersonMarks {
   private readonly noted = new WeakMap<WebContents, number>()
 
-  constructor(private readonly now: () => number = Date.now) {}
+  constructor(private readonly now: () => number = () => performance.now()) {}
 
   note(contents: WebContents): void {
     this.noted.set(contents, this.now())

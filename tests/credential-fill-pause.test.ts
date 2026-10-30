@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { fillCredentialWhileMcpPaused } from '../src/main/credentials/credential-fill-pause.js'
 import { McpPauseState } from '../src/main/mcp-runtime/mcp-pause-state.js'
 
@@ -45,5 +45,25 @@ describe('fillCredentialWhileMcpPaused', () => {
     })).rejects.toThrow('fill failed')
 
     expect(pauseState.paused).toBe(true)
+  })
+
+  it('stops waiting for running agent commands after five seconds, whatever the wall clock does', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'performance', 'setTimeout', 'clearTimeout'] })
+    try {
+      const fill = vi.fn(async () => true)
+      const filling = fillCredentialWhileMcpPaused({
+        pausePersistently: () => undefined,
+        acquireTemporaryPause: () => () => undefined,
+        getActiveRequestCount: () => 1,
+        fill
+      })
+      const settled = filling.then(() => 'filled', () => 'refused')
+      vi.setSystemTime(Date.now() - 3_600_000)
+      await vi.advanceTimersByTimeAsync(5_025)
+      await expect(Promise.race([settled, Promise.resolve('waiting')])).resolves.toBe('refused')
+      expect(fill).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

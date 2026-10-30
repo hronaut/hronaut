@@ -8,7 +8,7 @@ function setup() {
   const destination = { id: 'workspace', name: 'Work', fingerprint: 'one' }
   const profile = { id: 'source', name: 'Personal', browser: 'Chrome', kind: 'chromium' as const, file: '/private/profile', keyApplication: 'chrome' }
   const cookie = { domain: '.example.test', name: 'session', value: 'never-send-to-renderer', path: '/', hostOnly: false, session: true } as Cookie
-  const ports = { destination: vi.fn(() => ({ ...destination })), discover: vi.fn(async () => [profile]), consent: vi.fn(async () => true), read: vi.fn(async (_profile: unknown, _signal: AbortSignal) => ({ cookies: [{ ...cookie }], skipped: 2 })), write: vi.fn(async (..._args: [ImportDestination, Cookie[]]) => ({ imported: 1, skipped: 0, failed: 0, recoveryRequired: false })), now: () => 10 }
+  const ports = { destination: vi.fn(() => ({ ...destination })), discover: vi.fn(async () => [profile]), consent: vi.fn(async () => true), read: vi.fn(async (_profile: unknown, _signal: AbortSignal) => ({ cookies: [{ ...cookie }], skipped: 2 })), write: vi.fn(async (..._args: [ImportDestination, Cookie[]]) => ({ imported: 1, skipped: 0, failed: 0, recoveryRequired: false })) }
   return { destination, ports, service: new BrowserImportService(ports) }
 }
 describe('human-only import protocol', () => {
@@ -45,11 +45,23 @@ describe('human-only import protocol', () => {
     await expect(service.commit(preview!.id, ['example.test'])).rejects.toMatchObject({ code: 'expired' })
     expect(ports.write).not.toHaveBeenCalled(); service.cancel()
   })
-  it('expires previews', async () => {
-    const { service, ports } = setup(); await service.list('workspace')
-    const preview = await service.preview('workspace', 'source'); ports.now = () => 600_000
-    await expect(service.commit(preview!.id, ['example.test'])).rejects.toMatchObject({ code: 'expired' })
-    expect(ports.write).not.toHaveBeenCalled()
+  it('expires previews after five minutes, whatever the wall clock does', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'performance'] })
+    try {
+      const { service, ports } = setup(); await service.list('workspace')
+      const kept = await service.preview('workspace', 'source')
+      vi.setSystemTime(Date.now() + 3_600_000)
+      await service.commit(kept!.id, ['example.test'])
+      expect(ports.write).toHaveBeenCalledTimes(1)
+      await service.list('workspace')
+      const preview = await service.preview('workspace', 'source')
+      vi.setSystemTime(Date.now() - 7_200_000)
+      vi.advanceTimersByTime(300_000)
+      await expect(service.commit(preview!.id, ['example.test'])).rejects.toMatchObject({ code: 'expired' })
+      expect(ports.write).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
   })
   it('does not let a stale commit discard a newer preview', async () => {
     const { service, ports } = setup(); await service.list('workspace')

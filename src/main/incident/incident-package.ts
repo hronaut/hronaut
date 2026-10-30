@@ -15,7 +15,8 @@ const PRESENTATION_CSS = 'pre { white-space: pre-wrap; overflow-wrap: anywhere; 
 const PRESENTATION_STYLE_HASH = createHash('sha256').update(PRESENTATION_CSS).digest('base64')
 const hash = (value: string) => createHash('sha256').update(value, 'utf8').digest('hex')
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
-interface Stored { draft: IncidentDraft; preview?: IncidentPreview }
+/** A draft and its preview; the draft ends on the monotonic clock, which a clock set back or forward does not move. */
+interface Stored { draft: IncidentDraft; preview?: IncidentPreview; deadlineMonotonic: number }
 
 /** Volatile, bounded review snapshots. Never re-read live evidence after review. */
 export class IncidentPackages {
@@ -31,7 +32,7 @@ export class IncidentPackages {
   private current(owner: number, id: string): Stored {
     const stored = this.drafts.get(owner)
     if (!stored || stored.draft.draftId !== id) throw new Error('Incident review is missing or replaced; capture again')
-    if (Date.parse(stored.draft.expiresAt) <= this.now()) {
+    if (stored.deadlineMonotonic <= performance.now()) {
       this.discard(owner)
       throw new Error('Incident review expired; capture again')
     }
@@ -49,6 +50,8 @@ export class IncidentPackages {
     }
     const initialContext = context()
     const end = this.now()
+    // The capture's time limit runs on the monotonic clock; `end` is the wall-clock time the evidence is filtered by.
+    const startedMonotonic = performance.now()
     const start = end - request.minutes * 60_000
     const inWindow = (value: string) => { const time = Date.parse(value); return time >= start && time <= end }
     const artifacts: IncidentArtifact[] = []
@@ -58,12 +61,13 @@ export class IncidentPackages {
       let count: number
       try {
         if (kind === 'repro') {
-          const report = await deadline(reproRecording(host, 'get', request.tabId), end + 30_000 - this.now())
+          const report = await deadline(reproRecording(host, 'get', request.tabId), startedMonotonic + 30_000 - performance.now())
           const steps = report.steps.filter(step => inWindow(step.occurredAt))
           count = steps.length; truncated = report.truncated
           data = { formatVersion: report.formatVersion ?? 1, activeAtCapture: report.active, steps, caveats: report.caveats }
         } else if (kind === 'network') {
-          const report = await deadline(networkHar(host, { tabId: request.tabId, includeBodies: false, maxRequests: 100 }), end + 30_000 - this.now())
+          const har = networkHar(host, { tabId: request.tabId, includeBodies: false, maxRequests: 100 })
+          const report = await deadline(har, startedMonotonic + 30_000 - performance.now())
           const entries = report.log.entries.filter(entry => inWindow(entry.startedDateTime))
           count = entries.length; truncated = report._hronaut.truncated
           data = { entries, includesBodies: false, caveats: report._hronaut.caveats }
@@ -85,12 +89,12 @@ export class IncidentPackages {
         artifacts.push({ kind, status: 'unavailable', truncated: false })
       }
       if (this.generations.get(owner) !== generation || context() !== initialContext) throw new Error('Incident context changed during capture; capture again')
-      if (this.now() - end > 30_000) throw new Error('Incident capture exceeded its time limit; capture again')
+      if (performance.now() - startedMonotonic > 30_000) throw new Error('Incident capture exceeded its time limit; capture again')
     }
     const draft: IncidentDraft = { draftId: randomUUID(), capturedAt: new Date(end).toISOString(), windowStart: new Date(start).toISOString(), expiresAt: new Date(end + TTL).toISOString(), artifacts }
     // The trusted shell has one draft; cap other shell-owner records as well.
     while (this.drafts.size >= 4) this.discard(this.drafts.keys().next().value!)
-    this.drafts.set(owner, { draft })
+    this.drafts.set(owner, { draft, deadlineMonotonic: performance.now() + TTL })
     return structuredClone(draft)
   }
   invalidatePreview(owner: number, draftId?: string): void {

@@ -61,8 +61,8 @@ it('reports empty, unavailable and oversized evidence without leaking exception 
 })
 it('filters the time window and refuses expired or replaced reviews', async () => {
   const { host, source } = fixture()
-  let time = now
-  const service = new IncidentPackages(() => host as unknown as Browser, 'test', () => time)
+  vi.useFakeTimers({ toFake: ['performance'] })
+  const service = new IncidentPackages(() => host as unknown as Browser, 'test', () => now)
   source.steps[0]!.occurredAt = new Date(now - 120000).toISOString()
   const draft = await service.capture(1, { tabId: 'tab', minutes: 1, kinds: ['repro'] })
   expect(draft.artifacts[0]?.status).toBe('empty')
@@ -70,8 +70,25 @@ it('filters the time window and refuses expired or replaced reviews', async () =
   const first = service.review(1, request)
   service.review(1, request)
   expect(() => service.export(1, draft.draftId, first.previewId)).toThrow('changed')
-  time += 600001
+  vi.advanceTimersByTime(600_001)
   expect(() => service.review(1, request)).toThrow('expired')
+})
+it('keeps a review for ten minutes and bounds capture time, whatever the wall clock does', async () => {
+  vi.useFakeTimers()
+  const { host } = fixture()
+  const service = new IncidentPackages(() => host as unknown as Browser, 'test')
+  const draft = await service.capture(1, { tabId: 'tab', minutes: 1, kinds: ['repro'] })
+  const request = { draftId: draft.draftId, include: ['repro'], replacements: [] }
+  vi.setSystemTime(Date.now() + 3_600_000)
+  expect(service.review(1, request).html).toContain('repro')
+  vi.setSystemTime(Date.now() - 7_200_000)
+  vi.advanceTimersByTime(600_000)
+  expect(() => service.review(1, request)).toThrow('expired')
+  host.reproRecording.mockImplementationOnce(async () => {
+    vi.setSystemTime(Date.now() + 3_600_000)
+    return { active: false, steps: [], caveats: [], truncated: false }
+  })
+  await expect(service.capture(1, { tabId: 'tab', minutes: 1, kinds: ['repro'] })).resolves.toMatchObject({ artifacts: [{ status: 'empty' }] })
 })
 it.each(['discard', 'navigate'])('rejects a capture when %s happens during a read', async action => {
   const { service, host, source, tab } = fixture()
