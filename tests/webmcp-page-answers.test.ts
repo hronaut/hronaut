@@ -147,8 +147,10 @@ describe('what main takes from the WebMCP page bridge, which runs where the page
     const cyclic: Record<string, unknown> = { name: 'loop' }
     cyclic.self = cyclic
     expect(resultOf({ value: cyclic })).toEqual({ value: { name: 'loop', self: '[truncated]' }, truncated: true })
-    expect(resultOf({ value: { big: 10n, map: new Map([['a', 1]]), missing: undefined } })).toEqual({
-      value: { big: '10', map: {}, missing: 'undefined' }
-    })
+    expect(resultOf({ value: { map: new Map([['a', 1]]), missing: undefined } })).toEqual({ value: { map: {}, missing: 'undefined' } })
+  })
+
+  it('keeps no big integer, which the bridge gives as its digits, so a page cannot make main write out a huge one', () => {
+    expect(resultOf({ value: { big: 10n, huge: 1n << 100_000n } })).toEqual({ value: { big: '[truncated]', huge: '[truncated]' }, truncated: true })
   })
 })

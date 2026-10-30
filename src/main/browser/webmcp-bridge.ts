@@ -6,6 +6,7 @@ export const WEBMCP_LIMITS = {
   maxTitleChars: 256,
   maxDescriptionChars: 2_000,
   maxSchemaChars: 32_000,
+  maxSchemaDepth: 64,
   maxArgumentsChars: 64_000,
   maxResultChars: 64_000,
   timeoutMs: 30_000
@@ -67,6 +68,10 @@ function pageBridgeSource(mode: 'status' | 'list' | 'call', payload: Record<stri
       const record = value as Record<string, unknown>
       return `{${Object.keys(record).sort().map(key => `${JSON.stringify(key)}:${canonical(record[key])}`).join(',')}}`
     }
+    const nestedDeeperThan = (value: unknown, depth: number): boolean => {
+      if (value === null || typeof value !== 'object') return false
+      return depth === 0 || Object.values(value).some(child => nestedDeeperThan(child, depth - 1))
+    }
     const normalize = (tools: unknown[]): { descriptors: unknown[]; descriptorJson: string; raw: Record<string, unknown>[] } => {
       const topLevel = tools.filter((candidate): candidate is Record<string, unknown> => {
         if (!candidate || typeof candidate !== 'object') return false
@@ -98,6 +103,9 @@ function pageBridgeSource(mode: 'status' | 'list' | 'call', payload: Record<stri
               throw new Error(`WebMCP tool ${tool.name} has an invalid JSON input schema`)
             }
           }
+          if (nestedDeeperThan(inputSchema, limits.maxSchemaDepth)) {
+            throw new Error(`WebMCP tool ${tool.name} has an input schema nested more than ${limits.maxSchemaDepth} levels deep`)
+          }
           const schemaJson = canonical(inputSchema)
           if (schemaJson.length > limits.maxSchemaChars) throw new Error(`WebMCP tool ${tool.name} has an oversized input schema`)
           descriptor.inputSchema = JSON.parse(schemaJson)
@@ -122,13 +130,13 @@ function pageBridgeSource(mode: 'status' | 'list' | 'call', payload: Record<stri
       let truncated = false
       const visit = (candidate: unknown, depth: number): unknown => {
         if (candidate === null || typeof candidate === 'boolean' || typeof candidate === 'number') return candidate
-        if (typeof candidate === 'string') {
-          if (candidate.length <= 20_000) return candidate
+        // A string, and a value JSON has no form for, such as a big integer, as its text.
+        if (typeof candidate !== 'object') {
+          const text = String(candidate)
+          if (text.length <= 20_000) return text
           truncated = true
-          return candidate.slice(0, 20_000)
+          return text.slice(0, 20_000)
         }
-        if (typeof candidate === 'bigint') return candidate.toString()
-        if (typeof candidate !== 'object') return String(candidate)
         if (seen.has(candidate as object) || depth >= 8) {
           truncated = true
           return '[truncated]'

@@ -9,8 +9,6 @@ const MAX_DESCRIPTOR_JSON_CHARS = WEBMCP_LIMITS.maxTools * (
   6 * (WEBMCP_LIMITS.maxNameChars + WEBMCP_LIMITS.maxTitleChars + WEBMCP_LIMITS.maxDescriptionChars)
   + WEBMCP_LIMITS.maxSchemaChars + 512
 )
-// Deeper than any tool's input schema, and shallow enough for main to read and write it without running out of stack.
-const MAX_SCHEMA_DEPTH = 64
 // What the bridge keeps of a tool's result: strings, arrays and objects up to these sizes, objects nested up to this depth.
 const MAX_RESULT_STRING_CHARS = 20_000
 const MAX_RESULT_ENTRIES = 100
@@ -122,7 +120,7 @@ function descriptorOf(value: unknown): WebMcpToolDescriptor | undefined {
   if (typeof name !== 'string' || name.length < 1 || name.length > WEBMCP_LIMITS.maxNameChars) return undefined
   if (title !== undefined && (typeof title !== 'string' || title.length > WEBMCP_LIMITS.maxTitleChars)) return undefined
   if (description !== undefined && (typeof description !== 'string' || description.length > WEBMCP_LIMITS.maxDescriptionChars)) return undefined
-  if (inputSchema !== undefined && (nestedDeeperThan(inputSchema, MAX_SCHEMA_DEPTH)
+  if (inputSchema !== undefined && (nestedDeeperThan(inputSchema, WEBMCP_LIMITS.maxSchemaDepth)
     || JSON.stringify(inputSchema).length > WEBMCP_LIMITS.maxSchemaChars)) return undefined
   if (annotations !== undefined) {
     const hints = recordOf(annotations)
@@ -165,7 +163,12 @@ function boundedResult(value: unknown): { value: unknown; truncated?: true } {
       truncated = true
       return candidate.slice(0, MAX_RESULT_STRING_CHARS)
     }
-    if (typeof candidate === 'bigint') return candidate.toString()
+    // The bridge gives a big integer as its digits, so one here is the page's own, and writing out its digits could
+    // keep main busy for seconds.
+    if (typeof candidate === 'bigint') {
+      truncated = true
+      return '[truncated]'
+    }
     if (typeof candidate !== 'object') return String(candidate)
     if (seen.has(candidate) || depth >= MAX_RESULT_DEPTH) {
       truncated = true
