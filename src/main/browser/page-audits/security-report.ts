@@ -2,11 +2,12 @@ import { buildBrowserSecurityReport } from '../../../shared/security-report.js'
 import { redactNetworkUrl } from '../../../shared/network-details.js'
 import type { BrowserSecurityReport } from '../../../shared/types.js'
 import { isHronautHomeUrl } from '../url.js'
-import type { PageAuditsAccess, PageAuditsTab } from './page-audits-access.js'
+import type { Browser } from '../browser.js'
+import { getTab } from '../browser-core.js'
 
 /** The connection security of the tab's page, from its latest security snapshot. */
-export function securityReport<Tab extends PageAuditsTab>(access: PageAuditsAccess<Tab>, tabId?: string): BrowserSecurityReport {
-  const tab = access.getTab(tabId)
+export function securityReport(browser: Browser, tabId?: string): BrowserSecurityReport {
+  const tab = getTab(browser, tabId)
   if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before inspecting connection security')
   const snapshot = tab.securitySnapshot
   return buildBrowserSecurityReport({

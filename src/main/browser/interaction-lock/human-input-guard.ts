@@ -1,4 +1,7 @@
-import type { InteractionLockAccess, InteractionLockTab } from './interaction-lock-access.js'
+import type { Browser } from '../browser.js'
+import { findTab } from '../browser-core.js'
+import type { BrowserTab } from '../browser-tab.js'
+import { withDebugger } from '../debugger-lease/debugger-lease.js'
 import { RendererExitedError } from '../renderer-exit-guard.js'
 import { PrintDialogOpenError, whenPrintDialogCloses } from '../print-dialog-guard.js'
 
@@ -44,13 +47,13 @@ function cdpFrameIds(node: CdpFrameTreeNode): string[] {
  * wheel guard to every frame as a fallback; otherwise lifts both. A page or
  * manager that went away meanwhile is left alone.
  */
-export async function syncHumanInteractionInputGuard<Tab extends InteractionLockTab>(access: InteractionLockAccess<Tab>, tab: Tab): Promise<void> {
-  if (access.isDestroyed() || tab.webContents.isDestroyed() || access.findTab(tab.id) !== tab) return
+export async function syncHumanInteractionInputGuard(browser: Browser, tab: BrowserTab): Promise<void> {
+  if (browser.destroyed || tab.webContents.isDestroyed() || findTab(browser, tab.id) !== tab) return
   try {
-    await access.withDebugger(tab.webContents, async () => {
-      const trustedSelectionActive = access.screenshotAreaSessions().has(tab.webContents.id)
-        || access.elementPickerSessions().has(tab.webContents.id)
-      const locked = access.isHumanInteractionLocked(tab)
+    await withDebugger(browser, tab.webContents, async () => {
+      const trustedSelectionActive = browser.screenshotAreaSessions.has(tab.webContents.id)
+        || browser.elementPickerSessions.has(tab.webContents.id)
+      const locked = browser.isHumanInteractionLocked(tab)
         && !trustedSelectionActive
       // Chromium's compositor can apply physical wheel/trackpad scrolling
       // before DOM or Electron cancellation runs. This is the authoritative
@@ -76,15 +79,15 @@ export async function syncHumanInteractionInputGuard<Tab extends InteractionLock
     })
   } catch (error) {
     if (
-      access.isDestroyed()
+      browser.destroyed
       || tab.webContents.isDestroyed()
-      || access.findTab(tab.id) !== tab
+      || findTab(browser, tab.id) !== tab
       || nativeSelectionContextUnavailable(error)
     ) return
     if (error instanceof PrintDialogOpenError) {
       // The native barrier, which the browser process applies, is in place; the frames' wheel guards follow once the
       // person closes the page's print dialog.
-      void whenPrintDialogCloses(tab.webContents).then(() => syncHumanInteractionInputGuard(access, tab)).catch(() => undefined)
+      void whenPrintDialogCloses(tab.webContents).then(() => syncHumanInteractionInputGuard(browser, tab)).catch(() => undefined)
       return
     }
     throw error

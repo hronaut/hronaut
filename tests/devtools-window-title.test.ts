@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { WebContents } from 'electron'
 import { openDevTools } from '../src/main/browser/devtools/devtools.js'
-import type { DevToolsAccess, DevToolsTab } from '../src/main/browser/devtools/devtools-access.js'
 import { translate, type MessageKey, type MessageParameters } from '../src/shared/i18n.js'
 import type { SupportedLocale } from '../src/shared/locale.js'
 
@@ -21,18 +20,17 @@ async function devToolsTitle(locale: SupportedLocale, title: string, url: string
       opened = true
     }
   } as unknown as WebContents
-  const tab: DevToolsTab = { id: 'tab', title, url, webContents, networkDebuggerEpoch: 0, networkConditionApplication: 'confirmed', networkRoutes: [] }
+  const tab = { id: 'tab', title, url, webContents, networkDebuggerEpoch: 0, networkConditionApplication: 'confirmed', networkRoutes: [] }
   const opening = new Set<number>()
-  const access = {
-    findTab: () => tab,
-    isDestroyed: () => false,
-    requireNetworkConditionsKnown: () => undefined,
-    devToolsOpening: () => opening,
-    dialogMonitorAttach: () => undefined,
-    pendingDebuggerCommand: () => undefined,
+  const browser = {
+    tabs: new Map([[tab.id, tab]]),
+    destroyed: false,
+    devToolsOpening: opening,
+    dialogMonitorAttachPromises: new Map(),
+    debuggerQueue: { pending: () => undefined },
     text: (key: MessageKey, parameters?: MessageParameters) => translate(locale, key, parameters)
-  } as unknown as DevToolsAccess<DevToolsTab>
-  await openDevTools(access, tab)
+  }
+  await openDevTools(browser as never, tab as never)
   expect(opening.size).toBe(0)
   return requested
 }

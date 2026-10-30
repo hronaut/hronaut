@@ -1,18 +1,21 @@
 import type { WebContents } from 'electron'
-import type { DevToolsAccess, DevToolsTab } from './devtools-access.js'
+import type { Browser } from '../browser.js'
+import { ensureDialogMonitoring } from '../website-dialogs/website-dialogs.js'
+import type { BrowserTab } from '../browser-tab.js'
+import { publishChange } from '../browser-state/browser-state.js'
 
 /**
  * Follows the page's Developer Tools: opening them ends any CSS state preview
  * and publishes the state; closing them publishes the state and monitors the
  * page's website dialogs again.
  */
-export function attachDevToolsEvents<Tab extends DevToolsTab>(access: DevToolsAccess<Tab>, tab: Tab, webContents: WebContents): void {
+export function attachDevToolsEvents(browser: Browser, tab: BrowserTab, webContents: WebContents): void {
   webContents.on('devtools-opened', () => {
-    void access.cssStatePreview().clear(tab, 'devtools-opened').catch(() => undefined)
-    access.changed(false)
+    void browser.cssStatePreview.clear(tab, 'devtools-opened').catch(() => undefined)
+    publishChange(browser, false)
   })
   webContents.on('devtools-closed', () => {
-    access.changed(false)
-    void access.ensureDialogMonitoring(tab)
+    publishChange(browser, false)
+    void ensureDialogMonitoring(browser, tab)
   })
 }

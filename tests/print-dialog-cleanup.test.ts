@@ -6,6 +6,11 @@ vi.mock('../src/main/browser/agent-input-scope/focus-isolation.js', () => ({
   beginAgentFocusIsolation: () => () => undefined,
   restoreHumanFocusAfterAgentInput: () => undefined
 }))
+// The lock's browser below stubs withDebugger, which the input guard reaches through this.
+vi.mock('../src/main/browser/debugger-lease/debugger-lease.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/debugger-lease/debugger-lease.js')>(),
+  withDebugger: (browser: { withDebugger: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.withDebugger(...args)
+}))
 
 const { withAgentInput } = await import('../src/main/browser/agent-input-scope/agent-input-scope.js')
 const { syncHumanInteractionInputGuard } = await import('../src/main/browser/interaction-lock/human-input-guard.js')
@@ -94,16 +99,16 @@ describe('cleanup after a print dialog', () => {
   it('keeps the click\'s own error on a locked tab and restores the frames\' wheel guards after the dialog', async () => {
     const { page, commands, print } = printablePage()
     const tab = { id: 'tab', webContents: page }
-    const lockAccess = {
-      isDestroyed: () => false,
-      findTab: () => tab,
+    const lockBrowser = {
+      destroyed: false,
+      tabs: new Map([[tab.id, tab]]),
       isHumanInteractionLocked: () => true,
       withDebugger: <T>(_page: unknown, operation: () => Promise<T>) => operation(),
-      screenshotAreaSessions: () => new Map(),
-      elementPickerSessions: () => new Map()
+      screenshotAreaSessions: new Map(),
+      elementPickerSessions: new Map()
     }
     const { browser } = agentInputBrowser(true)
-    browser.syncHumanInteractionInputGuard.mockImplementation(() => syncHumanInteractionInputGuard(lockAccess as never, tab as never))
+    browser.syncHumanInteractionInputGuard.mockImplementation(() => syncHumanInteractionInputGuard(lockBrowser as never, tab as never))
     const click = withAgentInput(browser as never, page as never, async () => {
       print(true)
       throw new PrintDialogOpenError(true)
