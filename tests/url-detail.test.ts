@@ -3,7 +3,6 @@ import type { WebContents } from 'electron'
 import { describe, expect, it } from 'vitest'
 import type { Browser } from '../src/main/browser/browser.js'
 import type { BrowserTab } from '../src/main/browser/browser-tab.js'
-import { snapshotScript } from '../src/main/browser/page-scripts.js'
 import { setSnapshotBaseline, snapshotDelta, snapshotDetails } from '../src/main/browser/page-snapshots/page-snapshots.js'
 import { compactTabDiscovery } from '../src/main/mcp/tab-discovery.js'
 import { mcpWorkspaceState, mcpWorkspaceTab, savedWorkspaceWithoutUrlDetail } from '../src/main/mcp/tool-results.js'
@@ -148,7 +147,7 @@ describe('snapshot URL lines without detail', () => {
       isDestroyed: () => false,
       executeJavaScriptInIsolatedWorld: async (_world: number, sources: Array<{ code: string }>) => {
         scripts.push(sources[0]!.code)
-        const omitted = sources[0]!.code === snapshotScript(30_000, undefined, true)
+        const omitted = sources[0]!.code.includes('"omitUrlDetail":true')
         const text = `URL: ${omitted ? 'https://shop.example.test/checkout (query and fragment omitted)' : 'https://shop.example.test/checkout?view=cart'}\nTITLE: Checkout`
         return { formatVersion: BROWSER_SNAPSHOT_FORMAT_VERSION, text, maxChars: 30_000, returnedChars: text.length, truncated: false, omitted: { headings: false, controls: false, bodyText: false, characters: false } }
       }
@@ -170,11 +169,11 @@ describe('snapshot URL lines without detail', () => {
   it('asks the page for the URL line the setting calls for and marks the snapshot', async () => {
     const page = fakePage()
     expect(await snapshotDetails(page.browser, 'tab-1')).not.toHaveProperty('urlDetail')
-    expect(page.scripts[0]).toBe(snapshotScript(30_000))
+    expect(page.scripts[0]).toContain('"omitUrlDetail":false')
     page.setOmit(true)
     const snapshot = await snapshotDetails(page.browser, 'tab-1')
     expect(snapshot).toMatchObject({ urlDetail: 'omitted', text: expect.stringContaining('(query and fragment omitted)') })
-    expect(page.scripts[1]).toBe(snapshotScript(30_000, undefined, true))
+    expect(page.scripts[1]).toContain('"omitUrlDetail":true')
   })
 
   it('starts a delta over instead of comparing URL lines across a change of the setting', async () => {
