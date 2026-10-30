@@ -8,6 +8,12 @@ vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOrigi
 }))
 import { Browser } from '../src/main/browser/browser.js'
 
+// The fake browser below stubs the functions the code under test calls; these reach its stubs.
+vi.mock('../src/main/browser/page-navigation/page-navigation.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/page-navigation/page-navigation.js')>(),
+  stop: (browser: { stop: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.stop(...args)
+}))
+
 afterEach(() => { vi.useRealTimers() })
 
 type Tab = {

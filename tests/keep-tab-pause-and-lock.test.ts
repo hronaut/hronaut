@@ -82,6 +82,11 @@ vi.mock('../src/main/browser/session-hooks/session-hooks.js', async (importOrigi
 vi.mock('../src/main/browser/tab-events/attach-tab-events.js', () => ({
   attachTabEvents: (browser: { attachTabEvents: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.attachTabEvents(...args)
 }))
+// The fake browser below stubs the functions the code under test calls; these reach its stubs.
+vi.mock('../src/main/browser/page-navigation/page-navigation.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/page-navigation/page-navigation.js')>(),
+  stop: (browser: { stop: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.stop(...args)
+}))
 const { Browser } = await import('../src/main/browser/browser.js')
 const { WorkspaceRegistry } = await import('../src/main/browser/workspace-registry/workspace-registry.js')
 const { closeTabsForPerson } = await import('../src/main/browser/tab-close/close-tabs-for-person.js')

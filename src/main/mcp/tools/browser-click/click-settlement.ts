@@ -5,6 +5,7 @@ import type { Browser } from '../../../browser/browser.js'
 import { McpCapabilityAuthorizationError } from '../../capability-profile-store.js'
 import { errorResult, nativeClickFailureResult } from '../../tool-results.js'
 import type { ToolActivityClassification, WorkspaceToolCall } from '../tool-context.js'
+import { tabBelongsToMcpGroup } from '../../../browser/workspace-scope/workspace-scope.js'
 
 function withCurrentOpenedTabs(result: CallToolResult, isCurrent: (tabId: string) => boolean): CallToolResult {
   if (result.isError) return result
@@ -88,7 +89,7 @@ export function clickSettlement(manager: Browser, rightClick: boolean) {
       invalidatedOutcome: nativeClickEffectsPossible(progress) && failed ? 'outcome-unknown' : undefined
     } : activity,
     finalize: (result: CallToolResult): CallToolResult =>
-      withCurrentOpenedTabs(result, tabId => manager.tabBelongsToMcpGroup(call!.workspaceId, tabId)),
+      withCurrentOpenedTabs(result, tabId => tabBelongsToMcpGroup(manager, call!.workspaceId, tabId)),
     dispose: (): void => { authority?.dispose() }
   }
 }

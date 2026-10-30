@@ -34,6 +34,9 @@ import type { BookmarkOperations, HistoryOperations, SiteDataOperations } from '
 import { type WalletAgentOperations, WalletAgentSessionRegistry } from './wallet-agent-sessions.js'
 import { createBrowserMcpServer } from './browser-mcp-server.js'
 import { hasAgentPauseExceptions } from '../browser/agent-pause/agent-pause.js'
+import { listMcpTabGroups } from '../browser/mcp-tab-groups/mcp-tab-groups.js'
+import { suspendWorkspaceContinuity } from '../browser/workspace-continuity/workspace-continuity.js'
+import { tabBelongsToMcpGroup } from '../browser/workspace-scope/workspace-scope.js'
 
 export const MCP_FAILED_AUTH_LIMIT = 120
 const MCP_FAILED_AUTH_WINDOW_MS = 60_000
@@ -158,10 +161,7 @@ export class McpHttpServer {
   private agentPresenceWakeAt: number | undefined
   private readonly agentStepThumbnails: AgentStepThumbnailScheduler | undefined
 
-  constructor(
-    private readonly manager: Browser,
-    private readonly options: McpHttpServerOptions
-  ) {
+  constructor(private readonly manager: Browser, private readonly options: McpHttpServerOptions) {
     this.token = options.token
     this.actionTracker = options.actionTracker ?? new McpActionTracker()
     this.toolSet = options.toolSet ?? 'complete'
@@ -197,7 +197,7 @@ export class McpHttpServer {
     this.actionTracker.invalidatePendingDispatches()
     this.allowTabPauseOverrides = allowTabOverrides
     if (paused && !this.paused) {
-      for (const workspace of this.manager.listMcpTabGroups()) this.manager.suspendWorkspaceContinuity(workspace.id)
+      for (const workspace of listMcpTabGroups(this.manager)) suspendWorkspaceContinuity(this.manager, workspace.id)
       this.workspaceLeases.clear()
     }
     this.paused = paused
@@ -498,7 +498,7 @@ export class McpHttpServer {
     return this.agentPresence.derive(now, {
       workspaceOpen: (workspaceId) => this.manager.isOpenAgentWorkspace(workspaceId),
       currentAttentionId: this.options.getOpenUserAttentionId ? this.options.getOpenUserAttentionId() : this.options.getUserAttention()?.id ?? null,
-      tabInWorkspace: (workspaceId, tabId) => this.manager.tabBelongsToMcpGroup(workspaceId, tabId)
+      tabInWorkspace: (workspaceId, tabId) => tabBelongsToMcpGroup(this.manager, workspaceId, tabId)
     })
   }
 
@@ -662,7 +662,7 @@ export class McpHttpServer {
   getAgentStepHistory(clientKey: string, workspaceId: string, known: readonly string[]): AgentStepHistoryEntry[] | null {
     if (!this.manager.isOpenAgentWorkspace(workspaceId)) return null
     return this.agentPresence.history(clientKey, workspaceId, {
-      tabInWorkspace: (workspace, tabId) => this.manager.tabBelongsToMcpGroup(workspace, tabId)
+      tabInWorkspace: (workspace, tabId) => tabBelongsToMcpGroup(this.manager, workspace, tabId)
     }, new Set(known))
   }
 
@@ -775,7 +775,7 @@ export class McpHttpServer {
         { id: client.id, name: client.name },
         workspaceId,
         call,
-        (tabId) => this.manager.tabBelongsToMcpGroup(workspaceId, tabId)
+        (tabId) => tabBelongsToMcpGroup(this.manager, workspaceId, tabId)
       )
       // Inside the try: a step that failed to record is not repeated, and the feed never fails the call. A call that
       // finished after its workspace closed or lost agent access adds nothing.
@@ -790,7 +790,7 @@ export class McpHttpServer {
     // the person has taken over.
     if (call.source === 'call' && call.phase === 'finished' && this.agentStepThumbnails) {
       const step = this.agentPresence.latestStep(client.id, workspaceId)
-      if (step?.tabId && this.manager.tabBelongsToMcpGroup(workspaceId, step.tabId)) {
+      if (step?.tabId && tabBelongsToMcpGroup(this.manager, workspaceId, step.tabId)) {
         this.agentStepThumbnails.request(step.tabId, { sessionId: client.id, workspaceId, stepId: step.id })
       }
     }

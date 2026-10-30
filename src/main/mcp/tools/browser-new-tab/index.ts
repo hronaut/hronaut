@@ -5,6 +5,7 @@ import { MAX_TAB_LABEL_INPUT_LENGTH, normalizeTabLabel } from '../../../../share
 import { classifyMcpActivityResult, mcpWorkspaceState, textResult, toolDescription, urlDetailOmitted } from '../../tool-results.js'
 import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
 import { type LabeledCreationSettlement, labeledCreationSettlement } from './labeled-creation-settlement.js'
+import { getMcpGroupState, tabBelongsToMcpGroup } from '../../../browser/workspace-scope/workspace-scope.js'
 
 export function registerBrowserNewTab(context: McpToolContext): void {
   const { manager, onTabActivity, registerWorkspaceTool, tool, workspaceAuthorizationError } = context
@@ -32,13 +33,13 @@ export function registerBrowserNewTab(context: McpToolContext): void {
           onTabActivity?.({ activityId, tabId, toolName: 'browser_new_tab', phase: 'started', occurredAt: Date.now() }, workspaceId!)
           creation.retainPublication(() => {
             validate()
-            if (!manager.tabBelongsToMcpGroup(workspaceId!, tabId)) throw workspaceAuthorizationError()
+            if (!tabBelongsToMcpGroup(manager, workspaceId!, tabId)) throw workspaceAuthorizationError()
           })
           creation.retainFinish(result => onTabActivity?.({ activityId, tabId, toolName: 'browser_new_tab', phase: result.isError ? 'failed' : 'finished', occurredAt: Date.now(), result: classifyMcpActivityResult({ readOnly: false, dispatched: true, cancelled: creation.cancelled(), timedOut: false, threw: false, isError: result.isError === true, invalidatedOutcome: result.structuredContent?.status === 'OUTCOME_UNKNOWN' ? 'outcome-unknown' : undefined }) }, workspaceId!))
         }, creation.markAttempted)
         const knownNotSaved = saved.labelPersistence === 'not-saved'
         creation.recordLabelNotSaved(knownNotSaved)
-        const outcome = { ...mcpWorkspaceState(manager.getMcpGroupState(workspaceId!), urlDetailOmitted(manager)), ...saved,
+        const outcome = { ...mcpWorkspaceState(getMcpGroupState(manager, workspaceId!), urlDetailOmitted(manager)), ...saved,
           status: knownNotSaved ? 'LABEL_NOT_SAVED' : 'CREATED', retrySafe: false,
           ...(knownNotSaved ? { nextAction: 'The tab was created but its label was not saved. Inspect current state; do not repeat creation to retry the label.' } : {}) }
         return { ...textResult(outcome), structuredContent: { status: outcome.status }, ...(knownNotSaved ? { isError: true } : {}) }
@@ -47,12 +48,12 @@ export function registerBrowserNewTab(context: McpToolContext): void {
       // tabs too, in this workspace or another.
       let createdTabId: string | undefined
       await manager.newAgentTab({ url, active, mcpGroupId: workspaceId!, focus: false, ...construction }, (tabId) => { createdTabId = tabId })
-      if (createdTabId && manager.tabBelongsToMcpGroup(workspaceId!, createdTabId)) {
+      if (createdTabId && tabBelongsToMcpGroup(manager, workspaceId!, createdTabId)) {
         const activityId = randomUUID()
         onTabActivity?.({ activityId, tabId: createdTabId, toolName: 'browser_new_tab', phase: 'started', occurredAt: Date.now() }, workspaceId!)
         onTabActivity?.({ activityId, tabId: createdTabId, toolName: 'browser_new_tab', phase: 'finished', occurredAt: Date.now() }, workspaceId!)
       }
-      return textResult(mcpWorkspaceState(manager.getMcpGroupState(workspaceId!), urlDetailOmitted(manager)))
+      return textResult(mcpWorkspaceState(getMcpGroupState(manager, workspaceId!), urlDetailOmitted(manager)))
     }),
     {
       settlement: input => input.label !== undefined ? labeledCreationSettlement(manager, input) : undefined,

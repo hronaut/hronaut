@@ -9,6 +9,12 @@ vi.mock('../src/main/browser/history-gesture/history-gesture.js', async (importO
   ...await importOriginal<typeof import('../src/main/browser/history-gesture/history-gesture.js')>(),
   historyGesture: (browser: { historyGesture: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.historyGesture(...args)
 }))
+// The fake browser below stubs the functions the code under test calls; these reach its stubs.
+vi.mock('../src/main/browser/page-navigation/page-navigation.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/page-navigation/page-navigation.js')>(),
+  back: (browser: { back: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.back(...args),
+  forward: (browser: { forward: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.forward(...args)
+}))
 
 // Hronaut had no keys for Back and Forward: Alt+Left and Alt+Right, or Cmd+[ and Cmd+] on macOS, did nothing.
 

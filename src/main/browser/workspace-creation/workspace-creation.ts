@@ -6,6 +6,8 @@ import { WorkspaceTemplateImporter } from '../workspace-template-import.js'
 import type { Browser } from '../browser.js'
 import { openWorkspaceRoom } from './workspace-capacity.js'
 import { browserState } from '../browser-state/browser-state.js'
+import { createMcpTabGroup } from '../mcp-tab-groups/create-mcp-tab-group.js'
+import { updateMcpTabGroup } from '../mcp-tab-groups/mcp-tab-groups.js'
 
 /**
  * Creates the workspaces a template describes, each without agent access
@@ -18,8 +20,8 @@ export async function importWorkspaceTemplate(browser: Browser, text: string): P
       .map(({ id, name }) => ({ id, name })),
     room: () => ({ tabs: MAX_BROWSER_TABS - browser.tabs.size, workspaces: openWorkspaceRoom(browser) }),
     create: async (entry) => {
-      const workspace = await browser.createMcpTabGroup(entry.name, entry.color, 'scratch', undefined, false, undefined, undefined, entry.description)
-      browser.updateMcpTabGroup(workspace.id, { agentAccess: false })
+      const workspace = await createMcpTabGroup(browser, entry.name, entry.color, 'scratch', undefined, false, undefined, undefined, entry.description)
+      updateMcpTabGroup(browser, workspace.id, { agentAccess: false })
       return workspace.id
     },
     openStartPages: async (workspaceId, urls) => {
@@ -41,22 +43,12 @@ export async function importWorkspaceTemplate(browser: Browser, text: string): P
  */
 export async function createWorkspace(browser: Browser, options: BrowserWorkspaceCreateOptions): Promise<BrowserState> {
   if (!options.name.trim()) throw new LocalizedError('appErrors.workspace.nameEmpty')
-  const workspace = await browser.createMcpTabGroup(
-    options.name,
-    options.color,
-    options.storage,
-    options.origins,
-    false,
-    options.navigationPolicy,
-    options.sourceWorkspaceId,
-    options.description,
-    options.contextClass
-  )
-  if (options.agentAccess !== undefined) browser.updateMcpTabGroup(workspace.id, { agentAccess: options.agentAccess })
+  const workspace = await createMcpTabGroup(browser, options.name, options.color, options.storage, options.origins, false, options.navigationPolicy, options.sourceWorkspaceId, options.description, options.contextClass)
+  if (options.agentAccess !== undefined) updateMcpTabGroup(browser, workspace.id, { agentAccess: options.agentAccess })
   try {
     if (workspace.activeTabId) browser.selectTab(workspace.activeTabId)
     else await browser.createTab({ url: 'about:blank', active: true, mcpGroupId: workspace.id })
-    browser.updateMcpTabGroup(workspace.id, { hiddenFromSidebar: options.hiddenFromSidebar === true, deletionProtected: options.deletionProtected === true })
+    updateMcpTabGroup(browser, workspace.id, { hiddenFromSidebar: options.hiddenFromSidebar === true, deletionProtected: options.deletionProtected === true })
     return browserState(browser)
   } catch (error) {
     try {

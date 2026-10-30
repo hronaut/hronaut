@@ -27,7 +27,7 @@ import type { McpToolContext, ToolActivityClassification, ToolCallSettlement, To
 import type { RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { auditEvidenceAvailability } from '../browser/debug-report/debug-report.js'
 import { beginWorkspaceContinuityAction, postWriteContextFingerprint, readBrowserReconciliation, readPostWritePostcondition, requireWorkspaceContinuityDispatch } from '../browser/workspace-continuity/workspace-continuity.js'
-import { requireTabInMcpGroup } from '../browser/workspace-scope/workspace-scope.js'
+import { requireTabInMcpGroup, getMcpGroupState, tabBelongsToMcpGroup } from '../browser/workspace-scope/workspace-scope.js'
 
 function publicObserverAllowsTool(name: string, allowed: boolean): boolean {
   return name.startsWith('browser_') && (toolDefinition(name).annotations.readOnlyHint || allowed)
@@ -259,7 +259,7 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
           || (options.tabTarget === 'optional' && requestedTabId === undefined)
           || (options.tabTarget === 'if-any'
             && requestedTabId === undefined
-            && manager.getMcpGroupState(workspaceId).tabs.length === 0)
+            && getMcpGroupState(manager, workspaceId).tabs.length === 0)
         const resolvedTabId = skipsTabTarget
           ? undefined
           : preservePresentation ? requireTabInMcpGroup(manager, workspaceId, requestedTabId, true) : requireTabInMcpGroup(manager, workspaceId, requestedTabId)
@@ -268,7 +268,7 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
         const actionPayloadFingerprint = browserActionPayloadFingerprint(actionInput)
         const actionAuthority = definition.annotations.destructiveHint && resolvedTabId
           ? captureBrowserActionAuthority({
-              state: manager.getMcpGroupState(workspaceId), workspaceId, tabId: resolvedTabId,
+              state: getMcpGroupState(manager, workspaceId), workspaceId, tabId: resolvedTabId,
               operationClass: browserActionOperationClass(name), target: actionTarget, targetId: randomUUID(),
               authorizationFingerprint: capabilityAuthorizationFingerprint,
               payloadFingerprint: actionPayloadFingerprint
@@ -305,7 +305,7 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
           }
         }
         const currentHumanInteractionGeneration = (): number | undefined => resolvedTabId
-          ? manager.getMcpGroupState(workspaceId).tabs.find(tab => tab.id === resolvedTabId)?.humanInteractionGeneration
+          ? getMcpGroupState(manager, workspaceId).tabs.find(tab => tab.id === resolvedTabId)?.humanInteractionGeneration
           : undefined
         const humanInteractionGeneration = currentHumanInteractionGeneration()
         const requireCurrentHumanInput = (): void => {
@@ -323,7 +323,7 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
           requireCurrentControl()
           requireCurrentHumanInput()
           requireAgentWorkspace(workspaceId)
-          if (resolvedTabId && !manager.tabBelongsToMcpGroup(workspaceId, resolvedTabId)) {
+          if (resolvedTabId && !tabBelongsToMcpGroup(manager, workspaceId, resolvedTabId)) {
             throw workspaceAuthorizationError()
           }
         }
@@ -339,7 +339,7 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
           if (!actionAuthority || !resolvedTabId) return undefined
           let state: BrowserState
           try {
-            state = manager.getMcpGroupState(workspaceId)
+            state = getMcpGroupState(manager, workspaceId)
           } catch {
             authorityReason = 'WORKSPACE_CHANGED'
           }
@@ -396,7 +396,7 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
             const current = workspaceLeases.status(workspaceId, client.id)
             if (current.status !== 'owned' || current.generation !== writeLease.generation) throw new Error('Workspace ownership changed')
           }
-          if (resolvedTabId && !manager.tabBelongsToMcpGroup(workspaceId, resolvedTabId)) throw workspaceAuthorizationError()
+          if (resolvedTabId && !tabBelongsToMcpGroup(manager, workspaceId, resolvedTabId)) throw workspaceAuthorizationError()
           requireActiveCapabilityDispatch(name, actionInput, { workspaceId, tabId: resolvedTabId, origins: [origin] })
           lifecycleOrigin = origin
         }
@@ -523,7 +523,7 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
               // Closing a tab intentionally retires its target. Other tools
               // must still belong to the authorized workspace when they settle.
               if (resolvedTabId && !options.closesTargetTab
-                && !manager.tabBelongsToMcpGroup(workspaceId, resolvedTabId)) throw workspaceAuthorizationError()
+                && !tabBelongsToMcpGroup(manager, workspaceId, resolvedTabId)) throw workspaceAuthorizationError()
             } catch (error) {
               rememberInputPolicy(error)
               invalidatedOutcome = readOnly ? 'stale-observation' : 'outcome-unknown'
@@ -535,7 +535,7 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
               await finishReviewedAttempt('unknown')
               return { ...textResult(outcome), structuredContent: outcome, isError: true }
             }
-            const scoped = scopeBrowserStateResult(result, manager.getMcpGroupState(workspaceId), urlDetailOmitted(manager))
+            const scoped = scopeBrowserStateResult(result, getMcpGroupState(manager, workspaceId), urlDetailOmitted(manager))
             if (scoped.isError) await finishReviewedAttempt('unknown')
             return preWriteReconciliation ? withPreWriteReconciliation(scoped, preWriteReconciliation) : scoped
           } catch (error) {
@@ -600,7 +600,7 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
           if (!activityBegun || !resolvedTabId || !options.waitsOnTab) {
             return undefined
           }
-          return closedTabWaitResult(error, !manager.tabBelongsToMcpGroup(workspaceId, resolvedTabId))
+          return closedTabWaitResult(error, !tabBelongsToMcpGroup(manager, workspaceId, resolvedTabId))
         }
         if (!auditReceipts || !name.startsWith('browser_')) {
           try {
@@ -622,7 +622,7 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
         }
         let initialOrigin: string | undefined = actionAuthority?.topLevelOrigin
         const observeAuditState = () => {
-          const state = manager.getMcpGroupState(workspaceId)
+          const state = getMcpGroupState(manager, workspaceId)
           const tab = state.tabs.find(tab => tab.id === (resolvedTabId ?? state.activeTabId))
           if (!tab) return null
           const url = new URL(tab.url)

@@ -5,6 +5,8 @@ import { showHistoryMenu } from './browser/context-menus/history-menu.js'
 import { showDevToolsConsole, toggleDevTools } from './browser/devtools/devtools.js'
 import { openNavigationInNewTab } from './browser/navigation-new-tab/navigation-new-tab.js'
 import { findInPage, stopFindInPage } from './browser/page-find/page-find.js'
+import { back, forward, reload, reloadIgnoringCache, stop } from './browser/page-navigation/page-navigation.js'
+import { setZoom } from './browser/page-zoom/page-zoom.js'
 
 interface NavigationIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
@@ -38,8 +40,8 @@ export function registerNavigationIpc(host: NavigationIpcHost): void {
     return showDevToolsConsole(host.tabs()!, tabId)
   })
   host.handleBrowserIpc('browser:navigate', (event, options) => { host.assertTrustedSender(event); return stateReply(host, host.tabs()!.navigate(options.url, options.tabId, { byPerson: true })) })
-  host.handleBrowserIpc('browser:back', (event, tabId) => { host.assertTrustedSender(event); return stateReply(host, host.tabs()!.back(tabId)) })
-  host.handleBrowserIpc('browser:forward', (event, tabId) => { host.assertTrustedSender(event); return stateReply(host, host.tabs()!.forward(tabId)) })
+  host.handleBrowserIpc('browser:back', (event, tabId) => { host.assertTrustedSender(event); return stateReply(host, back(host.tabs()!, tabId)) })
+  host.handleBrowserIpc('browser:forward', (event, tabId) => { host.assertTrustedSender(event); return stateReply(host, forward(host.tabs()!, tabId)) })
   host.handleBrowserIpc('browser:show-history-menu', (event, options: unknown) => {
     host.assertTrustedSender(event)
     if (typeof options !== 'object' || options === null) throw new TypeError('Invalid history list options')
@@ -56,14 +58,14 @@ export function registerNavigationIpc(host: NavigationIpcHost): void {
     }
     return openNavigationInNewTab(host.tabs()!, tabId, target, active)
   })
-  host.handleBrowserIpc('browser:reload', (event, tabId) => { host.assertTrustedSender(event); return stateReply(host, host.tabs()!.reload(tabId)) })
+  host.handleBrowserIpc('browser:reload', (event, tabId) => { host.assertTrustedSender(event); return stateReply(host, reload(host.tabs()!, tabId)) })
   host.handleBrowserIpc('browser:proceed-past-certificate', (event, tabId: unknown) => {
     host.assertTrustedSender(event)
     if (typeof tabId !== 'string') throw new TypeError('Invalid tab')
     return stateReply(host, host.tabs()!.proceedPastCertificateError(tabId))
   })
-  host.handleBrowserIpc('browser:reload-ignoring-cache', (event, tabId) => { host.assertTrustedSender(event); return host.tabs()!.reloadIgnoringCache(tabId) })
-  host.handleBrowserIpc('browser:stop', (event, tabId) => { host.assertTrustedSender(event); return host.tabs()!.stop(tabId) })
+  host.handleBrowserIpc('browser:reload-ignoring-cache', (event, tabId) => { host.assertTrustedSender(event); return reloadIgnoringCache(host.tabs()!, tabId) })
+  host.handleBrowserIpc('browser:stop', (event, tabId) => { host.assertTrustedSender(event); return stop(host.tabs()!, tabId) })
   host.handleBrowserIpc('browser:find-in-page', (event, options: unknown) => {
     host.assertTrustedSender(event)
     if (typeof options !== 'object' || options === null) throw new TypeError('Invalid find options')
@@ -94,7 +96,7 @@ export function registerNavigationIpc(host: NavigationIpcHost): void {
       || (action !== 'in' && action !== 'out' && action !== 'reset' && action !== 'set')
       || (percent !== undefined && typeof percent !== 'number')
     ) throw new TypeError('Invalid page zoom options')
-    return host.tabs()!.setZoom({ tabId, action, percent })
+    return setZoom(host.tabs()!, { tabId, action, percent })
   })
   host.handleBrowserIpc('browser:save-pdf', (event, options: unknown) => {
     host.assertTrustedSender(event)

@@ -1,9 +1,6 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import type { Browser } from './browser/browser.js'
-
-type PageGeometryIpcTabs = Pick<Browser,
-  | 'getSplitDivider' | 'getEmulationFrames' | 'getPageCards'
-  | 'beginSplitDivider' | 'updateSplitDivider' | 'finishSplitDivider' | 'setSplitDividerRatio'>
+import { getEmulationFrames } from './browser/page-geometry/page-geometry.js'
 
 interface PageGeometryIpcHost {
   /** Admits only the main window's shell document, not a detached panel window. */
@@ -15,7 +12,7 @@ interface PageGeometryIpcHost {
   handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void
   /** Checks the sender, then reads once saved workspaces are initialized, dropping the read if its sender navigates away. */
   runWorkspaceRead<T>(event: IpcMainInvokeEvent, assertSender: (event: IpcMainInvokeEvent) => void, read: () => T): Promise<T>
-  tabs(): PageGeometryIpcTabs | null
+  tabs(): Browser | null
 }
 
 /**
@@ -24,7 +21,7 @@ interface PageGeometryIpcHost {
  */
 export function registerPageGeometryIpc(host: PageGeometryIpcHost): void {
   host.handleBrowserIpc('split-divider:get', (event) => host.runWorkspaceRead(event, host.assertMainShellSender, () => host.tabs()!.getSplitDivider()))
-  host.handleBrowserIpc('emulation-frame:get', (event) => host.runWorkspaceRead(event, host.assertMainShellSender, () => host.tabs()!.getEmulationFrames()))
+  host.handleBrowserIpc('emulation-frame:get', (event) => host.runWorkspaceRead(event, host.assertMainShellSender, () => getEmulationFrames(host.tabs()!)))
   host.handleBrowserIpc('page-card:get', (event) => host.runWorkspaceRead(event, host.assertMainShellSender, () => host.tabs()!.getPageCards()))
   host.handleBrowserIpc('split-divider:begin', (event, revision: unknown) => {
     host.assertMainShellSender(event)

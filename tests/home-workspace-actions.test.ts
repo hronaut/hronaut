@@ -7,7 +7,13 @@ vi.mock('../src/main/browser/workspace-archive/workspace-archive.js', async (imp
   ...await importOriginal<typeof import('../src/main/browser/workspace-archive/workspace-archive.js')>(),
   closeWorkspaceForPerson: (browser: { closeWorkspaceForPerson: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.closeWorkspaceForPerson(...args),
   restoreSavedTabGroup: (browser: { restoreSavedTabGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.restoreSavedTabGroup(...args),
-  updateArchivedWorkspacePreferences: (browser: { updateArchivedWorkspacePreferences: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.updateArchivedWorkspacePreferences(...args)
+  updateArchivedWorkspacePreferences: (browser: { updateArchivedWorkspacePreferences: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.updateArchivedWorkspacePreferences(...args),
+  archiveWorkspaceForPerson: (browser: { archiveWorkspaceForPerson: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.archiveWorkspaceForPerson(...args)
+}))
+// The fake browser below stubs the functions the code under test calls; these reach its stubs.
+vi.mock('../src/main/browser/mcp-tab-groups/mcp-tab-groups.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/mcp-tab-groups/mcp-tab-groups.js')>(),
+  updateMcpTabGroup: (browser: { updateMcpTabGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.updateMcpTabGroup(...args)
 }))
 
 function harness() {

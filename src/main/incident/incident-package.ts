@@ -3,6 +3,8 @@ import { incidentCaptureSchema, incidentReviewSchema, type IncidentArtifact, typ
 import { omitIncidentPaths } from './incident-path-omissions.js'
 import { redactDiagnosticText } from '../../shared/debug-report.js'
 import type { Browser } from '../browser/browser.js'
+import { debugReport } from '../browser/debug-report/debug-report.js'
+import { networkHar } from '../browser/network-inspection/network-inspection.js'
 
 const ARTIFACT_LIMIT = 256 * 1024
 const PACKAGE_LIMIT = 4 * 1024 * 1024
@@ -11,14 +13,13 @@ const PRESENTATION_CSS = 'pre { white-space: pre-wrap; overflow-wrap: anywhere; 
 const PRESENTATION_STYLE_HASH = createHash('sha256').update(PRESENTATION_CSS).digest('base64')
 const hash = (value: string) => createHash('sha256').update(value, 'utf8').digest('hex')
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
-type Host = Pick<Browser, 'getState' | 'debugReport' | 'networkHar' | 'reproRecording'>
 interface Stored { draft: IncidentDraft; preview?: IncidentPreview }
 
 /** Volatile, bounded review snapshots. Never re-read live evidence after review. */
 export class IncidentPackages {
   private readonly drafts = new Map<number, Stored>()
   private readonly generations = new Map<number, number>()
-  constructor(private readonly host: () => Host, private readonly version: string, private readonly now = Date.now) {}
+  constructor(private readonly host: () => Browser, private readonly version: string, private readonly now = Date.now) {}
 
   discard(owner: number): void {
     this.drafts.delete(owner)
@@ -60,12 +61,12 @@ export class IncidentPackages {
           count = steps.length; truncated = report.truncated
           data = { formatVersion: report.formatVersion ?? 1, activeAtCapture: report.active, steps, caveats: report.caveats }
         } else if (kind === 'network') {
-          const report = await deadline(host.networkHar({ tabId: request.tabId, includeBodies: false, maxRequests: 100 }), end + 30_000 - this.now())
+          const report = await deadline(networkHar(host, { tabId: request.tabId, includeBodies: false, maxRequests: 100 }), end + 30_000 - this.now())
           const entries = report.log.entries.filter(entry => inWindow(entry.startedDateTime))
           count = entries.length; truncated = report._hronaut.truncated
           data = { entries, includesBodies: false, caveats: report._hronaut.caveats }
         } else {
-          const report = host.debugReport({ tabId: request.tabId, maxConsoleMessages: 100, maxNetworkRequests: 100, includeSuccessfulRequests: true })
+          const report = debugReport(host, { tabId: request.tabId, maxConsoleMessages: 100, maxNetworkRequests: 100, includeSuccessfulRequests: true })
           const console = report.console.filter(entry => inWindow(entry.timestamp))
           const network = report.network.filter(entry => inWindow(entry.startedAt))
           count = console.length + network.length; truncated = report.truncated.console || report.truncated.network

@@ -64,12 +64,8 @@ import { createHomeProtocolHandler } from './platform/home-protocol.js'
 import { registerHomeIpc } from './home/home-ipc.js'
 import { McpPortRecovery } from './mcp-runtime/mcp-port-suggestion.js'
 import { registerMcpControlIpc } from './mcp-runtime/mcp-control-ipc.js'
-import {
-  shouldStartMinimized
-} from './startup-launch.js'
-import {
-  McpHttpServer
-} from './mcp/server.js'
+import { shouldStartMinimized } from './startup-launch.js'
+import { McpHttpServer } from './mcp/server.js'
 import { createHomeDashboard } from './home/home-dashboard.js'
 import { registerWorkspacesIpc } from './workspaces-ipc.js'
 import { createBrowserShortcutRouting } from './browser-shortcut-routing.js'
@@ -119,6 +115,8 @@ import { registerAppLifecycle, type AppQuitState } from './app-lifecycle.js'
 import { createQuitRequest, createQuitWithDownloadsConfirmation } from './quit-with-downloads.js'
 import { createRuntimeShutdown } from './runtime-shutdown.js'
 import { logUncaughtExceptions } from './uncaught-exceptions.js'
+import { isTabAgentPaused } from './browser/agent-pause/agent-pause.js'
+import { listMcpTabGroups } from './browser/mcp-tab-groups/mcp-tab-groups.js'
 
 logUncaughtExceptions()
 
@@ -378,7 +376,7 @@ const {
   text,
   effectiveDownloadDirectory,
   showDialog: (options) => trustedDialogs.show(options),
-  workspaces: () => tabRuntime.tabs ? [...tabRuntime.tabs.listMcpTabGroups(), ...tabRuntime.tabs.listSavedTabGroups()] : [],
+  workspaces: () => tabRuntime.tabs ? [...listMcpTabGroups(tabRuntime.tabs), ...tabRuntime.tabs.listSavedTabGroups()] : [],
   state: browserSessionState,
   sendToShellWindows,
   partition: PARTITION,
@@ -528,7 +526,7 @@ const { agentPresenceSnapshot, scheduleAgentPresencePublish, connectedAgents } =
 /** Offers a take over when the person touches a page an agent is working on, and takes it from the page's key. */
 const takeOvers = new TakeOverOffers({
   agents: (workspaceId) => mcpRuntime.server?.getAgentPresence()[workspaceId],
-  isTabAgentPaused: (tabId) => !tabRuntime.tabs || tabRuntime.tabs.isTabAgentPaused(tabId),
+  isTabAgentPaused: (tabId) => !tabRuntime.tabs || isTabAgentPaused(tabRuntime.tabs, tabId),
   isTabTakenOver: (tabId) => tabRuntime.tabs?.isTabTakenOver(tabId) === true,
   setTabAgentPaused: (tabId, paused, options) => {
     if (!mcpRuntime.server) throw new Error('Agent service is unavailable')
@@ -1326,7 +1324,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     askToSignIn: async ({ origin, secure, workspaceId, signal }) => {
       // The sign-in holds for the tab's workspace, which may not be the one shown, such as one an agent works in.
       const workspaceName = workspaceId && tabRuntime.tabs
-        ? promptWorkspaceName(workspaceId, [...tabRuntime.tabs.listMcpTabGroups(), ...tabRuntime.tabs.listSavedTabGroups()])
+        ? promptWorkspaceName(workspaceId, [...listMcpTabGroups(tabRuntime.tabs), ...tabRuntime.tabs.listSavedTabGroups()])
         : undefined
       const { response, credentials, unanswered } = await trustedDialogs.show({
         variant: { kind: 'http-auth', origin, secure, ...(workspaceName ? { workspaceName } : {}) },
@@ -1346,7 +1344,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     },
     confirmCertificateException: async ({ host, error, workspaceId, signal }) => {
       const workspaceName = workspaceId && tabRuntime.tabs
-        ? promptWorkspaceName(workspaceId, [...tabRuntime.tabs.listMcpTabGroups(), ...tabRuntime.tabs.listSavedTabGroups()])
+        ? promptWorkspaceName(workspaceId, [...listMcpTabGroups(tabRuntime.tabs), ...tabRuntime.tabs.listSavedTabGroups()])
         : undefined
       const { response } = await trustedDialogs.show({
         variant: { kind: 'certificate', host, error, ...(workspaceName ? { workspaceName } : {}) },
@@ -1501,7 +1499,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     const loadedTabs = tabRuntime.tabs
     void forgetRemovedWorkspacesSitePermissions(() => tabRuntime.tabs === loadedTabs
       ? [
-          ...loadedTabs.listMcpTabGroups().map((workspace) => workspace.id),
+          ...listMcpTabGroups(loadedTabs).map((workspace) => workspace.id),
           ...loadedTabs.listSavedTabGroups().map((workspace) => workspace.id)
         ]
       : null)

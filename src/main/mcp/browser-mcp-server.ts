@@ -136,6 +136,9 @@ import type { BookmarkOperations, HistoryOperations, SiteDataOperations } from '
 import type { WalletAgentOperations, WalletAgentSessionRegistry, WalletAgentToolTarget } from './wallet-agent-sessions.js'
 import type { McpClientActivity } from './http-server.js'
 import { createWorkspaceToolRegistrar, requiresWorkspaceWriteLease } from './workspace-tool-call.js'
+import { listMcpTabGroups, requireMcpTabGroup } from '../browser/mcp-tab-groups/mcp-tab-groups.js'
+import { suspendWorkspaceContinuity } from '../browser/workspace-continuity/workspace-continuity.js'
+import { getMcpGroupState } from '../browser/workspace-scope/workspace-scope.js'
 
 function matchesWorkspaceResumeKey(expected: string, supplied: string): boolean {
   const expectedBytes = Buffer.from(expected, 'utf8')
@@ -261,7 +264,7 @@ export function createBrowserMcpServer(
     const pageOrigins = toolOptions.get(name)?.pageOrigins
     if (workspaceId && pageOrigins !== 'none') {
       try {
-        const state = manager.getMcpGroupState(workspaceId)
+        const state = getMcpGroupState(manager, workspaceId)
         const tabId = target?.tabId
           ?? (typeof input.tabId === 'string' ? input.tabId : state.activeTabId)
         if (pageOrigins === 'all-tabs') origins.push(...state.tabs.map(tab => tab.url))
@@ -501,8 +504,8 @@ export function createBrowserMcpServer(
     }
     return { ...textResult(outcome), structuredContent: outcome, isError: true }
   }
-  const authorizedActiveWorkspaces = (): ReturnType<Browser['listMcpTabGroups']> => (
-    manager.listMcpTabGroups().filter((workspace) => activeWorkspaceIds.has(workspace.id) && manager.isWorkspaceAgentAccessible(workspace.id))
+  const authorizedActiveWorkspaces = (): ReturnType<typeof listMcpTabGroups> => (
+    listMcpTabGroups(manager).filter((workspace) => activeWorkspaceIds.has(workspace.id) && manager.isWorkspaceAgentAccessible(workspace.id))
   )
   const authorizedSavedWorkspaces = (): ReturnType<Browser['listSavedTabGroups']> => (
     manager.listSavedTabGroups().filter((workspace) => savedWorkspaceIds.has(workspace.id) && manager.isWorkspaceAgentAccessible(workspace.id))
@@ -528,13 +531,13 @@ export function createBrowserMcpServer(
       savedWorkspaceIds.add(workspaceId)
       return
     }
-    manager.requireMcpTabGroup(workspaceId)
+    requireMcpTabGroup(manager, workspaceId)
     activeWorkspaceIds.add(workspaceId)
   }
-  const requireAgentWorkspace = (workspaceId: string): ReturnType<Browser['requireMcpTabGroup']> => {
+  const requireAgentWorkspace = (workspaceId: string): ReturnType<typeof requireMcpTabGroup> => {
     agentControlContext.getStore()?.()
     if (!activeWorkspaceIds.has(workspaceId) || !manager.isWorkspaceAgentAccessible(workspaceId)) throw workspaceAuthorizationError()
-    const workspace = manager.requireMcpTabGroup(workspaceId)
+    const workspace = requireMcpTabGroup(manager, workspaceId)
     return workspace
   }
   const requireSavedWorkspace = (workspaceId: string): void => {
@@ -558,7 +561,7 @@ export function createBrowserMcpServer(
     if (typeof input.reviewId !== 'string' || typeof input.reviewRevision !== 'string') return undefined
     const workspaceId = input.workspaceId
     if (typeof workspaceId !== 'string') return undefined
-    const state = manager.getMcpGroupState(workspaceId)
+    const state = getMcpGroupState(manager, workspaceId)
     const tabId = typeof input.tabId === 'string' ? input.tabId : state.activeTabId ?? undefined
     const tab = tabId ? state.tabs.find(candidate => candidate.id === tabId) : undefined
     let origin: string | undefined
@@ -779,7 +782,7 @@ export function createBrowserMcpServer(
 
   const previousClose = server.server.onclose
   server.server.onclose = () => {
-    for (const workspaceId of activeWorkspaceIds) manager.suspendWorkspaceContinuity(workspaceId)
+    for (const workspaceId of activeWorkspaceIds) suspendWorkspaceContinuity(manager, workspaceId)
     previousClose?.()
   }
 

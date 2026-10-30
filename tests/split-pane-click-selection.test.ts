@@ -73,6 +73,7 @@ vi.mock('../src/main/browser/tab-events/attach-tab-events.js', () => ({
 }))
 const { Browser } = await import('../src/main/browser/browser.js')
 const { attachPagePointerEvents } = await import('../src/main/browser/tab-events/page-pointer-events.js')
+const { openSplitViewAndWait } = await import('../src/main/browser/split-view/split-view.js')
 
 const PERSON = '01912345-6789-7abc-8def-0123456789ab'
 
@@ -87,7 +88,6 @@ interface Manager {
   selectTab(tabId: string): unknown
   selectTabAndWait(tabId: string): Promise<unknown>
   openSplitView(tabId: string): unknown
-  openSplitViewAndWait(tabId: string): Promise<unknown>
 }
 
 function browser() {
@@ -182,7 +182,7 @@ describe('a sleeping tab the person clicked, then opened a split view instead wh
 
     const selecting = manager.selectTabAndWait(sleeper.id)
     // The person opens the reference beside their notes with the split view button.
-    await manager.openSplitViewAndWait(reference.id)
+    await openSplitViewAndWait(manager as never, reference.id)
     const split = structuredClone(manager.splitView)
     expect(split).toMatchObject({ firstTabId: notes.id, secondTabId: reference.id })
     focused.length = 0

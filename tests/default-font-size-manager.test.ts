@@ -26,6 +26,12 @@ vi.mock('../src/main/browser/workspace-navigation/workspace-navigation.js', asyn
 import { Browser } from '../src/main/browser/browser.js'
 import { duplicateTabAfterLabelSave } from '../src/main/browser/tab-reopening/tab-reopening.js'
 
+// The fake browser below stubs the functions the code under test calls; these reach its stubs.
+vi.mock('../src/main/browser/mcp-tab-groups/mcp-tab-groups.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/mcp-tab-groups/mcp-tab-groups.js')>(),
+  requireMcpTabGroup: (browser: { requireMcpTabGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireMcpTabGroup(...args)
+}))
+
 function fixture() {
   const source = { id: 'source', title: 'Page', url: 'https://example.test/', label: undefined, pinned: false, mcpGroupId: 'workspace', zoomIsolated: false, defaultFontSize: 32 }
   const createTab = vi.fn(async (options: Record<string, unknown>) => ({ ...source, ...options, id: 'created' }))

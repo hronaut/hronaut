@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { replayNetworkRequest } from '../../../browser/network-inspection/network-inspection.js'
 
 export function registerBrowserNetworkReplay(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -19,6 +20,6 @@ export function registerBrowserNetworkReplay(context: McpToolContext): void {
       requestId: string
       tabId?: string
       confirmSideEffects?: boolean
-    }) => textResult(await manager.replayNetworkRequest(tabId, requestId, confirmSideEffects === true)))
+    }) => textResult(await replayNetworkRequest(manager, tabId, requestId, confirmSideEffects === true)))
   )
 }

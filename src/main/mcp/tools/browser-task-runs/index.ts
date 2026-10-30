@@ -6,7 +6,7 @@ import { BROWSER_TOOL_METADATA } from '../../tool-catalog.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema, workspaceIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
-import { requireTabInMcpGroup } from '../../../browser/workspace-scope/workspace-scope.js'
+import { requireTabInMcpGroup, getMcpGroupState } from '../../../browser/workspace-scope/workspace-scope.js'
 
 export function registerBrowserTaskRuns(context: McpToolContext): void {
   const {
@@ -129,7 +129,7 @@ export function registerBrowserTaskRuns(context: McpToolContext): void {
         authorizeActive()
         if (!tabId) throw new TypeError(`tabId is required to ${action} a saved task`)
         requireTabInMcpGroup(manager, workspaceId, tabId)
-        const tab = manager.getMcpGroupState(workspaceId).tabs.find(candidate => candidate.id === tabId)
+        const tab = getMcpGroupState(manager, workspaceId).tabs.find(candidate => candidate.id === tabId)
         if (!tab) throw new Error('Saved-task browser context is unavailable')
         const parsedOrigin = exactOrigin()
         const currentOrigin = (() => {
@@ -324,7 +324,7 @@ export function registerBrowserTaskRuns(context: McpToolContext): void {
             let tab
             try {
               requireTabInMcpGroup(manager, workspaceId, check.tabId)
-              tab = manager.getMcpGroupState(workspaceId).tabs.find(candidate => candidate.id === check.tabId)
+              tab = getMcpGroupState(manager, workspaceId).tabs.find(candidate => candidate.id === check.tabId)
             } catch { /* Report bounded unavailability below. */ }
             const lease = workspaceLeases.status(workspaceId, client.id)
             const controlFingerprint = lease.status === 'owned' && lease.generation
@@ -372,7 +372,7 @@ export function registerBrowserTaskRuns(context: McpToolContext): void {
           let tab
           try {
             requireTabInMcpGroup(manager, workspaceId, check.tabId)
-            tab = manager.getMcpGroupState(workspaceId).tabs.find(candidate => candidate.id === check.tabId)
+            tab = getMcpGroupState(manager, workspaceId).tabs.find(candidate => candidate.id === check.tabId)
           } catch { /* Report bounded unavailability below. */ }
           if (!tab) {
             results.push({ id: check.id, status: 'UNAVAILABLE' })

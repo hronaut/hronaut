@@ -29,6 +29,19 @@ vi.mock('../src/main/browser/site-muting/site-muting.js', async (importOriginal)
   canMuteSite: (browser: { canMuteSite: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.canMuteSite(...args),
   isSiteMuted: (browser: { isSiteMuted: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.isSiteMuted(...args)
 }))
+// The fake browser below stubs the functions the code under test calls; these reach its stubs.
+vi.mock('../src/main/browser/page-navigation/page-navigation.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/page-navigation/page-navigation.js')>(),
+  reload: (browser: { reload: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.reload(...args)
+}))
+vi.mock('../src/main/browser/tab-muting/tab-muting.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-muting/tab-muting.js')>(),
+  setTabMuted: (browser: { setTabMuted: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.setTabMuted(...args)
+}))
+vi.mock('../src/main/browser/tab-arrangement/tab-arrangement.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-arrangement/tab-arrangement.js')>(),
+  setTabPinned: (browser: { setTabPinned: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.setTabPinned(...args)
+}))
 
 const { showTabContextMenu } = await import('../src/main/browser/context-menus/tab-context-menu.js')
 const { Browser } = await import('../src/main/browser/browser.js')
@@ -190,12 +203,13 @@ describe('the tab menu of several selected tabs', () => {
       splitView: null,
       changed: () => undefined,
       getState: () => ({})
-    }) as { tabs: Map<string, Tab>; setTabPinned(id: string, pinned: boolean): Promise<unknown> }
+    }) as { tabs: Map<string, Tab> }
+    const { setTabPinned } = await vi.importActual<typeof import('../src/main/browser/tab-arrangement/tab-arrangement.js')>('../src/main/browser/tab-arrangement/tab-arrangement.js')
     const order = () => orderedTabs(manager as never).map((candidate) => `${candidate.id}${candidate.pinned ? '*' : ''}`)
     const fake = menuBrowser([], 'a')
     // The menu reads the tabs of the browser that pins them.
     Object.defineProperty(fake.browser, 'tabs', { get: () => manager.tabs })
-    Object.assign(fake.browser, { setTabPinned: (id: string, pinned: boolean) => manager.setTabPinned(id, pinned) })
+    Object.assign(fake.browser, { setTabPinned: (id: string, pinned: boolean) => setTabPinned(manager as never, id, pinned) })
 
     showTabContextMenu(fake.browser, 'b', undefined, ['b', 'd'])
     await click('pin-tabs')

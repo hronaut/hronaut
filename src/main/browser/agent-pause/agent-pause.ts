@@ -107,6 +107,11 @@ export function isTabAgentPaused(browser: Browser, tabId: string): boolean {
     : tab.tabAgentPaused
 }
 
+/** Whether the agent may not act in some tab now, read from the browser state as it is now (see browserState). */
+export function hasPausedAgentTab(browser: Browser): boolean {
+  return browserState(browser).tabs.some((tab) => isTabAgentPaused(browser, tab.id))
+}
+
 /** Whether any tab is resumed as an exception to a global pause. */
 export function hasAgentPauseExceptions(browser: Browser): boolean {
   return browser.allAgentsPaused && browser.agentPauseOverridesAllowed && browser.globallyResumedAgentTabIds.size > 0

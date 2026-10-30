@@ -6,7 +6,7 @@ import type { Browser } from '../browser/browser.js'
 
 export function registerIncidentPackageIpc(ipc: Pick<IpcMain, 'handle'>, host: {
   assertTrustedSender(event: IpcMainInvokeEvent): void
-  tabs(): Pick<Browser, 'getState' | 'debugReport' | 'networkHar' | 'reproRecording'>
+  tabs(): Browser
   version: string
   pickDestination(): Promise<string | undefined>
   write?: typeof writeTextFileAtomically

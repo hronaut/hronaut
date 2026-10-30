@@ -3,6 +3,7 @@ import type { Browser } from '../../../browser/browser.js'
 import { McpCapabilityAuthorizationError } from '../../capability-profile-store.js'
 import { errorResult, mcpWorkspaceState, textResult, urlDetailOmitted } from '../../tool-results.js'
 import type { WorkspaceToolCall } from '../tool-context.js'
+import { getMcpGroupState } from '../../../browser/workspace-scope/workspace-scope.js'
 
 /**
  * How a labeled tab creation settles. It holds a human-waiting dispatch certificate, refreshed before publication,
@@ -33,7 +34,7 @@ export function labeledCreationSettlement(manager: Browser, input: Record<string
       publication()
       if (reviewFinalizationFailed) throw new Error('Review finalization failed')
       if (result.isError && !(knownNotSaved && result.structuredContent?.status === 'LABEL_NOT_SAVED')) throw new Error('Creation settlement failed')
-      const state = mcpWorkspaceState(manager.getMcpGroupState(String(input.workspaceId)), urlDetailOmitted(manager))
+      const state = mcpWorkspaceState(getMcpGroupState(manager, String(input.workspaceId)), urlDetailOmitted(manager))
       settled = { ...result, content: result.content.map(item => item.type === 'text' ? { ...item, text: JSON.stringify({ ...JSON.parse(item.text), ...state }, null, 2) } : item) }
     } catch (error) {
       rememberInputPolicy(error)

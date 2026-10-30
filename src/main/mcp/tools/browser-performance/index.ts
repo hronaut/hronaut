@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { performanceReport } from '../../../browser/page-audits/performance-report.js'
 
 export function registerBrowserPerformance(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -23,6 +24,6 @@ export function registerBrowserPerformance(context: McpToolContext): void {
       tabId?: string
       settleMs?: number
       action?: 'measure' | 'set-baseline' | 'clear-baseline'
-    }) => textResult(await manager.performanceReport({ tabId, settleMs, action })))
+    }) => textResult(await performanceReport(manager, { tabId, settleMs, action })))
   )
 }

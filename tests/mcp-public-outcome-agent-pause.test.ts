@@ -8,7 +8,8 @@ import { McpHttpServer } from '../src/main/mcp/server.js'
 vi.mock('../src/main/browser/workspace-continuity/workspace-continuity.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/workspace-continuity/workspace-continuity.js')>(),
   beginWorkspaceContinuityAction: (browser: { beginWorkspaceContinuityAction: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.beginWorkspaceContinuityAction(...args),
-  requireWorkspaceContinuityDispatch: (browser: { requireWorkspaceContinuityDispatch: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireWorkspaceContinuityDispatch(...args)
+  requireWorkspaceContinuityDispatch: (browser: { requireWorkspaceContinuityDispatch: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireWorkspaceContinuityDispatch(...args),
+  suspendWorkspaceContinuity: (browser: { suspendWorkspaceContinuity: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.suspendWorkspaceContinuity(...args)
 }))
 vi.mock('../src/main/browser/page-snapshots/page-snapshots.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/page-snapshots/page-snapshots.js')>(),
@@ -16,7 +17,24 @@ vi.mock('../src/main/browser/page-snapshots/page-snapshots.js', async (importOri
 }))
 vi.mock('../src/main/browser/workspace-scope/workspace-scope.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/workspace-scope/workspace-scope.js')>(),
-  requireTabInMcpGroup: (browser: { requireTabInMcpGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireTabInMcpGroup(...args)
+  requireTabInMcpGroup: (browser: { requireTabInMcpGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireTabInMcpGroup(...args),
+  getMcpGroupState: (browser: { getMcpGroupState: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.getMcpGroupState(...args),
+  tabBelongsToMcpGroup: (browser: { tabBelongsToMcpGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.tabBelongsToMcpGroup(...args)
+}))
+vi.mock('../src/main/browser/mcp-tab-groups/create-mcp-tab-group.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/mcp-tab-groups/create-mcp-tab-group.js')>(),
+  createMcpTabGroup: (browser: { createMcpTabGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.createMcpTabGroup(...args)
+}))
+vi.mock('../src/main/browser/agent-pause/agent-pause.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/agent-pause/agent-pause.js')>(),
+  isTabAgentPaused: (browser: { isTabAgentPaused: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.isTabAgentPaused(...args),
+  hasPausedAgentTab: (browser: { hasPausedAgentTab: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.hasPausedAgentTab(...args),
+  isTabTakenOver: (browser: { isTabTakenOver: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.isTabTakenOver(...args)
+}))
+vi.mock('../src/main/browser/mcp-tab-groups/mcp-tab-groups.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/mcp-tab-groups/mcp-tab-groups.js')>(),
+  listMcpTabGroups: (browser: { listMcpTabGroups: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.listMcpTabGroups(...args),
+  requireMcpTabGroup: (browser: { requireMcpTabGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireMcpTabGroup(...args)
 }))
 
 // Original failure: browser_public_outcome checked agent control for the writer tab against the observer
@@ -71,6 +89,7 @@ describe('browser_public_outcome agent pause', () => {
         activeTabId: workspaceId === observerId ? observerTab : writerTab, mcpTabGroups: [workspaces.get(workspaceId)!]
       })),
       isTabAgentPaused: vi.fn((tabId: string) => paused.has(tabId)),
+      hasPausedAgentTab: vi.fn(() => tabs.some(candidate => paused.has(candidate.id))),
       isTabTakenOver: vi.fn(() => false),
       observationQuality: vi.fn(async () => ({ status: 'candidate', challengeDetectionEnabled: false, evidenceClass: 'page', expectedEvidence: { matched: true } }))
     }

@@ -7,9 +7,13 @@ import type { Browser } from '../browser.js'
 import { canMuteSite, isSiteMuted, setSiteMuted } from '../site-muting/site-muting.js'
 import { setTabSleepingFromContextMenu, sleepBlockReason, sleepFallbackTab } from '../tab-sleep/tab-sleep.js'
 import { findTab, getTab, orderedTabs } from '../browser-core.js'
-import { reorderTab } from '../tab-arrangement/tab-arrangement.js'
+import { reorderTab, setTabPinned } from '../tab-arrangement/tab-arrangement.js'
 import { workspaceContextMenuItems } from './workspace-context-menu.js'
 import { selectedMenuTabs, showSelectedTabsContextMenu } from './selected-tabs-context-menu.js'
+import { setTabPageLifecycle } from '../page-lifecycle/page-lifecycle.js'
+import { reload, reloadIgnoringCache } from '../page-navigation/page-navigation.js'
+import { openSplitViewAndWait, updateSplitView } from '../split-view/split-view.js'
+import { setTabMuted } from '../tab-muting/tab-muting.js'
 
 /**
  * Shows a website tab's context menu: attention, new tab, reload, duplicate,
@@ -69,7 +73,7 @@ export function showTabContextMenu(browser: Browser, tabId: string, onClosed?: (
   const openSplitWith = async (firstTabId: string, secondTabId: string): Promise<BrowserState> => {
     const selected = await browser.selectTabAndWait(firstTabId)
     if (selected.activeTabId !== firstTabId) return selected
-    return browser.openSplitViewAndWait(secondTabId)
+    return openSplitViewAndWait(browser, secondTabId)
   }
   const splitCandidates = websiteTabs.filter((candidate) => candidate.id !== tab.id)
   const splitMenu: MenuItemConstructorOptions = browser.splitViewContains(tab.id)
@@ -82,20 +86,20 @@ export function showTabContextMenu(browser: Browser, tabId: string, onClosed?: (
             label: browser.text('native.context.sideBySide'),
             type: 'radio',
             checked: browser.splitView?.orientation === 'vertical',
-            click: () => runAction('change the split view layout', () => browser.updateSplitView({ orientation: 'vertical' }))
+            click: () => runAction('change the split view layout', () => updateSplitView(browser, { orientation: 'vertical' }))
           },
           {
             id: 'split-stacked',
             label: browser.text('native.context.stacked'),
             type: 'radio',
             checked: browser.splitView?.orientation === 'horizontal',
-            click: () => runAction('change the split view layout', () => browser.updateSplitView({ orientation: 'horizontal' }))
+            click: () => runAction('change the split view layout', () => updateSplitView(browser, { orientation: 'horizontal' }))
           },
           { type: 'separator' },
           {
             id: 'swap-split-tabs',
             label: browser.text('native.context.swapTabs'),
-            click: () => runAction('swap the split view tabs', () => browser.updateSplitView({ swap: true }))
+            click: () => runAction('swap the split view tabs', () => updateSplitView(browser, { swap: true }))
           },
           {
             id: 'close-split-view',
@@ -144,12 +148,12 @@ export function showTabContextMenu(browser: Browser, tabId: string, onClosed?: (
     {
       id: 'reload-tab',
       label: browser.text('native.context.reloadTab'),
-      click: () => runAction('reload the tab', () => browser.reload(tab.id))
+      click: () => runAction('reload the tab', () => reload(browser, tab.id))
     },
     {
       id: 'reload-tab-ignoring-cache',
       label: browser.text('native.context.reloadNoCache'),
-      click: () => runAction('reload the tab without cache', () => browser.reloadIgnoringCache(tab.id))
+      click: () => runAction('reload the tab without cache', () => reloadIgnoringCache(browser, tab.id))
     },
     {
       id: 'duplicate-tab',
@@ -168,7 +172,7 @@ export function showTabContextMenu(browser: Browser, tabId: string, onClosed?: (
     {
       id: tab.muted ? 'unmute-tab' : 'mute-tab',
       label: browser.text(tab.muted ? 'native.context.unmuteTab' : 'native.context.muteTab'),
-      click: () => runAction(tab.muted ? 'unmute the tab' : 'mute the tab', () => browser.setTabMuted(tab.id, !tab.muted))
+      click: () => runAction(tab.muted ? 'unmute the tab' : 'mute the tab', () => setTabMuted(browser, tab.id, !tab.muted))
     },
     // Chrome's Mute Site, for every tab of the website in the tab's workspace and its later pages.
     ...(canMuteSite(browser, tab) ? [{
@@ -180,7 +184,7 @@ export function showTabContextMenu(browser: Browser, tabId: string, onClosed?: (
     {
       id: tab.pinned ? 'unpin-tab' : 'pin-tab',
       label: browser.text(tab.pinned ? 'native.context.unpinTab' : 'native.context.pinTab'),
-      click: () => runAction(tab.pinned ? 'unpin the tab' : 'pin the tab', () => browser.setTabPinned(tab.id, !tab.pinned))
+      click: () => runAction(tab.pinned ? 'unpin the tab' : 'pin the tab', () => setTabPinned(browser, tab.id, !tab.pinned))
     },
     {
       id: tab.pageLifecycleState === 'frozen' ? 'resume-page' : 'freeze-page',
@@ -192,7 +196,7 @@ export function showTabContextMenu(browser: Browser, tabId: string, onClosed?: (
       enabled: tab.pageLifecycleState !== 'unknown' && !tab.sleeping && !tab.loading,
       click: () => runAction(
         tab.pageLifecycleState === 'frozen' ? 'resume the page' : 'freeze the page',
-        () => browser.setTabPageLifecycle(tab.id, tab.pageLifecycleState === 'frozen' ? 'active' : 'frozen')
+        () => setTabPageLifecycle(browser, tab.id, tab.pageLifecycleState === 'frozen' ? 'active' : 'frozen')
       )
     },
     {

@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { debugReport } from '../../../browser/debug-report/debug-report.js'
 
 export function registerBrowserDebugReport(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -26,7 +27,7 @@ export function registerBrowserDebugReport(context: McpToolContext): void {
       maxConsoleMessages?: number
       maxNetworkRequests?: number
       includeSuccessfulRequests?: boolean
-    }) => textResult(manager.debugReport({
+    }) => textResult(debugReport(manager, {
       tabId,
       maxConsoleMessages,
       maxNetworkRequests,

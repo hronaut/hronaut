@@ -15,11 +15,34 @@ vi.mock('../src/main/browser/browser-state/browser-state.js', () => ({ browserSt
 vi.mock('../src/main/browser/workspace-continuity/workspace-continuity.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/workspace-continuity/workspace-continuity.js')>(),
   beginWorkspaceContinuityAction: (browser: { beginWorkspaceContinuityAction: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.beginWorkspaceContinuityAction(...args),
-  requireWorkspaceContinuityDispatch: (browser: { requireWorkspaceContinuityDispatch: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireWorkspaceContinuityDispatch(...args)
+  requireWorkspaceContinuityDispatch: (browser: { requireWorkspaceContinuityDispatch: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireWorkspaceContinuityDispatch(...args),
+  suspendWorkspaceContinuity: (browser: { suspendWorkspaceContinuity: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.suspendWorkspaceContinuity(...args)
 }))
-vi.mock('../src/main/browser/workspace-scope/workspace-scope.js', async (importOriginal) => ({
-  ...await importOriginal<typeof import('../src/main/browser/workspace-scope/workspace-scope.js')>(),
-  requireTabInMcpGroup: (browser: { requireTabInMcpGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireTabInMcpGroup(...args)
+vi.mock('../src/main/browser/workspace-scope/workspace-scope.js', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../src/main/browser/workspace-scope/workspace-scope.js')>()
+  return {
+    ...original,
+    requireTabInMcpGroup: (browser: { requireTabInMcpGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireTabInMcpGroup(...args),
+    tabBelongsToMcpGroup: (browser: { tabBelongsToMcpGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.tabBelongsToMcpGroup(...args),
+    // The first tests read the real workspace state; the tool test gives the workspace's own state below.
+    getMcpGroupState: vi.fn(original.getMcpGroupState)
+  }
+})
+vi.mock('../src/main/browser/mcp-tab-groups/create-mcp-tab-group.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/mcp-tab-groups/create-mcp-tab-group.js')>(),
+  createMcpTabGroup: (browser: { createMcpTabGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.createMcpTabGroup(...args)
+}))
+vi.mock('../src/main/browser/mcp-tab-groups/mcp-tab-groups.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/mcp-tab-groups/mcp-tab-groups.js')>(),
+  listMcpTabGroups: (browser: { listMcpTabGroups: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.listMcpTabGroups(...args),
+  requireMcpTabGroup: (browser: { requireMcpTabGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireMcpTabGroup(...args)
+}))
+// A fake browser that stubs no pause answers has no paused or taken-over tab.
+vi.mock('../src/main/browser/agent-pause/agent-pause.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/agent-pause/agent-pause.js')>(),
+  isTabAgentPaused: (browser: { isTabAgentPaused?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.isTabAgentPaused?.(...args) ?? false,
+  hasPausedAgentTab: (browser: { hasPausedAgentTab?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.hasPausedAgentTab?.(...args) ?? false,
+  isTabTakenOver: (browser: { isTabTakenOver?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.isTabTakenOver?.(...args) ?? false
 }))
 
 // Original failure: with Follow agents on, the browser state carries `agentFollow`, the tab in view and the
@@ -90,6 +113,7 @@ describe('browser state returned by a workspace tool', () => {
     await server?.stop()
     client = undefined
     server = undefined
+    vi.mocked(getMcpGroupState).mockReset()
   })
 
   it('leaves out another workspace\'s Follow and split view from a navigation result', async () => {
@@ -113,13 +137,13 @@ describe('browser state returned by a workspace tool', () => {
       tabBelongsToMcpGroup: vi.fn((id: string, requested: string) => id === workspaceId && requested === tabId),
       wakeTab: vi.fn(async () => global()),
       getState: vi.fn(global),
-      // The workspace's own state, as getMcpGroupState now builds it: only its tab, no foreign Follow or split view.
-      getMcpGroupState: vi.fn(() => {
-        const { agentFollow: _agentFollow, splitView: _splitView, ...rest } = global()
-        return { ...rest, tabs: [tabs[0]!], activeTabId: tabId }
-      }),
       navigate: vi.fn(async () => global())
     }
+    // The workspace's own state, as getMcpGroupState builds it: only its tab, no foreign Follow or split view.
+    vi.mocked(getMcpGroupState).mockImplementation(() => {
+      const { agentFollow: _agentFollow, splitView: _splitView, ...rest } = global()
+      return { ...rest, tabs: [tabs[0]!], activeTabId: tabId } as never
+    })
     server = new McpHttpServer(manager as never, {
       host: '127.0.0.1', port: 0, version: 'test', toolSet: 'complete',
       showWindowInactive: () => undefined, getUserAttention: () => null, requestUserAttention: vi.fn(),

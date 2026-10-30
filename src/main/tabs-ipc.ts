@@ -7,11 +7,13 @@ import { validateTabOverviewPreviewIds, type BrowserState, type DroppedLinkTarge
 import { showTabContextMenu } from './browser/context-menus/tab-context-menu.js'
 import { openDroppedLink } from './browser/dropped-links/dropped-links.js'
 import { setAllHumanInteractionLocked, setTabHumanInteractionLocked } from './browser/interaction-lock/interaction-lock.js'
-import { reorderTab, reorderTabs } from './browser/tab-arrangement/tab-arrangement.js'
-import { setAllTabsMuted } from './browser/tab-muting/tab-muting.js'
+import { reorderTab, reorderTabs, setTabPinned } from './browser/tab-arrangement/tab-arrangement.js'
+import { setAllTabsMuted, setTabMuted } from './browser/tab-muting/tab-muting.js'
 import { getTabOverviewPagePreview, getTabOverviewPreviews } from './browser/tab-overview-previews/tab-overview-previews.js'
 import { sleepInactiveTabs } from './browser/tab-sleep/memory-saver.js'
 import { setTabSleeping } from './browser/tab-sleep/tab-sleep.js'
+import { setTabPageLifecycle } from './browser/page-lifecycle/page-lifecycle.js'
+import { openSplitViewAndWait, updateSplitView } from './browser/split-view/split-view.js'
 
 interface TabsIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
@@ -99,7 +101,7 @@ export function registerTabsIpc(host: TabsIpcHost): void {
   host.handleBrowserIpc('browser:open-split-view', (event, tabId: unknown) => {
     host.assertTrustedSender(event)
     if (typeof tabId !== 'string') throw new TypeError('Invalid split-view tab ID')
-    return host.tabs()!.openSplitViewAndWait(tabId)
+    return openSplitViewAndWait(host.tabs()!, tabId)
   })
   host.handleBrowserIpc('browser:update-split-view', (event, updates: unknown) => {
     host.assertTrustedSender(event)
@@ -112,7 +114,7 @@ export function registerTabsIpc(host: TabsIpcHost): void {
       throw new TypeError('Invalid split-view ratio')
     }
     if (candidate.swap !== undefined && typeof candidate.swap !== 'boolean') throw new TypeError('Invalid split-view swap flag')
-    return host.tabs()!.updateSplitView({
+    return updateSplitView(host.tabs()!, {
       ...(candidate.orientation === 'vertical' || candidate.orientation === 'horizontal' ? { orientation: candidate.orientation } : {}),
       ...(typeof candidate.ratio === 'number' ? { ratio: candidate.ratio } : {}),
       ...(candidate.swap === true ? { swap: true } : {})
@@ -130,7 +132,7 @@ export function registerTabsIpc(host: TabsIpcHost): void {
   host.handleBrowserIpc('browser:set-tab-pinned', (event, tabId: unknown, pinned: unknown) => {
     host.assertTrustedSender(event)
     if (typeof tabId !== 'string' || typeof pinned !== 'boolean') throw new TypeError('Invalid pinned tab state')
-    return host.tabs()!.setTabPinned(tabId, pinned)
+    return setTabPinned(host.tabs()!, tabId, pinned)
   })
   host.handleBrowserIpc('browser:set-tab-sleeping', (event, tabId: unknown, sleeping: unknown) => {
     host.assertTrustedSender(event)
@@ -149,7 +151,7 @@ export function registerTabsIpc(host: TabsIpcHost): void {
   host.handleBrowserIpc('browser:set-tab-page-lifecycle', (event, tabId: unknown, state: unknown) => {
     host.assertTrustedSender(event)
     if (typeof tabId !== 'string' || (state !== 'active' && state !== 'frozen')) throw new TypeError('Invalid tab page lifecycle state')
-    return host.tabs()!.setTabPageLifecycle(tabId, state)
+    return setTabPageLifecycle(host.tabs()!, tabId, state)
   })
   host.handleBrowserIpc('browser:sleep-inactive-tabs', (event) => {
     host.assertTrustedSender(event)
@@ -186,7 +188,7 @@ export function registerTabsIpc(host: TabsIpcHost): void {
   host.handleBrowserIpc('browser:set-tab-muted', (event, tabId: unknown, muted: unknown) => {
     host.assertTrustedSender(event)
     if (typeof tabId !== 'string' || typeof muted !== 'boolean') throw new TypeError('Invalid tab audio state')
-    return host.tabs()!.setTabMuted(tabId, muted)
+    return setTabMuted(host.tabs()!, tabId, muted)
   })
   host.handleBrowserIpc('browser:set-all-tabs-muted', (event, muted: unknown) => {
     host.assertTrustedSender(event)

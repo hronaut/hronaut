@@ -5,10 +5,11 @@ import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
 import type { AppUpdateState, HelpMenuAction } from '../../shared/types.js'
 import { toggleDevTools } from '../browser/devtools/devtools.js'
 import { historyGesture } from '../browser/history-gesture/history-gesture.js'
-import { stopFocusedPageLoading } from '../browser/page-navigation/page-navigation.js'
+import { back, forward, reload, reloadIgnoringCache, stopFocusedPageLoading } from '../browser/page-navigation/page-navigation.js'
 import { printShownPage } from '../browser/page-print/page-print.js'
 import { saveShownPage } from '../browser/page-save/page-save.js'
 import { viewShownPageSource } from '../browser/page-source/page-source.js'
+import { setZoom } from '../browser/page-zoom/page-zoom.js'
 
 interface ApplicationMenuHost {
   /** Translates into the current interface language; read on every build because the language can change. */
@@ -56,7 +57,7 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
   // shown tab, and only from the main window: typed in a panel in its own window, they would change a page out of view.
   function goInHistory(direction: 'back' | 'forward', window: BaseWindow | undefined, event: KeyboardEvent): void {
     if (!event.triggeredByAccelerator) {
-      host.runNativeBrowserAction(`go ${direction}`, () => direction === 'back' ? host.tabs()?.back() : host.tabs()?.forward())
+      host.runNativeBrowserAction(`go ${direction}`, () => withBrowser((browser) => direction === 'back' ? back(browser) : forward(browser)))
     } else if (window !== undefined && window.id === host.mainWindow()?.id) {
       host.runNativeBrowserAction(`go ${direction}`, () => withBrowser((browser) => historyGesture(browser, direction)))
     }
@@ -266,12 +267,12 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
             {
               label: host.text('native.menu.reload'),
               accelerator: 'CmdOrCtrl+R',
-              click: () => host.runNativeBrowserAction('reload', () => host.tabs()?.reload())
+              click: () => host.runNativeBrowserAction('reload', () => withBrowser(reload))
             },
             {
               label: host.text('native.menu.reloadWithoutCache'),
               accelerator: 'CmdOrCtrl+Shift+R',
-              click: () => host.runNativeBrowserAction('reload without cache', () => host.tabs()?.reloadIgnoringCache())
+              click: () => host.runNativeBrowserAction('reload without cache', () => withBrowser(reloadIgnoringCache))
             },
             ...websiteKeptKeys(),
             {
@@ -328,17 +329,17 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
             {
               label: host.text('native.menu.actualSize'),
               accelerator: 'CmdOrCtrl+0',
-              click: () => host.runNativeBrowserAction('reset page zoom', () => host.tabs()?.setZoom({ action: 'reset' }))
+              click: () => host.runNativeBrowserAction('reset page zoom', () => withBrowser((browser) => setZoom(browser, { action: 'reset' })))
             },
             {
               label: host.text('native.menu.zoomIn'),
               accelerator: 'CmdOrCtrl+Plus',
-              click: () => host.runNativeBrowserAction('zoom in', () => host.tabs()?.setZoom({ action: 'in' }))
+              click: () => host.runNativeBrowserAction('zoom in', () => withBrowser((browser) => setZoom(browser, { action: 'in' })))
             },
             {
               label: host.text('native.menu.zoomOut'),
               accelerator: 'CmdOrCtrl+-',
-              click: () => host.runNativeBrowserAction('zoom out', () => host.tabs()?.setZoom({ action: 'out' }))
+              click: () => host.runNativeBrowserAction('zoom out', () => withBrowser((browser) => setZoom(browser, { action: 'out' })))
             },
             { role: 'togglefullscreen' }
           ]

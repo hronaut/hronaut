@@ -4,6 +4,7 @@ import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
 import { type StorageComparisonSettlement, storageComparisonSettlement } from './storage-comparison-settlement.js'
+import { storageChanges } from '../../../browser/site-storage/storage-changes.js'
 
 export function registerBrowserStorageChanges(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -35,7 +36,7 @@ export function registerBrowserStorageChanges(context: McpToolContext): void {
         comparisonChanged: call.settlement.markChanged,
         retainPublication: call.settlement.retainPublication
       } satisfies StorageComparisonHooks
-      return textResult(await manager.storageChanges(action, tabId, includeValues, storageComparisonHooks))
+      return textResult(await storageChanges(manager, action, tabId, includeValues, storageComparisonHooks))
     }),
     { settlement: () => storageComparisonSettlement() }
   )

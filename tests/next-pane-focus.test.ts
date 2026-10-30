@@ -16,7 +16,7 @@ const { createBrowserShortcutRouting } = await import('../src/main/browser-short
 
 function routing(home: boolean) {
   const shell = { isDestroyed: () => false, focus: vi.fn(), send: vi.fn() }
-  const tabs = { isHomeTab: () => home, shownTabIsHome: () => home, listMcpTabGroups: () => [], tabs: new Map() }
+  const tabs = { isHomeTab: () => home, shownTabIsHome: () => home, mcpTabGroups: new Map(), tabs: new Map() }
   const { runPageNextPane } = createBrowserShortcutRouting({
     takeOvers: { available: () => undefined, takeOverFromPage: vi.fn() },
     tabs: () => tabs as never,
@@ -45,7 +45,7 @@ describe('F6 from a page', () => {
 describe('Bookmark all tabs from the application menu', () => {
   it('moves the keyboard to Hronaut\'s window first, so the collection\'s name gets it from a page, as Find does', () => {
     const shell = { isDestroyed: () => false, focus: vi.fn(), send: vi.fn() }
-    const tabs = { isHomeTab: () => false, shownTabIsHome: () => false, listMcpTabGroups: () => [], tabs: new Map() }
+    const tabs = { isHomeTab: () => false, shownTabIsHome: () => false, mcpTabGroups: new Map(), tabs: new Map() }
     const { runPageShortcut } = createBrowserShortcutRouting({
       takeOvers: { available: () => undefined, takeOverFromPage: vi.fn() },
       tabs: () => tabs as never,

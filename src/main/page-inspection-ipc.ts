@@ -8,8 +8,14 @@ import type {
   BrowserNetworkSearchOptions,
   BrowserPageCaptureOptions
 } from '../shared/types.js'
-import { captureElementScreenshot, pickElement } from './browser/element-picker/element-picker.js'
-import { captureScreenshotArea } from './browser/screenshot-area/screenshot-area.js'
+import { captureElementScreenshot, pickElement, cancelElementPicker } from './browser/element-picker/element-picker.js'
+import { captureScreenshotArea, cancelScreenshotArea } from './browser/screenshot-area/screenshot-area.js'
+import { consoleMessages } from './browser/console-messages/console-messages.js'
+import { networkHar, networkRequestDetails, networkRequests, networkSearch, replayNetworkRequest, saveNetworkHar } from './browser/network-inspection/network-inspection.js'
+import { inspectPwa } from './browser/pwa-inspection/pwa-inspection.js'
+import { manageStorage } from './browser/site-storage/manage-storage.js'
+import { storageChanges } from './browser/site-storage/storage-changes.js'
+import { inspectIndexedDb } from './browser/site-storage/storage-inspection.js'
 
 interface PageInspectionIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
@@ -38,7 +44,7 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
       || (cookieDomain !== undefined && typeof cookieDomain !== 'string')
       || (cookiePath !== undefined && typeof cookiePath !== 'string')
     ) throw new TypeError('Invalid site storage request')
-    return host.tabs()!.manageStorage({ tabId, kind, action, key, value: storageValue, includeValues, cookieDomain, cookiePath })
+    return manageStorage(host.tabs()!, { tabId, kind, action, key, value: storageValue, includeValues, cookieDomain, cookiePath })
   })
   host.handleBrowserIpc('browser:storage-usage', (event, tabId: unknown) => {
     host.assertTrustedSender(event)
@@ -54,7 +60,7 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
       || (action !== undefined && action !== 'get' && action !== 'baseline' && action !== 'compare' && action !== 'clear')
       || (includeValues !== undefined && typeof includeValues !== 'boolean')
     ) throw new TypeError('Invalid storage changes request')
-    return host.tabs()!.storageChanges(action, tabId as string | undefined, includeValues === true)
+    return storageChanges(host.tabs()!, action, tabId as string | undefined, includeValues === true)
   })
   host.handleBrowserIpc('browser:indexeddb', (event, value: unknown) => {
     host.assertTrustedSender(event)
@@ -68,7 +74,7 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
       || (limit !== undefined && (typeof limit !== 'number' || !Number.isFinite(limit)))
       || (includeValues !== undefined && typeof includeValues !== 'boolean')
     ) throw new TypeError('Invalid IndexedDB request')
-    return host.tabs()!.inspectIndexedDb({
+    return inspectIndexedDb(host.tabs()!, {
       tabId: tabId as string | undefined,
       database: database as string | undefined,
       objectStore: objectStore as string | undefined,
@@ -98,7 +104,7 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
       || (limit !== undefined && (typeof limit !== 'number' || !Number.isFinite(limit)))
       || (includeHeaders !== undefined && typeof includeHeaders !== 'boolean')
     ) throw new TypeError('Invalid offline app request')
-    return host.tabs()!.inspectPwa({
+    return inspectPwa(host.tabs()!, {
       tabId: tabId as string | undefined,
       cacheName: cacheName as string | undefined,
       query: query as string | undefined,
@@ -162,7 +168,7 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
   })
   host.handleBrowserIpc('browser:cancel-element-picker', (event, tabId) => {
     host.assertTrustedSender(event)
-    return host.tabs()!.cancelElementPicker(tabId)
+    return cancelElementPicker(host.tabs()!, tabId)
   })
   host.handleBrowserIpc('browser:console', (event, value: unknown) => {
     host.assertTrustedSender(event)
@@ -171,7 +177,7 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
     if ((tabId !== undefined && typeof tabId !== 'string') || (clear !== undefined && typeof clear !== 'boolean')) {
       throw new TypeError('Invalid console options')
     }
-    return sanitizeConsoleMessages(host.tabs()!.consoleMessages(tabId as string | undefined, clear === true))
+    return sanitizeConsoleMessages(consoleMessages(host.tabs()!, tabId as string | undefined, clear === true))
   })
   host.handleBrowserIpc('browser:network', (event, value: unknown) => {
     host.assertTrustedSender(event)
@@ -180,7 +186,7 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
     if ((tabId !== undefined && typeof tabId !== 'string') || (clear !== undefined && typeof clear !== 'boolean')) {
       throw new TypeError('Invalid network options')
     }
-    return host.tabs()!.networkRequests(tabId as string | undefined, clear === true)
+    return networkRequests(host.tabs()!, tabId as string | undefined, clear === true)
   })
   host.handleBrowserIpc('browser:network-request', (event, value: unknown) => {
     host.assertTrustedSender(event)
@@ -194,7 +200,7 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
     ) {
       throw new TypeError('Invalid network request options')
     }
-    return host.tabs()!.networkRequestDetails(tabId, requestId, maxChars as number | undefined)
+    return networkRequestDetails(host.tabs()!, tabId, requestId, maxChars as number | undefined)
   })
   host.handleBrowserIpc('browser:network-replay', (event, value: unknown) => {
     host.assertTrustedSender(event)
@@ -208,7 +214,7 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
     ) {
       throw new TypeError('Invalid network replay options')
     }
-    return host.tabs()!.replayNetworkRequest(tabId, requestId, confirmSideEffects === true)
+    return replayNetworkRequest(host.tabs()!, tabId, requestId, confirmSideEffects === true)
   })
   host.handleBrowserIpc('browser:network-search', (event, value: unknown) => {
     host.assertTrustedSender(event)
@@ -224,7 +230,7 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
     ) {
       throw new TypeError('Invalid network search options')
     }
-    return host.tabs()!.networkSearch(value as BrowserNetworkSearchOptions)
+    return networkSearch(host.tabs()!, value as BrowserNetworkSearchOptions)
   })
   host.handleBrowserIpc('browser:network-har', (event, value: unknown) => {
     host.assertTrustedSender(event)
@@ -241,7 +247,7 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
     ) {
       throw new TypeError('Invalid network HAR options')
     }
-    return host.tabs()!.networkHar(value as BrowserNetworkHarOptions)
+    return networkHar(host.tabs()!, value as BrowserNetworkHarOptions)
   })
   host.handleBrowserIpc('browser:save-network-har', (event, value: unknown) => {
     host.assertTrustedSender(event)
@@ -259,7 +265,7 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
     ) {
       throw new TypeError('Invalid network HAR save options')
     }
-    return host.tabs()!.saveNetworkHar(value as BrowserNetworkHarSaveOptions)
+    return saveNetworkHar(host.tabs()!, value as BrowserNetworkHarSaveOptions)
   })
   host.handleBrowserIpc('browser:capture-area', async (event, tabId) => {
     host.assertTrustedSender(event)
@@ -270,6 +276,6 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
   })
   host.handleBrowserIpc('browser:cancel-area-capture', (event, tabId) => {
     host.assertTrustedSender(event)
-    return host.tabs()!.cancelScreenshotArea(tabId)
+    return cancelScreenshotArea(host.tabs()!, tabId)
   })
 }

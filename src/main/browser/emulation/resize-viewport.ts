@@ -1,6 +1,7 @@
 import { settledViewportSize, type PageViewportSize } from '../viewport-settle.js'
 import type { Browser } from '../browser.js'
 import { findTab, getTab } from '../browser-core.js'
+import { emulate } from './emulation.js'
 
 /**
  * Gives the tab's page an emulated desktop viewport of the given size, or
@@ -11,10 +12,10 @@ import { findTab, getTab } from '../browser-core.js'
 export async function resizeViewport(browser: Browser, width: number | undefined, height: number | undefined, reset: boolean, tabId?: string): Promise<unknown> {
   const tab = getTab(browser, tabId)
   const webContents = tab.webContents
-  if (reset) await browser.emulate({ tabId: tab.id, viewport: null })
+  if (reset) await emulate(browser, { tabId: tab.id, viewport: null })
   else {
     if (width === undefined || height === undefined) throw new Error('width and height are required unless reset is true')
-    await browser.emulate({
+    await emulate(browser, {
       tabId: tab.id,
       viewport: { width, height, deviceScaleFactor: 1, mobile: false, touch: false, orientation: 'portrait' }
     })

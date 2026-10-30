@@ -16,8 +16,15 @@ import type {
   BrowserSecurityReport,
   BrowserVisualCompareOptions
 } from '../shared/types.js'
-import { videoPreview } from './browser/video-recording/video-recording.js'
-import { visualDiff } from './browser/visual-compare/visual-compare.js'
+import { videoPreview, videoRecording } from './browser/video-recording/video-recording.js'
+import { visualDiff, visualCompare } from './browser/visual-compare/visual-compare.js'
+import { debugReport, setDiagnosticLogPreservation } from './browser/debug-report/debug-report.js'
+import { inspectorIssues } from './browser/inspector-issues/inspector-issues.js'
+import { accessibilityAudit } from './browser/page-audits/accessibility-audit.js'
+import { designOverview } from './browser/page-audits/design-overview.js'
+import { performanceReport } from './browser/page-audits/performance-report.js'
+import { qualityAudit } from './browser/page-audits/quality-audit.js'
+import { securityReport } from './browser/page-audits/security-report.js'
 
 interface DiagnosticsIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
@@ -47,12 +54,12 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
     ) {
       throw new TypeError('Invalid accessibility audit options')
     }
-    return host.tabs().accessibilityAudit(value as BrowserAccessibilityAuditOptions)
+    return accessibilityAudit(host.tabs(), value as BrowserAccessibilityAuditOptions)
   })
   ipcMain.handle('browser:quality-audit', (event, tabId: unknown) => {
     host.assertTrustedSender(event)
     if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid quality audit tab')
-    return host.tabs().qualityAudit(tabId)
+    return qualityAudit(host.tabs(), tabId)
   })
   ipcMain.handle('browser:performance', (event, value: unknown) => {
     host.assertTrustedSender(event)
@@ -64,12 +71,12 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
     ) {
       throw new TypeError('Invalid performance options')
     }
-    return host.tabs().performanceReport(value as BrowserPerformanceOptions)
+    return performanceReport(host.tabs(), value as BrowserPerformanceOptions)
   })
   ipcMain.handle('browser:design-overview', (event, tabId: unknown): Promise<BrowserDesignOverviewReport> => {
     host.assertTrustedSender(event)
     if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid design overview tab')
-    return host.tabs().designOverview(tabId)
+    return designOverview(host.tabs(), tabId)
   })
   ipcMain.handle('browser:page-metadata', (event, tabId: unknown): Promise<BrowserPageMetadataReport> => {
     host.assertTrustedSender(event)
@@ -79,7 +86,7 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
   ipcMain.handle('browser:security', (event, tabId: unknown): BrowserSecurityReport => {
     host.assertTrustedSender(event)
     if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid security report tab')
-    return host.tabs().securityReport(tabId)
+    return securityReport(host.tabs(), tabId)
   })
   ipcMain.handle('browser:code-coverage', (event, value: unknown) => {
     host.assertTrustedSender(event)
@@ -139,18 +146,18 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
     ) {
       throw new TypeError('Invalid debug report options')
     }
-    return host.tabs().debugReport(value as BrowserDebugReportOptions)
+    return debugReport(host.tabs(), value as BrowserDebugReportOptions)
   })
   ipcMain.handle('browser:set-diagnostic-log-preservation', (event, tabId: unknown, preserve: unknown) => {
     host.assertTrustedSender(event)
     if (typeof tabId !== 'string' || typeof preserve !== 'boolean') throw new TypeError('Invalid diagnostic log preservation state')
-    host.tabs().setDiagnosticLogPreservation(tabId, preserve)
+    setDiagnosticLogPreservation(host.tabs(), tabId, preserve)
     return host.tabs().getState()
   })
   ipcMain.handle('browser:video', (event, value: unknown) => {
     host.assertTrustedSender(event)
     const options = videoOptionsSchema.parse(value)
-    return host.tabs().videoRecording(options)
+    return videoRecording(host.tabs(), options)
   })
   ipcMain.handle('browser:video-preview', (event, tabId: unknown) => {
     host.assertTrustedSender(event)
@@ -161,15 +168,15 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
     host.assertTrustedSender(event)
     if (typeof tabId !== 'string' || !tabId || typeof provenance !== 'string' || !provenance.trim() || provenance.length > 240) throw new TypeError('Audio import requires a tab and source/usage rights')
     const tabs = host.tabs()
-    const before = await tabs.videoRecording({ tabId, action: 'get' })
+    const before = await videoRecording(tabs, { tabId, action: 'get' })
     if (!before.recordingId || before.status !== 'stopped') throw new LocalizedError('video.errors.stopBeforeImport')
     if (!host.pickVideoAudio) throw new Error('Audio import is unavailable')
     const path = await host.pickVideoAudio()
     host.assertTrustedSender(event)
-    const current = await tabs.videoRecording({ tabId, action: 'get' })
+    const current = await videoRecording(tabs, { tabId, action: 'get' })
     if (current.recordingId !== before.recordingId || current.status !== 'stopped') throw new LocalizedError('video.errors.recordingChanged')
     if (!path) return current
-    return tabs.videoRecording({ tabId, action: 'import-audio', audioPath: path, audioProvenance: provenance.trim() }, () => host.assertTrustedSender(event))
+    return videoRecording(tabs, { tabId, action: 'import-audio', audioPath: path, audioProvenance: provenance.trim() }, () => host.assertTrustedSender(event))
   })
   ipcMain.handle('browser:repro-recording', (event, value: unknown) => {
     host.assertTrustedSender(event)
@@ -203,7 +210,7 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
       || (threshold !== undefined && typeof threshold !== 'number')
       || (settleMs !== undefined && typeof settleMs !== 'number')
     ) throw new TypeError('Invalid visual comparison options')
-    const result = await host.tabs().visualCompare(value as BrowserVisualCompareOptions)
+    const result = await visualCompare(host.tabs(), value as BrowserVisualCompareOptions)
     return {
       ...result.report,
       ...(result.diffPng ? { diffPngDataUrl: host.pngDataUrl(result.diffPng) } : {})
@@ -222,6 +229,6 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
     if ((tabId !== undefined && typeof tabId !== 'string') || (clear !== undefined && typeof clear !== 'boolean')) {
       throw new TypeError('Invalid inspector issue options')
     }
-    return host.tabs().inspectorIssues(tabId as string | undefined, clear === true)
+    return inspectorIssues(host.tabs(), tabId as string | undefined, clear === true)
   })
 }

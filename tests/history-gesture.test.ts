@@ -2,6 +2,13 @@ import { describe, expect, it, vi } from 'vitest'
 import type { Browser } from '../src/main/browser/browser.js'
 import { historyGesture } from '../src/main/browser/history-gesture/history-gesture.js'
 
+// The fake browser below stubs the functions the code under test calls; these reach its stubs.
+vi.mock('../src/main/browser/page-navigation/page-navigation.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/page-navigation/page-navigation.js')>(),
+  back: (browser: { back: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.back(...args),
+  forward: (browser: { forward: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.forward(...args)
+}))
+
 // Back and Forward from the person's key or mouse button must not change a page the person's input does not reach.
 
 function browser(state: { shown?: boolean; destroyed?: boolean; occluded?: boolean; locked?: boolean; agentInput?: boolean; selecting?: boolean } = {}) {

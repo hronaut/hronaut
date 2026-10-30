@@ -3,6 +3,16 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { IncidentPackages } from '../src/main/incident/incident-package.js'
 import type { Browser } from '../src/main/browser/browser.js'
 
+// The fake browser below stubs the functions the code under test calls; these reach its stubs.
+vi.mock('../src/main/browser/debug-report/debug-report.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/debug-report/debug-report.js')>(),
+  debugReport: (browser: { debugReport: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.debugReport(...args)
+}))
+vi.mock('../src/main/browser/network-inspection/network-inspection.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/network-inspection/network-inspection.js')>(),
+  networkHar: (browser: { networkHar: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.networkHar(...args)
+}))
+
 const now = Date.parse('2026-10-01T01:00:00Z')
 function fixture() {
   const tab = { id: 'tab', navigationGeneration: 1, observationGeneration: 1 }

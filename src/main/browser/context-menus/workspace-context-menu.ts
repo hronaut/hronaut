@@ -2,6 +2,7 @@ import type { MenuItemConstructorOptions } from 'electron'
 import type { ActiveWorkspace } from '../workspace-registry/workspace-registry.js'
 import type { Browser } from '../browser.js'
 import { sleepBlockReason, sleepWorkspaceTabs } from '../tab-sleep/tab-sleep.js'
+import { archiveWorkspaceForPerson } from '../workspace-archive/workspace-archive.js'
 
 /**
  * The workspace's context menu items: a new tab in it, importing browser
@@ -64,7 +65,7 @@ export function workspaceContextMenuItems(browser: Browser, group: ActiveWorkspa
       id: 'archive-workspace',
       label: browser.text('native.context.archiveWorkspace'),
       enabled: !browser.allHumanInteractionLocked || ![...browser.tabs.values()].some(tab => tab.mcpGroupId === group.id),
-      click: () => runAction('archive the workspace', () => browser.archiveWorkspaceForPerson(group.id))
+      click: () => runAction('archive the workspace', () => archiveWorkspaceForPerson(browser, group.id))
     }
   ]
 }
