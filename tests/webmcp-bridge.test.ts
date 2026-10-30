@@ -102,6 +102,9 @@ describe('WebMCP page bridge', () => {
       status: 'TOOL_RETURNED', dispatch: 'dispatched', effects: 'possible',
       result: { value: { marker: 'ok' } }
     })
+    expect(webMcpCallFromPage(called)).toEqual({
+      supported: true, status: 'TOOL_RETURNED', dispatch: 'dispatched', effects: 'possible', result: { value: { marker: 'ok' } }
+    })
   })
 
   it('gives main a listing and a long result that pass its own checks unchanged', async () => {
@@ -161,6 +164,38 @@ describe('WebMCP page bridge', () => {
       status: 'TOOL_ERROR', dispatch: 'dispatched', effects: 'possible',
       error: 'synthetic synchronous failure'
     })
+  })
+
+  it('reports a tool whose result or error cannot be read as one that ran', async () => {
+    let calls = 0
+    const tool: TestTool = { name: 'odd', window, origin: location.origin, execute: () => undefined }
+    const answers = [
+      () => ({ get value(): never { throw new Error('unreadable result') } }),
+      () => { throw Object.create(null) as unknown }
+    ]
+    Object.defineProperty(document, 'modelContext', {
+      configurable: true,
+      value: {
+        getTools: async () => [tool],
+        executeTool: () => answers[calls++]!()
+      }
+    })
+    const listed = await window.eval(webMcpListScript()) as WebMcpPageListing
+    const call = async (): Promise<Record<string, unknown>> => await window.eval(webMcpCallScript({
+      descriptorJson: listed.descriptorJson!,
+      toolName: 'odd',
+      arguments: {}
+    })) as Record<string, unknown>
+
+    expect(await call()).toEqual({
+      supported: true, status: 'OUTCOME_UNKNOWN', dispatch: 'dispatched', effects: 'possible', reason: 'result-unreadable',
+      error: 'unreadable result'
+    })
+    expect(await call()).toEqual({
+      supported: true, status: 'TOOL_ERROR', dispatch: 'dispatched', effects: 'possible',
+      error: 'The page threw a value that cannot be read'
+    })
+    expect(calls).toBe(2)
   })
 
   it('bounds page tool enumeration with the same operation deadline', async () => {

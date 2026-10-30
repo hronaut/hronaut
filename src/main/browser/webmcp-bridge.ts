@@ -55,8 +55,11 @@ function pageBridgeSource(mode: 'status' | 'list' | 'call', payload: Record<stri
     if (mode === 'status') return { supported: true }
 
     const safeMessage = (error: unknown): string => {
-      const value = error instanceof Error ? error.message : String(error)
-      return value.slice(0, 500)
+      try {
+        return String(error instanceof Error ? error.message : error).slice(0, 500)
+      } catch {
+        return 'The page threw a value that cannot be read'
+      }
     }
     const canonical = (value: unknown): string => {
       if (value === null || typeof value !== 'object') return JSON.stringify(value)
@@ -151,6 +154,8 @@ function pageBridgeSource(mode: 'status' | 'list' | 'call', payload: Record<stri
     }
 
     const controller = new AbortController()
+    // Once the page's tool is called, any later failure may follow its effects.
+    let dispatched = false
     let timeoutId = 0
     const timeout = new Promise<Record<string, unknown>>(resolve => {
       timeoutId = window.setTimeout(() => {
@@ -205,7 +210,10 @@ function pageBridgeSource(mode: 'status' | 'list' | 'call', payload: Record<stri
       const outcome = await Promise.race([
         // Defer invocation into the promise chain so a synchronous throw after
         // entering the page callback is still classified as dispatched.
-        Promise.resolve().then(() => api.executeTool(listing.raw[index]!, executionInput, { signal: controller.signal }))
+        Promise.resolve().then(() => {
+          dispatched = true
+          return api.executeTool(listing.raw[index]!, executionInput, { signal: controller.signal })
+        })
           .then((value: unknown) => ({ __hronautResult: value }))
           .catch((error: unknown) => ({ __hronautError: safeMessage(error) })),
         timeout
@@ -230,6 +238,12 @@ function pageBridgeSource(mode: 'status' | 'list' | 'call', payload: Record<stri
       }
     }).catch((error: unknown) => {
       clearDeadline()
+      if (dispatched) {
+        return {
+          supported: true, status: 'OUTCOME_UNKNOWN', dispatch: 'dispatched', effects: 'possible', reason: 'result-unreadable',
+          error: safeMessage(error)
+        }
+      }
       return { supported: true, status: 'WEBMCP_ERROR', dispatch: 'not-dispatched', effects: 'none', error: safeMessage(error) }
     })
   }.toString()})(${JSON.stringify(mode)},${JSON.stringify(payload)},${JSON.stringify(WEBMCP_LIMITS)})`
