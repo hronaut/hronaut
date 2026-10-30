@@ -57,7 +57,7 @@ export async function snapshotDetails(browser: Browser, tabId?: string, maxChars
   // document without exposing it to, or accepting it from, page JavaScript.
   const snapshot = await tab.webContents.executeJavaScriptInIsolatedWorld(
     SNAPSHOT_WORLD_ID,
-    [{ code: snapshotScript(Math.min(Math.max(maxChars, 1_000), 100_000), true, rootSelector, omitUrlDetail) }],
+    [{ code: snapshotScript(Math.min(Math.max(maxChars, 1_000), 100_000), rootSelector, omitUrlDetail) }],
     false
   ) as BrowserSnapshot & { scopeError?: string; targetNames?: unknown }
   if (snapshot.scopeError) {

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { WebContents } from 'electron'
 import type { Browser } from '../src/main/browser/browser.js'
 import { shadowSnapshot } from '../src/main/browser/shadow-snapshot/shadow-snapshot.js'
+import { shadowSnapshotScript } from '../src/main/browser/shadow-snapshot/shadow-snapshot-script.js'
 import type { BrowserSnapshotDeltaContext } from '../src/shared/snapshot-delta.js'
 
 const CONTEXT: BrowserSnapshotDeltaContext = { tabId: 'tab-1', workspaceId: 'workspace-1', navigationGeneration: 1, observationGeneration: 1, humanInteractionGeneration: 0, snapshotFormatVersion: 1 }
@@ -45,8 +46,8 @@ describe('shadowSnapshot', () => {
       limits: { nodes: 10_000, depth: 100, durationMs: 500, headings: 80, controls: 500, maxChars: 1_000 }
     })
     expect(page.scripts[0]!.world).toBe(1026)
-    expect(page.scripts[0]!.code).toContain('const MAX_CHARS = 1000;')
-    expect(page.scripts[0]!.code).toContain('document.querySelectorAll("#card")')
+    // The selector reaches the page as given, and the character budget bounded to 1,000.
+    expect(page.scripts[0]!.code).toBe(shadowSnapshotScript('#card', 1_000))
     const second = await shadowSnapshot(page.browser, 'tab-1', '#card')
     expect(second.captureId).not.toBe(first.captureId)
     expect(second.limits.maxChars).toBe(30_000)
