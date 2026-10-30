@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, powerMonitor: { on: () => undefined } }))
 import { Browser } from '../src/main/browser/browser.js'
+import { savedTabHistoryAccess } from '../src/main/browser/browser-lifecycle/save-for-next-start.js'
 import { SLEEPING_PAGE_URL } from '../src/main/browser/tab-sleep/sleeping-page.js'
 import { withoutSleepingPage } from '../src/main/browser/tab-sleep/tab-sleep.js'
 
@@ -9,7 +10,11 @@ import { withoutSleepingPage } from '../src/main/browser/tab-sleep/tab-sleep.js'
 
 interface Manager {
   navigationButtons(tab: unknown): { canGoBack: boolean; canGoForward: boolean }
-  savedTabHistoryAccess(everyTab: boolean): { unchanged(tab: unknown): boolean }
+}
+
+/** Saving the tabs' history for the browser below, for the fake tabs these tests read. */
+function savedHistory(browser: unknown, everyTab: boolean): { unchanged(tab: unknown): boolean } {
+  return savedTabHistoryAccess(browser as never, everyTab) as unknown as { unchanged(tab: unknown): boolean }
 }
 
 function liveTab(urls: string[], index: number, options: { destroyed?: boolean; throws?: boolean } = {}) {
@@ -67,7 +72,7 @@ describe('Back and Forward of a tab in the browser state', () => {
 
 describe('saving a tab\'s history for the next start', () => {
   it('reads a tab behind the one shown again only once its history moved', () => {
-    const access = manager({ activeTabId: 'other' }).savedTabHistoryAccess(false)
+    const access = savedHistory(manager({ activeTabId: 'other' }), false)
     const tab = liveTab([PAGE + 'a', PAGE + 'b'], 1)
     expect(access.unchanged(tab)).toBe(false)
     expect(access.unchanged(tab)).toBe(true)
@@ -81,20 +86,20 @@ describe('saving a tab\'s history for the next start', () => {
 
   it('reads the tabs shown each time, for their scroll and form state, and every tab when the browser closes', () => {
     const shown = liveTab([PAGE + 'a'], 0)
-    const access = manager({ activeTabId: shown.id }).savedTabHistoryAccess(false)
+    const access = savedHistory(manager({ activeTabId: shown.id }), false)
     access.unchanged(shown)
     expect(access.unchanged(shown)).toBe(false)
-    const split = manager({ activeTabId: 'other', splitView: { firstTabId: 'other', secondTabId: shown.id } }).savedTabHistoryAccess(false)
+    const split = savedHistory(manager({ activeTabId: 'other', splitView: { firstTabId: 'other', secondTabId: shown.id } }), false)
     split.unchanged(shown)
     expect(split.unchanged(shown)).toBe(false)
     const behind = liveTab([PAGE + 'b'], 0)
-    const closing = manager({ activeTabId: 'other' }).savedTabHistoryAccess(true)
+    const closing = savedHistory(manager({ activeTabId: 'other' }), true)
     closing.unchanged(behind)
     expect(closing.unchanged(behind)).toBe(false)
   })
 
   it('reads a page that is gone again', () => {
-    const access = manager({ activeTabId: 'other' }).savedTabHistoryAccess(false)
+    const access = savedHistory(manager({ activeTabId: 'other' }), false)
     const tab = liveTab([PAGE + 'a'], 0, { destroyed: true })
     access.unchanged(tab)
     expect(access.unchanged(tab)).toBe(false)

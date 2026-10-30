@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { NavigationEntry } from 'electron'
 import { Browser } from '../src/main/browser/browser.js'
+import { saveForNextStart } from '../src/main/browser/browser-lifecycle/save-for-next-start.js'
 import { ClosedTabsStore, restoredClosedTabs, savedClosedTabs, type SavedClosedTab } from '../src/main/browser/saved-closed-tabs/saved-closed-tabs.js'
 import { closedTabHistory, rememberClosedTab, rememberSavedClosedTabs, reopenClosedTabEntry } from '../src/main/browser/tab-reopening/tab-reopening.js'
 import type { BrowserTab } from '../src/main/browser/browser-tab.js'
@@ -305,7 +306,7 @@ describe('the tab manager saving Recently closed', () => {
       closedTabsStore: { save: async (closedTabs: () => readonly SavedClosedTab[] | undefined) => { saved.push(closedTabs()) } }
     }) as Browser
     // Saved once with the page, as every few seconds, and then once its history is cleared.
-    await (manager as unknown as { saveForNextStart(): Promise<void> }).saveForNextStart()
+    await saveForNextStart(manager)
     manager.forgetHistoryPages((url) => url === address('cleared'))
     await vi.waitFor(() => expect(saved).toHaveLength(2))
     expect(JSON.stringify(saved[0])).toContain(address('cleared'))

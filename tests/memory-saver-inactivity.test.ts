@@ -21,6 +21,7 @@ vi.mock('../src/main/browser/tab-sleep/tab-sleep.js', async (importOriginal) => 
   ) => browser.putTabToSleep(tab, reportBlocked, isCurrent)
 }))
 import { Browser } from '../src/main/browser/browser.js'
+import { sweepMemorySaver } from '../src/main/browser/tab-sleep/memory-saver.js'
 
 afterEach(() => { vi.useRealTimers() })
 
@@ -66,7 +67,7 @@ function browser() {
     putTabToSleep, wakeTab: vi.fn(async () => ({})),
     layout: vi.fn(), focusTabOrTrustedChrome: vi.fn(), changed: vi.fn(), getState: () => ({})
   }) as Browser
-  const sweep = () => (manager as unknown as { sweepMemorySaver(force: boolean): Promise<void> }).sweepMemorySaver(false)
+  const sweep = () => sweepMemorySaver(manager as never, false)
   const askedToSleep = () => putTabToSleep.mock.calls.map(([tab]) => tab.id)
   return { manager, tabs, putTabToSleep, sweep, askedToSleep }
 }
