@@ -62,16 +62,16 @@ for (const [phase, change, target, dialog] of cases) {
         await barrier
       }
       page.executeJavaScript = async (script, ...args) => {
-        if (script.includes('element.click();')) gate.dispatches++
+        if (script.includes('function clickTargetInPage(')) gate.dispatches++
         const result = await execute.call(page, script, ...args)
         if ((phase === 'input' && script === 'window.__hronautAgentInputActive = true')
-          || (phase === 'pointer' && script.includes('element.scrollIntoView') && !script.includes('element.click();'))) await hold()
+          || (phase === 'pointer' && script.includes('function targetPointInPage('))) await hold()
         return result
       }
       api.sendCommand = async (method, ...args) => {
         const params = args[0] as { expression?: string } | undefined
         if (method === 'Input.dispatchMouseEvent') gate.mouseCommands++
-        if (method === 'Runtime.evaluate' && (params?.expression?.includes('element.click();') || params?.expression?.includes("new MouseEvent('click'"))) gate.dispatches++
+        if (method === 'Runtime.evaluate' && (params?.expression?.includes('function dialogAwareClickInPage(') || params?.expression?.includes('function dialogAwareCoordinateClickInPage('))) gate.dispatches++
         const result = await send.call(api, method, ...args)
         if (phase === 'context' && method === 'Page.getFrameTree') await hold()
         return result

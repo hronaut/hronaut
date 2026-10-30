@@ -72,11 +72,13 @@ describe('page evaluation deadline', () => {
     await expect(evaluate(browser, 'new Promise(() => {})', undefined, {}, { timeoutMs: 20 })).rejects.toMatchObject({ reason: 'SCRIPT_TIMEOUT', sent: true })
     expect(state).toMatchObject({ guards: 0, debuggerBusy: false })
     const wrapped = collaborators.evaluateWithAttachedDebugger.mock.calls[0]![1]
-    const evaluationId = /entry\.id !== "([^"]+)"/.exec(wrapped)?.[1]
+    // The evaluation's id goes to the page function right before the release function it calls when the script settles.
+    const evaluationId = /"([^"]+)",\s*\(function releaseEvaluationDialogsInPage\(/.exec(wrapped)?.[1]
     expect(evaluationId).toMatch(/^[0-9a-f-]{36}$/)
     expect(webContents.debugger.sendCommand).toHaveBeenCalledExactlyOnceWith('Runtime.evaluate', expect.objectContaining({ contextId: 1, silent: true }))
     const release = (webContents.debugger.sendCommand.mock.calls[0] as unknown as [string, { expression: string }])[1].expression
-    expect(release).toContain(`entry.id !== "${evaluationId}"`)
+    expect(release).toContain('function releaseEvaluationDialogsInPage(')
+    expect(release.endsWith(`("${evaluationId}")`)).toBe(true)
     expect(release).not.toContain('await')
     // The page's script settling later reaches nobody and raises nothing.
     debuggerScript.reject(new Error('Execution context was destroyed'))
