@@ -50,6 +50,8 @@ export function useWalletsController(options: WalletsControllerOptions) {
   const subscriptions: Array<() => void> = []
 
   const awaitingApproval = computed(() => requests.value.filter((request) => request.status === 'awaiting-human'))
+  /** True while a request waits for the person's approval, drawn over everything else. */
+  const approvalOpen = computed(() => awaitingApproval.value.length > 0)
 
   function setError(error: unknown): void {
     errorMessage.value = options.formatError(error)
@@ -233,6 +235,7 @@ export function useWalletsController(options: WalletsControllerOptions) {
     requests,
     audit,
     awaitingApproval,
+    approvalOpen,
     busy,
     errorMessage,
     requestError,

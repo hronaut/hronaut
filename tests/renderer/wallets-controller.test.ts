@@ -235,6 +235,18 @@ describe('wallets controller', () => {
 
     expect(controller.requests.value).toEqual([])
     expect(controller.awaitingApproval.value).toEqual([])
+    expect(controller.approvalOpen.value).toBe(false)
+    controller.dispose()
+  })
+
+  it('is open for approval while a request awaits the person', async () => {
+    const { controller, emitRequests } = createController()
+    await controller.initialize()
+
+    emitRequests([pendingRequest()])
+    expect(controller.approvalOpen.value).toBe(true)
+    emitRequests([])
+    expect(controller.approvalOpen.value).toBe(false)
     controller.dispose()
   })
 

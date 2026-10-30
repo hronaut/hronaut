@@ -5,7 +5,6 @@ import { bind as bindFoley } from '@foleyjs/core'
 import { computed, nextTick, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
-import { BrowserState } from '../../shared/types'
 import AppToastRegion from './components/AppToastRegion.vue'
 import PageProblemBar from './components/PageProblemBar.vue'
 import PanelResizeHandle from './features/panels/PanelResizeHandle.vue'
@@ -64,7 +63,8 @@ const translate = (key: string, parameters?: Record<string, unknown>, plural?: n
 const browserStore = useBrowserStore()
 const settingsStore = useSettingsStore()
 const { state, initialized: browserStateInitialized } = storeToRefs(browserStore)
-const { settings, systemTheme, windowMaterial, resolvedLocale } = storeToRefs(settingsStore)
+const { settings, systemTheme, windowMaterial, resolvedLocale, effectiveTheme } = storeToRefs(settingsStore)
+const syncState = browserStore.sync
 const {
   formatBytes,
   formatNumber: localNumber,
@@ -92,6 +92,7 @@ const { dispose: disposeUndoToasts } = useUndoToasts({
 const {
   reportActionError: reportShellActionError,
   reportStartupFailure: reportAppBootstrapFailure,
+  reportStartupRecovered,
   reportSearchError: showTabSearchError,
   copyText: copyAppText,
   reportSettingError: handleExtractedSettingError,
@@ -102,7 +103,7 @@ const {
   reportBrowserActionFailure
 } = useShellFeedbackController({
   browser,
-  translate: (key, parameters) => t(key, parameters ?? {}),
+  translate,
   showToast: showAppToast
 })
 const appTabRuntimeFeatureController = useAppTabRuntimeFeatureController({
@@ -124,7 +125,7 @@ const appShellPresentationFeatureController = useAppShellPresentationFeatureCont
   systemTheme,
   windowMaterial,
   search: window.location.search,
-  translate: (key, params) => params ? t(key, params) : t(key),
+  translate,
   targetDocument: document,
   windowChrome: window.hronautShell.windowChrome
 })
@@ -153,7 +154,7 @@ const { mirrored: toastsMirrored, focusChanged: toastFocusChanged } = useToastOv
   api: isDetachedPanelWindow ? undefined : window.hronautToastOverlay,
   toasts: appToasts,
   controller: appToastController,
-  theme: () => settings.value.theme === 'system' ? systemTheme.value : settings.value.theme,
+  theme: () => effectiveTheme.value,
   focusedPart: () => shellToastFocusedPart(document.activeElement)
 })
 const shell = ref<HTMLElement | null>(null)
@@ -200,7 +201,7 @@ const {
 const browserChromeLayer = ref<InstanceType<typeof AppBrowserChromeLayer> | null>(null)
 const helpDialogController = useHelpDialogController({
   beforeOpen: closeTransientPanels,
-  translate: (key) => t(key),
+  translate,
   platform: window.hronautShell?.windowChrome.platform
 })
 const {
@@ -298,7 +299,7 @@ const fullPageView = useFullPageView({
 const { active: fullPageActive, concealed: fullPageConcealed } = fullPageView
 // A hidden rail gives the page its room; the tabs keep their vertical layout for when it shows again.
 const pageRailWidth = computed(() => fullPageConcealed.value ? 0 : tabRailWidth.value)
-const walletApprovalOpen = computed(() => walletsController.awaitingApproval.value.length > 0)
+const { approvalOpen: walletApprovalOpen } = walletsController
 // Main's own questions, such as a website's permission request, drawn over the page instead of a system dialog.
 const trustedDialogController = useTrustedDialogController(window.hronautTrustedDialogs)
 const { walletWorkspaces, dataWorkspaces } = useSettingsWorkspaceLists(state)
@@ -340,7 +341,6 @@ const {
 const appSiteNavigationFeatureController = useAppSiteNavigationFeatureController({
   state,
   activeTab,
-  isHome: () => !activeTab.value || isHronautHomeUrl(activeTab.value.url),
   browser,
   syncState,
   collections: {
@@ -371,7 +371,7 @@ const appSiteNavigationFeatureController = useAppSiteNavigationFeatureController
   address: {
     overlay: isDetachedPanelWindow ? undefined : window.hronautAddressOverlay,
     siteSearches: () => settings.value.siteSearches,
-    theme: () => settings.value.theme === 'system' ? systemTheme.value : settings.value.theme,
+    theme: () => effectiveTheme.value,
     locale: () => resolvedLocale.value,
     translate,
     formatNumber: localNumber
@@ -387,16 +387,7 @@ const appSiteNavigationFeatureController = useAppSiteNavigationFeatureController
     openSettingsSection,
     loadSiteSummary: ({ url, tabId }) => window.hronautBrowsingData.siteSummary(url, tabId),
     onActionError: reportShellActionError,
-    onSelectError: (error) => showAppToast(
-      'error',
-      t('runtime.workspace.openFailed'),
-      friendlyUiError(error, t('runtime.workspace.openDescription'))
-    ),
-    onNavigateError: (error) => showAppToast(
-      'error',
-      t('runtime.navigation.failed'),
-      friendlyUiError(error, t('runtime.navigation.failedDescription'))
-    )
+    showToast: showAppToast
   }
 })
 const {
@@ -592,11 +583,7 @@ const {
   onAttemptSettled: () => {
     void nextTick().then(reportShellHeight)
   },
-  onRecovered: () => showAppToast(
-    'success',
-    t('runtime.toast.startupRecovered'),
-    t('runtime.toast.startupRecoveredDescription')
-  )
+  onRecovered: reportStartupRecovered
 })
 // A panel window has no page views over the shell, so it draws its tooltips itself.
 const shellTooltips = useShellTooltips(isDetachedPanelWindow ? createInWindowTooltipPort() : window.hronautShell)
@@ -708,25 +695,12 @@ const appActiveTabFeatureController = useAppActiveTabFeatureController({
     pickerOpen: credentialPickerOpen,
     openPicker: openCredentialPicker,
     fillCredential: (tabId, credentialId) => window.hronautCredentials.fill(tabId, credentialId),
-    missingCredentialMessage: () => t('runtimeActions.credential.noLongerMatches'),
-    onFilled: (credential) => showAppToast(
-      'success',
-      t('runtime.toast.passwordFilled'),
-      t('runtime.toast.passwordFilledDescription', {
-        username: credential.username || t('credentialPicker.unnamed')
-      })
-    ),
-    onError: (error) => showAppToast(
-      'error',
-      t('runtime.toast.passwordFillFailed'),
-      friendlyUiError(error, t('runtime.toast.passwordFillDescription'))
-    )
+    showToast: showAppToast
   },
   detachedPanel: {
     window: isDetachedPanelWindow,
     activePanelId,
-    label: detachedPanelLabel,
-    fallbackLabel: () => t('shell.pageTools.heading')
+    label: detachedPanelLabel
   },
   context: {
     keepsSeparatePanelOpen,
@@ -783,10 +757,6 @@ const {
   handleWindowResize,
   browserChromeActions
 } = appBrowserChromeFeatureController
-async function syncState(next: Promise<BrowserState> | BrowserState): Promise<void> {
-  await browserStore.syncOperation(Promise.resolve(next))
-}
-
 function closeTransientPanels(options?: TransientPanelsCloseOptions): void {
   transientPanelsController.close(options)
 }

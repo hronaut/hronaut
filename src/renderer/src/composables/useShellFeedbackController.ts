@@ -40,6 +40,14 @@ export function useShellFeedbackController(options: ShellFeedbackControllerOptio
     )
   }
 
+  function reportStartupRecovered(): void {
+    options.showToast(
+      'success',
+      options.translate('runtime.toast.startupRecovered'),
+      options.translate('runtime.toast.startupRecoveredDescription')
+    )
+  }
+
   function reportSearchError(title: string, message: string): void {
     options.showToast('error', title, message)
   }
@@ -114,6 +122,7 @@ export function useShellFeedbackController(options: ShellFeedbackControllerOptio
   return {
     reportActionError,
     reportStartupFailure,
+    reportStartupRecovered,
     reportSearchError,
     copyText,
     reportSettingError,

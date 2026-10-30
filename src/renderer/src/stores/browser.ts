@@ -162,6 +162,11 @@ export const useBrowserStore = defineStore('browser', () => {
     }
   }
 
+  /** Applies a state an operation returns, or one already in hand, unless a newer one arrived meanwhile. */
+  async function sync(next: Promise<BrowserState> | BrowserState): Promise<void> {
+    await syncOperation(Promise.resolve(next))
+  }
+
   const refresh = (): Promise<BrowserState> => syncOperation(window.hronaut.getState())
   const openHome = (): Promise<BrowserState> => syncOperation(window.hronaut.openHome())
   const newTab = (options?: NewTabOptions): Promise<BrowserState> => syncOperation(window.hronaut.newTab(options))
@@ -184,6 +189,7 @@ export const useBrowserStore = defineStore('browser', () => {
     dispose,
     acceptAuthoritativeState,
     syncOperation,
+    sync,
     refresh,
     openHome,
     newTab,

@@ -86,7 +86,7 @@ function createHarness() {
   }
   const loadSiteSummary = vi.fn(async () => siteSummary)
   const closeFind = vi.fn(async () => { findOpen.value = false })
-  const onNavigateError = vi.fn()
+  const showToast = vi.fn()
   const setFollowAgentActivitySuspended = vi.fn()
   let controller!: ReturnType<typeof useAppSiteNavigationFeatureController>
   const view = render(defineComponent({
@@ -96,7 +96,6 @@ function createHarness() {
         activeTab: computed(() => browserState.value.tabs[0]),
         browser,
         syncState: async (operation) => { browserState.value = await operation },
-        isHome: () => false,
         collections: {
           bookmarks: ref([]),
           history: ref([]),
@@ -138,8 +137,7 @@ function createHarness() {
           openSettingsSection: vi.fn(),
           loadSiteSummary,
           onActionError: vi.fn(),
-          onSelectError: vi.fn(),
-          onNavigateError
+          showToast
         }
       })
       return {}
@@ -149,6 +147,7 @@ function createHarness() {
   return {
     controller,
     view,
+    browserState,
     browser,
     settingsOpen,
     updateNoticeOpen,
@@ -160,7 +159,7 @@ function createHarness() {
     findOpen,
     closeFind,
     loadSiteSummary,
-    onNavigateError,
+    showToast,
     setFollowAgentActivitySuspended
   }
 }
@@ -201,7 +200,30 @@ describe('app site navigation feature controller', () => {
     pending.reject(new Error('late navigation failure'))
     await navigation
 
-    expect(harness.onNavigateError).not.toHaveBeenCalled()
+    expect(harness.showToast).not.toHaveBeenCalled()
+  })
+
+  it('locks a website tab\'s input, and leaves Home alone', async () => {
+    const harness = createHarness()
+    harness.browserState.value = { ...state(), tabs: [{ ...tab(), url: 'hronaut://home/' }] }
+
+    await harness.controller.browserTabActionsController.toggleTabHumanInteraction()
+    expect(harness.browser.setTabHumanInteractionLocked).not.toHaveBeenCalled()
+
+    harness.browserState.value = state()
+    await harness.controller.browserTabActionsController.toggleTabHumanInteraction()
+    expect(harness.browser.setTabHumanInteractionLocked).toHaveBeenCalledExactlyOnceWith('active', true)
+    harness.view.unmount()
+  })
+
+  it('says when an address could not be opened', async () => {
+    const harness = createHarness()
+    harness.browser.navigate.mockRejectedValueOnce(new Error('Navigation refused'))
+
+    await harness.controller.browserTabActionsController.navigateAddress('https://refused.test/')
+
+    expect(harness.showToast).toHaveBeenCalledExactlyOnceWith('error', 'runtime.navigation.failed', expect.any(String))
+    harness.view.unmount()
   })
 
   it('invalidates a pending site summary when the app is torn down', async () => {

@@ -2,7 +2,6 @@ import { computed, type Ref } from 'vue'
 import type {
   BrowserEmulationState,
   BrowserTabState,
-  CredentialSummary,
   DetachablePanelId
 } from '../../../shared/types.js'
 import {
@@ -12,6 +11,7 @@ import {
 import { useActiveTabContextController } from './useActiveTabContextController.js'
 import { useCredentialFillController } from '../features/credentials/useCredentialFillController.js'
 import type { EnvironmentPanelAction } from '../features/emulation/useEnvironmentPanelController.js'
+import { friendlyUiError, type AppToastTone } from './useAppToastController.js'
 
 export interface AppActiveTabFeatureControllerOptions {
   presentation: ActiveTabPresentationControllerOptions
@@ -19,15 +19,12 @@ export interface AppActiveTabFeatureControllerOptions {
     pickerOpen: Ref<boolean>
     openPicker: () => void | Promise<void>
     fillCredential: (tabId: string, credentialId: string) => Promise<boolean>
-    missingCredentialMessage: () => string
-    onFilled: (credential: CredentialSummary) => void
-    onError: (error: unknown) => void
+    showToast: (tone: AppToastTone, title: string, message: string) => void
   }
   detachedPanel: {
     window: boolean
     activePanelId: Readonly<Ref<DetachablePanelId | null>>
     label: (panelId: DetachablePanelId) => string
-    fallbackLabel: () => string
   }
   context: {
     keepsSeparatePanelOpen: () => boolean
@@ -58,11 +55,27 @@ export interface AppActiveTabFeatureControllerOptions {
 export function useAppActiveTabFeatureController(
   options: AppActiveTabFeatureControllerOptions
 ) {
+  const { translate } = options.presentation
   const presentation = useActiveTabPresentationController(options.presentation)
   const credentialFill = useCredentialFillController({
     activeTab: options.presentation.activeTab,
     activeCredentials: presentation.activeCredentials,
-    ...options.credentialFill
+    pickerOpen: options.credentialFill.pickerOpen,
+    openPicker: options.credentialFill.openPicker,
+    fillCredential: options.credentialFill.fillCredential,
+    missingCredentialMessage: () => translate('runtimeActions.credential.noLongerMatches'),
+    onFilled: (credential) => options.credentialFill.showToast(
+      'success',
+      translate('runtime.toast.passwordFilled'),
+      translate('runtime.toast.passwordFilledDescription', {
+        username: credential.username || translate('credentialPicker.unnamed')
+      })
+    ),
+    onError: (error) => options.credentialFill.showToast(
+      'error',
+      translate('runtime.toast.passwordFillFailed'),
+      friendlyUiError(error, translate('runtime.toast.passwordFillDescription'))
+    )
   })
   const detachedPanelUnavailable = computed(() => (
     options.detachedPanel.window
@@ -73,7 +86,7 @@ export function useAppActiveTabFeatureController(
     const panelId = options.detachedPanel.activePanelId.value
     return panelId
       ? options.detachedPanel.label(panelId)
-      : options.detachedPanel.fallbackLabel()
+      : translate('shell.pageTools.heading')
   })
   const activeTabContext = useActiveTabContextController({
     activeTab: options.presentation.activeTab,
