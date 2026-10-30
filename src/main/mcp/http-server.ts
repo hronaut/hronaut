@@ -765,9 +765,9 @@ export class McpHttpServer {
     }
   }
 
-  private trackTabActivity(activity: McpTabActivity, client: McpClientActivity, workspaceId: string): void {
+  private trackTabActivity(activity: McpTabActivity, client: McpClientActivity, workspaceId: string, at = performance.now()): void {
     this.options.onTabActivity?.(activity, { id: this.agentPresence.clientKey(client.id), name: sanitizeAgentName(client.name) })
-    this.actionTracker.activityHistory.track(activity)
+    this.actionTracker.activityHistory.track(activity, at)
     this.trackAgentCall(activity, client, workspaceId)
   }
 
