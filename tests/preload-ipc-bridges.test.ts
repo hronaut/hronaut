@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, expect, it, vi } from 'vitest'
 import type { EventChannel, InvokeChannel, SendChannel } from '../src/shared/ipc/channel.js'
+import { DEFAULT_BROWSER_ENVIRONMENT } from '../src/shared/browser-environment.js'
 
 const electron = vi.hoisted(() => ({ exposeInMainWorld: vi.fn(), invoke: vi.fn(), on: vi.fn(), removeListener: vi.fn(), send: vi.fn() }))
 vi.mock('electron', () => ({ contextBridge: { exposeInMainWorld: electron.exposeInMainWorld }, ipcRenderer: electron }))
@@ -31,13 +32,36 @@ async function exposed(name: string, path: string): Promise<Method> {
   return method as Method
 }
 
-// Values as main sends and takes them: a state with no tabs open, an Undo offer's token and a workspace template.
+// Values as main sends and takes them: a state with no tabs open, an Undo offer's token, a workspace template, emulation and incident ids.
 const browserState = { tabs: [], closedTabs: [], activeTabId: null, allHumanInteractionLocked: false, mcpUrl: 'http://127.0.0.1:47321/mcp', profilePath: '/home/person/.config/Hronaut', mcpTabGroups: [], savedTabGroups: [] }
 const undoToken = 'c0ffee00-0000-4000-8000-000000000001'
+const phoneViewport = { width: 390, height: 844, deviceScaleFactor: 3, mobile: true, touch: true, orientation: 'portrait' }
+const darkEnvironment = { ...DEFAULT_BROWSER_ENVIRONMENT, colorScheme: 'dark' }
+const draftId = 'c0ffee00-0000-4000-8000-000000000004'
+const previewId = 'c0ffee00-0000-4000-8000-000000000005'
 const workspaceTemplate = JSON.stringify({ format: 'hronaut-workspace-template', version: 1, sourcePlatform: 'linux', workspaces: [{ name: 'Research', color: 'blue', startPages: ['https://example.com/'] }] })
 
 // Each call the shell makes, with the channel and arguments main receives; the names are the wire's and stay as they were.
 const invokes: Array<[api: string, method: string, args: unknown[], channel: string, sent: unknown[]]> = [
+  ['hronaut', 'setTabViewport', ['tab-1', phoneViewport], 'browser:set-tab-viewport', ['tab-1', phoneViewport]],
+  ['hronaut', 'setTabViewport', ['tab-1', null], 'browser:set-tab-viewport', ['tab-1', null]],
+  ['hronaut', 'setTabEnvironment', ['tab-1', darkEnvironment], 'browser:set-tab-environment', ['tab-1', darkEnvironment]],
+  ['hronaut', 'resetTabEmulation', ['tab-1'], 'browser:reset-tab-emulation', ['tab-1']],
+  ['hronaut', 'recoverTabEmulation', ['tab-1'], 'browser:recover-tab-emulation', ['tab-1']],
+  ['hronaut', 'listNetworkRoutes', ['tab-1'], 'browser:list-network-routes', ['tab-1']],
+  ['hronaut', 'addNetworkRoute', ['tab-1', { urlPattern: 'https://example.com/api/*', method: 'GET', response: { status: 503 } }], 'browser:add-network-route', ['tab-1', { urlPattern: 'https://example.com/api/*', method: 'GET', response: { status: 503 } }]],
+  ['hronaut', 'setNetworkRouteEnabled', ['tab-1', 'route-1', false], 'browser:set-network-route-enabled', ['tab-1', 'route-1', false]],
+  ['hronaut', 'moveNetworkRoute', ['tab-1', 'route-1', 'up'], 'browser:move-network-route', ['tab-1', 'route-1', 'up']],
+  ['hronaut', 'removeNetworkRoute', ['tab-1', 'route-1'], 'browser:remove-network-route', ['tab-1', 'route-1']],
+  ['hronaut', 'clearNetworkRoutes', ['tab-1'], 'browser:clear-network-routes', ['tab-1']],
+  ['hronaut', 'clearCssStatePreview', ['tab-1'], 'browser:clear-css-state-preview', ['tab-1']],
+  ['hronaut', 'stopLogpoints', ['tab-1'], 'browser:stop-logpoints', ['tab-1']],
+  ['hronaut', 'stopVirtualPasskey', ['tab-1'], 'browser:stop-virtual-passkey', ['tab-1']],
+  ['hronaut', 'captureIncident', [{ tabId: 'tab-1', minutes: 5, kinds: ['network', 'diagnostics'] }], 'browser:incident-capture', [{ tabId: 'tab-1', minutes: 5, kinds: ['network', 'diagnostics'] }]],
+  ['hronaut', 'reviewIncident', [{ draftId, include: ['network'], replacements: [] }], 'browser:incident-review', [{ draftId, include: ['network'], replacements: [] }]],
+  ['hronaut', 'invalidateIncidentPreview', [draftId], 'browser:incident-invalidate-preview', [draftId]],
+  ['hronaut', 'discardIncident', [], 'browser:incident-discard', []],
+  ['hronaut', 'saveIncident', [{ draftId, previewId, reviewed: true }], 'browser:incident-save', [{ draftId, previewId, reviewed: true }]],
   ['hronaut', 'createWorkspace', [{ name: 'Research', color: 'blue', storage: 'scratch' }], 'browser:create-workspace', [{ name: 'Research', color: 'blue', storage: 'scratch' }]],
   ['hronaut', 'openWorkspaceTemplateFile', [], 'browser:open-workspace-template-file', []],
   ['hronaut', 'saveWorkspaceTemplateFile', [workspaceTemplate], 'browser:save-workspace-template-file', [workspaceTemplate]],

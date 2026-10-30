@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { IncidentPackages } from './incident-package.js'
 import { writeTextFileAtomically } from '../atomic-file.js'
 import type { Browser } from '../browser/browser.js'
+import { INCIDENTS_IPC } from '../../shared/ipc/incidents.js'
 
 export function registerIncidentPackageIpc(ipc: Pick<IpcMain, 'handle'>, host: {
   assertTrustedSender(event: IpcMainInvokeEvent): void
@@ -22,21 +23,21 @@ export function registerIncidentPackageIpc(ipc: Pick<IpcMain, 'handle'>, host: {
     }
     return id
   }
-  ipc.handle('browser:incident-capture', async (event, input: unknown) => {
+  ipc.handle(INCIDENTS_IPC.capture, async (event, input: unknown) => {
     const id = owner(event)
     const draft = await packages.capture(id, input)
     try { host.assertTrustedSender(event) } catch (error) { packages.discard(id); throw error }
     return draft
   })
-  ipc.handle('browser:incident-review', (event, input: unknown) => packages.review(owner(event), input))
-  ipc.handle('browser:incident-invalidate-preview', (event, input: unknown) => {
+  ipc.handle(INCIDENTS_IPC.review, (event, input: unknown) => packages.review(owner(event), input))
+  ipc.handle(INCIDENTS_IPC.invalidatePreview, (event, input: unknown) => {
     const id = owner(event)
     const parsed = z.string().uuid().safeParse(input)
     if (!parsed.success) throw new Error('Invalid incident draft')
     packages.invalidatePreview(id, parsed.data)
   })
-  ipc.handle('browser:incident-discard', event => { packages.discard(owner(event)) })
-  ipc.handle('browser:incident-save', async (event, input: unknown) => {
+  ipc.handle(INCIDENTS_IPC.discard, event => { packages.discard(owner(event)) })
+  ipc.handle(INCIDENTS_IPC.save, async (event, input: unknown) => {
     const id = owner(event)
     const request = z.object({ draftId: z.string().uuid(), previewId: z.string().uuid(), reviewed: z.literal(true) }).strict().parse(input)
     packages.export(id, request.draftId, request.previewId)

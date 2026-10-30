@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import { addressBarStopsApi } from './bridges/address-bar-stops.js'
 import { addressOverlayApi } from './bridges/address-overlay.js'
 import { agentCardApi } from './bridges/agent-card.js'
 import { agentPresenceApi } from './bridges/agent-presence.js'
@@ -7,10 +8,13 @@ import { bookmarksApi } from './bridges/bookmarks.js'
 import { browsingDataApi } from './bridges/browsing-data.js'
 import { credentialsApi } from './bridges/credentials.js'
 import { downloadsApi } from './bridges/downloads.js'
+import { emulationApi } from './bridges/emulation.js'
 import { historyApi } from './bridges/history.js'
+import { incidentsApi } from './bridges/incidents.js'
 import { licenseApi } from './bridges/license.js'
 import { mcpApi } from './bridges/mcp.js'
 import { navigationApi } from './bridges/navigation.js'
+import { networkRoutesApi } from './bridges/network-routes.js'
 import { emulationFrameApi, pageCardApi, splitDividerApi } from './bridges/page-geometry.js'
 import { panelWindowApi } from './bridges/panel-window.js'
 import { permissionsApi } from './bridges/permissions.js'
@@ -41,14 +45,10 @@ import type {
   BrowserNetworkHarOptions,
   BrowserNetworkHarSaveOptions,
   BrowserNetworkSearchOptions,
-  BrowserNetworkRouteInput,
-  BrowserNetworkRouteMoveDirection,
   BrowserStorageOptions,
   BrowserStorageChangesOptions,
   BrowserIndexedDbOptions,
-  BrowserPwaOptions,
-  BrowserEnvironmentSettings,
-  BrowserViewportEmulation
+  BrowserPwaOptions
 } from '../shared/types.js'
 
 const api: HronautApi = {
@@ -60,25 +60,10 @@ const api: HronautApi = {
   ...appApi,
   ...shellRequestsApi,
   ...workspacesApi,
-  clearCssStatePreview: (tabId: string) => ipcRenderer.invoke('browser:clear-css-state-preview', tabId),
-  stopVirtualPasskey: (tabId: string) => ipcRenderer.invoke('browser:stop-virtual-passkey', tabId),
-  stopLogpoints: (tabId: string) => ipcRenderer.invoke('browser:stop-logpoints', tabId),
-  setTabViewport: (tabId: string, viewport: BrowserViewportEmulation | null) =>
-    ipcRenderer.invoke('browser:set-tab-viewport', tabId, viewport),
-  setTabEnvironment: (tabId: string, environment: BrowserEnvironmentSettings) =>
-    ipcRenderer.invoke('browser:set-tab-environment', tabId, environment),
-  resetTabEmulation: (tabId: string) => ipcRenderer.invoke('browser:reset-tab-emulation', tabId),
-  recoverTabEmulation: (tabId: string) => ipcRenderer.invoke('browser:recover-tab-emulation', tabId),
-  listNetworkRoutes: (tabId: string) => ipcRenderer.invoke('browser:list-network-routes', tabId),
-  addNetworkRoute: (tabId: string, input: BrowserNetworkRouteInput) =>
-    ipcRenderer.invoke('browser:add-network-route', tabId, input),
-  setNetworkRouteEnabled: (tabId: string, routeId: string, enabled: boolean) =>
-    ipcRenderer.invoke('browser:set-network-route-enabled', tabId, routeId, enabled),
-  moveNetworkRoute: (tabId: string, routeId: string, direction: BrowserNetworkRouteMoveDirection) =>
-    ipcRenderer.invoke('browser:move-network-route', tabId, routeId, direction),
-  removeNetworkRoute: (tabId: string, routeId: string) =>
-    ipcRenderer.invoke('browser:remove-network-route', tabId, routeId),
-  clearNetworkRoutes: (tabId: string) => ipcRenderer.invoke('browser:clear-network-routes', tabId),
+  ...emulationApi,
+  ...networkRoutesApi,
+  ...addressBarStopsApi,
+  ...incidentsApi,
   manageStorage: (options: BrowserStorageOptions) => ipcRenderer.invoke('browser:manage-storage', options),
   inspectStorageUsage: (tabId?: string) => ipcRenderer.invoke('browser:storage-usage', tabId),
   storageChanges: (options: BrowserStorageChangesOptions = {}) => ipcRenderer.invoke('browser:storage-changes', options),
@@ -112,11 +97,6 @@ const api: HronautApi = {
   manageVideo: options => ipcRenderer.invoke('browser:video', options),
   importVideoAudio: (tabId, provenance) => ipcRenderer.invoke('browser:video-import-audio', tabId, provenance),
   videoPreview: tabId => ipcRenderer.invoke('browser:video-preview', tabId),
-  captureIncident: input => ipcRenderer.invoke('browser:incident-capture', input),
-  reviewIncident: input => ipcRenderer.invoke('browser:incident-review', input),
-  invalidateIncidentPreview: draftId => ipcRenderer.invoke('browser:incident-invalidate-preview', draftId),
-  discardIncident: () => ipcRenderer.invoke('browser:incident-discard'),
-  saveIncident: input => ipcRenderer.invoke('browser:incident-save', input),
   manageRepro: (action, tabId, checkpoint) =>
     ipcRenderer.invoke('browser:repro-recording', { action, tabId, ...(checkpoint ? { checkpoint } : {}) }),
   manageDomChanges: (action: BrowserDomChangesAction, tabId?: string) =>
