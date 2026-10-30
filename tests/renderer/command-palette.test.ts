@@ -1,10 +1,14 @@
 import { fireEvent, render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import CommandPalette from '../../src/renderer/src/features/command-palette/CommandPalette.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 
 describe('CommandPalette', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('returns focus to its invoking control after close', async () => {
     vi.spyOn(document, 'hasFocus').mockReturnValue(true)
     const trigger = document.createElement('button')
@@ -78,7 +82,7 @@ describe('CommandPalette', () => {
 
   it('ignores pointer events caused by a live command-list reflow', async () => {
     let now = 1_000
-    const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => now)
+    vi.spyOn(performance, 'now').mockImplementation(() => now)
     const view = render(CommandPalette, {
       global: { plugins: [createHronautI18n('en-US')] },
       props: {
@@ -100,14 +104,15 @@ describe('CommandPalette', () => {
     await fireEvent.pointerMove(history, { clientX: 41, clientY: 80 })
     expect(settings).toHaveAttribute('aria-selected', 'true')
     now += 151
+    // The guard counts on the monotonic clock, so a wall clock that steps back meanwhile does not extend it.
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() - 3_600_000)
     await fireEvent.pointerMove(history, { clientX: 42, clientY: 80 })
     expect(history).toHaveAttribute('aria-selected', 'true')
-    nowSpy.mockRestore()
   })
 
   it('accepts the first intentional pointer move after opening over a recently changed list', async () => {
     const now = 1_000
-    const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => now)
+    vi.spyOn(performance, 'now').mockImplementation(() => now)
     const view = render(CommandPalette, {
       global: { plugins: [createHronautI18n('en-US')] },
       props: {
@@ -125,6 +130,5 @@ describe('CommandPalette', () => {
     await fireEvent.pointerMove(settings, { clientX: 40, clientY: 80 })
 
     expect(settings).toHaveAttribute('aria-selected', 'true')
-    nowSpy.mockRestore()
   })
 })

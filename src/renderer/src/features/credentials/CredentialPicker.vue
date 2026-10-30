@@ -51,7 +51,7 @@ const liveListPointerGuardMs = 150
 let lastPointerPosition: { x: number; y: number } | null = null
 let pointerSelectionBlockedUntil = 0
 const stopCredentialIdTracking = watch(credentialIds, () => {
-  pointerSelectionBlockedUntil = Date.now() + liveListPointerGuardMs
+  pointerSelectionBlockedUntil = performance.now() + liveListPointerGuardMs
 })
 const stopOpenTracking = watch(open, (isOpen) => {
   if (!isOpen) return
@@ -66,7 +66,7 @@ async function openPanel(): Promise<void> {
 }
 
 function selectFromPointer(event: PointerEvent, index: number): void {
-  if (Date.now() < pointerSelectionBlockedUntil) return
+  if (performance.now() < pointerSelectionBlockedUntil) return
   const position = { x: event.clientX, y: event.clientY }
   if (lastPointerPosition?.x === position.x && lastPointerPosition.y === position.y) return
   lastPointerPosition = position

@@ -11,6 +11,7 @@ All notable changes to Hronaut are documented in this file.
 - When a website's WebMCP tool ran but its result or error could not be read, `browser_webmcp` now says the tool ran and may have had effects (`OUTCOME_UNKNOWN` for a result, `TOOL_ERROR` for an error) instead of that it never ran, so an agent does not repeat it.
 - The browser issues an agent reads no longer say that Hronaut cancels every HTTP sign-in request a website makes: since 3.14.0 it asks you to sign in for the page's own website, as Chrome does, and the issues now say so.
 - A panel moved to its own window and opened while Hronaut was still restoring your workspaces at startup now shows every workspace and tab once they are back. It could show only those restored by the time it opened, until the next change to a tab.
+- Hronaut's buttons and menus no longer stop responding when the computer's clock is set back while Hronaut runs, such as on Linux when a clock kept in local time is corrected soon after Hronaut opened at login. Until the clock caught up again, often an hour, clicks in the window did nothing and Settings would not open, while agents could still connect. Tooltips and the pointer in the command and password lists also no longer depend on the clock.
 
 ## [3.14.0] - 2026-10-29
 

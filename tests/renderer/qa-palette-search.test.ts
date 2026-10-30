@@ -635,7 +635,7 @@ describe('CommandPalette search results', () => {
 
   it('ignores a resting pointer while results change under it, but not when the same rows come back', async () => {
     let now = 1_000
-    vi.spyOn(Date, 'now').mockImplementation(() => now)
+    vi.spyOn(performance, 'now').mockImplementation(() => now)
     const sections = ref<CommandPaletteResultSection[]>([
       { id: 'tabs', results: [result('tabs', 'a', 'Zeta a'), result('tabs', 'b', 'Zeta b')] }
     ])

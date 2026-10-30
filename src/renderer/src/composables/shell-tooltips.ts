@@ -80,7 +80,7 @@ export function installShellTooltips(port: ShellTooltipPort, root: Document = do
     if (!shownId) return
     port.hideTooltip(shownId)
     shownId = 0
-    warmUntil = Date.now() + SHELL_TOOLTIP_WARM_MS
+    warmUntil = view.performance.now() + SHELL_TOOLTIP_WARM_MS
   }
 
   function show(target: HTMLElement): void {
@@ -141,7 +141,7 @@ export function installShellTooltips(port: ShellTooltipPort, root: Document = do
   }
 
   function schedule(next: HTMLElement): void {
-    if (Date.now() < warmUntil) show(next)
+    if (view.performance.now() < warmUntil) show(next)
     else timer = setTimeout(() => show(next), SHELL_TOOLTIP_DELAY_MS)
   }
 
