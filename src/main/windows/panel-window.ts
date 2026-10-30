@@ -136,7 +136,8 @@ export function createPanelWindow(host: PanelWindowHost): {
   function sendPanelWindowSnapshot(target: BrowserWindow): void {
     if (target.isDestroyed() || target.webContents.isDestroyed()) return
     const browser = host.tabs()
-    target.webContents.send(TABS_IPC.stateChanged, browser ? browserState(browser) : undefined)
+    // Before the tabs exist there is no state to send; the panel's shell reads it once they do.
+    if (browser) target.webContents.send(TABS_IPC.stateChanged, browserState(browser))
     target.webContents.send(DOWNLOADS_IPC.changed, browser?.downloadController.listDownloads() ?? [])
     target.webContents.send(SETTINGS_IPC.changed, host.settings())
     target.webContents.send(SETTINGS_IPC.rendererStateChanged, host.currentRendererSettingsState())

@@ -5,7 +5,7 @@ const created: FakeWindow[] = []
 
 /**
  * A BrowserWindow that loads at once, or holds its load while `holdLoads` is set, and records whether it was shown,
- * retitled or closed.
+ * retitled or closed, and what was sent to its page.
  */
 class FakeWindow {
   static holdLoads = false
@@ -14,14 +14,16 @@ class FakeWindow {
   private closedEmitted = false
   shown = false
   title: string
+  readonly sent: unknown[][] = []
   private readonly listeners = new Map<string, Array<(...args: unknown[]) => void>>()
+  private readonly pageListeners = new Map<string, Array<() => void>>()
   webContents = {
     isDestroyed: () => this.destroyed,
     setZoomFactor: () => undefined,
     setWindowOpenHandler: () => undefined,
     on: () => undefined,
-    once: () => undefined,
-    send: () => undefined
+    once: (event: string, listener: () => void) => { this.pageListeners.set(event, [...(this.pageListeners.get(event) ?? []), listener]) },
+    send: (...message: unknown[]) => { this.sent.push(message) }
   }
 
   constructor(options: { title: string }) {
@@ -46,6 +48,8 @@ class FakeWindow {
     this.pendingLoad?.(error)
     this.pendingLoad = undefined
   }
+  /** The page finished loading, as Electron's did-finish-load reports. */
+  finishPageLoad() { for (const listener of this.pageListeners.get('did-finish-load') ?? []) listener() }
   show() { this.shown = true }
   focus() {}
   restore() {}
@@ -253,6 +257,20 @@ describe('detached panel window', () => {
     expect(panels.refs.url).toBeNull()
     // The main window learns of the failure from the opening, so it is not also told a window closed.
     expect(panels.sentToMainWindow).toEqual([])
+  })
+
+  it('sends no browser state to a panel window that loads before the tabs exist', async () => {
+    const panels = panelWindowHandlers()
+    const opening = panels.open('console')
+    panels.releaseSavedBounds()
+    await opening
+
+    panels.loadingWindow().finishPageLoad()
+
+    // It was sent an undefined state, and its shell failed reading the tabs of it; it reads the state once there is one.
+    const sent = panels.loadingWindow().sent
+    expect(sent.map(([channel]) => channel)).not.toContain('browser:state-changed')
+    expect(sent).toContainEqual(['panel-window:show-panel', 'console'])
   })
 
   it('docks the panel again when it is moved back while its window is still loading', async () => {
