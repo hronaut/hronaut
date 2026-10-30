@@ -1,33 +1,14 @@
-import type { ProcessMetric, WebContents } from 'electron'
+import { app, webContents as electronWebContents, type WebContents } from 'electron'
 import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import type { TaskManagerProcess, TaskManagerProcessKind, TaskManagerSubframe } from '../../../shared/types.js'
 import { LocalizedError } from '../../localized-error.js'
+import type { Browser } from '../browser.js'
+import { orderedTabs } from '../browser-core.js'
+import type { BrowserTab } from '../browser-tab.js'
 
-/** The tab fields the Task manager reads: the page's contents and whether it sleeps, wakes or is being replaced. */
-export interface TaskManagerTab {
-  id: string
-  webContents: WebContents
-  sleeping: boolean
-  wakePromise?: unknown
-}
-
-/**
- * What the Task manager needs from the tab manager and Electron. Each member reads them when called, so a snapshot
- * always sees the processes and tabs of that moment.
- */
-export interface TaskManagerAccess<Tab extends TaskManagerTab> {
-  /** The tabs, in tab order. */
-  tabs(): Iterable<Tab>
-  /** Electron's reading of every process: `app.getAppMetrics()`. */
-  appMetrics(): ProcessMetric[]
-  /** Every page Electron runs, Hronaut's own included: `webContents.getAllWebContents()`. */
-  allWebContents(): WebContents[]
-  /** Whether an address is one of Hronaut's own windows, such as the main window or its overlays. */
-  isInterfacePage(url: string): boolean
-  /** Whether Hronaut is replacing the tab's renderer itself, which ending it would interrupt. */
-  rendererRecovering(contents: WebContents): boolean
-  /** Notes that the person ended the page's process, so the tab says it was ended rather than that it crashed. */
-  noteEndedByPerson(contents: WebContents): void
+/** The tabs whose pages still run, in tab order. */
+function tabsInOrder(browser: Browser): BrowserTab[] {
+  return orderedTabs(browser).filter((tab) => !tab.webContents.isDestroyed())
 }
 
 interface PageProcess {
@@ -113,7 +94,7 @@ function devToolsOf(contents: WebContents): WebContents | undefined {
   }
 }
 
-function pageProcesses<Tab extends TaskManagerTab>(access: TaskManagerAccess<Tab>): Map<number, PageProcess> {
+function pageProcesses(browser: Browser): Map<number, PageProcess> {
   const pages = new Map<number, PageProcess>()
   const page = (pid: number): PageProcess => {
     let found = pages.get(pid)
@@ -121,7 +102,7 @@ function pageProcesses<Tab extends TaskManagerTab>(access: TaskManagerAccess<Tab
     return found
   }
   const known = new Set<WebContents>()
-  for (const tab of access.tabs()) {
+  for (const tab of tabsInOrder(browser)) {
     const contents = tab.webContents
     known.add(contents)
     const pid = processId(contents)
@@ -131,7 +112,7 @@ function pageProcesses<Tab extends TaskManagerTab>(access: TaskManagerAccess<Tab
     let url = ''
     try { url = contents.getURL() } catch { /* the page went meanwhile */ }
     // Hronaut Home is Hronaut's own page, with its own access to Hronaut, even in a tab.
-    if (tab.sleeping || tab.wakePromise !== undefined || access.rendererRecovering(contents) || isHronautHomeUrl(url)) own.keep = true
+    if (tab.sleeping || tab.wakePromise !== undefined || browser.rendererRecovery.isRecovering(contents) || isHronautHomeUrl(url)) own.keep = true
     // With site isolation a frame of another site runs in a process of its own, as Chrome lists it as a subframe, each
     // site of a tab once however many frames it has there.
     for (const frame of framePids(contents)) {
@@ -150,7 +131,7 @@ function pageProcesses<Tab extends TaskManagerTab>(access: TaskManagerAccess<Tab
       }
     }
   }
-  for (const contents of access.allWebContents()) {
+  for (const contents of electronWebContents.getAllWebContents()) {
     if (known.has(contents)) continue
     const pid = processId(contents)
     if (pid <= 0) continue
@@ -158,7 +139,7 @@ function pageProcesses<Tab extends TaskManagerTab>(access: TaskManagerAccess<Tab
     other.keep = true
     let url = ''
     try { url = contents.getURL() } catch { /* the page went meanwhile */ }
-    if (access.isInterfacePage(url)) other.interface = true
+    if (browser.options.isInterfacePage?.(url) === true) other.interface = true
   }
   return pages
 }
@@ -170,9 +151,9 @@ function pageProcesses<Tab extends TaskManagerTab>(access: TaskManagerAccess<Tab
  * of Hronaut's own; Developer Tools, Hronaut's window and Home stay, as does a page that sleeps, wakes or is being
  * replaced.
  */
-export function taskManagerProcesses<Tab extends TaskManagerTab>(access: TaskManagerAccess<Tab>): TaskManagerProcess[] {
-  const pages = pageProcesses(access)
-  const processes = access.appMetrics().flatMap((metric): TaskManagerProcess[] => {
+export function taskManagerProcesses(browser: Browser): TaskManagerProcess[] {
+  const pages = pageProcesses(browser)
+  const processes = app.getAppMetrics().flatMap((metric): TaskManagerProcess[] => {
     if (!Number.isSafeInteger(metric.pid) || metric.pid <= 0) return []
     const page = pages.get(metric.pid)
     let kind: TaskManagerProcessKind
@@ -205,7 +186,7 @@ export function taskManagerProcesses<Tab extends TaskManagerTab>(access: TaskMan
   })
   const firstTab = new Map<string, number>()
   let index = 0
-  for (const tab of access.tabs()) firstTab.set(tab.id, index++)
+  for (const tab of tabsInOrder(browser)) firstTab.set(tab.id, index++)
   const tabOrder = (process: TaskManagerProcess): number => Math.min(
     ...[...process.tabIds, ...process.subframes.map((frame) => frame.tabId), ...process.devToolsTabIds].map((id) => firstTab.get(id) ?? index),
     index
@@ -224,12 +205,12 @@ export function taskManagerProcesses<Tab extends TaskManagerTab>(access: TaskMan
  * now, so a process ID that changed hands or never ran a tab's page is refused; Electron ends it through a page it
  * runs, never by its ID.
  */
-export function endTaskManagerProcess<Tab extends TaskManagerTab>(access: TaskManagerAccess<Tab>, pid: number): void {
+export function endTaskManagerProcess(browser: Browser, pid: number): void {
   if (!Number.isSafeInteger(pid) || pid <= 0) throw new TypeError('Invalid process ID')
-  const process = taskManagerProcesses(access).find((candidate) => candidate.pid === pid)
+  const process = taskManagerProcesses(browser).find((candidate) => candidate.pid === pid)
   if (!process?.canEnd) throw new LocalizedError('appErrors.taskManager.cannotEnd', undefined, { message: `Process cannot be ended: ${pid}` })
-  const pages = [...access.tabs()].map((tab) => tab.webContents).filter((contents) => processId(contents) === pid)
+  const pages = [...tabsInOrder(browser)].map((tab) => tab.webContents).filter((contents) => processId(contents) === pid)
   if (pages.length === 0) throw new LocalizedError('appErrors.taskManager.cannotEnd', undefined, { message: `Process cannot be ended: ${pid}` })
-  for (const contents of pages) access.noteEndedByPerson(contents)
+  for (const contents of pages) browser.endedByPerson.note(contents)
   pages[0]!.forcefullyCrashRenderer()
 }

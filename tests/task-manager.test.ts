@@ -1,7 +1,19 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ProcessMetric, WebContents } from 'electron'
+import type { Browser } from '../src/main/browser/browser.js'
+import type { BrowserTab } from '../src/main/browser/browser-tab.js'
 import { LocalizedError } from '../src/main/localized-error.js'
-import { ENDED_BY_PERSON_MS, EndedByPersonMarks, endTaskManagerProcess, taskManagerProcesses, type TaskManagerAccess, type TaskManagerTab } from '../src/main/browser/task-manager/task-manager.js'
+import { ENDED_BY_PERSON_MS, EndedByPersonMarks, endTaskManagerProcess, taskManagerProcesses } from '../src/main/browser/task-manager/task-manager.js'
+
+// Electron's process readings and every page it runs, as each test sets them.
+const electron = vi.hoisted(() => ({ metrics: [] as ProcessMetric[], all: [] as WebContents[] }))
+
+vi.mock('electron', () => ({
+  app: { getAppMetrics: () => electron.metrics },
+  webContents: { getAllWebContents: () => electron.all }
+}))
+
+type TaskManagerTab = Pick<BrowserTab, 'id' | 'webContents' | 'sleeping' | 'wakePromise'>
 
 interface FakePage {
   pid: number
@@ -38,15 +50,17 @@ function metric(pid: number, type: ProcessMetric['type'], extra: Partial<Process
 
 function harness(options: { tabs: Array<TaskManagerTab>; metrics: ProcessMetric[]; others?: WebContents[]; recovering?: WebContents[] }) {
   const ended: WebContents[] = []
-  const access: TaskManagerAccess<TaskManagerTab> = {
-    tabs: () => options.tabs,
-    appMetrics: () => options.metrics,
-    allWebContents: () => [...options.tabs.map((tab) => tab.webContents), ...(options.others ?? [])],
-    isInterfacePage: (url) => url.startsWith('file:///app/renderer/'),
-    rendererRecovering: (page) => options.recovering?.includes(page) === true,
-    noteEndedByPerson: (page) => { ended.push(page) }
-  }
-  return { access, ended }
+  electron.metrics = options.metrics
+  electron.all = [...options.tabs.map((tab) => tab.webContents), ...(options.others ?? [])]
+  const browser = {
+    // Each tab shows its page's address, so Home sorts first as in the tab strip.
+    tabs: new Map(options.tabs.map((tab) => [tab.id, { url: tab.webContents.getURL(), pinned: false, ...tab }])),
+    mcpTabGroups: new Map(),
+    options: { isInterfacePage: (url: string) => url.startsWith('file:///app/renderer/') },
+    rendererRecovery: { isRecovering: (page: WebContents) => options.recovering?.includes(page) === true },
+    endedByPerson: { note: (page: WebContents) => { ended.push(page) } }
+  } as unknown as Browser
+  return { browser, ended }
 }
 
 function tab(id: string, page: FakePage, state: Partial<TaskManagerTab> = {}): TaskManagerTab {
@@ -57,7 +71,7 @@ describe('the Task manager\'s processes', () => {
   it('lists each process as Chrome does, the browser and its services first, and the tabs in tab order', () => {
     const shell = contents({ pid: 40, url: 'file:///app/renderer/index.html' })
     const spare = contents({ pid: 60, url: 'about:blank' })
-    const { access } = harness({
+    const { browser } = harness({
       tabs: [
         tab('second', { pid: 52, url: 'https://second.example/' }),
         tab('first', { pid: 51, url: 'https://first.example/', frames: [{ pid: 53, url: 'https://ads.example/frame?id=1#x' }, { pid: 51, url: 'https://first.example/same' }, { pid: 53, url: 'https://ads.example/frame?id=2' }] }),
@@ -72,7 +86,7 @@ describe('the Task manager\'s processes', () => {
       ]
     })
 
-    const processes = taskManagerProcesses(access)
+    const processes = taskManagerProcesses(browser)
 
     expect(processes.map(({ pid, kind, name }) => ({ pid, kind, name }))).toEqual([
       { pid: 10, kind: 'browser', name: undefined },
@@ -97,7 +111,7 @@ describe('the Task manager\'s processes', () => {
   it('keeps Hronaut\'s window and Home, Developer Tools and a tab that sleeps, wakes or is being replaced from End process', () => {
     const recovering = { pid: 84 }
     const recoveringTab = tab('recovering', recovering)
-    const { access } = harness({
+    const { browser } = harness({
       tabs: [
         tab('sleeping', { pid: 81 }, { sleeping: true }),
         tab('waking', { pid: 82 }, { wakePromise: Promise.resolve() }),
@@ -111,7 +125,7 @@ describe('the Task manager\'s processes', () => {
       metrics: [81, 82, 83, 84, 85, 86, 90].map((pid) => metric(pid, 'Tab'))
     })
 
-    const processes = taskManagerProcesses(access)
+    const processes = taskManagerProcesses(browser)
 
     expect(Object.fromEntries(processes.map((process) => [process.pid, [process.kind, process.canEnd]]))).toEqual({
       81: ['page', false],
@@ -130,7 +144,7 @@ describe('the Task manager\'s processes', () => {
   })
 
   it('skips frames and pages that went while it read them', () => {
-    const { access } = harness({
+    const { browser } = harness({
       tabs: [
         tab('closing', { pid: 91, frames: ['gone', { pid: 92, url: 'data:text/html,frame' }] }),
         tab('closed', { pid: 93, destroyed: true }),
@@ -140,23 +154,23 @@ describe('the Task manager\'s processes', () => {
       metrics: [metric(91, 'Tab'), metric(92, 'Tab'), metric(93, 'Tab'), metric(94, 'Tab')]
     })
 
-    const processes = taskManagerProcesses(access)
+    const processes = taskManagerProcesses(browser)
 
     expect(processes.find((process) => process.pid === 91)).toMatchObject({ kind: 'page', tabIds: ['closing'], canEnd: true })
     // A frame whose address has no origin is a subframe without a site.
     expect(processes.find((process) => process.pid === 92)).toMatchObject({ kind: 'page', subframes: [{ tabId: 'closing', site: '' }] })
     expect(processes.find((process) => process.pid === 93)).toMatchObject({ kind: 'other', tabIds: [], canEnd: false })
     expect(processes.find((process) => process.pid === 94)).toMatchObject({ kind: 'other', tabIds: [], canEnd: false })
-    expect(() => endTaskManagerProcess(access, 94)).toThrow('Process cannot be ended: 94')
+    expect(() => endTaskManagerProcess(browser, 94)).toThrow('Process cannot be ended: 94')
   })
 })
 
 describe('End process', () => {
   it('ends the process through a page it runs and notes every tab there as ended by the person', () => {
     const tabs = [tab('one', { pid: 51 }), tab('two', { pid: 51 }), tab('other', { pid: 52 })]
-    const { access, ended } = harness({ tabs, metrics: [metric(51, 'Tab'), metric(52, 'Tab')] })
+    const { browser, ended } = harness({ tabs, metrics: [metric(51, 'Tab'), metric(52, 'Tab')] })
 
-    endTaskManagerProcess(access, 51)
+    endTaskManagerProcess(browser, 51)
 
     expect(ended).toEqual([tabs[0]!.webContents, tabs[1]!.webContents])
     expect(tabs[0]!.webContents.forcefullyCrashRenderer).toHaveBeenCalledOnce()
@@ -167,17 +181,17 @@ describe('End process', () => {
   it('refuses a process the list does not let end, read again now', () => {
     const shell = contents({ pid: 40, url: 'file:///app/renderer/index.html' })
     const sleeping = tab('sleeping', { pid: 81 }, { sleeping: true })
-    const { access, ended } = harness({
+    const { browser, ended } = harness({
       tabs: [sleeping],
       others: [shell],
       metrics: [metric(10, 'Browser'), metric(40, 'Tab'), metric(81, 'Tab')]
     })
 
     for (const pid of [10, 40, 81, 12345]) {
-      expect(() => endTaskManagerProcess(access, pid), String(pid)).toThrow(LocalizedError)
-      expect(() => endTaskManagerProcess(access, pid)).toThrow(`Process cannot be ended: ${pid}`)
+      expect(() => endTaskManagerProcess(browser, pid), String(pid)).toThrow(LocalizedError)
+      expect(() => endTaskManagerProcess(browser, pid)).toThrow(`Process cannot be ended: ${pid}`)
     }
-    for (const pid of [0, -1, 1.5, Number.NaN]) expect(() => endTaskManagerProcess(access, pid)).toThrow(TypeError)
+    for (const pid of [0, -1, 1.5, Number.NaN]) expect(() => endTaskManagerProcess(browser, pid)).toThrow(TypeError)
     expect(ended).toEqual([])
     expect(shell.forcefullyCrashRenderer).not.toHaveBeenCalled()
     expect(sleeping.webContents.forcefullyCrashRenderer).not.toHaveBeenCalled()
@@ -202,9 +216,9 @@ describe('End process', () => {
   })
 
   it('names its refusal for the person', () => {
-    const { access } = harness({ tabs: [], metrics: [metric(10, 'Browser')] })
+    const { browser } = harness({ tabs: [], metrics: [metric(10, 'Browser')] })
     let refusal: unknown
-    try { endTaskManagerProcess(access, 10) } catch (error) { refusal = error }
+    try { endTaskManagerProcess(browser, 10) } catch (error) { refusal = error }
     expect(refusal).toBeInstanceOf(LocalizedError)
     expect((refusal as LocalizedError).key).toBe('appErrors.taskManager.cannotEnd')
   })
