@@ -45,7 +45,7 @@ function devToolsTab(url: string, webContents = pageWebContents()) {
 }
 
 /** A browser showing the tab, whose wait for the page's dialog monitoring runs dialogMonitorAttach. */
-function devToolsAccess(tab: ReturnType<typeof devToolsTab>, dialogMonitorAttach: () => unknown = () => undefined): never {
+function devToolsBrowser(tab: ReturnType<typeof devToolsTab>, dialogMonitorAttach: () => unknown = () => undefined): Parameters<typeof openDevTools>[0] {
   return {
     tabs: new Map([[tab.id, tab]]),
     activeTabId: tab.id,
@@ -56,7 +56,7 @@ function devToolsAccess(tab: ReturnType<typeof devToolsTab>, dialogMonitorAttach
     dialogMonitorAttachPromises: { get: dialogMonitorAttach },
     debuggerQueue: { pending: () => undefined },
     text: (key: string) => key
-  } as never
+  } as unknown as Parameters<typeof openDevTools>[0]
 }
 
 function menuFor(url: string, onOpenDevTools: (tab: PageTab) => void = () => undefined): { ids: Array<string | undefined>, tab: PageTab, openDevToolsCalls: PageTab[] } {
@@ -99,17 +99,17 @@ describe('Developer Tools on Hronaut Home', () => {
 
   it('does not open Developer Tools for Home, whichever action asks', async () => {
     const tab = devToolsTab(HOME_URL)
-    await openDevTools(devToolsAccess(tab), tab as never)
-    await expect(toggleDevTools(devToolsAccess(tab))).resolves.toBe(false)
+    await openDevTools(devToolsBrowser(tab), tab as never)
+    await expect(toggleDevTools(devToolsBrowser(tab))).resolves.toBe(false)
     expect(tab.webContents.openDevTools).not.toHaveBeenCalled()
     const website = devToolsTab('https://shop.example/')
-    await openDevTools(devToolsAccess(website), website as never)
+    await openDevTools(devToolsBrowser(website), website as never)
     expect(website.webContents.openDevTools).toHaveBeenCalledOnce()
   })
 
   it('does not open Developer Tools for a tab that shows Home once the wait ends', async () => {
     const tab = devToolsTab('https://shop.example/')
-    await openDevTools(devToolsAccess(tab, () => { tab.url = HOME_URL }), tab as never)
+    await openDevTools(devToolsBrowser(tab, () => { tab.url = HOME_URL }), tab as never)
     expect(tab.webContents.openDevTools).not.toHaveBeenCalled()
   })
 

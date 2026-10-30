@@ -43,7 +43,7 @@ function page(options: { open?: boolean, focused?: boolean, run?: () => Promise<
 }
 
 /** A browser showing a page at this address in its one tab, whose input is locked or not. */
-function access(url: string, webContents: WebContents, locked = false): never {
+function pageBrowser(url: string, webContents: WebContents, locked = false): Parameters<typeof showDevToolsConsole>[0] {
   const tab = { id: 'tab', title: 'Page', url, webContents, networkDebuggerEpoch: 0, networkConditionApplication: 'confirmed', networkRoutes: [] }
   return {
     tabs: new Map([[tab.id, tab]]),
@@ -55,7 +55,7 @@ function access(url: string, webContents: WebContents, locked = false): never {
     dialogMonitorAttachPromises: new Map(),
     debuggerQueue: { pending: () => undefined },
     text: (key: string) => key
-  } as never
+  } as unknown as Parameters<typeof showDevToolsConsole>[0]
 }
 
 const shop = 'https://shop.example/'
@@ -63,7 +63,7 @@ const shop = 'https://shop.example/'
 describe('Developer Tools on the Console', () => {
   it('opens them for a website and turns them to the Console, leaving them the keyboard they open with', async () => {
     const { webContents, devTools } = page()
-    await expect(showDevToolsConsole(access(shop, webContents))).resolves.toBe(true)
+    await expect(showDevToolsConsole(pageBrowser(shop, webContents))).resolves.toBe(true)
     expect(webContents.openDevTools).toHaveBeenCalledOnce()
     expect(devTools.executeJavaScript).toHaveBeenCalledWith("DevToolsAPI.showPanel('console')")
     // Focusing them would bring Hronaut's window forward first, which took the keyboard back from them.
@@ -73,37 +73,37 @@ describe('Developer Tools on the Console', () => {
 
   it('turns open ones to the Console rather than closing them, as the toggle does, and gives them the keyboard', async () => {
     const { webContents, devTools } = page({ open: true })
-    await expect(showDevToolsConsole(access(shop, webContents))).resolves.toBe(true)
+    await expect(showDevToolsConsole(pageBrowser(shop, webContents))).resolves.toBe(true)
     expect(webContents.openDevTools).not.toHaveBeenCalled()
     expect(devTools.executeJavaScript).toHaveBeenCalledWith("DevToolsAPI.showPanel('console')")
     expect(devTools.focus).toHaveBeenCalledOnce()
     const focused = page({ open: true, focused: true })
-    await expect(showDevToolsConsole(access(shop, focused.webContents))).resolves.toBe(true)
+    await expect(showDevToolsConsole(pageBrowser(shop, focused.webContents))).resolves.toBe(true)
     expect(focused.devTools.focus).not.toHaveBeenCalled()
   })
 
   it('opens none for Home or a tab whose page input is locked', async () => {
     const home = page()
-    await expect(showDevToolsConsole(access('hronaut://home/', home.webContents))).resolves.toBe(false)
+    await expect(showDevToolsConsole(pageBrowser('hronaut://home/', home.webContents))).resolves.toBe(false)
     const locked = page()
-    await expect(showDevToolsConsole(access(shop, locked.webContents, true))).resolves.toBe(false)
+    await expect(showDevToolsConsole(pageBrowser(shop, locked.webContents, true))).resolves.toBe(false)
     expect(home.webContents.openDevTools).not.toHaveBeenCalled()
     expect(locked.webContents.openDevTools).not.toHaveBeenCalled()
   })
 
   it('reports none when they are gone once open, or their front end refuses the Console', async () => {
     const gone = page({ gone: true })
-    await expect(showDevToolsConsole(access(shop, gone.webContents))).resolves.toBe(false)
+    await expect(showDevToolsConsole(pageBrowser(shop, gone.webContents))).resolves.toBe(false)
     expect(gone.devTools.executeJavaScript).not.toHaveBeenCalled()
     const refused = page({ open: true, run: async () => { throw new Error('DevToolsAPI is not defined') } })
-    await expect(showDevToolsConsole(access(shop, refused.webContents))).resolves.toBe(false)
+    await expect(showDevToolsConsole(pageBrowser(shop, refused.webContents))).resolves.toBe(false)
     expect(refused.devTools.focus).not.toHaveBeenCalled()
   })
 
   it('ends when they close, or after a while, if Electron leaves the call waiting', async () => {
     // A call left waiting held the shell's queue for Developer Tools and the page input lock until the shell reloaded.
     const closed = page({ open: true, run: () => new Promise(() => undefined) })
-    const closing = showDevToolsConsole(access(shop, closed.webContents))
+    const closing = showDevToolsConsole(pageBrowser(shop, closed.webContents))
     await vi.waitFor(() => expect(closed.devTools.executeJavaScript).toHaveBeenCalled())
     closed.devTools.destroy()
     await expect(closing).resolves.toBe(false)
@@ -112,7 +112,7 @@ describe('Developer Tools on the Console', () => {
 
     vi.useFakeTimers()
     const stuck = page({ open: true, run: () => new Promise(() => undefined) })
-    const waiting = showDevToolsConsole(access(shop, stuck.webContents))
+    const waiting = showDevToolsConsole(pageBrowser(shop, stuck.webContents))
     await vi.advanceTimersByTimeAsync(0)
     expect(stuck.devTools.executeJavaScript).toHaveBeenCalled()
     await vi.advanceTimersByTimeAsync(4_999)
