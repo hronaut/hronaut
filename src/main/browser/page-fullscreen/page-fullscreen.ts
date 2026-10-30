@@ -1,20 +1,14 @@
 import type { WebContents } from 'electron'
 import { ISOLATED_WORLDS } from '../isolated-worlds.js'
+import { pageScript } from '../../../shared/page-script.js'
+import { exitFullscreenInPage } from './page-fullscreen.page.js'
 import type { Browser } from '../browser.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { contentAreaBounds, shownPageFullscreenTab } from '../window-layout/content-area.js'
 import { tabViewBounds } from '../emulation/tab-view-bounds.js'
 
-/**
- * Leaves the document's full screen, from a world the page's own scripts cannot replace. Electron reports a page's
- * full screen before the document shows it, so a document not in full screen yet waits up to 2 seconds for it.
- */
-const EXIT_FULLSCREEN_SCRIPT = `new Promise((resolve) => {
-  const leave = () => document.exitFullscreen().then(() => resolve(true), () => resolve(false))
-  if (document.fullscreenElement) return leave()
-  document.addEventListener('fullscreenchange', () => document.fullscreenElement ? leave() : resolve(false), { once: true })
-  setTimeout(() => resolve(false), 2000)
-})`
+// Leaves the document's full screen from a world the page's own scripts cannot replace.
+const EXIT_FULLSCREEN_SCRIPT = pageScript(exitFullscreenInPage)
 
 /** Whether the window shows this tab: the active tab, or a pane of the split view. */
 function isShown(browser: Browser, tabId: string): boolean {

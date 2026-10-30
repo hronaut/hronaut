@@ -1,4 +1,6 @@
-import { fillFormScript, targetActionScript, targetExpression, type BrowserFormField } from '../page-scripts.js'
+import { pageScript } from '../../../shared/page-script.js'
+import { fillFormScript, targetActionScript, type BrowserFormField } from '../page-scripts.js'
+import { targetElementInPage } from '../page-scripts/target-action.page.js'
 import { assertFormFieldWritten, assertNativeEditability, assertTypedTextAccepted } from '../input-targets/target-checks.js'
 import { MULTI_SELECT_WORLD_ID, multiSelectScript, normalizeSelectValues } from '../semantic-multi-select.js'
 import type { Browser } from '../browser.js'
@@ -7,6 +9,7 @@ import { getTab } from '../browser-core.js'
 import { withAgentInput } from '../agent-input-scope/agent-input-scope.js'
 import { nativeInputAuthority } from '../native-input-authority/native-input-authority.js'
 import { validateTarget } from '../input-targets/input-targets.js'
+import { scrollTargetInPage } from './form-input-and-scroll.page.js'
 
 /** Types text into a control in the tab's page, submitting its form when asked. */
 export async function type(browser: Browser, target: {
@@ -83,15 +86,12 @@ export async function scroll(browser: Browser, options: {
 }): Promise<unknown> {
   if (options.ref || options.selector) validateTarget(options)
   const tab = getTab(browser, options.tabId)
-  const target = options.ref || options.selector ? targetExpression(options) : 'document.scrollingElement'
+  const target = options.ref || options.selector ? { ref: options.ref, selector: options.selector } : null
   const hasExplicitDelta = options.deltaX !== undefined || options.deltaY !== undefined
   const deltaX = Math.min(Math.max(options.deltaX ?? 0, -100_000), 100_000)
   const deltaY = Math.min(Math.max(options.deltaY ?? (hasExplicitDelta ? 0 : 600), -100_000), 100_000)
-  return withBackgroundAgentFocusGuard(browser, () => tab.webContents.executeJavaScript(`(() => {
-      const target = ${target};
-      if (!target) throw new Error('Scroll target not found.');
-      if (target === document.scrollingElement) window.scrollBy({ left: ${deltaX}, top: ${deltaY}, behavior: 'instant' });
-      else target.scrollBy({ left: ${deltaX}, top: ${deltaY}, behavior: 'instant' });
-      return { x: target.scrollLeft ?? window.scrollX, y: target.scrollTop ?? window.scrollY };
-    })()`, false))
+  return withBackgroundAgentFocusGuard(browser, () => tab.webContents.executeJavaScript(
+    pageScript(scrollTargetInPage, target, deltaX, deltaY, targetElementInPage),
+    false
+  ))
 }

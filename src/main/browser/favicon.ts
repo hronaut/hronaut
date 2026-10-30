@@ -1,4 +1,6 @@
 import { nativeImage, WebContentsView, type NativeImage, type WebContents } from 'electron'
+import { pageScript } from '../../shared/page-script.js'
+import { decodeFaviconInPage } from './favicon.page.js'
 
 /** Decodes an image as a 32 pixel PNG data URL, or answers null, also once the signal aborted before its turn. */
 export interface FaviconImageDecoder {
@@ -69,26 +71,7 @@ export class FaviconDecoder implements FaviconImageDecoder {
     clearTimeout(this.idleTimer)
     try {
       const contents = await this.openPage()
-      return await contents.executeJavaScript(`new Promise((resolve) => {
-        const image = new Image(32, 32);
-        const finish = (result) => {
-          clearTimeout(timer);
-          image.onload = image.onerror = null;
-          image.src = '';
-          resolve(result);
-        };
-        const timer = setTimeout(() => finish(null), 5000);
-        image.onerror = () => finish(null);
-        image.onload = () => {
-          try {
-            const canvas = document.createElement('canvas');
-            canvas.width = canvas.height = 32;
-            canvas.getContext('2d').drawImage(image, 0, 0, 32, 32);
-            finish(canvas.toDataURL('image/png'));
-          } catch { finish(null); }
-        };
-        image.src = ${JSON.stringify(source)};
-      })`, false)
+      return await contents.executeJavaScript(pageScript(decodeFaviconInPage, source), false)
     } finally {
       if (!this.disposed) {
         this.idleTimer = setTimeout(() => this.close(), FAVICON_DECODER_IDLE_MS)
