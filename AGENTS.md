@@ -62,7 +62,7 @@ tab access.
 ## Architecture rules
 
 These hold for new code and for code you move; `tests/architecture-guards.test.ts`
-checks the first four.
+checks the first five.
 
 - Files stay within 800 lines, locale files aside. The few larger today, with
   their budgets in `tests/architecture/budgets.json`, may only shrink: move code
@@ -83,6 +83,11 @@ checks the first four.
   Main registers on `TypedIpcMain` and sends events with `sendTo`
   (`src/main/typed-ipc.ts`), so each answer and event is checked against its
   channel; arguments from a renderer arrive as `unknown` and are checked first.
+- Code that runs in a page is a typed function in a `<feature>.page.ts` file
+  beside its feature, not a script in a template literal. `pageScript(fn, ...)`
+  (`src/shared/page-script.ts`) sends the function's own source with its
+  arguments, so a page function imports only types and uses nothing of its
+  module but its parameters; pass a helper in as a function argument.
 - A feature keeps the tab state it owns in one typed field of the tab, as
   `tab.emulation` does, with its type declared beside the feature, not as
   loose fields on the tab.

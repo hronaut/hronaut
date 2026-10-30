@@ -145,6 +145,58 @@ export function untypedIpcUses(code: string, fileName = 'module.ts'): string[] {
   return uses
 }
 
+/** Whether an identifier names a value there, rather than a property or a label. */
+function referencesValue(node: ts.Identifier): boolean {
+  const parent = node.parent
+  if (ts.isPropertyAccessExpression(parent) && parent.name === node) return false
+  if ((ts.isPropertyAssignment(parent) || ts.isMethodDeclaration(parent) || ts.isPropertyDeclaration(parent)
+    || ts.isGetAccessorDeclaration(parent) || ts.isSetAccessorDeclaration(parent)) && parent.name === node) return false
+  if (ts.isBindingElement(parent) && parent.propertyName === node) return false
+  if ((ts.isLabeledStatement(parent) || ts.isBreakOrContinueStatement(parent)) && parent.label === node) return false
+  return true
+}
+
+/**
+ * What the page functions of a `.page.ts` file use from their module, which the page they run in does not have: each
+ * name a function uses that TypeScript resolves to a declaration outside the function, other than the function's own
+ * name. The page's globals resolve to nothing, as the file is checked without the DOM library, and names in types are
+ * left out, as TypeScript erases them.
+ */
+export function pageFunctionModuleUses(code: string, fileName = 'module.page.ts'): string[] {
+  const source = ts.createSourceFile(fileName, code, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
+  const host: ts.CompilerHost = {
+    getSourceFile: name => name === fileName ? source : undefined,
+    fileExists: name => name === fileName,
+    readFile: () => undefined,
+    writeFile: () => undefined,
+    getDefaultLibFileName: () => 'lib.d.ts',
+    getCurrentDirectory: () => '',
+    getCanonicalFileName: name => name,
+    useCaseSensitiveFileNames: () => true,
+    getNewLine: () => '\n'
+  }
+  const checker = ts.createProgram([fileName], { noLib: true, noResolve: true, types: [] }, host).getTypeChecker()
+  const uses: string[] = []
+  for (const statement of source.statements) {
+    if (!ts.isFunctionDeclaration(statement) || !statement.name || !statement.body) continue
+    const own = statement.name.text
+    const visit = (node: ts.Node): void => {
+      if (ts.isTypeNode(node)) return
+      if (ts.isIdentifier(node) && referencesValue(node)) {
+        const symbol = ts.isShorthandPropertyAssignment(node.parent)
+          ? checker.getShorthandAssignmentValueSymbol(node.parent)
+          : checker.getSymbolAtLocation(node)
+        const declaration = symbol?.declarations?.[0]
+        if (declaration && declaration !== statement && (declaration.pos < statement.pos || declaration.end > statement.end)) uses.push(`${own}: ${node.text}`)
+      }
+      ts.forEachChild(node, visit)
+    }
+    statement.parameters.forEach(visit)
+    visit(statement.body)
+  }
+  return uses
+}
+
 function importsTypesOnly(clause: ts.ImportClause | undefined): boolean {
   if (!clause) return false
   if (clause.isTypeOnly) return true

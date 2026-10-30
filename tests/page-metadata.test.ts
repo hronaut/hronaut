@@ -1,6 +1,9 @@
 /// <reference lib="dom" />
 // @vitest-environment jsdom
 
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { OMITTED_METADATA_URL, PAGE_METADATA_LIMITS, pageMetadataScript } from '../src/shared/page-metadata.js'
 import { PageMetadataController } from '../src/main/browser/diagnostics/page-metadata-controller.js'
@@ -137,11 +140,11 @@ describe('page metadata', () => {
       maxStructuredDataTypes: 50,
       maxStructuredDataNodes: 200
     })
-    const script = pageMetadataScript()
-    expect(script).toContain('meta[name="description" i]')
-    expect(script).toContain("metaProperty('og:title')")
-    expect(script).toContain('script[type="application/ld+json" i]')
-    expect(script).toContain("value['@type']")
+    const pageFunction = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../src/shared/page-metadata.page.ts'), 'utf8')
+    expect(pageFunction).toContain('meta[name="description" i]')
+    expect(pageFunction).toContain("metaProperty('og:title')")
+    expect(pageFunction).toContain('script[type="application/ld+json" i]')
+    expect(pageFunction).toContain("['@type']")
   })
 
   it('does not collect body content, field values, markup, or arbitrary meta contents', () => {

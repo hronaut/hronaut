@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { declaredIpcChannels, importCycles, lineCount, literalIpcChannels, resolveImport, ROOT, runtimeImports, runtimeNamesFrom, runtimeSpecifiers, sourceFiles, untypedIpcUses, writtenIpcChannels } from './architecture/source-files.js'
+import { declaredIpcChannels, importCycles, lineCount, literalIpcChannels, pageFunctionModuleUses, resolveImport, ROOT, runtimeImports, runtimeNamesFrom, runtimeSpecifiers, sourceFiles, untypedIpcUses, writtenIpcChannels } from './architecture/source-files.js'
 
 const MAX_LINES = 800
 const BUDGETS_FILE = 'tests/architecture/budgets.json'
@@ -89,6 +89,36 @@ describe('the architecture rules in AGENTS.md', () => {
       "function typed(ipcMain: Pick<TypedIpcMain, 'handle'>) {}"
     ].join('\n')
     expect(untypedIpcUses(code)).toEqual(['ipcMain.handle', 'IpcMain', 'IpcMain', 'send(HOME_IPC.changed)', 'send(SHELL_IPC.helpRequested)'])
+  })
+
+  it('keeps each page function to its parameters and the page\'s globals, since only its own source reaches the page', () => {
+    const problems = files.filter(file => file.endsWith('.page.ts')).flatMap(file => {
+      const code = readFileSync(join(ROOT, file), 'utf8')
+      return [
+        ...runtimeSpecifiers(code, file).map(specifier => `${file} imports ${specifier} at runtime`),
+        ...pageFunctionModuleUses(code, file).map(use => `${file}: ${use}`)
+      ]
+    })
+    expect(problems, 'page code that would be missing in the page: pass it to the page function as a parameter').toEqual([])
+  })
+
+  it('finds a page function using its module, and leaves out its own names, properties, types and the page\'s globals', () => {
+    const code = [
+      "import type { Limits } from './limits.js'",
+      'const MAX = 5',
+      'const LIMIT = 3',
+      'function helper(value: string) { return value.trim() }',
+      'export function readInPage(limits: Limits, clean: (value: string) => string): string[] {',
+      '  const { MAX: renamed = MAX } = { MAX: 1 }',
+      '  const helperResult = helper(document.title)',
+      '  const local = (MAX: number) => MAX + limits.max',
+      '  const options = { LIMIT, clean }',
+      '  function inner() { return readInPage }',
+      '  outer: for (const node of document.querySelectorAll<HTMLElement>("p")) { if (node.helper) break outer }',
+      '  return [clean(String(renamed)), helperResult, String(local(1)), String(inner) as string, String(options.LIMIT)]',
+      '}'
+    ].join('\n')
+    expect(pageFunctionModuleUses(code)).toEqual(['readInPage: MAX', 'readInPage: helper', 'readInPage: LIMIT'])
   })
 
   it('counts the IPC channel names a module writes out, and leaves out typed channels, URLs and page events', () => {
