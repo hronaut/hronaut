@@ -2,6 +2,7 @@ import type { BrowserState, BrowserTabState } from '../../../shared/types.js'
 import type { Browser } from '../browser.js'
 import { findTab } from '../browser-core.js'
 import { browserState } from '../browser-state/browser-state.js'
+import { requireMcpTabGroup } from '../mcp-tab-groups/mcp-tab-groups.js'
 
 /**
  * The id of the workspace's tab, or of its active or first tab when none is
@@ -34,7 +35,7 @@ export function tabBelongsToMcpGroup(browser: Browser, groupId: string, tabId: s
  * are its own, and the agent that Follow shows only when the tab in view is its own.
  */
 export function getMcpGroupState(browser: Browser, groupId: string): BrowserState {
-  browser.requireMcpTabGroup(groupId)
+  requireMcpTabGroup(browser, groupId)
   const state = browserState(browser)
   const tabs = state.tabs.filter((tab) => tab.mcpGroupId === groupId)
   const group = browser.mcpTabGroups.get(groupId)!
@@ -53,7 +54,7 @@ export function getMcpGroupState(browser: Browser, groupId: string): BrowserStat
     activeTabId: tabs.some((tab) => tab.id === group.activeTabId) ? group.activeTabId : tabs[0]?.id ?? null,
     ...(visibleSplitView ? { splitView: visibleSplitView } : {}),
     ...(visibleAgentFollow ? { agentFollow: visibleAgentFollow } : {}),
-    mcpTabGroups: [browser.requireMcpTabGroup(groupId)],
+    mcpTabGroups: [requireMcpTabGroup(browser, groupId)],
     savedTabGroups: []
   }
 }

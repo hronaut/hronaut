@@ -6,6 +6,8 @@ import { textResult, toolDefinition, toolDescription } from '../../tool-results.
 import { type ConsequentialReviewStepRequest, consequentialReviewSchema, workspaceIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
 import { requireWorkspaceContinuityReview } from '../../../browser/workspace-continuity/workspace-continuity.js'
+import { listMcpTabGroups } from '../../../browser/mcp-tab-groups/mcp-tab-groups.js'
+import { getMcpGroupState } from '../../../browser/workspace-scope/workspace-scope.js'
 
 export function registerBrowserHumanWaiting(context: McpToolContext): void {
   const {
@@ -71,9 +73,9 @@ export function registerBrowserHumanWaiting(context: McpToolContext): void {
       if (input.review) {
         const requestedSteps = 'steps' in input.review ? input.review.steps : [input.review]
         const grouped = requestedSteps.length > 1
-        const workspace = manager.listMcpTabGroups().find(candidate => candidate.id === input.workspaceId)
+        const workspace = listMcpTabGroups(manager).find(candidate => candidate.id === input.workspaceId)
         if (!workspace) throw workspaceAuthorizationError()
-        const state = manager.getMcpGroupState(input.workspaceId)
+        const state = getMcpGroupState(manager, input.workspaceId)
         const steps = requestedSteps.map((requested): import('../../../../shared/human-waiting.js').HumanWaitingReviewStep => {
           const definition = toolDefinition(requested.toolName)
           if (!definition.annotations.destructiveHint) throw new Error('Consequential review is only available for mutating browser tools')

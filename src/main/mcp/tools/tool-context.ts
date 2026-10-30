@@ -4,6 +4,7 @@ import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/
 import { z } from 'zod'
 import type { McpTabActivity, UserAttentionInput, UserAttentionRequest } from '../../../shared/types.js'
 import type { Browser } from '../../browser/browser.js'
+import type { listMcpTabGroups, requireMcpTabGroup } from '../../browser/mcp-tab-groups/mcp-tab-groups.js'
 import type { UserAttentionLifecycle } from '../../attention/user-attention-lifecycle.js'
 import { McpActionTracker } from '../action-tracker.js'
 import type { AuditReceiptService } from '../audit-receipt-service.js'
@@ -261,10 +262,10 @@ export interface McpToolContext {
     target?: { workspaceId: string; tabId?: string; origins?: string[] }
   ) => McpCapabilityProfile | undefined
   capabilityAllowsUrl: (profile: McpCapabilityProfile | undefined, url: string) => boolean
-  requireAgentWorkspace: (workspaceId: string) => ReturnType<Browser['requireMcpTabGroup']>
+  requireAgentWorkspace: (workspaceId: string) => ReturnType<typeof requireMcpTabGroup>
   requireSavedWorkspace: (workspaceId: string) => void
   authorizeResume: (workspaceId: string, resumeKey: string, saved: boolean) => void
-  authorizedActiveWorkspaces: () => ReturnType<Browser['listMcpTabGroups']>
+  authorizedActiveWorkspaces: () => ReturnType<typeof listMcpTabGroups>
   authorizedSavedWorkspaces: () => ReturnType<Browser['listSavedTabGroups']>
   workspaceAuthorizationError: () => Error
   withResumeKey: <T extends { id: string }>(workspace: T) => T & { resumeKey: string }

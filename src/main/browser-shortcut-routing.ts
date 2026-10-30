@@ -5,6 +5,7 @@ import type { MainWindowRefs } from './windows/main-window.js'
 import type { AgentPresenceSnapshot } from '../shared/agent-presence.js'
 import type { BrowserShortcutAction } from '../shared/browser-shortcuts.js'
 import { exitPageFullscreen } from './browser/page-fullscreen/page-fullscreen.js'
+import { listMcpTabGroups } from './browser/mcp-tab-groups/mcp-tab-groups.js'
 
 interface BrowserShortcutRoutingHost {
   /** The take over offers, which a page's take over key asks and acts on. */
@@ -28,13 +29,14 @@ export function createBrowserShortcutRouting(host: BrowserShortcutRoutingHost): 
 } {
   /** Whether the browser takes a shortcut pressed in a page; the page keeps the key otherwise. */
   function pageShortcutAvailable(action: BrowserShortcutAction, workspaceId: string | undefined, tabId: string): boolean {
+    const browser = host.tabs()
     // Ctrl/Cmd+Shift+O takes the page over only while an agent is working on it; the page keeps it otherwise.
     return action === 'take-over' ? host.takeOvers.available(tabId, workspaceId) !== undefined
       // Ctrl/Cmd+K is a common website key, such as for a site's own search, so websites keep it; Home does not use it.
-      : action === 'switch-workspace' ? host.tabs()?.isHomeTab(tabId) === true
+      : action === 'switch-workspace' ? browser?.isHomeTab(tabId) === true
       // A page keeps a workspace key while there is no workspace for it to go to.
-      : action === 'previous-workspace' ? (host.tabs()?.listMcpTabGroups().some((workspace) => workspace.id !== workspaceId) ?? false)
-      : action.startsWith('select-workspace-') ? pinnedWorkspaceAt(host.tabs()?.listMcpTabGroups() ?? [], Number(action.slice(-1))) !== undefined
+      : action === 'previous-workspace' ? (browser ? listMcpTabGroups(browser) : []).some((workspace) => workspace.id !== workspaceId)
+      : action.startsWith('select-workspace-') ? pinnedWorkspaceAt(browser ? listMcpTabGroups(browser) : [], Number(action.slice(-1))) !== undefined
       : action !== 'agent-card' || (workspaceId !== undefined && (host.agentPresenceSnapshot().workspaces[workspaceId]?.length ?? 0) > 0)
   }
 

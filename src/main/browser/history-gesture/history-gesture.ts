@@ -1,4 +1,5 @@
 import type { Browser } from '../browser.js'
+import { back, forward } from '../page-navigation/page-navigation.js'
 
 /**
  * Goes back or forward in the shown tab for the person's Back or Forward key or mouse button, as the toolbar's arrows
@@ -11,5 +12,5 @@ export async function historyGesture(browser: Browser, direction: 'back' | 'forw
   if (!tab || tab.webContents.isDestroyed()) return
   if (browser.browserContentOccluded || browser.isHumanInteractionLocked(tab) || browser.agentInputWebContents.has(tab.webContents.id)
     || browser.screenshotAreaSessions.has(tab.webContents.id) || browser.elementPickerSessions.has(tab.webContents.id)) return
-  await (direction === 'back' ? browser.back(tab.id) : browser.forward(tab.id))
+  await (direction === 'back' ? back(browser, tab.id) : forward(browser, tab.id))
 }

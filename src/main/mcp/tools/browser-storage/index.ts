@@ -6,6 +6,7 @@ import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
 import { type CookieWriteSettlement, cookieWriteSettlement } from './cookie-write-settlement.js'
 import { type WebStorageSettlement, webStorageSettlement } from './web-storage-settlement.js'
+import { manageStorage } from '../../../browser/site-storage/manage-storage.js'
 
 export function registerBrowserStorage(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -58,7 +59,7 @@ export function registerBrowserStorage(context: McpToolContext): void {
         progress: settlement.recordProgress,
         retainPublication: settlement.retainPublication
       } satisfies CookieWriteHooks : undefined
-      return textResult(await manager.manageStorage({ tabId, kind, action, key, value, includeValues, cookieDomain, cookiePath }, cookieWriteHooks, webStorageHooks))
+      return textResult(await manageStorage(manager, { tabId, kind, action, key, value, includeValues, cookieDomain, cookiePath }, cookieWriteHooks, webStorageHooks))
     }),
     {
       settlement: input => {

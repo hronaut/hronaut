@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { setZoom } from '../../../browser/page-zoom/page-zoom.js'
 
 export function registerBrowserZoom(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -19,6 +20,6 @@ export function registerBrowserZoom(context: McpToolContext): void {
       tabId?: string
       action: 'in' | 'out' | 'reset' | 'set'
       percent?: number
-    }) => textResult(await manager.setZoom({ tabId, action, percent })))
+    }) => textResult(await setZoom(manager, { tabId, action, percent })))
   )
 }

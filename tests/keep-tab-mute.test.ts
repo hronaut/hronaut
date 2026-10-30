@@ -82,7 +82,7 @@ const { Browser } = await import('../src/main/browser/browser.js')
 const { WorkspaceRegistry } = await import('../src/main/browser/workspace-registry/workspace-registry.js')
 const { closeTabsForPerson } = await import('../src/main/browser/tab-close/close-tabs-for-person.js')
 const { duplicateTabAfterLabelSave, rememberClosedTab, reopenClosedTabEntry } = await import('../src/main/browser/tab-reopening/tab-reopening.js')
-const { setAllTabsMuted } = await import('../src/main/browser/tab-muting/tab-muting.js')
+const { setAllTabsMuted, setTabMuted } = await import('../src/main/browser/tab-muting/tab-muting.js')
 
 const WORKSPACE = '01912345-6789-7abc-8def-0123456789ab'
 
@@ -90,7 +90,6 @@ interface Tab { id: string; url: string; muted: boolean; tabMuted: boolean; mcpG
 interface Manager {
   tabs: Map<string, Tab>
   createTab(options: { url: string; mcpGroupId: string; active: boolean }): Promise<Tab>
-  setTabMuted(tabId: string, muted: boolean): unknown
   closeWithBookkeeping(tabId: string): Promise<unknown>
 }
 
@@ -150,7 +149,7 @@ function browser() {
 
 async function mutedTab(manager: Manager): Promise<Tab> {
   const tab = await manager.createTab({ url: 'https://video.example/autoplay', mcpGroupId: WORKSPACE, active: false })
-  manager.setTabMuted(tab.id, true)
+  setTabMuted(manager as never, tab.id, true)
   expect(tab).toMatchObject({ muted: true, tabMuted: true, webContents: { audioMuted: true } })
   return tab
 }

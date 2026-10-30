@@ -1,6 +1,7 @@
 import type { Browser } from '../browser/browser.js'
 import { HOME_CARD_ICON_MAX_LENGTH, HOME_CARD_TAB_LIMIT, type HomeWorkspaceAction, type HomeWorkspaceEditorRequest, type HomeWorkspaceState } from '../../shared/home-workspaces.js'
-import { closeWorkspaceForPerson, restoreSavedTabGroup, updateArchivedWorkspacePreferences } from '../browser/workspace-archive/workspace-archive.js'
+import { closeWorkspaceForPerson, restoreSavedTabGroup, updateArchivedWorkspacePreferences, archiveWorkspaceForPerson } from '../browser/workspace-archive/workspace-archive.js'
+import { updateMcpTabGroup } from '../browser/mcp-tab-groups/mcp-tab-groups.js'
 
 export function homeWorkspaceState(manager: Browser): HomeWorkspaceState {
   const state = manager.getState()
@@ -60,7 +61,7 @@ export async function runHomeWorkspaceAction(
     case 'archive':
       if (state.allHumanInteractionLocked && state.tabs.some(tab => tab.mcpGroupId === request.workspaceId)) throw new Error('Unlock the browser before archiving a workspace.')
       // The shell offers Undo, as for archiving from the workspace's own menu.
-      await manager.archiveWorkspaceForPerson(request.workspaceId)
+      await archiveWorkspaceForPerson(manager, request.workspaceId)
       break
     case 'clear':
       if (!active) throw new Error('Only an open workspace can be cleared from this view.')
@@ -82,7 +83,7 @@ export async function runHomeWorkspaceAction(
         }
       }
       if (!Object.keys(updates).length) throw new TypeError('Choose a workspace preference')
-      if (active) manager.updateMcpTabGroup(active.id, updates)
+      if (active) updateMcpTabGroup(manager, active.id, updates)
       else updateArchivedWorkspacePreferences(manager, request.workspaceId, updates)
       break
     }

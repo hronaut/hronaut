@@ -5,11 +5,43 @@ import { registerDiagnosticsIpc } from '../src/main/diagnostics-ipc.js'
 // The handlers call the visual diff and video preview with the browser; they run on the fake browser's stubs.
 vi.mock('../src/main/browser/visual-compare/visual-compare.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/visual-compare/visual-compare.js')>(),
-  visualDiff: (browser: { visualDiff: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.visualDiff(...args)
+  visualDiff: (browser: { visualDiff: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.visualDiff(...args),
+  visualCompare: (browser: { visualCompare: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.visualCompare(...args)
 }))
 vi.mock('../src/main/browser/video-recording/video-recording.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/video-recording/video-recording.js')>(),
-  videoPreview: (browser: { videoPreview: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.videoPreview(...args)
+  videoPreview: (browser: { videoPreview: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.videoPreview(...args),
+  videoRecording: (browser: { videoRecording: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.videoRecording(...args)
+}))
+// The fake browser below stubs the functions the code under test calls; these reach its stubs.
+vi.mock('../src/main/browser/page-audits/accessibility-audit.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/page-audits/accessibility-audit.js')>(),
+  accessibilityAudit: (browser: { accessibilityAudit: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.accessibilityAudit(...args)
+}))
+vi.mock('../src/main/browser/debug-report/debug-report.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/debug-report/debug-report.js')>(),
+  debugReport: (browser: { debugReport: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.debugReport(...args),
+  setDiagnosticLogPreservation: (browser: { setDiagnosticLogPreservation: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.setDiagnosticLogPreservation(...args)
+}))
+vi.mock('../src/main/browser/page-audits/design-overview.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/page-audits/design-overview.js')>(),
+  designOverview: (browser: { designOverview: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.designOverview(...args)
+}))
+vi.mock('../src/main/browser/inspector-issues/inspector-issues.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/inspector-issues/inspector-issues.js')>(),
+  inspectorIssues: (browser: { inspectorIssues: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.inspectorIssues(...args)
+}))
+vi.mock('../src/main/browser/page-audits/performance-report.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/page-audits/performance-report.js')>(),
+  performanceReport: (browser: { performanceReport: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.performanceReport(...args)
+}))
+vi.mock('../src/main/browser/page-audits/quality-audit.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/page-audits/quality-audit.js')>(),
+  qualityAudit: (browser: { qualityAudit: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.qualityAudit(...args)
+}))
+vi.mock('../src/main/browser/page-audits/security-report.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/page-audits/security-report.js')>(),
+  securityReport: (browser: { securityReport: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.securityReport(...args)
 }))
 
 type Listener = Parameters<IpcMain['handle']>[1]

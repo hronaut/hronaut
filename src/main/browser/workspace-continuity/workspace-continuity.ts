@@ -12,6 +12,8 @@ import { ISOLATED_WORLDS } from '../isolated-worlds.js'
 import type { Browser } from '../browser.js'
 import { getTab } from '../browser-core.js'
 import { persistedState } from '../browser-state/persisted-state.js'
+import { requireMcpTabGroup, updateMcpTabGroup } from '../mcp-tab-groups/mcp-tab-groups.js'
+import { getMcpGroupState, tabBelongsToMcpGroup } from '../workspace-scope/workspace-scope.js'
 
 const CONTINUITY_MARKER_WORLD_ID = ISOLATED_WORLDS.continuityMarker
 const POSTCONDITION_WORLD_ID = ISOLATED_WORLDS.postcondition
@@ -40,10 +42,10 @@ export function beginWorkspaceContinuityAction(browser: Browser, workspaceId: st
 
 /** Continuity evidence for the workspace's active tab, and whether its page is settled. */
 function workspaceContinuitySnapshot(browser: Browser, workspaceId: string) {
-  const state = browser.getMcpGroupState(workspaceId)
+  const state = getMcpGroupState(browser, workspaceId)
   const tab = state.tabs.find(candidate => candidate.id === state.activeTabId) ?? null
   return {
-    evidence: browser.continuityEvidence.capture({ workspaceId, tab, policy: browser.requireMcpTabGroup(workspaceId).navigationPolicy }),
+    evidence: browser.continuityEvidence.capture({ workspaceId, tab, policy: requireMcpTabGroup(browser, workspaceId).navigationPolicy }),
     pageSettled: !!tab && !tab.loading && !tab.sleeping
   }
 }
@@ -65,11 +67,11 @@ async function currentWorkspaceContinuity(browser: Browser, workspaceId: string,
   if (revision !== browser.continuityRevision || compareWorkspaceContinuity({ checkpoint: before.evidence, current: after.evidence, pageSettled: after.pageSettled, priorOutcome: 'NONE' }).status !== 'PASS') {
     return { evidence: null, pageSettled: after.pageSettled }
   }
-  const state = browser.getMcpGroupState(workspaceId)
+  const state = getMcpGroupState(browser, workspaceId)
   return {
     evidence: browser.continuityEvidence.capture({
       workspaceId, tab: state.tabs.find(candidate => candidate.id === state.activeTabId) ?? null,
-      policy: browser.requireMcpTabGroup(workspaceId).navigationPolicy, marker: { requested: true, value: marker }
+      policy: requireMcpTabGroup(browser, workspaceId).navigationPolicy, marker: { requested: true, value: marker }
     }),
     pageSettled: after.pageSettled
   }
@@ -91,7 +93,7 @@ export function postWriteContextFingerprint(browser: Browser, workspaceId: strin
   browserPostconditionScript(condition)
   const snapshot = workspaceContinuitySnapshot(browser, workspaceId)
   if (!snapshot.evidence || snapshot.evidence.tabId !== tabId || !snapshot.pageSettled
-    || !browser.tabBelongsToMcpGroup(workspaceId, tabId)) throw new Error('Post-write verification target is unavailable')
+    || !tabBelongsToMcpGroup(browser, workspaceId, tabId)) throw new Error('Post-write verification target is unavailable')
   const tab = getTab(browser, tabId)
   let origin: string
   try { origin = new URL(tab.url).origin } catch { throw new Error('Post-write verification target is unavailable') }
@@ -107,7 +109,7 @@ export async function readPostWritePostcondition(browser: Browser, workspaceId: 
   validateCurrent()
   const before = workspaceContinuitySnapshot(browser, workspaceId)
   if (!before.evidence || !before.pageSettled) return 'unavailable'
-  if (before.evidence.tabId !== tabId || !browser.tabBelongsToMcpGroup(workspaceId, tabId)) return 'context-changed'
+  if (before.evidence.tabId !== tabId || !tabBelongsToMcpGroup(browser, workspaceId, tabId)) return 'context-changed'
   if (browser.continuityActions.get(workspaceId)?.writes) return 'unavailable'
   const revision = browser.continuityRevision
   const tab = getTab(browser, tabId)
@@ -134,7 +136,7 @@ export async function readBrowserReconciliation(browser: Browser, workspaceId: s
   validateCurrent()
   const before = workspaceContinuitySnapshot(browser, workspaceId)
   if (!before.evidence || !before.pageSettled) return 'unavailable'
-  if (before.evidence.tabId !== tabId || !browser.tabBelongsToMcpGroup(workspaceId, tabId)) return 'context-changed'
+  if (before.evidence.tabId !== tabId || !tabBelongsToMcpGroup(browser, workspaceId, tabId)) return 'context-changed'
   if (browser.continuityActions.get(workspaceId)?.writes) return 'unavailable'
   const revision = browser.continuityRevision
   const tab = getTab(browser, tabId)
@@ -193,7 +195,7 @@ export async function armWorkspaceContinuity(browser: Browser, workspaceId: stri
  */
 export async function requireWorkspaceContinuityReview(browser: Browser, workspaceId: string): Promise<boolean> {
   browser.continuityRevision += 1
-  browser.requireMcpTabGroup(workspaceId)
+  requireMcpTabGroup(browser, workspaceId)
   advanceWorkspaceObservationGeneration(browser, workspaceId)
   if (browser.workspaceContinuity.guardedWorkspaceIds().includes(workspaceId)) browser.workspaceContinuity.suspend(workspaceId, 'OUTCOME_UNKNOWN')
   else browser.workspaceContinuity.restoreStale(workspaceId)
@@ -203,7 +205,7 @@ export async function requireWorkspaceContinuityReview(browser: Browser, workspa
   } catch {
     // Keep the in-memory guard and revoke direct agent access when its durable
     // marker cannot be acknowledged. Recovery remains available to the operator.
-    browser.updateMcpTabGroup(workspaceId, { agentAccess: false })
+    updateMcpTabGroup(browser, workspaceId, { agentAccess: false })
     return false
   }
 }

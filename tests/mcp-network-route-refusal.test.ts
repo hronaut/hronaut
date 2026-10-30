@@ -10,7 +10,8 @@ import { McpHttpServer } from '../src/main/mcp/server.js'
 vi.mock('../src/main/browser/workspace-continuity/workspace-continuity.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/workspace-continuity/workspace-continuity.js')>(),
   beginWorkspaceContinuityAction: (browser: { beginWorkspaceContinuityAction: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.beginWorkspaceContinuityAction(...args),
-  requireWorkspaceContinuityDispatch: (browser: { requireWorkspaceContinuityDispatch: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireWorkspaceContinuityDispatch(...args)
+  requireWorkspaceContinuityDispatch: (browser: { requireWorkspaceContinuityDispatch: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireWorkspaceContinuityDispatch(...args),
+  suspendWorkspaceContinuity: (browser: { suspendWorkspaceContinuity: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.suspendWorkspaceContinuity(...args)
 }))
 vi.mock('../src/main/browser/network-conditions/held-responses.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/network-conditions/held-responses.js')>(),
@@ -18,11 +19,32 @@ vi.mock('../src/main/browser/network-conditions/held-responses.js', async (impor
 }))
 vi.mock('../src/main/browser/network-conditions/network-conditions.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/network-conditions/network-conditions.js')>(),
-  networkConditionPublication: (browser: { networkConditionPublication: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.networkConditionPublication(...args)
+  networkConditionPublication: (browser: { networkConditionPublication: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.networkConditionPublication(...args),
+  addNetworkRoute: (browser: { addNetworkRoute: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.addNetworkRoute(...args),
+  networkConditionState: (browser: { networkConditionState: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.networkConditionState(...args),
+  removeNetworkRoute: (browser: { removeNetworkRoute: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.removeNetworkRoute(...args)
 }))
 vi.mock('../src/main/browser/workspace-scope/workspace-scope.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/workspace-scope/workspace-scope.js')>(),
-  requireTabInMcpGroup: (browser: { requireTabInMcpGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireTabInMcpGroup(...args)
+  requireTabInMcpGroup: (browser: { requireTabInMcpGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireTabInMcpGroup(...args),
+  getMcpGroupState: (browser: { getMcpGroupState: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.getMcpGroupState(...args),
+  tabBelongsToMcpGroup: (browser: { tabBelongsToMcpGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.tabBelongsToMcpGroup(...args)
+}))
+vi.mock('../src/main/browser/mcp-tab-groups/create-mcp-tab-group.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/mcp-tab-groups/create-mcp-tab-group.js')>(),
+  createMcpTabGroup: (browser: { createMcpTabGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.createMcpTabGroup(...args)
+}))
+vi.mock('../src/main/browser/mcp-tab-groups/mcp-tab-groups.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/mcp-tab-groups/mcp-tab-groups.js')>(),
+  listMcpTabGroups: (browser: { listMcpTabGroups: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.listMcpTabGroups(...args),
+  requireMcpTabGroup: (browser: { requireMcpTabGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireMcpTabGroup(...args)
+}))
+// A fake browser that stubs no pause answers has no paused or taken-over tab.
+vi.mock('../src/main/browser/agent-pause/agent-pause.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/agent-pause/agent-pause.js')>(),
+  isTabAgentPaused: (browser: { isTabAgentPaused?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.isTabAgentPaused?.(...args) ?? false,
+  hasPausedAgentTab: (browser: { hasPausedAgentTab?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.hasPausedAgentTab?.(...args) ?? false,
+  isTabTakenOver: (browser: { isTabTakenOver?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.isTabTakenOver?.(...args) ?? false
 }))
 
 const CHANGE_REQUEST = 'No configuration command was submitted. Change the request as message says before sending it again.'

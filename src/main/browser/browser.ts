@@ -3,17 +3,10 @@ import { ImageInspectionSlots } from './image-state.js'
 import type { BrowserEmulationResult, BrowserUnconfirmedEmulation } from '../../shared/types.js'
 import { evaluateFile } from './page-evaluation/evaluate-file.js'
 import type { FileEvaluationSource, FileEvaluationHooks } from '../../shared/file-evaluation.js'
-import type { StorageComparisonHooks } from './storage-comparison-operation.js'
 import type { StorageInspectionHooks } from './storage-inspection-operation.js'
-import type { WebStorageHooks } from './web-storage-operation.js'
-import { manageStorage } from './site-storage/manage-storage.js'
-import { inspectIndexedDb, inspectStorageUsage } from './site-storage/storage-inspection.js'
-import { storageChanges } from './site-storage/storage-changes.js'
-import { waitForPage } from './page-waits/page-waits.js'
-import { visualCompare, type BrowserVisualCompareResult } from './visual-compare/visual-compare.js'
-import { inspectPwa } from './pwa-inspection/pwa-inspection.js'
+import { inspectStorageUsage } from './site-storage/storage-inspection.js'
+import { type BrowserVisualCompareResult } from './visual-compare/visual-compare.js'
 import { elementInspection } from './element-inspection/element-inspection.js'
-import { consoleMessages } from './console-messages/console-messages.js'
 import {
   performTabOverviewPreviewCapture,
   type TabOverviewPreviewCaptureRequest
@@ -33,18 +26,14 @@ import type { DomMutationSourceAction, DomMutationSourceKind, DomMutationSourceR
 import { createPwaLifecycleRecorder } from './pwa-inspection/browser-pwa-lifecycle.js'
 import type { PwaLifecycleOptions } from '../../shared/pwa-lifecycle.js'
 import { PageFindController } from './page-find-controller.js'
-import type { CookieWriteHooks } from './cookie-write-operation.js'
 import { createVideoRecorder } from './video-recording/browser-video-recorder.js'
-import { videoRecording } from './video-recording/video-recording.js'
-import { VIDEO_RECORDING_NOTICES, type BrowserVideoOptions, type BrowserVideoState } from '../../shared/video.js'
+import { VIDEO_RECORDING_NOTICES } from '../../shared/video.js'
 import type { BrowserCredentialCandidate } from './credential-capture/credential-capture.js'
-import { emulate } from './emulation/emulation.js'
 import { cloneEmulationState, hasEmulationOverrides } from './emulation-state.js'
 import {
-  cancelElementPicker,
   type BrowserElementPickerSession
 } from './element-picker/element-picker.js'
-import { cancelScreenshotArea, type BrowserScreenshotAreaSession } from './screenshot-area/screenshot-area.js'
+import { type BrowserScreenshotAreaSession } from './screenshot-area/screenshot-area.js'
 import { createNetworkWaitController } from './network-inspection/browser-network-waits.js'
 import { PreviewCaptureQueue } from './preview-capture-queue.js'
 import { NativePreviewCapture } from './native-preview-capture.js'
@@ -69,15 +58,7 @@ import { createLogpoints } from './logpoints/browser-logpoints.js'
 import type { LogpointAction, LogpointReport, LogpointRequest, LogpointScriptsReport } from '../../shared/logpoint.js'
 import { createLiveRegionRecorder } from './live-region-recorder/browser-live-region-recorder.js'
 import { createReproRecorder } from './repro-recorder/browser-repro-recorder.js'
-import {
-  addNetworkRoute,
-  clearNetworkRoutes,
-  moveNetworkRoute,
-  networkConditionState,
-  networkRoutes,
-  removeNetworkRoute,
-  setNetworkRouteEnabled
-} from './network-conditions/network-conditions.js'
+import { networkConditionState } from './network-conditions/network-conditions.js'
 import { failAllHeldResponses, type HeldResponses } from './network-conditions/held-responses.js'
 import { createDownloadsController } from './downloads/browser-downloads.js'
 import type { DownloadHistoryStore, SavedDownload } from './download-history/download-history.js'
@@ -85,17 +66,9 @@ import { createProfilingController } from './profiling/browser-profiling.js'
 import { WorkspaceContinuityStore } from '../mcp/workspace-continuity-store.js'
 import { WorkspaceContinuityEvidenceFactory } from '../mcp/workspace-continuity-evidence.js'
 import {
-  armWorkspaceContinuity,
-  inspectWorkspaceContinuity,
-  reconcileWorkspaceContinuity,
-  retireWorkspaceContinuity,
-  suspendWorkspaceContinuity
+  retireWorkspaceContinuity
 } from './workspace-continuity/workspace-continuity.js'
 import type { AgentStepThumbnailImage } from '../mcp/agent-presence.js'
-import type { WorkspaceContinuityResult } from '../mcp/workspace-continuity.js'
-import {
-  listWorkspaceStorageOrigins
-} from './workspace-data/workspace-data.js'
 import { reconcilePresentedViewVisibility } from './presented-view-visibility.js'
 import { createSplitDivider } from './split-view/split-divider.js'
 import { FaviconDecoder } from './favicon.js'
@@ -139,25 +112,10 @@ import { TabHistoryStore } from './saved-tab-history/saved-tab-history.js'
 import { ClosedTabsStore } from './saved-closed-tabs/saved-closed-tabs.js'
 import { McpActivityFollowController, type FollowAgent } from './mcp-activity-follow-controller.js'
 import { MemorySaverSweepQueue } from '../memory-saver-sweep.js'
-import { accessibilityAudit } from './page-audits/accessibility-audit.js'
-import { debugReport, setDiagnosticLogPreservation } from './debug-report/debug-report.js'
-import { securityReport } from './page-audits/security-report.js'
 import type { WorkspaceTemplateImporter } from './workspace-template-import.js'
-import { performanceReport } from './page-audits/performance-report.js'
-import { designOverview } from './page-audits/design-overview.js'
 import { createPageMetadata } from './diagnostics/browser-page-metadata.js'
-import { qualityAudit } from './page-audits/quality-audit.js'
-import {
-  networkHar,
-  networkRequestDetails,
-  networkRequests,
-  networkSearch,
-  replayNetworkRequest,
-  saveNetworkHar
-} from './network-inspection/network-inspection.js'
 import type { ScreenshotAnnotationReport } from '../../shared/screenshot-annotations.js'
 import { screenshot } from './screenshots/screenshots.js'
-import { inspectorIssues } from './inspector-issues/inspector-issues.js'
 import { answerHttpAuth, type HttpAuthQuestion, type SignInAnswer } from './http-auth/http-auth.js'
 import {
   answerCertificateError,
@@ -170,17 +128,16 @@ import { certificateProblem } from './page-load-problem.js'
 import type {
   SplitDividerGeometry,
   SplitDividerSession,
-  BrowserSplitOrientation,
   BrowserSplitViewState
 } from '../../shared/split-view.js'
-import { closeSplitView, openSplitView, openSplitViewAndWait, updateSplitView } from './split-view/split-view.js'
+import { closeSplitView, openSplitView } from './split-view/split-view.js'
 import { getSplitDivider, layout } from './window-layout/window-layout.js'
 import { pageArea, shownPageFullscreenTab } from './window-layout/content-area.js'
 import { watchWindowFullScreen, windowFullScreenToSave } from './page-fullscreen/page-fullscreen.js'
 import { selectAgentTabAndWait, selectTab, selectTabAndWait, type BrowserTabSelectionOptions } from './tab-selection/tab-selection.js'
 import { EMULATION_FRAME_CAPTION_SPACE, emulatedViewBounds, type EmulationFrameGeometry } from '../../shared/emulation-frame.js'
 import type { PageCardGeometry } from '../../shared/page-card.js'
-import { getEmulationFrames, getPageCards } from './page-geometry/page-geometry.js'
+import { getPageCards } from './page-geometry/page-geometry.js'
 import type { BrowserTabGroupColor } from '../../shared/tab-groups.js'
 import {
   DEFAULT_MEMORY_SAVER_TIMEOUT_MINUTES,
@@ -192,16 +149,8 @@ import { RendererRecovery } from './renderer-recovery.js'
 import { EndedByPersonMarks } from './task-manager/task-manager.js'
 import type { SuggestedPasswordOptions } from './suggested-password/suggested-password.js'
 import type {
-  BrowserEmulationOptions,
   BrowserEmulationState,
-  BrowserAccessibilityAudit,
-  BrowserAccessibilityAuditOptions,
-  BrowserPerformanceOptions,
-  BrowserPerformanceReport,
-  BrowserDesignOverviewReport,
   BrowserPageMetadataReport,
-  BrowserSecurityReport,
-  BrowserQualityAudit,
   BrowserCodeCoverageOptions,
   BrowserCodeCoverageResult,
   BrowserCpuProfileOptions,
@@ -211,22 +160,9 @@ import type {
   BrowserPdfExport,
   BrowserPdfOptions,
   BrowserScreenshotOptions,
-  BrowserVisualCompareOptions,
-  BrowserStorageOptions,
-  BrowserStorageResult,
   BrowserStorageUsageReport,
-  BrowserIndexedDbOptions,
-  BrowserIndexedDbReport,
-  BrowserPwaOptions,
-  BrowserPwaReport,
-  BrowserStorageChangesAction,
-  BrowserStorageChangesReport,
   BrowserDownloadAction,
   BrowserDownloadState,
-  BrowserConsoleMessage,
-  BrowserDebugReport,
-  BrowserDebugReportOptions,
-  BrowserDiagnosticLogState,
   BrowserReproAction,
   BrowserReproRecording,
   BrowserDomChangesAction,
@@ -236,29 +172,13 @@ import type {
   BrowserCssStatePreviewAction,
   BrowserCssStatePreviewReport,
   BrowserCssStatePreviewSummary,
-  BrowserNetworkRequest,
-  BrowserNetworkReplayResult,
-  BrowserNetworkRequestDetails,
-  BrowserNetworkSearchOptions,
-  BrowserNetworkSearchResult,
-  BrowserNetworkHar,
-  BrowserNetworkHarExport,
-  BrowserNetworkHarOptions,
-  BrowserNetworkHarSaveOptions,
-  BrowserNetworkRouteInput,
-  BrowserNetworkRouteMoveDirection,
-  BrowserNetworkRouteSummary,
   BrowserElementInspection,
   BrowserElementInspectionOptions,
-  BrowserInspectorIssuesReport,
   BrowserClosedTabState,
-  BrowserPageLifecycleState,
   BrowserSavedTabGroupState,
   BrowserState,
   BrowserTabGroupState,
-  BrowserWorkspaceContextClass,
   BrowserWorkspaceNavigationAuditSource,
-  BrowserWorkspaceNavigationPolicy,
   BrowserTabOverviewPreview,
   McpTabActivity,
   NewTabOptions
@@ -274,17 +194,14 @@ import { browserState, publishChange } from './browser-state/browser-state.js'
 import { createStatePublication } from './browser-state/browser-state-publication.js'
 import { isHronautHomeUrl, isWebUrl } from './url.js'
 import { closeTabsForPerson } from './tab-close/close-tabs-for-person.js'
-import { setTabPageLifecycle } from './page-lifecycle/page-lifecycle.js'
-import { back, forward, navigate, reload, reloadIgnoringCache, stop } from './page-navigation/page-navigation.js'
-import { setZoom } from './page-zoom/page-zoom.js'
+import { navigate } from './page-navigation/page-navigation.js'
 import type { WorkspaceNavigationDecision } from './workspace-navigation-policy.js'
 import {
   normalizeWorkspaceStorageOrigins
 } from './workspace-storage.js'
 import { flushPersist } from './quit-flush/quit-flush.js'
 import { closeMcpTabGroup } from './mcp-tab-groups/close-mcp-tab-group.js'
-import { createMcpTabGroup } from './mcp-tab-groups/create-mcp-tab-group.js'
-import { listMcpTabGroups, renameMcpTabGroup, requireMcpTabGroup, updateMcpTabGroup } from './mcp-tab-groups/mcp-tab-groups.js'
+import { listMcpTabGroups } from './mcp-tab-groups/mcp-tab-groups.js'
 import { setWorkspacePinned } from './mcp-tab-groups/workspace-pinning.js'
 import {
   assertWorkspaceCanOpenTab,
@@ -308,15 +225,12 @@ import { closeTab } from './tab-close/close-tab.js'
 import { saveTabLabel, withTabLabelLifecycle } from './tab-labels/tab-labels.js'
 import { duplicateTabAfterLabelSave, forgetClosedTabs, reopenClosedTabAfterLabelSave } from './tab-reopening/tab-reopening.js'
 import { forgetTabHistoryPages } from './tab-history-pages/forget-tab-history-pages.js'
-import { setTabPinned } from './tab-arrangement/tab-arrangement.js'
 import { forgetTabsOpenedFrom, switchLeavesOpenedTabs } from './link-tab-placement/link-tab-openers.js'
 import { walletPageContext, type BrowserWalletPageContext } from './wallet-pages/wallet-pages.js'
-import { getMcpGroupState, tabBelongsToMcpGroup } from './workspace-scope/workspace-scope.js'
 import { createNewTab, newLabeledAgentTab } from './new-tabs/new-tabs.js'
 import { createTab } from './new-tabs/create-tab.js'
 import { initializeBrowser } from './browser-lifecycle/initialize-browser.js'
 import { saveForNextStart } from './browser-lifecycle/save-for-next-start.js'
-import { setTabMuted } from './tab-muting/tab-muting.js'
 import { applySiteMutingToTabs, type SiteSoundStore } from './site-muting/site-muting.js'
 import { captureAgentStepThumbnail } from './agent-step-thumbnail/agent-step-thumbnail.js'
 import { cancelFocusAfterTrustedChrome, focusTabOrTrustedChrome, withholdFocusAfterTrustedChrome, type PendingTrustedChromeFocus } from './trusted-chrome-focus/trusted-chrome-focus.js'
@@ -326,11 +240,9 @@ import { publishedAgentFollow } from './agent-follow/published-agent-follow.js'
 import { selectTabPassively } from './agent-follow/passive-selection.js'
 import type { UndoableAction } from '../undo-offers.js'
 import {
-  archiveWorkspaceForPerson,
   deleteSavedTabGroup,
   isClosingWorkspace,
-  restoreSavedTabGroup,
-  saveAndCloseTabGroup
+  restoreSavedTabGroup
 } from './workspace-archive/workspace-archive.js'
 
 export const HRONAUT_HOME_URL = 'hronaut://home/'
@@ -493,22 +405,6 @@ export class Browser {
   retireWorkspaceContinuity(workspaceId: string): void {
     retireWorkspaceContinuity(this, workspaceId)
     this.downloadController.forgetWorkspace(workspaceId)
-  }
-
-  armWorkspaceContinuity(workspaceId: string, markerSelector?: string, validateCurrent: () => void = () => undefined): Promise<string> {
-    return armWorkspaceContinuity(this, workspaceId, markerSelector, validateCurrent)
-  }
-
-  suspendWorkspaceContinuity(workspaceId: string, outcome: WorkspaceContinuityResult['priorOutcome'] = 'NONE'): boolean {
-    return suspendWorkspaceContinuity(this, workspaceId, outcome)
-  }
-
-  inspectWorkspaceContinuity(workspaceId: string) {
-    return inspectWorkspaceContinuity(this, workspaceId)
-  }
-
-  reconcileWorkspaceContinuity(workspaceId: string, reviewId: string, acknowledgeUnknownOutcome: boolean, validateCurrent: () => void = () => undefined): Promise<void> {
-    return reconcileWorkspaceContinuity(this, workspaceId, reviewId, acknowledgeUnknownOutcome, validateCurrent)
   }
 
   readonly tabs = new Map<string, BrowserTab>()
@@ -852,38 +748,8 @@ export class Browser {
     }
   }
 
-  createMcpTabGroup(
-    name: string,
-    color?: BrowserTabGroupColor,
-    storage: 'scratch' | 'fork-workspace' = 'scratch',
-    origins?: string[],
-    allowDuplicateName = false,
-    navigationPolicy?: BrowserWorkspaceNavigationPolicy,
-    sourceWorkspaceId?: string,
-    description = '',
-    contextClass: BrowserWorkspaceContextClass = 'standard'
-  ): Promise<BrowserTabGroupState> {
-    return createMcpTabGroup(this, name, color, storage, origins, allowDuplicateName, navigationPolicy, sourceWorkspaceId, description, contextClass)
-  }
-
-  renameMcpTabGroup(groupId: string, name: string, allowDuplicateName = false): BrowserTabGroupState {
-    return renameMcpTabGroup(this, groupId, name, allowDuplicateName)
-  }
-
-  updateMcpTabGroup(
-    groupId: string,
-    updates: { name?: string; description?: string; color?: BrowserTabGroupColor; agentAccess?: boolean; hiddenFromSidebar?: boolean; deletionProtected?: boolean },
-    allowDuplicateName = false
-  ): BrowserTabGroupState {
-    return updateMcpTabGroup(this, groupId, updates, allowDuplicateName)
-  }
-
   setWorkspacePinned(groupId: string, pinned: boolean): BrowserState {
     return setWorkspacePinned(this, groupId, pinned)
-  }
-
-  requireMcpTabGroup(groupId: string): BrowserTabGroupState {
-    return requireMcpTabGroup(this, groupId)
   }
 
   mcpWorkspaceResumeKey(workspaceId: string): string {
@@ -909,18 +775,6 @@ export class Browser {
     return importBrowserCookies(this, destination, cookies)
   }
 
-  listWorkspaceStorageOrigins(workspaceId: string): string[] {
-    return listWorkspaceStorageOrigins(this, workspaceId)
-  }
-
-  tabBelongsToMcpGroup(groupId: string, tabId: string): boolean {
-    return tabBelongsToMcpGroup(this, groupId, tabId)
-  }
-
-  getMcpGroupState(groupId: string): BrowserState {
-    return getMcpGroupState(this, groupId)
-  }
-
   /** Whether the person chose to keep URL query strings and fragments out of what agents read. */
   omitAgentUrlDetail(): boolean {
     return this.options.getOmitAgentUrlDetail?.() === true
@@ -932,14 +786,6 @@ export class Browser {
 
   closeMcpTabGroup(groupId: string, preserveStorage = false): Promise<BrowserTabGroupState[]> {
     return closeMcpTabGroup(this, groupId, preserveStorage)
-  }
-
-  saveAndCloseTabGroup(groupId: string): Promise<BrowserSavedTabGroupState> {
-    return saveAndCloseTabGroup(this, groupId)
-  }
-
-  archiveWorkspaceForPerson(groupId: string): Promise<BrowserSavedTabGroupState> {
-    return archiveWorkspaceForPerson(this, groupId)
   }
 
   /** Restores an archived workspace for an agent without showing it, as an agent's other calls leave the window as it is. */
@@ -998,14 +844,6 @@ export class Browser {
       && home.webContents === contents && isHronautHomeUrl(home.url))
   }
 
-  manageStorage(options: BrowserStorageOptions, cookieWriteHooks?: CookieWriteHooks, webStorageHooks?: WebStorageHooks): Promise<BrowserStorageResult> {
-    return manageStorage(this, options, cookieWriteHooks, webStorageHooks)
-  }
-
-  inspectIndexedDb(options: BrowserIndexedDbOptions = {}, hooks?: StorageInspectionHooks): Promise<BrowserIndexedDbReport> {
-    return inspectIndexedDb(this, options, hooks)
-  }
-
   inspectStorageUsage(tabId?: string, hooks?: StorageInspectionHooks): Promise<BrowserStorageUsageReport> {
     return inspectStorageUsage(this, tabId, hooks)
   }
@@ -1016,19 +854,6 @@ export class Browser {
 
   interruptPwaLifecycleWorkspace(workspaceId: string, reason: string): void {
     this.pwaLifecycleRecorder.interruptWorkspace(workspaceId, reason)
-  }
-
-  inspectPwa(options: BrowserPwaOptions = {}): Promise<BrowserPwaReport> {
-    return inspectPwa(this, options)
-  }
-
-  storageChanges(
-    action: BrowserStorageChangesAction = 'get',
-    tabId?: string,
-    includeValues = false,
-    hooks?: StorageComparisonHooks
-  ): Promise<BrowserStorageChangesReport> {
-    return storageChanges(this, action, tabId, includeValues, hooks)
   }
 
   /**
@@ -1093,10 +918,6 @@ export class Browser {
     return saveTabLabel(this, tabId, value)
   }
 
-  setTabPinned(tabId: string, pinned: boolean): Promise<BrowserState> {
-    return setTabPinned(this, tabId, pinned)
-  }
-
   setMemorySaverSettings(enabled: boolean, timeoutMinutes: MemorySaverTimeoutMinutes): void {
     setMemorySaverSettings(this, enabled, timeoutMinutes)
   }
@@ -1108,13 +929,6 @@ export class Browser {
 
   wakeTab(tabId: string): Promise<BrowserState> {
     return wakeTab(this, tabId)
-  }
-
-  setTabPageLifecycle(
-    tabId: string,
-    state: Exclude<BrowserPageLifecycleState, 'unknown'>
-  ): Promise<BrowserState> {
-    return setTabPageLifecycle(this, tabId, state)
   }
 
   /** Opens a workspace's menu where the pointer is; `onClosed` runs once it closes. */
@@ -1161,16 +975,8 @@ export class Browser {
     return selectTab(this, tabId, options)
   }
 
-  openSplitViewAndWait(tabId: string): Promise<BrowserState> {
-    return openSplitViewAndWait(this, tabId)
-  }
-
   openSplitView(tabId: string): BrowserState {
     return openSplitView(this, tabId)
-  }
-
-  updateSplitView(updates: { orientation?: BrowserSplitOrientation; ratio?: number; swap?: boolean }): BrowserState {
-    return updateSplitView(this, updates)
   }
 
   closeSplitView(): BrowserState {
@@ -1189,29 +995,9 @@ export class Browser {
     return navigate(this, url, tabId, options)
   }
 
-  back(tabId?: string): Promise<BrowserState> {
-    return back(this, tabId)
-  }
-
-  forward(tabId?: string): Promise<BrowserState> {
-    return forward(this, tabId)
-  }
-
   pageSaving: Set<number> | undefined
 
   pagePrinting: Set<number> | undefined
-
-  reload(tabId?: string): Promise<BrowserState> {
-    return reload(this, tabId)
-  }
-
-  reloadIgnoringCache(tabId?: string): Promise<BrowserState> {
-    return reloadIgnoringCache(this, tabId)
-  }
-
-  setZoom(options: { tabId?: string; action: 'in' | 'out' | 'reset' | 'set'; percent?: number }): BrowserState {
-    return setZoom(this, options)
-  }
 
   setAllAgentsPaused(paused: boolean, allowTabOverrides = true): void {
     setAllAgentsPaused(this, paused, allowTabOverrides)
@@ -1230,17 +1016,9 @@ export class Browser {
     return isTabAgentPaused(this, tabId)
   }
 
-  setTabMuted(tabId: string, muted: boolean): BrowserState {
-    return setTabMuted(this, tabId, muted)
-  }
-
   /** Applies each tab's website sound setting once the saved site permissions changed, such as in Settings. */
   applySiteMutingToTabs(): void {
     applySiteMutingToTabs(this)
-  }
-
-  stop(tabId?: string): BrowserState {
-    return stop(this, tabId)
   }
 
   snapshot(tabId?: string, maxChars = 30_000): Promise<string> {
@@ -1271,28 +1049,8 @@ export class Browser {
     }
   }
 
-  accessibilityAudit(options: BrowserAccessibilityAuditOptions = {}): Promise<BrowserAccessibilityAudit> {
-    return accessibilityAudit(this, options)
-  }
-
-  performanceReport(options: BrowserPerformanceOptions = {}): Promise<BrowserPerformanceReport> {
-    return performanceReport(this, options)
-  }
-
-  designOverview(tabId?: string): Promise<BrowserDesignOverviewReport> {
-    return designOverview(this, tabId)
-  }
-
   pageMetadata(tabId?: string): Promise<BrowserPageMetadataReport> {
     return this.metadata.inspect(tabId)
-  }
-
-  securityReport(tabId?: string): BrowserSecurityReport {
-    return securityReport(this, tabId)
-  }
-
-  qualityAudit(tabId?: string): Promise<BrowserQualityAudit> {
-    return qualityAudit(this, tabId)
   }
 
   codeCoverage(options: BrowserCodeCoverageOptions = {}): Promise<BrowserCodeCoverageResult> {
@@ -1320,14 +1078,6 @@ export class Browser {
     return elementInspection(this, options, validateInspection, deferInspection)
   }
 
-  cancelElementPicker(tabId?: string): Promise<boolean> {
-    return cancelElementPicker(this, tabId)
-  }
-
-  cancelScreenshotArea(tabId?: string): Promise<boolean> {
-    return cancelScreenshotArea(this, tabId)
-  }
-
   emulationResult(tab: BrowserTab): BrowserEmulationResult {
     return tab.emulationApplication === 'confirmed'
       ? cloneEmulationState(tab.emulation)
@@ -1346,42 +1096,6 @@ export class Browser {
         message: 'Native emulation application is not confirmed. Inspect retained settings and explicitly restore them before a new change; do not replay the failed request.'
       })
     }
-  }
-
-  emulate(options: BrowserEmulationOptions = {}, validate: () => void = () => {}, markSubmitted: () => void = () => {}, retainPublication?: (assert: () => void) => void): Promise<BrowserEmulationResult> {
-    return emulate(this, options, validate, markSubmitted, retainPublication)
-  }
-
-  consoleMessages(tabId?: string, clear = false): BrowserConsoleMessage[] {
-    return consoleMessages(this, tabId, clear)
-  }
-
-  networkRequests(tabId?: string, clear = false): Promise<BrowserNetworkRequest[]> {
-    return networkRequests(this, tabId, clear)
-  }
-
-  networkSearch(options: BrowserNetworkSearchOptions): Promise<BrowserNetworkSearchResult> {
-    return networkSearch(this, options)
-  }
-
-  networkHar(options: BrowserNetworkHarOptions = {}): Promise<BrowserNetworkHar> {
-    return networkHar(this, options)
-  }
-
-  saveNetworkHar(options: BrowserNetworkHarSaveOptions = {}): Promise<BrowserNetworkHarExport> {
-    return saveNetworkHar(this, options)
-  }
-
-  debugReport(options: BrowserDebugReportOptions = {}): BrowserDebugReport {
-    return debugReport(this, options)
-  }
-
-  setDiagnosticLogPreservation(tabId: string, preserve: boolean): BrowserDiagnosticLogState {
-    return setDiagnosticLogPreservation(this, tabId, preserve)
-  }
-
-  videoRecording(options: BrowserVideoOptions, validateAuthority?: () => void, signal?: AbortSignal): Promise<BrowserVideoState> {
-    return videoRecording(this, options, validateAuthority, signal)
   }
 
   async reproRecording(action: BrowserReproAction, tabId?: string, checkpoint?: unknown): Promise<BrowserReproRecording> {
@@ -1506,54 +1220,8 @@ export class Browser {
     return this.getState()
   }
 
-  inspectorIssues(tabId?: string, clear = false): Promise<BrowserInspectorIssuesReport> {
-    return inspectorIssues(this, tabId, clear)
-  }
-
-  networkRequestDetails(
-    tabId: string | undefined,
-    requestId: string,
-    maxChars = 20_000,
-    includeBody = true,
-    deferPublication?: (assertCurrent: () => void) => void
-  ): Promise<BrowserNetworkRequestDetails> {
-    return networkRequestDetails(this, tabId, requestId, maxChars, includeBody, deferPublication)
-  }
-
-  replayNetworkRequest(
-    tabId: string | undefined,
-    requestId: string,
-    confirmSideEffects = false
-  ): Promise<BrowserNetworkReplayResult> {
-    return replayNetworkRequest(this, tabId, requestId, confirmSideEffects)
-  }
-
   networkConditionState(tabId?: string): import('../../shared/types.js').BrowserNetworkConditionState {
     return networkConditionState(this, tabId)
-  }
-
-  networkRoutes(tabId?: string): BrowserNetworkRouteSummary[] {
-    return networkRoutes(this, tabId)
-  }
-
-  addNetworkRoute(tabId: string | undefined, input: BrowserNetworkRouteInput, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
-    return addNetworkRoute(this, tabId, input, validate, markSubmitted)
-  }
-
-  setNetworkRouteEnabled(tabId: string | undefined, routeId: string, enabled: boolean, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
-    return setNetworkRouteEnabled(this, tabId, routeId, enabled, validate, markSubmitted)
-  }
-
-  removeNetworkRoute(tabId: string | undefined, routeId: string, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
-    return removeNetworkRoute(this, tabId, routeId, validate, markSubmitted)
-  }
-
-  moveNetworkRoute(tabId: string | undefined, routeId: string, direction: BrowserNetworkRouteMoveDirection, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
-    return moveNetworkRoute(this, tabId, routeId, direction, validate, markSubmitted)
-  }
-
-  clearNetworkRoutes(tabId?: string, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
-    return clearNetworkRoutes(this, tabId, validate, markSubmitted)
   }
 
   /** Fails every held request as Hronaut starts to quit. */
@@ -1608,20 +1276,12 @@ export class Browser {
     return evaluateFile(this, source, hooks)
   }
 
-  visualCompare(options: BrowserVisualCompareOptions, validateCapture?: () => void): Promise<BrowserVisualCompareResult> {
-    return visualCompare(this, options, validateCapture)
-  }
-
   screenshot(options: BrowserScreenshotOptions = {}): Promise<{ annotations?: ScreenshotAnnotationReport; data: Buffer; mimeType: 'image/png' | 'image/jpeg' }> {
     return screenshot(this, options)
   }
 
   savePdf(options: BrowserPdfOptions = {}, validateExport?: () => void, deferExport?: (pending: PendingPdfExport) => void): Promise<BrowserPdfExport> {
     return savePdf(this, options, validateExport, deferExport)
-  }
-
-  waitForPage(tabId?: string, timeoutMs = 30_000): Promise<void> {
-    return waitForPage(this, tabId, timeoutMs)
   }
 
   setBrowserContentOccluded(occluded: boolean, request: number): void {
@@ -1670,10 +1330,6 @@ export class Browser {
   updateSplitDivider(token: string, ratio: number): SplitDividerGeometry | null { return this.splitDivider.update(token, ratio) }
   finishSplitDivider(token: string, commit: boolean, ratio?: number): SplitDividerGeometry | null { return this.splitDivider.finish(token, commit, ratio) }
   setSplitDividerRatio(revision: number, ratio: number): SplitDividerGeometry | null { return this.splitDivider.setRatio(revision, ratio) }
-
-  getEmulationFrames(): EmulationFrameGeometry[] {
-    return getEmulationFrames(this)
-  }
 
   getPageCards(): PageCardGeometry[] {
     return getPageCards(this)

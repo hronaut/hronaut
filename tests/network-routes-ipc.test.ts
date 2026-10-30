@@ -2,6 +2,12 @@ import { expect, it, vi } from 'vitest'
 import type { IpcMain } from 'electron'
 import { registerNetworkRoutesIpc } from '../src/main/network-routes-ipc.js'
 
+// The fake browser below stubs the functions the code under test calls; these reach its stubs.
+vi.mock('../src/main/browser/network-conditions/network-conditions.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/network-conditions/network-conditions.js')>(),
+  addNetworkRoute: (browser: { addNetworkRoute: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.addNetworkRoute(...args)
+}))
+
 type Listener = Parameters<IpcMain['handle']>[1]
 
 function handlers() {

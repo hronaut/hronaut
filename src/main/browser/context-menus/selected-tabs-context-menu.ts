@@ -4,6 +4,9 @@ import type { Browser } from '../browser.js'
 import { findTab, orderedTabs } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { workspaceContextMenuItems } from './workspace-context-menu.js'
+import { reload } from '../page-navigation/page-navigation.js'
+import { setTabPinned } from '../tab-arrangement/tab-arrangement.js'
+import { setTabMuted } from '../tab-muting/tab-muting.js'
 
 /**
  * The tabs a menu opened on a selected tab acts on, as Chrome's tab menu acts on the tabs selected in its strip: the
@@ -68,7 +71,7 @@ export function showSelectedTabsContextMenu(browser: Browser, tab: BrowserTab, s
     {
       id: 'reload-tabs',
       label: browser.text('native.context.reloadTabs'),
-      click: () => runAction('reload the tabs', () => Promise.all(open().map((candidate) => browser.reload(candidate.id))))
+      click: () => runAction('reload the tabs', () => Promise.all(open().map((candidate) => reload(browser, candidate.id))))
     },
     {
       id: 'duplicate-tabs',
@@ -85,7 +88,7 @@ export function showSelectedTabsContextMenu(browser: Browser, tab: BrowserTab, s
       id: allMuted ? 'unmute-tabs' : 'mute-tabs',
       label: browser.text(allMuted ? 'native.context.unmuteTabs' : 'native.context.muteTabs'),
       click: () => runAction(allMuted ? 'unmute the tabs' : 'mute the tabs', () => {
-        for (const candidate of open()) browser.setTabMuted(candidate.id, !allMuted)
+        for (const candidate of open()) setTabMuted(browser, candidate.id, !allMuted)
       })
     },
     {
@@ -97,7 +100,7 @@ export function showSelectedTabsContextMenu(browser: Browser, tab: BrowserTab, s
         const tabs = open().filter((candidate) => candidate.pinned === allPinned)
         for (const candidate of allPinned ? tabs.reverse() : tabs) {
           // A tab closed, pinned or unpinned meanwhile is left as it is.
-          if (findTab(browser, candidate.id) === candidate && candidate.pinned === allPinned) await browser.setTabPinned(candidate.id, !allPinned)
+          if (findTab(browser, candidate.id) === candidate && candidate.pinned === allPinned) await setTabPinned(browser, candidate.id, !allPinned)
         }
       })
     },

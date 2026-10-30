@@ -5,6 +5,7 @@ import type { BrowserNetworkRequestSortBy, BrowserNetworkRequestSortDirection } 
 import { textResult, toolDescription } from '../../tool-results.js'
 import { NETWORK_FILTER_QUERY_DESCRIPTION, tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { networkRequests } from '../../../browser/network-inspection/network-inspection.js'
 
 export function registerBrowserNetwork(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -39,7 +40,7 @@ export function registerBrowserNetwork(context: McpToolContext): void {
       limit?: number
       clear?: boolean
     }) => {
-      const requests = await manager.networkRequests(tabId, clear)
+      const requests = await networkRequests(manager, tabId, clear)
       const filtered = filterNetworkRequests(requests, normalizeNetworkHarOptions({ query, resourceType }))
       const sorted = sortNetworkRequests(filtered, sortBy, sortDirection)
       return textResult(limit === undefined ? sorted : sorted.slice(0, limit))

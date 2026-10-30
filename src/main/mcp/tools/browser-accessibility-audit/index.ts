@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { accessibilityAudit } from '../../../browser/page-audits/accessibility-audit.js'
 
 export function registerBrowserAccessibilityAudit(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -33,7 +34,7 @@ export function registerBrowserAccessibilityAudit(context: McpToolContext): void
       standard?: 'wcag-aa' | 'wcag-aaa' | 'best-practice' | 'all'
       maxViolations?: number
       maxNodesPerViolation?: number
-    }) => textResult(await manager.accessibilityAudit({
+    }) => textResult(await accessibilityAudit(manager, {
       tabId,
       action,
       selector,

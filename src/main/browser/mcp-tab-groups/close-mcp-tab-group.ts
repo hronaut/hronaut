@@ -10,6 +10,7 @@ import { orderedTabs } from '../browser-core.js'
 import { publishChange } from '../browser-state/browser-state.js'
 import { listMcpTabGroups } from './mcp-tab-groups.js'
 import { closeTabs } from '../tab-close/close-tab.js'
+import { suspendWorkspaceContinuity } from '../workspace-continuity/workspace-continuity.js'
 
 /** Hronaut Home, which closing a workspace opens when it leaves no tab; the tab manager's Home address. */
 const HRONAUT_HOME_URL = 'hronaut://home/'
@@ -158,7 +159,7 @@ async function closeMcpTabGroupAfterLabelSave(browser: Browser, groupId: string,
   removeClosedWorkspaceTabs()
   browser.mcpTabGroups.delete(groupId)
   if (!preserveStorage) browser.deletedWorkspaceStorageIds.add(canonicalStorageId(group.storageId)!)
-  if (preserveStorage) browser.suspendWorkspaceContinuity(groupId)
+  if (preserveStorage) suspendWorkspaceContinuity(browser, groupId)
   else browser.retireWorkspaceContinuity(groupId)
   browser.options.onWorkspaceClosed?.(groupId)
   if (!preserveStorage) browser.options.onWorkspaceForgotten?.(groupId)

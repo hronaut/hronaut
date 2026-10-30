@@ -6,6 +6,8 @@ import type { Browser } from '../browser.js'
 import { getTab } from '../browser-core.js'
 import { performanceReport } from './performance-report.js'
 import { securityReport } from './security-report.js'
+import { inspectorIssues } from '../inspector-issues/inspector-issues.js'
+import { inspectPwa } from '../pwa-inspection/pwa-inspection.js'
 
 /**
  * Combines the accessibility, performance, metadata, connection security, PWA
@@ -22,8 +24,8 @@ export async function qualityAudit(browser: Browser, tabId?: string): Promise<Br
     browser.pageMetadata(tab.id)
   ])
   const security = securityReport(browser, tab.id)
-  const pwa = await browser.inspectPwa({ tabId: tab.id, limit: 1 })
-  const browserIssues = await browser.inspectorIssues(tab.id)
+  const pwa = await inspectPwa(browser, { tabId: tab.id, limit: 1 })
+  const browserIssues = await inspectorIssues(browser, tab.id)
   if (tab.url !== auditedUrl) {
     throw new Error('The page navigated before the quality audit finished; run it again on the current document.')
   }

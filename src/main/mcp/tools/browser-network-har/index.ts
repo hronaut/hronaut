@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { NETWORK_FILTER_QUERY_DESCRIPTION, tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { networkHar, saveNetworkHar } from '../../../browser/network-inspection/network-inspection.js'
 
 export function registerBrowserNetworkHar(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -32,7 +33,7 @@ export function registerBrowserNetworkHar(context: McpToolContext): void {
       saveToDownloads?: boolean
       filename?: string
     }) => textResult(saveToDownloads
-      ? await manager.saveNetworkHar({ ...options, filename })
-      : await manager.networkHar(options)))
+      ? await saveNetworkHar(manager, { ...options, filename })
+      : await networkHar(manager, options)))
   )
 }

@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { networkSearch } from '../../../browser/network-inspection/network-inspection.js'
 
 export function registerBrowserNetworkSearch(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -25,6 +26,6 @@ export function registerBrowserNetworkSearch(context: McpToolContext): void {
       maxResults?: number
       maxRequests?: number
       maxBodyChars?: number
-    }) => textResult(await manager.networkSearch(options)))
+    }) => textResult(await networkSearch(manager, options)))
   )
 }

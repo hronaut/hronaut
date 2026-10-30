@@ -4,6 +4,7 @@ import { cancelFocusAfterTrustedChrome, focusTabOrTrustedChrome } from '../trust
 import { dismissWebsiteDialogForTrustedChrome } from '../website-dialogs/website-dialogs.js'
 import { findTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
+import { getEmulationFrames } from '../page-geometry/page-geometry.js'
 
 /**
  * Covers the pages with trusted chrome, or uncovers them. Covering keeps the
@@ -41,7 +42,7 @@ export function setBrowserContentOccluded(
   }
   // The frames around emulated pages, and the cards under all pages, stay where the snapshot shows those pages.
   if (enteringTrustedChrome) {
-    browser.occludedEmulationFrames = browser.getEmulationFrames()
+    browser.occludedEmulationFrames = getEmulationFrames(browser)
     browser.occludedPageCards = browser.getPageCards()
   }
   browser.browserContentOccluded = occluded

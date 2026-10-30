@@ -5,6 +5,8 @@ import type { BrowserTab } from '../browser-tab.js'
 import { consumeExpectedAgentKeyboardInput } from '../agent-input-authorization/agent-input-authorization.js'
 import { scheduleTabOverviewPreview } from '../tab-overview-previews/tab-overview-previews.js'
 import { pageShortcut } from '../take-over.js'
+import { cancelElementPicker } from '../element-picker/element-picker.js'
+import { cancelScreenshotArea } from '../screenshot-area/screenshot-area.js'
 
 /** After a click, key or scroll on the page in view, its overview preview waits this long for the page to settle. The pointer listeners keep their own copy. */
 const TAB_OVERVIEW_INPUT_SETTLE_MS = 1_000
@@ -49,7 +51,7 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
         && !input.control
         && !input.meta
         && !input.alt
-      ) void browser.cancelScreenshotArea(tab.id).catch(() => undefined)
+      ) void cancelScreenshotArea(browser, tab.id).catch(() => undefined)
       return
     }
     const elementPickerSession = browser.elementPickerSessions.get(webContents.id)
@@ -72,8 +74,8 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
         && !input.control
         && !input.meta
         && !input.alt
-      ) void browser.cancelElementPicker(tab.id).catch(() => undefined)
-      else if (shortcut === 'pick-element') void browser.cancelElementPicker(tab.id).catch(() => undefined)
+      ) void cancelElementPicker(browser, tab.id).catch(() => undefined)
+      else if (shortcut === 'pick-element') void cancelElementPicker(browser, tab.id).catch(() => undefined)
       return
     }
     const requested = input.type === 'keyDown' ? browserShortcutAction({

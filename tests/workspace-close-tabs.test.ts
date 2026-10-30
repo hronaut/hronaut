@@ -42,6 +42,12 @@ import { closeTabs } from '../src/main/browser/tab-close/close-tab.js'
 import { MAX_TABS, TabStateStore } from '../src/main/browser/tab-store.js'
 import { destroyWorkspaceStorage } from '../src/main/browser/workspace-storage.js'
 
+// The fake browser below stubs the functions the code under test calls; these reach its stubs.
+vi.mock('../src/main/browser/workspace-continuity/workspace-continuity.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-continuity/workspace-continuity.js')>(),
+  suspendWorkspaceContinuity: (browser: { suspendWorkspaceContinuity: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.suspendWorkspaceContinuity(...args)
+}))
+
 const CLOSING = '01912345-6789-7abc-8def-0123456789ab'
 const OTHER = '01912345-678a-7abc-8def-0123456789ab'
 /** The tab the person looks at, in the workspace that closes. */

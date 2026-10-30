@@ -4,6 +4,9 @@ import { savedWorkspaceWithoutUrlDetail, textResult, toolDescription, urlDetailO
 import { workspaceIdSchema, workspaceResumeKeySchema } from '../../tool-schemas.js'
 import { WorkspaceWriteLeaseError } from '../../workspace-write-leases.js'
 import type { McpToolContext } from '../tool-context.js'
+import { listMcpTabGroups, requireMcpTabGroup } from '../../../browser/mcp-tab-groups/mcp-tab-groups.js'
+import { saveAndCloseTabGroup } from '../../../browser/workspace-archive/workspace-archive.js'
+import { inspectWorkspaceContinuity, suspendWorkspaceContinuity } from '../../../browser/workspace-continuity/workspace-continuity.js'
 
 export function registerBrowserSavedWorkspaces(context: McpToolContext): void {
   const {
@@ -56,7 +59,7 @@ export function registerBrowserSavedWorkspaces(context: McpToolContext): void {
         if (!workspaceId) throw new TypeError('workspaceId is required to save a workspace')
         requireAgentWorkspace(workspaceId)
         const savingLease = workspaceLeases.require(workspaceId, client.id)
-        const saved = await manager.saveAndCloseTabGroup(workspaceId)
+        const saved = await saveAndCloseTabGroup(manager, workspaceId)
         let leaseOutcome: CallToolResult | undefined
         try {
           if (savingLease.generation) workspaceLeases.require(workspaceId, client.id, savingLease.generation)
@@ -76,8 +79,8 @@ export function registerBrowserSavedWorkspaces(context: McpToolContext): void {
         const writeLease = currentLease.status === 'busy'
           ? currentLease
           : workspaceLeases.claim(savedWorkspaceId, client.id)
-        const guarded = manager.suspendWorkspaceContinuity(savedWorkspaceId)
-        const continuity = guarded ? await manager.inspectWorkspaceContinuity(savedWorkspaceId) : undefined
+        const guarded = suspendWorkspaceContinuity(manager, savedWorkspaceId)
+        const continuity = guarded ? await inspectWorkspaceContinuity(manager, savedWorkspaceId) : undefined
         requireSavedWorkspace(savedWorkspaceId)
         if (writeLease.generation) workspaceLeases.require(savedWorkspaceId, client.id, writeLease.generation)
         return textResult({ ...withResumeKey(shown(manager.listSavedTabGroups().find((workspace) => workspace.id === savedWorkspaceId)!)), writeLease, ...(continuity ? { continuity } : {}) })
@@ -91,12 +94,12 @@ export function registerBrowserSavedWorkspaces(context: McpToolContext): void {
           workspaceLeases.require(savedWorkspaceId, client.id, writeLease.generation)
           savedWorkspaceIds.delete(savedWorkspaceId)
           activeWorkspaceIds.add(opened.id)
-          const guarded = manager.suspendWorkspaceContinuity(opened.id)
-          const continuity = guarded ? await manager.inspectWorkspaceContinuity(opened.id) : undefined
+          const guarded = suspendWorkspaceContinuity(manager, opened.id)
+          const continuity = guarded ? await inspectWorkspaceContinuity(manager, opened.id) : undefined
           requireAgentWorkspace(opened.id)
-          return textResult({ ...withResumeKey(manager.requireMcpTabGroup(opened.id)), writeLease, ...(continuity ? { continuity } : {}) })
+          return textResult({ ...withResumeKey(requireMcpTabGroup(manager, opened.id)), writeLease, ...(continuity ? { continuity } : {}) })
         } catch (error) {
-          if (manager.listMcpTabGroups().some((workspace) => workspace.id === savedWorkspaceId)) {
+          if (listMcpTabGroups(manager).some((workspace) => workspace.id === savedWorkspaceId)) {
             savedWorkspaceIds.delete(savedWorkspaceId)
             activeWorkspaceIds.add(savedWorkspaceId)
           }

@@ -17,6 +17,7 @@ import { textFragmentLink } from './text-fragment-link.js'
 import { LocalizedError } from '../../localized-error.js'
 import type { MessageKey } from '../../../shared/i18n.js'
 import { mediaPlayerActionAt, type MediaPlayerAction } from './media-player-actions.js'
+import { back, forward, reload, reloadIgnoringCache } from '../page-navigation/page-navigation.js'
 
 // The fields Chrome offers the emoji picker in: an editable element, which has no form control, a text, search,
 // address, email or password input, or a text area. A number, telephone or date field takes no emoji.
@@ -403,7 +404,7 @@ export function showContextMenu(browser: Browser, tab: BrowserTab, params: Conte
       label: browser.text('native.context.back'),
       enabled: navigation.canGoBack(),
       click: () => {
-        void browser.back(tab.id).catch((error) => browser.options.onActionFailed?.('go back', error))
+        void back(browser, tab.id).catch((error) => browser.options.onActionFailed?.('go back', error))
       }
     },
     {
@@ -411,21 +412,21 @@ export function showContextMenu(browser: Browser, tab: BrowserTab, params: Conte
       label: browser.text('native.context.forward'),
       enabled: navigation.canGoForward(),
       click: () => {
-        void browser.forward(tab.id).catch((error) => browser.options.onActionFailed?.('go forward', error))
+        void forward(browser, tab.id).catch((error) => browser.options.onActionFailed?.('go forward', error))
       }
     },
     {
       id: 'reload',
       label: browser.text('native.context.reload'),
       click: () => {
-        void browser.reload(tab.id).catch((error) => browser.options.onActionFailed?.('reload', error))
+        void reload(browser, tab.id).catch((error) => browser.options.onActionFailed?.('reload', error))
       }
     },
     {
       id: 'reload-ignoring-cache',
       label: browser.text('native.context.reloadWithoutCache'),
       click: () => {
-        void browser.reloadIgnoringCache(tab.id)
+        void reloadIgnoringCache(browser, tab.id)
           .catch((error) => browser.options.onActionFailed?.('reload without cache', error))
       }
     },

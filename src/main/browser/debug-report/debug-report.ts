@@ -7,6 +7,7 @@ import { currentNetworkRequests } from '../network-inspection/network-request-re
 import { networkRequestSummary } from '../network-inspection/network-request-summary.js'
 import { getTab } from '../browser-core.js'
 import { publishChange } from '../browser-state/browser-state.js'
+import { consoleMessages } from '../console-messages/console-messages.js'
 
 /**
  * Builds the tab's bounded debug report from its page problem, emulation,
@@ -21,7 +22,7 @@ export function debugReport(browser: Browser, options: BrowserDebugReportOptions
     ...(tab.pageProblem ? { pageProblem: { ...tab.pageProblem } } : {}),
     ...browser.emulationProjection(tab),
     networkRouteCount: tab.networkRoutes.length,
-    consoleMessages: browser.consoleMessages(tab.id),
+    consoleMessages: consoleMessages(browser, tab.id),
     networkRequests: currentNetworkRequests(tab).map((request) => networkRequestSummary(request)),
     options
   })

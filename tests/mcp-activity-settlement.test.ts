@@ -11,7 +11,8 @@ vi.mock('../src/main/browser/workspace-continuity/workspace-continuity.js', asyn
   beginWorkspaceContinuityAction: (browser: { beginWorkspaceContinuityAction: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.beginWorkspaceContinuityAction(...args),
   postWriteContextFingerprint: (browser: { postWriteContextFingerprint: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.postWriteContextFingerprint(...args),
   readPostWritePostcondition: (browser: { readPostWritePostcondition: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.readPostWritePostcondition(...args),
-  requireWorkspaceContinuityDispatch: (browser: { requireWorkspaceContinuityDispatch: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireWorkspaceContinuityDispatch(...args)
+  requireWorkspaceContinuityDispatch: (browser: { requireWorkspaceContinuityDispatch: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireWorkspaceContinuityDispatch(...args),
+  suspendWorkspaceContinuity: (browser: { suspendWorkspaceContinuity: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.suspendWorkspaceContinuity(...args)
 }))
 vi.mock('../src/main/browser/agent-page-actions/click.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/agent-page-actions/click.js')>(),
@@ -19,7 +20,25 @@ vi.mock('../src/main/browser/agent-page-actions/click.js', async (importOriginal
 }))
 vi.mock('../src/main/browser/workspace-scope/workspace-scope.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/workspace-scope/workspace-scope.js')>(),
-  requireTabInMcpGroup: (browser: { requireTabInMcpGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireTabInMcpGroup(...args)
+  requireTabInMcpGroup: (browser: { requireTabInMcpGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireTabInMcpGroup(...args),
+  getMcpGroupState: (browser: { getMcpGroupState: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.getMcpGroupState(...args),
+  tabBelongsToMcpGroup: (browser: { tabBelongsToMcpGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.tabBelongsToMcpGroup(...args)
+}))
+vi.mock('../src/main/browser/mcp-tab-groups/create-mcp-tab-group.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/mcp-tab-groups/create-mcp-tab-group.js')>(),
+  createMcpTabGroup: (browser: { createMcpTabGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.createMcpTabGroup(...args)
+}))
+vi.mock('../src/main/browser/mcp-tab-groups/mcp-tab-groups.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/mcp-tab-groups/mcp-tab-groups.js')>(),
+  listMcpTabGroups: (browser: { listMcpTabGroups: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.listMcpTabGroups(...args),
+  requireMcpTabGroup: (browser: { requireMcpTabGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireMcpTabGroup(...args)
+}))
+// A fake browser that stubs no pause answers has no paused or taken-over tab.
+vi.mock('../src/main/browser/agent-pause/agent-pause.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/agent-pause/agent-pause.js')>(),
+  isTabAgentPaused: (browser: { isTabAgentPaused?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.isTabAgentPaused?.(...args) ?? false,
+  hasPausedAgentTab: (browser: { hasPausedAgentTab?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.hasPausedAgentTab?.(...args) ?? false,
+  isTabTakenOver: (browser: { isTabTakenOver?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.isTabTakenOver?.(...args) ?? false
 }))
 
 it.each([['verified', 'storage'], ['failed', 'storage'], ['cleanup', 'storage'], ['cleanup', 'authorization']] as const)('settles %s activity when review finalization fails: %s', async (phase, failure) => {

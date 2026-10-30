@@ -9,6 +9,7 @@ import { ensureHumanWorkspace } from '../workspace-creation/human-workspace.js'
 import { assertWorkspaceNavigationAllowed } from '../workspace-navigation/workspace-navigation.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { browserState } from '../browser-state/browser-state.js'
+import { requireMcpTabGroup } from '../mcp-tab-groups/mcp-tab-groups.js'
 
 /** The browser's tab limit. */
 const MAX_TABS = MAX_BROWSER_TABS
@@ -63,7 +64,7 @@ export async function createNewTab(browser: Browser, options: NewTabOptions, sel
   }
   const createsWorkspace = !options.mcpGroupId && browser.mcpTabGroups.size === 0
   const groupId = options.mcpGroupId ?? ensureHumanWorkspace(browser)
-  browser.requireMcpTabGroup(groupId)
+  requireMcpTabGroup(browser, groupId)
   assertWorkspaceNavigationAllowed(browser, groupId, url, 'direct')
   try {
     await browser.createTab({

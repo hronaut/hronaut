@@ -9,6 +9,20 @@ vi.mock('../src/main/browser/dropped-links/dropped-links.js', async (importOrigi
   ...await importOriginal<typeof import('../src/main/browser/dropped-links/dropped-links.js')>(),
   openDroppedLink: (browser: { openDroppedLink: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.openDroppedLink(...args)
 }))
+// The fake browser below stubs the functions its tool calls go through; these reach its stubs.
+vi.mock('../src/main/browser/page-navigation/page-navigation.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/page-navigation/page-navigation.js')>(),
+  back: (browser: { back: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.back(...args),
+  forward: (browser: { forward: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.forward(...args),
+  reload: (browser: { reload: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.reload(...args)
+}))
+// A fake browser that stubs no pause answers has no paused or taken-over tab.
+vi.mock('../src/main/browser/agent-pause/agent-pause.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/agent-pause/agent-pause.js')>(),
+  isTabAgentPaused: (browser: { isTabAgentPaused?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.isTabAgentPaused?.(...args) ?? false,
+  hasPausedAgentTab: (browser: { hasPausedAgentTab?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.hasPausedAgentTab?.(...args) ?? false,
+  isTabTakenOver: (browser: { isTabTakenOver?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.isTabTakenOver?.(...args) ?? false
+}))
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown
 

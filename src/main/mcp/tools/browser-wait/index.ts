@@ -3,7 +3,7 @@ import { URL_DETAIL_OMITTED_NOTE, urlWithoutDetail } from '../../../../shared/ur
 import { closedTabWaitResult, errorResult, textResult, toolDescription, urlDetailOmitted } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
-import { waitForElement, waitForText, waitForUrlPattern } from '../../../browser/page-waits/page-waits.js'
+import { waitForElement, waitForText, waitForUrlPattern, waitForPage } from '../../../browser/page-waits/page-waits.js'
 
 export function registerBrowserWait(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -76,7 +76,7 @@ export function registerBrowserWait(context: McpToolContext): void {
             ? textResult(`Text disappeared: ${textGone}`)
             : errorResult(new Error(`Timed out waiting for text to disappear: ${textGone}`))
         }
-        await manager.waitForPage(tabId, timeoutMs)
+        await waitForPage(manager, tabId, timeoutMs)
         return textResult('Page is no longer loading.')
       } catch (error) {
         const closedTabResult = closedTabWaitResult(error)

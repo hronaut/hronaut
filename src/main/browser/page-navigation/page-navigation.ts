@@ -13,6 +13,7 @@ import { forgetTabsOpenedFrom } from '../link-tab-placement/link-tab-openers.js'
 import { findTab, getTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { browserState, publishChange } from '../browser-state/browser-state.js'
+import { waitForPage } from '../page-waits/page-waits.js'
 
 // A copy of the tab manager's own check, which its load and wake handling keep using.
 const ABORTED_LOAD_ERROR = -3
@@ -316,7 +317,7 @@ async function reloadPage(browser: Browser, tabId: string | undefined, ignoreCac
         // than load a replacement. Await that one intentional exit first.
         if (ignoreCache) contents.reloadIgnoringCache()
         else contents.reload()
-        await browser.waitForPage(tab.id, 30_000)
+        await waitForPage(browser, tab.id, 30_000)
       })
     } catch (error) {
       if (isCurrent() && !tab.pageProblem) {
@@ -329,7 +330,7 @@ async function reloadPage(browser: Browser, tabId: string | undefined, ignoreCac
     if (ignoreCache) tab.webContents.reloadIgnoringCache()
     else tab.webContents.reload()
   }
-  await browser.waitForPage(tab.id, 30_000)
+  await waitForPage(browser, tab.id, 30_000)
   return browserState(browser)
 }
 

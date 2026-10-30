@@ -7,7 +7,7 @@ import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import { type RequestConditionsSettlement, requestConditionsSettlement } from '../request-conditions-settlement.js'
 import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
-import { networkConditionPublication } from '../../../browser/network-conditions/network-conditions.js'
+import { networkConditionPublication, networkConditionState, addNetworkRoute, removeNetworkRoute, moveNetworkRoute, setNetworkRouteEnabled, clearNetworkRoutes, networkRoutes } from '../../../browser/network-conditions/network-conditions.js'
 
 export function registerBrowserNetworkRoutes(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -107,25 +107,25 @@ export function registerBrowserNetworkRoutes(context: McpToolContext): void {
         return textResult({ status: action === 'release' ? 'RELEASED' : 'CANCELLED', routeId })
       }
       try {
-        if (action === 'list') return publish(manager.networkRoutes(tabId))
-        if (action === 'clear') return publish(await manager.clearNetworkRoutes(tabId, validateConditions, markConditionsSubmitted))
+        if (action === 'list') return publish(networkRoutes(manager, tabId))
+        if (action === 'clear') return publish(await clearNetworkRoutes(manager, tabId, validateConditions, markConditionsSubmitted))
         if (action === 'set-enabled') {
           if (!routeId || typeof enabled !== 'boolean') refuse('routeId and boolean enabled are required for set-enabled')
-          return publish(await manager.setNetworkRouteEnabled(tabId, routeId, enabled, validateConditions, markConditionsSubmitted))
+          return publish(await setNetworkRouteEnabled(manager, tabId, routeId, enabled, validateConditions, markConditionsSubmitted))
         }
         if (action === 'move') {
           if (!routeId || !direction) refuse('routeId and direction are required when moving a network route')
-          return publish(await manager.moveNetworkRoute(tabId, routeId, direction, validateConditions, markConditionsSubmitted))
+          return publish(await moveNetworkRoute(manager, tabId, routeId, direction, validateConditions, markConditionsSubmitted))
         }
         if (action === 'remove') {
           if (!routeId) refuse('routeId is required when removing a network route')
-          return publish(await manager.removeNetworkRoute(tabId, routeId, validateConditions, markConditionsSubmitted))
+          return publish(await removeNetworkRoute(manager, tabId, routeId, validateConditions, markConditionsSubmitted))
         }
         if (!urlPattern) refuse('urlPattern is required when adding a network route')
-        return publish(await manager.addNetworkRoute(tabId, { urlPattern, method, times, response, abort, throttle, holdUntilReleased, holdSeconds }, validateConditions, markConditionsSubmitted))
+        return publish(await addNetworkRoute(manager, tabId, { urlPattern, method, times, response, abort, throttle, holdUntilReleased, holdSeconds }, validateConditions, markConditionsSubmitted))
       } catch (error) {
         validateConditions()
-        const state = manager.networkConditionState(tabId)
+        const state = networkConditionState(manager, tabId)
         if (state.application === 'confirmed') {
           // A change refused before anything was sent keeps its message for the agent. The call wrapper turns the
           // error into a result before the settlement sees it, so the settlement is told here.

@@ -6,6 +6,7 @@ import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import { type RequestConditionsSettlement, requestConditionsSettlement } from '../request-conditions-settlement.js'
 import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
+import { emulate } from '../../../browser/emulation/emulation.js'
 
 export function registerBrowserEmulate(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -85,7 +86,7 @@ export function registerBrowserEmulate(context: McpToolContext): void {
         call.requirePostWriteContext()
         if (call.authorityRejection()) throw new Error('Request-condition authority changed')
       }
-      const result = await manager.emulate(options, validateConditions, call.settlement.markSubmitted, assert => {
+      const result = await emulate(manager, options, validateConditions, call.settlement.markSubmitted, assert => {
         call.settlement.retainPublication(() => { validateConditions(); assert() })
       })
       return textResult(result)

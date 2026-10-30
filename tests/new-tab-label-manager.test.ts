@@ -19,6 +19,12 @@ vi.mock('../src/main/browser/workspace-navigation/workspace-navigation.js', asyn
 }))
 import { Browser } from '../src/main/browser/browser.js'
 
+// The fake browser below stubs the functions the code under test calls; these reach its stubs.
+vi.mock('../src/main/browser/mcp-tab-groups/mcp-tab-groups.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/mcp-tab-groups/mcp-tab-groups.js')>(),
+  requireMcpTabGroup: (browser: { requireMcpTabGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireMcpTabGroup(...args)
+}))
+
 function fixture() {
   const tab = { id: 'owned', title: 'Page', url: 'https://example.test/', mcpGroupId: 'workspace', label: undefined as string | undefined }
   let snapshot!: () => unknown
