@@ -5,6 +5,7 @@ import {
   answerCertificateError,
   certificateRefusal,
   contentLoaded,
+  pageReplaced,
   proceedPastCertificateError,
   showsUntrustedCertificate,
   trustRefusedCertificate,
@@ -49,8 +50,8 @@ function probeAnswering(outcome: Outcome) {
 function harness(outcome: Outcome = { error: 'net::ERR_UNSAFE_PORT' }, session: object = {}) {
   const { probe, urls, requests } = probeAnswering(outcome)
   const access = { probe, changed: vi.fn() }
-  const tab: { url: string, documentGeneration: number, pageProblem?: { certificate?: object }, webContents: { session: object } } = {
-    url: PAGE, documentGeneration: 0, webContents: { session }
+  const tab: { url: string, pageProblem?: { certificate?: object }, webContents: { session: object } } = {
+    url: PAGE, webContents: { session }
   }
   const report = (url: string, options: { error?: string, fingerprint?: string, mainFrame?: boolean } = {}) => {
     const event = { preventDefault: vi.fn() }
@@ -130,7 +131,8 @@ describe('a certificate Chromium does not trust', () => {
     access.changed.mockClear()
     // Another website's page, with a certificate Chromium trusts, loads a frame and a script of the website the person
     // chose to trust; content from any other website changes nothing.
-    Object.assign(tab, { url: 'https://intranet.example/', pageProblem: undefined, documentGeneration: 1 })
+    Object.assign(tab, { url: 'https://intranet.example/', pageProblem: undefined })
+    pageReplaced(tab.webContents)
     contentLoaded(access, tab, 'https://cdn.example/app.js')
     contentLoaded(access, tab, 'http://staging.example/plain.js')
     expect(showsUntrustedCertificate(tab)).toBe(false)
@@ -139,7 +141,7 @@ describe('a certificate Chromium does not trust', () => {
     contentLoaded(access, tab, 'https://staging.example/app.js')
     expect(access.changed).toHaveBeenCalledOnce()
     // The next page the tab shows is private again, until it loads such content too; another workspace's tab never is.
-    tab.documentGeneration = 2
+    pageReplaced(tab.webContents)
     expect(showsUntrustedCertificate(tab)).toBe(false)
     contentLoaded(access, tab, 'https://staging.example/app.js')
     expect(showsUntrustedCertificate(tab)).toBe(true)

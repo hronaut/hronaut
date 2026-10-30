@@ -6,7 +6,7 @@ import { normalizeTabTitle } from '../tab-metadata.js'
 import { isWebUrl } from '../url.js'
 import type { Browser } from '../browser.js'
 import type { BrowserTab } from '../browser-tab.js'
-import { certificateRefusal } from '../certificate-errors/certificate-errors.js'
+import { certificateRefusal, pageReplaced } from '../certificate-errors/certificate-errors.js'
 import { appendConsoleMessage } from '../console-messages/console-messages.js'
 import { watchCredentialSubmission } from '../credential-capture/credential-capture.js'
 import { recordAuthChallenge } from '../inspector-issues/inspector-issues.js'
@@ -249,6 +249,7 @@ export function attachNavigationEvents(browser: Browser, tab: BrowserTab, webCon
     // Reset only when a new main-frame document commits, never on a failed load.
     tab.performanceDocumentRouted = false
     tab.documentGeneration += 1
+    pageReplaced(webContents)
     walletDocumentReplaced()
     trackWorkspaceOrigin(browser, tab, url)
     tab.memoryBaseline = undefined
@@ -345,6 +346,7 @@ export function attachNavigationEvents(browser: Browser, tab: BrowserTab, webCon
     if (!isMainFrame || errorCode === ABORTED_LOAD_ERROR) return
     tab.authNavigationPending = false
     tab.documentGeneration += 1
+    pageReplaced(webContents)
     const failedUrl = validatedURL || tab.url
     tab.loading = false
     if (previousUrl !== failedUrl) tab.faviconDataUrl = undefined

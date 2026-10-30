@@ -10,6 +10,7 @@ vi.mock('../src/main/browser/certificate-errors/certificate-errors.js', async (i
 const { reloadWhenWebsiteReachable } = vi.hoisted(() => ({ reloadWhenWebsiteReachable: vi.fn<(browser: unknown, tab: { pageProblem: unknown }) => void>() }))
 vi.mock('../src/main/browser/network-error-reload/network-error-reload.js', () => ({ reloadWhenWebsiteReachable }))
 import { attachNavigationEvents } from '../src/main/browser/tab-events/navigation-events.js'
+import { contentLoaded, showsUntrustedCertificate, trustRefusedCertificate } from '../src/main/browser/certificate-errors/certificate-errors.js'
 
 // The fake browser stubs these, which are functions now; the mock reaches its stubs.
 vi.mock('../src/main/browser/certificate-errors/browser-certificate-errors.js', async (importOriginal) => ({
@@ -120,5 +121,33 @@ describe('a page whose website presented a certificate the tab refused', () => {
       expect(shown, description).toEqual([tab.pageProblem])
       expect(tab.pageProblem, description).toMatchObject({ errorDescription: description })
     }
+  })
+
+  it('keeps a page not private for content it loaded from a website trusted anyway until another page or an error page replaces it', () => {
+    const { tab: shown, contents } = tabWithRefusal()
+    const page = 'https://dash.example/'
+    const tab = Object.assign(shown, {
+      url: page,
+      pageProblem: undefined as { certificate?: object } | undefined,
+      webContents: Object.assign(contents, { session: {}, getURL: () => page })
+    })
+    trustRefusedCertificate(tab, { url: 'https://staging.example/', host: 'staging.example', error: 'net::ERR_CERT_AUTHORITY_INVALID', fingerprint: 'sha256/abc=', canProceed: true })
+    const changed = vi.fn()
+    contentLoaded({ changed }, tab, 'https://staging.example/frame')
+    expect(changed).toHaveBeenCalledOnce()
+    expect(showsUntrustedCertificate(tab)).toBe(true)
+    // A link that turns out to be a download, or a 204, starts a page that never shows, and the load ends aborted.
+    contents.emit('did-start-navigation', {}, 'https://dash.example/report.pdf', false, true)
+    contents.emit('did-fail-load', {}, -3, 'ERR_ABORTED', 'https://dash.example/report.pdf', true)
+    expect(showsUntrustedCertificate(tab)).toBe(true)
+    contents.emit('did-navigate', {}, 'https://dash.example/next', 200, 'OK')
+    expect(showsUntrustedCertificate(tab)).toBe(false)
+    contentLoaded({ changed }, tab, 'https://staging.example/frame')
+    expect(showsUntrustedCertificate(tab)).toBe(true)
+    // An error page replaces the page too.
+    contents.emit('did-start-navigation', {}, 'https://dash.example/gone', false, true)
+    contents.emit('did-fail-load', {}, -105, 'ERR_NAME_NOT_RESOLVED', 'https://dash.example/gone', true)
+    expect(tab.pageProblem).toMatchObject({ errorDescription: 'ERR_NAME_NOT_RESOLVED' })
+    expect(showsUntrustedCertificate(tab)).toBe(false)
   })
 })
