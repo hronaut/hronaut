@@ -6,6 +6,8 @@ vi.mock('../src/main/browser/tab-overview-previews/tab-overview-previews.js', as
   invalidateTabOverviewPreview: (browser: { invalidateTabOverviewPreview: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.invalidateTabOverviewPreview(...args)
 }))
 import { Browser } from '../src/main/browser/browser.js'
+import { closeTabTransition } from '../src/main/browser/tab-close/close-transition.js'
+import { removeTabRecord } from '../src/main/browser/tab-close/remove-tab-record.js'
 
 // Closing a tab opened from a page's link showed the tab to its right, where Chrome shows the page's next tab or the
 // page itself; a workspace whose remembered tab closed off screen remembered that tab too.
@@ -18,8 +20,6 @@ interface Internals {
   activeTabId: string | null
   tabs: Map<string, Tab>
   mcpTabGroups: Map<string, { id: string; activeTabId: string | null; lastUsedAt: string }>
-  closeTabTransition(tab: Tab): { splitPartnerId: string | null; nextId: string | undefined }
-  removeTabRecord(tab: Tab): void
   selectTabForPerson(tabId: string): Promise<unknown>
   selectTabAndWait(tabId: string): Promise<unknown>
 }
@@ -39,7 +39,7 @@ function fixture(spec: Array<{ id: string; from?: string; workspace?: string }>,
     splitView: null,
     cssStatePreview: forgets(), virtualPasskeys: forgets(), domMutationSource: forgets(), logpoints: forgets(), workerEvaluations: forgets(),
     invalidateTabOverviewPreview: vi.fn(), tabOverviewSleepPreviews: new Map(), tabOverviewPreviewCaptures: { cancelPending: vi.fn() },
-    tabOverviewPreviewableTabs: new Set(), runWalletLifecycleAction: vi.fn(), options: {}, deleteSnapshotBaselineForTab: vi.fn(),
+    tabOverviewPreviewableTabs: new Set(), runWalletLifecycleAction: vi.fn(), options: {}, snapshotBaselines: new Map(), snapshotBaselineIdsByTab: new Map(),
     globallyUnlockedTabIds: new Set(), globallyResumedAgentTabIds: new Set(), browserSessionAuthorityHooks: new Map(),
     mcpActivitiesByTab: new Map(), mcpActivityFollower: { removeTab: vi.fn() }, webContentsToTab: new Map()
   }) as unknown as Internals
@@ -47,8 +47,8 @@ function fixture(spec: Array<{ id: string; from?: string; workspace?: string }>,
 
 function closeShown(manager: Internals, id: string): string | undefined {
   manager.activeTabId = id
-  const { nextId } = manager.closeTabTransition(manager.tabs.get(id)!)
-  manager.removeTabRecord(manager.tabs.get(id)!)
+  const { nextId } = closeTabTransition(manager as never, manager.tabs.get(id)! as never)
+  removeTabRecord(manager as never, manager.tabs.get(id)! as never)
   return nextId
 }
 
@@ -68,7 +68,7 @@ describe('closing the shown tab opened from a page', () => {
 
   it('shows the tab beside it once the page is closed, as for any tab', () => {
     const manager = fixture([{ id: 'app' }, { id: 'one', from: 'app' }, { id: 'mail' }])
-    manager.removeTabRecord(manager.tabs.get('app')!)
+    removeTabRecord(manager as never, manager.tabs.get('app')! as never)
     expect(manager.tabs.get('one')).not.toHaveProperty('openedFromTabId')
     expect(closeShown(manager, 'one')).toBe('mail')
   })
@@ -84,10 +84,10 @@ describe('a workspace whose remembered tab opened from a page closes off screen'
   it('remembers the tab closing it on screen would show', () => {
     const manager = fixture([{ id: 'app' }, { id: 'one', from: 'app' }, { id: 'mail' }, { id: 'shown', workspace: 'other' }], 'one')
     manager.activeTabId = 'shown'
-    manager.removeTabRecord(manager.tabs.get('one')!)
+    removeTabRecord(manager as never, manager.tabs.get('one')! as never)
     expect(manager.mcpTabGroups.get('work')!.activeTabId).toBe('app')
     const siblings = fixture([{ id: 'app' }, { id: 'one', from: 'app' }, { id: 'mail' }, { id: 'two', from: 'app' }], 'two')
-    siblings.removeTabRecord(siblings.tabs.get('two')!)
+    removeTabRecord(siblings as never, siblings.tabs.get('two')! as never)
     expect(siblings.mcpTabGroups.get('work')!.activeTabId).toBe('one')
   })
 })

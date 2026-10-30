@@ -58,7 +58,7 @@ vi.mock('../src/main/browser/window-layout/window-layout.js', async (importOrigi
 const { Browser } = await import('../src/main/browser/browser.js')
 const { WorkspaceRegistry } = await import('../src/main/browser/workspace-registry.js')
 const { closeTabsForPerson } = await import('../src/main/browser/tab-close/close-tabs-for-person.js')
-const { reopenClosedTabEntry } = await import('../src/main/browser/tab-reopening/tab-reopening.js')
+const { rememberClosedTab, reopenClosedTabEntry } = await import('../src/main/browser/tab-reopening/tab-reopening.js')
 
 const WORKSPACE = '01912345-6789-7abc-8def-0123456789ab'
 
@@ -68,7 +68,6 @@ interface Manager {
   createTab(options: { url: string; mcpGroupId: string; active: boolean }): Promise<Tab>
   setTabMuted(tabId: string, muted: boolean): unknown
   setAllTabsMuted(muted: boolean): unknown
-  rememberClosedTab(tab: Tab): void
   duplicateTabAfterLabelSave(tabId: string): Promise<unknown>
   closeTabInternal(tabId: string): Promise<unknown>
 }
@@ -96,7 +95,7 @@ function browser() {
     withTabLabelLifecycle: (run: () => Promise<unknown>) => run(), getState: () => ({}), text: (key: string) => key,
     async closeTabInternal(this: Manager, tabId: string) {
       // The close bookkeeping of a real close: the tab is remembered, then removed.
-      this.rememberClosedTab(this.tabs.get(tabId)!)
+      rememberClosedTab(this as never, this.tabs.get(tabId)! as never)
       this.tabs.delete(tabId)
       return {}
     }

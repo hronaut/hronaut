@@ -4,6 +4,7 @@ import type { BrowserTab } from '../browser-tab.js'
 import { publishPageGeometry } from '../page-geometry/page-geometry.js'
 import { focusTabOrTrustedChrome } from '../trusted-chrome-focus/trusted-chrome-focus.js'
 import { contentAreaBounds } from '../window-layout/content-area.js'
+import { closeTabTransition } from './close-transition.js'
 import { roundPageCorners } from '../window-layout/window-layout.js'
 
 /**
@@ -28,7 +29,7 @@ export function stageBeforeUnloadClose(browser: Browser, tab: BrowserTab): {
 
   const bounds = tab.view.getBounds()
   const visible = tab.view.getVisible()
-  const nextId = browser.closeTabTransition(tab).nextId
+  const nextId = closeTabTransition(browser, tab).nextId
   const replacement = wasActive && !splitPartnerId && nextId
     ? findTab(browser, nextId)
     : undefined

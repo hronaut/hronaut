@@ -8,6 +8,7 @@ vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOrigi
 }))
 import type { MenuItemConstructorOptions } from 'electron'
 import { Browser } from '../src/main/browser/browser.js'
+import { closeTabTransition } from '../src/main/browser/tab-close/close-transition.js'
 import { orderedTabs } from '../src/main/browser/browser-core.js'
 
 afterEach(() => {
@@ -23,7 +24,6 @@ interface Internals {
   activeTabId: string | null
   changed: ReturnType<typeof vi.fn>
   window: { webContents: { send: ReturnType<typeof vi.fn> } }
-  closeTabTransition(tab: Tab): { splitPartnerId: string | null; nextId: string | undefined }
   workspaceContextMenuItems(group: Group): MenuItemConstructorOptions[]
 }
 
@@ -134,9 +134,9 @@ describe('tab order in main with pinned workspaces', () => {
     ])
     internals.activeTabId = 'beta-1'
     // On screen beta comes first, so alpha follows it, rather than wrapping back as the stored order would.
-    expect(internals.closeTabTransition(internals.tabs.get('beta-1')!).nextId).toBe('alpha-1')
+    expect(closeTabTransition(internals as never, internals.tabs.get('beta-1')! as never).nextId).toBe('alpha-1')
     internals.activeTabId = 'alpha-1'
-    expect(internals.closeTabTransition(internals.tabs.get('alpha-1')!).nextId).toBe('beta-1')
+    expect(closeTabTransition(internals as never, internals.tabs.get('alpha-1')! as never).nextId).toBe('beta-1')
   })
 
   // A pinned tab of any workspace but the first came before every other workspace's tabs, so closing it showed the
@@ -150,7 +150,7 @@ describe('tab order in main with pinned workspaces', () => {
     ])
     expect(orderedTabs(internals as never).map((tab) => tab.id)).toEqual(['work-1', 'work-2', 'docs-pinned', 'docs-2'])
     internals.activeTabId = 'docs-pinned'
-    expect(internals.closeTabTransition(internals.tabs.get('docs-pinned')!).nextId).toBe('docs-2')
+    expect(closeTabTransition(internals as never, internals.tabs.get('docs-pinned')! as never).nextId).toBe('docs-2')
   })
 })
 

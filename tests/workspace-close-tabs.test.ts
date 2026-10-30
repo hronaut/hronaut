@@ -18,6 +18,19 @@ vi.mock('../src/main/browser/trusted-chrome-focus/trusted-chrome-focus.js', asyn
   ...await importOriginal<typeof import('../src/main/browser/trusted-chrome-focus/trusted-chrome-focus.js')>(),
   focusTabOrTrustedChrome: (browser: { focusTabOrTrustedChrome: (tab: unknown) => void }, tab: unknown) => browser.focusTabOrTrustedChrome(tab)
 }))
+// It also stubs cancelNativeSelectionSessions, detachDialogMonitoring and removeTabRecord, through which closing a tab
+// ends its selections, stops watching its dialogs and forgets it.
+vi.mock('../src/main/browser/native-selections/native-selections.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/native-selections/native-selections.js')>(),
+  cancelNativeSelectionSessions: (browser: { cancelNativeSelectionSessions: (tab: unknown) => void }, tab: unknown) => browser.cancelNativeSelectionSessions(tab)
+}))
+vi.mock('../src/main/browser/website-dialogs/website-dialogs.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/website-dialogs/website-dialogs.js')>(),
+  detachDialogMonitoring: (browser: { detachDialogMonitoring: (page: unknown) => void }, page: unknown) => browser.detachDialogMonitoring(page)
+}))
+vi.mock('../src/main/browser/tab-close/remove-tab-record.js', () => ({
+  removeTabRecord: (browser: { removeTabRecord: (tab: unknown) => void }, tab: unknown) => browser.removeTabRecord(tab)
+}))
 import { Browser } from '../src/main/browser/browser.js'
 import { MAX_TABS, TabStateStore, type PersistedBrowserState } from '../src/main/browser/tab-store.js'
 import { destroyWorkspaceStorage } from '../src/main/browser/workspace-storage.js'

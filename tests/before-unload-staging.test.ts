@@ -20,6 +20,7 @@ function activeTab() {
     tabs: new Map([[tab.id, tab]]),
     activeTabId: tab.id,
     splitView: null,
+    mcpTabGroups: new Map(),
     splitViewContains: () => false,
     window: {
       contentView: {
@@ -28,7 +29,6 @@ function activeTab() {
         removeChildView: (child: unknown) => { if (children.includes(child)) children.splice(children.indexOf(child), 1) }
       }
     },
-    closeTabTransition: () => ({ splitPartnerId: null, nextId: undefined }),
     tabViewBounds: () => view.getBounds(),
     publishPageGeometry: vi.fn(),
     layout: vi.fn(),

@@ -11,6 +11,8 @@ vi.mock('../src/main/browser/tab-overview-previews/tab-overview-previews.js', as
   invalidateTabOverviewPreview: (browser: { invalidateTabOverviewPreview: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.invalidateTabOverviewPreview(...args)
 }))
 import { Browser } from '../src/main/browser/browser.js'
+import { closeTabTransition } from '../src/main/browser/tab-close/close-transition.js'
+import { removeTabRecord } from '../src/main/browser/tab-close/remove-tab-record.js'
 
 // A new tab from + or Ctrl/Cmd+T, closed right away, showed the tab beside it (the workspace's last tab), where Chrome
 // shows the tab the person was on.
@@ -25,8 +27,6 @@ interface Internals {
   mcpTabGroups: Map<string, { id: string; activeTabId: string | null; lastUsedAt: string }>
   createNewTab: (options: unknown, selectVisible: boolean, onCreated?: (tab: Tab) => void) => Promise<unknown>
   newTab(options?: { active?: boolean; url?: string }, selectVisible?: boolean): Promise<unknown>
-  closeTabTransition(tab: Tab): { splitPartnerId: string | null; nextId: string | undefined }
-  removeTabRecord(tab: Tab): void
   markTabActiveInGroup(tab: Tab): void
   writeActiveTabId(tabId: string | null): void
 }
@@ -47,7 +47,7 @@ function fixture(spec: Array<{ id: string; workspace?: string | null; returnsTo?
     splitView: null,
     cssStatePreview: forgets(), virtualPasskeys: forgets(), domMutationSource: forgets(), logpoints: forgets(), workerEvaluations: forgets(),
     invalidateTabOverviewPreview: vi.fn(), tabOverviewSleepPreviews: new Map(), tabOverviewPreviewCaptures: { cancelPending: vi.fn() },
-    tabOverviewPreviewableTabs: new Set(), runWalletLifecycleAction: vi.fn(), options: {}, deleteSnapshotBaselineForTab: vi.fn(),
+    tabOverviewPreviewableTabs: new Set(), runWalletLifecycleAction: vi.fn(), options: {}, snapshotBaselines: new Map(), snapshotBaselineIdsByTab: new Map(),
     globallyUnlockedTabIds: new Set(), globallyResumedAgentTabIds: new Set(), browserSessionAuthorityHooks: new Map(),
     mcpActivitiesByTab: new Map(), mcpActivityFollower: { removeTab: vi.fn() }, webContentsToTab: new Map()
   }) as unknown as Internals
@@ -82,14 +82,14 @@ describe('closing a new tab', () => {
   it('shows the tab the person was on rather than the tab beside it', () => {
     const manager = fixture([{ id: 'one' }, { id: 'two' }, { id: 'three' }, { id: 'new', returnsTo: 'one' }])
     manager.activeTabId = 'new'
-    expect(manager.closeTabTransition(manager.tabs.get('new')!).nextId).toBe('one')
+    expect(closeTabTransition(manager as never, manager.tabs.get('new')! as never).nextId).toBe('one')
   })
 
   it('shows the tab beside it once that tab is closed', () => {
     const manager = fixture([{ id: 'one' }, { id: 'two' }, { id: 'three' }, { id: 'new', returnsTo: 'one' }])
-    manager.removeTabRecord(manager.tabs.get('one')!)
+    removeTabRecord(manager as never, manager.tabs.get('one')! as never)
     manager.activeTabId = 'new'
-    expect(manager.closeTabTransition(manager.tabs.get('new')!).nextId).toBe('three')
+    expect(closeTabTransition(manager as never, manager.tabs.get('new')! as never).nextId).toBe('three')
   })
 
   it('shows the tab beside it once another tab showed, as in Chrome', () => {
@@ -103,14 +103,14 @@ describe('closing a new tab', () => {
     manager.writeActiveTabId('two')
     expect(manager.tabs.get('new')).not.toHaveProperty('returnsToTabId')
     manager.writeActiveTabId('new')
-    expect(manager.closeTabTransition(manager.tabs.get('new')!).nextId).toBe('three')
+    expect(closeTabTransition(manager as never, manager.tabs.get('new')! as never).nextId).toBe('three')
   })
 
   it('makes its workspace remember the tab the person was on when it closes off screen', () => {
     const manager = fixture([{ id: 'one' }, { id: 'two' }, { id: 'new', returnsTo: 'one' }, { id: 'elsewhere', workspace: 'other' }])
     manager.mcpTabGroups.get('work')!.activeTabId = 'new'
     manager.activeTabId = 'elsewhere'
-    manager.removeTabRecord(manager.tabs.get('new')!)
+    removeTabRecord(manager as never, manager.tabs.get('new')! as never)
     expect(manager.mcpTabGroups.get('work')!.activeTabId).toBe('one')
   })
 })

@@ -125,11 +125,6 @@ export default defineConfig(
     rules: { 'no-useless-escape': 'off' }
   },
   {
-    // A before-unload close confirmation starts out false before it is awaited.
-    files: ['src/main/browser/browser.ts'],
-    rules: { 'no-useless-assignment': 'off' }
-  },
-  {
     // These files' cleanup deliberately reports a failed restoration or release
     // from inside finally.
     files: [

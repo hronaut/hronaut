@@ -25,6 +25,7 @@ import { Browser } from '../src/main/browser/browser.js'
 import { ISOLATED_WORLDS } from '../src/main/browser/isolated-worlds.js'
 import { setEmulationViewSize } from '../src/main/browser/emulation/emulation-view-size.js'
 import { withRenderableTab } from '../src/main/browser/renderable-tab/renderable-tab.js'
+import { stageBeforeUnloadClose } from '../src/main/browser/tab-close/before-unload-staging.js'
 import { createBrowserShortcutRouting } from '../src/main/browser-shortcut-routing.js'
 import {
   attachPageFullscreenEvents,
@@ -224,7 +225,7 @@ describe('page full screen layout', () => {
     first.pageFullscreen = true
     manager.layout()
     // The replacement used to take the whole window the closing page in full screen filled.
-    const staged = (manager as unknown as { stageBeforeUnloadClose(tab: unknown): { targetDetached: boolean } }).stageBeforeUnloadClose(first)
+    const staged = stageBeforeUnloadClose(manager as never, first as never)
     expect(staged.targetDetached).toBe(true)
     expect(second.view.setBounds).toHaveBeenLastCalledWith({ x: 280, y: 60, width: 1150, height: 830 })
   })
