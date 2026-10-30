@@ -1,9 +1,13 @@
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
 import { urlWithoutDetail } from '../../../../shared/url-detail.js'
-import { textResult, toolDescription, urlDetailOmitted } from '../../tool-results.js'
+import { toolDescription, urlDetailOmitted } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
 import { callWebMcpTool, listWebMcpTools, webMcpStatus } from '../../../browser/webmcp/webmcp.js'
+
+// A page's tools and results are its own data, so the text is compact JSON: indenting it could multiply its size.
+const compactTextResult = (value: unknown): CallToolResult => ({ content: [{ type: 'text', text: JSON.stringify(value) }] })
 
 export function registerBrowserWebmcp(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -38,11 +42,11 @@ export function registerBrowserWebmcp(context: McpToolContext): void {
     }) => {
       if (action === 'status') {
         const result = { workspaceId, ...await webMcpStatus(manager, tabId) }
-        return { ...textResult(result), structuredContent: result }
+        return { ...compactTextResult(result), structuredContent: result }
       }
       if (action === 'list') {
         const result = { workspaceId, ...await listWebMcpTools(manager, tabId) }
-        return { ...textResult(result), structuredContent: result, ...(result.status ? { isError: true } : {}) }
+        return { ...compactTextResult(result), structuredContent: result, ...(result.status ? { isError: true } : {}) }
       }
       if (!expectedOrigin || navigationGeneration === undefined || !descriptorDigest || !toolName) {
         throw new TypeError('expectedOrigin, navigationGeneration, descriptorDigest, and toolName are required for a WebMCP call')
@@ -70,7 +74,7 @@ export function registerBrowserWebmcp(context: McpToolContext): void {
         }
       }
       const failed = result.status !== 'TOOL_RETURNED'
-      return { ...textResult(result), structuredContent: result, ...(failed ? { isError: true } : {}) }
+      return { ...compactTextResult(result), structuredContent: result, ...(failed ? { isError: true } : {}) }
     }),
     { continuityInspection: input => input.action !== 'call' }
   )

@@ -6,6 +6,9 @@ export const WEBMCP_LIMITS = {
   maxTitleChars: 256,
   maxDescriptionChars: 2_000,
   maxSchemaChars: 32_000,
+  // Deeper than any tool's input schema needs, and shallow enough for main to read and write one without running out
+  // of stack.
+  maxSchemaDepth: 64,
   maxArgumentsChars: 64_000,
   maxResultChars: 64_000,
   timeoutMs: 30_000
@@ -30,7 +33,6 @@ export interface WebMcpPageListing {
   supported: boolean
   reason?: string
   status?: string
-  descriptors?: WebMcpToolDescriptor[]
   descriptorJson?: string
 }
 
@@ -56,14 +58,21 @@ function pageBridgeSource(mode: 'status' | 'list' | 'call', payload: Record<stri
     if (mode === 'status') return { supported: true }
 
     const safeMessage = (error: unknown): string => {
-      const value = error instanceof Error ? error.message : String(error)
-      return value.slice(0, 500)
+      try {
+        return String(error instanceof Error ? error.message : error).slice(0, 500)
+      } catch {
+        return 'The page threw a value that cannot be read'
+      }
     }
     const canonical = (value: unknown): string => {
       if (value === null || typeof value !== 'object') return JSON.stringify(value)
       if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`
       const record = value as Record<string, unknown>
       return `{${Object.keys(record).sort().map(key => `${JSON.stringify(key)}:${canonical(record[key])}`).join(',')}}`
+    }
+    const nestedDeeperThan = (value: unknown, depth: number): boolean => {
+      if (value === null || typeof value !== 'object') return false
+      return depth === 0 || Object.values(value).some(child => nestedDeeperThan(child, depth - 1))
     }
     const normalize = (tools: unknown[]): { descriptors: unknown[]; descriptorJson: string; raw: Record<string, unknown>[] } => {
       const topLevel = tools.filter((candidate): candidate is Record<string, unknown> => {
@@ -96,6 +105,9 @@ function pageBridgeSource(mode: 'status' | 'list' | 'call', payload: Record<stri
               throw new Error(`WebMCP tool ${tool.name} has an invalid JSON input schema`)
             }
           }
+          if (nestedDeeperThan(inputSchema, limits.maxSchemaDepth)) {
+            throw new Error(`WebMCP tool ${tool.name} has an input schema nested more than ${limits.maxSchemaDepth} levels deep`)
+          }
           const schemaJson = canonical(inputSchema)
           if (schemaJson.length > limits.maxSchemaChars) throw new Error(`WebMCP tool ${tool.name} has an oversized input schema`)
           descriptor.inputSchema = JSON.parse(schemaJson)
@@ -120,13 +132,13 @@ function pageBridgeSource(mode: 'status' | 'list' | 'call', payload: Record<stri
       let truncated = false
       const visit = (candidate: unknown, depth: number): unknown => {
         if (candidate === null || typeof candidate === 'boolean' || typeof candidate === 'number') return candidate
-        if (typeof candidate === 'string') {
-          if (candidate.length <= 20_000) return candidate
+        // A string, and a value JSON has no form for, such as a big integer, as its text.
+        if (typeof candidate !== 'object') {
+          const text = String(candidate)
+          if (text.length <= 20_000) return text
           truncated = true
-          return candidate.slice(0, 20_000)
+          return text.slice(0, 20_000)
         }
-        if (typeof candidate === 'bigint') return candidate.toString()
-        if (typeof candidate !== 'object') return String(candidate)
         if (seen.has(candidate as object) || depth >= 8) {
           truncated = true
           return '[truncated]'
@@ -152,6 +164,8 @@ function pageBridgeSource(mode: 'status' | 'list' | 'call', payload: Record<stri
     }
 
     const controller = new AbortController()
+    // Once the page's tool is called, any later failure may follow its effects.
+    let dispatched = false
     let timeoutId = 0
     const timeout = new Promise<Record<string, unknown>>(resolve => {
       timeoutId = window.setTimeout(() => {
@@ -183,7 +197,7 @@ function pageBridgeSource(mode: 'status' | 'list' | 'call', payload: Record<stri
       const listing = normalize(enumeration.__hronautTools as unknown[])
       if (mode === 'list') {
         clearDeadline()
-        return { supported: true, descriptors: listing.descriptors, descriptorJson: listing.descriptorJson }
+        return { supported: true, descriptorJson: listing.descriptorJson }
       }
       if (listing.descriptorJson !== payload.descriptorJson) {
         clearDeadline()
@@ -206,7 +220,10 @@ function pageBridgeSource(mode: 'status' | 'list' | 'call', payload: Record<stri
       const outcome = await Promise.race([
         // Defer invocation into the promise chain so a synchronous throw after
         // entering the page callback is still classified as dispatched.
-        Promise.resolve().then(() => api.executeTool(listing.raw[index]!, executionInput, { signal: controller.signal }))
+        Promise.resolve().then(() => {
+          dispatched = true
+          return api.executeTool(listing.raw[index]!, executionInput, { signal: controller.signal })
+        })
           .then((value: unknown) => ({ __hronautResult: value }))
           .catch((error: unknown) => ({ __hronautError: safeMessage(error) })),
         timeout
@@ -231,6 +248,12 @@ function pageBridgeSource(mode: 'status' | 'list' | 'call', payload: Record<stri
       }
     }).catch((error: unknown) => {
       clearDeadline()
+      if (dispatched) {
+        return {
+          supported: true, status: 'OUTCOME_UNKNOWN', dispatch: 'dispatched', effects: 'possible', reason: 'result-unreadable',
+          error: safeMessage(error)
+        }
+      }
       return { supported: true, status: 'WEBMCP_ERROR', dispatch: 'not-dispatched', effects: 'none', error: safeMessage(error) }
     })
   }.toString()})(${JSON.stringify(mode)},${JSON.stringify(payload)},${JSON.stringify(WEBMCP_LIMITS)})`
