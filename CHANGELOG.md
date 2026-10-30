@@ -6,7 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
-- When the computer's clock was set back or forward while Hronaut ran, such as on Linux when a clock kept in local time is corrected soon after Hronaut opened at login, Memory Saver and the offer to save a password went by the clock. Set forward, Memory Saver put tabs you had just used to sleep at its next check, and a form you sent got no offer to save its password; set back, tabs stayed awake and a form a page sent by itself got the offer for as long as the clock was set back, often an hour. Both now count the time that really passed since you last used the tab.
+- When the computer's clock was set back or forward while Hronaut ran, such as on Linux when a clock kept in local time is corrected soon after Hronaut opened at login, Memory Saver and the offer to save a password went by the clock. Set forward, Memory Saver put tabs you had just used to sleep at its next check, and a form you sent right after a click or key made before the change got no offer to save its password; set back, tabs stayed awake, and a form a page sent by itself in a tab you had used got the offer, for as long as the clock was set back, often an hour. A two-step sign-in likewise kept or forgot the username from its first step by the clock. These now count time on a clock that setting the computer's clock does not change.
 
 ## [3.14.1] - 2026-10-30
 

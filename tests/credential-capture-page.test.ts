@@ -70,6 +70,25 @@ it('expires an earlier account and clears it when the document is left', async (
   await expect(next).resolves.toBeNull()
 })
 
+it('keeps an earlier account for five minutes on the page\'s monotonic clock, whatever the wall clock does', async () => {
+  vi.useFakeTimers()
+  document.body.innerHTML = '<form><input autocomplete="username" value="alice"></form>'
+  const forward = window.eval(pageScript(credentialSubmissionInPage)) as Promise<unknown>
+  document.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true }))
+  vi.setSystemTime(Date.now() + 3_600_000)
+  document.body.innerHTML = '<form><input type="password" value="secret"></form>'
+  document.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true }))
+  await expect(forward).resolves.toMatchObject({ username: 'alice' })
+  document.body.innerHTML = '<form><input autocomplete="username" value="bob"></form>'
+  const back = window.eval(pageScript(credentialSubmissionInPage)) as Promise<unknown>
+  document.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true }))
+  vi.setSystemTime(Date.now() - 3_600_000)
+  vi.advanceTimersByTime(300_001)
+  document.body.innerHTML = '<form><input type="password" value="secret"></form>'
+  document.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true }))
+  await expect(back).resolves.toMatchObject({ username: '' })
+})
+
 it('can observe another account after completing a capture in the same document', async () => {
   for (const username of ['alice', 'bob', 'alice']) {
     document.body.innerHTML = '<form><input name="username"><input type="password" value="secret"></form>'

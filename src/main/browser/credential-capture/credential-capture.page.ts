@@ -9,6 +9,7 @@ interface CredentialWatcherWindow {
 interface RememberedAccount {
   field: HTMLInputElement
   value: string
+  /** When the field was remembered, on the page's monotonic clock, so that a clock set back or forward neither keeps nor drops it. */
   at: number
   origin: string
 }
@@ -66,7 +67,7 @@ export function credentialSubmissionInPage(): Promise<BrowserCredentialCandidate
       .filter((input): input is HTMLInputElement => input instanceof HTMLInputElement && input.form === form)
     const remember = (field: HTMLInputElement | null): void => {
       remembered = field && field.value && field.value.length <= 512
-        ? { field, value: field.value, at: Date.now(), origin: location.origin } : null
+        ? { field, value: field.value, at: performance.now(), origin: location.origin } : null
     }
     const finish = (value: BrowserCredentialCandidate | null): void => {
       if (finished) return
@@ -88,7 +89,7 @@ export function credentialSubmissionInPage(): Promise<BrowserCredentialCandidate
       // An explicit account on this step wins, including an intentionally empty value.
       // Never borrow an account from a different form still present on the page.
       const previous = remembered && remembered.origin === location.origin
-        && Date.now() - remembered.at <= 300000
+        && performance.now() - remembered.at <= 300000
         && (!remembered.field.isConnected || remembered.field.form === form)
         ? remembered.value : ''
       const username = account ? account.value : previous
