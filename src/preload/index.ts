@@ -1,8 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { createPanelRequestBuffer } from './panel-requests.js'
 import { addressOverlayApi } from './bridges/address-overlay.js'
 import { agentCardApi } from './bridges/agent-card.js'
 import { agentPresenceApi } from './bridges/agent-presence.js'
+import { attentionApi } from './bridges/attention.js'
 import { bookmarksApi } from './bridges/bookmarks.js'
 import { browsingDataApi } from './bridges/browsing-data.js'
 import { credentialsApi } from './bridges/credentials.js'
@@ -10,25 +10,26 @@ import { downloadsApi } from './bridges/downloads.js'
 import { historyApi } from './bridges/history.js'
 import { licenseApi } from './bridges/license.js'
 import { mcpApi } from './bridges/mcp.js'
+import { navigationApi } from './bridges/navigation.js'
 import { emulationFrameApi, pageCardApi, splitDividerApi } from './bridges/page-geometry.js'
 import { panelWindowApi } from './bridges/panel-window.js'
 import { permissionsApi } from './bridges/permissions.js'
+import { qrCodeApi } from './bridges/qr-code.js'
 import { settingsApi } from './bridges/settings.js'
-import { shellApi } from './bridges/shell.js'
+import { appApi, shellApi, shellRequestsApi } from './bridges/shell.js'
 import { sidebarOverlayApi } from './bridges/sidebar-overlay.js'
+import { tabsApi } from './bridges/tabs.js'
 import { taskManagerApi } from './bridges/task-manager.js'
 import { toastOverlayApi } from './bridges/toast-overlay.js'
 import { trustedDialogsApi } from './bridges/trusted-dialogs.js'
+import { undoApi } from './bridges/undo.js'
 import { updatesApi } from './bridges/updates.js'
 import { walletsApi } from './bridges/wallets.js'
 import type {
   HronautApi,
-  BrowserState,
-  UserAttentionRequest,
   BrowserTabGroupUpdate,
   BrowserWorkspaceCreateOptions,
   BrowserWorkspaceStorageTransferOptions,
-  BrowserFindOptions,
   BrowserPageCaptureOptions,
   BrowserElementInspectionOptions,
   BrowserAccessibilityAuditOptions,
@@ -49,75 +50,20 @@ import type {
   BrowserIndexedDbOptions,
   BrowserPwaOptions,
   BrowserEnvironmentSettings,
-  BrowserViewportEmulation,
-  BrowserZoomOptions,
-  BrowserPdfOptions,
-  McpTabActivity,
-  DroppedLinkTarget,
-  NavigateOptions,
-  NewTabOptions
+  BrowserViewportEmulation
 } from '../shared/types.js'
-import type { BrowserShortcutAction } from '../shared/browser-shortcuts.js'
-import type { UndoOffer } from '../shared/undo.js'
-
-// Main asks a panel window it has just opened for Bookmark all tabs' name once the window has loaded, which can be
-// before its shell mounts and listens.
-const bookmarkAllTabsRequests = createPanelRequestBuffer<string | null>()
-ipcRenderer.on('browser:bookmark-all-tabs-requested', (_event, workspaceId: unknown) => {
-  bookmarkAllTabsRequests.receive(typeof workspaceId === 'string' ? workspaceId : null)
-})
 
 const api: HronautApi = {
-  getState: () => ipcRenderer.invoke('browser:get-state'),
-  getUserAttention: () => ipcRenderer.invoke('attention:get'),
-  answerUserAttention: (id, answer) => ipcRenderer.invoke('attention:answer', id, answer),
-  onUndoOffered: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, offer: UndoOffer): void => listener(offer)
-    ipcRenderer.on('undo:offered', handler)
-    return () => ipcRenderer.removeListener('undo:offered', handler)
-  },
-  onUndoEnded: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, token: string): void => listener(token)
-    ipcRenderer.on('undo:ended', handler)
-    return () => ipcRenderer.removeListener('undo:ended', handler)
-  },
-  undo: (token) => ipcRenderer.invoke('undo:run', token),
-  holdUndo: (token) => ipcRenderer.invoke('undo:hold', token),
-  finishUndo: (token) => ipcRenderer.invoke('undo:finish', token),
-  onUserAttentionChanged: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, request: UserAttentionRequest | null): void => listener(request)
-    ipcRenderer.on('attention:changed', handler)
-    return () => ipcRenderer.removeListener('attention:changed', handler)
-  },
-  getTabOverviewPreviews: (tabIds: string[]) => ipcRenderer.invoke('browser:get-tab-overview-previews', tabIds),
-  getTabOverviewPagePreview: (tabId: string) => ipcRenderer.invoke('browser:get-tab-overview-page-preview', tabId),
-  copyText: (text: string) => ipcRenderer.invoke('browser:copy-text', text),
-  copyQrCode: (text: string) => ipcRenderer.invoke('browser:copy-qr-code', text),
-  downloadQrCode: (request: { tabId: string; text: string; address: string }) => ipcRenderer.invoke('browser:download-qr-code', request),
-  openHome: () => ipcRenderer.invoke('browser:open-home'),
-  newTab: (options: NewTabOptions = {}) => ipcRenderer.invoke('browser:new-tab', options),
-  reopenClosedTab: (closedTabId?: string) => ipcRenderer.invoke('browser:reopen-closed-tab', closedTabId),
-  selectTab: (tabId: string) => ipcRenderer.invoke('browser:select-tab', tabId),
-  closeTab: (tabId: string) => ipcRenderer.invoke('browser:close-tab', tabId),
-  closeTabs: (tabIds: readonly string[]) => ipcRenderer.invoke('browser:close-tabs', [...tabIds]),
-  openSplitView: (tabId: string) => ipcRenderer.invoke('browser:open-split-view', tabId),
-  updateSplitView: (updates) => ipcRenderer.invoke('browser:update-split-view', updates),
-  closeSplitView: () => ipcRenderer.invoke('browser:close-split-view'),
-  setTabLabel: (tabId: string, label: string) => ipcRenderer.invoke('browser:set-tab-label', tabId, label),
-  setTabPinned: (tabId: string, pinned: boolean) => ipcRenderer.invoke('browser:set-tab-pinned', tabId, pinned),
-  setTabSleeping: (tabId: string, sleeping: boolean) => ipcRenderer.invoke('browser:set-tab-sleeping', tabId, sleeping),
-  setTabAgentPaused: (tabId: string, paused: boolean, options?: { takeOver?: boolean }) => ipcRenderer.invoke('browser:set-tab-agent-paused', tabId, paused, options),
+  ...tabsApi,
+  ...navigationApi,
+  ...undoApi,
+  ...attentionApi,
+  ...qrCodeApi,
+  ...appApi,
+  ...shellRequestsApi,
   clearCssStatePreview: (tabId: string) => ipcRenderer.invoke('browser:clear-css-state-preview', tabId),
   stopVirtualPasskey: (tabId: string) => ipcRenderer.invoke('browser:stop-virtual-passkey', tabId),
   stopLogpoints: (tabId: string) => ipcRenderer.invoke('browser:stop-logpoints', tabId),
-  setTabPageLifecycle: (tabId: string, state: 'active' | 'frozen') => ipcRenderer.invoke('browser:set-tab-page-lifecycle', tabId, state),
-  sleepInactiveTabs: () => ipcRenderer.invoke('browser:sleep-inactive-tabs'),
-  reorderTab: (tabId: string, targetTabId: string, placement: 'before' | 'after') =>
-    ipcRenderer.invoke('browser:reorder-tab', tabId, targetTabId, placement),
-  reorderTabs: (tabIds: readonly string[], targetTabId: string, placement: 'before' | 'after') =>
-    ipcRenderer.invoke('browser:reorder-tabs', [...tabIds], targetTabId, placement),
-  dropLink: (text: string, target: DroppedLinkTarget) => ipcRenderer.invoke('browser:drop-link', text, target),
-  focusActivePage: () => ipcRenderer.invoke('browser:focus-active-page'),
   createWorkspace: (options: BrowserWorkspaceCreateOptions) => ipcRenderer.invoke('browser:create-workspace', options),
   openWorkspaceTemplateFile: () => ipcRenderer.invoke('browser:open-workspace-template-file'),
   saveWorkspaceTemplateFile: (reviewedText: string) => ipcRenderer.invoke('browser:save-workspace-template-file', reviewedText),
@@ -144,10 +90,6 @@ const api: HronautApi = {
   restoreSavedTabGroup: (savedGroupId: string) => ipcRenderer.invoke('browser:restore-saved-tab-group', savedGroupId),
   deleteSavedTabGroup: (savedGroupId: string) => ipcRenderer.invoke('browser:delete-saved-tab-group', savedGroupId),
   showWorkspaceContextMenu: (workspaceId: string) => ipcRenderer.invoke('browser:show-workspace-context-menu', workspaceId),
-  showTabContextMenu: (tabId: string, selectedTabIds?: readonly string[]) =>
-    ipcRenderer.invoke('browser:show-tab-context-menu', tabId, selectedTabIds && [...selectedTabIds]),
-  toggleDevTools: (tabId?: string) => ipcRenderer.invoke('browser:toggle-devtools', tabId),
-  showDevToolsConsole: (tabId?: string) => ipcRenderer.invoke('browser:show-devtools-console', tabId),
   setTabViewport: (tabId: string, viewport: BrowserViewportEmulation | null) =>
     ipcRenderer.invoke('browser:set-tab-viewport', tabId, viewport),
   setTabEnvironment: (tabId: string, environment: BrowserEnvironmentSettings) =>
@@ -170,25 +112,6 @@ const api: HronautApi = {
   inspectIndexedDb: (options: BrowserIndexedDbOptions = {}) => ipcRenderer.invoke('browser:indexeddb', options),
   pwaLifecycle: options => ipcRenderer.invoke('browser:pwa-lifecycle', options),
   inspectPwa: (options: BrowserPwaOptions = {}) => ipcRenderer.invoke('browser:pwa', options),
-  navigate: (options: NavigateOptions) => ipcRenderer.invoke('browser:navigate', options),
-  back: (tabId?: string) => ipcRenderer.invoke('browser:back', tabId),
-  forward: (tabId?: string) => ipcRenderer.invoke('browser:forward', tabId),
-  showHistoryMenu: (options: { tabId: string; direction: 'back' | 'forward'; anchor?: { x: number; y: number } }) => ipcRenderer.invoke('browser:show-history-menu', options),
-  openNavigationInNewTab: (options: { tabId: string; target: 'back' | 'forward' | 'reload'; active: boolean }) => ipcRenderer.invoke('browser:open-navigation-in-new-tab', options),
-  reload: (tabId?: string) => ipcRenderer.invoke('browser:reload', tabId),
-  proceedPastCertificateError: (tabId: string) => ipcRenderer.invoke('browser:proceed-past-certificate', tabId),
-  reloadIgnoringCache: (tabId?: string) => ipcRenderer.invoke('browser:reload-ignoring-cache', tabId),
-  stop: (tabId?: string) => ipcRenderer.invoke('browser:stop', tabId),
-  findInPage: (options: BrowserFindOptions) => ipcRenderer.invoke('browser:find-in-page', options),
-  stopFindInPage: (tabId?: string, options?: { activateMatch?: boolean }) => ipcRenderer.invoke('browser:stop-find-in-page', tabId, options),
-  setZoom: (options: BrowserZoomOptions) => ipcRenderer.invoke('browser:set-zoom', options),
-  setTabMuted: (tabId: string, muted: boolean) => ipcRenderer.invoke('browser:set-tab-muted', tabId, muted),
-  setAllTabsMuted: (muted: boolean) => ipcRenderer.invoke('browser:set-all-tabs-muted', muted),
-  savePdf: (options: BrowserPdfOptions = {}) => ipcRenderer.invoke('browser:save-pdf', options),
-  setTabHumanInteractionLocked: (tabId: string, locked: boolean) =>
-    ipcRenderer.invoke('browser:set-tab-human-interaction-locked', tabId, locked),
-  setAllHumanInteractionLocked: (locked: boolean) =>
-    ipcRenderer.invoke('browser:set-all-human-interaction-locked', locked),
   copySnapshot: (tabId?: string) => ipcRenderer.invoke('browser:copy-snapshot', tabId),
   pickElement: (tabId?: string) => ipcRenderer.invoke('browser:pick-element', tabId),
   captureElement: (tabId?: string) => ipcRenderer.invoke('browser:capture-element', tabId),
@@ -245,66 +168,7 @@ const api: HronautApi = {
   saveNetworkHar: (options: BrowserNetworkHarSaveOptions = {}) =>
     ipcRenderer.invoke('browser:save-network-har', options),
   captureArea: (tabId?: string) => ipcRenderer.invoke('browser:capture-area', tabId),
-  cancelAreaCapture: (tabId?: string) => ipcRenderer.invoke('browser:cancel-area-capture', tabId),
-  show: () => ipcRenderer.invoke('browser:show'),
-  quit: () => ipcRenderer.invoke('browser:quit'),
-  onStateChanged: (listener: (state: BrowserState) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, state: BrowserState): void => listener(state)
-    ipcRenderer.on('browser:state-changed', handler)
-    return () => ipcRenderer.removeListener('browser:state-changed', handler)
-  },
-  stateDrawn: () => ipcRenderer.send('browser:state-drawn'),
-  onMcpTabActivity: (listener: (activity: McpTabActivity) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, activity: McpTabActivity): void => listener(activity)
-    ipcRenderer.on('browser:mcp-tab-activity', handler)
-    return () => ipcRenderer.removeListener('browser:mcp-tab-activity', handler)
-  },
-  onUserAttentionRequested: (listener: () => void) => {
-    const handler = (): void => listener()
-    ipcRenderer.on('attention:requested', handler)
-    return () => ipcRenderer.removeListener('attention:requested', handler)
-  },
-  onShortcutRequested: (listener: (action: BrowserShortcutAction) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, action: BrowserShortcutAction): void => listener(action)
-    ipcRenderer.on('browser:shortcut-requested', handler)
-    return () => ipcRenderer.removeListener('browser:shortcut-requested', handler)
-  },
-  onHomeWorkspaceEditorRequested: (listener: (request: import('../shared/home-workspaces.js').HomeWorkspaceEditorRequest) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, request: import('../shared/home-workspaces.js').HomeWorkspaceEditorRequest): void => listener(request)
-    ipcRenderer.on('browser:home-workspace-editor', handler)
-    return () => ipcRenderer.removeListener('browser:home-workspace-editor', handler)
-  },
-  onTabGroupEditRequested: (listener: (groupId: string) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, groupId: string): void => listener(groupId)
-    ipcRenderer.on('browser:edit-tab-group', handler)
-    return () => ipcRenderer.removeListener('browser:edit-tab-group', handler)
-  },
-  onNewTabRequested: (listener: (workspaceId: string | undefined) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, workspaceId: unknown): void => listener(typeof workspaceId === 'string' ? workspaceId : undefined)
-    ipcRenderer.on('browser:new-tab-requested', handler)
-    return () => ipcRenderer.removeListener('browser:new-tab-requested', handler)
-  },
-  onVisitHistoryRequested: (listener: () => void) => {
-    const handler = (): void => listener()
-    ipcRenderer.on('browser:visit-history-requested', handler)
-    return () => ipcRenderer.removeListener('browser:visit-history-requested', handler)
-  },
-  onQrCodeRequested: (listener: (request: { tabId: string; address: string }) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, request: unknown): void => {
-      const { tabId, address } = (request ?? {}) as Record<string, unknown>
-      if (typeof tabId === 'string' && typeof address === 'string') listener({ tabId, address })
-    }
-    ipcRenderer.on('browser:qr-code-requested', handler)
-    return () => ipcRenderer.removeListener('browser:qr-code-requested', handler)
-  },
-  onBookmarkAllTabsRequested: bookmarkAllTabsRequests.subscribe,
-  onAddressPasteAndGo: (listener: (text: string) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, text: unknown): void => {
-      if (typeof text === 'string') listener(text)
-    }
-    ipcRenderer.on('browser:address-paste-and-go', handler)
-    return () => ipcRenderer.removeListener('browser:address-paste-and-go', handler)
-  }
+  cancelAreaCapture: (tabId?: string) => ipcRenderer.invoke('browser:cancel-area-capture', tabId)
 }
 
 contextBridge.exposeInMainWorld('hronaut', api)

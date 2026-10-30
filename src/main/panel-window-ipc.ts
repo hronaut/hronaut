@@ -2,6 +2,7 @@ import type { BrowserWindow, IpcMain, IpcMainInvokeEvent } from 'electron'
 import type { PanelWindowRefs } from './windows/panel-window.js'
 import { DETACHABLE_PANEL_IDS, PANEL_DOCKS, type DetachablePanelId, type PanelDock } from '../shared/types.js'
 import { PANEL_WINDOW_IPC } from '../shared/ipc/panel-window.js'
+import { SHELL_IPC } from '../shared/ipc/shell.js'
 
 interface PanelWindowIpcHost {
   /** Admits only the main window's shell document, not a detached panel window. */
@@ -60,7 +61,7 @@ export function registerPanelWindowIpc(ipcMain: Pick<IpcMain, 'handle'>, host: P
     host.assertMainShellSender(event)
     if (workspaceId !== null && typeof workspaceId !== 'string') throw new TypeError('Invalid workspace')
     await host.openPanelWindow('bookmarks')
-    host.sendToPanelWindow('browser:bookmark-all-tabs-requested', workspaceId)
+    host.sendToPanelWindow(SHELL_IPC.bookmarkAllTabsRequested, workspaceId)
   })
   ipcMain.handle(PANEL_WINDOW_IPC.redock, (event, panel: unknown, dock: unknown) => {
     host.assertPanelShellSender(event)

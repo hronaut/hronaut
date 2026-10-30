@@ -31,8 +31,71 @@ async function exposed(name: string, path: string): Promise<Method> {
   return method as Method
 }
 
+// Values as main sends and takes them: a state with no tabs open, and an Undo offer's token.
+const browserState = { tabs: [], closedTabs: [], activeTabId: null, allHumanInteractionLocked: false, mcpUrl: 'http://127.0.0.1:47321/mcp', profilePath: '/home/person/.config/Hronaut', mcpTabGroups: [], savedTabGroups: [] }
+const undoToken = 'c0ffee00-0000-4000-8000-000000000001'
+
 // Each call the shell makes, with the channel and arguments main receives; the names are the wire's and stay as they were.
 const invokes: Array<[api: string, method: string, args: unknown[], channel: string, sent: unknown[]]> = [
+  ['hronaut', 'getState', [], 'browser:get-state', []],
+  ['hronaut', 'getTabOverviewPreviews', [['tab-1', 'tab-2']], 'browser:get-tab-overview-previews', [['tab-1', 'tab-2']]],
+  ['hronaut', 'getTabOverviewPagePreview', ['tab-1'], 'browser:get-tab-overview-page-preview', ['tab-1']],
+  ['hronaut', 'openHome', [], 'browser:open-home', []],
+  ['hronaut', 'newTab', [{ url: 'https://example.com/', active: true }], 'browser:new-tab', [{ url: 'https://example.com/', active: true }]],
+  ['hronaut', 'newTab', [], 'browser:new-tab', [{}]],
+  ['hronaut', 'reopenClosedTab', ['closed-1'], 'browser:reopen-closed-tab', ['closed-1']],
+  ['hronaut', 'reopenClosedTab', [], 'browser:reopen-closed-tab', [undefined]],
+  ['hronaut', 'selectTab', ['tab-1'], 'browser:select-tab', ['tab-1']],
+  ['hronaut', 'closeTab', ['tab-1'], 'browser:close-tab', ['tab-1']],
+  ['hronaut', 'closeTabs', [['tab-1', 'tab-2']], 'browser:close-tabs', [['tab-1', 'tab-2']]],
+  ['hronaut', 'openSplitView', ['tab-2'], 'browser:open-split-view', ['tab-2']],
+  ['hronaut', 'updateSplitView', [{ orientation: 'horizontal', ratio: 0.4 }], 'browser:update-split-view', [{ orientation: 'horizontal', ratio: 0.4 }]],
+  ['hronaut', 'closeSplitView', [], 'browser:close-split-view', []],
+  ['hronaut', 'setTabLabel', ['tab-1', 'Docs'], 'browser:set-tab-label', ['tab-1', 'Docs']],
+  ['hronaut', 'setTabPinned', ['tab-1', true], 'browser:set-tab-pinned', ['tab-1', true]],
+  ['hronaut', 'setTabSleeping', ['tab-1', true], 'browser:set-tab-sleeping', ['tab-1', true]],
+  ['hronaut', 'setTabAgentPaused', ['tab-1', true, { takeOver: true }], 'browser:set-tab-agent-paused', ['tab-1', true, { takeOver: true }]],
+  ['hronaut', 'setTabAgentPaused', ['tab-1', false], 'browser:set-tab-agent-paused', ['tab-1', false, undefined]],
+  ['hronaut', 'setTabPageLifecycle', ['tab-1', 'frozen'], 'browser:set-tab-page-lifecycle', ['tab-1', 'frozen']],
+  ['hronaut', 'sleepInactiveTabs', [], 'browser:sleep-inactive-tabs', []],
+  ['hronaut', 'reorderTab', ['tab-1', 'tab-2', 'after'], 'browser:reorder-tab', ['tab-1', 'tab-2', 'after']],
+  ['hronaut', 'reorderTabs', [['tab-1', 'tab-3'], 'tab-2', 'before'], 'browser:reorder-tabs', [['tab-1', 'tab-3'], 'tab-2', 'before']],
+  ['hronaut', 'dropLink', ['https://example.com/', { tabId: 'tab-1', placement: 'after' }], 'browser:drop-link', ['https://example.com/', { tabId: 'tab-1', placement: 'after' }]],
+  ['hronaut', 'focusActivePage', [], 'browser:focus-active-page', []],
+  ['hronaut', 'showTabContextMenu', ['tab-1', ['tab-1', 'tab-2']], 'browser:show-tab-context-menu', ['tab-1', ['tab-1', 'tab-2']]],
+  ['hronaut', 'showTabContextMenu', ['tab-1'], 'browser:show-tab-context-menu', ['tab-1', undefined]],
+  ['hronaut', 'setTabMuted', ['tab-1', true], 'browser:set-tab-muted', ['tab-1', true]],
+  ['hronaut', 'setAllTabsMuted', [false], 'browser:set-all-tabs-muted', [false]],
+  ['hronaut', 'setTabHumanInteractionLocked', ['tab-1', true], 'browser:set-tab-human-interaction-locked', ['tab-1', true]],
+  ['hronaut', 'setAllHumanInteractionLocked', [false], 'browser:set-all-human-interaction-locked', [false]],
+  ['hronaut', 'navigate', [{ tabId: 'tab-1', url: 'https://example.com/' }], 'browser:navigate', [{ tabId: 'tab-1', url: 'https://example.com/' }]],
+  ['hronaut', 'back', ['tab-1'], 'browser:back', ['tab-1']],
+  ['hronaut', 'back', [], 'browser:back', [undefined]],
+  ['hronaut', 'forward', ['tab-1'], 'browser:forward', ['tab-1']],
+  ['hronaut', 'showHistoryMenu', [{ tabId: 'tab-1', direction: 'back', anchor: { x: 12, y: 40 } }], 'browser:show-history-menu', [{ tabId: 'tab-1', direction: 'back', anchor: { x: 12, y: 40 } }]],
+  ['hronaut', 'openNavigationInNewTab', [{ tabId: 'tab-1', target: 'reload', active: false }], 'browser:open-navigation-in-new-tab', [{ tabId: 'tab-1', target: 'reload', active: false }]],
+  ['hronaut', 'reload', ['tab-1'], 'browser:reload', ['tab-1']],
+  ['hronaut', 'proceedPastCertificateError', ['tab-1'], 'browser:proceed-past-certificate', ['tab-1']],
+  ['hronaut', 'reloadIgnoringCache', ['tab-1'], 'browser:reload-ignoring-cache', ['tab-1']],
+  ['hronaut', 'stop', ['tab-1'], 'browser:stop', ['tab-1']],
+  ['hronaut', 'findInPage', [{ tabId: 'tab-1', query: 'docs', forward: true, findNext: true }], 'browser:find-in-page', [{ tabId: 'tab-1', query: 'docs', forward: true, findNext: true }]],
+  ['hronaut', 'stopFindInPage', ['tab-1', { activateMatch: true }], 'browser:stop-find-in-page', ['tab-1', { activateMatch: true }]],
+  ['hronaut', 'stopFindInPage', [], 'browser:stop-find-in-page', [undefined, undefined]],
+  ['hronaut', 'setZoom', [{ tabId: 'tab-1', action: 'set', percent: 125 }], 'browser:set-zoom', [{ tabId: 'tab-1', action: 'set', percent: 125 }]],
+  ['hronaut', 'savePdf', [{ tabId: 'tab-1', landscape: true, pageSize: 'A4' }], 'browser:save-pdf', [{ tabId: 'tab-1', landscape: true, pageSize: 'A4' }]],
+  ['hronaut', 'savePdf', [], 'browser:save-pdf', [{}]],
+  ['hronaut', 'toggleDevTools', ['tab-1'], 'browser:toggle-devtools', ['tab-1']],
+  ['hronaut', 'showDevToolsConsole', ['tab-1'], 'browser:show-devtools-console', ['tab-1']],
+  ['hronaut', 'undo', [undoToken], 'undo:run', [undoToken]],
+  ['hronaut', 'holdUndo', [undoToken], 'undo:hold', [undoToken]],
+  ['hronaut', 'finishUndo', [undoToken], 'undo:finish', [undoToken]],
+  ['hronaut', 'getUserAttention', [], 'attention:get', []],
+  ['hronaut', 'answerUserAttention', ['attention-1', 'resolved'], 'attention:answer', ['attention-1', 'resolved']],
+  ['hronaut', 'copyQrCode', ['https://example.com/'], 'browser:copy-qr-code', ['https://example.com/']],
+  ['hronaut', 'downloadQrCode', [{ tabId: 'tab-1', text: 'https://example.com/', address: 'https://example.com/' }], 'browser:download-qr-code', [{ tabId: 'tab-1', text: 'https://example.com/', address: 'https://example.com/' }]],
+  ['hronaut', 'show', [], 'browser:show', []],
+  ['hronaut', 'quit', [], 'browser:quit', []],
+  ['hronaut', 'copyText', ['https://example.com/'], 'browser:copy-text', ['https://example.com/']],
   ['hronautLicense', 'getState', [], 'license:get-state', []],
   ['hronautLicense', 'activate', ['KEY-1'], 'license:activate', ['KEY-1']],
   ['hronautLicense', 'refresh', [], 'license:refresh', []],
@@ -190,6 +253,7 @@ it.each(invokes)('%s.%s asks main on its channel with its arguments and returns 
 
 // Each message the shell and the overlay views send without waiting for an answer, with what main receives.
 const sends: Array<[api: string, method: string, args: unknown[], channel: string, sent: unknown[]]> = [
+  ['hronaut', 'stateDrawn', [], 'browser:state-drawn', []],
   ['hronautAddressOverlay', 'show', [{ sessionId: 1 }], 'address-overlay:show', [{ sessionId: 1 }]],
   ['hronautAddressOverlay', 'hide', [], 'address-overlay:hide', []],
   ['hronautAddressOverlay', 'returnFocus', [], 'address-overlay:return-focus', []],
@@ -237,6 +301,19 @@ it.each(sends)('%s.%s tells main on its channel with its arguments', async (api,
 
 // Each listener the shell registers, with the channel main sends on and what the listener receives of it.
 const listeners: Array<[api: string, method: string, channel: string, received: unknown[]]> = [
+  ['hronaut', 'onStateChanged', 'browser:state-changed', [browserState]],
+  ['hronaut', 'onMcpTabActivity', 'browser:mcp-tab-activity', [{ activityId: 'activity-1', tabId: 'tab-1', toolName: 'browser_click', phase: 'started', occurredAt: 1 }]],
+  ['hronaut', 'onUndoOffered', 'undo:offered', [{ token: undoToken, kind: 'tabs-closed', name: 'Docs', count: 2 }]],
+  ['hronaut', 'onUndoEnded', 'undo:ended', [undoToken]],
+  ['hronaut', 'onUserAttentionChanged', 'attention:changed', [{ id: 'attention-1', requestedAt: '2026-10-30T08:00:00.000Z', reason: 'Sign in to continue', tabId: 'tab-1' }]],
+  ['hronaut', 'onUserAttentionRequested', 'attention:requested', []],
+  ['hronaut', 'onQrCodeRequested', 'browser:qr-code-requested', [{ tabId: 'tab-1', address: 'https://example.com/' }]],
+  ['hronaut', 'onShortcutRequested', 'browser:shortcut-requested', ['command-palette']],
+  ['hronaut', 'onHomeWorkspaceEditorRequested', 'browser:home-workspace-editor', [{ view: 'import', workspaceId: 'workspace-1' }]],
+  ['hronaut', 'onTabGroupEditRequested', 'browser:edit-tab-group', ['workspace-1']],
+  ['hronaut', 'onNewTabRequested', 'browser:new-tab-requested', ['workspace-1']],
+  ['hronaut', 'onVisitHistoryRequested', 'browser:visit-history-requested', []],
+  ['hronaut', 'onAddressPasteAndGo', 'browser:address-paste-and-go', ['https://example.com/']],
   ['hronautLicense', 'onChanged', 'license:changed', [{ status: 'trial' }]],
   ['hronautUpdates', 'onChanged', 'updates:changed', [{ status: 'idle' }]],
   ['hronautUpdates', 'onOpenRequested', 'updates:open', []],
@@ -341,6 +418,58 @@ it('hronautPanelWindow keeps the panel main asked for until the shell listens', 
   onPanelRequested(listener)
   handler({}, 'bookmarks')
   expect(listener.mock.calls).toEqual([['console'], ['bookmarks']])
+})
+
+it('hronaut sends main copies of the tab lists it is given', async () => {
+  const tabIds = ['tab-1', 'tab-2']
+  for (const [method, args] of [['closeTabs', [tabIds]], ['reorderTabs', [tabIds, 'tab-3', 'after']], ['showTabContextMenu', ['tab-1', tabIds]]] as const) {
+    await (await exposed('hronaut', method))(...args)
+  }
+  const sentLists = electron.invoke.mock.calls.map((call) => call.find(Array.isArray))
+  expect(sentLists).toEqual([tabIds, tabIds, tabIds])
+  for (const sent of sentLists) expect(sent).not.toBe(tabIds)
+})
+
+it('hronaut.onNewTabRequested passes on a workspace id, or none for anything else', async () => {
+  const subscribe = await exposed('hronaut', 'onNewTabRequested')
+  const listener = vi.fn()
+  subscribe(listener)
+  const [, handler] = electron.on.mock.calls.find(([name]) => name === 'browser:new-tab-requested')!
+  handler({}, 42)
+  handler({}, 'workspace-1')
+  expect(listener.mock.calls).toEqual([[undefined], ['workspace-1']])
+})
+
+it('hronaut.onQrCodeRequested passes on only a tab and an address', async () => {
+  const subscribe = await exposed('hronaut', 'onQrCodeRequested')
+  const listener = vi.fn()
+  subscribe(listener)
+  const [, handler] = electron.on.mock.calls.find(([name]) => name === 'browser:qr-code-requested')!
+  handler({}, null)
+  handler({}, { tabId: 1, address: 'https://example.com/' })
+  handler({}, { tabId: 'tab-1', address: 'https://example.com/', text: 'extra' })
+  expect(listener.mock.calls).toEqual([[{ tabId: 'tab-1', address: 'https://example.com/' }]])
+})
+
+it('hronaut.onAddressPasteAndGo passes on only text', async () => {
+  const subscribe = await exposed('hronaut', 'onAddressPasteAndGo')
+  const listener = vi.fn()
+  subscribe(listener)
+  const [, handler] = electron.on.mock.calls.find(([name]) => name === 'browser:address-paste-and-go')!
+  handler({}, 5)
+  handler({}, 'docs')
+  expect(listener.mock.calls).toEqual([['docs']])
+})
+
+it('hronaut keeps the Bookmark all tabs request main sent until the shell listens', async () => {
+  const onBookmarkAllTabsRequested = await exposed('hronaut', 'onBookmarkAllTabsRequested')
+  const [, handler] = electron.on.mock.calls.find(([name]) => name === 'browser:bookmark-all-tabs-requested')!
+  handler({}, 'workspace-1')
+  handler({}, 7)
+  const listener = vi.fn()
+  onBookmarkAllTabsRequested(listener)
+  handler({}, 'workspace-2')
+  expect(listener.mock.calls).toEqual([[null], ['workspace-2']])
 })
 
 it('checks at compile time that calls and listeners match their channel', () => {

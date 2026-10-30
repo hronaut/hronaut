@@ -1,4 +1,6 @@
 import type { Confirmation } from '../confirmation.js'
+import type { BrowserShortcutAction } from '../browser-shortcuts.js'
+import type { HomeWorkspaceEditorRequest } from '../home-workspaces.js'
 import type { BrowserActionFailure, BrowserOcclusionSnapshot, HelpMenuAction } from '../types.js'
 import type { EventChannel, InvokeChannel, SendChannel } from './channel.js'
 
@@ -29,5 +31,25 @@ export const SHELL_IPC = {
   /** Main → main window: copying to the clipboard failed, with the message to show. */
   clipboardFailed: 'clipboard:failed' as EventChannel<[message: string]>,
   /** Main → main window: an action the person asked for failed, to show in a toast. */
-  actionFailed: 'browser:action-failed' as EventChannel<[failure: BrowserActionFailure]>
+  actionFailed: 'browser:action-failed' as EventChannel<[failure: BrowserActionFailure]>,
+  /** Shell → main: shows and focuses the app's window. */
+  show: 'browser:show' as InvokeChannel<[], void>,
+  /** Shell → main: quits the app. */
+  quit: 'browser:quit' as InvokeChannel<[], void>,
+  /** Shell → main: copies the text to the clipboard. */
+  copyText: 'browser:copy-text' as InvokeChannel<[text: string], void>,
+  /** Main → main window: a menu item or shortcut that the shell carries out. */
+  shortcutRequested: 'browser:shortcut-requested' as EventChannel<[action: BrowserShortcutAction]>,
+  /** Main → main window: opens Home's workspace editor, as a workspace's menu or Home's page asks. */
+  homeWorkspaceEditorRequested: 'browser:home-workspace-editor' as EventChannel<[request: HomeWorkspaceEditorRequest]>,
+  /** Main → main window: a workspace's menu asked to edit its tab group. */
+  tabGroupEditRequested: 'browser:edit-tab-group' as EventChannel<[groupId: string]>,
+  /** Main → main window: a menu asked for a new tab in the workspace, or in the active tab's workspace when it names none. */
+  newTabRequested: 'browser:new-tab-requested' as EventChannel<[workspaceId: string | undefined]>,
+  /** Main → main window: Show Full History in Back's or Forward's list asked for the history panel. */
+  visitHistoryRequested: 'browser:visit-history-requested' as EventChannel<[]>,
+  /** Main → shell: a tab's menu asked to bookmark the open tabs of its workspace, or of no workspace for null. */
+  bookmarkAllTabsRequested: 'browser:bookmark-all-tabs-requested' as EventChannel<[workspaceId: string | null]>,
+  /** Main → shell: Paste and Go or Paste and Search in the address field's menu, with the clipboard text to open. */
+  addressPasteAndGo: 'browser:address-paste-and-go' as EventChannel<[text: string]>
 } as const

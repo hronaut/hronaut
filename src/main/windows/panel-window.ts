@@ -30,6 +30,7 @@ import { PERMISSIONS_IPC } from '../../shared/ipc/permissions.js'
 import { UPDATES_IPC } from '../../shared/ipc/updates.js'
 import { SETTINGS_IPC } from '../../shared/ipc/settings.js'
 import { PANEL_WINDOW_IPC } from '../../shared/ipc/panel-window.js'
+import { TABS_IPC } from '../../shared/ipc/tabs.js'
 
 /**
  * The detached panel window and what it shows, created once by index.ts. The window opens and closes while the app
@@ -135,7 +136,7 @@ export function createPanelWindow(host: PanelWindowHost): {
   function sendPanelWindowSnapshot(target: BrowserWindow): void {
     if (target.isDestroyed() || target.webContents.isDestroyed()) return
     const browser = host.tabs()
-    target.webContents.send('browser:state-changed', browser ? browserState(browser) : undefined)
+    target.webContents.send(TABS_IPC.stateChanged, browser ? browserState(browser) : undefined)
     target.webContents.send(DOWNLOADS_IPC.changed, browser?.downloadController.listDownloads() ?? [])
     target.webContents.send(SETTINGS_IPC.changed, host.settings())
     target.webContents.send(SETTINGS_IPC.rendererStateChanged, host.currentRendererSettingsState())

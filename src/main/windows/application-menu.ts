@@ -211,7 +211,7 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
               accelerator: 'CmdOrCtrl+Shift+P',
               click: () => {
                 host.showWindow()
-                host.mainWindow()?.webContents.send('browser:shortcut-requested', 'command-palette')
+                host.mainWindow()?.webContents.send(SHELL_IPC.shortcutRequested, 'command-palette')
               }
             },
             {
@@ -219,7 +219,7 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
               accelerator: process.platform === 'darwin' ? 'Cmd+Alt+C' : 'Ctrl+Shift+C',
               click: () => {
                 host.showWindow()
-                host.mainWindow()?.webContents.send('browser:shortcut-requested', 'pick-element')
+                host.mainWindow()?.webContents.send(SHELL_IPC.shortcutRequested, 'pick-element')
               }
             },
             {
@@ -300,7 +300,7 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
               accelerator: 'CmdOrCtrl+Shift+F',
               click: () => {
                 host.showWindow()
-                host.mainWindow()?.webContents.send('browser:shortcut-requested', 'toggle-full-page')
+                host.mainWindow()?.webContents.send(SHELL_IPC.shortcutRequested, 'toggle-full-page')
               }
             },
             { type: 'separator' },

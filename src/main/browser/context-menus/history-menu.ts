@@ -3,6 +3,7 @@ import { safeNavigationHistorySnapshot } from '../navigation-history.js'
 import type { Browser } from '../browser.js'
 import { goToHistoryEntry } from '../page-navigation/page-navigation.js'
 import { findTab } from '../browser-core.js'
+import { SHELL_IPC } from '../../../shared/ipc/shell.js'
 
 /** As many pages as Chrome lists under Back or Forward. */
 export const HISTORY_MENU_PAGES = 12
@@ -51,7 +52,7 @@ export function showHistoryMenu(browser: Browser, tabId: string,
     {
       id: 'show-full-history',
       label: browser.text('native.context.showFullHistory'),
-      click: () => runAction('show the full history', () => browser.window.webContents.send('browser:visit-history-requested'))
+      click: () => runAction('show the full history', () => browser.window.webContents.send(SHELL_IPC.visitHistoryRequested))
     }
   ]
   const window = browser.window

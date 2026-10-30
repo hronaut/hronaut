@@ -84,36 +84,15 @@ import type {
 } from './storage.js'
 import type { BrowserPwaOptions, BrowserPwaReport } from './pwa.js'
 
-export interface HronautApi {
-  captureIncident(input: IncidentCaptureInput): Promise<IncidentDraft>
-  reviewIncident(input: IncidentReviewInput): Promise<IncidentPreview>
-  invalidateIncidentPreview(draftId: string): Promise<void>
-  discardIncident(): Promise<void>
-  saveIncident(input: { draftId: string; previewId: string; reviewed: true }): Promise<{ saved: boolean; sha256?: string; bytes?: number }>
-
-  browserImport: BrowserImportApi
+/** The tabs and their state, split view included. */
+export interface HronautTabsApi {
   getState(): Promise<BrowserState>
-  getUserAttention(): Promise<UserAttentionRequest | null>
-  /** Answers the open plain request from its agent's card. False when that request is no longer open. */
-  answerUserAttention(id: string, answer: 'resolved' | 'dismissed'): Promise<boolean>
-  onUserAttentionChanged(listener: (request: UserAttentionRequest | null) => void): () => void
-  /** Main offers to undo the person's latest reversible action, such as closing a tab. */
-  onUndoOffered(listener: (offer: import('../undo.js').UndoOffer) => void): () => void
-  /** Main ended an offer: Undo was used, the toast closed, a newer action replaced it or its time ran out. */
-  onUndoEnded(listener: (token: string) => void): () => void
-  /** Undoes the offered action. False when it is no longer offered or nothing came back. */
-  undo(token: string): Promise<boolean>
-  /** The person is on the Undo toast, so the offer stays while the toast does, up to a minute. */
-  holdUndo(token: string): Promise<void>
-  /** The Undo toast closed without Undo. */
-  finishUndo(token: string): Promise<void>
+  onStateChanged(listener: (state: BrowserState) => void): () => void
+  /** Tells main the shell drew the last state it was sent, so it can send the next. */
+  stateDrawn(): void
+  onMcpTabActivity(listener: (activity: McpTabActivity) => void): () => void
   getTabOverviewPreviews(tabIds: string[]): Promise<BrowserTabOverviewPreview[]>
   getTabOverviewPagePreview(tabId: string): Promise<BrowserTabOverviewPreview>
-  copyText(text: string): Promise<void>
-  /** Copies the image of the text's QR code, as Create QR Code's Copy does. */
-  copyQrCode(text: string): Promise<void>
-  /** Saves the image of the text's QR code as a download from the tab's workspace, named after the address it was made for. */
-  downloadQrCode(request: { tabId: string; text: string; address: string }): Promise<void>
   openHome(): Promise<BrowserState>
   newTab(options?: NewTabOptions): Promise<BrowserState>
   reopenClosedTab(closedTabId?: string): Promise<BrowserState>
@@ -133,9 +112,6 @@ export interface HronautApi {
   setTabSleeping(tabId: string, sleeping: boolean): Promise<BrowserState>
   /** With `takeOver`, a pause records that the person took the tab over, and the resume that ends it hands it back. */
   setTabAgentPaused(tabId: string, paused: boolean, options?: { takeOver?: boolean }): Promise<BrowserState>
-  clearCssStatePreview(tabId: string): Promise<BrowserState>
-  stopVirtualPasskey(tabId: string): Promise<BrowserState>
-  stopLogpoints(tabId: string): Promise<BrowserState>
   setTabPageLifecycle(tabId: string, state: 'active' | 'frozen'): Promise<BrowserState>
   sleepInactiveTabs(): Promise<BrowserState>
   reorderTab(tabId: string, targetTabId: string, placement: 'before' | 'after'): Promise<BrowserState>
@@ -148,6 +124,103 @@ export interface HronautApi {
   dropLink(text: string, target: DroppedLinkTarget): Promise<BrowserState>
   /** Gives the keyboard to the page in view, as F6 does from Chrome's toolbar. */
   focusActivePage(): Promise<void>
+  /** Shows the tab's menu, which acts on all the selected tabs when the tab is one of several selected ones. */
+  showTabContextMenu(tabId: string, selectedTabIds?: readonly string[]): Promise<void>
+  setTabMuted(tabId: string, muted: boolean): Promise<BrowserState>
+  setAllTabsMuted(muted: boolean): Promise<BrowserState>
+  setTabHumanInteractionLocked(tabId: string, locked: boolean): Promise<BrowserState>
+  setAllHumanInteractionLocked(locked: boolean): Promise<BrowserState>
+}
+
+/** A tab's navigation, find in page, zoom, Save as PDF and Developer Tools. */
+export interface HronautNavigationApi {
+  navigate(options: NavigateOptions): Promise<BrowserState>
+  back(tabId?: string): Promise<BrowserState>
+  forward(tabId?: string): Promise<BrowserState>
+  /** Shows the pages the tab's Back or Forward arrow goes through, as a list opening at the anchor, in CSS pixels; false when there was none to show. */
+  showHistoryMenu(options: { tabId: string; direction: 'back' | 'forward'; anchor?: { x: number; y: number } }): Promise<boolean>
+  /** Opens the page Back or Forward goes to, or the tab's own page for Reload, in a new tab beside the tab; behind unless active. */
+  openNavigationInNewTab(options: { tabId: string; target: 'back' | 'forward' | 'reload'; active: boolean }): Promise<BrowserState>
+  reload(tabId?: string): Promise<BrowserState>
+  /** Asks the person whether to open the page the tab refused for its website's certificate, and opens it if they choose to. */
+  proceedPastCertificateError(tabId: string): Promise<BrowserState>
+  reloadIgnoringCache(tabId?: string): Promise<BrowserState>
+  stop(tabId?: string): Promise<BrowserState>
+  findInPage(options: BrowserFindOptions): Promise<BrowserFindResult>
+  /** Ends the page search; with activateMatch, also clicks the active match, as Ctrl+Enter in Chrome's find bar. */
+  stopFindInPage(tabId?: string, options?: { activateMatch?: boolean }): Promise<void>
+  setZoom(options: BrowserZoomOptions): Promise<BrowserState>
+  savePdf(options?: BrowserPdfOptions): Promise<BrowserPdfExport>
+  toggleDevTools(tabId?: string): Promise<boolean>
+  /** Opens Developer Tools on the Console, or turns open ones to it. */
+  showDevToolsConsole(tabId?: string): Promise<boolean>
+}
+
+/** Undo for the person's latest reversible action. */
+export interface HronautUndoApi {
+  /** Main offers to undo the person's latest reversible action, such as closing a tab. */
+  onUndoOffered(listener: (offer: import('../undo.js').UndoOffer) => void): () => void
+  /** Main ended an offer: Undo was used, the toast closed, a newer action replaced it or its time ran out. */
+  onUndoEnded(listener: (token: string) => void): () => void
+  /** Undoes the offered action. False when it is no longer offered or nothing came back. */
+  undo(token: string): Promise<boolean>
+  /** The person is on the Undo toast, so the offer stays while the toast does, up to a minute. */
+  holdUndo(token: string): Promise<void>
+  /** The Undo toast closed without Undo. */
+  finishUndo(token: string): Promise<void>
+}
+
+/** An agent's request for the person's attention. */
+export interface HronautAttentionApi {
+  getUserAttention(): Promise<UserAttentionRequest | null>
+  /** Answers the open plain request from its agent's card. False when that request is no longer open. */
+  answerUserAttention(id: string, answer: 'resolved' | 'dismissed'): Promise<boolean>
+  onUserAttentionChanged(listener: (request: UserAttentionRequest | null) => void): () => void
+  onUserAttentionRequested(listener: () => void): () => void
+}
+
+/** Create QR Code. */
+export interface HronautQrCodeApi {
+  /** Copies the image of the text's QR code, as Create QR Code's Copy does. */
+  copyQrCode(text: string): Promise<void>
+  /** Saves the image of the text's QR code as a download from the tab's workspace, named after the address it was made for. */
+  downloadQrCode(request: { tabId: string; text: string; address: string }): Promise<void>
+  /** Create QR Code in a page's menu, for the tab and the address of its page or image. */
+  onQrCodeRequested(listener: (request: { tabId: string; address: string }) => void): () => void
+}
+
+/** The app itself: its window, Quit and the clipboard. */
+export interface HronautAppApi {
+  show(): Promise<void>
+  quit(): Promise<void>
+  copyText(text: string): Promise<void>
+}
+
+/** What main asks the shell for from its menus and shortcuts. */
+export interface HronautShellRequestsApi {
+  onShortcutRequested(listener: (action: import('../browser-shortcuts.js').BrowserShortcutAction) => void): () => void
+  onHomeWorkspaceEditorRequested(listener: (request: import('../home-workspaces.js').HomeWorkspaceEditorRequest) => void): () => void
+  onTabGroupEditRequested(listener: (groupId: string) => void): () => void
+  /** A menu asked for a new tab in the workspace, or in the active tab's workspace when it names none. */
+  onNewTabRequested(listener: (workspaceId: string | undefined) => void): () => void
+  /** Show Full History in Back's or Forward's list asked for the history panel. */
+  onVisitHistoryRequested(listener: () => void): () => void
+  /** A tab's menu asked to bookmark the open tabs of its workspace, or of no workspace for null. */
+  onBookmarkAllTabsRequested(listener: (workspaceId: string | null) => void): () => void
+  /** Paste and Go or Paste and Search in the address field's menu, with the clipboard text to open. */
+  onAddressPasteAndGo(listener: (text: string) => void): () => void
+}
+
+export interface HronautApi extends HronautTabsApi, HronautNavigationApi, HronautUndoApi, HronautAttentionApi, HronautQrCodeApi, HronautAppApi, HronautShellRequestsApi {
+  captureIncident(input: IncidentCaptureInput): Promise<IncidentDraft>
+  reviewIncident(input: IncidentReviewInput): Promise<IncidentPreview>
+  invalidateIncidentPreview(draftId: string): Promise<void>
+  discardIncident(): Promise<void>
+  saveIncident(input: { draftId: string; previewId: string; reviewed: true }): Promise<{ saved: boolean; sha256?: string; bytes?: number }>
+  browserImport: BrowserImportApi
+  clearCssStatePreview(tabId: string): Promise<BrowserState>
+  stopVirtualPasskey(tabId: string): Promise<BrowserState>
+  stopLogpoints(tabId: string): Promise<BrowserState>
   createWorkspace(options: BrowserWorkspaceCreateOptions): Promise<BrowserState>
   openWorkspaceTemplateFile(): Promise<string | null>
   saveWorkspaceTemplateFile(reviewedText: string): Promise<boolean>
@@ -169,11 +242,6 @@ export interface HronautApi {
   restoreSavedTabGroup(savedGroupId: string): Promise<BrowserState>
   deleteSavedTabGroup(savedGroupId: string): Promise<BrowserState>
   showWorkspaceContextMenu(workspaceId: string): Promise<void>
-  /** Shows the tab's menu, which acts on all the selected tabs when the tab is one of several selected ones. */
-  showTabContextMenu(tabId: string, selectedTabIds?: readonly string[]): Promise<void>
-  toggleDevTools(tabId?: string): Promise<boolean>
-  /** Opens Developer Tools on the Console, or turns open ones to it. */
-  showDevToolsConsole(tabId?: string): Promise<boolean>
   setTabViewport(tabId: string, viewport: BrowserViewportEmulation | null): Promise<BrowserState>
   setTabEnvironment(tabId: string, environment: BrowserEnvironmentSettings): Promise<BrowserState>
   resetTabEmulation(tabId: string): Promise<BrowserState>
@@ -190,27 +258,6 @@ export interface HronautApi {
   pwaLifecycle(options: PwaLifecycleOptions): Promise<PwaLifecycleReport | null>
   inspectPwa(options?: BrowserPwaOptions): Promise<BrowserPwaReport>
   storageChanges(options?: BrowserStorageChangesOptions): Promise<BrowserStorageChangesReport>
-  navigate(options: NavigateOptions): Promise<BrowserState>
-  back(tabId?: string): Promise<BrowserState>
-  forward(tabId?: string): Promise<BrowserState>
-  /** Shows the pages the tab's Back or Forward arrow goes through, as a list opening at the anchor, in CSS pixels; false when there was none to show. */
-  showHistoryMenu(options: { tabId: string; direction: 'back' | 'forward'; anchor?: { x: number; y: number } }): Promise<boolean>
-  /** Opens the page Back or Forward goes to, or the tab's own page for Reload, in a new tab beside the tab; behind unless active. */
-  openNavigationInNewTab(options: { tabId: string; target: 'back' | 'forward' | 'reload'; active: boolean }): Promise<BrowserState>
-  reload(tabId?: string): Promise<BrowserState>
-  /** Asks the person whether to open the page the tab refused for its website's certificate, and opens it if they choose to. */
-  proceedPastCertificateError(tabId: string): Promise<BrowserState>
-  reloadIgnoringCache(tabId?: string): Promise<BrowserState>
-  stop(tabId?: string): Promise<BrowserState>
-  findInPage(options: BrowserFindOptions): Promise<BrowserFindResult>
-  /** Ends the page search; with activateMatch, also clicks the active match, as Ctrl+Enter in Chrome's find bar. */
-  stopFindInPage(tabId?: string, options?: { activateMatch?: boolean }): Promise<void>
-  setZoom(options: BrowserZoomOptions): Promise<BrowserState>
-  setTabMuted(tabId: string, muted: boolean): Promise<BrowserState>
-  setAllTabsMuted(muted: boolean): Promise<BrowserState>
-  savePdf(options?: BrowserPdfOptions): Promise<BrowserPdfExport>
-  setTabHumanInteractionLocked(tabId: string, locked: boolean): Promise<BrowserState>
-  setAllHumanInteractionLocked(locked: boolean): Promise<BrowserState>
   copySnapshot(tabId?: string): Promise<BrowserSnapshotCopyResult>
   pickElement(tabId?: string): Promise<BrowserElementSelection>
   captureElement(tabId?: string): Promise<BrowserElementCaptureResult>
@@ -245,24 +292,4 @@ export interface HronautApi {
   saveNetworkHar(options?: BrowserNetworkHarSaveOptions): Promise<BrowserNetworkHarExport>
   captureArea(tabId?: string): Promise<BrowserAreaCaptureResult>
   cancelAreaCapture(tabId?: string): Promise<boolean>
-  show(): Promise<void>
-  quit(): Promise<void>
-  onStateChanged(listener: (state: BrowserState) => void): () => void
-  /** Tells main the shell drew the last state it was sent, so it can send the next. */
-  stateDrawn(): void
-  onMcpTabActivity(listener: (activity: McpTabActivity) => void): () => void
-  onUserAttentionRequested(listener: () => void): () => void
-  onShortcutRequested(listener: (action: import('../browser-shortcuts.js').BrowserShortcutAction) => void): () => void
-  onHomeWorkspaceEditorRequested(listener: (request: import('../home-workspaces.js').HomeWorkspaceEditorRequest) => void): () => void
-  onTabGroupEditRequested(listener: (groupId: string) => void): () => void
-  /** A menu asked for a new tab in the workspace, or in the active tab's workspace when it names none. */
-  onNewTabRequested(listener: (workspaceId: string | undefined) => void): () => void
-  /** Show Full History in Back's or Forward's list asked for the history panel. */
-  onVisitHistoryRequested(listener: () => void): () => void
-  /** A tab's menu asked to bookmark the open tabs of its workspace, or of no workspace for null. */
-  onBookmarkAllTabsRequested(listener: (workspaceId: string | null) => void): () => void
-  /** Paste and Go or Paste and Search in the address field's menu, with the clipboard text to open. */
-  onAddressPasteAndGo(listener: (text: string) => void): () => void
-  /** Create QR Code in a page's menu, for the tab and the address of its page or image. */
-  onQrCodeRequested(listener: (request: { tabId: string; address: string }) => void): () => void
 }

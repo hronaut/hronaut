@@ -10,6 +10,7 @@ import type { TrustedDialogOptions } from '../trusted-dialogs/trusted-dialogs.js
 import type { HomeSetupState } from '../../shared/claude-code-setup.js'
 import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
 import type { AppSettings, McpPortMoveResult } from '../../shared/types.js'
+import { SHELL_IPC } from '../../shared/ipc/shell.js'
 
 interface HomeIpcHost {
   /** Registers a handler that is refused while saved workspaces are still initializing or failed to start. */
@@ -132,7 +133,7 @@ export function registerHomeIpc(host: HomeIpcHost): void {
   host.handleBrowserIpc('hronaut-home:workspace-action', async (event, input: unknown) => {
     assertHomePageSender(event)
     return runHomeWorkspaceAction(host.tabs()!, input, (request) => {
-      host.mainWindow()?.webContents.send('browser:home-workspace-editor', request)
+      host.mainWindow()?.webContents.send(SHELL_IPC.homeWorkspaceEditorRequested, request)
     })
   })
   host.handleBrowserIpc('hronaut-home:copy-text', async (event, value: unknown) => {

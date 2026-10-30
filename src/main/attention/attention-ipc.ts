@@ -3,6 +3,7 @@ import type { McpHttpServer } from '../mcp/server.js'
 import type { TakeOverOffers } from '../agents/take-over-offers.js'
 import type { UserAttentionLifecycle } from './user-attention-lifecycle.js'
 import type { UserAttentionRequest } from '../../shared/types.js'
+import { ATTENTION_IPC } from '../../shared/ipc/attention.js'
 
 interface AttentionIpcHost {
   /** Admits only the main window's shell document, not a detached panel window. */
@@ -22,11 +23,11 @@ interface AttentionIpcHost {
 
 /** Dependencies stay lazy because handlers are registered before the window loads. */
 export function registerAttentionIpc(ipcMain: Pick<IpcMain, 'handle'>, host: AttentionIpcHost): void {
-  ipcMain.handle('attention:get', (event) => {
+  ipcMain.handle(ATTENTION_IPC.get, (event) => {
     host.assertMainShellSender(event)
     return host.shellUserAttention()
   })
-  ipcMain.handle('attention:answer', (event, id: unknown, answer: unknown) => {
+  ipcMain.handle(ATTENTION_IPC.answer, (event, id: unknown, answer: unknown) => {
     host.assertMainShellSender(event)
     if (typeof id !== 'string' || id.length > 128 || (answer !== 'resolved' && answer !== 'dismissed')) {
       throw new TypeError('Invalid attention answer')
