@@ -27,6 +27,11 @@ const MAX_WORKSPACE_NAVIGATION_AUDIT_ENTRIES = 50
  * scheme or host names a longer one; it is recorded as unreadable so the session can still be saved.
  */
 const MAX_WORKSPACE_NAVIGATION_AUDIT_ORIGIN_LENGTH = 500
+/**
+ * When each audit entry was recorded, on the monotonic clock, so that a clock set back does not merge every repeat of
+ * the latest denial into it for as long. A restored entry has none, so the next repeat is recorded.
+ */
+const auditEntryRecordedAt = new WeakMap<BrowserWorkspaceNavigationAuditEntry, number>()
 /** Chromium's net::ERR_ABORTED error code. */
 const ABORTED_LOAD_ERROR = -3
 
@@ -207,15 +212,17 @@ function recordWorkspaceNavigationDenied(
     && previous.targetOrigin === targetOrigin
     && previous.reason === decision.reason
     && previous.source === source
-    && Date.now() - Date.parse(previous.timestamp) < 1_000
+    && performance.now() - (auditEntryRecordedAt.get(previous) ?? Number.NEGATIVE_INFINITY) < 1_000
   ) return
-  group.navigationAudit.push({
+  const entry: BrowserWorkspaceNavigationAuditEntry = {
     id: uuidV7(),
     timestamp: new Date().toISOString(),
     targetOrigin,
     reason: decision.reason,
     source
-  })
+  }
+  auditEntryRecordedAt.set(entry, performance.now())
+  group.navigationAudit.push(entry)
   if (group.navigationAudit.length > MAX_WORKSPACE_NAVIGATION_AUDIT_ENTRIES) group.navigationAudit.shift()
   publishChange(browser)
 }

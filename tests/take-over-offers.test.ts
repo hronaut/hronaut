@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentPresence } from '../src/shared/agent-presence.js'
 import { TAKE_OVER_OFFER_INTERVAL_MS, TakeOverOffers, tabAgentPauseOptions } from '../src/main/agents/take-over-offers.js'
 
@@ -7,7 +7,6 @@ function agent(name: string, overrides: Partial<AgentPresence> = {}): AgentPrese
 }
 
 function fixture() {
-  let now = 10_000
   const workspaces: Record<string, AgentPresence[]> = { work: [agent('Claude Code'), agent('Cursor', { lastTabId: 'tab-b' })] }
   const paused = new Set<string>()
   const takenOver = new Set<string>()
@@ -25,13 +24,20 @@ function fixture() {
     isTabTakenOver: (tabId) => takenOver.has(tabId),
     setTabAgentPaused,
     sendOffer,
-    onError,
-    now: () => now
+    onError
   })
-  return { offers, workspaces, paused, takenOver, setTabAgentPaused, sendOffer, onError, advance: (ms: number) => { now += ms } }
+  return { offers, workspaces, paused, takenOver, setTabAgentPaused, sendOffer, onError, advance: (ms: number) => { vi.advanceTimersByTime(ms) } }
 }
 
 describe('take-over offers in main', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date', 'performance'] })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('offers a take over only on a tab an agent is working on and that is not paused', () => {
     const f = fixture()
     expect(f.offers.available('tab-a', 'work')?.name).toBe('Claude Code')
@@ -70,6 +76,18 @@ describe('take-over offers in main', () => {
     expect(f.sendOffer).toHaveBeenCalledTimes(4)
     f.offers.touched('tab-c', 'work')
     expect(f.sendOffer).toHaveBeenCalledTimes(4)
+  })
+
+  it('tells the shell again a second after the last offer, whatever the wall clock does', () => {
+    const f = fixture()
+    f.offers.touched('tab-a', 'work')
+    vi.setSystemTime(Date.now() - 3_600_000)
+    f.advance(TAKE_OVER_OFFER_INTERVAL_MS)
+    f.offers.touched('tab-a', 'work')
+    expect(f.sendOffer).toHaveBeenCalledTimes(2)
+    vi.setSystemTime(Date.now() + 3_600_000)
+    f.offers.touched('tab-a', 'work')
+    expect(f.sendOffer).toHaveBeenCalledTimes(2)
   })
 
   it('takes over exactly the tab whose page got the key, and nothing once no agent works there', () => {

@@ -65,7 +65,8 @@ async function id(cdp: ReactInspectionChannel, api: Remote, object: Remote): Pro
   return value
 }
 export async function observeReactTopology(cdp: ReactInspectionChannel, subtree: string | undefined, installationId: string): Promise<Observation> {
-  const start = Date.now()
+  // The walk's time limit runs on the monotonic clock, which a clock set back or forward does not move.
+  const start = performance.now()
   const api = await captureApi(cdp)
   const state = status((await invoke(cdp, api, 'status', [], true)).value)
   if (state.epoch !== installationId) throw new Error('proof installation changed')
@@ -83,7 +84,7 @@ export async function observeReactTopology(cdp: ReactInspectionChannel, subtree:
   const stack: {fiber:Remote;parent:string|null;depth:number}[] = []
   for (let i = 0; i < state.roots; i++) stack.push({fiber:await read(cdp, api,await invoke(cdp,api,'rootAt',[{value:i}]),'current'),parent:null,depth:0})
   while (stack.length) {
-    if (Date.now()-start > 2000) { limit='time';break }
+    if (performance.now()-start > 2000) { limit='time';break }
     if (visited >= 256) { limit='visits';break }
     visited++
     const entry=stack.pop()!

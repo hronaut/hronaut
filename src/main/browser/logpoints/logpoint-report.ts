@@ -12,6 +12,8 @@ export interface ArmedLogpoints {
   origin: string
   armedAt: number
   expiresAt: number
+  /** When it ends, on the monotonic clock its timer runs on, from which a report gives the time left whatever the wall clock does. */
+  deadlineMonotonic: number
   probes: LogpointProbe[]
 }
 
@@ -51,7 +53,7 @@ export function logpointReport(
       origin: armed.origin,
       armedAt: new Date(armed.armedAt).toISOString(),
       expiresAt: new Date(armed.expiresAt).toISOString(),
-      remainingMs: Math.max(0, armed.expiresAt - Date.now()),
+      remainingMs: Math.max(0, Math.round(armed.deadlineMonotonic - performance.now())),
       probes: allowed ? armed.probes : withheld(armed.probes),
       ...(allowed ? {} : { recordsWithheld: true })
     }
