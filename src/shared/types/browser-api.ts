@@ -237,6 +237,40 @@ export interface HronautWorkspacesApi {
   browserImport: BrowserImportApi
 }
 
+/** A tab's device and environment emulation. */
+export interface HronautEmulationApi {
+  setTabViewport(tabId: string, viewport: BrowserViewportEmulation | null): Promise<BrowserState>
+  setTabEnvironment(tabId: string, environment: BrowserEnvironmentSettings): Promise<BrowserState>
+  resetTabEmulation(tabId: string): Promise<BrowserState>
+  recoverTabEmulation(tabId: string): Promise<BrowserState>
+}
+
+/** The Network panel's routes for a tab's requests. */
+export interface HronautNetworkRoutesApi {
+  listNetworkRoutes(tabId: string): Promise<BrowserNetworkRouteSummary[]>
+  addNetworkRoute(tabId: string, input: BrowserNetworkRouteInput): Promise<BrowserNetworkRouteSummary[]>
+  setNetworkRouteEnabled(tabId: string, routeId: string, enabled: boolean): Promise<BrowserNetworkRouteSummary[]>
+  moveNetworkRoute(tabId: string, routeId: string, direction: BrowserNetworkRouteMoveDirection): Promise<BrowserNetworkRouteSummary[]>
+  removeNetworkRoute(tabId: string, routeId: string): Promise<BrowserNetworkRouteSummary[]>
+  clearNetworkRoutes(tabId: string): Promise<BrowserState>
+}
+
+/** The address bar's stops for what an agent set up in a tab, which work whatever the agent's state. */
+export interface HronautAddressBarStopsApi {
+  clearCssStatePreview(tabId: string): Promise<BrowserState>
+  stopLogpoints(tabId: string): Promise<BrowserState>
+  stopVirtualPasskey(tabId: string): Promise<BrowserState>
+}
+
+/** Incident packages: a capture of a tab's problem, reviewed by the person before it is saved as a file. */
+export interface HronautIncidentsApi {
+  captureIncident(input: IncidentCaptureInput): Promise<IncidentDraft>
+  reviewIncident(input: IncidentReviewInput): Promise<IncidentPreview>
+  invalidateIncidentPreview(draftId: string): Promise<void>
+  discardIncident(): Promise<void>
+  saveIncident(input: { draftId: string; previewId: string; reviewed: true }): Promise<{ saved: boolean; sha256?: string; bytes?: number }>
+}
+
 export interface HronautApi extends
   HronautTabsApi,
   HronautNavigationApi,
@@ -245,25 +279,11 @@ export interface HronautApi extends
   HronautQrCodeApi,
   HronautAppApi,
   HronautShellRequestsApi,
-  HronautWorkspacesApi {
-  captureIncident(input: IncidentCaptureInput): Promise<IncidentDraft>
-  reviewIncident(input: IncidentReviewInput): Promise<IncidentPreview>
-  invalidateIncidentPreview(draftId: string): Promise<void>
-  discardIncident(): Promise<void>
-  saveIncident(input: { draftId: string; previewId: string; reviewed: true }): Promise<{ saved: boolean; sha256?: string; bytes?: number }>
-  clearCssStatePreview(tabId: string): Promise<BrowserState>
-  stopVirtualPasskey(tabId: string): Promise<BrowserState>
-  stopLogpoints(tabId: string): Promise<BrowserState>
-  setTabViewport(tabId: string, viewport: BrowserViewportEmulation | null): Promise<BrowserState>
-  setTabEnvironment(tabId: string, environment: BrowserEnvironmentSettings): Promise<BrowserState>
-  resetTabEmulation(tabId: string): Promise<BrowserState>
-  recoverTabEmulation(tabId: string): Promise<BrowserState>
-  listNetworkRoutes(tabId: string): Promise<BrowserNetworkRouteSummary[]>
-  addNetworkRoute(tabId: string, input: BrowserNetworkRouteInput): Promise<BrowserNetworkRouteSummary[]>
-  setNetworkRouteEnabled(tabId: string, routeId: string, enabled: boolean): Promise<BrowserNetworkRouteSummary[]>
-  moveNetworkRoute(tabId: string, routeId: string, direction: BrowserNetworkRouteMoveDirection): Promise<BrowserNetworkRouteSummary[]>
-  removeNetworkRoute(tabId: string, routeId: string): Promise<BrowserNetworkRouteSummary[]>
-  clearNetworkRoutes(tabId: string): Promise<BrowserState>
+  HronautWorkspacesApi,
+  HronautEmulationApi,
+  HronautNetworkRoutesApi,
+  HronautAddressBarStopsApi,
+  HronautIncidentsApi {
   manageStorage(options: BrowserStorageOptions): Promise<BrowserStorageResult>
   inspectStorageUsage(tabId?: string): Promise<BrowserStorageUsageReport>
   inspectIndexedDb(options?: BrowserIndexedDbOptions): Promise<BrowserIndexedDbReport>
