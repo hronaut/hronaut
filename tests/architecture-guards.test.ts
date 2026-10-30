@@ -118,7 +118,33 @@ describe('the architecture rules in AGENTS.md', () => {
       '  return [clean(String(renamed)), helperResult, String(local(1)), String(inner) as string, String(options.LIMIT)]',
       '}'
     ].join('\n')
-    expect(pageFunctionModuleUses(code)).toEqual(['readInPage: MAX', 'readInPage: helper', 'readInPage: LIMIT'])
+    expect(pageFunctionModuleUses(code)).toEqual([
+      'top level: const MAX = 5', 'top level: const LIMIT = 3', 'readInPage: MAX', 'readInPage: helper', 'readInPage: LIMIT'
+    ])
+  })
+
+  it('finds a base class, an instantiated function, a default value, Node\'s globals and imports, and code outside functions', () => {
+    const code = [
+      'const LIMIT = 3',
+      'class Base {}',
+      'interface Shape { size: number }',
+      'function helper<T>(value: T): T { return value }',
+      'export const readLater = () => LIMIT',
+      'export function overloaded(value: string): string',
+      'export function overloaded(value: string): string { return value ? overloaded("") : value }',
+      'export function readInPage(): unknown[] {',
+      '  const Local = class extends Base implements Shape { size = 1 }',
+      '  const typed = helper<string>',
+      '  let a = 0',
+      '  ;({ a = LIMIT } = {})',
+      '  return [Local, typed, a, process.env, import.meta, import("./other.js")]',
+      '}'
+    ].join('\n')
+    expect(pageFunctionModuleUses(code)).toEqual([
+      'top level: const LIMIT = 3', 'top level: class Base {}', 'top level: export const readLater = () => LIMIT',
+      'readInPage: Base', 'readInPage: helper', 'readInPage: LIMIT', 'readInPage: process', 'readInPage: import.meta',
+      'readInPage: import()'
+    ])
   })
 
   it('counts the IPC channel names a module writes out, and leaves out typed channels, URLs and page events', () => {

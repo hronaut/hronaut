@@ -144,7 +144,7 @@ describe('page metadata', () => {
     expect(pageFunction).toContain('meta[name="description" i]')
     expect(pageFunction).toContain("metaProperty('og:title')")
     expect(pageFunction).toContain('script[type="application/ld+json" i]')
-    expect(pageFunction).toContain("['@type']")
+    expect(pageFunction).toContain("(value as Record<string, unknown>)['@type']")
   })
 
   it('does not collect body content, field values, markup, or arbitrary meta contents', () => {
