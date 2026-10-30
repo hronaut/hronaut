@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import CredentialPicker from '../../src/renderer/src/features/credentials/CredentialPicker.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { CredentialSummary } from '../../src/shared/types.js'
@@ -16,6 +16,10 @@ function credential(id: string, username: string): CredentialSummary {
 }
 
 describe('CredentialPicker', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('returns focus to its invoking control after close', async () => {
     vi.spyOn(document, 'hasFocus').mockReturnValue(true)
     const trigger = document.createElement('button')
@@ -64,7 +68,7 @@ describe('CredentialPicker', () => {
 
   it('ignores pointer selection caused by a live credential-list reflow', async () => {
     let now = 1_000
-    const nowSpy = vi.spyOn(performance, 'now').mockImplementation(() => now)
+    vi.spyOn(performance, 'now').mockImplementation(() => now)
     const bob = credential('bob', 'Bob')
     const view = render(CredentialPicker, {
       global: { plugins: [createHronautI18n('en-US')] },
@@ -85,16 +89,14 @@ describe('CredentialPicker', () => {
     expect(bobOption).toHaveAttribute('aria-selected', 'true')
     now += 151
     // The guard counts on the monotonic clock, so a wall clock that steps back meanwhile does not extend it.
-    const wallClockSpy = vi.spyOn(Date, 'now').mockReturnValue(Date.now() - 3_600_000)
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() - 3_600_000)
     await fireEvent.pointerMove(carolOption, { clientX: 43, clientY: 40 })
     expect(carolOption).toHaveAttribute('aria-selected', 'true')
-    wallClockSpy.mockRestore()
-    nowSpy.mockRestore()
   })
 
   it('accepts the first pointer move after opening over recently loaded credentials', async () => {
     const now = 1_000
-    const nowSpy = vi.spyOn(performance, 'now').mockImplementation(() => now)
+    vi.spyOn(performance, 'now').mockImplementation(() => now)
     const view = render(CredentialPicker, {
       global: { plugins: [createHronautI18n('en-US')] },
       props: {
@@ -111,6 +113,5 @@ describe('CredentialPicker', () => {
     await fireEvent.pointerMove(bobOption, { clientX: 40, clientY: 80 })
 
     expect(bobOption).toHaveAttribute('aria-selected', 'true')
-    nowSpy.mockRestore()
   })
 })
