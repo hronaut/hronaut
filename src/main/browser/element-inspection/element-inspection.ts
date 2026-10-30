@@ -311,7 +311,9 @@ export async function imageState(browser: Browser, options: { tabId?: string; re
     }
   }
   try {
-    const raw: unknown = await bounded(execute(imageStateScript(options.selector, token, deadline)))
+    // The page reads its own wall clock, so it gets the time left as a deadline on that clock.
+    const pageDeadline = Date.now() + Math.max(0, deadline - performance.now())
+    const raw: unknown = await bounded(execute(imageStateScript(options.selector, token, pageDeadline)))
     assertCurrent()
     const report = normalizeImageState(raw)
     if (deferInspection) { deferInspection(pending); deferred = true } else await pending.finish()

@@ -1,6 +1,8 @@
 import { EventEmitter } from 'node:events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Browser } from '../src/main/browser/browser.js'
+import { imageState } from '../src/main/browser/element-inspection/element-inspection.js'
+import { ImageInspectionSlots } from '../src/main/browser/image-state.js'
 import { waitForElement, waitForText } from '../src/main/browser/page-waits/page-waits.js'
 import { drainWorkspaceOperations } from '../src/main/browser/quit-flush/quit-flush.js'
 
@@ -31,6 +33,29 @@ function track<Value>(promise: Promise<Value>): { settled?: { value?: Value, err
   return tracked
 }
 
+/** A website tab whose image state script reports a target it did not find, recording each script it was given. */
+function imageStateBrowser(): { browser: Browser, scripts: string[] } {
+  const scripts: string[] = []
+  const webContents = Object.assign(new EventEmitter(), {
+    isDestroyed: () => false,
+    executeJavaScriptInIsolatedWorld: vi.fn(async (_world: number, sources: Array<{ code: string }>) => {
+      scripts.push(sources[0]!.code)
+      return { failure: 'missing-target' }
+    })
+  })
+  const tab = { id: 'tab-1', url: 'https://example.test/', webContents, sleeping: false, pageLifecycleState: 'active' }
+  const browser = {
+    tabs: new Map([[tab.id, tab]]),
+    activeTabId: tab.id,
+    destroyed: false,
+    mcpTabGroups: new Map(),
+    inspectionPermissions: new Map(),
+    imageInspectionSlots: new ImageInspectionSlots(),
+    snapshotDeltaContext: () => ({ snapshotFormatVersion: 1, tabId: tab.id, observationGeneration: 0, navigationGeneration: 0, humanInteractionGeneration: 0 })
+  } as unknown as Browser
+  return { browser, scripts }
+}
+
 describe('deadlines when the wall clock steps back', () => {
   beforeEach(() => {
     vi.useFakeTimers()
@@ -46,6 +71,15 @@ describe('deadlines when the wall clock steps back', () => {
     await vi.advanceTimersByTimeAsync(1_200)
     expect(text.settled).toEqual({ value: null })
     expect(element.settled).toEqual({ value: false })
+  })
+
+  it('gives the image state script its deadline on the page\'s own wall clock', async () => {
+    const { browser, scripts } = imageStateBrowser()
+    await expect(imageState(browser, { selector: 'img' })).rejects.toThrow('Image state target not found')
+    // The script's last argument is the deadline, which the page compares with its Date.now().
+    const deadline = Number(/,\s*(\d+(?:\.\d+)?)\s*\)\s*;?\s*$/.exec(scripts[0]!)?.[1])
+    expect(deadline).toBeGreaterThanOrEqual(Date.now() + 4_900)
+    expect(deadline).toBeLessThanOrEqual(Date.now() + 5_000)
   })
 
   it('stops waiting for workspace operations at quit after eight seconds', async () => {
