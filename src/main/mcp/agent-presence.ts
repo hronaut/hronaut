@@ -250,8 +250,8 @@ const STATE_ORDER: Record<AgentPresenceState, number> = { 'needs-you': 0, workin
  * tool calls and attention requests. Every method is synchronous and bounded.
  * Every `now` is a time on the monotonic clock (`performance.now()`), so that
  * setting the computer's clock back or forward neither keeps an agent working
- * for an hour nor drops it at once; the times its steps show come from the
- * wall clock.
+ * for as long as the step nor drops it at once; the times its steps show come
+ * from the wall clock.
  */
 export class AgentPresenceRegistry {
   private readonly clients = new Map<string, ClientRecord>()
