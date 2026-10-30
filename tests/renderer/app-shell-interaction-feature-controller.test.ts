@@ -48,7 +48,11 @@ function deferred<Value>() {
   return { promise, resolve, reject }
 }
 
-function createHarness(extraNavigation: { takeOverFromAgent?: () => unknown; selectedTabIds?: () => readonly string[] } = {}) {
+function createHarness(extraNavigation: {
+  selectBrowserTab?: (tabId: string) => Promise<boolean>
+  takeOverFromAgent?: () => unknown
+  selectedTabIds?: () => readonly string[]
+} = {}) {
   const state = ref(browserState())
   const activeTab = computed(() => state.value.tabs.find((candidate) => candidate.id === state.value.activeTabId))
   const refs = {
@@ -271,6 +275,25 @@ describe('app shell interaction feature controller', () => {
       expect(close, surface).toHaveBeenCalledOnce()
       harness.refs[surface].value = false
     }
+    harness.controller.dispose()
+  })
+
+  it('goes from Home to a website tab to focus the address, and stays on a website', async () => {
+    const selectBrowserTab = vi.fn<(tabId: string) => Promise<boolean>>(async () => true)
+    const harness = createHarness({ selectBrowserTab })
+    const website = harness.state.value.tabs[0]
+    harness.state.value = {
+      ...harness.state.value,
+      tabs: [website, { ...website, id: 'home', url: 'hronaut://home/' }],
+      activeTabId: 'home'
+    }
+
+    await expect(harness.controller.runBrowserShortcut('focus-address')).resolves.toBe(true)
+    expect(selectBrowserTab).toHaveBeenCalledExactlyOnceWith('active')
+
+    harness.state.value = { ...harness.state.value, activeTabId: 'active' }
+    await expect(harness.controller.runBrowserShortcut('focus-address')).resolves.toBe(true)
+    expect(selectBrowserTab).toHaveBeenCalledOnce()
     harness.controller.dispose()
   })
 

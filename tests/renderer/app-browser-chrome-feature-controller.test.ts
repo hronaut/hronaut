@@ -15,6 +15,7 @@ function createHarness() {
   const reportShellHeight = vi.fn()
   const resizeAddressSuggestions = vi.fn()
   const openHome = vi.fn()
+  const togglePageTools = vi.fn()
   const controller = useAppBrowserChromeFeatureController({
     browserChromeLayer,
     resize: {
@@ -23,7 +24,7 @@ function createHarness() {
       reportShellHeight,
       resizeAddressSuggestions
     },
-    actions: { openHome }
+    actions: { openHome, togglePageTools }
   })
 
   return {
@@ -34,7 +35,8 @@ function createHarness() {
     reportShellHeight,
     resizeAddressSuggestions,
     expandTabGroupForTab,
-    openHome
+    openHome,
+    togglePageTools
   }
 }
 
@@ -48,6 +50,7 @@ describe('useAppBrowserChromeFeatureController', () => {
     harness.browserChromeLayer.value = null
     expect(() => harness.controller.expandTabGroupForTab(tab)).not.toThrow()
     expect(harness.controller.browserChromeActions.openHome).toBe(harness.openHome)
+    expect(harness.controller.browserChromeActions.togglePageTools).toBe(harness.togglePageTools)
   })
 
   it('coordinates every window-resize consumer exactly once', () => {

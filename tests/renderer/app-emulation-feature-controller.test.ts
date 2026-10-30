@@ -103,6 +103,8 @@ describe('app emulation feature controller', () => {
     feature.setResponsivePanel(null)
     expect(() => feature.closeResponsivePreview()).not.toThrow()
     expect(feature.environmentPanelOpen.value).toBe(false)
+    feature.toggleEnvironment()
+    expect(feature.environmentPanelOpen.value).toBe(true)
     feature.dispose()
   })
 
