@@ -1,7 +1,9 @@
 import { createServer } from 'node:http'
 import type { BrowserReproRecording, BrowserState } from '../../src/shared/types.js'
 import { reproScrollScript, reproTargetScript } from '../../src/main/browser/repro-recorder/repro-page-scripts.js'
+import { snapshotTextInPage } from '../../src/main/browser/snapshot-text.page.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
+import { aroundPageFunction } from './page-script-parts.js'
 
 const cases = [
   { phase: 'queued input', action: 'restart' },
@@ -41,7 +43,10 @@ for (const { phase, action } of cases) {
         testState.__reproStopRestore = () => { page.executeJavaScript = original }
         page.executeJavaScript = async function (...args) {
           const result = await original.apply(this, args)
-          if (args[0] !== input.script) return result
+          const held = input.target
+            ? typeof args[0] === 'string' && args[0].startsWith(input.target.before) && args[0].endsWith(input.target.after)
+            : args[0] === input.script
+          if (!held) return result
           page.executeJavaScript = original
           await new Promise<void>(resolve => {
             testState.__reproStopRelease = resolve
@@ -64,7 +69,7 @@ for (const { phase, action } of cases) {
         } finally {
           globalThis.setTimeout = nativeSetTimeout
         }
-      }, { url, inFlight: phase === 'in-flight scroll', concurrent: phase === 'concurrent stops' || phase === 'in-flight scroll', queuedInput: phase === 'queued input', script: phase === 'queued input' ? reproTargetScript() : reproScrollScript() })
+      }, { url, inFlight: phase === 'in-flight scroll', concurrent: phase === 'concurrent stops' || phase === 'in-flight scroll', queuedInput: phase === 'queued input', target: phase === 'queued input' ? aroundPageFunction(reproTargetScript(), snapshotTextInPage) : undefined, script: reproScrollScript() })
       if (phase === 'in-flight scroll') {
         await expect.poll(() => electronApp.evaluate(() => (globalThis as typeof globalThis & { __reproStopHeld?: boolean }).__reproStopHeld === true)).toBe(true)
       }
