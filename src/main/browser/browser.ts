@@ -30,10 +30,9 @@ import { workspaceContextMenuItems } from './context-menus/workspace-context-men
 import { fillForm, scroll, select, type } from './agent-page-actions/form-input-and-scroll.js'
 import type { NativeWheelInput } from './native-wheel.js'
 import { wheel } from './agent-wheel/agent-wheel.js'
-import type { AgentTouchAccess } from './agent-touch/agent-touch-access.js'
-import { touch, type NativeTouchInput, type NativeTouchProgress } from './agent-touch/agent-touch.js'
+import { touch } from './agent-touch/agent-touch.js'
+import type { NativeTouchInput, NativeTouchProgress } from './agent-touch/touch-input.js'
 import type { NativeKeyHoldInput, NativeKeyHoldProgress, NativeInputDispatchObserver } from './native-key-hold.js'
-import type { AgentKeysAccess } from './agent-keys/agent-keys-access.js'
 import { holdKey, press } from './agent-keys/agent-keys.js'
 import type { BrowserImageState, BrowserMediaState } from '../../shared/types.js'
 import type { PendingElementInspection } from './element-inspection-publication.js'
@@ -434,7 +433,6 @@ import {
 } from './website-dialogs/website-dialogs.js'
 import {
   agentInputDebugger,
-  sendAuthorizedAgentInputCommand,
   type AuthorizedAgentKeyboardInput,
   type AuthorizedAgentMouseInput
 } from './agent-input-authorization/agent-input-authorization.js'
@@ -486,7 +484,6 @@ import { captureAgentStepThumbnail } from './agent-step-thumbnail/agent-step-thu
 import { cancelFocusAfterTrustedChrome, focusTabOrTrustedChrome, withholdFocusAfterTrustedChrome, type PendingTrustedChromeFocus } from './trusted-chrome-focus/trusted-chrome-focus.js'
 import type { TrustedChromeOcclusionAccess } from './trusted-chrome-occlusion/trusted-chrome-occlusion-access.js'
 import { occlusionLayout, occlusionSnapshotPanes, setBrowserContentOccluded, setFollowAgentActivitySuspended } from './trusted-chrome-occlusion/trusted-chrome-occlusion.js'
-import type { AgentFollowAccess } from './agent-follow/agent-follow-access.js'
 import { handleMcpTabActivity, publishAgentFollowChange, publishedAgentFollow, retainAgentFollow, setFollowAgentActivity } from './agent-follow/agent-follow.js'
 import { selectTabPassively } from './agent-follow/passive-selection.js'
 import { syncHumanInteractionInputGuard } from './interaction-lock/human-input-guard.js'
@@ -1414,71 +1411,16 @@ export class Browser {
     return browserState(this)
   }
 
-  /**
-   * The narrow view agent following and selecting a tab without moving
-   * keyboard focus get of this manager's private followed agent, follow
-   * preference, tabs, active tab and selection generation, split view, MCP
-   * activities, MCP activity follower, state publication, window and
-   * selection. It is a prototype method rather than a field, so managers
-   * created without the constructor (as unit tests do) still provide it.
-   */
-  private agentFollowAccess(): AgentFollowAccess {
-    return {
-      agentFollow: () => this.agentFollow,
-      setAgentFollow: (follow) => { this.agentFollow = follow },
-      followAgentActivity: () => this.followAgentActivity,
-      setFollowAgentActivityPreference: (enabled) => { this.followAgentActivity = enabled },
-      activeTabId: () => this.activeTabId,
-      splitViewContains: (tabId) => this.splitViewContains(tabId),
-      tabSelectionGeneration: () => this.tabSelectionGeneration,
-      hasTab: (tabId) => this.tabs.has(tabId),
-      findTab: (tabId) => this.tabs.get(tabId),
-      mcpActivitiesByTab: () => this.mcpActivitiesByTab,
-      mcpActivityFollower: () => this.mcpActivityFollower,
-      changed: (persist) => this.changed(persist),
-      window: () => this.window,
-      getTab: (tabId) => getTab(this, tabId),
-      selectTab: (tabId, options) => this.selectTab(tabId, options)
-    }
-  }
-
   publishedAgentFollow(): { tabId: string; agentName: string } | undefined {
-    return publishedAgentFollow(this.agentFollowAccess())
+    return publishedAgentFollow(this)
   }
 
   private publishAgentFollowChange(before: { tabId: string; agentName: string } | undefined): void {
-    publishAgentFollowChange(this.agentFollowAccess(), before)
-  }
-
-  /**
-   * The narrow view an agent's touch gesture gets of this manager's private
-   * tabs, window, active tab, split view, generations, trusted chrome
-   * occlusion, human interaction lock, native selection sessions, DevTools
-   * opening, native input authority, agent input scopes, debugger queue and
-   * unconfirmed touch contacts. Like the wheel's, it is a prototype method.
-   */
-  private agentTouchAccess(): AgentTouchAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      tabSelectionGeneration: () => this.tabSelectionGeneration,
-      splitViewGeneration: () => this.splitViewGeneration,
-      splitView: () => this.splitView,
-      window: () => this.window,
-      activeTabId: () => this.activeTabId,
-      browserContentOccluded: () => this.browserContentOccluded,
-      nativeInputLockMutations: () => this.nativeInputLockMutations,
-      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
-      screenshotAreaSessions: () => this.screenshotAreaSessions,
-      elementPickerSessions: () => this.elementPickerSessions,
-      devToolsOpening: () => this.devToolsOpening,
-      nativeInputAuthority: (tab, validateInput) => nativeInputAuthority(this, tab, validateInput),
-      withAgentInput: (webContents, operation) => this.withAgentInput(webContents, operation),
-      withDebugger: (webContents, operation) => this.withDebugger(webContents, operation)
-    }
+    publishAgentFollowChange(this, before)
   }
 
   retainAgentFollow(agentIds: ReadonlySet<string>): void {
-    retainAgentFollow(this.agentFollowAccess(), agentIds)
+    retainAgentFollow(this, agentIds)
   }
 
   getTabOverviewPreviews(tabIds: readonly string[]): BrowserTabOverviewPreview[] {
@@ -2014,12 +1956,12 @@ export class Browser {
   }
 
   setFollowAgentActivity(enabled: boolean): void {
-    setFollowAgentActivity(this.agentFollowAccess(), enabled)
+    setFollowAgentActivity(this, enabled)
   }
 
   /** The agent is its session's opaque presence key and cleaned name; following holds on it and names it in the rail. */
   handleMcpTabActivity(activity: McpTabActivity, agent?: FollowAgent): void {
-    handleMcpTabActivity(this.agentFollowAccess(), activity, agent)
+    handleMcpTabActivity(this, activity, agent)
   }
 
   wakeTab(tabId: string): Promise<BrowserState> {
@@ -2198,7 +2140,7 @@ export class Browser {
   }
 
   private selectTabPassively(tabId: string): boolean {
-    return selectTabPassively(this.agentFollowAccess(), tabId)
+    return selectTabPassively(this, tabId)
   }
 
   openSplitViewAndWait(tabId: string): Promise<BrowserState> {
@@ -2995,7 +2937,7 @@ export class Browser {
   }
 
   touch(input: NativeTouchInput, validateInput: (validateContext: () => void) => void, recordProgress: (progress: NativeTouchProgress) => void, signal?: AbortSignal): Promise<unknown> {
-    return touch(this.agentTouchAccess(), input, validateInput, recordProgress, signal)
+    return touch(this, input, validateInput, recordProgress, signal)
   }
 
   scroll(options: {
@@ -3351,49 +3293,13 @@ export class Browser {
     return fillFromFile(this, target, source, validateFill, progress)
   }
 
-  /**
-   * The narrow view an agent's native key press and key hold get of this
-   * manager's private tabs, key holds, window, active tab, split view,
-   * generations, trusted chrome occlusion, pending lock changes, native
-   * selection sessions, DevTools opening, emulation check, native input
-   * authority, agent input scope, debugger queue and authorized input
-   * commands. It is a prototype method rather than a field, so managers
-   * created without the constructor (as unit tests do) still provide it. The
-   * delegates below return the feature's promise directly, so callers see the
-   * same ticks as before.
-   */
-  private agentKeysAccess(): AgentKeysAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      activeNativeKeyHolds: () => this.activeNativeKeyHolds,
-      unconfirmedNativeKeyHolds: () => this.unconfirmedNativeKeyHolds,
-      tabSelectionGeneration: () => this.tabSelectionGeneration,
-      splitViewGeneration: () => this.splitViewGeneration,
-      splitView: () => this.splitView,
-      nativeInputLockMutations: () => this.nativeInputLockMutations,
-      activeTabId: () => this.activeTabId,
-      browserContentOccluded: () => this.browserContentOccluded,
-      window: () => this.window,
-      screenshotAreaSessions: () => this.screenshotAreaSessions,
-      elementPickerSessions: () => this.elementPickerSessions,
-      devToolsOpening: () => this.devToolsOpening,
-      requireEmulationConfirmed: (tab) => this.requireEmulationConfirmed(tab),
-      nativeInputAuthority: (tab, validateInput) => nativeInputAuthority(this, tab, validateInput),
-      withAgentInput: (webContents, operation) => this.withAgentInput(webContents, operation),
-      withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
-      sendAuthorizedAgentInputCommand: (webContents, method, commandParams, validateInput, observer) =>
-        this.sendAuthorizedAgentInputCommand(webContents, method, commandParams, validateInput, observer),
-      agentInputDebugger: (webContents, validateInput) => this.agentInputDebugger(webContents, validateInput)
-    }
-  }
-
   holdKey(input: NativeKeyHoldInput, validateInput: (validateContext: () => void) => void,
     recordProgress: (progress: NativeKeyHoldProgress) => void, signal?: AbortSignal): Promise<unknown> {
-    return holdKey(this.agentKeysAccess(), input, validateInput, recordProgress, signal)
+    return holdKey(this, input, validateInput, recordProgress, signal)
   }
 
   press(key: string, tabId?: string, validateInput?: (validateContext: () => void) => void): Promise<void> {
-    return press(this.agentKeysAccess(), key, tabId, validateInput)
+    return press(this, key, tabId, validateInput)
   }
 
   evaluateFile(source: FileEvaluationSource, hooks: FileEvaluationHooks): Promise<Record<string, unknown>> {
@@ -4295,17 +4201,6 @@ export class Browser {
     validateInput?: () => void
   ): PointerDebugger & KeyboardDebugger {
     return agentInputDebugger(this, webContents, validateInput)
-  }
-
-  private sendAuthorizedAgentInputCommand(
-    webContents: BrowserTab['view']['webContents'],
-    method: string,
-    commandParams: Record<string, unknown> = {},
-    validateInput?: () => void,
-    observer?: NativeInputDispatchObserver,
-    beforeRawDispatch?: () => Promise<void>
-  ): Promise<unknown> {
-    return sendAuthorizedAgentInputCommand(this, webContents, method, commandParams, validateInput, observer, beforeRawDispatch)
   }
 
   syncHumanInteractionInputGuard(tab: BrowserTab): Promise<void> {

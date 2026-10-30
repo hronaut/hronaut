@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { type NativeTouchInput, nativeTouchFields, refineNativeTouch } from '../../../browser/agent-touch/agent-touch.js'
+import { type NativeTouchInput, nativeTouchFields, refineNativeTouch } from '../../../browser/agent-touch/touch-input.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'

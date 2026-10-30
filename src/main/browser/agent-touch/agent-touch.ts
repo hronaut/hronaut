@@ -1,5 +1,9 @@
-import { z } from 'zod'
-import type { AgentTouchAccess, AgentTouchTab } from './agent-touch-access.js'
+import type { Browser } from '../browser.js'
+import { getTab } from '../browser-core.js'
+import { withDebugger } from '../debugger-lease/debugger-lease.js'
+import { withAgentInput } from '../agent-input-scope/agent-input-scope.js'
+import { nativeInputAuthority } from '../native-input-authority/native-input-authority.js'
+import { nativeTouchInput, notStartedTouchProgress, type NativeTouchInput, type NativeTouchProgress } from './touch-input.js'
 
 /** How many moves a swipe sends on its way from the start point to the end point. */
 const SWIPE_MOVES = 10
@@ -10,58 +14,6 @@ const SWIPE_MOVES = 10
  * hung renderer can delay indefinitely.
  */
 const TOUCH_ACK_TIMEOUT_MS = 5_000
-
-const coordinate = z.number().finite().min(0).max(16384)
-
-/** One single-finger gesture in viewport CSS pixels: a tap at a point, or a straight swipe from it to an end point. */
-export const nativeTouchFields = {
-  gesture: z.enum(['tap', 'swipe']),
-  x: coordinate,
-  y: coordinate,
-  endX: coordinate.optional(),
-  endY: coordinate.optional(),
-  durationMs: z.number().int().min(50).max(2000).optional()
-}
-
-/** A swipe names its end point and may name its duration; a tap names neither. */
-export function refineNativeTouch(input: { gesture: 'tap' | 'swipe'; x: number; y: number; endX?: number; endY?: number; durationMs?: number }, context: z.RefinementCtx): void {
-  if (input.gesture === 'tap') {
-    if (input.endX !== undefined || input.endY !== undefined || input.durationMs !== undefined) {
-      context.addIssue({ code: 'custom', message: 'A tap takes only x and y; endX, endY and durationMs are for a swipe' })
-    }
-    return
-  }
-  if (input.endX === undefined || input.endY === undefined) {
-    context.addIssue({ code: 'custom', message: 'A swipe needs endX and endY' })
-  } else if (input.endX === input.x && input.endY === input.y) {
-    context.addIssue({ code: 'custom', message: 'A swipe must end at another point than it starts' })
-  }
-}
-
-export const nativeTouchInput = z.object({ tabId: z.string().min(1), ...nativeTouchFields }).strict().superRefine(refineNativeTouch)
-
-export type NativeTouchInput = z.infer<typeof nativeTouchInput>
-
-/** How far a gesture got, from main-process bookkeeping only; never accepted from MCP arguments. */
-export interface NativeTouchProgress {
-  startAttempted: boolean
-  movesAcknowledged: number
-  endAcknowledged: boolean
-  cancelAttempted: boolean
-  cancelAcknowledged: boolean
-  /**
-   * Chromium no longer holds the contact although the page did not acknowledge
-   * its end or cancel: Chromium took the cancel and then failed or is still
-   * waiting for the page, held no contact any more, or its debugger session
-   * ended or the page closed before a cancel could be sent.
-   */
-  contactCleared: boolean
-}
-
-/** A gesture before its first touch event. */
-export const notStartedTouchProgress = (): NativeTouchProgress => ({
-  startAttempted: false, movesAcknowledged: 0, endAcknowledged: false, cancelAttempted: false, cancelAcknowledged: false, contactCleared: false
-})
 
 /** The gesture's first touch event was attempted; a failure from then on does not prove the page saw nothing. */
 export class NativeTouchOutcomeUnknownError extends Error {
@@ -79,16 +31,16 @@ export class NativeTouchOutcomeUnknownError extends Error {
  * cancellation stops the gesture, and a contact that went down is then
  * cancelled, so Chromium never carries it into the next gesture.
  */
-export async function touch<Tab extends AgentTouchTab>(access: AgentTouchAccess<Tab>, input: NativeTouchInput, validateInput: (validateContext: () => void) => void,
+export async function touch(browser: Browser, input: NativeTouchInput, validateInput: (validateContext: () => void) => void,
   recordProgress: (progress: NativeTouchProgress) => void, signal?: AbortSignal): Promise<unknown> {
   const options = nativeTouchInput.parse(input)
-  const tab = access.getTab(options.tabId)
+  const tab = getTab(browser, options.tabId)
   const webContents = tab.webContents
   const generation = tab.nativeInputEnvironmentGeneration
-  const selectionGeneration = access.tabSelectionGeneration()
-  const splitGeneration = access.splitViewGeneration()
+  const selectionGeneration = browser.tabSelectionGeneration
+  const splitGeneration = browser.splitViewGeneration
   const bounds = tab.view.getBounds()
-  const authority = access.nativeInputAuthority(tab, validateInput)
+  const authority = nativeInputAuthority(browser, tab, validateInput)
   const progress = notStartedTouchProgress()
   const publish = (): void => { recordProgress({ ...progress }) }
   let environmentChanged = false
@@ -113,28 +65,28 @@ export async function touch<Tab extends AgentTouchTab>(access: AgentTouchAccess<
   webContents.on('destroyed', changed)
   webContents.debugger.on('message', debuggerChanged)
   webContents.debugger.on('detach', detached)
-  access.window().on('move', changed)
-  access.window().on('hide', changed)
-  access.window().on('minimize', changed)
+  browser.window.on('move', changed)
+  browser.window.on('hide', changed)
+  browser.window.on('minimize', changed)
   const validate = (): void => {
     authority.validate()
     if (signal?.aborted) throw new Error('Touch gesture cancelled; earlier touch effects are not rolled back')
     if (environmentChanged || generation !== tab.nativeInputEnvironmentGeneration
-      || selectionGeneration !== access.tabSelectionGeneration() || splitGeneration !== access.splitViewGeneration()
+      || selectionGeneration !== browser.tabSelectionGeneration || splitGeneration !== browser.splitViewGeneration
       || JSON.stringify(tab.view.getBounds()) !== JSON.stringify(bounds)) {
       throw new Error('Touch environment changed; inspect fresh state before a new gesture')
     }
-    if (access.activeTabId() !== tab.id || access.splitView() || access.browserContentOccluded()
-      || !access.window().isVisible() || access.window().isMinimized() || !tab.view.getVisible()
-      || !access.window().contentView.children.includes(tab.view)) {
+    if (browser.activeTabId !== tab.id || browser.splitView || browser.browserContentOccluded
+      || !browser.window.isVisible() || browser.window.isMinimized() || !tab.view.getVisible()
+      || !browser.window.contentView.children.includes(tab.view)) {
       throw new Error('Touch requires the active visible page outside split view; select it first')
     }
     if (tab.sleeping || tab.pageLifecycleState !== 'active') throw new Error('Touch requires an already awake, active page')
     // Like the other native input paths, any pending lock change, on any tab, holds the gesture back.
-    if (access.nativeInputLockMutations() > 0) throw new Error('Touch is unavailable while a page input lock is changing; try again once it settles')
-    if (access.isHumanInteractionLocked(tab)) throw new Error('Touch requires an unlocked page; the person locked its input')
-    if (access.screenshotAreaSessions().has(webContents.id) || access.elementPickerSessions().has(webContents.id)
-      || access.devToolsOpening().has(webContents.id) || webContents.isDevToolsOpened()) {
+    if (browser.nativeInputLockMutations > 0) throw new Error('Touch is unavailable while a page input lock is changing; try again once it settles')
+    if (browser.isHumanInteractionLocked(tab)) throw new Error('Touch requires an unlocked page; the person locked its input')
+    if (browser.screenshotAreaSessions.has(webContents.id) || browser.elementPickerSessions.has(webContents.id)
+      || browser.devToolsOpening.has(webContents.id) || webContents.isDevToolsOpened()) {
       throw new Error('Touch is unavailable during native selection or Developer Tools')
     }
     if (tab.emulationApplication !== 'confirmed' || tab.emulation.viewport?.touch !== true) {
@@ -151,7 +103,7 @@ export async function touch<Tab extends AgentTouchTab>(access: AgentTouchAccess<
     withAcknowledgementTimeout(webContents.debugger.sendCommand('Input.dispatchTouchEvent', { type, touchPoints: point ? [point] : [], modifiers: 0 }))
   try {
     validate()
-    await access.withAgentInput(webContents, () => access.withDebugger(webContents, async () => {
+    await withAgentInput(browser, webContents, () => withDebugger(browser, webContents, async () => {
       try {
         validate()
         const metrics = await webContents.debugger.sendCommand('Page.getLayoutMetrics') as {
@@ -246,9 +198,9 @@ export async function touch<Tab extends AgentTouchTab>(access: AgentTouchAccess<
     webContents.removeListener('destroyed', changed)
     webContents.debugger.removeListener('message', debuggerChanged)
     webContents.debugger.removeListener('detach', detached)
-    access.window().removeListener('move', changed)
-    access.window().removeListener('hide', changed)
-    access.window().removeListener('minimize', changed)
+    browser.window.removeListener('move', changed)
+    browser.window.removeListener('hide', changed)
+    browser.window.removeListener('minimize', changed)
   }
 }
 
