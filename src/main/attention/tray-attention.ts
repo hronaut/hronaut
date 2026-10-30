@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { Menu, nativeImage, Notification, Tray, type BrowserWindow, type NativeImage } from 'electron'
 import { bindTrayActivation } from './tray-activation.js'
+import { watchStatusNotifierWatcher } from './status-notifier-watcher.js'
 import trayIconPath from '../../../build/icons/24x24.png?asset'
 import trayAttentionIconPath from '../../../build/icons/tray-attention.png?asset'
 import type { Browser } from '../browser/browser.js'
@@ -105,6 +106,7 @@ export function createTrayAttention(host: TrayAttentionHost): {
   let attentionNotification: Notification | null = null
   let trayIcon: NativeImage | null = null
   let trayAttentionIcon: NativeImage | null = null
+  let followingDesktopTray = false
   /** Agent commands still running on a page; a key or click during one is not a response. */
   const activeMcpActivities = new Set<string>()
 
@@ -359,6 +361,10 @@ export function createTrayAttention(host: TrayAttentionHost): {
       tray = new Tray(trayIcon)
       setTrayContextMenu()
       bindTrayActivation(tray, host.showWindow, process.platform)
+      if (process.platform === 'linux' && !followingDesktopTray) {
+        followingDesktopTray = true
+        watchStatusNotifierWatcher(recreateTray)
+      }
       return true
     } catch (error) {
       if (tray && !tray.isDestroyed()) tray.destroy()
@@ -372,6 +378,25 @@ export function createTrayAttention(host: TrayAttentionHost): {
         )
       }
       return false
+    }
+  }
+
+  /**
+   * Creates the tray icon again once the desktop's tray starts, such as a panel that starts after Hronaut opened at
+   * login, or one restarting: Chromium places the icon in the desktop's tray only if one runs when the icon is created.
+   * The icon keeps the attention it shows. Should that fail, the window opens, since nothing else would open it.
+   */
+  function recreateTray(): void {
+    if (!tray || tray.isDestroyed()) return
+    tray.destroy()
+    tray = null
+    if (!createTray()) {
+      host.showWindow()
+      return
+    }
+    if (attentionPulseOn) {
+      attentionPulseOn = false
+      renderAttentionPulse()
     }
   }
 
