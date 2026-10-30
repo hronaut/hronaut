@@ -27,6 +27,7 @@ import {
 } from '../../shared/types.js'
 import { setFollowAgentActivity } from '../browser/agent-follow/agent-follow.js'
 import { setMemorySaverSettings } from '../browser/tab-sleep/memory-saver.js'
+import { SETTINGS_IPC } from '../../shared/ipc/settings.js'
 
 type SettingsIpcCapabilityProfiles = Pick<McpCapabilityProfileStore, 'list' | 'create' | 'derive' | 'update' | 'rotate' | 'revoke'>
 
@@ -124,17 +125,17 @@ export function registerSettingsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Sett
     if (!profiles) throw new LocalizedError('appErrors.settings.capabilityProfilesUnavailable')
     return profiles
   }
-  ipcMain.handle('settings:get', (event) => { host.assertTrustedSender(event); return { ...host.settings() } })
-  ipcMain.handle('settings:get-renderer-state', (event) => {
+  ipcMain.handle(SETTINGS_IPC.get, (event) => { host.assertTrustedSender(event); return { ...host.settings() } })
+  ipcMain.handle(SETTINGS_IPC.getRendererState, (event) => {
     host.assertTrustedSender(event)
     return host.currentRendererSettingsState()
   })
-  ipcMain.handle('settings:get-system-theme', (event) => {
+  ipcMain.handle(SETTINGS_IPC.getSystemTheme, (event) => {
     host.assertTrustedSender(event)
     return host.shouldUseDarkColors() ? 'dark' : 'light'
   })
   // Reset to default in Settings → Appearance: how Hronaut looks.
-  ipcMain.handle('settings:reset-appearance', async (event) => {
+  ipcMain.handle(SETTINGS_IPC.resetAppearance, async (event) => {
     host.assertTrustedSender(event)
     await host.updateSettings({
       theme: DEFAULT_SETTINGS.theme,
@@ -148,7 +149,7 @@ export function registerSettingsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Sett
     return host.currentRendererSettingsState()
   })
   // Reset to default in Settings → General: language and spell check, startup and tray, and how agent activity shows.
-  ipcMain.handle('settings:reset-general', async (event) => {
+  ipcMain.handle(SETTINGS_IPC.resetGeneral, async (event) => {
     host.assertTrustedSender(event)
     if (host.isPackaged() && !host.startupLaunchManager()) {
       throw new LocalizedError('appErrors.settings.startupIntegrationUnavailable')
@@ -174,7 +175,7 @@ export function registerSettingsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Sett
     await host.applyLanguagePreferenceRuntime(host.settings().languagePreference)
     return host.currentRendererSettingsState()
   })
-  ipcMain.handle('settings:set-theme', async (event, theme: unknown) => {
+  ipcMain.handle(SETTINGS_IPC.setTheme, async (event, theme: unknown) => {
     host.assertTrustedSender(event)
     if (!isThemeName(theme)) throw new TypeError('Unsupported theme')
     await host.updateSettings({ theme })
@@ -182,7 +183,7 @@ export function registerSettingsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Sett
     host.publishSettings()
     return { ...host.settings() }
   })
-  ipcMain.handle('settings:set-interface-scale', async (event, scale: unknown) => {
+  ipcMain.handle(SETTINGS_IPC.setInterfaceScale, async (event, scale: unknown) => {
     host.assertTrustedSender(event)
     if (!isInterfaceScale(scale)) throw new TypeError('Unsupported interface size')
     await host.updateSettings({ interfaceScale: scale })
@@ -190,7 +191,7 @@ export function registerSettingsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Sett
     host.publishSettings()
     return { ...host.settings() }
   })
-  ipcMain.handle('settings:set-tab-position', async (event, position: unknown) => {
+  ipcMain.handle(SETTINGS_IPC.setTabPosition, async (event, position: unknown) => {
     host.assertTrustedSender(event)
     if (!isTabPosition(position)) throw new TypeError('Invalid tab position')
     await host.updateSettings({ tabPosition: position })
@@ -199,25 +200,25 @@ export function registerSettingsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Sett
     host.publishSettings()
     return { ...host.settings() }
   })
-  ipcMain.handle('settings:set-use-system-title-bar', async (event, enabled: unknown) => {
+  ipcMain.handle(SETTINGS_IPC.setUseSystemTitleBar, async (event, enabled: unknown) => {
     host.assertTrustedSender(event)
     if (typeof enabled !== 'boolean') throw new TypeError('System title bar preference must be a boolean')
     await host.updateSettings({ useSystemTitleBar: enabled })
     host.publishSettings()
     return { ...host.settings() }
   })
-  ipcMain.handle('settings:set-search-engine', async (event, searchEngine: unknown) => {
+  ipcMain.handle(SETTINGS_IPC.setSearchEngine, async (event, searchEngine: unknown) => {
     host.assertTrustedSender(event)
     if (!isSearchEngineName(searchEngine)) throw new TypeError('Unsupported search engine')
     await host.updateSettings({ searchEngine })
     host.publishSettings()
     return { ...host.settings() }
   })
-  ipcMain.handle('settings:get-default-download-directory', (event) => {
+  ipcMain.handle(SETTINGS_IPC.getDefaultDownloadDirectory, (event) => {
     host.assertTrustedSender(event)
     return host.defaultDownloadDirectory()
   })
-  ipcMain.handle('settings:choose-download-directory', async (event) => {
+  ipcMain.handle(SETTINGS_IPC.chooseDownloadDirectory, async (event) => {
     host.assertTrustedSender(event)
     const result = await host.chooseDownloadDirectory()
     const directory = result.filePaths[0]
@@ -227,23 +228,23 @@ export function registerSettingsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Sett
       canceled: false
     }
   })
-  ipcMain.handle('settings:set-ask-where-to-save-downloads', (event, enabled: unknown) => {
+  ipcMain.handle(SETTINGS_IPC.setAskWhereToSaveDownloads, (event, enabled: unknown) => {
     host.assertTrustedSender(event)
     if (typeof enabled !== 'boolean') throw new TypeError('Ask-before-saving must be a boolean')
     return host.applyDownloadSettings({ askWhereToSaveDownloads: enabled })
   })
-  ipcMain.handle('settings:reset-downloads', (event) => {
+  ipcMain.handle(SETTINGS_IPC.resetDownloads, (event) => {
     host.assertTrustedSender(event)
     return host.applyDownloadSettings({ downloadDirectory: null, askWhereToSaveDownloads: false })
   })
-  ipcMain.handle('settings:open-download-directory', async (event) => {
+  ipcMain.handle(SETTINGS_IPC.openDownloadDirectory, async (event) => {
     host.assertTrustedSender(event)
     const directory = host.effectiveDownloadDirectory()
     await createDownloadFolder(directory)
     const error = await host.openPath(directory)
     if (error) throw new LocalizedError('appErrors.settings.downloadFolderOpenFailed', undefined, { message: error })
   })
-  host.handleBrowserIpc('settings:set-memory-saver-enabled', async (event, enabled: unknown) => {
+  host.handleBrowserIpc(SETTINGS_IPC.setMemorySaverEnabled, async (event, enabled: unknown) => {
     host.assertTrustedSender(event)
     if (typeof enabled !== 'boolean') throw new TypeError('Memory Saver state must be a boolean')
     await host.updateSettings({ memorySaverEnabled: enabled })
@@ -252,7 +253,7 @@ export function registerSettingsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Sett
     host.publishSettings()
     return { ...host.settings() }
   })
-  host.handleBrowserIpc('settings:set-memory-saver-timeout', async (event, timeoutMinutes: unknown) => {
+  host.handleBrowserIpc(SETTINGS_IPC.setMemorySaverTimeoutMinutes, async (event, timeoutMinutes: unknown) => {
     host.assertTrustedSender(event)
     if (!isMemorySaverTimeoutMinutes(timeoutMinutes)) throw new TypeError('Unsupported Memory Saver timeout')
     await host.updateSettings({ memorySaverTimeoutMinutes: timeoutMinutes })
@@ -261,7 +262,7 @@ export function registerSettingsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Sett
     host.publishSettings()
     return { ...host.settings() }
   })
-  host.handleBrowserIpc('settings:reset-memory-saver', async (event) => {
+  host.handleBrowserIpc(SETTINGS_IPC.resetMemorySaver, async (event) => {
     host.assertTrustedSender(event)
     // Reset to default in Settings → Performance: Memory Saver, and graphics acceleration from the next start.
     await host.updateSettings({
@@ -274,14 +275,14 @@ export function registerSettingsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Sett
     host.publishSettings()
     return { ...host.settings() }
   })
-  ipcMain.handle('settings:set-hide-in-tray', async (event, enabled: unknown) => {
+  ipcMain.handle(SETTINGS_IPC.setHideInTray, async (event, enabled: unknown) => {
     host.assertTrustedSender(event)
     if (typeof enabled !== 'boolean') throw new TypeError('Hide in tray must be a boolean')
     await host.updateSettings({ hideInTray: enabled })
     host.publishSettings()
     return { ...host.settings() }
   })
-  ipcMain.handle('settings:set-launch-at-startup', async (event, enabled: unknown) => {
+  ipcMain.handle(SETTINGS_IPC.setLaunchAtStartup, async (event, enabled: unknown) => {
     host.assertTrustedSender(event)
     if (typeof enabled !== 'boolean') throw new TypeError('Launch-at-startup preference must be a boolean')
     if (!host.startupLaunchManager()) throw new LocalizedError('appErrors.settings.startupIntegrationUnavailable')
@@ -292,42 +293,42 @@ export function registerSettingsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Sett
     host.publishSettings()
     return { ...host.settings() }
   })
-  ipcMain.handle('settings:set-launch-minimized', async (event, enabled: unknown) => {
+  ipcMain.handle(SETTINGS_IPC.setLaunchMinimized, async (event, enabled: unknown) => {
     host.assertTrustedSender(event)
     if (typeof enabled !== 'boolean') throw new TypeError('Launch-minimized preference must be a boolean')
     await host.updateSettings({ launchMinimized: enabled })
     host.publishSettings()
     return { ...host.settings() }
   })
-  ipcMain.handle('settings:set-attention-sound', async (event, enabled: unknown) => {
+  ipcMain.handle(SETTINGS_IPC.setAttentionSound, async (event, enabled: unknown) => {
     host.assertTrustedSender(event)
     if (typeof enabled !== 'boolean') throw new TypeError('Attention sound must be a boolean')
     await host.updateSettings({ attentionSound: enabled })
     host.publishSettings()
     return { ...host.settings() }
   })
-  ipcMain.handle('settings:set-attention-sound-cue', async (event, cue: unknown) => {
+  ipcMain.handle(SETTINGS_IPC.setAttentionSoundCue, async (event, cue: unknown) => {
     host.assertTrustedSender(event)
     if (!isAttentionSoundCue(cue)) throw new TypeError('Unsupported attention sound')
     await host.updateSettings({ attentionSoundCue: cue })
     host.publishSettings()
     return { ...host.settings() }
   })
-  ipcMain.handle('settings:set-show-agent-cursor', async (event, enabled: unknown) => {
+  ipcMain.handle(SETTINGS_IPC.setShowAgentCursor, async (event, enabled: unknown) => {
     host.assertTrustedSender(event)
     if (typeof enabled !== 'boolean') throw new TypeError('Show agent cursor must be a boolean')
     await host.updateSettings({ showAgentCursor: enabled })
     host.publishSettings()
     return { ...host.settings() }
   })
-  ipcMain.handle('settings:set-pin-agent-live-status', async (event, enabled: unknown) => {
+  ipcMain.handle(SETTINGS_IPC.setPinAgentLiveStatus, async (event, enabled: unknown) => {
     host.assertTrustedSender(event)
     if (typeof enabled !== 'boolean') throw new TypeError('Pin agent live status must be a boolean')
     await host.updateSettings({ pinAgentLiveStatus: enabled })
     host.publishSettings()
     return { ...host.settings() }
   })
-  ipcMain.handle('settings:set-follow-agent-activity', async (event, enabled: unknown) => {
+  ipcMain.handle(SETTINGS_IPC.setFollowAgentActivity, async (event, enabled: unknown) => {
     host.assertTrustedSender(event)
     if (typeof enabled !== 'boolean') throw new TypeError('Follow agent activity must be a boolean')
     // Applied at once, in the order asked, so following cannot move the view after the person
@@ -343,28 +344,28 @@ export function registerSettingsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Sett
     host.publishSettings()
     return { ...host.settings() }
   })
-  ipcMain.handle('settings:set-challenge-detection', async (event, enabled: unknown) => {
+  ipcMain.handle(SETTINGS_IPC.setChallengeDetectionEnabled, async (event, enabled: unknown) => {
     host.assertTrustedSender(event)
     if (typeof enabled !== 'boolean') throw new TypeError('Challenge detection must be a boolean')
     await host.updateSettings({ challengeDetectionEnabled: enabled })
     host.publishSettings()
     return { ...host.settings() }
   })
-  ipcMain.handle('settings:set-omit-agent-url-detail', async (event, enabled: unknown) => {
+  ipcMain.handle(SETTINGS_IPC.setOmitAgentUrlDetail, async (event, enabled: unknown) => {
     host.assertTrustedSender(event)
     if (typeof enabled !== 'boolean') throw new TypeError('Omitting URL detail must be a boolean')
     await host.updateSettings({ omitAgentUrlDetail: enabled })
     host.publishSettings()
     return { ...host.settings() }
   })
-  ipcMain.handle('settings:set-allow-website-file-saving', async (event, enabled: unknown) => {
+  ipcMain.handle(SETTINGS_IPC.setAllowWebsiteFileSaving, async (event, enabled: unknown) => {
     host.assertTrustedSender(event)
     if (typeof enabled !== 'boolean') throw new TypeError('Website file saving must be a boolean')
     await host.updateSettings({ allowWebsiteFileSaving: enabled })
     host.publishSettings()
     return { ...host.settings() }
   })
-  ipcMain.handle('settings:set-mcp-remote-access', async (event, enabled: unknown) => {
+  ipcMain.handle(SETTINGS_IPC.setMcpRemoteAccess, async (event, enabled: unknown) => {
     host.assertTrustedSender(event)
     if (typeof enabled !== 'boolean') throw new TypeError('Remote MCP access must be a boolean')
     const next = await host.updateSettings({ mcpRemoteAccess: enabled })
@@ -373,7 +374,7 @@ export function registerSettingsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Sett
     host.refreshHomeAfterCommittedChange('mcp')
     return next
   })
-  ipcMain.handle('settings:set-mcp-authentication', async (event, enabled: unknown) => {
+  ipcMain.handle(SETTINGS_IPC.setMcpAuthentication, async (event, enabled: unknown) => {
     host.assertTrustedSender(event)
     if (typeof enabled !== 'boolean') throw new TypeError('MCP authentication must be a boolean')
     const next = await host.updateSettings({ mcpAuthentication: enabled })
@@ -385,11 +386,11 @@ export function registerSettingsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Sett
       : '[mcp] Authentication disabled in Settings. Anyone who can reach the listener can control this profile.')
     return { ...host.settings() }
   })
-  host.handleBrowserIpc('settings:set-mcp-port', async (event, port: unknown) => {
+  host.handleBrowserIpc(SETTINGS_IPC.setMcpPort, async (event, port: unknown) => {
     host.assertTrustedSender(event)
     return host.setMcpPort(port as number)
   })
-  ipcMain.handle('settings:set-mcp-tool-set', async (event, toolSet: unknown) => {
+  ipcMain.handle(SETTINGS_IPC.setMcpToolSet, async (event, toolSet: unknown) => {
     host.assertTrustedSender(event)
     if (!isMcpToolSet(toolSet)) throw new TypeError('Unsupported MCP tool set')
     await host.updateSettings(
@@ -400,15 +401,15 @@ export function registerSettingsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Sett
     host.refreshHomeAfterCommittedChange('mcp')
     return { ...host.settings() }
   })
-  host.handleBrowserIpc('settings:reset-mcp', async (event) => {
+  host.handleBrowserIpc(SETTINGS_IPC.resetMcp, async (event) => {
     host.assertTrustedSender(event)
     return host.resetMcpSettings()
   })
-  ipcMain.handle('settings:list-mcp-capability-profiles', (event) => {
+  ipcMain.handle(SETTINGS_IPC.listMcpCapabilityProfiles, (event) => {
     host.assertTrustedSender(event)
     return requireCapabilityProfiles().list()
   })
-  ipcMain.handle('settings:create-mcp-capability-profile', async (event, value: unknown) => {
+  ipcMain.handle(SETTINGS_IPC.createMcpCapabilityProfile, async (event, value: unknown) => {
     host.assertTrustedSender(event)
     const input = capabilityProfileInput(value)
     const profiles = requireCapabilityProfiles()
@@ -422,7 +423,7 @@ export function registerSettingsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Sett
       credentialId: parent.credentialId
     }, normalized)
   })
-  ipcMain.handle('settings:update-mcp-capability-profile', async (event, id: unknown, value: unknown) => {
+  ipcMain.handle(SETTINGS_IPC.updateMcpCapabilityProfile, async (event, id: unknown, value: unknown) => {
     host.assertTrustedSender(event)
     if (typeof id !== 'string') throw new TypeError('MCP capability profile ID is invalid')
     const input = capabilityProfileInput(value)
@@ -430,26 +431,26 @@ export function registerSettingsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Sett
     const result = await requireCapabilityProfiles().update(id, mcpCapabilityProfileInputFromPreset(input))
     return result
   })
-  ipcMain.handle('settings:rotate-mcp-capability-profile', async (event, id: unknown) => {
+  ipcMain.handle(SETTINGS_IPC.rotateMcpCapabilityProfile, async (event, id: unknown) => {
     host.assertTrustedSender(event)
     if (typeof id !== 'string') throw new TypeError('MCP capability profile ID is invalid')
     const result = await requireCapabilityProfiles().rotate(id)
     return result
   })
-  ipcMain.handle('settings:revoke-mcp-capability-profile', async (event, id: unknown) => {
+  ipcMain.handle(SETTINGS_IPC.revokeMcpCapabilityProfile, async (event, id: unknown) => {
     host.assertTrustedSender(event)
     if (typeof id !== 'string') throw new TypeError('MCP capability profile ID is invalid')
     const profile = await requireCapabilityProfiles().revoke(id)
     return profile
   })
-  ipcMain.handle('settings:set-check-on-startup', async (event, enabled: unknown) => {
+  ipcMain.handle(SETTINGS_IPC.setCheckForUpdatesOnStartup, async (event, enabled: unknown) => {
     host.assertTrustedSender(event)
     if (typeof enabled !== 'boolean') throw new TypeError('Startup update check must be a boolean')
     await host.updateSettings({ checkForUpdatesOnStartup: enabled })
     host.publishSettings()
     return { ...host.settings() }
   })
-  ipcMain.handle('settings:set-language-preference', async (event, preference: unknown) => {
+  ipcMain.handle(SETTINGS_IPC.setLanguagePreference, async (event, preference: unknown) => {
     host.assertTrustedSender(event)
     if (!isLanguagePreference(preference)) throw new TypeError('Invalid language preference')
     await host.updateSettings({ languagePreference: preference })

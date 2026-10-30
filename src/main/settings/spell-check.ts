@@ -1,5 +1,6 @@
 import type { IpcMain, IpcMainInvokeEvent, Session } from 'electron'
 import type { AppSettings, SpellCheckLanguages } from '../../shared/types.js'
+import { SETTINGS_IPC } from '../../shared/ipc/settings.js'
 
 type SpellCheckSession = Pick<Session, 'setSpellCheckerEnabled' | 'getSpellCheckerLanguages' | 'setSpellCheckerLanguages'>
 
@@ -129,16 +130,16 @@ export function registerSpellCheckIpc(
     setLanguages(languages: readonly string[]): Promise<AppSettings>
   }
 ): void {
-  ipcMain.handle('settings:set-spell-check', async (event, enabled: unknown) => {
+  ipcMain.handle(SETTINGS_IPC.setSpellCheck, async (event, enabled: unknown) => {
     host.assertTrustedSender(event)
     if (typeof enabled !== 'boolean') throw new TypeError('Spell check must be a boolean')
     return await host.setEnabled(enabled)
   })
-  ipcMain.handle('settings:spell-check-languages', (event) => {
+  ipcMain.handle(SETTINGS_IPC.getSpellCheckLanguages, (event) => {
     host.assertTrustedSender(event)
     return host.languages()
   })
-  ipcMain.handle('settings:set-spell-check-languages', async (event, value: unknown) => {
+  ipcMain.handle(SETTINGS_IPC.setSpellCheckLanguages, async (event, value: unknown) => {
     host.assertTrustedSender(event)
     const { available } = host.languages()
     // Array.from reads a hole in a sparse array as undefined, which `every` would skip.

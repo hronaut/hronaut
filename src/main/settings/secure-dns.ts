@@ -7,6 +7,7 @@ import {
   isSecureDnsTemplate
 } from '../../shared/secure-dns.js'
 import type { AppSettings } from '../../shared/types.js'
+import { SETTINGS_IPC } from '../../shared/ipc/settings.js'
 
 type SecureDnsSettings = Pick<AppSettings, 'secureDnsMode' | 'secureDnsTemplate'>
 type HostResolver = Pick<App, 'configureHostResolver'>
@@ -56,7 +57,7 @@ interface SecureDnsIpcHost {
  * and saves them together, putting the previous setting back when either step fails.
  */
 export function registerSecureDnsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: SecureDnsIpcHost): void {
-  ipcMain.handle('settings:set-secure-dns', async (event, mode: unknown, template: unknown) => {
+  ipcMain.handle(SETTINGS_IPC.setSecureDns, async (event, mode: unknown, template: unknown) => {
     host.assertTrustedSender(event)
     if (!isSecureDnsMode(mode)) throw new TypeError('Unsupported secure DNS mode')
     if (typeof template !== 'string' || template.length > SECURE_DNS_TEMPLATE_MAX_LENGTH) {

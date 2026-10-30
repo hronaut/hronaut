@@ -17,19 +17,14 @@ import { historyApi } from './bridges/history.js'
 import { licenseApi } from './bridges/license.js'
 import { mcpApi } from './bridges/mcp.js'
 import { permissionsApi } from './bridges/permissions.js'
+import { settingsApi } from './bridges/settings.js'
 import { taskManagerApi } from './bridges/task-manager.js'
 import { updatesApi } from './bridges/updates.js'
 import { walletsApi } from './bridges/wallets.js'
 import type {
-  AppSettings,
   BrowserOcclusionSnapshot,
-  LanguagePreference,
-  RendererSettingsState,
-  InterfaceScale,
-  TabPosition,
   HronautApi,
   HronautShellApi,
-  HronautSettingsApi,
   BrowserActionFailure,
   BrowserState,
   UserAttentionRequest,
@@ -68,19 +63,12 @@ import type {
   DroppedLinkTarget,
   NavigateOptions,
   NewTabOptions,
-  HelpMenuAction,
-  AttentionSoundCue,
-  SearchEngineName,
-  ThemeName,
-  MemorySaverTimeoutMinutes,
-  McpCapabilityProfileCreateInput
+  HelpMenuAction
 } from '../shared/types.js'
 import type { BrowserShortcutAction } from '../shared/browser-shortcuts.js'
 import type { AddressSuggestionOverlayRequest, AddressSuggestionSelection } from '../shared/address-suggestions.js'
 import type { ShellTooltipRequest } from '../shared/shell-tooltip.js'
 import type { UndoOffer } from '../shared/undo.js'
-import type { SiteSearchDraft } from '../shared/site-search.js'
-import type { SecureDnsMode } from '../shared/secure-dns.js'
 
 // Main asks a panel window it has just opened for Bookmark all tabs' name once the window has loaded, which can be
 // before its shell mounts and listens.
@@ -337,76 +325,6 @@ contextBridge.exposeInMainWorld('hronautHistory', historyApi)
 contextBridge.exposeInMainWorld('hronautBrowsingData', browsingDataApi)
 contextBridge.exposeInMainWorld('hronautMcp', mcpApi)
 contextBridge.exposeInMainWorld('hronautWallets', walletsApi)
-const settingsApi: HronautSettingsApi = {
-  get: () => ipcRenderer.invoke('settings:get'),
-  getRendererState: () => ipcRenderer.invoke('settings:get-renderer-state'),
-  getSystemTheme: () => ipcRenderer.invoke('settings:get-system-theme'),
-  resetAppearance: () => ipcRenderer.invoke('settings:reset-appearance'),
-  resetGeneral: () => ipcRenderer.invoke('settings:reset-general'),
-  setTheme: (theme: ThemeName) => ipcRenderer.invoke('settings:set-theme', theme),
-  setInterfaceScale: (scale: InterfaceScale) => ipcRenderer.invoke('settings:set-interface-scale', scale),
-  setTabPosition: (position: TabPosition) => ipcRenderer.invoke('settings:set-tab-position', position),
-  setUseSystemTitleBar: (enabled: boolean) => ipcRenderer.invoke('settings:set-use-system-title-bar', enabled),
-  setSearchEngine: (searchEngine: SearchEngineName) => ipcRenderer.invoke('settings:set-search-engine', searchEngine),
-  addSiteSearch: (draft: SiteSearchDraft) => ipcRenderer.invoke('settings:add-site-search', draft),
-  updateSiteSearch: (id: string, draft: SiteSearchDraft) => ipcRenderer.invoke('settings:update-site-search', id, draft),
-  removeSiteSearch: (id: string) => ipcRenderer.invoke('settings:remove-site-search', id),
-  setSecureDns: (mode: SecureDnsMode, template: string) => ipcRenderer.invoke('settings:set-secure-dns', mode, template),
-  setHideInTray: (enabled: boolean) => ipcRenderer.invoke('settings:set-hide-in-tray', enabled),
-  setLaunchAtStartup: (enabled: boolean) => ipcRenderer.invoke('settings:set-launch-at-startup', enabled),
-  setLaunchMinimized: (enabled: boolean) => ipcRenderer.invoke('settings:set-launch-minimized', enabled),
-  setAttentionSound: (enabled: boolean) => ipcRenderer.invoke('settings:set-attention-sound', enabled),
-  setAttentionSoundCue: (cue: AttentionSoundCue) => ipcRenderer.invoke('settings:set-attention-sound-cue', cue),
-  setFollowAgentActivity: (enabled: boolean) => ipcRenderer.invoke('settings:set-follow-agent-activity', enabled),
-  setShowAgentCursor: (enabled: boolean) => ipcRenderer.invoke('settings:set-show-agent-cursor', enabled),
-  setPinAgentLiveStatus: (enabled: boolean) => ipcRenderer.invoke('settings:set-pin-agent-live-status', enabled),
-  setSpellCheck: (enabled: boolean) => ipcRenderer.invoke('settings:set-spell-check', enabled),
-  getSpellCheckLanguages: () => ipcRenderer.invoke('settings:spell-check-languages'),
-  setSpellCheckLanguages: (languages: string[]) => ipcRenderer.invoke('settings:set-spell-check-languages', languages),
-  setChallengeDetectionEnabled: (enabled) => ipcRenderer.invoke('settings:set-challenge-detection', enabled),
-  setOmitAgentUrlDetail: (enabled: boolean) => ipcRenderer.invoke('settings:set-omit-agent-url-detail', enabled),
-  setAllowWebsiteFileSaving: (enabled: boolean) => ipcRenderer.invoke('settings:set-allow-website-file-saving', enabled),
-  setMcpRemoteAccess: (enabled: boolean) => ipcRenderer.invoke('settings:set-mcp-remote-access', enabled),
-  setMcpAuthentication: (enabled: boolean) => ipcRenderer.invoke('settings:set-mcp-authentication', enabled),
-  setMcpPort: (port: number) => ipcRenderer.invoke('settings:set-mcp-port', port),
-  setMcpToolSet: (toolSet) => ipcRenderer.invoke('settings:set-mcp-tool-set', toolSet),
-  resetMcp: () => ipcRenderer.invoke('settings:reset-mcp'),
-  listMcpCapabilityProfiles: () => ipcRenderer.invoke('settings:list-mcp-capability-profiles'),
-  createMcpCapabilityProfile: (input: McpCapabilityProfileCreateInput) => ipcRenderer.invoke('settings:create-mcp-capability-profile', input),
-  updateMcpCapabilityProfile: (id: string, input: McpCapabilityProfileCreateInput) => ipcRenderer.invoke('settings:update-mcp-capability-profile', id, input),
-  rotateMcpCapabilityProfile: (id: string) => ipcRenderer.invoke('settings:rotate-mcp-capability-profile', id),
-  revokeMcpCapabilityProfile: (id: string) => ipcRenderer.invoke('settings:revoke-mcp-capability-profile', id),
-  getDefaultDownloadDirectory: () => ipcRenderer.invoke('settings:get-default-download-directory'),
-  chooseDownloadDirectory: () => ipcRenderer.invoke('settings:choose-download-directory'),
-  setAskWhereToSaveDownloads: (enabled: boolean) => ipcRenderer.invoke('settings:set-ask-where-to-save-downloads', enabled),
-  resetDownloads: () => ipcRenderer.invoke('settings:reset-downloads'),
-  openDownloadDirectory: () => ipcRenderer.invoke('settings:open-download-directory'),
-  setMemorySaverEnabled: (enabled: boolean) => ipcRenderer.invoke('settings:set-memory-saver-enabled', enabled),
-  setMemorySaverTimeoutMinutes: (timeoutMinutes: MemorySaverTimeoutMinutes) =>
-    ipcRenderer.invoke('settings:set-memory-saver-timeout', timeoutMinutes),
-  resetMemorySaver: () => ipcRenderer.invoke('settings:reset-memory-saver'),
-  setGraphicsAcceleration: (enabled: boolean) => ipcRenderer.invoke('settings:set-graphics-acceleration', enabled),
-  graphicsAccelerationInUse: () => ipcRenderer.invoke('settings:graphics-acceleration-in-use'),
-  restart: () => ipcRenderer.invoke('app:restart'),
-  setCheckForUpdatesOnStartup: (enabled: boolean) => ipcRenderer.invoke('settings:set-check-on-startup', enabled),
-  setLanguagePreference: (preference: LanguagePreference) => ipcRenderer.invoke('settings:set-language-preference', preference),
-  onChanged: (listener: (settings: AppSettings) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, settings: AppSettings): void => listener(settings)
-    ipcRenderer.on('settings:changed', handler)
-    return () => ipcRenderer.removeListener('settings:changed', handler)
-  },
-  onSystemThemeChanged: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, theme: 'light' | 'dark'): void => listener(theme)
-    ipcRenderer.on('settings:system-theme-changed', handler)
-    return () => ipcRenderer.removeListener('settings:system-theme-changed', handler)
-  },
-  onRendererStateChanged: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, state: RendererSettingsState): void => listener(state)
-    ipcRenderer.on('settings:renderer-state-changed', handler)
-    return () => ipcRenderer.removeListener('settings:renderer-state-changed', handler)
-  }
-}
-
 contextBridge.exposeInMainWorld('hronautSettings', settingsApi)
 contextBridge.exposeInMainWorld('hronautPermissions', permissionsApi)
 contextBridge.exposeInMainWorld('hronautCredentials', credentialsApi)
