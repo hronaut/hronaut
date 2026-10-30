@@ -13,10 +13,16 @@ vi.mock('electron', () => ({
   }
 }))
 
+// The browser below stubs strongPasswordSuggestion, which the menu reaches through this.
+vi.mock('../src/main/browser/suggested-password/suggested-password.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/suggested-password/suggested-password.js')>(),
+  strongPasswordSuggestion: (browser: { strongPasswordSuggestion: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.strongPasswordSuggestion(...args)
+}))
+
 const { showContextMenu } = await import('../src/main/browser/context-menus/page-context-menu.js')
 const { LocalizedError } = await import('../src/main/localized-error.js')
 type PageTab = { id: string, url: string, webContents: WebContents }
-type PageContextMenuAccess = import('../src/main/browser/context-menus/page-context-menu-access.js').PageContextMenuAccess<PageTab>
+type MenuBrowser = Parameters<typeof showContextMenu>[0]
 
 const PAGE = 'https://accounts.example/sign-up'
 
@@ -35,20 +41,22 @@ function menu(
   const onActionFailed = vi.fn()
   const suggestion = options.suggestion === undefined ? vi.fn(async () => true) : options.suggestion
   const passwordSuggestion = vi.fn(() => suggestion)
-  const access = {
-    findTab: () => options.tabOpen?.() === false ? undefined : tab,
-    window: () => ({}),
-    options: () => ({ copyText: async () => undefined, copyImageAt: async () => undefined, onActionFailed }),
+  const browser = {
+    get tabs() { return new Map(options.tabOpen?.() === false ? [] : [[tab.id, tab]]) },
+    window: {},
+    options: {
+      copyText: async () => undefined, copyImageAt: async () => undefined, onActionFailed,
+      getSearchEngine: () => 'google',
+      getSpellCheck: () => true,
+      setSpellCheck: async () => undefined,
+      offersSpellCheckLanguages: () => true,
+      openSpellCheckSettings: () => undefined
+    },
     text: (key: string) => key,
     isHumanInteractionLocked: () => false,
-    searchEngine: () => 'google',
-    spellCheck: () => true,
-    setSpellCheck: async () => undefined,
-    offersSpellCheckLanguages: () => true,
-    openSpellCheckSettings: () => undefined,
-    passwordSuggestion
-  } as unknown as PageContextMenuAccess
-  showContextMenu(access, tab, {
+    strongPasswordSuggestion: passwordSuggestion
+  } as unknown as MenuBrowser
+  showContextMenu(browser, tab as never, {
     x: 10, y: 20, linkURL: '', srcURL: '', selectionText: '', isEditable: true, mediaType: 'none', editFlags: {},
     misspelledWord: '', dictionarySuggestions: [], formControlType: 'input-password',
     pageURL: PAGE, frameURL: PAGE, referrerPolicy: 'strict-origin-when-cross-origin', ...params

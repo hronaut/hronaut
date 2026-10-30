@@ -17,7 +17,7 @@ vi.mock('electron', () => ({
 
 const { showContextMenu } = await import('../src/main/browser/context-menus/page-context-menu.js')
 type PageTab = { id: string, url: string, mcpGroupId?: string, webContents: WebContents }
-type PageContextMenuAccess = import('../src/main/browser/context-menus/page-context-menu-access.js').PageContextMenuAccess<PageTab>
+type MenuBrowser = Parameters<typeof showContextMenu>[0]
 
 // The page's context menu had no Search for the selected text, as Chrome's has.
 
@@ -33,22 +33,23 @@ function openMenu(params: Partial<ContextMenuParams>, options: { engine?: Search
   const createTab = options.createTab ?? vi.fn(async () => tab)
   const onActionFailed = vi.fn()
   const searchEngine = vi.fn(() => options.engine ?? 'google')
-  const access = {
-    findTab: () => built.closed ? undefined : tab,
-    window: () => ({}),
-    options: () => ({ copyText: async () => undefined, copyImageAt: async () => undefined, onActionFailed }),
+  const browser = {
+    get tabs() { return new Map(built.closed ? [] : [[tab.id, tab]]) },
+    window: {},
+    options: {
+      copyText: async () => undefined, copyImageAt: async () => undefined, onActionFailed,
+      getSearchEngine: searchEngine,
+      getSpellCheck: () => true,
+      setSpellCheck: async () => undefined,
+      offersSpellCheckLanguages: () => true,
+      openSpellCheckSettings: () => undefined
+    },
     text: (key: string, values?: Record<string, string>) => values ? `${key} ${JSON.stringify(values)}` : key,
     isHumanInteractionLocked: () => false,
     createTab,
-    searchEngine,
-    spellCheck: () => true,
-    setSpellCheck: async () => undefined,
-    offersSpellCheckLanguages: () => true,
-    openSpellCheckSettings: () => undefined,
-    browserContentOccluded: options.occluded ?? (() => false),
-    passwordSuggestion: () => null
-  } as unknown as PageContextMenuAccess
-  showContextMenu(access, tab, {
+    get browserContentOccluded() { return (options.occluded ?? (() => false))() }
+  } as unknown as MenuBrowser
+  showContextMenu(browser, tab as never, {
     x: 10, y: 20, linkURL: '', srcURL: '', selectionText: '', isEditable: false, mediaType: 'none', editFlags: {},
     pageURL: PAGE, frameURL: PAGE, referrerPolicy: 'strict-origin-when-cross-origin', ...params
   } as unknown as ContextMenuParams)

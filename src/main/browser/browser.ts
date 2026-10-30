@@ -24,7 +24,6 @@ import {
   performTabOverviewPreviewCapture,
   type TabOverviewPreviewCaptureRequest
 } from './tab-overview-previews/tab-overview-previews.js'
-import type { PageContextMenuAccess } from './context-menus/page-context-menu-access.js'
 import { attachPageContextMenuEvents } from './context-menus/page-context-menu-events.js'
 import { workspaceContextMenuItems } from './context-menus/workspace-context-menu.js'
 import { fillForm, scroll, select, type } from './agent-page-actions/form-input-and-scroll.js'
@@ -278,7 +277,7 @@ import { guardPageCallsDuringPrintDialog } from './print-dialog-guard.js'
 import { runPageScriptsOnceDocumentReady } from './page-script-readiness.js'
 import type { CredentialFillContext } from './credential-fill-context.js'
 import { credentialContext, fillCredential } from './credential-fill/credential-fill.js'
-import { suggestStrongPassword, type SuggestedPasswordOptions } from './suggested-password/suggested-password.js'
+import type { SuggestedPasswordOptions } from './suggested-password/suggested-password.js'
 import type {
   BrowserEmulationOptions,
   BrowserEmulationState,
@@ -367,7 +366,7 @@ import type { ImportDestination } from '../browser-import/service.js'
 import { browserImportDestination, importBrowserCookies } from './workspace-data/browser-cookie-import.js'
 import type { Cookie } from 'electron'
 import { runBackgroundAction } from './background-action.js'
-import { DEFAULT_SEARCH_ENGINE, type SearchEngineName } from '../../shared/search-engine.js'
+import type { SearchEngineName } from '../../shared/search-engine.js'
 import type { AgentPointerIdentity, BrowserFormField } from './page-scripts.js'
 import { evaluate, type EvaluationDeadline } from './page-evaluation/evaluate.js'
 import { TabStateStore, type PersistedBrowserState } from './tab-store.js'
@@ -378,15 +377,15 @@ import { normalizeTabTitle } from './tab-metadata.js'
 import { TabDiscoveryTitle } from './tab-discovery-title.js'
 import { isHronautHomeUrl, isWebUrl, normalizeAddress } from './url.js'
 import { closeTabsForPerson } from './tab-close/close-tabs-for-person.js'
-import { openDevTools, showDevToolsConsole, toggleDevTools } from './devtools/devtools.js'
+import { showDevToolsConsole, toggleDevTools } from './devtools/devtools.js'
 import { attachDevToolsEvents } from './devtools/devtools-events.js'
 import { controlPageLifecycle, pageLifecycle, setTabPageLifecycle } from './page-lifecycle/page-lifecycle.js'
 import { back, forward, navigate, reload, reloadIgnoringCache, stop, stopFocusedPageLoading } from './page-navigation/page-navigation.js'
 import { setZoom } from './page-zoom/page-zoom.js'
 import { historyGesture } from './history-gesture/history-gesture.js'
-import { printPage, printShownPage } from './page-print/page-print.js'
-import { savePageAs, saveShownPage } from './page-save/page-save.js'
-import { viewFrameSource, viewPageSource, viewShownPageSource } from './page-source/page-source.js'
+import { printShownPage } from './page-print/page-print.js'
+import { saveShownPage } from './page-save/page-save.js'
+import { viewShownPageSource } from './page-source/page-source.js'
 import { openNavigationInNewTab } from './navigation-new-tab/navigation-new-tab.js'
 import { closeTabLeftEmptyByDownload, opensFromPage } from './download-tab-close/download-tab-close.js'
 import { attachPageWheelZoom } from './page-zoom/page-wheel-zoom.js'
@@ -4024,7 +4023,7 @@ export class Browser {
     attachPagePointerEvents(this, tab, webContents)
     attachPageTargetUrlEvents(this, tab, webContents)
     attachPageWheelZoom(this, tab, webContents)
-    attachPageContextMenuEvents(this.pageContextMenuAccess(), tab, webContents)
+    attachPageContextMenuEvents(this, tab, webContents)
     attachDevToolsEvents(this, tab, webContents)
     this.frameObservation.track(webContents)
     attachDebuggerEvents(this, tab, webContents)
@@ -4052,48 +4051,6 @@ export class Browser {
     const workspace = this.mcpTabGroups.get(tab.mcpGroupId)
     if (!workspace) return
     workspace.origins = normalizeWorkspaceStorageOrigins([...workspace.origins, new URL(url).origin])
-  }
-
-  /**
-   * The narrow view the page context menu gets of this manager's private tabs,
-   * window, options, text, tab creation, navigation and DevTools. It is a
-   * prototype method rather than a field, so managers created without the
-   * constructor (as unit tests do) still provide it.
-   */
-  private pageContextMenuAccess(): PageContextMenuAccess<BrowserTab> {
-    return {
-      findTab: (tabId) => this.tabs.get(tabId),
-      window: () => this.window,
-      options: () => this.options,
-      text: (key, parameters) => this.text(key, parameters),
-      createTab: (options) => this.createTab(options),
-      showBeside: async (tab, besideTabId) => {
-        if (this.tabs.get(tab.id) !== tab || this.activeTabId !== tab.id) return
-        await openSplitViewAndWait(this, besideTabId, { openedBeside: true })
-      },
-      back: (tabId) => this.back(tabId),
-      forward: (tabId) => this.forward(tabId),
-      reload: (tabId) => this.reload(tabId),
-      reloadIgnoringCache: (tabId) => this.reloadIgnoringCache(tabId),
-      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
-      openDevTools: (tab) => this.openDevTools(tab),
-      print: (tab) => printPage(this, tab),
-      viewSource: (tab) => viewPageSource(this, tab),
-      viewFrameSource: (tab, frameUrl) => viewFrameSource(this, tab, frameUrl),
-      savePage: (tab) => savePageAs(this, tab),
-      searchEngine: () => this.options.getSearchEngine?.() ?? DEFAULT_SEARCH_ENGINE,
-      spellCheck: () => this.options.getSpellCheck?.() !== false,
-      setSpellCheck: async (enabled) => { await this.options.setSpellCheck?.(enabled) },
-      offersSpellCheckLanguages: () => this.options.offersSpellCheckLanguages?.() === true,
-      openSpellCheckSettings: () => this.options.openSpellCheckSettings?.(),
-      browserContentOccluded: () => this.browserContentOccluded,
-      expectSavedLinkName: (webContents, url, linkName) => this.downloadController.expectSavedLinkName(webContents.id, url, linkName),
-      passwordSuggestion: (tab) => {
-        if (!this.options.suggestedPasswords?.available()) return null
-        const context = this.tabs.get(tab.id) === tab ? this.credentialContext(tab.id) : null
-        return context ? () => suggestStrongPassword(this, tab, context) : null
-      }
-    }
   }
 
   private sweepMemorySaver(force: boolean): Promise<void> {
@@ -4273,10 +4230,6 @@ export class Browser {
 
   private ensureDialogMonitoring(tab: BrowserTab): Promise<void> {
     return ensureDialogMonitoring(this, tab)
-  }
-
-  private openDevTools(tab: BrowserTab): Promise<void> {
-    return openDevTools(this, tab)
   }
 
   prepareDiagnosticNavigation(tab: BrowserTab): void {

@@ -74,6 +74,17 @@ async function runInPage(tab: BrowserTab, code: string, userGesture: boolean): P
 }
 
 /**
+ * The page menu's suggestion of a strong password for the focused password field of the tab's page, bound to the page
+ * shown now; null while passwords cannot be saved, or when the tab is not the active one or shows no website. The
+ * suggestion reports whether the page took the password.
+ */
+export function strongPasswordSuggestion(browser: Browser, tab: BrowserTab): (() => Promise<boolean>) | null {
+  if (!browser.options.suggestedPasswords?.available()) return null
+  const context = findTab(browser, tab.id) === tab ? credentialContext(browser, tab.id) : null
+  return context ? () => suggestStrongPassword(browser, tab, context) : null
+}
+
+/**
  * Suggests a strong password in the password field the person right-clicked, as Chrome's Suggest strong password
  * does: Hronaut makes one in main, fills it into the field and the field that confirms it while agents are paused,
  * and remembers that it suggested it, so the offer to save it when the page submits it says so. Nothing is filled

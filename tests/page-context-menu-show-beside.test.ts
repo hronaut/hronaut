@@ -12,29 +12,24 @@ vi.mock('electron', () => ({
 
 vi.mock('../src/main/browser/split-view/split-view.js', async (original) => ({
   ...await original<typeof import('../src/main/browser/split-view/split-view.js')>(),
-  openSplitViewAndWait: vi.fn(async (_access: unknown, tabId: string, options: unknown) => {
+  openSplitViewAndWait: vi.fn(async (_browser: unknown, tabId: string, options: unknown) => {
     opened.splitViews.push({ tabId, options })
     return {}
   })
 }))
 
-const { Browser } = await import('../src/main/browser/browser.js')
+const { showTabBeside } = await import('../src/main/browser/context-menus/page-context-menu.js')
 
 interface Tab { id: string }
-interface Manager {
-  tabs: Map<string, Tab>
-  activeTabId: string | null
-  pageContextMenuAccess(): { showBeside(tab: Tab, besideTabId: string): Promise<void> }
-}
 
 function browser() {
   opened.splitViews.length = 0
   const page = { id: 'page' }
-  const manager = Object.assign(Object.create(Browser.prototype), {
+  const manager = {
     tabs: new Map([['page', page], ['link', { id: 'link' }], ['other', { id: 'other' }]]),
-    activeTabId: 'page'
-  }) as Manager
-  return { manager, page, showBeside: (tab: Tab) => manager.pageContextMenuAccess().showBeside(tab, 'link') }
+    activeTabId: 'page' as string | null
+  }
+  return { manager, page, showBeside: (tab: Tab) => showTabBeside(manager as never, tab as never, 'link') }
 }
 
 describe('showing a link\'s new tab beside the page it was opened from', () => {

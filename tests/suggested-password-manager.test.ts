@@ -14,6 +14,7 @@ vi.mock('../src/main/browser/agent-input-scope/agent-input-scope.js', async (ori
 }))
 
 const { Browser } = await import('../src/main/browser/browser.js')
+const { strongPasswordSuggestion } = await import('../src/main/browser/suggested-password/suggested-password.js')
 
 interface Tab {
   id: string
@@ -29,7 +30,6 @@ interface Manager {
   activeTabId: string | null
   tabSelectionGeneration: number
   options: Record<string, unknown>
-  pageContextMenuAccess(): { passwordSuggestion(tab: Tab): (() => Promise<boolean>) | null }
 }
 
 function browser(available = true) {
@@ -52,7 +52,7 @@ function browser(available = true) {
     tabSelectionGeneration: 5,
     options: { suggestedPasswords: { available: () => available, whileAgentsPaused, suggested } }
   }) as Manager
-  return { manager, page, executeJavaScript, suggested, whileAgentsPaused, suggestion: () => manager.pageContextMenuAccess().passwordSuggestion(page) }
+  return { manager, page, executeJavaScript, suggested, whileAgentsPaused, suggestion: () => strongPasswordSuggestion(manager as never, page as never) }
 }
 
 describe('Suggest Strong Password in the tab manager', () => {

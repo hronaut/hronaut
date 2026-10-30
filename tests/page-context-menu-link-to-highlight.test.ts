@@ -16,7 +16,7 @@ vi.mock('electron', () => ({
 
 const { showContextMenu } = await import('../src/main/browser/context-menus/page-context-menu.js')
 type PageTab = { id: string, url: string, mcpGroupId?: string, webContents: WebContents }
-type PageContextMenuAccess = import('../src/main/browser/context-menus/page-context-menu-access.js').PageContextMenuAccess<PageTab>
+type MenuBrowser = Parameters<typeof showContextMenu>[0]
 
 // The page's context menu had no Copy link to highlight, as Chrome's has: the link that scrolls to the selected text
 // and highlights it when it is opened.
@@ -32,21 +32,23 @@ function openMenu(params: Partial<ContextMenuParams>, url = PAGE, pageText?: () 
   } as unknown as WebContents
   const tab: PageTab = { id: 'tab', url, mcpGroupId: 'client', webContents }
   const copyText = vi.fn(async (_text: string) => undefined)
-  const access = {
-    findTab: () => tab,
-    window: () => ({}),
-    options: () => ({ copyText, copyImageAt: async () => undefined }),
+  const browser = {
+    tabs: new Map([[tab.id, tab]]),
+    window: {},
+    options: {
+      copyText, copyImageAt: async () => undefined,
+      getSearchEngine: () => 'google',
+      getSpellCheck: () => true,
+      setSpellCheck: async () => undefined,
+      offersSpellCheckLanguages: () => true,
+      openSpellCheckSettings: () => undefined
+    },
     text: (key: string, values?: Record<string, string>) => values ? `${key} ${JSON.stringify(values)}` : key,
     isHumanInteractionLocked: () => false,
     createTab: vi.fn(async () => tab),
-    searchEngine: () => 'google',
-    spellCheck: () => true,
-    setSpellCheck: async () => undefined,
-    offersSpellCheckLanguages: () => true,
-    openSpellCheckSettings: () => undefined,
-    browserContentOccluded: () => false
-  } as unknown as PageContextMenuAccess
-  showContextMenu(access, tab, {
+    browserContentOccluded: false
+  } as unknown as MenuBrowser
+  showContextMenu(browser, tab as never, {
     x: 10, y: 20, linkURL: '', srcURL: '', selectionText: '', isEditable: false, mediaType: 'none', editFlags: {},
     pageURL: url, frameURL: url, referrerPolicy: 'strict-origin-when-cross-origin', ...params
   } as unknown as ContextMenuParams)

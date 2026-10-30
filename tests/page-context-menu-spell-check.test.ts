@@ -15,7 +15,7 @@ vi.mock('electron', () => ({
 
 const { showContextMenu } = await import('../src/main/browser/context-menus/page-context-menu.js')
 type PageTab = { id: string, url: string, webContents: WebContents }
-type PageContextMenuAccess = import('../src/main/browser/context-menus/page-context-menu-access.js').PageContextMenuAccess<PageTab>
+type MenuBrowser = Parameters<typeof showContextMenu>[0]
 
 const PAGE = 'https://mail.example/compose'
 
@@ -34,20 +34,21 @@ function menu(
   const onActionFailed = vi.fn()
   const setSpellCheck = vi.fn(options.setSpellCheck ?? (async () => undefined))
   const openSpellCheckSettings = vi.fn()
-  const access = {
-    findTab: () => tab,
-    window: () => ({}),
-    options: () => ({ copyText: async () => undefined, copyImageAt: async () => undefined, onActionFailed }),
+  const browser = {
+    tabs: new Map([[tab.id, tab]]),
+    window: {},
+    options: {
+      copyText: async () => undefined, copyImageAt: async () => undefined, onActionFailed,
+      getSearchEngine: () => 'google',
+      getSpellCheck: () => options.spellCheck ?? true,
+      setSpellCheck,
+      offersSpellCheckLanguages: () => options.offersLanguages ?? true,
+      openSpellCheckSettings
+    },
     text: (key: string) => key,
-    isHumanInteractionLocked: () => false,
-    searchEngine: () => 'google',
-    spellCheck: () => options.spellCheck ?? true,
-    setSpellCheck,
-    offersSpellCheckLanguages: () => options.offersLanguages ?? true,
-    openSpellCheckSettings,
-    passwordSuggestion: () => null
-  } as unknown as PageContextMenuAccess
-  showContextMenu(access, tab, {
+    isHumanInteractionLocked: () => false
+  } as unknown as MenuBrowser
+  showContextMenu(browser, tab as never, {
     x: 10, y: 20, linkURL: '', srcURL: '', selectionText: '', isEditable: false, mediaType: 'none', editFlags: {},
     misspelledWord: '', dictionarySuggestions: [], formControlType: 'none',
     pageURL: PAGE, frameURL: PAGE, referrerPolicy: 'strict-origin-when-cross-origin', ...params

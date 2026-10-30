@@ -17,7 +17,7 @@ vi.mock('../src/main/browser/context-menus/media-player-actions.js', () => ({ me
 
 const { showContextMenu } = await import('../src/main/browser/context-menus/page-context-menu.js')
 type PageTab = { id: string, url: string, mcpGroupId?: string, webContents: WebContents }
-type PageContextMenuAccess = import('../src/main/browser/context-menus/page-context-menu-access.js').PageContextMenuAccess<PageTab>
+type MenuBrowser = Parameters<typeof showContextMenu>[0]
 
 const PAGE = 'https://films.example/watch/7'
 const VIDEO = 'https://cdn.example/clips/7.mp4'
@@ -52,22 +52,22 @@ function mediaMenu(params: Partial<ContextMenuParams>) {
     getZoomFactor: () => 1.25
   } as unknown as WebContents
   const tab: PageTab = { id: 'tab', url: PAGE, mcpGroupId: 'client', webContents }
-  const access = {
-    findTab: () => tab,
-    window: () => ({}),
-    options: () => ({ copyText, copyImageAt: async () => undefined, copyVideoFrameAt, onClipboardCopyFailed }),
+  const browser = {
+    tabs: new Map([[tab.id, tab]]),
+    window: {},
+    options: { copyText, copyImageAt: async () => undefined, copyVideoFrameAt, onClipboardCopyFailed },
     text: (key: string) => key,
     isHumanInteractionLocked: () => false,
-    expectSavedLinkName: vi.fn(),
+    downloadController: { expectSavedLinkName: vi.fn() },
     createTab
-  } as unknown as PageContextMenuAccess
+  } as unknown as MenuBrowser
   // Electron's params give the frame of the click until it navigates or goes, and then none.
   const menuParams = {
     x: 10, y: 20, linkURL: '', srcURL: '', selectionText: '', isEditable: false, mediaType: 'none', editFlags: {},
     mediaFlags: { canSave: true, inError: false }, frame: mainFrame,
     pageURL: PAGE, frameURL: PAGE, referrerPolicy: 'strict-origin-when-cross-origin', ...params
   } as unknown as ContextMenuParams
-  showContextMenu(access, tab, menuParams)
+  showContextMenu(browser, tab as never, menuParams)
   const items = built.templates.at(-1)!
   const item = (id: string) => items.find(entry => entry.id === id)
   const click = (id: string) => (item(id)!.click as () => void)()
