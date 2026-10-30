@@ -5,7 +5,6 @@ import type { WebContents } from 'electron'
 vi.mock('electron', () => ({}))
 
 const { showDevToolsConsole } = await import('../src/main/browser/devtools/devtools.js')
-type DevToolsAccess = import('../src/main/browser/devtools/devtools-access.js').DevToolsAccess<import('../src/main/browser/devtools/devtools-access.js').DevToolsTab>
 
 // Ctrl+Shift+J went to the website, where Chrome opens Developer Tools on its Console.
 
@@ -43,20 +42,20 @@ function page(options: { open?: boolean, focused?: boolean, run?: () => Promise<
   return { webContents: webContents as unknown as WebContents & { openDevTools: ReturnType<typeof vi.fn> }, devTools }
 }
 
-function access(url: string, webContents: WebContents, locked = false): DevToolsAccess {
+/** A browser showing a page at this address in its one tab, whose input is locked or not. */
+function access(url: string, webContents: WebContents, locked = false): never {
   const tab = { id: 'tab', title: 'Page', url, webContents, networkDebuggerEpoch: 0, networkConditionApplication: 'confirmed', networkRoutes: [] }
   return {
-    getTab: () => tab,
-    findTab: () => tab,
+    tabs: new Map([[tab.id, tab]]),
+    activeTabId: tab.id,
     wakeTab: async () => undefined,
-    isDestroyed: () => false,
+    destroyed: false,
     isHumanInteractionLocked: () => locked,
-    requireNetworkConditionsKnown: () => undefined,
-    devToolsOpening: () => new Set<number>(),
-    dialogMonitorAttach: () => undefined,
-    pendingDebuggerCommand: () => undefined,
+    devToolsOpening: new Set<number>(),
+    dialogMonitorAttachPromises: new Map(),
+    debuggerQueue: { pending: () => undefined },
     text: (key: string) => key
-  } as unknown as DevToolsAccess
+  } as never
 }
 
 const shop = 'https://shop.example/'

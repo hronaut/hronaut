@@ -64,7 +64,6 @@ import { VIDEO_RECORDING_NOTICES, type BrowserVideoOptions, type BrowserVideoSta
 import type { BrowserCredentialCandidate } from './credential-capture/credential-capture.js'
 import type { BrowserNetworkRequestRecord } from './network-recording.js'
 import { installSessionHooks } from './session-hooks/session-hooks.js'
-import { performanceEnvironment, tabPerformanceEnvironmentFingerprint } from './emulation/performance-environment.js'
 import { emulate } from './emulation/emulation.js'
 import { DEFAULT_EMULATION, cloneEmulationState, hasEmulationOverrides } from './emulation-state.js'
 import {
@@ -98,14 +97,12 @@ import { BrowserLiveRegionRecorder } from './live-region-recorder.js'
 import { BrowserReproRecorder } from './repro-recorder.js'
 import {
   addNetworkRoute,
-  applyNetworkRoutes,
   clearNetworkRoutes,
   moveNetworkRoute,
   networkConditionPublication,
   networkConditionState,
   networkRoutes,
   removeNetworkRoute,
-  requireNetworkConditionsKnown,
   setNetworkRouteEnabled
 } from './network-conditions/network-conditions.js'
 import { cancelHeldResponse, disposeHeldResponses, failAllHeldResponses, heldResponseSummaries, releaseHeldResponse, type HeldResponses } from './network-conditions/held-responses.js'
@@ -149,16 +146,13 @@ import { resizeViewport } from './emulation/resize-viewport.js'
 import { createSplitDivider } from './split-view/split-divider.js'
 import { FaviconDecoder } from './favicon.js'
 import { createHash } from 'node:crypto'
-import { createRequire } from 'node:module'
-import { readFileSync } from 'node:fs'
 import { uploadFiles } from './file-upload/file-upload.js'
 import { dropFiles, type FileDropResult } from './file-drop/file-drop.js'
 import { insertText, type TextInsertionProgress, type TextInsertionResult } from './text-insertion/text-insertion.js'
 import { fillFromFile, type TextFileFillProgress, type TextFileFillResult } from './text-file-fill/text-file-fill.js'
 import { shadowSnapshot, type BrowserShadowSnapshot } from './shadow-snapshot/shadow-snapshot.js'
 import { trackedViewportScreenshot, type TrackedScreenshot, type TrackedScreenshotAccess, type TrackedScreenshotOptions } from './screenshot-observations/tracked-screenshot.js'
-import { basename, dirname, isAbsolute, join } from 'node:path'
-import axe from 'axe-core'
+import { basename, isAbsolute, join } from 'node:path'
 import {
   app,
   BrowserWindow,
@@ -218,7 +212,6 @@ import { type BrowserDragModifier, drag, hover } from './agent-page-actions/hove
 import type { AgentPageActionsAccess, BrowserClickTarget } from './agent-page-actions/agent-page-actions-access.js'
 import { click } from './agent-page-actions/click.js'
 import { MemorySaverSweepQueue } from '../memory-saver-sweep.js'
-import type { PageAuditsAccess } from './page-audits/page-audits-access.js'
 import { accessibilityAudit } from './page-audits/accessibility-audit.js'
 import { auditEvidenceAvailability, clearDiagnosticLogs, debugReport, diagnosticLogState, setDiagnosticLogPreservation } from './debug-report/debug-report.js'
 import { attachConsoleMessageEvents } from './console-messages/console-message-events.js'
@@ -293,7 +286,6 @@ import type {
   BrowserAccessibilityAudit,
   BrowserAccessibilityAuditOptions,
   BrowserPerformanceOptions,
-  BrowserPerformanceEnvironment,
   BrowserPerformanceReport,
   BrowserDesignOverviewReport,
   BrowserPageMetadataReport,
@@ -387,7 +379,6 @@ import { normalizeTabTitle } from './tab-metadata.js'
 import { TabDiscoveryTitle } from './tab-discovery-title.js'
 import { isHronautHomeUrl, isWebUrl, normalizeAddress } from './url.js'
 import { closeTabsForPerson } from './tab-close/close-tabs-for-person.js'
-import type { DevToolsAccess } from './devtools/devtools-access.js'
 import { openDevTools, showDevToolsConsole, toggleDevTools } from './devtools/devtools.js'
 import { attachDevToolsEvents } from './devtools/devtools-events.js'
 import { controlPageLifecycle, pageLifecycle, setTabPageLifecycle } from './page-lifecycle/page-lifecycle.js'
@@ -433,7 +424,6 @@ import {
 } from './workspace-operations/workspace-operations.js'
 import { OpenedTabObservation, type TabsOpenedDuringClick } from './click-opened-tabs.js'
 import { hasAgentPauseExceptions, isTabAgentPaused, isTabTakenOver, setAllAgentsPaused, setTabAgentPaused } from './agent-pause/agent-pause.js'
-import type { InteractionLockAccess } from './interaction-lock/interaction-lock-access.js'
 import { setAllHumanInteractionLocked, setTabHumanInteractionLocked } from './interaction-lock/interaction-lock.js'
 import {
   detachDialogMonitoring,
@@ -533,12 +523,6 @@ const ABORTED_LOAD_ERROR = -3
 const MEMORY_SAVER_SWEEP_MS = 30_000
 /** How often the tabs' history is saved, with their pages' scroll and form state, as Chrome saves its session a moment after each change. */
 const TAB_HISTORY_SAVE_MS = 5_000
-const require = createRequire(import.meta.url)
-const webVitalsPath = require.resolve('web-vitals/attribution')
-const webVitalsSource = readFileSync(webVitalsPath, 'utf8')
-const webVitalsVersion = (JSON.parse(
-  readFileSync(join(dirname(webVitalsPath), '..', 'package.json'), 'utf8')
-) as { version: string }).version
 
 function isAbortedLoad(error: unknown): boolean {
   if (!(error instanceof Error)) return false
@@ -2136,40 +2120,12 @@ export class Browser {
     showTabContextMenu(this, tabId, onClosed, selectedTabIds)
   }
 
-  /**
-   * The narrow view Developer Tools get of this manager's private tabs, tab
-   * waking, input lock, request conditions and routes, opening set, dialog
-   * monitoring, debugger queue, CSS state preview and state publication. It
-   * is a prototype method rather than a field, so managers created without
-   * the constructor (as unit tests do) still provide it. The delegates below
-   * return the feature's promise directly, so callers see the same ticks as
-   * before.
-   */
-  private devToolsAccess(): DevToolsAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      findTab: (tabId) => this.tabs.get(tabId),
-      isDestroyed: () => this.destroyed,
-      wakeTab: (tabId) => this.wakeTab(tabId),
-      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
-      requireNetworkConditionsKnown: (tab) => requireNetworkConditionsKnown(tab),
-      applyNetworkRoutes: (tab, validate, recovery, mutate) => this.applyNetworkRoutes(tab, validate, recovery, mutate),
-      devToolsOpening: () => this.devToolsOpening,
-      dialogMonitorAttach: (webContentsId) => this.dialogMonitorAttachPromises.get(webContentsId),
-      pendingDebuggerCommand: (webContentsId) => this.debuggerQueue.pending(webContentsId),
-      cssStatePreview: () => this.cssStatePreview,
-      ensureDialogMonitoring: (tab) => this.ensureDialogMonitoring(tab),
-      changed: (persist) => this.changed(persist),
-      text: (key, parameters) => this.text(key, parameters)
-    }
-  }
-
   toggleDevTools(tabId?: string): Promise<boolean> {
-    return toggleDevTools(this.devToolsAccess(), tabId)
+    return toggleDevTools(this, tabId)
   }
 
   showDevToolsConsole(tabId?: string): Promise<boolean> {
-    return showDevToolsConsole(this.devToolsAccess(), tabId)
+    return showDevToolsConsole(this, tabId)
   }
 
   setMcpUrl(url: string): BrowserState {
@@ -2723,50 +2679,12 @@ export class Browser {
     stopFocusedPageLoading(this)
   }
 
-  /**
-   * The narrow view the person's input lock and its native input guard get
-   * of this manager's private tabs, workspaces, debugger queue and lease,
-   * dialog monitoring, lock queue and counter, global lock, native input
-   * guard, native selection sessions, layout and state publication. It is a
-   * prototype method rather than a field, so managers created without the
-   * constructor (as unit tests do) still provide it. The delegates below
-   * return the feature's promise directly, so the generation and counter
-   * changes still happen before they return, and callers see the same ticks
-   * as before.
-   */
-  private interactionLockAccess(): InteractionLockAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      findTab: (tabId) => this.tabs.get(tabId),
-      tabs: () => this.tabs.values(),
-      findWorkspace: (workspaceId) => this.mcpTabGroups.get(workspaceId),
-      isDestroyed: () => this.destroyed,
-      pendingDebuggerCommand: (webContentsId) => this.debuggerQueue.pending(webContentsId),
-      dialogMonitorAttach: (webContentsId) => this.dialogMonitorAttachPromises.get(webContentsId),
-      interactionLockTail: () => this.interactionLockTail,
-      writeInteractionLockTail: (tail) => { this.interactionLockTail = tail },
-      nativeInputLockMutations: () => this.nativeInputLockMutations,
-      writeNativeInputLockMutations: (count) => { this.nativeInputLockMutations = count },
-      allHumanInteractionLocked: () => this.allHumanInteractionLocked,
-      writeAllHumanInteractionLocked: (locked) => { this.allHumanInteractionLocked = locked },
-      globallyUnlockedTabIds: () => this.globallyUnlockedTabIds,
-      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
-      syncHumanInteractionInputGuard: (tab) => this.syncHumanInteractionInputGuard(tab),
-      layout: () => this.layout(),
-      changed: (persist) => this.changed(persist),
-      getState: () => this.getState(),
-      withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
-      screenshotAreaSessions: () => this.screenshotAreaSessions,
-      elementPickerSessions: () => this.elementPickerSessions
-    }
-  }
-
   setTabHumanInteractionLocked(tabId: string, locked: boolean): Promise<BrowserState> {
-    return setTabHumanInteractionLocked(this.interactionLockAccess(), tabId, locked)
+    return setTabHumanInteractionLocked(this, tabId, locked)
   }
 
   setAllHumanInteractionLocked(locked: boolean): Promise<BrowserState> {
-    return setAllHumanInteractionLocked(this.interactionLockAccess(), locked)
+    return setAllHumanInteractionLocked(this, locked)
   }
 
   snapshot(tabId?: string, maxChars = 30_000): Promise<string> {
@@ -2836,40 +2754,16 @@ export class Browser {
     return findSnapshot(this, options)
   }
 
-  /**
-   * The narrow view page audits get of this manager's private tabs, the tab's
-   * emulated environment, the audit page script sources this module loads,
-   * page metadata, PWA inspection and browser issues. It is a prototype method
-   * rather than a field, so managers created without the constructor (as unit
-   * tests do) still provide it. The delegates below return the feature's value
-   * or promise directly, so no extra ticks separate its final checks from the
-   * caller.
-   */
-  private pageAuditsAccess(): PageAuditsAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      findTab: (tabId) => this.tabs.get(tabId),
-      axeSource: () => axe.source,
-      webVitalsSource: () => webVitalsSource,
-      webVitalsVersion: () => webVitalsVersion,
-      performanceEnvironment: (tab) => this.performanceEnvironment(tab),
-      performanceEnvironmentFingerprint: (tab) => this.performanceEnvironmentFingerprint(tab),
-      pageMetadata: (tabId) => this.pageMetadata(tabId),
-      inspectPwa: (options) => this.inspectPwa(options),
-      inspectorIssues: (tabId) => this.inspectorIssues(tabId)
-    }
-  }
-
   accessibilityAudit(options: BrowserAccessibilityAuditOptions = {}): Promise<BrowserAccessibilityAudit> {
-    return accessibilityAudit(this.pageAuditsAccess(), options)
+    return accessibilityAudit(this, options)
   }
 
   performanceReport(options: BrowserPerformanceOptions = {}): Promise<BrowserPerformanceReport> {
-    return performanceReport(this.pageAuditsAccess(), options)
+    return performanceReport(this, options)
   }
 
   designOverview(tabId?: string): Promise<BrowserDesignOverviewReport> {
-    return designOverview(this.pageAuditsAccess(), tabId)
+    return designOverview(this, tabId)
   }
 
   pageMetadata(tabId?: string): Promise<BrowserPageMetadataReport> {
@@ -2877,11 +2771,11 @@ export class Browser {
   }
 
   securityReport(tabId?: string): BrowserSecurityReport {
-    return securityReport(this.pageAuditsAccess(), tabId)
+    return securityReport(this, tabId)
   }
 
   qualityAudit(tabId?: string): Promise<BrowserQualityAudit> {
-    return qualityAudit(this.pageAuditsAccess(), tabId)
+    return qualityAudit(this, tabId)
   }
 
   codeCoverage(options: BrowserCodeCoverageOptions = {}): Promise<BrowserCodeCoverageResult> {
@@ -4225,7 +4119,7 @@ export class Browser {
     attachPageTargetUrlEvents(this, tab, webContents)
     attachPageWheelZoom(this, tab, webContents)
     attachPageContextMenuEvents(this.pageContextMenuAccess(), tab, webContents)
-    attachDevToolsEvents(this.devToolsAccess(), tab, webContents)
+    attachDevToolsEvents(this, tab, webContents)
     this.frameObservation.track(webContents)
     attachDebuggerEvents(this, tab, webContents)
     void this.ensureDialogMonitoring(tab)
@@ -4384,10 +4278,6 @@ export class Browser {
     return matchingNetworkWaitRequest(tab, options, minCaptureSequence)
   }
 
-  private applyNetworkRoutes(tab: BrowserTab, validate: () => void = () => {}, recovery = false, mutate?: () => void, markSubmitted: () => void = () => {}, admission?: () => void): Promise<void> {
-    return applyNetworkRoutes(this, tab, validate, recovery, mutate, markSubmitted, admission)
-  }
-
   isHumanInteractionLocked(tab: BrowserTab): boolean {
     // Hronaut Home is application chrome, not a website tab. The global lock
     // protects page input while leaving Home controls usable for the human.
@@ -4419,7 +4309,7 @@ export class Browser {
   }
 
   syncHumanInteractionInputGuard(tab: BrowserTab): Promise<void> {
-    return syncHumanInteractionInputGuard(this.interactionLockAccess(), tab)
+    return syncHumanInteractionInputGuard(this, tab)
   }
 
   readonly unconfirmedSemanticClicks = new WeakSet<BrowserTab['view']['webContents']>()
@@ -4458,14 +4348,6 @@ export class Browser {
     return withBackgroundAgentFocusGuard(this, operation)
   }
 
-  private performanceEnvironment(tab: BrowserTab): BrowserPerformanceEnvironment {
-    return performanceEnvironment(this, tab)
-  }
-
-  private performanceEnvironmentFingerprint(tab: BrowserTab): string {
-    return tabPerformanceEnvironmentFingerprint(this, tab)
-  }
-
   isUnavailableCdpMethod(error: unknown): boolean {
     return /(?:method not found|wasn't found|-32601)/i.test(String(error))
   }
@@ -4499,7 +4381,7 @@ export class Browser {
   }
 
   private openDevTools(tab: BrowserTab): Promise<void> {
-    return openDevTools(this.devToolsAccess(), tab)
+    return openDevTools(this, tab)
   }
 
   prepareDiagnosticNavigation(tab: BrowserTab): void {

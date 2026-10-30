@@ -138,14 +138,11 @@ describe('main-process failures people see in tabs, navigation and new tabs', ()
       'Only live page tabs can be frozen or resumed.',
       'Заморожувати й відновлювати можна лише вкладки із запущеними сторінками.'],
     ['unlocking a public observer page', () => setTabHumanInteractionLocked({
-      findTab: () => undefined,
-      getTab: () => ({ ...websiteTab, mcpGroupId: 'observer' }),
-      findWorkspace: () => ({ contextClass: 'public-observer' }),
-      isDestroyed: () => false,
-      interactionLockTail: () => Promise.resolve(),
-      writeInteractionLockTail: () => undefined,
-      nativeInputLockMutations: () => 0,
-      writeNativeInputLockMutations: () => undefined
+      tabs: new Map([['site', { ...websiteTab, mcpGroupId: 'observer' }]]),
+      mcpTabGroups: new Map([['observer', { contextClass: 'public-observer' }]]),
+      destroyed: false,
+      interactionLockTail: Promise.resolve(),
+      nativeInputLockMutations: 0
     } as never, 'site', false),
     'Page input remains locked in a read-only public observer workspace.',
     'У робочому просторі публічного спостерігача, доступному лише для читання, введення на сторінці залишається заблокованим.'],

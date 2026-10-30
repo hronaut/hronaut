@@ -48,6 +48,11 @@ vi.mock('../src/main/browser/tab-arrangement/tab-arrangement.js', async (importO
   ) => browser.reorderTab(tabId, targetTabId, placement)
 }))
 
+// The prototype-built browser below stubs withDebugger, under which the input lock's native guard is applied.
+vi.mock('../src/main/browser/debugger-lease/debugger-lease.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/debugger-lease/debugger-lease.js')>(),
+  withDebugger: (browser: { withDebugger: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.withDebugger(...args)
+}))
 // The prototype-built browser below stubs roundPageCorners, with which a new tab's page gets the page card's corners.
 vi.mock('../src/main/browser/window-layout/window-layout.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/window-layout/window-layout.js')>(),

@@ -2,7 +2,10 @@ import type { WebContents } from 'electron'
 import { tabTitleForDisplay } from '../../../shared/tab-title.js'
 import { LocalizedError } from '../../localized-error.js'
 import { isHronautHomeUrl } from '../url.js'
-import type { DevToolsAccess, DevToolsTab } from './devtools-access.js'
+import type { Browser } from '../browser.js'
+import { applyNetworkRoutes, requireNetworkConditionsKnown } from '../network-conditions/network-conditions.js'
+import { findTab, getTab } from '../browser-core.js'
+import type { BrowserTab } from '../browser-tab.js'
 
 /** How long Developer Tools get to turn to the Console once open. */
 const SHOW_CONSOLE_WAIT_MS = 5_000
@@ -12,12 +15,12 @@ const SHOW_CONSOLE_WAIT_MS = 5_000
  * reports whether they are now open. Hronaut Home has none, and a locked tab
  * only closes them.
  */
-export async function toggleDevTools<Tab extends DevToolsTab>(access: DevToolsAccess<Tab>, tabId?: string): Promise<boolean> {
-  const tab = access.getTab(tabId)
-  await access.wakeTab(tab.id)
+export async function toggleDevTools(browser: Browser, tabId?: string): Promise<boolean> {
+  const tab = getTab(browser, tabId)
+  await browser.wakeTab(tab.id)
   const webContents = tab.webContents
   if (isHronautHomeUrl(tab.url)) return false
-  if (access.isHumanInteractionLocked(tab)) {
+  if (browser.isHumanInteractionLocked(tab)) {
     if (webContents.isDevToolsOpened()) webContents.closeDevTools()
     return false
   }
@@ -25,7 +28,7 @@ export async function toggleDevTools<Tab extends DevToolsTab>(access: DevToolsAc
     webContents.closeDevTools()
     return false
   }
-  await openDevTools(access, tab)
+  await openDevTools(browser, tab)
   return true
 }
 
@@ -33,11 +36,11 @@ export async function toggleDevTools<Tab extends DevToolsTab>(access: DevToolsAc
  * Opens Developer Tools for the person's tab on its Console, or turns open ones to it, as Chrome's Ctrl+Shift+J does,
  * and reports whether they show it. Hronaut Home has none, and a locked tab gets none.
  */
-export async function showDevToolsConsole<Tab extends DevToolsTab>(access: DevToolsAccess<Tab>, tabId?: string): Promise<boolean> {
-  const tab = access.getTab(tabId)
-  await access.wakeTab(tab.id)
-  if (isHronautHomeUrl(tab.url) || access.isHumanInteractionLocked(tab)) return false
-  await openDevTools(access, tab)
+export async function showDevToolsConsole(browser: Browser, tabId?: string): Promise<boolean> {
+  const tab = getTab(browser, tabId)
+  await browser.wakeTab(tab.id)
+  if (isHronautHomeUrl(tab.url) || browser.isHumanInteractionLocked(tab)) return false
+  await openDevTools(browser, tab)
   const devTools = tab.webContents.isDestroyed() ? null : tab.webContents.devToolsWebContents
   if (!devTools || devTools.isDestroyed() || !await showConsolePanel(devTools)) return false
   // Opening them gave them the keyboard already. Focusing them first brings Hronaut's window forward, which Electron
@@ -73,13 +76,13 @@ function showConsolePanel(devTools: WebContents): Promise<boolean> {
  * before the debugger is detached. Hronaut Home gets none, whichever action
  * asks, also when the tab shows Home by the time the wait ends.
  */
-export async function openDevTools<Tab extends DevToolsTab>(access: DevToolsAccess<Tab>, tab: Tab): Promise<void> {
+export async function openDevTools(browser: Browser, tab: BrowserTab): Promise<void> {
   const webContents = tab.webContents
   if (webContents.isDestroyed() || webContents.isDevToolsOpened() || isHronautHomeUrl(tab.url)) return
   const debuggerEpoch = tab.networkDebuggerEpoch
   const validateOwnership = (): void => {
-    if (access.isDestroyed() || webContents.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== webContents || tab.networkDebuggerEpoch !== debuggerEpoch) throw new LocalizedError('appErrors.devTools.targetChanged')
-    access.requireNetworkConditionsKnown(tab)
+    if (browser.destroyed || webContents.isDestroyed() || findTab(browser, tab.id) !== tab || tab.webContents !== webContents || tab.networkDebuggerEpoch !== debuggerEpoch) throw new LocalizedError('appErrors.devTools.targetChanged')
+    requireNetworkConditionsKnown(tab)
   }
   const requireConfirmed = (): void => {
     validateOwnership()
@@ -88,11 +91,11 @@ export async function openDevTools<Tab extends DevToolsTab>(access: DevToolsAcce
   requireConfirmed()
   // DevTools cleanup is an ordinary mutation, never explicit recovery authority.
   // Its queue admission must reject uncertainty created by an earlier operation.
-  if (tab.networkRoutes.length) await access.applyNetworkRoutes(tab, validateOwnership, false, () => { tab.networkRoutes = [] })
-  access.devToolsOpening().add(webContents.id)
+  if (tab.networkRoutes.length) await applyNetworkRoutes(browser, tab, validateOwnership, false, () => { tab.networkRoutes = [] })
+  browser.devToolsOpening.add(webContents.id)
   try {
-    await access.dialogMonitorAttach(webContents.id)
-    const pendingDebugger = access.pendingDebuggerCommand(webContents.id)
+    await browser.dialogMonitorAttachPromises.get(webContents.id)
+    const pendingDebugger = browser.debuggerQueue.pending(webContents.id)
     if (pendingDebugger) await pendingDebugger
     // The queue tail settles even after failure. Check current health and the
     // original owner at the handoff itself, with no await before detachment.
@@ -114,7 +117,7 @@ export async function openDevTools<Tab extends DevToolsTab>(access: DevToolsAcce
       try {
         webContents.openDevTools({
           mode: 'detach',
-          title: access.text('native.dialog.devToolsWindowTitle', { title: tabTitleForDisplay(tab, access.text('tabSearch.newTabTitle')) })
+          title: browser.text('native.dialog.devToolsWindowTitle', { title: tabTitleForDisplay(tab, browser.text('tabSearch.newTabTitle')) })
         })
         if (webContents.isDevToolsOpened()) finish()
       } catch (error) {
@@ -123,6 +126,6 @@ export async function openDevTools<Tab extends DevToolsTab>(access: DevToolsAcce
       }
     })
   } finally {
-    access.devToolsOpening().delete(webContents.id)
+    browser.devToolsOpening.delete(webContents.id)
   }
 }
