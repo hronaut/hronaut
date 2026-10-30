@@ -109,7 +109,7 @@ const invokes: Array<[api: string, method: string, args: unknown[], channel: str
   ['hronaut', 'manageRepro', ['checkpoint', 'tab-1', reproCheckpoint], 'browser:repro-recording', [{ action: 'checkpoint', tabId: 'tab-1', checkpoint: reproCheckpoint }]],
   ['hronaut', 'manageRepro', ['start'], 'browser:repro-recording', [{ action: 'start', tabId: undefined }]],
   ['hronaut', 'manageDomChanges', ['get', 'tab-1'], 'browser:dom-changes', [{ action: 'get', tabId: 'tab-1' }]],
-  ['hronaut', 'visualCompare', [{ tabId: 'tab-1', action: 'compare', threshold: 0.1 }], 'browser:visual-compare', [{ tabId: 'tab-1', action: 'compare', threshold: 0.1 }]],
+  ['hronaut', 'visualCompare', [{ tabId: 'tab-1', action: 'compare', threshold: 24 }], 'browser:visual-compare', [{ tabId: 'tab-1', action: 'compare', threshold: 24 }]],
   ['hronaut', 'copyVisualDiff', ['tab-1'], 'browser:copy-visual-diff', ['tab-1']],
   ['hronaut', 'setTabViewport', ['tab-1', phoneViewport], 'browser:set-tab-viewport', ['tab-1', phoneViewport]],
   ['hronaut', 'setTabViewport', ['tab-1', null], 'browser:set-tab-viewport', ['tab-1', null]],
