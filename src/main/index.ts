@@ -89,17 +89,17 @@ import { registerVirtualPasskeyIpc } from './virtual-passkey-ipc.js'
 import { registerLogpointIpc } from './logpoint-ipc.js'
 import { registerPageGeometryIpc } from './page-geometry-ipc.js'
 import { DEFAULT_MCP_PORT } from '../shared/mcp-port.js'
+import { AGENT_PRESENCE_IPC } from '../shared/ipc/agent-presence.js'
+import { DOWNLOADS_IPC } from '../shared/ipc/downloads.js'
+import { MCP_IPC } from '../shared/ipc/mcp.js'
+import { TABS_IPC } from '../shared/ipc/tabs.js'
+import { UNDO_IPC } from '../shared/ipc/undo.js'
 import { registerShellIpc } from './shell-ipc.js'
 import { registerConfirmDialogIpc } from './confirm-dialog-ipc.js'
 import { createTrustedDialogs } from './trusted-dialogs/trusted-dialogs.js'
 import { createClipboardOperations } from './clipboard-operations.js'
 import { createPanelWindow, type PanelWindowRefs } from './windows/panel-window.js'
 import { createMainWindowSnapshot } from './windows/main-window-snapshot.js'
-import { AGENT_PRESENCE_IPC } from '../shared/ipc/agent-presence.js'
-import { DOWNLOADS_IPC } from '../shared/ipc/downloads.js'
-import { MCP_IPC } from '../shared/ipc/mcp.js'
-import { TABS_IPC } from '../shared/ipc/tabs.js'
-import { UNDO_IPC } from '../shared/ipc/undo.js'
 import { createApplicationMenu } from './windows/application-menu.js'
 import { attachHistoryMouseButtons } from './windows/history-mouse-buttons.js'
 import { createWindowStatePersistence } from './windows/window-state-persistence.js'
@@ -714,7 +714,6 @@ const { detachedPanelTitle, openPanelWindow, closePanelWindow } = createPanelWin
   flushPanelWindowState
 })
 const { sendPageLoadedSnapshot, sendWorkspacesRestoredSnapshot } = createMainWindowSnapshot({
-  sendToMainWindow,
   tabRuntime,
   settings: () => settingsState.current,
   currentRendererSettingsState,
@@ -1479,7 +1478,7 @@ async function createWindow(startMinimized = false): Promise<void> {
   attachHistoryMouseButtons(mainWindowRefs.window, { runNativeBrowserAction, tabs: () => tabRuntime.tabs })
   mainWindowRefs.window.webContents.on('did-finish-load', () => {
     applyInterfaceScale(settingsState.current.interfaceScale)
-    sendPageLoadedSnapshot()
+    sendPageLoadedSnapshot(mainWindowRefs.window)
   })
   mainWindowRefs.window.webContents.on('will-navigate', (event, url) => {
     if (url !== trustedShellUrl()) event.preventDefault()
@@ -1515,7 +1514,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     releaseTabsInitialization()
     if (tabRuntime.initialization === currentTabsInitialization) tabRuntime.initialization = null
   }
-  sendWorkspacesRestoredSnapshot()
+  sendWorkspacesRestoredSnapshot(mainWindowRefs.window)
   if (savedWindowState?.maximized) mainWindowRefs.window.maximize()
   if (savedWindowState?.fullScreen) mainWindowRefs.window.setFullScreen(true)
   if (!startMinimized || mainWindowRefs.showRequested) mainWindowRefs.window.show()

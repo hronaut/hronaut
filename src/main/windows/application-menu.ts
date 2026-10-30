@@ -38,7 +38,7 @@ interface ApplicationMenuHost {
  */
 export function createApplicationMenu(host: ApplicationMenuHost): {
   installApplicationMenu(): void
-  /** Shows the window and asks its shell to open a Help menu action, such as Settings. */
+  /** Shows the window and asks its shell to open what a Help menu item or Settings opens. */
   requestHelp(action: HelpMenuAction): void
 } {
   /** Runs an action on the browser once it is up, and gives back what the action returns for its failure report. */
