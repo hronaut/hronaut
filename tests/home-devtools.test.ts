@@ -13,13 +13,13 @@ vi.mock('electron', () => ({
 }))
 
 // The page menu's browser below stubs openDevTools, which Inspect reaches through this; the Developer Tools cases, whose
-// browser has no such stub, run the real one.
+// browser has no such stub of its own, run the real one, even if a Browser method of that name comes back.
 vi.mock('../src/main/browser/devtools/devtools.js', async (importOriginal) => {
   const original = await importOriginal<typeof import('../src/main/browser/devtools/devtools.js')>()
   return {
     ...original,
     openDevTools: (browser: { openDevTools?: (tab: unknown) => Promise<void> }, tab: never) => (
-      browser.openDevTools ? browser.openDevTools(tab) : original.openDevTools(browser as never, tab)
+      Object.hasOwn(browser, 'openDevTools') ? browser.openDevTools!(tab) : original.openDevTools(browser as never, tab)
     )
   }
 })
