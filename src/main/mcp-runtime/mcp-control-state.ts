@@ -7,7 +7,7 @@ import type { ConnectedAgent } from '../../shared/agent-status.js'
 import type { McpControlState, McpServerStatus } from '../../shared/types.js'
 import { setAllAgentsPaused } from '../browser/agent-pause/agent-pause.js'
 import { notifyHomeChanged } from '../browser/home-tabs/home-tabs.js'
-import type { ShellWindowsSender } from '../../shared/ipc/channel.js'
+import type { EventSender } from '../../shared/ipc/channel.js'
 import { MCP_IPC } from '../../shared/ipc/mcp.js'
 
 interface McpControlStateHost {
@@ -27,7 +27,7 @@ interface McpControlStateHost {
   connectedAgents(): ConnectedAgent[]
   /** The tab runtime, which pauses page agents and tells Home to read again; null until the window opens. */
   tabs(): Browser | null
-  sendToShellWindows: ShellWindowsSender
+  sendToShellWindows: EventSender
   /** Reloads a visible Home after a committed change; settings changes use it too. */
   refreshHomeAfterCommittedChange(scope: 'mcp' | 'settings'): void
 }

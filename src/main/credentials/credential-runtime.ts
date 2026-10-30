@@ -8,7 +8,7 @@ import type { TrustedDialogOptions } from '../trusted-dialogs/trusted-dialogs.js
 import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
 import type { CredentialStorageStatus } from '../../shared/types.js'
 import { CREDENTIALS_IPC } from '../../shared/ipc/credentials.js'
-import type { ShellWindowsSender } from '../../shared/ipc/channel.js'
+import type { EventSender } from '../../shared/ipc/channel.js'
 
 /**
  * Saved passwords' storage, created once by index.ts. Startup opens the store when secure storage allows it; the
@@ -31,7 +31,7 @@ interface CredentialRuntimeHost {
   mainWindow(): Pick<BrowserWindow, 'isDestroyed'> | null
   /** Secure storage's status and the password store; index.ts creates the record, and other features read it too. */
   state: CredentialRuntimeState
-  sendToShellWindows: ShellWindowsSender
+  sendToShellWindows: EventSender
   /** Tells the shell that a browser action failed, such as saving a password a page submitted. */
   reportBrowserActionFailure(action: string, error: unknown): void
 }

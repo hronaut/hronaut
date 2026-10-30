@@ -8,6 +8,7 @@ import {
 import type { WalletBroker, WalletBrokerContext } from './broker.js'
 import type { WalletService } from './service.js'
 import { LocalizedError } from '../localized-error.js'
+import { WALLETS_IPC } from '../../shared/ipc/wallets.js'
 
 type WalletIpcService = Pick<WalletService,
   'list' | 'setupPassphrase' | 'unlock' | 'prepareImport' | 'confirmImport' |
@@ -53,33 +54,33 @@ export function registerWalletIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Wallet
   ipcMain.handle('wallet-provider:request', (event, input: WalletProviderRequest) => (
     requireWalletBroker().providerRequest(host.assertWalletPageSender(event), input)
   ))
-  ipcMain.handle('wallets:status', (event) => {
+  ipcMain.handle(WALLETS_IPC.status, (event) => {
     host.assertMainShellSender(event)
     return host.status()
   })
-  ipcMain.handle('wallets:list', (event) => {
+  ipcMain.handle(WALLETS_IPC.list, (event) => {
     host.assertMainShellSender(event)
     return host.service()?.list() ?? []
   })
-  ipcMain.handle('wallets:setup-passphrase', async (event, passphrase: unknown) => {
+  ipcMain.handle(WALLETS_IPC.setupPassphrase, async (event, passphrase: unknown) => {
     host.assertMainShellSender(event)
     if (typeof passphrase !== 'string') throw new TypeError('Wallet passphrase must be a string')
     return requireWalletService().setupPassphrase(passphrase)
   })
-  ipcMain.handle('wallets:unlock', async (event, passphrase: unknown) => {
+  ipcMain.handle(WALLETS_IPC.unlock, async (event, passphrase: unknown) => {
     host.assertMainShellSender(event)
     if (typeof passphrase !== 'string') throw new TypeError('Wallet passphrase must be a string')
     return requireWalletService().unlock(passphrase)
   })
-  ipcMain.handle('wallets:lock', async (event) => {
+  ipcMain.handle(WALLETS_IPC.lock, async (event) => {
     host.assertMainShellSender(event)
     return requireWalletBroker().lock()
   })
-  ipcMain.handle('wallets:generate', (event, input: WalletCreateInput) => {
+  ipcMain.handle(WALLETS_IPC.generate, (event, input: WalletCreateInput) => {
     host.assertMainShellSender(event)
     return host.generateWallet(input)
   })
-  ipcMain.handle('wallets:prepare-import', (event, chainFamily: unknown, format: unknown, recoveryMaterial: unknown) => {
+  ipcMain.handle(WALLETS_IPC.prepareImport, (event, chainFamily: unknown, format: unknown, recoveryMaterial: unknown) => {
     host.assertMainShellSender(event)
     if (typeof recoveryMaterial !== 'string') throw new TypeError('Wallet recovery material must be a string')
     return requireWalletService().prepareImport(
@@ -88,59 +89,59 @@ export function registerWalletIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Wallet
       recoveryMaterial
     )
   })
-  ipcMain.handle('wallets:confirm-import', (event, token: unknown, details: WalletImportDetails) => {
+  ipcMain.handle(WALLETS_IPC.confirmImport, (event, token: unknown, details: WalletImportDetails) => {
     host.assertMainShellSender(event)
     return requireWalletService().confirmImport(walletIdentifier(token, 'wallet import token'), details)
   })
-  ipcMain.handle('wallets:cancel-import', (event, token: unknown) => {
+  ipcMain.handle(WALLETS_IPC.cancelImport, (event, token: unknown) => {
     host.assertMainShellSender(event)
     return requireWalletService().cancelImport(walletIdentifier(token, 'wallet import token'))
   })
-  ipcMain.handle('wallets:add-watch-only', (event, input: WalletWatchOnlyInput) => {
+  ipcMain.handle(WALLETS_IPC.addWatchOnly, (event, input: WalletWatchOnlyInput) => {
     host.assertMainShellSender(event)
     return requireWalletService().addWatchOnly(input)
   })
-  ipcMain.handle('wallets:update', (event, walletId: unknown, changes: WalletUpdateInput) => {
+  ipcMain.handle(WALLETS_IPC.update, (event, walletId: unknown, changes: WalletUpdateInput) => {
     host.assertMainShellSender(event)
     return requireWalletBroker().updateWallet(walletIdentifier(walletId, 'wallet identifier'), changes)
   })
-  ipcMain.handle('wallets:remove', (event, walletId: unknown) => {
+  ipcMain.handle(WALLETS_IPC.remove, (event, walletId: unknown) => {
     host.assertMainShellSender(event)
     return requireWalletBroker().removeWallet(walletIdentifier(walletId, 'wallet identifier'))
   })
-  ipcMain.handle('wallets:list-policies', (event, walletId?: unknown) => {
+  ipcMain.handle(WALLETS_IPC.listPolicies, (event, walletId?: unknown) => {
     host.assertMainShellSender(event)
     return host.service()?.policies.list(walletId === undefined ? undefined : walletIdentifier(walletId, 'wallet identifier')) ?? []
   })
-  ipcMain.handle('wallets:set-policy', (event, input: unknown) => {
+  ipcMain.handle(WALLETS_IPC.setPolicy, (event, input: unknown) => {
     host.assertMainShellSender(event)
     return requireWalletBroker().setPolicy(WalletPolicySchema.parse(input))
   })
-  ipcMain.handle('wallets:remove-policy', (event, policyId: unknown) => {
+  ipcMain.handle(WALLETS_IPC.removePolicy, (event, policyId: unknown) => {
     host.assertMainShellSender(event)
     return requireWalletBroker().removePolicy(walletIdentifier(policyId, 'wallet policy identifier'))
   })
-  ipcMain.handle('wallets:list-permissions', (event) => {
+  ipcMain.handle(WALLETS_IPC.listPermissions, (event) => {
     host.assertMainShellSender(event)
     return host.service()?.permissions.list() ?? []
   })
-  ipcMain.handle('wallets:revoke-permission', (event, permissionId: unknown) => {
+  ipcMain.handle(WALLETS_IPC.revokePermission, (event, permissionId: unknown) => {
     host.assertMainShellSender(event)
     return requireWalletBroker().revokePermission(walletIdentifier(permissionId, 'wallet permission identifier'))
   })
-  ipcMain.handle('wallets:list-requests', (event) => {
+  ipcMain.handle(WALLETS_IPC.listRequests, (event) => {
     host.assertMainShellSender(event)
     return host.broker()?.listPending() ?? []
   })
-  ipcMain.handle('wallets:approve-request', (event, requestId: unknown) => {
+  ipcMain.handle(WALLETS_IPC.approveRequest, (event, requestId: unknown) => {
     host.assertMainShellSender(event)
     return requireWalletBroker().approve(walletIdentifier(requestId, 'wallet request identifier'))
   })
-  ipcMain.handle('wallets:reject-request', (event, requestId: unknown) => {
+  ipcMain.handle(WALLETS_IPC.rejectRequest, (event, requestId: unknown) => {
     host.assertMainShellSender(event)
     return requireWalletBroker().reject(walletIdentifier(requestId, 'wallet request identifier'))
   })
-  ipcMain.handle('wallets:audit-history', (event) => {
+  ipcMain.handle(WALLETS_IPC.auditHistory, (event) => {
     host.assertMainShellSender(event)
     return host.service()?.auditHistory() ?? []
   })

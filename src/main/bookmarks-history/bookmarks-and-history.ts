@@ -8,7 +8,7 @@ import type { BookmarkOperations, HistoryOperations, McpHttpServer } from '../mc
 import type { UndoableAction } from '../undo-offers.js'
 import type { BrowserBookmark, BrowserHistoryEntry } from '../../shared/types.js'
 import { forgetHistoryPages } from '../browser/tab-history-pages/forget-history-pages.js'
-import type { ShellWindowsSender } from '../../shared/ipc/channel.js'
+import type { EventSender } from '../../shared/ipc/channel.js'
 import { BOOKMARKS_IPC, BOOKMARK_COLLECTIONS_IPC } from '../../shared/ipc/bookmarks.js'
 import { HISTORY_IPC } from '../../shared/ipc/history.js'
 
@@ -30,7 +30,7 @@ export interface BookmarksAndHistoryState {
 interface BookmarksAndHistoryHost {
   /** The two stores; index.ts creates the record, and most of the main process reads it. */
   state: BookmarksAndHistoryState
-  sendToShellWindows: ShellWindowsSender
+  sendToShellWindows: EventSender
   /** The MCP listener while it runs, whose agents' finished steps go when the person or an agent clears the history. */
   mcpServer(): Pick<McpHttpServer, 'forgetAgentStepsSince'> | null
   /** The tabs once the window opens, whose Recently closed tabs and Back and Forward pages go with the history. */

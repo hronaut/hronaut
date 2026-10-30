@@ -9,5 +9,8 @@ export type InvokeChannel<Args extends unknown[], Result> = string & { readonly 
 /** A channel main sends these arguments on to a renderer. */
 export type EventChannel<Args extends unknown[]> = string & { readonly [contract]?: { event: Args } }
 
-/** Sends an event to both shell windows, the main window and the detached panel window, with the arguments its channel takes. */
-export type ShellWindowsSender = <Args extends unknown[]>(channel: EventChannel<Args>, ...args: NoInfer<Args>) => void
+/**
+ * Sends an event on a channel with the arguments it takes, as main's sendToShellWindows does to the main and the
+ * detached panel window, and sendToMainWindow to the main window alone.
+ */
+export type EventSender = <Args extends unknown[]>(channel: EventChannel<Args>, ...args: NoInfer<Args>) => void

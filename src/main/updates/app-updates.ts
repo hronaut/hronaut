@@ -12,7 +12,7 @@ import {
 import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
 import type { AppUpdateState } from '../../shared/types.js'
 import { UPDATES_IPC } from '../../shared/ipc/updates.js'
-import type { ShellWindowsSender } from '../../shared/ipc/channel.js'
+import type { EventSender } from '../../shared/ipc/channel.js'
 
 /**
  * The update state the shell shows, created once by index.ts and changed only by this module. Each change replaces the
@@ -33,7 +33,7 @@ interface AppUpdatesHost {
   text(key: MessageKey, parameters?: MessageParameters): string
   /** The update state the shell shows; index.ts creates the record, and the shell's IPC and snapshots read it too. */
   state: AppUpdatesState
-  sendToShellWindows: ShellWindowsSender
+  sendToShellWindows: EventSender
   /** The main window, hidden while the app restarts into an update; read on every use because it can close. */
   mainWindow(): Pick<BrowserWindow, 'hide'> | null
   /** The detached panel window, if one is open; hidden with the main window. */
