@@ -1,3 +1,4 @@
+import { Session } from 'node:inspector/promises'
 import { runInNewContext } from 'node:vm'
 import { describe, expect, it } from 'vitest'
 import { pageFunctionExpression, pageScript } from '../src/shared/page-script.js'
@@ -43,5 +44,21 @@ describe('page scripts', () => {
     // Strict code gets no global object for a missing `this`, as sloppy code would.
     expect(() => runInNewContext(`(${expression}).call(undefined, 2)`, { items: [1] })).toThrow(/items/)
     expect(() => pageFunctionExpression({ read() { return 1 } }.read)).toThrow('read cannot run in a page')
+  })
+
+  it('gives the debugger a function it calls on an object, with that object as `this`', async () => {
+    function countInPage(this: { items: number[] }, max: number): number { return Math.min(this.items.length, max) }
+    const session = new Session()
+    session.connect()
+    try {
+      const target = await session.post('Runtime.evaluate', { expression: '({ items: [1, 2, 3] })' })
+      const called = await session.post('Runtime.callFunctionOn', {
+        objectId: target.result.objectId, functionDeclaration: pageFunctionExpression(countInPage), arguments: [{ value: 2 }], returnByValue: true
+      })
+      expect(called.exceptionDetails).toBeUndefined()
+      expect(called.result.value).toBe(2)
+    } finally {
+      session.disconnect()
+    }
   })
 })

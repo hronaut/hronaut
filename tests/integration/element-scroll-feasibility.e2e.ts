@@ -1,5 +1,6 @@
 import { createServer } from 'node:http'
 import { elementScrollGeometryInPage } from '../../src/main/browser/element-scroll-geometry.page.js'
+import { pageFunctionExpression } from '../../src/shared/page-script.js'
 import type { HronautApi } from '../../src/shared/types.js'
 import { closeFixtureServer, expect, test, pageAt } from './fixtures.js'
 
@@ -39,7 +40,7 @@ test('isolated native scroll getters ignore page-authored accessors without muta
         const element = document.querySelector('#target');
         return ${source};
       })()` }], false)
-    }, { url, source: `(${elementScrollGeometryInPage})(element)` })
+    }, { url, source: `${pageFunctionExpression(elementScrollGeometryInPage)}(element)` })
     expect(result).toEqual({ status: 'observed', scrollTop: 0, scrollLeft: 0, clientWidth: 105, clientHeight: 65, scrollWidth: 400, scrollHeight: 600, direction: 'ltr', writingMode: 'horizontal-tb', documentScroller: 'html', isDocumentScroller: false })
     expect(await page.evaluate(() => (window as unknown as { getterHits: string[] }).getterHits)).toEqual([])
     expect(await page.evaluate(() => ({ html: document.body.innerHTML, focus: document.activeElement?.id, x: scrollX, y: scrollY }))).toEqual(before)
