@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- When the computer's clock was set back while Hronaut ran, such as on Linux when a clock kept in local time is corrected soon after Hronaut opened at login, your last click or key in a tab could count for a page that opened up to an hour later, so that page could ask again for a website sign-in you had cancelled. Only a page that opens within a second of your click or key counts as yours, whatever the clock does.
+
 ## [3.14.1] - 2026-10-30
 
 ### Fixed

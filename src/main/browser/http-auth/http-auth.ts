@@ -83,7 +83,10 @@ interface SignInGuard {
    * while one was asked; false again once a page the person or an agent opened shows there.
    */
   refusing: boolean
-  /** When the person, or an agent's input, last clicked or pressed a key in the tab's page, until a page used it up. */
+  /**
+   * When the person, or an agent's input, last clicked or pressed a key in the tab's page, until a page used it up; on the
+   * monotonic clock, so that a clock set back after a click does not let the page count as the person's for an hour.
+   */
   activatedAt: number
   /** The page opening in the tab now, or the one it shows once it opened; none after a Cancel left its page refusing. */
   opening?: Opening
@@ -125,11 +128,11 @@ function guardOf(webContents: GuardedWebContents, family = new Set<SignInGuard>(
   family.add(guard)
   // As in Chrome, Escape and the repeats of a held key are no activation.
   webContents.on('input-event', (_event: unknown, input: Pick<InputEvent, 'type'> & { key?: string, isAutoRepeat?: boolean }) => {
-    if (ACTIVATING_INPUT.has(input.type) && input.isAutoRepeat !== true && input.key !== 'Escape') guard.activatedAt = Date.now()
+    if (ACTIVATING_INPUT.has(input.type) && input.isAutoRepeat !== true && input.key !== 'Escape') guard.activatedAt = performance.now()
   })
   webContents.on('did-start-navigation', (details: Pick<WebContentsDidStartNavigationEventParams, 'isMainFrame' | 'isSameDocument' | 'initiator'>) => {
     if (!details.isMainFrame || details.isSameDocument) return
-    guard.opening = { byPage: false, activated: Date.now() - guard.activatedAt <= USER_ACTIVATION_MS }
+    guard.opening = { byPage: false, activated: performance.now() - guard.activatedAt <= USER_ACTIVATION_MS }
     if (details.initiator) openedByPage(guard.opening, guard)
   })
   // Once a page starts, Electron tells whether a page opened it, even one the workspace then refuses: one a service
