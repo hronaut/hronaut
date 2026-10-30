@@ -105,6 +105,18 @@ describe('target actions in a page', () => {
     expect((globalThis as Record<string, unknown>).__hronautEvaluated).toBe('undefinedundefined')
   })
 
+  it('gives the page its own dialogs back when reading eval throws', async () => {
+    const nativeEval = globalThis.eval
+    const own = window.confirm
+    const script = dialogAwareEvaluateScript('1', 'accept', 'throwing-eval')
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'eval')!
+    cleanups.push(() => Object.defineProperty(globalThis, 'eval', descriptor))
+    Object.defineProperty(globalThis, 'eval', { configurable: true, get() { throw new Error('eval is unavailable') } })
+    await expect(nativeEval(script)).rejects.toThrow('eval is unavailable')
+    expect(window.confirm).toBe(own)
+    expect((window as unknown as Record<symbol, unknown>)[Symbol.for('hronaut.evaluationDialogs')]).toBeUndefined()
+  })
+
   it('reports whether a target is attached, detached, visible or hidden', () => {
     document.body.innerHTML = '<div id="shown">x</div><div id="none" style="display: none">x</div>'
     vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue(box(0, 0, 10, 10))
@@ -162,6 +174,8 @@ describe('semantic multi-select in a page', () => {
     expect(run(multiSelectScript({ selector: '#many' }, ['z']))).toEqual(rejected('Requested value is missing or ambiguous'))
     expect(run(multiSelectScript({ selector: '#nothing' }, ['a']))).toEqual(rejected('Target must identify exactly one element'))
     expect(run(multiSelectScript({ selector: '[' }, ['a']))).toEqual(rejected('Invalid target selector'))
+    document.body.insertAdjacentHTML('beforeend', '<select id="single"><option value="a">A</option></select>')
+    expect(run(multiSelectScript({ selector: '#single' }, ['a']))).toEqual(rejected('Target must be a native select[multiple]'))
     expect(selected()).toEqual(['a'])
   })
 

@@ -315,10 +315,11 @@ export async function dialogAwareEvaluateInPage(script: string, accept: boolean,
     })
   }
   state.active.push({ id, accept })
-  // Called through a binding, eval is indirect: the script runs in the page's global scope, not this function's.
-  const indirectEval = eval
   try {
-    return await indirectEval(script)
+    // An indirect eval runs the script in the page's global scope, not this function's. Bundlers keep (0, eval) as
+    // written; Rolldown turns eval called through a local binding into a direct eval. It is read inside the try, so a
+    // page whose eval getter throws still gets its own dialogs back.
+    return await (0, eval)(script)
   } finally {
     releaseDialogs(id)
   }
