@@ -4,10 +4,10 @@ import { useI18n } from 'vue-i18n'
 import { formatNumber } from '../../../../shared/format.js'
 import type { SupportedLocale } from '../../../../shared/types.js'
 import UiButton from '../../ui/UiButton.vue'
-import type { BrowserVideoOptions, BrowserVideoState } from '../../../../shared/video.js'
+import type { BrowserVideoState, ShellVideoOptions } from '../../../../shared/video.js'
 
 const props = defineProps<{ state: BrowserVideoState; busy: boolean }>()
-const emit = defineEmits<{ edit: [options: Partial<BrowserVideoOptions>] }>()
+const emit = defineEmits<{ edit: [options: Partial<ShellVideoOptions>] }>()
 const { t, locale } = useI18n({ useScope: 'global' })
 // Times and zoom use the interface language's decimal separator.
 const localNumber = (value: number): string => formatNumber(locale.value as SupportedLocale, value, { maximumFractionDigits: 3 })

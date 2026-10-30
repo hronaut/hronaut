@@ -205,6 +205,8 @@ it('refuses an audio import the shell names a file for, since only the person pi
   tabs.videoRecording.mockResolvedValue({ recordingId: 'recording', status: 'stopped' })
   await expect(invoke('video', { tabId: 'tab', action: 'import-audio', audioPath: '/home/person/secret.wav', audioProvenance: 'Original composition' }))
     .rejects.toThrow('Audio is imported only from a file the person picks')
+  await expect(invoke('video', { tabId: 'tab', action: 'import-audio', audioProvenance: 'Original composition' }))
+    .rejects.toThrow(TypeError)
   await expect(invoke('video', { tabId: 'tab', action: 'get', audioPath: '/home/person/secret.wav' }))
     .rejects.toThrow('Audio is imported only from a file the person picks')
   expect(tabs.videoRecording).not.toHaveBeenCalled()

@@ -1,5 +1,5 @@
 import type { BrowserReproCheckpointInput } from '../repro-checkpoint.js'
-import type { BrowserVideoOptions, BrowserVideoState } from '../video.js'
+import type { BrowserVideoState, ShellVideoOptions } from '../video.js'
 import type {
   BrowserAccessibilityAudit,
   BrowserAccessibilityAuditOptions,
@@ -59,7 +59,7 @@ export const DIAGNOSTICS_IPC = {
    * Shell → main: starts, pauses, resumes, stops, reads, edits, renders, exports or clears the tab's video recording,
    * or removes its audio. Audio is added only through importVideoAudio, so an audio import here is refused.
    */
-  video: 'browser:video' as InvokeChannel<[options: BrowserVideoOptions], BrowserVideoState>,
+  video: 'browser:video' as InvokeChannel<[options: ShellVideoOptions], BrowserVideoState>,
   /** Shell → main: the recording's rendered video, for the shell to play. */
   videoPreview: 'browser:video-preview' as InvokeChannel<[tabId: string], Uint8Array>,
   /**

@@ -2,7 +2,7 @@ import type { PwaLifecycleOptions, PwaLifecycleReport } from '../pwa-lifecycle.j
 import type { IncidentCaptureInput, IncidentDraft, IncidentReviewInput, IncidentPreview } from '../incident-package.js'
 import type { BrowserReproCheckpointInput } from '../repro-checkpoint.js'
 import type { BrowserImportApi } from '../browser-import.js'
-import type { BrowserVideoOptions, BrowserVideoState } from '../video.js'
+import type { BrowserVideoState, ShellVideoOptions } from '../video.js'
 import type { BrowserInspectorIssuesReport } from './page-problems.js'
 import type { BrowserEnvironmentSettings, BrowserViewportEmulation } from './emulation.js'
 import type {
@@ -330,7 +330,7 @@ export interface HronautDebugReportApi {
 
 /** Recording a tab: its video, the person's steps to reproduce a problem, and its DOM changes. */
 export interface HronautRecordingApi {
-  manageVideo(options: BrowserVideoOptions): Promise<BrowserVideoState>
+  manageVideo(options: ShellVideoOptions): Promise<BrowserVideoState>
   importVideoAudio(tabId: string, provenance: string): Promise<BrowserVideoState>
   videoPreview(tabId: string): Promise<Uint8Array>
   manageRepro(action: BrowserReproAction, tabId?: string, checkpoint?: BrowserReproCheckpointInput): Promise<BrowserReproRecording>

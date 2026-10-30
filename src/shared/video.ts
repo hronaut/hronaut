@@ -97,6 +97,13 @@ export type VideoCamera = z.output<typeof videoCameraSchema>
 export type VideoTransition = z.output<typeof videoTransitionSchema>
 export interface VideoAudioAsset { id: string; name: string; durationMs: number; provenance: string; builtin: boolean }
 export type BrowserVideoOptions = z.input<typeof videoOptionsSchema>
+/**
+ * What the shell may ask of a recording on its video channel: everything but importing audio from a path, which only
+ * the file picker does, and inspecting frames, which only agents do.
+ */
+export type ShellVideoOptions = Omit<BrowserVideoOptions, 'action' | 'audioPath'> & {
+  action?: Exclude<NonNullable<BrowserVideoOptions['action']>, 'import-audio' | 'inspect'>
+}
 /** Recording-relative monotonic milliseconds, not wall time or compositor timestamps. */
 export interface VideoTimingObservation {
   clock: 'recording-monotonic'
