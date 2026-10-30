@@ -12,9 +12,9 @@ import type { WorkspaceContinuityReport } from '../workspace-continuity.js'
 import type { WorkspaceTemplateImportResult } from '../workspace-template.js'
 import type { InvokeChannel } from './channel.js'
 
-/** Workspaces: making, editing, archiving and closing them, their templates, data, navigation policy and continuity. */
+/** Workspaces: making, editing, archiving and closing them, their templates, data, navigation policy, continuity and the decisions agents ask the person for in them. */
 export const WORKSPACES_IPC = {
-  /** Shell → main: makes a workspace, with no data of its own or a copy of another workspace's. */
+  /** Shell → main: makes a workspace, starting empty or with a copy of another workspace's data. */
   create: 'browser:create-workspace' as InvokeChannel<[options: BrowserWorkspaceCreateOptions], BrowserState>,
   /** Shell → main: reads a template file the person picks; null when they picked none. */
   openTemplateFile: 'browser:open-workspace-template-file' as InvokeChannel<[], string | null>,
@@ -24,13 +24,13 @@ export const WORKSPACES_IPC = {
   importTemplate: 'browser:import-workspace-template' as InvokeChannel<[text: string], WorkspaceTemplateImportResult & { state: BrowserState }>,
   /** Shell → main: renames the workspace. */
   rename: 'browser:rename-tab-group' as InvokeChannel<[groupId: string, name: string], BrowserState>,
-  /** Shell → main: changes the workspace's name, description, color or preferences. */
+  /** Shell → main: changes the workspace's name, description, color, preferences or agent access. */
   update: 'browser:update-tab-group' as InvokeChannel<[groupId: string, updates: BrowserTabGroupUpdate], BrowserState>,
   /** Shell → main: compares the workspace's continuity checkpoint with its page now. */
   reviewContinuity: 'browser:review-workspace-continuity' as InvokeChannel<[workspaceId: string], WorkspaceContinuityReport>,
-  /** Shell → main: the decisions agents wait on in the workspace. */
+  /** Shell → main: the decisions agents asked the person for in the workspace, still open or answered, with the person's answers. */
   listHumanWaiting: 'browser:list-human-waiting' as InvokeChannel<[workspaceId: string], HumanWaitingRecord[]>,
-  /** Shell → main: the person's answer to a decision an agent waits on, at the revision they saw. */
+  /** Shell → main: the person acknowledges, cancels, rejects or resolves a decision an agent waits on, at the revision they saw. */
   changeHumanWaiting: 'browser:change-human-waiting' as InvokeChannel<[
     workspaceId: string,
     id: string,

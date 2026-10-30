@@ -3,7 +3,7 @@ import { WORKSPACES_IPC } from '../../shared/ipc/workspaces.js'
 import type { HronautWorkspacesApi } from '../../shared/types.js'
 import { invoke } from './ipc.js'
 
-/** window.hronaut's workspaces, their templates, data, navigation policy and continuity, and browser import. */
+/** window.hronaut's workspaces, their templates, data, navigation policy, continuity and agents' decisions, and browser import. */
 export const workspacesApi: HronautWorkspacesApi = {
   createWorkspace: (options) => invoke(WORKSPACES_IPC.create, options),
   openWorkspaceTemplateFile: () => invoke(WORKSPACES_IPC.openTemplateFile),

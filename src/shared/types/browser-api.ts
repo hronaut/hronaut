@@ -211,7 +211,7 @@ export interface HronautShellRequestsApi {
   onAddressPasteAndGo(listener: (text: string) => void): () => void
 }
 
-/** Workspaces and their templates, data, navigation policy and continuity, and importing another browser's sign-ins into one. */
+/** Workspaces and their templates, data, navigation policy, continuity and agents' decisions, and importing another browser's sign-ins into one. */
 export interface HronautWorkspacesApi {
   createWorkspace(options: BrowserWorkspaceCreateOptions): Promise<BrowserState>
   openWorkspaceTemplateFile(): Promise<string | null>
