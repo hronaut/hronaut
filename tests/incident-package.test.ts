@@ -90,6 +90,22 @@ it('keeps a review for ten minutes and bounds capture time, whatever the wall cl
   })
   await expect(service.capture(1, { tabId: 'tab', minutes: 1, kinds: ['repro'] })).resolves.toMatchObject({ artifacts: [{ status: 'empty' }] })
 })
+it('ends a review at the expiry it shows, ten minutes after its capture started', async () => {
+  vi.useFakeTimers()
+  const { host } = fixture()
+  const service = new IncidentPackages(() => host as unknown as Browser, 'test')
+  host.reproRecording.mockImplementationOnce(async () => {
+    vi.advanceTimersByTime(20_000)
+    return { active: false, steps: [], caveats: [], truncated: false }
+  })
+  const draft = await service.capture(1, { tabId: 'tab', minutes: 1, kinds: ['repro'] })
+  const request = { draftId: draft.draftId, include: ['repro'], replacements: [] }
+  vi.advanceTimersByTime(600_000 - 20_000 - 1)
+  expect(Date.parse(draft.expiresAt) - Date.now()).toBe(1)
+  expect(service.review(1, request).html).toContain('repro')
+  vi.advanceTimersByTime(1)
+  expect(() => service.review(1, request)).toThrow('expired')
+})
 it.each(['discard', 'navigate'])('rejects a capture when %s happens during a read', async action => {
   const { service, host, source, tab } = fixture()
   let resolve!: (value: typeof source) => void

@@ -66,4 +66,28 @@ describe('fillCredentialWhileMcpPaused', () => {
       vi.useRealTimers()
     }
   })
+
+  it('keeps waiting for running agent commands for five seconds when the wall clock steps forward', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'performance', 'setTimeout', 'clearTimeout'] })
+    try {
+      let running = 1
+      const fill = vi.fn(async () => true)
+      const filling = fillCredentialWhileMcpPaused({
+        pausePersistently: () => undefined,
+        acquireTemporaryPause: () => () => undefined,
+        getActiveRequestCount: () => running,
+        fill
+      })
+      const settled = filling.then(() => 'filled', () => 'refused')
+      vi.setSystemTime(Date.now() + 3_600_000)
+      await vi.advanceTimersByTimeAsync(4_000)
+      await expect(Promise.race([settled, Promise.resolve('waiting')])).resolves.toBe('waiting')
+      running = 0
+      await vi.advanceTimersByTimeAsync(100)
+      await expect(settled).resolves.toBe('filled')
+      expect(fill).toHaveBeenCalledOnce()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

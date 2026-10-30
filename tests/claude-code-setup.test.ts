@@ -90,7 +90,7 @@ describe('Claude Code setup', () => {
   it('refuses a plan after the file changed, after two minutes, or after another prepare from the same page', async () => {
     await writeFile(path, settings({}))
     const confirm = vi.fn(async () => true)
-    const service = new ClaudeCodeSetup({ path, endpoint: () => endpoint, confirm, now: () => 0 })
+    const service = new ClaudeCodeSetup({ path, endpoint: () => endpoint, confirm })
     const changed = await service.prepare(1)
     await writeFile(path, settings({ numStartups: 4 }))
     expect(await code(service.apply(changed.planId, 1))).toBe('changed')

@@ -45,19 +45,23 @@ describe('selected screenshot labels', () => {
     expect(() => annotateScreenshotBitmap(new Uint8Array(4), 1, 1, { width: NaN, height: 1 }, ['e1'], [])).toThrow('align')
   })
   it('pins identity, bounds concurrent captures, expires even if timers are throttled, and cleans up', () => {
+    // The page's monotonic clock, and the computer's clock, which is set forward and back meanwhile.
     let now = 0
+    let wallNow = 0
     const node = { isConnected: true, matches: () => false, closest: () => null, checkVisibility: () => true,
       getBoundingClientRect: () => ({ x: 1, y: 1, width: 10, height: 10 }) }
     let matches = [node]
     const context = { document: { querySelectorAll: () => matches }, getComputedStyle: () => ({ display: 'block' }),
-      Date: { now: () => now }, setTimeout: vi.fn(() => 1), clearTimeout: vi.fn() }
+      Date: { now: () => wallNow }, performance: { now: () => now }, setTimeout: vi.fn(() => 1), clearTimeout: vi.fn() }
     const run = (id: string, refs?: string[], cleanup = false) => runInNewContext(screenshotAnnotationScript(id, refs, cleanup), context)
     for (let i = 0; i < 4; i++) run(String(i), ['e1'])
+    wallNow = 60 * 60_000
     expect(() => run('excess', ['e1'])).toThrow('Too many')
     matches = [{ ...node }]
     expect(run('0')[0].status).toBe('changed')
     run('1', undefined, true)
     expect(() => run('1')).toThrow('expired')
+    wallNow = -60 * 60_000
     now = 10_000
     expect(() => run('2')).toThrow('expired')
     expect(run('fresh', ['e1'])[0].status).toBe('visible')

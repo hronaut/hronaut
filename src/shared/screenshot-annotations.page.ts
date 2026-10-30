@@ -7,6 +7,7 @@ interface ScreenshotTargetSample {
 interface PendingScreenshotCapture {
   entries: Array<{ ref: string; node: WeakRef<Element> | null; sample: ScreenshotTargetSample }>
   timer: ReturnType<typeof setTimeout>
+  /** When the samples expire, on the page's monotonic clock. */
   expiresAt: number
 }
 
@@ -20,7 +21,7 @@ type ScreenshotAnnotationPage = typeof globalThis & { __hronautScreenshotAnnotat
 export function screenshotTargetsInPage(id: string, refs: string[] | null, cleanup: boolean): Array<{ ref: string } & ScreenshotTargetSample> | null {
   const page = globalThis as ScreenshotAnnotationPage
   const captures = page.__hronautScreenshotAnnotations ||= new Map<string, PendingScreenshotCapture>()
-  for (const [key, capture] of captures) if (Date.now() >= capture.expiresAt) { clearTimeout(capture.timer); captures.delete(key) }
+  for (const [key, capture] of captures) if (performance.now() >= capture.expiresAt) { clearTimeout(capture.timer); captures.delete(key) }
   const prior = captures.get(id)
   if (cleanup) { if (prior) clearTimeout(prior.timer); captures.delete(id); return null }
   const read = (ref: string): ScreenshotTargetSample & { node?: Element } => {
@@ -37,7 +38,7 @@ export function screenshotTargetsInPage(id: string, refs: string[] | null, clean
     if (captures.size >= 4) throw new Error('Too many pending annotated screenshots')
     const entries = refs.map(ref => { const { node, ...sample } = read(ref); return { ref, node: node ? new WeakRef(node) : null, sample } })
     const timer = setTimeout(() => captures.delete(id), 10000)
-    captures.set(id, { entries, timer, expiresAt: Date.now() + 10000 })
+    captures.set(id, { entries, timer, expiresAt: performance.now() + 10000 })
     return entries.map(entry => ({ ref: entry.ref, ...entry.sample }))
   }
   if (!prior) throw new Error('Screenshot target observation expired; capture again')

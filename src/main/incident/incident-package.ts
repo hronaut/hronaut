@@ -94,7 +94,7 @@ export class IncidentPackages {
     const draft: IncidentDraft = { draftId: randomUUID(), capturedAt: new Date(end).toISOString(), windowStart: new Date(start).toISOString(), expiresAt: new Date(end + TTL).toISOString(), artifacts }
     // The trusted shell has one draft; cap other shell-owner records as well.
     while (this.drafts.size >= 4) this.discard(this.drafts.keys().next().value!)
-    this.drafts.set(owner, { draft, deadlineMonotonic: performance.now() + TTL })
+    this.drafts.set(owner, { draft, deadlineMonotonic: startedMonotonic + TTL })
     return structuredClone(draft)
   }
   invalidatePreview(owner: number, draftId?: string): void {
