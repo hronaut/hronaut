@@ -1,5 +1,6 @@
 import { redactDiagnosticText } from '../../../shared/debug-report.js'
 import { INDEXEDDB_CAVEATS, indexedDbPageScript, normalizeBrowserIndexedDbOptions } from '../../../shared/indexeddb.js'
+import type { IndexedDbPageReport } from '../../../shared/indexeddb.page.js'
 import { redactNetworkUrl } from '../../../shared/network-details.js'
 import { snapshotDeltaInvalidationReason } from '../../../shared/snapshot-delta.js'
 import { buildBrowserStorageUsageReport, storageManagerUsageBreakdown } from '../../../shared/storage-usage.js'
@@ -49,7 +50,7 @@ export async function inspectIndexedDb(browser: Browser, options: BrowserIndexed
     INDEXED_DB_WORLD_ID,
     [{ code: indexedDbPageScript(normalized) }],
     false
-  ) as Omit<BrowserIndexedDbReport, 'tabId' | 'url' | 'origin' | 'caveats'>
+  ) as IndexedDbPageReport
   requireCurrentPage()
   return {
     tabId: tab.id,

@@ -3,9 +3,9 @@ import type { BrowserLiveRegionAction, BrowserLiveRegionReport } from '../../../
 import {
   LIVE_REGION_ERRORS,
   LIVE_REGION_LIMITS,
-  liveRegionPageScript,
-  type LiveRegionErrorCode
+  liveRegionPageScript
 } from '../../../shared/live-region.js'
+import type { LiveRegionPageResult } from '../../../shared/live-region.page.js'
 import { redactNetworkUrl } from '../../../shared/network-details.js'
 import { isHronautHomeUrl } from '../url.js'
 import { ISOLATED_WORLDS } from '../isolated-worlds.js'
@@ -31,10 +31,6 @@ interface LiveRegionRecordingTab {
 interface LiveRegionRecorderHost<T> {
   isCurrent(tab: T): boolean
 }
-
-type LiveRegionPageResult =
-  | { error: LiveRegionErrorCode }
-  | Omit<BrowserLiveRegionReport, 'tabId' | 'title' | 'url' | 'limits' | 'caveats'>
 
 export const LIVE_REGION_CAVEATS = [
   'Selected page text can contain private information. Text is captured only from the region you select, only while recording, and is never persisted, exported, or written to diagnostic logs.',
