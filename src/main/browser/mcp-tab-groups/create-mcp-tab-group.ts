@@ -6,7 +6,7 @@ import { LocalizedError } from '../../localized-error.js'
 import { uuidV7 } from '../../uuid-v7.js'
 import { RetainedBrowserWorkspaceError } from '../workspace-errors.js'
 import { normalizeWorkspaceNavigationPolicy } from '../workspace-navigation-policy.js'
-import type { ActiveWorkspace as BrowserTabGroup } from '../workspace-registry.js'
+import type { ActiveWorkspace as BrowserTabGroup } from '../workspace-registry/workspace-registry.js'
 import {
   destroyWorkspaceStorage,
   normalizeWorkspaceStorageOrigins,

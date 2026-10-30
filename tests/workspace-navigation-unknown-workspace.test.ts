@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { BrowserState } from '../src/shared/types.js'
 import { assertWorkspaceNavigationAllowed, workspaceNavigationAllowed } from '../src/main/browser/workspace-navigation/workspace-navigation.js'
 import type { Browser } from '../src/main/browser/browser.js'
-import type { ActiveWorkspace } from '../src/main/browser/workspace-registry.js'
+import type { ActiveWorkspace } from '../src/main/browser/workspace-registry/workspace-registry.js'
 
 // The browsers below stub changed and getState, which the navigation policy publishes through.
 vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({

@@ -4,7 +4,7 @@ import {
   BrowserLiveRegionRecorder,
   liveRegionRecordingKeepsTabAwake,
   type BrowserLiveRegionRecordingState
-} from '../src/main/browser/live-region-recorder.js'
+} from '../src/main/browser/live-region-recorder/live-region-recorder.js'
 import { LIVE_REGION_LIMITS, liveRegionPageScript } from '../src/shared/live-region.js'
 
 function deferred<T>() {

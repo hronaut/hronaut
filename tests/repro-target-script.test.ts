@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest'
-import { reproTargetScript } from '../src/main/browser/repro-page-scripts.js'
+import { reproTargetScript } from '../src/main/browser/repro-recorder/repro-page-scripts.js'
 import type { BrowserReproTarget } from '../src/shared/types.js'
 
 function capture(element: HTMLElement): BrowserReproTarget {

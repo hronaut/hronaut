@@ -1,6 +1,6 @@
 import vm from 'node:vm'
 import { describe, expect, it } from 'vitest'
-import { frameObservationScript, frameSelectorScript } from '../src/main/browser/frame-observation-script.js'
+import { frameObservationScript, frameSelectorScript } from '../src/main/browser/frame-observation/frame-observation-script.js'
 
 describe('frame script literal boundaries', () => {
   it.each([

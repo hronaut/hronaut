@@ -1,4 +1,4 @@
-import type { ReactInspectionLimit, ReactInspectionNode, ReactInspectionStatus } from '../../shared/react-inspection.js'
+import type { ReactInspectionLimit, ReactInspectionNode, ReactInspectionStatus } from '../../../shared/react-inspection.js'
 
 export interface ReactInspectionProtocolResult {
   result?: Remote | Property[]

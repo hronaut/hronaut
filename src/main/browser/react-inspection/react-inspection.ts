@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import type { WebContents } from 'electron'
-import type { ReactInspectionBootstrap, ReactInspectionCommand, ReactInspectionResult, ReactInspectionStatus } from '../../shared/react-inspection.js'
+import type { ReactInspectionBootstrap, ReactInspectionCommand, ReactInspectionResult, ReactInspectionStatus } from '../../../shared/react-inspection.js'
 import { observeReactTopology, type ReactInspectionProtocolResult } from './react-inspection-observer.js'
 
 export interface ReactInspectionAuthority { assertCurrent(): void; epoch: string }

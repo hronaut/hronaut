@@ -1,7 +1,7 @@
 import { Menu, type MenuItemConstructorOptions } from 'electron'
 import type { BrowserState } from '../../../shared/types.js'
 import { tabTitleForDisplay } from '../../../shared/tab-title.js'
-import { reactInspectionMenu } from '../react-inspection-menu.js'
+import { reactInspectionMenu } from '../react-inspection/react-inspection-menu.js'
 import { isHronautHomeUrl } from '../url.js'
 import type { Browser } from '../browser.js'
 import { canMuteSite, isSiteMuted } from '../site-muting/site-muting.js'

@@ -1,7 +1,7 @@
-import { renderedVisibilityHelpersSource } from './rendered-visibility.js'
-import type { BrowserReproElementCheckpointInput } from '../../shared/repro-checkpoint.js'
-import { MAX_REPRO_COUNT, MAX_REPRO_COUNT_NODES, validReproCount, validReproCountSelector } from '../../shared/repro-count.js'
-import { javascriptLiteral } from '../../shared/javascript-literal.js'
+import { renderedVisibilityHelpersSource } from '../rendered-visibility.js'
+import type { BrowserReproElementCheckpointInput } from '../../../shared/repro-checkpoint.js'
+import { MAX_REPRO_COUNT, MAX_REPRO_COUNT_NODES, validReproCount, validReproCountSelector } from '../../../shared/repro-count.js'
+import { javascriptLiteral } from '../../../shared/javascript-literal.js'
 
 export function reproCheckpointScript(request: BrowserReproElementCheckpointInput): string {
   return `(() => {

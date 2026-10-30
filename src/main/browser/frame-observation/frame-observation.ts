@@ -1,11 +1,11 @@
-import { javascriptLiteral } from '../../shared/javascript-literal.js'
+import { javascriptLiteral } from '../../../shared/javascript-literal.js'
 import { randomUUID } from 'node:crypto'
 import type { WebContents } from 'electron'
-import { FRAME_OBSERVATION_LIMITS, type BrowserFrameSnapshot, type FrameObservationOmission } from '../../shared/frame-observation.js'
-import { redactDiagnosticText } from '../../shared/debug-report.js'
+import { FRAME_OBSERVATION_LIMITS, type BrowserFrameSnapshot, type FrameObservationOmission } from '../../../shared/frame-observation.js'
+import { redactDiagnosticText } from '../../../shared/debug-report.js'
 import { FrameProvenance, type ObservedFrame } from './frame-provenance.js'
 import { frameObservationScript, frameSelectorScript } from './frame-observation-script.js'
-import { RendererExitedError } from './renderer-exit-guard.js'
+import { RendererExitedError } from '../renderer-exit-guard.js'
 interface Target { page: WebContents; identity: object; workspace: object | undefined; generation: number; observationGeneration: number; permissionGeneration: number }
 interface Host {
   resolve(tabId: string): Target
