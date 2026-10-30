@@ -8,6 +8,9 @@ import type { BookmarkOperations, HistoryOperations, McpHttpServer } from '../mc
 import type { UndoableAction } from '../undo-offers.js'
 import type { BrowserBookmark, BrowserHistoryEntry } from '../../shared/types.js'
 import { forgetHistoryPages } from '../browser/tab-history-pages/forget-history-pages.js'
+import type { ShellWindowsSender } from '../../shared/ipc/channel.js'
+import { BOOKMARKS_IPC, BOOKMARK_COLLECTIONS_IPC } from '../../shared/ipc/bookmarks.js'
+import { HISTORY_IPC } from '../../shared/ipc/history.js'
 
 /** How long visits and new titles gather before the windows hear of them together. */
 const VISIT_CHANGES_DELAY_MS = 200
@@ -27,7 +30,7 @@ export interface BookmarksAndHistoryState {
 interface BookmarksAndHistoryHost {
   /** The two stores; index.ts creates the record, and most of the main process reads it. */
   state: BookmarksAndHistoryState
-  sendToShellWindows(channel: string, ...args: unknown[]): void
+  sendToShellWindows: ShellWindowsSender
   /** The MCP listener while it runs, whose agents' finished steps go when the person or an agent clears the history. */
   mcpServer(): Pick<McpHttpServer, 'forgetAgentStepsSince'> | null
   /** The tabs once the window opens, whose Recently closed tabs and Back and Forward pages go with the history. */
@@ -56,14 +59,14 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
 } {
   function publishBookmarks(): BrowserBookmark[] {
     const bookmarks = host.state.bookmarks?.list() ?? []
-    host.sendToShellWindows('bookmarks:changed', bookmarks)
-    host.sendToShellWindows('bookmark-collections:changed', host.state.bookmarks?.collectionSnapshot() ?? { revision: 0, collections: [] })
+    host.sendToShellWindows(BOOKMARKS_IPC.changed, bookmarks)
+    host.sendToShellWindows(BOOKMARK_COLLECTIONS_IPC.changed, host.state.bookmarks?.collectionSnapshot() ?? { revision: 0, collections: [] })
     return bookmarks
   }
 
   function publishVisitHistory(): BrowserHistoryEntry[] {
     const entries = host.state.history?.list() ?? []
-    host.sendToShellWindows('visit-history:changed', entries)
+    host.sendToShellWindows(HISTORY_IPC.changed, entries)
     return entries
   }
 
@@ -77,7 +80,7 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
     visitChangesTimer = setTimeout(() => {
       visitChangesTimer = undefined
       const changes = host.state.history?.takeChanges()
-      if (changes && (changes.entries.length || changes.removedIds.length)) host.sendToShellWindows('visit-history:updated', changes)
+      if (changes && (changes.entries.length || changes.removedIds.length)) host.sendToShellWindows(HISTORY_IPC.updated, changes)
     }, VISIT_CHANGES_DELAY_MS)
   }
 

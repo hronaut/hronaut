@@ -4,6 +4,9 @@ import type { HistoryStore } from './bookmarks-history/history-store.js'
 import type { Browser } from './browser/browser.js'
 import type { BookmarkTabsOutcome, BrowserBookmark, BrowserHistoryEntry } from '../shared/types.js'
 import { isHronautHomeUrl } from '../shared/home-url.js'
+import { BOOKMARKS_IPC, BOOKMARK_COLLECTIONS_IPC } from '../shared/ipc/bookmarks.js'
+import { DOWNLOADS_IPC } from '../shared/ipc/downloads.js'
+import { HISTORY_IPC } from '../shared/ipc/history.js'
 
 interface CollectionIpcHost {
   runRead<T>(event: IpcMainInvokeEvent, read: () => T): Promise<T>
@@ -26,62 +29,62 @@ interface CollectionIpcHost {
 /** Dependencies stay lazy because handlers are registered before the window loads. */
 export function registerCollectionIpc(ipcMain: Pick<IpcMain, 'handle'>, host: CollectionIpcHost): void {
   // Files are checked only when asked, as when the Downloads panel opens, not by the shell's list at startup.
-  ipcMain.handle('downloads:list', (event, checkFiles: unknown) => host.runRead(event, () => (
+  ipcMain.handle(DOWNLOADS_IPC.list, (event, checkFiles: unknown) => host.runRead(event, () => (
     checkFiles === true ? host.downloads().downloadController.listDownloadsCheckingFiles() : host.downloads().downloadController.listDownloads()
   )))
   for (const action of ['cancel', 'pause', 'resume', 'retry'] as const) {
-    ipcMain.handle(`downloads:${action}`, (event, downloadId: unknown) => {
+    ipcMain.handle(DOWNLOADS_IPC[action], (event, downloadId: unknown) => {
       host.assertTrustedSender(event)
       if (typeof downloadId !== 'string') throw new TypeError('Invalid download ID')
       return host.downloads().downloadController.manageDownloads(action, downloadId)
     })
   }
-  ipcMain.handle('downloads:remove-finished', (event, downloadId: unknown) => {
+  ipcMain.handle(DOWNLOADS_IPC.removeFinished, (event, downloadId: unknown) => {
     host.assertTrustedSender(event)
     if (typeof downloadId !== 'string' || !downloadId) throw new TypeError('Invalid download ID')
     return host.downloads().downloadController.removeFinishedDownload(downloadId)
   })
-  ipcMain.handle('downloads:clear-finished', (event) => {
+  ipcMain.handle(DOWNLOADS_IPC.clearFinished, (event) => {
     host.assertTrustedSender(event)
     return host.downloads().downloadController.manageDownloads('clear')
   })
-  ipcMain.handle('downloads:show-in-folder', async (event, downloadId: unknown) => {
+  ipcMain.handle(DOWNLOADS_IPC.showInFolder, async (event, downloadId: unknown) => {
     host.assertTrustedSender(event)
     if (typeof downloadId !== 'string') throw new TypeError('Invalid download ID')
     await host.downloads().downloadController.showDownloadInFolder(downloadId)
   })
   // The person drags a completed download out of the panel, so the drag starts from the window it is in.
-  ipcMain.handle('downloads:start-drag', async (event, downloadId: unknown) => {
+  ipcMain.handle(DOWNLOADS_IPC.startDrag, async (event, downloadId: unknown) => {
     host.assertTrustedSender(event)
     if (typeof downloadId !== 'string') throw new TypeError('Invalid download ID')
     await host.downloads().downloadController.startDownloadDrag(downloadId, event.sender)
   })
-  ipcMain.handle('bookmarks:list', (event) => host.runRead(event, () => host.bookmarks().list()))
-  ipcMain.handle('bookmarks:add', async (event, url: unknown, title: unknown) => {
+  ipcMain.handle(BOOKMARKS_IPC.list, (event) => host.runRead(event, () => host.bookmarks().list()))
+  ipcMain.handle(BOOKMARKS_IPC.add, async (event, url: unknown, title: unknown) => {
     host.assertTrustedSender(event)
     if (typeof url !== 'string' || typeof title !== 'string') throw new TypeError('Invalid bookmark')
     await host.bookmarks().add({ url, title })
     return host.publishBookmarks()
   })
-  ipcMain.handle('bookmarks:add-if-missing', async (event, url: unknown, title: unknown) => {
+  ipcMain.handle(BOOKMARKS_IPC.addIfMissing, async (event, url: unknown, title: unknown) => {
     host.assertTrustedSender(event)
     if (typeof url !== 'string' || typeof title !== 'string') throw new TypeError('Invalid bookmark')
     await host.bookmarks().addIfMissing({ url, title })
     return host.publishBookmarks()
   })
-  ipcMain.handle('bookmarks:rename', async (event, id: unknown, title: unknown) => {
+  ipcMain.handle(BOOKMARKS_IPC.rename, async (event, id: unknown, title: unknown) => {
     host.assertTrustedSender(event)
     if (typeof id !== 'string' || typeof title !== 'string') throw new TypeError('Invalid bookmark update')
     await host.bookmarks().rename(id, title)
     return host.publishBookmarks()
   })
-  ipcMain.handle('bookmarks:update-destination', async (event, id: unknown, url: unknown) => {
+  ipcMain.handle(BOOKMARKS_IPC.updateDestination, async (event, id: unknown, url: unknown) => {
     host.assertTrustedSender(event)
     if (typeof id !== 'string' || typeof url !== 'string') throw new TypeError('Invalid bookmark destination update')
     await host.bookmarks().updateDestination(id, url)
     return host.publishBookmarks()
   })
-  ipcMain.handle('bookmarks:remove', async (event, id: unknown) => {
+  ipcMain.handle(BOOKMARKS_IPC.remove, async (event, id: unknown) => {
     host.assertTrustedSender(event)
     if (typeof id !== 'string') throw new TypeError('Invalid bookmark ID')
     const removed = await host.bookmarks().removeRestorably(id)
@@ -89,9 +92,9 @@ export function registerCollectionIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Co
     if (removed) host.bookmarkRemoved?.(removed)
     return bookmarks
   })
-  ipcMain.handle('bookmark-collections:list', (event) => host.runRead(event, () => host.bookmarks().collectionSnapshot()))
+  ipcMain.handle(BOOKMARK_COLLECTIONS_IPC.list, (event) => host.runRead(event, () => host.bookmarks().collectionSnapshot()))
   for (const action of ['create', 'rename', 'remove', 'assign'] as const) {
-    ipcMain.handle(`bookmark-collections:${action}`, async (event, first: unknown, second: unknown) => {
+    ipcMain.handle(BOOKMARK_COLLECTIONS_IPC[action], async (event, first: unknown, second: unknown) => {
       host.assertTrustedSender(event)
       if (typeof first !== 'string'
         || (action === 'rename' && typeof second !== 'string')
@@ -108,7 +111,7 @@ export function registerCollectionIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Co
     })
   }
   // Bookmark all tabs: main reads the tabs, so the window names only whose and what to call the collection.
-  ipcMain.handle('bookmark-collections:bookmark-tabs', async (event, workspaceId: unknown, name: unknown): Promise<BookmarkTabsOutcome> => {
+  ipcMain.handle(BOOKMARK_COLLECTIONS_IPC.bookmarkTabs, async (event, workspaceId: unknown, name: unknown): Promise<BookmarkTabsOutcome> => {
     host.assertTrustedSender(event)
     if ((workspaceId !== null && typeof workspaceId !== 'string') || typeof name !== 'string') {
       throw new TypeError('Invalid bookmark collection arguments')
@@ -120,15 +123,15 @@ export function registerCollectionIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Co
     host.publishBookmarks()
     return { snapshot: store.collectionSnapshot(), result }
   })
-  ipcMain.handle('visit-history:list', (event) => host.runRead(event, () => host.history().list()))
-  ipcMain.handle('visit-history:remove', async (event, id: unknown) => {
+  ipcMain.handle(HISTORY_IPC.list, (event) => host.runRead(event, () => host.history().list()))
+  ipcMain.handle(HISTORY_IPC.remove, async (event, id: unknown) => {
     host.assertTrustedSender(event)
     if (typeof id !== 'string') throw new TypeError('Invalid history entry ID')
     const removed = await host.history().remove(id)
     if (removed) host.historyEntryRemoved?.(removed.url)
     return host.publishVisitHistory()
   })
-  ipcMain.handle('visit-history:clear', async (event) => {
+  ipcMain.handle(HISTORY_IPC.clear, async (event) => {
     host.assertTrustedSender(event)
     await host.history().clear()
     host.historyCleared?.()

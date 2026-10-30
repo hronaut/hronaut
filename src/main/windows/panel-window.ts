@@ -23,6 +23,10 @@ import { browserState } from '../browser/browser-state/browser-state.js'
 import { CREDENTIALS_IPC } from '../../shared/ipc/credentials.js'
 import { PERMISSIONS_IPC } from '../../shared/ipc/permissions.js'
 import { UPDATES_IPC } from '../../shared/ipc/updates.js'
+import { BOOKMARKS_IPC } from '../../shared/ipc/bookmarks.js'
+import { DOWNLOADS_IPC } from '../../shared/ipc/downloads.js'
+import { HISTORY_IPC } from '../../shared/ipc/history.js'
+import { MCP_IPC } from '../../shared/ipc/mcp.js'
 
 /**
  * The detached panel window and what it shows, created once by index.ts. The window opens and closes while the app
@@ -129,15 +133,15 @@ export function createPanelWindow(host: PanelWindowHost): {
     if (target.isDestroyed() || target.webContents.isDestroyed()) return
     const browser = host.tabs()
     target.webContents.send('browser:state-changed', browser ? browserState(browser) : undefined)
-    target.webContents.send('browser:downloads-changed', browser?.downloadController.listDownloads() ?? [])
+    target.webContents.send(DOWNLOADS_IPC.changed, browser?.downloadController.listDownloads() ?? [])
     target.webContents.send('settings:changed', host.settings())
     target.webContents.send('settings:renderer-state-changed', host.currentRendererSettingsState())
     target.webContents.send(UPDATES_IPC.changed, host.updateState())
-    target.webContents.send('mcp:changed', host.currentMcpControlState())
+    target.webContents.send(MCP_IPC.changed, host.currentMcpControlState())
     target.webContents.send(CREDENTIALS_IPC.changed, host.credentialStore()?.list() ?? [])
     target.webContents.send(PERMISSIONS_IPC.changed, host.sitePermissionStore()?.list() ?? [])
-    target.webContents.send('bookmarks:changed', host.bookmarkStore()?.list() ?? [])
-    target.webContents.send('visit-history:changed', host.historyStore()?.list() ?? [])
+    target.webContents.send(BOOKMARKS_IPC.changed, host.bookmarkStore()?.list() ?? [])
+    target.webContents.send(HISTORY_IPC.changed, host.historyStore()?.list() ?? [])
   }
 
   async function openPanelWindow(panel: DetachablePanelId): Promise<void> {

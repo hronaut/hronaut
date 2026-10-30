@@ -9,6 +9,7 @@ import { workspaceSession } from '../workspace-data/workspace-data.js'
 import { workspaceNavigationAllowed } from '../workspace-navigation/workspace-navigation.js'
 import { assertWorkspaceIdle } from '../workspace-operations/workspace-operations.js'
 import { BrowserDownloadsController } from './downloads-controller.js'
+import { DOWNLOADS_IPC } from '../../../shared/ipc/downloads.js'
 
 /**
  * The browser's downloads: where they are saved, which tab and workspace each came from, the workspace session a
@@ -47,7 +48,7 @@ export function createDownloadsController(browser: Browser): BrowserDownloadsCon
     isAvailable: () => !browser.destroyed && !browser.window.isDestroyed(),
     publish: (downloads) => {
       if (browser.destroyed || browser.window.isDestroyed() || browser.window.webContents.isDestroyed()) return
-      browser.window.webContents.send('browser:downloads-changed', downloads)
+      browser.window.webContents.send(DOWNLOADS_IPC.changed, downloads)
       browser.options.onDownloadsChanged?.(downloads)
     }
   })
