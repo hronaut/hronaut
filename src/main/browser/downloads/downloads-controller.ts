@@ -336,7 +336,7 @@ export class BrowserDownloadsController {
   private takeRetry(browserSession: Session, url: string): PendingRetry | undefined {
     const pending = this.pendingRetries.get(browserSession)
     if (!pending) return undefined
-    const now = Date.now()
+    const now = performance.now()
     const index = pending.findIndex((retry) => retry.expiresAt > now && retry.url === url)
     const retry = pending[index]
     const kept = pending.filter((candidate, position) => position !== index && candidate.expiresAt > now)
@@ -471,7 +471,7 @@ export class BrowserDownloadsController {
       if (!browserSession || !this.host.allowsAddress(workspaceId, url, 'direct')) {
         throw new LocalizedError('appErrors.downloads.notRetryable', undefined, { message: `Download cannot be retried: ${downloadId}` })
       }
-      const now = Date.now()
+      const now = performance.now()
       const pending = (this.pendingRetries.get(browserSession) ?? []).filter((retry) => retry.expiresAt > now)
       pending.push({ url, workspaceId, observationGeneration: this.host.workspaceObservationGeneration(workspaceId), expiresAt: now + PENDING_RETRY_MS })
       this.pendingRetries.set(browserSession, pending)

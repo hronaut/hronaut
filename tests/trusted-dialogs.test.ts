@@ -505,7 +505,7 @@ describe('a website’s sign-in in Hronaut’s own dialog', () => {
   })
 
   it('gives the keyboard back to the page the person was in only for a question that comes moments after an interrupted sign-in', async () => {
-    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.useFakeTimers({ toFake: ['performance'] })
     try {
       const { dialogs, main, ready, respond, keyboard, returnKeyboard, withholdKeyboard } = harness()
       ready()
@@ -515,7 +515,7 @@ describe('a website’s sign-in in Hronaut’s own dialog', () => {
       const closing = new AbortController()
       void dialogs.show({ ...signIn, signal: closing.signal })
       closing.abort()
-      vi.setSystemTime(Date.now() + 2_000)
+      vi.advanceTimersByTime(2_000)
       // Main kept the keyboard from the pages, and the person went on in the shell.
       const later = dialogs.show(permission)
       respond(main, main.shown()!.id, 0)
@@ -585,7 +585,7 @@ describe('a website’s sign-in in Hronaut’s own dialog', () => {
   })
 
   it('starts a sign-in shown moments after one closed unanswered away from its fields, whether it replaced it or came after a gap', () => {
-    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.useFakeTimers({ toFake: ['performance'] })
     try {
       const { dialogs, main, ready } = harness()
       ready()
@@ -603,7 +603,7 @@ describe('a website’s sign-in in Hronaut’s own dialog', () => {
       const closingSecond = new AbortController()
       void second.show({ ...signIn, signal: closingSecond.signal })
       closingSecond.abort()
-      vi.setSystemTime(Date.now() + 1_999)
+      vi.advanceTimersByTime(1_999)
       void second.show(signIn)
       expect(secondMain.sent.slice(-2).map((request) => request?.variant.kind ?? null)).toEqual([null, 'http-auth'])
       expect(secondMain.states.slice(-2)).toEqual([{ afterInterruptedSignIn: true }, { afterInterruptedSignIn: true }])
@@ -614,7 +614,7 @@ describe('a website’s sign-in in Hronaut’s own dialog', () => {
       const closingThird = new AbortController()
       void third.show({ ...signIn, signal: closingThird.signal })
       closingThird.abort()
-      vi.setSystemTime(Date.now() + 2_000)
+      vi.advanceTimersByTime(2_000)
       void third.show(signIn)
       expect(thirdMain.states.at(-1)).toEqual({ afterInterruptedSignIn: false })
     } finally {

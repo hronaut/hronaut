@@ -43,8 +43,8 @@ export function runPageScriptsOnceDocumentReady(page: ReadinessPage): void {
       requestEndedAt = undefined
       return true
     }
-    requestEndedAt ??= Date.now()
-    if (Date.now() - requestEndedAt < NAVIGATION_SHOW_GRACE_MS) return true
+    requestEndedAt ??= performance.now()
+    if (performance.now() - requestEndedAt < NAVIGATION_SHOW_GRACE_MS) return true
     endNavigation()
     return false
   }

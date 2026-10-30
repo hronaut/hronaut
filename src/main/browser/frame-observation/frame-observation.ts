@@ -56,7 +56,7 @@ export class FrameObservationController {
   async capture(tabId: string, selector: string, maxChars: number, authority: () => void): Promise<PendingFrameObservation> {
     const target = this.host.resolve(tabId), page = target.page, history = this.histories.get(page)
     if (!history || this.slots.has(page.id) || this.slots.size >= 16) throw unavailable()
-    const revision = history.revision, deadline = Date.now() + FRAME_OBSERVATION_LIMITS.deadlineMs
+    const revision = history.revision, deadline = performance.now() + FRAME_OBSERVATION_LIMITS.deadlineMs
     const group = 'hronaut-frame-' + randomUUID(), key = '__frame_' + randomUUID().replaceAll('-', '')
     let contextId: number | undefined, uniqueContextId: string | undefined, expired = false, closed = false, cleanupQueued = false
     let nativeDispatched = false
@@ -66,7 +66,7 @@ export class FrameObservationController {
       authority()
       const current = this.host.resolve(tabId)
       this.host.requireOwner(tabId, page)
-      if (expired || Date.now() > deadline || current.page !== page || current.identity !== target.identity || current.workspace !== target.workspace
+      if (expired || performance.now() > deadline || current.page !== page || current.identity !== target.identity || current.workspace !== target.workspace
         || current.generation !== target.generation || current.observationGeneration !== target.observationGeneration || current.permissionGeneration !== target.permissionGeneration || history.revision !== revision || page.isLoading()
         || (parent && child && !history.pair(parent, child))) throw unavailable()
     }
@@ -117,7 +117,7 @@ export class FrameObservationController {
       let timeout: NodeJS.Timeout | undefined
       try {
         return await Promise.race([operation, new Promise<never>((_resolve,reject) => {
-          timeout = setTimeout(() => { discard(); reject(unavailable()) }, Math.max(1, deadline - Date.now()))
+          timeout = setTimeout(() => { discard(); reject(unavailable()) }, Math.max(1, deadline - performance.now()))
         })])
       } finally { if (timeout) clearTimeout(timeout) }
     }

@@ -110,13 +110,13 @@ export class ReactInspectionController {
     if (!/^https?:\/\//.test(target.page.getURL())) return this.result(target, 'unavailable')
     const intent = (this.intents.get(target.identity) ?? 0) + (command.action === 'enable' ? 1 : 0)
     this.intents.set(target.identity, intent)
-    const deadline = Date.now() + 2000
+    const deadline = performance.now() + 2000
     let timedOut = false
     let detached = false
     const current = () => {
       authority.assertCurrent()
       if (this.disposed || this.intents.get(target.identity) !== intent) throw new InspectionFailure('interrupted')
-      if (timedOut || Date.now() >= deadline) throw new InspectionFailure('timed-out')
+      if (timedOut || performance.now() >= deadline) throw new InspectionFailure('timed-out')
       const actual = this.host.resolve(tabId)
       this.requireInstallationTarget(actual, target)
       if (actual.navigationGeneration !== target.navigationGeneration || actual.observationGeneration !== target.observationGeneration) throw new InspectionFailure('interrupted')
@@ -200,7 +200,7 @@ export class ReactInspectionController {
     let timer: ReturnType<typeof setTimeout> | undefined
     try {
       const result = await Promise.race([operation, new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(() => { timedOut = true; reject(new InspectionFailure('timed-out')) }, Math.max(0, deadline - Date.now()))
+        timer = setTimeout(() => { timedOut = true; reject(new InspectionFailure('timed-out')) }, Math.max(0, deadline - performance.now()))
       })])
       current()
       return result

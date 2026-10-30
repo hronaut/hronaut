@@ -160,9 +160,9 @@ export async function closeWorkspaceForPerson(browser: Browser, groupId: string)
       try {
         if (closing.kept || !saved || browser.savedTabGroups.get(archived.id) !== saved || saved.deletionProtected) return
         // An operation already running on the archive finishes first; one that runs on keeps it archived.
-        const deadline = Date.now() + CLOSING_WORKSPACE_BUSY_WAIT_MS
+        const deadline = performance.now() + CLOSING_WORKSPACE_BUSY_WAIT_MS
         for (let operation = browser.savedWorkspaceOperations.get(archived.id); operation; operation = browser.savedWorkspaceOperations.get(archived.id)) {
-          const remaining = deadline - Date.now()
+          const remaining = deadline - performance.now()
           if (!operation.settled || remaining <= 0) return
           await Promise.race([operation.settled, new Promise<void>((resolve) => setTimeout(resolve, remaining).unref())])
           await new Promise<void>((resolve) => setImmediate(resolve))

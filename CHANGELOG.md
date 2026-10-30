@@ -13,6 +13,7 @@ All notable changes to Hronaut are documented in this file.
 - A panel moved to its own window and opened while Hronaut was still restoring your workspaces at startup now shows every workspace and tab once they are back. It could show only those restored by the time it opened, until the next change to a tab.
 - Hronaut's buttons and menus no longer stop responding when the computer's clock is set back while Hronaut runs, such as on Linux when a clock kept in local time is corrected soon after Hronaut opened at login. Until the clock caught up again, often an hour, clicks in the window did nothing and Settings would not open, while agents could still connect. Tooltips and the pointer in the command and password lists also no longer depend on the clock.
 - When an agent opened a tab and sent it on to a page that asks for a username and password before its first page had shown, Hronaut could close the sign-in at once and the website showed its refusal, without you being asked. It now asks you, as it does for any page an agent opens.
+- An agent's waits for page text or an element, element and React inspections, frame observations, logpoint source maps and the wait for workspace work at quit no longer go on for an hour when the computer's clock is set back while they run. They end at their own time limits, and so do the short pauses Hronaut keeps after a sign-in closes and after a page's title changes.
 
 ## [3.14.0] - 2026-10-29
 

@@ -72,13 +72,15 @@ export async function elementInspection(browser: Browser, options: BrowserElemen
   const contents = tab.webContents
   let documentChanged = false
   const onCommitted = (): void => { documentChanged = true }
-  const deadline = Date.now() + 5_000
+  const deadline = performance.now() + 5_000
   const context = browser.snapshotDeltaContext(tab)
   const inspectionWorkspace = tab.mcpGroupId ? browser.mcpTabGroups.get(tab.mcpGroupId) : undefined
   const inspectionPermissionGeneration = inspectionWorkspace ? browser.inspectionPermissions.get(inspectionWorkspace) ?? 0 : 0
   const assertCurrent = (): void => {
     validateInspection?.()
-    if (sizing && (browser.destroyed || documentChanged || tab.webContents !== contents || Date.now() > deadline)) throw new Error('Sizing inspection context changed or expired')
+    if (sizing && (browser.destroyed || documentChanged || tab.webContents !== contents || performance.now() > deadline)) {
+      throw new Error('Sizing inspection context changed or expired')
+    }
     const currentWorkspace = tab.mcpGroupId ? browser.mcpTabGroups.get(tab.mcpGroupId) : undefined
     if (currentWorkspace !== inspectionWorkspace || (currentWorkspace ? browser.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== inspectionPermissionGeneration) {
       throw new Error('Workspace permissions changed during element inspection')
@@ -98,7 +100,7 @@ export async function elementInspection(browser: Browser, options: BrowserElemen
     let timer: NodeJS.Timeout | undefined
     try {
       const result = await Promise.race([operation, new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(() => reject(new Error(`${inspectionLabel} inspection expired`)), Math.max(1, deadline - Date.now()))
+        timer = setTimeout(() => reject(new Error(`${inspectionLabel} inspection expired`)), Math.max(1, deadline - performance.now()))
       })])
       if (sizing) assertCurrent()
       return result
@@ -217,12 +219,12 @@ export async function mediaState(browser: Browser, options: { tabId?: string; re
   }
   assertCurrent()
   const token = randomUUID()
-  const deadline = Date.now() + 5_000
+  const deadline = performance.now() + 5_000
   const bounded = async <T>(operation: Promise<T>): Promise<T> => {
     let timer: NodeJS.Timeout | undefined
     try {
       return await Promise.race([operation, new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(() => reject(new Error('Media state inspection expired')), Math.max(1, deadline - Date.now()))
+        timer = setTimeout(() => reject(new Error('Media state inspection expired')), Math.max(1, deadline - performance.now()))
       })])
     } finally { if (timer) clearTimeout(timer) }
   }
@@ -257,13 +259,13 @@ export async function imageState(browser: Browser, options: { tabId?: string; re
   const contents = tab.webContents
   let documentChanged = false
   const onCommitted = (): void => { documentChanged = true }
-  const deadline = Date.now() + 5_000
+  const deadline = performance.now() + 5_000
   const context = browser.snapshotDeltaContext(tab)
   const workspace = tab.mcpGroupId ? browser.mcpTabGroups.get(tab.mcpGroupId) : undefined
   const permissionGeneration = workspace ? browser.inspectionPermissions.get(workspace) ?? 0 : 0
   const assertCurrent = (): void => {
     validateInspection?.()
-    if (Date.now() > deadline) throw new Error('Image state inspection expired')
+    if (performance.now() > deadline) throw new Error('Image state inspection expired')
     const currentWorkspace = tab.mcpGroupId ? browser.mcpTabGroups.get(tab.mcpGroupId) : undefined
     if (browser.destroyed || documentChanged || findTab(browser, tab.id) !== tab || tab.webContents !== contents || contents.isDestroyed()
       || currentWorkspace !== workspace || (currentWorkspace ? browser.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== permissionGeneration
@@ -278,9 +280,9 @@ export async function imageState(browser: Browser, options: { tabId?: string; re
     let timer: NodeJS.Timeout | undefined
     try {
       const result = await Promise.race([operation, new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(() => reject(new Error('Image state inspection expired')), Math.max(1, deadline - Date.now()))
+        timer = setTimeout(() => reject(new Error('Image state inspection expired')), Math.max(1, deadline - performance.now()))
       })])
-      if (Date.now() > deadline) throw new Error('Image state inspection expired')
+      if (performance.now() > deadline) throw new Error('Image state inspection expired')
       return result
     } finally { if (timer) clearTimeout(timer) }
   }
@@ -309,7 +311,9 @@ export async function imageState(browser: Browser, options: { tabId?: string; re
     }
   }
   try {
-    const raw: unknown = await bounded(execute(imageStateScript(options.selector, token, deadline)))
+    // The page reads its own wall clock, so it gets the time left as a deadline on that clock.
+    const pageDeadline = Date.now() + Math.max(0, deadline - performance.now())
+    const raw: unknown = await bounded(execute(imageStateScript(options.selector, token, pageDeadline)))
     assertCurrent()
     const report = normalizeImageState(raw)
     if (deferInspection) { deferInspection(pending); deferred = true } else await pending.finish()
