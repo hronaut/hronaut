@@ -334,6 +334,7 @@ export function attachNavigationEvents(browser: Browser, tab: BrowserTab, webCon
   webContents.on('did-fail-provisional-load', (_event, _errorCode, _errorDescription, _validatedURL, isMainFrame) => {
     if (tab.sleeping || !isMainFrame) return
     walletDocumentReplaced()
+    pageReplaced(webContents)
   })
   webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
     // A newer navigation can start before the one it replaced reports its failure.
@@ -346,7 +347,6 @@ export function attachNavigationEvents(browser: Browser, tab: BrowserTab, webCon
     if (!isMainFrame || errorCode === ABORTED_LOAD_ERROR) return
     tab.authNavigationPending = false
     tab.documentGeneration += 1
-    pageReplaced(webContents)
     const failedUrl = validatedURL || tab.url
     tab.loading = false
     if (previousUrl !== failedUrl) tab.faviconDataUrl = undefined

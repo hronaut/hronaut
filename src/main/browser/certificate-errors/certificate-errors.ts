@@ -53,7 +53,7 @@ const BLOCKED_ERRORS = new Set(['ERR_CERT_REVOKED', 'ERR_CERT_INVALID', 'ERR_CER
 const exceptions = new WeakMap<object, Set<string>>()
 /** The certificate each tab refused for the page it last tried to open. */
 const refusals = new WeakMap<object, CertificateRefusal>()
-/** The tabs whose page shown loaded content from a website whose certificate the person chose to trust. */
+/** The tabs showing a page that loaded content from a website whose certificate the person chose to trust. */
 const untrustedContent = new WeakSet<object>()
 
 function exceptionKey(host: string, fingerprint: string, error: string): string {
@@ -225,8 +225,9 @@ export function contentLoaded(access: Pick<CertificateErrorAccess, 'changed'>, t
 
 /**
  * Another page, or an error page, replaced the one the tab showed, which takes the content it loaded with it. A page
- * the tab started to open but never showed, such as a download, a 204 or a load the person stopped, leaves it, as in
- * Chrome, which keeps a page's security state with the page shown.
+ * the tab started to open but never showed, such as a download, a 204 or a load the person stopped, keeps the page
+ * shown not private, and so does a failure of the page shown to load the rest of its content, as in Chrome, which
+ * keeps a page's security state with the page shown.
  */
 export function pageReplaced(webContents: object): void {
   untrustedContent.delete(webContents)

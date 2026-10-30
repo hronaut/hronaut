@@ -136,16 +136,20 @@ describe('a page whose website presented a certificate the tab refused', () => {
     contentLoaded({ changed }, tab, 'https://staging.example/frame')
     expect(changed).toHaveBeenCalledOnce()
     expect(showsUntrustedCertificate(tab)).toBe(true)
-    // A link that turns out to be a download, or a 204, starts a page that never shows, and the load ends aborted.
+    // A link that turns out to be a download, or a 204, starts a page that never shows.
     contents.emit('did-start-navigation', {}, 'https://dash.example/report.pdf', false, true)
-    contents.emit('did-fail-load', {}, -3, 'ERR_ABORTED', 'https://dash.example/report.pdf', true)
+    contents.emit('did-stop-loading')
+    expect(showsUntrustedCertificate(tab)).toBe(true)
+    // The page shown fails to receive the rest of its content, as after a reset connection, and stays.
+    contents.emit('did-fail-load', {}, -101, '', page, true)
     expect(showsUntrustedCertificate(tab)).toBe(true)
     contents.emit('did-navigate', {}, 'https://dash.example/next', 200, 'OK')
     expect(showsUntrustedCertificate(tab)).toBe(false)
     contentLoaded({ changed }, tab, 'https://staging.example/frame')
     expect(showsUntrustedCertificate(tab)).toBe(true)
-    // An error page replaces the page too.
+    // An error page replaces the page too, which Electron reports as a failed provisional load first.
     contents.emit('did-start-navigation', {}, 'https://dash.example/gone', false, true)
+    contents.emit('did-fail-provisional-load', {}, -105, 'ERR_NAME_NOT_RESOLVED', 'https://dash.example/gone', true)
     contents.emit('did-fail-load', {}, -105, 'ERR_NAME_NOT_RESOLVED', 'https://dash.example/gone', true)
     expect(tab.pageProblem).toMatchObject({ errorDescription: 'ERR_NAME_NOT_RESOLVED' })
     expect(showsUntrustedCertificate(tab)).toBe(false)
