@@ -1,6 +1,7 @@
 import type { WebContents } from 'electron'
 import type { BrowserDomChangesAction, BrowserDomChangesReport } from '../../../shared/types.js'
 import { domChangesPageScript } from '../../../shared/dom-changes.js'
+import type { DomChangesPageResult } from '../../../shared/dom-changes.page.js'
 import { redactNetworkUrl } from '../../../shared/network-details.js'
 import { isHronautHomeUrl } from '../url.js'
 import { ISOLATED_WORLDS } from '../isolated-worlds.js'
@@ -56,7 +57,7 @@ export class BrowserDomRecorder<T extends DomRecordingTab> {
       DOM_CHANGES_WORLD_ID,
       [{ code: domChangesPageScript(effectiveAction) }],
       false
-    ) as Omit<BrowserDomChangesReport, 'tabId' | 'title' | 'url' | 'caveats'>
+    ) as DomChangesPageResult
     if (tab.observationGeneration !== observationGeneration) {
       throw new Error('Workspace control changed while reading DOM changes')
     }

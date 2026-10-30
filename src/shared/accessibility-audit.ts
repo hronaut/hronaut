@@ -1,3 +1,5 @@
+import { accessibilityAuditInPage } from './accessibility-audit.page.js'
+import { pageScript } from './page-script.js'
 import type {
   BrowserAccessibilityAuditOptions,
   BrowserAccessibilityStandard
@@ -59,64 +61,16 @@ export function normalizeAccessibilityAuditOptions(
   }
 }
 
+/**
+ * The isolated-world script that audits the page: axe-core's own source, run in a function of its own as a library
+ * rather than a page function, and then the audit with these options.
+ */
 export function accessibilityAuditPageScript(
   axeSource: string,
   options: NormalizedAccessibilityAuditOptions
 ): string {
   const runOnly = options.standard === 'all'
     ? undefined
-    : { type: 'tag', values: STANDARD_TAGS[options.standard] }
-  const config = JSON.stringify({ ...options, runOnly })
-  return `(() => {
-    ${axeSource}
-    const config = ${config};
-    const boundedText = (value, max) => String(value ?? '').replace(/[\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f]/g, '').slice(0, max);
-    const flattenTargets = (target) => Array.isArray(target)
-      ? target.flat(Infinity).filter((value) => typeof value === 'string').slice(0, 8).map((value) => boundedText(value, 500))
-      : [];
-    const context = config.selector ? document.querySelector(config.selector) : document;
-    if (!context) throw new Error('No element matches the accessibility audit selector');
-    const runOptions = {
-      resultTypes: ['violations', 'incomplete'],
-      selectors: true,
-      ancestry: false,
-      xpath: false,
-      ...(config.runOnly ? { runOnly: config.runOnly } : {})
-    };
-    return globalThis.axe.run(context, runOptions).then((results) => {
-      const impactRank = { critical: 0, serious: 1, moderate: 2, minor: 3, unknown: 4 };
-      const violations = [...results.violations].sort((left, right) => {
-        const leftImpact = left.impact && left.impact in impactRank ? left.impact : 'unknown';
-        const rightImpact = right.impact && right.impact in impactRank ? right.impact : 'unknown';
-        return impactRank[leftImpact] - impactRank[rightImpact] || left.id.localeCompare(right.id);
-      });
-      const selected = violations.slice(0, config.maxViolations);
-      return {
-        url: boundedText(results.url || location.href, 4096),
-        title: boundedText(document.title, 500),
-        auditedAt: new Date(results.timestamp || Date.now()).toISOString(),
-        engine: {
-          name: boundedText(results.testEngine?.name || 'axe-core', 100),
-          version: boundedText(results.testEngine?.version || globalThis.axe.version, 100)
-        },
-        violationCount: violations.length,
-        affectedNodeCount: violations.reduce((total, violation) => total + violation.nodes.length, 0),
-        needsReviewCount: results.incomplete.reduce((total, item) => total + item.nodes.length, 0),
-        passedRuleCount: results.passes.length,
-        truncated: selected.length < violations.length || selected.some((violation) => violation.nodes.length > config.maxNodesPerViolation),
-        violations: selected.map((violation) => ({
-          id: boundedText(violation.id, 200),
-          impact: violation.impact && violation.impact in impactRank ? violation.impact : 'unknown',
-          help: boundedText(violation.help, 500),
-          helpUrl: /^https:\\/\\//.test(violation.helpUrl || '') ? boundedText(violation.helpUrl, 2048) : '',
-          description: boundedText(violation.description, 800),
-          nodeCount: violation.nodes.length,
-          nodes: violation.nodes.slice(0, config.maxNodesPerViolation).map((node) => ({
-            targets: flattenTargets(node.target),
-            failureSummary: boundedText(node.failureSummary, 1200)
-          }))
-        }))
-      };
-    });
-  })()`
+    : { type: 'tag' as const, values: STANDARD_TAGS[options.standard] }
+  return `(() => {\n${axeSource}\n})();\n` + pageScript(accessibilityAuditInPage, { ...options, runOnly })
 }

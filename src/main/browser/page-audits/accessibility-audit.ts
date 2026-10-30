@@ -1,5 +1,6 @@
 import axe from 'axe-core'
 import { accessibilityAuditPageScript, normalizeAccessibilityAuditOptions } from '../../../shared/accessibility-audit.js'
+import type { AccessibilityAuditPageResult } from '../../../shared/accessibility-audit.page.js'
 import { accessibilityBaselineSummary, buildAccessibilityComparison } from '../../../shared/accessibility-comparison.js'
 import type { BrowserAccessibilityAudit, BrowserAccessibilityAuditOptions } from '../../../shared/types.js'
 import { ISOLATED_WORLDS } from '../isolated-worlds.js'
@@ -26,10 +27,7 @@ export async function accessibilityAudit(browser: Browser, options: BrowserAcces
     ACCESSIBILITY_AUDIT_WORLD_ID,
     [{ code: accessibilityAuditPageScript(axe.source, normalized) }],
     false
-  ) as Omit<
-    BrowserAccessibilityAudit,
-    'tabId' | 'action' | 'standard' | 'scope' | 'baseline' | 'comparison' | 'baselineCleared'
-  >
+  ) as AccessibilityAuditPageResult
   const current = findTab(browser, tab.id)
   if (
     !current
