@@ -1,5 +1,7 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge } from 'electron'
+import { TOAST_OVERLAY_VIEW_IPC } from '../shared/ipc/toast-overlay.js'
 import type { ToastOverlayMeasurement, ToastOverlayMessage, ToastOverlayState } from '../shared/toast-overlay.js'
+import { send, subscribe } from './bridges/ipc.js'
 
 export interface HronautToastOverlayViewApi {
   onState(listener: (state: ToastOverlayState) => void): () => void
@@ -8,13 +10,9 @@ export interface HronautToastOverlayViewApi {
 }
 
 const api: HronautToastOverlayViewApi = {
-  onState: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, state: ToastOverlayState): void => listener(state)
-    ipcRenderer.on('toast-overlay-view:state', handler)
-    return () => ipcRenderer.removeListener('toast-overlay-view:state', handler)
-  },
-  measured: (measurement) => ipcRenderer.send('toast-overlay-view:measured', measurement),
-  send: (message) => ipcRenderer.send('toast-overlay-view:message', message)
+  onState: (listener) => subscribe(TOAST_OVERLAY_VIEW_IPC.state, (state) => listener(state)),
+  measured: (measurement) => send(TOAST_OVERLAY_VIEW_IPC.measured, measurement),
+  send: (message) => send(TOAST_OVERLAY_VIEW_IPC.message, message)
 }
 
 contextBridge.exposeInMainWorld('hronautToastOverlayView', api)

@@ -8,7 +8,7 @@ import type { HronautTrustedDialogsApi } from '../shared/trusted-dialogs'
 import type { HronautAgentPresenceApi } from '../shared/agent-presence'
 import type { HronautHomeApi } from '../shared/home'
 import type { HronautApi, HronautBookmarksApi, HronautBrowsingDataApi, HronautCredentialsApi, HronautDownloadsApi, HronautHistoryApi, HronautLicenseApi, HronautMcpApi, HronautPanelWindowApi, HronautPermissionsApi, HronautSettingsApi, HronautShellApi, HronautTaskManagerApi, HronautUpdatesApi, HronautWalletsApi } from '../shared/types'
-import type { AddressSuggestionOverlayRequest, AddressSuggestionSelection } from '../shared/address-suggestions'
+import type { HronautAddressOverlayApi } from '../shared/address-suggestions'
 
 declare global {
   interface Window {
@@ -37,14 +37,7 @@ declare global {
     hronautUpdates: HronautUpdatesApi
     hronautLicense: HronautLicenseApi
     hronautPanelWindow: HronautPanelWindowApi
-    hronautAddressOverlay: {
-      show(request: AddressSuggestionOverlayRequest): void
-      hide(): void
-      /** Gives the keyboard back to the address field after a middle-click on a suggestion took it. */
-      returnFocus(): void
-      onSelected(listener: (selection: AddressSuggestionSelection) => void): () => void
-      onDismissed(listener: (sessionId: number) => void): () => void
-    }
+    hronautAddressOverlay: HronautAddressOverlayApi
     hronautShell: HronautShellApi
   }
 }

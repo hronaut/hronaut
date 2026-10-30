@@ -74,6 +74,16 @@ export interface AddressSuggestionSelection {
   action?: 'switch-tab'
 }
 
+/** The address field's suggestions, which main draws over the page; the main window's shell only. */
+export interface HronautAddressOverlayApi {
+  show(request: AddressSuggestionOverlayRequest): void
+  hide(): void
+  /** Gives the keyboard back to the address field after a middle-click on a suggestion took it. */
+  returnFocus(): void
+  onSelected(listener: (selection: AddressSuggestionSelection) => void): () => void
+  onDismissed(listener: (sessionId: number) => void): () => void
+}
+
 /** The longest address and title a row of the suggestions view takes; a longer one is shortened for the view. */
 export const ADDRESS_SUGGESTION_URL_MAX_LENGTH = 32_768
 export const ADDRESS_SUGGESTION_TITLE_MAX_LENGTH = 4_096

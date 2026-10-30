@@ -2,23 +2,26 @@ import type { Confirmation } from '../shared/confirmation.js'
 import type { HronautSplitDividerApi, SplitDividerGeometry } from '../shared/split-view.js'
 import type { EmulationFrameGeometry, HronautEmulationFrameApi } from '../shared/emulation-frame.js'
 import type { HronautPageCardApi, PageCardGeometry } from '../shared/page-card.js'
-import type { AgentCardEvent, HronautAgentCardApi } from '../shared/agent-card.js'
-import type { HronautToastOverlayApi, ToastOverlayEvent } from '../shared/toast-overlay.js'
-import type { HronautSidebarOverlayApi, SidebarOverlayEvent } from '../shared/sidebar-overlay.js'
 import { TRUSTED_DIALOG_CHANNELS, type HronautTrustedDialogsApi, type TrustedDialogRequest, type TrustedDialogShellState } from '../shared/trusted-dialogs.js'
 import type { AgentPresenceSnapshot, AgentTakeOverOffer, HronautAgentPresenceApi } from '../shared/agent-presence.js'
 import { contextBridge, ipcRenderer } from 'electron'
+import { SHELL_TOOLTIP_IPC } from '../shared/ipc/shell-tooltip.js'
 import { createPanelRequestBuffer } from './panel-requests.js'
+import { addressOverlayApi } from './bridges/address-overlay.js'
+import { agentCardApi } from './bridges/agent-card.js'
 import { bookmarksApi } from './bridges/bookmarks.js'
 import { browsingDataApi } from './bridges/browsing-data.js'
 import { credentialsApi } from './bridges/credentials.js'
 import { downloadsApi } from './bridges/downloads.js'
 import { historyApi } from './bridges/history.js'
+import { send } from './bridges/ipc.js'
 import { licenseApi } from './bridges/license.js'
 import { mcpApi } from './bridges/mcp.js'
 import { permissionsApi } from './bridges/permissions.js'
 import { settingsApi } from './bridges/settings.js'
+import { sidebarOverlayApi } from './bridges/sidebar-overlay.js'
 import { taskManagerApi } from './bridges/task-manager.js'
+import { toastOverlayApi } from './bridges/toast-overlay.js'
 import { updatesApi } from './bridges/updates.js'
 import { walletsApi } from './bridges/wallets.js'
 import type {
@@ -66,7 +69,6 @@ import type {
   HelpMenuAction
 } from '../shared/types.js'
 import type { BrowserShortcutAction } from '../shared/browser-shortcuts.js'
-import type { AddressSuggestionOverlayRequest, AddressSuggestionSelection } from '../shared/address-suggestions.js'
 import type { ShellTooltipRequest } from '../shared/shell-tooltip.js'
 import type { UndoOffer } from '../shared/undo.js'
 
@@ -357,21 +359,7 @@ const panelWindowApi: HronautPanelWindowApi = {
   }
 }
 contextBridge.exposeInMainWorld('hronautPanelWindow', panelWindowApi)
-contextBridge.exposeInMainWorld('hronautAddressOverlay', {
-  show: (request: AddressSuggestionOverlayRequest) => ipcRenderer.send('address-overlay:show', request),
-  hide: () => ipcRenderer.send('address-overlay:hide'),
-  returnFocus: () => ipcRenderer.send('address-overlay:return-focus'),
-  onSelected: (listener: (selection: AddressSuggestionSelection) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, selection: AddressSuggestionSelection): void => listener(selection)
-    ipcRenderer.on('address-overlay:selected', handler)
-    return () => ipcRenderer.removeListener('address-overlay:selected', handler)
-  },
-  onDismissed: (listener: (sessionId: number) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, sessionId: number): void => listener(sessionId)
-    ipcRenderer.on('address-overlay:dismissed', handler)
-    return () => ipcRenderer.removeListener('address-overlay:dismissed', handler)
-  }
-})
+contextBridge.exposeInMainWorld('hronautAddressOverlay', addressOverlayApi)
 const desktopPlatform = process.platform === 'darwin' || process.platform === 'win32'
   ? process.platform
   : 'linux'
@@ -401,8 +389,8 @@ const shellApi: HronautShellApi = {
     ipcRenderer.on('browser:occlusion-pages-hidden', handler)
     return () => ipcRenderer.removeListener('browser:occlusion-pages-hidden', handler)
   },
-  showTooltip: (request: ShellTooltipRequest) => ipcRenderer.send('shell-tooltip:show', request),
-  hideTooltip: (id?: number) => ipcRenderer.send('shell-tooltip:hide', id),
+  showTooltip: (request: ShellTooltipRequest) => send(SHELL_TOOLTIP_IPC.show, request),
+  hideTooltip: (id?: number) => send(SHELL_TOOLTIP_IPC.hide, id),
   setFollowAgentActivitySuspended: (suspended: boolean) =>
     ipcRenderer.send('browser:follow-agent-activity-suspended', suspended),
   onHelpRequested: (listener: (action: HelpMenuAction) => void) => {
@@ -473,15 +461,6 @@ const agentPresenceApi: HronautAgentPresenceApi = {
 }
 contextBridge.exposeInMainWorld('hronautAgentPresence', agentPresenceApi)
 
-const agentCardApi: HronautAgentCardApi = {
-  show: (request) => ipcRenderer.send('agent-card:show', request),
-  hide: (cardId) => ipcRenderer.send('agent-card:hide', cardId),
-  onEvent: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, event: AgentCardEvent): void => listener(event)
-    ipcRenderer.on('agent-card:event', handler)
-    return () => ipcRenderer.removeListener('agent-card:event', handler)
-  }
-}
 contextBridge.exposeInMainWorld('hronautAgentCard', agentCardApi)
 
 // Hronaut's own dialogs, such as a website's permission request; main checks that this shell document answers.
@@ -501,24 +480,7 @@ const trustedDialogsApi: HronautTrustedDialogsApi = {
 }
 contextBridge.exposeInMainWorld('hronautTrustedDialogs', trustedDialogsApi)
 
-const toastOverlayApi: HronautToastOverlayApi = {
-  show: (request) => ipcRenderer.send('toast-overlay:show', request),
-  onEvent: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, event: ToastOverlayEvent): void => listener(event)
-    ipcRenderer.on('toast-overlay:event', handler)
-    return () => ipcRenderer.removeListener('toast-overlay:event', handler)
-  }
-}
 contextBridge.exposeInMainWorld('hronautToastOverlay', toastOverlayApi)
 
-const sidebarOverlayApi: HronautSidebarOverlayApi = {
-  show: (request) => ipcRenderer.send('sidebar-overlay:show', request),
-  hide: (id) => ipcRenderer.send('sidebar-overlay:hide', id),
-  onEvent: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, event: SidebarOverlayEvent): void => listener(event)
-    ipcRenderer.on('sidebar-overlay:event', handler)
-    return () => ipcRenderer.removeListener('sidebar-overlay:event', handler)
-  }
-}
 // Only the main window's shell opens its tab rail over the page; a detached panel's window has no rail.
 if (process.argv.includes('--hronaut-window-kind=main')) contextBridge.exposeInMainWorld('hronautSidebarOverlay', sidebarOverlayApi)

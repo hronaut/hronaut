@@ -30,6 +30,11 @@ import {
   toastOverlayRequestId,
   type ToastOverlayRequest
 } from '../../shared/toast-overlay.js'
+import { AGENT_CARD_IPC, AGENT_CARD_VIEW_IPC } from '../../shared/ipc/agent-card.js'
+import { SHELL_TOOLTIP_IPC, TOOLTIP_OVERLAY_VIEW_IPC } from '../../shared/ipc/shell-tooltip.js'
+import { SIDEBAR_OVERLAY_IPC, SIDEBAR_OVERLAY_VIEW_IPC } from '../../shared/ipc/sidebar-overlay.js'
+import { STATUS_BUBBLE_VIEW_IPC } from '../../shared/ipc/status-bubble.js'
+import { TOAST_OVERLAY_IPC, TOAST_OVERLAY_VIEW_IPC } from '../../shared/ipc/toast-overlay.js'
 
 interface OverlayViewsIpcHost {
   /** Whether a message came from the main window's shell document, whether or not saved workspaces started. */
@@ -84,18 +89,18 @@ export function registerOverlayViewsIpc(ipcMain: Pick<IpcMain, 'on'>, host: Over
     return host.statusBubbleView().isSender(event)
   }
 
-  ipcMain.on('shell-tooltip:show', (event, value: unknown) => {
+  ipcMain.on(SHELL_TOOLTIP_IPC.show, (event, value: unknown) => {
     if (host.workspaceStartupFailure()) return
     host.assertMainShellSender(event)
     host.shellTooltips().show(parseShellTooltipRequest(value), event.sender.getZoomFactor())
   })
-  ipcMain.on('shell-tooltip:hide', (event, id: unknown) => {
+  ipcMain.on(SHELL_TOOLTIP_IPC.hide, (event, id: unknown) => {
     if (host.workspaceStartupFailure()) return
     host.assertMainShellSender(event)
     if (id !== undefined && !(Number.isSafeInteger(id) && (id as number) > 0)) throw new TypeError('Invalid tooltip id')
     host.shellTooltips().hide(id as number | undefined)
   })
-  ipcMain.on('agent-card:show', (event, value: unknown) => {
+  ipcMain.on(AGENT_CARD_IPC.show, (event, value: unknown) => {
     if (host.workspaceStartupFailure()) return
     host.assertMainShellSender(event)
     let request: AgentCardShowRequest
@@ -109,23 +114,23 @@ export function registerOverlayViewsIpc(ipcMain: Pick<IpcMain, 'on'>, host: Over
     }
     host.agentCards().show(request, event.sender.getZoomFactor())
   })
-  ipcMain.on('agent-card:hide', (event, cardId: unknown) => {
+  ipcMain.on(AGENT_CARD_IPC.hide, (event, cardId: unknown) => {
     if (host.workspaceStartupFailure()) return
     host.assertMainShellSender(event)
     if (!validAgentCardId(cardId)) throw new TypeError('Invalid agent card id')
     host.agentCards().hide(cardId)
   })
-  ipcMain.on('agent-card-view:measured', (event, value: unknown) => {
+  ipcMain.on(AGENT_CARD_VIEW_IPC.measured, (event, value: unknown) => {
     if (!fromAgentCardView(event)) return
     const measurement = parseAgentCardMeasurement(value)
     if (measurement) host.agentCards().measured(measurement)
   })
-  ipcMain.on('agent-card-view:message', (event, value: unknown) => {
+  ipcMain.on(AGENT_CARD_VIEW_IPC.message, (event, value: unknown) => {
     if (!fromAgentCardView(event)) return
     const message = parseAgentCardViewMessage(value)
     if (message) host.agentCards().received(message)
   })
-  ipcMain.on('toast-overlay:show', (event, value: unknown) => {
+  ipcMain.on(TOAST_OVERLAY_IPC.show, (event, value: unknown) => {
     const refuse = (): void => {
       const id = toastOverlayRequestId(value)
       if (id !== undefined) host.toastOverlay().refused(id)
@@ -147,17 +152,17 @@ export function registerOverlayViewsIpc(ipcMain: Pick<IpcMain, 'on'>, host: Over
     }
     host.toastOverlay().show(request)
   })
-  ipcMain.on('toast-overlay-view:measured', (event, value: unknown) => {
+  ipcMain.on(TOAST_OVERLAY_VIEW_IPC.measured, (event, value: unknown) => {
     if (!fromToastOverlayView(event)) return
     const measurement = parseToastOverlayMeasurement(value)
     if (measurement) host.toastOverlay().measured(measurement)
   })
-  ipcMain.on('toast-overlay-view:message', (event, value: unknown) => {
+  ipcMain.on(TOAST_OVERLAY_VIEW_IPC.message, (event, value: unknown) => {
     if (!fromToastOverlayView(event)) return
     const message = parseToastOverlayMessage(value)
     if (message) host.toastOverlay().received(message)
   })
-  ipcMain.on('sidebar-overlay:show', (event, value: unknown) => {
+  ipcMain.on(SIDEBAR_OVERLAY_IPC.show, (event, value: unknown) => {
     const refuse = (): void => {
       const id = sidebarOverlayRequestId(value)
       if (id !== undefined) host.sidebarOverlay().refused(id)
@@ -180,34 +185,34 @@ export function registerOverlayViewsIpc(ipcMain: Pick<IpcMain, 'on'>, host: Over
     }
     host.sidebarOverlay().show(request)
   })
-  ipcMain.on('sidebar-overlay:hide', (event, id: unknown) => {
+  ipcMain.on(SIDEBAR_OVERLAY_IPC.hide, (event, id: unknown) => {
     if (host.workspaceStartupFailure()) return
     host.assertMainShellSender(event)
     if (!validSidebarOverlayId(id)) throw new TypeError('Invalid sidebar overlay id')
     host.sidebarOverlay().hide(id)
   })
-  ipcMain.on('sidebar-overlay-view:rendered', (event, value: unknown) => {
+  ipcMain.on(SIDEBAR_OVERLAY_VIEW_IPC.rendered, (event, value: unknown) => {
     if (!fromSidebarOverlayView(event)) return
     const report = parseSidebarOverlayRendered(value)
     if (report) host.sidebarOverlay().rendered(report)
   })
-  ipcMain.on('sidebar-overlay-view:pointer', (event, value: unknown) => {
+  ipcMain.on(SIDEBAR_OVERLAY_VIEW_IPC.pointer, (event, value: unknown) => {
     if (!fromSidebarOverlayView(event)) return
     const pointer = parseSidebarOverlayPointer(value)
     if (pointer) host.sidebarOverlay().pointer(pointer)
   })
-  ipcMain.on('sidebar-overlay-view:intent', (event, value: unknown) => {
+  ipcMain.on(SIDEBAR_OVERLAY_VIEW_IPC.intent, (event, value: unknown) => {
     if (!fromSidebarOverlayView(event)) return
     const intent = parseSidebarOverlayIntent(value)
     if (intent) host.sidebarOverlay().received(intent)
   })
   // The rail's controls show their tooltips as the shell's do, beside the control in the tooltip view.
-  ipcMain.on('sidebar-overlay-view:tooltip-show', (event, value: unknown) => {
+  ipcMain.on(SIDEBAR_OVERLAY_VIEW_IPC.tooltipShow, (event, value: unknown) => {
     if (!fromSidebarOverlayView(event)) return
     const request = host.sidebarOverlay().tooltip(parseShellTooltipRequest(value))
     if (request) host.shellTooltips().show(request, event.sender.getZoomFactor())
   })
-  ipcMain.on('sidebar-overlay-view:tooltip-hide', (event, id: unknown) => {
+  ipcMain.on(SIDEBAR_OVERLAY_VIEW_IPC.tooltipHide, (event, id: unknown) => {
     if (!fromSidebarOverlayView(event)) return
     if (id !== undefined && !(Number.isSafeInteger(id) && (id as number) > 0)) throw new TypeError('Invalid tooltip id')
     // Only the rail's own tooltip; the shell's keep theirs.
@@ -218,12 +223,12 @@ export function registerOverlayViewsIpc(ipcMain: Pick<IpcMain, 'on'>, host: Over
     }
     host.shellTooltips().hide(SIDEBAR_OVERLAY_TOOLTIP_ID_OFFSET + (id as number))
   })
-  ipcMain.on('tooltip-overlay:measured', (event, value: unknown) => {
+  ipcMain.on(TOOLTIP_OVERLAY_VIEW_IPC.measured, (event, value: unknown) => {
     if (!fromTooltipView(event)) return
     const measurement = parseShellTooltipMeasurement(value)
     if (measurement) host.shellTooltips().measured(measurement)
   })
-  ipcMain.on('status-bubble:measured', (event, value: unknown) => {
+  ipcMain.on(STATUS_BUBBLE_VIEW_IPC.measured, (event, value: unknown) => {
     if (!fromStatusBubbleView(event)) return
     const measurement = parseStatusBubbleMeasurement(value)
     if (measurement) host.statusBubble().measured(measurement)

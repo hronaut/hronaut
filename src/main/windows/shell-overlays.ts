@@ -19,6 +19,9 @@ import { pageArea } from '../browser/window-layout/content-area.js'
 import { showWorkspaceContextMenu } from '../browser/context-menus/workspace-context-menu.js'
 import { pageFullscreenShown } from '../browser/page-fullscreen/page-fullscreen.js'
 import { statusBubblePane } from '../browser/page-geometry/page-geometry.js'
+import { AGENT_CARD_IPC } from '../../shared/ipc/agent-card.js'
+import { SIDEBAR_OVERLAY_IPC } from '../../shared/ipc/sidebar-overlay.js'
+import { TOAST_OVERLAY_IPC } from '../../shared/ipc/toast-overlay.js'
 
 interface ShellOverlaysHost {
   /** Whether a frame's address is the expected trusted page, with or without a fragment; each view admits only its own. */
@@ -88,7 +91,7 @@ export function createShellOverlays(host: ShellOverlaysHost): {
       return { width, height }
     },
     emit: (event: AgentCardEvent) => {
-      if (host.mainWindowRefs.window && !host.mainWindowRefs.window.webContents.isDestroyed()) host.mainWindowRefs.window.webContents.send('agent-card:event', event)
+      if (host.mainWindowRefs.window && !host.mainWindowRefs.window.webContents.isDestroyed()) host.mainWindowRefs.window.webContents.send(AGENT_CARD_IPC.event, event)
     },
     focusShell: () => {
       if (host.mainWindowRefs.window && !host.mainWindowRefs.window.isDestroyed() && !host.mainWindowRefs.window.webContents.isDestroyed()) host.mainWindowRefs.window.webContents.focus()
@@ -120,7 +123,7 @@ export function createShellOverlays(host: ShellOverlaysHost): {
       return area ? { area, zoom: host.mainWindowRefs.window.webContents.getZoomFactor() } : null
     },
     emit: (event: ToastOverlayEvent) => {
-      if (host.mainWindowRefs.window && !host.mainWindowRefs.window.isDestroyed() && !host.mainWindowRefs.window.webContents.isDestroyed()) host.mainWindowRefs.window.webContents.send('toast-overlay:event', event)
+      if (host.mainWindowRefs.window && !host.mainWindowRefs.window.isDestroyed() && !host.mainWindowRefs.window.webContents.isDestroyed()) host.mainWindowRefs.window.webContents.send(TOAST_OVERLAY_IPC.event, event)
     },
     focusOwner: () => {
       const focused = allWebContents.getFocusedWebContents()
@@ -183,7 +186,7 @@ export function createShellOverlays(host: ShellOverlaysHost): {
     },
     emit: (event: SidebarOverlayEvent) => {
       const window = host.mainWindowRefs.window
-      if (window && !window.isDestroyed() && !window.webContents.isDestroyed()) window.webContents.send('sidebar-overlay:event', event)
+      if (window && !window.isDestroyed() && !window.webContents.isDestroyed()) window.webContents.send(SIDEBAR_OVERLAY_IPC.event, event)
     },
     cursor: () => {
       const window = host.mainWindowRefs.window
