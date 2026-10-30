@@ -2,7 +2,7 @@ import type { IncidentCaptureInput, IncidentDraft, IncidentPreview, IncidentRevi
 import type { InvokeChannel } from './channel.js'
 
 /** Incident packages: a capture of a tab's problem, reviewed by the person before it is saved as a file. Each shell has its own draft. */
-export const INCIDENT_IPC = {
+export const INCIDENTS_IPC = {
   /** Shell → main: captures the tab's last minutes of evidence of these kinds as a new draft, replacing the shell's last one. */
   capture: 'browser:incident-capture' as InvokeChannel<[input: IncidentCaptureInput], IncidentDraft>,
   /** Shell → main: the draft as it would be saved, with what the person chose to include, leave out and replace. */
