@@ -189,7 +189,7 @@ describe('filling a field from a file', () => {
     expect(new Function(`return ${javascriptLiteral(TEXT)}`)()).toBe(TEXT)
     expect(write).toContain(JSON.stringify(ORIGIN))
     // The start deadline goes to the page function right before the settle time and the target checks.
-    const deadline = Number(/, (\d+), \d+, \(function textFileFillTargetInPage\(/u.exec(write!)?.[1])
+    const deadline = Number(/, (\d+), \d+, \(\(\) => \{ 'use strict'; return function textFileFillTargetInPage\(/u.exec(write!)?.[1])
     expect(deadline - sent).toBeGreaterThanOrEqual(4_000)
     expect(deadline - Date.now()).toBeLessThanOrEqual(4_000)
     expect(JSON.stringify(result)).not.toMatch(/private-fixture-canary|private-path-canary/u)

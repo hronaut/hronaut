@@ -85,9 +85,10 @@ checks the first five.
   channel; arguments from a renderer arrive as `unknown` and are checked first.
 - Code that runs in a page is a typed function in a `<feature>.page.ts` file
   beside its feature, not a script in a template literal. `pageScript(fn, ...)`
-  (`src/shared/page-script.ts`) sends the function's own source with its
-  arguments, so a page function imports only types and uses nothing of its
-  module but its parameters; pass a helper in as a function argument.
+  (`src/shared/page-script.ts`) sends the function's own source, created in
+  strict code, with its arguments, so a page function imports only types and
+  uses nothing of its module but its parameters; pass a helper in as a function
+  argument.
 - A feature keeps the tab state it owns in one typed field of the tab, as
   `tab.emulation` does, with its type declared beside the feature, not as
   loose fields on the tab.

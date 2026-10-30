@@ -9,7 +9,7 @@ import {
   type ComputedAccessibilityState,
   type ComputedAccessibilityStateValue
 } from '../../../shared/computed-accessibility.js'
-import { pageFunctionSource } from '../../../shared/page-script.js'
+import { pageFunctionExpression } from '../../../shared/page-script.js'
 import { RendererExitedError } from '../renderer-exit-guard.js'
 import { textBoundInPage } from './computed-accessibility.page.js'
 
@@ -235,7 +235,7 @@ export class ComputedAccessibilityReader<T extends ComputedAccessibilityTab> {
         if (!object.objectId) throw new Error(PAGE_CHANGED)
         const bound = readBound(await send('Runtime.callFunctionOn', {
           objectId: object.objectId,
-          functionDeclaration: pageFunctionSource(textBoundInPage),
+          functionDeclaration: pageFunctionExpression(textBoundInPage),
           arguments: [{ value: COMPUTED_ACCESSIBILITY_LIMITS.maxTextChars }, { value: COMPUTED_ACCESSIBILITY_LIMITS.maxElements }],
           returnByValue: true
         }))

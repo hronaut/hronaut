@@ -70,7 +70,7 @@ for (const { phase, action } of cases) {
         } finally {
           globalThis.setTimeout = nativeSetTimeout
         }
-      }, { url, inFlight: phase === 'in-flight scroll', concurrent: phase === 'concurrent stops' || phase === 'in-flight scroll', queuedInput: phase === 'queued input', target: phase === 'queued input' ? { start: pageScriptStart(reproTargetInPage), focused: `})(undefined, ${pageScriptStart(snapshotTextInPage)}` } : undefined, script: pageScriptStart(reproScrollInPage) })
+      }, { url, inFlight: phase === 'in-flight scroll', concurrent: phase === 'concurrent stops' || phase === 'in-flight scroll', queuedInput: phase === 'queued input', target: phase === 'queued input' ? { start: pageScriptStart(reproTargetInPage), focused: `(undefined, ${pageScriptStart(snapshotTextInPage)}` } : undefined, script: pageScriptStart(reproScrollInPage) })
       if (phase === 'in-flight scroll') {
         await expect.poll(() => electronApp.evaluate(() => (globalThis as typeof globalThis & { __reproStopHeld?: boolean }).__reproStopHeld === true)).toBe(true)
       }

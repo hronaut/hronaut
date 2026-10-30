@@ -73,7 +73,7 @@ describe('page evaluation deadline', () => {
     expect(state).toMatchObject({ guards: 0, debuggerBusy: false })
     const wrapped = collaborators.evaluateWithAttachedDebugger.mock.calls[0]![1]
     // The evaluation's id goes to the page function right before the release function it calls when the script settles.
-    const evaluationId = /"([^"]+)",\s*\(function releaseEvaluationDialogsInPage\(/.exec(wrapped)?.[1]
+    const evaluationId = /"([^"]+)",\s*\(\(\) => \{ 'use strict'; return function releaseEvaluationDialogsInPage\(/.exec(wrapped)?.[1]
     expect(evaluationId).toMatch(/^[0-9a-f-]{36}$/)
     expect(webContents.debugger.sendCommand).toHaveBeenCalledExactlyOnceWith('Runtime.evaluate', expect.objectContaining({ contextId: 1, silent: true }))
     const release = (webContents.debugger.sendCommand.mock.calls[0] as unknown as [string, { expression: string }])[1].expression

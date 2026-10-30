@@ -47,7 +47,7 @@ for (const kind of ['click', 'key'] as const) {
             }
             return original(code, gesture)
           } })
-        }, { url, kind, target: { start: pageScriptStart(reproTargetInPage), focused: `})(undefined, ${pageScriptStart(snapshotTextInPage)}` } })
+        }, { url, kind, target: { start: pageScriptStart(reproTargetInPage), focused: `(undefined, ${pageScriptStart(snapshotTextInPage)}` } })
         if (kind === 'click') await page.getByRole('button', { name: 'Submit request' }).click()
         else await electronApp.evaluate(({ webContents }, url) => {
           const contents = webContents.getAllWebContents().find(contents => contents.getURL() === url)!

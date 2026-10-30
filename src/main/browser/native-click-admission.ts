@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { pageFunctionSource, pageScript } from '../../shared/page-script.js'
+import { pageFunctionExpression, pageScript } from '../../shared/page-script.js'
 import { nativeClickReceiverInPage, nativeClickSampleInPage, nativeClickTargetInPage } from './native-click-admission.page.js'
 import { NativeInputCleanupError } from './native-input-cleanup.js'
 import { RendererExitedError } from './renderer-exit-guard.js'
@@ -91,14 +91,14 @@ export async function acquireNativeClickAdmission(api: AttachedDebugger, target:
     }
     const sample = async (x: number, y: number): Promise<void> => {
       const inspect = async (final: boolean): Promise<void> => {
-        const result = await call(pageFunctionSource(nativeClickSampleInPage), [x, y, final])
+        const result = await call(pageFunctionExpression(nativeClickSampleInPage), [x, y, final])
         if (result.result?.value !== 'ADMITTED') {
           const reason = result.result?.value
           throw new NativeClickAdmissionError(typeof reason === 'string' && ['TARGET_CHANGED', 'TARGET_DISABLED', 'POINT_OUTSIDE_VIEWPORT', 'TARGET_OCCLUDED', 'HIT_CHANGED', 'EMBEDDED_HIT_UNSUPPORTED'].includes(reason) ? nativeClickReason(reason) : 'TARGET_UNVERIFIABLE', { ...progress })
         }
       }
       await inspect(false)
-      const receiver = await call(pageFunctionSource(nativeClickReceiverInPage), [], false)
+      const receiver = await call(pageFunctionExpression(nativeClickReceiverInPage), [], false)
       if (!receiver.result?.objectId) throw new NativeClickAdmissionError('HIT_UNVERIFIABLE', { ...progress })
       // CDP can transport attributes/text even at depth zero. Consume only
       // receiver kind/root/frame metadata; never publish the raw descriptor.
