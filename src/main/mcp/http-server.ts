@@ -149,6 +149,8 @@ export class McpHttpServer {
   private readonly transportSessions = new Map<string, McpTransportSession>()
   /** Each client's open event streams, which keep its session connected but are no requests in progress. */
   private readonly eventStreams = new WeakMap<McpClientActivity, number>()
+  /** When each client's last request arrived, on the monotonic clock that times its presence window whatever the wall clock does. */
+  private readonly lastRequestTimes = new WeakMap<McpClientActivity, number>()
   /** Each client's requests and streams not yet answered or ended, which closing its session ends. */
   private readonly openResponses = new WeakMap<McpClientActivity, Set<Response>>()
   private readonly walletSessions: WalletAgentSessionRegistry
@@ -157,7 +159,7 @@ export class McpHttpServer {
   private readonly agentPresence = new AgentPresenceRegistry()
   private readonly homeFeed = new HomeActivityFeed()
   private agentPresenceTimer: NodeJS.Timeout | undefined
-  /** When `agentPresenceTimer` is due. */
+  /** When `agentPresenceTimer` is due, on the monotonic clock. */
   private agentPresenceWakeAt: number | undefined
   private readonly agentStepThumbnails: AgentStepThumbnailScheduler | undefined
 
@@ -364,7 +366,7 @@ export class McpHttpServer {
         }
         if (!this.hasOpenRequest(client) && client.initializedAt) {
           // A long-held stream closing is the last sign of a session whose window already passed.
-          if (!this.sessionLive(client, Date.now())) this.agentPresenceChanged()
+          if (!this.sessionLive(client, performance.now())) this.agentPresenceChanged()
           // Otherwise its window now runs out without a request, as when the client quits without closing its session.
           else this.wakeForAgentPresence(true)
         }
@@ -494,8 +496,8 @@ export class McpHttpServer {
   }
 
   /** Agents seen recently in each open workspace they may use, in display order. */
-  getAgentPresence(now = Date.now()): Record<string, AgentPresence[]> {
-    return this.agentPresence.derive(now, {
+  getAgentPresence(monotonicNow = performance.now()): Record<string, AgentPresence[]> {
+    return this.agentPresence.derive(monotonicNow, {
       workspaceOpen: (workspaceId) => this.manager.isOpenAgentWorkspace(workspaceId),
       currentAttentionId: this.options.getOpenUserAttentionId ? this.options.getOpenUserAttentionId() : this.options.getUserAttention()?.id ?? null,
       tabInWorkspace: (workspaceId, tabId) => tabBelongsToMcpGroup(this.manager, workspaceId, tabId)
@@ -510,7 +512,7 @@ export class McpHttpServer {
    * its last one, so a client that quit without closing its session leaves as its avatar does; an agent still waiting
    * for you stays until answered.
    */
-  getConnectedAgents(presence: Record<string, AgentPresence[]> = this.getAgentPresence(), now = Date.now()): ConnectedAgent[] {
+  getConnectedAgents(presence: Record<string, AgentPresence[]> = this.getAgentPresence(), monotonicNow = performance.now()): ConnectedAgent[] {
     const seen = new Map<string, { state: ConnectedAgent['state']; avatar: AgentPresence; workspaceIds: string[] }>()
     for (const [workspaceId, agents] of Object.entries(presence)) {
       for (const agent of agents) {
@@ -522,7 +524,7 @@ export class McpHttpServer {
     }
     const agents: ConnectedAgent[] = []
     for (const [sessionId, { client }] of this.transportSessions) {
-      if (!client.initializedAt || !this.sessionLive(client, now)) continue
+      if (!client.initializedAt || !this.sessionLive(client, monotonicNow)) continue
       const key = this.agentPresence.clientKey(sessionId)
       const known = seen.get(key)
       const name = known?.avatar.name ?? sanitizeAgentName(client.name)
@@ -592,9 +594,9 @@ export class McpHttpServer {
     if (this.homeFeed.revision !== feedRevision || this.agentPresence.historyRevision !== stepsRevision) this.agentPresenceChanged()
   }
 
-  /** Whether a session still counts as connected: a request or its event stream open, or a request within the presence window. */
+  /** Whether a session still counts as connected at monotonic `now`: a request or its event stream open, or a request within the presence window. */
   private sessionLive(client: McpClientActivity, now: number): boolean {
-    return this.hasOpenRequest(client) || now - Date.parse(client.lastSeenAt) < AGENT_PRESENCE_WINDOW_MS
+    return this.hasOpenRequest(client) || now - (this.lastRequestTimes.get(client) ?? Number.NEGATIVE_INFINITY) < AGENT_PRESENCE_WINDOW_MS
   }
 
   /** Whether a client has a request in progress or its event stream open. */
@@ -612,7 +614,7 @@ export class McpHttpServer {
     for (const [sessionId, { client }] of this.transportSessions) {
       if (sessionId === kept) continue
       const use = client.activeRequests > 0 ? 2 : this.eventStreams.has(client) ? 1 : 0
-      const seenAt = Date.parse(client.lastSeenAt)
+      const seenAt = this.lastRequestTimes.get(client) ?? Number.NEGATIVE_INFINITY
       if (!chosen || use < chosen.use || (use === chosen.use && seenAt < chosen.seenAt)) chosen = { sessionId, use, seenAt }
     }
     return chosen?.sessionId
@@ -623,7 +625,7 @@ export class McpHttpServer {
     let next: number | undefined
     for (const { client } of this.transportSessions.values()) {
       if (!client.initializedAt || this.hasOpenRequest(client)) continue
-      const at = Date.parse(client.lastSeenAt) + AGENT_PRESENCE_WINDOW_MS
+      const at = (this.lastRequestTimes.get(client) ?? Number.NEGATIVE_INFINITY) + AGENT_PRESENCE_WINDOW_MS
       if (at > now && (next === undefined || at < next)) next = at
     }
     return next
@@ -638,7 +640,7 @@ export class McpHttpServer {
   recordAgentAnswer(attentionId: string, answer: AgentAnswerKind): void {
     let recorded = false
     try {
-      recorded = this.agentPresence.recordAnswer(attentionId, answer, Date.now(), (workspaceId) => this.manager.isOpenAgentWorkspace(workspaceId))
+      recorded = this.agentPresence.recordAnswer(attentionId, answer, performance.now(), Date.now(), (id) => this.manager.isOpenAgentWorkspace(id))
     } catch (error) {
       console.error('[mcp] Failed to record an answer to an agent:', error)
     }
@@ -711,7 +713,7 @@ export class McpHttpServer {
       : existing?.name ?? userAgent).slice(0, 128)
     const version = typeof suppliedInfo?.version === 'string' ? sanitizeAgentVersion(suppliedInfo.version) : undefined
     // A session past its window counts as connected again from this request on.
-    const lapsed = existing?.initializedAt !== undefined && !this.sessionLive(existing, Date.now())
+    const lapsed = existing?.initializedAt !== undefined && !this.sessionLive(existing, performance.now())
     const now = new Date().toISOString()
     if (!existing && this.clients.size >= McpHttpServer.MAX_CLIENTS) {
       const oldestId = this.clients.keys().next().value as string | undefined
@@ -728,6 +730,7 @@ export class McpHttpServer {
     client.name = name
     client.version = version ?? client.version
     client.lastSeenAt = now
+    this.lastRequestTimes.set(client, performance.now())
     if (body.method === 'tools/list') client.toolsListedAt = now
     client.requestCount += 1
     if (eventStream) this.eventStreams.set(client, (this.eventStreams.get(client) ?? 0) + 1)
@@ -771,12 +774,8 @@ export class McpHttpServer {
   private trackAgentCall(call: AgentCall, client: McpClientActivity, workspaceId: string): void {
     let movedOn: string | undefined
     try {
-      movedOn = this.agentPresence.track(
-        { id: client.id, name: client.name },
-        workspaceId,
-        call,
-        (tabId) => tabBelongsToMcpGroup(this.manager, workspaceId, tabId)
-      )
+      const tabInWorkspace = (tabId: string): boolean => tabBelongsToMcpGroup(this.manager, workspaceId, tabId)
+      movedOn = this.agentPresence.track({ id: client.id, name: client.name }, workspaceId, call, performance.now(), tabInWorkspace)
       // Inside the try: a step that failed to record is not repeated, and the feed never fails the call. A call that
       // finished after its workspace closed or lost agent access adds nothing.
       if (call.source === 'call' && call.phase !== 'started' && this.manager.isOpenAgentWorkspace(workspaceId)) {
@@ -808,7 +807,8 @@ export class McpHttpServer {
     const workspaceId = input.workspaceId ?? attention.workspaceId
     if (!workspaceId) return
     try {
-      this.agentPresence.recordAttention({ id: client.id, name: client.name }, workspaceId, attention.id, attention.tabId ?? input.tabId, Date.now(), input.humanWaitingDecisionId)
+      const tabId = attention.tabId ?? input.tabId
+      this.agentPresence.recordAttention(client, workspaceId, attention.id, tabId, performance.now(), input.humanWaitingDecisionId)
     } catch (error) {
       console.error('[mcp] Failed to record agent presence:', error)
     }
@@ -836,7 +836,7 @@ export class McpHttpServer {
    * longer sees; a publish has just happened when it is false.
    */
   private wakeForAgentPresence(keepSooner = false): void {
-    const now = Date.now()
+    const now = performance.now()
     const transition = this.agentPresence.nextTransitionAt(now)
     const expiry = this.nextSessionExpiry(now)
     const next = transition === undefined ? expiry : expiry === undefined ? transition : Math.min(transition, expiry)
