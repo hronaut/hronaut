@@ -18,12 +18,17 @@ vi.mock('electron', () => {
   }
   return { session: {}, WebContentsView, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, powerMonitor: { on: () => undefined } }
 })
-// The prototype-built browser below stubs getState, assertWorkspaceNavigationAllowed, workspaceNavigationAllowed,
-// assertTabLabelAdmission and saveTabLabel, which opening an agent's tab or window publishes, checks the workspace's
-// sites and saves its label through.
+// The prototype-built browser below stubs getState, changed, focusTabOrTrustedChrome, assertWorkspaceNavigationAllowed,
+// workspaceNavigationAllowed, assertTabLabelAdmission and saveTabLabel, which opening or selecting an agent's tab or
+// window publishes, focuses, checks the workspace's sites and saves its label through.
 vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist),
   browserState: (browser: { getState: () => unknown }) => browser.getState()
+}))
+vi.mock('../src/main/browser/trusted-chrome-focus/trusted-chrome-focus.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/trusted-chrome-focus/trusted-chrome-focus.js')>(),
+  focusTabOrTrustedChrome: (browser: { focusTabOrTrustedChrome: (tab: unknown) => void }, tab: unknown) => browser.focusTabOrTrustedChrome(tab)
 }))
 vi.mock('../src/main/browser/workspace-navigation/workspace-navigation.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/workspace-navigation/workspace-navigation.js')>(),

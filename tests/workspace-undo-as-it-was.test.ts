@@ -4,6 +4,12 @@ import { WorkspaceRegistry, type ActiveWorkspace } from '../src/main/browser/wor
 import type { UndoableAction } from '../src/main/undo-offers.js'
 
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, Menu: {} }))
+// The browser below stubs changed and getState, which archiving and closing a workspace publish and return through these.
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist),
+  browserState: (browser: { getState: () => unknown }) => browser.getState()
+}))
 const { archiveWorkspaceForPerson, closeWorkspaceForPerson } = await import('../src/main/browser/workspace-archive/workspace-archive.js')
 
 // Undo of closing or archiving a workspace brought it back at the bottom of the tab rail, unpinned, on its last tab,
@@ -66,23 +72,23 @@ function browser(options: { closeFails?: boolean } = {}) {
   ]
   const detachedClosedTabs = new Set<BrowserClosedTabState[]>()
   const offers: UndoableAction[] = []
-  const access = {
-    mcpTabGroups: () => registry.active,
-    savedTabGroups: () => registry.archived,
-    savedWorkspaceOperations: () => new Map(),
-    closingWorkspace: () => undefined,
-    setClosingWorkspace: () => undefined,
-    options: () => ({ partition: 'persist:test', offerUndo: (offer: UndoableAction) => { offers.push(offer) }, endUndo: async () => undefined }),
-    closedTabs: () => closedTabs,
-    detachedClosedTabs: () => detachedClosedTabs,
-    workspaceRegistry: () => registry,
-    withTabLabelLifecycle: <T>(run: () => Promise<T>) => run(),
+  const tabManager = {
+    mcpTabGroups: registry.active,
+    savedTabGroups: registry.archived,
+    savedWorkspaceOperations: new Map(),
+    closingWorkspace: undefined,
+    options: { partition: 'persist:test', offerUndo: (offer: UndoableAction) => { offers.push(offer) }, endUndo: async () => undefined },
+    closedTabs,
+    detachedClosedTabs,
+    workspaceRegistry: registry,
+    tabLabelLifecycleHolds: 0,
+    pendingTabLabels: new Set(),
     changed: () => undefined,
     getState: () => ({})
   }
   // As closing the workspace does, its closed tabs leave the list.
   const forgetWorkspaceClosedTabs = () => closedTabs.splice(0, closedTabs.length, ...closedTabs.filter((tab) => tab.mcpGroupId !== 'two'))
-  return { registry, tabs, selected, closedTabs, detachedClosedTabs, offers, access, forgetWorkspaceClosedTabs }
+  return { registry, tabs, selected, closedTabs, detachedClosedTabs, offers, tabManager, forgetWorkspaceClosedTabs }
 }
 
 describe('restoring an archived workspace', () => {
@@ -113,11 +119,11 @@ describe('restoring an archived workspace', () => {
 
 describe('Undo of archiving or closing a workspace', () => {
   it.each([
-    ['archiving', (access: never) => archiveWorkspaceForPerson(access, 'two')],
-    ['closing', (access: never) => closeWorkspaceForPerson(access, 'two')]
+    ['archiving', (tabManager: never) => archiveWorkspaceForPerson(tabManager, 'two')],
+    ['closing', (tabManager: never) => closeWorkspaceForPerson(tabManager, 'two')]
   ])('brings it back where it was after %s it, pinned, with the tabs closed in it', async (_name, close) => {
-    const { registry, selected, closedTabs, offers, access, forgetWorkspaceClosedTabs } = browser()
-    await close(access as never)
+    const { registry, selected, closedTabs, offers, tabManager, forgetWorkspaceClosedTabs } = browser()
+    await close(tabManager as never)
     forgetWorkspaceClosedTabs()
     expect(closedTabs.map((tab) => tab.id)).toEqual(['one-closed'])
 
@@ -130,8 +136,8 @@ describe('Undo of archiving or closing a workspace', () => {
   })
 
   it('brings it back next to the workspace it followed when one before that closed meanwhile', async () => {
-    const { registry, offers, access, forgetWorkspaceClosedTabs } = browser()
-    await archiveWorkspaceForPerson(access as never, 'two')
+    const { registry, offers, tabManager, forgetWorkspaceClosedTabs } = browser()
+    await archiveWorkspaceForPerson(tabManager as never, 'two')
     forgetWorkspaceClosedTabs()
     // An agent closes the workspace before it, which ends no Undo.
     registry.active.delete('one')
@@ -143,8 +149,8 @@ describe('Undo of archiving or closing a workspace', () => {
   })
 
   it.each(['undo', 'finalize'] as const)('puts the closed tabs back on %s when it was restored from the archive meanwhile', async (end) => {
-    const { registry, closedTabs, detachedClosedTabs, offers, access, forgetWorkspaceClosedTabs } = browser()
-    await archiveWorkspaceForPerson(access as never, 'two')
+    const { registry, closedTabs, detachedClosedTabs, offers, tabManager, forgetWorkspaceClosedTabs } = browser()
+    await archiveWorkspaceForPerson(tabManager as never, 'two')
     forgetWorkspaceClosedTabs()
     await registry.restore('two')
 
@@ -156,12 +162,12 @@ describe('Undo of archiving or closing a workspace', () => {
   })
 
   it.each([
-    ['archiving', (access: never) => archiveWorkspaceForPerson(access, 'two')],
-    ['closing', (access: never) => closeWorkspaceForPerson(access, 'two')]
+    ['archiving', (tabManager: never) => archiveWorkspaceForPerson(tabManager, 'two')],
+    ['closing', (tabManager: never) => closeWorkspaceForPerson(tabManager, 'two')]
   ])('keeps the closed tabs when %s it fails and it stays open', async (_name, close) => {
-    const { registry, closedTabs, detachedClosedTabs, offers, access } = browser({ closeFails: true })
+    const { registry, closedTabs, detachedClosedTabs, offers, tabManager } = browser({ closeFails: true })
 
-    await expect(close(access as never)).rejects.toThrow('A tab could not close.')
+    await expect(close(tabManager as never)).rejects.toThrow('A tab could not close.')
 
     expect(registry.active.has('two')).toBe(true)
     expect(offers).toEqual([])
@@ -170,8 +176,8 @@ describe('Undo of archiving or closing a workspace', () => {
   })
 
   it('keeps forgotten the closed tabs whose history was cleared while Undo was on offer', async () => {
-    const { closedTabs, detachedClosedTabs, offers, access, forgetWorkspaceClosedTabs } = browser()
-    await archiveWorkspaceForPerson(access as never, 'two')
+    const { closedTabs, detachedClosedTabs, offers, tabManager, forgetWorkspaceClosedTabs } = browser()
+    await archiveWorkspaceForPerson(tabManager as never, 'two')
     forgetWorkspaceClosedTabs()
     // Clearing the history reaches the closed tabs held aside for Undo.
     for (const held of detachedClosedTabs) held.splice(held.findIndex((tab) => tab.id === 'newer-two'), 1)
@@ -183,8 +189,8 @@ describe('Undo of archiving or closing a workspace', () => {
   })
 
   it('lets go of the held closed tabs once Undo is no longer offered', async () => {
-    const { detachedClosedTabs, offers, access } = browser()
-    await archiveWorkspaceForPerson(access as never, 'two')
+    const { detachedClosedTabs, offers, tabManager } = browser()
+    await archiveWorkspaceForPerson(tabManager as never, 'two')
     expect(detachedClosedTabs.size).toBe(1)
 
     await offers[0]!.finalize!()

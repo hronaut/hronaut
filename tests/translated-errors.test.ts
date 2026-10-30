@@ -90,6 +90,7 @@ const homeTab = { id: 'home', url: 'hronaut://home/', pinned: false, nativeInput
 const websiteTab = { id: 'site', url: 'https://example.test/', pinned: false, nativeInputEnvironmentGeneration: 0 }
 const manager = (activeTabId: string | null) => Object.assign(Object.create(Browser.prototype), { tabs: new Map(), activeTabId }) as InstanceType<typeof Browser>
 const noWorkspaces = { mcpTabGroups: () => new Map(), savedTabGroups: () => new Map() }
+const browserWithoutWorkspaces = { mcpTabGroups: new Map(), savedTabGroups: new Map() }
 const labels = { initialized: true, destroyed: false, tabLabelAdmissionClosed: false, tabLabelLifecycleHolds: 0, pendingTabLabels: new Set() }
 // The denial is recorded in the workspace's audit; with its window gone, nothing is published.
 const restrictedWorkspace = {
@@ -150,7 +151,7 @@ describe('main-process failures people see in tabs, navigation and new tabs', ()
       'Bookmark URL must be an HTTP or HTTPS address within 4,096 encoded characters',
       'Адреса закладки має бути адресою HTTP або HTTPS довжиною до 4096 закодованих символів.'],
     // Selecting a tab
-    ['a tab whose renderer is gone', () => selectTabAndWait({ getTab: () => ({ ...websiteTab, webContents: destroyed }) } as never, 'site'),
+    ['a tab whose renderer is gone', () => selectTabAndWait({ tabs: new Map([['site', { ...websiteTab, webContents: destroyed }]]) } as never, 'site'),
       'This tab renderer is no longer available. Close the tab and reopen it from Recently closed.',
       'Ця вкладка більше не працює. Закрийте її та відкрийте знову в розділі «Нещодавно закриті».'],
     // New tabs
@@ -171,15 +172,15 @@ describe('main-process failures people see in tabs, navigation and new tabs', ()
       'Unknown workspace: workspace-id', 'Робочий простір більше недоступний.'],
     ['closing a workspace that just closed', () => closeMcpTabGroupInternal({ ...noWorkspaces, withTabLabelLifecycle: (run: () => unknown) => run() } as never, 'workspace-id'),
       'Unknown workspace: workspace-id.', 'Робочий простір більше недоступний.'],
-    ['closing a workspace with Undo that just closed', () => closeWorkspaceForPerson(noWorkspaces as never, 'workspace-id'),
+    ['closing a workspace with Undo that just closed', () => closeWorkspaceForPerson(browserWithoutWorkspaces as never, 'workspace-id'),
       'Unknown workspace: workspace-id.', 'Робочий простір більше недоступний.'],
     ['the menu of a workspace that just closed', () => Object.assign(Object.create(Browser.prototype), { mcpTabGroups: new Map() }).showWorkspaceContextMenu('workspace-id'),
       'Unknown workspace: workspace-id', 'Робочий простір більше недоступний.'],
     ['putting the tabs of a workspace that just closed to sleep', () => sleepWorkspaceTabs({ mcpTabGroups: new Map() } as never, 'workspace-id'),
       'Unknown workspace: workspace-id', 'Робочий простір більше недоступний.'],
-    ['the site data of a workspace that just closed', () => listWorkspaceStorageOrigins(noWorkspaces as never, 'workspace-id'),
+    ['the site data of a workspace that just closed', () => listWorkspaceStorageOrigins(browserWithoutWorkspaces as never, 'workspace-id'),
       'Unknown workspace: workspace-id.', 'Робочий простір більше недоступний.'],
-    ['the session of a workspace that just closed', () => workspaceSession(noWorkspaces as never, 'workspace-id'),
+    ['the session of a workspace that just closed', () => workspaceSession(browserWithoutWorkspaces as never, 'workspace-id'),
       'Unknown workspace: workspace-id.', 'Робочий простір більше недоступний.'],
     ['an operation on a workspace that just closed', () => withWorkspaceOperation(noWorkspaceOperations as never, 'workspace-id', 'clearing website data', async () => undefined),
       'Unknown workspace: workspace-id.', 'Робочий простір більше недоступний.'],
@@ -308,12 +309,13 @@ describe('main-process failures people see in page tools, workspace management a
     }).assertWorkspaceNameAvailable('Research'),
     'A workspace named "Research" already exists. Workspace names must be unique.',
     'Робочий простір із назвою «Research» уже існує. Назви робочих просторів мають бути унікальними.'],
-    ['closing a protected workspace with Undo', () => closeWorkspaceForPerson({ mcpTabGroups: () => new Map([['research', { ...research, deletionProtected: true }]]) } as never, 'research'),
+    ['closing a protected workspace with Undo', () => closeWorkspaceForPerson({ mcpTabGroups: new Map([['research', { ...research, deletionProtected: true }]]) } as never, 'research'),
       'Workspace "Research" is protected from deletion. Turn off deletion protection in workspace settings first.',
       'Робочий простір «Research» захищено від видалення. Спершу вимкніть захист від видалення в налаштуваннях робочого простору.'],
     ['deleting a protected archived workspace', () => deleteSavedTabGroup({
-      withSavedWorkspaceOperation: (_id: string, _action: string, run: () => unknown) => run(),
-      savedTabGroups: () => new Map([['saved', { ...archivedResearch, deletionProtected: true }]])
+      savedTabGroups: new Map([['saved', { ...archivedResearch, deletionProtected: true }]]),
+      savedWorkspaceOperations: new Map(),
+      pendingWorkspaceOperationPromises: new Set()
     } as never, 'saved'),
     'Workspace "Research" is protected from deletion. Turn off deletion protection in Home first.',
     'Робочий простір «Research» захищено від видалення. Спершу вимкніть захист від видалення в Домівці.'],
@@ -341,8 +343,8 @@ describe('main-process failures people see in page tools, workspace management a
     `Restoring "Research" would exceed the ${MAX_BROWSER_TABS}-tab limit.`,
     `Відновлення «Research» перевищить ліміт вкладок (${MAX_BROWSER_TABS}).`],
     ['moving data out of an open workspace', () => transferWorkspaceStorage({
-      mcpTabGroups: () => new Map([['research', research], ['work', { ...research, id: 'work', name: 'Work' }]]),
-      savedTabGroups: () => new Map(),
+      mcpTabGroups: new Map([['research', research], ['work', { ...research, id: 'work', name: 'Work' }]]),
+      savedTabGroups: new Map(),
       isClosingWorkspace: () => false
     } as never, { sourceWorkspaceId: 'research', targetWorkspaceId: 'work', mode: 'move' }),
     'Archive both workspaces before moving data, or choose Copy to keep their pages open.',

@@ -7,10 +7,16 @@ vi.mock('../src/main/browser/workspace-storage.js', async (original) => ({
   ...await original<typeof import('../src/main/browser/workspace-storage.js')>(),
   destroyWorkspaceStorage: vi.fn(async () => undefined)
 }))
-// The prototype-built browser below stubs getState, which closing tabs for the person returns through this.
+// The prototype-built browser below stubs getState, changed and focusTabOrTrustedChrome, which closing tabs for the
+// person returns, publishes and focuses through these.
 vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist),
   browserState: (browser: { getState: () => unknown }) => browser.getState()
+}))
+vi.mock('../src/main/browser/trusted-chrome-focus/trusted-chrome-focus.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/trusted-chrome-focus/trusted-chrome-focus.js')>(),
+  focusTabOrTrustedChrome: (browser: { focusTabOrTrustedChrome: (tab: unknown) => void }, tab: unknown) => browser.focusTabOrTrustedChrome(tab)
 }))
 import { Browser } from '../src/main/browser/browser.js'
 import { MAX_TABS, TabStateStore, type PersistedBrowserState } from '../src/main/browser/tab-store.js'

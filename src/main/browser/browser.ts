@@ -130,7 +130,6 @@ import {
 } from './workspace-continuity/workspace-continuity.js'
 import type { AgentStepThumbnailImage } from '../mcp/agent-presence.js'
 import type { WorkspaceContinuityResult } from '../mcp/workspace-continuity.js'
-import type { WorkspaceDataAccess } from './workspace-data/workspace-data-access.js'
 import {
   listWorkspaceStorageOrigins,
   transferWorkspaceStorage,
@@ -255,9 +254,8 @@ import type {
 import { closeSplitView, openSplitView, openSplitViewAndWait, updateSplitView } from './split-view/split-view.js'
 import { getSplitDivider, layout, roundPageCorners } from './window-layout/window-layout.js'
 import { contentAreaBounds, pageArea, setContentInsets, setToolbarHeight, shownPageFullscreenTab } from './window-layout/content-area.js'
-import { attachPageFullscreenEvents, exitPageFullscreen, exitPageFullscreenCovering, watchWindowFullScreen, windowFullScreenToSave } from './page-fullscreen/page-fullscreen.js'
-import type { BrowserTabSelectionOptions, TabSelectionAccess } from './tab-selection/tab-selection-access.js'
-import { selectAgentTabAndWait, selectTab, selectTabAndWait } from './tab-selection/tab-selection.js'
+import { attachPageFullscreenEvents, exitPageFullscreen, watchWindowFullScreen, windowFullScreenToSave } from './page-fullscreen/page-fullscreen.js'
+import { selectAgentTabAndWait, selectTab, selectTabAndWait, type BrowserTabSelectionOptions } from './tab-selection/tab-selection.js'
 import { EMULATION_FRAME_CAPTION_SPACE, emulatedViewBounds, type EmulationFrameGeometry } from '../../shared/emulation-frame.js'
 import type { PageCardGeometry } from '../../shared/page-card.js'
 import { getEmulationFrames, getPageCards } from './page-geometry/page-geometry.js'
@@ -417,15 +415,13 @@ import {
   type WorkspaceOperationAction,
   withGlobalWorkspaceStorageOperation,
   withSavedWorkspaceOperation,
-  withWorkspaceOperation,
-  withWorkspaceStorageOperation
+  withWorkspaceOperation
 } from './workspace-operations/workspace-operations.js'
 import { OpenedTabObservation, type TabsOpenedDuringClick } from './click-opened-tabs.js'
 import { hasAgentPauseExceptions, isTabAgentPaused, isTabTakenOver, setAllAgentsPaused, setTabAgentPaused } from './agent-pause/agent-pause.js'
 import { setAllHumanInteractionLocked, setTabHumanInteractionLocked } from './interaction-lock/interaction-lock.js'
 import {
   detachDialogMonitoring,
-  dismissWebsiteDialogForTrustedChrome,
   ensureDialogMonitoring,
   handleDialog,
   withOptionalDialogHandling
@@ -481,14 +477,12 @@ import { setAllTabsMuted, setTabMuted } from './tab-muting/tab-muting.js'
 import { applySiteMuting, applySiteMutingToTabs, setSiteMuted, type SiteSoundStore } from './site-muting/site-muting.js'
 import { captureAgentStepThumbnail } from './agent-step-thumbnail/agent-step-thumbnail.js'
 import { cancelFocusAfterTrustedChrome, focusTabOrTrustedChrome, withholdFocusAfterTrustedChrome, type PendingTrustedChromeFocus } from './trusted-chrome-focus/trusted-chrome-focus.js'
-import type { TrustedChromeOcclusionAccess } from './trusted-chrome-occlusion/trusted-chrome-occlusion-access.js'
 import { occlusionLayout, occlusionSnapshotPanes, setBrowserContentOccluded, setFollowAgentActivitySuspended } from './trusted-chrome-occlusion/trusted-chrome-occlusion.js'
 import { handleMcpTabActivity, publishAgentFollowChange, publishedAgentFollow, retainAgentFollow, setFollowAgentActivity } from './agent-follow/agent-follow.js'
 import { selectTabPassively } from './agent-follow/passive-selection.js'
 import { syncHumanInteractionInputGuard } from './interaction-lock/human-input-guard.js'
 import type { UndoableAction } from '../undo-offers.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../shared/undo.js'
-import type { WorkspaceArchiveAccess } from './workspace-archive/workspace-archive-access.js'
 import {
   archiveWorkspaceForPerson,
   closeWorkspaceForPerson,
@@ -739,7 +733,7 @@ export class Browser {
   }
 
   /** Forgets a workspace deleted with its data: its continuity, and its downloads in the history kept for the next start. */
-  private retireWorkspaceContinuity(workspaceId: string): void {
+  retireWorkspaceContinuity(workspaceId: string): void {
     retireWorkspaceContinuity(this.workspaceContinuityAccess(), workspaceId)
     this.downloadController.forgetWorkspace(workspaceId)
   }
@@ -1182,8 +1176,8 @@ export class Browser {
   readonly nativePreviewCapture = new NativePreviewCapture(TAB_OVERVIEW_CAPTURE_TIMEOUT_MS)
   readonly shellHeldKeys: Set<string>
   readonly occlusionSnapshot = new OcclusionSnapshot({
-    panes: () => this.occlusionSnapshotPanes(),
-    layout: () => this.occlusionLayout(),
+    panes: () => occlusionSnapshotPanes(this),
+    layout: () => occlusionLayout(this),
     cssScale: () => this.window.webContents.getZoomFactor?.() ?? 1,
     deviceScale: () => screen.getDisplayMatching(this.window.getBounds()).scaleFactor,
     send: (snapshot) => {
@@ -1619,59 +1613,33 @@ export class Browser {
     return this.getState()
   }
 
-  /**
-   * The narrow view workspace data gets of this manager's private open and
-   * archived workspaces, workspace operations, cookie import sessions,
-   * options and state publication. It is a prototype method rather than a
-   * field, so managers created without the constructor (as unit tests do)
-   * still provide it. The delegates below return the feature's value or
-   * promise directly, so callers see the same ticks as before.
-   */
-  private workspaceDataAccess(): WorkspaceDataAccess {
-    return {
-      mcpTabGroups: () => this.mcpTabGroups,
-      savedTabGroups: () => this.savedTabGroups,
-      isClosingWorkspace: (workspaceId) => this.isClosingWorkspace(workspaceId),
-      options: () => this.options,
-      workspaceStorageOperation: () => this.workspaceStorageOperation,
-      workspaceOperations: () => this.workspaceOperations,
-      savedWorkspaceOperations: () => this.savedWorkspaceOperations,
-      withWorkspaceOperation: (workspaceId, action, operation, blocksNewTabs) => this.withWorkspaceOperation(workspaceId, action, operation, blocksNewTabs),
-      withSavedWorkspaceOperation: (savedWorkspaceId, action, operation) => this.withSavedWorkspaceOperation(savedWorkspaceId, action, operation),
-      withGlobalWorkspaceStorageOperation: (action, operation) => this.withGlobalWorkspaceStorageOperation(action, operation),
-      withWorkspaceStorageOperation: (workspaceId, action, operation, blocksNewTabs) => this.withWorkspaceStorageOperation(workspaceId, action, operation, blocksNewTabs),
-      browserCookieImportSessions: () => this.browserCookieImportSessions,
-      changed: (persist) => this.changed(persist)
-    }
-  }
-
   browserImportDestination(id: string): ImportDestination {
-    return browserImportDestination(this.workspaceDataAccess(), id)
+    return browserImportDestination(this, id)
   }
 
   importBrowserCookies(destination: ImportDestination, cookies: Cookie[]) {
-    return importBrowserCookies(this.workspaceDataAccess(), destination, cookies)
+    return importBrowserCookies(this, destination, cookies)
   }
 
   listWorkspaceStorageOrigins(workspaceId: string): string[] {
-    return listWorkspaceStorageOrigins(this.workspaceDataAccess(), workspaceId)
+    return listWorkspaceStorageOrigins(this, workspaceId)
   }
 
   workspaceSession(workspaceId: string): Session {
-    return workspaceSession(this.workspaceDataAccess(), workspaceId)
+    return workspaceSession(this, workspaceId)
   }
 
   withWorkspaceSiteDataCleanup<T>(
     workspaceId: string,
     operation: (browserSession: Session) => Promise<T>
   ): Promise<T> {
-    return withWorkspaceSiteDataCleanup(this.workspaceDataAccess(), workspaceId, operation)
+    return withWorkspaceSiteDataCleanup(this, workspaceId, operation)
   }
 
   transferWorkspaceStorage(
     options: BrowserWorkspaceStorageTransferOptions
   ): Promise<BrowserWorkspaceStorageTransferResult> {
-    return transferWorkspaceStorage(this.workspaceDataAccess(), options)
+    return transferWorkspaceStorage(this, options)
   }
 
   requireTabInMcpGroup(groupId: string, tabId?: string, preserveSelection = false): string {
@@ -1715,75 +1683,40 @@ export class Browser {
     return closeMcpTabGroupInternal(this.mcpTabGroupsAccess(), groupId, preserveStorage)
   }
 
-  /**
-   * The narrow view archiving and closing workspaces for the person get of
-   * this manager's private open and archived workspaces, workspace registry,
-   * workspace operations, workspace closing with Undo, options, tab label
-   * edits, storage deletion check, workspace continuity, session store and
-   * state publication. It is a prototype method rather than a field, so
-   * managers created without the constructor (as unit tests do) still provide
-   * it. The delegates below return the feature's value or promise directly,
-   * so callers see the same ticks as before.
-   */
-  private workspaceArchiveAccess(): WorkspaceArchiveAccess {
-    return {
-      mcpTabGroups: () => this.mcpTabGroups,
-      savedTabGroups: () => this.savedTabGroups,
-      savedWorkspaceOperations: () => this.savedWorkspaceOperations,
-      closingWorkspace: () => this.closingWorkspace,
-      setClosingWorkspace: (closing) => { this.closingWorkspace = closing },
-      options: () => this.options,
-      closedTabs: () => this.closedTabs,
-      detachedClosedTabs: () => this.detachedClosedTabs,
-      workspaceRegistry: () => this.workspaceRegistry,
-      withTabLabelLifecycle: (run) => withTabLabelLifecycle(this, run),
-      withSavedWorkspaceOperation: (savedWorkspaceId, action, operation) => this.withSavedWorkspaceOperation(savedWorkspaceId, action, operation),
-      assertStorageDeletionOwnership: (workspaceId, storageId) => this.assertStorageDeletionOwnership(workspaceId, storageId),
-      downloadsEnd: (browserSession) => this.downloadController.downloadsEnd(browserSession),
-      deletedWorkspaceStorageIds: () => this.deletedWorkspaceStorageIds,
-      retireWorkspaceContinuity: (workspaceId) => this.retireWorkspaceContinuity(workspaceId),
-      store: () => this.store,
-      persistedState: () => this.persistedState(),
-      listSavedTabGroups: () => this.listSavedTabGroups(),
-      changed: (persist) => this.changed(persist),
-      getState: () => this.getState()
-    }
-  }
-
   saveAndCloseTabGroup(groupId: string): Promise<BrowserSavedTabGroupState> {
-    return saveAndCloseTabGroup(this.workspaceArchiveAccess(), groupId)
+    return saveAndCloseTabGroup(this, groupId)
   }
 
   archiveWorkspaceForPerson(groupId: string): Promise<BrowserSavedTabGroupState> {
-    return archiveWorkspaceForPerson(this.workspaceArchiveAccess(), groupId)
+    return archiveWorkspaceForPerson(this, groupId)
   }
 
   isClosingWorkspace(workspaceId: string): boolean {
-    return isClosingWorkspace(this.workspaceArchiveAccess(), workspaceId)
+    return isClosingWorkspace(this, workspaceId)
   }
 
   closeWorkspaceForPerson(groupId: string): Promise<BrowserState> {
-    return closeWorkspaceForPerson(this.workspaceArchiveAccess(), groupId)
+    return closeWorkspaceForPerson(this, groupId)
   }
 
   restoreSavedTabGroup(savedGroupId: string): Promise<BrowserTabGroupState> {
-    return restoreSavedTabGroup(this.workspaceArchiveAccess(), savedGroupId)
+    return restoreSavedTabGroup(this, savedGroupId)
   }
 
   /** Restores an archived workspace for an agent without showing it, as an agent's other calls leave the window as it is. */
   restoreSavedTabGroupForAgent(savedGroupId: string): Promise<BrowserTabGroupState> {
-    return restoreSavedTabGroup(this.workspaceArchiveAccess(), savedGroupId, { show: false })
+    return restoreSavedTabGroup(this, savedGroupId, { show: false })
   }
 
   updateArchivedWorkspacePreferences(workspaceId: string, updates: { hiddenFromSidebar?: boolean; deletionProtected?: boolean }): void {
-    updateArchivedWorkspacePreferences(this.workspaceArchiveAccess(), workspaceId, updates)
+    updateArchivedWorkspacePreferences(this, workspaceId, updates)
   }
 
   deleteSavedTabGroup(savedGroupId: string): Promise<BrowserSavedTabGroupState[]> {
-    return deleteSavedTabGroup(this.workspaceArchiveAccess(), savedGroupId)
+    return deleteSavedTabGroup(this, savedGroupId)
   }
 
-  private async assertStorageDeletionOwnership(workspaceId: string, storageId: string): Promise<void> {
+  async assertStorageDeletionOwnership(workspaceId: string, storageId: string): Promise<void> {
     const canonical = canonicalStorageId(storageId)
     if (this.workspaceStorageCleanupBlocked || !canonical || [...this.mcpTabGroups.values(), ...this.savedTabGroups.values()]
       .some(group => group.id !== workspaceId && canonicalStorageId(group.storageId) === canonical)) {
@@ -2081,40 +2014,8 @@ export class Browser {
     this.options.askWhereToSaveDownloads = askWhereToSaveDownloads
   }
 
-  /**
-   * The narrow view selecting a tab gets of this manager's private tabs,
-   * selection generation, active tab, split view, window, pages in full
-   * screen, tab waking, workspace activation, layout, focus and state
-   * publication. It is a prototype method rather than a field, so managers
-   * created without the constructor (as unit tests do) still provide it. The
-   * delegates below return the feature's value or promise directly, so
-   * callers see the same ticks as before.
-   */
-  private tabSelectionAccess(): TabSelectionAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      findTab: (tabId) => this.tabs.get(tabId),
-      tabSelectionGeneration: () => this.tabSelectionGeneration,
-      writeTabSelectionGeneration: (generation) => { this.tabSelectionGeneration = generation },
-      activeTabId: () => this.activeTabId,
-      writeActiveTabId: (tabId) => this.writeActiveTabId(tabId),
-      splitView: () => this.splitView,
-      writeSplitView: (splitView) => { this.splitView = splitView },
-      splitViewContains: (tabId) => this.splitViewContains(tabId),
-      window: () => this.window,
-      exitPageFullscreenCovering: (tabId) => exitPageFullscreenCovering(this, tabId),
-      wakeTab: (tabId) => this.wakeTab(tabId),
-      workspaceActiveTabId: (tab) => tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId)?.activeTabId : undefined,
-      markTabActiveInGroup: (tab) => this.markTabActiveInGroup(tab),
-      layout: () => this.layout(),
-      focusTabOrTrustedChrome: (tab) => this.focusTabOrTrustedChrome(tab),
-      changed: (persist) => this.changed(persist),
-      getState: () => this.getState()
-    }
-  }
-
   selectTabAndWait(tabId: string, options: BrowserTabSelectionOptions = {}): Promise<BrowserState> {
-    return selectTabAndWait(this.tabSelectionAccess(), tabId, options)
+    return selectTabAndWait(this, tabId, options)
   }
 
   /**
@@ -2131,11 +2032,11 @@ export class Browser {
   }
 
   selectAgentTabAndWait(tabId: string): Promise<BrowserState> {
-    return selectAgentTabAndWait(this.tabSelectionAccess(), tabId)
+    return selectAgentTabAndWait(this, tabId)
   }
 
   selectTab(tabId: string, options: BrowserTabSelectionOptions = {}): BrowserState {
-    return selectTab(this.tabSelectionAccess(), tabId, options)
+    return selectTab(this, tabId, options)
   }
 
   private selectTabPassively(tabId: string): boolean {
@@ -3409,46 +3310,8 @@ export class Browser {
     setContentInsets(this, insets)
   }
 
-  /**
-   * The narrow view covering the pages with trusted chrome, the still image
-   * of them and suspending agent following get of this manager's private
-   * tabs, window, active tab, split view, occlusion and its suspension of
-   * following, previewable tabs, page geometry, MCP activity follower,
-   * website dialogs, occlusion snapshot, native frame capture, layout and
-   * focus. It is a prototype method rather than a field, so managers created
-   * without the constructor (as unit tests do) still provide it, and the
-   * layout they stub is reached through it.
-   */
-  private trustedChromeOcclusionAccess(): TrustedChromeOcclusionAccess<BrowserTab> {
-    return {
-      isDestroyed: () => this.destroyed,
-      window: () => this.window,
-      tabs: () => this.tabs.values(),
-      findTab: (tabId) => this.tabs.get(tabId),
-      activeTabId: () => this.activeTabId,
-      splitView: () => this.splitView,
-      splitViewContains: (tabId) => this.splitViewContains(tabId),
-      browserContentOccluded: () => this.browserContentOccluded,
-      writeBrowserContentOccluded: (occluded) => { this.browserContentOccluded = occluded },
-      followAgentActivitySuspended: () => this.followAgentActivitySuspended,
-      writeFollowAgentActivitySuspended: (suspended) => { this.followAgentActivitySuspended = suspended },
-      tabOverviewPreviewableTabs: () => this.tabOverviewPreviewableTabs,
-      getEmulationFrames: () => this.getEmulationFrames(),
-      getPageCards: () => this.getPageCards(),
-      writeOccludedEmulationFrames: (frames) => { this.occludedEmulationFrames = frames },
-      writeOccludedPageCards: (cards) => { this.occludedPageCards = cards },
-      mcpActivityFollower: () => this.mcpActivityFollower,
-      dismissWebsiteDialogForTrustedChrome: (tab) => this.dismissWebsiteDialogForTrustedChrome(tab),
-      occlusionSnapshot: () => this.occlusionSnapshot,
-      nativePreviewCapture: () => this.nativePreviewCapture,
-      layout: () => this.layout(),
-      cancelFocusAfterTrustedChrome: () => this.cancelFocusAfterTrustedChrome(),
-      focusTabOrTrustedChrome: (tab) => this.focusTabOrTrustedChrome(tab)
-    }
-  }
-
   setBrowserContentOccluded(occluded: boolean, request: number): void {
-    setBrowserContentOccluded(this.trustedChromeOcclusionAccess(), occluded, request)
+    setBrowserContentOccluded(this, occluded, request)
   }
 
   private cancelFocusAfterTrustedChrome(): BrowserTab | undefined {
@@ -3460,18 +3323,8 @@ export class Browser {
     this.occlusionSnapshot.present(id)
   }
 
-  /** Pages on screen now, at their current view bounds, that can be captured for the occlusion snapshot. */
-  private occlusionSnapshotPanes(): Array<{ contents: Electron.WebContents; bounds: Rectangle; busy?: Promise<void> }> {
-    return occlusionSnapshotPanes(this.trustedChromeOcclusionAccess())
-  }
-
-  /** What decides where the occluded pages are. */
-  private occlusionLayout(): string {
-    return occlusionLayout(this.trustedChromeOcclusionAccess())
-  }
-
   setFollowAgentActivitySuspended(suspended: boolean): void {
-    setFollowAgentActivitySuspended(this.trustedChromeOcclusionAccess(), suspended)
+    setFollowAgentActivitySuspended(this, suspended)
   }
 
   /** Where pages show, below the toolbar and beside the tab rail, in window coordinates; null once the window is gone. */
@@ -3992,15 +3845,6 @@ export class Browser {
     return withSavedWorkspaceOperation(this, savedWorkspaceId, action, operation)
   }
 
-  private withWorkspaceStorageOperation<T>(
-    workspaceId: string,
-    action: OpenWorkspaceOperationAction,
-    operation: () => Promise<T>,
-    blocksNewTabs?: boolean
-  ): Promise<T> {
-    return withWorkspaceStorageOperation(this, workspaceId, action, operation, blocksNewTabs)
-  }
-
   private withGlobalWorkspaceStorageOperation<T>(
     action: WorkspaceOperationAction,
     operation: () => Promise<T>
@@ -4222,10 +4066,6 @@ export class Browser {
 
   private detachDialogMonitoring(webContents: BrowserTab['view']['webContents']): void {
     detachDialogMonitoring(this, webContents)
-  }
-
-  private dismissWebsiteDialogForTrustedChrome(tab: BrowserTab): Promise<void> {
-    return dismissWebsiteDialogForTrustedChrome(this, tab)
   }
 
   private ensureDialogMonitoring(tab: BrowserTab): Promise<void> {

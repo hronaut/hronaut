@@ -136,19 +136,20 @@ describe('workspace archive limit', () => {
   it('tells a person closing with Undo to delete an archive when another workspace took the last place meanwhile', async () => {
     const { registry, open, finishAllClosing } = harness(MAX_ARCHIVED_WORKSPACES - 1)
     open('agent'); open('person')
-    const access = {
-      mcpTabGroups: () => new Map([['person', { id: 'person', name: 'Client work', deletionProtected: false }]]),
-      options: () => ({ endUndo: async () => undefined, offerUndo: vi.fn() }),
-      savedTabGroups: () => registry.archived,
-      closedTabs: () => [],
-      detachedClosedTabs: () => new Set(),
-      withTabLabelLifecycle: (run: () => Promise<unknown>) => run(),
-      workspaceRegistry: () => registry
+    const tabManager = {
+      mcpTabGroups: new Map([['person', { id: 'person', name: 'Client work', deletionProtected: false }]]),
+      options: { endUndo: async () => undefined, offerUndo: vi.fn() },
+      savedTabGroups: registry.archived,
+      closedTabs: [],
+      detachedClosedTabs: new Set(),
+      tabLabelLifecycleHolds: 0,
+      pendingTabLabels: new Set(),
+      workspaceRegistry: registry
     }
 
     // An agent's archive is still closing its tabs when the person closes another workspace with Undo.
     const agentArchive = registry.archive('agent')
-    const personClose = Promise.allSettled([closeWorkspaceForPerson(access as never, 'person')])
+    const personClose = Promise.allSettled([closeWorkspaceForPerson(tabManager as never, 'person')])
     await finishAllClosing()
     await agentArchive
     const [closed] = await personClose
