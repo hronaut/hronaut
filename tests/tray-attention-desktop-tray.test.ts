@@ -2,7 +2,13 @@ import { afterEach, expect, it, vi } from 'vitest'
 
 /** The tray icons Hronaut created, in order, and the watch for the desktop's tray. */
 const { trays, failing, watchStatusNotifierWatcher } = vi.hoisted(() => ({
-  trays: [] as Array<{ destroyed: boolean; image: unknown; setImage: (image: unknown) => void }>,
+  trays: [] as Array<{
+    destroyed: boolean
+    image: unknown
+    setToolTip: (text: string) => void
+    setContextMenu: (menu: unknown) => void
+    on: (event: string, listener: () => void) => void
+  }>,
   failing: { tray: false },
   watchStatusNotifierWatcher: vi.fn<(onTrayStarted: () => void) => () => void>(() => () => undefined)
 }))
@@ -63,7 +69,12 @@ it('creates the tray icon again on Linux each time the desktop’s tray starts',
   const trayStarted = watchStatusNotifierWatcher.mock.calls[0]![0]
   trayStarted()
   expect(trays.map((tray) => tray.destroyed)).toEqual([true, false])
+  // The new icon has the tooltip, menu and clicks the first one had.
   expect(trays[1]).toMatchObject({ image: { path: '/icons/tray.png' } })
+  expect(trays[1]!.setToolTip).toHaveBeenCalledWith('Hronaut')
+  expect(trays[1]!.setContextMenu).toHaveBeenCalledOnce()
+  expect(vi.mocked(trays[1]!.on).mock.calls.map(([event]) => event)).toEqual(vi.mocked(trays[0]!.on).mock.calls.map(([event]) => event))
+  expect(vi.mocked(trays[1]!.on).mock.calls.length).toBeGreaterThan(0)
   trayStarted()
   expect(trays.map((tray) => tray.destroyed)).toEqual([true, true, false])
   expect(watchStatusNotifierWatcher).toHaveBeenCalledOnce()

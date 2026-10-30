@@ -1,22 +1,34 @@
 import { connect } from 'node:net'
 
-/** The session bus name a desktop's tray takes, through which tray icons register with it. */
+/** The session bus name a desktop's tray takes, through which tray icons register with it, and its object. */
 const WATCHER_NAME = 'org.kde.StatusNotifierWatcher'
+const WATCHER_PATH = '/StatusNotifierWatcher'
 const BUS_NAME = 'org.freedesktop.DBus'
 const BUS_PATH = '/org/freedesktop/DBus'
-/** The bus tells us only when the tray's name changes owner. */
-const MATCH_RULE = `type='signal',sender='${BUS_NAME}',interface='${BUS_NAME}',member='NameOwnerChanged',arg0='${WATCHER_NAME}'`
+/**
+ * The bus tells us only when the tray's name changes owner, and when the tray says the part of the desktop that shows
+ * its icons registered, which on KDE Plasma can come after its name.
+ */
+const MATCH_RULES = [
+  `type='signal',sender='${BUS_NAME}',interface='${BUS_NAME}',member='NameOwnerChanged',arg0='${WATCHER_NAME}'`,
+  `type='signal',sender='${WATCHER_NAME}',interface='${WATCHER_NAME}',path='${WATCHER_PATH}',member='StatusNotifierHostRegistered'`
+]
+/** Signals that come this close together, such as a tray taking its name and registering its host, are one start. */
+const SETTLE_MS = 250
 /** A message from the bus larger than this ends the watch; the signals it sends are a few hundred bytes. */
 const MAX_MESSAGE_BYTES = 64 * 1024
 const METHOD_CALL = 1
 const SIGNAL = 4
+/** The header fields the watch reads, by their D-Bus field codes. */
+const STRING_FIELDS: Partial<Record<number, 'path' | 'interface' | 'member' | 'sender'>> = { 1: 'path', 2: 'interface', 3: 'member', 7: 'sender' }
 
 /**
  * Calls `onTrayStarted` each time a desktop's tray starts, as a StatusNotifierWatcher taking its name on the session
- * bus, such as a panel that starts after Hronaut opened at login, or one restarting. Chromium places Hronaut's tray
- * icon in the desktop's tray only if one runs when the icon is created, and otherwise in an older kind of tray that
- * current desktops no longer show, so the icon has to be created again then. The watch only reads the bus: it sends
- * the bus's Hello and asks it for this one signal. It ends quietly when the bus is unavailable, and on `stop`.
+ * bus or registering the host that shows its icons, such as a panel that starts after Hronaut opened at login, or one
+ * restarting. Chromium places Hronaut's tray icon in the desktop's tray only if both are there when the icon is
+ * created, and otherwise in an older kind of tray that current desktops no longer show, so the icon has to be created
+ * again then. The watch only reads the bus: it sends the bus's Hello and asks it for these two signals. It ends when
+ * the bus is unavailable or refuses it, with a warning, and quietly on anything else it cannot read, and on `stop`.
  */
 export function watchStatusNotifierWatcher(onTrayStarted: () => void, options: {
   address?: string | undefined
@@ -28,14 +40,30 @@ export function watchStatusNotifierWatcher(onTrayStarted: () => void, options: {
   const socket = connect({ path })
   socket.unref()
   let stopped = false
+  let settling: ReturnType<typeof setTimeout> | undefined
   const stop = (): void => {
     stopped = true
+    clearTimeout(settling)
     socket.destroy()
   }
-  socket.on('error', (error) => {
-    if (!stopped) console.warn('[tray] Could not follow the desktop tray on the session bus:', error.message)
+  const warn = (reason: string): void => {
+    if (!stopped) console.warn('[tray] Could not follow the desktop tray on the session bus:', reason)
     stop()
-  })
+  }
+  socket.on('error', (error) => warn(error.message))
+  const trayStarted = (): void => {
+    if (settling) return
+    settling = setTimeout(() => {
+      settling = undefined
+      if (stopped) return
+      try {
+        onTrayStarted()
+      } catch (error) {
+        console.error('[tray] Could not show the tray icon in the desktop tray:', error)
+      }
+    }, SETTLE_MS)
+    settling.unref()
+  }
   // The bus authenticates the connection as the user who opened it, from the socket's credentials.
   socket.write(`\0AUTH EXTERNAL ${Buffer.from(String(uid)).toString('hex')}\r\n`)
   let authenticated = false
@@ -49,7 +77,7 @@ export function watchStatusNotifierWatcher(onTrayStarted: () => void, options: {
         return
       }
       if (!received.subarray(0, lineEnd).toString('latin1').startsWith('OK ')) {
-        stop()
+        warn('the bus refused the connection')
         return
       }
       authenticated = true
@@ -57,7 +85,7 @@ export function watchStatusNotifierWatcher(onTrayStarted: () => void, options: {
       socket.write(Buffer.concat([
         Buffer.from('BEGIN\r\n'),
         methodCall(1, 'Hello', []),
-        methodCall(2, 'AddMatch', [MATCH_RULE])
+        ...MATCH_RULES.map((rule, index) => methodCall(2 + index, 'AddMatch', [rule]))
       ]))
     }
     for (;;) {
@@ -68,10 +96,13 @@ export function watchStatusNotifierWatcher(onTrayStarted: () => void, options: {
       }
       if (!message) return
       received = received.subarray(message.length)
-      if (message.type === SIGNAL && message.member === 'NameOwnerChanged' && message.args[0] === WATCHER_NAME && message.args[2]) {
-        onTrayStarted()
-      }
-      if (stopped) return
+      if (message.type !== SIGNAL) continue
+      // The bus itself sends the change of owner; another program on the bus could only send it to Hronaut alone.
+      const named = message.member === 'NameOwnerChanged' && message.sender === BUS_NAME && message.interface === BUS_NAME
+        && message.args[0] === WATCHER_NAME && Boolean(message.args[2])
+      const hostRegistered = message.member === 'StatusNotifierHostRegistered' && message.interface === WATCHER_NAME
+        && message.path === WATCHER_PATH
+      if (named || hostRegistered) trayStarted()
     }
   })
   return stop
@@ -167,11 +198,22 @@ class WireWriter {
   }
 }
 
+/** A message from the bus: its length in bytes, type, the header fields the watch reads and its string arguments. */
+interface BusMessage {
+  length: number
+  type: number
+  path?: string
+  interface?: string
+  member?: string
+  sender?: string
+  args: string[]
+}
+
 /**
  * The first whole message in `data`: its length, type, member and string arguments. Undefined while more bytes are
  * needed, and 'invalid' for bytes that are not a D-Bus message or one too large.
  */
-function nextMessage(data: Buffer): { length: number; type: number; member?: string; args: string[] } | 'invalid' | undefined {
+function nextMessage(data: Buffer): BusMessage | 'invalid' | undefined {
   if (data.length < 16) return undefined
   const endian = String.fromCharCode(data[0]!)
   if (endian !== 'l' && endian !== 'B') return 'invalid'
@@ -184,7 +226,7 @@ function nextMessage(data: Buffer): { length: number; type: number; member?: str
   if (data.length < length) return undefined
   try {
     let offset = 16
-    let member: string | undefined
+    const fields: Partial<Record<'path' | 'interface' | 'member' | 'sender', string>> = {}
     let signature = ''
     const readString = (): string => {
       offset = align(offset, 4)
@@ -206,7 +248,8 @@ function nextMessage(data: Buffer): { length: number; type: number; member?: str
       const type = readSignature()
       if (type === 's' || type === 'o') {
         const value = readString()
-        if (code === 3) member = value
+        const name = STRING_FIELDS[code]
+        if (name) fields[name] = value
       } else if (type === 'g') {
         const value = readSignature()
         if (code === 8) signature = value
@@ -219,7 +262,7 @@ function nextMessage(data: Buffer): { length: number; type: number; member?: str
     const args: string[] = []
     offset = bodyStart
     if (/^s+$/.test(signature)) for (let index = 0; index < signature.length; index += 1) args.push(readString())
-    return { length, type: data[1]!, ...(member === undefined ? {} : { member }), args }
+    return { length, type: data[1]!, ...fields, args }
   } catch {
     return 'invalid'
   }
