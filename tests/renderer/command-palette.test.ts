@@ -78,7 +78,7 @@ describe('CommandPalette', () => {
 
   it('ignores pointer events caused by a live command-list reflow', async () => {
     let now = 1_000
-    const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => now)
+    const nowSpy = vi.spyOn(performance, 'now').mockImplementation(() => now)
     const view = render(CommandPalette, {
       global: { plugins: [createHronautI18n('en-US')] },
       props: {
@@ -100,14 +100,17 @@ describe('CommandPalette', () => {
     await fireEvent.pointerMove(history, { clientX: 41, clientY: 80 })
     expect(settings).toHaveAttribute('aria-selected', 'true')
     now += 151
+    // The guard counts on the monotonic clock, so a wall clock that steps back meanwhile does not extend it.
+    const wallClockSpy = vi.spyOn(Date, 'now').mockReturnValue(Date.now() - 3_600_000)
     await fireEvent.pointerMove(history, { clientX: 42, clientY: 80 })
     expect(history).toHaveAttribute('aria-selected', 'true')
+    wallClockSpy.mockRestore()
     nowSpy.mockRestore()
   })
 
   it('accepts the first intentional pointer move after opening over a recently changed list', async () => {
     const now = 1_000
-    const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => now)
+    const nowSpy = vi.spyOn(performance, 'now').mockImplementation(() => now)
     const view = render(CommandPalette, {
       global: { plugins: [createHronautI18n('en-US')] },
       props: {

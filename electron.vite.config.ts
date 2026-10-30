@@ -3,6 +3,7 @@ import { defineConfig } from 'electron-vite'
 import tailwindcss from '@tailwindcss/vite'
 import vue from '@vitejs/plugin-vue'
 import Icons from 'unplugin-icons/vite'
+import { vueMonotonicEventTime } from './scripts/vue-monotonic-event-time.ts'
 
 export default defineConfig({
   // electron-vite keeps main and preload dependencies external by default (build.externalizeDeps).
@@ -35,7 +36,7 @@ export default defineConfig({
         '@renderer': resolve('src/renderer/src')
       }
     },
-    plugins: [tailwindcss(), vue(), Icons({ compiler: 'vue3' })],
+    plugins: [tailwindcss(), vue(), Icons({ compiler: 'vue3' }), vueMonotonicEventTime()],
     build: {
       manifest: true,
       rolldownOptions: {

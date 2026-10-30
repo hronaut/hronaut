@@ -64,7 +64,7 @@ describe('CredentialPicker', () => {
 
   it('ignores pointer selection caused by a live credential-list reflow', async () => {
     let now = 1_000
-    const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => now)
+    const nowSpy = vi.spyOn(performance, 'now').mockImplementation(() => now)
     const bob = credential('bob', 'Bob')
     const view = render(CredentialPicker, {
       global: { plugins: [createHronautI18n('en-US')] },
@@ -84,14 +84,17 @@ describe('CredentialPicker', () => {
     await fireEvent.pointerMove(carolOption, { clientX: 42, clientY: 40 })
     expect(bobOption).toHaveAttribute('aria-selected', 'true')
     now += 151
+    // The guard counts on the monotonic clock, so a wall clock that steps back meanwhile does not extend it.
+    const wallClockSpy = vi.spyOn(Date, 'now').mockReturnValue(Date.now() - 3_600_000)
     await fireEvent.pointerMove(carolOption, { clientX: 43, clientY: 40 })
     expect(carolOption).toHaveAttribute('aria-selected', 'true')
+    wallClockSpy.mockRestore()
     nowSpy.mockRestore()
   })
 
   it('accepts the first pointer move after opening over recently loaded credentials', async () => {
     const now = 1_000
-    const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => now)
+    const nowSpy = vi.spyOn(performance, 'now').mockImplementation(() => now)
     const view = render(CredentialPicker, {
       global: { plugins: [createHronautI18n('en-US')] },
       props: {

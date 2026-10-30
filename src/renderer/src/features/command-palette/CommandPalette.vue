@@ -104,7 +104,7 @@ let pointerSelectionBlockedUntil = 0
 // a search shows them, move the list under a resting pointer.
 const entryKeys = computed(() => entries.value.map((entry) => entry.key).join('\u0000'))
 const stopWebsiteAvailabilityTracking = watch([websiteAvailable, agentActive, takeOverAvailable, entryKeys], () => {
-  pointerSelectionBlockedUntil = Date.now() + liveListPointerGuardMs
+  pointerSelectionBlockedUntil = performance.now() + liveListPointerGuardMs
 })
 const stopOpenTracking = watch(open, (isOpen) => {
   if (!isOpen) return
@@ -119,7 +119,7 @@ async function openPanel(): Promise<void> {
 }
 
 function selectFromPointer(event: PointerEvent, index: number): void {
-  if (Date.now() < pointerSelectionBlockedUntil) return
+  if (performance.now() < pointerSelectionBlockedUntil) return
   const position = { x: event.clientX, y: event.clientY }
   if (lastPointerPosition?.x === position.x && lastPointerPosition.y === position.y) return
   lastPointerPosition = position

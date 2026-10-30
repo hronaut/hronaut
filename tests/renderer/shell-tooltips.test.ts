@@ -98,6 +98,24 @@ describe('shell tooltips', () => {
     expect(port.showTooltip).toHaveBeenCalledTimes(2)
   })
 
+  it('waits for the delay again once warm has passed, also when the wall clock steps back', () => {
+    const port = tooltipPort()
+    uninstall = installShellTooltips(port).dispose
+    const first = control('Commands')
+    const second = control('Search tabs')
+
+    pointer('pointerover', first)
+    vi.advanceTimersByTime(SHELL_TOOLTIP_DELAY_MS)
+    pointer('pointerout', first, document.body)
+    vi.advanceTimersByTime(SHELL_TOOLTIP_WARM_MS)
+    // As a Linux clock kept in local time is corrected soon after login.
+    vi.setSystemTime(Date.now() - 3_600_000)
+    pointer('pointerover', second)
+    expect(port.showTooltip).toHaveBeenCalledTimes(1)
+    vi.advanceTimersByTime(SHELL_TOOLTIP_DELAY_MS)
+    expect(port.showTooltip).toHaveBeenLastCalledWith(expect.objectContaining({ id: 2, text: 'Search tabs' }))
+  })
+
   it('hides on a click and keeps the clicked control quiet until the pointer leaves it, also after a key press', () => {
     const port = tooltipPort()
     uninstall = installShellTooltips(port).dispose

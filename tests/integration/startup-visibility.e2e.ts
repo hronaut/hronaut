@@ -66,3 +66,26 @@ test('opens the window and the agents\' listener while secure storage waits to b
     if (instance) await closeHronaut(instance.app)
   }
 })
+
+test('keeps the shell\'s controls working after the wall clock steps back', async ({
+  profileDirectory,
+  mcpPort
+}) => {
+  let instance: Awaited<ReturnType<typeof launchHronaut>> | undefined
+  try {
+    instance = await launchHronaut(profileDirectory, mcpPort, 1, ['--launch-at-login'])
+    const { window } = instance
+    const settings = window.getByRole('button', { name: 'Settings' })
+    await expect(settings).toBeVisible()
+    // As a Linux clock kept in local time is corrected soon after login: the wall clock steps an hour back after the
+    // shell attached its listeners.
+    await window.evaluate(`(() => {
+      const wallClock = Date.now.bind(Date)
+      Date.now = () => wallClock() - 3_600_000
+    })()`)
+    await settings.click()
+    await expect(window.getByRole('tabpanel', { name: 'Settings' })).toBeVisible()
+  } finally {
+    if (instance) await closeHronaut(instance.app)
+  }
+})
