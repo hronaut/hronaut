@@ -6,6 +6,7 @@ vi.mock('../src/main/browser/tab-overview-previews/tab-overview-previews.js', as
   invalidateTabOverviewPreview: (browser: { invalidateTabOverviewPreview: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.invalidateTabOverviewPreview(...args)
 }))
 import { Browser } from '../src/main/browser/browser.js'
+import { removeTabRecord } from '../src/main/browser/tab-close/remove-tab-record.js'
 
 // When the tab a workspace remembered closed while another workspace was on screen, for example when an agent closed
 // it, the workspace remembered its first tab. Going back to the workspace showed that tab, and agent commands without
@@ -18,7 +19,6 @@ interface Tab {
 interface Internals {
   tabs: Map<string, Tab>
   mcpTabGroups: Map<string, { id: string; activeTabId: string | null; lastUsedAt: string }>
-  removeTabRecord(tab: Tab): void
 }
 
 const forgets = () => ({ forget: vi.fn() })
@@ -33,14 +33,14 @@ function fixture(tabs: Array<{ id: string; pinned?: boolean; destroyed?: boolean
     }])),
     cssStatePreview: forgets(), virtualPasskeys: forgets(), domMutationSource: forgets(), logpoints: forgets(), workerEvaluations: forgets(),
     invalidateTabOverviewPreview: vi.fn(), tabOverviewSleepPreviews: new Map(), tabOverviewPreviewCaptures: { cancelPending: vi.fn() },
-    tabOverviewPreviewableTabs: new Set(), runWalletLifecycleAction: vi.fn(), options: {}, deleteSnapshotBaselineForTab: vi.fn(),
+    tabOverviewPreviewableTabs: new Set(), runWalletLifecycleAction: vi.fn(), options: {}, snapshotBaselines: new Map(), snapshotBaselineIdsByTab: new Map(),
     globallyUnlockedTabIds: new Set(), globallyResumedAgentTabIds: new Set(), browserSessionAuthorityHooks: new Map(),
     mcpActivitiesByTab: new Map(), mcpActivityFollower: { removeTab: vi.fn() }, webContentsToTab: new Map()
   }) as unknown as Internals
 }
 
 function close(manager: Internals, id: string): string | null {
-  manager.removeTabRecord(manager.tabs.get(id)!)
+  removeTabRecord(manager as never, manager.tabs.get(id)! as never)
   return manager.mcpTabGroups.get('work')!.activeTabId
 }
 

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, Menu: {} }))
 import { Browser } from '../src/main/browser/browser.js'
+import { closeTabTransition } from '../src/main/browser/tab-close/close-transition.js'
 import { sleepFallbackTab } from '../src/main/browser/tab-sleep/tab-sleep.js'
 
 // Closing, or putting to sleep, the last tab of a workspace's row showed the first tab of the next workspace, though
@@ -11,7 +12,6 @@ interface Tab { id: string; url: string; pinned: boolean; sleeping: boolean; mcp
 interface Internals {
   activeTabId: string | null
   tabs: Map<string, Tab>
-  closeTabTransition(tab: Tab): { splitPartnerId: string | null; nextId: string | undefined }
 }
 
 function fixture(tabs: Array<{ id: string; mcpGroupId: string; sleeping?: boolean }>) {
@@ -28,7 +28,7 @@ function fixture(tabs: Array<{ id: string; mcpGroupId: string; sleeping?: boolea
 
 const nextAfterClosing = (manager: Internals, id: string) => {
   manager.activeTabId = id
-  return manager.closeTabTransition(manager.tabs.get(id)!).nextId
+  return closeTabTransition(manager as never, manager.tabs.get(id)! as never).nextId
 }
 
 const fallbackWhenSleeping = (manager: Internals, id: string) => (

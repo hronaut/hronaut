@@ -19,7 +19,6 @@ import { consoleMessages } from './console-messages/console-messages.js'
 import {
   getTabOverviewPagePreview,
   getTabOverviewPreviews,
-  invalidateTabOverviewPreview,
   performTabOverviewPreviewCapture,
   type TabOverviewPreviewCaptureRequest
 } from './tab-overview-previews/tab-overview-previews.js'
@@ -71,7 +70,6 @@ import {
   type BrowserElementPickerSession
 } from './element-picker/element-picker.js'
 import { cancelScreenshotArea, captureScreenshotArea, type BrowserScreenshotAreaSession } from './screenshot-area/screenshot-area.js'
-import { cancelNativeSelectionSessions } from './native-selections/native-selections.js'
 import { BrowserNetworkWaitController } from './network-wait-controller.js'
 import { PreviewCaptureQueue } from './preview-capture-queue.js'
 import { NativePreviewCapture } from './native-preview-capture.js'
@@ -181,7 +179,6 @@ import type { BrowserObservationQualityResult } from '../../shared/observation-q
 import {
   agentStepName,
   clearSnapshotBaseline,
-  deleteSnapshotBaselineForTab,
   findSnapshot,
   observationQuality,
   setSnapshotBaseline,
@@ -441,16 +438,14 @@ import { setMemorySaverSettings, sleepInactiveTabs, sweepMemorySaver } from './t
 import { BackgroundLoads } from './tab-sleep/background-loads.js'
 import { mainWorldContextId } from './debugger-evaluation/debugger-evaluation.js'
 import { withDebugger } from './debugger-lease/debugger-lease.js'
-import { attemptBeforeUnloadClose } from './tab-close/before-unload-close.js'
-import { stageBeforeUnloadClose } from './tab-close/before-unload-staging.js'
-import { closeTabAfterLabelSave } from './tab-close/close-tab.js'
+import { closeTab, closeTabs } from './tab-close/close-tab.js'
 import { saveTabLabel, withTabLabelLifecycle } from './tab-labels/tab-labels.js'
-import { duplicateTabAfterLabelSave, forgetClosedTabs, rememberClosedTab, rememberSavedClosedTabs, reopenClosedTabAfterLabelSave } from './tab-reopening/tab-reopening.js'
-import { forgetTabHistoryPages, holdTabHistory } from './tab-history-pages/forget-tab-history-pages.js'
+import { duplicateTabAfterLabelSave, forgetClosedTabs, rememberSavedClosedTabs, reopenClosedTabAfterLabelSave } from './tab-reopening/tab-reopening.js'
+import { forgetTabHistoryPages } from './tab-history-pages/forget-tab-history-pages.js'
 import { reorderTab, reorderTabs, setTabPinned } from './tab-arrangement/tab-arrangement.js'
 import { openDroppedLink } from './dropped-links/dropped-links.js'
 import { placeTabOpenedFromPage } from './link-tab-placement/link-tab-placement.js'
-import { forgetTabsOpenedFrom, handOverTabsOpenedFrom, switchLeavesOpenedTabs, tabAfterClosingLinkTab } from './link-tab-placement/link-tab-openers.js'
+import { forgetTabsOpenedFrom, switchLeavesOpenedTabs } from './link-tab-placement/link-tab-openers.js'
 import { sendWalletProviderEvent, walletPageContext, walletPageContextForMcpTab, type BrowserWalletPageContext } from './wallet-pages/wallet-pages.js'
 import { getMcpDiscoveryTabs, getMcpGroupState, requireTabInMcpGroup, tabBelongsToMcpGroup } from './workspace-scope/workspace-scope.js'
 import { createNewTab, newLabeledAgentTab } from './new-tabs/new-tabs.js'
@@ -1945,91 +1940,6 @@ export class Browser {
     return closeTabsForPerson(this, tabIds)
   }
 
-  private stageBeforeUnloadClose(tab: BrowserTab): {
-    targetDetached: boolean
-    cleanup: () => void
-    rollback: (focusPage: boolean) => void
-  } {
-    return stageBeforeUnloadClose(this, tab)
-  }
-
-  private attemptBeforeUnloadClose(webContents: WebContents): Promise<'closed' | 'prevented'> {
-    return attemptBeforeUnloadClose(webContents)
-  }
-
-  /** The split partner and the tab that becomes active when this tab closes. */
-  closeTabTransition(tab: BrowserTab): { splitPartnerId: string | null; nextId: string | undefined } {
-    const splitPartnerId = this.splitViewContains(tab.id)
-      ? (this.splitView!.firstTabId === tab.id ? this.splitView!.secondTabId : this.splitView!.firstTabId)
-      : null
-    const ordered = orderedTabs(this)
-    const ids = ordered.map((candidate) => candidate.id)
-    const index = ids.indexOf(tab.id)
-    // A website popup returns to the tab that opened it, as in Chrome, rather than to a tab of the next workspace.
-    const openerId = tab.openerTabId && this.tabs.has(tab.openerTabId) ? [tab.openerTabId] : []
-    // So does a new tab closed right away, to the tab the person was on.
-    const returnId = tab.returnsToTabId && this.tabs.get(tab.returnsToTabId)?.mcpGroupId === tab.mcpGroupId ? [tab.returnsToTabId] : []
-    // A tab opened from a page shows that page's next tab, or the page, as in Chrome.
-    const fromPage = tabAfterClosingLinkTab(ordered, tab, (candidate) => !candidate.webContents.isDestroyed())
-    const fromPageId = fromPage ? [fromPage.id] : []
-    const after = ids.slice(index + 1)
-    const before = ids.slice(0, index).reverse()
-    // A tab beside it in its own workspace comes first, as Chrome stays in a tab group, so closing the last tab of a
-    // workspace's row shows the one to its left rather than a tab of the next workspace.
-    const sameWorkspace = (candidateId: string) => this.tabs.get(candidateId)?.mcpGroupId === tab.mcpGroupId
-    const orderedCandidates = splitPartnerId
-      ? [splitPartnerId, ...ids]
-      : [...openerId, ...returnId, ...fromPageId, ...after.filter(sameWorkspace), ...before.filter(sameWorkspace), ...after, ...before]
-    const nextId = tab.id === this.activeTabId
-      ? orderedCandidates.find((candidateId) => {
-        const candidate = this.tabs.get(candidateId)
-        return candidate !== undefined && candidate.id !== tab.id && !candidate.webContents.isDestroyed()
-      })
-      : undefined
-    return { splitPartnerId, nextId }
-  }
-
-  /**
-   * Wakes the sleeping tab that replaces the shown tab before it closes. False
-   * when the close stops: the tab closed meanwhile, or the close yields to a
-   * tab selected while the replacement wakes, as the person's own close does.
-   * A close that does not yield, such as an agent's or a whole workspace's,
-   * still closes the tab, which needs no replacement once another tab shows.
-   */
-  private async prepareActiveCloseReplacement(tab: BrowserTab, yieldsToNewerSelection: boolean): Promise<boolean> {
-    if (tab.id !== this.activeTabId) return true
-    const selectionGeneration = this.tabSelectionGeneration
-    /** Whether the close stops, goes on with no replacement to wake, or still waits for the tab's replacement. */
-    const nextStep = (): 'stop' | 'close' | 'wake' => {
-      if (this.tabs.get(tab.id) !== tab) return 'stop'
-      if (this.activeTabId === tab.id && this.tabSelectionGeneration === selectionGeneration) return 'wake'
-      if (yieldsToNewerSelection) return 'stop'
-      return this.activeTabId === tab.id ? 'wake' : 'close'
-    }
-    while (true) {
-      const step = nextStep()
-      if (step !== 'wake') return step === 'close'
-      const transition = this.closeTabTransition(tab)
-      if (!transition.nextId) return true
-      const replacement = this.tabs.get(transition.nextId)
-      if (!replacement || (!replacement.sleeping && !replacement.wakePromise)) return true
-      try {
-        await this.wakeTab(replacement.id)
-      } catch (error) {
-        const stepAfterFailure = nextStep()
-        if (stepAfterFailure !== 'wake') return stepAfterFailure === 'close'
-        const currentReplacementId = this.closeTabTransition(tab).nextId
-        if (this.tabs.get(replacement.id) !== replacement || currentReplacementId !== replacement.id) {
-          continue
-        }
-        throw error
-      }
-      // Tab ordering and split membership can change while a sleeping page is
-      // restoring without changing the active selection. Recompute until the
-      // actual close successor is awake before committing irreversible state.
-    }
-  }
-
   /**
    * Closes a tab, opening a replacement when it was the last, letting its page ask to stay when respectBeforeUnload
    * is set, and keeping a shown tab open when yieldsToNewerSelection is set and another tab is selected while the tab
@@ -2041,169 +1951,7 @@ export class Browser {
     respectBeforeUnload = false,
     yieldsToNewerSelection = false
   ): Promise<BrowserState> {
-    return withTabLabelLifecycle(this, () => closeTabAfterLabelSave(this, tabId, ensureReplacement, respectBeforeUnload, yieldsToNewerSelection))
-  }
-
-  /** Closes the tab, opening a replacement when it was the last and ensureReplacement is set. */
-  async performCloseTab(
-    tabId: string,
-    ensureReplacement: boolean,
-    respectBeforeUnload: boolean,
-    forceClose: boolean,
-    yieldsToNewerSelection: boolean
-  ): Promise<BrowserState> {
-    const tab = getTab(this, tabId)
-    const webContents = tab.webContents
-    // A WebContentsView may be destroyed independently (renderer failure,
-    // devtools teardown, or an Electron close race). Purge those stale siblings
-    // before any child-view transition so they cannot poison selection/layout.
-    for (const candidate of [...this.tabs.values()]) {
-      if (candidate.id === tab.id || !candidate.webContents.isDestroyed()) continue
-      if (this.splitViewContains(candidate.id)) this.splitView = null
-      if (this.activeTabId === candidate.id) this.activeTabId = null
-      this.rememberClosedTab(candidate)
-      this.removeTabRecord(candidate)
-    }
-    if (!this.activeTabId) {
-      const replacement = orderedTabs(this).find(candidate => (
-        candidate.id !== tab.id && !candidate.webContents.isDestroyed()
-      ))
-      if (replacement) this.selectTab(replacement.id)
-      else if (!webContents.isDestroyed()) this.selectTab(tab.id)
-    }
-    if (!(await this.prepareActiveCloseReplacement(tab, yieldsToNewerSelection))) return this.getState()
-    if (this.tabs.get(tab.id) !== tab) return this.getState()
-    let stagedClose: ReturnType<Browser['stageBeforeUnloadClose']> | undefined
-    // A page that lets the tab close is gone once it answers, with its history, which Reopen closed tab restores.
-    let closingHistory: NavigationHistorySnapshot | undefined
-    if (respectBeforeUnload && !forceClose && !webContents.isDestroyed()) {
-      closingHistory = holdTabHistory(this.navigationHistorySnapshot(tab))
-      const navigationGeneration = tab.navigationGeneration
-      // Taking the page out of view while it decides takes the keyboard from it, which it gets back only if it had it.
-      const pageHadKeyboard = this.keyboardPage() === webContents
-      stagedClose = this.stageBeforeUnloadClose(tab)
-      this.expectedTabClosures.add(webContents)
-      let disposition: 'closed' | 'prevented'
-      try {
-        // Electron implements beforeunload through the same Chromium dialog
-        // channel used by our diagnostics debugger. Suspend that debugger for
-        // the native close probe so it cannot race Electron's own handling.
-        this.detachDialogMonitoring(webContents)
-        disposition = await this.attemptBeforeUnloadClose(webContents)
-      } catch (error) {
-        this.expectedTabClosures.delete(webContents)
-        stagedClose.rollback(pageHadKeyboard)
-        if (!webContents.isDestroyed() && this.tabs.get(tab.id) === tab) {
-          await this.ensureDialogMonitoring(tab)
-        }
-        throw error
-      }
-      this.expectedTabClosures.delete(webContents)
-      if (disposition === 'prevented') {
-        // The question over the page takes the keyboard now; a page that had it gets it back once the person keeps it.
-        stagedClose.rollback(false)
-        const keepPage = (): void => {
-          if (pageHadKeyboard && !webContents.isDestroyed()) this.focusPageAfterQuestion(webContents)
-        }
-        if (!webContents.isDestroyed() && this.tabs.get(tab.id) === tab) {
-          await this.ensureDialogMonitoring(tab)
-        }
-        let confirmed = false
-        try {
-          confirmed = await (this.options.confirmBeforeUnloadClose?.() ?? Promise.resolve(false))
-        } catch (error) {
-          console.error('[browser] Could not confirm closing a page with unsaved changes:', error)
-          this.options.onActionFailed?.('confirm closing a tab', error)
-          keepPage()
-          return this.getState()
-        }
-        if (!confirmed) {
-          keepPage()
-          return this.getState()
-        }
-        if (
-          this.tabs.get(tab.id) !== tab
-          || tab.webContents !== webContents
-          || webContents.isDestroyed()
-          || tab.navigationGeneration !== navigationGeneration
-        ) {
-          // The page changed while the person decided, so it stays open as if they had kept it.
-          keepPage()
-          return this.getState()
-        }
-        return this.performCloseTab(tabId, ensureReplacement, true, true, yieldsToNewerSelection)
-      }
-      if (this.tabs.get(tab.id) !== tab) {
-        stagedClose.cleanup()
-        return this.getState()
-      }
-    }
-    const wasActive = tab.id === this.activeTabId
-    this.networkWaitController.reject(tab.id, 'The tab closed while waiting for network activity.')
-    this.reproRecorder.clearReproRecording(tab)
-    this.videoRecorder.clear(tab.id)
-    this.cancelNativeSelectionSessions(tab)
-    const { splitPartnerId, nextId } = this.closeTabTransition(tab)
-    this.rememberClosedTab(tab, closingHistory)
-
-    if (splitPartnerId) {
-      const splitPartner = this.tabs.get(splitPartnerId)
-      if (!stagedClose && wasActive && splitPartner && splitPartner.id !== nextId && !splitPartner.webContents.isDestroyed()) {
-        this.window.contentView.removeChildView(splitPartner.view)
-      }
-      this.splitView = null
-    }
-    // Move a live replacement into the BrowserWindow before destroying the
-    // current view. Electron can otherwise leave the parent view in an invalid
-    // child transition after a neighboring WebContentsView was destroyed.
-    if (wasActive && nextId) {
-      if (stagedClose) {
-        const replacement = this.tabs.get(nextId)
-        if (replacement && !replacement.webContents.isDestroyed()) {
-          // Ordering can change during beforeunload without changing the
-          // active tab. Attach the current successor, even if staging picked
-          // a different view before the asynchronous close probe.
-          this.window.contentView.addChildView(replacement.view)
-          this.tabSelectionGeneration += 1
-          replacement.lastActiveAt = Date.now()
-          this.activeTabId = replacement.id
-          this.markTabActiveInGroup(replacement)
-        }
-      } else {
-        this.selectTab(nextId)
-      }
-    } else if ((wasActive || splitPartnerId) && !stagedClose?.targetDetached) {
-      this.window.contentView.removeChildView(tab.view)
-    }
-
-    stagedClose?.cleanup()
-    this.removeTabRecord(tab)
-    if (!webContents.isDestroyed()) {
-      this.detachDialogMonitoring(webContents)
-      webContents.close()
-    }
-
-    if ((!this.tabs.size || (wasActive && !nextId)) && ensureReplacement) {
-      for (const candidate of [...this.tabs.values()]) {
-        if (!candidate.webContents.isDestroyed()) continue
-        this.rememberClosedTab(candidate)
-        this.removeTabRecord(candidate)
-      }
-      await this.createTab({ url: HRONAUT_HOME_URL, active: true })
-    } else {
-      if (!this.tabs.size || (wasActive && !nextId)) this.activeTabId = null
-      this.layout()
-      if (stagedClose && wasActive && this.activeTabId) {
-        const replacement = this.tabs.get(this.activeTabId)
-        if (replacement && !replacement.webContents.isDestroyed()) this.focusTabOrTrustedChrome(replacement)
-      }
-      this.changed()
-    }
-    return this.getState()
-  }
-
-  private cancelNativeSelectionSessions(tab: BrowserTab): void {
-    cancelNativeSelectionSessions(this, tab)
+    return closeTab(this, tabId, ensureReplacement, respectBeforeUnload, yieldsToNewerSelection)
   }
 
   /**
@@ -2211,75 +1959,8 @@ export class Browser {
    * so it hands over to a tab that stays open rather than waking a sleeping
    * one only to close it next.
    */
-  async closeTabs(tabIds: string[], ensureReplacement = true): Promise<BrowserState> {
-    const pending = [...tabIds]
-    while (pending.length) {
-      const inactiveIndex = pending.findIndex((tabId) => tabId !== this.activeTabId)
-      const tabId = pending.splice(inactiveIndex === -1 ? 0 : inactiveIndex, 1)[0]!
-      if (this.tabs.has(tabId)) await this.closeTabInternal(tabId, ensureReplacement)
-    }
-    return this.getState()
-  }
-
-  private rememberClosedTab(tab: BrowserTab, history?: NavigationHistorySnapshot): void {
-    rememberClosedTab(this, tab, history)
-  }
-
-  private removeTabRecord(tab: BrowserTab): void {
-    const browserSession = tab.browserSession
-    this.cssStatePreview.forget(tab)
-    this.virtualPasskeys.forget(tab)
-    this.domMutationSource.forget(tab)
-    this.logpoints.forget(tab)
-    this.workerEvaluations.forget(tab)
-    invalidateTabOverviewPreview(this, tab)
-    this.tabOverviewSleepPreviews.delete(tab.id)
-    this.tabOverviewPreviewCaptures.cancelPending(tab.id)
-    this.tabOverviewPreviewableTabs.delete(tab.id)
-    this.runWalletLifecycleAction('cancel wallet requests after closing a tab', () => (
-      this.options.onWalletTabClosed?.(tab.id)
-    ))
-    this.deleteSnapshotBaselineForTab(tab.id)
-    // A workspace whose remembered tab closes remembers the tab that closing it on screen would show.
-    const group = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
-    const rememberedInstead = group?.activeTabId === tab.id ? this.workspaceTabAfterClose(tab) : undefined
-    this.tabs.delete(tab.id)
-    handOverTabsOpenedFrom(this.tabs.values(), tab)
-    this.globallyUnlockedTabIds.delete(tab.id)
-    this.globallyResumedAgentTabIds.delete(tab.id)
-    if (![...this.tabs.values()].some((candidate) => (
-      !candidate.webContents.isDestroyed() && candidate.browserSession === browserSession
-    ))) {
-      const listener = this.browserSessionAuthorityHooks.get(browserSession)
-      if (listener) browserSession.cookies.removeListener('changed', listener)
-      this.browserSessionAuthorityHooks.delete(browserSession)
-    }
-    this.mcpActivitiesByTab.delete(tab.id)
-    this.mcpActivityFollower.removeTab(tab.id)
-    this.webContentsToTab.delete(tab.webContents.id)
-    if (!group || rememberedInstead === undefined) return
-    group.activeTabId = rememberedInstead
-    group.lastUsedAt = new Date().toISOString()
-  }
-
-  /**
-   * The workspace's tab that follows this one when it closes, as the close hand-over picks it: the tab that opened it as
-   * a popup, otherwise the tab a new tab returns to, otherwise the next tab of the page that opened it or that page,
-   * otherwise the open tab beside it as the tab strip shows them, to its right and otherwise to its left; null when it
-   * is the workspace's only tab.
-   */
-  private workspaceTabAfterClose(tab: BrowserTab): string | null {
-    const opener = tab.openerTabId ? this.tabs.get(tab.openerTabId) : undefined
-    if (opener && opener.mcpGroupId === tab.mcpGroupId && !opener.webContents.isDestroyed()) return opener.id
-    const returnTo = tab.returnsToTabId ? this.tabs.get(tab.returnsToTabId) : undefined
-    if (returnTo && returnTo.mcpGroupId === tab.mcpGroupId && !returnTo.webContents.isDestroyed()) return returnTo.id
-    const fromPage = tabAfterClosingLinkTab(orderedTabs(this), tab, (candidate) => !candidate.webContents.isDestroyed())
-    if (fromPage) return fromPage.id
-    const siblings = orderedTabs(this).filter((candidate) => (
-      candidate.mcpGroupId === tab.mcpGroupId && (candidate === tab || !candidate.webContents.isDestroyed())
-    ))
-    const index = siblings.indexOf(tab)
-    return (siblings[index + 1] ?? siblings[index - 1])?.id ?? null
+  closeTabs(tabIds: string[], ensureReplacement = true): Promise<BrowserState> {
+    return closeTabs(this, tabIds, ensureReplacement)
   }
 
   navigate(url: string, tabId?: string, options?: { byPerson?: boolean }): Promise<BrowserState> {
@@ -2464,10 +2145,6 @@ export class Browser {
       humanInteractionGeneration: tab.humanInteractionGeneration,
       snapshotFormatVersion: BROWSER_SNAPSHOT_FORMAT_VERSION
     }
-  }
-
-  private deleteSnapshotBaselineForTab(tabId: string): void {
-    deleteSnapshotBaselineForTab(this, tabId)
   }
 
   findSnapshot(options: SnapshotSearchOptions & { tabId?: string; rootSelector?: string }): Promise<SnapshotSearchResult & { tabId: string; sourceSnapshot: Omit<BrowserSnapshot, 'text'> }> {

@@ -1,6 +1,7 @@
 import { expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, Menu: {} }))
 import { Browser } from '../src/main/browser/browser.js'
+import { closeTabTransition } from '../src/main/browser/tab-close/close-transition.js'
 
 // A sign-in popup that closed itself showed the first tab of the next workspace, rather than the tab that opened it.
 
@@ -8,7 +9,6 @@ interface Tab { id: string; url: string; pinned: boolean; mcpGroupId: string; op
 interface Internals {
   activeTabId: string | null
   tabs: Map<string, Tab>
-  closeTabTransition(tab: Tab): { splitPartnerId: string | null; nextId: string | undefined }
 }
 
 function fixture(tabs: Array<Omit<Tab, 'webContents' | 'pinned' | 'url'>>) {
@@ -30,8 +30,8 @@ it('shows the tab that opened a popup when the popup closes', () => {
     { id: 'other', mcpGroupId: 'beta' }
   ])
   manager.activeTabId = 'popup'
-  expect(manager.closeTabTransition(manager.tabs.get('popup')!).nextId).toBe('app')
+  expect(closeTabTransition(manager as never, manager.tabs.get('popup')! as never).nextId).toBe('app')
   // Once its opener is closed, the popup's tab closes as any other, showing the tab beside it in its workspace.
   manager.tabs.delete('app')
-  expect(manager.closeTabTransition(manager.tabs.get('popup')!).nextId).toBe('docs')
+  expect(closeTabTransition(manager as never, manager.tabs.get('popup')! as never).nextId).toBe('docs')
 })
