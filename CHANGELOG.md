@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Since 3.14.2, when a form you sent could not reach its website, such as while the computer was offline, Hronaut loaded the form's address again by itself a second later, without what the form sent, so the tab showed whatever that address shows, such as the empty form, instead of the failure. As in Chrome, a page a form sent is no longer loaded again by itself.
+
 ## [3.14.2] - 2026-10-30
 
 ### Fixed

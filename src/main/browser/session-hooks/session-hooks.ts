@@ -7,11 +7,13 @@ import { findTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { publishChange } from '../browser-state/browser-state.js'
 import { certificatesChanged } from '../certificate-errors/browser-certificate-errors.js'
+import { notePageRequestFailed } from '../network-error-reload/network-error-reload.js'
 
 /**
  * Hooks a browser session once: its cookie changes advance the generation of
  * every tab on that session, its requests are recorded for tabs whose debugger
- * does not record them, and its downloads are tracked.
+ * does not record them, a tab's failed page requests are passed to the page's
+ * reload, and its downloads are tracked.
  */
 export function installSessionHooks(browser: Browser, browserSession: Session): void {
   if (!browser.browserSessionAuthorityHooks.has(browserSession)) {
@@ -95,8 +97,9 @@ export function installSessionHooks(browser: Browser, browserSession: Session): 
       browser.networkWaitController.notify(tab)
     })
     browserSession.webRequest.onErrorOccurred((details) => {
-      // A request whose record was cleared, as at a navigation, stays cleared.
       const tab = requestTab(details)
+      if (tab && details.resourceType === 'mainFrame') notePageRequestFailed(tab, details.url, details.method)
+      // A request whose record was cleared, as at a navigation, stays cleared.
       const request = tab && latestRecord(tab, details.id)
       if (!tab || !request || request.completedAt !== undefined) return
       request.completedAt = new Date().toISOString()
