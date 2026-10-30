@@ -7,6 +7,7 @@ import type { Browser } from '../browser/browser.js'
 import type { BookmarkOperations, HistoryOperations, McpHttpServer } from '../mcp/server.js'
 import type { UndoableAction } from '../undo-offers.js'
 import type { BrowserBookmark, BrowserHistoryEntry } from '../../shared/types.js'
+import { forgetHistoryPages } from '../browser/tab-history-pages/forget-history-pages.js'
 
 /** How long visits and new titles gather before the windows hear of them together. */
 const VISIT_CHANGES_DELAY_MS = 200
@@ -30,7 +31,7 @@ interface BookmarksAndHistoryHost {
   /** The MCP listener while it runs, whose agents' finished steps go when the person or an agent clears the history. */
   mcpServer(): Pick<McpHttpServer, 'forgetAgentStepsSince'> | null
   /** The tabs once the window opens, whose Recently closed tabs and Back and Forward pages go with the history. */
-  tabs(): Pick<Browser, 'forgetHistoryPages'> | null
+  tabs(): Browser | null
   /** Offers the person's latest reversible action for Undo, replacing the previous offer. */
   offerUndo(action: UndoableAction): void
 }
@@ -128,12 +129,14 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
    */
   function historyCleared(): void {
     host.mcpServer()?.forgetAgentStepsSince()
-    host.tabs()?.forgetHistoryPages(() => true)
+    const browser = host.tabs()
+    if (browser) forgetHistoryPages(browser, () => true)
   }
 
   /** One page was removed from the history, so tabs forget it in Recently closed and Back and Forward, as in Chrome. */
   function historyEntryRemoved(url: string): void {
-    host.tabs()?.forgetHistoryPages((pageUrl) => normalizeHistoryUrl(pageUrl) === url)
+    const browser = host.tabs()
+    if (browser) forgetHistoryPages(browser, (pageUrl) => normalizeHistoryUrl(pageUrl) === url)
   }
 
   /**

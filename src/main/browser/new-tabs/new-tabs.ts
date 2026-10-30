@@ -11,6 +11,7 @@ import type { BrowserTab } from '../browser-tab.js'
 import { browserState } from '../browser-state/browser-state.js'
 import { requireMcpTabGroup } from '../mcp-tab-groups/mcp-tab-groups.js'
 import { closeMcpTabGroup } from '../mcp-tab-groups/close-mcp-tab-group.js'
+import { openHome } from '../home-tabs/home-tabs.js'
 
 /** The browser's tab limit. */
 const MAX_TABS = MAX_BROWSER_TABS
@@ -57,7 +58,7 @@ export async function createNewTab(browser: Browser, options: NewTabOptions, sel
   const url = normalizeAddress(options.url ?? 'about:blank', browser.options.getSearchEngine?.())
   if (isHronautHomeUrl(url)) {
     if (options.mcpGroupId) throw new LocalizedError('appErrors.tabs.homeInAgentWorkspace')
-    return browser.openHome()
+    return openHome(browser)
   }
   if (browser.tabs.size >= MAX_TABS) throw new LocalizedError('appErrors.tabs.limit', { max: MAX_TABS })
   if (options.defaultFontSize !== undefined && !isDefaultFontSize(options.defaultFontSize)) {

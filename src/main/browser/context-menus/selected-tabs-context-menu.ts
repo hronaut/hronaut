@@ -8,6 +8,7 @@ import { reload } from '../page-navigation/page-navigation.js'
 import { setTabPinned } from '../tab-arrangement/tab-arrangement.js'
 import { setTabMuted } from '../tab-muting/tab-muting.js'
 import { closeTabsForPerson } from '../tab-close/close-tabs-for-person.js'
+import { duplicateTab, reopenClosedTab } from '../tab-reopening/tab-reopening.js'
 
 /**
  * The tabs a menu opened on a selected tab acts on, as Chrome's tab menu acts on the tabs selected in its strip: the
@@ -80,7 +81,7 @@ export function showSelectedTabsContextMenu(browser: Browser, tab: BrowserTab, s
       // One after another, so each copy opens beside its own tab; a tab closed meanwhile is skipped.
       click: () => runAction('duplicate the tabs', async () => {
         for (const candidate of open()) {
-          if (findTab(browser, candidate.id) === candidate) await browser.duplicateTab(candidate.id)
+          if (findTab(browser, candidate.id) === candidate) await duplicateTab(browser, candidate.id)
         }
       })
     },
@@ -129,7 +130,7 @@ export function showSelectedTabsContextMenu(browser: Browser, tab: BrowserTab, s
       id: 'reopen-closed-tab',
       label: browser.text('native.context.reopenClosed'),
       enabled: browser.closedTabs.length > 0,
-      click: () => runAction('reopen a closed tab', () => browser.reopenClosedTab())
+      click: () => runAction('reopen a closed tab', () => reopenClosedTab(browser))
     },
     {
       id: 'bookmark-all-tabs',

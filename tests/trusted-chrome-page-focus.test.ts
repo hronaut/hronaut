@@ -10,7 +10,7 @@ vi.mock('electron', () => ({
   webContents: { getFocusedWebContents: () => electron.focused }
 }))
 import { Browser } from '../src/main/browser/browser.js'
-import { focusTabOrTrustedChrome, withholdFocusAfterTrustedChrome } from '../src/main/browser/trusted-chrome-focus/trusted-chrome-focus.js'
+import { focusTabOrTrustedChrome, withholdFocusAfterTrustedChrome, keyboardPage, focusPageAfterQuestion } from '../src/main/browser/trusted-chrome-focus/trusted-chrome-focus.js'
 import { setBrowserContentOccluded } from '../src/main/browser/trusted-chrome-occlusion/trusted-chrome-occlusion.js'
 
 afterEach(() => { electron.focused = null })
@@ -81,15 +81,15 @@ it('still focuses the page when the key that closed trusted chrome repeats while
 it('names the page that has the keyboard, or takes it once trusted chrome closes, and no page while the shell has it', () => {
   const { manager, shell, page, tab } = fixture()
   electron.focused = page
-  expect(manager.keyboardPage()).toBe(page)
+  expect(keyboardPage(manager)).toBe(page)
   electron.focused = shell
-  expect(manager.keyboardPage()).toBeNull()
+  expect(keyboardPage(manager)).toBeNull()
 
   // A second question asked while the first one's exit plays: the shell has the keyboard, which the page takes next.
   focusTabOrTrustedChrome(manager, tab as never)
-  expect(manager.keyboardPage()).toBe(page)
+  expect(keyboardPage(manager)).toBe(page)
   shell.emit('input-event', {}, { type: 'mouseDown' })
-  expect(manager.keyboardPage()).toBeNull()
+  expect(keyboardPage(manager)).toBeNull()
 })
 
 it('drops the pending focus when another tab became active during the exit', () => {
@@ -119,7 +119,7 @@ it('keeps every page from the keyboard until trusted chrome closes once a sign-i
     if (order === 'picked first') focusTabOrTrustedChrome(manager, tab as never)
     withholdFocusAfterTrustedChrome(manager)
     if (order === 'withheld first') focusTabOrTrustedChrome(manager, tab as never)
-    expect(manager.keyboardPage(), order).toBeNull()
+    expect(keyboardPage(manager), order).toBeNull()
     // A key the person types meanwhile is the rest of their password, not a choice to stay in the shell.
     shell.emit('input-event', {}, { type: 'keyDown' })
     expect(shell.listenerCount('input-event'), order).toBe(0)
@@ -136,8 +136,8 @@ it('gives the keyboard back to the page once the person answers the question tha
   const { manager, shell, page } = fixture()
   withholdFocusAfterTrustedChrome(manager)
   // The person signs in to the sign-in that came next, which gives the keyboard back to the page that had it.
-  manager.focusPageAfterQuestion(page as never)
-  expect(manager.keyboardPage()).toBe(page)
+  focusPageAfterQuestion(manager, page as never)
+  expect(keyboardPage(manager)).toBe(page)
   expect(shell.listenerCount('input-event')).toBe(1)
   setBrowserContentOccluded(manager, false, 1)
   expect(page.focus).toHaveBeenCalledOnce()

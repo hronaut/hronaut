@@ -77,11 +77,15 @@ async function currentWorkspaceContinuity(browser: Browser, workspaceId: string,
   }
 }
 
-/** Forgets the workspace's checkpoint, marker selector and observation generation. */
+/**
+ * Forgets a workspace deleted with its data: its checkpoint, marker selector and observation generation, and its
+ * downloads in the history kept for the next start.
+ */
 export function retireWorkspaceContinuity(browser: Browser, workspaceId: string): void {
   browser.workspaceContinuity.retire(workspaceId)
   browser.continuityMarkers.delete(workspaceId)
   browser.workspaceObservationGenerations.delete(workspaceId)
+  browser.downloadController.forgetWorkspace(workspaceId)
 }
 
 /**

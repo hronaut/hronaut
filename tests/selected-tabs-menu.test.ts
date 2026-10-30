@@ -46,6 +46,12 @@ vi.mock('../src/main/browser/tab-close/close-tabs-for-person.js', async (importO
   ...await importOriginal<typeof import('../src/main/browser/tab-close/close-tabs-for-person.js')>(),
   closeTabsForPerson: (browser: { closeTabsForPerson: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.closeTabsForPerson(...args)
 }))
+// Duplicating and reopening tabs are functions now; they reach the fake's stubs.
+vi.mock('../src/main/browser/tab-reopening/tab-reopening.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-reopening/tab-reopening.js')>(),
+  duplicateTab: (browser: { duplicateTab: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.duplicateTab(...args),
+  reopenClosedTab: (browser: { reopenClosedTab: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.reopenClosedTab(...args)
+}))
 
 const { showTabContextMenu } = await import('../src/main/browser/context-menus/tab-context-menu.js')
 const { Browser } = await import('../src/main/browser/browser.js')

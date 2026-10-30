@@ -7,6 +7,7 @@ import { publishPageGeometry } from '../page-geometry/page-geometry.js'
 import { invalidateTabOverviewPreview } from '../tab-overview-previews/tab-overview-previews.js'
 import { focusTabOrTrustedChrome } from '../trusted-chrome-focus/trusted-chrome-focus.js'
 import { publishChange } from '../browser-state/browser-state.js'
+import { markTabActiveInGroup, writeActiveTabId } from '../tab-selection/active-tab.js'
 
 /** Hronaut Home, which a destroyed page's recovery opens when no live tab is left; the browser's Home address. */
 const HRONAUT_HOME_URL = 'hronaut://home/'
@@ -67,9 +68,9 @@ export function recoverFromDestroyedPage(browser: Browser, tab: BrowserTab): voi
     }
     if (partner && !partner.webContents.isDestroyed()) {
       if (browser.activeTabId === tab.id) {
-        browser.writeActiveTabId(partner.id)
+        writeActiveTabId(browser, partner.id)
         partner.lastActiveAt = Date.now()
-        browser.markTabActiveInGroup(partner)
+        markTabActiveInGroup(browser, partner)
       }
       browser.layout()
       if (browser.activeTabId === partner.id) focusTabOrTrustedChrome(browser, partner)
@@ -101,7 +102,7 @@ export function recoverFromDestroyedPage(browser: Browser, tab: BrowserTab): voi
       console.warn(`[browser] Could not detach destroyed active pane ${active.id}:`, error)
     }
   }
-  browser.writeActiveTabId(null)
+  writeActiveTabId(browser, null)
   publishChange(browser, false)
   publishPageGeometry(browser)
   void browser.createTab({ url: HRONAUT_HOME_URL, active: true })

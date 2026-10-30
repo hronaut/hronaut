@@ -5,6 +5,7 @@ import { isHronautHomeUrl } from '../url.js'
 import type { Browser } from '../browser.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { workspaceNavigationAllowed } from '../workspace-navigation/workspace-navigation.js'
+import { assertCanCreateTab, pageWebPreferences } from '../new-tabs/tab-admission.js'
 
 /**
  * The load options that carry a page's requested referrer and form post into
@@ -87,7 +88,7 @@ export function attachWindowOpenHandler(browser: Browser, tab: BrowserTab, webCo
     const creations = observations.map(observation => observation.creationStarted())
     // Checked before Chromium creates the window, so window.open() returns no window, as for a blocked popup.
     try {
-      browser.assertCanCreateTab(tab.mcpGroupId, false)
+      assertCanCreateTab(browser, tab.mcpGroupId, false)
     } catch (error) {
       failed(creations, error)
       return { action: 'deny' }
@@ -99,7 +100,7 @@ export function attachWindowOpenHandler(browser: Browser, tab: BrowserTab, webCo
       // These apply after window.open()'s features, which could otherwise turn off the page's JavaScript.
       overrideBrowserWindowOptions: {
         webPreferences: {
-          ...browser.pageWebPreferences(),
+          ...pageWebPreferences(),
           javascript: true,
           webviewTag: false,
           nodeIntegrationInSubFrames: false,

@@ -12,7 +12,7 @@ vi.mock('../src/main/browser/browser-state/persisted-state.js', async (importOri
   persistedState: (browser: { persistedState: () => unknown }) => browser.persistedState()
 }))
 import { Browser } from '../src/main/browser/browser.js'
-import { withTabLabelLifecycle, saveTabLabel } from '../src/main/browser/tab-labels/tab-labels.js'
+import { withTabLabelLifecycle, saveTabLabel, stopTabLabelEdits } from '../src/main/browser/tab-labels/tab-labels.js'
 import type { PersistedBrowserState } from '../src/main/browser/tab-store.js'
 
 function fixture() {
@@ -41,7 +41,7 @@ function fixture() {
 it('fences new edits synchronously at shutdown while allowing an admitted save to settle', async () => {
   const { manager, store, tab, commit } = fixture()
   const admitted = saveTabLabel(manager, tab.id, 'Admitted role')
-  manager.stopTabLabelEdits()
+  stopTabLabelEdits(manager)
   await expect(saveTabLabel(manager, tab.id, 'Late role')).rejects.toThrow('Wait for the tab operation')
   expect(store.save).toHaveBeenCalledOnce()
   expect(tab.label).toBe('Previous')

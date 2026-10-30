@@ -14,6 +14,8 @@ import { findTab, getTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { browserState, publishChange } from '../browser-state/browser-state.js'
 import { waitForPage } from '../page-waits/page-waits.js'
+import { selectTabForPerson } from '../tab-selection/person-tab-switch.js'
+import { focusPageAfterQuestion } from '../trusted-chrome-focus/trusted-chrome-focus.js'
 
 // A copy of the tab manager's own check, which its load and wake handling keep using.
 const ABORTED_LOAD_ERROR = -3
@@ -112,7 +114,7 @@ export async function navigate(browser: Browser, url: string, tabId?: string,
   if (!samePage()) return browserState(browser)
   if (!await confirmLeavePage(browser)) {
     // The person keeps editing the page, which takes the keyboard as the page they asked for would have once loaded.
-    if (samePage()) browser.focusPageAfterQuestion(tab.webContents)
+    if (samePage()) focusPageAfterQuestion(browser, tab.webContents)
     return browserState(browser)
   }
   if (!samePage()) return browserState(browser)
@@ -359,7 +361,7 @@ function focusedTab(browser: Browser): BrowserTab | undefined {
 
 /** Brings the tab into view, as the person's click on it does, unless it is the tab shown. */
 async function showTab(browser: Browser, tab: BrowserTab): Promise<void> {
-  if (browser.activeTabId !== tab.id) await browser.selectTabForPerson(tab.id)
+  if (browser.activeTabId !== tab.id) await selectTabForPerson(browser, tab.id)
 }
 
 /** Asks the person whether to leave a page that asked to confirm before it is left; true leaves it, and a question that could not be asked keeps the page. */

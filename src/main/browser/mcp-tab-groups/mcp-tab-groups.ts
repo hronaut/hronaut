@@ -78,7 +78,7 @@ export function updateMcpTabGroup(
   assertWorkspaceIdle(browser, groupId)
   if (updates.name !== undefined) {
     const name = normalizedWorkspaceName(updates.name)
-    if (name !== group.name) browser.assertWorkspaceNameAvailable(name, group.id, undefined, allowDuplicateName)
+    if (name !== group.name) assertWorkspaceNameAvailable(browser, name, group.id, undefined, allowDuplicateName)
     group.name = name
   }
   if (updates.description !== undefined) group.description = normalizeWorkspaceDescription(updates.description)
@@ -125,4 +125,28 @@ export function requireMcpTabGroup(browser: Browser, groupId: string): BrowserTa
     },
     ...(group.pinnedAt ? { pinnedAt: group.pinnedAt } : {})
   }
+}
+
+function workspaceNameKey(name: string): string {
+  return name.trim().normalize('NFKC').toLowerCase()
+}
+
+/** Refuses a workspace name another open or archived workspace has, ignoring case, unless duplicates are allowed. */
+export function assertWorkspaceNameAvailable(
+  browser: Browser,
+  name: string,
+  excludeActiveWorkspaceId?: string,
+  excludeSavedWorkspaceId?: string,
+  allowDuplicateName = false
+): void {
+  const key = workspaceNameKey(name)
+  if (allowDuplicateName) return
+  const activeCollision = [...browser.mcpTabGroups.values()].find((workspace) => (
+    workspace.id !== excludeActiveWorkspaceId && workspaceNameKey(workspace.name) === key
+  ))
+  const savedCollision = [...browser.savedTabGroups.values()].find((workspace) => (
+    workspace.id !== excludeSavedWorkspaceId && workspaceNameKey(workspace.name) === key
+  ))
+  const collision = activeCollision ?? savedCollision
+  if (collision) throw new LocalizedError('appErrors.workspace.nameTaken', { name })
 }

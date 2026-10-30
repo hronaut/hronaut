@@ -13,6 +13,7 @@ vi.mock('../src/main/browser/tab-selection/tab-selection.js', async (importOrigi
 import { Browser } from '../src/main/browser/browser.js'
 import { closeTabTransition } from '../src/main/browser/tab-close/close-transition.js'
 import { removeTabRecord } from '../src/main/browser/tab-close/remove-tab-record.js'
+import { selectTabForPerson } from '../src/main/browser/tab-selection/person-tab-switch.js'
 
 // Closing a tab opened from a page's link showed the tab to its right, where Chrome shows the page's next tab or the
 // page itself; a workspace whose remembered tab closed off screen remembered that tab too.
@@ -25,7 +26,6 @@ interface Internals {
   activeTabId: string | null
   tabs: Map<string, Tab>
   mcpTabGroups: Map<string, { id: string; activeTabId: string | null; lastUsedAt: string }>
-  selectTabForPerson(tabId: string): Promise<unknown>
   selectTabAndWait(tabId: string): Promise<unknown>
 }
 
@@ -104,7 +104,7 @@ describe('the person going to another tab', () => {
     const workspace = manager.tabs.get(to)!.mcpGroupId
     manager.mcpTabGroups.get(workspace)!.activeTabId = manager.tabs.get(workspaceShows)!.mcpGroupId === workspace ? workspaceShows : null
     manager.selectTabAndWait = vi.fn(async () => undefined)
-    void manager.selectTabForPerson(to)
+    void selectTabForPerson(manager as never, to)
     expect(manager.selectTabAndWait).toHaveBeenCalledWith(to)
     return manager
   }

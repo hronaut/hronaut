@@ -1,4 +1,3 @@
-import { assertExclusiveWorkspaceStorage, canonicalStorageId } from './workspace-storage-deletion.js'
 import { ImageInspectionSlots } from './image-state.js'
 import type { BrowserEmulationResult, BrowserUnconfirmedEmulation } from '../../shared/types.js'
 import { type BrowserVisualCompareResult } from './visual-compare/visual-compare.js'
@@ -6,7 +5,6 @@ import {
   performTabOverviewPreviewCapture,
   type TabOverviewPreviewCaptureRequest
 } from './tab-overview-previews/tab-overview-previews.js'
-import { workspaceContextMenuItems } from './context-menus/workspace-context-menu.js'
 import { createFrameObservation } from './frame-observation/browser-frame-observation.js'
 import { createReactInspectionController } from './react-inspection/browser-react-inspection.js'
 import type { FixedDateAuthority } from './fixed-date/fixed-date.js'
@@ -44,33 +42,26 @@ import type { DownloadHistoryStore, SavedDownload } from './download-history/dow
 import { createProfilingController } from './profiling/browser-profiling.js'
 import { WorkspaceContinuityStore } from '../mcp/workspace-continuity-store.js'
 import { WorkspaceContinuityEvidenceFactory } from '../mcp/workspace-continuity-evidence.js'
-import {
-  retireWorkspaceContinuity
-} from './workspace-continuity/workspace-continuity.js'
 import { reconcilePresentedViewVisibility } from './presented-view-visibility.js'
 import { createSplitDivider } from './split-view/split-divider.js'
 import { FaviconDecoder } from './favicon.js'
 import { createHash } from 'node:crypto'
-import { isAbsolute, join } from 'node:path'
+import { isAbsolute } from 'node:path'
 import {
   type BrowserWindow,
-  Menu,
   net,
   powerMonitor,
   screen,
-  webContents as electronWebContents,
   type WebContentsView,
   type NavigationEntry,
   type Input,
   type Rectangle,
   type Session,
   type WebContents,
-  type WebFrameMain,
-  type WebPreferences
+  type WebFrameMain
 } from 'electron'
 import type { BrowserShortcutAction } from '../../shared/browser-shortcuts.js'
 import { noteShellHeldKey, trackShellHeldKeys } from './tab-events/shell-held-keys.js'
-import { MAX_BROWSER_TABS } from '../../shared/types.js'
 import { translate, type MessageKey, type MessageParameters } from '../../shared/i18n.js'
 import type { SupportedLocale } from '../../shared/locale.js'
 import type { TabPosition } from '../../shared/tab-position.js'
@@ -104,7 +95,7 @@ import type {
 import { layout } from './window-layout/window-layout.js'
 import { shownPageFullscreenTab } from './window-layout/content-area.js'
 import { watchWindowFullScreen } from './page-fullscreen/page-fullscreen.js'
-import { selectTab, selectTabAndWait, type BrowserTabSelectionOptions } from './tab-selection/tab-selection.js'
+import { selectTab, type BrowserTabSelectionOptions } from './tab-selection/tab-selection.js'
 import { EMULATION_FRAME_CAPTION_SPACE, emulatedViewBounds, type EmulationFrameGeometry } from '../../shared/emulation-frame.js'
 import type { PageCardGeometry } from '../../shared/page-card.js'
 import type { BrowserTabGroupColor } from '../../shared/tab-groups.js'
@@ -128,8 +119,7 @@ import type {
   BrowserState,
   BrowserTabGroupState,
   BrowserWorkspaceNavigationAuditSource,
-  BrowserTabOverviewPreview,
-  NewTabOptions
+  BrowserTabOverviewPreview
 } from '../../shared/types.js'
 import { runBackgroundAction } from './background-action.js'
 import type { SearchEngineName } from '../../shared/search-engine.js'
@@ -137,17 +127,12 @@ import { TabStateStore } from './tab-store.js'
 import type { WorkspaceBeingDeleted } from './browser-state/persisted-state.js'
 import { browserState, publishChange } from './browser-state/browser-state.js'
 import { createStatePublication } from './browser-state/browser-state-publication.js'
-import { isHronautHomeUrl, isWebUrl } from './url.js'
+import { isHronautHomeUrl } from './url.js'
 import { navigate } from './page-navigation/page-navigation.js'
 import type { WorkspaceNavigationDecision } from './workspace-navigation-policy.js'
-import {
-  normalizeWorkspaceStorageOrigins
-} from './workspace-storage.js'
 import { flushPersist } from './quit-flush/quit-flush.js'
-import { closeMcpTabGroup } from './mcp-tab-groups/close-mcp-tab-group.js'
 import { listMcpTabGroups } from './mcp-tab-groups/mcp-tab-groups.js'
 import {
-  assertWorkspaceCanOpenTab,
   type BrowserWorkspaceOperation,
   type OpenWorkspaceOperationAction
 } from './workspace-operations/workspace-operations.js'
@@ -164,34 +149,20 @@ import {
 import { SLEEPING_PAGE_URL } from './tab-sleep/sleeping-page.js'
 import type { BackgroundLoads } from './tab-sleep/background-loads.js'
 import { closeTab } from './tab-close/close-tab.js'
-import { withTabLabelLifecycle } from './tab-labels/tab-labels.js'
-import { duplicateTabAfterLabelSave, forgetClosedTabs, reopenClosedTabAfterLabelSave } from './tab-reopening/tab-reopening.js'
-import { forgetTabHistoryPages } from './tab-history-pages/forget-tab-history-pages.js'
-import { forgetTabsOpenedFrom, switchLeavesOpenedTabs } from './link-tab-placement/link-tab-openers.js'
 import { walletPageContext, type BrowserWalletPageContext } from './wallet-pages/wallet-pages.js'
-import { createNewTab } from './new-tabs/new-tabs.js'
 import { createTab } from './new-tabs/create-tab.js'
 import { saveForNextStart } from './browser-lifecycle/save-for-next-start.js'
 import { type SiteSoundStore } from './site-muting/site-muting.js'
-import { cancelFocusAfterTrustedChrome, focusTabOrTrustedChrome, type PendingTrustedChromeFocus } from './trusted-chrome-focus/trusted-chrome-focus.js'
+import { type PendingTrustedChromeFocus } from './trusted-chrome-focus/trusted-chrome-focus.js'
 import { publishAgentFollowChange } from './agent-follow/agent-follow.js'
 import { publishedAgentFollow } from './agent-follow/published-agent-follow.js'
 import { selectTabPassively } from './agent-follow/passive-selection.js'
 import type { UndoableAction } from '../undo-offers.js'
 import {
-  isClosingWorkspace,
-  restoreSavedTabGroup
+  isClosingWorkspace
 } from './workspace-archive/workspace-archive.js'
 
-export const HRONAUT_HOME_URL = 'hronaut://home/'
-const MAX_TABS = MAX_BROWSER_TABS
-
-function workspaceNameKey(name: string): string {
-  return name.trim().normalize('NFKC').toLowerCase()
-}
-
 const TAB_OVERVIEW_CAPTURE_TIMEOUT_MS = 2_000
-
 
 import type { BrowserTab } from './browser-tab.js'
 import { getTab } from './browser-core.js'
@@ -339,12 +310,6 @@ export class Browser {
   readonly continuityEvidence = new WorkspaceContinuityEvidenceFactory()
   readonly continuityActions = new Map<string, { reads: number; writes: number }>()
 
-  /** Forgets a workspace deleted with its data: its continuity, and its downloads in the history kept for the next start. */
-  retireWorkspaceContinuity(workspaceId: string): void {
-    retireWorkspaceContinuity(this, workspaceId)
-    this.downloadController.forgetWorkspace(workspaceId)
-  }
-
   readonly tabs = new Map<string, BrowserTab>()
   readonly domRecorder = createDomRecorder(this)
   readonly liveRegionRecorder = createLiveRegionRecorder(this)
@@ -461,42 +426,6 @@ export class Browser {
   readonly reactInspectionController = createReactInspectionController(this)
 
   readonly fixedDateController = createFixedDateController(this)
-
-  /**
-   * Gives the keyboard back to a page that asked one of Hronaut's questions, such as Home before deleting a workspace,
-   * once the question's dialog over it has closed, as a system dialog does. A click or key in the shell meanwhile keeps
-   * the focus where it went. The person answered, so pages kept from the keyboard after a sign-in that closed while they
-   * typed in it may take it again.
-   */
-  focusPageAfterQuestion(page: WebContents): void {
-    if (this.focusAfterTrustedChrome && !this.focusAfterTrustedChrome.tab) cancelFocusAfterTrustedChrome(this)
-    const tabId = this.webContentsToTab.get(page.id)
-    const tab = tabId ? this.tabs.get(tabId) : undefined
-    if (!tab || (tab.id !== this.activeTabId && !this.splitViewContains(tab.id))) return
-    focusTabOrTrustedChrome(this, tab)
-  }
-
-  /**
-   * The page that has the keyboard now, or that takes it once trusted chrome closes if it is still in view; null while
-   * the person is elsewhere.
-   */
-  keyboardPage(): WebContents | null {
-    const waiting = this.focusAfterTrustedChrome?.tab?.webContents
-    if (waiting && !waiting.isDestroyed()) return waiting
-    const focused = electronWebContents.getFocusedWebContents()
-    return focused && this.webContentsToTab.has(focused.id) ? focused : null
-  }
-
-  /**
-   * Gives the keyboard to the page in view, or the active pane of a split view, as F6 does from Chrome's toolbar, when
-   * this window's shell asks; a panel in its own window has no page beside it. Under a lock on the person's input the
-   * shell keeps it, and under trusted chrome the page takes it once that closes.
-   */
-  focusActivePage(shell: WebContents): void {
-    if (shell !== this.window.webContents) return
-    const tab = this.activeTabId ? this.tabs.get(this.activeTabId) : undefined
-    if (tab && !tab.webContents.isDestroyed()) focusTabOrTrustedChrome(this, tab)
-  }
 
   fixedDate(tabId: string, action: FixedDateAction, epochMs: number | undefined, authority: FixedDateAuthority): FixedDateResult {
     if (action === 'status') return this.fixedDateController.status(tabId)
@@ -654,11 +583,6 @@ export class Browser {
       .digest('base64url')}`
   }
 
-  async closeWorkspace(workspaceId: string): Promise<BrowserState> {
-    await closeMcpTabGroup(this, workspaceId)
-    return browserState(this)
-  }
-
   /** Whether the person chose to keep URL query strings and fragments out of what agents read. */
   omitAgentUrlDetail(): boolean {
     return this.options.getOmitAgentUrlDetail?.() === true
@@ -668,121 +592,14 @@ export class Browser {
     return walletPageContext(this, webContentsId)
   }
 
-  /** Restores an archived workspace for an agent without showing it, as an agent's other calls leave the window as it is. */
-  restoreSavedTabGroupForAgent(savedGroupId: string): Promise<BrowserTabGroupState> {
-    return restoreSavedTabGroup(this, savedGroupId, { show: false })
-  }
-
-  async assertStorageDeletionOwnership(workspaceId: string, storageId: string): Promise<void> {
-    const canonical = canonicalStorageId(storageId)
-    if (this.workspaceStorageCleanupBlocked || !canonical || [...this.mcpTabGroups.values(), ...this.savedTabGroups.values()]
-      .some(group => group.id !== workspaceId && canonicalStorageId(group.storageId) === canonical)) {
-      throw new LocalizedError('appErrors.workspaceStorage.ambiguousOwnership')
-    }
-    await this.store.withStableSnapshot(() => assertExclusiveWorkspaceStorage(this.options.storePath, workspaceId, storageId))
-  }
-
-  /** Whether the tab in view shows Hronaut Home. */
-  shownTabIsHome(): boolean {
-    return this.activeTabId !== null && this.isHomeTab(this.activeTabId)
-  }
-
-  /** Whether the tab shows Hronaut Home. */
-  isHomeTab(tabId: string): boolean {
-    const tab = this.tabs.get(tabId)
-    return tab !== undefined && isHronautHomeUrl(tab.url)
-  }
-
-  /** Tells each open Home that what it shows changed, so it reads its status again. The message carries nothing. */
-  notifyHomeChanged(): void {
-    for (const tab of this.tabs.values()) {
-      if (isHronautHomeUrl(tab.url) && !tab.webContents.isDestroyed()) tab.webContents.send('hronaut-home:changed')
-    }
-  }
-
-  async openHome(): Promise<BrowserState> {
-    const home = [...this.tabs.values()].find((tab) => isHronautHomeUrl(tab.url))
-    if (home) {
-      home.webContents.send('hronaut-home:show-workspaces')
-      return this.selectTab(home.id)
-    }
-    await this.createTab({ url: HRONAUT_HOME_URL, active: true })
-    return browserState(this)
-  }
-
   readonly homeRefresh = new HomeRefresh()
-
-  async reloadHome(): Promise<void> {
-    const home = [...this.tabs.values()].find((tab) => isHronautHomeUrl(tab.url))
-    if (!home) return
-    const contents = home.webContents
-    return this.homeRefresh.request(contents, () => this.tabs.get(home.id) === home
-      && home.webContents === contents && isHronautHomeUrl(home.url))
-  }
-
-  /**
-   * Opens an agent's tab, which becomes its workspace's active tab without
-   * being shown. Follow agents shows it through the agent's call on it, so it
-   * waits as for any call, such as while a page fills the window. `onCreated`
-   * learns the tab's id as soon as it exists, since other tabs can open
-   * before this call settles.
-   */
-  async newAgentTab(options: NewTabOptions, onCreated?: (tabId: string) => void): Promise<BrowserState> {
-    return createNewTab(this, options, false, onCreated && ((tab) => onCreated(tab.id)))
-  }
-
-  async newTab(options: NewTabOptions = {}, selectVisible = true): Promise<BrowserState> {
-    // A new tab the person opens with + or Ctrl/Cmd+T returns to the tab they were on when they close it right away, as
-    // in Chrome. A tab opened at an address, such as a bookmark's, closes as any tab.
-    const shown = selectVisible && options.active !== false && !options.url && this.activeTabId
-      ? this.tabs.get(this.activeTabId)
-      : undefined
-    return createNewTab(this, options, selectVisible, shown?.mcpGroupId ? (tab) => {
-      if (tab.mcpGroupId === shown.mcpGroupId && tab.id !== shown.id) tab.returnsToTabId = shown.id
-    } : undefined)
-  }
-
-  reopenClosedTab(closedTabId?: string): Promise<BrowserState> {
-    return withTabLabelLifecycle(this, () => reopenClosedTabAfterLabelSave(this, closedTabId))
-  }
-
-  /**
-   * Forgets the pages whose history was cleared or removed, as Chrome does: the recently closed tabs showing them, which
-   * Recently closed names, and those pages in the Back and Forward lists of open and closed tabs; only the workspace's
-   * tabs when one is named, as when an agent clears a website's history from its workspace.
-   */
-  forgetHistoryPages(matches: (url: string) => boolean, workspaceId?: string): void {
-    const closedTabsForgotten = forgetClosedTabs(this, matches, workspaceId)
-    const tabs = [...this.tabs.values()].filter((tab) => workspaceId === undefined || tab.mcpGroupId === workspaceId)
-    const openTabPagesForgotten = forgetTabHistoryPages(tabs, matches)
-    if (closedTabsForgotten || openTabPagesForgotten) publishChange(this, false)
-    // The open tabs' history saved before forgets the pages too, for a tab whose history cannot be read when it is saved
-    // next and keeps what was saved before. Both are saved without the pages at once; before the saved tabs are back,
-    // Recently closed cannot be saved yet, so the saved one goes.
-    this.tabHistoryStore?.forgetPages(matches, workspaceId === undefined ? undefined : new Set(tabs.map((tab) => tab.id)))
-    if (!this.initialized) void this.closedTabsStore?.discard().catch((error: unknown) => console.error('[browser] Failed to remove recently closed tabs:', error))
-    void saveForNextStart(this, true)
-  }
-
-  duplicateTab(tabId: string): Promise<BrowserState> {
-    return withTabLabelLifecycle(this, () => duplicateTabAfterLabelSave(this, tabId))
-  }
 
   readonly pendingTabLabels = new Set<Promise<unknown>>()
   tabLabelLifecycleHolds = 0
   tabLabelAdmissionClosed = false
 
-  stopTabLabelEdits(): void { this.tabLabelAdmissionClosed = true }
-
   wakeTab(tabId: string): Promise<BrowserState> {
     return wakeTab(this, tabId)
-  }
-
-  /** Opens a workspace's menu where the pointer is; `onClosed` runs once it closes. */
-  showWorkspaceContextMenu(groupId: string, onClosed?: () => void): void {
-    const group = this.mcpTabGroups.get(groupId)
-    if (!group) throw new LocalizedError('appErrors.workspace.unavailable', undefined, { message: `Unknown workspace: ${groupId}` })
-    Menu.buildFromTemplate(workspaceContextMenuItems(this, group)).popup({ window: this.window, ...(onClosed ? { callback: onClosed } : {}) })
   }
 
   setMcpUrl(url: string): BrowserState {
@@ -795,19 +612,6 @@ export class Browser {
     if (!isAbsolute(downloadDirectory)) throw new TypeError('Download directory must be absolute')
     this.options.downloadDirectory = downloadDirectory
     this.options.askWhereToSaveDownloads = askWhereToSaveDownloads
-  }
-
-  /**
-   * The person's own switch to a tab. Going to a tab unrelated to the one its workspace shows starts another task, so
-   * the workspace forgets which page opened which tab, as Chrome does going from its window's tab. That is also the
-   * tab compared when the person comes from another workspace.
-   */
-  selectTabForPerson(tabId: string): Promise<BrowserState> {
-    const to = this.tabs.get(tabId)
-    const shownId = to?.mcpGroupId ? this.mcpTabGroups.get(to.mcpGroupId)?.activeTabId : undefined
-    const from = shownId ? this.tabs.get(shownId) : undefined
-    if (from && to && switchLeavesOpenedTabs(from, to)) forgetTabsOpenedFrom(this.tabs.values(), to.mcpGroupId)
-    return selectTabAndWait(this, tabId)
   }
 
   selectTab(tabId: string, options: BrowserTabSelectionOptions = {}): BrowserState {
@@ -1020,68 +824,8 @@ export class Browser {
     await Promise.all([flushPersist(this), saveForNextStart(this, true), this.downloadController.saveHistory()])
   }
 
-  /**
-   * The web preferences of every website tab: Hronaut's page script in an isolated world, a sandboxed renderer without
-   * Node, and the web's own security. A page a tab opens for a window gets them too.
-   */
-  pageWebPreferences(): WebPreferences {
-    return {
-      preload: join(__dirname, '../preload/page.cjs'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-      webSecurity: true,
-      allowRunningInsecureContent: false
-    }
-  }
-
-  /** Refuses a new tab past the tab limit, in an unknown workspace, or in a workspace that cannot take one now. */
-  assertCanCreateTab(mcpGroupId: string | undefined, allowBusyWorkspace: boolean): void {
-    if (this.tabs.size >= MAX_TABS) throw new LocalizedError('appErrors.tabs.limit', { max: MAX_TABS })
-    if (mcpGroupId && !this.mcpTabGroups.has(mcpGroupId)) {
-      throw new LocalizedError('appErrors.workspace.unavailable', undefined, { message: `Unknown workspace: ${mcpGroupId}` })
-    }
-    if (mcpGroupId && !allowBusyWorkspace) assertWorkspaceCanOpenTab(this, mcpGroupId)
-  }
-
   createTab(options: Parameters<typeof createTab>[1]): Promise<BrowserTab> {
     return createTab(this, options)
-  }
-
-  assertWorkspaceNameAvailable(
-    name: string,
-    excludeActiveWorkspaceId?: string,
-    excludeSavedWorkspaceId?: string,
-    allowDuplicateName = false
-  ): void {
-    const key = workspaceNameKey(name)
-    if (allowDuplicateName) return
-    const activeCollision = [...this.mcpTabGroups.values()].find((workspace) => (
-      workspace.id !== excludeActiveWorkspaceId && workspaceNameKey(workspace.name) === key
-    ))
-    const savedCollision = [...this.savedTabGroups.values()].find((workspace) => (
-      workspace.id !== excludeSavedWorkspaceId && workspaceNameKey(workspace.name) === key
-    ))
-    const collision = activeCollision ?? savedCollision
-    if (collision) throw new LocalizedError('appErrors.workspace.nameTaken', { name })
-  }
-
-  /**
-   * Records a visit to the tab's web page in history and its workspace's origins; samePage when the tab opened the page
-   * it showed again, by a reload or a change of only its fragment, which is not another visit.
-   */
-  recordVisit(tab: BrowserTab, samePage: boolean): void {
-    if (!isWebUrl(tab.url)) return
-    this.trackWorkspaceOrigin(tab, tab.url)
-    this.options.onPageVisited?.({ url: tab.url, title: tab.title, samePage })
-  }
-
-  /** Adds the address's origin to the tab's workspace origins. */
-  trackWorkspaceOrigin(tab: BrowserTab, url: string): void {
-    if (!tab.mcpGroupId || !isWebUrl(url)) return
-    const workspace = this.mcpTabGroups.get(tab.mcpGroupId)
-    if (!workspace) return
-    workspace.origins = normalizeWorkspaceStorageOrigins([...workspace.origins, new URL(url).origin])
   }
 
   /** A copy of the tab's Back and Forward history: the one kept while it sleeps, or else its page's without the sleeping page. */
@@ -1161,21 +905,6 @@ export class Browser {
 
   splitViewContains(tabId: string): boolean {
     return this.splitView?.firstTabId === tabId || this.splitView?.secondTabId === tabId
-  }
-
-  /** Records the tab shown. A new tab that stops showing returns nowhere when it later closes, as in Chrome. */
-  writeActiveTabId(tabId: string | null): void {
-    if (this.activeTabId && this.activeTabId !== tabId) delete this.tabs.get(this.activeTabId)?.returnsToTabId
-    this.activeTabId = tabId
-  }
-
-  /** Records the tab as its workspace's active tab, and the workspace as used now. */
-  markTabActiveInGroup(tab: BrowserTab): void {
-    if (!tab.mcpGroupId) return
-    const group = this.mcpTabGroups.get(tab.mcpGroupId)
-    if (!group) return
-    group.activeTabId = tab.id
-    group.lastUsedAt = new Date().toISOString()
   }
 
   /** Runs a wallet step a tab's lifecycle starts in the background, logging and reporting a failure. */

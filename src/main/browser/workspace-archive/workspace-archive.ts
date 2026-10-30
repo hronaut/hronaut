@@ -2,13 +2,14 @@ import { MAX_BROWSER_TABS, type BrowserClosedTabState, type BrowserSavedTabGroup
 import { MAX_ARCHIVED_WORKSPACES } from '../../../shared/undo.js'
 import { LocalizedError } from '../../localized-error.js'
 import { archivedWorkspaceBusyError, withSavedWorkspaceOperation } from '../workspace-operations/workspace-operations.js'
-import { canonicalStorageId } from '../workspace-storage-deletion.js'
+import { canonicalStorageId, assertStorageDeletionOwnership } from '../workspace-storage-deletion.js'
 import type { WorkspacePlacement } from '../workspace-registry/workspace-registry.js'
 import { destroyWorkspaceStorage, workspacePartition } from '../workspace-storage.js'
 import type { Browser } from '../browser.js'
 import { withTabLabelLifecycle } from '../tab-labels/tab-labels.js'
 import { browserState, publishChange } from '../browser-state/browser-state.js'
 import { persistedState } from '../browser-state/persisted-state.js'
+import { retireWorkspaceContinuity } from '../workspace-continuity/workspace-continuity.js'
 
 // A copy of the tab manager's limit, which its workspace registry keeps using.
 const MAX_SAVED_TAB_GROUPS = MAX_ARCHIVED_WORKSPACES
@@ -216,7 +217,7 @@ export async function deleteSavedTabGroup(browser: Browser, savedGroupId: string
     if (!saved) throw new LocalizedError('appErrors.workspace.archivedUnavailable', undefined, { message: `Unknown saved workspace: ${savedGroupId}.` })
     if (saved.deletionProtected) throw new LocalizedError('appErrors.workspace.protectedDelete', { name: saved.name })
     {
-      await browser.assertStorageDeletionOwnership(savedGroupId, saved.storageId)
+      await assertStorageDeletionOwnership(browser, savedGroupId, saved.storageId)
       await destroyWorkspaceStorage(
         workspacePartition(browser.options.partition, saved.storageId),
         browser.options.configureSession,
@@ -225,7 +226,7 @@ export async function deleteSavedTabGroup(browser: Browser, savedGroupId: string
     }
     browser.savedTabGroups.delete(savedGroupId)
     browser.deletedWorkspaceStorageIds.add(canonicalStorageId(saved.storageId)!)
-    browser.retireWorkspaceContinuity(savedGroupId)
+    retireWorkspaceContinuity(browser, savedGroupId)
     browser.options.onWorkspaceForgotten?.(savedGroupId)
     publishChange(browser)
     await browser.store.save(() => persistedState(browser))

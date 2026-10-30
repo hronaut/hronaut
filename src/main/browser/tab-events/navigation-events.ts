@@ -19,6 +19,7 @@ import { workspaceNavigationAllowed } from '../workspace-navigation/workspace-na
 import { publishChange } from '../browser-state/browser-state.js'
 import { isStaleAddressTitle, untitledPageTitle } from './untitled-page-title.js'
 import { syncHumanInteractionInputGuard } from '../interaction-lock/human-input-guard.js'
+import { recordVisit, trackWorkspaceOrigin } from './page-visits.js'
 
 /** Chromium's error code for a load that was aborted, which shows no load failure. */
 const ABORTED_LOAD_ERROR = -3
@@ -107,7 +108,7 @@ export function attachNavigationEvents(browser: Browser, tab: BrowserTab, webCon
   const recordPendingHistory = (): void => {
     if (tab.suppressInitialHistory || tab.pendingHistoryUrl !== tab.url) return
     tab.title = normalizeTabTitle(webContents.getTitle(), tab.title)
-    browser.recordVisit(tab, pendingHistoryReload)
+    recordVisit(browser, tab, pendingHistoryReload)
     tab.pendingHistoryUrl = null
   }
   webContents.on('page-title-updated', (_event, title, explicitSet) => {
@@ -244,7 +245,7 @@ export function attachNavigationEvents(browser: Browser, tab: BrowserTab, webCon
     tab.performanceDocumentRouted = false
     tab.documentGeneration += 1
     walletDocumentReplaced()
-    browser.trackWorkspaceOrigin(tab, url)
+    trackWorkspaceOrigin(browser, tab, url)
     tab.memoryBaseline = undefined
     const previousUrl = tab.url
     try {
@@ -279,7 +280,7 @@ export function attachNavigationEvents(browser: Browser, tab: BrowserTab, webCon
   })
   webContents.on('did-navigate-in-page', (_event, url, isMainFrame) => {
     if (tab.sleeping) return
-    browser.trackWorkspaceOrigin(tab, url)
+    trackWorkspaceOrigin(browser, tab, url)
     // A frame's hash or history change does not represent another visit to
     // the tab's top-level page, though it can add an entry.
     const previousEntry = committedEntry
@@ -312,7 +313,7 @@ export function attachNavigationEvents(browser: Browser, tab: BrowserTab, webCon
         && withoutFragment(url) !== withoutFragment(previousUrl)) {
         tab.suppressInitialHistory = false
       }
-      if (!tab.suppressInitialHistory) browser.recordVisit(tab, samePage)
+      if (!tab.suppressInitialHistory) recordVisit(browser, tab, samePage)
       tab.pendingHistoryUrl = null
       // A route of a single-page app is a page of its own, whose title the app sets once it has shown it, such as after
       // a slow request. As in Chrome, its titles count as set while it loads, until a document finishes loading.

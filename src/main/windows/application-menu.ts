@@ -10,6 +10,7 @@ import { printShownPage } from '../browser/page-print/page-print.js'
 import { saveShownPage } from '../browser/page-save/page-save.js'
 import { viewShownPageSource } from '../browser/page-source/page-source.js'
 import { setZoom } from '../browser/page-zoom/page-zoom.js'
+import { newTab } from '../browser/new-tabs/open-new-tab.js'
 
 interface ApplicationMenuHost {
   /** Translates into the current interface language; read on every build because the language can change. */
@@ -49,7 +50,7 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
     host.showWindow()
     host.runNativeBrowserAction(
       'open GitHub repository',
-      () => host.tabs()?.newTab({ url: 'https://github.com/hronaut/hronaut', active: true })
+      () => withBrowser((browser) => newTab(browser, { url: 'https://github.com/hronaut/hronaut', active: true }))
     )
   }
 

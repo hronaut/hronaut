@@ -7,6 +7,7 @@ import { queueElementPickerMouseInput } from '../element-picker/element-picker.j
 import { queueScreenshotAreaMouseInput } from '../screenshot-area/screenshot-area.js'
 import { scheduleTabOverviewPreview } from '../tab-overview-previews/tab-overview-previews.js'
 import { publishChange } from '../browser-state/browser-state.js'
+import { markTabActiveInGroup, writeActiveTabId } from '../tab-selection/active-tab.js'
 
 /** After a click, key or scroll on the page in view, its overview preview waits this long for the page to settle. The keyboard listener keeps its own copy. */
 const TAB_OVERVIEW_INPUT_SETTLE_MS = 1_000
@@ -92,7 +93,7 @@ function selectOtherPane(browser: Browser, tab: BrowserTab): void {
   if (!browser.splitViewContains(tab.id) || browser.activeTabId === tab.id) return
   browser.agentFollow = undefined
   browser.tabSelectionGeneration += 1
-  browser.writeActiveTabId(tab.id)
-  browser.markTabActiveInGroup(tab)
+  writeActiveTabId(browser, tab.id)
+  markTabActiveInGroup(browser, tab)
   publishChange(browser)
 }

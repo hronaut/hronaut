@@ -4,6 +4,7 @@ import type { AgentPresenceSnapshot } from '../../shared/agent-presence.js'
 import type { ConnectedAgent } from '../../shared/agent-status.js'
 import type { McpControlState } from '../../shared/types.js'
 import { retainAgentFollow } from '../browser/agent-follow/agent-follow.js'
+import { notifyHomeChanged } from '../browser/home-tabs/home-tabs.js'
 
 interface AgentPresenceHost {
   /** The MCP listener, whose server knows the agents in each workspace; its server is null while it is not running. */
@@ -73,7 +74,7 @@ export function createAgentPresence(host: AgentPresenceHost): {
       } else if (snapshot.revision !== agentPresenceSentRevision || feedRevision !== homeFeedSentRevision) {
         // Home shows presence and the steps agents finish, so it reads them again too, including when only its feed
         // changed, such as when history was cleared.
-        host.tabs()?.notifyHomeChanged()
+        if (browser) notifyHomeChanged(browser)
       }
       homeFeedSentRevision = feedRevision
       // A seen request whose avatar went away, such as when the MCP server stopped or agent access was

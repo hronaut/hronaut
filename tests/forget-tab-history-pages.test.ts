@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { Browser } from '../src/main/browser/browser.js'
 import { forgetTabHistoryPages, holdTabHistory, type TabHistoryPagesTab } from '../src/main/browser/tab-history-pages/forget-tab-history-pages.js'
 import type { BrowserClosedTabState } from '../src/shared/types.js'
+import { forgetHistoryPages } from '../src/main/browser/tab-history-pages/forget-history-pages.js'
 
 vi.mock('electron', () => ({
   session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, powerMonitor: { on: () => undefined }
@@ -107,9 +108,9 @@ describe('forgetting cleared pages from open tabs\' Back and Forward lists', () 
     const manager = Object.assign(Object.create(Browser.prototype), {
       closedTabs: [], detachedClosedTabs: new Set(), tabs: new Map([['tab', open.tab]]), changed
     }) as Browser
-    manager.forgetHistoryPages(matching('c'))
+    forgetHistoryPages(manager, matching('c'))
     expect(changed).not.toHaveBeenCalled()
-    manager.forgetHistoryPages(matching('a'))
+    forgetHistoryPages(manager, matching('a'))
     expect(open.urls()).toEqual([page('b')])
     expect(changed).toHaveBeenCalledExactlyOnceWith(false)
   })
@@ -127,7 +128,7 @@ describe('forgetting cleared pages from open tabs\' Back and Forward lists', () 
       changed: vi.fn()
     }
     const manager = Object.assign(Object.create(Browser.prototype), internals) as Browser
-    manager.forgetHistoryPages(matching('a'), 'agent-workspace')
+    forgetHistoryPages(manager, matching('a'), 'agent-workspace')
     expect(agentTab.urls()).toEqual([page('b')])
     expect(personTab.urls()).toEqual(['a', 'b'].map(page))
     expect(internals.closedTabs.map((tab) => tab.mcpGroupId)).toEqual(['person-workspace'])

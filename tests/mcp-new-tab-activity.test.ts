@@ -33,6 +33,11 @@ vi.mock('../src/main/browser/agent-pause/agent-pause.js', async (importOriginal)
   hasPausedAgentTab: (browser: { hasPausedAgentTab?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.hasPausedAgentTab?.(...args) ?? false,
   isTabTakenOver: (browser: { isTabTakenOver?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.isTabTakenOver?.(...args) ?? false
 }))
+// Opening an agent's tab is a function now; it reaches the fake's stub.
+vi.mock('../src/main/browser/new-tabs/open-new-tab.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/new-tabs/open-new-tab.js')>(),
+  newAgentTab: (browser: { newAgentTab: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.newAgentTab(...args)
+}))
 
 const workspaceId = '01912345-6789-7abc-8def-0123456789ab'
 const otherWorkspaceId = '01912345-678a-7abc-8def-0123456789ab'

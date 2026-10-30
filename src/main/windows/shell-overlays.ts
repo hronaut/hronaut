@@ -16,6 +16,7 @@ import type { SidebarOverlayEvent } from '../../shared/sidebar-overlay.js'
 import { showTabContextMenu } from '../browser/context-menus/tab-context-menu.js'
 import { setFollowAgentActivitySuspended } from '../browser/trusted-chrome-occlusion/trusted-chrome-occlusion.js'
 import { pageArea } from '../browser/window-layout/content-area.js'
+import { showWorkspaceContextMenu } from '../browser/context-menus/workspace-context-menu.js'
 
 interface ShellOverlaysHost {
   /** Whether a frame's address is the expected trusted page, with or without a fragment; each view admits only its own. */
@@ -193,7 +194,7 @@ export function createShellOverlays(host: ShellOverlaysHost): {
       const tabs = host.tabRuntime.tabs
       if (!tabs) return false
       if (menu.kind === 'tab') showTabContextMenu(tabs, menu.tabId, closed)
-      else tabs.showWorkspaceContextMenu(menu.workspaceId, closed)
+      else showWorkspaceContextMenu(tabs, menu.workspaceId, closed)
       return true
     },
     focusShell: () => {

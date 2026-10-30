@@ -1,4 +1,5 @@
-import type { MenuItemConstructorOptions } from 'electron'
+import { Menu, type MenuItemConstructorOptions } from 'electron'
+import { LocalizedError } from '../../localized-error.js'
 import type { ActiveWorkspace } from '../workspace-registry/workspace-registry.js'
 import type { Browser } from '../browser.js'
 import { sleepBlockReason, sleepWorkspaceTabs } from '../tab-sleep/tab-sleep.js'
@@ -69,4 +70,11 @@ export function workspaceContextMenuItems(browser: Browser, group: ActiveWorkspa
       click: () => runAction('archive the workspace', () => archiveWorkspaceForPerson(browser, group.id))
     }
   ]
+}
+
+/** Opens a workspace's menu where the pointer is; `onClosed` runs once it closes. */
+export function showWorkspaceContextMenu(browser: Browser, groupId: string, onClosed?: () => void): void {
+  const group = browser.mcpTabGroups.get(groupId)
+  if (!group) throw new LocalizedError('appErrors.workspace.unavailable', undefined, { message: `Unknown workspace: ${groupId}` })
+  Menu.buildFromTemplate(workspaceContextMenuItems(browser, group)).popup({ window: browser.window, ...(onClosed ? { callback: onClosed } : {}) })
 }

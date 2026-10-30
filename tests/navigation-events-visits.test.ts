@@ -7,6 +7,12 @@ vi.mock('../src/main/browser/site-muting/site-muting.js', async (importOriginal)
 }))
 import { attachNavigationEvents } from '../src/main/browser/tab-events/navigation-events.js'
 
+// Recording a visit is a function now; it reaches the fake's stub.
+vi.mock('../src/main/browser/tab-events/page-visits.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-events/page-visits.js')>(),
+  recordVisit: (browser: { recordVisit: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.recordVisit(...args)
+}))
+
 /** A stand-in for whatever the handlers call on the tab manager: any call or property gives another stand-in. */
 function anything(): unknown {
   const stand: unknown = new Proxy(() => undefined, {

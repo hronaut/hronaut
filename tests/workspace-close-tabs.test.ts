@@ -44,11 +44,18 @@ import { destroyWorkspaceStorage } from '../src/main/browser/workspace-storage.j
 import { closeMcpTabGroup } from '../src/main/browser/mcp-tab-groups/close-mcp-tab-group.js'
 import { closeTabsForPerson } from '../src/main/browser/tab-close/close-tabs-for-person.js'
 import { deleteSavedTabGroup } from '../src/main/browser/workspace-archive/workspace-archive.js'
+import { forgetHistoryPages } from '../src/main/browser/tab-history-pages/forget-history-pages.js'
 
 // The fake browser below stubs the functions the code under test calls; these reach its stubs.
 vi.mock('../src/main/browser/workspace-continuity/workspace-continuity.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/workspace-continuity/workspace-continuity.js')>(),
-  suspendWorkspaceContinuity: (browser: { suspendWorkspaceContinuity: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.suspendWorkspaceContinuity(...args)
+  suspendWorkspaceContinuity: (browser: { suspendWorkspaceContinuity: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.suspendWorkspaceContinuity(...args),
+  retireWorkspaceContinuity: (browser: { retireWorkspaceContinuity: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.retireWorkspaceContinuity(...args)
+}))
+// Checking who owns a workspace's storage is a function now; it reaches the fake's stub.
+vi.mock('../src/main/browser/workspace-storage-deletion.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-storage-deletion.js')>(),
+  assertStorageDeletionOwnership: (browser: { assertStorageDeletionOwnership: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.assertStorageDeletionOwnership(...args)
 }))
 
 const CLOSING = '01912345-6789-7abc-8def-0123456789ab'
@@ -554,7 +561,7 @@ describe('recently closed tabs of other workspaces', () => {
     await vi.waitFor(() => expect(internals.assertStorageDeletionOwnership).toHaveBeenCalled())
     // The two oldest are held aside while the workspace's storage is deleted, and the person removes the page of the
     // oldest from the history meanwhile.
-    manager.forgetHistoryPages((url) => url === 'https://other.test/0')
+    forgetHistoryPages(manager, (url) => url === 'https://other.test/0')
     deleteStorage()
     await closing
     // Closing the workspace used to put the held-aside tab back, its address with it.
@@ -570,7 +577,7 @@ describe('recently closed tabs of other workspaces', () => {
     internals.assertStorageDeletionOwnership.mockReturnValueOnce(new Promise<void>((_resolve, reject) => { refuse = reject }))
     const closing = closeMcpTabGroup(manager, CLOSING)
     await vi.waitFor(() => expect(internals.assertStorageDeletionOwnership).toHaveBeenCalled())
-    manager.forgetHistoryPages(() => true)
+    forgetHistoryPages(manager, () => true)
     refuse(new Error('Workspace storage has ambiguous ownership; deletion was stopped.'))
     await expect(closing).rejects.toThrow('ambiguous ownership')
     expect(workspaceTabs(CLOSING)).toEqual([SHOWN, ASLEEP])

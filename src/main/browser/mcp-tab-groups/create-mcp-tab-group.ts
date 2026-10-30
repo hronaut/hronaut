@@ -17,7 +17,7 @@ import type { Browser } from '../browser.js'
 import { withGlobalWorkspaceStorageOperation, withSavedWorkspaceOperation, withWorkspaceOperation } from '../workspace-operations/workspace-operations.js'
 import { assertActiveWorkspaceCapacity } from '../workspace-creation/workspace-capacity.js'
 import { publishChange } from '../browser-state/browser-state.js'
-import { normalizedWorkspaceName, requireMcpTabGroup } from './mcp-tab-groups.js'
+import { normalizedWorkspaceName, requireMcpTabGroup, assertWorkspaceNameAvailable } from './mcp-tab-groups.js'
 import { isClosingWorkspace } from '../workspace-archive/workspace-archive.js'
 
 /**
@@ -78,7 +78,7 @@ export async function createMcpTabGroup(
     throw new LocalizedError('appErrors.workspace.observerRequirements')
   }
   const normalizedName = normalizedWorkspaceName(name)
-  browser.assertWorkspaceNameAvailable(normalizedName, undefined, undefined, allowDuplicateName)
+  assertWorkspaceNameAvailable(browser, normalizedName, undefined, undefined, allowDuplicateName)
   assertActiveWorkspaceCapacity(browser)
   const now = new Date().toISOString()
   const id = uuidV7()

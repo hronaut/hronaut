@@ -9,6 +9,7 @@ import { getTab, orderedTabs } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { browserState } from '../browser-state/browser-state.js'
 import { reorderTab } from '../tab-arrangement/tab-arrangement.js'
+import { withTabLabelLifecycle } from '../tab-labels/tab-labels.js'
 
 const MAX_TABS = MAX_BROWSER_TABS
 const MAX_CLOSED_TABS = MAX_TABS
@@ -143,7 +144,7 @@ export function forgetClosedTabs(browser: Browser, matches: (url: string) => boo
       const closed = closedTabs[index]!
       if (workspaceId !== undefined && closed.mcpGroupId !== workspaceId) continue
       if (!matches(closed.url)) {
-        forgetHistoryPages(closed, matches)
+        forgetClosedTabHistoryPages(closed, matches)
         continue
       }
       closedTabs.splice(index, 1)
@@ -164,7 +165,7 @@ export function forgetWorkspaceClosedTabs(browser: Browser, workspaceId: string,
       const closed = closedTabs[index]!
       if (closed.mcpGroupId !== workspaceId) continue
       if (!matches(closed.url)) {
-        forgetHistoryPages(closed, matches)
+        forgetClosedTabHistoryPages(closed, matches)
         continue
       }
       closedTabs.splice(index, 1)
@@ -249,11 +250,21 @@ function copyHistory(history: NavigationHistorySnapshot): NavigationHistorySnaps
  * Forgets the pages of a closed tab's back and forward history whose address matches, so a page whose history was
  * cleared does not come back with Back once the tab reopens; the page it showed is kept, as its address does not match.
  */
-function forgetHistoryPages(closed: BrowserClosedTabState, matches: (url: string) => boolean): void {
+function forgetClosedTabHistoryPages(closed: BrowserClosedTabState, matches: (url: string) => boolean): void {
   const history = closedTabHistories.get(closed)
   if (!history?.pages) return
   const { entries, index } = history.pages
   const kept = entries.filter((entry, entryIndex) => entryIndex === index || !matches(entry.url))
   if (kept.length === entries.length) return
   history.pages = { entries: kept, index: entries.slice(0, index).filter((entry) => !matches(entry.url)).length }
+}
+
+/** Reopens the most recently closed tab, or the one with this id, and shows it, once tab label saves have settled. */
+export function reopenClosedTab(browser: Browser, closedTabId?: string): Promise<BrowserState> {
+  return withTabLabelLifecycle(browser, () => reopenClosedTabAfterLabelSave(browser, closedTabId))
+}
+
+/** Opens a copy of the tab right after it, once tab label saves have settled. */
+export function duplicateTab(browser: Browser, tabId: string): Promise<BrowserState> {
+  return withTabLabelLifecycle(browser, () => duplicateTabAfterLabelSave(browser, tabId))
 }

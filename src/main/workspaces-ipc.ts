@@ -31,6 +31,8 @@ import { listWorkspaceNavigationAudit, updateWorkspaceNavigationPolicy } from '.
 import { renameMcpTabGroup, updateMcpTabGroup } from './browser/mcp-tab-groups/mcp-tab-groups.js'
 import { armWorkspaceContinuity, inspectWorkspaceContinuity, reconcileWorkspaceContinuity, suspendWorkspaceContinuity } from './browser/workspace-continuity/workspace-continuity.js'
 import { browserState } from './browser/browser-state/browser-state.js'
+import { showWorkspaceContextMenu } from './browser/context-menus/workspace-context-menu.js'
+import { closeWorkspace } from './browser/mcp-tab-groups/close-mcp-tab-group.js'
 
 interface WorkspacesIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
@@ -259,7 +261,7 @@ export function registerWorkspacesIpc(host: WorkspacesIpcHost): void {
     if (typeof workspaceId !== 'string') throw new TypeError('Invalid workspace ID')
     if (options !== undefined && (!options || typeof options !== 'object' || Array.isArray(options))) throw new TypeError('Invalid workspace close options')
     const undoable = (options as { undoable?: unknown } | undefined)?.undoable === true
-    return undoable ? closeWorkspaceForPerson(host.tabs()!, workspaceId) : host.tabs()!.closeWorkspace(workspaceId)
+    return undoable ? closeWorkspaceForPerson(host.tabs()!, workspaceId) : closeWorkspace(host.tabs()!, workspaceId)
   })
   host.handleBrowserIpc('browser:save-and-close-tab-group', async (event, groupId: unknown) => {
     host.assertTrustedSender(event)
@@ -282,6 +284,6 @@ export function registerWorkspacesIpc(host: WorkspacesIpcHost): void {
   host.handleBrowserIpc('browser:show-workspace-context-menu', (event, workspaceId: unknown) => {
     host.assertTrustedSender(event)
     if (typeof workspaceId !== 'string') throw new TypeError('Invalid workspace ID')
-    host.tabs()!.showWorkspaceContextMenu(workspaceId)
+    showWorkspaceContextMenu(host.tabs()!, workspaceId)
   })
 }

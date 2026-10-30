@@ -1,3 +1,4 @@
+import { webContents as electronWebContents, type WebContents } from 'electron'
 import type { Browser } from '../browser.js'
 import type { BrowserTab } from '../browser-tab.js'
 
@@ -74,4 +75,40 @@ export function focusTabOrTrustedChrome(browser: Browser, tab: BrowserTab): void
     return
   }
   tab.webContents.focus()
+}
+
+/**
+ * Gives the keyboard back to a page that asked one of Hronaut's questions, such as Home before deleting a workspace,
+ * once the question's dialog over it has closed, as a system dialog does. A click or key in the shell meanwhile keeps
+ * the focus where it went. The person answered, so pages kept from the keyboard after a sign-in that closed while they
+ * typed in it may take it again.
+ */
+export function focusPageAfterQuestion(browser: Browser, page: WebContents): void {
+  if (browser.focusAfterTrustedChrome && !browser.focusAfterTrustedChrome.tab) cancelFocusAfterTrustedChrome(browser)
+  const tabId = browser.webContentsToTab.get(page.id)
+  const tab = tabId ? browser.tabs.get(tabId) : undefined
+  if (!tab || (tab.id !== browser.activeTabId && !browser.splitViewContains(tab.id))) return
+  focusTabOrTrustedChrome(browser, tab)
+}
+
+/**
+ * The page that has the keyboard now, or that takes it once trusted chrome closes if it is still in view; null while
+ * the person is elsewhere.
+ */
+export function keyboardPage(browser: Browser): WebContents | null {
+  const waiting = browser.focusAfterTrustedChrome?.tab?.webContents
+  if (waiting && !waiting.isDestroyed()) return waiting
+  const focused = electronWebContents.getFocusedWebContents()
+  return focused && browser.webContentsToTab.has(focused.id) ? focused : null
+}
+
+/**
+ * Gives the keyboard to the page in view, or the active pane of a split view, as F6 does from Chrome's toolbar, when
+ * this window's shell asks; a panel in its own window has no page beside it. Under a lock on the person's input the
+ * shell keeps it, and under trusted chrome the page takes it once that closes.
+ */
+export function focusActivePage(browser: Browser, shell: WebContents): void {
+  if (shell !== browser.window.webContents) return
+  const tab = browser.activeTabId ? browser.tabs.get(browser.activeTabId) : undefined
+  if (tab && !tab.webContents.isDestroyed()) focusTabOrTrustedChrome(browser, tab)
 }

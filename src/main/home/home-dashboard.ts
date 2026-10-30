@@ -8,6 +8,7 @@ import type { AgentPresenceSnapshot } from '../../shared/agent-presence.js'
 import type { ConnectedAgent } from '../../shared/agent-status.js'
 import type { HomeDashboard } from '../../shared/home.js'
 import type { AppSettings, McpControlState, ThemeName } from '../../shared/types.js'
+import { reloadHome } from '../browser/home-tabs/home-tabs.js'
 
 interface HomeDashboardHost {
   /** The MCP listener, whose server, endpoint and startup error Home shows; the server is null while it is not running. */
@@ -17,7 +18,7 @@ interface HomeDashboardHost {
   /** The saved workspaces' initialization while it runs; Home is not reloaded meanwhile. */
   tabsInitializationPromise(): Promise<void> | null
   /** The tab runtime, which reloads a visible Home; null until the window opens. */
-  tabs(): Pick<Browser, 'reloadHome'> | null
+  tabs(): Browser | null
   /** Each connected agent once, with its strongest state; agent presence owns it. */
   connectedAgents(presence?: AgentPresenceSnapshot['workspaces']): ConnectedAgent[]
   /** The MCP status the shell shows, with the port the listener failed on and the free one to offer. */
@@ -43,7 +44,8 @@ export function createHomeDashboard(host: HomeDashboardHost): {
   function refreshHomeAfterCommittedChange(scope: 'mcp' | 'settings'): void {
     homePresentationRevision += 1
     if (host.workspaceStartupFailure() || host.tabsInitializationPromise()) return
-    void host.tabs()?.reloadHome().catch((error) => {
+    const browser = host.tabs()
+    if (browser) void reloadHome(browser).catch((error) => {
       console.error(`[${scope}] Could not refresh Hronaut Home after a committed state change:`, error)
     })
   }

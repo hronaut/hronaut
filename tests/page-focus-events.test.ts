@@ -24,8 +24,6 @@ function covered(options: { agentInput?: boolean } = {}) {
     wakeTab: vi.fn(),
     splitViewContains: () => false,
     activeTabId: tab.id,
-    writeActiveTabId: vi.fn(),
-    markTabActiveInGroup: vi.fn(),
     changed: vi.fn(),
     options: { onCoveredPageKeyboard: vi.fn() }
   }
