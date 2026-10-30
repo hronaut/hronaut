@@ -162,6 +162,8 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
   ipcMain.handle(DIAGNOSTICS_IPC.video, (event, value: unknown) => {
     host.assertTrustedSender(event)
     const options = videoOptionsSchema.parse(value)
+    // The shell adds audio only through importVideoAudio, from a file the person picks; it never names a file itself.
+    if (options.action === 'import-audio' || options.audioPath !== undefined) throw new TypeError('Audio is imported only from a file the person picks')
     return videoRecording(host.tabs(), options)
   })
   ipcMain.handle(DIAGNOSTICS_IPC.videoPreview, (event, tabId: unknown) => {

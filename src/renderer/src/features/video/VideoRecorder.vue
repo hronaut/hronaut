@@ -7,7 +7,7 @@ import type { SupportedLocale } from '../../../../shared/types.js'
 import UiButton from '../../ui/UiButton.vue'
 import VideoAudioEditor from './VideoAudioEditor.vue'
 import VideoMotionEditor from './VideoMotionEditor.vue'
-import { VIDEO_ANNOTATION_KINDS, VIDEO_PLACEMENTS, VIDEO_RECORDING_NOTICES, VIDEO_SCHEMA_ERRORS, VIDEO_TEXT_PRESETS, videoAnnotationSchema, videoOptionsSchema, type BrowserVideoOptions, type BrowserVideoState, type VideoAnnotation } from '../../../../shared/video.js'
+import { VIDEO_ANNOTATION_KINDS, VIDEO_PLACEMENTS, VIDEO_RECORDING_NOTICES, VIDEO_SCHEMA_ERRORS, VIDEO_TEXT_PRESETS, videoAnnotationSchema, videoOptionsSchema, type BrowserVideoOptions, type BrowserVideoState, type ShellVideoOptions, type VideoAnnotation } from '../../../../shared/video.js'
 import { friendlyUiError } from '../../composables/useAppToastController.js'
 
 const props = defineProps<{ tabId: string }>()
@@ -134,8 +134,8 @@ async function perform(action: BrowserVideoOptions['action'], operation: (tabId:
     if (!disposed && expected === revision) { busy.value = false; pendingAction.value = undefined; void refresh(); void keepFocus(focused, section, expected, giveBack) }
   }
 }
-async function manage(action: BrowserVideoOptions['action'], extra: Partial<BrowserVideoOptions> = {}): Promise<void> {
-  await perform(action, tabId => window.hronaut.manageVideo(videoOptionsSchema.parse({ ...extra, tabId, action })))
+async function manage(action: NonNullable<ShellVideoOptions['action']>, extra: Partial<ShellVideoOptions> = {}): Promise<void> {
+  await perform(action, tabId => window.hronaut.manageVideo({ ...videoOptionsSchema.parse({ ...extra, tabId, action }), action }))
 }
 async function importAudio(provenance: string): Promise<void> {
   await perform('import-audio', tabId => window.hronaut.importVideoAudio(tabId, provenance))

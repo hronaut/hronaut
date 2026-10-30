@@ -4,12 +4,12 @@ import { useI18n } from 'vue-i18n'
 import { formatNumber } from '../../../../shared/format.js'
 import type { SupportedLocale } from '../../../../shared/types.js'
 import UiButton from '../../ui/UiButton.vue'
-import type { BrowserVideoOptions, BrowserVideoState } from '../../../../shared/video.js'
+import type { BrowserVideoState, ShellVideoOptions } from '../../../../shared/video.js'
 import { VIDEO_AUDIO_LIMITS } from '../../../../shared/video-audio.js'
 
 const props = defineProps<{ state: BrowserVideoState; busy: boolean }>()
 const emit = defineEmits<{
-  edit: [options: Partial<BrowserVideoOptions>]
+  edit: [options: Partial<ShellVideoOptions>]
   import: [provenance: string]
   removeAsset: [assetId: string]
 }>()
