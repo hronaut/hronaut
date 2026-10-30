@@ -16,7 +16,11 @@ const files = sourceFiles()
 // Locale files hold one translated string per line and grow with every string, in every language.
 const sizedFiles = files.filter(file => !file.startsWith('src/shared/locales/'))
 
-describe('the architecture rules in AGENTS.md', () => {
+// The guards that read the code parse up to every source file, which takes a second or two alone and more while the
+// whole suite runs at once.
+const SCAN_TIMEOUT = 30_000
+
+describe('the architecture rules in AGENTS.md', { timeout: SCAN_TIMEOUT }, () => {
   it(`keeps every source file within ${MAX_LINES} lines, and lets the larger ones only shrink`, () => {
     const problems: string[] = []
     for (const file of sizedFiles) {
@@ -205,7 +209,7 @@ describe('the architecture rules in AGENTS.md', () => {
   })
 })
 
-describe('the code the e2e tests load', () => {
+describe('the code the e2e tests load', { timeout: SCAN_TIMEOUT }, () => {
   // Playwright lists the e2e tests by loading them in plain Node, where the electron package is only the path of its
   // binary and has no subpaths. One `import { BrowserWindow } from 'electron'` that a test's imports reach stopped
   // every e2e shard of the 3.14.0 release rehearsal before a test ran.
@@ -214,7 +218,7 @@ describe('the code the e2e tests load', () => {
     const importedBy = new Map(starts.map(file => [file, '']))
     const problems: string[] = []
     // A Map visits the entries added while it is walked, so this follows every import the tests reach. Each file is
-    // parsed once, and again only when it imports Electron, so the walk stays quick beside the rest of the suite.
+    // parsed once, so the walk stays quick beside the rest of the suite.
     for (const [file] of importedBy) {
       const code = readFileSync(join(ROOT, file), 'utf8')
       const specifiers = runtimeSpecifiers(code, file)
@@ -232,7 +236,7 @@ describe('the code the e2e tests load', () => {
     }
     expect(importedBy.has('src/main/mcp/tool-catalog.ts')).toBe(true)
     expect(problems).toEqual([])
-  }, 30_000)
+  })
 
   it('counts the names a module takes from a package for its code, and leaves out types, its default and other packages', () => {
     const code = [
