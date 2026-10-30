@@ -155,7 +155,8 @@ function canonical(value: unknown): string {
 /**
  * A tool's result bounded as the bridge bounds it, which leaves a result the bridge bounded as it is: strings, arrays
  * and objects cut to their limits, objects past the depth limit and repeated ones as `[truncated]`, and JSON longer
- * than the result limit as the start of that JSON.
+ * than the result limit as the start of that JSON. Any other value, which the bridge never gives, such as a big
+ * integer, a typed array or a Map, is kept as `[truncated]` too.
  */
 function boundedResult(value: unknown): { value: unknown; truncated?: true } {
   const result = recordOf(value)
