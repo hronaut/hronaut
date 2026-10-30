@@ -969,7 +969,7 @@ export class Browser {
     tab.webContents.downloadURL(dataUrl)
   }
 
-  /** Whether the window shows a page in full screen, such as a video, which Follow agents does not switch away from. */
+  /** Whether the window shows a page in full screen, such as a video: nothing of the shell's is drawn over it, and Follow agents does not switch away from it. */
   pageFullscreenShown(): boolean {
     return shownPageFullscreenTab(this) !== undefined
   }
