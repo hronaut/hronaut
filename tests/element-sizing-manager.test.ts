@@ -4,7 +4,6 @@ vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage
 import { Browser } from '../src/main/browser/browser.js'
 import { ImageInspectionSlots } from '../src/main/browser/image-state.js'
 import { elementInspection } from '../src/main/browser/element-inspection/element-inspection.js'
-import { sizingInputsInPage } from '../src/main/browser/element-sizing-inputs.page.js'
 
 it.each(['validator', 'listener'])('releases sizing ownership after %s failure following acquisition', async stage => {
   const contents = Object.assign(new EventEmitter(), { isDestroyed: () => false, executeJavaScriptInIsolatedWorld: vi.fn(async () => true) })
@@ -47,7 +46,7 @@ it('runs the parent flex context on the guarded sizing path, and only for one un
   const report = await elementInspection(manager, { tabId: 'tab', selector: '#target', includeFlexContainer: true })
   expect(report).toMatchObject({ sizingInputs: { 'flex-grow': 1 }, flexContainer: { status: 'unavailable', reason: 'not-flex-container' } })
   // The capture reads the parent and checks it again when it settles.
-  expect(scripts[0]).toContain(sizingInputsInPage.toString())
+  expect(scripts[0]).toContain('"sizing":true')
   expect(scripts[0]).toContain('"includeFlexContainer":true')
   expect(scripts[0]).toContain('__hronautSizingInputs')
   expect(scripts[1]).toContain('__hronautSizingInputs')

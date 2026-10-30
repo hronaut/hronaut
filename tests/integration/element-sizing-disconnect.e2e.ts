@@ -30,7 +30,7 @@ test('actual sizing client disconnect retains native work and cleanup ownership'
     page.executeJavaScriptInIsolatedWorld = async function (...args) {
       const code = args[1][0]!.code
       if (args[0] === 1006 && code.includes('SettlementInPage(') && code.endsWith(', false)')) state.settlements++
-      if (args[0] === 1006 && code.includes('function sizingInputsInPage(')) {
+      if (args[0] === 1006 && code.includes('"sizing":true')) {
         state.reads++
         const value = await original.apply(this, args)
         await reads
