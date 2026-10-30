@@ -38,7 +38,7 @@ describe('app page-tools panel feature controller', () => {
   })
 
   it('owns panel surface handles, controller wiring, and idempotent aggregate disposal', () => {
-    const responsivePanel = ref(null)
+    const setResponsivePanel = vi.fn()
     const setSiteStoragePanel = vi.fn()
     const options = {
       pageTools: { marker: 'page-tools' },
@@ -57,7 +57,7 @@ describe('app page-tools panel feature controller', () => {
         dock: { marker: 'dock' },
         onError: vi.fn()
       },
-      responsivePanel,
+      setResponsivePanel,
       setSiteStoragePanel
     } as never
 
@@ -71,7 +71,7 @@ describe('app page-tools panel feature controller', () => {
     controller.layerHandles.setNetworkPanel(networkHandle as never)
     controller.layerHandles.setSiteStoragePanel('storage' as never)
 
-    expect(responsivePanel.value).toStrictEqual(responsiveHandle)
+    expect(setResponsivePanel).toHaveBeenCalledWith(responsiveHandle)
     expect(setSiteStoragePanel).toHaveBeenCalledWith('storage')
     const panelOptions = mocks.usePanel.mock.calls[0]?.[0] as {
       registry: { pageToolsOpen: unknown }
@@ -96,6 +96,29 @@ describe('app page-tools panel feature controller', () => {
     expect(mocks.pageToolsDispose).toHaveBeenCalledOnce()
   })
 
+  it('opens Page tools after closing the transient panels, and closes it without touching them', () => {
+    const closeTransientPanels = vi.fn()
+    mocks.usePanel.mockReturnValueOnce({
+      transientPanelsController: { close: closeTransientPanels },
+      dispose: mocks.panelDispose
+    })
+    const controller = useAppPageToolsPanelFeatureController({
+      pageTools: {},
+      panel: { registry: {}, transient: {}, developer: {}, detached: {}, dock: {}, onError: vi.fn() },
+      setResponsivePanel: vi.fn(),
+      setSiteStoragePanel: vi.fn()
+    } as never)
+
+    controller.togglePageTools()
+    expect(closeTransientPanels).toHaveBeenCalledOnce()
+    expect(controller.pageToolsOpen.value).toBe(true)
+
+    controller.togglePageTools()
+    expect(closeTransientPanels).toHaveBeenCalledOnce()
+    expect(controller.pageToolsOpen.value).toBe(false)
+    controller.dispose()
+  })
+
   it('rolls back page-tool resources when panel composition fails', () => {
     mocks.usePanel.mockImplementationOnce(() => {
       throw new Error('panel registration failed')
@@ -111,7 +134,7 @@ describe('app page-tools panel feature controller', () => {
         dock: {},
         onError: vi.fn()
       },
-      responsivePanel: ref(null),
+      setResponsivePanel: vi.fn(),
       setSiteStoragePanel: vi.fn()
     } as never)).toThrow('panel registration failed')
 

@@ -1,4 +1,4 @@
-import type { Ref } from 'vue'
+import { ref, type Ref } from 'vue'
 import type {
   BrowserEmulationState,
   BrowserState,
@@ -31,9 +31,6 @@ export interface AppEmulationFeatureControllerOptions {
   activeTab: Readonly<Ref<BrowserTabState | undefined>>
   browser: EmulationBrowserApi
   syncState: (operation: Promise<BrowserState>) => Promise<void>
-  responsivePanelOpen: Readonly<Ref<boolean>>
-  responsivePanel: Readonly<Ref<ResponsivePanelSurface | null>>
-  environmentPanelOpen: Ref<boolean>
   closeTransientPanels: EnvironmentPanelControllerOptions['closeTransientPanels']
   translate: EmulationControllerOptions['translate']
   formatNumber: EmulationControllerOptions['formatNumber']
@@ -42,16 +39,29 @@ export interface AppEmulationFeatureControllerOptions {
 }
 
 export function useAppEmulationFeatureController(options: AppEmulationFeatureControllerOptions) {
+  const responsivePanelOpen = ref(false)
+  const responsivePanel = ref<ResponsivePanelSurface | null>(null)
+  const environmentPanelOpen = ref(false)
+
+  function setResponsivePanel(panel: ResponsivePanelSurface | null): void {
+    responsivePanel.value = panel
+  }
+
   function loadResponsiveDraft(viewport = emulationController.activeEmulation.value?.viewport): void {
-    options.responsivePanel.value?.loadDraft(viewport)
+    responsivePanel.value?.loadDraft(viewport)
   }
 
   function resetResponsiveFeedback(): void {
-    options.responsivePanel.value?.resetFeedback()
+    responsivePanel.value?.resetFeedback()
   }
 
   function toggleResponsivePreview(): void {
-    options.responsivePanel.value?.toggle()
+    responsivePanel.value?.toggle()
+  }
+
+  /** Closes the Responsive preview, as Escape does. */
+  function closeResponsivePreview(): void {
+    responsivePanel.value?.handleEscape()
   }
 
   function loadEnvironmentDraft(emulation = emulationController.activeEmulation.value): void {
@@ -64,7 +74,7 @@ export function useAppEmulationFeatureController(options: AppEmulationFeatureCon
 
   /** Shows a viewport the emulation frame applied in an open Responsive preview, so Apply does not undo it. */
   function frameViewportApplied(tabId: string): void {
-    if (options.responsivePanelOpen.value && options.activeTab.value?.id === tabId) loadResponsiveDraft()
+    if (responsivePanelOpen.value && options.activeTab.value?.id === tabId) loadResponsiveDraft()
   }
 
   function setResponsiveTabViewport(
@@ -78,9 +88,9 @@ export function useAppEmulationFeatureController(options: AppEmulationFeatureCon
     activeTab: options.activeTab,
     resetTabEmulation: (tabId) => options.browser.resetTabEmulation(tabId),
     syncState: options.syncState,
-    responsivePanelOpen: () => options.responsivePanelOpen.value,
+    responsivePanelOpen: () => responsivePanelOpen.value,
     loadResponsiveDraft,
-    environmentPanelOpen: () => options.environmentPanelOpen.value,
+    environmentPanelOpen: () => environmentPanelOpen.value,
     loadEnvironmentDraft,
     translate: options.translate,
     formatNumber: options.formatNumber,
@@ -92,7 +102,7 @@ export function useAppEmulationFeatureController(options: AppEmulationFeatureCon
     )
   })
   const environmentController = useEnvironmentPanelController({
-    open: options.environmentPanelOpen,
+    open: environmentPanelOpen,
     activeTab: options.activeTab,
     recoverTabEmulation: (tabId) => options.browser.recoverTabEmulation(tabId),
     setTabEnvironment: (tabId, environment) => options.browser.setTabEnvironment(tabId, environment),
@@ -113,6 +123,10 @@ export function useAppEmulationFeatureController(options: AppEmulationFeatureCon
   }
 
   return {
+    responsivePanelOpen,
+    environmentPanelOpen,
+    setResponsivePanel,
+    closeResponsivePreview,
     emulationController,
     environmentController,
     activeEmulation: emulationController.activeEmulation,

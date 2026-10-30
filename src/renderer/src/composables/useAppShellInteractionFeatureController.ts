@@ -56,6 +56,8 @@ type TransientShell = Pick<
   | 'tabSearchPanel'
   | 'zoomBar'
   | 'commandPalettePanel'
+  | 'agentStepsOpen'
+  | 'closeAgentSteps'
   | 'openFindForTab'
   | 'closeFind'
   | 'closeWorkspace'
@@ -77,7 +79,11 @@ type CollectionsFeature = Pick<
 
 type EmulationFeature = Pick<
   AppEmulationFeatureController,
-  'toggleResponsivePreview' | 'toggleEnvironment'
+  | 'responsivePanelOpen'
+  | 'environmentPanelOpen'
+  | 'closeResponsivePreview'
+  | 'toggleResponsivePreview'
+  | 'toggleEnvironment'
 >
 
 type PageToolsFeature = Pick<
@@ -137,7 +143,7 @@ interface ToggleSurface {
 interface SettingsSurface extends ToggleSurface {
   tabOpen?: Ref<boolean>
   closeTab?: () => void
-  activate?: () => void
+  toggle?: () => void
   openSection: (section: SettingsSection) => unknown
 }
 
@@ -159,7 +165,6 @@ export interface AppShellInteractionFeatureControllerOptions {
   activeTab: Readonly<Ref<BrowserTabState | undefined>>
   browser: InteractionBrowserApi
   syncState: (operation: Promise<BrowserState> | BrowserState) => Promise<void>
-  isHome: () => boolean
   transient: TransientShell
   surfaces: {
     settings: SettingsSurface
@@ -172,17 +177,13 @@ export interface AppShellInteractionFeatureControllerOptions {
     qrCode: ToggleSurface
     walletApproval: Readonly<Ref<boolean>>
     /** Main's own question, such as a website's permission request; Escape answers it as Cancel does. */
-    trustedDialog: { open: Readonly<Ref<boolean>>, close: () => void }
-    /** An agent's "All steps". */
-    agentSteps: ToggleSurface
+    trustedDialog: { open: Readonly<Ref<boolean>>, cancel: () => void }
     siteStorage: Ref<boolean>
     siteControls: Ref<boolean>
     addressSuggestions: Ref<boolean>
     pageTools: Ref<boolean>
     console: Ref<boolean>
     network: Ref<boolean>
-    responsive: ToggleSurface
-    environment: Ref<boolean>
     /** True while the panels that can move to their own window, such as Site storage, are shown there. */
     panelsInOwnWindow: () => boolean
   }
@@ -224,6 +225,10 @@ export function useAppShellInteractionFeatureController(
   options: AppShellInteractionFeatureControllerOptions
 ) {
   const { transient, surfaces, features, navigation, actions } = options
+  const isHome = (): boolean => !options.state.value.activeTabId || isHronautHomeUrl(options.activeTab.value?.url) === true
+  const trustedDialog = { open: surfaces.trustedDialog.open, close: surfaces.trustedDialog.cancel }
+  /** An agent's "All steps". */
+  const agentSteps = { open: transient.agentStepsOpen, close: transient.closeAgentSteps }
   const { run: runFindTransition } = useFindTransitionController({
     findOpen: transient.findOpen,
     closeFind: transient.closeFind
@@ -286,7 +291,7 @@ export function useAppShellInteractionFeatureController(
   })
   const tabNavigation = useTabNavigationController({
     state: options.state,
-    isHome: options.isHome,
+    isHome,
     preferredWebTab: home.preferredWebsiteTab,
     selectBrowserTab: navigation.selectBrowserTab,
     browser: options.browser,
@@ -304,7 +309,7 @@ export function useAppShellInteractionFeatureController(
       surfaces.releaseHistory.open,
       surfaces.taskManager.open,
       surfaces.qrCode.open,
-      surfaces.agentSteps.open,
+      agentSteps.open,
       surfaces.walletApproval,
       surfaces.trustedDialog.open,
       features.collections.downloadsOpen,
@@ -356,7 +361,7 @@ export function useAppShellInteractionFeatureController(
     syncState: options.syncState,
     settingsOpen: surfaces.settings.open,
     settingsTabOpen: surfaces.settings.tabOpen,
-    openSettings: () => { surfaces.settings.activate?.() },
+    openSettings: () => { surfaces.settings.toggle?.() },
     closeSettingsTab: surfaces.settings.closeTab,
     canRunAction: (action) => {
       // Find Next and Find Previous do nothing over a dialog, as Ctrl/Cmd+F does: Find would search the page the dialog
@@ -373,7 +378,7 @@ export function useAppShellInteractionFeatureController(
           || surfaces.releaseHistory.open.value
           || surfaces.taskManager.open.value
           || surfaces.qrCode.open.value
-          || surfaces.agentSteps.open.value
+          || agentSteps.open.value
           || surfaces.walletApproval.value
           || surfaces.trustedDialog.open.value
           || (action !== 'downloads' && surfaces.settings.open.value)
@@ -390,7 +395,7 @@ export function useAppShellInteractionFeatureController(
           || transient.tabSearchOpen.value
           || surfaces.help.open.value
           || surfaces.releaseHistory.open.value
-          || surfaces.agentSteps.open.value
+          || agentSteps.open.value
           || surfaces.qrCode.open.value
           || surfaces.settings.open.value
         )
@@ -436,8 +441,8 @@ export function useAppShellInteractionFeatureController(
     commandPalette: transient.commandPaletteOpen,
     modals: {
       walletApproval: { open: surfaces.walletApproval, close: () => undefined },
-      trustedDialog: surfaces.trustedDialog,
-      agentSteps: surfaces.agentSteps,
+      trustedDialog,
+      agentSteps,
       workspaceEditor: { open: transient.workspaceEditorOpen, close: transient.closeWorkspace },
       credentialPicker: transient.credentialPickerOpen,
       releaseHistory: surfaces.releaseHistory,
@@ -459,8 +464,8 @@ export function useAppShellInteractionFeatureController(
     collections: features.collections,
     pageTools: { panelOpen: surfaces.pageTools, ...features.pageTools },
     developerPanels: { console: surfaces.console, network: surfaces.network },
-    responsivePreview: surfaces.responsive,
-    environmentPanel: surfaces.environment,
+    responsivePreview: { open: features.emulation.responsivePanelOpen, close: features.emulation.closeResponsivePreview },
+    environmentPanel: features.emulation.environmentPanelOpen,
     panelsInOwnWindow: surfaces.panelsInOwnWindow,
     runShortcut: (shortcut) => { void browserShortcuts.run(shortcut) }
   })
