@@ -18,6 +18,10 @@ vi.mock('../src/main/browser/certificate-errors/browser-certificate-errors.js', 
   certificatesChanged: (browser: { certificatesChanged: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.certificatesChanged(...args)
 }))
 
+// Which of a tab's page requests failed, as the page's reload hears of it.
+const { notePageRequestFailed } = vi.hoisted(() => ({ notePageRequestFailed: vi.fn() }))
+vi.mock('../src/main/browser/network-error-reload/network-error-reload.js', () => ({ notePageRequestFailed }))
+
 const { installSessionHooks } = await import('../src/main/browser/session-hooks/session-hooks.js')
 
 type Listener = (details: Record<string, unknown>) => void
@@ -140,4 +144,18 @@ it('completes a request it recorded after the debugger starts recording, and lea
   listeners.completed!({ ...request, statusCode: 204, fromCache: false })
   listeners.errorOccurred!({ ...request, id: 42, error: 'net::ERR_FAILED' })
   expect(tab.networkRequests.map(({ id, status }) => ({ id, status }))).toEqual([{ id: 'web:41', status: 204 }])
+})
+
+it('tells the page\'s reload which of a tab\'s page requests failed and how they were sent, also for a page its debugger records', () => {
+  // A page a form sent is not loaded again by itself.
+  for (const debuggerRecords of [false, true]) {
+    notePageRequestFailed.mockClear()
+    const { listeners, tab } = hookedSession(debuggerRecords)
+    listeners.errorOccurred!({ ...request, error: 'net::ERR_CONNECTION_REFUSED' })
+    listeners.errorOccurred!({ ...request, url: 'https://example.test/frame', resourceType: 'subFrame', error: 'net::ERR_FAILED' })
+    const sent = { ...request, url: 'https://example.test/sent#form', method: 'POST', resourceType: 'mainFrame' }
+    listeners.errorOccurred!({ ...sent, webContentsId: undefined, error: 'net::ERR_FAILED' })
+    listeners.errorOccurred!({ ...sent, error: 'net::ERR_INTERNET_DISCONNECTED' })
+    expect(notePageRequestFailed.mock.calls, String(debuggerRecords)).toEqual([[tab, 'https://example.test/sent#form', 'POST']])
+  }
 })
