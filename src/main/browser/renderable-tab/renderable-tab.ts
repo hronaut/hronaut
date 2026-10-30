@@ -6,6 +6,8 @@ import { findTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { withDebugger } from '../debugger-lease/debugger-lease.js'
 import { contentAreaBounds } from '../window-layout/content-area.js'
+import { tabViewBounds } from '../emulation/tab-view-bounds.js'
+import { reconcileTabPresentation } from '../presented-view-visibility.js'
 
 /** How long a hidden page's frame subscription waits before capture probes take over. */
 const OFFSCREEN_FRAME_SUBSCRIPTION_FALLBACK_MS = 1_000
@@ -127,7 +129,7 @@ export async function withRenderableTab<T>(
               browser.layout()
             } else {
               // A viewport change during the capture left the view's size to this restore.
-              tab.view.setBounds(tab.emulationViewSize === viewSizeAtStart ? originalBounds : browser.tabViewBounds(tab, contentAreaBounds(browser)))
+              tab.view.setBounds(tab.emulationViewSize === viewSizeAtStart ? originalBounds : tabViewBounds(browser, tab, contentAreaBounds(browser)))
               tab.view.setVisible(visibleAtStart)
             }
           } catch (error) {
@@ -143,7 +145,7 @@ export async function withRenderableTab<T>(
   } finally {
     releaseQueue()
     if (browser.renderQueues.get(webContentsId) === tail) browser.renderQueues.delete(webContentsId)
-    if (tabIsLive()) browser.reconcileTabPresentation(tab)
+    if (tabIsLive()) reconcileTabPresentation(browser, tab)
   }
 }
 

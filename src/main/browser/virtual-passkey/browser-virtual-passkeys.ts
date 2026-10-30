@@ -1,6 +1,7 @@
-import { publishChange } from '../browser-state/browser-state.js'
+import { browserState, publishChange } from '../browser-state/browser-state.js'
 import type { BrowserTab } from '../browser-tab.js'
 import type { Browser } from '../browser.js'
+import type { BrowserState } from '../../../shared/types.js'
 import { withDebugger } from '../debugger-lease/debugger-lease.js'
 import { VirtualPasskeyController } from './virtual-passkey.js'
 import { getTab } from '../browser-core.js'
@@ -20,4 +21,10 @@ export function createVirtualPasskeys(browser: Browser): VirtualPasskeyControlle
 /** Starts, configures, reads or stops a tab's virtual passkey authenticator. */
 export function virtualPasskey(browser: Browser, tabId: string, action: VirtualPasskeyAction, options: VirtualPasskeyOptions, authority: VirtualPasskeyAuthority): Promise<VirtualPasskeyReport> {
   return browser.virtualPasskeys.manage(getTab(browser, tabId), action, options, authority)
+}
+
+/** The trusted address-bar stop. It works whatever the agent's state, including while paused. */
+export function stopVirtualPasskey(browser: Browser, tabId: string): BrowserState {
+  browser.virtualPasskeys.stop(getTab(browser, tabId), 'person-stopped')
+  return browserState(browser)
 }

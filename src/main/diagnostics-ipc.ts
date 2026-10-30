@@ -28,6 +28,7 @@ import { securityReport } from './browser/page-audits/security-report.js'
 import { browserState } from './browser/browser-state/browser-state.js'
 import { domChanges } from './browser/dom-recorder/browser-dom-recorder.js'
 import { reproRecording } from './browser/repro-recorder/browser-repro-recorder.js'
+import { codeCoverage } from './browser/profiling/browser-profiling.js'
 
 interface DiagnosticsIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
@@ -103,7 +104,7 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
     ) {
       throw new TypeError('Invalid code coverage options')
     }
-    return host.tabs().codeCoverage(value as BrowserCodeCoverageOptions)
+    return codeCoverage(host.tabs(), value as BrowserCodeCoverageOptions)
   })
   ipcMain.handle('browser:cpu-profile', (event, value: unknown) => {
     host.assertTrustedSender(event)

@@ -1,10 +1,11 @@
 import type { IpcMain } from 'electron'
 import type { PageBootstrap } from '../shared/page-bootstrap.js'
 import type { Browser } from './browser/browser.js'
+import { reactInspectionBootstrap } from './browser/react-inspection/browser-react-inspection.js'
 
 interface PageBootstrapIpcHost {
   ipcMain: Pick<IpcMain, 'on'>
-  tabs(): Pick<Browser, 'reactInspectionBootstrap' | 'fixedDateController'> | null
+  tabs(): Browser | null
 }
 
 /**
@@ -19,7 +20,7 @@ export function registerPageBootstrapIpc(host: PageBootstrapIpcHost): void {
     const tabs = host.tabs()
     event.returnValue = (tabs && event.senderFrame && event.senderFrame === event.sender.mainFrame
       ? {
-          reactInspection: tabs.reactInspectionBootstrap(event.sender),
+          reactInspection: reactInspectionBootstrap(tabs, event.sender),
           fixedDate: tabs.fixedDateController.bootstrap(event.sender, event.senderFrame.origin)
         }
       : { reactInspection: { enabled: false }, fixedDate: { enabled: false } }) satisfies PageBootstrap

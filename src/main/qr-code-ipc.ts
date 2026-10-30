@@ -1,17 +1,16 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import type { Browser } from './browser/browser.js'
 import { qrCodeFilename, qrCodePng } from './browser/qr-code/qr-code-image.js'
+import { downloadGeneratedFile } from './browser/downloads/browser-downloads.js'
 
 /** Longer text than this, in UTF-16 code units, holds more than the largest QR code can anyway. */
 const QR_CODE_TEXT_MAX_LENGTH = 8192
-
-type QrCodeIpcTabs = Pick<Browser, 'downloadGeneratedFile'>
 
 interface QrCodeIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
   /** Registers a handler that is refused while saved workspaces are still initializing or failed to start. */
   handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void
-  tabs(): QrCodeIpcTabs | null
+  tabs(): Browser | null
   /** Writes a PNG image to the system clipboard after earlier clipboard writes; resolves to its size. */
   copyPngToClipboard(data: Buffer): Promise<{ width: number; height: number }>
 }
@@ -32,7 +31,7 @@ export function registerQrCodeIpc(host: QrCodeIpcHost): void {
     const { tabId, text, address } = value as Record<string, unknown>
     if (typeof tabId !== 'string' || typeof address !== 'string' || address.length > QR_CODE_TEXT_MAX_LENGTH) throw new TypeError('Invalid QR code request')
     const image = qrCodeImage(text)
-    host.tabs()!.downloadGeneratedFile(tabId, `data:image/png;base64,${image.toString('base64')}`, qrCodeFilename(address))
+    downloadGeneratedFile(host.tabs()!, tabId, `data:image/png;base64,${image.toString('base64')}`, qrCodeFilename(address))
   })
 }
 

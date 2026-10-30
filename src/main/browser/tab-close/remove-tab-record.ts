@@ -4,6 +4,7 @@ import type { BrowserTab } from '../browser-tab.js'
 import { handOverTabsOpenedFrom, tabAfterClosingLinkTab } from '../link-tab-placement/link-tab-openers.js'
 import { deleteSnapshotBaselineForTab } from '../page-snapshots/page-snapshots.js'
 import { invalidateTabOverviewPreview } from '../tab-overview-previews/tab-overview-previews.js'
+import { runWalletLifecycleAction } from '../background-action.js'
 
 /**
  * Forgets a closed tab: what each feature keeps for it, its record, and its browser session's cookie hook once no open
@@ -20,7 +21,7 @@ export function removeTabRecord(browser: Browser, tab: BrowserTab): void {
   browser.tabOverviewSleepPreviews.delete(tab.id)
   browser.tabOverviewPreviewCaptures.cancelPending(tab.id)
   browser.tabOverviewPreviewableTabs.delete(tab.id)
-  browser.runWalletLifecycleAction('cancel wallet requests after closing a tab', () => (
+  runWalletLifecycleAction(browser, 'cancel wallet requests after closing a tab', () => (
     browser.options.onWalletTabClosed?.(tab.id)
   ))
   deleteSnapshotBaselineForTab(browser, tab.id)

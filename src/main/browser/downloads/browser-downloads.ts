@@ -1,4 +1,7 @@
+import { isAbsolute } from 'node:path'
+import { LocalizedError } from '../../localized-error.js'
 import type { Browser } from '../browser.js'
+import { getTab } from '../browser-core.js'
 import { closeTabLeftEmptyByDownload } from '../download-tab-close/download-tab-close.js'
 import { installSessionHooks } from '../session-hooks/session-hooks.js'
 import { workspaceObservationGeneration } from '../workspace-continuity/workspace-continuity.js'
@@ -48,4 +51,22 @@ export function createDownloadsController(browser: Browser): BrowserDownloadsCon
       browser.options.onDownloadsChanged?.(downloads)
     }
   })
+}
+
+/**
+ * Saves a file Hronaut made, such as a QR code's image, as a download from the tab's workspace under the given name,
+ * as Chrome saves its QR code through its downloads.
+ */
+export function downloadGeneratedFile(browser: Browser, tabId: string, dataUrl: string, filename: string): void {
+  const tab = getTab(browser, tabId)
+  if (tab.webContents.isDestroyed()) throw new LocalizedError('native.errors.tabUnavailable', undefined, { message: `Tab not found: ${tabId}` })
+  browser.downloadController.expectGeneratedFile(tab.webContents.id, dataUrl, filename)
+  tab.webContents.downloadURL(dataUrl)
+}
+
+/** Where downloads go, and whether Hronaut asks where to save each one. */
+export function setDownloadPreferences(browser: Browser, downloadDirectory: string, askWhereToSaveDownloads: boolean): void {
+  if (!isAbsolute(downloadDirectory)) throw new TypeError('Download directory must be absolute')
+  browser.options.downloadDirectory = downloadDirectory
+  browser.options.askWhereToSaveDownloads = askWhereToSaveDownloads
 }

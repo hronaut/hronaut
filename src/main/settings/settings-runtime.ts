@@ -12,6 +12,7 @@ import { resolveLocalePreference, resolveSupportedLocale } from '../../shared/lo
 import { mcpLocalHost } from '../../shared/mcp-network.js'
 import { isValidMcpPort } from '../../shared/mcp-port.js'
 import type { AppSettings, RendererSettingsState, SupportedLocale } from '../../shared/types.js'
+import { setDownloadPreferences } from '../browser/downloads/browser-downloads.js'
 
 /**
  * The settings the app runs with, the interface language and the operating system's launch at login setting, created
@@ -48,7 +49,7 @@ interface SettingsRuntimeHost {
   /** The browser profile's session, whose download folder follows the setting; null until startup configures it. */
   persistentSession(): Pick<Session, 'setDownloadPath'> | null
   /** The tab runtime, whose downloads follow the settings; null until the window opens. */
-  tabs(): Pick<Browser, 'setDownloadPreferences'> | null
+  tabs(): Browser | null
 }
 
 /**
@@ -127,7 +128,8 @@ export function createSettingsRuntime(host: SettingsRuntimeHost): {
     const next = await updateSettings(updates)
     const committedDirectory = effectiveDownloadDirectory(next)
     host.persistentSession()?.setDownloadPath(committedDirectory)
-    host.tabs()?.setDownloadPreferences(committedDirectory, next.askWhereToSaveDownloads)
+    const browser = host.tabs()
+    if (browser) setDownloadPreferences(browser, committedDirectory, next.askWhereToSaveDownloads)
     publishSettings()
     return { ...host.state.current }
   }

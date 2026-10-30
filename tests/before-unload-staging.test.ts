@@ -10,6 +10,12 @@ vi.mock('../src/main/browser/trusted-chrome-focus/trusted-chrome-focus.js', asyn
 }))
 import { stageBeforeUnloadClose } from '../src/main/browser/tab-close/before-unload-staging.js'
 
+// The fake browser stubs these, which are functions now; the mock reaches its stubs.
+vi.mock('../src/main/browser/emulation/tab-view-bounds.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/emulation/tab-view-bounds.js')>(),
+  tabViewBounds: (browser: { tabViewBounds: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.tabViewBounds(...args)
+}))
+
 /** The active tab of a window with no other tab, whose page asks before it closes. */
 function activeTab() {
   const children: unknown[] = []

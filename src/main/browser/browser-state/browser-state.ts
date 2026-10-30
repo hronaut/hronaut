@@ -5,6 +5,7 @@ import type { BrowserTab } from '../browser-tab.js'
 import { showsUntrustedCertificate } from '../certificate-errors/certificate-errors.js'
 import { persistedState } from './persisted-state.js'
 import { publishedAgentFollow } from '../agent-follow/published-agent-follow.js'
+import { navigationButtons } from '../navigation-history.js'
 
 /** The browser state as it is now. A change still waiting to be published goes out first (see StatePublication). */
 export function browserState(browser: Browser): BrowserState {
@@ -55,7 +56,7 @@ export function buildBrowserState(browser: Browser): BrowserState {
 
 /** One tab as the browser state shows it, from its fields and the browser's view of it. */
 function toState(browser: Browser, tab: BrowserTab): BrowserTabState {
-  const navigation = browser.navigationButtons(tab)
+  const navigation = navigationButtons(tab)
   const webContentsDestroyed = tab.webContents.isDestroyed()
   return {
     id: tab.id,
@@ -137,4 +138,11 @@ function toState(browser: Browser, tab: BrowserTab): BrowserTabState {
       mcpGroupName: browser.mcpTabGroups.get(tab.mcpGroupId)?.name ?? 'Unknown group'
     } : {})
   }
+}
+
+/** Records the address of Hronaut's MCP server, which the state shows, and publishes the change. */
+export function setMcpUrl(browser: Browser, url: string): BrowserState {
+  browser.mcpUrl = url
+  publishChange(browser, false)
+  return browserState(browser)
 }

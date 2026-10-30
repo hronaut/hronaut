@@ -11,6 +11,7 @@ import { browserState, publishChange } from '../browser-state/browser-state.js'
 import { listMcpTabGroups } from './mcp-tab-groups.js'
 import { closeTabs } from '../tab-close/close-tab.js'
 import { suspendWorkspaceContinuity, retireWorkspaceContinuity } from '../workspace-continuity/workspace-continuity.js'
+import { runWalletLifecycleAction } from '../background-action.js'
 
 /** Hronaut Home, which closing a workspace opens when it leaves no tab; the tab manager's Home address. */
 const HRONAUT_HOME_URL = 'hronaut://home/'
@@ -105,7 +106,7 @@ async function closeMcpTabGroupAfterLabelSave(browser: Browser, groupId: string,
           allowBusyWorkspace: true
         })
       } catch (error) {
-        browser.runWalletLifecycleAction('cancel wallet requests after closing a restored tab', () => (
+        runWalletLifecycleAction(browser, 'cancel wallet requests after closing a restored tab', () => (
           browser.options.onWalletTabClosed?.(tab.id)
         ))
         throw error
@@ -163,7 +164,7 @@ async function closeMcpTabGroupAfterLabelSave(browser: Browser, groupId: string,
   else retireWorkspaceContinuity(browser, groupId)
   browser.options.onWorkspaceClosed?.(groupId)
   if (!preserveStorage) browser.options.onWorkspaceForgotten?.(groupId)
-  browser.runWalletLifecycleAction('cancel wallet access after closing a workspace', () => (
+  runWalletLifecycleAction(browser, 'cancel wallet access after closing a workspace', () => (
     browser.options.onWalletWorkspaceClosed?.(groupId)
   ))
   if (!browser.tabs.size) {

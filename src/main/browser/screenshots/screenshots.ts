@@ -16,6 +16,7 @@ import { withDebugger } from '../debugger-lease/debugger-lease.js'
 import { withRenderableTab } from '../renderable-tab/renderable-tab.js'
 import { dismissAgentPointer } from '../agent-pointer/agent-pointer.js'
 import { validateTarget } from '../input-targets/input-targets.js'
+import { screenshotPixelRatio } from './screenshot-scale.js'
 
 const SCREENSHOT_ANNOTATION_WORLD_ID = ISOLATED_WORLDS.screenshotAnnotation
 
@@ -92,7 +93,7 @@ export async function screenshot(browser: Browser, options: BrowserScreenshotOpt
       await withDebugger(browser, webContents, async () => {
         const metrics = await webContents.debugger.sendCommand('Page.getLayoutMetrics') as ScreenshotLayoutMetrics
         const bounds = cssScreenshotBounds(requestedClip, metrics.cssVisualViewport?.zoom ?? webContents.getZoomFactor())
-        const pixelRatio = browser.screenshotPixelRatio(tab)
+        const pixelRatio = screenshotPixelRatio(browser, tab)
         const bounded = boundedScreenshotSize(bounds.width * pixelRatio, bounds.height * pixelRatio, options.maxWidth, options.maxHeight)
         const result = await webContents.debugger.sendCommand('Page.captureScreenshot', {
           format,
@@ -110,7 +111,7 @@ export async function screenshot(browser: Browser, options: BrowserScreenshotOpt
       await withDebugger(browser, webContents, async () => {
         const metrics = await webContents.debugger.sendCommand('Page.getLayoutMetrics') as ScreenshotLayoutMetrics
         const bounds = fullPageScreenshotBounds(metrics, webContents.getZoomFactor())
-        const pixelRatio = browser.screenshotPixelRatio(tab)
+        const pixelRatio = screenshotPixelRatio(browser, tab)
         const bounded = boundedScreenshotSize(bounds.width * pixelRatio, bounds.height * pixelRatio, options.maxWidth, options.maxHeight)
         const clip = { ...bounds, scale: bounded.scale }
         const result = await webContents.debugger.sendCommand('Page.captureScreenshot', {

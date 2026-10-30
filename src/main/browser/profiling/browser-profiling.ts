@@ -1,3 +1,4 @@
+import type { BrowserCodeCoverageOptions, BrowserCodeCoverageResult } from '../../../shared/types.js'
 import { getTab } from '../browser-core.js'
 import { publishChange } from '../browser-state/browser-state.js'
 import type { BrowserTab } from '../browser-tab.js'
@@ -14,4 +15,18 @@ export function createProfilingController(browser: Browser): BrowserProfilingCon
     changed: () => publishChange(browser, false),
     prepareNavigation: (tab) => browser.prepareDiagnosticNavigation(tab)
   })
+}
+
+/** Starts, reads or stops code coverage; it does not start while a CSS state preview, DOM mutation capture or logpoints run in the tab. */
+export function codeCoverage(browser: Browser, options: BrowserCodeCoverageOptions = {}): Promise<BrowserCodeCoverageResult> {
+  if (options.action === 'start' && browser.cssStatePreview.active(getTab(browser, options.tabId))) {
+    return Promise.reject(new Error('Clear the CSS state preview before recording code coverage'))
+  }
+  if (options.action === 'start' && browser.domMutationSource.active(getTab(browser, options.tabId))) {
+    return Promise.reject(new Error('Cancel the DOM mutation source capture before recording code coverage'))
+  }
+  if (options.action === 'start' && browser.logpoints.active(getTab(browser, options.tabId))) {
+    return Promise.reject(new Error('Remove the logpoints before recording code coverage'))
+  }
+  return browser.profiling.codeCoverage(options)
 }

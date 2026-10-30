@@ -16,6 +16,12 @@ import { removeTabRecord } from '../src/main/browser/tab-close/remove-tab-record
 import { newTab } from '../src/main/browser/new-tabs/open-new-tab.js'
 import { markTabActiveInGroup, writeActiveTabId } from '../src/main/browser/tab-selection/active-tab.js'
 
+// The fake browser stubs these, which are functions now; the mock reaches its stubs.
+vi.mock('../src/main/browser/background-action.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/background-action.js')>(),
+  runWalletLifecycleAction: (browser: { runWalletLifecycleAction: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.runWalletLifecycleAction(...args)
+}))
+
 // A new tab from + or Ctrl/Cmd+T, closed right away, showed the tab beside it (the workspace's last tab), where Chrome
 // shows the tab the person was on.
 

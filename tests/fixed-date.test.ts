@@ -4,6 +4,12 @@ import type { IpcMain, WebContents } from 'electron'
 import { FixedDateController, type FixedDateTarget } from '../src/main/browser/fixed-date/fixed-date.js'
 import { registerPageBootstrapIpc } from '../src/main/page-bootstrap-ipc.js'
 
+// The fake browser stubs these, which are functions now; the mock reaches its stubs.
+vi.mock('../src/main/browser/react-inspection/browser-react-inspection.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/react-inspection/browser-react-inspection.js')>(),
+  reactInspectionBootstrap: (browser: { reactInspectionBootstrap: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.reactInspectionBootstrap(...args)
+}))
+
 const AT = Date.UTC(2026, 11, 31, 23, 59, 30)
 const ORIGIN = 'https://app.test'
 

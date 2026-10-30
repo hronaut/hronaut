@@ -40,6 +40,11 @@ vi.mock('../src/main/browser/agent-pause/agent-pause.js', async (importOriginal)
   hasPausedAgentTab: (browser: { hasPausedAgentTab?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.hasPausedAgentTab?.(...args) ?? false,
   isTabTakenOver: (browser: { isTabTakenOver?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.isTabTakenOver?.(...args) ?? false
 }))
+// The fake browser stubs these, which are functions now; the mock reaches its stubs.
+vi.mock('../src/main/browser/css-state-preview/browser-css-state-preview.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/css-state-preview/browser-css-state-preview.js')>(),
+  cssStatePreviewMarker: (browser: { cssStatePreviewMarker: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.cssStatePreviewMarker(...args)
+}))
 
 const workspaceId = '01912345-6789-7abc-8def-0123456789ab'
 const tabId = '01912345-6790-7abc-8def-0123456789ab'

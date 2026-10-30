@@ -4,6 +4,11 @@ import { registerNavigationIpc } from '../src/main/navigation-ipc.js'
 
 const electron = vi.hoisted(() => ({ exposeInMainWorld: vi.fn(), invoke: vi.fn(), on: vi.fn(), removeListener: vi.fn(), send: vi.fn() }))
 vi.mock('electron', () => ({ contextBridge: { exposeInMainWorld: electron.exposeInMainWorld }, ipcRenderer: electron }))
+// The fake browser stubs these, which are functions now; the mock reaches its stubs.
+vi.mock('../src/main/browser/certificate-errors/browser-certificate-errors.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/certificate-errors/browser-certificate-errors.js')>(),
+  proceedPastTabCertificateError: (browser: { proceedPastCertificateError: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.proceedPastCertificateError(...args)
+}))
 afterEach(() => { vi.resetModules(); vi.clearAllMocks() })
 
 function proceedHandler() {

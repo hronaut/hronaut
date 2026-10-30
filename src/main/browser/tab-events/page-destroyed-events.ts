@@ -8,6 +8,7 @@ import { invalidateTabOverviewPreview } from '../tab-overview-previews/tab-overv
 import { focusTabOrTrustedChrome } from '../trusted-chrome-focus/trusted-chrome-focus.js'
 import { publishChange } from '../browser-state/browser-state.js'
 import { markTabActiveInGroup, writeActiveTabId } from '../tab-selection/active-tab.js'
+import { runWalletLifecycleAction } from '../background-action.js'
 
 /** Hronaut Home, which a destroyed page's recovery opens when no live tab is left; the browser's Home address. */
 const HRONAUT_HOME_URL = 'hronaut://home/'
@@ -45,7 +46,7 @@ export function attachPageDestroyedEvents(browser: Browser, tab: BrowserTab, web
  */
 export function recoverFromDestroyedPage(browser: Browser, tab: BrowserTab): void {
   if (browser.destroyed || browser.window.isDestroyed() || findTab(browser, tab.id) !== tab) return
-  browser.runWalletLifecycleAction('cancel wallet requests after a tab renderer closes', () => (
+  runWalletLifecycleAction(browser, 'cancel wallet requests after a tab renderer closes', () => (
     browser.options.onWalletTabClosed?.(tab.id)
   ))
   tab.loading = false

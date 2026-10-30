@@ -4,6 +4,7 @@ import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
 import { type ScreenshotExportSettlement, screenshotExportSettlement } from './screenshot-save-settlement.js'
 import { saveScreenshot } from '../../../browser/screenshot-export/screenshot-export.js'
+import { cssStatePreviewMarker } from '../../../browser/css-state-preview/browser-css-state-preview.js'
 
 export function registerBrowserScreenshotSave(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -28,9 +29,9 @@ export function registerBrowserScreenshotSave(context: McpToolContext): void {
         if (call.signal?.aborted) throw new Error('Screenshot export cancelled')
         call.requireCurrentTarget()
       }
-      const previewBefore = manager.cssStatePreviewMarker(options.tabId)
+      const previewBefore = cssStatePreviewMarker(manager, options.tabId)
       const exported = await saveScreenshot(manager, options, validateExport, pending => { call.settlement.retain(pending) })
-      const cssStatePreview = previewBefore ?? manager.cssStatePreviewMarker(options.tabId)
+      const cssStatePreview = previewBefore ?? cssStatePreviewMarker(manager, options.tabId)
       return textResult({
         ...exported,
         ...(cssStatePreview ? { cssStatePreview, note: 'Captured while a forced CSS state was applied; this is not natural page state.' } : {})

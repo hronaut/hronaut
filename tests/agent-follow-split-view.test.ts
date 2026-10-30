@@ -76,6 +76,7 @@ const { Browser } = await import('../src/main/browser/browser.js')
 const { McpActivityFollowController } = await import('../src/main/browser/mcp-activity-follow-controller.js')
 const { selectTabPassively } = await import('../src/main/browser/agent-follow/passive-selection.js')
 const { openSplitView } = await import('../src/main/browser/split-view/split-view.js')
+const { pageFullscreenShown } = await import('../src/main/browser/page-fullscreen/page-fullscreen.js')
 
 const PERSON = '01912345-6789-7abc-8def-0123456789ab'
 const AGENT = '01912345-6789-7abc-8def-0123456789ac'
@@ -93,7 +94,6 @@ interface Manager {
   mcpActivityFollower: InstanceType<typeof McpActivityFollowController>
   createTab(options: { url: string; mcpGroupId: string; active: boolean }): Promise<Tab>
   selectTab(tabId: string): unknown
-  pageFullscreenShown(): boolean
   wakeTab(tabId: string): Promise<unknown>
 }
 
@@ -128,7 +128,7 @@ function browser(): Manager {
   // Follow agents, wired as the manager's constructor wires it.
   manager.mcpActivityFollower = new McpActivityFollowController({
     isEnabled: () => manager.followAgentActivity,
-    isOccluded: () => manager.browserContentOccluded || manager.followAgentActivitySuspended || manager.pageFullscreenShown(),
+    isOccluded: () => manager.browserContentOccluded || manager.followAgentActivitySuspended || pageFullscreenShown(manager as never),
     getSelectionGeneration: () => manager.tabSelectionGeneration,
     tabExists: (tabId) => manager.tabs.get(tabId)?.webContents.isDestroyed() === false,
     canSelectWithoutWake: (tabId) => manager.tabs.get(tabId)?.sleeping === false,

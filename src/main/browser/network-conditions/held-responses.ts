@@ -221,3 +221,8 @@ export function disposeHeldResponses(all: Map<number, HeldResponses>): void {
   for (const state of all.values()) for (const held of state.held.values()) clearTimeout(held.timer)
   all.clear()
 }
+
+/** Fails every held request as Hronaut starts to quit. */
+export function failHeldNetworkResponses(browser: Browser): void {
+  failAllHeldResponses(browser, [...browser.tabs.values()].map(tab => tab.webContents))
+}

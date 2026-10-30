@@ -1,3 +1,4 @@
+import type { WebContents } from 'electron'
 import { getTab } from '../browser-core.js'
 import type { Browser } from '../browser.js'
 import { mainWorldContextId } from '../debugger-evaluation/debugger-evaluation.js'
@@ -32,4 +33,10 @@ export function createReactInspectionController(browser: Browser): ReactInspecti
     },
     mainWorldContextId: page => mainWorldContextId(browser, page)
   })
+}
+
+/** What React inspection starts with in a page as it loads: only a tab's own page can have it enabled. */
+export function reactInspectionBootstrap(browser: Browser, contents: WebContents) {
+  const tab = browser.tabs.get(browser.webContentsToTab.get(contents.id) ?? '')
+  return tab?.webContents === contents ? browser.reactInspectionController.bootstrap(tab.id) : { enabled: false }
 }

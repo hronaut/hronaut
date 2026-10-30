@@ -2,7 +2,8 @@ import type { WebContents } from 'electron'
 import { ISOLATED_WORLDS } from '../isolated-worlds.js'
 import type { Browser } from '../browser.js'
 import type { BrowserTab } from '../browser-tab.js'
-import { contentAreaBounds } from '../window-layout/content-area.js'
+import { contentAreaBounds, shownPageFullscreenTab } from '../window-layout/content-area.js'
+import { tabViewBounds } from '../emulation/tab-view-bounds.js'
 
 /**
  * Leaves the document's full screen, from a world the page's own scripts cannot replace. Electron reports a page's
@@ -69,7 +70,7 @@ export function attachPageFullscreenEvents(
     if (
       !browser.destroyed && !browser.window.isDestroyed() && !isShown(browser, tab.id)
       && !browser.offscreenCaptureTabIds.has(tab.id) && !browser.window.contentView.children.includes(tab.view)
-    ) tab.view.setBounds(browser.tabViewBounds(tab, contentAreaBounds(browser)))
+    ) tab.view.setBounds(tabViewBounds(browser, tab, contentAreaBounds(browser)))
     browser.layout()
     browser.options.onPageFullscreenChanged?.()
   })
@@ -137,4 +138,9 @@ export function exitHiddenPageFullscreen(browser: Browser): void {
 export function windowFullScreenToSave(browser: Browser): boolean {
   if (browser.destroyed || browser.window.isDestroyed()) return browser.personFullScreen
   return pageFullscreenHolder(browser) ? browser.personFullScreen : browser.window.isFullScreen()
+}
+
+/** Whether the window shows a page in full screen, such as a video: nothing of the shell's is drawn over it, and Follow agents does not switch away from it. */
+export function pageFullscreenShown(browser: Browser): boolean {
+  return shownPageFullscreenTab(browser) !== undefined
 }

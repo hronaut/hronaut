@@ -57,6 +57,11 @@ vi.mock('../src/main/browser/workspace-storage-deletion.js', async (importOrigin
   ...await importOriginal<typeof import('../src/main/browser/workspace-storage-deletion.js')>(),
   assertStorageDeletionOwnership: (browser: { assertStorageDeletionOwnership: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.assertStorageDeletionOwnership(...args)
 }))
+// The fake browser stubs these, which are functions now; the mock reaches its stubs.
+vi.mock('../src/main/browser/background-action.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/background-action.js')>(),
+  runWalletLifecycleAction: (browser: { runWalletLifecycleAction: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.runWalletLifecycleAction(...args)
+}))
 
 const CLOSING = '01912345-6789-7abc-8def-0123456789ab'
 const OTHER = '01912345-678a-7abc-8def-0123456789ab'

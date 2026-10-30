@@ -31,6 +31,7 @@ import {
   attachPageFullscreenEvents,
   exitHiddenPageFullscreen,
   exitPageFullscreen,
+  pageFullscreenShown,
   watchWindowFullScreen,
   windowFullScreenToSave
 } from '../src/main/browser/page-fullscreen/page-fullscreen.js'
@@ -77,7 +78,6 @@ function layoutFixture(split = false) {
     occludedPageCards: [],
     occlusionSnapshot: { reconcile: vi.fn(), holdingPages: false, active: false },
     splitDivider: { reconcile: vi.fn() },
-    reconcileTabPresentation: vi.fn(),
     scheduleTabOverviewPreview: vi.fn(),
     publishPageGeometry: vi.fn(),
     focusTabOrTrustedChrome: vi.fn(),
@@ -99,6 +99,7 @@ function fullscreenFixture(options: { shown?: string[], windowFullScreen?: boole
   const window = Object.assign(new EventEmitter(), {
     fullScreen: options.windowFullScreen ?? false,
     contentView: { children: [] as unknown[] },
+    webContents: { getZoomFactor: () => 1 },
     isDestroyed: () => false,
     getContentBounds: () => ({ x: 0, y: 0, width: 1440, height: 900 }),
     isFullScreen(): boolean { return this.fullScreen },
@@ -123,7 +124,6 @@ function fullscreenFixture(options: { shown?: string[], windowFullScreen?: boole
     // The tabs the window shows, each as a pane of a split view would be.
     splitViewContains: (tabId: string) => shown.has(tabId),
     offscreenCaptureTabIds: new Set(),
-    tabViewBounds: (_tab: unknown, space: unknown) => space,
     // With the 1440 x 900 window, the page card is the 1150 x 830 space beside the rail and under the toolbar.
     toolbarHeight: 60,
     contentInsets: { top: 0, right: 10, bottom: 10, left: 280 },
@@ -275,13 +275,13 @@ describe('page full screen layout', () => {
 
   it('keeps Follow agents on a page in full screen the window shows', () => {
     const { manager, first, second } = layoutFixture()
-    const pageFullscreenShown = () => (manager as unknown as { pageFullscreenShown(): boolean }).pageFullscreenShown()
-    expect(pageFullscreenShown()).toBe(false)
+    const shown = () => pageFullscreenShown(manager)
+    expect(shown()).toBe(false)
     // A background tab in full screen is asked to leave it and does not hold Follow back.
     second.pageFullscreen = true
-    expect(pageFullscreenShown()).toBe(false)
+    expect(shown()).toBe(false)
     first.pageFullscreen = true
-    expect(pageFullscreenShown()).toBe(true)
+    expect(shown()).toBe(true)
   })
 })
 

@@ -32,6 +32,15 @@ vi.mock('../src/main/browser/window-layout/content-area.js', async (importOrigin
   ...await importOriginal<typeof import('../src/main/browser/window-layout/content-area.js')>(),
   pageArea: (browser: { pageArea: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.pageArea(...args)
 }))
+// The fake browser stubs these, which are functions now; the mock reaches its stubs.
+vi.mock('../src/main/browser/page-fullscreen/page-fullscreen.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/page-fullscreen/page-fullscreen.js')>(),
+  pageFullscreenShown: (browser: { pageFullscreenShown: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.pageFullscreenShown(...args)
+}))
+vi.mock('../src/main/browser/page-geometry/page-geometry.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/page-geometry/page-geometry.js')>(),
+  statusBubblePane: (browser: { statusBubblePane: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.statusBubblePane(...args)
+}))
 
 const { createShellOverlays } = await import('../src/main/windows/shell-overlays.js')
 

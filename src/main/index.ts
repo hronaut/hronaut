@@ -114,6 +114,7 @@ import { withholdFocusAfterTrustedChrome, keyboardPage, focusPageAfterQuestion }
 import { windowFullScreenToSave } from './browser/page-fullscreen/page-fullscreen.js'
 import { applySiteMutingToTabs } from './browser/site-muting/site-muting.js'
 import { handleMcpTabActivity } from './browser/agent-follow/agent-follow.js'
+import { noteShellKey } from './browser/tab-events/shell-held-keys.js'
 
 logUncaughtExceptions()
 
@@ -672,7 +673,7 @@ const {
   sidebarOverlayView,
   sidebarOverlay,
   sidebarOverlayKeyboard: {
-    noteKey: (input) => tabRuntime.tabs?.noteShellKey(input),
+    noteKey: (input) => tabRuntime.tabs ? noteShellKey(tabRuntime.tabs, input) : undefined,
     // The rail is the shell's own: the shell takes the keyboard and runs the shortcut, as if it was pressed there.
     runShortcut: (action) => {
       const window = mainWindowRefs.window
@@ -1632,9 +1633,7 @@ async function startRuntime(): Promise<void> {
   }
   if (!createTray() && startMinimized) showWindow()
   await startMcpServer()
-  if (settingsState.current.checkForUpdatesOnStartup) {
-    setTimeout(() => void checkForUpdates(), 5_000)
-  }
+  if (settingsState.current.checkForUpdatesOnStartup) setTimeout(() => void checkForUpdates(), 5_000)
   startBackgroundLicenseRefresh()
 }
 

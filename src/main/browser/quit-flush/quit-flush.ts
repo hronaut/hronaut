@@ -2,6 +2,7 @@ import { session } from 'electron'
 import { flushBrowserSessionStorage, workspacePartition } from '../workspace-storage.js'
 import type { Browser } from '../browser.js'
 import { persistedState } from '../browser-state/persisted-state.js'
+import { saveForNextStart } from '../browser-lifecycle/save-for-next-start.js'
 
 /** How long quitting waits for workspace operations in progress to finish. */
 const WORKSPACE_OPERATION_DRAIN_TIMEOUT_MS = 8_000
@@ -66,4 +67,9 @@ export async function flushWorkspaceProfiles(browser: Browser): Promise<void> {
   if (errors.length) {
     throw new AggregateError(errors, `${errors.length} isolated browser profile${errors.length === 1 ? '' : 's'} could not be fully flushed.`)
   }
+}
+
+/** Saves the tabs, what the next start restores and the download history at once, as Hronaut quits. */
+export async function flushBrowserForQuit(browser: Browser): Promise<void> {
+  await Promise.all([flushPersist(browser), saveForNextStart(browser, true), browser.downloadController.saveHistory()])
 }

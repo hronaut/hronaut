@@ -4,7 +4,7 @@ import { isHronautHomeUrl } from '../url.js'
 import type { Browser } from '../browser.js'
 import { findTab, getTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
-import { showResumedPresentedView } from '../presented-view-visibility.js'
+import { showResumedPresentedView, reconcileTabPresentation } from '../presented-view-visibility.js'
 import { browserState, publishChange } from '../browser-state/browser-state.js'
 
 const PAGE_LIFECYCLE_COMMAND_TIMEOUT_MS = 5_000
@@ -238,7 +238,7 @@ async function controlPageLifecycleInternal(
   // done. A page whose freeze may not have reached Chromium is shown only if it says it is hidden.
   if (requestedState === 'active') {
     if (wasFrozen) showResumedPresentedView(browser.window, tab.view)
-    else browser.reconcileTabPresentation(tab)
+    else reconcileTabPresentation(browser, tab)
   }
   return {
     tabId: tab.id,

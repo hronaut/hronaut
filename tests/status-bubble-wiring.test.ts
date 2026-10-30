@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events'
 import type { IpcMainEvent } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
+import { statusBubblePane } from '../src/main/browser/page-geometry/page-geometry.js'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp', isPackaged: true } }))
 const { Browser } = await import('../src/main/browser/browser.js')
 const { registerOverlayViewsIpc } = await import('../src/main/overlays/overlay-views-ipc.js')
@@ -98,38 +99,38 @@ describe('where the status bubble shows', () => {
       splitView: null as unknown,
       browserContentOccluded: false,
       pageCornerRadii
-    }) as unknown as Pick<InstanceType<typeof Browser>, 'statusBubblePane'> & { splitView: unknown; browserContentOccluded: boolean; destroyed: boolean }
+    }) as unknown as InstanceType<typeof Browser> & { splitView: unknown; browserContentOccluded: boolean; destroyed: boolean }
     return { manager, first, second, third, children }
   }
 
   it('is the page in view, or either split pane, at its bounds and with its corner', () => {
     const { manager, first, second } = fixture()
-    expect(manager.statusBubblePane('first')).toEqual({ bounds: first.view.bounds, corner: 12 })
-    expect(manager.statusBubblePane('second')).toBeNull()
+    expect(statusBubblePane(manager, 'first')).toEqual({ bounds: first.view.bounds, corner: 12 })
+    expect(statusBubblePane(manager, 'second')).toBeNull()
     manager.splitView = { firstTabId: 'first', secondTabId: 'second', orientation: 'vertical', ratio: 0.5 }
-    expect(manager.statusBubblePane('second')).toEqual({ bounds: second.view.bounds, corner: 0 })
-    expect(manager.statusBubblePane('third')).toBeNull()
-    expect(manager.statusBubblePane('missing')).toBeNull()
+    expect(statusBubblePane(manager, 'second')).toEqual({ bounds: second.view.bounds, corner: 0 })
+    expect(statusBubblePane(manager, 'third')).toBeNull()
+    expect(statusBubblePane(manager, 'missing')).toBeNull()
   })
 
   it('is none while trusted chrome covers the pages, or the page is hidden, out of the window, empty or gone', () => {
     const covered = fixture()
     covered.manager.browserContentOccluded = true
-    expect(covered.manager.statusBubblePane('first')).toBeNull()
+    expect(statusBubblePane(covered.manager, 'first')).toBeNull()
     const hidden = fixture()
     hidden.first.view.visible = false
-    expect(hidden.manager.statusBubblePane('first')).toBeNull()
+    expect(statusBubblePane(hidden.manager, 'first')).toBeNull()
     const detached = fixture()
     detached.children.splice(0, 1)
-    expect(detached.manager.statusBubblePane('first')).toBeNull()
+    expect(statusBubblePane(detached.manager, 'first')).toBeNull()
     const empty = fixture()
     empty.first.view.bounds = { x: 280, y: 60, width: 0, height: 830 }
-    expect(empty.manager.statusBubblePane('first')).toBeNull()
+    expect(statusBubblePane(empty.manager, 'first')).toBeNull()
     const crashed = fixture()
     crashed.first.webContents.isDestroyed = () => true
-    expect(crashed.manager.statusBubblePane('first')).toBeNull()
+    expect(statusBubblePane(crashed.manager, 'first')).toBeNull()
     const closing = fixture()
     closing.manager.destroyed = true
-    expect(closing.manager.statusBubblePane('first')).toBeNull()
+    expect(statusBubblePane(closing.manager, 'first')).toBeNull()
   })
 })

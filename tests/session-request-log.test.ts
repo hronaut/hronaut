@@ -12,6 +12,11 @@ vi.mock('../src/main/browser/certificate-errors/certificate-errors.js', () => ({
 vi.mock('../src/main/browser/browser-state/browser-state.js', () => ({
   publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist)
 }))
+// The fake browser stubs these, which are functions now; the mock reaches its stubs.
+vi.mock('../src/main/browser/certificate-errors/browser-certificate-errors.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/certificate-errors/browser-certificate-errors.js')>(),
+  certificatesChanged: (browser: { certificatesChanged: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.certificatesChanged(...args)
+}))
 
 const { installSessionHooks } = await import('../src/main/browser/session-hooks/session-hooks.js')
 

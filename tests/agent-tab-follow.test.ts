@@ -71,6 +71,7 @@ import { handleMcpTabActivity } from '../src/main/browser/agent-follow/agent-fol
 import { newLabeledAgentTab } from '../src/main/browser/new-tabs/new-tabs.js'
 import { newAgentTab } from '../src/main/browser/new-tabs/open-new-tab.js'
 import { selectAgentTabAndWait } from '../src/main/browser/tab-selection/tab-selection.js'
+import { pageFullscreenShown } from '../src/main/browser/page-fullscreen/page-fullscreen.js'
 
 /** The manager's private state these cases set up and read. */
 interface ManagerInternals {
@@ -89,7 +90,6 @@ interface ManagerInternals {
   wakeTab: (tabId: string) => Promise<unknown>
   assertTabLabelAdmission: () => void
   saveTabLabel: (tabId: string, value: string, validateAuthority?: () => void, onCommitted?: () => void) => Promise<{ state: unknown; status: 'saved' }>
-  pageFullscreenShown(): boolean
 }
 
 function workspace(id: string, activeTabId: string | null = null) {
@@ -162,7 +162,7 @@ function fixture(options: { pageFullscreen?: boolean; followAgentActivitySuspend
 function followAgents(internals: ManagerInternals): McpActivityFollowController {
   internals.mcpActivityFollower = new McpActivityFollowController({
     isEnabled: () => internals.followAgentActivity,
-    isOccluded: () => internals.browserContentOccluded || internals.followAgentActivitySuspended || internals.pageFullscreenShown(),
+    isOccluded: () => internals.browserContentOccluded || internals.followAgentActivitySuspended || pageFullscreenShown(internals as never),
     getSelectionGeneration: () => internals.tabSelectionGeneration,
     tabExists: (tabId) => internals.tabs.get(tabId)?.webContents.isDestroyed() === false,
     canSelectWithoutWake: (tabId) => internals.tabs.get(tabId)?.sleeping === false,
