@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- The browser issues an agent reads no longer say that Hronaut cancels every HTTP sign-in request a website makes: since 3.14.0 it asks you to sign in for the page's own website, as Chrome does, and the issues now say so.
 - A panel moved to its own window and opened while Hronaut was still restoring your workspaces at startup now shows every workspace and tab once they are back. It could show only those restored by the time it opened, until the next change to a tab.
 
 ## [3.14.0] - 2026-10-29
