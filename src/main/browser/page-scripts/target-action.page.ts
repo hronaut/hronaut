@@ -315,8 +315,10 @@ export async function dialogAwareEvaluateInPage(script: string, accept: boolean,
     })
   }
   state.active.push({ id, accept })
+  // Called through a binding, eval is indirect: the script runs in the page's global scope, not this function's.
+  const indirectEval = eval
   try {
-    return await globalThis.eval(script)
+    return await indirectEval(script)
   } finally {
     releaseDialogs(id)
   }

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   dialogAwareClickScript,
   dialogAwareCoordinateClickScript,
+  dialogAwareEvaluateScript,
   dragPointsScript,
   targetActionScript,
   targetExpression,
@@ -96,6 +97,12 @@ describe('target actions in a page', () => {
     stub(document, 'elementFromPoint', () => null)
     expect(() => run(dialogAwareCoordinateClickScript({ x: 1, y: 1 }, 'dismiss'))).toThrow('No element exists at the requested viewport coordinates.')
     expect(window.confirm).toBe(own)
+  })
+
+  it('evaluates a script in the page\'s global scope, not the page function\'s', async () => {
+    cleanups.push(() => { delete (globalThis as Record<string, unknown>).__hronautEvaluated })
+    expect(await run(dialogAwareEvaluateScript('var __hronautEvaluated = typeof releaseDialogs + typeof accept; __hronautEvaluated', 'accept', 'scope'))).toBe('undefinedundefined')
+    expect((globalThis as Record<string, unknown>).__hronautEvaluated).toBe('undefinedundefined')
   })
 
   it('reports whether a target is attached, detached, visible or hidden', () => {
