@@ -21,8 +21,9 @@ const MEMORY_SAVER_SWEEP_MS = 30_000
 const TAB_HISTORY_SAVE_MS = 5_000
 
 /**
- * Brings back the saved workspaces, archived workspaces, tabs, their history and Recently closed, then saves them for
- * the next start every few seconds and starts Memory Saver.
+ * Brings back the saved workspaces, archived workspaces, tabs, their history and Recently closed, then saves the tabs'
+ * history and Recently closed for the next start every few seconds and starts Memory Saver. The workspaces and tabs
+ * are saved as they change.
  */
 export async function initializeBrowser(browser: Browser): Promise<void> {
   browser.restoringLayout = true

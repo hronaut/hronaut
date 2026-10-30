@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import type { DownloadItem, Session } from 'electron'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DownloadHistoryStore, savedDownloads, type SavedDownload } from '../src/main/browser/download-history/download-history.js'
-import { BrowserDownloadsController } from '../src/main/browser/downloads-controller.js'
+import { BrowserDownloadsController } from '../src/main/browser/downloads/downloads-controller.js'
 import type { BrowserDownloadState } from '../src/shared/types.js'
 
 vi.mock('electron', () => ({

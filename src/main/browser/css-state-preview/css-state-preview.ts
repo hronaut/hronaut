@@ -6,10 +6,10 @@ import {
   normalizeCssStatePreviewStates,
   type CssStatePreviewEndReason,
   type CssStatePreviewState
-} from '../../shared/css-state-preview.js'
-import type { BrowserCssStatePreviewReport, BrowserCssStatePreviewSummary } from '../../shared/types.js'
-import { redactNetworkUrl } from '../../shared/network-details.js'
-import { isHronautHomeUrl } from './url.js'
+} from '../../../shared/css-state-preview.js'
+import type { BrowserCssStatePreviewReport, BrowserCssStatePreviewSummary } from '../../../shared/types.js'
+import { redactNetworkUrl } from '../../../shared/network-details.js'
+import { isHronautHomeUrl } from '../url.js'
 
 interface CssStatePreviewTab {
   id: string

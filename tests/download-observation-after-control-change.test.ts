@@ -11,7 +11,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({ shell: { showItemInFolder: vi.fn() }, session: {}, WebContentsView: class {}, nativeImage: { createFromBitmap: () => ({ isEmpty: () => false }) }, app: { getPath: () => '/tmp', getFileIcon: async () => ({ isEmpty: () => false }) }, Menu: {} }))
 
-const { BrowserDownloadsController } = await import('../src/main/browser/downloads-controller.js')
+const { BrowserDownloadsController } = await import('../src/main/browser/downloads/downloads-controller.js')
 const { WorkspaceRegistry } = await import('../src/main/browser/workspace-registry.js')
 
 const cleanups: (() => Promise<void> | void)[] = []

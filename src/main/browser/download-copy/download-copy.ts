@@ -3,7 +3,7 @@ import { lstat, open, realpath, unlink, type FileHandle } from 'node:fs/promises
 import { isAbsolute, join } from 'node:path'
 import { isWindowsReservedFilename } from '../../../shared/portable-filename.js'
 import type { Browser } from '../browser.js'
-import type { CompletedDownloadFile } from '../downloads-controller.js'
+import type { CompletedDownloadFile } from '../downloads/downloads-controller.js'
 
 /** The largest download a copy takes, in bytes. */
 export const MAX_DOWNLOAD_COPY_BYTES = 2 * 1024 * 1024 * 1024

@@ -39,7 +39,8 @@ import { FrameObservationController } from './frame-observation.js'
 import { showTabContextMenu } from './context-menus/tab-context-menu.js'
 import { showHistoryMenu } from './context-menus/history-menu.js'
 import { ReactInspectionController, type ReactInspectionAuthority } from './react-inspection.js'
-import { FixedDateController, type FixedDateAuthority } from './fixed-date/fixed-date.js'
+import type { FixedDateAuthority } from './fixed-date/fixed-date.js'
+import { createFixedDateController } from './fixed-date/browser-fixed-date.js'
 import type { ReactInspectionCommand } from '../../shared/react-inspection.js'
 import type { FixedDateAction, FixedDateBootstrap, FixedDateResult } from '../../shared/fixed-date.js'
 import type { DomMutationSourceAction, DomMutationSourceKind, DomMutationSourceReport } from '../../shared/dom-mutation-source.js'
@@ -48,16 +49,11 @@ import type { PwaLifecycleOptions } from '../../shared/pwa-lifecycle.js'
 import { PageFindController } from './page-find-controller.js'
 import type { CookieWriteHooks } from './cookie-write-operation.js'
 import type { BrowserVideoInspectionOptions } from '../../shared/video-inspection.js'
-import { inspectVideoFrames } from './video-inspection.js'
-import { BrowserVideoRecorder, type PendingVideoInspection, type VideoSourceBinding } from './video-recorder.js'
+import type { PendingVideoInspection, VideoSourceBinding } from './video-recorder.js'
+import { createVideoRecorder } from './video-recording/browser-video-recorder.js'
 import { inspectVideo, videoPreview, videoRecording } from './video-recording/video-recording.js'
-import { renderBrowserVideo } from './video-export.js'
-import { readVideoAudioFile } from './video-audio-file.js'
-import { writeUniqueDownloadFile } from './unique-download-file.js'
 import { VIDEO_RECORDING_NOTICES, type BrowserVideoOptions, type BrowserVideoState } from '../../shared/video.js'
 import type { BrowserCredentialCandidate } from './credential-capture/credential-capture.js'
-import type { BrowserNetworkRequestRecord } from './network-recording.js'
-import { installSessionHooks } from './session-hooks/session-hooks.js'
 import { emulate } from './emulation/emulation.js'
 import { cloneEmulationState, hasEmulationOverrides } from './emulation-state.js'
 import {
@@ -68,22 +64,27 @@ import {
   type BrowserElementPickerSession
 } from './element-picker/element-picker.js'
 import { cancelScreenshotArea, captureScreenshotArea, type BrowserScreenshotAreaSession } from './screenshot-area/screenshot-area.js'
-import { BrowserNetworkWaitController } from './network-wait-controller.js'
+import { createNetworkWaitController } from './network-inspection/browser-network-waits.js'
 import { PreviewCaptureQueue } from './preview-capture-queue.js'
 import { NativePreviewCapture } from './native-preview-capture.js'
-import { OCCLUSION_SNAPSHOT_TIMEOUT_MS, OcclusionSnapshot } from './occlusion-snapshot.js'
+import { createOcclusionSnapshot } from './trusted-chrome-occlusion/browser-occlusion-snapshot.js'
 import { HomeRefresh } from './home-refresh.js'
 import { BrowserDebuggerQueue } from './debugger-queue.js'
 import { BrowserDomRecorder } from './dom-recorder.js'
-import { BrowserCssStatePreview } from './css-state-preview.js'
-import { VirtualPasskeyController, type VirtualPasskeyAuthority, type VirtualPasskeyOptions } from './virtual-passkey/virtual-passkey.js'
+import { createCssStatePreview } from './css-state-preview/browser-css-state-preview.js'
+import type { VirtualPasskeyAuthority, VirtualPasskeyOptions } from './virtual-passkey/virtual-passkey.js'
+import { createVirtualPasskeys } from './virtual-passkey/browser-virtual-passkeys.js'
 import type { VirtualPasskeyAction, VirtualPasskeyReport } from '../../shared/virtual-passkey.js'
-import { WorkerEvaluations, type WorkerEvaluationAuthority, type WorkerEvaluationDeadline } from './worker-evaluation/worker-evaluation.js'
+import type { WorkerEvaluationAuthority, WorkerEvaluationDeadline } from './worker-evaluation/worker-evaluation.js'
+import { createWorkerEvaluations } from './worker-evaluation/browser-worker-evaluations.js'
 import type { WorkerEvaluationReport, WorkerListReport } from '../../shared/worker-evaluation.js'
-import { ComputedAccessibilityReader, type ComputedAccessibilityAuthority, type ComputedAccessibilityTarget } from './computed-accessibility/computed-accessibility.js'
+import type { ComputedAccessibilityAuthority, ComputedAccessibilityTarget } from './computed-accessibility/computed-accessibility.js'
+import { createComputedAccessibilityReader } from './computed-accessibility/browser-computed-accessibility.js'
 import type { ComputedAccessibilityReport } from '../../shared/computed-accessibility.js'
-import { DomMutationSourceCaptures, type DomMutationSourceAuthority } from './dom-mutation-source/dom-mutation-source.js'
-import { LogpointSets, type LogpointAuthority } from './logpoints/logpoints.js'
+import type { DomMutationSourceAuthority } from './dom-mutation-source/dom-mutation-source.js'
+import { createDomMutationSource } from './dom-mutation-source/browser-dom-mutation-source.js'
+import type { LogpointAuthority } from './logpoints/logpoints.js'
+import { createLogpoints } from './logpoints/browser-logpoints.js'
 import type { LogpointAction, LogpointReport, LogpointRequest, LogpointScriptsReport } from '../../shared/logpoint.js'
 import { BrowserLiveRegionRecorder } from './live-region-recorder.js'
 import { BrowserReproRecorder } from './repro-recorder.js'
@@ -98,7 +99,7 @@ import {
   setNetworkRouteEnabled
 } from './network-conditions/network-conditions.js'
 import { cancelHeldResponse, failAllHeldResponses, heldResponseSummaries, releaseHeldResponse, type HeldResponses } from './network-conditions/held-responses.js'
-import { BrowserDownloadsController } from './downloads-controller.js'
+import { createDownloadsController } from './downloads/browser-downloads.js'
 import type { DownloadHistoryStore, SavedDownload } from './download-history/download-history.js'
 import { copyDownload, type DownloadCopyProgress, type DownloadCopyRequest, type DownloadCopyResult } from './download-copy/download-copy.js'
 import { BrowserProfilingController } from './profiling-controller.js'
@@ -118,8 +119,7 @@ import {
   requireWorkspaceContinuityDispatch,
   requireWorkspaceContinuityReview,
   retireWorkspaceContinuity,
-  suspendWorkspaceContinuity,
-  workspaceObservationGeneration
+  suspendWorkspaceContinuity
 } from './workspace-continuity/workspace-continuity.js'
 import type { AgentStepThumbnailImage } from '../mcp/agent-presence.js'
 import type { WorkspaceContinuityResult } from '../mcp/workspace-continuity.js'
@@ -141,7 +141,7 @@ import { insertText, type TextInsertionProgress, type TextInsertionResult } from
 import { fillFromFile, type TextFileFillProgress, type TextFileFillResult } from './text-file-fill/text-file-fill.js'
 import { shadowSnapshot, type BrowserShadowSnapshot } from './shadow-snapshot/shadow-snapshot.js'
 import { trackedViewportScreenshot, type TrackedScreenshot, type TrackedScreenshotOptions } from './screenshot-observations/tracked-screenshot.js'
-import { basename, isAbsolute, join } from 'node:path'
+import { isAbsolute, join } from 'node:path'
 import {
   type BrowserWindow,
   Menu,
@@ -199,11 +199,10 @@ import type { WorkspaceTemplateImporter } from './workspace-template-import.js'
 import type { WorkspaceTemplateImportResult } from '../../shared/workspace-template.js'
 import { performanceReport } from './page-audits/performance-report.js'
 import { designOverview } from './page-audits/design-overview.js'
-import { PageMetadataController } from './diagnostics/page-metadata-controller.js'
+import { createPageMetadata } from './diagnostics/browser-page-metadata.js'
 import { qualityAudit } from './page-audits/quality-audit.js'
 import type { BrowserGeneratedLocator } from '../../shared/playwright-locator.js'
 import { generatePlaywrightLocator } from './element-inspection/playwright-locator.js'
-import { networkRequestSummary } from './network-inspection/network-request-summary.js'
 import {
   networkHar,
   networkRequestDetails,
@@ -213,7 +212,6 @@ import {
   saveNetworkHar,
   waitForNetworkRequest
 } from './network-inspection/network-inspection.js'
-import type { NormalizedBrowserNetworkWaitOptions } from '../../shared/network-wait.js'
 import type { ScreenshotAnnotationReport } from '../../shared/screenshot-annotations.js'
 import { screenshot } from './screenshots/screenshots.js'
 import { inspectorIssues } from './inspector-issues/inspector-issues.js'
@@ -344,9 +342,9 @@ import type { SearchEngineName } from '../../shared/search-engine.js'
 import type { AgentPointerIdentity, BrowserFormField } from './page-scripts.js'
 import { evaluate, type EvaluationDeadline } from './page-evaluation/evaluate.js'
 import { TabStateStore } from './tab-store.js'
-import { type WorkspaceBeingDeleted } from './browser-state/persisted-state.js'
-import { browserState, buildBrowserState, publishChange } from './browser-state/browser-state.js'
-import { shownTabIds, StatePublication } from './browser-state/state-publication.js'
+import type { WorkspaceBeingDeleted } from './browser-state/persisted-state.js'
+import { browserState, publishChange } from './browser-state/browser-state.js'
+import { createStatePublication } from './browser-state/browser-state-publication.js'
 import { isHronautHomeUrl, isWebUrl } from './url.js'
 import { closeTabsForPerson } from './tab-close/close-tabs-for-person.js'
 import { showDevToolsConsole, toggleDevTools } from './devtools/devtools.js'
@@ -358,14 +356,10 @@ import { printShownPage } from './page-print/page-print.js'
 import { saveShownPage } from './page-save/page-save.js'
 import { viewShownPageSource } from './page-source/page-source.js'
 import { openNavigationInNewTab } from './navigation-new-tab/navigation-new-tab.js'
-import { closeTabLeftEmptyByDownload } from './download-tab-close/download-tab-close.js'
-import {
-  type WorkspaceNavigationDecision
-} from './workspace-navigation-policy.js'
+import type { WorkspaceNavigationDecision } from './workspace-navigation-policy.js'
 import {
   listWorkspaceNavigationAudit,
-  updateWorkspaceNavigationPolicy,
-  workspaceNavigationAllowed
+  updateWorkspaceNavigationPolicy
 } from './workspace-navigation/workspace-navigation.js'
 import {
   normalizeWorkspaceStorageOrigins
@@ -377,7 +371,6 @@ import { listMcpTabGroups, renameMcpTabGroup, requireMcpTabGroup, updateMcpTabGr
 import { setWorkspacePinned } from './mcp-tab-groups/workspace-pinning.js'
 import {
   assertWorkspaceCanOpenTab,
-  assertWorkspaceIdle,
   type BrowserWorkspaceOperation,
   type OpenWorkspaceOperationAction,
   type WorkspaceOperationAction,
@@ -418,12 +411,11 @@ import { createTab } from './new-tabs/create-tab.js'
 import { destroyBrowser } from './browser-lifecycle/destroy-browser.js'
 import { initializeBrowser } from './browser-lifecycle/initialize-browser.js'
 import { saveForNextStart } from './browser-lifecycle/save-for-next-start.js'
-import { matchingNetworkWaitRequest } from './network-inspection/network-request-records.js'
 import { setAllTabsMuted, setTabMuted } from './tab-muting/tab-muting.js'
 import { applySiteMutingToTabs, setSiteMuted, type SiteSoundStore } from './site-muting/site-muting.js'
 import { captureAgentStepThumbnail } from './agent-step-thumbnail/agent-step-thumbnail.js'
 import { cancelFocusAfterTrustedChrome, focusTabOrTrustedChrome, withholdFocusAfterTrustedChrome, type PendingTrustedChromeFocus } from './trusted-chrome-focus/trusted-chrome-focus.js'
-import { occlusionLayout, occlusionSnapshotPanes, setBrowserContentOccluded, setFollowAgentActivitySuspended } from './trusted-chrome-occlusion/trusted-chrome-occlusion.js'
+import { setBrowserContentOccluded, setFollowAgentActivitySuspended } from './trusted-chrome-occlusion/trusted-chrome-occlusion.js'
 import { handleMcpTabActivity, publishAgentFollowChange, publishedAgentFollow, retainAgentFollow, setFollowAgentActivity } from './agent-follow/agent-follow.js'
 import { selectTabPassively } from './agent-follow/passive-selection.js'
 import { syncHumanInteractionInputGuard } from './interaction-lock/human-input-guard.js'
@@ -442,13 +434,6 @@ import {
 export const HRONAUT_HOME_URL = 'hronaut://home/'
 const MAX_TABS = MAX_BROWSER_TABS
 const MAX_SAVED_TAB_GROUPS = MAX_ARCHIVED_WORKSPACES
-/** Integration tests on a loaded machine can give the snapshot more time, so its ordering check is not a race. */
-function occlusionSnapshotTimeoutMs(): number {
-  const override = Number(process.env.HRONAUT_TEST_OCCLUSION_SNAPSHOT_TIMEOUT_MS)
-  return process.env.HRONAUT_INTEGRATION_TEST_HOOKS === '1' && Number.isSafeInteger(override) && override > 0
-    ? override
-    : OCCLUSION_SNAPSHOT_TIMEOUT_MS
-}
 
 function workspaceNameKey(name: string): string {
   return name.trim().normalize('NFKC').toLowerCase()
@@ -594,10 +579,7 @@ export class Browser {
   /** Pages where an agent's touch contact may still be down: neither its end nor a cancel was acknowledged. */
   readonly pageFind = new PageFindController()
   readonly faviconDecoder = new FaviconDecoder()
-  readonly metadata = new PageMetadataController<BrowserTab>({
-    getTab: (tabId) => getTab(this, tabId),
-    findTab: (tabId) => this.tabs.get(tabId)
-  })
+  readonly metadata = createPageMetadata(this)
   readonly profiling = new BrowserProfilingController<BrowserTab>({
     getTab: (tabId) => getTab(this, tabId),
     findTab: (tabId) => this.tabs.get(tabId),
@@ -647,10 +629,6 @@ export class Browser {
     return suspendWorkspaceContinuity(this, workspaceId, outcome)
   }
 
-  private workspaceObservationGeneration(workspaceId: string): number {
-    return workspaceObservationGeneration(this, workspaceId)
-  }
-
   inspectWorkspaceContinuity(workspaceId: string) {
     return inspectWorkspaceContinuity(this, workspaceId)
   }
@@ -671,81 +649,19 @@ export class Browser {
   readonly liveRegionRecorder = new BrowserLiveRegionRecorder<BrowserTab>({
     isCurrent: tab => this.tabs.get(tab.id) === tab
   })
-  readonly cssStatePreview: BrowserCssStatePreview<BrowserTab> = new BrowserCssStatePreview<BrowserTab>({
-    isCurrent: tab => this.tabs.get(tab.id) === tab,
-    withDebugger: (tab, operation) => this.withDebugger(tab.webContents, operation),
-    inDebuggerQueue: (tab, operation) => this.debuggerQueue.run(tab.webContents.id, operation),
-    // Stopping coverage disables the DOM domain, which would silently drop the override.
-    conflict: tab => tab.codeCoverage?.recording ? 'Stop code coverage before previewing CSS states'
-      : this.domMutationSource.active(tab) ? 'Cancel the DOM mutation source capture before previewing CSS states' : undefined,
-    keepDomEnabled: tab => Boolean(tab.emulation.renderingDebug && Object.values(tab.emulation.renderingDebug).some(Boolean)),
-    changed: () => this.changed(false)
-  })
-  readonly virtualPasskeys = new VirtualPasskeyController<BrowserTab>({
-    isCurrent: tab => this.tabs.get(tab.id) === tab,
-    isDevToolsOpening: tab => this.devToolsOpening.has(tab.webContents.id),
-    withDebugger: (tab, operation) => this.withDebugger(tab.webContents, operation),
-    changed: () => this.changed(false)
-  })
-  readonly workerEvaluations = new WorkerEvaluations<BrowserTab>({
-    isCurrent: tab => this.tabs.get(tab.id) === tab,
-    withDebugger: (tab, operation) => this.withDebugger(tab.webContents, operation)
-  })
-  readonly computedAccessibilityReader = new ComputedAccessibilityReader<BrowserTab>({
-    isCurrent: tab => this.tabs.get(tab.id) === tab,
-    withDebugger: (tab, operation) => this.withDebugger(tab.webContents, operation),
-    // Reading resets this session's DOM bindings, which would drop a CSS state preview, and disables the DOM
-    // domain, which would clear a DOM mutation source capture's breakpoint.
-    conflict: tab => tab.codeCoverage?.recording || tab.cpuProfile?.recording ? 'Stop code coverage or CPU profiling before reading computed accessibility'
-      : this.cssStatePreview.active(tab) ? 'Clear the CSS state preview before reading computed accessibility'
-        : this.domMutationSource.active(tab) ? 'Cancel the DOM mutation source capture before reading computed accessibility' : undefined,
-    keepDomEnabled: tab => Boolean(tab.emulation.renderingDebug && Object.values(tab.emulation.renderingDebug).some(Boolean))
-  })
-  readonly domMutationSource: DomMutationSourceCaptures<BrowserTab> = new DomMutationSourceCaptures<BrowserTab>({
-    isCurrent: tab => this.tabs.get(tab.id) === tab,
-    withDebugger: (tab, operation) => this.withDebugger(tab.webContents, operation),
-    inDebuggerQueue: (tab, operation) => this.debuggerQueue.run(tab.webContents.id, operation),
-    // Coverage deactivates breakpoints and later disables the Debugger and DOM domains; a capture's
-    // DOM.getDocument would unbind a CSS state preview's element.
-    conflict: tab => tab.codeCoverage?.recording ? 'Stop code coverage before capturing a DOM mutation source'
-      : this.cssStatePreview.active(tab) ? 'Clear the CSS state preview before capturing a DOM mutation source'
-        : this.logpoints.active(tab) ? 'Remove the logpoints before capturing a DOM mutation source' : undefined,
-    // A use that started after a renderer exit, before the capture's removal ran in the new renderer, keeps its domains.
-    keepDomEnabled: tab => Boolean(tab.emulation.renderingDebug && Object.values(tab.emulation.renderingDebug).some(Boolean))
-      || Boolean(tab.codeCoverage?.recording) || this.cssStatePreview.active(tab),
-    keepDebuggerEnabled: tab => Boolean(tab.codeCoverage?.recording) || this.logpoints.active(tab),
-    isDevToolsOpening: tab => this.devToolsOpening.has(tab.webContents.id)
-  })
-  readonly logpoints: LogpointSets<BrowserTab> = new LogpointSets<BrowserTab>({
-    isCurrent: tab => this.tabs.get(tab.id) === tab,
-    withDebugger: (tab, operation) => this.withDebugger(tab.webContents, operation),
-    inDebuggerQueue: (tab, operation) => this.debuggerQueue.run(tab.webContents.id, operation),
-    // Coverage deactivates breakpoints and later disables the Debugger domain; a DOM mutation source capture
-    // resumes every pause at once and disables the Debugger domain when it ends.
-    conflict: tab => tab.codeCoverage?.recording ? 'Stop code coverage before using logpoints'
-      : this.domMutationSource.active(tab) ? 'Cancel the DOM mutation source capture before using logpoints' : undefined,
-    // A use that started after a renderer exit, before the logpoints' removal ran in the new renderer, keeps the domain.
-    keepDebuggerEnabled: tab => Boolean(tab.codeCoverage?.recording) || this.domMutationSource.active(tab),
-    isDevToolsOpening: tab => this.devToolsOpening.has(tab.webContents.id),
-    changed: () => this.changed(false)
-  })
+  readonly cssStatePreview = createCssStatePreview(this)
+  readonly virtualPasskeys = createVirtualPasskeys(this)
+  readonly workerEvaluations = createWorkerEvaluations(this)
+  readonly computedAccessibilityReader = createComputedAccessibilityReader(this)
+  readonly domMutationSource = createDomMutationSource(this)
+  readonly logpoints = createLogpoints(this)
   readonly reproRecorder = new BrowserReproRecorder<BrowserTab>({
     isCurrent: tab => this.tabs.get(tab.id) === tab,
     isAgentInput: webContents => this.agentInputWebContents.has(webContents.id),
     changed: () => this.changed(false)
   })
   readonly pauseVideoForSuspend = (): void => { this.videoRecorder.pauseAll(VIDEO_RECORDING_NOTICES.sleep) }
-  readonly videoRecorder = new BrowserVideoRecorder({
-    changed: () => this.changed(false),
-    render: renderBrowserVideo,
-    inspect: inspectVideoFrames,
-    loadAudio: readVideoAudioFile,
-    save: async (data, validate) => {
-      validate()
-      const path = await this.writeUniqueDownload(`hronaut-video-${Date.now()}.webm`, Buffer.from(data), validate)
-      return { filename: basename(path), path }
-    }
-  })
+  readonly videoRecorder = createVideoRecorder(this)
   readonly snapshotBaselines = new Map<string, BrowserSnapshotBaselineRecord>()
   readonly snapshotBaselineIdsByTab = new Map<string, string>()
   readonly webMcpDescriptorCache = new Map<string, string>()
@@ -815,18 +731,7 @@ export class Browser {
   destroyed = false
   restoringLayout = false
   persistTimer: NodeJS.Timeout | null = null
-  readonly statePublication = new StatePublication({
-    canPublish: () => !this.destroyed && !this.window.isDestroyed() && !this.restoringLayout,
-    read: () => buildBrowserState(this),
-    shownLoadingPages: () => shownTabIds(this.activeTabId, this.splitView).flatMap((id) => {
-      const tab = this.tabs.get(id)
-      return tab?.loading === true ? [`${id}:${tab.navigationGeneration}`] : []
-    }),
-    send: (state) => {
-      if (!this.window.webContents.isDestroyed()) this.window.webContents.send('browser:state-changed', state)
-      this.options.onStateChanged?.(state)
-    }
-  })
+  readonly statePublication = createStatePublication(this)
   tabHistoryStore: TabHistoryStore | undefined
   closedTabsStore: ClosedTabsStore | undefined
   tabHistoryTimer: NodeJS.Timeout | null = null
@@ -862,42 +767,7 @@ export class Browser {
   /** A tab that should take keyboard focus once trusted chrome closes, such as one picked in the tab overview. */
   focusAfterTrustedChrome: PendingTrustedChromeFocus | undefined
   followAgentActivitySuspended = false
-  readonly downloadController = new BrowserDownloadsController({
-    getSettings: () => ({
-      downloadDirectory: this.options.downloadDirectory,
-      askWhereToSaveDownloads: this.options.askWhereToSaveDownloads,
-      saveDialogTitle: this.text('native.dialog.saveDownload')
-    }),
-    getSource: (webContentsId, downloadUrl) => {
-      const tabId = webContentsId === undefined ? undefined : this.webContentsToTab.get(webContentsId)
-      const tab = tabId ? this.tabs.get(tabId) : undefined
-      const sourceRequest = tab ? [...tab.networkRequests].reverse().find(request => request.url === downloadUrl) : undefined
-      return {
-        tabId,
-        workspaceId: tab?.mcpGroupId,
-        observationGeneration: sourceRequest?.observationGeneration ?? tab?.observationGeneration ?? 0
-      }
-    },
-    workspaceObservationGeneration: (workspaceId) => this.workspaceObservationGeneration(workspaceId),
-    isWorkspaceOpen: (workspaceId) => this.mcpTabGroups.has(workspaceId) && !this.workspacesBeingDeleted.has(workspaceId),
-    retrySession: (workspaceId) => {
-      if (!this.mcpTabGroups.has(workspaceId) || this.workspacesBeingDeleted.has(workspaceId)) return undefined
-      // Not while its data is being cleared, copied or moved, which a new download would race; the error says which.
-      this.assertWorkspaceIdle(workspaceId)
-      const browserSession = this.workspaceSession(workspaceId)
-      // A workspace whose pages are all asleep may not have hooked its session yet, so its downloads are tracked first.
-      this.installSessionHooks(browserSession)
-      return browserSession
-    },
-    allowsAddress: (workspaceId, url, source) => this.mcpTabGroups.has(workspaceId) && this.workspaceNavigationAllowed(workspaceId, url, source),
-    downloadReady: (webContentsId) => closeTabLeftEmptyByDownload(this, webContentsId),
-    isAvailable: () => !this.destroyed && !this.window.isDestroyed(),
-    publish: (downloads) => {
-      if (this.destroyed || this.window.isDestroyed() || this.window.webContents.isDestroyed()) return
-      this.window.webContents.send('browser:downloads-changed', downloads)
-      this.options.onDownloadsChanged?.(downloads)
-    }
-  })
+  readonly downloadController = createDownloadsController(this)
   readonly networkHookSessions = new WeakSet<Session>()
   readonly browserSessionAuthorityHooks = new Map<Session, () => void>()
   readonly browserCookieImportSessions = new Set<Session>()
@@ -954,16 +824,7 @@ export class Browser {
     mainWorldContextId: page => this.mainWorldContextId(page)
   })
 
-  readonly fixedDateController = new FixedDateController({
-    resolve: tabId => {
-      const tab = getTab(this, tabId)
-      return {
-        identity: tab, page: tab.webContents, url: tab.webContents.getURL(), workspaceId: tab.mcpGroupId,
-        workspaceIdentity: tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
-      }
-    },
-    tabIdOf: page => this.webContentsToTab.get(page.id)
-  })
+  readonly fixedDateController = createFixedDateController(this)
 
   /**
    * Gives the keyboard back to a page that asked one of Hronaut's questions, such as Home before deleting a workspace,
@@ -1031,12 +892,7 @@ export class Browser {
 
   interactionLockTail: Promise<void> = Promise.resolve()
   readonly networkRouteQueues = new Map<number, Promise<void>>()
-  readonly networkWaitController = new BrowserNetworkWaitController<BrowserTab>({
-    matchingRequest: (tab, options, minCaptureSequence) => {
-      const request = this.matchingNetworkWaitRequest(tab, options, minCaptureSequence)
-      return request ? this.networkRequestSummary(request) : undefined
-    }
-  })
+  readonly networkWaitController = createNetworkWaitController()
   readonly networkRouteRefreshTimers = new Map<number, NodeJS.Timeout>()
   readonly heldNetworkResponseStates = new Map<number, HeldResponses>()
   readonly dialogMonitorAttachPromises = new Map<number, Promise<void>>()
@@ -1059,20 +915,7 @@ export class Browser {
   )
   readonly nativePreviewCapture = new NativePreviewCapture(TAB_OVERVIEW_CAPTURE_TIMEOUT_MS)
   readonly shellHeldKeys: Set<string>
-  readonly occlusionSnapshot = new OcclusionSnapshot({
-    panes: () => occlusionSnapshotPanes(this),
-    layout: () => occlusionLayout(this),
-    cssScale: () => this.window.webContents.getZoomFactor?.() ?? 1,
-    deviceScale: () => screen.getDisplayMatching(this.window.getBounds()).scaleFactor,
-    send: (snapshot) => {
-      if (!this.window.isDestroyed() && !this.window.webContents.isDestroyed()) this.window.webContents.send('browser:occlusion-snapshot', snapshot)
-    },
-    relayout: () => this.layout(),
-    pagesHidden: (request) => {
-      if (!this.window.isDestroyed() && !this.window.webContents.isDestroyed()) this.window.webContents.send('browser:occlusion-pages-hidden', request)
-    },
-    timeoutMs: occlusionSnapshotTimeoutMs()
-  })
+  readonly occlusionSnapshot = createOcclusionSnapshot(this)
   readonly tabOverviewPreviewableTabs = new Set<string>()
   tabOverviewLiveCaptureCursor = 0
   readonly closedTabs: BrowserClosedTabState[] = []
@@ -1267,14 +1110,6 @@ export class Browser {
     value: BrowserWorkspaceNavigationPolicy
   ): Promise<BrowserState> {
     return updateWorkspaceNavigationPolicy(this, groupId, value)
-  }
-
-  private workspaceNavigationAllowed(
-    groupId: string,
-    url: string,
-    source: BrowserWorkspaceNavigationAuditSource
-  ): boolean {
-    return workspaceNavigationAllowed(this, groupId, url, source)
   }
 
   mcpWorkspaceResumeKey(workspaceId: string): string {
@@ -2712,10 +2547,6 @@ export class Browser {
     if (collision) throw new LocalizedError('appErrors.workspace.nameTaken', { name })
   }
 
-  private assertWorkspaceIdle(workspaceId: string): void {
-    assertWorkspaceIdle(this, workspaceId)
-  }
-
   private assertWorkspaceCanOpenTab(workspaceId: string): void {
     assertWorkspaceCanOpenTab(this, workspaceId)
   }
@@ -2791,18 +2622,6 @@ export class Browser {
     }
   }
 
-  private networkRequestSummary(request: BrowserNetworkRequestRecord): BrowserNetworkRequest {
-    return networkRequestSummary(request)
-  }
-
-  private matchingNetworkWaitRequest(
-    tab: BrowserTab,
-    options: NormalizedBrowserNetworkWaitOptions,
-    minCaptureSequence: number
-  ): BrowserNetworkRequestRecord | undefined {
-    return matchingNetworkWaitRequest(tab, options, minCaptureSequence)
-  }
-
   isHumanInteractionLocked(tab: BrowserTab): boolean {
     // Hronaut Home is application chrome, not a website tab. The global lock
     // protects page input while leaving Home controls usable for the human.
@@ -2860,14 +2679,6 @@ export class Browser {
     tab.consoleMessages = []
     tab.pendingRuntimeConsoleMessages = []
     tab.networkRequests = []
-  }
-
-  private installSessionHooks(browserSession: Session): void {
-    installSessionHooks(this, browserSession)
-  }
-
-  private writeUniqueDownload(filename: string, data: Buffer, validate: () => void = () => undefined): Promise<string> {
-    return writeUniqueDownloadFile(this.options.downloadDirectory, filename, data, validate)
   }
 
   private changed(persist = true): void {

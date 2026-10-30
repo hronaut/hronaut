@@ -17,7 +17,7 @@ as part of this change.
 
 ## Download ownership
 
-`src/main/browser/downloads-controller.ts` now owns download maps, session
+`src/main/browser/downloads/downloads-controller.ts` now owns download maps, session
 listeners, reserved paths, cancellation, reveal actions and notifications. Its
 host interface supplies settings, download source attribution, workspace
 generations and publication; tab and workspace authority stays in the manager.
