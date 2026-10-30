@@ -301,8 +301,8 @@ describe('a website asking for a username and password', () => {
   })
 
   it('asks again for a sign-in the person cancelled once they or an agent open a page in the tab', async () => {
-    vi.useFakeTimers({ toFake: ['Date'] })
-    const later = (ms: number): void => { vi.setSystemTime(Date.now() + ms) }
+    vi.useFakeTimers({ toFake: ['Date', 'performance'] })
+    const later = (ms: number): void => { vi.advanceTimersByTime(ms) }
     try {
       const { challenge, questions, settled, webContents } = harness()
       const cancel = async (): Promise<void> => {
@@ -343,6 +343,11 @@ describe('a website asking for a username and password', () => {
       webContents.emit('input-event', {}, { type: 'rawKeyDown', key: 'Enter', isAutoRepeat: true })
       expect(pageOpens()).toBe(false)
       webContents.emit('input-event', {}, { type: 'mouseDown' })
+      later(1_001)
+      expect(pageOpens()).toBe(false)
+      // Nor when the wall clock was set back an hour after the click, as when Linux corrects a clock kept in local time.
+      webContents.emit('input-event', {}, { type: 'mouseDown' })
+      vi.setSystemTime(Date.now() - 3_600_000)
       later(1_001)
       expect(pageOpens()).toBe(false)
       // A click before the person cancelled does not count for a page opened after it.
