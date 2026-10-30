@@ -2096,6 +2096,14 @@ test('shows a recoverable site error and retries the failed address', async ({ a
     await expect(appWindow.getByRole('tab')).toHaveAttribute('aria-label', /This site could not be reached/)
     await expect.poll(browserViewY).toBeGreaterThan(104)
 
+    // Hronaut tries the page again by itself a second after it failed, then five seconds after that try failed. Once a
+    // try of its own has failed, the person's Try again comes well before the next one.
+    await electronApp.evaluate(({ webContents }, url) => new Promise<void>((resolve, reject) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === url)
+      if (!page) reject(new Error('The page that failed was not found'))
+      else page.once('did-fail-load', () => resolve())
+    }), failedUrl)
+    await expect(recovery).toContainText('ERR_CONNECTION_REFUSED')
     await listen(port)
     await recovery.getByRole('button', { name: 'Try again' }).click()
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active))')).toMatchObject({
