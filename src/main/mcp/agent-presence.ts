@@ -178,6 +178,7 @@ export interface AgentCall {
   /** The tab the call acted on, when known. */
   tabId?: string
   phase: McpTabActivity['phase']
+  /** When the call happened on the wall clock, which its step shows. */
   occurredAt: number
   /** 'call' for the tool call itself, which alone adds a finished step; 'tab' for the tab activity it caused. */
   source?: 'call' | 'tab'
@@ -247,6 +248,10 @@ const STATE_ORDER: Record<AgentPresenceState, number> = { 'needs-you': 0, workin
 /**
  * Which MCP clients act in which workspace, derived from their own authorized
  * tool calls and attention requests. Every method is synchronous and bounded.
+ * Every `now` is a time on the monotonic clock (`performance.now()`), so that
+ * setting the computer's clock back or forward neither keeps an agent working
+ * for as long as the step nor drops it at once; the times its steps show come
+ * from the wall clock.
  */
 export class AgentPresenceRegistry {
   private readonly clients = new Map<string, ClientRecord>()
@@ -262,12 +267,13 @@ export class AgentPresenceRegistry {
    * request for you in this workspace when the call finishes a step, started after the request, that
    * acted on the page or tabs, and not on another tab than the one it asked about: the agent has then
    * moved on from it. A step keeps its tab only when `tabInWorkspace` accepts it, so a step that named another
-   * workspace's tab is listed as on no tab.
+   * workspace's tab is listed as on no tab. `now` is when the call arrived, on the monotonic clock.
    */
   track(
     client: AgentPresenceClient,
     workspaceId: string,
     call: AgentCall,
+    now: number,
     tabInWorkspace: (tabId: string) => boolean = () => true
   ): string | undefined {
     if (this.closedSessions.has(client.id)) return undefined
@@ -276,18 +282,18 @@ export class AgentPresenceRegistry {
     if (call.source !== 'call' && call.phase !== 'started') {
       const inFlight = this.clients.get(client.id)?.workspaces.get(workspaceId)?.inFlight
       const pending = inFlight?.get(call.activityId)
-      if (inFlight && pending && call.occurredAt - pending.startedAt >= AGENT_PRESENCE_WINDOW_MS) {
+      if (inFlight && pending && now - pending.startedAt >= AGENT_PRESENCE_WINDOW_MS) {
         inFlight.delete(call.activityId)
         return undefined
       }
     }
-    const record = this.client(client, call.occurredAt)
+    const record = this.client(client, now)
     let workspace = record.workspaces.get(workspaceId)
     if (!workspace) {
-      workspace = { firstSeenAt: call.occurredAt, lastActivityAt: call.occurredAt, step: 'working', inFlight: new Map(), steps: [] }
+      workspace = { firstSeenAt: now, lastActivityAt: now, step: 'working', inFlight: new Map(), steps: [] }
       record.workspaces.set(workspaceId, workspace)
     }
-    workspace.lastActivityAt = Math.max(workspace.lastActivityAt, call.occurredAt)
+    workspace.lastActivityAt = Math.max(workspace.lastActivityAt, now)
     const step = agentStepKind(call.toolName)
     // The tab activity a call caused keeps the call's target; anything else says what it acts on itself.
     if (call.source === 'call' || step !== workspace.step) workspace.target = call.target === undefined ? undefined : sanitizeAgentStepTarget(call.target)
@@ -300,7 +306,7 @@ export class AgentPresenceRegistry {
     }
     if (call.phase === 'started') {
       workspace.inFlight.set(call.activityId, {
-        startedAt: call.occurredAt,
+        startedAt: now,
         step: workspace.step,
         ...(workspace.target ? { target: workspace.target } : {}),
         call: call.source === 'call',
@@ -312,7 +318,7 @@ export class AgentPresenceRegistry {
       const pending = workspace.inFlight.get(call.activityId)
       startedAt = pending?.startedAt
       workspace.inFlight.delete(call.activityId)
-      workspace.settledAt = call.occurredAt
+      workspace.settledAt = now
       if (call.source === 'call') {
         const named = call.tabId ?? pending?.tabId
         const tabId = named && tabInWorkspace(named) ? named : undefined
@@ -362,9 +368,16 @@ export class AgentPresenceRegistry {
    * You answered a request for you: the agent that made it gets an entry in its steps in that workspace saying how and
    * when. Dismissing leaves the request open, so one later answer of another kind gets its own entry; a repeated
    * dismissal does not. Your answer counts as activity there, so its avatar stays in view, idle, for the presence window
-   * and its card shows the answer. False when no open session made the request or its workspace is no longer open.
+   * and its card shows the answer, at `answeredAt` on the wall clock. False when no open session made the request or its
+   * workspace is no longer open.
    */
-  recordAnswer(attentionId: string, answer: AgentAnswerKind, now: number, workspaceOpen: (workspaceId: string) => boolean = () => true): boolean {
+  recordAnswer(
+    attentionId: string,
+    answer: AgentAnswerKind,
+    now: number,
+    answeredAt: number,
+    workspaceOpen: (workspaceId: string) => boolean = () => true
+  ): boolean {
     const asked = this.asked.get(attentionId)
     if (!asked || (answer === 'dismissed' && asked.dismissed)) return false
     if (answer === 'dismissed') asked.dismissed = true
@@ -384,7 +397,7 @@ export class AgentPresenceRegistry {
       step: 'askYou',
       answer,
       outcome: 'done',
-      at: now,
+      at: answeredAt,
       ...(asked.tabId ? { tabId: asked.tabId } : {})
     })
     if (workspace.steps.length > AGENT_STEP_HISTORY_LIMIT) workspace.steps.splice(0, workspace.steps.length - AGENT_STEP_HISTORY_LIMIT)

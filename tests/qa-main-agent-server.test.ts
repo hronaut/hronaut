@@ -288,12 +288,12 @@ describe('workspace activity and connected agents from a presence snapshot', () 
     const idle = { id: 'idle-session', name: 'Idle Agent' }
     const working = { id: 'working-session', name: 'Working Agent' }
     const asking = { id: 'asking-session', name: 'Asking Agent' }
-    registry.track(idle, workspaceId, { activityId: 'i', toolName: 'browser_navigate', phase: 'started', occurredAt: 0, source: 'call', target: 'shop.example/cart' })
-    registry.track(idle, workspaceId, { activityId: 'i', toolName: 'browser_navigate', phase: 'finished', occurredAt: 10, source: 'call', target: 'shop.example/cart' })
-    registry.track(idle, otherWorkspaceId, { activityId: 'o', toolName: 'browser_navigate', phase: 'started', occurredAt: 0, source: 'call', target: 'docs.example/guide' })
-    registry.track(idle, otherWorkspaceId, { activityId: 'o', toolName: 'browser_navigate', phase: 'finished', occurredAt: 10, source: 'call', target: 'docs.example/guide' })
+    registry.track(idle, workspaceId, { activityId: 'i', toolName: 'browser_navigate', phase: 'started', occurredAt: 0, source: 'call', target: 'shop.example/cart' }, 0)
+    registry.track(idle, workspaceId, { activityId: 'i', toolName: 'browser_navigate', phase: 'finished', occurredAt: 10, source: 'call', target: 'shop.example/cart' }, 10)
+    registry.track(idle, otherWorkspaceId, { activityId: 'o', toolName: 'browser_navigate', phase: 'started', occurredAt: 0, source: 'call', target: 'docs.example/guide' }, 0)
+    registry.track(idle, otherWorkspaceId, { activityId: 'o', toolName: 'browser_navigate', phase: 'finished', occurredAt: 10, source: 'call', target: 'docs.example/guide' }, 10)
     const now = 60_000
-    registry.track(working, workspaceId, { activityId: 'w', toolName: 'browser_click', phase: 'started', occurredAt: now - 100, source: 'call', target: 'Pay' })
+    registry.track(working, workspaceId, { activityId: 'w', toolName: 'browser_click', phase: 'started', occurredAt: now - 100, source: 'call', target: 'Pay' }, now - 100)
     registry.recordAttention(asking, workspaceId, 'attention-9', tabId, now - 50)
     const presence = presenceOf(registry, now, 'attention-9')
 
@@ -314,7 +314,7 @@ describe('workspace activity and connected agents from a presence snapshot', () 
     const { server } = await startServer()
     const registry = new AgentPresenceRegistry()
     const asking = { id: 'asking-session', name: 'claude-code' }
-    registry.track(asking, otherWorkspaceId, { activityId: 'a', toolName: 'browser_click', phase: 'started', occurredAt: 59_000, source: 'call' })
+    registry.track(asking, otherWorkspaceId, { activityId: 'a', toolName: 'browser_click', phase: 'started', occurredAt: 59_000, source: 'call' }, 59_000)
     registry.recordAttention(asking, workspaceId, 'attention-3', undefined, 59_500)
     const expected = {
       key: registry.clientKey('asking-session'),

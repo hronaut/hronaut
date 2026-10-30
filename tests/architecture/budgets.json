@@ -155,7 +155,7 @@
     "src/main/mcp/browser-action-authority.ts": 2,
     "src/main/mcp/browser-click-input.ts": 2,
     "src/main/mcp/browser-mcp-server.ts": 8,
-    "src/main/mcp/http-server.ts": 5,
+    "src/main/mcp/http-server.ts": 4,
     "src/main/mcp/human-waiting-store.ts": 4,
     "src/main/mcp/post-write-verification.ts": 1,
     "src/main/mcp/server.ts": 1,
