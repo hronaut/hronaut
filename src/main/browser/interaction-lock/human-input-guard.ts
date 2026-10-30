@@ -13,7 +13,6 @@ function nativeSelectionContextUnavailable(error: unknown): boolean {
   return error instanceof RendererExitedError || /context.*destroyed|frame.*removed|navigat/i.test(String(error))
 }
 
-
 /** A frame of the DevTools frame tree, with its child frames. */
 interface CdpFrameTreeNode {
   frame: { id: string }

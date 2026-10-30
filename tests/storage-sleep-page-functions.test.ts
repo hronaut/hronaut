@@ -35,8 +35,20 @@ describe('the tab sleep, page lifecycle, input guard and storage page functions'
   it('finds changed form input, in shadow roots too, and content edits its watcher recorded', () => {
     stub(window, '__hronautFormEditTrackingInstalled', undefined)
     stub(window, '__hronautContentEditableDirty', undefined)
-    document.body.innerHTML = '<input value="kept"><select><option>a</option><option selected>b</option></select><button>Go</button><div contenteditable="true">draft</div>'
+    document.body.innerHTML = '<input value="kept"><input type="checkbox" checked><input type="radio"><input type="hidden" value="h">'
+      + '<select><option>a</option><option selected>b</option></select><select multiple><option selected>x</option><option>y</option></select>'
+      + '<button>Go</button><div contenteditable="true">draft</div>'
     expect(run(pageScript(formStateChangedInPage))).toBe(false)
+    for (const change of [
+      (): void => { document.querySelector<HTMLInputElement>('[type=checkbox]')!.checked = false },
+      (): void => { document.querySelector<HTMLInputElement>('[type=radio]')!.checked = true },
+      (): void => { document.querySelector<HTMLSelectElement>('select[multiple]')!.options[1]!.selected = true }
+    ]) {
+      const before = document.body.innerHTML
+      change()
+      expect(run(pageScript(formStateChangedInPage))).toBe(true)
+      document.body.innerHTML = before
+    }
     const host = document.createElement('div')
     document.body.append(host)
     const field = document.createElement('textarea')
@@ -113,6 +125,7 @@ describe('the tab sleep, page lifecycle, input guard and storage page functions'
     localStorage.setItem('a', '1')
     expect(run(pageScript(webStorageInPage, href, 'localStorage', 'list', undefined, undefined))).toEqual({ changed: false, itemCount: 2, items: [['a', '1'], ['b', '2']] })
     expect(run(pageScript(webStorageInPage, href, 'localStorage', 'get', 'a', undefined))).toEqual({ changed: false, itemCount: 2, items: [['a', '1']] })
+    expect(run(pageScript(webStorageInPage, href, 'localStorage', 'get', 'missing', undefined))).toEqual({ changed: false, itemCount: 2, items: [] })
     expect(run(pageScript(webStorageInPage, href, 'localStorage', 'delete', 'missing', undefined))).toMatchObject({ changed: false, itemCount: 2 })
     expect(run(pageScript(webStorageInPage, href, 'localStorage', 'delete', 'a', undefined))).toEqual({ changed: true, itemCount: 1, items: [['b', '2']] })
     expect(run(pageScript(webStorageInPage, href, 'sessionStorage', 'clear', undefined, undefined))).toEqual({ changed: false, itemCount: 0, items: [] })
@@ -121,6 +134,8 @@ describe('the tab sleep, page lifecycle, input guard and storage page functions'
 
   it('gives the storage manager\'s estimate, or null when the page has none or it fails', async () => {
     stub(navigator, 'storage', undefined)
+    await expect(run<Promise<unknown>>(pageScript(storageEstimateInPage))).resolves.toBeNull()
+    stub(navigator, 'storage', {})
     await expect(run<Promise<unknown>>(pageScript(storageEstimateInPage))).resolves.toBeNull()
     stub(navigator, 'storage', { estimate: async () => ({ usage: 10, quota: 100, usageDetails: { indexedDB: 10 }, extra: true }) })
     await expect(run<Promise<unknown>>(pageScript(storageEstimateInPage))).resolves.toEqual({ usage: 10, quota: 100, usageDetails: { indexedDB: 10 } })
