@@ -1,6 +1,7 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import type { UndoOffers } from './undo-offers.js'
 import { isUndoToken } from '../shared/undo.js'
+import { UNDO_IPC } from '../shared/ipc/undo.js'
 
 interface UndoIpcHost {
   /** Admits only the main window's shell document, not a detached panel window. */
@@ -11,17 +12,17 @@ interface UndoIpcHost {
 
 /** Dependencies stay lazy because handlers are registered before the window loads. */
 export function registerUndoIpc(ipcMain: Pick<IpcMain, 'handle'>, host: UndoIpcHost): void {
-  ipcMain.handle('undo:run', (event, token: unknown) => {
+  ipcMain.handle(UNDO_IPC.run, (event, token: unknown) => {
     host.assertMainShellSender(event)
     if (!isUndoToken(token)) throw new TypeError('Invalid undo token')
     return host.undoOffers().undo(token)
   })
-  ipcMain.handle('undo:hold', (event, token: unknown) => {
+  ipcMain.handle(UNDO_IPC.hold, (event, token: unknown) => {
     host.assertMainShellSender(event)
     if (!isUndoToken(token)) throw new TypeError('Invalid undo token')
     host.undoOffers().hold(token)
   })
-  ipcMain.handle('undo:finish', (event, token: unknown) => {
+  ipcMain.handle(UNDO_IPC.finish, (event, token: unknown) => {
     host.assertMainShellSender(event)
     if (!isUndoToken(token)) throw new TypeError('Invalid undo token')
     host.undoOffers().finish(token)

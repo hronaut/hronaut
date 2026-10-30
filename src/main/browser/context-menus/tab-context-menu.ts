@@ -17,6 +17,7 @@ import { setTabMuted } from '../tab-muting/tab-muting.js'
 import { closeTabsForPerson } from '../tab-close/close-tabs-for-person.js'
 import { selectTabAndWait } from '../tab-selection/tab-selection.js'
 import { duplicateTab, reopenClosedTab } from '../tab-reopening/tab-reopening.js'
+import { SHELL_IPC } from '../../../shared/ipc/shell.js'
 
 /**
  * Shows a website tab's context menu: attention, new tab, reload, duplicate,
@@ -146,7 +147,7 @@ export function showTabContextMenu(browser: Browser, tabId: string, onClosed?: (
       label: browser.text('native.context.newTab'),
       // In the workspace of the tab whose menu this is, which the rail can show while another workspace's tab is
       // active. The window opens it as its + button does, so the cursor goes to the address field.
-      click: () => runAction('open a new tab', () => browser.window.webContents.send('browser:new-tab-requested', tab.mcpGroupId))
+      click: () => runAction('open a new tab', () => browser.window.webContents.send(SHELL_IPC.newTabRequested, tab.mcpGroupId))
     },
     {
       id: 'reload-tab',
@@ -267,7 +268,7 @@ export function showTabContextMenu(browser: Browser, tabId: string, onClosed?: (
       label: browser.text('native.context.bookmarkAllTabs'),
       // As in Chrome, the workspace's tabs go in a new bookmark collection, which the Bookmarks panel asks to name.
       enabled: workspaceTabs.some((candidate) => /^https?:/i.test(candidate.url)),
-      click: () => runAction('bookmark all tabs', () => browser.window.webContents.send('browser:bookmark-all-tabs-requested', tab.mcpGroupId ?? null))
+      click: () => runAction('bookmark all tabs', () => browser.window.webContents.send(SHELL_IPC.bookmarkAllTabsRequested, tab.mcpGroupId ?? null))
     }
   ])
   menu.popup({ window: browser.window, ...(onClosed ? { callback: onClosed } : {}) })

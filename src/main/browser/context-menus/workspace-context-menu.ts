@@ -5,6 +5,7 @@ import type { Browser } from '../browser.js'
 import { sleepBlockReason, sleepWorkspaceTabs } from '../tab-sleep/tab-sleep.js'
 import { archiveWorkspaceForPerson } from '../workspace-archive/workspace-archive.js'
 import { setWorkspacePinned } from '../mcp-tab-groups/workspace-pinning.js'
+import { SHELL_IPC } from '../../../shared/ipc/shell.js'
 
 /**
  * The workspace's context menu items: a new tab in it, importing browser
@@ -32,19 +33,19 @@ export function workspaceContextMenuItems(browser: Browser, group: ActiveWorkspa
       id: 'new-tab-in-workspace',
       label: browser.text('native.context.newTabWorkspace'),
       // The window opens it as its + button does, so the cursor goes to the address field.
-      click: () => runAction('open a new tab in the workspace', () => browser.window.webContents.send('browser:new-tab-requested', group.id))
+      click: () => runAction('open a new tab in the workspace', () => browser.window.webContents.send(SHELL_IPC.newTabRequested, group.id))
     },
     { type: 'separator' },
     {
       id: 'import-browser-cookies',
       label: browser.text('browserImport.action'),
-      click: () => browser.window.webContents.send('browser:home-workspace-editor', { view: 'import', workspaceId: group.id })
+      click: () => browser.window.webContents.send(SHELL_IPC.homeWorkspaceEditorRequested, { view: 'import', workspaceId: group.id })
     },
     {
       id: 'edit-workspace',
       label: browser.text('native.context.editWorkspace'),
       click: () => runAction('edit the workspace', () => {
-        browser.window.webContents.send('browser:edit-tab-group', group.id)
+        browser.window.webContents.send(SHELL_IPC.tabGroupEditRequested, group.id)
       })
     },
     {

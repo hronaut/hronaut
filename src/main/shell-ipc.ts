@@ -9,6 +9,7 @@ import { parseScrimColor, type ScrimColor } from '../shared/title-bar.js'
 import { setContentInsets, setToolbarHeight } from './browser/window-layout/content-area.js'
 import { setFollowAgentActivitySuspended, setBrowserContentOccluded } from './browser/trusted-chrome-occlusion/trusted-chrome-occlusion.js'
 import { SHELL_IPC } from '../shared/ipc/shell.js'
+import { TABS_IPC } from '../shared/ipc/tabs.js'
 
 interface ShellIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
@@ -46,13 +47,13 @@ interface ShellIpcHost {
  * registered before the window loads.
  */
 export function registerShellIpc(ipcMain: Pick<IpcMain, 'handle' | 'on'>, host: ShellIpcHost): void {
-  host.handleBrowserIpc('browser:copy-text', async (event, value: unknown) => {
+  host.handleBrowserIpc(SHELL_IPC.copyText, async (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (typeof value !== 'string') throw new TypeError('Clipboard text must be a string')
     await host.copyTextToClipboard(value)
   })
-  host.handleBrowserIpc('browser:show', (event) => { host.assertTrustedSender(event); host.showWindow() })
-  host.handleBrowserIpc('browser:quit', (event) => {
+  host.handleBrowserIpc(SHELL_IPC.show, (event) => { host.assertTrustedSender(event); host.showWindow() })
+  host.handleBrowserIpc(SHELL_IPC.quit, (event) => {
     host.assertTrustedSender(event)
     host.quit.quitting = true
     host.quitApp()
@@ -106,7 +107,7 @@ export function registerShellIpc(ipcMain: Pick<IpcMain, 'handle' | 'on'>, host: 
     host.tabs()?.occlusionSnapshot.present(id as number)
   })
   // Detached panel windows draw the same states, but only the main window's shell paces them.
-  ipcMain.on('browser:state-drawn', (event) => {
+  ipcMain.on(TABS_IPC.stateDrawn, (event) => {
     if (!host.isMainShellSender(event)) return
     host.tabs()?.statePublication.drawn()
   })

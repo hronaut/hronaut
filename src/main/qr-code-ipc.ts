@@ -2,6 +2,7 @@ import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import type { Browser } from './browser/browser.js'
 import { qrCodeFilename, qrCodePng } from './browser/qr-code/qr-code-image.js'
 import { downloadGeneratedFile } from './browser/downloads/browser-downloads.js'
+import { QR_CODE_IPC } from '../shared/ipc/qr-code.js'
 
 /** Longer text than this, in UTF-16 code units, holds more than the largest QR code can anyway. */
 const QR_CODE_TEXT_MAX_LENGTH = 8192
@@ -21,11 +22,11 @@ interface QrCodeIpcHost {
  * lazy because handlers are registered before the window loads.
  */
 export function registerQrCodeIpc(host: QrCodeIpcHost): void {
-  host.handleBrowserIpc('browser:copy-qr-code', async (event, text: unknown) => {
+  host.handleBrowserIpc(QR_CODE_IPC.copy, async (event, text: unknown) => {
     host.assertTrustedSender(event)
     await host.copyPngToClipboard(qrCodeImage(text))
   })
-  host.handleBrowserIpc('browser:download-qr-code', (event, value: unknown) => {
+  host.handleBrowserIpc(QR_CODE_IPC.download, (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError('Invalid QR code request')
     const { tabId, text, address } = value as Record<string, unknown>
