@@ -155,15 +155,6 @@ export interface TrustedDialogCredentials {
 /** The most characters of a username or of a password a sign-in answer carries. */
 export const MAX_CREDENTIAL_LENGTH = 4_096
 
-export const TRUSTED_DIALOG_CHANNELS = {
-  /** Shell → main: the shell can draw dialogs now, and wants the current one. */
-  ready: 'trusted-dialogs:ready',
-  /** Shell → main: the person chose a button of a request, with what they typed to sign in when they sign in. */
-  respond: 'trusted-dialogs:respond',
-  /** Main → shell: the dialog to show, or null for none, with the shell's state then. */
-  changed: 'trusted-dialogs:changed'
-} as const
-
 /** What main tells a shell window with each dialog it shows there, or with none. */
 export interface TrustedDialogShellState {
   /**

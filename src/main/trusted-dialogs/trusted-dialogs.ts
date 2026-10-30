@@ -2,13 +2,13 @@ import { randomUUID } from 'node:crypto'
 import type { IpcMain, IpcMainEvent, MessageBoxOptions, MessageBoxReturnValue, WebContents } from 'electron'
 import {
   MAX_CREDENTIAL_LENGTH,
-  TRUSTED_DIALOG_CHANNELS,
   type TrustedDialogCredentials,
   type TrustedDialogRequest,
   type TrustedDialogShellState,
   type TrustedDialogType,
   type TrustedDialogVariant
 } from '../../shared/trusted-dialogs.js'
+import { TRUSTED_DIALOGS_IPC } from '../../shared/ipc/trusted-dialogs.js'
 
 /** A shell window a dialog can show in: the main window or the detached panel window. */
 export interface TrustedDialogWindow {
@@ -237,7 +237,7 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
     const shell = shells.get(contents)
     if (contents.isDestroyed() || !shell?.ready) return
     const state: TrustedDialogShellState = { afterInterruptedSignIn: afterInterruptedSignIn(shell) }
-    contents.send(TRUSTED_DIALOG_CHANNELS.changed, shell.visible?.request ?? null, state)
+    contents.send(TRUSTED_DIALOGS_IPC.changed, shell.visible?.request ?? null, state)
   }
 
   function showNext(contents: WebContents): void {
@@ -390,7 +390,7 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
       }
     }
 
-    ipc.ipcMain.on(TRUSTED_DIALOG_CHANNELS.ready, (event) => {
+    ipc.ipcMain.on(TRUSTED_DIALOGS_IPC.ready, (event) => {
       if (!trusted(event)) return
       watch(event.sender)
       const shell = shellOf(event.sender)
@@ -399,7 +399,7 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
       showNext(event.sender)
     })
 
-    ipc.ipcMain.on(TRUSTED_DIALOG_CHANNELS.respond, (event, id: unknown, response: unknown, credentials: unknown) => {
+    ipc.ipcMain.on(TRUSTED_DIALOGS_IPC.respond, (event, id: unknown, response: unknown, credentials: unknown) => {
       if (!trusted(event)) return
       // Only the window that shows the dialog answers it, and only the dialog it shows now: an answer that arrives
       // after the dialog closed, or that names one still waiting, changes nothing.

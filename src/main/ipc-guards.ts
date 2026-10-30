@@ -8,6 +8,7 @@ import type { PanelWindowRefs } from './windows/panel-window.js'
 import { isHronautHomeUrl } from '../shared/home-url.js'
 import { LocalizedError } from './localized-error.js'
 import { isLoopbackHost } from '../shared/mcp-network.js'
+import { EMULATION_FRAME_IPC, PAGE_CARD_IPC, SPLIT_DIVIDER_IPC } from '../shared/ipc/page-geometry.js'
 
 /** The trusted shell document: the development server on a loopback host, or the packaged renderer file. */
 export function trustedShellUrl(): string {
@@ -139,7 +140,7 @@ export function createIpcGuards(host: IpcGuardsHost): {
   function handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void {
     host.ipcMain.handle(channel, (event, ...args) => {
       if (host.workspaceStartupFailure()) throw host.workspaceStartupFailure()
-      if (!['browser:get-state', 'browser:get-tab-overview-previews', 'browser:get-tab-overview-page-preview', 'split-divider:get', 'emulation-frame:get', 'page-card:get'].includes(channel)) assertWorkspaceInitialized()
+      if (!['browser:get-state', 'browser:get-tab-overview-previews', 'browser:get-tab-overview-page-preview', SPLIT_DIVIDER_IPC.get, EMULATION_FRAME_IPC.get, PAGE_CARD_IPC.get].includes(channel)) assertWorkspaceInitialized()
       return listener(event, ...args)
     })
   }

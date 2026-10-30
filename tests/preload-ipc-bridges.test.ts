@@ -161,7 +161,24 @@ const invokes: Array<[api: string, method: string, args: unknown[], channel: str
   ['hronautSettings', 'graphicsAccelerationInUse', [], 'settings:graphics-acceleration-in-use', []],
   ['hronautSettings', 'restart', [], 'app:restart', []],
   ['hronautSettings', 'setCheckForUpdatesOnStartup', [true], 'settings:set-check-on-startup', [true]],
-  ['hronautSettings', 'setLanguagePreference', ['uk-UA'], 'settings:set-language-preference', ['uk-UA']]
+  ['hronautSettings', 'setLanguagePreference', ['uk-UA'], 'settings:set-language-preference', ['uk-UA']],
+  ['hronautShell', 'isWindowFocused', [], 'shell:is-window-focused', []],
+  ['hronautPanelWindow', 'open', ['bookmarks'], 'panel-window:open', ['bookmarks']],
+  ['hronautPanelWindow', 'close', [], 'panel-window:close', []],
+  ['hronautPanelWindow', 'setActive', ['network'], 'panel-window:set-active', ['network']],
+  ['hronautPanelWindow', 'redock', ['bookmarks', 'left'], 'panel-window:redock', ['bookmarks', 'left']],
+  ['hronautPanelWindow', 'bookmarkAllTabs', ['workspace-1'], 'panel-window:bookmark-all-tabs', ['workspace-1']],
+  ['hronautPanelWindow', 'bookmarkAllTabs', [null], 'panel-window:bookmark-all-tabs', [null]],
+  ['hronautSplitDivider', 'get', [], 'split-divider:get', []],
+  ['hronautSplitDivider', 'begin', [3], 'split-divider:begin', [3]],
+  ['hronautSplitDivider', 'update', ['token-1', 0.4], 'split-divider:update', ['token-1', 0.4]],
+  ['hronautSplitDivider', 'finish', ['token-1', true, 0.4], 'split-divider:finish', ['token-1', true, 0.4]],
+  ['hronautSplitDivider', 'finish', ['token-1', false], 'split-divider:finish', ['token-1', false, undefined]],
+  ['hronautSplitDivider', 'setRatio', [3, 0.5], 'split-divider:set-ratio', [3, 0.5]],
+  ['hronautEmulationFrame', 'get', [], 'emulation-frame:get', []],
+  ['hronautPageCard', 'get', [], 'page-card:get', []],
+  ['hronautAgentPresence', 'get', [], 'agent-presence:get', []],
+  ['hronautAgentPresence', 'steps', [{ clientKey: 'client-1', workspaceId: 'workspace-1', known: [] }], 'agent-presence:steps', [{ clientKey: 'client-1', workspaceId: 'workspace-1', known: [] }]]
 ]
 
 it.each(invokes)('%s.%s asks main on its channel with its arguments and returns main\'s answer', async (api, method, args, channel, sent) => {
@@ -197,7 +214,18 @@ const sends: Array<[api: string, method: string, args: unknown[], channel: strin
   ['hronautSidebarOverlayView', 'hideTooltip', [1], 'sidebar-overlay-view:tooltip-hide', [1]],
   ['hronautSidebarOverlayView', 'hideTooltip', [], 'sidebar-overlay-view:tooltip-hide', [undefined]],
   ['hronautTooltipOverlayView', 'measured', [{ id: 1 }], 'tooltip-overlay:measured', [{ id: 1 }]],
-  ['hronautStatusBubbleView', 'measured', [{ id: 1 }], 'status-bubble:measured', [{ id: 1 }]]
+  ['hronautStatusBubbleView', 'measured', [{ id: 1 }], 'status-bubble:measured', [{ id: 1 }]],
+  ['hronautShell', 'setToolbarHeight', [40], 'browser:toolbar-height', [40]],
+  ['hronautShell', 'setContentInsets', [{ top: 0, right: 0, bottom: 0, left: 240 }], 'browser:content-insets', [{ top: 0, right: 0, bottom: 0, left: 240 }]],
+  ['hronautShell', 'setBrowserContentOccluded', [true, 2], 'browser:content-occluded', [true, 2]],
+  ['hronautShell', 'presentOcclusionSnapshot', [5], 'browser:occlusion-snapshot-presented', [5]],
+  ['hronautShell', 'setWindowControlsScrim', ['rgb(0 0 0 / 50%)'], 'shell:window-controls-scrim', ['rgb(0 0 0 / 50%)']],
+  ['hronautShell', 'setWindowControlsScrim', [null], 'shell:window-controls-scrim', [null]],
+  ['hronautShell', 'setFollowAgentActivitySuspended', [true], 'browser:follow-agent-activity-suspended', [true]],
+  ['hronautTrustedDialogs', 'ready', [], 'trusted-dialogs:ready', []],
+  ['hronautTrustedDialogs', 'respond', ['dialog-1', 0], 'trusted-dialogs:respond', ['dialog-1', 0]],
+  // Only the name and password go to main, whatever else the object holds.
+  ['hronautTrustedDialogs', 'respond', ['dialog-1', 1, { username: 'name', password: 'secret', extra: true }], 'trusted-dialogs:respond', ['dialog-1', 1, { username: 'name', password: 'secret' }]]
 ]
 
 it.each(sends)('%s.%s tells main on its channel with its arguments', async (api, method, args, channel, sent) => {
@@ -237,6 +265,20 @@ const listeners: Array<[api: string, method: string, channel: string, received: 
   ['hronautSidebarOverlayView', 'onState', 'sidebar-overlay-view:state', [{ revision: 1 }]],
   ['hronautTooltipOverlayView', 'onState', 'tooltip-overlay:state', [{ id: 1, text: 'Back' }]],
   ['hronautStatusBubbleView', 'onState', 'status-bubble:state', [{ id: 1, maxWidth: 300 }]],
+  ['hronautShell', 'onOcclusionSnapshot', 'browser:occlusion-snapshot', [null]],
+  ['hronautShell', 'onOcclusionPagesHidden', 'browser:occlusion-pages-hidden', [2]],
+  ['hronautShell', 'onHelpRequested', 'help:open', ['about']],
+  ['hronautShell', 'onClipboardFailed', 'clipboard:failed', ['Copying failed']],
+  ['hronautShell', 'onActionFailed', 'browser:action-failed', [{ action: 'reload', message: 'Failed' }]],
+  ['hronautPanelWindow', 'onActivePanelChanged', 'panel-window:active-panel', ['network']],
+  ['hronautPanelWindow', 'onRedockRequested', 'panel-window:redock-requested', [{ panel: 'bookmarks', dock: 'left' }]],
+  ['hronautPanelWindow', 'onClosed', 'panel-window:closed', []],
+  ['hronautSplitDivider', 'onChanged', 'split-divider:changed', [null]],
+  ['hronautEmulationFrame', 'onChanged', 'emulation-frame:changed', [[]]],
+  ['hronautPageCard', 'onChanged', 'page-card:changed', [[]]],
+  ['hronautAgentPresence', 'onChanged', 'agent-presence:changed', [{ revision: 1, workspaces: {} }]],
+  ['hronautAgentPresence', 'onTakeOverOffer', 'agent-presence:take-over-offer', [{ tabId: 'tab-1', clientKey: 'client-1' }]],
+  ['hronautTrustedDialogs', 'onChanged', 'trusted-dialogs:changed', [null, { afterInterruptedSignIn: true }]],
   ['hronautSettings', 'onRendererStateChanged', 'settings:renderer-state-changed', [{ settings: { theme: 'dark' }, systemTheme: 'dark', systemLocale: 'en-US', resolvedLocale: 'en-US' }]]
 ]
 
@@ -249,6 +291,47 @@ it.each(listeners)('%s.%s passes on only what the channel carries, without the e
   expect(listener.mock.calls).toEqual([received])
   expect(stop()).toBeUndefined()
   expect(electron.removeListener).toHaveBeenCalledExactlyOnceWith(channel, handler)
+})
+
+it('hronautShell.confirm is true only when main answers true', async () => {
+  const confirm = await exposed('hronautShell', 'confirm')
+  const question = { message: 'Close all tabs?' }
+  electron.invoke.mockResolvedValueOnce(true).mockResolvedValueOnce('yes').mockResolvedValueOnce(false)
+  await expect(confirm(question)).resolves.toBe(true)
+  await expect(confirm(question)).resolves.toBe(false)
+  await expect(confirm(question)).resolves.toBe(false)
+  expect(electron.invoke.mock.calls).toEqual([['shell:confirm', question], ['shell:confirm', question], ['shell:confirm', question]])
+})
+
+it('hronautShell.onOcclusionPagesHidden passes on only a request number', async () => {
+  const subscribe = await exposed('hronautShell', 'onOcclusionPagesHidden')
+  const listener = vi.fn()
+  subscribe(listener)
+  const [, handler] = electron.on.mock.calls.find(([name]) => name === 'browser:occlusion-pages-hidden')!
+  handler({}, '2')
+  handler({}, 3)
+  expect(listener.mock.calls).toEqual([[3]])
+})
+
+it('hronautTrustedDialogs.onChanged passes on only whether a sign-in was just interrupted', async () => {
+  const subscribe = await exposed('hronautTrustedDialogs', 'onChanged')
+  const listener = vi.fn()
+  subscribe(listener)
+  const [, handler] = electron.on.mock.calls.find(([name]) => name === 'trusted-dialogs:changed')!
+  handler({}, { id: 'dialog-1' })
+  handler({}, { id: 'dialog-1' }, { afterInterruptedSignIn: 'yes', extra: true })
+  expect(listener.mock.calls).toEqual([[{ id: 'dialog-1' }, { afterInterruptedSignIn: false }], [{ id: 'dialog-1' }, { afterInterruptedSignIn: false }]])
+})
+
+it('hronautPanelWindow keeps the panel main asked for until the shell listens', async () => {
+  const onPanelRequested = await exposed('hronautPanelWindow', 'onPanelRequested')
+  const [, handler] = electron.on.mock.calls.find(([name]) => name === 'panel-window:show-panel')!
+  handler({}, 'network')
+  handler({}, 'console')
+  const listener = vi.fn()
+  onPanelRequested(listener)
+  handler({}, 'bookmarks')
+  expect(listener.mock.calls).toEqual([['console'], ['bookmarks']])
 })
 
 it('checks at compile time that calls and listeners match their channel', () => {

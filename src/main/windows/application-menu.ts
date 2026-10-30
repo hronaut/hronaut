@@ -12,6 +12,7 @@ import { viewShownPageSource } from '../browser/page-source/page-source.js'
 import { setZoom } from '../browser/page-zoom/page-zoom.js'
 import { newTab } from '../browser/new-tabs/open-new-tab.js'
 import { UPDATES_IPC } from '../../shared/ipc/updates.js'
+import { SHELL_IPC } from '../../shared/ipc/shell.js'
 
 interface ApplicationMenuHost {
   /** Translates into the current interface language; read on every build because the language can change. */
@@ -44,7 +45,7 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
 
   function requestHelp(action: HelpMenuAction): void {
     host.showWindow()
-    if (host.mainWindow() && !host.mainWindow()!.webContents.isDestroyed()) host.mainWindow()!.webContents.send('help:open', action)
+    if (host.mainWindow() && !host.mainWindow()!.webContents.isDestroyed()) host.mainWindow()!.webContents.send(SHELL_IPC.helpRequested, action)
   }
 
   function openRepository(): void {

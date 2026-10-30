@@ -2,6 +2,7 @@ import { clipboard, ClipboardItem, nativeImage, type BrowserWindow, type NativeI
 import { writeVerifiedClipboardText } from './verified-clipboard.js'
 import { LocalizedError, personErrorMessage } from './localized-error.js'
 import type { MessageKey, MessageParameters } from '../shared/i18n.js'
+import { SHELL_IPC } from '../shared/ipc/shell.js'
 
 type ClipboardRecord = ConstructorParameters<typeof ClipboardItem>[0]
 
@@ -40,7 +41,7 @@ export function createClipboardOperations(host: ClipboardOperationsHost): {
   function reportClipboardFailure(error: unknown): void {
     const message = error instanceof Error ? personErrorMessage(error, host.text) : host.text('native.errors.clipboard')
     if (host.mainWindow() && !host.mainWindow()!.isDestroyed() && !host.mainWindow()!.webContents.isDestroyed()) {
-      host.mainWindow()!.webContents.send('clipboard:failed', message)
+      host.mainWindow()!.webContents.send(SHELL_IPC.clipboardFailed, message)
     }
   }
 
