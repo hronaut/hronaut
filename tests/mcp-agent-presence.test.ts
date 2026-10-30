@@ -94,36 +94,55 @@ function context(overrides: Partial<AgentPresenceContext> = {}): AgentPresenceCo
 describe('agent presence registry', () => {
   it('shows an agent working during a call and for a short grace after, then idle, then gone', () => {
     const registry = new AgentPresenceRegistry()
-    registry.track(claude, workspace, activity('started', 1_000))
+    registry.track(claude, workspace, activity('started', 1_000), 1_000)
     expect(registry.derive(1_000, context())[workspace]).toEqual([expect.objectContaining({
       name: 'Claude Code', initial: 'C', state: 'working', step: 'click', lastTabId: 'tab-1'
     })])
     // A call still running near the end of the window keeps the agent working.
     expect(registry.derive(1_000 + AGENT_PRESENCE_WINDOW_MS - 1, context())[workspace]?.[0]?.state).toBe('working')
 
-    registry.track(claude, workspace, activity('finished', 2_000))
+    registry.track(claude, workspace, activity('finished', 2_000), 2_000)
     expect(registry.derive(2_000 + AGENT_WORKING_GRACE_MS - 1, context())[workspace]?.[0]?.state).toBe('working')
     expect(registry.derive(2_000 + AGENT_WORKING_GRACE_MS, context())[workspace]?.[0]?.state).toBe('idle')
     expect(registry.derive(2_000 + AGENT_PRESENCE_WINDOW_MS - 1, context())[workspace]?.[0]?.state).toBe('idle')
     expect(registry.derive(2_000 + AGENT_PRESENCE_WINDOW_MS, context())).toEqual({})
   })
 
+  it('times calls and answers by when they arrived on the monotonic clock, and shows their wall-clock times', () => {
+    const registry = new AgentPresenceRegistry()
+    const shown = 1_800_000_000_000
+    registry.track(claude, workspace, { activityId: 'call-1', toolName: 'browser_click', phase: 'started', occurredAt: shown, source: 'call' }, 1_000)
+    registry.track(claude, workspace, { activityId: 'call-1', toolName: 'browser_click', phase: 'finished', occurredAt: shown + 100, source: 'call' }, 1_100)
+    registry.recordAttention(claude, workspace, 'attention-1', undefined, 1_200)
+    expect(registry.recordAnswer('attention-1', 'handedBack', 1_300, shown + 300)).toBe(true)
+    expect(registry.derive(1_100 + AGENT_WORKING_GRACE_MS - 1, context())[workspace]?.[0]?.state).toBe('working')
+    expect(registry.derive(1_100 + AGENT_WORKING_GRACE_MS, context())[workspace]?.[0]).toEqual(expect.objectContaining({
+      state: 'idle',
+      recentSteps: [
+        { step: 'askYou', answer: 'handedBack', outcome: 'done', at: shown + 300 },
+        { step: 'click', outcome: 'done', at: shown + 100 }
+      ]
+    }))
+    expect(registry.nextTransitionAt(1_100 + AGENT_WORKING_GRACE_MS)).toBe(1_300 + AGENT_PRESENCE_WINDOW_MS)
+    expect(registry.derive(1_300 + AGENT_PRESENCE_WINDOW_MS, context())).toEqual({})
+  })
+
   it('names the latest running step, and only the step kind', () => {
     const registry = new AgentPresenceRegistry()
-    registry.track(claude, workspace, activity('started', 1_000, { activityId: 'a', toolName: 'browser_navigate' }))
-    registry.track(claude, workspace, activity('started', 1_100, { activityId: 'b', toolName: 'browser_type' }))
+    registry.track(claude, workspace, activity('started', 1_000, { activityId: 'a', toolName: 'browser_navigate' }), 1_000)
+    registry.track(claude, workspace, activity('started', 1_100, { activityId: 'b', toolName: 'browser_type' }), 1_100)
     expect(registry.derive(1_200, context())[workspace]?.[0]?.step).toBe('type')
-    registry.track(claude, workspace, activity('finished', 1_300, { activityId: 'b', toolName: 'browser_type' }))
+    registry.track(claude, workspace, activity('finished', 1_300, { activityId: 'b', toolName: 'browser_type' }), 1_300)
     expect(registry.derive(1_400, context())[workspace]?.[0]?.step).toBe('navigate')
-    registry.track(claude, workspace, activity('started', 1_500, { activityId: 'c', toolName: 'browser_console_messages' }))
+    registry.track(claude, workspace, activity('started', 1_500, { activityId: 'c', toolName: 'browser_console_messages' }), 1_500)
     expect(registry.derive(1_600, context())[workspace]?.[0]?.step).toBe('inspect')
-    registry.track(claude, workspace, activity('started', 1_700, { activityId: 'd', toolName: 'browser_future_tool' }))
+    registry.track(claude, workspace, activity('started', 1_700, { activityId: 'd', toolName: 'browser_future_tool' }), 1_700)
     expect(registry.derive(1_800, context())[workspace]?.[0]?.step).toBe('working')
   })
 
   it('lets a request for you win while it is the current one, even after its session closes', () => {
     const registry = new AgentPresenceRegistry()
-    registry.track(claude, workspace, activity('started', 1_000))
+    registry.track(claude, workspace, activity('started', 1_000), 1_000)
     registry.recordAttention(cursor, workspace, 'attention-1', 'tab-2', 1_100)
     const asking = context({ currentAttentionId: 'attention-1' })
     expect(registry.derive(1_200, asking)[workspace]?.map((agent) => [agent.name, agent.state, agent.step, agent.attentionTabId])).toEqual([
@@ -144,37 +163,37 @@ describe('agent presence registry', () => {
   it('brings back nothing from a session after it closed, except a request for you until answered', () => {
     const registry = new AgentPresenceRegistry()
     const asking = context({ currentAttentionId: 'attention-1' })
-    registry.track(claude, workspace, activity('started', 1_000))
+    registry.track(claude, workspace, activity('started', 1_000), 1_000)
     registry.removeClient(claude.id)
     // A call that settles after its session closed shows no one.
-    registry.track(claude, workspace, activity('finished', 1_100))
+    registry.track(claude, workspace, activity('finished', 1_100), 1_100)
     expect(registry.derive(1_200, context())).toEqual({})
     // A request for you that lands after the close still shows, alone.
     registry.recordAttention(claude, workspace, 'attention-1', 'tab-2', 1_300)
-    registry.track(claude, workspace, activity('started', 1_350, { activityId: 'call-2' }))
+    registry.track(claude, workspace, activity('started', 1_350, { activityId: 'call-2' }), 1_350)
     expect(registry.derive(1_400, asking)[workspace]?.map((agent) => [agent.name, agent.state, agent.attentionTabId])).toEqual([['Claude Code', 'needs-you', 'tab-2']])
     expect(registry.derive(1_500, context())).toEqual({})
-    registry.track(claude, workspace, activity('started', 1_600, { activityId: 'call-3' }))
+    registry.track(claude, workspace, activity('started', 1_600, { activityId: 'call-3' }), 1_600)
     expect(registry.derive(1_700, context())).toEqual({})
     expect(registry.nextTransitionAt(1_700)).toBeUndefined()
 
     // Clearing (the server stopped) closes every session it knew.
-    registry.track(cursor, workspace, activity('started', 2_000))
+    registry.track(cursor, workspace, activity('started', 2_000), 2_000)
     registry.clear()
-    registry.track(cursor, workspace, activity('finished', 2_100))
+    registry.track(cursor, workspace, activity('finished', 2_100), 2_100)
     expect(registry.derive(2_200, context())).toEqual({})
 
     // Only a bounded number of closed sessions is remembered.
     const bounded = new AgentPresenceRegistry()
     for (let index = 0; index <= AGENT_PRESENCE_CLOSED_SESSIONS_LIMIT; index += 1) bounded.removeClient(`session-${index}`)
-    bounded.track({ id: 'session-0', name: 'Reused' }, workspace, activity('finished', 1_000))
-    bounded.track({ id: `session-${AGENT_PRESENCE_CLOSED_SESSIONS_LIMIT}`, name: 'Closed' }, workspace, activity('finished', 1_000))
+    bounded.track({ id: 'session-0', name: 'Reused' }, workspace, activity('finished', 1_000), 1_000)
+    bounded.track({ id: `session-${AGENT_PRESENCE_CLOSED_SESSIONS_LIMIT}`, name: 'Closed' }, workspace, activity('finished', 1_000), 1_000)
     expect(bounded.derive(1_100, context())[workspace]?.map((agent) => agent.name)).toEqual(['Reused'])
   })
 
   it('counts a request for you as activity, so the agent stays after it is answered', () => {
     const registry = new AgentPresenceRegistry()
-    registry.track(claude, workspace, activity('finished', 1_000))
+    registry.track(claude, workspace, activity('finished', 1_000), 1_000)
     registry.recordAttention(claude, workspace, 'attention-1', undefined, 1_000 + AGENT_PRESENCE_WINDOW_MS - 10)
     expect(registry.derive(1_000 + AGENT_PRESENCE_WINDOW_MS + 10, context())[workspace]?.[0]?.state).toBe('idle')
   })
@@ -182,7 +201,7 @@ describe('agent presence registry', () => {
   it('publishes the last three finished calls, newest first, from the calls themselves only', () => {
     const registry = new AgentPresenceRegistry()
     const call = (activityId: string, toolName: string, phase: McpTabActivity['phase'], occurredAt: number, source?: 'call' | 'tab') =>
-      registry.track(claude, workspace, { activityId, toolName, phase, occurredAt, ...(source ? { source } : {}) })
+      registry.track(claude, workspace, { activityId, toolName, phase, occurredAt, ...(source ? { source } : {}) }, occurredAt)
     call('a', 'browser_navigate', 'started', 1_000, 'call')
     // The tab activity of the same call settles too, but adds no second step.
     call('a-tab', 'browser_navigate', 'started', 1_000, 'tab')
@@ -210,7 +229,7 @@ describe('agent presence registry', () => {
   it('names what a call acts on through its tab activity and in its finished step, until a call without one', () => {
     const registry = new AgentPresenceRegistry()
     const call = (activityId: string, toolName: string, phase: McpTabActivity['phase'], occurredAt: number, source: 'call' | 'tab', target?: string) =>
-      registry.track(claude, workspace, { activityId, toolName, phase, occurredAt, source, ...(target ? { target } : {}) })
+      registry.track(claude, workspace, { activityId, toolName, phase, occurredAt, source, ...(target ? { target } : {}) }, occurredAt)
     call('a', 'browser_click', 'started', 1_000, 'call', 'Review\norder')
     expect(registry.derive(1_050, context())[workspace]?.[0]).toEqual(expect.objectContaining({ step: 'click', target: 'Review order' }))
     // The click's own tab activity says nothing of its target, and keeps the call's.
@@ -233,15 +252,15 @@ describe('agent presence registry', () => {
   it('keeps the last 20 steps per agent and workspace for All steps, with ids and the tab each acted on', () => {
     const registry = new AgentPresenceRegistry()
     const step = (session: typeof claude, workspaceId: string, activityId: string, toolName: string, at: number, tabId?: string) => {
-      registry.track(session, workspaceId, { activityId, toolName, phase: 'started', occurredAt: at, source: 'call', ...(tabId ? { tabId } : {}) })
-      registry.track(session, workspaceId, { activityId, toolName, phase: 'finished', occurredAt: at + 10, source: 'call', ...(tabId ? { tabId } : {}) })
+      registry.track(session, workspaceId, { activityId, toolName, phase: 'started', occurredAt: at, source: 'call', ...(tabId ? { tabId } : {}) }, at)
+      registry.track(session, workspaceId, { activityId, toolName, phase: 'finished', occurredAt: at + 10, source: 'call', ...(tabId ? { tabId } : {}) }, at + 10)
     }
     for (let index = 0; index < AGENT_STEP_HISTORY_LIMIT + 2; index += 1) step(claude, workspace, `call-${index}`, 'browser_click', 1_000 + index * 100, `tab-${index % 2}`)
     // A call that names no tab acts on the tab its own tab activity used.
-    registry.track(claude, workspace, { activityId: 'snap', toolName: 'browser_snapshot', phase: 'started', occurredAt: 4_000, source: 'call' })
-    registry.track(claude, workspace, { activityId: 'snap-tab', toolName: 'browser_snapshot', phase: 'started', occurredAt: 4_000, source: 'tab', tabId: 'tab-7' })
-    registry.track(claude, workspace, { activityId: 'snap-tab', toolName: 'browser_snapshot', phase: 'finished', occurredAt: 4_050, source: 'tab', tabId: 'tab-7' })
-    registry.track(claude, workspace, { activityId: 'snap', toolName: 'browser_snapshot', phase: 'finished', occurredAt: 4_100, source: 'call' })
+    registry.track(claude, workspace, { activityId: 'snap', toolName: 'browser_snapshot', phase: 'started', occurredAt: 4_000, source: 'call' }, 4_000)
+    registry.track(claude, workspace, { activityId: 'snap-tab', toolName: 'browser_snapshot', phase: 'started', occurredAt: 4_000, source: 'tab', tabId: 'tab-7' }, 4_000)
+    registry.track(claude, workspace, { activityId: 'snap-tab', toolName: 'browser_snapshot', phase: 'finished', occurredAt: 4_050, source: 'tab', tabId: 'tab-7' }, 4_050)
+    registry.track(claude, workspace, { activityId: 'snap', toolName: 'browser_snapshot', phase: 'finished', occurredAt: 4_100, source: 'call' }, 4_100)
     // A step on no tab at all keeps none.
     step(claude, workspace, 'list', 'browser_tabs', 4_200)
     const key = registry.clientKey(claude.id)
@@ -278,8 +297,8 @@ describe('agent presence registry', () => {
     const registry = new AgentPresenceRegistry()
     const picture = (byte: number) => ({ jpeg: Buffer.from([0xff, 0xd8, byte]), width: 320, height: 200 })
     const finish = (session: typeof claude, workspaceId: string, activityId: string, at: number) => {
-      registry.track(session, workspaceId, { activityId, toolName: 'browser_click', phase: 'started', occurredAt: at, source: 'call', tabId: 'tab-1' })
-      registry.track(session, workspaceId, { activityId, toolName: 'browser_click', phase: 'finished', occurredAt: at + 1, source: 'call', tabId: 'tab-1' })
+      registry.track(session, workspaceId, { activityId, toolName: 'browser_click', phase: 'started', occurredAt: at, source: 'call', tabId: 'tab-1' }, at)
+      registry.track(session, workspaceId, { activityId, toolName: 'browser_click', phase: 'finished', occurredAt: at + 1, source: 'call', tabId: 'tab-1' }, at + 1)
       return { sessionId: session.id, workspaceId, stepId: registry.latestStep(session.id, workspaceId)!.id }
     }
     const first = finish(claude, workspace, 'a', 1_000)
@@ -326,8 +345,8 @@ describe('agent presence registry', () => {
   it('forgets every agent\'s finished steps and their pictures from a time on, or all of them, as history is cleared', () => {
     const registry = new AgentPresenceRegistry()
     const finish = (session: typeof claude, workspaceId: string, activityId: string, at: number) => {
-      registry.track(session, workspaceId, { activityId, toolName: 'browser_navigate', phase: 'started', occurredAt: at, source: 'call', tabId: 'tab-1' })
-      registry.track(session, workspaceId, { activityId, toolName: 'browser_navigate', phase: 'finished', occurredAt: at + 1, source: 'call', tabId: 'tab-1' })
+      registry.track(session, workspaceId, { activityId, toolName: 'browser_navigate', phase: 'started', occurredAt: at, source: 'call', tabId: 'tab-1' }, at)
+      registry.track(session, workspaceId, { activityId, toolName: 'browser_navigate', phase: 'finished', occurredAt: at + 1, source: 'call', tabId: 'tab-1' }, at + 1)
       const step = { sessionId: session.id, workspaceId, stepId: registry.latestStep(session.id, workspaceId)!.id }
       registry.attachThumbnail(step, { jpeg: Buffer.from([0xff, 0xd8, at % 256]), width: 320, height: 200 })
     }
@@ -356,8 +375,8 @@ describe('agent presence registry', () => {
 
   it('keeps the last tab when a call names none', () => {
     const registry = new AgentPresenceRegistry()
-    registry.track(claude, workspace, activity('finished', 1_000, { tabId: 'tab-4' }))
-    registry.track(claude, workspace, { activityId: 'call-2', toolName: 'browser_tabs', phase: 'started', occurredAt: 1_100 })
+    registry.track(claude, workspace, activity('finished', 1_000, { tabId: 'tab-4' }), 1_000)
+    registry.track(claude, workspace, { activityId: 'call-2', toolName: 'browser_tabs', phase: 'started', occurredAt: 1_100 }, 1_100)
     expect(registry.derive(1_200, context())[workspace]?.[0]).toEqual(expect.objectContaining({ state: 'working', step: 'working', lastTabId: 'tab-4' }))
   })
 
@@ -367,8 +386,8 @@ describe('agent presence registry', () => {
     const call = (client: typeof claude, toolName: string, phase: McpTabActivity['phase'], options: { workspace?: string; source?: 'call' | 'tab'; startedAt?: number; tabId?: string } = {}) => {
       const activityId = `call-${calls += 1}`
       const base = { activityId, toolName, source: options.source ?? 'call', ...(options.tabId ? { tabId: options.tabId } : {}) }
-      const started = registry.track(client, options.workspace ?? workspace, { ...base, phase: 'started', occurredAt: options.startedAt ?? 1_500 })
-      return phase === 'started' ? started : registry.track(client, options.workspace ?? workspace, { ...base, phase, occurredAt: 1_600 })
+      const started = registry.track(client, options.workspace ?? workspace, { ...base, phase: 'started', occurredAt: options.startedAt ?? 1_500 }, options.startedAt ?? 1_500)
+      return phase === 'started' ? started : registry.track(client, options.workspace ?? workspace, { ...base, phase, occurredAt: 1_600 }, 1_600)
     }
     registry.recordAttention(claude, workspace, 'attention-1', 'tab-1', 1_000)
     // Reading, waiting, scrolling, scripts or showing a tab: still waiting for you.
@@ -401,8 +420,8 @@ describe('agent presence registry', () => {
 
   it('shows agents only in open workspaces and only tabs still in them', () => {
     const registry = new AgentPresenceRegistry()
-    registry.track(claude, workspace, activity('finished', 1_000))
-    registry.track(claude, otherWorkspace, activity('finished', 1_000, { tabId: 'tab-9' }))
+    registry.track(claude, workspace, activity('finished', 1_000), 1_000)
+    registry.track(claude, otherWorkspace, activity('finished', 1_000, { tabId: 'tab-9' }), 1_000)
     const result = registry.derive(1_100, context({
       workspaceOpen: (id) => id === workspace,
       tabInWorkspace: (_id, tabId) => tabId !== 'tab-1'
@@ -414,9 +433,9 @@ describe('agent presence registry', () => {
   it('orders needs you, working, then idle, then by who came first', () => {
     const registry = new AgentPresenceRegistry()
     const agents = ['Alpha', 'Bravo', 'Charlie', 'Delta'].map((name) => ({ id: `session-${name}`, name }))
-    registry.track(agents[0]!, workspace, activity('finished', 1_000))
-    registry.track(agents[1]!, workspace, activity('finished', 1_001))
-    registry.track(agents[2]!, workspace, activity('started', 1_002))
+    registry.track(agents[0]!, workspace, activity('finished', 1_000), 1_000)
+    registry.track(agents[1]!, workspace, activity('finished', 1_001), 1_001)
+    registry.track(agents[2]!, workspace, activity('started', 1_002), 1_002)
     registry.recordAttention(agents[3]!, workspace, 'attention-1', undefined, 1_003)
     const names = registry.derive(1_000 + AGENT_WORKING_GRACE_MS + 10, context({ currentAttentionId: 'attention-1' }))[workspace]?.map((agent) => agent.name)
     expect(names).toEqual(['Delta', 'Charlie', 'Alpha', 'Bravo'])
@@ -424,22 +443,22 @@ describe('agent presence registry', () => {
 
   it('publishes an opaque key per session, never the session id', () => {
     const registry = new AgentPresenceRegistry()
-    registry.track(claude, workspace, activity('finished', 1_000))
-    registry.track({ id: 'session-two', name: 'Claude Code' }, workspace, activity('finished', 1_000))
+    registry.track(claude, workspace, activity('finished', 1_000), 1_000)
+    registry.track({ id: 'session-two', name: 'Claude Code' }, workspace, activity('finished', 1_000), 1_000)
     const [first, second] = registry.derive(1_100, context())[workspace]!
     expect(first!.clientKey).toMatch(/^[\w-]{22}$/)
     expect(first!.clientKey).not.toBe(second!.clientKey)
     expect(JSON.stringify(registry.derive(1_100, context()))).not.toContain('session-')
     // A second registry (another listener) gives the same session a different key.
     const other = new AgentPresenceRegistry()
-    other.track(claude, workspace, activity('finished', 1_000))
+    other.track(claude, workspace, activity('finished', 1_000), 1_000)
     expect(other.derive(1_100, context())[workspace]![0]!.clientKey).not.toBe(first!.clientKey)
   })
 
   it('reports when the next change happens without a new call', () => {
     const registry = new AgentPresenceRegistry()
     expect(registry.nextTransitionAt(0)).toBeUndefined()
-    registry.track(claude, workspace, activity('finished', 1_000))
+    registry.track(claude, workspace, activity('finished', 1_000), 1_000)
     expect(registry.nextTransitionAt(1_000)).toBe(1_000 + AGENT_WORKING_GRACE_MS)
     expect(registry.nextTransitionAt(1_000 + AGENT_WORKING_GRACE_MS)).toBe(1_000 + AGENT_PRESENCE_WINDOW_MS)
     expect(registry.nextTransitionAt(1_000 + AGENT_PRESENCE_WINDOW_MS)).toBeUndefined()
@@ -447,47 +466,47 @@ describe('agent presence registry', () => {
 
   it('names the newest step, not a call left unsettled past the window', () => {
     const registry = new AgentPresenceRegistry()
-    registry.track(claude, workspace, activity('started', 1_000, { activityId: 'lost', toolName: 'browser_evaluate' }))
+    registry.track(claude, workspace, activity('started', 1_000, { activityId: 'lost', toolName: 'browser_evaluate' }), 1_000)
     const later = 1_000 + AGENT_PRESENCE_WINDOW_MS + 1_000
-    registry.track(claude, workspace, activity('started', later, { activityId: 'next', toolName: 'browser_click' }))
-    registry.track(claude, workspace, activity('finished', later + 100, { activityId: 'next', toolName: 'browser_click' }))
+    registry.track(claude, workspace, activity('started', later, { activityId: 'next', toolName: 'browser_click' }), later)
+    registry.track(claude, workspace, activity('finished', later + 100, { activityId: 'next', toolName: 'browser_click' }), later + 100)
     expect(registry.derive(later + 200, context())[workspace]?.[0]).toMatchObject({ state: 'working', step: 'click' })
     // Before the window passes, the unsettled call is still the step in progress.
-    registry.track(claude, otherWorkspace, activity('started', later, { activityId: 'running', toolName: 'browser_evaluate' }))
-    registry.track(claude, otherWorkspace, activity('started', later + 100, { activityId: 'quick', toolName: 'browser_click' }))
-    registry.track(claude, otherWorkspace, activity('finished', later + 200, { activityId: 'quick', toolName: 'browser_click' }))
+    registry.track(claude, otherWorkspace, activity('started', later, { activityId: 'running', toolName: 'browser_evaluate' }), later)
+    registry.track(claude, otherWorkspace, activity('started', later + 100, { activityId: 'quick', toolName: 'browser_click' }), later + 100)
+    registry.track(claude, otherWorkspace, activity('finished', later + 200, { activityId: 'quick', toolName: 'browser_click' }), later + 200)
     expect(registry.derive(later + 300, context())[otherWorkspace]?.[0]).toMatchObject({ state: 'working', step: 'script' })
   })
 
   it('lets a tab activity ended past the window go without bringing the agent back or naming it', () => {
     const registry = new AgentPresenceRegistry()
-    registry.track(claude, workspace, activity('started', 1_000, { activityId: 'stuck', tabId: 'tab-2', toolName: 'browser_evaluate' }))
+    registry.track(claude, workspace, activity('started', 1_000, { activityId: 'stuck', tabId: 'tab-2', toolName: 'browser_evaluate' }), 1_000)
     // Hronaut ends a tab activity itself once its call outlasts every tool's deadline.
     const ended = 1_000 + 2 * AGENT_PRESENCE_WINDOW_MS
-    registry.track(claude, workspace, activity('failed', ended, { activityId: 'stuck', tabId: 'tab-2', toolName: 'browser_evaluate' }))
+    registry.track(claude, workspace, activity('failed', ended, { activityId: 'stuck', tabId: 'tab-2', toolName: 'browser_evaluate' }), ended)
     expect(registry.derive(ended + 1, context())[workspace]).toBeUndefined()
     // An agent still at work keeps its own newest step and tab.
-    registry.track(claude, otherWorkspace, activity('started', 1_000, { activityId: 'stuck', tabId: 'tab-2', toolName: 'browser_evaluate' }))
-    registry.track(claude, otherWorkspace, activity('started', ended - 2_000, { activityId: 'click', tabId: 'tab-1' }))
-    registry.track(claude, otherWorkspace, activity('finished', ended - 1_000, { activityId: 'click', tabId: 'tab-1' }))
-    registry.track(claude, otherWorkspace, activity('failed', ended, { activityId: 'stuck', tabId: 'tab-2', toolName: 'browser_evaluate' }))
+    registry.track(claude, otherWorkspace, activity('started', 1_000, { activityId: 'stuck', tabId: 'tab-2', toolName: 'browser_evaluate' }), 1_000)
+    registry.track(claude, otherWorkspace, activity('started', ended - 2_000, { activityId: 'click', tabId: 'tab-1' }), ended - 2_000)
+    registry.track(claude, otherWorkspace, activity('finished', ended - 1_000, { activityId: 'click', tabId: 'tab-1' }), ended - 1_000)
+    registry.track(claude, otherWorkspace, activity('failed', ended, { activityId: 'stuck', tabId: 'tab-2', toolName: 'browser_evaluate' }), ended)
     expect(registry.derive(ended + 1, context())[otherWorkspace]?.[0]).toMatchObject({ state: 'working', step: 'click', lastTabId: 'tab-1' })
   })
 
   it('stays bounded when calls never finish and many clients appear', () => {
     const registry = new AgentPresenceRegistry()
     for (let index = 0; index < 100; index += 1) {
-      registry.track(claude, workspace, activity('started', 1_000 + index, { activityId: `call-${index}` }))
+      registry.track(claude, workspace, activity('started', 1_000 + index, { activityId: `call-${index}` }), 1_000 + index)
     }
     // Only the newest 40 unfinished calls are kept; finishing them all leaves the agent settled.
     for (let index = 60; index < 100; index += 1) {
-      registry.track(claude, workspace, activity('finished', 2_000, { activityId: `call-${index}` }))
+      registry.track(claude, workspace, activity('finished', 2_000, { activityId: `call-${index}` }), 2_000)
     }
     expect(registry.derive(2_000 + AGENT_WORKING_GRACE_MS, context())[workspace]?.[0]?.state).toBe('idle')
 
     const crowded = new AgentPresenceRegistry()
     for (let index = 0; index < 250; index += 1) {
-      crowded.track({ id: `session-${index}`, name: `Agent ${index}` }, workspace, activity('finished', 1_000 + index))
+      crowded.track({ id: `session-${index}`, name: `Agent ${index}` }, workspace, activity('finished', 1_000 + index), 1_000 + index)
     }
     const shown = crowded.derive(1_300, context())[workspace]!
     expect(shown).toHaveLength(200)
@@ -729,7 +748,7 @@ describe('agent presence over MCP', () => {
     // A client that quits without closing its session still counts within the presence window after its last request,
     // then leaves, as its avatar does; a client holding its event stream open stays.
     await cursorClient.client.close()
-    await vi.waitFor(() => expect(server.getConnectedAgents({}, Date.now() + AGENT_PRESENCE_WINDOW_MS + 1).map((agent) => agent.name)).toEqual(['Claude Code']))
+    await vi.waitFor(() => expect(server.getConnectedAgents({}, performance.now() + AGENT_PRESENCE_WINDOW_MS + 1).map((agent) => agent.name)).toEqual(['Claude Code']))
     expect(server.getConnectedAgents().map((agent) => agent.name)).toEqual(['Claude Code', 'Cursor'])
     // An agent that asked for you stays until you answer, even after its session closes.
     await claudeClient.transport.terminateSession()
@@ -932,8 +951,29 @@ describe('agent presence over MCP', () => {
     expect(server.getAgentPresence()).toEqual({})
   })
 
+  it('times an agent working, idle and gone on the monotonic clock, whatever the wall clock does', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['setTimeout', 'clearTimeout', 'Date', 'performance'] })
+    const { server, connect } = await startServer()
+    const claudeClient = await connect('Claude Code')
+    const calledFrom = Date.now()
+    expect((await claudeClient.client.callTool({ name: 'browser_tabs', arguments: { workspaceId } }) as CallToolResult).isError).not.toBe(true)
+    const shownAt = server.getAgentPresence()[workspaceId]?.[0]?.recentSteps[0]?.at
+    // A step shows when it happened on the wall clock.
+    expect(shownAt).toBeGreaterThanOrEqual(calledFrom)
+    expect(shownAt).toBeLessThanOrEqual(Date.now())
+    // As a Linux clock kept in local time is corrected soon after login: the wall clock steps an hour back.
+    vi.setSystemTime(Date.now() - 3_600_000)
+    await vi.advanceTimersByTimeAsync(AGENT_WORKING_GRACE_MS + 50)
+    expect(server.getAgentPresence()[workspaceId]?.[0]?.state).toBe('idle')
+    // Set two hours forward, the agent stays in view until its window ends, and its step keeps the time it showed.
+    vi.setSystemTime(Date.now() + 2 * 3_600_000)
+    expect(server.getAgentPresence()[workspaceId]?.[0]).toEqual(expect.objectContaining({ state: 'idle', recentSteps: [expect.objectContaining({ at: shownAt })] }))
+    await vi.advanceTimersByTimeAsync(AGENT_PRESENCE_WINDOW_MS)
+    expect(server.getAgentPresence()).toEqual({})
+  })
+
   it('publishes the change from working to idle without a new call, and stops waking after stop', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+    vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['setTimeout', 'clearTimeout', 'Date', 'performance'] })
     const { server, onAgentPresenceChanged, connect } = await startServer()
     const claudeClient = await connect('Claude Code')
     expect((await claudeClient.client.callTool({ name: 'browser_tabs', arguments: { workspaceId } }) as CallToolResult).isError).not.toBe(true)

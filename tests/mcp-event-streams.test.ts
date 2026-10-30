@@ -97,7 +97,7 @@ describe('MCP event streams and sessions', () => {
     expect(server.getDashboardState().activeRequests).toBe(0)
     expect(server.getConnectedAgents().map((agent) => agent.name)).toEqual(['idle-agent'])
     // Its open stream keeps it connected past the time a session counts without a request.
-    expect(server.getConnectedAgents(undefined, Date.now() + AGENT_PRESENCE_WINDOW_MS + 1_000).map((agent) => agent.name)).toEqual(['idle-agent'])
+    expect(server.getConnectedAgents(undefined, performance.now() + AGENT_PRESENCE_WINDOW_MS + 1_000).map((agent) => agent.name)).toEqual(['idle-agent'])
     const live = server
     await expect(fillCredentialWhileMcpPaused({
       pausePersistently: () => undefined,
