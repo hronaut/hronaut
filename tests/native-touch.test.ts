@@ -1,6 +1,8 @@
 import { EventEmitter } from 'node:events'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+// The gesture's modules import Electron, which these cases never reach.
+vi.mock('electron', () => ({}))
 // The browser below stubs nativeInputAuthority, withAgentInput and withDebugger, which the gesture reaches through these.
 vi.mock('../src/main/browser/native-input-authority/native-input-authority.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/native-input-authority/native-input-authority.js')>(),
@@ -94,7 +96,7 @@ function touchPage(options: {
     }),
     withAgentInput: <T>(_webContents: unknown, operation: () => Promise<T>) => operation(),
     withDebugger: <T>(_webContents: unknown, operation: () => Promise<T>) => operation()
-  } as never
+  } as unknown as Parameters<typeof touch>[0]
   const page = {
     browser, tab, view, window, webContents, debuggerEvents, commands,
     lock: () => { locked = true },
