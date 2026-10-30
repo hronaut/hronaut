@@ -78,7 +78,7 @@ for (const [phase, change, target, doubleClick] of cases) {
           const gate: ClickGate = { ready: false, presses: 0, releases: 0, ignores: [], documentListeners: page.listenerCount('did-navigate'), release, restore: () => { if (!page.isDestroyed()) { api.sendCommand = send; page.executeJavaScript = execute } } }
           ;(globalThis as ClickGlobal).__clickAuthorityGate = gate
           if (phase === 'prepare') page.executeJavaScript = async (script, ...args) => {
-            if (script.includes('element.scrollIntoView')) gate.ready = true
+            if (script.includes('function targetPointInPage(')) gate.ready = true
             return execute.call(page, script, ...args)
           }
           api.sendCommand = async (method, ...args) => {
