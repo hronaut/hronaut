@@ -40,6 +40,17 @@ interface PendingReload {
 
 const reloads = new WeakMap<BrowserTab, PendingReload>()
 const watchedPages = new WeakSet<WebContents>()
+/** The address and method of each tab's last page request that failed. */
+const failedPageRequests = new WeakMap<BrowserTab, { readonly url: string; readonly method: string }>()
+
+/**
+ * Notes the tab's page request that failed, which the session reports before the page's failure. As in Chrome, a page
+ * a form sent that failed, such as one sent while offline, is not loaded again by itself: that would load its address
+ * without what the form sent, or send it again unasked.
+ */
+export function notePageRequestFailed(tab: BrowserTab, url: string, method: string): void {
+  failedPageRequests.set(tab, { url, method })
+}
 
 /**
  * Follows a tab whose page just failed to load. As in Chrome, a website page that could not reach its website loads
@@ -69,6 +80,12 @@ function reloadable(tab: BrowserTab): boolean {
   return tab.emulation.network !== 'offline' && tab.networkRoutes.length === 0
 }
 
+/** Whether the tab's page that failed at `url` was sent by a form, as a POST, rather than asked for. */
+function sentByForm(tab: BrowserTab, url: string): boolean {
+  const request = failedPageRequests.get(tab)
+  return request?.url === url && request.method !== 'GET'
+}
+
 /** Ends the tab's reload once its page closes, as when the tab closes or its page is replaced. */
 function forgetWhenPageCloses(tab: BrowserTab): void {
   const contents = tab.webContents
@@ -93,6 +110,7 @@ function wait(browser: Browser, tab: BrowserTab, pending: PendingReload, delayMs
     if (reloads.get(tab) !== pending) return
     const stillFailed = !browser.destroyed && findTab(browser, tab.id) === tab && tab.webContents === pending.webContents
       && !pending.webContents.isDestroyed() && tab.pageProblem === pending.problem && !tab.sleeping && reloadable(tab)
+      && !sentByForm(tab, pending.problem.url)
     if (!stillFailed) {
       reloads.delete(tab)
       return

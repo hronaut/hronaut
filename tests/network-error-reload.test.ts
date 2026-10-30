@@ -6,7 +6,7 @@ vi.mock('electron', () => ({ net: { isOnline } }))
 // Whether the tab's workspace may open the website.
 const { workspaceNavigationAllowed } = vi.hoisted(() => ({ workspaceNavigationAllowed: vi.fn(() => true) }))
 vi.mock('../src/main/browser/workspace-navigation/workspace-navigation.js', () => ({ workspaceNavigationAllowed }))
-import { reloadWhenWebsiteReachable } from '../src/main/browser/network-error-reload/network-error-reload.js'
+import { notePageRequestFailed, reloadWhenWebsiteReachable } from '../src/main/browser/network-error-reload/network-error-reload.js'
 import { certificateProblem, loadFailureProblem } from '../src/main/browser/page-load-problem.js'
 
 const PAGE = 'https://mail.example/inbox'
@@ -157,6 +157,28 @@ describe('loading a page again once its website can be reached, as in Chrome', (
     await vi.advanceTimersByTimeAsync(3_600_000)
     expect(f.contents.loadURL).not.toHaveBeenCalled()
     expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('leaves a page a form sent as it is, as Chrome does, and loads one that was asked for', async () => {
+    // A form sent while offline: loading its address again would leave out what the form sent.
+    const sent = failingTab()
+    notePageRequestFailed(sent.tab as never, PAGE, 'POST')
+    sent.fail()
+    await vi.advanceTimersByTimeAsync(3_600_000)
+    expect(sent.contents.loadURL).not.toHaveBeenCalled()
+    expect(vi.getTimerCount()).toBe(0)
+    // The person's Try again asks for the address, and once that fails too it loads again by itself.
+    notePageRequestFailed(sent.tab as never, PAGE, 'GET')
+    sent.personLoads()
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(sent.contents.loadURL).toHaveBeenCalledOnce()
+
+    // A form the tab sent before, to another address, does not count for the page that failed now.
+    const asked = failingTab()
+    notePageRequestFailed(asked.tab as never, 'https://mail.example/send', 'POST')
+    asked.fail()
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(asked.contents.loadURL).toHaveBeenCalledOnce()
   })
 
   it('leaves a tab whose network is emulated offline or routed as it is', async () => {
