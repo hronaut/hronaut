@@ -69,7 +69,8 @@ test('leaves a page a form sent that could not reach its website as it is, as Ch
       if (!page) throw new Error('The form page was not found')
       void page.executeJavaScript('document.forms[0].submit()')
     }, `http://127.0.0.1:${port}/form`)
-    await expect.poll(activeProblem).toMatchObject({ url: sent, errorDescription: 'ERR_CONNECTION_REFUSED' })
+    // Seen at once, so that a reload a second after the failure would still find the website answering.
+    await expect.poll(activeProblem, { intervals: [50] }).toMatchObject({ url: sent, errorDescription: 'ERR_CONNECTION_REFUSED' })
     await new Promise<void>((resolve, reject) => {
       server.once('error', reject)
       server.listen(port, '127.0.0.1', resolve)

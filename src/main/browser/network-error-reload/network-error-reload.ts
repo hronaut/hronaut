@@ -56,8 +56,8 @@ export function notePageRequestFailed(tab: BrowserTab, url: string, method: stri
  * Follows a tab whose page just failed to load. As in Chrome, a website page that could not reach its website loads
  * again by itself once the computer is online and the tab is in view, so tabs restored while the network was down show
  * their pages once it is back; each failure of that reload waits longer for the next. A refused certificate or another
- * failure stays, and so does a tab whose network is emulated offline or routed. A reload waits while an agent command
- * runs in the tab, and is not made to a website the tab's workspace may not open.
+ * failure stays, and so do a page a form sent and a tab whose network is emulated offline or routed. A reload waits
+ * while an agent command runs in the tab, and is not made to a website the tab's workspace may not open.
  */
 export function reloadWhenWebsiteReachable(browser: Browser, tab: BrowserTab): void {
   const previous = reloads.get(tab)
@@ -100,9 +100,9 @@ function forgetWhenPageCloses(tab: BrowserTab): void {
 }
 
 /**
- * Waits `delayMs`, then loads the page again if the tab still shows its failure, the computer is online and the tab
- * in view, and no agent command or recovery runs in it; otherwise it checks again a second later, which does not count
- * as an attempt.
+ * Waits `delayMs`, then loads the page again if the tab still shows its failure, which no form sent, the computer is
+ * online and the tab in view, and no agent command or recovery runs in it; otherwise it checks again a second later,
+ * which does not count as an attempt. By then the session has reported how the failed page was asked for.
  */
 function wait(browser: Browser, tab: BrowserTab, pending: PendingReload, delayMs: number): void {
   pending.timer = setTimeout(() => {

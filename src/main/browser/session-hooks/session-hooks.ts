@@ -12,7 +12,8 @@ import { notePageRequestFailed } from '../network-error-reload/network-error-rel
 /**
  * Hooks a browser session once: its cookie changes advance the generation of
  * every tab on that session, its requests are recorded for tabs whose debugger
- * does not record them, and its downloads are tracked.
+ * does not record them, a tab's failed page requests are passed to the page's
+ * reload, and its downloads are tracked.
  */
 export function installSessionHooks(browser: Browser, browserSession: Session): void {
   if (!browser.browserSessionAuthorityHooks.has(browserSession)) {
