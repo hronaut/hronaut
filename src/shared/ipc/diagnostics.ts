@@ -57,7 +57,7 @@ export const DIAGNOSTICS_IPC = {
   setDiagnosticLogPreservation: 'browser:set-diagnostic-log-preservation' as InvokeChannel<[tabId: string, preserve: boolean], BrowserState>,
   /**
    * Shell → main: starts, pauses, resumes, stops, reads, edits, renders, exports or clears the tab's video recording,
-   * or adds or removes its audio.
+   * or removes its audio. Audio is added only through importVideoAudio, so an audio import here is refused.
    */
   video: 'browser:video' as InvokeChannel<[options: BrowserVideoOptions], BrowserVideoState>,
   /** Shell → main: the recording's rendered video, for the shell to play. */

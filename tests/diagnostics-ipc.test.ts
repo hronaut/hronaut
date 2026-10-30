@@ -200,6 +200,18 @@ it('validates video options and keeps preview pixels behind the trusted shell bo
   expect(tabs.videoRecording).not.toHaveBeenCalled()
 })
 
+it('refuses an audio import the shell names a file for, since only the person picks the file', async () => {
+  const { tabs, invoke } = fixture()
+  tabs.videoRecording.mockResolvedValue({ recordingId: 'recording', status: 'stopped' })
+  await expect(invoke('video', { tabId: 'tab', action: 'import-audio', audioPath: '/home/person/secret.wav', audioProvenance: 'Original composition' }))
+    .rejects.toThrow('Audio is imported only from a file the person picks')
+  await expect(invoke('video', { tabId: 'tab', action: 'get', audioPath: '/home/person/secret.wav' }))
+    .rejects.toThrow('Audio is imported only from a file the person picks')
+  expect(tabs.videoRecording).not.toHaveBeenCalled()
+  await invoke('video', { tabId: 'tab', action: 'remove-audio' })
+  expect(tabs.videoRecording).toHaveBeenCalledWith({ tabId: 'tab', action: 'remove-audio' })
+})
+
 it('keeps native audio selection bound to its stopped recording and trusted sender', async () => {
   const { tabs, host, invoke } = fixture()
   const before = { recordingId: 'old', status: 'stopped' }
