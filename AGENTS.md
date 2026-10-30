@@ -62,7 +62,7 @@ tab access.
 ## Architecture rules
 
 These hold for new code and for code you move; `tests/architecture-guards.test.ts`
-checks the first three.
+checks the first four.
 
 - Files stay within 800 lines, locale files aside. The few larger today, with
   their budgets in `tests/architecture/budgets.json`, may only shrink: move code
@@ -77,6 +77,10 @@ checks the first three.
   them, and workflows (tab sleep, tab close, window layout, workspace archive)
   use features. No file statically imports, directly or through others, a
   file that imports it; imports of types only do not count.
+- IPC channels are declared once in `src/shared/ipc/<feature>.ts`, typed with
+  their arguments and result, and main and the preloads use those constants
+  instead of writing channel names out. The count still written out,
+  `literalIpcChannels` in the budgets file, may only shrink.
 - A feature keeps the tab state it owns in one typed field of the tab, as
   `tab.emulation` does, with its type declared beside the feature, not as
   loose fields on the tab.

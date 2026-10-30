@@ -13,4 +13,4 @@ export const PERMISSIONS_IPC = {
   clear: 'permissions:clear' as InvokeChannel<[], void>,
   /** Main → shells: the saved decisions changed. */
   changed: 'permissions:changed' as EventChannel<[permissions: SitePermissionEntry[]]>
-}
+} as const

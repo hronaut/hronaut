@@ -15,4 +15,4 @@ export const LICENSE_IPC = {
   openPurchase: 'license:open-purchase' as InvokeChannel<[], void>,
   /** Main → shells: the license state changed, by an action or by itself. */
   changed: 'license:changed' as EventChannel<[state: CommercialLicenseState]>
-}
+} as const

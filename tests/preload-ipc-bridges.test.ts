@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest'
-import type { EventChannel, InvokeChannel, SendChannel } from '../src/shared/ipc/channel.js'
+import type { EventChannel, InvokeChannel } from '../src/shared/ipc/channel.js'
 
 const electron = vi.hoisted(() => ({ exposeInMainWorld: vi.fn(), invoke: vi.fn(), on: vi.fn(), removeListener: vi.fn(), send: vi.fn() }))
 vi.mock('electron', () => ({ contextBridge: { exposeInMainWorld: electron.exposeInMainWorld }, ipcRenderer: electron }))
@@ -29,13 +29,13 @@ const invokes: Array<[api: string, method: string, args: unknown[], channel: str
   ['hronautTaskManager', 'list', [], 'task-manager:list', []],
   ['hronautTaskManager', 'endProcess', [42], 'task-manager:end-process', [42]],
   ['hronautPermissions', 'list', [], 'permissions:list', []],
-  ['hronautPermissions', 'set', ['https://a.test', 'camera', 'allow', 'persistent'], 'permissions:set', ['https://a.test', 'camera', 'allow', 'persistent']],
-  ['hronautPermissions', 'remove', ['https://a.test', 'camera', 'session'], 'permissions:remove', ['https://a.test', 'camera', 'session']],
+  ['hronautPermissions', 'set', ['https://a.test', 'camera', 'allow', { workspaceId: 'workspace-1' }], 'permissions:set', ['https://a.test', 'camera', 'allow', { workspaceId: 'workspace-1' }]],
+  ['hronautPermissions', 'remove', ['https://a.test', 'camera', { workspaceId: 'workspace-1' }], 'permissions:remove', ['https://a.test', 'camera', { workspaceId: 'workspace-1' }]],
   ['hronautPermissions', 'clear', [], 'permissions:clear', []],
   ['hronautBrowsingData', 'summary', [], 'browsing-data:summary', []],
   ['hronautBrowsingData', 'siteSummary', ['https://a.test/', 'tab-1'], 'browsing-data:site-summary', ['https://a.test/', 'tab-1']],
   ['hronautBrowsingData', 'websites', [], 'browsing-data:websites', []],
-  ['hronautBrowsingData', 'clear', [{ cookies: true }], 'browsing-data:clear', [{ cookies: true }]],
+  ['hronautBrowsingData', 'clear', [{ history: true, origin: 'https://a.test' }], 'browsing-data:clear', [{ history: true, origin: 'https://a.test' }]],
   ['hronautCredentials', 'status', [], 'credentials:status', []],
   ['hronautCredentials', 'list', [], 'credentials:list', []],
   ['hronautCredentials', 'importFromCsv', [], 'credentials:import-csv', []],
@@ -68,22 +68,15 @@ it.each(listeners)('%s.%s passes on only what the channel carries, without the e
   const [, handler] = electron.on.mock.calls.find(([name]) => name === channel)!
   handler({ sender: 'event' }, ...received, 'extra')
   expect(listener.mock.calls).toEqual([received])
-  stop()
+  expect(stop()).toBeUndefined()
   expect(electron.removeListener).toHaveBeenCalledExactlyOnceWith(channel, handler)
-})
-
-it('sends on a channel without waiting for an answer', async () => {
-  const { send } = await import('../src/preload/bridges/ipc.js')
-  send('example:notify' as SendChannel<[id: string]>, 'id-1')
-  expect(electron.send).toHaveBeenCalledExactlyOnceWith('example:notify', 'id-1')
 })
 
 it('checks at compile time that calls and listeners match their channel', () => {
   const ask = 'example:ask' as InvokeChannel<[id: string], number>
-  const notify = 'example:notify' as SendChannel<[id: string]>
   const changed = 'example:changed' as EventChannel<[count: number]>
   const typeOnly = async (): Promise<void> => {
-    const { invoke, send, subscribe } = await import('../src/preload/bridges/ipc.js')
+    const { invoke, subscribe } = await import('../src/preload/bridges/ipc.js')
     const answer: number = await invoke(ask, 'id-1')
     // @ts-expect-error The answer is a number.
     const wrongAnswer: string = await invoke(ask, 'id-1')
@@ -92,7 +85,9 @@ it('checks at compile time that calls and listeners match their channel', () => 
     // @ts-expect-error The argument is required.
     void invoke(ask)
     // @ts-expect-error The channel takes one argument.
-    send(notify, 'id-1', 'extra')
+    void invoke(ask, 'id-1', 'extra')
+    // @ts-expect-error The channel decides the argument's type; a value of unknown type does not widen it.
+    void invoke(ask, JSON.parse('"id-1"') as unknown)
     // @ts-expect-error The listener receives a number.
     subscribe(changed, (count: string) => count)
     void [answer, wrongAnswer]

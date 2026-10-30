@@ -6,11 +6,8 @@ declare const contract: unique symbol
  */
 export type InvokeChannel<Args extends unknown[], Result> = string & { readonly [contract]?: { invoke: Args; result: Result } }
 
-/** A channel a renderer sends these arguments on, which main does not answer. */
-export type SendChannel<Args extends unknown[]> = string & { readonly [contract]?: { send: Args } }
-
 /** A channel main sends these arguments on to a renderer. */
 export type EventChannel<Args extends unknown[]> = string & { readonly [contract]?: { event: Args } }
 
-/** Sends an event to every shell window, the main window and open panel windows, with the arguments its channel takes. */
-export type ShellWindowsSender = <Args extends unknown[]>(channel: EventChannel<Args>, ...args: Args) => void
+/** Sends an event to both shell windows, the main window and the detached panel window, with the arguments its channel takes. */
+export type ShellWindowsSender = <Args extends unknown[]>(channel: EventChannel<Args>, ...args: NoInfer<Args>) => void

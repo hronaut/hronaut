@@ -17,4 +17,4 @@ export const UPDATES_IPC = {
   changed: 'updates:changed' as EventChannel<[state: AppUpdateState]>,
   /** Main → main window: open the updates panel, as from the menu or the tray. */
   open: 'updates:open' as EventChannel<[]>
-}
+} as const

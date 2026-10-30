@@ -529,7 +529,6 @@ const settingsApi: HronautSettingsApi = {
 }
 
 contextBridge.exposeInMainWorld('hronautSettings', settingsApi)
-
 contextBridge.exposeInMainWorld('hronautPermissions', permissionsApi)
 contextBridge.exposeInMainWorld('hronautCredentials', credentialsApi)
 contextBridge.exposeInMainWorld('hronautLicense', licenseApi)

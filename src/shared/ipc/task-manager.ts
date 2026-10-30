@@ -7,4 +7,4 @@ export const TASK_MANAGER_IPC = {
   list: 'task-manager:list' as InvokeChannel<[], TaskManagerProcess[]>,
   /** Shell → main: ends a page process the list lets end. */
   endProcess: 'task-manager:end-process' as InvokeChannel<[pid: number], void>
-}
+} as const

@@ -19,4 +19,4 @@ export const CREDENTIALS_IPC = {
   changed: 'credentials:changed' as EventChannel<[credentials: CredentialSummary[]]>,
   /** Main → shells: secure storage answered after startup, as once a locked keyring is unlocked. */
   statusChanged: 'credentials:status-changed' as EventChannel<[status: CredentialStorageStatus]>
-}
+} as const

@@ -11,4 +11,4 @@ export const BROWSING_DATA_IPC = {
   websites: 'browsing-data:websites' as InvokeChannel<[], BrowsingDataWebsiteSummary[]>,
   /** Shell → main: clears the chosen kinds of data, answering with what is kept after. */
   clear: 'browsing-data:clear' as InvokeChannel<[options: BrowsingDataClearOptions], BrowsingDataSummary>
-}
+} as const

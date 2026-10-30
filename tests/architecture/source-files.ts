@@ -55,8 +55,8 @@ export function runtimeNamesFrom(code: string, specifier: string, fileName = 'mo
 
 // An IPC channel's name, `feature:action`, as in 'license:activate' or 'browser:tab-groups:update'.
 const IPC_CHANNEL = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*:[a-z][a-zA-Z0-9]*(?:[-:][a-zA-Z0-9]+)*$/
-// Text of the same shape that is no channel: URLs, and the page events a wallet provider listens for.
-const URL_SCHEMES = new Set(['about', 'blob', 'chrome', 'data', 'devtools', 'file', 'http', 'https', 'hronaut', 'javascript', 'mailto', 'ws', 'wss'])
+// Text of the same shape that is no channel: URLs such as about:blank, and page events.
+const URL_SCHEMES = new Set(['about', 'blob', 'chrome', 'data', 'devtools', 'file', 'http', 'https', 'javascript', 'mailto', 'ws', 'wss'])
 const PAGE_EVENT_CALLS = new Set(['addEventListener', 'removeEventListener'])
 
 /**

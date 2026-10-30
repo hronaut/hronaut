@@ -53,7 +53,7 @@ describe('the architecture rules in AGENTS.md', () => {
       "host.handleBrowserIpc(`browser:tab-groups:update`, update)",
       "ipcRenderer.invoke(LICENSE_IPC.activate, key)",
       "ipcRenderer.removeListener('license:changed', handler)",
-      "shell.openExternal('https:example')",
+      "tab.webContents.loadURL('about:blank')",
       "globalThis.addEventListener('eip6963:requestProvider', announce)",
       "logger.info('license activated: ok')",
       "const name = 'license:refresh'"

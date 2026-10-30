@@ -9,6 +9,7 @@ import { sitePermissionName } from '../shared/site-permission-names.js'
 import type { SitePermissionDecision } from '../shared/types.js'
 import type { SitePermissionDialogVariant } from '../shared/trusted-dialogs.js'
 import type { TrustedDialogOptions } from './trusted-dialogs/trusted-dialogs.js'
+import type { ShellWindowsSender } from '../shared/ipc/channel.js'
 import { PERMISSIONS_IPC } from '../shared/ipc/permissions.js'
 
 /**
@@ -37,7 +38,7 @@ interface BrowserSessionHost {
   workspaces(): ReadonlyArray<{ id: string, name: string }>
   /** The persistent session and the site permissions; index.ts creates the record, and other features read it too. */
   state: BrowserSessionState
-  sendToShellWindows(channel: string, ...args: unknown[]): void
+  sendToShellWindows: ShellWindowsSender
   /** The partition of the profile's persistent browser session. */
   partition: string
   /** Whether the person turned on letting websites save to any single file they hold; read on every check. */
