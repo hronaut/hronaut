@@ -51,8 +51,9 @@ describe('the architecture rules in AGENTS.md', { timeout: SCAN_TIMEOUT }, () =>
       if (long > budget) problems.push(`${found}, ${long - budget} more than before; wrap the new ones`)
       else if (long < budget) problems.push(`${found}: lower its count in ${BUDGETS_FILE} to ${long || 'nothing, removing it'}`)
     }
-    for (const file of Object.keys(budgets.longLines)) {
+    for (const [file, budget] of Object.entries(budgets.longLines)) {
       if (!sizedFiles.includes(file)) problems.push(`${file} is gone: remove it from ${BUDGETS_FILE}`)
+      else if (budget < 1) problems.push(`${file} has no lines over ${MAX_LINE_LENGTH} characters to count: remove it from ${BUDGETS_FILE}`)
     }
     expect(problems).toEqual([])
   })

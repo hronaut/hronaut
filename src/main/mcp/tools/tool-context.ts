@@ -1,7 +1,8 @@
 /**
  * How one MCP tool call runs, in order. Names in backticks are the members declared below; one a tool omits is skipped.
- * 1. McpHttpServer (http-server.ts) checks the token or capability credential, local Origin, pause, the active-request
- *    limit and the session (401/403/400/405/503/429/404), names the client and builds a new session's MCP server.
+ * 1. McpHttpServer (http-server.ts) checks the token or capability credential (401), local Origin (403/400), the HTTP
+ *    method (405), pause (503), the active-request limit (429) and the session (404 unknown, 401 another credential,
+ *    400 missing), names the client and builds a new session's MCP server.
  * 2. The MCP SDK refuses a tool outside the session's tool set or capability profile ("disabled") and arguments that
  *    fail its schema (a workspace tool's: workspaceId, reviewId and reviewRevision plus its fields, or `inputSchema`).
  * 3. registerToolWithSettlement (browser-mcp-server.ts) wraps every tool. trackAgentCall shows the step in the
@@ -14,7 +15,7 @@
  * 5. actionTracker.run counts the call as active and runs the handler. A workspace tool's handler is the wrapper from
  *    createWorkspaceToolRegistrar (workspace-tool-call.ts) inside tool(), which turns what the wrapper throws into
  *    errorResult, except native-input errors and the emulation and storage input errors.
- * 6. The workspace wrapper requires workspaceId and both review fields or neither, strips them, applies
+ * 6. The workspace wrapper requires workspaceId and both review fields or neither, strips the review fields, applies
  *    `normalizeArguments`, reads `readOnly` and `continuityInspection`, then checks the capability for dispatch, the
  *    caller's own workspace, the write lease when the call needs one, `publicObserverAllowed`, no pending human
  *    decision (HumanWaitingService.requireDispatch) and continuity; `continuityInspection` skips the last two.
@@ -29,7 +30,8 @@
  *    `resolvedTargetWakePolicy` is 'before-handler' (the default) unless `preservesPresentation`.
  * 10. It repeats the human decision, authority and target checks, begins the reviewed attempt when there is a review,
  *    runs `certify` and `beforeDispatch`, calls the handler with the resolved tabId, then runs `afterDispatch`.
- * 11. It checks the human decision, `recheckAfterDispatch`, the lease generation, the control revision, the workspace,
+ * 11. It checks that the action's authority held during dispatch, then the human decision, `recheckAfterDispatch`, a
+ *    worker observation's origin (validateLifecycle), the lease generation, the control revision, the workspace,
  *    human input and the tab again (`closesTargetTab` skips agent control, human input and the tab). A failure
  *    discards the result as STALE_OBSERVATION when read-only, else OUTCOME_UNKNOWN; a native-input error gives an
  *    outcome-unknown result. The result's browser state is then scoped to the workspace.
