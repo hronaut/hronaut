@@ -33,8 +33,11 @@ for (const kind of ['element', 'area'] as const) {
         const control = { starts: 0, cancels: 0, held: false, skipCancel: false, release: () => {}, restore: () => { page.executeJavaScript = original } }
         page.executeJavaScript = (...args) => {
           const [code] = args
-          if (code.includes(`const pickerKey = '${key}'`)) control.starts += 1
-          if (code.includes(`const picker = window.${key};`) && code.includes('picker.cancel();')) {
+          const starts = kind === 'element' ? code.includes('function elementPickerInPage(') : code.includes(`const pickerKey = '${key}'`)
+          const cancels = kind === 'element' ? code.includes('function cancelElementPickerInPage(')
+            : code.includes(`const picker = window.${key};`) && code.includes('picker.cancel();')
+          if (starts) control.starts += 1
+          if (cancels) {
             control.cancels += 1
             if (control.skipCancel) return Promise.resolve(false)
             const operation = original.apply(page, args)

@@ -3,7 +3,10 @@ import { describe, expect, it } from 'vitest'
 
 const barrelFile = 'src/main/browser/page-scripts.ts'
 const modulesDirectory = 'src/main/browser/page-scripts'
-const moduleFiles = readdirSync(modulesDirectory).filter(file => file.endsWith('.ts')).sort()
+const files = readdirSync(modulesDirectory).filter(file => file.endsWith('.ts')).sort()
+// A feature module's page code lives beside it in `<feature>.page.ts`, which only that module imports.
+const moduleFiles = files.filter(file => !file.endsWith('.page.ts'))
+const ownPageFile = (file: string): string => `./${file.replace(/-scripts?\.ts$/u, '')}.page.js`
 const lineCount = (text: string): number => text.split('\n').length - (text.endsWith('\n') ? 1 : 0)
 
 describe('page script modules', () => {
@@ -20,14 +23,16 @@ describe('page script modules', () => {
   })
 
   it('keeps each feature module self-contained, importing no other page script module or the barrel', () => {
-    const pageScriptImports = moduleFiles.flatMap(file => [...readFileSync(`${modulesDirectory}/${file}`, 'utf8')
+    const pageScriptImports = files.flatMap(file => [...readFileSync(`${modulesDirectory}/${file}`, 'utf8')
       .matchAll(/(?:\bfrom|\bimport\s*\(?)\s*['"]((?:\.\/|\.\.\/page-scripts)[^'"]*)['"]/gu)]
-      .map(match => `${file}: ${match[1]}`))
+      .map(match => match[1])
+      .filter(path => path !== ownPageFile(file))
+      .map(path => `${file}: ${path}`))
     expect(pageScriptImports).toEqual([])
   })
 
   it('keeps every feature module under 800 lines', () => {
-    const oversized = moduleFiles
+    const oversized = files
       .map(file => [file, lineCount(readFileSync(`${modulesDirectory}/${file}`, 'utf8'))] as const)
       .filter(([, lines]) => lines >= 800)
     expect(oversized).toEqual([])

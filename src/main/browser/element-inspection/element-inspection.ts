@@ -115,7 +115,7 @@ export async function elementInspection(browser: Browser, options: BrowserElemen
     })
     return slot ? slot.track(operation) : operation
   }
-  // The expected text is embedded only in the comparison reducer, not in the serialized target.
+  // The expected text goes to the comparison alone, never into the serialized target.
   const inspect = () => execute(elementInspectionScript({ ...options, expectedValue: undefined } as typeof options, inspectionToken, expectedValue))
   let raw: unknown
   let cssProvenance: BrowserElementInspection['cssProvenance']

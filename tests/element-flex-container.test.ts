@@ -1,8 +1,10 @@
 import { runInNewContext } from 'node:vm'
 import { describe, expect, it } from 'vitest'
-import { sizingInputsSettlementScript, sizingInputsSource } from '../src/main/browser/element-sizing-inputs.js'
+import { sizingInputsSettlementScript } from '../src/main/browser/element-sizing-inputs.js'
+import { sizingInputsInPage } from '../src/main/browser/element-sizing-inputs.page.js'
 import { BROWSER_TOOL_CATALOG } from '../src/main/mcp/tool-catalog.js'
 import { registerBrowserElementInspect } from '../src/main/mcp/tools/browser-element-inspect/index.js'
+import { SIZING_INPUT_PROPERTIES, sizingInputValue } from '../src/shared/element-sizing-inputs.js'
 import { flexContainerContext, normalizeFlexContainer } from '../src/shared/element-flex-container.js'
 import { formatElementInspectionForAgent, normalizeElementInspection } from '../src/shared/element-inspection.js'
 
@@ -118,7 +120,8 @@ describe('flex container context', () => {
         element: tree.element, document: tree.document, getComputedStyle: tree.getComputedStyle, setTimeout, clearTimeout,
         __hronautSizingInputs: new Map()
       }
-      const raw = runInNewContext(`const sizingLookup=()=>[element];${sizingInputsSource(token, includeFlexContainer)}`, scope) as Record<string, unknown>
+      const read = `(${sizingInputsInPage})(element, { selector: '#target' }, ${JSON.stringify(token)}, ${JSON.stringify(SIZING_INPUT_PROPERTIES)}, ${includeFlexContainer}, () => [element], (${sizingInputValue}), (${flexContainerContext}))`
+      const raw = runInNewContext(read, scope) as Record<string, unknown>
       expect(raw.sizingInputs).toMatchObject({ 'flex-grow': 1 })
       expect('flexContainer' in raw).toBe(includeFlexContainer)
       tree.element.parentElement = { localName: 'section', shadowRoot: null }
