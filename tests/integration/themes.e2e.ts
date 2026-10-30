@@ -293,8 +293,12 @@ test('resets every Appearance preference including interface size, and only thos
   await appWindow.getByTestId('theme-matrix').click()
   await appWindow.getByRole('combobox', { name: 'Interface size' }).selectOption('1.25')
   await appWindow.getByRole('combobox', { name: 'Tab position' }).selectOption('top')
-  // The last change's own update reaches the window first, so the probe below counts only the reset's.
-  await expect.poll(() => appWindow.evaluate('window.hronautSettings.get().then(settings => settings.tabPosition)')).toBe('top')
+  // The profile starts with the tabs on top, so the interface size is the last setting these steps change. Once main
+  // has it, the updates that change a setting have been sent, and the probe below counts only the reset's; the tab
+  // position's own update repeats the settings, which the probe leaves out. Waiting for the tab position instead let
+  // the probe start while the interface size was still being saved (shard 7 on main, 2026-10-30).
+  await expect.poll(() => appWindow.evaluate('window.hronautSettings.get().then(settings => [settings.theme, settings.interfaceScale, settings.tabPosition])'))
+    .toEqual(['matrix', 1.25, 'top'])
   await appWindow.evaluate(async () => {
     type Settings = Record<string, unknown>
     const page = window as typeof window & {
