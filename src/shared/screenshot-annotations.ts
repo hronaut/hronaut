@@ -1,4 +1,6 @@
 import type { BrowserScreenshotClip } from './types.js'
+import { pageScript } from './page-script.js'
+import { screenshotTargetsInPage } from './screenshot-annotations.page.js'
 
 export interface ScreenshotAnnotation {
   ref: string
@@ -27,39 +29,7 @@ export function normalizeScreenshotRefs(value: unknown): string[] | undefined {
 
 /** Pin object identities only for this capture in an isolated world. No DOM writes. */
 export function screenshotAnnotationScript(id: string, refs?: string[], cleanup = false): string {
-  return `(() => {
-    const id = ${JSON.stringify(id)};
-    const captures = globalThis.__hronautScreenshotAnnotations ||= new Map();
-    for (const [key, capture] of captures) if (Date.now() >= capture.expiresAt) { clearTimeout(capture.timer); captures.delete(key); }
-    const prior = captures.get(id);
-    if (${cleanup}) { if (prior) clearTimeout(prior.timer); captures.delete(id); return null; }
-    const refs = ${JSON.stringify(refs ?? null)};
-    const read = ref => {
-      const matches = document.querySelectorAll('[data-hronaut-ref="' + ref + '"]');
-      if (matches.length !== 1) return { status: matches.length ? 'ambiguous' : 'missing' };
-      const node = matches[0];
-      if (node.matches('iframe,frame') || node.isContentEditable || node.closest('[contenteditable=""],[contenteditable="true" i],[contenteditable="plaintext-only" i]')) return { node, status: 'unsupported' };
-      const rect = node.getBoundingClientRect();
-      const style = getComputedStyle(node);
-      if (!node.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) || style.display === 'none' || rect.width <= 0 || rect.height <= 0) return { node, status: 'hidden' };
-      return { node, status: 'visible', rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height } };
-    };
-    if (refs) {
-      if (captures.size >= 4) throw new Error('Too many pending annotated screenshots');
-      const entries = refs.map(ref => { const { node, ...sample } = read(ref); return { ref, node: node ? new WeakRef(node) : null, sample }; });
-      const timer = setTimeout(() => captures.delete(id), 10000);
-      captures.set(id, { entries, timer, expiresAt: Date.now() + 10000 });
-      return entries.map(entry => ({ ref: entry.ref, ...entry.sample }));
-    }
-    if (!prior) throw new Error('Screenshot target observation expired; capture again');
-    clearTimeout(prior.timer); captures.delete(id);
-    return prior.entries.map(entry => {
-      const { node, ...sample } = read(entry.ref);
-      if ((entry.node?.deref() || undefined) !== node || (node && !node.isConnected)) return { ref: entry.ref, status: 'changed' };
-      if (JSON.stringify(sample) !== JSON.stringify(entry.sample)) return { ref: entry.ref, status: 'moved' };
-      return { ref: entry.ref, ...sample };
-    });
-  })()`
+  return pageScript(screenshotTargetsInPage, id, refs ?? null, cleanup)
 }
 
 const digits = ['111101101101111', '010110010010111', '111001111100111', '111001111001111', '101101111001001',

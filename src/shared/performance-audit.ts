@@ -1,5 +1,7 @@
-import { softNavigationPageFunction, sanitizeSoftNavigations } from './performance-soft-navigation.js'
-import { lcpAttributionPageFunction, sanitizeLcpAttribution } from './performance-lcp.js'
+import { sanitizeSoftNavigations } from './performance-soft-navigation.js'
+import { softNavigationsInPage } from './performance-soft-navigation.page.js'
+import { sanitizeLcpAttribution } from './performance-lcp.js'
+import { lcpAttributionInPage } from './performance-lcp.page.js'
 import { redactDiagnosticText } from './debug-report.js'
 import { redactNetworkUrl } from './network-details.js'
 import type {
@@ -220,10 +222,10 @@ export function performanceAuditPageScript(
         }))
       };
     };
-    const lcpAttribution = ${lcpAttributionPageFunction};
+    const lcpAttribution = ${lcpAttributionInPage.toString()};
     if (!globalThis.__hronautPerformanceCollector) {
       ${webVitalsSource}
-      const softNavigations = (${softNavigationPageFunction})();
+      const softNavigations = (${softNavigationsInPage.toString()})();
       const metrics = { LCP: null, INP: null, CLS: null, FCP: null, TTFB: null };
       const updateMetric = (metric) => {
         const name = metric && metric.name;

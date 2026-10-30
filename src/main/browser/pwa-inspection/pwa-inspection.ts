@@ -13,6 +13,7 @@ import {
   type CdpAppManifestResult,
   type CdpInstallabilityError
 } from '../../../shared/pwa.js'
+import type { PwaPageRegistrations, PwaPageWorker } from '../../../shared/pwa.page.js'
 import type { BrowserPwaOptions, BrowserPwaReport } from '../../../shared/types.js'
 import type { Browser } from '../browser.js'
 import { findTab, getTab } from '../browser-core.js'
@@ -36,22 +37,9 @@ export async function inspectPwa(browser: Browser, options: BrowserPwaOptions = 
     PWA_INSPECTOR_WORLD_ID,
     [{ code: pwaRegistrationsPageScript() }],
     false
-  ) as {
-    supported: boolean
-    controlled: boolean
-    controller?: { scriptUrl: string; state: string }
-    registrations: Array<{
-      scope: string
-      updateViaCache: string
-      installing?: { scriptUrl: string; state: string }
-      waiting?: { scriptUrl: string; state: string }
-      active?: { scriptUrl: string; state: string }
-      navigationPreload?: { supported: boolean }
-    }>
-    truncated?: boolean
-  }
+  ) as PwaPageRegistrations
   requireCurrentPage()
-  const worker = (value: { scriptUrl: string; state: string } | undefined) => value ? {
+  const worker = (value: PwaPageWorker | undefined) => value ? {
     scriptUrl: redactNetworkUrl(value.scriptUrl).slice(0, 4_096),
     state: redactDiagnosticText(value.state).slice(0, 64)
   } : undefined

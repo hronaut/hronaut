@@ -145,6 +145,81 @@ export function untypedIpcUses(code: string, fileName = 'module.ts'): string[] {
   return uses
 }
 
+/** Whether an identifier names a value there, rather than a property or a label. */
+function referencesValue(node: ts.Identifier): boolean {
+  const parent = node.parent
+  if (ts.isPropertyAccessExpression(parent) && parent.name === node) return false
+  if ((ts.isPropertyAssignment(parent) || ts.isMethodDeclaration(parent) || ts.isPropertyDeclaration(parent)
+    || ts.isGetAccessorDeclaration(parent) || ts.isSetAccessorDeclaration(parent)) && parent.name === node) return false
+  if (ts.isBindingElement(parent) && parent.propertyName === node) return false
+  if ((ts.isLabeledStatement(parent) || ts.isBreakOrContinueStatement(parent)) && parent.label === node) return false
+  return true
+}
+
+/** Names Node gives a script and a page does not, so a page function using one fails there. */
+const NODE_ONLY_GLOBALS = new Set(['process', 'require', 'Buffer', 'global', 'module', 'exports', '__dirname', '__filename'])
+
+/** Whether a top-level statement of a `.page.ts` file is one it may have: a type, an import of types or a named function. */
+function pageFileStatementAllowed(statement: ts.Statement): boolean {
+  if (ts.isInterfaceDeclaration(statement) || ts.isTypeAliasDeclaration(statement)) return true
+  if (ts.isImportDeclaration(statement)) return importsTypesOnly(statement.importClause)
+  if (ts.isExportDeclaration(statement)) return exportsTypesOnly(statement)
+  return ts.isFunctionDeclaration(statement) && statement.name !== undefined
+}
+
+/**
+ * What a `.page.ts` file has that the page its functions run in does not, since only a function's own source reaches
+ * it: each top-level statement other than types, imports of types and named functions, and each name a function uses
+ * that TypeScript resolves to a declaration outside the function, other than the function itself, or that only Node
+ * has. The page's globals resolve to nothing, as the file is checked without the DOM library, and names in types are
+ * left out, as TypeScript erases them.
+ */
+export function pageFunctionModuleUses(code: string, fileName = 'module.page.ts'): string[] {
+  const source = ts.createSourceFile(fileName, code, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
+  const host: ts.CompilerHost = {
+    getSourceFile: name => name === fileName ? source : undefined,
+    fileExists: name => name === fileName,
+    readFile: () => undefined,
+    writeFile: () => undefined,
+    getDefaultLibFileName: () => 'lib.d.ts',
+    getCurrentDirectory: () => '',
+    getCanonicalFileName: name => name,
+    useCaseSensitiveFileNames: () => true,
+    getNewLine: () => '\n'
+  }
+  const checker = ts.createProgram([fileName], { noLib: true, noResolve: true, types: [] }, host).getTypeChecker()
+  const uses: string[] = []
+  for (const statement of source.statements) {
+    if (!pageFileStatementAllowed(statement)) uses.push(`top level: ${statement.getText(source).split('\n')[0]!.slice(0, 80)}`)
+    if (!ts.isFunctionDeclaration(statement) || !statement.name || !statement.body) continue
+    const own = statement.name.text
+    const ownSymbol = checker.getSymbolAtLocation(statement.name)
+    const visit = (node: ts.Node): void => {
+      // A class's base class and an instantiation expression's function are values; implemented interfaces are types.
+      if (ts.isExpressionWithTypeArguments(node)) {
+        const clause = node.parent
+        if (!(ts.isHeritageClause(clause) && (clause.token === ts.SyntaxKind.ImplementsKeyword || ts.isInterfaceDeclaration(clause.parent)))) visit(node.expression)
+        return
+      }
+      if (ts.isTypeNode(node)) return
+      if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) uses.push(`${own}: import()`)
+      if (ts.isMetaProperty(node) && node.keywordToken === ts.SyntaxKind.ImportKeyword) uses.push(`${own}: import.meta`)
+      if (ts.isIdentifier(node) && referencesValue(node)) {
+        const symbol = ts.isShorthandPropertyAssignment(node.parent) && node.parent.name === node
+          ? checker.getShorthandAssignmentValueSymbol(node.parent)
+          : checker.getSymbolAtLocation(node)
+        const declaration = symbol?.declarations?.[0]
+        const outside = declaration !== undefined && (declaration.pos < statement.pos || declaration.end > statement.end)
+        if (symbol ? outside && symbol !== ownSymbol : NODE_ONLY_GLOBALS.has(node.text)) uses.push(`${own}: ${node.text}`)
+      }
+      ts.forEachChild(node, visit)
+    }
+    statement.parameters.forEach(visit)
+    visit(statement.body)
+  }
+  return uses
+}
+
 function importsTypesOnly(clause: ts.ImportClause | undefined): boolean {
   if (!clause) return false
   if (clause.isTypeOnly) return true
