@@ -46,6 +46,11 @@ interface SignIn {
   session: object
   /** Whether a page opening in the tab asks, or waits for the same answer, so its load waits for the person. */
   opensPage: boolean
+  /**
+   * That page's address without its fragment. Only that page's own failure or showing closes the question: a page
+   * that started before it can still fail or show after it asked.
+   */
+  page?: string
   waiting: LoginCallback[]
   closing: AbortController
   /** The person's answer to the same question in another tab of the workspace, which answers this one too. */
@@ -201,6 +206,12 @@ function mayAsk(guard: SignInGuard, opensPage: boolean): boolean {
   return !guard.refusing || (opensPage && openedByPerson(guard.opening))
 }
 
+/** The address without its fragment, which the page's request leaves out. */
+function withoutFragment(url: string): string {
+  const hash = url.indexOf('#')
+  return hash === -1 ? url : url.slice(0, hash)
+}
+
 function originOf(url: string): string | undefined {
   try {
     const parsed = new URL(url)
@@ -247,6 +258,7 @@ export function answerHttpAuth(access: HttpAuthAccess, tab: HttpAuthTab, event: 
     // A page that opens waits for the same answer; after a Cancel it shows the website's refusal, which keeps the tab refusing.
     if (opensPage) {
       asking.opensPage = true
+      asking.page = withoutFragment(details.url)
       asking.opening = guard.opening
     }
     return
@@ -262,7 +274,13 @@ export function answerHttpAuth(access: HttpAuthAccess, tab: HttpAuthTab, event: 
 
   event.preventDefault()
   const signIn: SignIn = {
-    key, session: webContents.session, opensPage, waiting: [callback], closing: new AbortController(), opening: opensPage ? guard.opening : undefined
+    key,
+    session: webContents.session,
+    opensPage,
+    ...(opensPage ? { page: withoutFragment(details.url) } : {}),
+    waiting: [callback],
+    closing: new AbortController(),
+    opening: opensPage ? guard.opening : undefined
   }
   signIns.set(webContents, signIn)
   asked.add(signIn)
@@ -273,20 +291,26 @@ export function answerHttpAuth(access: HttpAuthAccess, tab: HttpAuthTab, event: 
     close()
   }
   // A page on its way stops counting once another starts or its load stops or fails, which Electron reports as a
-  // provisional failure; the page shown, once another replaces it, an error page included.
+  // provisional failure; the page shown, once another replaces it, an error page included. A page that started before
+  // the one on its way can still fail or show after it asked, as when an agent sends a new tab on before its first page
+  // showed: only the page on its way failing or showing counts then.
+  const ownPage = (url: string): boolean => signIn.page === undefined || withoutFragment(url) === signIn.page
   const started = (details: Pick<WebContentsDidStartNavigationEventParams, 'isMainFrame' | 'isSameDocument'>): void => {
     if (signIn.opensPage && details.isMainFrame && !details.isSameDocument) movedOn()
   }
-  const failedProvisionally = (_event: unknown, _errorCode: number, _description: string, _url: string, isMainFrame: boolean): void => {
-    if (signIn.opensPage && isMainFrame) movedOn()
+  const failedProvisionally = (_event: unknown, _errorCode: number, _description: string, url: string, isMainFrame: boolean): void => {
+    if (signIn.opensPage && isMainFrame && ownPage(url)) movedOn()
   }
-  const failed = (_event: unknown, errorCode: number, _description: string, _url: string, isMainFrame: boolean): void => {
-    if (isMainFrame && errorCode !== ABORTED_LOAD_ERROR) movedOn()
+  const failed = (_event: unknown, errorCode: number, _description: string, url: string, isMainFrame: boolean): void => {
+    if (isMainFrame && errorCode !== ABORTED_LOAD_ERROR && ownPage(url)) movedOn()
+  }
+  const shown = (_event: unknown, url: string): void => {
+    if (ownPage(url)) movedOn()
   }
   webContents.on('did-start-navigation', started)
   webContents.on('did-fail-provisional-load', failedProvisionally)
   webContents.on('did-fail-load', failed)
-  webContents.on('did-navigate', movedOn)
+  webContents.on('did-navigate', shown)
   webContents.on('render-process-gone', movedOn)
   webContents.on('destroyed', close)
   const question: HttpAuthQuestion = { origin, secure: addressSecurity(origin) !== 'not-secure', workspaceId: tab.mcpGroupId, signal: signIn.closing.signal }
@@ -302,7 +326,7 @@ export function answerHttpAuth(access: HttpAuthAccess, tab: HttpAuthTab, event: 
       webContents.removeListener('did-start-navigation', started)
       webContents.removeListener('did-fail-provisional-load', failedProvisionally)
       webContents.removeListener('did-fail-load', failed)
-      webContents.removeListener('did-navigate', movedOn)
+      webContents.removeListener('did-navigate', shown)
       webContents.removeListener('render-process-gone', movedOn)
       webContents.removeListener('destroyed', close)
       asked.delete(signIn)
