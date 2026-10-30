@@ -13,6 +13,8 @@ vi.mock('../src/main/browser/workspace-navigation/workspace-navigation.js', asyn
   ...await importOriginal<typeof import('../src/main/browser/workspace-navigation/workspace-navigation.js')>(),
   workspaceNavigationAllowed: (browser: { workspaceNavigationAllowed: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.workspaceNavigationAllowed(...args)
 }))
+// A failed load asks for its page to load again later, which tests/network-error-reload.test.ts covers.
+vi.mock('../src/main/browser/network-error-reload/network-error-reload.js', () => ({ reloadWhenWebsiteReachable: vi.fn() }))
 import { attachNavigationEvents } from '../src/main/browser/tab-events/navigation-events.js'
 
 // The fake browser stubs these, which are functions now; the mock reaches its stubs.

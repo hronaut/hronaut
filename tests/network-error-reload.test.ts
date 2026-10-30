@@ -3,6 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // Whether the computer is online, as Chromium tells it.
 const { isOnline } = vi.hoisted(() => ({ isOnline: vi.fn(() => true) }))
 vi.mock('electron', () => ({ net: { isOnline } }))
+// Whether the tab's workspace may open the website.
+const { workspaceNavigationAllowed } = vi.hoisted(() => ({ workspaceNavigationAllowed: vi.fn(() => true) }))
+vi.mock('../src/main/browser/workspace-navigation/workspace-navigation.js', () => ({ workspaceNavigationAllowed }))
 import { reloadWhenWebsiteReachable } from '../src/main/browser/network-error-reload/network-error-reload.js'
 import { certificateProblem, loadFailureProblem } from '../src/main/browser/page-load-problem.js'
 
@@ -15,23 +18,26 @@ function failingTab() {
     loadURL: vi.fn(async (_url: string) => {
       // As Chromium reports it: the load starts a navigation, then fails while the website cannot be reached.
       tab.navigationGeneration += 1
-      if (!reachable) fail()
+      if (!reachable && !loading) fail()
     })
   })
   const tab = {
     id: 'tab', url: PAGE, navigationGeneration: 0, sleeping: false, wakePromise: undefined as Promise<void> | undefined,
-    mcpGroupId: undefined as string | undefined, emulation: { network: 'none' }, networkRoutes: [] as unknown[],
+    mcpGroupId: 'workspace' as string | undefined, emulation: { network: 'none' }, networkRoutes: [] as unknown[],
     pageProblem: undefined as ReturnType<typeof loadFailureProblem> | undefined, webContents: contents
   }
   const window = { isDestroyed: () => false, isVisible: vi.fn(() => true), isMinimized: vi.fn(() => false) }
   const browser = {
     destroyed: false, activeTabId: 'tab' as string | null, tabs: new Map([['tab', tab]]), window,
     splitViewContains: vi.fn(() => false), prepareDiagnosticNavigation: vi.fn(), restoringLayout: false,
-    options: { onChanged: vi.fn() }, statePublication: { changed: vi.fn() }
+    options: { onChanged: vi.fn() }, statePublication: { changed: vi.fn() },
+    mcpActivitiesByTab: new Map<string, Set<string>>(), rendererRecovery: { isRecovering: vi.fn(() => false) }
   }
   let reachable = false
-  const fail = (errorDescription = 'ERR_INTERNET_DISCONNECTED') => {
-    tab.pageProblem = loadFailureProblem('en-US', PAGE, -106, errorDescription)
+  // A load still under way, which has neither loaded nor failed yet.
+  let loading = false
+  const fail = (errorDescription = 'ERR_INTERNET_DISCONNECTED', url = PAGE) => {
+    tab.pageProblem = loadFailureProblem('en-US', url, -106, errorDescription)
     reloadWhenWebsiteReachable(browser as never, tab as never)
   }
   /** A load the person starts, which fails too. */
@@ -39,12 +45,13 @@ function failingTab() {
     tab.navigationGeneration += 1
     fail()
   }
-  return { tab, contents, browser, window, fail, personLoads, reachable: () => { reachable = true } }
+  return { tab, contents, browser, window, fail, personLoads, reachable: () => { reachable = true }, holdLoads: () => { loading = true } }
 }
 
 beforeEach(() => {
   vi.useFakeTimers()
   isOnline.mockReset().mockReturnValue(true)
+  workspaceNavigationAllowed.mockReset().mockReturnValue(true)
 })
 
 afterEach(() => {
@@ -64,6 +71,7 @@ describe('loading a page again once its website can be reached, as in Chrome', (
     }
     expect(f.contents.loadURL).toHaveBeenLastCalledWith(PAGE)
     expect(f.browser.prepareDiagnosticNavigation).toHaveBeenCalledTimes(delays.length)
+    expect(workspaceNavigationAllowed).toHaveBeenLastCalledWith(f.browser, 'workspace', PAGE, 'history')
     f.reachable()
     await vi.advanceTimersByTimeAsync(1_800_000)
     expect(f.contents.loadURL).toHaveBeenCalledTimes(delays.length + 1)
@@ -116,12 +124,32 @@ describe('loading a page again once its website can be reached, as in Chrome', (
     expect(f.contents.loadURL).toHaveBeenCalledTimes(3)
   })
 
+  it('starts again from 1 s when the person loads the page while a reload is under way', async () => {
+    const f = failingTab()
+    f.fail()
+    await vi.advanceTimersByTimeAsync(1_000)
+    f.holdLoads()
+    await vi.advanceTimersByTimeAsync(5_000)
+    expect(f.contents.loadURL).toHaveBeenCalledTimes(2)
+    // The person's load replaces the reload under way, and fails.
+    f.personLoads()
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(f.contents.loadURL).toHaveBeenCalledTimes(3)
+  })
+
   it('leaves a refused certificate and other failures as they are', async () => {
-    for (const errorDescription of ['ERR_CERT_AUTHORITY_INVALID', 'ERR_BLOCKED_BY_CLIENT', 'ERR_SSL_PROTOCOL_ERROR', 'ERR_FAILED']) {
+    // Electron names no error for a page that failed after it was shown, which the person may be using.
+    for (const errorDescription of ['ERR_CERT_AUTHORITY_INVALID', 'ERR_BLOCKED_BY_CLIENT', 'ERR_SSL_PROTOCOL_ERROR', 'ERR_FAILED', '']) {
       const f = failingTab()
       f.fail(errorDescription)
       await vi.advanceTimersByTimeAsync(3_600_000)
       expect(f.contents.loadURL, errorDescription).not.toHaveBeenCalled()
+    }
+    for (const url of ['file:///home/user/report.html', 'hronaut://home/']) {
+      const f = failingTab()
+      f.fail('ERR_INTERNET_DISCONNECTED', url)
+      await vi.advanceTimersByTimeAsync(3_600_000)
+      expect(f.contents.loadURL, url).not.toHaveBeenCalled()
     }
     const f = failingTab()
     f.tab.pageProblem = certificateProblem('en-US', PAGE, -105, 'ERR_NAME_NOT_RESOLVED', { host: 'mail.example', canProceed: true })
@@ -131,9 +159,8 @@ describe('loading a page again once its website can be reached, as in Chrome', (
     expect(vi.getTimerCount()).toBe(0)
   })
 
-  it('leaves an agent’s tab to its agent, and a tab whose network is emulated offline or routed as it is', async () => {
+  it('leaves a tab whose network is emulated offline or routed as it is', async () => {
     const tabs = [
-      (f: ReturnType<typeof failingTab>) => { f.tab.mcpGroupId = 'workspace' },
       (f: ReturnType<typeof failingTab>) => { f.tab.emulation.network = 'offline' },
       (f: ReturnType<typeof failingTab>) => { f.tab.networkRoutes.push({ id: 'route' }) }
     ]
@@ -171,14 +198,36 @@ describe('loading a page again once its website can be reached, as in Chrome', (
     expect(vi.getTimerCount()).toBe(0)
   })
 
-  it('waits for a waking tab to finish waking', async () => {
+  it('waits while the tab wakes, an agent command runs in it or its page is being recovered', async () => {
     const f = failingTab()
     f.fail()
     f.tab.wakePromise = Promise.resolve()
     await vi.advanceTimersByTimeAsync(10_000)
-    expect(f.contents.loadURL).not.toHaveBeenCalled()
     f.tab.wakePromise = undefined
+    f.browser.mcpActivitiesByTab.set('tab', new Set(['activity']))
+    await vi.advanceTimersByTimeAsync(10_000)
+    f.browser.mcpActivitiesByTab.delete('tab')
+    f.browser.rendererRecovery.isRecovering.mockReturnValue(true)
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(f.contents.loadURL).not.toHaveBeenCalled()
+    f.browser.rendererRecovery.isRecovering.mockReturnValue(false)
     await vi.advanceTimersByTimeAsync(1_000)
     expect(f.contents.loadURL).toHaveBeenCalledOnce()
+  })
+
+  it('never loads a website the tab’s workspace may not open, and loads a tab in no workspace', async () => {
+    const f = failingTab()
+    workspaceNavigationAllowed.mockReturnValue(false)
+    f.fail()
+    await vi.advanceTimersByTimeAsync(3_600_000)
+    expect(workspaceNavigationAllowed).toHaveBeenCalledOnce()
+    expect(f.contents.loadURL).not.toHaveBeenCalled()
+    expect(vi.getTimerCount()).toBe(0)
+    const outside = failingTab()
+    outside.tab.mcpGroupId = undefined
+    outside.fail()
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(outside.contents.loadURL).toHaveBeenCalledOnce()
+    expect(workspaceNavigationAllowed).toHaveBeenCalledOnce()
   })
 })
