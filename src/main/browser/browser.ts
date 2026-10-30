@@ -1,11 +1,10 @@
 import { assertExclusiveWorkspaceStorage, canonicalStorageId, cleanExplicitlyDeletedWorkspaceStorage } from './workspace-storage-deletion.js'
 import { ImageInspectionSlots } from './image-state.js'
 import type { BrowserEmulationResult, BrowserUnconfirmedEmulation, TaskManagerProcess } from '../../shared/types.js'
-import { assertRightClickPlatform } from './owned-right-click.js'
 import { evaluateFile } from './page-evaluation/evaluate-file.js'
 import type { FileEvaluationSource, FileEvaluationHooks } from '../../shared/file-evaluation.js'
 import type { StorageComparisonHooks } from './storage-comparison-operation.js'
-import { acquireNativeClickAdmission, type NativeClickProgress } from './native-click-admission.js'
+import type { NativeClickProgress } from './native-click-admission.js'
 import type { StorageInspectionHooks } from './storage-inspection-operation.js'
 import type { WebStorageHooks } from './web-storage-operation.js'
 import { manageStorage } from './site-storage/manage-storage.js'
@@ -31,7 +30,7 @@ import type { NativeWheelInput } from './native-wheel.js'
 import { wheel } from './agent-wheel/agent-wheel.js'
 import { touch } from './agent-touch/agent-touch.js'
 import type { NativeTouchInput, NativeTouchProgress } from './agent-touch/touch-input.js'
-import type { NativeKeyHoldInput, NativeKeyHoldProgress, NativeInputDispatchObserver } from './native-key-hold.js'
+import type { NativeKeyHoldInput, NativeKeyHoldProgress } from './native-key-hold.js'
 import { holdKey, press } from './agent-keys/agent-keys.js'
 import type { BrowserImageState, BrowserMediaState } from '../../shared/types.js'
 import type { PendingElementInspection } from './element-inspection-publication.js'
@@ -202,11 +201,8 @@ import { ClosedTabsStore, restoredClosedTabs, savedClosedTabs, type SavedClosedT
 import { keepSessionCookies } from './session-cookies/saved-session-cookies.js'
 import { nextPageLoadTurn } from './page-load-turns/page-load-turns.js'
 import { McpActivityFollowController, type FollowAgent } from './mcp-activity-follow-controller.js'
-import type { KeyboardDebugger } from './native-keyboard.js'
-import type { PointerDebugger } from './native-pointer.js'
 import { type BrowserDragModifier, drag, hover } from './agent-page-actions/hover-and-drag.js'
-import type { AgentPageActionsAccess, BrowserClickTarget } from './agent-page-actions/agent-page-actions-access.js'
-import { click } from './agent-page-actions/click.js'
+import { click, type BrowserClickTarget } from './agent-page-actions/click.js'
 import { MemorySaverSweepQueue } from '../memory-saver-sweep.js'
 import { accessibilityAudit } from './page-audits/accessibility-audit.js'
 import { auditEvidenceAvailability, clearDiagnosticLogs, debugReport, diagnosticLogState, setDiagnosticLogPreservation } from './debug-report/debug-report.js'
@@ -420,17 +416,12 @@ import { setAllHumanInteractionLocked, setTabHumanInteractionLocked } from './in
 import {
   detachDialogMonitoring,
   ensureDialogMonitoring,
-  handleDialog,
-  withOptionalDialogHandling
+  handleDialog
 } from './website-dialogs/website-dialogs.js'
-import {
-  agentInputDebugger,
-  type AuthorizedAgentKeyboardInput,
-  type AuthorizedAgentMouseInput
+import type {
+  AuthorizedAgentKeyboardInput,
+  AuthorizedAgentMouseInput
 } from './agent-input-authorization/agent-input-authorization.js'
-import { withAgentInput } from './agent-input-scope/agent-input-scope.js'
-import { nativeInputAuthority } from './native-input-authority/native-input-authority.js'
-import { withBackgroundAgentFocusGuard } from './agent-input-scope/focus-isolation.js'
 import { attachPageDestroyedEvents } from './tab-events/page-destroyed-events.js'
 import { attachPageCloseEvents } from './tab-events/page-close-events.js'
 import { attachDebuggerEvents } from './tab-events/debugger-events.js'
@@ -449,12 +440,8 @@ import {
 import { SLEEPING_PAGE_URL } from './tab-sleep/sleeping-page.js'
 import { setMemorySaverSettings, sleepInactiveTabs, sweepMemorySaver } from './tab-sleep/memory-saver.js'
 import { BackgroundLoads } from './tab-sleep/background-loads.js'
-import { evaluateWithAttachedDebugger, mainWorldContextId } from './debugger-evaluation/debugger-evaluation.js'
+import { mainWorldContextId } from './debugger-evaluation/debugger-evaluation.js'
 import { withDebugger } from './debugger-lease/debugger-lease.js'
-import { dispatchNativeClick } from './native-click/native-click.js'
-import { rightClickEnvironment } from './native-click/right-click-environment.js'
-import { coordinateDragPointsOrValidateTargets, coordinatePointOrValidateTarget, validateTarget } from './input-targets/input-targets.js'
-import { assertClickTargetEnabled, assertNativeEditability, assertPointInsideVisibleViewport, assertRightClickViewport } from './input-targets/target-checks.js'
 import { attemptBeforeUnloadClose } from './tab-close/before-unload-close.js'
 import { stageBeforeUnloadClose } from './tab-close/before-unload-staging.js'
 import { closeTabAfterLabelSave } from './tab-close/close-tab.js'
@@ -468,7 +455,6 @@ import { forgetTabsOpenedFrom, handOverTabsOpenedFrom, switchLeavesOpenedTabs, t
 import { sendWalletProviderEvent, walletPageContext, walletPageContextForMcpTab, type BrowserWalletPageContext } from './wallet-pages/wallet-pages.js'
 import { getMcpDiscoveryTabs, getMcpGroupState, requireTabInMcpGroup, tabBelongsToMcpGroup } from './workspace-scope/workspace-scope.js'
 import { createNewTab, newLabeledAgentTab } from './new-tabs/new-tabs.js'
-import { showAgentPointer } from './agent-pointer/agent-pointer.js'
 import { matchingNetworkWaitRequest } from './network-inspection/network-request-records.js'
 import { setAllTabsMuted, setTabMuted } from './tab-muting/tab-muting.js'
 import { applySiteMuting, applySiteMutingToTabs, setSiteMuted, type SiteSoundStore } from './site-muting/site-muting.js'
@@ -2586,84 +2572,8 @@ export class Browser {
     return cancelScreenshotArea(this, tabId)
   }
 
-  /**
-   * The narrow view an agent's click, typing, selecting, form filling,
-   * hovering, dragging and scrolling get of this manager's private tabs,
-   * unconfirmed semantic clicks, opened tab observations, target and viewport
-   * checks, native input authority, right-click environment, agent cursor,
-   * agent input scope, background focus isolation, website dialog handling,
-   * debugger lease and evaluation, native clicks and authorized agent input.
-   * It is a prototype method rather than a field, so managers created
-   * without the constructor (as unit tests do) still provide it. The
-   * delegates below return the feature's promise directly, so callers see
-   * the same ticks as before.
-   */
-  private agentPageActionsAccess(): AgentPageActionsAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => getTab(this, tabId),
-      unconfirmedSemanticClicks: () => this.unconfirmedSemanticClicks,
-      observeOpenedTabs: (tab) => this.observeOpenedTabs(tab),
-      stopObservingOpenedTabs: (tab, observation) => this.stopObservingOpenedTabs(tab, observation),
-      validateTarget: (target) => this.validateTarget(target),
-      coordinatePointOrValidateTarget: (target, action) => this.coordinatePointOrValidateTarget(target, action),
-      coordinateDragPointsOrValidateTargets: (options, source, target) => this.coordinateDragPointsOrValidateTargets(options, source, target),
-      assertPointInsideVisibleViewport: (webContents, point, action) => this.assertPointInsideVisibleViewport(webContents, point, action),
-      assertRightClickPlatform: (platform) => assertRightClickPlatform(platform),
-      assertRightClickViewport: (webContents, x, y, validate) => this.assertRightClickViewport(webContents, x, y, validate),
-      assertClickTargetEnabled: (result) => this.assertClickTargetEnabled(result),
-      assertNativeEditability: (result) => this.assertNativeEditability(result),
-      nativeInputAuthority: (tab, validateInput) => nativeInputAuthority(this, tab, validateInput),
-      rightClickEnvironment: (tab) => this.rightClickEnvironment(tab),
-      acquireNativeClickAdmission: (pageDebugger, target, validate, progress, publish) => acquireNativeClickAdmission(pageDebugger, target, validate, progress, publish),
-      showAgentPointer: (webContents, point, effect, options) => this.showAgentPointer(webContents, point, effect, options),
-      withAgentInput: (webContents, operation, options) => this.withAgentInput(webContents, operation, options),
-      withBackgroundAgentFocusGuard: (operation) => this.withBackgroundAgentFocusGuard(operation),
-      withOptionalDialogHandling: (webContents, options, operation) => this.withOptionalDialogHandling(webContents, options, operation),
-      mainWorldContextId: (webContents) => this.mainWorldContextId(webContents),
-      evaluateWithAttachedDebugger: (webContents, expression, contextId) => evaluateWithAttachedDebugger(webContents, expression, contextId),
-      withDebugger: (webContents, operation, validateAdmission) => this.withDebugger(webContents, operation, validateAdmission),
-      dispatchNativeClick: (webContents, point, doubleClick, validateClick, sample, observer, rightClick, modifiers) =>
-        this.dispatchNativeClick(webContents, point, doubleClick, validateClick, sample, observer, rightClick, modifiers),
-      agentInputDebugger: (webContents, validateInput) => this.agentInputDebugger(webContents, validateInput)
-    }
-  }
-
   click(target: BrowserClickTarget, validateClick?: (validateContext: () => void) => void, recordClickProgress?: (progress: NativeClickProgress) => void, retainClickAuthority?: (authority: { validate(): void; dispose(): void }) => void, agent?: AgentPointerIdentity): Promise<unknown> {
-    return click(this.agentPageActionsAccess(), target, validateClick, recordClickProgress, retainClickAuthority, agent)
-  }
-
-  private rightClickEnvironment(tab: BrowserTab): { validate(): void; dispose(): void } {
-    return rightClickEnvironment(this, tab)
-  }
-
-  private assertRightClickViewport(webContents: BrowserTab['webContents'], x: number, y: number, validate: () => void): Promise<void> {
-    return assertRightClickViewport(webContents, x, y, validate)
-  }
-
-  private assertClickTargetEnabled(result: unknown): void {
-    assertClickTargetEnabled(result)
-  }
-
-  private dispatchNativeClick(
-    webContents: BrowserTab['view']['webContents'],
-    point: { x: number; y: number },
-    doubleClick: boolean,
-    validateClick: () => void,
-    sample?: (x: number, y: number) => Promise<void>,
-    observer?: NativeInputDispatchObserver,
-    rightClick?: boolean,
-    modifiers?: number
-  ): Promise<void> {
-    return dispatchNativeClick(this, webContents, point, doubleClick, validateClick, sample, observer, rightClick, modifiers)
-  }
-
-  private showAgentPointer(
-    webContents: BrowserTab['view']['webContents'],
-    point: { x: number; y: number },
-    effect: 'move' | 'click' | 'drag-start' | 'drag-end',
-    options?: { origin?: { x: number; y: number }; agent?: AgentPointerIdentity }
-  ): Promise<void> {
-    return showAgentPointer(this, webContents, point, effect, options)
+    return click(this, target, validateClick, recordClickProgress, retainClickAuthority, agent)
   }
 
   type(target: {
@@ -2673,19 +2583,15 @@ export class Browser {
     text: string
     submit?: boolean
   }): Promise<unknown> {
-    return type(this.agentPageActionsAccess(), target)
+    return type(this, target)
   }
 
   select(target: { tabId?: string; ref?: string; selector?: string; value?: string; values?: string[] }, validateSelect?: (validateContext: () => void) => void, retainSelection?: (authority: { validate: () => void; dispose: () => void }) => void, markSelectionSubmitted?: () => void): Promise<unknown> {
-    return select(this.agentPageActionsAccess(), target, validateSelect, retainSelection, markSelectionSubmitted)
+    return select(this, target, validateSelect, retainSelection, markSelectionSubmitted)
   }
 
   fillForm(tabId: string | undefined, fields: BrowserFormField[]): Promise<unknown> {
-    return fillForm(this.agentPageActionsAccess(), tabId, fields)
-  }
-
-  private assertNativeEditability(result: unknown): void {
-    assertNativeEditability(result)
+    return fillForm(this, tabId, fields)
   }
 
   hover(target: {
@@ -2695,7 +2601,7 @@ export class Browser {
     x?: number
     y?: number
   }, validateInput?: (validateContext: () => void) => void, agent?: AgentPointerIdentity): Promise<unknown> {
-    return hover(this.agentPageActionsAccess(), target, validateInput, agent)
+    return hover(this, target, validateInput, agent)
   }
 
   drag(options: {
@@ -2710,7 +2616,7 @@ export class Browser {
     endY?: number
     modifiers?: readonly BrowserDragModifier[]
   }, validateInput?: (validateContext: () => void) => void, agent?: AgentPointerIdentity): Promise<unknown> {
-    return drag(this.agentPageActionsAccess(), options, validateInput, agent)
+    return drag(this, options, validateInput, agent)
   }
 
   resizeViewport(width: number | undefined, height: number | undefined, reset: boolean, tabId?: string): Promise<unknown> {
@@ -2756,7 +2662,7 @@ export class Browser {
     deltaX?: number
     deltaY?: number
   }): Promise<unknown> {
-    return scroll(this.agentPageActionsAccess(), options)
+    return scroll(this, options)
   }
 
   consoleMessages(tabId?: string, clear = false): BrowserConsoleMessage[] {
@@ -3839,42 +3745,6 @@ export class Browser {
     }
   }
 
-  private validateTarget(target: { ref?: string; selector?: string }): void {
-    validateTarget(target)
-  }
-
-  private coordinatePointOrValidateTarget(
-    target: { ref?: string; selector?: string; x?: number; y?: number },
-    action: 'click' | 'hover'
-  ): { x: number; y: number } | undefined {
-    return coordinatePointOrValidateTarget(target, action)
-  }
-
-  private coordinateDragPointsOrValidateTargets(
-    options: {
-      sourceRef?: string
-      sourceSelector?: string
-      targetRef?: string
-      targetSelector?: string
-      startX?: number
-      startY?: number
-      endX?: number
-      endY?: number
-    },
-    source: { ref?: string; selector?: string },
-    target: { ref?: string; selector?: string }
-  ): { from: { x: number; y: number }; to: { x: number; y: number } } | undefined {
-    return coordinateDragPointsOrValidateTargets(options, source, target)
-  }
-
-  private assertPointInsideVisibleViewport(
-    webContents: BrowserTab['view']['webContents'],
-    point: { x: number; y: number },
-    action: 'click' | 'hover' | 'drag'
-  ): Promise<void> {
-    return assertPointInsideVisibleViewport(webContents, point, action)
-  }
-
   private networkRequestSummary(request: BrowserNetworkRequestRecord): BrowserNetworkRequest {
     return networkRequestSummary(request)
   }
@@ -3899,13 +3769,6 @@ export class Browser {
     focusTabOrTrustedChrome(this, tab)
   }
 
-  private agentInputDebugger(
-    webContents: BrowserTab['view']['webContents'],
-    validateInput?: () => void
-  ): PointerDebugger & KeyboardDebugger {
-    return agentInputDebugger(this, webContents, validateInput)
-  }
-
   syncHumanInteractionInputGuard(tab: BrowserTab): Promise<void> {
     return syncHumanInteractionInputGuard(this, tab)
   }
@@ -3913,7 +3776,7 @@ export class Browser {
   readonly unconfirmedSemanticClicks = new WeakSet<BrowserTab['view']['webContents']>()
   readonly openedTabObservations = new Map<BrowserTab, Set<OpenedTabObservation>>()
 
-  private observeOpenedTabs(tab: BrowserTab): OpenedTabObservation {
+  observeOpenedTabs(tab: BrowserTab): OpenedTabObservation {
     const observation = new OpenedTabObservation()
     const observations = this.openedTabObservations.get(tab) ?? new Set()
     observations.add(observation)
@@ -3922,7 +3785,7 @@ export class Browser {
   }
 
   /** Publishes only tabs that are still open in the source tab's current workspace. */
-  private stopObservingOpenedTabs(tab: BrowserTab, observation: OpenedTabObservation): TabsOpenedDuringClick | undefined {
+  stopObservingOpenedTabs(tab: BrowserTab, observation: OpenedTabObservation): TabsOpenedDuringClick | undefined {
     const observations = this.openedTabObservations.get(tab)
     observations?.delete(observation)
     if (observations?.size === 0) this.openedTabObservations.delete(tab)
@@ -3934,32 +3797,12 @@ export class Browser {
     return sourceCurrent ? report : undefined
   }
 
-  private withAgentInput<T>(
-    webContents: BrowserTab['view']['webContents'],
-    operation: () => Promise<T>,
-    options: { deferRendererFlag?: boolean; onCleanupFailure?: () => void } = {}
-  ): Promise<T> {
-    return withAgentInput(this, webContents, operation, options)
-  }
-
-  private withBackgroundAgentFocusGuard<T>(operation: () => Promise<T>): Promise<T> {
-    return withBackgroundAgentFocusGuard(this, operation)
-  }
-
   isUnavailableCdpMethod(error: unknown): boolean {
     return /(?:method not found|wasn't found|-32601)/i.test(String(error))
   }
 
   private withDebugger<T>(webContents: BrowserTab['view']['webContents'], operation: () => Promise<T>, validateAdmission?: () => void): Promise<T> {
     return withDebugger(this, webContents, operation, validateAdmission)
-  }
-
-  private withOptionalDialogHandling<T>(
-    webContents: BrowserTab['view']['webContents'],
-    options: BrowserDialogHandlingOptions,
-    operation: () => Promise<T>
-  ): Promise<T> {
-    return withOptionalDialogHandling(this, webContents, options, operation)
   }
 
   private mainWorldContextId(webContents: BrowserTab['view']['webContents']): Promise<number> {
