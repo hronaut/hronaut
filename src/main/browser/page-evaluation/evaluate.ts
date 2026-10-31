@@ -7,6 +7,8 @@ import type { Browser } from '../browser.js'
 import { getTab } from '../browser-core.js'
 import { evaluateWithAttachedDebugger, mainWorldContextId } from '../debugger-evaluation/debugger-evaluation.js'
 import { withDebugger } from '../debugger-lease/debugger-lease.js'
+import { PrintDialogOpenError, whenPrintDialogCloses } from '../print-dialog-guard.js'
+import { WebsiteDialogOpenError, whenWebsiteDialogCloses } from '../website-dialog-guard.js'
 import { EvaluationStoppedError } from './evaluation-stopped-error.js'
 
 /** How long an evaluation waits for its script, and the call's cancellation. */
@@ -22,7 +24,9 @@ export interface EvaluationDeadline {
  * Hronaut never takes focus for it. With a deadline it stops waiting once the
  * deadline passes or the call is cancelled, also while it waits for the
  * debugger, releasing the focus guard and the debugger. The page's script is
- * left to finish on its own, and its dialog handling ends at once.
+ * left to finish on its own, and its dialog handling ends at once. A page's
+ * print dialog or website dialog that cuts the call off leaves it the same
+ * way, and its dialog handling ends once that dialog closes.
  */
 export async function evaluate(browser: Browser, script: string, tabId?: string, dialog: BrowserDialogHandlingOptions = {}, deadline?: EvaluationDeadline): Promise<unknown> {
   const webContents = getTab(browser, tabId).webContents
@@ -64,7 +68,7 @@ export async function evaluate(browser: Browser, script: string, tabId?: string,
     try {
       return await settle(evaluateWithAttachedDebugger(webContents, dialogAwareEvaluateScript(script, dialogAction, evaluationId), contextId))
     } catch (error) {
-      if (error instanceof EvaluationStoppedError) releaseEvaluationDialogs(webContents, evaluationId, contextId)
+      if (error instanceof EvaluationStoppedError || cutOffByPageDialog(error)) releaseEvaluationDialogs(webContents, evaluationId, contextId)
       throw error
     }
   })))
@@ -92,14 +96,25 @@ function settleBeforeStop<T>(pending: Promise<T>, stop: AbortSignal, stopped: ()
   })
 }
 
+/** Whether the page's print dialog or a website dialog cut the call off after it reached the page. */
+function cutOffByPageDialog(error: unknown): boolean {
+  return (error instanceof PrintDialogOpenError || error instanceof WebsiteDialogOpenError) && error.sent
+}
+
 /**
  * Returns the page's own dialogs once nothing waits for the stopped script.
  * It is sent beside the debugger lease, which a page stuck in a script would
- * otherwise hold, and a failure leaves only what the page's next load clears.
+ * otherwise hold. A page's dialog that still shows refuses it, so it is sent
+ * again once that dialog closes; any other failure leaves only what the
+ * page's next load clears.
  */
 function releaseEvaluationDialogs(webContents: WebContents, evaluationId: string, contextId: number): void {
   if (webContents.isDestroyed()) return
   webContents.debugger.sendCommand('Runtime.evaluate', {
     expression: releaseEvaluationDialogsScript(evaluationId), contextId, returnByValue: true, silent: true
-  }).catch(() => undefined)
+  }).catch((error: unknown) => {
+    const dialogClosed = error instanceof PrintDialogOpenError && !error.sent ? whenPrintDialogCloses(webContents)
+      : error instanceof WebsiteDialogOpenError && !error.sent ? whenWebsiteDialogCloses(webContents) : undefined
+    void dialogClosed?.then(() => releaseEvaluationDialogs(webContents, evaluationId, contextId))
+  })
 }
