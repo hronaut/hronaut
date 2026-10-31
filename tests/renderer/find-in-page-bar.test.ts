@@ -580,6 +580,52 @@ describe('Find Next and Find Previous', () => {
 
 // Closing Find with Escape or its Close button left the keyboard in Hronaut's window, so Space, Page Down and the arrow
 // keys no longer scrolled the page and typing went nowhere. Chrome gives the keyboard back to the page.
+describe('the keyboard in Find', () => {
+  // Following the agents' activity waits while it is there, since showing another tab would close Find.
+  it('is reported while focus is anywhere in the bar, and no longer once it leaves or Find closes', async () => {
+    const outside = document.createElement('button')
+    document.body.append(outside)
+    const wrapper = mount(FindInPageBar, {
+      attachTo: document.body,
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: {
+        open: true,
+        activeTab: tab('first'),
+        browser: {
+          findInPage: vi.fn(async (_request: unknown): Promise<BrowserFindResult> => ({ activeMatchOrdinal: 1, matches: 3 })),
+          stopFindInPage: vi.fn(async () => undefined),
+          focusActivePage: vi.fn(async () => undefined)
+        },
+        'onUpdate:open': (next: boolean) => wrapper.setProps({ open: next }),
+        'onUpdate:focused': (next: boolean) => wrapper.setProps({ focused: next })
+      }
+    })
+    try {
+      await flushPromises()
+      const field = wrapper.find<HTMLInputElement>('input[type="search"]').element
+      field.focus()
+      await flushPromises()
+      expect(wrapper.props('focused')).toBe(true)
+      wrapper.find<HTMLButtonElement>('button[aria-label="Close find in page"]').element.focus()
+      await flushPromises()
+      expect(wrapper.props('focused')).toBe(true)
+      outside.focus()
+      await flushPromises()
+      expect(wrapper.props('focused')).toBe(false)
+
+      field.focus()
+      await flushPromises()
+      expect(wrapper.props('focused')).toBe(true)
+      await wrapper.setProps({ open: false })
+      await flushPromises()
+      expect(wrapper.props('focused')).toBe(false)
+    } finally {
+      wrapper.unmount()
+      outside.remove()
+    }
+  })
+})
+
 describe('closing Find', () => {
   function mountOpenBar() {
     const activeTab = tab('first')

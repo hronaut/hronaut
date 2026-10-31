@@ -71,6 +71,7 @@ const props = defineProps<{
 const emit = defineEmits<{ newTab: []; searchTabs: []; createWorkspace: [] }>()
 const tabSearchOpen = defineModel<boolean>('tabSearchOpen', { required: true })
 const findOpen = defineModel<boolean>('findOpen', { required: true })
+const findFocused = defineModel<boolean>('findFocused', { default: false })
 const zoomOpen = defineModel<boolean>('zoomOpen', { required: true })
 const workspaceEditorOpen = defineModel<boolean>('workspaceEditorOpen', { required: true })
 const credentialPickerOpen = defineModel<boolean>('credentialPickerOpen', { required: true })
@@ -282,7 +283,7 @@ defineExpose({
     @new-tab="emit('newTab')"
     @transfer-workspace-data="openWorkspaceTransfer"
   />
-  <FindInPageBar ref="findBar" v-model:open="findOpen" :active-tab="activeTab" :browser="browser" />
+  <FindInPageBar ref="findBar" v-model:open="findOpen" v-model:focused="findFocused" :active-tab="activeTab" :browser="browser" />
   <ZoomBar
     ref="zoomBar"
     v-model:open="zoomOpen"

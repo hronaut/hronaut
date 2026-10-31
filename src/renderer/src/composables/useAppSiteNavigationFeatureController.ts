@@ -68,6 +68,8 @@ export interface AppSiteNavigationFeatureControllerOptions {
     tabSearchOpen: Ref<boolean>
     zoomOpen: Ref<boolean>
     findOpen: Ref<boolean>
+    /** The keyboard is in the Find bar. */
+    findFocused: Readonly<Ref<boolean>>
   }
   site: {
     keepsSeparatePanelOpen: () => boolean
@@ -166,9 +168,11 @@ export function useAppSiteNavigationFeatureController(
     onRemoveVisitFailed: actions.onActionError,
     onFocusLeft: () => (siteControlsOpen.value = false)
   })
+  // Following the agents' activity waits while the person types in the address bar or Find: showing another tab would
+  // replace the address they are typing, or close Find under them.
   const stopFollowAgentActivitySuspensionWatch = watch(
-    addressBarController.focused,
-    (focused) => options.shell.setFollowAgentActivitySuspended(focused),
+    () => addressBarController.focused.value || shell.findFocused.value,
+    (suspended) => options.shell.setFollowAgentActivitySuspended(suspended),
     { flush: 'sync', immediate: true }
   )
   const siteManagementController = useAppSiteManagementFeatureController({

@@ -162,7 +162,7 @@ const appTransientShellLayerController = useAppTransientShellLayerController()
 const {
   layer: transientShellLayer,
   credentialPickerOpen,
-  findOpen,
+  findOpen, findFocused,
   zoomOpen,
   tabSearchOpen,
   commandPaletteOpen,
@@ -352,15 +352,14 @@ const appSiteNavigationFeatureController = useAppSiteNavigationFeatureController
     historyOpen
   },
   shell: {
-    setFollowAgentActivitySuspended: (suspended) => {
-      if (!isDetachedPanelWindow) window.hronautShell.setFollowAgentActivitySuspended(suspended)
-    },
+    setFollowAgentActivitySuspended: (suspended) => { if (!isDetachedPanelWindow) window.hronautShell.setFollowAgentActivitySuspended(suspended) },
     settingsOpen,
     settingsSection,
     updateNoticeOpen,
     tabSearchOpen,
     zoomOpen,
-    findOpen
+    findOpen,
+    findFocused
   },
   site: {
     keepsSeparatePanelOpen,
@@ -916,6 +915,7 @@ useAppLifecycleController({
       v-model:dock="panelDock"
       v-model:tab-search-open="tabSearchOpen"
       v-model:find-open="findOpen"
+      v-model:find-focused="findFocused"
       v-model:zoom-open="zoomOpen"
       v-model:workspace-editor-open="workspaceEditorOpen"
       v-model:credential-picker-open="credentialPickerOpen"

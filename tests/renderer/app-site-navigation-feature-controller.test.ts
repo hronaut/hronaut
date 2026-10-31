@@ -59,6 +59,7 @@ function createHarness() {
   const tabSearchOpen = ref(true)
   const zoomOpen = ref(true)
   const findOpen = ref(true)
+  const findFocused = ref(false)
   const browser = {
     closeTab: vi.fn(async () => browserState.value),
     navigate: vi.fn(async () => browserState.value),
@@ -111,7 +112,8 @@ function createHarness() {
           updateNoticeOpen,
           tabSearchOpen,
           zoomOpen,
-          findOpen
+          findOpen,
+          findFocused
         },
         site: {
           keepsSeparatePanelOpen: () => false,
@@ -157,6 +159,7 @@ function createHarness() {
     tabSearchOpen,
     zoomOpen,
     findOpen,
+    findFocused,
     closeFind,
     loadSiteSummary,
     showToast,
@@ -188,6 +191,17 @@ describe('app site navigation feature controller', () => {
     })
     harness.view.unmount()
     expect(harness.setFollowAgentActivitySuspended).toHaveBeenLastCalledWith(false)
+  })
+
+  // Following the agents' activity showed another tab while the person read the matches of Find, which closed Find.
+  it('holds following the agents while the keyboard is in Find, as in the address bar', async () => {
+    const harness = createHarness()
+    expect(harness.setFollowAgentActivitySuspended).toHaveBeenLastCalledWith(false)
+    harness.findFocused.value = true
+    expect(harness.setFollowAgentActivitySuspended).toHaveBeenLastCalledWith(true)
+    harness.findFocused.value = false
+    expect(harness.setFollowAgentActivitySuspended).toHaveBeenLastCalledWith(false)
+    harness.view.unmount()
   })
 
   it('disposes tab actions so late navigation failures cannot escape app teardown', async () => {
