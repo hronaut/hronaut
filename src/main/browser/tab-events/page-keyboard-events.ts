@@ -7,6 +7,7 @@ import { scheduleTabOverviewPreview } from '../tab-overview-previews/tab-overvie
 import { pageShortcut } from '../take-over.js'
 import { cancelElementPicker } from '../element-picker/element-picker.js'
 import { cancelScreenshotArea } from '../screenshot-area/screenshot-area.js'
+import { noteShellHeldKey } from './shell-held-keys.js'
 
 /** After a click, key or scroll on the page in view, its overview preview waits this long for the page to settle. The pointer listeners keep their own copy. */
 const TAB_OVERVIEW_INPUT_SETTLE_MS = 1_000
@@ -18,7 +19,9 @@ const TAB_OVERVIEW_INPUT_SETTLE_MS = 1_000
  * it. Otherwise a browser shortcut the page does not keep goes to the shell,
  * the human input lock may hold the key back, and the key is recorded,
  * refreshes the tab's overview preview and makes following wait. A key held
- * down in the shell when it hands the focus to the page does not repeat into it.
+ * down in the shell when it hands the focus to the page does not repeat into it,
+ * and neither does the key of a browser shortcut taken from a page, such as
+ * Ctrl+W, whose repeats went on to the page of the tab shown next.
  */
 export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webContents: WebContents): void {
   webContents.on('before-input-event', (event, input) => {
@@ -39,7 +42,10 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
         composing: input.isComposing,
         mac: process.platform === 'darwin'
       }) : null
-      if (shortcut) browser.options.onShortcutRequested?.(shortcut)
+      if (shortcut) {
+        noteShellHeldKey(browser.shellHeldKeys, input)
+        browser.options.onShortcutRequested?.(shortcut)
+      }
       return
     }
     const screenshotSession = browser.screenshotAreaSessions.get(webContents.id)
@@ -104,6 +110,7 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
     if (browser.isHumanInteractionLocked(tab) && !expectedAgentInput) {
       event.preventDefault()
       if (shortcut) {
+        noteShellHeldKey(browser.shellHeldKeys, input)
         browser.options.onUserInteraction?.()
         browser.options.onShortcutRequested?.(shortcut, page)
       }
@@ -111,13 +118,16 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
     }
     if (shortcut) {
       event.preventDefault()
+      // The shell took the key, so its repeats are the shell's too, here and in the page of the tab it shows next.
+      noteShellHeldKey(browser.shellHeldKeys, input)
       browser.options.onUserInteraction?.()
       browser.options.onShortcutRequested?.(shortcut, page)
       return
     }
     if (input.isAutoRepeat && !expectedAgentInput && input.code && browser.shellHeldKeys.has(input.code)) {
       // The repeats of a key the shell took, such as Delete closing the active tab, which gave this page the focus:
-      // a held Delete went on to delete the text in this page's focused field.
+      // a held Delete went on to delete the text in this page's focused field. A held Ctrl+W likewise reached the next
+      // page as Ctrl+W, which a web IDE may read as closing an editor.
       event.preventDefault()
       return
     }
