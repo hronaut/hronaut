@@ -29,6 +29,7 @@ export function useAppTransientShellLayerController() {
   const layer = ref<AppTransientShellSurface | null>(null)
   const credentialPickerOpen = ref(false)
   const findOpen = ref(false)
+  const findFocused = ref(false)
   const zoomOpen = ref(false)
   const tabSearchOpen = ref(false)
   const commandPaletteOpen = ref(false)
@@ -92,6 +93,7 @@ export function useAppTransientShellLayerController() {
     layer,
     credentialPickerOpen,
     findOpen,
+    findFocused,
     zoomOpen,
     tabSearchOpen,
     commandPaletteOpen,

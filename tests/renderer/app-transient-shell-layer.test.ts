@@ -8,7 +8,7 @@ function exposedStub(name: string, props: string[], exposed: Record<string, unkn
   return defineComponent({
     name,
     props,
-    emits: ['update:open', 'new-tab', 'error'],
+    emits: ['update:open', 'update:focused', 'new-tab', 'error'],
     setup(componentProps, { emit, expose }) {
       expose(exposed)
       return () => h('button', {
@@ -105,7 +105,7 @@ function createHarness(options: { browser?: object; locale?: 'en-US' | 'uk-UA' }
           'open', 'state', 'mcpActivityByTab', 'syncState', 'selectTab', 'expandTabGroup',
           'describeEmulation', 'formatNumber', 'formatTime', 'formatError', 'showError'
         ], handles.tabSearch),
-        FindInPageBar: exposedStub('FindInPageBar', ['open', 'activeTab', 'browser'], handles.find),
+        FindInPageBar: exposedStub('FindInPageBar', ['open', 'focused', 'activeTab', 'browser'], handles.find),
         ZoomBar: exposedStub('ZoomBar', ['open', 'activeTab', 'browser', 'acceptState', 'formatPercent'], handles.zoom),
         AppBrowserCollectionsLayer: exposedStub('AppBrowserCollectionsLayer', [
           'dock', 'controller', 'activeUrl', 'activeTitle', 'currentBookmark', 'formatBytes',
@@ -211,6 +211,21 @@ describe('AppTransientShellLayer', () => {
     expect(wrapper.emitted('update:tabSearchOpen')?.at(-1)).toEqual([false])
     expect(forwarded.newTab).toHaveBeenCalledOnce()
     expect(forwarded.reportZoomError).toHaveBeenCalledOnce()
+  })
+
+  it('passes on whether the keyboard is in Find, which holds following the agents', async () => {
+    const { wrapper } = createHarness()
+    const find = () => wrapper.findComponent({ name: 'FindInPageBar' })
+    const emitFocused = (focused: boolean) => (
+      find() as unknown as { vm: { $emit: (event: string, value: boolean) => void } }
+    ).vm.$emit('update:focused', focused)
+    expect(find().props('focused')).toBe(false)
+    emitFocused(true)
+    expect(wrapper.emitted('update:findFocused')?.at(-1)).toEqual([true])
+    await wrapper.setProps({ findFocused: true })
+    expect(find().props('focused')).toBe(true)
+    emitFocused(false)
+    expect(wrapper.emitted('update:findFocused')?.at(-1)).toEqual([false])
   })
 
   it('shows the palette as commands or as the workspace switcher, one at a time, on one open state', async () => {

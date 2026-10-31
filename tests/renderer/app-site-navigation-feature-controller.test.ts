@@ -1,5 +1,5 @@
 import { render } from '@testing-library/vue'
-import { computed, defineComponent, ref } from 'vue'
+import { computed, defineComponent, nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import { useAppSiteNavigationFeatureController } from '../../src/renderer/src/composables/useAppSiteNavigationFeatureController.js'
 import type { BrowserState, BrowserTabState, BrowsingDataSiteSummary } from '../../src/shared/types.js'
@@ -59,6 +59,7 @@ function createHarness() {
   const tabSearchOpen = ref(true)
   const zoomOpen = ref(true)
   const findOpen = ref(true)
+  const findFocused = ref(false)
   const browser = {
     closeTab: vi.fn(async () => browserState.value),
     navigate: vi.fn(async () => browserState.value),
@@ -111,7 +112,8 @@ function createHarness() {
           updateNoticeOpen,
           tabSearchOpen,
           zoomOpen,
-          findOpen
+          findOpen,
+          findFocused
         },
         site: {
           keepsSeparatePanelOpen: () => false,
@@ -157,6 +159,7 @@ function createHarness() {
     tabSearchOpen,
     zoomOpen,
     findOpen,
+    findFocused,
     closeFind,
     loadSiteSummary,
     showToast,
@@ -188,6 +191,30 @@ describe('app site navigation feature controller', () => {
     })
     harness.view.unmount()
     expect(harness.setFollowAgentActivitySuspended).toHaveBeenLastCalledWith(false)
+  })
+
+  // Following the agents' activity showed another tab while the person read the matches of Find, which closed Find.
+  it('holds following the agents while the keyboard is in Find, as in the address bar', async () => {
+    const harness = createHarness()
+    expect(harness.setFollowAgentActivitySuspended).toHaveBeenLastCalledWith(false)
+    harness.findFocused.value = true
+    await nextTick()
+    expect(harness.setFollowAgentActivitySuspended).toHaveBeenLastCalledWith(true)
+    harness.findFocused.value = false
+    await nextTick()
+    expect(harness.setFollowAgentActivitySuspended).toHaveBeenLastCalledWith(false)
+    harness.findFocused.value = true
+    await nextTick()
+
+    // The keyboard going from Find to the address bar leaves one and enters the other in the same turn, and following
+    // must not resume in between: it could show another tab under the address the person is about to type.
+    harness.setFollowAgentActivitySuspended.mockClear()
+    harness.findFocused.value = false
+    harness.controller.addressBarController.handleFocus()
+    await nextTick()
+    expect(harness.setFollowAgentActivitySuspended).not.toHaveBeenCalled()
+    harness.view.unmount()
+    expect(harness.setFollowAgentActivitySuspended).toHaveBeenCalledExactlyOnceWith(false)
   })
 
   it('disposes tab actions so late navigation failures cannot escape app teardown', async () => {
