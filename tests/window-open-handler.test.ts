@@ -68,8 +68,9 @@ function fixture(options: {
     text,
     agentInputWebContents: agentInput,
     mcpActivitiesByTab: new Map<string, Set<string>>(),
-    tabs: new Map<string, { mcpGroupId?: string }>([[tab.id, tab], [shown.id, shown]]),
+    tabs: new Map<string, { mcpGroupId?: string; pageFullscreen?: boolean }>([[tab.id, tab], [shown.id, shown]]),
     activeTabId: shown.id,
+    splitView: options.splitTabId ? { firstTabId: shown.id, secondTabId: options.splitTabId } : null,
     splitViewContains: (tabId: string) => tabId === options.splitTabId
   }
   let handler!: (details: Details) => Response
@@ -170,6 +171,35 @@ describe('a window a workspace page opens', () => {
     // A page the person clicked moments ago, such as one that opens its window once a request answers, may still open
     // it in front after they moved to another tab, as Chromium lets that click open a window for a few seconds.
     const clicked = fixture({ shownTab: { id: 'other', mcpGroupId: 'client' } })
+    clicked.tab.lastHumanInteractionAt = performance.now()
+    clicked.open(details).createWindow!({ webContents: guestPage() })
+    expect(clicked.createTab).toHaveBeenCalledWith(expect.objectContaining({ active: true, selectVisible: true }))
+  })
+
+  it('opens it behind from a split pane hidden by the other pane\'s page in full screen', () => {
+    // The pane's window took the view, which ended the full screen of the page the person was watching.
+    const hidden = fixture({ shownTab: { id: 'other', mcpGroupId: 'client' }, splitTabId: 'opener' })
+    hidden.browser.tabs.get('other')!.pageFullscreen = true
+    hidden.open(details).createWindow!({ webContents: guestPage() })
+    expect(hidden.createTab).toHaveBeenCalledWith(expect.objectContaining({ active: false, selectVisible: false }))
+    // The pane's own page in full screen is the one the person sees.
+    const filling = fixture({ shownTab: { id: 'other', mcpGroupId: 'client' }, splitTabId: 'opener' })
+    filling.browser.tabs.get('opener')!.pageFullscreen = true
+    filling.open(details).createWindow!({ webContents: guestPage() })
+    expect(filling.createTab).toHaveBeenCalledWith(expect.objectContaining({ active: true, selectVisible: true }))
+    // Also when the hidden pane is the active one, such as after an agent focused its page, and from another workspace.
+    const activeHidden = fixture({ shownTab: { id: 'other', mcpGroupId: 'client' }, splitTabId: 'opener' })
+    activeHidden.browser.tabs.get('other')!.pageFullscreen = true
+    activeHidden.browser.activeTabId = 'opener'
+    activeHidden.open(details).createWindow!({ webContents: guestPage() })
+    expect(activeHidden.createTab).toHaveBeenCalledWith(expect.objectContaining({ active: false, selectVisible: false }))
+    const otherWorkspace = fixture({ shownTab: { id: 'other', mcpGroupId: 'mine' }, splitTabId: 'opener' })
+    otherWorkspace.browser.tabs.get('other')!.pageFullscreen = true
+    otherWorkspace.open(details).createWindow!({ webContents: guestPage() })
+    expect(otherWorkspace.createTab).toHaveBeenCalledWith(expect.objectContaining({ active: false, selectVisible: false }))
+    // A click in the hidden pane moments before still opens its window in front.
+    const clicked = fixture({ shownTab: { id: 'other', mcpGroupId: 'client' }, splitTabId: 'opener' })
+    clicked.browser.tabs.get('other')!.pageFullscreen = true
     clicked.tab.lastHumanInteractionAt = performance.now()
     clicked.open(details).createWindow!({ webContents: guestPage() })
     expect(clicked.createTab).toHaveBeenCalledWith(expect.objectContaining({ active: true, selectVisible: true }))

@@ -6,6 +6,7 @@ import type { Browser } from '../browser.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { workspaceNavigationAllowed } from '../workspace-navigation/workspace-navigation.js'
 import { assertCanCreateTab, pageWebPreferences } from '../new-tabs/tab-admission.js'
+import { shownPageFullscreenTab } from '../window-layout/content-area.js'
 
 /** How long after the person's click or key press Chromium lets a page open a window, its transient user activation. */
 const PERSON_ACTIVATION_MS = 5_000
@@ -47,7 +48,9 @@ function interceptedWindowLoadOptions(postBody: PostBody | undefined, referrer: 
  * the call began: Follow agents shows it through the agent's calls on it, so
  * it waits as for any call, such as while a page fills the window. Only the
  * person's page takes the view with its window: the one they see, or one they
- * clicked or typed in within the time Chromium lets that open a window.
+ * clicked or typed in within the time Chromium lets that open a window. A pane
+ * of the split view is not seen while the other pane's page is in full screen,
+ * and its window opens behind.
  * Chrome's pop-up blocker refuses a window opened without such a click or key
  * press. Another page's window opens behind it when the person sees its
  * workspace, and otherwise becomes its workspace's tab without being shown,
@@ -68,9 +71,13 @@ export function attachWindowOpenHandler(browser: Browser, tab: BrowserTab, webCo
     const personClicked = performance.now() - tab.lastHumanInteractionAt < PERSON_ACTIVATION_MS
     const agentAsked = browser.agentInputWebContents.has(webContents.id) || (browser.mcpActivitiesByTab.has(tab.id)
       && !(personClicked && tab.lastHumanInteractionAt > tab.agentCallStartedAt))
-    const personsPage = !agentAsked && (browser.activeTabId === tab.id || browser.splitViewContains(tab.id) || personClicked)
+    // A pane of the split view is out of view while the other pane's page fills the window.
+    const fullscreenTab = shownPageFullscreenTab(browser)
+    const inView = fullscreenTab ? fullscreenTab === tab : browser.activeTabId === tab.id || browser.splitViewContains(tab.id)
+    const personsPage = !agentAsked && (inView || personClicked)
     const shownWorkspace = browser.activeTabId ? browser.tabs.get(browser.activeTabId)?.mcpGroupId : undefined
-    const behindShownTab = !personsPage && !agentAsked && shownWorkspace === tab.mcpGroupId
+    // A pane of the split view the other pane's page hides stays in the split, so its window opens behind as well.
+    const behindShownTab = !personsPage && !agentAsked && (shownWorkspace === tab.mcpGroupId || browser.splitViewContains(tab.id))
     const active = disposition !== 'background-tab' && !behindShownTab
     const selectVisible = personsPage
     const failed = (creations: OpenedTabCreation[], error: unknown): void => {
