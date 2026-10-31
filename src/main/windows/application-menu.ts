@@ -84,11 +84,9 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
   }
 
   // Actual Size, Zoom In and Zoom Out zoom the page in view as their keys do in Hronaut's window, which leaves Hronaut
-  // Home and a page under Settings at their zoom: Home zoomed from here stayed zoomed, since its keys leave it alone.
-  // Their keys reach the menu only from a window that leaves them alone, and act only from the main window: typed in a
-  // panel in its own window, they would zoom a page out of view.
-  function zoomShownPage(action: 'zoom-reset' | 'zoom-in' | 'zoom-out', window: BaseWindow | undefined, event: KeyboardEvent): void {
-    if (event.triggeredByAccelerator && (window === undefined || window.id !== host.mainWindow()?.id)) return
+  // Home and a page under Settings at their zoom. Their keys reach the menu only where Hronaut's windows leave them to
+  // it, such as the repeats of a held key.
+  function zoomShownPage(action: 'zoom-reset' | 'zoom-in' | 'zoom-out', event: KeyboardEvent): void {
     // Chosen from the menu, the main window may be hidden behind a panel in its own window or in the tray.
     if (!event.triggeredByAccelerator) host.showWindow()
     host.runShortcut(action)
@@ -355,17 +353,17 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
             {
               label: host.text('native.menu.actualSize'),
               accelerator: 'CmdOrCtrl+0',
-              click: (_item, window, event) => zoomShownPage('zoom-reset', window, event)
+              click: (_item, _window, event) => zoomShownPage('zoom-reset', event)
             },
             {
               label: host.text('native.menu.zoomIn'),
               accelerator: 'CmdOrCtrl+Plus',
-              click: (_item, window, event) => zoomShownPage('zoom-in', window, event)
+              click: (_item, _window, event) => zoomShownPage('zoom-in', event)
             },
             {
               label: host.text('native.menu.zoomOut'),
               accelerator: 'CmdOrCtrl+-',
-              click: (_item, window, event) => zoomShownPage('zoom-out', window, event)
+              click: (_item, _window, event) => zoomShownPage('zoom-out', event)
             },
             { role: 'togglefullscreen' }
           ]

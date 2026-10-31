@@ -4,8 +4,8 @@ const installed = vi.hoisted(() => ({ template: [] as Array<{ label?: string; su
 vi.mock('electron', () => ({ Menu: { buildFromTemplate: (template: typeof installed.template) => template, setApplicationMenu: (menu: typeof installed.template) => { installed.template = menu } } }))
 import { createApplicationMenu } from '../src/main/windows/application-menu.js'
 
-// The View menu's Actual Size, Zoom In and Zoom Out zoomed the page in view directly, Hronaut Home and a page under
-// Settings too, which their keys leave alone. Home zoomed from the menu stayed zoomed, since its keys do nothing there.
+// The View menu's Actual Size, Zoom In and Zoom Out zoomed the page in view straight in main, Hronaut Home and a page
+// under Settings too, which their keys leave alone.
 
 const platform = process.platform
 afterEach(() => { Object.defineProperty(process, 'platform', { value: platform }) })
@@ -28,30 +28,30 @@ function menu(on: NodeJS.Platform) {
 const ZOOM_ITEMS = [['native.menu.actualSize', 'CmdOrCtrl+0', 'zoom-reset'], ['native.menu.zoomIn', 'CmdOrCtrl+Plus', 'zoom-in'], ['native.menu.zoomOut', 'CmdOrCtrl+-', 'zoom-out']] as const
 
 describe('the View menu\'s zoom', () => {
-  it.each(['linux', 'win32', 'darwin'] as const)('zooms as its keys do in Hronaut\'s window when chosen, showing the main window, on %s', (on) => {
+  it.each(['linux', 'win32', 'darwin'] as const)('zooms as its keys do in Hronaut\'s window when chosen, showing the main window first, on %s', (on) => {
     const { runShortcut, runNativeBrowserAction, showWindow, item } = menu(on)
     for (const [label, accelerator, action] of ZOOM_ITEMS) {
       expect(item(label).accelerator).toBe(accelerator)
       item(label).click!({}, { id: 2, webContents: {} }, { triggeredByAccelerator: false })
       expect(runShortcut).toHaveBeenLastCalledWith(action)
+      expect(showWindow.mock.invocationCallOrder.at(-1)).toBeLessThan(runShortcut.mock.invocationCallOrder.at(-1)!)
     }
     expect(showWindow).toHaveBeenCalledTimes(3)
     // Not straight on the tab: Hronaut's window leaves Home and a page under Settings at their zoom.
     expect(runNativeBrowserAction).not.toHaveBeenCalled()
   })
 
-  it('acts on its keys only from the main window', () => {
+  it('runs its keys as Hronaut\'s window does, such as the repeats of a held key, without raising the main window', () => {
     const { runShortcut, showWindow, mainWindow, item } = menu('linux')
     for (const [label, , action] of ZOOM_ITEMS) {
       const zoom = item(label)
-      // Typed in a panel in its own window, the key would zoom a page out of view.
-      zoom.click!(zoom, { id: 2, webContents: {} }, { triggeredByAccelerator: true })
-      zoom.click!(zoom, undefined, { triggeredByAccelerator: true })
-      expect(runShortcut).not.toHaveBeenCalled()
       zoom.click!(zoom, mainWindow, { triggeredByAccelerator: true })
-      expect(runShortcut).toHaveBeenCalledExactlyOnceWith(action)
-      runShortcut.mockClear()
+      expect(runShortcut).toHaveBeenLastCalledWith(action)
+      // A panel in its own window zooms the page in view with the key's first press already.
+      zoom.click!(zoom, { id: 2, webContents: {} }, { triggeredByAccelerator: true })
+      expect(runShortcut).toHaveBeenLastCalledWith(action)
     }
+    expect(runShortcut).toHaveBeenCalledTimes(6)
     expect(showWindow).not.toHaveBeenCalled()
   })
 })
