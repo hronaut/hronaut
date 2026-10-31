@@ -10,6 +10,12 @@ const SHORT_DOTTED_NUMBER = /^\d+(?:\.\d+){1,2}\.?(?<rest>(?::\d+)?(?:[/?#].*)?)
 // scheme followed by a value. As in Chrome, a colon followed only by digits names a port. The name starts with a
 // letter, as a scheme does: `16:9` or `10:30` stays a search rather than an address the URL parser reads as a number.
 const SINGLE_LABEL_HOST_WITH_PORT = /^([a-z](?:[a-z\d_-]*[a-z\d])?):\d{1,5}(?:[/?#].*)?$/i
+// A one-word host name followed by a path that ends in a slash, such as `intranet/` or `go/docs/`, or by two of a path,
+// a query and a fragment, such as `wiki/page?id=4`, names a machine on the local network, as in Chrome. A word alone, or
+// one with only a path, a query or a fragment after it, such as `and/or` or `why?`, is a search.
+const SINGLE_LABEL_HOST_WITH_PATH = /^[a-z](?:[a-z\d_-]*[a-z\d])?(?<path>\/[^?#\s]*)?(?<query>\?[^#\s]*)?(?<fragment>#\S*)?$/i
+// The page whose source `view-source:` shows, which Chrome reads as a typed address, so `view-source:example.com` works.
+const VIEW_SOURCE = /^view-source:(?<page>.*)$/is
 // Links whose whole value can be a short number, such as `tel:911` or a SIP extension, stay links. A web scheme such as
 // `http:3000` stays as typed too, so the address an agent's capability profile checks is the one the tab loads.
 const KEPT_SCHEMES: ReadonlySet<string> = new Set([
@@ -85,6 +91,13 @@ function isShortNumberSearch(value: string): boolean {
   return !rest || !(isLoopbackAddress(value) || isLocalNetworkAddress(value))
 }
 
+function isSingleLabelHostAddress(value: string): boolean {
+  const parts = SINGLE_LABEL_HOST_WITH_PATH.exec(value)?.groups
+  if (!parts) return false
+  const { path = '', query = '', fragment = '' } = parts
+  return path.endsWith('/') || [path, query.slice(1), fragment.slice(1)].filter(Boolean).length > 1
+}
+
 function hasSchemeLessUserInfo(value: string): boolean {
   const authorityEnd = value.search(/[/?#]/)
   const authority = authorityEnd < 0 ? value : value.slice(0, authorityEnd)
@@ -117,7 +130,19 @@ export function isAgentWorkspaceNavigationUrl(value: string): boolean {
 export function webAddress(input: string): string | undefined {
   const value = input.trim()
   if (!value) return 'about:blank'
-  if (/^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(value) || /^(about|data|file|view-source):/i.test(value)) return value
+  const viewedPage = VIEW_SOURCE.exec(value)?.groups?.page
+  if (viewedPage !== undefined) {
+    // As in Chrome, the source of a source page is not an address, so a long chain of them is never read one by one.
+    if (/^\s*view-source:/i.test(viewedPage)) return value
+    const page = webAddress(viewedPage)
+    return page && isWebUrl(page) ? `view-source:${page}` : value
+  }
+  if (/^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(value) || /^(about|data|file):/i.test(value)) return value
+  // A one-word name names a machine on the local network rather than a public site, so it opens over HTTP.
+  if (isSingleLabelHostAddress(value)) {
+    const candidate = `http://${value}`
+    return URL.canParse(candidate) ? candidate : undefined
+  }
   if (!hasSchemeLessUserInfo(value) && !isShortNumberSearch(value) && HOST_LIKE_PATTERN.test(value)) {
     const plainHttp = !namesHttpsPort(value) && (isLoopbackAddress(value) || isLocalNetworkAddress(value))
     const candidate = `${plainHttp ? 'http' : 'https'}://${value}`
