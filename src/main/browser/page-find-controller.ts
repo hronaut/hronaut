@@ -1,5 +1,9 @@
 import type { WebContents } from 'electron'
 import { ISOLATED_WORLDS } from './isolated-worlds.js'
+import { pageScriptsRunNow } from './page-script-readiness.js'
+
+// Only its user gesture counts: it runs in a world of its own and leaves nothing in the page.
+const ACTIVATION_ONLY_SCRIPT = 'void 0'
 
 /** Chromium has one active find operation per page. Mirror that lifecycle. */
 export class PageFindController {
@@ -83,11 +87,16 @@ export class PageFindController {
     const activate = action === 'activateSelection' && this.matched.has(webContents)
     this.matched.delete(webContents)
     this.sessionQueries.delete(webContents)
-    // The person's key went to Find, not to the page, so the click came with no user activation: Chromium then skipped
-    // the page the link left on Back, as it skips pages that move on by themselves. The click is the person's, as their
-    // own click on the link would be, so the page gets their activation first, from a script that does nothing.
-    if (activate) void webContents.executeJavaScriptInIsolatedWorld(ISOLATED_WORLDS.findMatchClick, [{ code: 'void 0' }], true)
-      .catch(() => undefined)
+    // The person's key went to Find, not to the page, so the click had no user activation, and Chromium skipped on Back
+    // the page the link left, as it skips pages that move on by themselves. A script sent with a user gesture marks the
+    // page's main frame as activated in Electron's browser process when it is sent, before the link's page can commit,
+    // which is when Chromium reads that mark, so Back keeps the page. The click itself still runs without activation.
+    // A script that waits for the next document would give that document the activation, so the page gets it only when
+    // the script runs now.
+    if (activate && pageScriptsRunNow(webContents)) {
+      void webContents.executeJavaScriptInIsolatedWorld(ISOLATED_WORLDS.findMatchClick, [{ code: ACTIVATION_ONLY_SCRIPT }], true)
+        .catch(() => undefined)
+    }
     webContents.stopFindInPage(activate ? 'activateSelection' : action === 'keepSelection' ? 'keepSelection' : 'clearSelection')
     return activate
   }

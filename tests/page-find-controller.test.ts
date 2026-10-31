@@ -12,14 +12,16 @@ function fixture() {
   const contents = Object.assign(new EventEmitter(), {
     findInPage: vi.fn(() => ++requestId),
     stopFindInPage: vi.fn(),
-    executeJavaScriptInIsolatedWorld: vi.fn(() => Promise.resolve())
+    executeJavaScriptInIsolatedWorld: vi.fn(() => Promise.resolve()),
+    getURL: vi.fn(() => 'https://example.test/'),
+    isLoadingMainFrame: vi.fn(() => false)
   })
   const controller = new PageFindController()
   const webContents = contents as unknown as WebContents
   return {
     contents,
     search: () => controller.search(webContents, 'needle', {}),
-    stop: (action?: 'clearSelection' | 'activateSelection') => controller.stop(webContents, action),
+    stop: (action?: 'clearSelection' | 'keepSelection' | 'activateSelection') => controller.stop(webContents, action),
     complete: (id = requestId, finalUpdate = true) => contents.emit('found-in-page', {}, {
       requestId: id, finalUpdate, activeMatchOrdinal: 1, matches: 3
     })
@@ -177,35 +179,48 @@ it('clears the selection when a search ends, and clicks only an active match a s
 
 // The person's Ctrl+Enter went to Find, not to the page, so Chromium clicked the link with no user activation and
 // skipped the page the link left on Back, as it skips pages that move on by themselves.
-it('gives the page the person\'s activation before it clicks the match, and only then', async () => {
+it('marks the page activated, by a script with a user gesture, when it clicks the match, and only then', async () => {
   const page = fixture()
   const calls: string[] = []
   page.contents.executeJavaScriptInIsolatedWorld.mockImplementation(((worldId: number, scripts: { code: string }[], userGesture: boolean) => {
     calls.push(`activate ${worldId} ${JSON.stringify(scripts)} ${userGesture}`)
+    // As for a page that went away meanwhile: the rejection is handled.
     return Promise.reject(new Error('Page went away'))
   }) as never)
   page.contents.stopFindInPage.mockImplementation(((action: string) => { calls.push(`stop ${action}`) }) as never)
+  const settle = async (activeMatchOrdinal = 1) => {
+    const search = page.search()
+    const requestId = page.contents.findInPage.mock.results.at(-1)!.value as number
+    page.contents.emit('found-in-page', {}, { requestId, finalUpdate: true, activeMatchOrdinal, matches: activeMatchOrdinal ? 3 : 0 })
+    await search
+  }
 
-  const search = page.search()
-  page.complete()
-  await search
+  await settle()
   expect(page.stop('activateSelection')).toBe(true)
   expect(calls).toEqual([`activate ${ISOLATED_WORLDS.findMatchClick} [{"code":"void 0"}] true`, 'stop activateSelection'])
 
-  // Nothing to click: no search, a search with no match, or a stop that does not click.
+  // Nothing to click: no search, a search with no match, a stop that does not click, or a newer search not answered.
   calls.length = 0
   expect(page.stop('activateSelection')).toBe(false)
-  const empty = page.search()
-  page.contents.emit('found-in-page', {}, { requestId: page.contents.findInPage.mock.results.at(-1)!.value, finalUpdate: true, activeMatchOrdinal: 0, matches: 0 })
-  await empty
+  await settle(0)
   expect(page.stop('activateSelection')).toBe(false)
-  const matched = page.search()
-  page.complete()
-  await matched
+  await settle()
   expect(page.stop()).toBe(false)
-  expect(calls).toEqual(['stop clearSelection', 'stop clearSelection', 'stop clearSelection'])
-  // A page that went away meanwhile leaves no unhandled rejection.
-  await Promise.resolve()
+  await settle()
+  expect(page.stop('keepSelection')).toBe(false)
+  await settle()
+  const unanswered = page.search().catch(() => undefined)
+  expect(page.stop('activateSelection')).toBe(false)
+  await unanswered
+  expect(calls).toEqual(['stop clearSelection', 'stop clearSelection', 'stop clearSelection', 'stop keepSelection', 'stop clearSelection'])
+
+  // A script sent while the page loads its next document would wait for it and activate that one instead: the match is
+  // still clicked, without the mark.
+  calls.length = 0
+  page.contents.isLoadingMainFrame.mockReturnValue(true)
+  await settle()
+  expect(page.stop('activateSelection')).toBe(true)
+  expect(calls).toEqual(['stop activateSelection'])
 })
 
 it('ends a search session before a new one finds the same text again, so its active match can still be clicked', () => {

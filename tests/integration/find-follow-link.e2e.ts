@@ -69,6 +69,11 @@ test('Ctrl+Enter in Find closes it and follows the link the match is in, as Chro
     expect(await inPage('window.clicked')).toEqual([])
     await setLocked(false)
 
+    // A new document, which no Ctrl+Enter above gave the person's activation: the one that follows the link must.
+    await appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.reload(tabId), tabId)
+    await expect.poll(async () => (await activeTab())?.loading).toBe(false)
+    expect(await inPage('navigator.userActivation.hasBeenActive')).toBe(false)
+
     // Ctrl+Enter searched again like Enter, so the link a match is in could only be followed by closing Find and
     // clicking it. Here the text is typed key by key.
     await appWindow.getByRole('button', { name: 'Find in page', exact: true }).click()
@@ -84,7 +89,6 @@ test('Ctrl+Enter in Find closes it and follows the link the match is in, as Chro
     // Back returns to the page the link left: the click came with no user activation, and Chromium skipped that page.
     // Find opens again on its last text, which is typed again and searched with Match case: searches that find the
     // same text again left Chromium nothing to click.
-    await expect(appWindow.getByRole('button', { name: 'Back', exact: true })).toBeEnabled()
     await appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.back(tabId), tabId)
     await expect.poll(async () => { const tab = await activeTab(); return tab?.url === url && !tab.loading }).toBe(true)
     await find('pricing', '1 / 1')
