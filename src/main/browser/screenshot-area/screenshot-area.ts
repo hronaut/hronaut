@@ -9,6 +9,8 @@ import type { BrowserTab } from '../browser-tab.js'
 import { withRenderableTab } from '../renderable-tab/renderable-tab.js'
 import { syncHumanInteractionInputGuard } from '../interaction-lock/human-input-guard.js'
 import { callThroughPageDialogs } from '../page-dialog-waits.js'
+import { PrintDialogOpenError, whenPrintDialogCloses } from '../print-dialog-guard.js'
+import { WebsiteDialogOpenError, whenWebsiteDialogCloses } from '../website-dialog-guard.js'
 
 /** The area a person dragged on a page, in its viewport, or that they canceled. */
 export interface BrowserScreenshotAreaResult {
@@ -31,6 +33,25 @@ function nativeSelectionContextUnavailable(error: unknown): boolean {
 }
 
 /**
+ * Removes the area selection's overlay from the page, resolving whether it was there. While the page's print or
+ * website dialog holds the page, the script is refused unsent; it then runs once the dialog closes, unless another
+ * selection has started on the page by then, whose script removes the overlay itself.
+ */
+async function removeScreenshotArea(browser: Browser, webContents: BrowserTab['webContents']): Promise<boolean> {
+  try {
+    return await webContents.executeJavaScript(cancelScreenshotAreaScript(), true) as boolean
+  } catch (error) {
+    const dialogClosed = error instanceof PrintDialogOpenError && !error.sent ? whenPrintDialogCloses(webContents)
+      : error instanceof WebsiteDialogOpenError && !error.sent ? whenWebsiteDialogCloses(webContents) : undefined
+    if (!dialogClosed) throw error
+    void dialogClosed.then(() => {
+      if (!browser.screenshotAreaSessions.has(webContents.id)) return removeScreenshotArea(browser, webContents)
+    }).catch(() => undefined)
+    return false
+  }
+}
+
+/**
  * Lets the person drag an area on a website tab's page and captures it as a
  * PNG, replacing a selection already in progress on that page. Native mouse
  * input reaches the selection overlay through the input queue; the result is
@@ -45,7 +66,7 @@ export async function captureScreenshotArea(browser: Browser, tabId?: string): P
   if (existing) {
     existing.canceled = true
     existing.resolve({ canceled: true })
-    await webContents.executeJavaScript(cancelScreenshotAreaScript(), true).catch(() => false)
+    await removeScreenshotArea(browser, webContents).catch(() => false)
   }
   const session = createNativeSelectionSession<BrowserScreenshotAreaResult>() as BrowserScreenshotAreaSession
   tab.nativeInputEnvironmentGeneration += 1
@@ -69,14 +90,14 @@ export async function captureScreenshotArea(browser: Browser, tabId?: string): P
       return { canceled: true }
     }
     await session.inputQueue.catch(() => undefined)
-    await webContents.executeJavaScript(cancelScreenshotAreaScript(), true).catch(() => false)
+    await removeScreenshotArea(browser, webContents).catch(() => false)
     const data = await captureScreenshotAreaSelection(browser, tab, selection)
     if (session.canceled || browser.screenshotAreaSessions.get(webContents.id) !== session) return { canceled: true }
     return { canceled: false, data }
   } finally {
     if (browser.screenshotAreaSessions.get(webContents.id) === session) {
       session.canceled = true
-      await webContents.executeJavaScript(cancelScreenshotAreaScript(), true).catch(() => false)
+      await removeScreenshotArea(browser, webContents).catch(() => false)
       // Cleanup can finish after a replacement selection starts.
       if (browser.screenshotAreaSessions.get(webContents.id) === session) {
         browser.screenshotAreaSessions.delete(webContents.id)
@@ -94,7 +115,7 @@ export async function cancelScreenshotArea(browser: Browser, tabId?: string): Pr
     session.canceled = true
     session.resolve({ canceled: true })
   }
-  return tab.webContents.executeJavaScript(cancelScreenshotAreaScript(), true) as Promise<boolean>
+  return removeScreenshotArea(browser, tab.webContents)
 }
 
 /** Captures the selected area of the tab's rendered page, scaled from its viewport to the view, as a PNG. */
