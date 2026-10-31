@@ -257,9 +257,10 @@ export async function createTab(browser: Browser, options: {
   if (asleep) holdUntilFirstLoad(view.webContents)
   const openedBy = options.adopt && options.openedFrom ? browser.tabs.get(options.openedFrom.tabId) : undefined
   attachTabEvents(browser, tab, openedBy?.webContents)
-  // A page opened for a window closes its tab when it closes itself. Other tabs keep their recovery from a page
-  // destroyed under them, as tests and Electron destroy pages for other reasons.
-  if (options.adopt) attachPageCloseEvents(browser, tab, view.webContents)
+  // A page that closes itself closes its tab: a page opened for a window, as a sign-in popup, and one that a desktop
+  // app's sign-in ends on, which asks to be closed. Electron lets a page close itself whatever its history, which Chrome
+  // allows only to a page opened for a window or still on its first entry, so its tab never stays without its page.
+  attachPageCloseEvents(browser, tab, view.webContents)
   // Restore all tabs before selecting the saved global tab. Selecting the first
   // recreated tab here would overwrite its workspace's remembered selection.
   if ((options.active && options.selectVisible !== false) || (!browser.activeTabId && !browser.restoringLayout)) {

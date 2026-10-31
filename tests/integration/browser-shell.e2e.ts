@@ -2504,7 +2504,8 @@ test('cancels a pending wallet approval as soon as its website renderer is destr
     await electronApp.evaluate(({ webContents }, requestedUrl) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
       if (!page) throw new Error('Wallet teardown WebContents was not found')
-      page.close()
+      // Electron's destroy, which its typings leave out, takes the page away without the page closing itself.
+      ;(page as unknown as { destroy(): void }).destroy()
     }, url)
 
     await expect.poll(async () => {
@@ -2810,7 +2811,8 @@ test('keeps shell state usable when Electron destroys a tab WebContents independ
   await electronApp.evaluate(({ webContents }, requestedUrl) => {
     const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
     if (!page) throw new Error('Native teardown fixture WebContents was not found')
-    page.close()
+    // Electron's destroy, which its typings leave out, takes the page away without the page closing itself.
+    ;(page as unknown as { destroy(): void }).destroy()
   }, url)
 
   await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => ({

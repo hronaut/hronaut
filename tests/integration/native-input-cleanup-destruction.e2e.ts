@@ -31,7 +31,8 @@ for (const mode of ['destroy', 'live'] as const) {
         // leave this promise pending when its original target disappears.
         const evaluating = original.call(page, script, ...args)
         probe.entered = true
-        if (mode === 'destroy') page.close()
+        // Electron's destroy, which its typings leave out, takes the page away without the page closing itself.
+        if (mode === 'destroy') (page as unknown as { destroy(): void }).destroy()
         const result = await evaluating
         probe.acknowledged = true
         if (mode === 'live') await barrier

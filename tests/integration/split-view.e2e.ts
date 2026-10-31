@@ -357,7 +357,8 @@ test('rejects a destroyed split target without corrupting the active tab or late
   await electronApp.evaluate(({ webContents }, url) => {
     const target = webContents.getAllWebContents().find((contents) => contents.getURL() === url)
     if (!target) throw new Error('Destroyed split target was not found')
-    target.close()
+    // Electron's destroy, which its typings leave out, takes the page away without the page closing itself.
+    ;(target as unknown as { destroy(): void }).destroy()
   }, destroyedUrl)
 
   await appWindow.getByRole('button', { name: 'Split view', exact: true }).click()
@@ -378,7 +379,7 @@ test('rejects a destroyed split target without corrupting the active tab or late
   await electronApp.evaluate(({ webContents }, url) => {
     const active = webContents.getAllWebContents().find((contents) => contents.getURL() === url)
     if (!active) throw new Error('Live split source was not found')
-    active.close()
+    ;(active as unknown as { destroy(): void }).destroy()
   }, activeUrl)
 
   await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => ({
@@ -414,7 +415,7 @@ test('collapses an open split when Electron destroys either native pane', async 
   await electronApp.evaluate(({ webContents }, url) => {
     const pane = webContents.getAllWebContents().find((contents) => contents.getURL() === url)
     if (!pane) throw new Error('Split teardown pane was not found')
-    pane.close()
+    ;(pane as unknown as { destroy(): void }).destroy()
   }, secondUrl)
 
   await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.splitView)')).toBeUndefined()
@@ -444,7 +445,7 @@ test('collapses an open split when Electron destroys either native pane', async 
   await electronApp.evaluate(({ webContents }, url) => {
     const pane = webContents.getAllWebContents().find((contents) => contents.getURL() === url)
     if (!pane) throw new Error('Active split teardown pane was not found')
-    pane.close()
+    ;(pane as unknown as { destroy(): void }).destroy()
   }, activeTeardownUrl)
 
   await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.splitView)')).toBeUndefined()
