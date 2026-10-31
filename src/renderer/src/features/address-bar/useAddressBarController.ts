@@ -663,6 +663,10 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
       ([tabId, url, navigationGeneration], [previousTabId, previousUrl, previousGeneration]) => {
         if (disposed) return
         const tabChanged = previousTabId !== undefined && tabId !== previousTabId
+        // A navigation that starts on the tab, such as the one a sent address starts, leaves the field as it is: the
+        // sent address stays shown while the destination connects, as in Chrome. Only the count of navigations kept
+        // with an edit needs it.
+        if (!tabChanged && previousTabId !== undefined && url === previousUrl && navigationGeneration !== previousGeneration) return
         // As in Chrome, what was typed for the tab left and not sent is shown again on coming back to it. A field emptied
         // shows the page's address again.
         if (tabChanged && dirty.value && (address.value || keywordMode.keyword.value)) {

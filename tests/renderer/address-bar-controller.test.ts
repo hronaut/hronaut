@@ -335,6 +335,34 @@ describe('address bar controller', () => {
     await submission
   })
 
+  it('keeps a submitted address visible when the navigation it starts is counted before the destination answers', async () => {
+    // The count of the tab's navigations went up as the sent address started loading, and the field went back to the
+    // blank page's empty address while the destination was still connecting.
+    vi.useFakeTimers()
+    let finishNavigation!: () => void
+    const navigation = new Promise<void>((resolve) => {
+      finishNavigation = resolve
+    })
+    const rendered = createHarness({ activeTab: tab('first', 'about:blank'), onNavigate: async () => navigation })
+    const input = screen.getByRole<HTMLInputElement>('textbox', { name: 'Address' })
+    const targetUrl = 'http://127.0.0.1:8080/still-connecting'
+    await fireEvent.focus(input)
+    await fireEvent.update(input, targetUrl)
+
+    const submission = rendered.controller.submit()
+    await vi.runAllTimersAsync()
+    rendered.activeTab.value = { ...tab('first', 'about:blank'), loading: true, navigationGeneration: 1 }
+    await nextTick()
+    expect(input).toHaveValue(targetUrl)
+
+    // The destination's page shows its own address.
+    rendered.activeTab.value = { ...tab('first', targetUrl), navigationGeneration: 1 }
+    await nextTick()
+    expect(input).toHaveValue(targetUrl)
+    finishNavigation()
+    await submission
+  })
+
   it('preserves an address selection when the current page commits before typing starts', async () => {
     const rendered = createHarness()
     const input = screen.getByRole<HTMLInputElement>('textbox', { name: 'Address' })
