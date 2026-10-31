@@ -16,7 +16,7 @@ import { appendConsoleMessage, retainRuntimeConsoleMessage } from '../console-me
 import { setEmulationViewSize } from '../emulation/emulation-view-size.js'
 import { addInspectorIssue } from '../inspector-issues/inspector-issues.js'
 import { queueNetworkRouteRequest } from '../network-conditions/network-conditions.js'
-import { dismissWebsiteDialogForTrustedChrome, ensureDialogMonitoring } from '../website-dialogs/website-dialogs.js'
+import { closeWebsiteDialogBox, dismissWebsiteDialogForTrustedChrome, ensureDialogMonitoring } from '../website-dialogs/website-dialogs.js'
 import { publishChange } from '../browser-state/browser-state.js'
 
 /**
@@ -105,6 +105,7 @@ export function attachDebuggerEvents(browser: Browser, tab: BrowserTab, webConte
       publishChange(browser, false)
     } else if (method === 'Page.javascriptDialogClosed') {
       tab.dialog = undefined
+      closeWebsiteDialogBox(webContents)
       publishChange(browser, false)
     } else if (method === 'Audits.issueAdded') {
       addInspectorIssue(browser, tab, (params as { issue?: unknown }).issue)
