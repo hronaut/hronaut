@@ -64,11 +64,11 @@ function savePageFile(webContents: WebContents, filePath: string): Promise<void>
 }
 
 /**
- * Chrome's Save Page As: the system's save dialog, opening in the download folder with the page's title as its name,
- * then the page as it is now, with the images and other files it shows in a folder beside it (Webpage, Complete) or,
- * for a name ending in `.mhtml`, as one file (Webpage, Single File). Nothing opens behind trusted chrome, on a tab
- * whose human input lock holds the person's input back, for Hronaut Home, a sleeping page or one whose renderer is
- * gone, nor while the page's save dialog is already open. A page that went away, or started or finished loading
+ * Chrome's Save Page As: the system's save dialog, opening where the last save dialog saved (see saveDialogFolder) with
+ * the page's title as its name, then the page as it is now, with the images and other files it shows in a folder beside
+ * it (Webpage, Complete) or, for a name ending in `.mhtml`, as one file (Webpage, Single File). Nothing opens behind
+ * trusted chrome, on a tab whose human input lock holds the person's input back, for Hronaut Home, a sleeping page or
+ * one whose renderer is gone, nor while the page's save dialog is already open. A page that went away, or started or finished loading
  * another page, while the dialog was open is not saved, so the file never holds another page than the one chosen; a
  * page changing its own address, as a web app does, still is. Says whether it saved the page; a save that fails
  * rejects.

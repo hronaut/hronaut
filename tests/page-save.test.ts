@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SaveDialogOptions, SaveDialogReturnValue, WebContents } from 'electron'
 import type { Browser } from '../src/main/browser/browser.js'
 import type { BrowserTab } from '../src/main/browser/browser-tab.js'
+import { checkSaveDialogFolder } from '../src/main/browser/downloads/save-dialog-folder.js'
 import { savedPageFilename, savedPageType, savePageAs, saveShownPage } from '../src/main/browser/page-save/page-save.js'
 import type { LocalizedError } from '../src/main/localized-error.js'
 
@@ -114,6 +115,8 @@ describe('Save Page As', () => {
       const chosen = join(last, 'pages', 'guide.html')
       await mkdir(join(last, 'pages'))
       const { browser, tab, showSaveDialog, kept } = harness({ saveDialogDirectory: last, choose: async () => ({ canceled: false, filePath: chosen }) })
+      // As at startup, the kept folder is looked at before the first dialog.
+      await checkSaveDialogFolder(browser)
       await expect(savePageAs(browser, tab)).resolves.toBe(true)
       expect(showSaveDialog.mock.calls[0]?.[0]?.defaultPath).toBe(join(last, 'Guide- Getting started.html'))
       expect(kept()).toBe(join(last, 'pages'))

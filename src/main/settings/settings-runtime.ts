@@ -145,8 +145,13 @@ export function createSettingsRuntime(host: SettingsRuntimeHost): {
       downloadDirectory: effectiveDownloadDirectory(),
       askWhereToSaveDownloads: host.state.current.askWhereToSaveDownloads,
       getSaveDialogDirectory: () => host.state.current.saveDialogDirectory,
-      // A folder that could not be kept only leaves the next save dialog where it would have started.
-      setSaveDialogDirectory: (folder) => { void updateSettings({ saveDialogDirectory: folder }).catch(() => undefined) }
+      // A folder that could not be kept only leaves the next save dialog where it would have started. The folder is left
+      // out of the warning, as it can name the person.
+      setSaveDialogDirectory: (folder) => {
+        void updateSettings({ saveDialogDirectory: folder }).catch((error: NodeJS.ErrnoException) => {
+          console.warn(`[settings] The folder the next save dialog starts in could not be saved (${error.code ?? 'error'}).`)
+        })
+      }
     }
   }
 

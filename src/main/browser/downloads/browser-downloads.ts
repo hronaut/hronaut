@@ -9,7 +9,7 @@ import { workspaceSession } from '../workspace-data/workspace-data.js'
 import { workspaceNavigationAllowed } from '../workspace-navigation/workspace-navigation.js'
 import { assertWorkspaceIdle } from '../workspace-operations/workspace-operations.js'
 import { BrowserDownloadsController } from './downloads-controller.js'
-import { rememberSaveDialogFolder, saveDialogFolder } from './save-dialog-folder.js'
+import { checkSaveDialogFolder, rememberSaveDialogFolder, saveDialogFolder } from './save-dialog-folder.js'
 import { DOWNLOADS_IPC } from '../../../shared/ipc/downloads.js'
 import { sendTo } from '../../typed-ipc.js'
 
@@ -18,6 +18,8 @@ import { sendTo } from '../../typed-ipc.js'
  * retry uses, and the Downloads panel they are shown in.
  */
 export function createDownloadsController(browser: Browser): BrowserDownloadsController {
+  // Known by the first save dialog, which may come as soon as a page opens.
+  void checkSaveDialogFolder(browser)
   return new BrowserDownloadsController({
     getSettings: () => ({
       // The folder a download is saved in, or its save dialog starts in, as in Chrome, when Hronaut asks where to save.
