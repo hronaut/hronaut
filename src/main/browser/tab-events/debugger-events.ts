@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import type { WebContents } from 'electron'
 import {
   normalizeConsoleLogEntry,
@@ -97,6 +98,7 @@ export function attachDebuggerEvents(browser: Browser, tab: BrowserTab, webConte
         return
       }
       tab.dialog = {
+        id: randomUUID(),
         type: details.type as BrowserJavaScriptDialog['type'],
         message: String(details.message ?? '').slice(0, 4096),
         url: String(details.url ?? tab.url).slice(0, 8192),

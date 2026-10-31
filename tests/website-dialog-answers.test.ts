@@ -38,7 +38,7 @@ function fixture() {
   debuggerEvents.on('message', (_event: unknown, method: string) => {
     if (method === 'Page.javascriptDialogClosed') closeWebsiteDialogBox(webContents as never)
   })
-  const tab: { id: string, webContents: typeof webContents, dialog?: { type: DialogType, message: string } } = { id: 'tab-1', webContents }
+  const tab: { id: string, webContents: typeof webContents, dialog?: { id?: string, type: DialogType, message: string } } = { id: 'tab-1', webContents }
   const debuggerQueue = new BrowserDebuggerQueue()
   const dialogMonitorAttachPromises = new Map<number, Promise<void>>()
   const browser = {
@@ -108,6 +108,27 @@ describe('answering website dialogs through the debugger', () => {
     await new Promise((resolve) => setImmediate(resolve))
     await expect(handleDialog(f.browser, 'accept', f.tab.id)).resolves.toEqual({ handled: true, action: 'accept' })
     expect(f.events).toEqual(['box shown', 'closed by accept', 'box closed'])
+  })
+
+  // The agent read a confirm; the person answered it, and the page asked another one, which took the agent's answer.
+  it('answers only the dialog the agent read when it names it', async () => {
+    const f = fixture()
+    const read = '5f0c8a1e-2b3d-4e6f-8a9b-0c1d2e3f4a5b'
+    f.pageOpens('confirm', 'shows a box')
+    f.tab.dialog = { id: read, type: 'confirm', message: 'Save the draft?' }
+    await new Promise((resolve) => setImmediate(resolve))
+    f.close('the person')
+    f.tab.dialog = undefined
+    await expect(handleDialog(f.browser, 'accept', f.tab.id, read))
+      .rejects.toThrow('That dialog was already answered and no dialog is showing; nothing was answered.')
+    f.pageOpens('confirm', 'shows a box')
+    f.tab.dialog = { id: '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d', type: 'confirm', message: 'Delete the draft?' }
+    await new Promise((resolve) => setImmediate(resolve))
+    await expect(handleDialog(f.browser, 'accept', f.tab.id, read))
+      .rejects.toThrow('That dialog was already answered and the page now shows another one; nothing was answered. Read it before answering it.')
+    expect(f.webContents.debugger.sendCommand).not.toHaveBeenCalledWith('Page.handleJavaScriptDialog', expect.anything())
+    await expect(handleDialog(f.browser, 'dismiss', f.tab.id, '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d')).resolves.toEqual({ handled: true, action: 'dismiss' })
+    expect(f.events).toEqual(['box shown', 'closed by the person', 'box shown', 'closed by dismiss', 'box closed'])
   })
 
   it('closes no box for a dialog the person answered in it', async () => {

@@ -21,6 +21,8 @@ export interface BrowserPageProblem {
 export type BrowserJavaScriptDialogType = 'alert' | 'confirm' | 'prompt'
 
 export interface BrowserJavaScriptDialog {
+  /** This showing of the dialog; the page's next dialog, even with the same text, gets another. */
+  id: string
   type: BrowserJavaScriptDialogType
   message: string
   url: string

@@ -28,12 +28,21 @@ export function agentAnswersWebsiteDialogs(webContents: WebContents): boolean {
   return agentActionsAnsweringDialogs.has(webContents)
 }
 
-/** Accepts or dismisses the website dialog the tab shows. */
-export async function handleDialog(browser: Browser, action: BrowserDialogAction, tabId?: string): Promise<{
+/**
+ * Accepts or dismisses the website dialog the tab shows. Given the id of the dialog the agent read, it answers only that
+ * one: after the person answered it, the page's next dialog, such as one asking to delete something, would take the
+ * agent's answer instead.
+ */
+export async function handleDialog(browser: Browser, action: BrowserDialogAction, tabId?: string, dialogId?: string): Promise<{
   handled: true
   action: BrowserDialogAction
 }> {
   const tab = getTab(browser, tabId)
+  if (dialogId !== undefined && tab.dialog?.id !== dialogId) {
+    throw new Error(tab.dialog
+      ? 'That dialog was already answered and the page now shows another one; nothing was answered. Read it before answering it.'
+      : 'That dialog was already answered and no dialog is showing; nothing was answered.')
+  }
   const webContents = tab.webContents
   const answer = { accept: action === 'accept' }
   // The browser answers a dialog the page shows through the attached debugger, without the page. So the answer takes

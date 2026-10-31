@@ -12,13 +12,17 @@ export function registerBrowserDialog(context: McpToolContext): void {
       description: toolDescription('browser_dialog'),
       inputSchema: {
         action: z.enum(['accept', 'dismiss']),
-        tabId: tabIdSchema.optional()
+        tabId: tabIdSchema.optional(),
+        dialogId: z.string().uuid().optional().describe(
+          'The id of the dialog you read, from the tab\'s dialog or the note that named it. Only that dialog is answered, not one the page showed after it.'
+        )
       }
     },
-    tabTool('browser_dialog', async ({ action, tabId }: {
+    tabTool('browser_dialog', async ({ action, tabId, dialogId }: {
       action: 'accept' | 'dismiss'
       tabId?: string
-    }) => textResult(await handleDialog(manager, action, tabId))),
+      dialogId?: string
+    }) => textResult(await handleDialog(manager, action, tabId, dialogId))),
     { alongsideWorkspaceChange: true }
   )
 }
