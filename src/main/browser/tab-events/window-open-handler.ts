@@ -41,15 +41,16 @@ function interceptedWindowLoadOptions(postBody: PostBody | undefined, referrer: 
  * remembers the tab that opened it while the two pages can reach each
  * other. A tab outside a workspace loads the address in a new tab with the
  * referrer and form post carried over. A workspace tab's new tab goes beside
- * it, as in Chrome. A tab opened by an agent's input is not shown: Follow
- * agents shows it through the agent's calls on it, so it waits as for any
- * call, such as while a page fills the window. Only the person's page takes
- * the view with its window: the one they see, or one they clicked or typed in
- * within the time Chromium lets that open a window. Chrome's pop-up blocker
- * refuses a window opened without such a click or key press. Another page's
- * window opens behind it when the person sees its workspace, and otherwise
- * becomes its workspace's tab without being shown, as for an agent's input or
- * tool call on the page.
+ * it, as in Chrome. A tab opened by an agent's input or tool call on the
+ * page is not shown, even from the page the person sees, unless they clicked
+ * or typed in that page moments before: Follow agents shows it through the
+ * agent's calls on it, so it waits as for any call, such as while a page
+ * fills the window. Only the person's page takes the view with its window:
+ * the one they see, or one they clicked or typed in within the time Chromium
+ * lets that open a window. Chrome's pop-up blocker refuses a window opened
+ * without such a click or key press. Another page's window opens behind it
+ * when the person sees its workspace, and otherwise becomes its workspace's
+ * tab without being shown, as an agent's does.
  */
 export function attachWindowOpenHandler(browser: Browser, tab: BrowserTab, webContents: WebContents): void {
   webContents.setWindowOpenHandler(({ url, disposition, postBody, referrer }) => {
@@ -63,14 +64,14 @@ export function attachWindowOpenHandler(browser: Browser, tab: BrowserTab, webCo
       && !workspaceNavigationAllowed(browser, tab.mcpGroupId, url, 'popup')) return blocked()
     // Decided now: Chromium creates the page for the window later, when the agent's input may have ended and the
     // person may have switched tabs.
-    const agentInput = browser.agentInputWebContents.has(webContents.id)
-    const personsPage = browser.activeTabId === tab.id || browser.splitViewContains(tab.id)
-      || performance.now() - tab.lastHumanInteractionAt < PERSON_ACTIVATION_MS
+    const personClicked = performance.now() - tab.lastHumanInteractionAt < PERSON_ACTIVATION_MS
+    const agentAsked = browser.agentInputWebContents.has(webContents.id)
+      || (browser.mcpActivitiesByTab.has(tab.id) && !personClicked)
+    const personsPage = !agentAsked && (browser.activeTabId === tab.id || browser.splitViewContains(tab.id) || personClicked)
     const shownWorkspace = browser.activeTabId ? browser.tabs.get(browser.activeTabId)?.mcpGroupId : undefined
-    const behindShownTab = !personsPage && !agentInput && !browser.mcpActivitiesByTab.has(tab.id)
-      && shownWorkspace === tab.mcpGroupId
+    const behindShownTab = !personsPage && !agentAsked && shownWorkspace === tab.mcpGroupId
     const active = disposition !== 'background-tab' && !behindShownTab
-    const selectVisible = personsPage && !agentInput
+    const selectVisible = personsPage
     const failed = (creations: OpenedTabCreation[], error: unknown): void => {
       for (const creation of creations) creation.failed()
       console.error(`[browser] Could not open requested page ${url}:`, error)

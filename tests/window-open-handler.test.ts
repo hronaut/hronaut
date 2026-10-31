@@ -190,6 +190,21 @@ describe('a window a workspace page opens', () => {
     expect(createTab).toHaveBeenCalledWith(expect.objectContaining({ active: true, selectVisible: true }))
   })
 
+  it('makes the tab its workspace\'s without showing it, for an agent\'s tool call on the page the person sees', () => {
+    // An agent's script that opened a window from the page in view took the view and the person's keyboard with it,
+    // as the person's own click does; an agent's click already left it unshown.
+    const { browser, open, createTab } = fixture()
+    browser.mcpActivitiesByTab.set('opener', new Set(['evaluate']))
+    open(details).createWindow!({ webContents: guestPage() })
+    expect(createTab).toHaveBeenCalledWith(expect.objectContaining({ active: true, selectVisible: false }))
+    // The person clicked or typed in the page moments before, while the agent's call ran: their window shows.
+    const clicked = fixture()
+    clicked.browser.mcpActivitiesByTab.set('opener', new Set(['wait']))
+    clicked.tab.lastHumanInteractionAt = performance.now()
+    clicked.open(details).createWindow!({ webContents: guestPage() })
+    expect(clicked.createTab).toHaveBeenCalledWith(expect.objectContaining({ active: true, selectVisible: true }))
+  })
+
   it('makes the tab its workspace\'s without showing it, for an agent\'s tool call on a page behind', () => {
     // As for the agent's input, Follow agents shows it through the agent's calls on it.
     const { browser, open, createTab } = fixture({ shownTab: { id: 'other', mcpGroupId: 'client' } })
