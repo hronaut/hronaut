@@ -75,3 +75,37 @@ test('opens tabs from a page\'s links beside that page, in the order they were o
     await closeFixtureServer(server)
   }
 })
+
+test('opens a window behind when the page that opens it is out of view', async ({ appWindow, electronApp }) => {
+  // A page in a tab behind that opened a window, such as on a timer, was shown in place of the page in view, which
+  // lost the keys being typed into it.
+  const server = createServer((request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end(`<!doctype html><title>${request.url}</title>`)
+  })
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('Missing fixture port')
+  const origin = `http://127.0.0.1:${address.port}`
+  try {
+    const created = await appWindow.evaluate(`window.hronaut.createWorkspace({ name: 'Behind', storage: 'scratch' })`) as { mcpTabGroups: Array<{ id: string, name: string }> }
+    const workspace = created.mcpTabGroups.find(group => group.name === 'Behind')!.id
+    const open = (path: string) => appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(origin + path)}, mcpGroupId: ${JSON.stringify(workspace)}, active: true })`)
+    await open('/opener')
+    await open('/front')
+    const order = async () => (await appWindow.evaluate(`window.hronaut.getState()`) as { tabs: Array<{ url: string, active: boolean, mcpGroupId?: string }> })
+      .tabs.filter(tab => tab.mcpGroupId === workspace && tab.url.startsWith(origin)).map(tab => `${new URL(tab.url).pathname}${tab.active ? '*' : ''}`)
+    await expect.poll(order).toEqual(['/opener', '/front*'])
+
+    // The page still gets its window, without a click or key press, as Hronaut has no pop-up blocker.
+    const opened = await electronApp.evaluate(async ({ webContents }, url) => {
+      const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)
+      if (!page) throw new Error('Opener page web contents was not found')
+      return await page.executeJavaScript(`window.open('/popup', 'popup', 'width=480,height=360') !== null`) as boolean
+    }, `${origin}/opener`)
+    expect(opened).toBe(true)
+    await expect.poll(order).toEqual(['/opener', '/popup', '/front*'])
+  } finally {
+    await closeFixtureServer(server)
+  }
+})

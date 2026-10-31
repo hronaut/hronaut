@@ -36,7 +36,9 @@ function guestPage(options: { opener?: boolean } = {}): WebContents & { close: R
   return { isDestroyed: vi.fn(() => false), close: vi.fn(), opener: options.opener === false ? null : { url: 'https://app.example/' } } as unknown as WebContents & { close: ReturnType<typeof vi.fn> }
 }
 
-function fixture(options: { mcpGroupId?: string; allowed?: boolean; canOpenTab?: () => void; createTab?: CreateTab } = {}) {
+function fixture(options: {
+  mcpGroupId?: string; allowed?: boolean; canOpenTab?: () => void; createTab?: CreateTab; activeTabId?: string; splitTabId?: string
+} = {}) {
   const agentInput = new Map<number, number>()
   const tab = { id: 'opener', sleeping: false, ...('mcpGroupId' in options ? { mcpGroupId: options.mcpGroupId } : { mcpGroupId: 'client' }) }
   const observation = new OpenedTabObservation()
@@ -52,11 +54,18 @@ function fixture(options: { mcpGroupId?: string; allowed?: boolean; canOpenTab?:
     options: { onActionFailed },
     assertCanCreateTab: vi.fn(options.canOpenTab ?? (() => undefined)),
     createTab,
-    agentInputWebContents: agentInput
+    agentInputWebContents: agentInput,
+    mcpActivitiesByTab: new Map<string, Set<string>>(),
+    // The person sees the page that opens the window, unless a test says otherwise.
+    activeTabId: options.activeTabId ?? 'opener',
+    splitViewContains: (tabId: string) => tabId === options.splitTabId
   }
   let handler!: (details: Details) => Response
   attachWindowOpenHandler(browser as never, tab as never, { id: 7, setWindowOpenHandler: (registered: typeof handler) => { handler = registered } } as unknown as WebContents)
-  return { tab, open: (details: Details) => handler(details), createTab, observation, onActionFailed, agentInput, assertCanCreateTab: browser.assertCanCreateTab }
+  return {
+    tab, browser, open: (details: Details) => handler(details), createTab, observation, onActionFailed, agentInput,
+    assertCanCreateTab: browser.assertCanCreateTab
+  }
 }
 
 const details: Details = { url: 'https://accounts.example/sign-in', disposition: 'new-window', referrer: { url: 'https://app.example/', policy: 'strict-origin-when-cross-origin' } }
@@ -131,6 +140,39 @@ describe('a window a workspace page opens', () => {
     expect(createTab).toHaveBeenCalledWith(expect.objectContaining({ selectVisible: false }))
   })
 
+  it('opens it behind when its page is out of the person\'s view, so a page behind never takes the view', () => {
+    // A page in a tab behind, or in another workspace, that opened a window on a timer was shown in place of the page
+    // the person was looking at, and took the keys they typed. Chrome's pop-up blocker refuses a window opened without
+    // the person's click or key press, which a page out of view cannot have.
+    const behind = fixture({ activeTabId: 'other' })
+    behind.open(details).createWindow!({ webContents: guestPage() })
+    expect(behind.createTab).toHaveBeenCalledWith(expect.objectContaining({
+      active: false,
+      selectVisible: false,
+      openedFrom: { tabId: 'opener', background: true, window: true }
+    }))
+    // A split view shows both its pages.
+    const split = fixture({ activeTabId: 'other', splitTabId: 'opener' })
+    split.open(details).createWindow!({ webContents: guestPage() })
+    expect(split.createTab).toHaveBeenCalledWith(expect.objectContaining({ active: true, selectVisible: true }))
+  })
+
+  it('decides whether its page is in view when the page asks, not when Chromium creates the window', () => {
+    const { browser, open, createTab } = fixture()
+    const response = open(details)
+    browser.activeTabId = 'other'
+    response.createWindow!({ webContents: guestPage() })
+    expect(createTab).toHaveBeenCalledWith(expect.objectContaining({ active: true, selectVisible: true }))
+  })
+
+  it('makes the tab its workspace\'s without showing it, for an agent\'s tool call on a page out of view', () => {
+    // As for the agent's input, Follow agents shows it through the agent's calls on it.
+    const { browser, open, createTab } = fixture({ activeTabId: 'other' })
+    browser.mcpActivitiesByTab.set('opener', new Set(['evaluate']))
+    open(details).createWindow!({ webContents: guestPage() })
+    expect(createTab).toHaveBeenCalledWith(expect.objectContaining({ active: true, selectVisible: false }))
+  })
+
   it('gives the page no window when the workspace cannot take another tab, as for a blocked popup', () => {
     const { open, createTab, observation, onActionFailed } = fixture({ canOpenTab: () => { throw new Error('Too many tabs') } })
     expect(open(details)).toEqual({ action: 'deny' })
@@ -179,5 +221,11 @@ describe('a window a page outside a workspace opens', () => {
       url: details.url,
       loadOptions: { httpReferrer: details.referrer, postData: postBody.data, extraHeaders: 'Content-Type: application/x-www-form-urlencoded' }
     }))
+  })
+
+  it('opens it behind when its page is out of the person\'s view', () => {
+    const { open, createTab } = fixture({ mcpGroupId: undefined, activeTabId: 'other' })
+    open(details)
+    expect(createTab).toHaveBeenCalledWith(expect.objectContaining({ active: false, selectVisible: false }))
   })
 })

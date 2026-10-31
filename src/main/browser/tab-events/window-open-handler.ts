@@ -40,7 +40,12 @@ function interceptedWindowLoadOptions(postBody: PostBody | undefined, referrer: 
  * referrer and form post carried over. A workspace tab's new tab goes beside
  * it, as in Chrome. A tab opened by an agent's input is not shown: Follow
  * agents shows it through the agent's calls on it, so it waits as for any
- * call, such as while a page fills the window.
+ * call, such as while a page fills the window. A page out of the person's
+ * view, in a tab behind or another workspace, opens its window behind and
+ * never takes the view, where Chrome's pop-up blocker refuses a window a page
+ * opens without the person's click or key press, which a page out of view
+ * cannot have; during an agent's tool call on it the new tab still becomes
+ * its workspace's, as for the agent's input.
  */
 export function attachWindowOpenHandler(browser: Browser, tab: BrowserTab, webContents: WebContents): void {
   webContents.setWindowOpenHandler(({ url, disposition, postBody, referrer }) => {
@@ -52,9 +57,12 @@ export function attachWindowOpenHandler(browser: Browser, tab: BrowserTab, webCo
     if (tab.mcpGroupId && isHronautHomeUrl(url)) return blocked()
     if (tab.mcpGroupId
       && !workspaceNavigationAllowed(browser, tab.mcpGroupId, url, 'popup')) return blocked()
-    const active = disposition !== 'background-tab'
-    // Decided now: Chromium creates the page for the window later, when the agent's input may have ended.
-    const selectVisible = !browser.agentInputWebContents.has(webContents.id)
+    // Decided now: Chromium creates the page for the window later, when the agent's input may have ended and the
+    // person may have switched tabs.
+    const agentInput = browser.agentInputWebContents.has(webContents.id)
+    const inView = browser.activeTabId === tab.id || browser.splitViewContains(tab.id)
+    const active = disposition !== 'background-tab' && (inView || agentInput || browser.mcpActivitiesByTab.has(tab.id))
+    const selectVisible = inView && !agentInput
     const failed = (creations: OpenedTabCreation[], error: unknown): void => {
       for (const creation of creations) creation.failed()
       console.error(`[browser] Could not open requested page ${url}:`, error)
