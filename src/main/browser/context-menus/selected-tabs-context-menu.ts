@@ -75,7 +75,7 @@ export function showSelectedTabsContextMenu(browser: Browser, tab: BrowserTab, s
     {
       id: 'reload-tabs',
       label: browser.text('native.context.reloadTabs'),
-      click: () => runAction('reload the tabs', () => Promise.all(open().map((candidate) => reload(browser, candidate.id))))
+      click: () => runAction('reload the tabs', () => Promise.all(open().map((candidate) => reload(browser, candidate.id, { byPerson: true }))))
     },
     {
       id: 'duplicate-tabs',

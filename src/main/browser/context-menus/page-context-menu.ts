@@ -406,7 +406,7 @@ export function showContextMenu(browser: Browser, tab: BrowserTab, params: Conte
       label: browser.text('native.context.back'),
       enabled: navigation.canGoBack(),
       click: () => {
-        void back(browser, tab.id).catch((error) => browser.options.onActionFailed?.('go back', error))
+        void back(browser, tab.id, { byPerson: true }).catch((error) => browser.options.onActionFailed?.('go back', error))
       }
     },
     {
@@ -414,21 +414,21 @@ export function showContextMenu(browser: Browser, tab: BrowserTab, params: Conte
       label: browser.text('native.context.forward'),
       enabled: navigation.canGoForward(),
       click: () => {
-        void forward(browser, tab.id).catch((error) => browser.options.onActionFailed?.('go forward', error))
+        void forward(browser, tab.id, { byPerson: true }).catch((error) => browser.options.onActionFailed?.('go forward', error))
       }
     },
     {
       id: 'reload',
       label: browser.text('native.context.reload'),
       click: () => {
-        void reload(browser, tab.id).catch((error) => browser.options.onActionFailed?.('reload', error))
+        void reload(browser, tab.id, { byPerson: true }).catch((error) => browser.options.onActionFailed?.('reload', error))
       }
     },
     {
       id: 'reload-ignoring-cache',
       label: browser.text('native.context.reloadWithoutCache'),
       click: () => {
-        void reloadIgnoringCache(browser, tab.id)
+        void reloadIgnoringCache(browser, tab.id, { byPerson: true })
           .catch((error) => browser.options.onActionFailed?.('reload without cache', error))
       }
     },

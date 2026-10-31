@@ -51,9 +51,9 @@ describe('Back and Forward in the View menu', () => {
   it('go back and forward in the shown tab like the toolbar\'s arrows when chosen', () => {
     const { tabs, actions, mainWindow, back, forward } = viewItems('linux')
     back.click!(back, mainWindow, {})
-    expect(tabs.back).toHaveBeenCalledWith()
+    expect(tabs.back).toHaveBeenCalledWith(undefined, { byPerson: true })
     forward.click!(forward, undefined, { triggeredByAccelerator: false })
-    expect(tabs.forward).toHaveBeenCalledWith()
+    expect(tabs.forward).toHaveBeenCalledWith(undefined, { byPerson: true })
     expect(tabs.historyGesture).not.toHaveBeenCalled()
     expect(actions).toEqual(['go back', 'go forward'])
   })

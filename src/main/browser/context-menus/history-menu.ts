@@ -34,11 +34,14 @@ export function showHistoryMenu(browser: Browser, tabId: string,
   if (pages.length === 0) return false
   // Each item reads the browser when it is picked, not when the list opens.
   const runAction = (action: string, callback: () => unknown): void => {
-    try {
-      callback()
-    } catch (error) {
+    const failed = (error: unknown): void => {
       console.error(`[browser] Could not ${action} from the history list:`, error)
       browser.options.onActionFailed?.(action, error)
+    }
+    try {
+      void Promise.resolve(callback()).catch(failed)
+    } catch (error) {
+      failed(error)
     }
   }
   const template: MenuItemConstructorOptions[] = [

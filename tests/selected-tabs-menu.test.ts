@@ -32,7 +32,9 @@ vi.mock('../src/main/browser/site-muting/site-muting.js', async (importOriginal)
 // The fake browser below stubs the functions the code under test calls; these reach its stubs.
 vi.mock('../src/main/browser/page-navigation/page-navigation.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/page-navigation/page-navigation.js')>(),
-  reload: (browser: { reload: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.reload(...args)
+  reload: (browser: { reload: (...args: unknown[]) => unknown }, tabId: string, options?: { byPerson?: boolean }) => (
+    browser.reload(tabId, ...options?.byPerson ? ['by person'] : [])
+  )
 }))
 vi.mock('../src/main/browser/tab-muting/tab-muting.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/tab-muting/tab-muting.js')>(),
@@ -135,7 +137,7 @@ describe('the tab menu of several selected tabs', () => {
     await click('close-tabs-to-right')
     // In the strip's order, whatever order the shell named them in.
     expect(fake.calls).toEqual([
-      'reload b', 'reload c', 'duplicate b', 'duplicate c', 'mute b true', 'mute c true',
+      'reload b by person', 'reload c by person', 'duplicate b', 'duplicate c', 'mute b true', 'mute c true',
       'close b,c', 'close a,d,e', 'close d,e'
     ])
   })

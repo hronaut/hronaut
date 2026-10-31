@@ -60,3 +60,59 @@ test('a page that asks before it is left stops browser_navigate with an error an
   await left
   await expect.poll(() => evaluate('location.href')).toBe(destination)
 })
+
+// Reload, Back and Forward did nothing at all on such a page, and browser_history reported success. Chrome asks
+// "Reload site?" or "Leave site?".
+test('a page that asks before it is left stops browser_history with an error and asks a person about Reload and Back', async ({ capabilities, appWindow, electronApp }) => {
+  const { client, tabId, fixtureOrigin } = capabilities
+  const call = async (name: string, args: Record<string, unknown>): Promise<CallToolResult> =>
+    await client.callTool({ name, arguments: { tabId, ...args } }) as CallToolResult
+  const evaluate = async (script: string): Promise<unknown> => {
+    const result = await call('browser_evaluate', { script: `JSON.stringify(${script})` })
+    expect(result.isError, text(result)).not.toBe(true)
+    return JSON.parse(text(result))
+  }
+  const previous = `${fixtureOrigin}/no-js`
+  const start = `${fixtureOrigin}/?leave=draft`
+  for (const url of [previous, start]) {
+    const opened = await call('browser_navigate', { url })
+    expect(opened.isError, text(opened)).not.toBe(true)
+  }
+  await evaluate(`(() => {
+    document.body.innerHTML = '<input id="draft">'
+    window.draftKept = true
+    addEventListener('beforeunload', (event) => { event.preventDefault(); event.returnValue = '' })
+    return true
+  })()`)
+  const clicked = await call('browser_click', { selector: '#draft' })
+  expect(clicked.isError, text(clicked)).not.toBe(true)
+  for (const page of electronApp.context().pages()) page.on('dialog', () => undefined)
+  // The same page, not a reloaded one, is still open.
+  const pageKept = async (): Promise<void> => {
+    expect(await evaluate('location.href')).toBe(start)
+    expect(await evaluate('window.draftKept === true')).toBe(true)
+  }
+
+  for (const action of ['reload', 'back']) {
+    const result = await call('browser_history', { action })
+    expect(result.isError, action).toBe(true)
+    expect(text(result)).toContain('so it stayed open and nothing was loaded')
+    await pageKept()
+  }
+
+  // A person's Reload asks in Hronaut's own dialog; keeping the page leaves it as it was.
+  const reloaded = appWindow.evaluate(`window.hronaut.reload(${JSON.stringify(tabId)}).then(() => true)`)
+  await expect(trustedDialog(appWindow)).toHaveAttribute('data-topic', 'unsaved-changes')
+  expect(await trustedDialogHeadline(appWindow)).toBe('This page asked Hronaut to confirm before reloading it.')
+  await expect(trustedDialog(appWindow)).toContainText('Reload this page?')
+  await answerTrustedDialog(appWindow, 'Keep editing')
+  await reloaded
+  await pageKept()
+
+  // A person's Back asks whether to leave, and leaving goes back.
+  const wentBack = appWindow.evaluate(`window.hronaut.back(${JSON.stringify(tabId)}).then(() => true)`)
+  await expect(trustedDialog(appWindow)).toContainText('Leave this page?')
+  await answerTrustedDialog(appWindow, 'Leave page')
+  await wentBack
+  await expect.poll(() => evaluate('location.href')).toBe(previous)
+})

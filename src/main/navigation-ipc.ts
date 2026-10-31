@@ -48,8 +48,8 @@ export function registerNavigationIpc(host: NavigationIpcHost): void {
     if (typeof url !== 'string') throw new TypeError('Invalid navigation options')
     return stateReply(host, navigate(host.tabs()!, url, optionalTabId(tabId), { byPerson: true }))
   })
-  host.handleBrowserIpc(NAVIGATION_IPC.back, (event, tabId) => { host.assertTrustedSender(event); return stateReply(host, back(host.tabs()!, optionalTabId(tabId))) })
-  host.handleBrowserIpc(NAVIGATION_IPC.forward, (event, tabId) => { host.assertTrustedSender(event); return stateReply(host, forward(host.tabs()!, optionalTabId(tabId))) })
+  host.handleBrowserIpc(NAVIGATION_IPC.back, (event, tabId) => { host.assertTrustedSender(event); return stateReply(host, back(host.tabs()!, optionalTabId(tabId), { byPerson: true })) })
+  host.handleBrowserIpc(NAVIGATION_IPC.forward, (event, tabId) => { host.assertTrustedSender(event); return stateReply(host, forward(host.tabs()!, optionalTabId(tabId), { byPerson: true })) })
   host.handleBrowserIpc(NAVIGATION_IPC.showHistoryMenu, (event, options: unknown) => {
     host.assertTrustedSender(event)
     if (typeof options !== 'object' || options === null) throw new TypeError('Invalid history list options')
@@ -66,13 +66,13 @@ export function registerNavigationIpc(host: NavigationIpcHost): void {
     }
     return openNavigationInNewTab(host.tabs()!, tabId, target, active)
   })
-  host.handleBrowserIpc(NAVIGATION_IPC.reload, (event, tabId) => { host.assertTrustedSender(event); return stateReply(host, reload(host.tabs()!, optionalTabId(tabId))) })
+  host.handleBrowserIpc(NAVIGATION_IPC.reload, (event, tabId) => { host.assertTrustedSender(event); return stateReply(host, reload(host.tabs()!, optionalTabId(tabId), { byPerson: true })) })
   host.handleBrowserIpc(NAVIGATION_IPC.proceedPastCertificateError, (event, tabId: unknown) => {
     host.assertTrustedSender(event)
     if (typeof tabId !== 'string') throw new TypeError('Invalid tab')
     return stateReply(host, proceedPastTabCertificateError(host.tabs()!, tabId))
   })
-  host.handleBrowserIpc(NAVIGATION_IPC.reloadIgnoringCache, (event, tabId) => { host.assertTrustedSender(event); return reloadIgnoringCache(host.tabs()!, optionalTabId(tabId)) })
+  host.handleBrowserIpc(NAVIGATION_IPC.reloadIgnoringCache, (event, tabId) => { host.assertTrustedSender(event); return reloadIgnoringCache(host.tabs()!, optionalTabId(tabId), { byPerson: true }) })
   host.handleBrowserIpc(NAVIGATION_IPC.stop, (event, tabId) => { host.assertTrustedSender(event); return stop(host.tabs()!, optionalTabId(tabId)) })
   host.handleBrowserIpc(NAVIGATION_IPC.findInPage, (event, options: unknown) => {
     host.assertTrustedSender(event)

@@ -1316,13 +1316,13 @@ async function createWindow(startMinimized = false): Promise<void> {
       })
       return response === 1
     },
-    confirmBeforeUnloadLeave: async () => {
+    confirmBeforeUnloadLeave: async (question) => {
       const { response } = await trustedDialogs.show({
         type: 'warning',
-        title: text('native.dialog.leavePageTitle'),
-        message: text('native.dialog.leavePageMessage'),
-        detail: text('native.dialog.leavePageDetail'),
-        buttons: [text('native.dialog.keepEditing'), text('native.dialog.leavePage')],
+        title: text(`native.dialog.${question}PageTitle`),
+        message: text(`native.dialog.${question}PageMessage`),
+        detail: text(`native.dialog.${question}PageDetail`),
+        buttons: [text('native.dialog.keepEditing'), text(`native.dialog.${question}Page`)],
         defaultId: 0,
         cancelId: 0,
         primaryId: 1,
