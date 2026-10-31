@@ -1,6 +1,6 @@
 import type { BrowserState } from '../../../shared/types.js'
 import type { Browser } from '../browser.js'
-import { getTab, orderedTabs } from '../browser-core.js'
+import { findTab, getTab, orderedTabs } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { browserState, publishChange } from '../browser-state/browser-state.js'
 import type { NavigationHistorySnapshot } from '../navigation-history.js'
@@ -15,6 +15,7 @@ import { stageBeforeUnloadClose } from './before-unload-staging.js'
 import { closeTabTransition } from './close-transition.js'
 import { removeTabRecord } from './remove-tab-record.js'
 import { markTabActiveInGroup } from '../tab-selection/active-tab.js'
+import { selectTabForPerson } from '../tab-selection/person-tab-switch.js'
 
 const HRONAUT_HOME_URL = 'hronaut://home/'
 
@@ -112,7 +113,11 @@ async function prepareActiveCloseReplacement(browser: Browser, tab: BrowserTab, 
   }
 }
 
-/** Closes the tab, opening a replacement when it was the last and ensureReplacement is set. */
+/**
+ * Closes the tab, opening a replacement when it was the last and ensureReplacement is set. A page closed from
+ * behind the shown tab that asks to stay is shown for the person's question; once they discard it, they are back on
+ * the tab they were on. A tab the person moves away from while its page decides stays behind for the question.
+ */
 async function performCloseTab(
   browser: Browser,
   tabId: string,
@@ -150,6 +155,8 @@ async function performCloseTab(
     const navigationGeneration = tab.navigationGeneration
     // Taking the page out of view while it decides takes the keyboard from it, which it gets back only if it had it.
     const pageHadKeyboard = keyboardPage(browser) === webContents
+    // A tab the person closed from behind the one shown; one they move away from while its page decides stays behind.
+    const closedFromBehind = browser.activeTabId !== tab.id && !browser.splitViewContains(tab.id)
     stagedClose = stageBeforeUnloadClose(browser, tab)
     browser.expectedTabClosures.add(webContents)
     let disposition: 'closed' | 'prevented'
@@ -171,8 +178,15 @@ async function performCloseTab(
     if (disposition === 'prevented') {
       // The question over the page takes the keyboard now; a page that had it gets it back once the person keeps it.
       stagedClose.rollback(false)
+      // The question is about this page, so a tab closed from behind comes into view first, as Chrome shows the page
+      // that asks.
+      const shownBefore = browser.activeTabId
+      const broughtIntoView = closedFromBehind && !webContents.isDestroyed() && browser.tabs.get(tab.id) === tab
+        && browser.activeTabId !== tab.id && !browser.splitViewContains(tab.id)
+      if (broughtIntoView) await selectTabForPerson(browser, tab.id)
+      // A page the person was shown for the question and kept is the one they went on to edit.
       const keepPage = (): void => {
-        if (pageHadKeyboard && !webContents.isDestroyed()) focusPageAfterQuestion(browser, webContents)
+        if ((pageHadKeyboard || broughtIntoView) && !webContents.isDestroyed()) focusPageAfterQuestion(browser, webContents)
       }
       if (!webContents.isDestroyed() && browser.tabs.get(tab.id) === tab) {
         await ensureDialogMonitoring(browser, tab)
@@ -199,6 +213,10 @@ async function performCloseTab(
         // The page changed while the person decided, so it stays open as if they had kept it.
         keepPage()
         return browserState(browser)
+      }
+      // The person goes back to the tab they were on, unless they moved meanwhile, and the page they discarded closes.
+      if (broughtIntoView && shownBefore && browser.activeTabId === tab.id && findTab(browser, shownBefore)) {
+        await selectTabForPerson(browser, shownBefore)
       }
       return performCloseTab(browser, tabId, ensureReplacement, true, true, yieldsToNewerSelection)
     }
