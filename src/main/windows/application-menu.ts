@@ -9,7 +9,6 @@ import { back, forward, reload, reloadIgnoringCache, stopFocusedPageLoading } fr
 import { printShownPage } from '../browser/page-print/page-print.js'
 import { saveShownPage } from '../browser/page-save/page-save.js'
 import { viewShownPageSource } from '../browser/page-source/page-source.js'
-import { setZoom } from '../browser/page-zoom/page-zoom.js'
 import { newTab } from '../browser/new-tabs/open-new-tab.js'
 import { UPDATES_IPC } from '../../shared/ipc/updates.js'
 import { SHELL_IPC } from '../../shared/ipc/shell.js'
@@ -79,6 +78,15 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
   // and only from the main window, since typed in a panel in its own window they would search a page out of view.
   function findAgain(action: 'find-next' | 'find-previous', window: BaseWindow | undefined, event: KeyboardEvent): void {
     if (event.triggeredByAccelerator && (window === undefined || window.id !== host.mainWindow()?.id)) return
+    // Chosen from the menu, the main window may be hidden behind a panel in its own window or in the tray.
+    if (!event.triggeredByAccelerator) host.showWindow()
+    host.runShortcut(action)
+  }
+
+  // Actual Size, Zoom In and Zoom Out zoom the page in view as their keys do in Hronaut's window, which leaves Hronaut
+  // Home and a page under Settings at their zoom. Their keys reach the menu only where Hronaut's windows leave them to
+  // it, such as the repeats of a held key.
+  function zoomShownPage(action: 'zoom-reset' | 'zoom-in' | 'zoom-out', event: KeyboardEvent): void {
     // Chosen from the menu, the main window may be hidden behind a panel in its own window or in the tray.
     if (!event.triggeredByAccelerator) host.showWindow()
     host.runShortcut(action)
@@ -345,17 +353,17 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
             {
               label: host.text('native.menu.actualSize'),
               accelerator: 'CmdOrCtrl+0',
-              click: () => host.runNativeBrowserAction('reset page zoom', () => withBrowser((browser) => setZoom(browser, { action: 'reset' })))
+              click: (_item, _window, event) => zoomShownPage('zoom-reset', event)
             },
             {
               label: host.text('native.menu.zoomIn'),
               accelerator: 'CmdOrCtrl+Plus',
-              click: () => host.runNativeBrowserAction('zoom in', () => withBrowser((browser) => setZoom(browser, { action: 'in' })))
+              click: (_item, _window, event) => zoomShownPage('zoom-in', event)
             },
             {
               label: host.text('native.menu.zoomOut'),
               accelerator: 'CmdOrCtrl+-',
-              click: () => host.runNativeBrowserAction('zoom out', () => withBrowser((browser) => setZoom(browser, { action: 'out' })))
+              click: (_item, _window, event) => zoomShownPage('zoom-out', event)
             },
             { role: 'togglefullscreen' }
           ]

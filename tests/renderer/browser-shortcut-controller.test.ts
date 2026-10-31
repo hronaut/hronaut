@@ -187,6 +187,16 @@ describe('browser shortcut controller', () => {
     expect(callbacks.showDeveloperToolsConsole).toHaveBeenCalledOnce()
   })
 
+  // The zoom keys, and the View menu's zoom that runs here, zoom the page in view, but not the one Settings covers.
+  it('zooms the page in view, but not while Settings covers it', async () => {
+    const { settingsOpen, callbacks, controller } = createController()
+    expect(await controller.run('zoom-in')).toBe(true)
+    expect(callbacks.setZoom).toHaveBeenCalledExactlyOnceWith('in')
+    settingsOpen.value = true
+    for (const action of ['zoom-in', 'zoom-out', 'zoom-reset'] as const) expect(await controller.run(action)).toBe(false)
+    expect(callbacks.setZoom).toHaveBeenCalledOnce()
+  })
+
   it('moves no tab while Settings is in view', async () => {
     const { browser, settingsOpen, controller } = createController()
     settingsOpen.value = true

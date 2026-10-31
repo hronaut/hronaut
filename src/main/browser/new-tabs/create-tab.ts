@@ -139,8 +139,9 @@ export async function createTab(browser: Browser, options: {
         partition,
         ...pageWebPreferences(browser),
         // Construction-time only: switching a live view back to shared mode can
-        // write its level into the origin zoom map.
-        ...(options.zoomIsolated === true && !isHronautHomeUrl(url) ? { zoomMode: 'isolated' } : {}),
+        // write its level into the origin zoom map. Home keeps its own zoom too,
+        // at 100% since nothing zooms it, even where an older Hronaut stored one.
+        ...(options.zoomIsolated === true || isHronautHomeUrl(url) ? { zoomMode: 'isolated' } : {}),
         // Also construction-time only: Electron has no API to change it on a live view.
         ...(defaultFontSize ? { defaultFontSize } : {})
       }
