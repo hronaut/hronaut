@@ -18,6 +18,18 @@ type ReadinessPage = Pick<WebContents, 'isDestroyed' | 'getURL' | 'isLoadingMain
 const NAVIGATION_SHOW_GRACE_MS = 3_000
 const RECHECK_MS = 250
 
+/** For each page this watches, whether a script sent to it now runs at once. */
+const runsNow = new WeakMap<object, () => boolean>()
+
+/**
+ * Whether a script sent to the page now runs at once, in the document it shows, rather than wait for the next one. A
+ * page this does not watch answers as Electron holds its calls: until its main frame stops loading.
+ */
+export function pageScriptsRunNow(page: Pick<WebContents, 'getURL' | 'isLoadingMainFrame'>): boolean {
+  const mayRun = runsNow.get(page)
+  return mayRun ? mayRun() : page.getURL() !== '' && !page.isLoadingMainFrame()
+}
+
 /**
  * Electron holds a page's executeJavaScript and executeJavaScriptInIsolatedWorld calls until its main frame stops
  * loading. On a page whose load never ends, such as one with an image its server never answers, every page script
@@ -96,6 +108,7 @@ export function runPageScriptsOnceDocumentReady(page: ReadinessPage): void {
     }
   }
   const mayRun = (): boolean => page.isDestroyed() || !isLoadingMainFrame() || (documentReady && !navigationGoingOn())
+  runsNow.set(page, mayRun)
   const whenReady = <T>(call: () => Promise<T>): Promise<T> => {
     if (mayRun()) return startReadyCall(call)
     // A call that waits for the person through the page's dialogs still does once the document is ready.

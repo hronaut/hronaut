@@ -16,6 +16,7 @@ All notable changes to Hronaut are documented in this file.
 - On a very long page, such as a large log, Find said its search failed when the page took more than 5 seconds to count the matches, and Retry failed the same way, though the page had highlighted them. Find now waits for the count, as Chrome does.
 - A click in the address bar put the caret where it landed, so a new address typed after it went into the middle of the page's. As in Chrome, the click that puts the keyboard in the field selects the whole address, so typing replaces it; a drag or a second click still selects part of it or places the caret, and a right click selects it before its menu opens.
 - Up and Down in the address bar's suggestions went round the rows only, so once a row was highlighted, Enter could not open the text you typed without editing it. As in Chrome, they now go through the rows and back to the text typed, with the rest of an address the field had filled in after it.
+- After **Ctrl+Enter** in Find followed the link a match is in, **Back** skipped the page the link left, or did nothing when that page was the tab's first, unless you had clicked or typed in it before. Chromium skips on Back a page that moves on without your activation, and your key went to Find, not to the page. Hronaut now marks the page as activated by you when it follows the link, so Back returns to it.
 
 ## [3.14.4] - 2026-10-31
 

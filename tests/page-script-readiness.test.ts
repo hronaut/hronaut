@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { runPageScriptsOnceDocumentReady } from '../src/main/browser/page-script-readiness.js'
+import { pageScriptsRunNow, runPageScriptsOnceDocumentReady } from '../src/main/browser/page-script-readiness.js'
 import { PAGE_LOAD_WAIT_MS } from '../src/main/browser/page-waits/page-load-limit.js'
 
 // Electron holds a page script until its main frame stops loading, so on a page whose load never ends, such as one
@@ -180,5 +180,30 @@ describe('running page scripts on a page that is still loading', () => {
     const page = loadingPage()
     page.loading = false
     await expect(page.executeJavaScript('loaded')).resolves.toBe('loaded')
+  })
+})
+
+describe('telling whether a page script runs now', () => {
+  it('answers as the page holds its scripts', () => {
+    const page = loadingPage()
+    expect(pageScriptsRunNow(page as never)).toBe(false)
+    page.emit('dom-ready')
+    expect(pageScriptsRunNow(page as never)).toBe(true)
+    startNavigation(page)
+    expect(pageScriptsRunNow(page as never)).toBe(false)
+    showNextDocument(page)
+    expect(pageScriptsRunNow(page as never)).toBe(false)
+    page.loading = false
+    expect(pageScriptsRunNow(page as never)).toBe(true)
+  })
+
+  it('answers for a page it does not watch as Electron holds its scripts', () => {
+    const page = { url: '', loading: false, getURL: () => page.url, isLoadingMainFrame: () => page.loading }
+    expect(pageScriptsRunNow(page)).toBe(false)
+    page.url = 'https://example.test/'
+    page.loading = true
+    expect(pageScriptsRunNow(page)).toBe(false)
+    page.loading = false
+    expect(pageScriptsRunNow(page)).toBe(true)
   })
 })
