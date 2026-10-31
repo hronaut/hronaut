@@ -18,6 +18,10 @@ All notable changes to Hronaut are documented in this file.
 - A page that closed itself, such as the "you can close this tab" page a desktop app's sign-in ends on, left its tab open saying the page was no longer available, unless a page had opened it as a window. Its tab now closes, and Reopen closed tab brings it back.
 - A window that a page in a tab behind opened, such as on a timer, was shown in place of the page you were looking at and took the keys you were typing; one from a page in another workspace took you to that workspace. It now opens behind the tab you see, or as its workspace's tab without being shown, unless you clicked or typed in that page moments before.
 
+### Security
+
+- follow-redirects 1.16.1 → 1.16.2, which the TRON wallet library (`tronweb`) loads through axios: it fixes an advisory where custom credentials headers could follow a redirect to another site (GHSA-mrwp-f3q8-3g9p).
+
 ## [3.14.2] - 2026-10-30
 
 ### Fixed
