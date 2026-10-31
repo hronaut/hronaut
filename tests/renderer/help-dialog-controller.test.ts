@@ -50,6 +50,8 @@ describe('help dialog controller', () => {
     expect(mac.keys['runtime.shortcuts.findFollowLink']).toEqual(['Control', 'Return'])
     expect(mac.keys['runtime.shortcuts.addressForgetVisit']).toEqual(['Shift', 'Fn', 'Delete'])
     expect(mac.keys['runtime.shortcuts.moveTabNext']).toEqual(['Control', 'Shift', 'Page Down'])
+    // macOS names the key Control, as in the rows beside it.
+    expect(mac.keys['runtime.shortcuts.nextTab']).toEqual(['Control', 'Tab'])
     expect(mac.keys['runtime.shortcuts.nextPane']).toBeUndefined()
     expect(mac.keys['shell.home.open']).toBeUndefined()
     expect(mac.keys['runtime.shortcuts.stop']).toBeUndefined()
