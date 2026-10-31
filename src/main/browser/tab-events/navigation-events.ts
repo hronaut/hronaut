@@ -178,7 +178,6 @@ export function attachNavigationEvents(browser: Browser, tab: BrowserTab, webCon
     tab.navigationGeneration += 1
     retireNetworkPriorityObservations(tab)
     invalidateTabOverviewPreview(browser, tab)
-    if (!isSameDocument) tab.documentGeneration += 1
     if (isSameDocument) {
       tab.performanceDocumentRouted = true
       return

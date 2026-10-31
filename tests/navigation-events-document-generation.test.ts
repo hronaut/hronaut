@@ -64,13 +64,26 @@ function page() {
 }
 
 describe('the document generation Find in page closes on', () => {
-  it('advances when another page starts loading and again when it replaces the page', () => {
+  it('advances when another page replaces the page, not while it only loads', () => {
     const { contents, tab } = page()
 
     contents.emit('did-start-navigation', {}, 'https://next.example/', false, true)
-    expect(tab.documentGeneration).toBe(1)
+    expect(tab.documentGeneration).toBe(0)
     contents.emit('did-navigate', {}, 'https://next.example/')
-    expect(tab.documentGeneration).toBe(2)
+    expect(tab.documentGeneration).toBe(1)
+  })
+
+  // A link that starts a download, or that the server answers with no content, keeps the page; Find closed on it, so a
+  // person who clicked a download link among the matches lost them, which Chrome keeps.
+  it('stays for a navigation that never replaces the page, such as a download', () => {
+    const { contents, tab } = page()
+
+    contents.emit('did-start-navigation', {}, 'https://start.example/release.zip', false, true)
+    contents.emit('did-fail-load', {}, -3, 'ERR_ABORTED', 'https://start.example/release.zip', true)
+    contents.emit('did-start-navigation', {}, 'https://start.example/empty', false, true)
+    contents.emit('did-stop-loading')
+    expect(tab.documentGeneration).toBe(0)
+    expect(tab.navigationGeneration).toBe(2)
   })
 
   it('advances when a failed load shows its error page, not for a load another one replaced', () => {
