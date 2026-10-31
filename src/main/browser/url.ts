@@ -10,6 +10,11 @@ const SHORT_DOTTED_NUMBER = /^\d+(?:\.\d+){1,2}\.?(?<rest>(?::\d+)?(?:[/?#].*)?)
 // scheme followed by a value. As in Chrome, a colon followed only by digits names a port. The name starts with a
 // letter, as a scheme does: `16:9` or `10:30` stays a search rather than an address the URL parser reads as a number.
 const SINGLE_LABEL_HOST_WITH_PORT = /^([a-z](?:[a-z\d_-]*[a-z\d])?):\d{1,5}(?:[/?#].*)?$/i
+// A one-word host name followed by a slash alone, such as `intranet/` or `go/`, names a machine on the local network, as
+// in Chrome; without the slash it is a search for the word.
+const SINGLE_LABEL_HOST_WITH_SLASH = /^[a-z](?:[a-z\d_-]*[a-z\d])?\/$/i
+// The page whose source `view-source:` shows, which Chrome reads as a typed address, so `view-source:example.com` works.
+const VIEW_SOURCE = /^view-source:(?<page>.*)$/is
 // Links whose whole value can be a short number, such as `tel:911` or a SIP extension, stay links. A web scheme such as
 // `http:3000` stays as typed too, so the address an agent's capability profile checks is the one the tab loads.
 const KEPT_SCHEMES: ReadonlySet<string> = new Set([
@@ -117,7 +122,14 @@ export function isAgentWorkspaceNavigationUrl(value: string): boolean {
 export function webAddress(input: string): string | undefined {
   const value = input.trim()
   if (!value) return 'about:blank'
+  const viewedPage = VIEW_SOURCE.exec(value)?.groups?.page
+  if (viewedPage !== undefined) {
+    const page = webAddress(viewedPage)
+    return page && isWebUrl(page) ? `view-source:${page}` : value
+  }
   if (/^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(value) || /^(about|data|file|view-source):/i.test(value)) return value
+  // A one-word name is never a public site, so it opens over HTTP.
+  if (SINGLE_LABEL_HOST_WITH_SLASH.test(value)) return `http://${value}`
   if (!hasSchemeLessUserInfo(value) && !isShortNumberSearch(value) && HOST_LIKE_PATTERN.test(value)) {
     const plainHttp = !namesHttpsPort(value) && (isLoopbackAddress(value) || isLocalNetworkAddress(value))
     const candidate = `${plainHttp ? 'http' : 'https'}://${value}`

@@ -126,6 +126,37 @@ describe('normalizeAddress', () => {
     expect(normalizeAddress(input)).toBe(expected)
   })
 
+  it.each([
+    ['intranet/', 'http://intranet/'],
+    ['go/', 'http://go/'],
+    ['My-PC/', 'http://My-PC/']
+  ])('opens a one-word host name followed by a slash as a website on the local network, as in Chrome: %s', (input, expected) => {
+    // It was searched for.
+    expect(normalizeAddress(input)).toBe(expected)
+  })
+
+  it.each(['intranet', 'and/or', 'w/o', 'n/a', '1/', '-x/'])('still searches a word, or words with a slash between them: %s', (input) => {
+    expect(webAddress(input)).toBeUndefined()
+  })
+
+  it.each([
+    ['view-source:example.com', 'view-source:https://example.com'],
+    ['VIEW-SOURCE:example.com/docs', 'view-source:https://example.com/docs'],
+    ['view-source: localhost:3000', 'view-source:http://localhost:3000'],
+    ['view-source:devbox:3000/app', 'view-source:http://devbox:3000/app'],
+    ['view-source:192.168.1.1', 'view-source:http://192.168.1.1'],
+    ['view-source:https://example.com/', 'view-source:https://example.com/']
+  ])('reads the page of a view-source: address as a typed address, as in Chrome: %s', (input, expected) => {
+    // It stayed `view-source:example.com`, whose page was not read as an address.
+    expect(normalizeAddress(input)).toBe(expected)
+  })
+
+  it.each(['view-source:', 'view-source:cheap flights', 'view-source:file:///tmp/notes.txt', 'view-source:tel:911', 'view-source:view-source:example.com'])(
+    'keeps a view-source: address of no web page as typed: %s', (input) => {
+      expect(normalizeAddress(input)).toBe(input)
+    }
+  )
+
   it.each(['tel:911', 'SMS:12345', 'sip:1001', 'facetime-audio:5551', 'web+demo:12', 'http:3000', 'HTTPS:443'])(
     'keeps %s as typed', (input) => {
       expect(normalizeAddress(input)).toBe(input)
