@@ -21,41 +21,53 @@ export class PageFindController {
       if (this.sessionQueries.get(webContents)?.toLowerCase() === query.toLowerCase()) webContents.stopFindInPage('clearSelection')
       this.sessionQueries.set(webContents, query)
     }
+    // As in Chrome, a search waits as long as the page takes to count its matches, which on a very long page, such as
+    // a large log, takes many seconds. It ends when the person searches again or closes Find, or the page goes.
     return new Promise((resolve, reject) => {
-      let requestId = -1
+      let requestId: number | undefined
+      // Chromium may answer before findInPage returns the request's id, such as when the page has no document to search.
+      const answeredEarly: Electron.Result[] = []
       const cleanup = (): void => {
-        clearTimeout(timer)
         webContents.removeListener('found-in-page', onFound)
         webContents.removeListener('destroyed', onDestroyed)
+        webContents.removeListener('render-process-gone', onRendererGone)
         if (this.pending.get(webContents) === cancel) this.pending.delete(webContents)
       }
       const cancel = (): void => {
         cleanup()
         reject(new Error('Page search was cancelled or superseded'))
       }
-      const onFound = (_event: Electron.Event, result: Electron.Result): void => {
-        if (result.requestId !== requestId || !result.finalUpdate) return
+      const settle = (result: Electron.Result): void => {
         cleanup()
         if (result.activeMatchOrdinal > 0) this.matched.add(webContents)
         resolve({ activeMatchOrdinal: result.activeMatchOrdinal, matches: result.matches })
+      }
+      const onFound = (_event: Electron.Event, result: Electron.Result): void => {
+        if (!result.finalUpdate) return
+        if (requestId === undefined) answeredEarly.push(result)
+        else if (result.requestId === requestId) settle(result)
       }
       const onDestroyed = (): void => {
         cleanup()
         reject(new Error('Tab was closed while searching the page'))
       }
-      const timer = setTimeout(() => {
+      const onRendererGone = (): void => {
         cleanup()
-        reject(new Error('Timed out while searching the page'))
-      }, 5_000)
+        reject(new Error('The page stopped while searching it'))
+      }
       this.pending.set(webContents, cancel)
       webContents.on('found-in-page', onFound)
       webContents.once('destroyed', onDestroyed)
+      webContents.once('render-process-gone', onRendererGone)
       try {
         requestId = webContents.findInPage(query, options)
       } catch (error) {
         cleanup()
         reject(error)
+        return
       }
+      const answer = answeredEarly.find((result) => result.requestId === requestId)
+      if (answer !== undefined && this.pending.get(webContents) === cancel) settle(answer)
     })
   }
 

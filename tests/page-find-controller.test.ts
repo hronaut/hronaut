@@ -31,12 +31,13 @@ it('settles superseded searches and cancellation without retaining listeners or 
     searches.push(page.search().catch(error => error.message))
     expect(page.contents.listenerCount('found-in-page')).toBe(1)
     expect(page.contents.listenerCount('destroyed')).toBe(1)
-    expect(vi.getTimerCount()).toBe(1)
+    expect(page.contents.listenerCount('render-process-gone')).toBe(1)
   }
   page.stop()
   expect(await Promise.all(searches)).toEqual(Array(20).fill('Page search was cancelled or superseded'))
   expect(page.contents.listenerCount('found-in-page')).toBe(0)
   expect(page.contents.listenerCount('destroyed')).toBe(0)
+  expect(page.contents.listenerCount('render-process-gone')).toBe(0)
   expect(vi.getTimerCount()).toBe(0)
   expect(page.contents.stopFindInPage).toHaveBeenCalledWith('clearSelection')
 })
@@ -58,15 +59,63 @@ it('ignores stale and partial results and preserves unrelated listeners', async 
   expect(vi.getTimerCount()).toBe(0)
 })
 
-it.each(['destroy', 'timeout', 'throw'] as const)('cleans up after %s and permits another search', async (failure) => {
+// A very long page, such as a large log, takes many seconds to count its matches; Chromium then answers once, at the
+// end. The search failed after 5 seconds, so Find showed that it failed, and trying again failed the same way.
+it('waits for a page that takes long to count its matches', async () => {
+  const page = fixture()
+  const search = page.search()
+  await vi.advanceTimersByTimeAsync(60_000)
+  page.complete()
+  await expect(search).resolves.toEqual({ activeMatchOrdinal: 1, matches: 3 })
+  expect(page.contents.listenerCount('found-in-page')).toBe(0)
+  expect(page.contents.listenerCount('destroyed')).toBe(0)
+  expect(page.contents.listenerCount('render-process-gone')).toBe(0)
+})
+
+// Chromium answers at once when it has nothing to search, such as a page whose renderer is gone, and that answer can come
+// before findInPage returns the request's id. Without a time limit, a search that missed it read Searching... forever.
+it('takes an answer Chromium sends before findInPage returns', async () => {
+  const page = fixture()
+  page.contents.findInPage.mockImplementationOnce(() => {
+    page.complete(0)
+    page.contents.emit('found-in-page', {}, { requestId: 1, finalUpdate: false, activeMatchOrdinal: 1, matches: 1 })
+    page.contents.emit('found-in-page', {}, { requestId: 1, finalUpdate: true, activeMatchOrdinal: 0, matches: 0 })
+    return 1
+  })
+  await expect(page.search()).resolves.toEqual({ activeMatchOrdinal: 0, matches: 0 })
+  expect(page.contents.listenerCount('found-in-page')).toBe(0)
+  expect(page.contents.listenerCount('destroyed')).toBe(0)
+  expect(page.contents.listenerCount('render-process-gone')).toBe(0)
+  expect(page.stop('activateSelection')).toBe(false)
+})
+
+it('ignores an early answer to another request and waits for its own', async () => {
+  const page = fixture()
+  page.contents.findInPage.mockImplementationOnce(() => {
+    page.complete(7)
+    return 8
+  })
+  const search = page.search()
+  await vi.advanceTimersByTimeAsync(0)
+  expect(page.contents.listenerCount('found-in-page')).toBe(1)
+  page.complete(8)
+  await expect(search).resolves.toEqual({ activeMatchOrdinal: 1, matches: 3 })
+})
+
+it.each([
+  ['destroy', 'Tab was closed while searching the page'],
+  ['renderer exit', 'The page stopped while searching it'],
+  ['throw', 'native failure']
+] as const)('cleans up after %s and permits another search', async (failure, message) => {
   const page = fixture()
   if (failure === 'throw') page.contents.findInPage.mockImplementationOnce(() => { throw new Error('native failure') })
   const failed = page.search().catch(error => error.message)
   if (failure === 'destroy') page.contents.emit('destroyed')
-  if (failure === 'timeout') await vi.advanceTimersByTimeAsync(5_000)
-  expect(await failed).toMatch(/closed|Timed out|native failure/)
+  if (failure === 'renderer exit') page.contents.emit('render-process-gone', {}, { reason: 'crashed', exitCode: 1 })
+  expect(await failed).toBe(message)
   expect(page.contents.listenerCount('found-in-page')).toBe(0)
   expect(page.contents.listenerCount('destroyed')).toBe(0)
+  expect(page.contents.listenerCount('render-process-gone')).toBe(0)
   expect(vi.getTimerCount()).toBe(0)
   const next = page.search()
   page.complete()

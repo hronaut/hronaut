@@ -13,6 +13,7 @@ All notable changes to Hronaut are documented in this file.
 - With Follow agents on, an agent working in another tab could take the view while you searched a page with Find, which closed Find and lost your place among its matches. Following now waits while the keyboard is in Find, as it does in the address bar.
 - An agent that answered a website's alert or confirm box after you had already answered it answered the page's next box instead, such as one asking to delete something. The tab and the agent's results now name each box, and an agent that passes that name answers only the box it read.
 - Clicking a link that only starts a download, or that the website answers with no content, closed Find and lost your place among its matches, though the page stayed. Find now stays open over such a link, as in Chrome, and closes only when another page replaces the one it searched, so it also stays while the next page loads.
+- On a very long page, such as a large log, Find said its search failed when the page took more than 5 seconds to count the matches, and Retry failed the same way, though the page had highlighted them. Find now waits for the count, as Chrome does.
 
 ## [3.14.4] - 2026-10-31
 
