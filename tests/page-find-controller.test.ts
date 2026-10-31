@@ -31,12 +31,13 @@ it('settles superseded searches and cancellation without retaining listeners or 
     searches.push(page.search().catch(error => error.message))
     expect(page.contents.listenerCount('found-in-page')).toBe(1)
     expect(page.contents.listenerCount('destroyed')).toBe(1)
-    expect(vi.getTimerCount()).toBe(1)
+    expect(page.contents.listenerCount('render-process-gone')).toBe(1)
   }
   page.stop()
   expect(await Promise.all(searches)).toEqual(Array(20).fill('Page search was cancelled or superseded'))
   expect(page.contents.listenerCount('found-in-page')).toBe(0)
   expect(page.contents.listenerCount('destroyed')).toBe(0)
+  expect(page.contents.listenerCount('render-process-gone')).toBe(0)
   expect(vi.getTimerCount()).toBe(0)
   expect(page.contents.stopFindInPage).toHaveBeenCalledWith('clearSelection')
 })
@@ -58,15 +59,27 @@ it('ignores stale and partial results and preserves unrelated listeners', async 
   expect(vi.getTimerCount()).toBe(0)
 })
 
-it.each(['destroy', 'timeout', 'throw'] as const)('cleans up after %s and permits another search', async (failure) => {
+// A very long page, such as a large log, takes many seconds to count its matches; Chromium then answers once, at the
+// end. The search failed after 5 seconds, so Find showed that it failed, and trying again failed the same way.
+it('waits for a page that takes long to count its matches', async () => {
+  const page = fixture()
+  const search = page.search()
+  await vi.advanceTimersByTimeAsync(60_000)
+  page.complete()
+  await expect(search).resolves.toEqual({ activeMatchOrdinal: 1, matches: 3 })
+  expect(page.contents.listenerCount('found-in-page')).toBe(0)
+})
+
+it.each(['destroy', 'renderer exit', 'throw'] as const)('cleans up after %s and permits another search', async (failure) => {
   const page = fixture()
   if (failure === 'throw') page.contents.findInPage.mockImplementationOnce(() => { throw new Error('native failure') })
   const failed = page.search().catch(error => error.message)
   if (failure === 'destroy') page.contents.emit('destroyed')
-  if (failure === 'timeout') await vi.advanceTimersByTimeAsync(5_000)
-  expect(await failed).toMatch(/closed|Timed out|native failure/)
+  if (failure === 'renderer exit') page.contents.emit('render-process-gone', {}, { reason: 'crashed', exitCode: 1 })
+  expect(await failed).toMatch(/closed|stopped|native failure/)
   expect(page.contents.listenerCount('found-in-page')).toBe(0)
   expect(page.contents.listenerCount('destroyed')).toBe(0)
+  expect(page.contents.listenerCount('render-process-gone')).toBe(0)
   expect(vi.getTimerCount()).toBe(0)
   const next = page.search()
   page.complete()
