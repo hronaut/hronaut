@@ -10,7 +10,7 @@ All notable changes to Hronaut are documented in this file.
 - As in Chrome, the address bar opens a one-word name followed by a path that ends in a slash, such as `intranet/` or `go/docs/`, or by two of a path, a query and a fragment, such as `wiki/page?id=4`, as a website on the local network over HTTP, instead of searching for it, and reads the page after `view-source:` as a typed address, so `view-source:example.com` shows the source of `https://example.com`; the page there was not read as an address.
 - A download into a download folder Hronaut cannot write to, such as one on a drive that became read-only, now asks where to save it, starting in your Documents folder, as in Chrome, instead of failing.
 - As in Chrome, text typed in the address bar and not sent is shown again when you come back to its tab, with a keyword search's engine; switching tabs threw it away. A tab that opened another page meanwhile shows that page's address, and so does the address bar when the page moves on while you are no longer typing in it.
-- As in Chrome, **Close Tabs to the Right** on a pinned tab closes the tabs after it that are not pinned; it was always off there.
+- As in Chrome, **Close Tabs to the Right** (**Close Tabs Below** with vertical tabs) on a pinned tab closes the tabs of its workspace that are not pinned; it was always off there.
 
 ## [3.14.6] - 2026-10-31
 

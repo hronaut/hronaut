@@ -44,7 +44,7 @@ export function showTabContextMenu(browser: Browser, tabId: string, onClosed?: (
   const peers = workspaceTabs.filter((candidate) => candidate.pinned === tab.pinned)
   const peerIndex = peers.indexOf(tab)
   const otherTabs = workspaceTabs.filter((candidate) => !candidate.pinned && candidate.id !== tab.id)
-  // As in Chrome, on a pinned tab these are every tab that is not pinned.
+  // As in Chrome, on a pinned tab these are every tab of its workspace that is not pinned.
   const tabsToRight = workspaceTabs.slice(workspaceIndex + 1).filter((candidate) => !candidate.pinned)
   const duplicateTabs = workspaceTabs.filter((candidate) => (
     !candidate.pinned && candidate.id !== tab.id && candidate.url === tab.url
