@@ -1,6 +1,7 @@
 import type { Debugger, WebContents } from 'electron'
 import { PAGE_IPC } from '../../shared/ipc/page.js'
 import { LocalizedError } from '../localized-error.js'
+import { callingThroughPageDialogs } from './page-dialog-waits.js'
 import { answeredByBrowserProcess } from './renderer-exit-guard.js'
 
 /** A page script, DevTools command or capture that cannot finish because the page is held by its print dialog. */
@@ -56,7 +57,8 @@ type GuardedPage = Pick<WebContents, 'executeJavaScript' | 'executeJavaScriptInI
  * the workspace's other tabs keep working. The page's preload reports the main frame's trusted beforeprint and
  * afterprint; Hronaut's own PDF export prints without a dialog, so print events during one are not the dialog's.
  * Commands the browser process answers, and those for the page's workers and out-of-process frames, still go
- * through. Nothing is retried; whenPrintDialogCloses lets cleanup run again once the dialog closes.
+ * through, and so do calls made through callThroughPageDialogs. Nothing is retried; whenPrintDialogCloses lets cleanup
+ * run again once the dialog closes.
  */
 export function guardPageCallsDuringPrintDialog(page: GuardedPage): void {
   const state: PrintDialogState = { open: false, closed: [] }
@@ -89,6 +91,7 @@ export function guardPageCallsDuringPrintDialog(page: GuardedPage): void {
   page.on('render-process-gone', endHold)
   page.on('destroyed', endHold)
   const settleBeforeDialog = <T>(call: () => Promise<T>): Promise<T> => {
+    if (callingThroughPageDialogs()) return call()
     if (state.open) return Promise.reject(new PrintDialogOpenError(false))
     const pending = call()
     return new Promise<T>((resolve, reject) => {

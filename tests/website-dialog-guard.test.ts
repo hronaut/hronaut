@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { callThroughWebsiteDialogs, guardPageCallsDuringWebsiteDialog, websiteDialogHolds, WebsiteDialogOpenError, whenWebsiteDialogCloses } from '../src/main/browser/website-dialog-guard.js'
+import { callThroughPageDialogs } from '../src/main/browser/page-dialog-waits.js'
+import { guardPageCallsDuringWebsiteDialog, websiteDialogHolds, WebsiteDialogOpenError, whenWebsiteDialogCloses } from '../src/main/browser/website-dialog-guard.js'
 
 function deferred(): { promise: Promise<unknown>; resolve(value: unknown): void; reject(error: unknown): void } {
   let resolve!: (value: unknown) => void
@@ -158,9 +159,9 @@ describe('page calls during a website dialog', () => {
 
   it('lets a call that waits for the person through a dialog, neither failed nor refused', async () => {
     const { page, calls, dialogOpens, dialogCloses } = fakePage()
-    const watch = callThroughWebsiteDialogs(() => page.executeJavaScriptInIsolatedWorld(9, [{ code: 'watch' }], false))
+    const watch = callThroughPageDialogs(() => page.executeJavaScriptInIsolatedWorld(9, [{ code: 'watch' }], false))
     await dialogOpens('alert')
-    const pick = callThroughWebsiteDialogs(() => page.executeJavaScript('pick', true))
+    const pick = callThroughPageDialogs(() => page.executeJavaScript('pick', true))
     // Other calls are still refused meanwhile.
     await expect(page.executeJavaScript('1')).rejects.toBeInstanceOf(WebsiteDialogOpenError)
     expect(calls.map(call => call.args[1] ?? call.args[0])).toEqual([[{ code: 'watch' }], true])
