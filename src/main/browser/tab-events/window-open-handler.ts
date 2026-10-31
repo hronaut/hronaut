@@ -116,7 +116,7 @@ export function attachWindowOpenHandler(browser: Browser, tab: BrowserTab, webCo
       // These apply after window.open()'s features, which could otherwise turn off the page's JavaScript.
       overrideBrowserWindowOptions: {
         webPreferences: {
-          ...pageWebPreferences(),
+          ...pageWebPreferences(browser),
           javascript: true,
           webviewTag: false,
           nodeIntegrationInSubFrames: false,

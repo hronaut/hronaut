@@ -4331,6 +4331,7 @@ export const zhCN: MessageSchema = {
       reloadPageMessage: '此页面要求 Hronaut 在重新加载前进行确认。',
       reloadPageDetail: '重新加载此页面可能会丢失尚未保存的更改。',
       reloadPage: '重新加载页面',
+      preventMoreDialogs: '禁止此网页显示更多对话框',
       pageDestroyedTitle: '此页面已不可用',
       pageDestroyedMessage: '请关闭此标签页，然后从“最近关闭”中重新打开它。',
       pageUnavailable: '页面不可用',

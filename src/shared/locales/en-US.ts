@@ -4329,6 +4329,7 @@ export const enUS = {
       reloadPageMessage: 'This page asked Hronaut to confirm before reloading it.',
       reloadPageDetail: 'Reloading the page may discard changes that have not been saved.',
       reloadPage: 'Reload page',
+      preventMoreDialogs: 'Prevent this page from creating additional dialogs',
       pageDestroyedTitle: 'This page is no longer available',
       pageDestroyedMessage: 'Close this tab and reopen it from Recently closed.',
       pageUnavailable: 'Page unavailable',

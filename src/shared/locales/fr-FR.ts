@@ -4331,6 +4331,7 @@ export const frFR: MessageSchema = {
       reloadPageMessage: 'Cette page demande à Hronaut de confirmer avant de l’actualiser.',
       reloadPageDetail: 'Actualiser la page peut supprimer des modifications non enregistrées.',
       reloadPage: 'Actualiser la page',
+      preventMoreDialogs: 'Empêcher cette page d’afficher d’autres boîtes de dialogue',
       pageDestroyedTitle: 'Cette page n’est plus disponible',
       pageDestroyedMessage: 'Fermez cet onglet et rouvrez-le depuis Fermés récemment.',
       pageUnavailable: 'Page indisponible',

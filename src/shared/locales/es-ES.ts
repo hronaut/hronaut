@@ -4331,6 +4331,7 @@ export const esES: MessageSchema = {
       reloadPageMessage: 'Esta página ha pedido a Hronaut que confirme antes de volver a cargarla.',
       reloadPageDetail: 'Al volver a cargar la página se pueden perder los cambios no guardados.',
       reloadPage: 'Volver a cargar la página',
+      preventMoreDialogs: 'Impedir que esta página cree más cuadros de diálogo',
       pageDestroyedTitle: 'Esta página ya no está disponible',
       pageDestroyedMessage: 'Cierra esta pestaña y vuelve a abrirla desde Cerradas recientemente.',
       pageUnavailable: 'Página no disponible',

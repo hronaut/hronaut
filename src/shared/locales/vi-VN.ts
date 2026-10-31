@@ -4331,6 +4331,7 @@ export const viVN: MessageSchema = {
       reloadPageMessage: 'Trang này yêu cầu Hronaut xác nhận trước khi tải lại trang.',
       reloadPageDetail: 'Việc tải lại trang có thể làm mất các thay đổi chưa được lưu.',
       reloadPage: 'Tải lại trang',
+      preventMoreDialogs: 'Ngăn trang này hiển thị thêm hộp thoại',
       pageDestroyedTitle: 'Trang này không còn khả dụng',
       pageDestroyedMessage: 'Hãy đóng thẻ này và mở lại từ mục Đã đóng gần đây.',
       pageUnavailable: 'Trang không khả dụng',

@@ -56,7 +56,7 @@ function fixture() {
     destroyed: false,
     initialized: true,
     restoringLayout: false,
-    options: { partition: 'persist:hronaut', configureSession },
+    options: { partition: 'persist:hronaut', configureSession, getLocale: () => 'en-US' },
     window: {
       isDestroyed: () => false,
       isFocused: () => true,

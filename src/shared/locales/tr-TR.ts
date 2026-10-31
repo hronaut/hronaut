@@ -4331,6 +4331,7 @@ export const trTR: MessageSchema = {
       reloadPageMessage: 'Bu sayfa, yeniden yüklenmeden önce Hronaut’un onay almasını istedi.',
       reloadPageDetail: 'Sayfayı yeniden yüklemek, kaydedilmemiş değişikliklerin kaybolmasına neden olabilir.',
       reloadPage: 'Sayfayı yeniden yükle',
+      preventMoreDialogs: 'Bu sayfanın başka iletişim kutuları göstermesini engelle',
       pageDestroyedTitle: 'Bu sayfa artık kullanılamıyor',
       pageDestroyedMessage: 'Bu sekmeyi kapatın ve Son kapatılanlar’dan yeniden açın.',
       pageUnavailable: 'Sayfa kullanılamıyor',

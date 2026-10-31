@@ -16,15 +16,19 @@ export function assertCanCreateTab(browser: Browser, mcpGroupId: string | undefi
 
 /**
  * The web preferences of every website tab: Hronaut's page script in an isolated world, a sandboxed renderer without
- * Node, and the web's own security. A page a tab opens for a window gets them too.
+ * Node, and the web's own security. A page a tab opens for a window gets them too. As in Chrome, a website's second
+ * alert or confirm box onward offers to stop its boxes, so a page that shows them one after another cannot hold the
+ * window, which each box blocks until it is answered.
  */
-export function pageWebPreferences(): WebPreferences {
+export function pageWebPreferences(browser: Browser): WebPreferences {
   return {
     preload: join(__dirname, '../preload/page.cjs'),
     contextIsolation: true,
     nodeIntegration: false,
     sandbox: true,
     webSecurity: true,
-    allowRunningInsecureContent: false
+    allowRunningInsecureContent: false,
+    safeDialogs: true,
+    safeDialogsMessage: browser.text('native.dialog.preventMoreDialogs')
   }
 }

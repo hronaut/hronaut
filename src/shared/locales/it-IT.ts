@@ -4331,6 +4331,7 @@ export const itIT: MessageSchema = {
       reloadPageMessage: 'Questa pagina ha chiesto a Hronaut di confermare prima di ricaricarla.',
       reloadPageDetail: 'Ricaricando la pagina potresti perdere le modifiche non salvate.',
       reloadPage: 'Ricarica la pagina',
+      preventMoreDialogs: 'Impedisci a questa pagina di mostrare altre finestre di dialogo',
       pageDestroyedTitle: 'Questa pagina non è più disponibile',
       pageDestroyedMessage: 'Chiudi questa scheda e riaprila da Chiuse di recente.',
       pageUnavailable: 'Pagina non disponibile',

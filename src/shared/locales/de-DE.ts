@@ -4331,6 +4331,7 @@ export const deDE: MessageSchema = {
       reloadPageMessage: 'Diese Seite bittet Hronaut, das Neuladen zu bestätigen.',
       reloadPageDetail: 'Beim Neuladen der Seite können nicht gespeicherte Änderungen verloren gehen.',
       reloadPage: 'Seite neu laden',
+      preventMoreDialogs: 'Weitere Dialogfelder auf dieser Seite verhindern',
       pageDestroyedTitle: 'Diese Seite ist nicht mehr verfügbar',
       pageDestroyedMessage: 'Schließen Sie diesen Tab und öffnen Sie ihn über „Kürzlich geschlossen“ erneut.',
       pageUnavailable: 'Seite nicht verfügbar',

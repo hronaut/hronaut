@@ -4331,6 +4331,7 @@ export const koKR: MessageSchema = {
       reloadPageMessage: '이 페이지를 새로고침하기 전에 확인하도록 Hronaut에 요청했습니다.',
       reloadPageDetail: '페이지를 새로고침하면 저장하지 않은 변경 사항이 삭제될 수 있습니다.',
       reloadPage: '페이지 새로고침',
+      preventMoreDialogs: '이 페이지에서 대화상자를 더 이상 표시하지 않음',
       pageDestroyedTitle: '이 페이지를 더 이상 사용할 수 없습니다',
       pageDestroyedMessage: '이 탭을 닫은 후 최근에 닫은 탭에서 다시 여세요.',
       pageUnavailable: '페이지를 사용할 수 없음',

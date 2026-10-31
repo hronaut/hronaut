@@ -4331,6 +4331,7 @@ export const plPL: MessageSchema = {
       reloadPageMessage: 'Ta strona prosi Hronaut o potwierdzenie przed jej ponownym załadowaniem.',
       reloadPageDetail: 'Ponowne załadowanie strony może spowodować utratę niezapisanych zmian.',
       reloadPage: 'Załaduj stronę ponownie',
+      preventMoreDialogs: 'Nie pozwalaj tej stronie wyświetlać kolejnych okien dialogowych',
       pageDestroyedTitle: 'Ta strona nie jest już dostępna',
       pageDestroyedMessage: 'Zamknij tę kartę i otwórz ją ponownie z listy Ostatnio zamknięte.',
       pageUnavailable: 'Strona niedostępna',
