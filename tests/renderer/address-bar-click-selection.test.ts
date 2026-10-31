@@ -6,16 +6,22 @@ import { useAddressClickSelection } from '../../src/renderer/src/features/addres
 // A click in the address bar put the caret where it landed, so typing a new address went into the middle of the old
 // one. Chrome's address bar selects all of its text on the click that gives it the keyboard.
 
-// An event's time stamp is the clock's time when it is made. A press reports when it happened, which is before the
-// window gives the keyboard to the field for it.
+// A press reports when it happened, which is before the window gives the keyboard to the field for it. The presses and
+// the focus events these tests make carry their own times, after those of the focus events jsdom makes, which carry the
+// real clock's time when they are made.
+let base = 0
 beforeEach(() => {
-  vi.useFakeTimers({ toFake: ['Date'] })
-  vi.setSystemTime(1_000)
+  base = Date.now() + 60_000
 })
-afterEach(() => {
-  vi.useRealTimers()
-  vi.restoreAllMocks()
-})
+afterEach(() => vi.restoreAllMocks())
+
+function stamped<T extends Event>(event: T, at: number): T {
+  Object.defineProperty(event, 'timeStamp', { value: base + at })
+  return event
+}
+
+/** The window gives the field the keyboard at this time. */
+const focusAt = (input: HTMLInputElement, at: number) => input.dispatchEvent(stamped(new FocusEvent('focus'), at))
 
 const ADDRESS = 'https://example.test/docs/start'
 
@@ -39,8 +45,7 @@ const all = [0, ADDRESS.length, 'backward']
 
 /** A press at this time and place, which gives the field the keyboard, and puts the caret or a selection there. */
 function press(input: HTMLInputElement, at: number, init: MouseEventInit, caret?: [number, number]): void {
-  vi.setSystemTime(at)
-  input.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, ...init }))
+  input.dispatchEvent(stamped(new MouseEvent('mousedown', { bubbles: true, cancelable: true, ...init }), at))
   input.focus()
   if (caret) input.setSelectionRange(...caret)
 }
@@ -86,12 +91,9 @@ it('selects the whole address when the page had the keyboard, also with a press 
   await fireEvent.blur(input)
 
   // The keyboard comes back first, then the press, which happened before it.
-  vi.setSystemTime(3_000)
-  const early = new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0, clientX: 40 })
-  vi.setSystemTime(3_010)
   hasFocus.mockReturnValue(true)
-  await fireEvent.focus(input)
-  input.dispatchEvent(early)
+  focusAt(input, 3_010)
+  input.dispatchEvent(stamped(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0, clientX: 40 }), 3_000))
   // Chromium leaves a selection a press lands in until the release, and then puts the caret there.
   expect(release(input, { button: 0, clientX: 40 })).toBe(true)
   expect(selection(input)).toEqual(all)
@@ -101,7 +103,7 @@ it('selects the whole address when the page had the keyboard, also with a press 
   await fireEvent.blur(input)
   press(input, 4_000, { button: 0, clientX: 40 }, [8, 8])
   hasFocus.mockReturnValue(true)
-  await fireEvent.focus(input)
+  focusAt(input, 4_010)
   expect(release(input, { button: 0, clientX: 40 })).toBe(true)
   expect(selection(input)).toEqual(all)
 })
@@ -111,9 +113,8 @@ it('places the caret when the field had the keyboard since before the press, as 
   input.focus()
   const hasFocus = vi.spyOn(document, 'hasFocus').mockReturnValue(false)
   await fireEvent.blur(input)
-  vi.setSystemTime(5_000)
   hasFocus.mockReturnValue(true)
-  await fireEvent.focus(input)
+  focusAt(input, 5_000)
   press(input, 6_000, { button: 0, clientX: 40 }, [8, 8])
   expect(release(input, { button: 0, clientX: 40 })).toBe(false)
   expect(selection(input)).toEqual([8, 8, 'none'])
