@@ -35,7 +35,9 @@ export function safeNavigationHistorySnapshot(
 
 /**
  * Whether the tab can go Back and Forward, read without its history's pages: the state is built many times a second
- * while pages load, and reading every tab's whole history took a good part of it. The sleeping page is none to go to.
+ * while pages load, and reading every tab's whole history took a good part of it. The sleeping page is none to go to,
+ * and neither is a page Chromium skips, one that moved on by itself, such as by script without the person's click: as
+ * in Chrome, Back is off when every page before is one, since Back and Forward go only where Chromium goes.
  */
 export function navigationButtons(tab: BrowserTab): { canGoBack: boolean; canGoForward: boolean } {
   const history = tab.sleepNavigationHistory
@@ -51,7 +53,8 @@ export function navigationButtons(tab: BrowserTab): { canGoBack: boolean; canGoF
       }
       return false
     }
-    return shown < 0 ? { canGoBack: false, canGoForward: false } : { canGoBack: pageTo(-1), canGoForward: pageTo(1) }
+    if (shown < 0) return { canGoBack: false, canGoForward: false }
+    return { canGoBack: navigation.canGoBack() && pageTo(-1), canGoForward: navigation.canGoForward() && pageTo(1) }
   } catch {
     // Electron can destroy the page between the calls.
     return { canGoBack: false, canGoForward: false }

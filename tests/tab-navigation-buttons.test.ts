@@ -14,14 +14,18 @@ function savedHistory(browser: unknown, everyTab: boolean): { unchanged(tab: unk
   return savedTabHistoryAccess(browser as never, everyTab) as unknown as { unchanged(tab: unknown): boolean }
 }
 
-function liveTab(urls: string[], index: number, options: { destroyed?: boolean; throws?: boolean } = {}) {
+/** A live tab; `skipped` are the entries Chromium skips on Back and Forward, pages that moved on by themselves. */
+function liveTab(urls: string[], index: number, options: { destroyed?: boolean; throws?: boolean; skipped?: number[] } = {}) {
   const getEntryAtIndex = vi.fn((at: number) => (at in urls ? { url: urls[at], title: '' } : null))
+  const goesTo = (step: number) => urls.some((_url, at) => (step < 0 ? at < index : at > index) && !options.skipped?.includes(at))
   return {
     id: 'tab', url: urls[index] ?? '', title: 'Title',
     webContents: {
       isDestroyed: () => options.destroyed === true,
       navigationHistory: {
         length: () => { if (options.throws) throw new Error('Object has been destroyed'); return urls.length },
+        canGoBack: () => goesTo(-1),
+        canGoForward: () => goesTo(1),
         getActiveIndex: () => index,
         getEntryAtIndex,
         getAllEntries: vi.fn(() => urls.map(url => ({ url, title: '' })))
@@ -54,6 +58,13 @@ describe('Back and Forward of a tab in the browser state', () => {
       })
       expect(tab.webContents.navigationHistory.getAllEntries).not.toHaveBeenCalled()
     }
+  })
+
+  it('are off where Chromium skips every page in that direction, as Chrome\'s are', () => {
+    // Back stayed on while every earlier page had moved on by script without the person's click, and did nothing.
+    expect(navigationButtons(liveTab([PAGE + 'a', PAGE + 'b'], 1, { skipped: [0] }) as never)).toEqual({ canGoBack: false, canGoForward: false })
+    expect(navigationButtons(liveTab([PAGE + 'a', PAGE + 'b', PAGE + 'c'], 2, { skipped: [1] }) as never)).toEqual({ canGoBack: true, canGoForward: false })
+    expect(navigationButtons(liveTab([PAGE + 'a', PAGE + 'b', PAGE + 'c'], 0, { skipped: [1, 2] }) as never)).toEqual({ canGoBack: false, canGoForward: false })
   })
 
   it('come from the history a sleeping tab keeps', () => {
