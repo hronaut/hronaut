@@ -1,7 +1,11 @@
+import type { WebContents } from 'electron'
 import { MAX_FIND_QUERY_LENGTH } from '../../../shared/types.js'
 import { LocalizedError } from '../../localized-error.js'
 import type { Browser } from '../browser.js'
 import { getTab } from '../browser-core.js'
+
+/** The document each page's latest search ran in, by its tab's document generation. */
+const searchedDocuments = new WeakMap<WebContents, number>()
 
 /**
  * Finds the query in the tab's page, forward and to the next match unless
@@ -14,7 +18,9 @@ export async function findInPage(
   options: { tabId?: string; forward?: boolean; findNext?: boolean; caseSensitive?: boolean } = {}
 ): Promise<{ activeMatchOrdinal: number; matches: number }> {
   if (!query || query.length > MAX_FIND_QUERY_LENGTH) throw new LocalizedError('appErrors.page.findQuery')
-  const webContents = getTab(browser, options.tabId).webContents
+  const tab = getTab(browser, options.tabId)
+  const webContents = tab.webContents
+  searchedDocuments.set(webContents, tab.documentGeneration)
   return browser.pageFind.search(webContents, query, {
     forward: options.forward ?? true,
     findNext: options.findNext ?? true,
@@ -36,13 +42,20 @@ export function stopFindInPage(
   options: { activateMatch?: boolean } = {}
 ): void {
   const tab = getTab(browser, tabId)
+  // Find closes once another document replaces the one it searched, which leaves nothing of the search on the page.
+  // Clearing the selection then would clear the new page's own, such as one a page coming back from Back kept, so the
+  // selection is kept, as Chrome does.
+  const searched = searchedDocuments.get(tab.webContents)
+  searchedDocuments.delete(tab.webContents)
+  const replaced = searched !== undefined && searched !== tab.documentGeneration
   const activate = options.activateMatch === true
+    && !replaced
     && !browser.browserContentOccluded
     && !browser.isHumanInteractionLocked(tab)
     && !browser.agentInputWebContents.has(tab.webContents.id)
     && !browser.screenshotAreaSessions.has(tab.webContents.id)
     && !browser.elementPickerSessions.has(tab.webContents.id)
-  if (!browser.pageFind.stop(tab.webContents, activate ? 'activateSelection' : 'clearSelection')) return
+  if (!browser.pageFind.stop(tab.webContents, activate ? 'activateSelection' : replaced ? 'keepSelection' : 'clearSelection')) return
   tab.humanInteractionGeneration += 1
   tab.lastHumanInteractionAt = performance.now()
   tab.lastActiveAt = tab.lastHumanInteractionAt
