@@ -1,7 +1,9 @@
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
 import { BrowserDebuggerQueue } from '../src/main/browser/debugger-queue.js'
-import { closeWebsiteDialogBox, closeWebsiteDialogBoxOfDestroyedPage, handleDialog, withOptionalDialogHandling } from '../src/main/browser/website-dialogs/website-dialogs.js'
+import {
+  closeWebsiteDialogBox, closeWebsiteDialogBoxOfDestroyedPage, handleDialog, WebsiteDialogChangedError, withOptionalDialogHandling
+} from '../src/main/browser/website-dialogs/website-dialogs.js'
 
 // The debugger reports a website dialog before Electron handles it. Electron shows a box for an alert or confirm, and
 // answers a page asking before it unloads, or a prompt, itself at once. Answering through the debugger closes the
@@ -12,6 +14,7 @@ type DialogType = 'alert' | 'confirm' | 'prompt' | 'beforeunload'
 function fixture() {
   const events: string[] = []
   let showing = false
+  let attached = true
   const debuggerEvents = new EventEmitter()
   const close = (by: string) => {
     showing = false
@@ -23,7 +26,10 @@ function fixture() {
     isDestroyed: () => false,
     isDevToolsOpened: () => false,
     debugger: Object.assign(debuggerEvents, {
-      isAttached: () => true,
+      isAttached: () => attached,
+      attach: vi.fn(() => { attached = true }),
+      /** As opening the page's Developer Tools detaches it. */
+      detach: () => { attached = false },
       // Chromium closes the dialog, and reports it closed, before the command returns.
       sendCommand: vi.fn(async (method: string, params?: { accept: boolean }) => {
         if (method !== 'Page.handleJavaScriptDialog') return {}
@@ -120,15 +126,35 @@ describe('answering website dialogs through the debugger', () => {
     f.close('the person')
     f.tab.dialog = undefined
     await expect(handleDialog(f.browser, 'accept', f.tab.id, read))
-      .rejects.toThrow('That dialog was already answered and no dialog is showing; nothing was answered.')
+      .rejects.toThrow(WebsiteDialogChangedError)
     f.pageOpens('confirm', 'shows a box')
     f.tab.dialog = { id: '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d', type: 'confirm', message: 'Delete the draft?' }
     await new Promise((resolve) => setImmediate(resolve))
     await expect(handleDialog(f.browser, 'accept', f.tab.id, read))
-      .rejects.toThrow('That dialog was already answered and the page now shows another one; nothing was answered. Read it before answering it.')
+      .rejects.toThrow('Hronaut no longer sees the dialog you read showing; nothing was answered.')
     expect(f.webContents.debugger.sendCommand).not.toHaveBeenCalledWith('Page.handleJavaScriptDialog', expect.anything())
     await expect(handleDialog(f.browser, 'dismiss', f.tab.id, '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d')).resolves.toEqual({ handled: true, action: 'dismiss' })
     expect(f.events).toEqual(['box shown', 'closed by the person', 'box shown', 'closed by dismiss', 'box closed'])
+  })
+
+  // Without the debugger attached, the answer waits its turn behind page commands, and the page may show another dialog
+  // meanwhile.
+  it('answers nothing when the dialog the agent named changed while its answer waited its turn', async () => {
+    const f = fixture()
+    const read = '5f0c8a1e-2b3d-4e6f-8a9b-0c1d2e3f4a5b'
+    f.webContents.debugger.detach()
+    let releaseEarlierCommand = (): void => undefined
+    void f.debuggerQueue.run(7, () => new Promise<void>((resolve) => { releaseEarlierCommand = resolve }))
+    f.pageOpens('confirm', 'shows a box')
+    f.tab.dialog = { id: read, type: 'confirm', message: 'Save the draft?' }
+    await new Promise((resolve) => setImmediate(resolve))
+    const answering = handleDialog(f.browser, 'accept', f.tab.id, read)
+    f.close('the person')
+    f.pageOpens('confirm', 'shows a box')
+    f.tab.dialog = { id: '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d', type: 'confirm', message: 'Delete the draft?' }
+    releaseEarlierCommand()
+    await expect(answering).rejects.toThrow(WebsiteDialogChangedError)
+    expect(f.webContents.debugger.sendCommand).not.toHaveBeenCalledWith('Page.handleJavaScriptDialog', expect.anything())
   })
 
   it('closes no box for a dialog the person answered in it', async () => {

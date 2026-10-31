@@ -28,27 +28,40 @@ export function agentAnswersWebsiteDialogs(webContents: WebContents): boolean {
   return agentActionsAnsweringDialogs.has(webContents)
 }
 
+/** The agent's answer named a website dialog the tab no longer shows, so nothing was answered. */
+export class WebsiteDialogChangedError extends Error {
+  constructor() {
+    super('Hronaut no longer sees the dialog you read showing; nothing was answered. Read the tab again before answering the dialog it shows.')
+    this.name = 'WebsiteDialogChangedError'
+  }
+}
+
 /**
  * Accepts or dismisses the website dialog the tab shows. Given the id of the dialog the agent read, it answers only that
- * one: after the person answered it, the page's next dialog, such as one asking to delete something, would take the
- * agent's answer instead.
+ * one, never a dialog the page showed after it, such as one asking to delete something once the person answered the
+ * first.
  */
 export async function handleDialog(browser: Browser, action: BrowserDialogAction, tabId?: string, dialogId?: string): Promise<{
   handled: true
   action: BrowserDialogAction
 }> {
   const tab = getTab(browser, tabId)
-  if (dialogId !== undefined && tab.dialog?.id !== dialogId) {
-    throw new Error(tab.dialog
-      ? 'That dialog was already answered and the page now shows another one; nothing was answered. Read it before answering it.'
-      : 'That dialog was already answered and no dialog is showing; nothing was answered.')
+  const stillTheDialogRead = (): void => {
+    if (dialogId !== undefined && tab.dialog?.id !== dialogId) throw new WebsiteDialogChangedError()
   }
+  stillTheDialogRead()
   const webContents = tab.webContents
   const answer = { accept: action === 'accept' }
   // The browser answers a dialog the page shows through the attached debugger, without the page. So the answer takes
   // no turn after page commands or monitoring set-up, which wait for the page the dialog holds.
   if (tab.dialog && webContents.debugger.isAttached()) await answerWebsiteDialog(webContents, answer)
-  else await withDebugger(browser, webContents, () => answerWebsiteDialog(webContents, answer))
+  else {
+    // Its turn may come after page commands the dialog held, and by then the page may show another dialog.
+    await withDebugger(browser, webContents, () => {
+      stillTheDialogRead()
+      return answerWebsiteDialog(webContents, answer)
+    })
+  }
   return { handled: true, action }
 }
 
