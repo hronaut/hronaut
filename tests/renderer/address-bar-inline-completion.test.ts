@@ -32,7 +32,7 @@ function visit(id: string, url: string, visitCount = 2): BrowserHistoryEntry {
   return { id, title: `Visit ${id}`, url, visitedAt: '2026-10-25T00:00:00.000Z', visitCount }
 }
 
-function createHarness(entries: BrowserHistoryEntry[], bookmarks: BrowserBookmark[] = []) {
+function createHarness(entries: BrowserHistoryEntry[], bookmarks: BrowserBookmark[] = [], otherTabs: BrowserTabState[] = []) {
   const history = ref(entries)
   const active = ref(shownTab)
   const onNavigate = vi.fn(async (_address: string) => undefined)
@@ -54,7 +54,7 @@ function createHarness(entries: BrowserHistoryEntry[], bookmarks: BrowserBookmar
     setup() {
       controller = useAddressBarController({
         activeTab: computed(() => active.value),
-        tabs: computed(() => [active.value]),
+        tabs: computed(() => [active.value, ...otherTabs]),
         bookmarks: ref(bookmarks),
         history,
         overlay,
@@ -137,6 +137,21 @@ describe('inline completion in the address bar', () => {
     expect(h.controller.suggestions.value.map(suggestion => suggestion.id)).toEqual(['history:repo'])
     await h.controller.submit()
     expect(h.onNavigate).toHaveBeenCalledExactlyOnceWith('https://github.com/')
+  })
+
+  it('shows the typed text, without the rest it filled in, on coming back to the tab, as Chrome does', async () => {
+    const otherTab = { ...shownTab, id: 'other', url: 'https://other.test/' }
+    const h = createHarness([visit('repo', 'https://github.com/hronaut/hronaut', 3)], [], [shownTab, otherTab])
+    await clear(h.input)
+    await type(h.input, 'gi')
+    expect(h.field().value).toBe('github.com')
+    h.input.blur()
+    h.active.value = otherTab
+    await nextTick()
+    h.active.value = shownTab
+    await nextTick()
+    expect(h.field().value).toBe('gi')
+    expect(h.controller.dirty.value).toBe(true)
   })
 
   it('keeps a local server\'s port and http, and fills in a page once the typed text reaches its path', async () => {

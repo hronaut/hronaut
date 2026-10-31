@@ -28,6 +28,8 @@ function tab(id: string, url = `https://example.test/${id}`): BrowserTabState {
 
 function createHarness(options: {
   activeTab?: BrowserTabState
+  /** The open tabs, which the active one is among in the app. */
+  tabs?: BrowserTabState[]
   bookmarks?: BrowserBookmark[]
   history?: BrowserHistoryEntry[]
   onNavigate?: (address: string) => Promise<void>
@@ -36,6 +38,7 @@ function createHarness(options: {
   dismissedRegistrationError?: Error
 } = {}) {
   const activeTab = ref(options.activeTab ?? tab('first'))
+  const tabs = ref(options.tabs ?? [])
   const bookmarks = ref(options.bookmarks ?? [])
   const history = ref(options.history ?? [])
   const onOpen = vi.fn()
@@ -72,7 +75,7 @@ function createHarness(options: {
     setup() {
       controller = useAddressBarController({
         activeTab: computed(() => activeTab.value),
-        tabs: ref([]),
+        tabs,
         bookmarks,
         history,
         overlay,
@@ -102,6 +105,7 @@ function createHarness(options: {
     view,
     controller,
     activeTab,
+    tabs,
     history,
     overlay,
     onOpen,
@@ -740,6 +744,74 @@ describe('address bar controller', () => {
 
     expect(rendered.onNavigate).not.toHaveBeenCalled()
     expect(rendered.controller.open.value).toBe(true)
+  })
+
+  it('shows what was typed for a tab again on coming back to it, as Chrome does', async () => {
+    // Switching tabs threw away what was typed, so a search half written was lost to a look at another tab.
+    const rendered = createHarness({ tabs: [tab('first'), tab('second')] })
+    const input = screen.getByRole('textbox', { name: 'Address' })
+    await fireEvent.focus(input)
+    await fireEvent.update(input, 'unfinished search')
+    await fireEvent.blur(input)
+
+    rendered.activeTab.value = tab('second')
+    await nextTick()
+    expect(input).toHaveValue('https://example.test/second')
+    expect(rendered.controller.dirty.value).toBe(false)
+
+    rendered.activeTab.value = tab('first')
+    await nextTick()
+    expect(input).toHaveValue('unfinished search')
+    expect(rendered.controller.dirty.value).toBe(true)
+    // The page's own address changing meanwhile, as one that moves its address to the section in view does, keeps it.
+    rendered.activeTab.value = tab('first', 'https://example.test/first#section')
+    await nextTick()
+    expect(input).toHaveValue('unfinished search')
+    await rendered.controller.submit()
+    expect(rendered.onNavigate).toHaveBeenCalledExactlyOnceWith('unfinished search')
+  })
+
+  it('shows a tab\'s own address on coming back once Escape, a sent address or a new page ends what was typed', async () => {
+    const rendered = createHarness({ tabs: [tab('first'), tab('second')] })
+    const input = screen.getByRole('textbox', { name: 'Address' })
+    const leaveAndComeBack = async (url = 'https://example.test/first') => {
+      rendered.activeTab.value = tab('second')
+      await nextTick()
+      rendered.activeTab.value = tab('first', url)
+      await nextTick()
+    }
+    await fireEvent.focus(input)
+    await fireEvent.update(input, 'escaped')
+    await fireEvent.keyDown(input, { key: 'Escape' })
+    await leaveAndComeBack()
+    expect(input).toHaveValue('https://example.test/first')
+
+    await fireEvent.update(input, 'sent.example')
+    await rendered.controller.submit()
+    await leaveAndComeBack()
+    expect(input).toHaveValue('https://example.test/first')
+
+    await fireEvent.update(input, 'left for another page')
+    await leaveAndComeBack('https://example.test/opened-meanwhile')
+    expect(input).toHaveValue('https://example.test/opened-meanwhile')
+    expect(rendered.controller.dirty.value).toBe(false)
+  })
+
+  it('keeps no text typed for a tab that closed', async () => {
+    const rendered = createHarness({ tabs: [tab('first'), tab('second')] })
+    const input = screen.getByRole('textbox', { name: 'Address' })
+    await fireEvent.focus(input)
+    await fireEvent.update(input, 'typed in the tab that closes')
+    rendered.activeTab.value = tab('second')
+    await nextTick()
+    await fireEvent.update(input, 'typed in the second tab')
+    // The first tab closes meanwhile; a new tab with its id would be another page.
+    rendered.tabs.value = [tab('second'), tab('third')]
+    rendered.activeTab.value = tab('third')
+    await nextTick()
+    rendered.activeTab.value = tab('first')
+    await nextTick()
+    expect(input).toHaveValue('https://example.test/first')
   })
 
   it('resumes committed URL updates after a tab change discards an edit', async () => {

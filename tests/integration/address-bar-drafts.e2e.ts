@@ -246,3 +246,27 @@ test('suggests a previously visited Google hostname in the visible native popup'
     }, webContentsId)
   }
 })
+
+test('shows an address draft again on coming back to its tab, as Chrome does', async ({ appWindow }) => {
+  // Switching tabs threw the draft away.
+  const first = 'data:text/html,<title>Draft tab first</title>'
+  const second = 'data:text/html,<title>Draft tab second</title>'
+  const open = (url: string) => appWindow.evaluate(async url => (window as unknown as TestWindow).hronaut.newTab({ url, active: true }), url)
+  const address = appWindow.getByRole('combobox', { name: 'Address' })
+  await open(first)
+  await expect(address).toHaveValue(first)
+  const draft = 'half written search'
+  await address.fill(draft)
+  await open(second)
+  await expect(address).toHaveValue(second)
+
+  await appWindow.getByRole('tab', { name: /Draft tab first/ }).click()
+  await expect(address).toHaveValue(draft)
+  await appWindow.getByRole('tab', { name: /Draft tab second/ }).click()
+  await expect(address).toHaveValue(second)
+  await appWindow.getByRole('tab', { name: /Draft tab first/ }).click()
+  await expect(address).toHaveValue(draft)
+  await address.focus()
+  await address.press('Escape')
+  await expect(address).toHaveValue(first)
+})

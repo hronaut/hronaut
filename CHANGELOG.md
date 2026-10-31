@@ -9,6 +9,7 @@ All notable changes to Hronaut are documented in this file.
 - The save dialog of **Save Page As**, and of a download when **Ask where to save each file** is on, now opens in the folder you last saved into from one, as in Chrome; it always opened in the download folder. Choosing a new download folder in Settings, or resetting the download settings, starts it there again.
 - As in Chrome, the address bar opens a one-word name followed by a path that ends in a slash, such as `intranet/` or `go/docs/`, or by two of a path, a query and a fragment, such as `wiki/page?id=4`, as a website on the local network over HTTP, instead of searching for it, and reads the page after `view-source:` as a typed address, so `view-source:example.com` shows the source of `https://example.com`; the page there was not read as an address.
 - A download into a download folder Hronaut cannot write to, such as one on a drive that became read-only, now asks where to save it, starting in your Documents folder, as in Chrome, instead of failing.
+- As in Chrome, text typed in the address bar and not sent is shown again when you come back to its tab, with a keyword search's engine; switching tabs threw it away. A tab that opened another page meanwhile shows that page's address.
 
 ## [3.14.6] - 2026-10-31
 
