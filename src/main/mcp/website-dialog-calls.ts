@@ -21,8 +21,8 @@ export function pageDialogInterrupted(error: unknown): error is WebsiteDialogOpe
 
 /**
  * The result of an agent's action that a page's dialog stopped after the action reached the page. The dialog now
- * holds the page, and what the action started goes on once it closes, so the action's effects are unknown and it must
- * not be repeated blindly.
+ * holds the page, and whatever the action started may go on once it closes, so the action's effects are unknown and it
+ * must not be repeated blindly.
  */
 export function pageDialogInterruptedResult(error: WebsiteDialogOpenError | PrintDialogOpenError, reviewFinalizationFailed = false): CallToolResult {
   const website = error instanceof WebsiteDialogOpenError
@@ -30,7 +30,7 @@ export function pageDialogInterruptedResult(error: WebsiteDialogOpenError | Prin
     status: 'OUTCOME_UNKNOWN', reason: website ? 'WEBSITE_DIALOG_OPENED' : 'PRINT_DIALOG_OPENED',
     dispatch: 'dispatched', effects: 'possible', retrySafe: false, detail: error.message,
     ...(reviewFinalizationFailed ? { reviewFinalization: 'failed' } : {}),
-    nextAction: (website ? 'Answer the dialog with browser_dialog; the action then goes on. ' : 'Ask the person to print or cancel. ')
+    nextAction: (website ? 'Answer the dialog with browser_dialog; whatever the action started may then go on. ' : 'Ask the person to print or cancel. ')
       + 'Inspect fresh page state before continuing; do not repeat the action blindly.'
   }
   return { ...textResult(outcome), structuredContent: outcome, isError: true }

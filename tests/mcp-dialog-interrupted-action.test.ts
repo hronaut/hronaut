@@ -21,6 +21,10 @@ vi.mock('../src/main/browser/page-snapshots/page-snapshots.js', async (importOri
   ...await importOriginal<typeof import('../src/main/browser/page-snapshots/page-snapshots.js')>(),
   findSnapshot: (browser: { findSnapshot: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.findSnapshot(...args)
 }))
+vi.mock('../src/main/browser/live-region-recorder/browser-live-region-recorder.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/live-region-recorder/browser-live-region-recorder.js')>(),
+  liveRegion: (browser: { liveRegion: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.liveRegion(...args)
+}))
 vi.mock('../src/main/browser/workspace-scope/workspace-scope.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/workspace-scope/workspace-scope.js')>(),
   requireTabInMcpGroup: (browser: { requireTabInMcpGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireTabInMcpGroup(...args),
@@ -47,8 +51,17 @@ vi.mock('../src/main/browser/agent-pause/agent-pause.js', async (importOriginal)
 const workspaceId = '01912345-6789-7abc-8def-0123456789ab'
 const tabId = '01912345-6790-7abc-8def-0123456789ab'
 
-/** Calls a tool whose page call fails with this error, on a tab that shows this website dialog. */
-async function callStoppedBy(error: Error, tool: 'browser_click' | 'browser_find', dialog?: { type: string; message: string }) {
+const TOOL_CALLS = {
+  browser_click: { selector: '#delete' },
+  browser_find: { query: 'Delete' },
+  browser_live_region: { action: 'get' }
+}
+
+/**
+ * Calls a tool whose page call fails with this error, on a tab that shows this website dialog; with loseAccess, the
+ * person turns off agent access to the workspace while the call runs.
+ */
+async function callStoppedBy(error: Error, tool: keyof typeof TOOL_CALLS, dialog?: { type: string; message: string }, loseAccess = false) {
   const workspace = { id: workspaceId, name: 'Dialogs', agentAccess: true, contextClass: 'standard' }
   const manager = {
     suspendWorkspaceContinuity: vi.fn(() => false), requireWorkspaceContinuityDispatch: vi.fn(),
@@ -58,8 +71,12 @@ async function callStoppedBy(error: Error, tool: 'browser_click' | 'browser_find
     isWorkspaceAgentAccessible: vi.fn(() => true), mcpWorkspaceResumeKey: vi.fn(() => `hrw1_${'R'.repeat(43)}`),
     requireMcpTabGroup: vi.fn(() => workspace), requireTabInMcpGroup: vi.fn(() => tabId),
     tabBelongsToMcpGroup: vi.fn(() => true), wakeTab: vi.fn(async () => {}),
-    click: vi.fn(async () => { throw error }),
+    click: vi.fn(async () => {
+      if (loseAccess) manager.isWorkspaceAgentAccessible.mockReturnValue(false)
+      throw error
+    }),
     findSnapshot: vi.fn(async () => { throw error }),
+    liveRegion: vi.fn(async () => { throw error }),
     getMcpGroupState: vi.fn(() => ({
       activeTabId: tabId,
       tabs: [{ id: tabId, url: 'https://example.test/', navigationGeneration: 1, observationGeneration: 1, humanInteractionGeneration: 0,
@@ -91,9 +108,7 @@ async function callStoppedBy(error: Error, tool: 'browser_click' | 'browser_find
     await client.connect(new StreamableHTTPClientTransport(new URL(await server.start())))
     const call = async (name: string, args: Record<string, unknown>) => await client.callTool({ name, arguments: args }) as CallToolResult
     expect((await call('browser_workspaces', { action: 'create', name: 'Dialogs' })).isError).not.toBe(true)
-    const result = tool === 'browser_click'
-      ? await call('browser_click', { workspaceId, tabId, selector: '#delete' })
-      : await call('browser_find', { workspaceId, tabId, query: 'Delete' })
+    const result = await call(tool, { workspaceId, tabId, ...TOOL_CALLS[tool] })
     const activities = activityEvents.mock.calls.map(([activity]) => activity).filter(activity => activity.toolName === tool && activity.phase !== 'started')
     const text = result.content.filter(item => item.type === 'text').map(item => item.text).join('\n')
     return { result, text, activity: activities[0]?.result, auditStatuses }
@@ -138,5 +153,20 @@ describe('an agent\'s action that a page\'s dialog stops after it reached the pa
     expect(read.result.structuredContent?.status).not.toBe('OUTCOME_UNKNOWN')
     expect(read.text).toContain('The page opened a website dialog during this action')
     expect(read.activity).toMatchObject({ outcome: 'failed', effects: 'none' })
+  })
+
+  // A read action of a tool that also changes things, such as a live region's get, changes nothing a dialog could stop.
+  it('keeps a read action of a tool that also makes changes a plain error', async () => {
+    const { result, text } = await callStoppedBy(new WebsiteDialogOpenError(true), 'browser_live_region', { type: 'alert', message: 'Saved' })
+    expect(result.isError).toBe(true)
+    expect(result.structuredContent?.status).not.toBe('OUTCOME_UNKNOWN')
+    expect(text).toContain('The page opened a website dialog during this action')
+  })
+
+  // The dialog's message is page content, which an agent that lost the workspace during its call must not receive.
+  it('leaves out the dialog\'s message when the agent lost access to the workspace during the call', async () => {
+    const { result } = await callStoppedBy(new WebsiteDialogOpenError(true), 'browser_click', { type: 'confirm', message: 'Delete invoice 4471?' }, true)
+    expect(result.structuredContent).toMatchObject({ status: 'OUTCOME_UNKNOWN', reason: 'WEBSITE_DIALOG_OPENED', retrySafe: false })
+    expect(JSON.stringify(result)).not.toContain('invoice 4471')
   })
 })

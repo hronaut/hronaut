@@ -219,7 +219,7 @@
     "src/main/mcp/workspace-continuity-store.ts": 5,
     "src/main/mcp/workspace-continuity.ts": 1,
     "src/main/mcp/workspace-preflight.ts": 1,
-    "src/main/mcp/workspace-tool-call.ts": 11,
+    "src/main/mcp/workspace-tool-call.ts": 10,
     "src/main/navigation-ipc.ts": 4,
     "src/main/network-routes-ipc.ts": 1,
     "src/main/overlays/address-overlay-ipc.ts": 1,

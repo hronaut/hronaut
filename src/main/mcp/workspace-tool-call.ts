@@ -20,7 +20,9 @@ import {
   type BrowserActionAuthorityReason
 } from './browser-action-authority.js'
 import type { BrowserState } from '../../shared/types.js'
-import { type PublicBrowserReconciliation, classifyMcpActivityResult, closedTabWaitResult, errorResult, isTimeoutError, mcpWorkspaceState, nativeClickFailureResult, nativeInputCleanupResult, nativeKeyHoldUnknownResult, nativeWheelUnknownResult, publicBrowserReconciliation, textResult, toolDefinition, urlDetailOmitted } from './tool-results.js'
+import { type PublicBrowserReconciliation, classifyMcpActivityResult, closedTabWaitResult, errorResult, isTimeoutError, mcpWorkspaceState,
+  nativeClickFailureResult, nativeInputCleanupResult, nativeKeyHoldUnknownResult, nativeWheelUnknownResult, publicBrowserReconciliation,
+  textResult, toolDefinition, urlDetailOmitted } from './tool-results.js'
 import { mcpCapabilityOperationClass } from './capability-classification.js'
 import { workspaceIdSchema } from './tool-schemas.js'
 import { pageDialogInterrupted, pageDialogInterruptedResult, withWebsiteDialogNote } from './website-dialog-calls.js'
@@ -328,6 +330,17 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
             throw workspaceAuthorizationError()
           }
         }
+        // What must still hold when a dispatched call settles for its result, and the page content in it, to reach the agent.
+        const requireCurrentAfterDispatch = (): void => {
+          if (writeLease?.generation) workspaceLeases.require(workspaceId, client.id, writeLease.generation)
+          requireCurrentControl(true)
+          requireAgentWorkspace(workspaceId)
+          if (!options.closesTargetTab) requireCurrentHumanInput()
+          // Closing a tab intentionally retires its target. Other tools
+          // must still belong to the authorized workspace when they settle.
+          if (resolvedTabId && !options.closesTargetTab
+            && !tabBelongsToMcpGroup(manager, workspaceId, resolvedTabId)) throw workspaceAuthorizationError()
+        }
         let invalidatedOutcome: 'outcome-unknown' | 'stale-observation' | 'provenance-rejected' | undefined
         let authorityReason: BrowserActionAuthorityReason | undefined
         let activityStarted = false
@@ -517,14 +530,7 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
               await requireHumanDecision(false, reviewAttempt?.id)
               settlement?.recheckAfterDispatch?.()
               validateLifecycleResult()
-              if (writeLease?.generation) workspaceLeases.require(workspaceId, client.id, writeLease.generation)
-              requireCurrentControl(true)
-              requireAgentWorkspace(workspaceId)
-              if (!options.closesTargetTab) requireCurrentHumanInput()
-              // Closing a tab intentionally retires its target. Other tools
-              // must still belong to the authorized workspace when they settle.
-              if (resolvedTabId && !options.closesTargetTab
-                && !tabBelongsToMcpGroup(manager, workspaceId, resolvedTabId)) throw workspaceAuthorizationError()
+              requireCurrentAfterDispatch()
             } catch (error) {
               rememberInputPolicy(error)
               invalidatedOutcome = readOnly ? 'stale-observation' : 'outcome-unknown'
@@ -547,10 +553,19 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
             // A page's dialog that holds the page stopped a call that had reached it, as a click that opens a confirm. A
             // change then has unknown effects.
             if (pageDialogInterrupted(error)) {
-              if (!readOnly) invalidatedOutcome = 'outcome-unknown'
+              const observation = readOnly || mcpCapabilityOperationClass(name, actionInput) === 'read'
+              if (!observation) invalidatedOutcome = 'outcome-unknown'
               const reviewFinalizationFailed = await finishReviewedAttempt('unknown').then(() => false, () => true)
-              return withWebsiteDialogNote(readOnly ? errorResult(error) : pageDialogInterruptedResult(error, reviewFinalizationFailed),
-                resolvedTabId ? getMcpGroupState(manager, workspaceId).tabs.find(tab => tab.id === resolvedTabId)?.dialog : undefined)
+              const stopped = observation ? errorResult(error) : pageDialogInterruptedResult(error, reviewFinalizationFailed)
+              // The dialog's message is page content, for an agent that still holds the workspace and its tab.
+              try {
+                requireCurrentAfterDispatch()
+                return withWebsiteDialogNote(stopped,
+                  resolvedTabId ? getMcpGroupState(manager, workspaceId).tabs.find(tab => tab.id === resolvedTabId)?.dialog : undefined)
+              } catch (settleError) {
+                rememberInputPolicy(settleError)
+                return stopped
+              }
             }
             if (!(error instanceof NativeInputCleanupError) && !(error instanceof NativeWheelOutcomeUnknownError)) throw error
             const uncertainResult = error instanceof NativeClickAdmissionError
