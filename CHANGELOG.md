@@ -11,6 +11,7 @@ All notable changes to Hronaut are documented in this file.
 - When you closed a tab behind the one you were looking at, such as from the tab strip, and its page asked to keep unsaved changes, Hronaut asked "Close this tab?" over the other page, so you could not see which page you would discard. As in Chrome, that page now comes into view for the question; if you keep it, you go on editing it, and if you discard it, you are back on the tab you were on. While a split view is open, the question still asks over it, so your split view stays.
 - While one page of a split view was in full screen, a window that the other, hidden page opened on its own, such as from a timer, took the view, which ended the split view and the full screen you were watching. That window now opens behind, as one from any tab you are not looking at does.
 - A website's alert or confirm box that Hronaut or an agent answered for you stayed on screen, and Hronaut's window did not respond until you clicked it. While Settings or another of Hronaut's own screens covered the pages, such a box even showed on top of it. Hronaut now closes the box once the dialog is answered, and turns down a website's box while its own screens cover the pages.
+- While a website showed an alert or confirm box, an agent's request for the page's network requests or browser issues never answered, and neither did the agent's answer to the box after it, so only you could free the page. Both now answer at once, and the agent can answer the box.
 
 ## [3.14.3] - 2026-10-31
 

@@ -164,6 +164,9 @@ export function ensureDialogMonitoring(browser: Browser, tab: BrowserTab): Promi
   const webContents = tab.webContents
   const existing = browser.dialogMonitorAttachPromises.get(webContents.id)
   if (existing) return existing
+  // Monitoring holds until the debugger detaches. Enabling the page's domains again would wait for the page, which a
+  // website dialog holds until someone answers it, and every debugger operation waits for that.
+  if (tab.networkDebuggerEnabled && webContents.debugger.isAttached()) return Promise.resolve()
   const attaching = (async () => {
     if (
       browser.destroyed

@@ -70,16 +70,17 @@ export function recordAuthChallenge(tab: InspectorIssuesTab, details: Electron.A
 
 /**
  * The tab's browser-generated issues and recorded authentication challenges
- * for its current document. Unless Developer Tools owns the tab, form issues
- * are checked first. With clear, the retained issues and challenges are
- * dropped and the count cleared is reported.
+ * for its current document. Unless Developer Tools owns the tab or a website
+ * dialog holds the page, form issues are checked first. With clear, the
+ * retained issues and challenges are dropped and the count cleared is reported.
  */
 export async function inspectorIssues(browser: Browser, tabId?: string, clear = false): Promise<BrowserInspectorIssuesReport> {
   const tab = getTab(browser, tabId)
   if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before inspecting browser issues')
   if (!clear && !tab.webContents.isDevToolsOpened()) {
     await ensureDialogMonitoring(browser, tab)
-    if (tab.webContents.debugger.isAttached()) {
+    // A page that a website dialog holds checks nothing until the dialog closes; the issues it reported are listed.
+    if (tab.webContents.debugger.isAttached() && !tab.dialog) {
       try {
         const checked = await tab.webContents.debugger.sendCommand('Audits.checkFormsIssues') as {
           formIssues?: unknown[]

@@ -30,3 +30,27 @@ it('tells agents that Hronaut may ask the person to sign in for the HTTP Basic c
   expect(caveat).toContain('Agents never see what the person types and cannot answer the dialog')
   expect(caveat).not.toContain('cancelled without supplying credentials')
 })
+
+// While a website dialog held the page, the form check waited for the page, so the agent's issues tool never answered.
+it('lists the issues of a page a website dialog holds without checking its forms', async () => {
+  const sendCommand = vi.fn(() => new Promise(() => undefined))
+  const tab = {
+    id: 'tab-1',
+    title: 'Example',
+    url: 'https://example.test/',
+    sleeping: false,
+    webContents: { isDevToolsOpened: () => false, debugger: { isAttached: () => true, sendCommand } } as unknown as WebContents,
+    dialog: { type: 'alert' as const, message: 'Unsaved draft', url: 'https://example.test/' },
+    inspectorIssues: [],
+    inspectorIssuesTruncated: false,
+    authChallenges: [],
+    authChallengesTruncated: false,
+    authNavigationPending: false
+  }
+  const browser = { tabs: new Map([[tab.id, tab]]), activeTabId: tab.id } as unknown as Browser
+
+  const report = await inspectorIssues(browser, tab.id)
+
+  expect(report.issues).toEqual([])
+  expect(sendCommand).not.toHaveBeenCalled()
+})
