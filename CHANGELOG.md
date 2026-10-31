@@ -7,7 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - A website that showed alert or confirm boxes one after another held Hronaut's window: each box had to be answered before anything else worked, and the next one came at once. As in Chrome, from a website's second box onward in a tab, the box now offers to prevent the page from creating more; once you tick it, that website's later boxes in the tab are answered Cancel without showing, until the tab closes.
-- When an agent's script opened a window from the page you were looking at, the new tab took the view and the keys you were typing, as if you had clicked. It now opens as its workspace's tab without being shown, as one that an agent's click opens, and Follow agents shows it once the agent works in it. A window opened within moments of your own click or key press in that page still opens in front.
+- When the page you were looking at opened a window while an agent's tool call ran on it, such as a script the agent ran there, the new tab took the view and the keys you were typing, as if you had clicked. It now opens as its workspace's tab without being shown, as one that an agent's click opens, and Follow agents shows it once the agent works in it. A window you open with a click or key press in that page while the agent's call runs still opens in front.
 
 ## [3.14.3] - 2026-10-31
 

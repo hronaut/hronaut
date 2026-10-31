@@ -47,6 +47,7 @@ function fixture(options: {
     id: 'opener',
     sleeping: false,
     lastHumanInteractionAt: Number.NEGATIVE_INFINITY,
+    agentCallStartedAt: Number.NEGATIVE_INFINITY,
     ...('mcpGroupId' in options ? { mcpGroupId: options.mcpGroupId } : { mcpGroupId: 'client' })
   }
   // The person sees the page that opens the window, unless a test says otherwise.
@@ -197,12 +198,46 @@ describe('a window a workspace page opens', () => {
     browser.mcpActivitiesByTab.set('opener', new Set(['evaluate']))
     open(details).createWindow!({ webContents: guestPage() })
     expect(createTab).toHaveBeenCalledWith(expect.objectContaining({ active: true, selectVisible: false }))
-    // The person clicked or typed in the page moments before, while the agent's call ran: their window shows.
+    // Also in a pane of the split view, and behind for a background-tab disposition.
+    const split = fixture({ shownTab: { id: 'other', mcpGroupId: 'client' }, splitTabId: 'opener' })
+    split.browser.mcpActivitiesByTab.set('opener', new Set(['evaluate']))
+    split.open(details).createWindow!({ webContents: guestPage() })
+    expect(split.createTab).toHaveBeenCalledWith(expect.objectContaining({ active: true, selectVisible: false }))
+    const background = fixture()
+    background.browser.mcpActivitiesByTab.set('opener', new Set(['evaluate']))
+    background.open({ ...details, disposition: 'background-tab' }).createWindow!({ webContents: guestPage() })
+    expect(background.createTab).toHaveBeenCalledWith(expect.objectContaining({ active: false, selectVisible: false }))
+  })
+
+  it('shows the window the person opens with a click or key press in the page while an agent\'s call on it runs', () => {
     const clicked = fixture()
     clicked.browser.mcpActivitiesByTab.set('opener', new Set(['wait']))
+    clicked.tab.agentCallStartedAt = performance.now() - 1_000
     clicked.tab.lastHumanInteractionAt = performance.now()
     clicked.open(details).createWindow!({ webContents: guestPage() })
     expect(clicked.createTab).toHaveBeenCalledWith(expect.objectContaining({ active: true, selectVisible: true }))
+    // Their key press just before the agent's call began does not make its window theirs.
+    const typedBefore = fixture()
+    typedBefore.browser.mcpActivitiesByTab.set('opener', new Set(['evaluate']))
+    typedBefore.tab.lastHumanInteractionAt = performance.now() - 1_000
+    typedBefore.tab.agentCallStartedAt = performance.now()
+    typedBefore.open(details).createWindow!({ webContents: guestPage() })
+    expect(typedBefore.createTab).toHaveBeenCalledWith(expect.objectContaining({ active: true, selectVisible: false }))
+    // Nor does any click while the agent's input runs.
+    const input = fixture()
+    input.agentInput.set(7, 1)
+    input.tab.lastHumanInteractionAt = performance.now()
+    input.open(details).createWindow!({ webContents: guestPage() })
+    expect(input.createTab).toHaveBeenCalledWith(expect.objectContaining({ active: true, selectVisible: false }))
+  })
+
+  it('decides whether the agent\'s call asked for the window when the page asks, while the call still runs', () => {
+    const { browser, open, createTab } = fixture()
+    browser.mcpActivitiesByTab.set('opener', new Set(['evaluate']))
+    const response = open(details)
+    browser.mcpActivitiesByTab.clear()
+    response.createWindow!({ webContents: guestPage() })
+    expect(createTab).toHaveBeenCalledWith(expect.objectContaining({ selectVisible: false }))
   })
 
   it('makes the tab its workspace\'s without showing it, for an agent\'s tool call on a page behind', () => {

@@ -149,6 +149,8 @@ export interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordi
    * does not stretch the window it opens; never, for a tab they have not touched.
    */
   lastHumanInteractionAt: number
+  /** When an agent's latest tool call on the tab began, on the monotonic clock; never, for a tab no agent called on. */
+  agentCallStartedAt: number
   suppressInitialHistory: boolean
   pendingHistoryUrl: string | null
   /** Where the main frame's document navigation under way is headed, after redirects, until it commits or ends. */

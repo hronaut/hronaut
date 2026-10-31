@@ -300,7 +300,7 @@ describe('a tab an agent opens or selects while Follow agents is on', () => {
   })
 
   it('opens the window an agent\'s click asks for without showing it, unlike one the person opens', () => {
-    const { internals, agentTab } = fixture({ pageFullscreen: true })
+    const { manager, internals, agentTab } = fixture({ pageFullscreen: true })
     internals.createTab = vi.fn(async () => ({ id: 'popup' }))
     type Response = { createWindow(options: { webContents: WebContents }): WebContents }
     let openWindow!: (details: { url: string; disposition: string; referrer: { url: string; policy: string } }) => Response
@@ -317,6 +317,14 @@ describe('a tab an agent opens or selects while Follow agents is on', () => {
     internals.activeTabId = agentTab.id
     openWindow(details).createWindow({ webContents: guest })
     expect(internals.createTab).toHaveBeenLastCalledWith(expect.objectContaining({ active: true, selectVisible: true }))
+    // While an agent's call runs on that page, a window the page opens is the agent's, even after the person's click
+    // just before the call began.
+    const follower = followAgents(internals)
+    Object.assign(agentTab, { agentCallStartedAt: Number.NEGATIVE_INFINITY, lastHumanInteractionAt: performance.now() })
+    handleMcpTabActivity(manager, { activityId: 'evaluate', tabId: agentTab.id, toolName: 'browser_evaluate', phase: 'started', occurredAt: Date.now() }, { id: 'agent', name: 'Agent' })
+    openWindow(details).createWindow({ webContents: guest })
+    expect(internals.createTab).toHaveBeenLastCalledWith(expect.objectContaining({ active: true, selectVisible: false }))
+    follower.dispose()
   })
 })
 
