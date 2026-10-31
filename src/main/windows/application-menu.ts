@@ -9,7 +9,6 @@ import { back, forward, reload, reloadIgnoringCache, stopFocusedPageLoading } fr
 import { printShownPage } from '../browser/page-print/page-print.js'
 import { saveShownPage } from '../browser/page-save/page-save.js'
 import { viewShownPageSource } from '../browser/page-source/page-source.js'
-import { setZoom } from '../browser/page-zoom/page-zoom.js'
 import { newTab } from '../browser/new-tabs/open-new-tab.js'
 import { UPDATES_IPC } from '../../shared/ipc/updates.js'
 import { SHELL_IPC } from '../../shared/ipc/shell.js'
@@ -78,6 +77,17 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
   // keys of the menu they reach it only when the website or field in focus leaves them alone, and never from an agent,
   // and only from the main window, since typed in a panel in its own window they would search a page out of view.
   function findAgain(action: 'find-next' | 'find-previous', window: BaseWindow | undefined, event: KeyboardEvent): void {
+    if (event.triggeredByAccelerator && (window === undefined || window.id !== host.mainWindow()?.id)) return
+    // Chosen from the menu, the main window may be hidden behind a panel in its own window or in the tray.
+    if (!event.triggeredByAccelerator) host.showWindow()
+    host.runShortcut(action)
+  }
+
+  // Actual Size, Zoom In and Zoom Out zoom the page in view as their keys do in Hronaut's window, which leaves Hronaut
+  // Home and a page under Settings at their zoom: Home zoomed from here stayed zoomed, since its keys leave it alone.
+  // Their keys reach the menu only from a window that leaves them alone, and act only from the main window: typed in a
+  // panel in its own window, they would zoom a page out of view.
+  function zoomShownPage(action: 'zoom-reset' | 'zoom-in' | 'zoom-out', window: BaseWindow | undefined, event: KeyboardEvent): void {
     if (event.triggeredByAccelerator && (window === undefined || window.id !== host.mainWindow()?.id)) return
     // Chosen from the menu, the main window may be hidden behind a panel in its own window or in the tray.
     if (!event.triggeredByAccelerator) host.showWindow()
@@ -345,17 +355,17 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
             {
               label: host.text('native.menu.actualSize'),
               accelerator: 'CmdOrCtrl+0',
-              click: () => host.runNativeBrowserAction('reset page zoom', () => withBrowser((browser) => setZoom(browser, { action: 'reset' })))
+              click: (_item, window, event) => zoomShownPage('zoom-reset', window, event)
             },
             {
               label: host.text('native.menu.zoomIn'),
               accelerator: 'CmdOrCtrl+Plus',
-              click: () => host.runNativeBrowserAction('zoom in', () => withBrowser((browser) => setZoom(browser, { action: 'in' })))
+              click: (_item, window, event) => zoomShownPage('zoom-in', window, event)
             },
             {
               label: host.text('native.menu.zoomOut'),
               accelerator: 'CmdOrCtrl+-',
-              click: () => host.runNativeBrowserAction('zoom out', () => withBrowser((browser) => setZoom(browser, { action: 'out' })))
+              click: (_item, window, event) => zoomShownPage('zoom-out', window, event)
             },
             { role: 'togglefullscreen' }
           ]

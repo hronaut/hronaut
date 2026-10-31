@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
-import { flushPromises } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import ZoomBar from '../../src/renderer/src/features/zoom/ZoomBar.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
@@ -161,6 +161,25 @@ describe('ZoomBar', () => {
     const home = renderBar()
     await home.view.rerender({ activeTab: tab('first', { url: 'hronaut://home/' }) })
     expect(home.view.emitted()['update:open']?.at(-1)).toEqual([false])
+  })
+
+  // The zoom keys and the View menu's zoom come here. Home keeps its zoom, as it does under the wheel: zoomed, its keys
+  // could not have put it back.
+  it('leaves Home at its zoom when a key or the View menu asks to zoom the page in view', async () => {
+    const home = tab('home', { url: 'hronaut://home/' })
+    const website = tab('website')
+    const browser = { setZoom: vi.fn(async () => browserState(website)) }
+    const bar = mount(ZoomBar, {
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: { open: false, activeTab: home, browser, acceptState: vi.fn(async () => undefined), formatPercent: (value: number) => `${value}%` }
+    })
+    const zoom = (action: 'in' | 'out' | 'reset') => (bar.vm as unknown as { setZoom(action: 'in' | 'out' | 'reset'): Promise<void> }).setZoom(action)
+    for (const action of ['in', 'out', 'reset'] as const) await zoom(action)
+    expect(browser.setZoom).not.toHaveBeenCalled()
+    await bar.setProps({ activeTab: website })
+    await zoom('in')
+    expect(browser.setZoom).toHaveBeenCalledExactlyOnceWith({ tabId: 'website', action: 'in' })
+    bar.unmount()
   })
 
   it('allows increasing the previous 300 percent maximum', () => {
