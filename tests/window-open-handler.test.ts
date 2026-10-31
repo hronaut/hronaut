@@ -37,10 +37,18 @@ function guestPage(options: { opener?: boolean } = {}): WebContents & { close: R
 }
 
 function fixture(options: {
-  mcpGroupId?: string; allowed?: boolean; canOpenTab?: () => void; createTab?: CreateTab; activeTabId?: string; splitTabId?: string
+  mcpGroupId?: string; allowed?: boolean; canOpenTab?: () => void; createTab?: CreateTab
+  shownTab?: { id: string; mcpGroupId?: string }; splitTabId?: string
 } = {}) {
   const agentInput = new Map<number, number>()
-  const tab = { id: 'opener', sleeping: false, ...('mcpGroupId' in options ? { mcpGroupId: options.mcpGroupId } : { mcpGroupId: 'client' }) }
+  const tab = {
+    id: 'opener',
+    sleeping: false,
+    lastHumanInteractionAt: Number.NEGATIVE_INFINITY,
+    ...('mcpGroupId' in options ? { mcpGroupId: options.mcpGroupId } : { mcpGroupId: 'client' })
+  }
+  // The person sees the page that opens the window, unless a test says otherwise.
+  const shown = options.shownTab ?? tab
   const observation = new OpenedTabObservation()
   const onActionFailed = vi.fn()
   const createTab = vi.fn<CreateTab>(options.createTab ?? (async (tabOptions) => {
@@ -56,8 +64,8 @@ function fixture(options: {
     createTab,
     agentInputWebContents: agentInput,
     mcpActivitiesByTab: new Map<string, Set<string>>(),
-    // The person sees the page that opens the window, unless a test says otherwise.
-    activeTabId: options.activeTabId ?? 'opener',
+    tabs: new Map<string, { mcpGroupId?: string }>([[tab.id, tab], [shown.id, shown]]),
+    activeTabId: shown.id,
     splitViewContains: (tabId: string) => tabId === options.splitTabId
   }
   let handler!: (details: Details) => Response
@@ -140,11 +148,11 @@ describe('a window a workspace page opens', () => {
     expect(createTab).toHaveBeenCalledWith(expect.objectContaining({ selectVisible: false }))
   })
 
-  it('opens it behind when its page is out of the person\'s view, so a page behind never takes the view', () => {
-    // A page in a tab behind, or in another workspace, that opened a window on a timer was shown in place of the page
-    // the person was looking at, and took the keys they typed. Chrome's pop-up blocker refuses a window opened without
-    // the person's click or key press, which a page out of view cannot have.
-    const behind = fixture({ activeTabId: 'other' })
+  it('opens it behind a tab the person sees, unless they just clicked or typed in its page', () => {
+    // A window that a page in a tab behind opened, such as on a timer, was shown in place of the page the person was
+    // looking at, and took the keys they typed. Chrome's pop-up blocker refuses a window opened without the person's
+    // click or key press.
+    const behind = fixture({ shownTab: { id: 'other', mcpGroupId: 'client' } })
     behind.open(details).createWindow!({ webContents: guestPage() })
     expect(behind.createTab).toHaveBeenCalledWith(expect.objectContaining({
       active: false,
@@ -152,9 +160,23 @@ describe('a window a workspace page opens', () => {
       openedFrom: { tabId: 'opener', background: true, window: true }
     }))
     // A split view shows both its pages.
-    const split = fixture({ activeTabId: 'other', splitTabId: 'opener' })
+    const split = fixture({ shownTab: { id: 'other', mcpGroupId: 'client' }, splitTabId: 'opener' })
     split.open(details).createWindow!({ webContents: guestPage() })
     expect(split.createTab).toHaveBeenCalledWith(expect.objectContaining({ active: true, selectVisible: true }))
+    // A page the person clicked moments ago, such as one that opens its window once a request answers, may still open
+    // it in front after they moved to another tab, as Chromium lets that click open a window for a few seconds.
+    const clicked = fixture({ shownTab: { id: 'other', mcpGroupId: 'client' } })
+    clicked.tab.lastHumanInteractionAt = performance.now()
+    clicked.open(details).createWindow!({ webContents: guestPage() })
+    expect(clicked.createTab).toHaveBeenCalledWith(expect.objectContaining({ active: true, selectVisible: true }))
+  })
+
+  it('makes it its workspace\'s tab without showing it, from a page in a workspace the person does not see', () => {
+    // As before, an agent working there finds the window its page opened after the agent's call answered as the
+    // workspace's tab; it no longer takes the person to that workspace.
+    const { open, createTab } = fixture({ shownTab: { id: 'other', mcpGroupId: 'mine' } })
+    open(details).createWindow!({ webContents: guestPage() })
+    expect(createTab).toHaveBeenCalledWith(expect.objectContaining({ active: true, selectVisible: false }))
   })
 
   it('decides whether its page is in view when the page asks, not when Chromium creates the window', () => {
@@ -165,9 +187,9 @@ describe('a window a workspace page opens', () => {
     expect(createTab).toHaveBeenCalledWith(expect.objectContaining({ active: true, selectVisible: true }))
   })
 
-  it('makes the tab its workspace\'s without showing it, for an agent\'s tool call on a page out of view', () => {
+  it('makes the tab its workspace\'s without showing it, for an agent\'s tool call on a page behind', () => {
     // As for the agent's input, Follow agents shows it through the agent's calls on it.
-    const { browser, open, createTab } = fixture({ activeTabId: 'other' })
+    const { browser, open, createTab } = fixture({ shownTab: { id: 'other', mcpGroupId: 'client' } })
     browser.mcpActivitiesByTab.set('opener', new Set(['evaluate']))
     open(details).createWindow!({ webContents: guestPage() })
     expect(createTab).toHaveBeenCalledWith(expect.objectContaining({ active: true, selectVisible: false }))
@@ -223,8 +245,8 @@ describe('a window a page outside a workspace opens', () => {
     }))
   })
 
-  it('opens it behind when its page is out of the person\'s view', () => {
-    const { open, createTab } = fixture({ mcpGroupId: undefined, activeTabId: 'other' })
+  it('opens it behind a tab the person sees', () => {
+    const { open, createTab } = fixture({ mcpGroupId: undefined, shownTab: { id: 'other' } })
     open(details)
     expect(createTab).toHaveBeenCalledWith(expect.objectContaining({ active: false, selectVisible: false }))
   })

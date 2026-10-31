@@ -7,6 +7,9 @@ import type { BrowserTab } from '../browser-tab.js'
 import { workspaceNavigationAllowed } from '../workspace-navigation/workspace-navigation.js'
 import { assertCanCreateTab, pageWebPreferences } from '../new-tabs/tab-admission.js'
 
+/** How long after the person's click or key press Chromium lets a page open a window, its transient user activation. */
+const PERSON_ACTIVATION_MS = 5_000
+
 /**
  * The load options that carry a page's requested referrer and form post into
  * the tab opened for its new window. It throws when the post's content type
@@ -40,12 +43,13 @@ function interceptedWindowLoadOptions(postBody: PostBody | undefined, referrer: 
  * referrer and form post carried over. A workspace tab's new tab goes beside
  * it, as in Chrome. A tab opened by an agent's input is not shown: Follow
  * agents shows it through the agent's calls on it, so it waits as for any
- * call, such as while a page fills the window. A page out of the person's
- * view, in a tab behind or another workspace, opens its window behind and
- * never takes the view, where Chrome's pop-up blocker refuses a window a page
- * opens without the person's click or key press, which a page out of view
- * cannot have; during an agent's tool call on it the new tab still becomes
- * its workspace's, as for the agent's input.
+ * call, such as while a page fills the window. Only the person's page takes
+ * the view with its window: the one they see, or one they clicked or typed in
+ * within the time Chromium lets that open a window. Chrome's pop-up blocker
+ * refuses a window opened without such a click or key press. Another page's
+ * window opens behind it when the person sees its workspace, and otherwise
+ * becomes its workspace's tab without being shown, as for an agent's input or
+ * tool call on the page.
  */
 export function attachWindowOpenHandler(browser: Browser, tab: BrowserTab, webContents: WebContents): void {
   webContents.setWindowOpenHandler(({ url, disposition, postBody, referrer }) => {
@@ -60,9 +64,13 @@ export function attachWindowOpenHandler(browser: Browser, tab: BrowserTab, webCo
     // Decided now: Chromium creates the page for the window later, when the agent's input may have ended and the
     // person may have switched tabs.
     const agentInput = browser.agentInputWebContents.has(webContents.id)
-    const inView = browser.activeTabId === tab.id || browser.splitViewContains(tab.id)
-    const active = disposition !== 'background-tab' && (inView || agentInput || browser.mcpActivitiesByTab.has(tab.id))
-    const selectVisible = inView && !agentInput
+    const personsPage = browser.activeTabId === tab.id || browser.splitViewContains(tab.id)
+      || performance.now() - tab.lastHumanInteractionAt < PERSON_ACTIVATION_MS
+    const shownWorkspace = browser.activeTabId ? browser.tabs.get(browser.activeTabId)?.mcpGroupId : undefined
+    const behindShownTab = !personsPage && !agentInput && !browser.mcpActivitiesByTab.has(tab.id)
+      && shownWorkspace === tab.mcpGroupId
+    const active = disposition !== 'background-tab' && !behindShownTab
+    const selectVisible = personsPage && !agentInput
     const failed = (creations: OpenedTabCreation[], error: unknown): void => {
       for (const creation of creations) creation.failed()
       console.error(`[browser] Could not open requested page ${url}:`, error)

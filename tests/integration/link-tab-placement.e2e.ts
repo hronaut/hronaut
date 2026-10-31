@@ -77,7 +77,7 @@ test('opens tabs from a page\'s links beside that page, in the order they were o
 })
 
 test('opens a window behind when the page that opens it is out of view', async ({ appWindow, electronApp }) => {
-  // A page in a tab behind that opened a window, such as on a timer, was shown in place of the page in view, which
+  // A window that a page in a tab behind opened, such as on a timer, was shown in place of the page in view, which
   // lost the keys being typed into it.
   const server = createServer((request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' })
@@ -98,6 +98,9 @@ test('opens a window behind when the page that opens it is out of view', async (
     await expect.poll(order).toEqual(['/opener', '/front*'])
 
     // The page still gets its window, without a click or key press, as Hronaut has no pop-up blocker.
+    // The page itself has a URL only once its load commits, which tab records have from the start.
+    await expect.poll(() => electronApp.evaluate(({ webContents }, url) => webContents.getAllWebContents()
+      .some(contents => contents.getURL() === url), `${origin}/opener`)).toBe(true)
     const opened = await electronApp.evaluate(async ({ webContents }, url) => {
       const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)
       if (!page) throw new Error('Opener page web contents was not found')
