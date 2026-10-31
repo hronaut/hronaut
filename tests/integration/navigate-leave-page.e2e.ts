@@ -109,6 +109,15 @@ test('a page that asks before it is left stops browser_history with an error and
   await reloaded
   await pageKept()
 
+  // Back to an entry the page added within itself, as a web app's own pages, leaves no page, so it asks nothing and
+  // goes at once.
+  await evaluate(`(history.pushState(null, '', location.href + '#saved'), true)`)
+  const sameDocumentBack = Date.now()
+  await appWindow.evaluate(`window.hronaut.back(${JSON.stringify(tabId)}).then(() => true)`)
+  expect(Date.now() - sameDocumentBack).toBeLessThan(10_000)
+  await expect(trustedDialog(appWindow)).toHaveCount(0)
+  await pageKept()
+
   // A person's Back asks whether to leave, and leaving goes back.
   const wentBack = appWindow.evaluate(`window.hronaut.back(${JSON.stringify(tabId)}).then(() => true)`)
   await expect(trustedDialog(appWindow)).toContainText('Leave this page?')

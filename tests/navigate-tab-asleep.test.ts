@@ -24,11 +24,11 @@ function sleepingTab(options: { pageReady?: Promise<void>; waking?: boolean } = 
       getAllEntries: () => [{ url: 'https://example.test/first' }, { url: 'https://example.test/shown' }, { url: 'https://example.test/forward' }],
       goBack: vi.fn(() => {
         calls.push('back')
-        webContents.emit('did-start-navigation', {}, 'https://example.test/first', false, true)
+        webContents.emit('did-start-navigation', { url: 'https://example.test/first', isMainFrame: true, isSameDocument: false }, 'https://example.test/first', false, true)
       }),
       goForward: vi.fn(() => {
         calls.push('forward')
-        webContents.emit('did-start-navigation', {}, 'https://example.test/forward', false, true)
+        webContents.emit('did-start-navigation', { url: 'https://example.test/forward', isMainFrame: true, isSameDocument: false }, 'https://example.test/forward', false, true)
       })
     }
   })

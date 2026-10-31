@@ -30,26 +30,47 @@ vi.mock('../src/main/browser/tab-selection/person-tab-switch.js', async (importO
 
 const PAGES = ['https://editor.example/first', 'https://editor.example/draft', 'https://editor.example/next']
 
+/**
+ * A navigation's start, as Electron reports it: its details, then the same as arguments of old. One the page makes within
+ * itself names its frame.
+ */
+function started(page: EventEmitter, details: { isSameDocument?: boolean; initiator?: object } = {}): void {
+  const isSameDocument = details.isSameDocument ?? false
+  page.emit('did-start-navigation', { url: PAGES[2], isMainFrame: true, isSameDocument, ...details }, PAGES[2], isSameDocument, true)
+}
+
 function pageThatAsksToStay(confirmLeavePage: (question: 'leave' | 'reload') => Promise<boolean> = async () => false) {
   const calls: string[] = []
-  let asks = true
+  const page = {
+    asks: true,
+    /** Within the page, as to an entry a web app added: no question, as in Chromium. */
+    sameDocument: false,
+    /** What the page does just before its question reaches Hronaut. */
+    beforeQuestion: () => undefined as void
+  }
   // As Electron: the page's question goes to will-prevent-unload a moment after the navigation is asked for, and the
   // navigation starts only when it was prevented; otherwise the page stops loading where it was.
-  const navigation = (name: string, sameDocument = false) => vi.fn(() => {
+  const navigation = (name: string) => vi.fn(() => {
     calls.push(name)
     setImmediate(() => {
-      let left = !asks
-      if (asks) webContents.emit('will-prevent-unload', { preventDefault: () => { left = true } })
-      if (left) webContents.emit('did-start-navigation', {}, PAGES[2], sameDocument, true)
+      if (page.sameDocument) {
+        started(webContents, { isSameDocument: true })
+        return
+      }
+      page.beforeQuestion()
+      let left = !page.asks
+      if (page.asks) webContents.emit('will-prevent-unload', { preventDefault: () => { left = true } })
+      if (left) started(webContents)
       else webContents.emit('did-stop-loading')
     })
   })
   const history = {
     activeIndex: 1,
+    entries: [...PAGES],
     canGoBack: () => true,
     canGoForward: () => true,
     getActiveIndex: () => history.activeIndex,
-    getAllEntries: () => PAGES.map(url => ({ url, title: url })),
+    getAllEntries: () => history.entries.map(url => ({ url, title: url })),
     goBack: navigation('back'),
     goForward: navigation('forward'),
     goToIndex: navigation('go to')
@@ -85,8 +106,8 @@ function pageThatAsksToStay(confirmLeavePage: (question: 'leave' | 'reload') => 
   const listening = (): number => ['will-prevent-unload', 'did-start-navigation', 'did-stop-loading', 'destroyed']
     .reduce((count, event) => count + webContents.listenerCount(event), 0)
   return {
-    calls, tab, tabs, history, webContents, listening, browser: browser as typeof browser & never, fake: browser,
-    stopAsking: () => { asks = false }
+    calls, tab, tabs, history, webContents, listening, page, browser: browser as typeof browser & never, fake: browser,
+    stopAsking: () => { page.asks = false }
   }
 }
 
@@ -145,6 +166,64 @@ describe('Reload, Back and Forward from a page that asks before it is left', () 
     expect(calls).toEqual(['back', 'reload'])
     expect(fake.options.confirmBeforeUnloadLeave).not.toHaveBeenCalled()
     expect(listening()).toBe(0)
+  })
+})
+
+describe('the page asked about', () => {
+  it('is still asked about when it changes its address within itself just before its question', async () => {
+    const { browser, fake, page, webContents, calls } = pageThatAsksToStay(async () => false)
+    page.beforeQuestion = () => { started(webContents, { isSameDocument: true, initiator: {} }) }
+    await expect(back(browser, 'tab')).rejects.toThrow('so it stayed open and nothing was loaded')
+    await reload(browser, 'tab', { byPerson: true })
+    expect(fake.options.confirmBeforeUnloadLeave).toHaveBeenCalledExactlyOnceWith('reload')
+    expect(calls).toEqual(['back', 'reload'])
+  })
+
+  it('is not asked about by a Back within itself, which goes at once', async () => {
+    const { browser, fake, page, calls, listening } = pageThatAsksToStay()
+    page.sameDocument = true
+    await back(browser, 'tab')
+    expect(calls).toEqual(['back'])
+    expect(fake.options.confirmBeforeUnloadLeave).not.toHaveBeenCalled()
+    expect(listening()).toBe(0)
+  })
+
+  it('keeps Back and Forward from going once it moved in its history while the person was asked', async () => {
+    // Adding an entry within the page drops the pages Forward went to.
+    const pruned = pageThatAsksToStay(async () => { pruned.history.entries.splice(2, 1, 'https://editor.example/draft#saved'); return true })
+    await forward(pruned.browser, 'tab', { byPerson: true })
+    expect(pruned.calls).toEqual(['forward'])
+    expect(pruned.listening()).toBe(0)
+    const moved = pageThatAsksToStay(async () => { moved.history.activeIndex = 2; return true })
+    await back(moved.browser, 'tab', { byPerson: true })
+    expect(moved.calls).toEqual(['back'])
+    const refused = pageThatAsksToStay(async () => { refused.fake.workspaceNavigationAllowed.mockReturnValue(false); return true })
+    refused.tab.mcpGroupId = 'client'
+    await back(refused.browser, 'tab', { byPerson: true })
+    expect(refused.calls).toEqual(['back'])
+    // Saving the address within the page while the person was asked still goes back.
+    const saved = pageThatAsksToStay(async () => { saved.history.entries[1] = 'https://editor.example/draft?saved'; return true })
+    await back(saved.browser, 'tab', { byPerson: true })
+    expect(saved.calls).toEqual(['back', 'back'])
+  })
+
+  it('is asked about one page at a time, each over its own page, as when Reload of several tabs asks', async () => {
+    const first = pageThatAsksToStay()
+    const second = pageThatAsksToStay()
+    second.tab.id = 'second'
+    first.tabs.set('second', second.tab as never)
+    const answers: Array<(leave: boolean) => void> = []
+    first.fake.options.confirmBeforeUnloadLeave.mockImplementation(() => new Promise<boolean>(resolve => { answers.push(resolve) }))
+    const reloads = Promise.all([reload(first.browser, 'tab', { byPerson: true }), reload(first.browser, 'second', { byPerson: true })])
+    await vi.waitFor(() => expect(answers).toHaveLength(1))
+    await new Promise(resolve => setTimeout(resolve, 10))
+    expect(first.fake.selectTabForPerson.mock.calls).toEqual([['tab']])
+    answers[0]!(true)
+    await vi.waitFor(() => expect(answers).toHaveLength(2))
+    expect(first.fake.selectTabForPerson.mock.calls).toEqual([['tab'], ['second']])
+    answers[1]!(false)
+    await reloads
+    expect([first.calls, second.calls]).toEqual([['reload', 'reload'], ['reload']])
   })
 })
 

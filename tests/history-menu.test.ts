@@ -46,7 +46,8 @@ function historyOf(entries: Entry[], activeIndex: number) {
     getActiveIndex: () => history.activeIndex,
     goToIndex: vi.fn((index: number) => {
       history.activeIndex = index
-      page.emit('did-start-navigation', {}, history.entries[index]?.url, false, true)
+      const url = history.entries[index]?.url
+      page.emit('did-start-navigation', { url, isMainFrame: true, isSameDocument: false }, url, false, true)
     })
   }
   return history
