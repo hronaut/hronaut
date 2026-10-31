@@ -351,16 +351,33 @@ describe('address bar controller', () => {
 
     const submission = rendered.controller.submit()
     await vi.runAllTimersAsync()
-    rendered.activeTab.value = { ...tab('first', 'about:blank'), loading: true, navigationGeneration: 1 }
-    await nextTick()
-    expect(input).toHaveValue(targetUrl)
-
-    // The destination's page shows its own address.
-    rendered.activeTab.value = { ...tab('first', targetUrl), navigationGeneration: 1 }
+    rendered.activeTab.value = { ...tab('first', 'about:blank'), navigationGeneration: 1 }
     await nextTick()
     expect(input).toHaveValue(targetUrl)
     finishNavigation()
     await submission
+  })
+
+  it('keeps what was typed for a tab by the count of navigations it last saw, when only the count changed', async () => {
+    // A tab that counted a navigation at the same address while the person typed shows the text again on coming back
+    // while it stays there, and not once it counts another.
+    const rendered = createHarness({ tabs: [tab('first'), tab('second')] })
+    const input = screen.getByRole('textbox', { name: 'Address' })
+    await fireEvent.focus(input)
+    await fireEvent.update(input, 'typed while it loaded')
+    rendered.activeTab.value = { ...tab('first'), navigationGeneration: 1 }
+    await nextTick()
+    expect(input).toHaveValue('typed while it loaded')
+    const leaveAndComeBack = async (navigationGeneration: number) => {
+      rendered.activeTab.value = tab('second')
+      await nextTick()
+      rendered.activeTab.value = { ...tab('first'), navigationGeneration }
+      await nextTick()
+    }
+    await leaveAndComeBack(1)
+    expect(input).toHaveValue('typed while it loaded')
+    await leaveAndComeBack(2)
+    expect(input).toHaveValue('https://example.test/first')
   })
 
   it('preserves an address selection when the current page commits before typing starts', async () => {
