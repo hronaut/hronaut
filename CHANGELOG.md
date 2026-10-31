@@ -14,6 +14,7 @@ All notable changes to Hronaut are documented in this file.
 - An agent that answered a website's alert or confirm box after you had already answered it answered the page's next box instead, such as one asking to delete something. The tab and the agent's results now name each box, and an agent that passes that name answers only the box it read.
 - Clicking a link that only starts a download, or that the website answers with no content, closed Find and lost your place among its matches, though the page stayed. Find now stays open over such a link, as in Chrome, and closes only when another page replaces the one it searched, so it also stays while the next page loads.
 - On a very long page, such as a large log, Find said its search failed when the page took more than 5 seconds to count the matches, and Retry failed the same way, though the page had highlighted them. Find now waits for the count, as Chrome does.
+- A click in the address bar put the caret where it landed, so a new address typed after it went into the middle of the page's. As in Chrome, the click that puts the keyboard in the field selects the whole address, so typing replaces it; a drag or a second click still selects part of it or places the caret, and a right click selects it before its menu opens.
 
 ## [3.14.4] - 2026-10-31
 
