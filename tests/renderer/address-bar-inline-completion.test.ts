@@ -194,8 +194,9 @@ describe('inline completion in the address bar', () => {
     await waitFor(() => expect(h.onNavigate).toHaveBeenCalledExactlyOnceWith('https://github.com/hronaut/hronaut'))
   })
 
-  // Chrome's first row is the text typed: the highlight goes through the rows and back to it. Hronaut's went round the
-  // rows only, so once a row was highlighted Enter could no longer open what was typed without editing it.
+  // Chrome's first row is what the field shows, the text typed with the rest it filled in: the highlight goes through
+  // the rows and back to it. Hronaut's went round the rows only, so once a row was highlighted Enter could no longer
+  // open what was typed without editing it.
   it('goes through the rows and back to the typed text, with the rest filled in again, where Enter opens it', async () => {
     const h = createHarness([visit('repo', 'https://github.com/hronaut/hronaut'), visit('docs', 'https://docs.github.com/en')])
     await clear(h.input)
@@ -218,8 +219,9 @@ describe('inline completion in the address bar', () => {
     await key(h.input, { key: 'ArrowUp' })
     expect(h.controller.selection.value).toBe(rows - 1)
     await key(h.input, { key: 'ArrowDown' })
-    // Enter with no row highlighted submits the field, which opens the site filled in.
-    expect(h.controller.selected.value).toBeUndefined()
+    // Enter with no row highlighted is left to the form, which submits the field and opens the site filled in.
+    expect((await key(h.input, { key: 'Enter' })).defaultPrevented).toBe(false)
+    expect(h.onNavigate).not.toHaveBeenCalled()
     await h.controller.submit()
     expect(h.onNavigate).toHaveBeenCalledExactlyOnceWith('https://github.com/')
   })
@@ -234,6 +236,26 @@ describe('inline completion in the address bar', () => {
     await key(h.input, { key: 'ArrowUp' })
     expect(h.controller.selection.value).toBe(-1)
     expect(h.field()).toEqual({ value: 'gi', selected: '' })
+  })
+
+  it('fills in no rest when the caret moved on a row, or after Escape gave the field its page\'s address back', async () => {
+    const h = createHarness([visit('repo', 'https://github.com/hronaut/hronaut')])
+    await clear(h.input)
+    await type(h.input, 'gi')
+    await key(h.input, { key: 'ArrowDown' })
+    h.input.setSelectionRange(0, 0)
+    await key(h.input, { key: 'ArrowUp' })
+    expect(h.controller.selection.value).toBe(-1)
+    expect(h.field()).toEqual({ value: 'gi', selected: '' })
+
+    await clear(h.input)
+    await type(h.input, 'gi')
+    await key(h.input, { key: 'Escape' })
+    expect(h.field().value).toBe('https://shown.test/')
+    await key(h.input, { key: 'ArrowDown' })
+    await key(h.input, { key: 'ArrowUp' })
+    expect(h.controller.selection.value).toBe(-1)
+    expect(h.field().value).toBe('https://shown.test/')
   })
 
   it('adds www. and .com to the typed text with Ctrl+Enter, and opens the site in a new tab with Alt+Enter', async () => {
@@ -383,6 +405,25 @@ describe('inline completion in the address bar', () => {
       expect(h.controller.suggestions.value.map(suggestion => suggestion.id).sort()).toEqual(['history:lab', 'history:repo'])
       await h.controller.submit()
       expect(h.onNavigate).toHaveBeenCalledExactlyOnceWith('https://github.com/')
+    })
+
+    it('fills the rest in again through the field\'s own editing when the highlight comes back, keeping the rows', async () => {
+      const h = createHarness([visit('repo', 'https://github.com/hronaut/hronaut'), visit('docs', 'https://docs.github.com/en')])
+      await clear(h.input)
+      const execCommand = stubInsertText()
+      await type(h.input, 'gi')
+      await key(h.input, { key: 'ArrowDown' })
+      expect(h.field()).toEqual({ value: 'gi', selected: '' })
+      const rows = h.controller.suggestions.value.map(suggestion => suggestion.id)
+      execCommand.mockClear()
+      await key(h.input, { key: 'ArrowUp' })
+      expect(execCommand).toHaveBeenCalledExactlyOnceWith('insertText', false, 'thub.com')
+      expect(h.field()).toEqual({ value: 'github.com', selected: 'thub.com' })
+      expect(h.controller.selection.value).toBe(-1)
+      expect(h.controller.open.value).toBe(true)
+      expect(h.controller.suggestions.value.map(suggestion => suggestion.id)).toEqual(rows)
+      await key(h.input, { key: 'ArrowDown' })
+      expect(h.controller.selection.value).toBe(0)
     })
 
     it('leaves a cleaned-up paste as pasted', async () => {

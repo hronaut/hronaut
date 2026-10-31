@@ -264,8 +264,8 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     if (rest) {
       fillingCompletion = true
       try {
-        // insertText puts the rest on the field's undo stack with the character typed, so Ctrl+Z steps back a
-        // character at a time, as each looked.
+        // insertText puts the rest on the field's undo stack, after the character typed when typing filled it in, so
+        // Ctrl+Z steps back as each looked.
         if (typeof document.execCommand !== 'function' || !document.execCommand('insertText', false, rest)) {
           field.setRangeText(rest, typed.length, typed.length, 'end')
         }
@@ -509,12 +509,10 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   async function moveSelection(offset: -1 | 1): Promise<void> {
     const count = suggestions.value.length
     if (!count) return
-    // Moving the highlight goes back from Switch to this tab.
-    switchFocusedState.value = false
     if (selection.value < 0 || !open.value) typedBeforeRows = completionShown.value ? inlineCompletion.value?.typed : undefined
     dropInlineCompletion()
     if (!open.value) openSuggestions()
-    // As in Chrome, whose first row is the text typed, the highlight goes through the rows and back to that text.
+    // As in Chrome, whose first row is what the field shows, the highlight goes through the rows and back to it.
     const next = selection.value + offset
     selection.value = next >= count ? -1 : next < -1 ? count - 1 : next
     open.value = true
