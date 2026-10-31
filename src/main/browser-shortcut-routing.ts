@@ -50,6 +50,12 @@ export function createBrowserShortcutRouting(host: BrowserShortcutRoutingHost): 
       host.takeOvers.takeOverFromPage(page.tabId, page.workspaceId)
       return
     }
+    // F6 from a page goes to the next pane, as when the page leaves it to the menu; the shell runs the key from its
+    // own window, back to the page.
+    if (action === 'focus-next-pane' && page) {
+      runPageNextPane()
+      return
+    }
     // A page in full screen covers the toolbar, the Find bar and the shell's other controls, so it leaves full
     // screen first; zooming keeps it there.
     const browser = host.tabs()

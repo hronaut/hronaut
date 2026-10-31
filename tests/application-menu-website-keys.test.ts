@@ -41,7 +41,9 @@ describe('Chrome\'s keys a website may keep', () => {
       ['F5', 'reload'], ['Shift+F5', 'reload-ignoring-cache'], ['Ctrl+F5', 'reload-ignoring-cache'], ['Alt+D', 'focus-address'],
       ['Ctrl+E', 'focus-address'], ['Alt+Home', 'open-home'],
       ['F3', 'find-next'], ['Shift+F3', 'find-previous'],
-      ['Ctrl+Shift+PageDown', 'move-tab-next'], ['Ctrl+Shift+PageUp', 'move-tab-previous']
+      ['Ctrl+Shift+PageDown', 'move-tab-next'], ['Ctrl+Shift+PageUp', 'move-tab-previous'],
+      ['Ctrl+1', 'select-tab-1'], ['Ctrl+8', 'select-tab-8'], ['Ctrl+9', 'select-last-tab'],
+      ['Ctrl+num1', 'select-tab-1'], ['Ctrl+num8', 'select-tab-8'], ['Ctrl+num9', 'select-last-tab']
     ] as const) {
       const item = key(accelerator)!
       expect(item.visible, accelerator).toBe(false)
@@ -55,6 +57,7 @@ describe('Chrome\'s keys a website may keep', () => {
     expect(menu('darwin').key('Alt+Home')).toBeUndefined()
     expect(menu('darwin').key('F3')).toBeUndefined()
     expect(menu('darwin').key('Ctrl+Shift+PageDown')).toBeUndefined()
+    expect(menu('darwin').key('Ctrl+1')).toBeUndefined()
     expect(menu('darwin').key('F6')).toBeUndefined()
   })
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { pageShortcut } from '../src/main/browser/take-over.js'
-import { browserShortcutAction, type BrowserShortcutInput } from '../src/shared/browser-shortcuts.js'
+import { browserShortcutAction, websiteKeptShortcutAction, type BrowserShortcutInput } from '../src/shared/browser-shortcuts.js'
 import { keyedPinnedWorkspaces, pinnedWorkspaceAt, recentWorkspaces } from '../src/shared/workspace-shortcuts.js'
 
 function input(overrides: Partial<BrowserShortcutInput> = {}): BrowserShortcutInput {
@@ -41,8 +41,10 @@ describe('workspace keys on Windows and Linux', () => {
   })
 
   it('keeps Ctrl with a digit for the tabs and Ctrl+0 for zoom reset', () => {
-    expect(browserShortcutAction(input({ key: '1', code: 'Digit1', control: true }))).toBe('select-tab-1')
-    expect(browserShortcutAction(input({ key: '9', code: 'Digit9', control: true }))).toBe('select-last-tab')
+    // Ctrl with a digit is a key a website may keep, as in Chrome, so it goes to the tabs once the page leaves it alone.
+    expect(browserShortcutAction(input({ key: '1', code: 'Digit1', control: true }))).toBeNull()
+    expect(websiteKeptShortcutAction(input({ key: '1', code: 'Digit1', control: true }))).toBe('select-tab-1')
+    expect(websiteKeptShortcutAction(input({ key: '9', code: 'Digit9', control: true }))).toBe('select-last-tab')
     expect(browserShortcutAction(input({ key: '0', code: 'Digit0', control: true }))).toBe('zoom-reset')
   })
 
@@ -91,7 +93,8 @@ describe('keys pressed in a page', () => {
 
   it('leaves a workspace key an agent sends to the page, so an agent cannot switch the person\'s workspace', () => {
     for (const action of workspaceActions) expect(pageShortcut(action, { available: true, expectedAgentInput: true })).toBeNull()
-    // Tab keys an agent sends still work as before.
+    // Tab keys an agent sends, such as Cmd+1 on macOS, still work as before; elsewhere Ctrl with a digit goes to the
+    // page first, for the person as for an agent.
     expect(pageShortcut('select-tab-1', { available: true, expectedAgentInput: true })).toBe('select-tab-1')
   })
 })

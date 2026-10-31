@@ -13,13 +13,13 @@ const { createBrowserShortcutRouting } = await import('../src/main/browser-short
 function routing(home: boolean) {
   const shell = { isDestroyed: () => false, focus: vi.fn(), send: vi.fn() }
   const tabs = { activeTabId: 'shown', mcpTabGroups: new Map(), tabs: new Map([['shown', { url: home ? 'hronaut://home/' : 'https://site.example/' }]]) }
-  const { runPageNextPane } = createBrowserShortcutRouting({
+  const { runPageNextPane, runPageShortcut } = createBrowserShortcutRouting({
     takeOvers: { available: () => undefined, takeOverFromPage: vi.fn() },
     tabs: () => tabs as never,
     agentPresenceSnapshot: () => ({ workspaces: {} }) as never,
     mainWindowRefs: { window: { webContents: shell } as never }
   })
-  return { shell, runPageNextPane }
+  return { shell, runPageNextPane, runPageShortcut }
 }
 
 describe('F6 from a page', () => {
@@ -27,6 +27,13 @@ describe('F6 from a page', () => {
     const { shell, runPageNextPane } = routing(false)
     runPageNextPane()
     expect(shell.focus).toHaveBeenCalledOnce()
+    expect(shell.send).toHaveBeenCalledExactlyOnceWith('browser:shortcut-requested', 'focus-address')
+  })
+
+  it('goes to the address bar from a page the person cannot use, which never leaves the key to the menu', () => {
+    // The shell runs the key from its own window, back to the page, which only focused Hronaut's window.
+    const { shell, runPageShortcut } = routing(false)
+    runPageShortcut('focus-next-pane', { tabId: 'shown', workspaceId: undefined })
     expect(shell.send).toHaveBeenCalledExactlyOnceWith('browser:shortcut-requested', 'focus-address')
   })
 
