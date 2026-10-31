@@ -28,6 +28,8 @@ function tab(id: string, url = `https://example.test/${id}`): BrowserTabState {
 
 function createHarness(options: {
   activeTab?: BrowserTabState
+  /** The open tabs, which the active one is among in the app. */
+  tabs?: BrowserTabState[]
   bookmarks?: BrowserBookmark[]
   history?: BrowserHistoryEntry[]
   onNavigate?: (address: string) => Promise<void>
@@ -36,6 +38,7 @@ function createHarness(options: {
   dismissedRegistrationError?: Error
 } = {}) {
   const activeTab = ref(options.activeTab ?? tab('first'))
+  const tabs = ref(options.tabs ?? [])
   const bookmarks = ref(options.bookmarks ?? [])
   const history = ref(options.history ?? [])
   const onOpen = vi.fn()
@@ -72,7 +75,7 @@ function createHarness(options: {
     setup() {
       controller = useAddressBarController({
         activeTab: computed(() => activeTab.value),
-        tabs: ref([]),
+        tabs,
         bookmarks,
         history,
         overlay,
@@ -102,6 +105,7 @@ function createHarness(options: {
     view,
     controller,
     activeTab,
+    tabs,
     history,
     overlay,
     onOpen,
@@ -351,7 +355,7 @@ describe('address bar controller', () => {
     expect(rendered.onNavigate).toHaveBeenCalledWith('person@example.com')
   })
 
-  it('preserves a dirty edit through redirects, focus loss, and refocus', async () => {
+  it('preserves a dirty edit through redirects while typing, focus loss and refocus, until the page moves on without the field', async () => {
     vi.useFakeTimers()
     const rendered = createHarness()
     const input = screen.getByRole('textbox', { name: 'Address' })
@@ -376,9 +380,10 @@ describe('address bar controller', () => {
     await fireEvent.focusOut(input)
     await vi.runAllTimersAsync()
     expect(input).toHaveValue('https://typed.example/path')
+    // As in Chrome, a field without the keyboard shows the page's new address: the person may have given up the edit.
     rendered.activeTab.value = tab('first', 'https://redirected.example/later')
     await nextTick()
-    expect(input).toHaveValue('https://typed.example/path')
+    expect(input).toHaveValue('https://redirected.example/later')
   })
 
   it('stops counting as focused when focus leaves, even if a tab change cancels the rest of the blur', async () => {
@@ -740,6 +745,118 @@ describe('address bar controller', () => {
 
     expect(rendered.onNavigate).not.toHaveBeenCalled()
     expect(rendered.controller.open.value).toBe(true)
+  })
+
+  it('shows what was typed for a tab again on coming back to it, as Chrome does', async () => {
+    // Switching tabs threw away what was typed, so a search half written was lost to a look at another tab.
+    const rendered = createHarness({ tabs: [tab('first'), tab('second')] })
+    const input = screen.getByRole('textbox', { name: 'Address' })
+    await fireEvent.focus(input)
+    await fireEvent.update(input, 'unfinished search')
+    await fireEvent.focusOut(input, { relatedTarget: null })
+
+    rendered.activeTab.value = tab('second')
+    await nextTick()
+    expect(input).toHaveValue('https://example.test/second')
+    expect(rendered.controller.dirty.value).toBe(false)
+
+    rendered.activeTab.value = tab('first')
+    await nextTick()
+    expect(input).toHaveValue('unfinished search')
+    expect(rendered.controller.dirty.value).toBe(true)
+    await rendered.controller.submit()
+    expect(rendered.onNavigate).toHaveBeenCalledExactlyOnceWith('unfinished search')
+  })
+
+  it('shows a tab\'s own address on coming back once Escape, a sent address, an emptied field or a new page ends what was typed', async () => {
+    const rendered = createHarness({ tabs: [tab('first'), tab('second')] })
+    const input = screen.getByRole('textbox', { name: 'Address' })
+    const leaveAndComeBack = async (url = 'https://example.test/first', navigationGeneration = 0) => {
+      rendered.activeTab.value = tab('second')
+      await nextTick()
+      rendered.activeTab.value = { ...tab('first', url), navigationGeneration }
+      await nextTick()
+    }
+    await fireEvent.focus(input)
+    await fireEvent.update(input, 'escaped')
+    await fireEvent.keyDown(input, { key: 'Escape' })
+    await leaveAndComeBack()
+    expect(input).toHaveValue('https://example.test/first')
+
+    await fireEvent.update(input, 'sent.example')
+    await rendered.controller.submit()
+    await leaveAndComeBack()
+    expect(input).toHaveValue('https://example.test/first')
+
+    // Chrome shows the address again for a field left empty.
+    await fireEvent.update(input, '')
+    await leaveAndComeBack()
+    expect(input).toHaveValue('https://example.test/first')
+    expect(rendered.controller.dirty.value).toBe(false)
+
+    await fireEvent.update(input, 'left for another page')
+    await leaveAndComeBack('https://example.test/opened-meanwhile')
+    expect(input).toHaveValue('https://example.test/opened-meanwhile')
+    expect(rendered.controller.dirty.value).toBe(false)
+
+    // A tab that moved on and came back to the same address, as an agent's tab may, is on another page too.
+    await fireEvent.update(input, 'left for the same address again')
+    await leaveAndComeBack('https://example.test/opened-meanwhile', 2)
+    expect(input).toHaveValue('https://example.test/opened-meanwhile')
+  })
+
+  it('gives the field the page\'s new address when the tab moves on while the field does not have the keyboard, as Chrome does', async () => {
+    // What was typed stayed over the new page's address, with its security label hidden.
+    const rendered = createHarness({ tabs: [tab('first')] })
+    const input = screen.getByRole('textbox', { name: 'Address' })
+    await fireEvent.focus(input)
+    await fireEvent.update(input, 'typed while the page loads')
+    rendered.activeTab.value = tab('first', 'https://example.test/first#section')
+    await nextTick()
+    expect(input).toHaveValue('typed while the page loads')
+
+    await fireEvent.focusOut(input, { relatedTarget: null })
+    rendered.activeTab.value = tab('first', 'https://example.test/next')
+    await nextTick()
+    expect(input).toHaveValue('https://example.test/next')
+    expect(rendered.controller.dirty.value).toBe(false)
+  })
+
+  it('shows what was typed for a tab once on coming back to it, also after a moment with no tab shown', async () => {
+    const rendered = createHarness({ tabs: [tab('first'), tab('second')] })
+    const input = screen.getByRole('textbox', { name: 'Address' })
+    await fireEvent.focus(input)
+    await fireEvent.update(input, 'draft')
+    rendered.activeTab.value = tab('second')
+    await nextTick()
+    rendered.activeTab.value = undefined as never
+    await nextTick()
+    rendered.activeTab.value = tab('first')
+    await nextTick()
+    expect(input).toHaveValue('draft')
+    await fireEvent.keyDown(input, { key: 'Escape' })
+    rendered.activeTab.value = tab('second')
+    await nextTick()
+    rendered.activeTab.value = tab('first')
+    await nextTick()
+    expect(input).toHaveValue('https://example.test/first')
+  })
+
+  it('keeps no text typed for a tab that closed', async () => {
+    const rendered = createHarness({ tabs: [tab('first'), tab('second')] })
+    const input = screen.getByRole('textbox', { name: 'Address' })
+    await fireEvent.focus(input)
+    await fireEvent.update(input, 'typed in the tab that closes')
+    rendered.activeTab.value = tab('second')
+    await nextTick()
+    await fireEvent.update(input, 'typed in the second tab')
+    // The first tab closes meanwhile; a new tab with its id would be another page.
+    rendered.tabs.value = [tab('second'), tab('third')]
+    rendered.activeTab.value = tab('third')
+    await nextTick()
+    rendered.activeTab.value = tab('first')
+    await nextTick()
+    expect(input).toHaveValue('https://example.test/first')
   })
 
   it('resumes committed URL updates after a tab change discards an edit', async () => {

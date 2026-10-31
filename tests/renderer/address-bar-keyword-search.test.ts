@@ -427,6 +427,21 @@ describe('keyword search in the address bar', () => {
     expect(h.onNavigate).toHaveBeenLastCalledWith('example.test')
   })
 
+  it('shows the search typed for a tab again on coming back to it, as Chrome does', async () => {
+    const h = createHarness([], [tab('shown', 'https://shown.test/'), tab('other', 'https://other.test/')])
+    await clear(h.input)
+    await type(h.input, 'bing.com cats')
+    h.active.value = tab('other', 'https://other.test/')
+    await nextTick()
+    expect(h.engine()).toBeNull()
+    h.active.value = tab('shown', 'https://shown.test/')
+    await nextTick()
+    expect(h.engine()).toBe('bing')
+    expect(h.field().value).toBe('cats')
+    await h.controller.submit()
+    expect(h.onNavigate).toHaveBeenCalledExactlyOnceWith('https://www.bing.com/search?q=cats')
+  })
+
   it('keeps the search when the field is left and comes back to it', async () => {
     const h = createHarness()
     await clear(h.input)

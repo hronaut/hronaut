@@ -19,6 +19,8 @@ import { addressEnterAction, withWwwAndCom, type AddressEnterAction } from '../.
 import { inlineAddressCompletion, siteVisits, type AddressInlineCompletion } from '../../address-inline-completion.js'
 import { keywordSearchTarget } from '../../address-keyword-search.js'
 import { disposeAll, registerDisposers } from '../../composables/dispose-all.js'
+import { createAddressTabEdits } from './address-tab-edits.js'
+import { useAddressFieldDrop } from './useAddressFieldDrop.js'
 import { useAddressKeywordMode } from './useAddressKeywordMode.js'
 
 /**
@@ -159,7 +161,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     address: string
   } | null = null
   let disposed = false
-  let draggingFromField = false
+  const tabEdits = createAddressTabEdits()
 
   function suggestionId(suggestion: AddressSuggestion): string {
     return `address-suggestion-${suggestion.id}`
@@ -310,34 +312,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     field.dispatchEvent(new Event('input', { bubbles: true }))
   }
 
-  // Text dragged within the field is its own, so it moves as the field moves it.
-  function handleDragStart(): void {
-    draggingFromField = true
-  }
-
-  function handleDragEnd(): void {
-    draggingFromField = false
-  }
-
-  // Text dropped from elsewhere is read as a paste. Text that needs nothing dropped lands where the field puts it; other
-  // text replaces the field's text, as a drop does in Chrome's address bar, so a dropped javascript: never runs.
-  function handleDrop(event: DragEvent): void {
-    const dropped = event.dataTransfer?.getData('text/plain') ?? ''
-    const text = addressPasteText(dropped)
-    if (disposed || draggingFromField || text === dropped) return
-    event.preventDefault()
-    if (!text) return
-    // The drop the field would have taken gives it the keyboard; this one does too, with the text selected, as Chrome's
-    // does, so Enter opens it and leaving the field closes its suggestions.
-    address.value = text
-    const field = input.value
-    if (field) {
-      field.value = text
-      field.focus()
-      field.select()
-    }
-    handleInput()
-  }
+  const fieldDrop = useAddressFieldDrop({ address, input, disposed: () => disposed, onInput: () => handleInput() })
 
   function finishBlur(): void {
     blurTimer = undefined
@@ -684,23 +659,32 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
       }
     ),
     () => watch(
-      [() => options.activeTab.value?.id, () => options.activeTab.value?.url],
-      ([tabId, url], [previousTabId]) => {
+      [() => options.activeTab.value?.id, () => options.activeTab.value?.url, () => options.activeTab.value?.navigationGeneration],
+      ([tabId, url, navigationGeneration], [previousTabId, previousUrl, previousGeneration]) => {
         if (disposed) return
         const tabChanged = previousTabId !== undefined && tabId !== previousTabId
+        // As in Chrome, what was typed for the tab left and not sent is shown again on coming back to it. A field emptied
+        // shows the page's address again.
+        if (tabChanged && dirty.value && (address.value || keywordMode.keyword.value)) {
+          const edit = { text: address.value, keyword: keywordMode.keyword.value }
+          tabEdits.keep(previousTabId, { url: previousUrl, navigationGeneration: previousGeneration }, edit, options.tabs.value)
+        }
+        const kept = tabId && tabId !== previousTabId ? tabEdits.take(tabId, { url, navigationGeneration }, options.tabs.value) : undefined
+        // As in Chrome, the page's new address replaces what was typed while the field does not have the keyboard.
+        const movedOn = !tabChanged && previousUrl !== undefined && url !== previousUrl && !focused.value
         if (tabChanged || (
           pendingNavigation
           && pendingNavigation.tabId === tabId
           && pendingNavigation.initialUrl !== url
         )) pendingNavigation = null
-        if (tabChanged || (!editing.value && !dirty.value)) {
+        if (tabChanged || movedOn || (!editing.value && !dirty.value)) {
           cancelBlur()
           close()
           if (tabChanged) editing.value = false
-          address.value = displayedAddress(url)
+          address.value = kept?.text ?? displayedAddress(url)
           inlineCompletion.value = null
-          keywordMode.clear()
-          dirty.value = false
+          keywordMode.keyword.value = kept?.keyword ?? null
+          dirty.value = kept !== undefined
         }
       },
       { immediate: true }
@@ -751,6 +735,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     open.value = false
     discardPresentedSuggestions()
     pendingNavigation = null
+    tabEdits.clear()
     const callbacks = cleanupCallbacks
     cleanupCallbacks = []
     disposeAll([
@@ -782,9 +767,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     handleFocus,
     handleInput,
     handlePaste,
-    handleDragStart,
-    handleDragEnd,
-    handleDrop,
+    ...fieldDrop,
     handleFocusOut,
     handleKeydown,
     submit,
