@@ -29,7 +29,9 @@ interface Response {
 /** How the browser creates a tab for the new page, which it hands over as soon as the tab exists. */
 type CreateTab = (tabOptions: { onCreated?: (tab: { id: string; sleeping: boolean }) => void }) => Promise<unknown>
 
-const PAGE_PREFERENCES = pageWebPreferences()
+/** Hronaut's text as its keys, which is all these tests need of it. */
+const text = (key: string): string => key
+const PAGE_PREFERENCES = pageWebPreferences({ text } as never)
 
 /** The page Chromium created for the window; window.open() gives it an opener, a target="_blank" link does not. */
 function guestPage(options: { opener?: boolean } = {}): WebContents & { close: ReturnType<typeof vi.fn> } {
@@ -62,6 +64,7 @@ function fixture(options: {
     options: { onActionFailed },
     assertCanCreateTab: vi.fn(options.canOpenTab ?? (() => undefined)),
     createTab,
+    text,
     agentInputWebContents: agentInput,
     mcpActivitiesByTab: new Map<string, Set<string>>(),
     tabs: new Map<string, { mcpGroupId?: string }>([[tab.id, tab], [shown.id, shown]]),

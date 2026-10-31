@@ -4331,6 +4331,7 @@ export const idID: MessageSchema = {
       reloadPageMessage: 'Halaman ini meminta Hronaut untuk mengonfirmasi sebelum memuat ulangnya.',
       reloadPageDetail: 'Memuat ulang halaman dapat membuang perubahan yang belum disimpan.',
       reloadPage: 'Muat ulang halaman',
+      preventMoreDialogs: 'Cegah halaman ini menampilkan dialog lainnya',
       pageDestroyedTitle: 'Halaman ini sudah tidak tersedia',
       pageDestroyedMessage: 'Tutup tab ini dan buka kembali dari Baru saja ditutup.',
       pageUnavailable: 'Halaman tidak tersedia',

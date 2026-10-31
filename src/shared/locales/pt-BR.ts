@@ -4331,6 +4331,7 @@ export const ptBR: MessageSchema = {
       reloadPageMessage: 'Esta página pediu ao Hronaut que confirmasse antes de recarregá-la.',
       reloadPageDetail: 'Recarregar a página pode descartar alterações que não foram salvas.',
       reloadPage: 'Recarregar a página',
+      preventMoreDialogs: 'Impedir que esta página mostre outras caixas de diálogo',
       pageDestroyedTitle: 'Esta página não está mais disponível',
       pageDestroyedMessage: 'Feche esta guia e reabra-a em Fechadas recentemente.',
       pageUnavailable: 'Página indisponível',

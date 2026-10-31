@@ -120,7 +120,7 @@ function fixture(options: { pageFullscreen?: boolean; followAgentActivitySuspend
     destroyed: false,
     initialized: true,
     restoringLayout: false,
-    options: { partition: 'persist:hronaut' },
+    options: { partition: 'persist:hronaut', getLocale: () => 'en-US' },
     window: {
       isDestroyed: () => false,
       isFocused: () => true,

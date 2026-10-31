@@ -4331,6 +4331,7 @@ export const hiIN: MessageSchema = {
       reloadPageMessage: 'इस पेज ने Hronaut से इसे फिर से लोड करने से पहले पुष्टि करने को कहा है।',
       reloadPageDetail: 'पेज फिर से लोड करने पर वे बदलाव खो सकते हैं जो सेव नहीं किए गए हैं।',
       reloadPage: 'पेज फिर से लोड करें',
+      preventMoreDialogs: 'इस पेज को और डायलॉग दिखाने से रोकें',
       pageDestroyedTitle: 'यह पेज अब उपलब्ध नहीं है',
       pageDestroyedMessage: 'इस टैब को बंद करें और “हाल ही में बंद किए गए” से इसे फिर से खोलें।',
       pageUnavailable: 'पेज उपलब्ध नहीं है',

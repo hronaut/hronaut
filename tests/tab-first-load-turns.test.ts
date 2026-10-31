@@ -74,7 +74,7 @@ function fixture() {
     destroyed: false,
     initialized: true,
     restoringLayout: false,
-    options: { partition: 'persist:hronaut', configureSession: vi.fn() },
+    options: { partition: 'persist:hronaut', configureSession: vi.fn(), getLocale: () => 'en-US' },
     window: {
       isDestroyed: () => false,
       isFocused: () => true,

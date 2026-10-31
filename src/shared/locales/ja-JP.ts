@@ -4331,6 +4331,7 @@ export const jaJP: MessageSchema = {
       reloadPageMessage: 'このページは、再読み込みする前に確認するよう Hronaut に求めています。',
       reloadPageDetail: 'ページを再読み込みすると、保存されていない変更が失われる可能性があります。',
       reloadPage: 'ページを再読み込み',
+      preventMoreDialogs: 'このページでこれ以上ダイアログを表示しない',
       pageDestroyedTitle: 'このページは利用できなくなりました',
       pageDestroyedMessage: 'このタブを閉じて、[最近閉じたタブ] から開き直してください。',
       pageUnavailable: 'ページを利用できません',

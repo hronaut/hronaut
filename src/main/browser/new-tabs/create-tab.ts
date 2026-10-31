@@ -137,7 +137,7 @@ export async function createTab(browser: Browser, options: {
     : new WebContentsView({
       webPreferences: {
         partition,
-        ...pageWebPreferences(),
+        ...pageWebPreferences(browser),
         // Construction-time only: switching a live view back to shared mode can
         // write its level into the origin zoom map.
         ...(options.zoomIsolated === true && !isHronautHomeUrl(url) ? { zoomMode: 'isolated' } : {}),
