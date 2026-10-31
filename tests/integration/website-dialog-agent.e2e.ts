@@ -159,7 +159,10 @@ test('returns an agent\'s press or click that opens a confirm, and lets the agen
   // A click run in the page ends once the confirm holds the page, saying so.
   const semantic = await call('browser_click', { tabId, selector: '#ask' })
   expect(semantic.isError).toBe(true)
+  // The click happened and its handler goes on once the confirm is answered, so its effects are unknown.
+  expect(semantic.structuredContent).toMatchObject({ status: 'OUTCOME_UNKNOWN', reason: 'WEBSITE_DIALOG_OPENED', dispatch: 'dispatched', retrySafe: false })
   expect(text(semantic)).toContain('The page opened a website dialog during this action')
+  expect(JSON.stringify(semantic.content)).toContain('The page now shows a website confirm: \\"Delete it?\\"')
   await expect.poll(async () => (await tabState(appWindow, tabId))?.dialog?.message).toBe('Delete it?')
   const acceptedAgain = await call('browser_dialog', { tabId, action: 'accept' })
   expect(acceptedAgain.isError, text(acceptedAgain)).not.toBe(true)
