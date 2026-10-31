@@ -1,5 +1,5 @@
 import type { Input, WebContents } from 'electron'
-import { browserShortcutAction, type BrowserShortcutAction } from '../../../shared/browser-shortcuts.js'
+import { browserShortcutAction, websiteKeptShortcutAction, type BrowserShortcutAction } from '../../../shared/browser-shortcuts.js'
 import type { Browser } from '../browser.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { consumeExpectedAgentKeyboardInput } from '../agent-input-authorization/agent-input-authorization.js'
@@ -40,7 +40,7 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
     if (browser.browserContentOccluded && !browser.agentInputWebContents.has(webContents.id)) {
       // Trusted chrome is open; the page is only on screen until its snapshot is shown.
       event.preventDefault()
-      const shortcut = input.type === 'keyDown' ? browserShortcutAction({
+      const keys = {
         key: input.key,
         code: input.code,
         control: input.control,
@@ -50,7 +50,10 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
         repeat: input.isAutoRepeat,
         composing: input.isComposing,
         mac: process.platform === 'darwin'
-      }) : null
+      }
+      // The page cannot have a key a website may keep, such as F5 or Ctrl+1, so the browser takes it, as it does
+      // its own keys.
+      const shortcut = input.type === 'keyDown' ? browserShortcutAction(keys) ?? websiteKeptShortcutAction(keys) : null
       if (shortcut) {
         notePageShortcutKey(browser, webContents, input, shortcut)
         browser.options.onShortcutRequested?.(shortcut)
@@ -100,7 +103,7 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
       }
       return
     }
-    const requested = input.type === 'keyDown' ? browserShortcutAction({
+    const keys = {
       key: input.key,
       code: input.code,
       control: input.control,
@@ -110,7 +113,8 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
       repeat: input.isAutoRepeat,
       composing: input.isComposing,
       mac: process.platform === 'darwin'
-    }) : null
+    }
+    const requested = input.type === 'keyDown' ? browserShortcutAction(keys) : null
     // Consume one expected event even on unlocked tabs. An awaited agent
     // operation does not establish the origin of every arriving key event.
     const expectedAgentInput = consumeExpectedAgentKeyboardInput(browser, webContents.id, input)
@@ -125,10 +129,14 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
     const page = { tabId: tab.id, workspaceId: tab.mcpGroupId }
     if (browser.isHumanInteractionLocked(tab) && !expectedAgentInput) {
       event.preventDefault()
-      if (shortcut) {
-        notePageShortcutKey(browser, webContents, input, shortcut)
+      // The locked page cannot have a key a website may keep, such as F5 or Ctrl+1, which the menu then never got
+      // either, so the browser takes it, as it does its own keys.
+      const kept = !shortcut && input.type === 'keyDown' ? websiteKeptShortcutAction(keys) : null
+      const taken = shortcut ?? (kept && browser.options.shortcutAvailable?.(kept, tab.mcpGroupId, tab.id) !== false ? kept : null)
+      if (taken) {
+        notePageShortcutKey(browser, webContents, input, taken)
         browser.options.onUserInteraction?.()
-        browser.options.onShortcutRequested?.(shortcut, page)
+        browser.options.onShortcutRequested?.(taken, page)
       }
       return
     }

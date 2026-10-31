@@ -13,6 +13,11 @@ function input(overrides: Partial<BrowserShortcutInput> = {}): BrowserShortcutIn
   }
 }
 
+/** The browser's action for a key, whether it takes the key at once or only once the page leaves it alone. */
+function tabKey(key: BrowserShortcutInput): string | null {
+  return browserShortcutAction(key) ?? websiteKeptShortcutAction(key)
+}
+
 describe('browserShortcutAction', () => {
   it.each([
     ['L', 'focus-address'],
@@ -80,14 +85,26 @@ describe('browserShortcutAction', () => {
   })
 
   it('maps standard direct-tab shortcuts on Linux, Windows, and macOS', () => {
-    for (const modifier of [{ control: true }, { meta: true }]) {
+    for (const modifier of [{ control: true }, { meta: true }, { meta: true, mac: true }]) {
       for (let position = 1; position <= 8; position += 1) {
-        expect(browserShortcutAction(input({ key: String(position), ...modifier }))).toBe(`select-tab-${position}`)
+        expect(tabKey(input({ key: String(position), ...modifier }))).toBe(`select-tab-${position}`)
       }
-      expect(browserShortcutAction(input({ key: '9', ...modifier }))).toBe('select-last-tab')
+      expect(tabKey(input({ key: '9', ...modifier }))).toBe('select-last-tab')
     }
-    expect(browserShortcutAction(input({ key: '1', control: true, shift: true }))).toBeNull()
-    expect(browserShortcutAction(input({ key: '9', meta: true, alt: true }))).toBeNull()
+    expect(tabKey(input({ key: '1', control: true, shift: true }))).toBeNull()
+    expect(tabKey(input({ key: '9', meta: true, alt: true }))).toBeNull()
+    expect(tabKey(input({ key: '1', control: true, mac: true }))).toBeNull()
+  })
+
+  it('leaves Ctrl with a digit to the page first elsewhere than macOS, as Chrome does', () => {
+    // A web editor goes to its first editor group with Ctrl+1; Hronaut took the key before the page saw it.
+    for (const key of ['1', '5', '8', '9']) {
+      expect(browserShortcutAction(input({ key, code: `Digit${key}`, control: true })), key).toBeNull()
+      expect(websiteKeptShortcutAction(input({ key, code: `Digit${key}`, control: true })), key).not.toBeNull()
+    }
+    expect(websiteKeptShortcutAction(input({ key: '1', code: 'Digit1', control: true, repeat: true }))).toBeNull()
+    expect(websiteKeptShortcutAction(input({ key: '1', code: 'Digit1', control: true, alt: true }))).toBeNull()
+    expect(websiteKeptShortcutAction(input({ key: '1', code: 'Digit1', meta: true, mac: true }))).toBeNull()
   })
 
   it('maps the standard tab-search shortcut', () => {
@@ -253,22 +270,22 @@ describe('browserShortcutAction', () => {
     expect(browserShortcutAction(input({ key: 'р', code: 'KeyH', control: true }))).toBe('visit-history')
     expect(browserShortcutAction(input({ key: 'н', code: 'KeyY', meta: true, mac: true }))).toBe('visit-history')
     // Czech types ě on the 2 key and AZERTY à on the 0 key.
-    expect(browserShortcutAction(input({ key: 'ě', code: 'Digit2', control: true }))).toBe('select-tab-2')
+    expect(tabKey(input({ key: 'ě', code: 'Digit2', control: true }))).toBe('select-tab-2')
     expect(browserShortcutAction(input({ key: 'à', code: 'Digit0', control: true }))).toBe('zoom-reset')
   })
 
   it('goes by the digit of a number-row key that types punctuation, as Chromium does', () => {
     // AZERTY types & " ' ( - on the 1, 3, 4, 5 and 6 keys, so Ctrl+1 did nothing and Ctrl+6 zoomed out.
     for (const [key, digit] of [['&', 1], ['"', 3], ["'", 4], ['(', 5], ['-', 6], ['_', 8]] as const) {
-      expect(browserShortcutAction(input({ key, code: `Digit${digit}`, control: true }))).toBe(`select-tab-${digit}`)
+      expect(tabKey(input({ key, code: `Digit${digit}`, control: true }))).toBe(`select-tab-${digit}`)
     }
-    expect(browserShortcutAction(input({ key: 'ç', code: 'Digit9', control: true }))).toBe('select-last-tab')
+    expect(tabKey(input({ key: 'ç', code: 'Digit9', control: true }))).toBe('select-last-tab')
     // macOS's French layout types ! on the 8 key; its - is on the US = key, which still zooms out.
     expect(browserShortcutAction(input({ key: '!', code: 'Digit8', meta: true, mac: true }))).toBe('select-tab-8')
     expect(browserShortcutAction(input({ key: '-', code: 'Equal', meta: true, mac: true }))).toBe('zoom-out')
     expect(browserShortcutAction(input({ key: '-', code: 'NumpadSubtract', control: true }))).toBe('zoom-out')
     // Czech types + on the 1 key; German types = with Shift on the 0 key, which is no browser key there.
-    expect(browserShortcutAction(input({ key: '+', code: 'Digit1', control: true }))).toBe('select-tab-1')
+    expect(tabKey(input({ key: '+', code: 'Digit1', control: true }))).toBe('select-tab-1')
     expect(browserShortcutAction(input({ key: '=', code: 'Digit0', control: true, shift: true }))).toBeNull()
     expect(browserShortcutAction(input({ key: '+', code: 'BracketRight', control: true }))).toBe('zoom-in')
   })

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { pageShortcut } from '../src/main/browser/take-over.js'
-import { browserShortcutAction, type BrowserShortcutInput } from '../src/shared/browser-shortcuts.js'
+import { browserShortcutAction, websiteKeptShortcutAction, type BrowserShortcutInput } from '../src/shared/browser-shortcuts.js'
 import { keyedPinnedWorkspaces, pinnedWorkspaceAt, recentWorkspaces } from '../src/shared/workspace-shortcuts.js'
 
 function input(overrides: Partial<BrowserShortcutInput> = {}): BrowserShortcutInput {
@@ -41,8 +41,10 @@ describe('workspace keys on Windows and Linux', () => {
   })
 
   it('keeps Ctrl with a digit for the tabs and Ctrl+0 for zoom reset', () => {
-    expect(browserShortcutAction(input({ key: '1', code: 'Digit1', control: true }))).toBe('select-tab-1')
-    expect(browserShortcutAction(input({ key: '9', code: 'Digit9', control: true }))).toBe('select-last-tab')
+    // Ctrl with a digit is a key a website may keep, as in Chrome, so it goes to the tabs once the page leaves it alone.
+    expect(browserShortcutAction(input({ key: '1', code: 'Digit1', control: true }))).toBeNull()
+    expect(websiteKeptShortcutAction(input({ key: '1', code: 'Digit1', control: true }))).toBe('select-tab-1')
+    expect(websiteKeptShortcutAction(input({ key: '9', code: 'Digit9', control: true }))).toBe('select-last-tab')
     expect(browserShortcutAction(input({ key: '0', code: 'Digit0', control: true }))).toBe('zoom-reset')
   })
 

@@ -14,6 +14,9 @@ import { UPDATES_IPC } from '../../shared/ipc/updates.js'
 import { SHELL_IPC } from '../../shared/ipc/shell.js'
 import { sendTo } from '../typed-ipc.js'
 
+/** The website tabs Ctrl with a digit goes to; Ctrl+9 goes to the last one. */
+const TAB_POSITIONS = [1, 2, 3, 4, 5, 6, 7, 8] as const
+
 interface ApplicationMenuHost {
   /** Translates into the current interface language; read on every build because the language can change. */
   text(key: MessageKey, parameters?: MessageParameters): string
@@ -127,7 +130,9 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
       item(host.text('native.menu.findNext'), 'F3', 'find-next'),
       item(host.text('native.menu.findPrevious'), 'Shift+F3', 'find-previous'),
       item(host.text('runtime.shortcuts.moveTabNext'), 'Ctrl+Shift+PageDown', 'move-tab-next'),
-      item(host.text('runtime.shortcuts.moveTabPrevious'), 'Ctrl+Shift+PageUp', 'move-tab-previous')
+      item(host.text('runtime.shortcuts.moveTabPrevious'), 'Ctrl+Shift+PageUp', 'move-tab-previous'),
+      ...TAB_POSITIONS.map((position) => item(host.text('runtime.shortcuts.directTab'), `Ctrl+${position}`, `select-tab-${position}` as const)),
+      item(host.text('runtime.shortcuts.lastTab'), 'Ctrl+9', 'select-last-tab')
     ]
   }
 

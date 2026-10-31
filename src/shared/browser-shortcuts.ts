@@ -104,11 +104,12 @@ function chromeTabShortcut(input: BrowserShortcutInput, key: string): BrowserSho
 /**
  * Chrome's keys a website may keep, elsewhere than macOS: F5 reloads, Shift+F5 or Ctrl+F5 reloads without the cache,
  * Alt+D and Ctrl+E go to the address bar, Alt+Home opens Home, F3 or Ctrl+G finds the next match, with Shift the
- * previous one, Ctrl+Shift+Page Down and Ctrl+Shift+Page Up move the tab, and F6 or Shift+F6 goes to the next pane:
- * from a page to the address bar, and from Hronaut's window back to the page. A website's own keys come first there, as
- * in Chrome, where a web editor runs F5 as its debugger, Ctrl+G to go to a line and Ctrl+Shift+Page Down to move its
- * own editor tab, and a web terminal reads Alt+D, so they act only when the page in focus leaves them alone, and in
- * Hronaut's own window as the browser's keys at once. On macOS, Cmd+G and Cmd+Shift+G reach the Edit menu's Find Next
+ * previous one, Ctrl+Shift+Page Down and Ctrl+Shift+Page Up move the tab, Ctrl+1 to Ctrl+8 go to that website tab and
+ * Ctrl+9 to the last one, and F6 or Shift+F6 goes to the next pane: from a page to the address bar, and from Hronaut's
+ * window back to the page. A website's own keys come first there, as in Chrome, where a web editor runs F5 as its
+ * debugger, Ctrl+G to go to a line, Ctrl+Shift+Page Down to move its own editor tab and Ctrl+1 to go to its first editor
+ * group, and a web terminal reads Alt+D, so they act only when the page in focus leaves them alone, and in Hronaut's own
+ * window as the browser's keys at once. On macOS, Cmd+G and Cmd+Shift+G reach the Edit menu's Find Next
  * and Find Previous.
  */
 export function websiteKeptShortcutAction(input: BrowserShortcutInput): BrowserShortcutAction | null {
@@ -126,6 +127,10 @@ export function websiteKeptShortcutAction(input: BrowserShortcutInput): BrowserS
   if (input.control && input.shift && !input.alt) {
     if (key === 'pagedown') return 'move-tab-next'
     if (key === 'pageup') return 'move-tab-previous'
+  }
+  if (input.control && !input.shift && !input.alt) {
+    if (/^[1-8]$/.test(key)) return `select-tab-${key}` as BrowserShortcutAction
+    if (key === '9') return 'select-last-tab'
   }
   return null
 }
@@ -202,8 +207,9 @@ export function browserShortcutAction(input: BrowserShortcutInput): BrowserShort
   const primary = input.mac ? input.meta && !input.control : input.control || input.meta
   if (!input.shift && ((!input.mac && input.control && key === 'h') || (input.meta && key === 'y' && !(input.mac && input.control)))) return 'visit-history'
   if (!primary) return null
-  if (!input.shift && /^[1-8]$/.test(key)) return `select-tab-${key}` as BrowserShortcutAction
-  if (!input.shift && key === '9') return 'select-last-tab'
+  // Elsewhere than macOS, Ctrl with a digit is a key a website may keep (websiteKeptShortcutAction).
+  if (!input.shift && (input.mac || !input.control) && /^[1-8]$/.test(key)) return `select-tab-${key}` as BrowserShortcutAction
+  if (!input.shift && (input.mac || !input.control) && key === '9') return 'select-last-tab'
   if (input.shift && (key === 'delete' || key === 'backspace')) return 'clear-browsing-data'
   if (input.shift && key === 'p') return 'command-palette'
   if (input.shift && key === 'a') return 'search-tabs'
