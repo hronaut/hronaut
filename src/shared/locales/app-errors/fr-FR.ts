@@ -75,6 +75,8 @@ export const frFRAppErrors: AppErrorMessages = {
     notLoadedYet: 'L’onglet est en veille et n’a pas encore chargé sa page ; rien ne lui a été envoyé. Réveillez l’onglet, puis réessayez.',
     printDialogOpenedDuringAction: 'La page a ouvert sa boîte de dialogue d’impression pendant cette action ; elle bloque la page jusqu’à ce que la personne imprime ou annule, et les effets de l’action sont inconnus. Demandez-lui de fermer la boîte de dialogue, puis vérifiez l’état actuel.',
     printDialogOpenBeforeAction: 'La page affiche sa boîte de dialogue d’impression, qui la bloque jusqu’à ce que la personne imprime ou annule ; rien ne lui a été envoyé. Demandez-lui de fermer la boîte de dialogue, puis réessayez.',
+    websiteDialogOpenedDuringAction: 'La page a ouvert une boîte de dialogue du site pendant cette action ; elle bloque la page jusqu’à ce qu’on y réponde, et les effets de l’action sont inconnus. Répondez-y avec browser_dialog, puis vérifiez l’état actuel.',
+    websiteDialogOpenBeforeAction: 'La page affiche une boîte de dialogue du site, qui la bloque jusqu’à ce qu’on y réponde ; rien ne lui a été envoyé. Répondez-y avec browser_dialog, puis réessayez.',
     sourceViewRunsNoScripts: 'Cet onglet affiche le code source d’une page (une adresse view-source:), où les scripts de page ne se terminent jamais ; rien ne lui a été envoyé. Ouvrez la page elle-même dans l’onglet pour l’inspecter.',
     closedWhileWaiting: 'L’onglet s’est fermé pendant l’attente de la page.',
     rendererLostWhileWaiting: 'L’onglet a cessé de répondre pendant l’attente de la page.',

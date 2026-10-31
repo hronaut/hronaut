@@ -75,6 +75,8 @@ export const koKRAppErrors: AppErrorMessages = {
     notLoadedYet: '탭이 절전 중이며 아직 페이지를 불러오지 않았습니다. 페이지에 아무것도 전송되지 않았습니다. 탭을 깨운 후 다시 시도하세요.',
     printDialogOpenedDuringAction: '이 작업 도중 페이지에서 인쇄 대화상자를 열었습니다. 사용자가 인쇄하거나 취소할 때까지 대화상자가 페이지를 붙잡고 있으며, 작업의 결과는 알 수 없습니다. 사용자에게 대화상자를 닫아 달라고 요청한 후 최신 상태를 확인하세요.',
     printDialogOpenBeforeAction: '페이지에 인쇄 대화상자가 표시되어 있으며, 사용자가 인쇄하거나 취소할 때까지 페이지를 붙잡고 있습니다. 페이지에 아무것도 전송되지 않았습니다. 사용자에게 대화상자를 닫아 달라고 요청한 후 다시 시도하세요.',
+    websiteDialogOpenedDuringAction: '이 작업 도중 페이지에서 웹사이트 대화상자를 열었습니다. 응답할 때까지 대화상자가 페이지를 붙잡고 있으며, 작업의 결과는 알 수 없습니다. browser_dialog로 응답한 후 최신 상태를 확인하세요.',
+    websiteDialogOpenBeforeAction: '페이지에 웹사이트 대화상자가 표시되어 있으며, 응답할 때까지 페이지를 붙잡고 있습니다. 페이지에 아무것도 전송되지 않았습니다. browser_dialog로 응답한 후 다시 시도하세요.',
     sourceViewRunsNoScripts: '이 탭에는 페이지 소스(view-source: 주소)가 표시되어 있어 페이지 스크립트가 끝나지 않습니다. 페이지에 아무것도 전송되지 않았습니다. 검사하려면 탭에서 페이지 자체를 여세요.',
     closedWhileWaiting: '페이지를 기다리는 동안 탭이 닫혔습니다.',
     rendererLostWhileWaiting: '페이지를 기다리는 동안 탭 렌더러를 사용할 수 없게 되었습니다.',

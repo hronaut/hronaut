@@ -201,6 +201,12 @@ export interface ToolOptions<S extends ToolCallSettlement | undefined> {
    * deletes that saved workspace, so it is checked against saved workspaces and claimed when unclaimed.
    */
   leaseTarget?: (input: Record<string, unknown>) => { workspaceId: unknown; saved: boolean }
+  /**
+   * The call may run while another call of the same client changes the workspace; it still needs that client's write
+   * lease. Only answering a website dialog declares it: the dialog holds the other call's page, so that call ends only
+   * once the dialog is answered.
+   */
+  alongsideWorkspaceChange?: boolean
 }
 
 /** What a workspace tool may also declare about its calls, for the workspace wrapper in workspace-tool-call.ts. */

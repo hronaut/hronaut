@@ -5,6 +5,7 @@ import type { BrowserTab } from '../browser-tab.js'
 import { withDebugger } from '../debugger-lease/debugger-lease.js'
 import { RendererExitedError } from '../renderer-exit-guard.js'
 import { PrintDialogOpenError, whenPrintDialogCloses } from '../print-dialog-guard.js'
+import { WebsiteDialogOpenError, whenWebsiteDialogCloses } from '../website-dialog-guard.js'
 import { humanInteractionWheelGuardInPage } from './human-input-guard.page.js'
 
 // The same check the screenshot area and the element picker make. A page
@@ -71,6 +72,11 @@ export async function syncHumanInteractionInputGuard(browser: Browser, tab: Brow
       // The native barrier, which the browser process applies, is in place; the frames' wheel guards follow once the
       // person closes the page's print dialog.
       void whenPrintDialogCloses(tab.webContents).then(() => syncHumanInteractionInputGuard(browser, tab)).catch(() => undefined)
+      return
+    }
+    if (error instanceof WebsiteDialogOpenError) {
+      // The same once the person or an agent answers the page's website dialog.
+      void whenWebsiteDialogCloses(tab.webContents).then(() => syncHumanInteractionInputGuard(browser, tab)).catch(() => undefined)
       return
     }
     throw error

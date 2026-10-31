@@ -113,3 +113,68 @@ test('leaves a page that asks before it unloads when the agent clicks away and a
   await expect.poll(async () => (await tabState(appWindow, tabId))?.url).toContain('view=left')
   expect(await windowEnabled(electronApp)).toBe(true)
 })
+
+/** Answers the tool within 10 seconds, or fails naming it. */
+function callWithin(client: { callTool: (request: { name: string, arguments: Record<string, unknown> }) => Promise<unknown> }) {
+  return (name: string, args: Record<string, unknown>) => Promise.race([
+    client.callTool({ name, arguments: args }) as Promise<CallToolResult>,
+    new Promise<never>((_resolve, reject) => setTimeout(() => reject(new Error(`${name} did not answer`)), 10_000))
+  ])
+}
+
+// An agent's key press or click on a button whose handler asks confirm() waited for the page, which the confirm held,
+// and browser_dialog was refused while that call ran, so only the person could answer it.
+test('returns an agent\'s press or click that opens a confirm, and lets the agent answer it', async ({ capabilities, electronApp, appWindow }) => {
+  const { client, tabId, fixtureUrl } = capabilities
+  leaveDialogsToAgent(electronApp)
+  const call = callWithin(client)
+  await runInPage(electronApp, fixtureUrl, `
+    document.body.insertAdjacentHTML('afterbegin', '<button id="ask" style="position:fixed;left:10px;top:10px;width:200px;height:60px;z-index:9">Delete</button>')
+    document.querySelector('#ask').addEventListener('click', () => { document.title = confirm('Delete it?') ? 'Deleted' : 'Kept' })
+    document.querySelector('#ask').focus()
+    true`)
+
+  const pressed = await call('browser_press', { tabId, key: 'Enter' })
+  expect(pressed.isError, text(pressed)).not.toBe(true)
+  expect(JSON.stringify(pressed.content)).toContain('The page now shows a website confirm: \\"Delete it?\\"')
+  // The page answers nothing else until the confirm is answered, so other page tools say so at once.
+  const snapshot = await call('browser_snapshot', { tabId })
+  expect(snapshot.isError).toBe(true)
+  expect(text(snapshot)).toContain('The page is showing a website dialog, which holds it until it is answered; nothing was sent to it.')
+  const accepted = await call('browser_dialog', { tabId, action: 'accept' })
+  expect(accepted.isError, text(accepted)).not.toBe(true)
+  await expect.poll(async () => (await tabState(appWindow, tabId))?.title).toBe('Deleted')
+
+  const clicked = await call('browser_click', { tabId, selector: '#ask', native: true })
+  expect(clicked.isError, text(clicked)).not.toBe(true)
+  await expect.poll(async () => (await tabState(appWindow, tabId))?.dialog?.message).toBe('Delete it?')
+  const dismissed = await call('browser_dialog', { tabId, action: 'dismiss' })
+  expect(dismissed.isError, text(dismissed)).not.toBe(true)
+  await expect.poll(async () => (await tabState(appWindow, tabId))?.title).toBe('Kept')
+})
+
+// A script that opened a confirm waited for it until its deadline, and the agent could not answer it meanwhile.
+test('returns an agent\'s script that opens a confirm, and lets the agent answer it', async ({ capabilities, electronApp, appWindow }) => {
+  const { client, tabId } = capabilities
+  leaveDialogsToAgent(electronApp)
+  const call = callWithin(client)
+  const evaluated = await call('browser_evaluate', { tabId, script: 'document.title = confirm("Delete it?") ? "Deleted" : "Kept"' })
+  expect(evaluated.isError).toBe(true)
+  expect(text(evaluated)).toContain('The page opened a website dialog during this action')
+  await expect.poll(async () => (await tabState(appWindow, tabId))?.dialog?.message).toBe('Delete it?')
+  const accepted = await call('browser_dialog', { tabId, action: 'accept' })
+  expect(accepted.isError, text(accepted)).not.toBe(true)
+  await expect.poll(async () => (await tabState(appWindow, tabId))?.title).toBe('Deleted')
+})
+
+test('closes a tab that shows a website dialog when the agent asks', async ({ capabilities, electronApp, appWindow }) => {
+  const { client, tabId, fixtureUrl } = capabilities
+  leaveDialogsToAgent(electronApp)
+  const call = callWithin(client)
+  await runInPage(electronApp, fixtureUrl, 'setTimeout(() => alert("Unsaved draft"), 0); true')
+  await expect.poll(async () => (await tabState(appWindow, tabId))?.dialog?.message).toBe('Unsaved draft')
+  const closed = await call('browser_close_tab', { tabId })
+  expect(closed.isError, text(closed)).not.toBe(true)
+  await expect.poll(() => tabState(appWindow, tabId)).toBeUndefined()
+  await expect.poll(() => windowEnabled(electronApp)).toBe(true)
+})

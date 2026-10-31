@@ -75,6 +75,8 @@ export const ptBRAppErrors: AppErrorMessages = {
     notLoadedYet: 'A guia está suspensa e ainda não carregou a página dela; nada foi enviado a ela. Reative a guia e tente novamente.',
     printDialogOpenedDuringAction: 'A página abriu a caixa de diálogo de impressão durante esta ação; a caixa de diálogo retém a página até que a pessoa imprima ou cancele, e os efeitos da ação são desconhecidos. Peça à pessoa que feche a caixa de diálogo e inspecione o estado atualizado.',
     printDialogOpenBeforeAction: 'A página está mostrando a caixa de diálogo de impressão, que a retém até que a pessoa imprima ou cancele; nada foi enviado a ela. Peça à pessoa que feche a caixa de diálogo e tente novamente.',
+    websiteDialogOpenedDuringAction: 'A página abriu uma caixa de diálogo do site durante esta ação; a caixa de diálogo retém a página até ser respondida, e os efeitos da ação são desconhecidos. Responda-a com browser_dialog e inspecione o estado atualizado.',
+    websiteDialogOpenBeforeAction: 'A página está mostrando uma caixa de diálogo do site, que a retém até ser respondida; nada foi enviado a ela. Responda-a com browser_dialog e tente novamente.',
     sourceViewRunsNoScripts: 'Esta guia mostra o código-fonte de uma página (um endereço view-source:), onde os scripts da página nunca terminam; nada foi enviado a ela. Abra a própria página na guia para inspecioná-la.',
     closedWhileWaiting: 'A guia foi fechada enquanto aguardava a página.',
     rendererLostWhileWaiting: 'O renderizador da guia ficou indisponível enquanto aguardava a página.',

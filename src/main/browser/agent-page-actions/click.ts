@@ -133,7 +133,7 @@ async function dispatchClick(browser: Browser, target: BrowserClickTarget, valid
         progress.preparationAttempted = true; publish()
         const result = await withAgentInput(browser, webContents, () => withDebugger(browser, webContents, async () => {
           if (browser.unconfirmedSemanticClicks.has(webContents)) throw new NativeClickAdmissionError('CLICK_STATE_UNCONFIRMED', { ...progress })
-          const admission = await acquireNativeClickAdmission(webContents.debugger, target, assertClickCurrent, progress, publish)
+          const admission = await acquireNativeClickAdmission(webContents.debugger, target, assertClickCurrent, progress, publish, webContents)
           let failure: unknown
           try {
             assertClickCurrent()

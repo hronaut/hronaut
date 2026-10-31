@@ -33,13 +33,15 @@ test('offers to stop a website\'s boxes from its second one on, as Chrome does',
     await expect.poll(() => electronApp.evaluate(({ webContents }, address) => webContents.getAllWebContents()
       .some(contents => contents.getURL() === address && !contents.isLoading()), url)).toBe(true)
 
-    const answers = await electronApp.evaluate(async ({ webContents }, address) => {
+    // A box holds the page and fails the calls waiting on it, so the page shows its boxes on its own and keeps the answers.
+    const pageAnswers = (script: string): Promise<unknown> => electronApp.evaluate(async ({ webContents }, { address, script }) => {
       const page = webContents.getAllWebContents().find(contents => contents.getURL() === address)
       if (!page) throw new Error('Boxes page web contents was not found')
-      return await page.executeJavaScript('window.showBoxes()') as boolean[]
-    }, url)
+      return await page.executeJavaScript(script)
+    }, { address: url, script })
+    await pageAnswers('setTimeout(() => { window.answers = window.showBoxes() }); true')
     // Once stopped, the page's next boxes are answered Cancel without showing.
-    expect(answers).toEqual([true, true, false, false])
+    await expect.poll(() => pageAnswers('window.answers ?? null').catch(() => null)).toEqual([true, true, false, false])
     expect(await electronApp.evaluate(() => (globalThis as BoxesGlobal).__pageBoxes)).toEqual([
       { message: 'Box 0', checkboxLabel: '' },
       { message: 'Box 1', checkboxLabel: 'Prevent this page from creating additional dialogs' }

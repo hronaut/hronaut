@@ -19,10 +19,11 @@ import {
   captureBrowserActionAuthority,
   type BrowserActionAuthorityReason
 } from './browser-action-authority.js'
-import type { BrowserState } from '../../shared/types.js'
+import type { BrowserJavaScriptDialog, BrowserState } from '../../shared/types.js'
 import { type PublicBrowserReconciliation, classifyMcpActivityResult, closedTabWaitResult, isTimeoutError, mcpWorkspaceState, nativeClickFailureResult, nativeInputCleanupResult, nativeKeyHoldUnknownResult, nativeWheelUnknownResult, publicBrowserReconciliation, textResult, toolDefinition, urlDetailOmitted } from './tool-results.js'
 import { mcpCapabilityOperationClass } from './capability-classification.js'
 import { workspaceIdSchema } from './tool-schemas.js'
+import { withWebsiteDialogNote } from './website-dialog-calls.js'
 import type { McpToolContext, ToolActivityClassification, ToolCallSettlement, ToolOptions, WorkspaceToolCall, WorkspaceToolHandler, WorkspaceToolOptions } from './tools/tool-context.js'
 import type { RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { auditEvidenceAvailability } from '../browser/debug-report/debug-report.js'
@@ -263,6 +264,9 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
         const resolvedTabId = skipsTabTarget
           ? undefined
           : preservePresentation ? requireTabInMcpGroup(manager, workspaceId, requestedTabId, true) : requireTabInMcpGroup(manager, workspaceId, requestedTabId)
+        const shownWebsiteDialog = (): BrowserJavaScriptDialog | undefined => resolvedTabId
+          ? getMcpGroupState(manager, workspaceId).tabs.find(tab => tab.id === resolvedTabId)?.dialog
+          : undefined
         const definition = toolDefinition(name)
         const actionTarget = browserActionTarget(actionInput)
         const actionPayloadFingerprint = browserActionPayloadFingerprint(actionInput)
@@ -537,7 +541,10 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
             }
             const scoped = scopeBrowserStateResult(result, getMcpGroupState(manager, workspaceId), urlDetailOmitted(manager))
             if (scoped.isError) await finishReviewedAttempt('unknown')
-            return preWriteReconciliation ? withPreWriteReconciliation(scoped, preWriteReconciliation) : scoped
+            return withWebsiteDialogNote(
+              preWriteReconciliation ? withPreWriteReconciliation(scoped, preWriteReconciliation) : scoped,
+              shownWebsiteDialog()
+            )
           } catch (error) {
             if (!(error instanceof NativeInputCleanupError) && !(error instanceof NativeWheelOutcomeUnknownError)) throw error
             const uncertainResult = error instanceof NativeClickAdmissionError

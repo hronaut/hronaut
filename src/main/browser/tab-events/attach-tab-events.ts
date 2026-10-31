@@ -11,7 +11,8 @@ import { attachPageWheelZoom } from '../page-zoom/page-wheel-zoom.js'
 import { guardPageCallsDuringPrintDialog } from '../print-dialog-guard.js'
 import { guardPageCallsAcrossRendererExit } from '../renderer-exit-guard.js'
 import { refusePageScriptsInSourceView } from '../source-view-guard.js'
-import { ensureDialogMonitoring } from '../website-dialogs/website-dialogs.js'
+import { guardPageCallsDuringWebsiteDialog } from '../website-dialog-guard.js'
+import { agentAnswersWebsiteDialogs, ensureDialogMonitoring } from '../website-dialogs/website-dialogs.js'
 import { attachDebuggerEvents } from './debugger-events.js'
 import { attachNavigationEvents } from './navigation-events.js'
 import { attachPageDestroyedEvents } from './page-destroyed-events.js'
@@ -30,6 +31,8 @@ export function attachTabEvents(browser: Browser, tab: BrowserTab, openedBy?: We
   refusePageScriptsInSourceView(webContents)
   guardPageCallsAcrossRendererExit(webContents)
   guardPageCallsDuringPrintDialog(webContents)
+  // Hronaut turns a dialog down at once while its own screens cover the pages, and an agent's action answers its own.
+  guardPageCallsDuringWebsiteDialog(webContents, () => browser.browserContentOccluded || agentAnswersWebsiteDialogs(webContents))
   runPageScriptsOnceDocumentReady(webContents)
   attachPageDestroyedEvents(browser, tab, webContents)
   attachPageFocusEvents(browser, tab, webContents)

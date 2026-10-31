@@ -3,6 +3,7 @@ import { pageFunctionExpression, pageScript } from '../../shared/page-script.js'
 import { nativeClickReceiverInPage, nativeClickSampleInPage, nativeClickTargetInPage } from './native-click-admission.page.js'
 import { NativeInputCleanupError } from './native-input-cleanup.js'
 import { RendererExitedError } from './renderer-exit-guard.js'
+import { WebsiteDialogOpenError, whenWebsiteDialogCloses } from './website-dialog-guard.js'
 import type { NativeInputDispatchObserver } from './native-key-hold.js'
 
 interface AttachedDebugger { sendCommand(method: string, params?: Record<string, unknown>): Promise<unknown> }
@@ -52,21 +53,30 @@ export function nativeClickTargetScript(target: { ref?: string; selector?: strin
   return pageScript(nativeClickTargetInPage, target)
 }
 
-/** Uses an ALREADY acquired debugger. Never enter BrowserDebuggerQueue here. */
+/**
+ * Uses an ALREADY acquired debugger. Never enter BrowserDebuggerQueue here. The page is the one whose website dialog,
+ * such as a confirm the click opened, may hold the target's release; the target is released once that dialog closes.
+ */
 export async function acquireNativeClickAdmission(api: AttachedDebugger, target: { ref?: string; selector?: string },
-  validate: () => void, progress: NativeClickProgress, publish: () => void): Promise<{ sample(x: number, y: number): Promise<void>; dispose(): Promise<void> }> {
+  validate: () => void, progress: NativeClickProgress, publish: () => void,
+  page?: object): Promise<{ sample(x: number, y: number): Promise<void>; dispose(): Promise<void> }> {
   const group = `hronaut-native-click-${randomUUID()}`
   let disposed = false
-  const dispose = async (): Promise<void> => {
-    if (disposed) return
-    disposed = true
+  const release = async (): Promise<void> => {
     try { await api.sendCommand('Runtime.releaseObjectGroup', { objectGroup: group }); progress.targetCleanup = 'confirmed' }
     catch (cause) {
       // The object group lived in the renderer and exited with it.
       if (cause instanceof RendererExitedError) { progress.targetCleanup = 'confirmed'; return }
+      // The page answers nothing until its website dialog closes, so the click returns now and the release waits.
+      if (cause instanceof WebsiteDialogOpenError && page) { void whenWebsiteDialogCloses(page).then(release).catch(() => undefined); return }
       progress.targetCleanup = 'unconfirmed'; throw new NativeClickAdmissionError('TARGET_CLEANUP_UNCONFIRMED', { ...progress }, cause)
     }
     finally { publish() }
+  }
+  const dispose = async (): Promise<void> => {
+    if (disposed) return
+    disposed = true
+    await release()
   }
   try {
     validate()

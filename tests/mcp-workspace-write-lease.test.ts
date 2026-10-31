@@ -42,6 +42,10 @@ vi.mock('../src/main/browser/agent-pause/agent-pause.js', async (importOriginal)
   hasPausedAgentTab: (browser: { hasPausedAgentTab?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.hasPausedAgentTab?.(...args) ?? false,
   isTabTakenOver: (browser: { isTabTakenOver?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.isTabTakenOver?.(...args) ?? false
 }))
+vi.mock('../src/main/browser/website-dialogs/website-dialogs.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/website-dialogs/website-dialogs.js')>(),
+  handleDialog: (browser: { handleDialog: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.handleDialog(...args)
+}))
 vi.mock('../src/main/browser/mcp-tab-groups/close-mcp-tab-group.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/mcp-tab-groups/close-mcp-tab-group.js')>(),
   closeMcpTabGroup: (browser: { closeMcpTabGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.closeMcpTabGroup(...args)
@@ -270,6 +274,76 @@ describe('workspace write leases', () => {
       expect((await pendingClose).structuredContent).toMatchObject({
         status: 'OUTCOME_UNKNOWN', reason: 'LEASE_LOST', dispatch: 'dispatched', effects: 'possible'
       })
+    })
+
+    // A website dialog holds the page of the writer's call that opened it, so that call ends only once the dialog is
+    // answered; the writer's answer was refused as busy, and only the person could answer.
+    it('lets the writer answer a website dialog while its own call waits on the page, and no other client', async () => {
+      const workspace = { id: workspaceId, name: 'Shared task', agentAccess: true, contextClass: 'standard' }
+      let releaseClick = (): void => undefined
+      const manager = {
+        suspendWorkspaceContinuity: vi.fn(() => false),
+        inspectWorkspaceContinuity: vi.fn(),
+        requireWorkspaceContinuityDispatch: vi.fn(),
+        beginWorkspaceContinuityAction: vi.fn(() => vi.fn()),
+        createMcpTabGroup: vi.fn(async () => workspace),
+        listWorkspaceForkSources: vi.fn(() => []),
+        listMcpTabGroups: vi.fn(() => [workspace]),
+        listSavedTabGroups: vi.fn(() => []),
+        isWorkspaceAgentAccessible: vi.fn(() => true),
+        mcpWorkspaceResumeKey: vi.fn(() => resumeKey),
+        requireMcpTabGroup: vi.fn(() => workspace),
+        requireTabInMcpGroup: vi.fn(() => tabId),
+        tabBelongsToMcpGroup: vi.fn(() => true),
+        wakeTab: vi.fn(async () => undefined),
+        click: vi.fn(() => new Promise<string>(resolve => { releaseClick = () => resolve('Clicked') })),
+        handleDialog: vi.fn(async (action: string) => ({ handled: true, action })),
+        closeMcpTabGroup: vi.fn(async () => undefined),
+        getMcpGroupState: vi.fn(() => ({
+          activeTabId: tabId,
+          tabs: [{ id: tabId, url: 'https://example.test/', navigationGeneration: 1, observationGeneration: 1, humanInteractionGeneration: 0 }],
+          mcpTabGroups: [workspace]
+        }))
+      }
+      server = new McpHttpServer(manager as never, {
+        host: '127.0.0.1', port: 0, version: 'test', toolSet: 'essentials',
+        showWindowInactive: () => undefined,
+        getUserAttention: () => null,
+        requestUserAttention: async request => ({ ...request, id: 'request', requestedAt: new Date().toISOString() }),
+        bookmarks: {} as never, history: {} as never, siteData: {} as never
+      })
+      const endpoint = await server.start()
+      const connect = async (name: string): Promise<Client> => {
+        const client = new Client({ name, version: '1' })
+        await client.connect(new StreamableHTTPClientTransport(new URL(endpoint)))
+        clients.push(client)
+        return client
+      }
+      const writer = await connect('writer')
+      const other = await connect('other-writer')
+      const call = async (client: Client, name: string, args: Record<string, unknown>) => (
+        await client.callTool({ name, arguments: args }) as CallToolResult
+      )
+      await call(writer, 'browser_workspaces', { action: 'create', name: 'Shared task' })
+      await call(other, 'browser_workspaces', { action: 'resume', workspaceId, resumeKey })
+
+      const clicking = call(writer, 'browser_click', { workspaceId, selector: '#delete' })
+      await vi.waitFor(() => expect(manager.click).toHaveBeenCalledOnce())
+      // Other changes still wait for the writer's call.
+      const saving = await call(writer, 'browser_click', { workspaceId, selector: '#save' })
+      expect(saving.structuredContent).toMatchObject({ status: 'BUSY', reason: 'WORKSPACE_BUSY', effects: 'none' })
+      const foreign = await call(other, 'browser_dialog', { workspaceId, action: 'dismiss' })
+      expect(foreign.structuredContent).toMatchObject({ status: 'BUSY', reason: 'WORKSPACE_BUSY', effects: 'none' })
+      expect(manager.handleDialog).not.toHaveBeenCalled()
+
+      const answered = await call(writer, 'browser_dialog', { workspaceId, action: 'accept' })
+      expect(answered.isError, resultText(answered)).not.toBe(true)
+      expect(manager.handleDialog).toHaveBeenCalledOnce()
+      expect(manager.handleDialog.mock.calls[0]![0]).toBe('accept')
+      releaseClick()
+      const clicked = await clicking
+      expect(clicked.isError, resultText(clicked)).not.toBe(true)
+      expect(manager.click).toHaveBeenCalledOnce()
     })
   })
 })

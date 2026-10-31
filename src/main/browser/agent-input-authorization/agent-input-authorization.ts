@@ -6,6 +6,7 @@ import type { PointerDebugger } from '../native-pointer.js'
 import type { Browser } from '../browser.js'
 import { findTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
+import { unlessWebsiteDialogOpens } from '../website-dialogs/website-dialogs.js'
 
 /**
  * The one mouse event an agent's native input command is about to produce, in
@@ -105,7 +106,13 @@ export async function sendAuthorizedAgentInputCommand(
     if (mouse) browser.authorizedAgentMouseInput.set(webContents.id, mouse)
     if (keyboard) browser.authorizedAgentKeyboardInput.set(webContents.id, keyboard)
     observer?.rawAttempted(commandParams)
-    const result = await webContents.debugger.sendCommand(method, commandParams)
+    const command = webContents.debugger.sendCommand(method, commandParams)
+    // The page acknowledges input once it has handled it, and a website dialog it opens meanwhile holds it until someone
+    // answers. The input was delivered then, so the call goes on, and its next input, such as the key's release, is not
+    // waited for while the dialog shows.
+    let result: unknown
+    if (tab?.dialog) void command.catch(() => undefined)
+    else result = await unlessWebsiteDialogOpens(webContents, command)
     rawDispatched = true
     observer?.rawAcknowledged(commandParams)
     return result

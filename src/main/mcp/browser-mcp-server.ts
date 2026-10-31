@@ -414,7 +414,8 @@ export function createBrowserMcpServer(
         }
         if (leaseWorkspaceId && authorizedLeaseWorkspace
           && requiresWorkspaceWriteLease(name, input, leaseExempt)) {
-          finishWorkspaceMutation = workspaceLeases.beginMutation(leaseWorkspaceId, client.id)
+          if (options.alongsideWorkspaceChange) workspaceLeases.require(leaseWorkspaceId, client.id)
+          else finishWorkspaceMutation = workspaceLeases.beginMutation(leaseWorkspaceId, client.id)
         }
         await authorizeCapability(name, input, 'consume')
         assertAutomationAccess?.()

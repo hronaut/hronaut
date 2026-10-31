@@ -2,6 +2,7 @@ import type { WebContents } from 'electron'
 import type { BrowserDialogAction, BrowserDialogHandlingOptions } from '../../../shared/types.js'
 import { heldUntilFirstLoad, RendererExitedError } from '../renderer-exit-guard.js'
 import { PrintDialogOpenError, whenPrintDialogCloses } from '../print-dialog-guard.js'
+import { WebsiteDialogOpenError, whenWebsiteDialogCloses } from '../website-dialog-guard.js'
 import type { Browser } from '../browser.js'
 import { findTab, getTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
@@ -18,6 +19,14 @@ const monitoringAfterNextLoad = new WeakSet<WebContents>()
 
 /** Pages whose website dialog Hronaut or an agent answered through the debugger, until the dialog closes. */
 const answeredThroughDebugger = new WeakSet<WebContents>()
+
+/** Pages with an agent's action under way that answers the website dialogs it raises. */
+const agentActionsAnsweringDialogs = new WeakSet<WebContents>()
+
+/** Whether an agent's action under way on the page answers the website dialogs it raises, so none waits for the person. */
+export function agentAnswersWebsiteDialogs(webContents: WebContents): boolean {
+  return agentActionsAnsweringDialogs.has(webContents)
+}
 
 /** Accepts or dismisses the website dialog the tab shows. */
 export async function handleDialog(browser: Browser, action: BrowserDialogAction, tabId?: string): Promise<{
@@ -77,6 +86,8 @@ export async function withOptionalDialogHandling<T>(
       }).catch((error: unknown) => { handlingError = error })
     }
     webContents.debugger.on('message', listener)
+    // The debugger queue runs one operation on the page at a time.
+    agentActionsAnsweringDialogs.add(webContents)
     try {
       await webContents.debugger.sendCommand('Page.enable')
       const result = await operation()
@@ -84,6 +95,7 @@ export async function withOptionalDialogHandling<T>(
       if (handlingError) throw handlingError
       return result
     } finally {
+      agentActionsAnsweringDialogs.delete(webContents)
       webContents.debugger.removeListener('message', listener)
     }
   })
@@ -176,6 +188,16 @@ export function closeWebsiteDialogBox(webContents: WebContents): void {
 }
 
 /**
+ * Closes the box of a website dialog whose page went away while it showed, as when an agent closes the tab. Electron
+ * closes a page's boxes when it navigates or its renderer exits, but not when the page is destroyed, so the box stayed
+ * on screen and kept Hronaut's window disabled until the person clicked it. Called once the page is destroyed.
+ */
+export function closeWebsiteDialogBoxOfDestroyedPage(webContents: WebContents): void {
+  answeredThroughDebugger.delete(webContents)
+  webContents.emit('-cancel-dialogs')
+}
+
+/**
  * Attaches the page's debugger, unless Developer Tools have it, and enables
  * the page, runtime, log, audit and network domains that website dialogs and
  * page diagnostics observe, then applies the human interaction lock. Concurrent
@@ -243,6 +265,11 @@ export function ensureDialogMonitoring(browser: Browser, tab: BrowserTab): Promi
         // A page that prints as it opens, such as a receipt, holds its renderer in the print dialog; the page is
         // monitored once the person closes it.
         void whenPrintDialogCloses(webContents).then(() => ensureDialogMonitoring(browser, tab))
+        return
+      }
+      if (error instanceof WebsiteDialogOpenError) {
+        // A page that alerts as it opens holds its renderer the same way until someone answers the dialog.
+        void whenWebsiteDialogCloses(webContents).then(() => ensureDialogMonitoring(browser, tab))
         return
       }
       console.error('[browser] Could not enable page diagnostics:', error)
