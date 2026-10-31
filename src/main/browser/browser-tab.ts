@@ -65,9 +65,10 @@ export interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordi
    */
   walletNavigationGeneration: number
   /**
-   * Advanced when the tab starts loading another document, again when that
-   * document commits or a failed load shows its error page, and never for a
-   * change within the page. Find in page ends its search on it.
+   * Advanced when another document replaces the page, such as another page, a
+   * reload or a failed load's error page. A navigation that never commits, such
+   * as a download or a 204, keeps the page, and so does a change within the
+   * page. Find in page ends its search on it.
    */
   documentGeneration: number
   performanceDocumentRouted?: boolean

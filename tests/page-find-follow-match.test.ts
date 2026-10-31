@@ -3,7 +3,7 @@ import type { WebContents } from 'electron'
 
 vi.mock('electron', () => ({ app: { isPackaged: false } }))
 
-const { stopFindInPage } = await import('../src/main/browser/page-find/page-find.js')
+const { findInPage, stopFindInPage } = await import('../src/main/browser/page-find/page-find.js')
 type Browser = import('../src/main/browser/browser.js').Browser
 type PageTab = {
   id: string
@@ -13,6 +13,7 @@ type PageTab = {
   humanInteractionGeneration: number
   lastHumanInteractionAt: number
   lastActiveAt: number
+  documentGeneration: number
 }
 
 function pageSearch(options: { locked?: boolean; occluded?: boolean; agentInput?: boolean; selecting?: boolean; matched?: boolean } = {}) {
@@ -23,10 +24,13 @@ function pageSearch(options: { locked?: boolean; occluded?: boolean; agentInput?
     webContents: { id: 4 } as WebContents,
     humanInteractionGeneration: 7,
     lastHumanInteractionAt: 1,
-    lastActiveAt: 1
+    lastActiveAt: 1,
+    documentGeneration: 0
   }
   // The controller clicks only after a search settled on a match.
-  const stopPageSearch = vi.fn((_webContents: WebContents, action: 'clearSelection' | 'activateSelection') => action === 'activateSelection' && (options.matched ?? true))
+  const stopPageSearch = vi.fn((_webContents: WebContents, action: 'clearSelection' | 'keepSelection' | 'activateSelection') => (
+    action === 'activateSelection' && (options.matched ?? true)
+  ))
   const noteHumanInput = vi.fn()
   const onUserInteraction = vi.fn()
   const browser = {
@@ -86,5 +90,20 @@ describe('ending a page search', () => {
     expect(page.stopPageSearch).toHaveBeenCalledExactlyOnceWith(page.tab.webContents, 'clearSelection')
     expect(page.tab.humanInteractionGeneration).toBe(7)
     expect(page.onUserInteraction).not.toHaveBeenCalled()
+  })
+
+  // Find closes once another document replaces the one it searched, and Chromium then ends the search on the new page,
+  // where clearing the selection would clear the page's own, such as the one a page coming back from Back kept.
+  it('keeps the selection of a page that replaced the one searched, and clicks nothing there', async () => {
+    const page = pageSearch()
+    await findInPage(page.browser, 'needle', { tabId: 'tab' })
+    page.tab.documentGeneration += 1
+    stopFindInPage(page.browser, 'tab', { activateMatch: true })
+    expect(page.stopPageSearch).toHaveBeenCalledExactlyOnceWith(page.tab.webContents, 'keepSelection')
+    expect(page.onUserInteraction).not.toHaveBeenCalled()
+    // A search on the page in view clears its selection again when it ends.
+    await findInPage(page.browser, 'needle', { tabId: 'tab' })
+    stopFindInPage(page.browser, 'tab')
+    expect(page.stopPageSearch).toHaveBeenLastCalledWith(page.tab.webContents, 'clearSelection')
   })
 })

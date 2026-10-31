@@ -60,17 +60,17 @@ export class PageFindController {
   }
 
   /**
-   * Ends the page's search, clearing its selection, or clicking the active match as Chrome's Ctrl+Enter does, and
-   * reports whether it clicked. Chromium clicks the page's focused element when it ends a search, which is the match's
+   * Ends the page's search, clearing its selection, keeping it, or clicking the active match as Chrome's Ctrl+Enter
+   * does, and reports whether it clicked. Chromium clicks the page's focused element when it ends a search, which is the match's
    * link only once a search settled on a match: a search that found nothing, or has not answered yet, leaves the focus
    * where it was, such as on a button the person pressed before, so it is cleared instead.
    */
-  stop(webContents: WebContents, action: 'clearSelection' | 'activateSelection' = 'clearSelection'): boolean {
+  stop(webContents: WebContents, action: 'clearSelection' | 'keepSelection' | 'activateSelection' = 'clearSelection'): boolean {
     this.pending.get(webContents)?.()
     const activate = action === 'activateSelection' && this.matched.has(webContents)
     this.matched.delete(webContents)
     this.sessionQueries.delete(webContents)
-    webContents.stopFindInPage(activate ? 'activateSelection' : 'clearSelection')
+    webContents.stopFindInPage(activate ? 'activateSelection' : action === 'keepSelection' ? 'keepSelection' : 'clearSelection')
     return activate
   }
 }

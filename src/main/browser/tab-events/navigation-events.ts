@@ -178,7 +178,6 @@ export function attachNavigationEvents(browser: Browser, tab: BrowserTab, webCon
     tab.navigationGeneration += 1
     retireNetworkPriorityObservations(tab)
     invalidateTabOverviewPreview(browser, tab)
-    if (!isSameDocument) tab.documentGeneration += 1
     if (isSameDocument) {
       tab.performanceDocumentRouted = true
       return
@@ -190,7 +189,6 @@ export function attachNavigationEvents(browser: Browser, tab: BrowserTab, webCon
     tab.faviconAbortController?.abort()
     tab.faviconAbortController = undefined
     tab.faviconRequestId += 1
-    cancelNativeSelectionSessions(browser, tab)
     tab.inspectorIssues = []
     tab.inspectorIssuesTruncated = false
     tab.authChallenges = []
@@ -249,6 +247,9 @@ export function attachNavigationEvents(browser: Browser, tab: BrowserTab, webCon
     // Reset only when a new main-frame document commits, never on a failed load.
     tab.performanceDocumentRouted = false
     tab.documentGeneration += 1
+    // The element pick and area selection end with the document they are in, not when a navigation that may never
+    // replace it, such as a download, starts.
+    cancelNativeSelectionSessions(browser, tab)
     pageReplaced(webContents)
     walletDocumentReplaced()
     trackWorkspaceOrigin(browser, tab, url)
@@ -331,10 +332,13 @@ export function attachNavigationEvents(browser: Browser, tab: BrowserTab, webCon
   // Electron reports an error page that replaced the document here, before did-fail-load. did-fail-load also reports a
   // document that committed and then failed to receive the rest of its content, such as after a reset connection, and
   // that document stays.
-  webContents.on('did-fail-provisional-load', (_event, _errorCode, _errorDescription, _validatedURL, isMainFrame) => {
+  webContents.on('did-fail-provisional-load', (_event, errorCode, _errorDescription, _validatedURL, isMainFrame) => {
     if (tab.sleeping || !isMainFrame) return
     walletDocumentReplaced()
     pageReplaced(webContents)
+    if (errorCode === ABORTED_LOAD_ERROR) return
+    tab.documentGeneration += 1
+    cancelNativeSelectionSessions(browser, tab)
   })
   webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
     // A newer navigation can start before the one it replaced reports its failure.
@@ -346,7 +350,6 @@ export function attachNavigationEvents(browser: Browser, tab: BrowserTab, webCon
     if (isMainFrame && (errorCode !== ABORTED_LOAD_ERROR || validatedURL === webContents.getURL())) mainFrameLoaded()
     if (!isMainFrame || errorCode === ABORTED_LOAD_ERROR) return
     tab.authNavigationPending = false
-    tab.documentGeneration += 1
     const failedUrl = validatedURL || tab.url
     tab.loading = false
     if (previousUrl !== failedUrl) tab.faviconDataUrl = undefined

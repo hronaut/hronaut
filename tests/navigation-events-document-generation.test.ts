@@ -23,9 +23,10 @@ vi.mock('../src/main/browser/background-action.js', async (importOriginal) => ({
   runWalletLifecycleAction: (browser: { runWalletLifecycleAction: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.runWalletLifecycleAction(...args)
 }))
 
-// Find in page ends its search when the tab's document generation changes. A Find opened while the next page was still
-// loading searched the old page; the generation had already advanced when that navigation started, so when the next
-// page replaced it, Find stayed open with the old page's matches and Chromium repeated the query on the new page.
+// Find in page ends its search when the tab's document generation changes. Find once closed on the tab's navigation
+// generation, which advances as a navigation starts: a Find opened while the next page was still loading searched the
+// old page, so when the next page replaced it, Find stayed open with the old page's matches and Chromium repeated the
+// query on the new page. The document generation advances only when another document replaces the page.
 
 /** A stand-in for whatever the handlers call on the tab manager: any call or property gives another stand-in. */
 function anything(): unknown {
@@ -39,6 +40,7 @@ function anything(): unknown {
 /** A page's events and a tab that listens to them, with the wallet navigations it reports. */
 function page() {
   const walletNavigations: number[] = []
+  const cancelSelections = vi.fn()
   const contents = Object.assign(new EventEmitter(), {
     getURL: () => 'https://start.example/',
     getTitle: () => 'Start',
@@ -57,28 +59,73 @@ function page() {
     get: (_target, key) => key === 'workspaceNavigationAllowed' ? () => true
       : key === 'options' ? { getLocale: () => 'en-US', onWalletNavigation: (_tabId: string, generation: number) => { walletNavigations.push(generation) } }
       : key === 'runWalletLifecycleAction' ? (_label: string, action: () => unknown) => { action() }
+      : key === 'cancelNativeSelectionSessions' ? cancelSelections
       : fallback[key]
   })
   attachNavigationEvents(browser as never, tab as never, contents as never)
-  return { contents, tab, walletNavigations }
+  return { contents, tab, walletNavigations, cancelSelections }
 }
 
 describe('the document generation Find in page closes on', () => {
-  it('advances when another page starts loading and again when it replaces the page', () => {
+  it('advances when another page replaces the page, not while it only loads', () => {
     const { contents, tab } = page()
 
     contents.emit('did-start-navigation', {}, 'https://next.example/', false, true)
-    expect(tab.documentGeneration).toBe(1)
+    expect(tab.documentGeneration).toBe(0)
     contents.emit('did-navigate', {}, 'https://next.example/')
-    expect(tab.documentGeneration).toBe(2)
+    expect(tab.documentGeneration).toBe(1)
+  })
+
+  // A link that starts a download, or that the server answers with no content, keeps the page; Find closed on it, so a
+  // person who clicked a download link among the matches lost them, which Chrome keeps.
+  it('stays for a navigation that never replaces the page, such as a download', () => {
+    const { contents, tab } = page()
+
+    contents.emit('did-start-navigation', {}, 'https://start.example/release.zip', false, true)
+    contents.emit('did-fail-provisional-load', {}, -3, 'ERR_ABORTED', 'https://start.example/release.zip', true)
+    contents.emit('did-fail-load', {}, -3, 'ERR_ABORTED', 'https://start.example/release.zip', true)
+    contents.emit('did-start-navigation', {}, 'https://start.example/empty', false, true)
+    contents.emit('did-stop-loading')
+    expect(tab.documentGeneration).toBe(0)
+    expect(tab.navigationGeneration).toBe(2)
+  })
+
+  // A pick on a page that started a download ended without removing its overlay from the page, which kept the pointer
+  // and swallowed the next click.
+  it('ends an element pick or area selection when another document replaces the page, not when a navigation starts', () => {
+    const { contents, cancelSelections } = page()
+
+    contents.emit('did-start-navigation', {}, 'https://start.example/release.zip', false, true)
+    contents.emit('did-fail-provisional-load', {}, -3, 'ERR_ABORTED', 'https://start.example/release.zip', true)
+    contents.emit('did-fail-load', {}, -3, 'ERR_ABORTED', 'https://start.example/release.zip', true)
+    expect(cancelSelections).not.toHaveBeenCalled()
+    contents.emit('did-start-navigation', {}, 'https://next.example/', false, true)
+    contents.emit('did-navigate', {}, 'https://next.example/')
+    expect(cancelSelections).toHaveBeenCalledOnce()
+    contents.emit('did-start-navigation', {}, 'https://gone.example/', false, true)
+    contents.emit('did-fail-provisional-load', {}, -105, 'ERR_NAME_NOT_RESOLVED', 'https://gone.example/', true)
+    contents.emit('did-fail-load', {}, -105, 'ERR_NAME_NOT_RESOLVED', 'https://gone.example/', true)
+    expect(cancelSelections).toHaveBeenCalledTimes(2)
   })
 
   it('advances when a failed load shows its error page, not for a load another one replaced', () => {
     const { contents, tab } = page()
 
+    contents.emit('did-fail-provisional-load', {}, -3, 'ERR_ABORTED', 'https://next.example/', true)
     contents.emit('did-fail-load', {}, -3, 'ERR_ABORTED', 'https://next.example/', true)
     expect(tab.documentGeneration).toBe(0)
+    contents.emit('did-fail-provisional-load', {}, -105, 'ERR_NAME_NOT_RESOLVED', 'https://next.example/', true)
     contents.emit('did-fail-load', {}, -105, 'ERR_NAME_NOT_RESOLVED', 'https://next.example/', true)
+    expect(tab.documentGeneration).toBe(1)
+  })
+
+  // The page stays, so Find stays with its matches.
+  it('stays when a page that replaced the last one then fails to receive the rest of its content', () => {
+    const { contents, tab } = page()
+
+    contents.emit('did-start-navigation', {}, 'https://next.example/', false, true)
+    contents.emit('did-navigate', {}, 'https://next.example/')
+    contents.emit('did-fail-load', {}, -355, 'ERR_INCOMPLETE_CHUNKED_ENCODING', 'https://next.example/', true)
     expect(tab.documentGeneration).toBe(1)
   })
 
