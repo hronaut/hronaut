@@ -2,8 +2,9 @@ import { createServer } from 'node:http'
 import type { ElectronApplication, Page } from '@playwright/test'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
-// A website dialog answered for the person, such as one turned down while Settings covered the pages, or one an agent
-// answered, left Electron's box for it on screen. The box kept Hronaut's window disabled until the person clicked it.
+// A website dialog Hronaut turned down while Settings covered the pages left Electron's box for it on screen, over
+// Settings. The box kept Hronaut's window disabled until the person clicked it. An agent's answer is covered in
+// website-dialog-agent.e2e.ts.
 
 const windowEnabled = (electronApp: ElectronApplication) => electronApp.evaluate(({ BrowserWindow }) => (
   BrowserWindow.getAllWindows().find((window) => window.isVisible())!.isEnabled()
@@ -42,27 +43,6 @@ test('closes the box of a website dialog answered for the person', async ({ appW
     const settings = appWindow.getByRole('tabpanel', { name: 'Settings' })
     await expect(settings).toBeVisible()
     await alertFromPage(electronApp, url)
-    await expect.poll(() => pageTitle(electronApp, url)).toBe('Answered')
-    await expect.poll(() => windowEnabled(electronApp)).toBe(true)
-    await settings.getByRole('button', { name: 'Close settings', exact: true }).click()
-    await expect(settings).toHaveCount(0)
-    // The page is covered until Settings has finished closing, and only then shows its own dialogs.
-    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }, url) => BrowserWindow.getAllWindows()
-      .find((window) => window.isVisible())!.contentView.children
-      .some((view) => (view as Electron.WebContentsView).webContents?.getURL() === url && view.getVisible()), url)).toBe(true)
-
-    // An alert the person sees, answered through the page's debugger as an agent's browser_dialog does.
-    await electronApp.evaluate(({ webContents }, url) => webContents.getAllWebContents()
-      .find((contents) => contents.getURL() === url)!.executeJavaScript('document.title = "Alerting page"'), url)
-    await alertFromPage(electronApp, url)
-    await expect.poll(async () => {
-      const state = await appWindow.evaluate('window.hronaut.getState()') as { tabs: Array<{ url: string, dialog?: { message: string } }> }
-      return state.tabs.find((tab) => tab.url === url)?.dialog?.message
-    }).toBe('Unsaved draft')
-    await electronApp.evaluate(async ({ webContents }, url) => {
-      await webContents.getAllWebContents().find((contents) => contents.getURL() === url)!
-        .debugger.sendCommand('Page.handleJavaScriptDialog', { accept: true })
-    }, url)
     await expect.poll(() => pageTitle(electronApp, url)).toBe('Answered')
     await expect.poll(() => windowEnabled(electronApp)).toBe(true)
   } finally {
