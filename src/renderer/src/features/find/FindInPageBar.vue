@@ -24,8 +24,7 @@ const props = defineProps<{
 }>()
 
 const open = defineModel<boolean>('open', { required: true })
-// Whether the keyboard is in the bar. Following the agents' activity waits meanwhile, as for the address bar: showing
-// another tab would close Find under the person.
+// Whether the keyboard is in the bar.
 const focused = defineModel<boolean>('focused', { default: false })
 const { t } = useI18n({ useScope: 'global' })
 const input = ref<HTMLInputElement | null>(null)
@@ -105,6 +104,8 @@ function handleBarKeydown(event: KeyboardEvent): void {
   void close({ returnKeyboard: true })
 }
 
+// A click on the count or between the controls focuses the bar itself, which takes focus only that way, so the
+// keyboard stays in the bar.
 function handleBarFocusout(event: FocusEvent): void {
   const bar = event.currentTarget
   if (!(bar instanceof Node && event.relatedTarget instanceof Node && bar.contains(event.relatedTarget))) focused.value = false
@@ -195,7 +196,7 @@ defineExpose({ close, openForTab })
 
 <template>
   <div v-if="open" class="find-bar" role="search" :aria-label="t('find.region')" @keydown="handleBarKeydown"
-    @focusin="focused = true" @focusout="handleBarFocusout">
+    tabindex="-1" @focusin="focused = true" @focusout="handleBarFocusout">
     <div class="find-field">
       <IconSearch aria-hidden="true" />
       <input

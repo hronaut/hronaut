@@ -578,8 +578,6 @@ describe('Find Next and Find Previous', () => {
   })
 })
 
-// Closing Find with Escape or its Close button left the keyboard in Hronaut's window, so Space, Page Down and the arrow
-// keys no longer scrolled the page and typing went nowhere. Chrome gives the keyboard back to the page.
 describe('the keyboard in Find', () => {
   // Following the agents' activity waits while it is there, since showing another tab would close Find.
   it('is reported while focus is anywhere in the bar, and no longer once it leaves or Find closes', async () => {
@@ -603,13 +601,24 @@ describe('the keyboard in Find', () => {
     try {
       await flushPromises()
       const field = wrapper.find<HTMLInputElement>('input[type="search"]').element
-      field.focus()
-      await flushPromises()
+      expect(document.activeElement).toBe(field)
       expect(wrapper.props('focused')).toBe(true)
       wrapper.find<HTMLButtonElement>('button[aria-label="Close find in page"]').element.focus()
       await flushPromises()
       expect(wrapper.props('focused')).toBe(true)
+      // A click on the count or between the controls focuses the bar itself.
+      wrapper.find<HTMLElement>('.find-bar').element.focus()
+      await flushPromises()
+      expect(wrapper.props('focused')).toBe(true)
       outside.focus()
+      await flushPromises()
+      expect(wrapper.props('focused')).toBe(false)
+
+      // Leaving the window, or the keyboard going to the page, takes it out of the bar with no new target.
+      field.focus()
+      await flushPromises()
+      expect(wrapper.props('focused')).toBe(true)
+      field.blur()
       await flushPromises()
       expect(wrapper.props('focused')).toBe(false)
 
@@ -626,6 +635,8 @@ describe('the keyboard in Find', () => {
   })
 })
 
+// Closing Find with Escape or its Close button left the keyboard in Hronaut's window, so Space, Page Down and the arrow
+// keys no longer scrolled the page and typing went nowhere. Chrome gives the keyboard back to the page.
 describe('closing Find', () => {
   function mountOpenBar() {
     const activeTab = tab('first')
