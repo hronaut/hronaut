@@ -22,6 +22,8 @@ const { PAGE_IPC } = await import('../src/shared/ipc/page.js')
 /** A background tab whose page the dialog guards hold, recording the evaluations that reach it. */
 function backgroundTabWithGuardedPage() {
   const evaluations: string[] = []
+  const releases: Array<{ expression: string; contextId?: number }> = []
+  const scripts: Array<{ expression: string; reject(error: Error): void }> = []
   const debuggerEvents = new EventEmitter()
   const page = Object.assign(new EventEmitter(), {
     id: 7,
@@ -34,10 +36,14 @@ function backgroundTabWithGuardedPage() {
     printToPDF: vi.fn(async () => Buffer.alloc(0)),
     // The agent's script waits on the page, and releasing its dialog handling answers at once.
     debugger: Object.assign(debuggerEvents, {
-      sendCommand: vi.fn((_method: string, params: { expression: string }) => {
+      sendCommand: vi.fn((_method: string, params: { expression: string; contextId?: number }) => {
         const release = params.expression.includes('return function releaseEvaluationDialogsInPage(') && !params.expression.includes('dialogAwareEvaluateInPage')
         evaluations.push(release ? 'release' : 'script')
-        return release ? Promise.resolve({}) : new Promise(() => undefined)
+        if (release) {
+          releases.push(params)
+          return Promise.resolve({})
+        }
+        return new Promise((_resolve, reject) => { scripts.push({ expression: params.expression, reject }) })
       })
     })
   })
@@ -55,7 +61,15 @@ function backgroundTabWithGuardedPage() {
     await new Promise(resolve => setImmediate(resolve))
   }
   const alertCloses = (): void => { debuggerEvents.emit('message', {}, 'Page.javascriptDialogClosed', { result: true }) }
-  return { browser, evaluations, print, alertOpens, alertCloses }
+  // The release names the evaluation whose id went to the page function right before the release function.
+  const releasedOwnEvaluation = (): void => {
+    const evaluationId = /"([^"]+)",\s*\(\(\) => \{ 'use strict'; return function releaseEvaluationDialogsInPage\(/.exec(scripts[0]!.expression)?.[1]
+    expect(evaluationId).toMatch(/^[0-9a-f-]{36}$/)
+    expect(releases).toHaveLength(1)
+    expect(releases[0]).toMatchObject({ contextId: 1 })
+    expect(releases[0]!.expression.endsWith(`("${evaluationId}")`)).toBe(true)
+  }
+  return { browser, evaluations, scripts, print, alertOpens, alertCloses, releasedOwnEvaluation }
 }
 
 // An agent's script that a page's print dialog or alert cut off kept running in the page with the page's alert, confirm
@@ -63,7 +77,7 @@ function backgroundTabWithGuardedPage() {
 // showing, until the script ended or the page loaded again.
 describe('dialog handling of an agent\'s script a page\'s dialog cut off', () => {
   it('ends once the print dialog closes', async () => {
-    const { browser, evaluations, print } = backgroundTabWithGuardedPage()
+    const { browser, evaluations, print, releasedOwnEvaluation } = backgroundTabWithGuardedPage()
     const running = evaluate(browser, 'waitForReport()', 'tab', {}, { timeoutMs: 60_000 })
     await vi.waitFor(() => expect(evaluations).toEqual(['script']))
     print(true)
@@ -73,10 +87,11 @@ describe('dialog handling of an agent\'s script a page\'s dialog cut off', () =>
 
     print(false)
     await vi.waitFor(() => expect(evaluations).toEqual(['script', 'release']))
+    releasedOwnEvaluation()
   })
 
   it('ends once a website alert is answered', async () => {
-    const { browser, evaluations, alertOpens, alertCloses } = backgroundTabWithGuardedPage()
+    const { browser, evaluations, alertOpens, alertCloses, releasedOwnEvaluation } = backgroundTabWithGuardedPage()
     const running = evaluate(browser, 'waitForReport()', 'tab', {}, { timeoutMs: 60_000 })
     await vi.waitFor(() => expect(evaluations).toEqual(['script']))
     const cutOff = expect(running).rejects.toMatchObject({ name: 'WebsiteDialogOpenError', sent: true })
@@ -86,6 +101,19 @@ describe('dialog handling of an agent\'s script a page\'s dialog cut off', () =>
 
     alertCloses()
     await vi.waitFor(() => expect(evaluations).toEqual(['script', 'release']))
+    releasedOwnEvaluation()
+  })
+
+  // Chromium stops waiting on a promise it collected unsettled, such as a script's that waits for nothing, and the
+  // script's own release never runs.
+  it('ends at once when Chromium stops tracking a script that never settles', async () => {
+    const { browser, evaluations, scripts, releasedOwnEvaluation } = backgroundTabWithGuardedPage()
+    const running = evaluate(browser, 'new Promise(() => {})', 'tab', {}, { timeoutMs: 60_000 })
+    await vi.waitFor(() => expect(scripts).toHaveLength(1))
+    scripts[0]!.reject(new Error('Promise was collected'))
+    await expect(running).rejects.toThrow('Promise was collected')
+    expect(evaluations).toEqual(['script', 'release'])
+    releasedOwnEvaluation()
   })
 
   it('is not released for a script the dialog kept from the page', async () => {

@@ -48,7 +48,7 @@ export function registerBrowserEvaluate(context: McpToolContext): void {
           const outcome = error.sent
             ? { status: 'OUTCOME_UNKNOWN', reason: 'WEBSITE_DIALOG_OPENED', dispatch: 'dispatched', effects: 'possible', retrySafe: false,
                 detail: error.message,
-                nextAction: 'Answer the dialog with browser_dialog; the script then goes on. '
+                nextAction: 'Answer the dialog with browser_dialog; the script then goes on, and dialogs it opens later show instead of being answered. '
                   + 'Inspect fresh page state before continuing; do not repeat the script blindly.' }
             : { status: 'NOT_DISPATCHED', reason: 'WEBSITE_DIALOG_SHOWN', dispatch: 'not-dispatched', effects: 'none', retrySafe: true, detail: error.message,
                 nextAction: 'Nothing ran. Answer the dialog with browser_dialog, then retry.' }

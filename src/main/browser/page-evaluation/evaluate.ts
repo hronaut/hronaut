@@ -24,9 +24,10 @@ export interface EvaluationDeadline {
  * Hronaut never takes focus for it. With a deadline it stops waiting once the
  * deadline passes or the call is cancelled, also while it waits for the
  * debugger, releasing the focus guard and the debugger. The page's script is
- * left to finish on its own, and its dialog handling ends at once. A page's
- * print dialog or website dialog that cuts the call off leaves it the same
- * way, and its dialog handling ends once that dialog closes.
+ * left to finish on its own, and its dialog handling ends at once, as it
+ * does whatever else ends the call after the script reached the page. When
+ * the page's print dialog or a website dialog cut the call off, it ends once
+ * that dialog closes.
  */
 export async function evaluate(browser: Browser, script: string, tabId?: string, dialog: BrowserDialogHandlingOptions = {}, deadline?: EvaluationDeadline): Promise<unknown> {
   const webContents = getTab(browser, tabId).webContents
@@ -68,7 +69,8 @@ export async function evaluate(browser: Browser, script: string, tabId?: string,
     try {
       return await settle(evaluateWithAttachedDebugger(webContents, dialogAwareEvaluateScript(script, dialogAction, evaluationId), contextId))
     } catch (error) {
-      if (error instanceof EvaluationStoppedError || cutOffByPageDialog(error)) releaseEvaluationDialogs(webContents, evaluationId, contextId)
+      // However the call ended, the script may still be running, or waiting for nothing, with the page's dialogs answered.
+      if (!refusedUnsentByPageDialog(error)) releaseEvaluationDialogs(webContents, evaluationId, contextId)
       throw error
     }
   })))
@@ -96,9 +98,9 @@ function settleBeforeStop<T>(pending: Promise<T>, stop: AbortSignal, stopped: ()
   })
 }
 
-/** Whether the page's print dialog or a website dialog cut the call off after it reached the page. */
-function cutOffByPageDialog(error: unknown): boolean {
-  return (error instanceof PrintDialogOpenError || error instanceof WebsiteDialogOpenError) && error.sent
+/** Whether the page's print dialog or a website dialog kept the call from reaching the page. */
+function refusedUnsentByPageDialog(error: unknown): boolean {
+  return (error instanceof PrintDialogOpenError || error instanceof WebsiteDialogOpenError) && !error.sent
 }
 
 /**

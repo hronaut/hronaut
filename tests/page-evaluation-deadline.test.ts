@@ -130,7 +130,8 @@ describe('page evaluation deadline', () => {
     failed.debuggerScript.reject(new Error('ReferenceError: boom is not defined'))
     await expect(failure).rejects.toThrow('boom is not defined')
     await expect(failure).rejects.not.toBeInstanceOf(EvaluationStoppedError)
-    expect(failed.webContents.debugger.sendCommand).not.toHaveBeenCalled()
+    // A script that threw already gave the page its dialogs back, and the release finds nothing left to do.
+    expect(failed.webContents.debugger.sendCommand).toHaveBeenCalledExactlyOnceWith('Runtime.evaluate', expect.objectContaining({ contextId: 1, silent: true }))
 
     const unbounded = fixture()
     const waiting = evaluate(unbounded.browser, 'later()')
