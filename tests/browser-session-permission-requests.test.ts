@@ -170,9 +170,9 @@ function answerLater(harness: { decide: (options: MessageBoxOptions) => Answer |
 const meet = { url: 'https://meet.example/join', origin: 'https://meet.example' }
 const fromMeet = { requestingUrl: meet.url, isMainFrame: true }
 
-/** The person clicks in the page, which Electron reports as the page's input. */
+/** The person clicks in the page, in any of its frames, which Electron reports before the page gets it. */
 function click(page: { contents: EventEmitter }): void {
-  page.contents.emit('input-event', {}, { type: 'mouseDown' })
+  page.contents.emit('before-mouse-event', {}, { type: 'mouseDown' })
 }
 
 describe('links that open another app', () => {
@@ -213,7 +213,8 @@ describe('links that open another app', () => {
     const file = open('vscode://file/etc/passwd')
     answers[0]!('allow')
     expect(await clone).toBe(true)
-    expect(await sameClone).toBe(true)
+    // The same link asked again while its prompt showed is refused, so one Allow opens it once.
+    expect(await sameClone).toBe(false)
 
     await vi.waitFor(() => expect(harness.shown).toHaveLength(2))
     answers[1]!('deny')
@@ -238,21 +239,26 @@ describe('links that open another app', () => {
     expect(await open('x1:go')).toBe(false)
     for (const url of ['x2:go', 'x3:go', 'zoommtg://zoom.us/join']) expect(await open(url), url).toBe(false)
     expect(harness.shown).toHaveLength(1)
-    // Neither moving the pointer nor a new document lets it ask again.
-    page.contents.emit('input-event', {}, { type: 'mouseMove' })
-    page.navigate(page.frames[0]!, 'https://meet.example/again')
-    expect(await open('x4:go')).toBe(false)
-    expect(harness.shown).toHaveLength(1)
-    harness.decide = () => 'allow'
+    // A link of a scheme the person denied is refused without using up the page's next ask.
     click(page)
+    expect(await open('x1:again')).toBe(false)
+    harness.decide = () => 'allow'
     expect(await open('zoommtg://zoom.us/join')).toBe(true)
+    expect(harness.shown).toHaveLength(2)
+    // Neither moving the pointer, releasing a key nor a new document lets it ask again.
+    page.contents.emit('before-mouse-event', {}, { type: 'mouseMove' })
+    page.contents.emit('before-input-event', {}, { type: 'keyUp' })
+    page.navigate(page.frames[0]!, 'https://meet.example/again')
     expect(await open('zoommtg://zoom.us/join?second')).toBe(false)
-    page.contents.emit('input-event', {}, { type: 'rawKeyDown' })
+    expect(harness.shown).toHaveLength(2)
+    page.contents.emit('before-input-event', {}, { type: 'keyDown' })
     expect(await open('zoommtg://zoom.us/join?second')).toBe(true)
-    expect(harness.shown).toHaveLength(3)
+    page.contents.emit('input-event', {}, { type: 'touchStart' })
+    expect(await open('zoommtg://zoom.us/join?third')).toBe(true)
+    expect(harness.shown).toHaveLength(4)
     // Other permissions still ask.
     expect(await ask(harness, page, 'notifications', { requestingUrl: 'https://meet.example/again', isMainFrame: true })).toBe(true)
-    expect(harness.shown).toHaveLength(4)
+    expect(harness.shown).toHaveLength(5)
   })
 
   it('cuts a very long scheme short in the prompt', async () => {

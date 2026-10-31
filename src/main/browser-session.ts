@@ -140,14 +140,12 @@ interface PagePermissionRequests {
   /** What the person allowed for the page's document, by page document, website, permission and scope. */
   allowed: Set<string>
   /**
-   * Whether the page asked to open a link in another app since the person last clicked or pressed a key in it. As in
-   * Chrome, a page then asks no more until they do, so it cannot ask over and over, a new scheme each time.
+   * Whether the page asked to open a link in another app since the person last clicked, pressed a key or touched it,
+   * in any of its frames. As in Chrome, a page then asks no more until they do, so it cannot ask over and over, a new
+   * scheme each time.
    */
   appLinkAsked: boolean
 }
-
-/** The input in a page that lets it ask to open a link in another app again, as Chrome's user interaction does. */
-const APP_LINK_INTERACTION = new Set<string>(['mouseDown', 'rawKeyDown', 'keyDown', 'touchStart'])
 
 /** How long after a website's Save dialog empties the file the person picked Hronaut still takes it for that file. */
 const SAVE_DIALOG_FILE_MS = 60_000
@@ -226,8 +224,16 @@ export function createBrowserSession(host: BrowserSessionHost): {
       pageDocument: ++documentCount, frameDocuments: new Map(), prompts: new Map(), denied: new Set(), allowed: new Set(), appLinkAsked: false
     }
     pagePermissionRequests.set(webContents, page)
+    // Electron reports a click or key in any of the page's frames before the page gets it, and a touch only on the page
+    // itself, which is enough for a computer without a touch screen.
+    webContents.on('before-mouse-event', (_event, mouse) => {
+      if (mouse.type === 'mouseDown') page.appLinkAsked = false
+    })
+    webContents.on('before-input-event', (_event, input) => {
+      if (input.type === 'keyDown') page.appLinkAsked = false
+    })
     webContents.on('input-event', (_event, input) => {
-      if (APP_LINK_INTERACTION.has(input.type)) page.appLinkAsked = false
+      if (input.type === 'touchStart') page.appLinkAsked = false
     })
     webContents.on('did-frame-navigate', (_event, _url, _httpResponseCode, _httpStatusText, isMainFrame, frameProcessId, frameRoutingId) => {
       if (webContents.isDestroyed()) return
@@ -444,11 +450,12 @@ export function createBrowserSession(host: BrowserSessionHost): {
         return
       }
       // One prompt answers identical requests from the same frame's document. Electron opens the link each answer
-      // belongs to, so only the same link shares a prompt: one Allow must not open several different links.
+      // belongs to, so a link to another app shares no prompt: one Allow must not open it, or other links, several times.
       const request = [frameTreeNodeId, document, origin, permission, externalLink?.url ?? scope].join('\u0000')
       const waiting = page.prompts.get(request)
       if (waiting) {
-        void waiting.then(respond)
+        if (externalLink) respond(false)
+        else void waiting.then(respond)
         return
       }
       if (permission === 'openExternal') {
