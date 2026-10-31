@@ -225,7 +225,8 @@ export function registerSettingsIpc(ipcMain: Pick<TypedIpcMain, 'handle'>, host:
     const directory = result.filePaths[0]
     if (result.canceled || !directory) return { settings: { ...host.settings() }, canceled: true }
     return {
-      settings: await host.applyDownloadSettings({ downloadDirectory: resolve(directory) }),
+      // As in Chrome, the next save dialog starts in the folder picked too.
+      settings: await host.applyDownloadSettings({ downloadDirectory: resolve(directory), saveDialogDirectory: null }),
       canceled: false
     }
   })
@@ -236,7 +237,7 @@ export function registerSettingsIpc(ipcMain: Pick<TypedIpcMain, 'handle'>, host:
   })
   ipcMain.handle(SETTINGS_IPC.resetDownloads, (event) => {
     host.assertTrustedSender(event)
-    return host.applyDownloadSettings({ downloadDirectory: null, askWhereToSaveDownloads: false })
+    return host.applyDownloadSettings({ downloadDirectory: null, askWhereToSaveDownloads: false, saveDialogDirectory: null })
   })
   ipcMain.handle(SETTINGS_IPC.openDownloadDirectory, async (event) => {
     host.assertTrustedSender(event)

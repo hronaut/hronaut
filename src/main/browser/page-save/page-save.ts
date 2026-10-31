@@ -5,6 +5,7 @@ import { LocalizedError } from '../../localized-error.js'
 import { portableExportFilename } from '../../../shared/portable-filename.js'
 import type { Browser } from '../browser.js'
 import type { BrowserTab } from '../browser-tab.js'
+import { rememberSaveDialogFolder, saveDialogFolder } from '../downloads/save-dialog-folder.js'
 import { isAddressTitle } from '../tab-events/untitled-page-title.js'
 import { isHronautHomeUrl } from '../url.js'
 
@@ -92,7 +93,7 @@ export async function savePageAs(browser: Browser, tab: BrowserTab): Promise<boo
   try {
     const choice = await showSaveDialog(browser, {
       title: browser.text('native.dialog.savePageTitle'),
-      defaultPath: join(browser.options.downloadDirectory, savedPageFilename(webContents.getTitle(), webContents.getURL())),
+      defaultPath: join(saveDialogFolder(browser), savedPageFilename(webContents.getTitle(), webContents.getURL())),
       filters: [
         { name: browser.text('native.dialog.webpageComplete'), extensions: ['html', 'htm'] },
         { name: browser.text('native.dialog.webpageSingleFile'), extensions: ['mhtml'] }
@@ -100,6 +101,7 @@ export async function savePageAs(browser: Browser, tab: BrowserTab): Promise<boo
       properties: ['showOverwriteConfirmation', 'createDirectory']
     })
     if (choice.canceled || !choice.filePath) return false
+    rememberSaveDialogFolder(browser, choice.filePath)
     if (webContents.isDestroyed() || webContents.isCrashed() || leftPage) throw new LocalizedError('appErrors.page.saveChanged')
     const before = await modifiedAt(choice.filePath)
     await savePageFile(webContents, choice.filePath)

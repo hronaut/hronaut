@@ -34,6 +34,7 @@ function snapshot(locale: 'en-US' | 'uk-UA'): RendererSettingsState {
       mcpToolSet: 'essentials',
       downloadDirectory: null,
       askWhereToSaveDownloads: false,
+      saveDialogDirectory: null,
       memorySaverEnabled: true,
       memorySaverTimeoutMinutes: 60,
       graphicsAcceleration: true,

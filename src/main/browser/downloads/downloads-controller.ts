@@ -78,10 +78,10 @@ interface BrowserDownloadsHost {
   allowsAddress(workspaceId: string, url: string, source: 'direct' | 'redirect'): boolean
   /**
    * Called once for each download, with the page it started from, when the download has its file: at once, or after
-   * the save dialog when Hronaut asks where to save, or when it ends before that, such as when the person cancels the
-   * dialog, the download folder cannot be written or a full download history refuses it.
+   * the save dialog when Hronaut asks where to save, with the file chosen there, or when it ends before that, such as
+   * when the person cancels the dialog, the download folder cannot be written or a full download history refuses it.
    */
-  downloadReady(webContentsId: number | undefined): void
+  downloadReady(webContentsId: number | undefined, savedFromDialog?: string): void
   isAvailable(): boolean
   publish(downloads: BrowserDownloadState[]): void
 }
@@ -588,16 +588,16 @@ export class BrowserDownloadsController {
         const id = randomUUID()
         const downloadUrl = item.getURL()
         const sourceWebContentsId = webContents?.id
+        const settings = this.host.getSettings()
         let readyReported = false
         const reportReady = () => {
           if (readyReported) return
           readyReported = true
-          this.host.downloadReady(sourceWebContentsId)
+          this.host.downloadReady(sourceWebContentsId, settings.askWhereToSaveDownloads ? item.getSavePath() || undefined : undefined)
         }
         const { tabId, workspaceId, observationGeneration } = retry
           ? { tabId: undefined, workspaceId: retry.workspaceId, observationGeneration: retry.observationGeneration }
           : this.host.getSource(sourceWebContentsId, downloadUrl)
-        const settings = this.host.getSettings()
         // As for a click on the link, the name holds only while the download stays on the link's origin: Hronaut saves
         // without asking, so a redirect elsewhere must not get to name its file, such as a script saved as `update.bat`.
         const filename = generatedName ?? (linkName && staysOnOrigin(urlChain)

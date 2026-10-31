@@ -47,6 +47,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   mcpToolSet: DEFAULT_MCP_TOOL_SET,
   downloadDirectory: null,
   askWhereToSaveDownloads: false,
+  saveDialogDirectory: null,
   memorySaverEnabled: true,
   memorySaverTimeoutMinutes: DEFAULT_MEMORY_SAVER_TIMEOUT_MINUTES,
   graphicsAcceleration: true,
@@ -133,6 +134,7 @@ export class SettingsStore {
           typeof value.askWhereToSaveDownloads === 'boolean'
             ? value.askWhereToSaveDownloads
             : DEFAULT_SETTINGS.askWhereToSaveDownloads,
+        saveDialogDirectory: isDownloadDirectory(value.saveDialogDirectory) ? value.saveDialogDirectory : null,
         memorySaverEnabled:
           typeof value.memorySaverEnabled === 'boolean'
             ? value.memorySaverEnabled

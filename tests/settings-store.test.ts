@@ -10,6 +10,7 @@ import { THEME_NAMES } from '../src/shared/theme.js'
 
 const temporaryDirectories: string[] = []
 const customDownloadDirectory = join(tmpdir(), 'hronaut-custom-downloads')
+const customSaveDialogDirectory = join(tmpdir(), 'hronaut-last-saved')
 
 afterEach(async () => {
   await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })))
@@ -100,6 +101,7 @@ describe('SettingsStore', () => {
       mcpToolSet: 'qa',
       downloadDirectory: customDownloadDirectory,
       askWhereToSaveDownloads: true,
+      saveDialogDirectory: customSaveDialogDirectory,
       memorySaverEnabled: false,
       memorySaverTimeoutMinutes: 15,
       graphicsAcceleration: false,
@@ -134,6 +136,7 @@ describe('SettingsStore', () => {
       mcpToolSet: 'qa',
       downloadDirectory: customDownloadDirectory,
       askWhereToSaveDownloads: true,
+      saveDialogDirectory: customSaveDialogDirectory,
       memorySaverEnabled: false,
       memorySaverTimeoutMinutes: 15,
       graphicsAcceleration: false,
@@ -168,6 +171,7 @@ describe('SettingsStore', () => {
       mcpToolSet: 'qa',
       downloadDirectory: customDownloadDirectory,
       askWhereToSaveDownloads: true,
+      saveDialogDirectory: customSaveDialogDirectory,
       memorySaverEnabled: false,
       memorySaverTimeoutMinutes: 15,
       graphicsAcceleration: false,
@@ -242,6 +246,7 @@ describe('SettingsStore', () => {
       mcpToolSet: 'essentials',
       downloadDirectory: null,
       askWhereToSaveDownloads: false,
+      saveDialogDirectory: null,
       memorySaverEnabled: true,
       memorySaverTimeoutMinutes: 60,
       graphicsAcceleration: true,
@@ -360,6 +365,13 @@ describe('SettingsStore', () => {
     await mkdir(join(path, '..'), { recursive: true })
     await writeFile(path, JSON.stringify({ downloadDirectory }), 'utf8')
     expect((await store.load()).downloadDirectory).toBeNull()
+  })
+
+  it.each(['downloads', '', 'relative/path', 42, null])('keeps no save dialog folder for an invalid persisted one: %s', async (saveDialogDirectory) => {
+    const { path, store } = await createStore()
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, JSON.stringify({ saveDialogDirectory }), 'utf8')
+    expect((await store.load()).saveDialogDirectory).toBeNull()
   })
 
   it.each([0, 10, 61, 60.5, '60', null])('rejects an invalid persisted Memory Saver timeout: %s', async (memorySaverTimeoutMinutes) => {

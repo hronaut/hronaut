@@ -3,7 +3,7 @@ import { join, resolve } from 'node:path'
 import { createDownloadFolder } from '../download-folder.js'
 import { commitRuntimeSetting } from './runtime-setting-commit.js'
 import { SettingsStore } from './settings-store.js'
-import type { Browser } from '../browser/browser.js'
+import type { Browser, BrowserOptions } from '../browser/browser.js'
 import type { McpRuntimeState } from '../mcp-runtime/mcp-runtime.js'
 import { StartupLaunchManager } from '../startup-launch.js'
 import type { MainWindowRefs } from '../windows/main-window.js'
@@ -54,6 +54,9 @@ interface SettingsRuntimeHost {
   tabs(): Browser | null
 }
 
+/** Where the browser saves downloads and whether it asks, from the settings, with the folder its save dialogs start in. */
+type BrowserDownloadOptions = Pick<BrowserOptions, 'downloadDirectory' | 'askWhereToSaveDownloads' | 'getSaveDialogDirectory' | 'setSaveDialogDirectory'>
+
 /**
  * Settings at runtime: loading them at startup with the environment's overrides, translating into the interface
  * language, committing updates one after another so each is saved before it becomes current, telling both shell
@@ -70,6 +73,7 @@ export function createSettingsRuntime(host: SettingsRuntimeHost): {
   ): Promise<AppSettings>
   currentRendererSettingsState(): RendererSettingsState
   applyDownloadSettings(updates: Partial<AppSettings>): Promise<AppSettings>
+  browserDownloadOptions(): BrowserDownloadOptions
   publishSettings(): void
   createStartupLaunchManager(): StartupLaunchManager
   loadAuthoritativeSettings(): Promise<void>
@@ -136,6 +140,16 @@ export function createSettingsRuntime(host: SettingsRuntimeHost): {
     return { ...host.state.current }
   }
 
+  function browserDownloadOptions(): BrowserDownloadOptions {
+    return {
+      downloadDirectory: effectiveDownloadDirectory(),
+      askWhereToSaveDownloads: host.state.current.askWhereToSaveDownloads,
+      getSaveDialogDirectory: () => host.state.current.saveDialogDirectory,
+      // A folder that could not be kept only leaves the next save dialog where it would have started.
+      setSaveDialogDirectory: (folder) => { void updateSettings({ saveDialogDirectory: folder }).catch(() => undefined) }
+    }
+  }
+
   function publishSettings(): void {
     host.sendToShellWindows(SETTINGS_IPC.changed, host.state.current)
     host.sendToShellWindows(SETTINGS_IPC.rendererStateChanged, currentRendererSettingsState())
@@ -191,6 +205,7 @@ export function createSettingsRuntime(host: SettingsRuntimeHost): {
     updateSettings,
     currentRendererSettingsState,
     applyDownloadSettings,
+    browserDownloadOptions,
     publishSettings,
     createStartupLaunchManager,
     loadAuthoritativeSettings,

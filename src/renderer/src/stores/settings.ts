@@ -45,6 +45,7 @@ export const DEFAULT_RENDERER_SETTINGS: AppSettings = {
   mcpToolSet: 'essentials',
   downloadDirectory: null,
   askWhereToSaveDownloads: false,
+  saveDialogDirectory: null,
   memorySaverEnabled: true,
   memorySaverTimeoutMinutes: 60,
   graphicsAcceleration: true,

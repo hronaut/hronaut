@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events'
-import { mkdtemp, rm, utimes, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -30,6 +30,8 @@ function harness(options: {
   tab?: Partial<SaveTab>
   choose?: (options: SaveDialogOptions) => Promise<SaveDialogReturnValue>
   savePage?: (path: string, type: string) => Promise<void>
+  /** The folder the last save dialog saved into. */
+  saveDialogDirectory?: string
 } = {}) {
   const events = new EventEmitter()
   const savePage = vi.fn(options.savePage ?? (async (path: string) => { await writeFile(path, '<html></html>') }))
@@ -43,18 +45,23 @@ function harness(options: {
   }) as unknown as WebContents
   const tab: SaveTab = { id: 'tab', url: 'https://docs.example/guide', sleeping: false, webContents, ...options.tab }
   const saving = new Set<number>()
+  let kept = options.saveDialogDirectory ?? null
   const showSaveDialog = vi.fn(options.choose ?? (async () => ({ canceled: false, filePath: join(directory, 'guide.html') })))
   const browser = {
     activeTabId: tab.id,
     tabs: new Map([[tab.id, tab]]),
     browserContentOccluded: options.browser?.occluded === true,
     isHumanInteractionLocked: () => options.browser?.locked === true,
-    options: { downloadDirectory: directory },
+    options: {
+      downloadDirectory: directory,
+      getSaveDialogDirectory: () => kept,
+      setSaveDialogDirectory: (folder: string) => { kept = folder }
+    },
     window: { isDestroyed: () => false, showSaveDialog },
     text: (key: string) => `text:${key}`,
     pageSaving: saving
   } as unknown as Browser
-  return { browser, tab: tab as BrowserTab, events, savePage, showSaveDialog, saving }
+  return { browser, tab: tab as BrowserTab, events, savePage, showSaveDialog, saving, kept: () => kept }
 }
 
 describe('the name Save Page As suggests', () => {
@@ -99,6 +106,26 @@ describe('Save Page As', () => {
     })
     expect(savePage).toHaveBeenCalledExactlyOnceWith(join(directory, 'guide.html'), 'HTMLComplete')
     expect(saving.size).toBe(0)
+  })
+
+  it('asks in the folder the last save dialog saved into, and keeps the folder chosen for the next, as in Chrome', async () => {
+    const last = await mkdtemp(join(tmpdir(), 'hronaut-save-page-last-'))
+    try {
+      const chosen = join(last, 'pages', 'guide.html')
+      await mkdir(join(last, 'pages'))
+      const { browser, tab, showSaveDialog, kept } = harness({ saveDialogDirectory: last, choose: async () => ({ canceled: false, filePath: chosen }) })
+      await expect(savePageAs(browser, tab)).resolves.toBe(true)
+      expect(showSaveDialog.mock.calls[0]?.[0]?.defaultPath).toBe(join(last, 'Guide- Getting started.html'))
+      expect(kept()).toBe(join(last, 'pages'))
+    } finally {
+      await rm(last, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps the folder the save dialog starts in when the person cancels it', async () => {
+    const { browser, tab, kept } = harness({ choose: async () => ({ canceled: true, filePath: '' }) })
+    await expect(savePageAs(browser, tab)).resolves.toBe(false)
+    expect(kept()).toBeNull()
   })
 
   it('saves one MHTML file for a name ending in .mhtml', async () => {
