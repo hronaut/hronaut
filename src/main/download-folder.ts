@@ -1,3 +1,4 @@
+import { accessSync, constants, mkdirSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
 import type { MessageKey } from '../shared/i18n.js'
 import { LocalizedError } from './localized-error.js'
@@ -37,5 +38,19 @@ export async function createDownloadFolder(directory: string): Promise<void> {
       if (failure[detail] !== undefined) Object.assign(localized, { [detail]: failure[detail] })
     }
     throw localized
+  }
+}
+
+/**
+ * Whether a download can be saved in the download folder now, making the folder again first when it is gone, as Chrome
+ * does with its download folder. A download asks as it starts, which must be answered at once.
+ */
+export function downloadFolderWritable(directory: string): boolean {
+  try {
+    mkdirSync(directory, { recursive: true })
+    accessSync(directory, constants.W_OK)
+    return true
+  } catch {
+    return false
   }
 }

@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - The save dialog of **Save Page As**, and of a download when **Ask where to save each file** is on, now opens in the folder you last saved into from one, as in Chrome; it always opened in the download folder. Choosing a new download folder in Settings, or resetting the download settings, starts it there again.
+- A download into a download folder Hronaut cannot write to, such as one on a drive that became read-only, now asks where to save it, as in Chrome, instead of failing.
 
 ## [3.14.6] - 2026-10-31
 

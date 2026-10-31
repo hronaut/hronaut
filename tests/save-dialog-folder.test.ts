@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events'
 import * as fsPromises from 'node:fs/promises'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import type { DownloadItem, Session } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -152,6 +152,34 @@ describe('a download\'s save dialog', () => {
       expect(dirname(download.dialogPath())).toBe(join(root, 'Projects'))
       download.choose(join(root, 'Invoices', 'report.pdf'))
       expect(setSaveDialogDirectory).toHaveBeenCalledExactlyOnceWith(join(root, 'Invoices'))
+    } finally {
+      download.controller.destroy()
+    }
+  })
+
+  it('asks where to save, from the home folder, when Hronaut cannot write to the download folder, as in Chrome', async () => {
+    // It ended as a bare Interrupted.
+    await writeFile(join(root, 'Downloads'), 'a file where the folder should be')
+    const { browser } = browserWith(null, false)
+    const download = startDownload(browser)
+    try {
+      expect(dirname(download.dialogPath())).toBe(homedir())
+      expect(download.savePath()).toBe('')
+    } finally {
+      download.controller.destroy()
+    }
+  })
+
+  it('asks from the folder the last save dialog saved into, when Hronaut cannot write to the download folder', async () => {
+    await writeFile(join(root, 'Downloads'), 'a file where the folder should be')
+    await mkdir(join(root, 'Projects'))
+    const { browser, setSaveDialogDirectory } = browserWith(join(root, 'Projects'), false)
+    await lookedAt(browser)
+    const download = startDownload(browser)
+    try {
+      expect(dirname(download.dialogPath())).toBe(join(root, 'Projects'))
+      download.choose(join(root, 'Projects', 'report.pdf'))
+      expect(setSaveDialogDirectory).not.toHaveBeenCalled()
     } finally {
       download.controller.destroy()
     }

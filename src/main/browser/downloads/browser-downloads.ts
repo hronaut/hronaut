@@ -1,4 +1,6 @@
+import { homedir } from 'node:os'
 import { isAbsolute } from 'node:path'
+import { downloadFolderWritable } from '../../download-folder.js'
 import { LocalizedError } from '../../localized-error.js'
 import type { Browser } from '../browser.js'
 import { getTab } from '../browser-core.js'
@@ -21,12 +23,20 @@ export function createDownloadsController(browser: Browser): BrowserDownloadsCon
   // Known by the first save dialog, which may come as soon as a page opens.
   void checkSaveDialogFolder(browser)
   return new BrowserDownloadsController({
-    getSettings: () => ({
-      // The folder a download is saved in, or its save dialog starts in, as in Chrome, when Hronaut asks where to save.
-      downloadDirectory: browser.options.askWhereToSaveDownloads ? saveDialogFolder(browser) : browser.options.downloadDirectory,
-      askWhereToSaveDownloads: browser.options.askWhereToSaveDownloads,
-      saveDialogTitle: browser.text('native.dialog.saveDownload')
-    }),
+    getSettings: () => {
+      const folder = browser.options.downloadDirectory
+      const asked = browser.options.askWhereToSaveDownloads
+      // As in Chrome, a download folder Hronaut cannot write to, such as on a drive that became read-only, asks where to
+      // save the download instead of failing it, starting where the last save dialog saved or else in the home folder.
+      const unwritable = !asked && !downloadFolderWritable(folder)
+      const dialogFolder = asked || unwritable ? saveDialogFolder(browser) : folder
+      return {
+        // The folder a download is saved in, or its save dialog starts in, as in Chrome, when Hronaut asks where to save.
+        downloadDirectory: unwritable && dialogFolder === folder ? homedir() : dialogFolder,
+        askWhereToSaveDownloads: asked || unwritable,
+        saveDialogTitle: browser.text('native.dialog.saveDownload')
+      }
+    },
     getSource: (webContentsId, downloadUrl) => {
       const tabId = webContentsId === undefined ? undefined : browser.webContentsToTab.get(webContentsId)
       const tab = tabId ? browser.tabs.get(tabId) : undefined
