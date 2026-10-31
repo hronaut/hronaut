@@ -1,5 +1,6 @@
 import type { Debugger, WebContents } from 'electron'
 import { LocalizedError } from '../localized-error.js'
+import { callingThroughPageDialogs } from './page-dialog-waits.js'
 import { answeredByBrowserProcess } from './renderer-exit-guard.js'
 
 /** A page script or DevTools command that cannot finish because the page is held by a website dialog. */
@@ -38,22 +39,6 @@ export function whenWebsiteDialogCloses(page: object): Promise<void> {
   return new Promise(resolve => { state.closed.push(resolve) })
 }
 
-let callingThroughDialogs = false
-
-/**
- * Makes a call that waits on the page for the person, such as the watch for a submitted sign-in form or Hronaut's
- * element picker, outside the hold: a website dialog only pauses it until someone answers, so it is neither failed
- * nor refused. The call is made at once.
- */
-export function callThroughWebsiteDialogs<T>(call: () => Promise<T>): Promise<T> {
-  callingThroughDialogs = true
-  try {
-    return call()
-  } finally {
-    callingThroughDialogs = false
-  }
-}
-
 type GuardedPage = Pick<WebContents, 'executeJavaScript' | 'executeJavaScriptInIsolatedWorld'> & {
   on(event: 'render-process-gone' | 'did-navigate' | 'destroyed', listener: () => void): unknown
   debugger: Pick<Debugger, 'sendCommand'> & {
@@ -73,7 +58,7 @@ type GuardedPage = Pick<WebContents, 'executeJavaScript' | 'executeJavaScriptInI
  * cover the pages, and one Electron turns down itself, as for a page the person stopped from showing more. Electron
  * also answers a prompt and a page asking before it unloads itself. Commands the browser process answers, such as the
  * dialog's own answer, the input commands, which Chromium answers at once while a dialog shows, and those of the
- * page's workers still go through, and so do calls made through callThroughWebsiteDialogs. Nothing is retried;
+ * page's workers still go through, and so do calls made through callThroughPageDialogs. Nothing is retried;
  * whenWebsiteDialogCloses lets cleanup run again once the dialog closes.
  */
 export function guardPageCallsDuringWebsiteDialog(page: GuardedPage, answeredAtOnce: () => boolean): void {
@@ -113,7 +98,7 @@ export function guardPageCallsDuringWebsiteDialog(page: GuardedPage, answeredAtO
   page.on('render-process-gone', endHold)
   page.on('destroyed', endHold)
   const settleBeforeDialog = <T>(call: () => Promise<T>): Promise<T> => {
-    if (callingThroughDialogs) return call()
+    if (callingThroughPageDialogs()) return call()
     if (state.open) return Promise.reject(new WebsiteDialogOpenError(false))
     const pending = call()
     return new Promise<T>((resolve, reject) => {

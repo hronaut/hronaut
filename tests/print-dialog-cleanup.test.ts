@@ -13,6 +13,7 @@ vi.mock('../src/main/browser/debugger-lease/debugger-lease.js', async (importOri
 }))
 
 const { withAgentInput } = await import('../src/main/browser/agent-input-scope/agent-input-scope.js')
+const { watchCredentialSubmission } = await import('../src/main/browser/credential-capture/credential-capture.js')
 const { guardPageCallsDuringPrintDialog, PrintDialogOpenError } = await import('../src/main/browser/print-dialog-guard.js')
 const { PAGE_IPC } = await import('../src/shared/ipc/page.js')
 
@@ -20,12 +21,15 @@ const { PAGE_IPC } = await import('../src/shared/ipc/page.js')
 function printablePage() {
   const scripts: string[] = []
   const commands: string[] = []
+  let finishWatch = (_candidate: unknown): void => undefined
+  const watches = vi.fn(() => new Promise((resolve) => { finishWatch = resolve }))
   const page = Object.assign(new EventEmitter(), {
     id: 7,
     mainFrame: { processId: 4, routingId: 1 },
     isDestroyed: () => false,
     executeJavaScript: vi.fn(async (script: string) => { scripts.push(script); return true }),
-    executeJavaScriptInIsolatedWorld: vi.fn(async () => undefined),
+    // The watch for a submitted sign-in form answers once the person submits one.
+    executeJavaScriptInIsolatedWorld: watches,
     capturePage: vi.fn(async () => undefined),
     printToPDF: vi.fn(async () => Buffer.alloc(0)),
     debugger: {
@@ -39,7 +43,7 @@ function printablePage() {
   })
   guardPageCallsDuringPrintDialog(page as never)
   const print = (open: boolean): void => { page.emit('ipc-message', { senderFrame: page.mainFrame }, PAGE_IPC.printDialog, open) }
-  return { page, scripts, commands, print }
+  return { page, scripts, commands, watches, print, submit: (candidate: unknown) => finishWatch(candidate) }
 }
 
 /** A browser showing the page in its one tab, with nothing focused. */
@@ -78,6 +82,20 @@ describe('cleanup after a print dialog', () => {
     expect(agentInput.size).toBe(0)
     print(false)
     await vi.waitFor(() => expect(scripts).toEqual([SET_FLAG, CLEAR_FLAG]))
+  })
+
+  // A sign-in page the person printed lost its watch, so the sign-in that followed offered no password save.
+  it('keeps watching for a submitted sign-in form through a print dialog', async () => {
+    const { page, watches, print, submit } = printablePage()
+    const onCredentialSubmitted = vi.fn()
+    const tab = { url: 'https://example.test/sign-in', webContents: page, lastHumanInteractionAt: performance.now() }
+    watchCredentialSubmission({ options: { onCredentialSubmitted } } as never, tab as never)
+    print(true)
+    print(false)
+    submit({ origin: 'https://example.test', username: 'ada', password: 'correct horse' })
+    await vi.waitFor(() => expect(onCredentialSubmitted).toHaveBeenCalledWith({ origin: 'https://example.test', username: 'ada', password: 'correct horse' }))
+    // It watches again after the submission.
+    expect(watches).toHaveBeenCalledTimes(2)
   })
 
   it('leaves the flag to a new agent input that began before the dialog closed', async () => {

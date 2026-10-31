@@ -1,5 +1,6 @@
 import type { WebContents } from 'electron'
 import { pageLoadTimedOut } from './http-auth/http-auth.js'
+import { callingThroughPageDialogs, callThroughPageDialogs } from './page-dialog-waits.js'
 import { PAGE_LOAD_WAIT_MS } from './page-waits/page-load-limit.js'
 
 type ReadinessEvent = 'dom-ready' | 'did-stop-loading' | 'did-navigate' | 'render-process-gone' | 'destroyed'
@@ -97,6 +98,8 @@ export function runPageScriptsOnceDocumentReady(page: ReadinessPage): void {
   const mayRun = (): boolean => page.isDestroyed() || !isLoadingMainFrame() || (documentReady && !navigationGoingOn())
   const whenReady = <T>(call: () => Promise<T>): Promise<T> => {
     if (mayRun()) return startReadyCall(call)
+    // A call that waits for the person through the page's dialogs still does once the document is ready.
+    const throughDialogs = callingThroughPageDialogs()
     return new Promise<T>((resolve, reject) => {
       const run = (waitEnded = false): void => {
         waiting.delete(recheck)
@@ -110,7 +113,8 @@ export function runPageScriptsOnceDocumentReady(page: ReadinessPage): void {
           return
         }
         try {
-          startReadyCall(call).then(resolve, reject)
+          const started = throughDialogs ? callThroughPageDialogs(() => startReadyCall(call)) : startReadyCall(call)
+          started.then(resolve, reject)
         } catch (error) {
           reject(error)
         }

@@ -8,7 +8,7 @@ import { getTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { withRenderableTab } from '../renderable-tab/renderable-tab.js'
 import { syncHumanInteractionInputGuard } from '../interaction-lock/human-input-guard.js'
-import { callThroughWebsiteDialogs } from '../website-dialog-guard.js'
+import { callThroughPageDialogs } from '../page-dialog-waits.js'
 
 /** The area a person dragged on a page, in its viewport, or that they canceled. */
 export interface BrowserScreenshotAreaResult {
@@ -52,8 +52,8 @@ export async function captureScreenshotArea(browser: Browser, tabId?: string): P
   browser.screenshotAreaSessions.set(webContents.id, session)
   try {
     if (browser.isHumanInteractionLocked(tab)) await syncHumanInteractionInputGuard(browser, tab)
-    // It waits for the person's selection, which a website dialog only pauses.
-    void callThroughWebsiteDialogs(() => webContents.executeJavaScript(screenshotAreaScript(), true))
+    // It waits for the person's selection, which a print or website dialog only pauses.
+    void callThroughPageDialogs(() => webContents.executeJavaScript(screenshotAreaScript(), true))
       .then((selection: BrowserScreenshotAreaResult) => {
         if (selection?.canceled || (selection?.clip && selection?.viewport)) session.resolve(selection)
       })

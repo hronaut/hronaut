@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { callThroughPageDialogs } from '../src/main/browser/page-dialog-waits.js'
 import { guardPageCallsDuringPrintDialog, printDialogHolds, PrintDialogOpenError, whenPrintDialogCloses } from '../src/main/browser/print-dialog-guard.js'
 import { PAGE_IPC } from '../src/shared/ipc/page.js'
 
@@ -149,6 +150,22 @@ describe('page calls during a print dialog', () => {
     for (const call of calls) call.reply.resolve({ result: { value: 1 } })
     await expect(worker).resolves.toEqual({ result: { value: 1 } })
     await expect(later).resolves.toEqual({ result: { value: 1 } })
+  })
+
+  // The watch for a submitted sign-in form, the element picker and the area selection failed when the page printed.
+  it('lets a call that waits for the person through the dialog, neither failed nor refused', async () => {
+    const { page, calls, printEvent } = fakePage()
+    const watch = callThroughPageDialogs(() => page.executeJavaScriptInIsolatedWorld(9, [{ code: 'watch' }], false))
+    printEvent(true)
+    const pick = callThroughPageDialogs(() => page.executeJavaScript('pick', true))
+    // Other calls are still refused meanwhile.
+    await expect(page.executeJavaScript('1')).rejects.toBeInstanceOf(PrintDialogOpenError)
+    expect(calls.map(call => call.args[1] ?? call.args[0])).toEqual([[{ code: 'watch' }], true])
+    printEvent(false)
+    calls[0]!.reply.resolve({ origin: 'https://example.test' })
+    calls[1]!.reply.resolve({ canceled: true })
+    await expect(watch).resolves.toEqual({ origin: 'https://example.test' })
+    await expect(pick).resolves.toEqual({ canceled: true })
   })
 
   it('tells cleanup when the dialog closes, or at once when none is open', async () => {
