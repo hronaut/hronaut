@@ -129,14 +129,26 @@ describe('normalizeAddress', () => {
   it.each([
     ['intranet/', 'http://intranet/'],
     ['go/', 'http://go/'],
-    ['My-PC/', 'http://My-PC/']
-  ])('opens a one-word host name followed by a slash as a website on the local network, as in Chrome: %s', (input, expected) => {
+    ['My-PC/', 'http://My-PC/'],
+    ['go/docs/', 'http://go/docs/'],
+    ['intranet/?q=1', 'http://intranet/?q=1'],
+    ['wiki/#top', 'http://wiki/#top'],
+    ['wiki/page?id=4', 'http://wiki/page?id=4'],
+    ['wiki/page#intro', 'http://wiki/page#intro'],
+    ['wiki?id=4#intro', 'http://wiki?id=4#intro']
+  ])('opens a one-word host name with a path ending in a slash, or two of a path, query and fragment, as a local website: %s', (input, expected) => {
     // It was searched for.
     expect(normalizeAddress(input)).toBe(expected)
   })
 
-  it.each(['intranet', 'and/or', 'w/o', 'n/a', '1/', '-x/'])('still searches a word, or words with a slash between them: %s', (input) => {
-    expect(webAddress(input)).toBeUndefined()
+  it.each(['intranet', 'and/or', 'w/o', 'n/a', '1/', '-x/', 'go/docs', 'why?', 'why?not', 'and/or?', 'C#', 'F#/', 'to do/'])(
+    'still searches a word, or a word with only a path, a query or a fragment after it: %s', (input) => {
+      expect(webAddress(input)).toBeUndefined()
+    }
+  )
+
+  it('opens localhost followed by a slash over HTTP, as before', () => {
+    expect(normalizeAddress('localhost/')).toBe('http://localhost/')
   })
 
   it.each([
@@ -145,17 +157,37 @@ describe('normalizeAddress', () => {
     ['view-source: localhost:3000', 'view-source:http://localhost:3000'],
     ['view-source:devbox:3000/app', 'view-source:http://devbox:3000/app'],
     ['view-source:192.168.1.1', 'view-source:http://192.168.1.1'],
-    ['view-source:https://example.com/', 'view-source:https://example.com/']
+    ['view-source:https://example.com/', 'view-source:https://example.com/'],
+    ['view-source:intranet/', 'view-source:http://intranet/']
   ])('reads the page of a view-source: address as a typed address, as in Chrome: %s', (input, expected) => {
     // It stayed `view-source:example.com`, whose page was not read as an address.
     expect(normalizeAddress(input)).toBe(expected)
+    // An agent's workspace tab may open it, as it may open the explicit form.
+    expect(isAgentWorkspaceNavigationUrl(normalizeAddress(input))).toBe(true)
   })
 
-  it.each(['view-source:', 'view-source:cheap flights', 'view-source:file:///tmp/notes.txt', 'view-source:tel:911', 'view-source:view-source:example.com'])(
-    'keeps a view-source: address of no web page as typed: %s', (input) => {
-      expect(normalizeAddress(input)).toBe(input)
-    }
-  )
+  it.each([
+    'view-source:',
+    'view-source:cheap flights',
+    'view-source:file:///tmp/notes.txt',
+    'view-source:tel:911',
+    'view-source:view-source:example.com',
+    'view-source: view-source:example.com',
+    'view-source:user:pass@example.com',
+    'view-source:javascript:alert(1)',
+    'view-source:hronaut://home',
+    'view-source:data:text/html,hi'
+  ])('keeps a view-source: address of no web page as typed: %s', (input) => {
+    expect(normalizeAddress(input)).toBe(input)
+  })
+
+  it('keeps a long chain of view-source: addresses as typed at once, as Chrome does', () => {
+    // Each one was read in turn, so a long chain blocked the window for seconds and then overflowed the stack.
+    const input = `${'view-source:'.repeat(200_000)}example.com`
+    const started = performance.now()
+    expect(webAddress(input)).toBe(input)
+    expect(performance.now() - started).toBeLessThan(1000)
+  })
 
   it.each(['tel:911', 'SMS:12345', 'sip:1001', 'facetime-audio:5551', 'web+demo:12', 'http:3000', 'HTTPS:443'])(
     'keeps %s as typed', (input) => {
