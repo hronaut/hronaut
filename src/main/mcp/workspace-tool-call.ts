@@ -23,6 +23,7 @@ import type { BrowserState } from '../../shared/types.js'
 import { type PublicBrowserReconciliation, classifyMcpActivityResult, closedTabWaitResult, isTimeoutError, mcpWorkspaceState, nativeClickFailureResult, nativeInputCleanupResult, nativeKeyHoldUnknownResult, nativeWheelUnknownResult, publicBrowserReconciliation, textResult, toolDefinition, urlDetailOmitted } from './tool-results.js'
 import { mcpCapabilityOperationClass } from './capability-classification.js'
 import { workspaceIdSchema } from './tool-schemas.js'
+import { withWebsiteDialogNote } from './website-dialog-calls.js'
 import type { McpToolContext, ToolActivityClassification, ToolCallSettlement, ToolOptions, WorkspaceToolCall, WorkspaceToolHandler, WorkspaceToolOptions } from './tools/tool-context.js'
 import type { RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { auditEvidenceAvailability } from '../browser/debug-report/debug-report.js'
@@ -535,9 +536,13 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
               await finishReviewedAttempt('unknown')
               return { ...textResult(outcome), structuredContent: outcome, isError: true }
             }
-            const scoped = scopeBrowserStateResult(result, getMcpGroupState(manager, workspaceId), urlDetailOmitted(manager))
+            const workspaceState = getMcpGroupState(manager, workspaceId)
+            const scoped = scopeBrowserStateResult(result, workspaceState, urlDetailOmitted(manager))
             if (scoped.isError) await finishReviewedAttempt('unknown')
-            return preWriteReconciliation ? withPreWriteReconciliation(scoped, preWriteReconciliation) : scoped
+            return withWebsiteDialogNote(
+              preWriteReconciliation ? withPreWriteReconciliation(scoped, preWriteReconciliation) : scoped,
+              resolvedTabId ? workspaceState.tabs.find(tab => tab.id === resolvedTabId)?.dialog : undefined
+            )
           } catch (error) {
             if (!(error instanceof NativeInputCleanupError) && !(error instanceof NativeWheelOutcomeUnknownError)) throw error
             const uncertainResult = error instanceof NativeClickAdmissionError

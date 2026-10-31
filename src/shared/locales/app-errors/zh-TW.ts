@@ -75,6 +75,8 @@ export const zhTWAppErrors: AppErrorMessages = {
     notLoadedYet: '這個分頁正在休眠，尚未載入網頁，因此沒有傳送任何內容。請先喚醒這個分頁，然後再試一次。',
     printDialogOpenedDuringAction: '網頁在執行這項動作時開啟了列印對話方塊；在使用者列印或取消之前，對話方塊會鎖住網頁，且動作的影響不明。請使用者關閉對話方塊，然後檢查最新狀態。',
     printDialogOpenBeforeAction: '網頁正在顯示列印對話方塊，在使用者列印或取消之前會鎖住網頁，因此沒有傳送任何內容。請使用者關閉對話方塊，然後再試一次。',
+    websiteDialogOpenedDuringAction: '網頁在執行這項動作時開啟了網站對話方塊；在得到回應之前，對話方塊會鎖住網頁，且動作的影響不明。請用 browser_dialog 回應它，然後檢查最新狀態。',
+    websiteDialogOpenBeforeAction: '網頁正在顯示網站對話方塊，在得到回應之前會鎖住網頁，因此沒有傳送任何內容。請用 browser_dialog 回應它，然後再試一次。',
     sourceViewRunsNoScripts: '這個分頁顯示的是網頁原始碼（view-source: 網址），網頁指令碼永遠不會執行完成，因此沒有傳送任何內容。請在分頁中開啟網頁本身來進行檢查。',
     closedWhileWaiting: '等待網頁時，分頁已關閉。',
     rendererLostWhileWaiting: '等待網頁時，分頁轉譯器已無法使用。',

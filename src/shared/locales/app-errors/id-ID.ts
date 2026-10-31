@@ -75,6 +75,8 @@ export const idIDAppErrors: AppErrorMessages = {
     notLoadedYet: 'Tab sedang tidur dan belum memuat halamannya; tidak ada yang dikirim ke halaman. Bangunkan tab, lalu coba lagi.',
     printDialogOpenedDuringAction: 'Halaman membuka dialog cetak selama tindakan ini; dialog tersebut menahan halaman hingga orang tersebut mencetak atau membatalkan, dan efek tindakan tidak diketahui. Minta orang tersebut menutup dialog, lalu periksa status terbaru.',
     printDialogOpenBeforeAction: 'Halaman sedang menampilkan dialog cetak, yang menahannya hingga orang tersebut mencetak atau membatalkan; tidak ada yang dikirim ke halaman. Minta orang tersebut menutup dialog, lalu coba lagi.',
+    websiteDialogOpenedDuringAction: 'Halaman membuka dialog situs web selama tindakan ini; dialog tersebut menahan halaman hingga dijawab, dan efek tindakan tidak diketahui. Jawab dengan browser_dialog, lalu periksa status terbaru.',
+    websiteDialogOpenBeforeAction: 'Halaman sedang menampilkan dialog situs web, yang menahannya hingga dijawab; tidak ada yang dikirim ke halaman. Jawab dengan browser_dialog, lalu coba lagi.',
     sourceViewRunsNoScripts: 'Tab ini menampilkan sumber halaman (alamat view-source:), tempat skrip halaman tidak pernah selesai; tidak ada yang dikirim ke halaman. Buka halamannya sendiri di tab untuk memeriksanya.',
     closedWhileWaiting: 'Tab ditutup saat menunggu halaman.',
     rendererLostWhileWaiting: 'Renderer tab menjadi tidak tersedia saat menunggu halaman.',

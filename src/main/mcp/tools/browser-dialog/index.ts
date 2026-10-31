@@ -18,6 +18,7 @@ export function registerBrowserDialog(context: McpToolContext): void {
     tabTool('browser_dialog', async ({ action, tabId }: {
       action: 'accept' | 'dismiss'
       tabId?: string
-    }) => textResult(await handleDialog(manager, action, tabId)))
+    }) => textResult(await handleDialog(manager, action, tabId))),
+    { alongsideWorkspaceChange: true }
   )
 }

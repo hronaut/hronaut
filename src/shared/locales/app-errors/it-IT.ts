@@ -75,6 +75,8 @@ export const itITAppErrors: AppErrorMessages = {
     notLoadedYet: 'La scheda è sospesa e non ha ancora caricato la sua pagina; non le è stato inviato nulla. Riattiva la scheda, poi riprova.',
     printDialogOpenedDuringAction: 'La pagina ha aperto la finestra di stampa durante questa azione; la finestra blocca la pagina finché la persona non stampa o annulla, e gli effetti dell’azione sono sconosciuti. Chiedi alla persona di chiudere la finestra, poi esamina lo stato aggiornato.',
     printDialogOpenBeforeAction: 'La pagina mostra la finestra di stampa, che la blocca finché la persona non stampa o annulla; non le è stato inviato nulla. Chiedi alla persona di chiudere la finestra, poi riprova.',
+    websiteDialogOpenedDuringAction: 'La pagina ha aperto una finestra di dialogo del sito durante questa azione; la finestra blocca la pagina finché non riceve risposta, e gli effetti dell’azione sono sconosciuti. Rispondi con browser_dialog, poi esamina lo stato aggiornato.',
+    websiteDialogOpenBeforeAction: 'La pagina mostra una finestra di dialogo del sito, che la blocca finché non riceve risposta; non le è stato inviato nulla. Rispondi con browser_dialog, poi riprova.',
     sourceViewRunsNoScripts: 'Questa scheda mostra il sorgente di una pagina (un indirizzo view-source:), dove gli script della pagina non vengono mai completati; non le è stato inviato nulla. Apri la pagina stessa nella scheda per ispezionarla.',
     closedWhileWaiting: 'La scheda si è chiusa durante l’attesa della pagina.',
     rendererLostWhileWaiting: 'Il renderer della scheda non è più disponibile durante l’attesa della pagina.',

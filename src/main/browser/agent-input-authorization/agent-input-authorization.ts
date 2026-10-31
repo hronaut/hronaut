@@ -6,6 +6,7 @@ import type { PointerDebugger } from '../native-pointer.js'
 import type { Browser } from '../browser.js'
 import { findTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
+import { unlessWebsiteDialogOpens } from '../website-dialogs/website-dialogs.js'
 
 /**
  * The one mouse event an agent's native input command is about to produce, in
@@ -105,7 +106,10 @@ export async function sendAuthorizedAgentInputCommand(
     if (mouse) browser.authorizedAgentMouseInput.set(webContents.id, mouse)
     if (keyboard) browser.authorizedAgentKeyboardInput.set(webContents.id, keyboard)
     observer?.rawAttempted(commandParams)
-    const result = await webContents.debugger.sendCommand(method, commandParams)
+    // The page acknowledges input once it has handled it, and a website dialog it opens meanwhile holds it until someone
+    // answers. The input was delivered then, so the call goes on. Chromium drops the input that follows while the dialog
+    // shows, such as the key's release, as it drops a person's release that lands on the box, and answers it at once.
+    const result = await unlessWebsiteDialogOpens(webContents, webContents.debugger.sendCommand(method, commandParams))
     rawDispatched = true
     observer?.rawAcknowledged(commandParams)
     return result

@@ -75,6 +75,8 @@ export const esESAppErrors: AppErrorMessages = {
     notLoadedYet: 'La pestaña está suspendida y aún no ha cargado su página; no se le envió nada. Reactiva la pestaña y vuelve a intentarlo.',
     printDialogOpenedDuringAction: 'La página abrió su diálogo de impresión durante esta acción; el diálogo retiene la página hasta que la persona imprima o cancele, y se desconocen los efectos de la acción. Pide a la persona que cierre el diálogo y comprueba el estado actual.',
     printDialogOpenBeforeAction: 'La página muestra su diálogo de impresión, que la retiene hasta que la persona imprima o cancele; no se le envió nada. Pide a la persona que cierre el diálogo y vuelve a intentarlo.',
+    websiteDialogOpenedDuringAction: 'La página abrió un diálogo del sitio web durante esta acción; el diálogo retiene la página hasta que se responda, y se desconocen los efectos de la acción. Respóndelo con browser_dialog y comprueba el estado actual.',
+    websiteDialogOpenBeforeAction: 'La página muestra un diálogo del sitio web, que la retiene hasta que se responda; no se le envió nada. Respóndelo con browser_dialog y vuelve a intentarlo.',
     sourceViewRunsNoScripts: 'Esta pestaña muestra el código fuente de una página (una dirección view-source:), donde los scripts de la página nunca terminan; no se le envió nada. Abre la propia página en la pestaña para inspeccionarla.',
     closedWhileWaiting: 'La pestaña se cerró mientras se esperaba la página.',
     rendererLostWhileWaiting: 'La pestaña dejó de responder mientras se esperaba la página.',

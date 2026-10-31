@@ -18,6 +18,7 @@ import { dispatchNativeClick } from '../native-click/native-click.js'
 import { rightClickEnvironment } from '../native-click/right-click-environment.js'
 import { assertRightClickPlatform } from '../owned-right-click.js'
 import { withOptionalDialogHandling } from '../website-dialogs/website-dialogs.js'
+import { WebsiteDialogOpenError } from '../website-dialog-guard.js'
 import { getTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { withDebugger } from '../debugger-lease/debugger-lease.js'
@@ -133,7 +134,7 @@ async function dispatchClick(browser: Browser, target: BrowserClickTarget, valid
         progress.preparationAttempted = true; publish()
         const result = await withAgentInput(browser, webContents, () => withDebugger(browser, webContents, async () => {
           if (browser.unconfirmedSemanticClicks.has(webContents)) throw new NativeClickAdmissionError('CLICK_STATE_UNCONFIRMED', { ...progress })
-          const admission = await acquireNativeClickAdmission(webContents.debugger, target, assertClickCurrent, progress, publish)
+          const admission = await acquireNativeClickAdmission(webContents.debugger, target, assertClickCurrent, progress, publish, webContents)
           let failure: unknown
           try {
             assertClickCurrent()
@@ -166,6 +167,8 @@ async function dispatchClick(browser: Browser, target: BrowserClickTarget, valid
         if (progress.inputCleanupFailed) throw new NativeClickAdmissionError('NATIVE_INPUT_CLEANUP_FAILED', { ...progress })
         return result
       } catch (error) {
+        // Nothing reached a page its website dialog holds.
+        if (error instanceof WebsiteDialogOpenError && !error.sent) throw error
         throw new NativeClickAdmissionError(error instanceof NativeClickAdmissionError ? error.reason
           : error instanceof NativeInputCleanupError ? 'NATIVE_INPUT_CLEANUP_FAILED' : 'CONTEXT_OR_INPUT_UNCERTAIN', { ...progress }, error)
       }

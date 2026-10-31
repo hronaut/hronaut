@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { RendererExitedError } from '../src/main/browser/renderer-exit-guard.js'
 import { acquireNativeClickAdmission, nativeClickProgress, nativeClickObserver, nativeClickReason, nativeClickEffectsPossible, NativeClickAdmissionError } from '../src/main/browser/native-click-admission.js'
+import { guardPageCallsDuringWebsiteDialog } from '../src/main/browser/website-dialog-guard.js'
 
 function fixture(options: { reason?: string; node?: object; cleanupFails?: boolean; acquisitionFails?: boolean; rendererExited?: boolean } = {}) {
   const calls: Array<[string, Record<string, unknown> | undefined]> = []
@@ -73,6 +74,45 @@ describe('operation-owned native click admission', () => {
     const f = fixture({ rendererExited: true })
     await expect(acquireNativeClickAdmission(f.api, { selector: '#one' }, () => {}, f.progress, () => {})).rejects.toMatchObject({ reason: 'TARGET_UNAVAILABLE' })
     expect(f.calls.map(([method]) => method)).toEqual(['Page.getFrameTree', 'Runtime.releaseObjectGroup'])
+    expect(f.progress.targetCleanup).toBe('confirmed')
+  })
+  // A click that opened a confirm waited for the target's release, which the page answers only once the confirm closes.
+  for (const cleanupFails of [false, true]) {
+    it(`returns while a website dialog the click opened holds the page, then releases the target${cleanupFails ? ', and reports a failed release' : ''}`, async () => {
+      const f = fixture({ cleanupFails })
+      const listeners: Array<(...args: unknown[]) => void> = []
+      const page = {
+        on: () => undefined,
+        executeJavaScript: vi.fn(),
+        executeJavaScriptInIsolatedWorld: vi.fn(),
+        debugger: { on: (event: string, listener: (...args: unknown[]) => void) => { if (event === 'message') listeners.push(listener) }, sendCommand: f.api.sendCommand }
+      }
+      guardPageCallsDuringWebsiteDialog(page as never, () => false)
+      const report = (method: string): void => { for (const listener of listeners) listener({}, method, { type: 'confirm' }) }
+      const publish = vi.fn()
+      const guard = await acquireNativeClickAdmission(page.debugger, { selector: '#one' }, () => {}, f.progress, publish, page)
+      report('Page.javascriptDialogOpening')
+      // Electron shows the box in the next turn.
+      await new Promise(resolve => setImmediate(resolve))
+      await expect(guard.dispose()).resolves.toBeUndefined()
+      expect(f.progress.targetCleanup).toBe('pending')
+      expect(f.calls.filter(([m]) => m === 'Runtime.releaseObjectGroup')).toHaveLength(0)
+
+      const published = publish.mock.calls.length
+      report('Page.javascriptDialogClosed')
+      await vi.waitFor(() => expect(f.progress.targetCleanup).toBe(cleanupFails ? 'unconfirmed' : 'confirmed'))
+      expect(f.calls.filter(([m]) => m === 'Runtime.releaseObjectGroup')).toHaveLength(1)
+      // The click's own record of an unconfirmed release keeps later semantic clicks on the tab refused.
+      expect(publish.mock.calls.length).toBeGreaterThan(published)
+    })
+  }
+  it('confirms cleanup when the debugger session that held the target has ended', async () => {
+    const f = fixture({ cleanupFails: true })
+    let attached = true
+    const api = { sendCommand: f.api.sendCommand, isAttached: () => attached }
+    const guard = await acquireNativeClickAdmission(api, { selector: '#one' }, () => {}, f.progress, () => {})
+    attached = false
+    await expect(guard.dispose()).resolves.toBeUndefined()
     expect(f.progress.targetCleanup).toBe('confirmed')
   })
   it('distinguishes an attempted down from its acknowledgement and matching release', () => {

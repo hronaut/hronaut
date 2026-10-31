@@ -1,13 +1,15 @@
 import { webContents as electronWebContents, type WebContents } from 'electron'
 import { clearRendererAgentInputFlag, NativeInputCleanupError } from '../native-input-cleanup.js'
 import { printDialogHolds, whenPrintDialogCloses } from '../print-dialog-guard.js'
+import { WebsiteDialogOpenError, websiteDialogHolds, whenWebsiteDialogCloses } from '../website-dialog-guard.js'
 import type { Browser } from '../browser.js'
 import { findTab } from '../browser-core.js'
 import { beginAgentFocusIsolation, restoreHumanFocusAfterAgentInput } from './focus-isolation.js'
 import { syncHumanInteractionInputGuard } from '../interaction-lock/human-input-guard.js'
 
 /**
- * Runs an agent's input to a page. The outermost run isolates window focus,
+ * Runs an agent's input to a page, refused unsent while a website dialog
+ * holds the page. The outermost run isolates window focus,
  * remembers where the person's focus was and marks the page's renderer as
  * receiving agent input (unless deferred); nested runs only count. When the
  * outermost run ends it clears the renderer flag, restores the native input
@@ -21,6 +23,8 @@ export async function withAgentInput<T>(
   options: { deferRendererFlag?: boolean; onCleanupFailure?: () => void } = {}
 ): Promise<T> {
   const depth = (browser.agentInputWebContents.get(webContents.id) ?? 0) + 1
+  // Chromium drops input to a page its website dialog holds, so the agent's input would reach nothing.
+  if (depth === 1 && websiteDialogHolds(webContents)) throw new WebsiteDialogOpenError(false)
   if (depth === 1) {
     const mainWindowFocused = browser.window.isFocused()
     browser.agentInputFocusGuardReleases.set(webContents.id, beginAgentFocusIsolation(browser))
@@ -57,6 +61,12 @@ export async function withAgentInput<T>(
               // The page's print dialog kept the flag from being cleared. Without it, the person's own pointer input
               // to Hronaut's element picker and screenshot area on this page would still read as an agent's.
               void whenPrintDialogCloses(webContents).then(async () => {
+                if (!webContents.isDestroyed() && !browser.agentInputWebContents.has(webContents.id)) await clearRendererAgentInputFlag(webContents)
+              })
+            }
+            if (websiteDialogHolds(webContents)) {
+              // The same for a website dialog the agent's input opened, such as a confirm on a Delete button.
+              void whenWebsiteDialogCloses(webContents).then(async () => {
                 if (!webContents.isDestroyed() && !browser.agentInputWebContents.has(webContents.id)) await clearRendererAgentInputFlag(webContents)
               })
             }

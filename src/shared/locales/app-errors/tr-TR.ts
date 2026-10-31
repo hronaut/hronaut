@@ -75,6 +75,8 @@ export const trTRAppErrors: AppErrorMessages = {
     notLoadedYet: 'Sekme uyuyor ve sayfasını henüz yüklemedi; sayfaya hiçbir şey gönderilmedi. Sekmeyi uyandırın, ardından yeniden deneyin.',
     printDialogOpenedDuringAction: 'Sayfa bu eylem sırasında yazdırma iletişim kutusunu açtı; kişi yazdırana veya iptal edene kadar iletişim kutusu sayfayı bekletir ve eylemin etkileri bilinmiyor. Kişiden iletişim kutusunu kapatmasını isteyin, ardından güncel durumu inceleyin.',
     printDialogOpenBeforeAction: 'Sayfa yazdırma iletişim kutusunu gösteriyor; kişi yazdırana veya iptal edene kadar sayfa bekler. Sayfaya hiçbir şey gönderilmedi. Kişiden iletişim kutusunu kapatmasını isteyin, ardından tekrar deneyin.',
+    websiteDialogOpenedDuringAction: 'Sayfa bu eylem sırasında bir web sitesi iletişim kutusu açtı; yanıtlanana kadar iletişim kutusu sayfayı bekletir ve eylemin etkileri bilinmiyor. browser_dialog ile yanıtlayın, ardından güncel durumu inceleyin.',
+    websiteDialogOpenBeforeAction: 'Sayfa bir web sitesi iletişim kutusu gösteriyor; yanıtlanana kadar sayfa bekler. Sayfaya hiçbir şey gönderilmedi. browser_dialog ile yanıtlayın, ardından tekrar deneyin.',
     sourceViewRunsNoScripts: 'Bu sekme bir sayfanın kaynağını gösteriyor (view-source: adresi); burada sayfa betikleri hiçbir zaman tamamlanmaz ve sayfaya hiçbir şey gönderilmedi. İncelemek için sayfanın kendisini sekmede açın.',
     closedWhileWaiting: 'Sayfa beklenirken sekme kapandı.',
     rendererLostWhileWaiting: 'Sayfa beklenirken sekmenin oluşturucusu kullanılamaz hâle geldi.',

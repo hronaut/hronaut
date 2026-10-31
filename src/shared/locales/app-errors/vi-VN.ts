@@ -75,6 +75,8 @@ export const viVNAppErrors: AppErrorMessages = {
     notLoadedYet: 'Thẻ đang ngủ và chưa tải trang của thẻ; chưa có gì được gửi đến trang. Hãy đánh thức thẻ, rồi thử lại.',
     printDialogOpenedDuringAction: 'Trang đã mở hộp thoại in trong lúc thực hiện thao tác này; hộp thoại giữ trang cho đến khi người dùng in hoặc hủy, và chưa rõ thao tác đã có tác dụng gì. Hãy nhờ người dùng đóng hộp thoại, rồi kiểm tra lại trạng thái mới.',
     printDialogOpenBeforeAction: 'Trang đang hiển thị hộp thoại in, hộp thoại này giữ trang cho đến khi người dùng in hoặc hủy; chưa có gì được gửi đến trang. Hãy nhờ người dùng đóng hộp thoại, rồi thử lại.',
+    websiteDialogOpenedDuringAction: 'Trang đã mở một hộp thoại của trang web trong lúc thực hiện thao tác này; hộp thoại giữ trang cho đến khi được trả lời, và chưa rõ thao tác đã có tác dụng gì. Hãy trả lời bằng browser_dialog, rồi kiểm tra lại trạng thái mới.',
+    websiteDialogOpenBeforeAction: 'Trang đang hiển thị một hộp thoại của trang web, hộp thoại này giữ trang cho đến khi được trả lời; chưa có gì được gửi đến trang. Hãy trả lời bằng browser_dialog, rồi thử lại.',
     sourceViewRunsNoScripts: 'Thẻ này hiển thị nguồn của một trang (địa chỉ view-source:), nơi tập lệnh của trang không bao giờ chạy xong; chưa có gì được gửi đến trang. Hãy mở chính trang đó trong thẻ để kiểm tra.',
     closedWhileWaiting: 'Thẻ đã đóng trong khi đang chờ trang.',
     rendererLostWhileWaiting: 'Trình kết xuất của thẻ không còn khả dụng trong khi đang chờ trang.',

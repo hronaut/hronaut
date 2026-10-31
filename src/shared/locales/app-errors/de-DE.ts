@@ -75,6 +75,8 @@ export const deDEAppErrors: AppErrorMessages = {
     notLoadedYet: 'Der Tab ruht und hat seine Seite noch nicht geladen; es wurde nichts an sie gesendet. Wecken Sie den Tab auf und versuchen Sie es dann erneut.',
     printDialogOpenedDuringAction: 'Die Seite hat während dieser Aktion ihren Druckdialog geöffnet; er hält die Seite an, bis die Person druckt oder abbricht, und die Auswirkungen der Aktion sind unbekannt. Bitten Sie die Person, den Dialog zu schließen, und prüfen Sie dann den aktuellen Zustand.',
     printDialogOpenBeforeAction: 'Die Seite zeigt ihren Druckdialog, der sie anhält, bis die Person druckt oder abbricht; es wurde nichts an sie gesendet. Bitten Sie die Person, den Dialog zu schließen, und versuchen Sie es dann erneut.',
+    websiteDialogOpenedDuringAction: 'Die Seite hat während dieser Aktion einen Website-Dialog geöffnet; er hält die Seite an, bis er beantwortet wird, und die Auswirkungen der Aktion sind unbekannt. Beantworten Sie ihn mit browser_dialog und prüfen Sie dann den aktuellen Zustand.',
+    websiteDialogOpenBeforeAction: 'Die Seite zeigt einen Website-Dialog, der sie anhält, bis er beantwortet wird; es wurde nichts an sie gesendet. Beantworten Sie ihn mit browser_dialog und versuchen Sie es dann erneut.',
     sourceViewRunsNoScripts: 'Dieser Tab zeigt den Quelltext einer Seite (eine view-source:-Adresse), in dem Seitenskripte nie abgeschlossen werden; es wurde nichts an ihn gesendet. Öffnen Sie die Seite selbst im Tab, um sie zu untersuchen.',
     closedWhileWaiting: 'Der Tab wurde geschlossen, während auf die Seite gewartet wurde.',
     rendererLostWhileWaiting: 'Der Tab reagierte nicht mehr, während auf die Seite gewartet wurde.',

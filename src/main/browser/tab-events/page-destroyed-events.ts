@@ -9,18 +9,21 @@ import { focusTabOrTrustedChrome } from '../trusted-chrome-focus/trusted-chrome-
 import { publishChange } from '../browser-state/browser-state.js'
 import { markTabActiveInGroup, writeActiveTabId } from '../tab-selection/active-tab.js'
 import { runWalletLifecycleAction } from '../background-action.js'
+import { closeWebsiteDialogBoxOfDestroyedPage } from '../website-dialogs/website-dialogs.js'
 
 /** Hronaut Home, which a destroyed page's recovery opens when no live tab is left; the browser's Home address. */
 const HRONAUT_HOME_URL = 'hronaut://home/'
 
 /**
- * Handles the page being destroyed. It always stops the favicon load, the
- * overview preview, network waits and selection sessions; a closure the
+ * Handles the page being destroyed. It always closes the box of a website
+ * dialog the page showed and stops the favicon load, the overview preview,
+ * network waits and selection sessions; a closure the
  * browser expected only forgets dialog monitoring and execution contexts.
  * Otherwise it shows that the page is gone and keeps the browser usable.
  */
 export function attachPageDestroyedEvents(browser: Browser, tab: BrowserTab, webContents: WebContents): void {
   webContents.once('destroyed', () => {
+    closeWebsiteDialogBoxOfDestroyedPage(webContents)
     tab.faviconAbortController?.abort()
     tab.faviconAbortController = undefined
     invalidateTabOverviewPreview(browser, tab)
