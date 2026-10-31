@@ -16,6 +16,7 @@ All notable changes to Hronaut are documented in this file.
 - A page could ask to open links in other apps over and over, a different kind of link each time, so a new prompt showed as soon as you answered the last one. As in Chrome, once a page asked, it can ask again only after you click, press a key or touch it, in any of its frames; until then, its links to other apps are refused without asking. One Allow also opens a link only once, even when the page asked for it several times while the prompt showed.
 - Reload, Back, Forward and a page picked from their history list did nothing at all on a page that asks before you leave it, such as an editor with unsaved changes, and an agent was told the tab had reloaded or gone back. As in Chrome, Hronaut now asks whether to reload or leave the page, and an agent is told that the page stayed open.
 - A page that closed itself, such as the "you can close this tab" page a desktop app's sign-in ends on, left its tab open saying the page was no longer available, unless a page had opened it as a window. Its tab now closes, and Reopen closed tab brings it back.
+- A window that a page in a tab behind opened, such as on a timer, was shown in place of the page you were looking at and took the keys you were typing; one from a page in another workspace took you to that workspace. It now opens behind the tab you see, or as its workspace's tab without being shown, unless you clicked or typed in that page moments before.
 
 ## [3.14.2] - 2026-10-30
 

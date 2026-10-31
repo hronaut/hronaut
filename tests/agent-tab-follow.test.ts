@@ -313,6 +313,8 @@ describe('a tab an agent opens or selects while Follow agents is on', () => {
     openWindow(details).createWindow({ webContents: guest })
     expect(internals.createTab).toHaveBeenLastCalledWith(expect.objectContaining({ active: true, selectVisible: false }))
     internals.agentInputWebContents.clear()
+    // The person opens one from the page they see; a page in a workspace they do not see no longer takes the view.
+    internals.activeTabId = agentTab.id
     openWindow(details).createWindow({ webContents: guest })
     expect(internals.createTab).toHaveBeenLastCalledWith(expect.objectContaining({ active: true, selectVisible: true }))
   })
