@@ -113,6 +113,18 @@ describe('keeping the folder a save dialog saved into', () => {
   })
 })
 
+describe('the downloads of a browser being built', () => {
+  it('read none of its options, which it is given only after them', () => {
+    // The look at the kept folder read them as the browser was built, before it had them: it never ran, so the first
+    // save dialog after a restart opened in the download folder, and main was left with a rejected promise.
+    const { browser } = browserWith(join(root, 'Projects'))
+    const options = vi.fn(() => undefined)
+    Object.defineProperty(browser, 'options', { get: options })
+    createDownloadsController(browser).destroy()
+    expect(options).not.toHaveBeenCalled()
+  })
+})
+
 describe('a download\'s save dialog', () => {
   function startDownload(browser: Browser) {
     const controller = createDownloadsController(browser)
