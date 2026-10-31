@@ -437,9 +437,9 @@ export class Browser {
   readonly shellHeldKeys: Set<string>
   /**
    * The key a page last gave up as a browser shortcut, such as Ctrl+W, until a key is pressed or released in a page: its
-   * repeats stay out of the other pages it hands the keyboard to.
+   * repeats stay out of pages, except the page with this id, which a held Ctrl+= goes on zooming.
    */
-  pageShortcutKey: { code: string; webContentsId: number } | null = null
+  pageShortcutKey: { code: string; webContentsId: number | null } | null = null
   readonly occlusionSnapshot = createOcclusionSnapshot(this)
   readonly tabOverviewPreviewableTabs = new Set<string>()
   tabOverviewLiveCaptureCursor = 0

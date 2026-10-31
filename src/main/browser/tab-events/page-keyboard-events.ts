@@ -1,5 +1,5 @@
 import type { Input, WebContents } from 'electron'
-import { browserShortcutAction } from '../../../shared/browser-shortcuts.js'
+import { browserShortcutAction, type BrowserShortcutAction } from '../../../shared/browser-shortcuts.js'
 import type { Browser } from '../browser.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { consumeExpectedAgentKeyboardInput } from '../agent-input-authorization/agent-input-authorization.js'
@@ -8,6 +8,12 @@ import { pageShortcut } from '../take-over.js'
 import { cancelElementPicker } from '../element-picker/element-picker.js'
 import { cancelScreenshotArea } from '../screenshot-area/screenshot-area.js'
 import { noteShellHeldKey } from './shell-held-keys.js'
+
+/**
+ * The browser shortcuts whose held key goes on acting on its own page through the View menu, zooming or reloading it.
+ * The repeats of any other one stay out of every page, as Chrome keeps Ctrl+W, Ctrl+T and Ctrl+Tab from pages.
+ */
+const REPEATED_ON_ITS_PAGE: ReadonlySet<BrowserShortcutAction> = new Set(['zoom-in', 'zoom-out', 'zoom-reset', 'reload', 'reload-ignoring-cache'])
 
 /** After a click, key or scroll on the page in view, its overview preview waits this long for the page to settle. The pointer listeners keep their own copy. */
 const TAB_OVERVIEW_INPUT_SETTLE_MS = 1_000
@@ -46,7 +52,7 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
         mac: process.platform === 'darwin'
       }) : null
       if (shortcut) {
-        notePageShortcutKey(browser, webContents, input)
+        notePageShortcutKey(browser, webContents, input, shortcut)
         browser.options.onShortcutRequested?.(shortcut)
       }
       return
@@ -120,7 +126,7 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
     if (browser.isHumanInteractionLocked(tab) && !expectedAgentInput) {
       event.preventDefault()
       if (shortcut) {
-        notePageShortcutKey(browser, webContents, input)
+        notePageShortcutKey(browser, webContents, input, shortcut)
         browser.options.onUserInteraction?.()
         browser.options.onShortcutRequested?.(shortcut, page)
       }
@@ -128,7 +134,7 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
     }
     if (shortcut) {
       event.preventDefault()
-      if (!expectedAgentInput) notePageShortcutKey(browser, webContents, input)
+      if (!expectedAgentInput) notePageShortcutKey(browser, webContents, input, shortcut)
       browser.options.onUserInteraction?.()
       browser.options.onShortcutRequested?.(shortcut, page)
       return
@@ -139,8 +145,8 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
     )) {
       // The repeats of a key the shell took, such as Delete closing the active tab, which gave this page the focus:
       // a held Delete went on to delete the text in this page's focused field. A held Ctrl+W likewise reached the page
-      // of the tab shown next as Ctrl+W, which a web IDE may read as closing an editor. Those of a key a page gave up,
-      // such as a held Ctrl+=, still reach that page, so the View menu goes on zooming it.
+      // of the tab shown next as Ctrl+W, which a web IDE may read as closing an editor. Those of a held Ctrl+= still reach
+      // its own page, so the View menu goes on zooming it.
       event.preventDefault()
       return
     }
@@ -157,7 +163,10 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
   })
 }
 
-/** Notes the key of a browser shortcut the person pressed in this page, whose repeats then stay out of other pages. */
-function notePageShortcutKey(browser: Browser, webContents: WebContents, input: Input): void {
-  if (input.code) browser.pageShortcutKey = { code: input.code, webContentsId: webContents.id }
+/**
+ * Notes the key of a browser shortcut the person pressed in this page, whose repeats then stay out of every page, or out
+ * of the other pages when they go on zooming or reloading this one.
+ */
+function notePageShortcutKey(browser: Browser, webContents: WebContents, input: Input, shortcut: BrowserShortcutAction): void {
+  if (input.code) browser.pageShortcutKey = { code: input.code, webContentsId: REPEATED_ON_ITS_PAGE.has(shortcut) ? webContents.id : null }
 }

@@ -81,6 +81,18 @@ describe('the key of a browser shortcut taken from a page', () => {
     expect(press(page(), { ...held, ...zoomIn })).toBe(true)
   })
 
+  it('does not repeat into its own page for any other shortcut, such as Ctrl+W before the tab closes', () => {
+    // A held Ctrl+Shift+F reached the View menu's Full Page View on each repeat, turning it on and off.
+    const fullPage = { key: 'F', code: 'KeyF', control: !mac, meta: mac, shift: true }
+    for (const shortcut of [closeTab, fullPage]) {
+      const { page, onShortcutRequested } = browserWith()
+      const shown = page()
+      expect(press(shown, { type: 'keyDown', ...shortcut })).toBe(true)
+      expect(onShortcutRequested).toHaveBeenCalledOnce()
+      expect(press(shown, { ...held, ...shortcut })).toBe(true)
+    }
+  })
+
   it('does not repeat into the next page when the human input lock or trusted chrome took it either', () => {
     for (const state of [{ locked: true }, { occluded: true }]) {
       const { page, onShortcutRequested } = browserWith(state)
