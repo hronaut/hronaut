@@ -17,6 +17,8 @@ import type { BrowserTab } from '../browser-tab.js'
 import { syncHumanInteractionInputGuard } from '../interaction-lock/human-input-guard.js'
 import { screenshot } from '../screenshots/screenshots.js'
 import { callThroughPageDialogs } from '../page-dialog-waits.js'
+import { PrintDialogOpenError, whenPrintDialogCloses } from '../print-dialog-guard.js'
+import { WebsiteDialogOpenError, whenWebsiteDialogCloses } from '../website-dialog-guard.js'
 
 /** What the element picker's page script resolves: the element's raw inspection, or that the person canceled. */
 export interface BrowserElementPickerScriptResult {
@@ -41,6 +43,25 @@ const ELEMENT_INSPECTION_WORLD_ID = ISOLATED_WORLDS.elementInspection
 // The same check the screenshot area and the human input guard make.
 function nativeSelectionContextUnavailable(error: unknown): boolean {
   return error instanceof RendererExitedError || /context.*destroyed|frame.*removed|navigat/i.test(String(error))
+}
+
+/**
+ * Removes the element picker's overlay from the page, resolving whether it was there. While the page's print or
+ * website dialog holds the page, the script is refused unsent; it then runs once the dialog closes, unless another
+ * pick has started on the page by then, whose script removes the overlay itself.
+ */
+async function removeElementPicker(browser: Browser, webContents: BrowserTab['webContents']): Promise<boolean> {
+  try {
+    return await webContents.executeJavaScript(cancelElementPickerScript(), true) as boolean
+  } catch (error) {
+    const dialogClosed = error instanceof PrintDialogOpenError && !error.sent ? whenPrintDialogCloses(webContents)
+      : error instanceof WebsiteDialogOpenError && !error.sent ? whenWebsiteDialogCloses(webContents) : undefined
+    if (!dialogClosed) throw error
+    void dialogClosed.then(() => {
+      if (!browser.elementPickerSessions.has(webContents.id)) return removeElementPicker(browser, webContents)
+    }).catch(() => undefined)
+    return false
+  }
 }
 
 /** Lets the person pick an element on a website tab's page and returns its inspection formatted for an agent. */
@@ -72,7 +93,7 @@ async function selectElement(browser: Browser, tabId?: string): Promise<BrowserE
   if (existing) {
     existing.canceled = true
     existing.resolve({ canceled: true })
-    await webContents.executeJavaScript(cancelElementPickerScript(), true).catch(() => false)
+    await removeElementPicker(browser, webContents).catch(() => false)
   }
   const session = createElementPickerSession<BrowserElementPickerScriptResult>()
   tab.nativeInputEnvironmentGeneration += 1
@@ -104,7 +125,7 @@ async function selectElement(browser: Browser, tabId?: string): Promise<BrowserE
   } finally {
     if (browser.elementPickerSessions.get(webContents.id) === session) {
       session.canceled = true
-      await webContents.executeJavaScript(cancelElementPickerScript(), true).catch(() => false)
+      await removeElementPicker(browser, webContents).catch(() => false)
       // Cleanup can finish after a replacement selection starts.
       if (browser.elementPickerSessions.get(webContents.id) === session) {
         browser.elementPickerSessions.delete(webContents.id)
@@ -122,7 +143,7 @@ export async function cancelElementPicker(browser: Browser, tabId?: string): Pro
     session.canceled = true
     session.resolve({ canceled: true })
   }
-  return tab.webContents.executeJavaScript(cancelElementPickerScript(), true) as Promise<boolean>
+  return removeElementPicker(browser, tab.webContents)
 }
 
 /**
