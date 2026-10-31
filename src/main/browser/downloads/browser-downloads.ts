@@ -1,4 +1,7 @@
+import { homedir } from 'node:os'
 import { isAbsolute } from 'node:path'
+import { app } from 'electron'
+import { downloadFolderWritable } from '../../download-folder.js'
 import { LocalizedError } from '../../localized-error.js'
 import type { Browser } from '../browser.js'
 import { getTab } from '../browser-core.js'
@@ -13,6 +16,16 @@ import { checkSaveDialogFolder, rememberSaveDialogFolder, saveDialogFolder } fro
 import { DOWNLOADS_IPC } from '../../../shared/ipc/downloads.js'
 import { sendTo } from '../../typed-ipc.js'
 
+/** The Documents folder, where Chrome starts the save dialog of a download its download folder cannot take. */
+function documentsFolder(): string {
+  try {
+    return app.getPath('documents')
+  } catch {
+    // Electron has no Documents folder to name on some Linux desktops.
+    return homedir()
+  }
+}
+
 /**
  * The browser's downloads: where they are saved, which tab and workspace each came from, the workspace session a
  * retry uses, and the Downloads panel they are shown in.
@@ -21,12 +34,18 @@ export function createDownloadsController(browser: Browser): BrowserDownloadsCon
   // Known by the first save dialog, which may come as soon as a page opens.
   void checkSaveDialogFolder(browser)
   return new BrowserDownloadsController({
-    getSettings: () => ({
-      // The folder a download is saved in, or its save dialog starts in, as in Chrome, when Hronaut asks where to save.
-      downloadDirectory: browser.options.askWhereToSaveDownloads ? saveDialogFolder(browser) : browser.options.downloadDirectory,
-      askWhereToSaveDownloads: browser.options.askWhereToSaveDownloads,
-      saveDialogTitle: browser.text('native.dialog.saveDownload')
-    }),
+    getSettings: () => {
+      const saveDialogTitle = browser.text('native.dialog.saveDownload')
+      // The folder the save dialog starts in, as in Chrome, when Hronaut asks where to save.
+      if (browser.options.askWhereToSaveDownloads) {
+        return { downloadDirectory: saveDialogFolder(browser), askWhereToSaveDownloads: true, saveDialogTitle }
+      }
+      // As in Chrome, a download folder Hronaut cannot write to, such as on a drive that became read-only, asks where to
+      // save the download instead of failing it, starting in the Documents folder.
+      const folder = browser.options.downloadDirectory
+      const writable = downloadFolderWritable(folder)
+      return { downloadDirectory: writable ? folder : documentsFolder(), askWhereToSaveDownloads: !writable, saveDialogTitle }
+    },
     getSource: (webContentsId, downloadUrl) => {
       const tabId = webContentsId === undefined ? undefined : browser.webContentsToTab.get(webContentsId)
       const tab = tabId ? browser.tabs.get(tabId) : undefined

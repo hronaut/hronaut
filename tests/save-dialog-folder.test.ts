@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events'
 import * as fsPromises from 'node:fs/promises'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import type { DownloadItem, Session } from 'electron'
@@ -11,7 +11,7 @@ import { checkSaveDialogFolder, rememberSaveDialogFolder, saveDialogFolder } fro
 
 vi.mock('electron', () => ({
   shell: { showItemInFolder: vi.fn() },
-  app: { getFileIcon: vi.fn(async () => ({ isEmpty: () => true })) },
+  app: { getFileIcon: vi.fn(async () => ({ isEmpty: () => true })), getPath: vi.fn(() => '/home/person/Documents') },
   nativeImage: { createFromBitmap: vi.fn(() => ({ isEmpty: () => true })) }
 }))
 
@@ -152,6 +152,47 @@ describe('a download\'s save dialog', () => {
       expect(dirname(download.dialogPath())).toBe(join(root, 'Projects'))
       download.choose(join(root, 'Invoices', 'report.pdf'))
       expect(setSaveDialogDirectory).toHaveBeenCalledExactlyOnceWith(join(root, 'Invoices'))
+    } finally {
+      download.controller.destroy()
+    }
+  })
+
+  it('asks where to save, from the Documents folder, when Hronaut cannot write to the download folder, as in Chrome', async () => {
+    // It ended as a bare Interrupted.
+    await writeFile(join(root, 'Downloads'), 'a file where the folder should be')
+    await mkdir(join(root, 'Projects'))
+    const { browser, setSaveDialogDirectory } = browserWith(join(root, 'Projects'), false)
+    await lookedAt(browser)
+    const download = startDownload(browser)
+    try {
+      expect(dirname(download.dialogPath())).toBe('/home/person/Documents')
+      expect(download.savePath()).toBe('')
+      // As after any save dialog, the next one starts where the person saved.
+      download.choose(join(root, 'Invoices', 'report.pdf'))
+      expect(setSaveDialogDirectory).toHaveBeenCalledExactlyOnceWith(join(root, 'Invoices'))
+    } finally {
+      download.controller.destroy()
+    }
+  })
+
+  it('makes a download folder that is gone again and saves there without asking, as Chrome does', async () => {
+    const { browser } = browserWith(null, false)
+    const download = startDownload(browser)
+    try {
+      expect(download.dialogPath()).toBe('')
+      expect(dirname(download.savePath())).toBe(join(root, 'Downloads'))
+      expect((await stat(join(root, 'Downloads'))).isDirectory()).toBe(true)
+    } finally {
+      download.controller.destroy()
+    }
+  })
+
+  it('neither looks at nor makes the download folder when Hronaut asks where to save each file', async () => {
+    const { browser } = browserWith(null)
+    const download = startDownload(browser)
+    try {
+      expect(dirname(download.dialogPath())).toBe(join(root, 'Downloads'))
+      await expect(stat(join(root, 'Downloads'))).rejects.toMatchObject({ code: 'ENOENT' })
     } finally {
       download.controller.destroy()
     }
