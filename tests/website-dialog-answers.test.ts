@@ -38,11 +38,13 @@ function fixture() {
   debuggerEvents.on('message', (_event: unknown, method: string) => {
     if (method === 'Page.javascriptDialogClosed') closeWebsiteDialogBox(webContents as never)
   })
-  const tab = { id: 'tab-1', webContents }
+  const tab: { id: string, webContents: typeof webContents, dialog?: { type: DialogType, message: string } } = { id: 'tab-1', webContents }
+  const debuggerQueue = new BrowserDebuggerQueue()
+  const dialogMonitorAttachPromises = new Map<number, Promise<void>>()
   const browser = {
     destroyed: false,
-    debuggerQueue: new BrowserDebuggerQueue(),
-    dialogMonitorAttachPromises: new Map<number, Promise<void>>(),
+    debuggerQueue,
+    dialogMonitorAttachPromises,
     devToolsOpening: new Set<number>(),
     tabs: new Map([[tab.id, tab]]),
     activeTabId: tab.id
@@ -57,7 +59,7 @@ function fixture() {
       else if (showing) close(electron === 'answers it' ? 'Electron' : 'Electron, the site is blocked')
     })
   }
-  return { events, webContents, tab, browser, pageOpens, close }
+  return { events, webContents, tab, browser, debuggerQueue, dialogMonitorAttachPromises, pageOpens, close }
 }
 
 describe('answering website dialogs through the debugger', () => {
@@ -94,6 +96,18 @@ describe('answering website dialogs through the debugger', () => {
     await new Promise((resolve) => setImmediate(resolve))
     await handleDialog(f.browser, 'dismiss', f.tab.id)
     expect(f.events).toEqual(['box shown', 'closed by dismiss', 'box closed'])
+  })
+
+  // A page that alerts as monitoring is set up holds that set-up, which every debugger operation waits for.
+  it('answers a dialog the page shows without waiting for monitoring set-up or earlier page commands', async () => {
+    const f = fixture()
+    f.dialogMonitorAttachPromises.set(7, new Promise(() => undefined))
+    void f.debuggerQueue.run(7, () => new Promise<void>(() => undefined))
+    f.pageOpens('alert', 'shows a box')
+    f.tab.dialog = { type: 'alert', message: 'Unsaved draft' }
+    await new Promise((resolve) => setImmediate(resolve))
+    await expect(handleDialog(f.browser, 'accept', f.tab.id)).resolves.toEqual({ handled: true, action: 'accept' })
+    expect(f.events).toEqual(['box shown', 'closed by accept', 'box closed'])
   })
 
   it('closes no box for a dialog the person answered in it', async () => {

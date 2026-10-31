@@ -1,6 +1,8 @@
+import { createServer } from 'node:http'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { ElectronApplication, Page } from '@playwright/test'
 import { expect, test, text } from './capability-fixtures.js'
+import { closeFixtureServer } from './fixtures.js'
 
 // An agent answers a website dialog through the page's debugger, which closed the dialog but left Electron's box for it
 // on screen, keeping Hronaut's window disabled until the person clicked it. Waiting for that box before answering must
@@ -61,6 +63,38 @@ test('answers the agent\'s page tools while a page alert waits, and then its ans
   const answered = await call('browser_dialog', { tabId, action: 'accept' })
   expect(answered.isError, text(answered)).not.toBe(true)
   await expect.poll(async () => (await tabState(appWindow, tabId))?.title).toBe('Answered')
+})
+
+test('answers the agent\'s answer to an alert a new page shows as it loads', async ({ capabilities, electronApp, appWindow }) => {
+  const { client, workspace } = capabilities
+  leaveDialogsToAgent(electronApp)
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end('<!doctype html><title>Welcome page</title><script>alert("Welcome"); document.title = "Answered"</script>')
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/`
+  try {
+    const call = (name: string, args: Record<string, unknown>) => Promise.race([
+      client.callTool({ name, arguments: args }) as Promise<CallToolResult>,
+      new Promise<never>((_resolve, reject) => setTimeout(() => reject(new Error(`${name} did not answer`)), 10_000))
+    ])
+    const opened = call('browser_new_tab', { workspaceId: workspace.workspaceId, url, active: true }).catch((error: Error) => error)
+    let tabId: string | undefined
+    await expect.poll(async () => {
+      const state = await appWindow.evaluate('window.hronaut.getState()') as { tabs: Array<{ id: string, url: string, dialog?: { message: string } }> }
+      const tab = state.tabs.find((candidate) => candidate.url === url)
+      tabId = tab?.id
+      return tab?.dialog?.message
+    }).toBe('Welcome')
+    const answered = await call('browser_dialog', { workspaceId: workspace.workspaceId, tabId, action: 'accept' })
+    expect(answered.isError, text(answered)).not.toBe(true)
+    await expect.poll(async () => (await tabState(appWindow, tabId!))?.title).toBe('Answered')
+    const openedResult = await opened
+    expect(openedResult instanceof Error ? openedResult.message : text(openedResult)).not.toContain('did not answer')
+  } finally {
+    await closeFixtureServer(server)
+  }
 })
 
 test('leaves a page that asks before it unloads when the agent clicks away and accepts', async ({ capabilities, electronApp, appWindow }) => {

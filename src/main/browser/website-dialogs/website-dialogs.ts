@@ -26,7 +26,11 @@ export async function handleDialog(browser: Browser, action: BrowserDialogAction
 }> {
   const tab = getTab(browser, tabId)
   const webContents = tab.webContents
-  await withDebugger(browser, webContents, () => answerWebsiteDialog(webContents, { accept: action === 'accept' }))
+  const answer = { accept: action === 'accept' }
+  // The browser answers a dialog the page shows through the attached debugger, without the page. So the answer takes
+  // no turn after page commands or monitoring set-up, which wait for the page the dialog holds.
+  if (tab.dialog && webContents.debugger.isAttached()) await answerWebsiteDialog(webContents, answer)
+  else await withDebugger(browser, webContents, () => answerWebsiteDialog(webContents, answer))
   return { handled: true, action }
 }
 
@@ -142,6 +146,24 @@ function afterDialogBoxShows(): Promise<void> {
 }
 
 /**
+ * Waits for a command to the page unless a website dialog opens first, and then resolves undefined: the page answers
+ * nothing until the dialog closes. The command still settles once it does.
+ */
+export function unlessWebsiteDialogOpens<T>(webContents: WebContents, command: Promise<T>): Promise<T | undefined> {
+  return new Promise((resolve, reject) => {
+    const listener = (_event: Electron.Event, method: string): void => {
+      if (method === 'Page.javascriptDialogOpening') settle(() => resolve(undefined))
+    }
+    const settle = (finish: () => void): void => {
+      webContents.debugger.removeListener('message', listener)
+      finish()
+    }
+    webContents.debugger.on('message', listener)
+    command.then((value) => settle(() => resolve(value)), (error: unknown) => settle(() => reject(error)))
+  })
+}
+
+/**
  * Closes the box Electron shows for a website dialog that closed because Hronaut or an agent answered it through the
  * debugger, as for trusted chrome covering the pages or an agent's answer. That box would stay on screen and keep
  * Hronaut's window disabled until the person clicked it. Electron closes its boxes for a page on its internal
@@ -158,14 +180,15 @@ export function closeWebsiteDialogBox(webContents: WebContents): void {
  * the page, runtime, log, audit and network domains that website dialogs and
  * page diagnostics observe, then applies the human interaction lock. Concurrent
  * callers share one attachment, which page lifecycle and debugger operations
- * wait for.
+ * wait for. Once monitoring is in place it holds until the debugger detaches,
+ * and a call does nothing.
  */
 export function ensureDialogMonitoring(browser: Browser, tab: BrowserTab): Promise<void> {
   const webContents = tab.webContents
   const existing = browser.dialogMonitorAttachPromises.get(webContents.id)
   if (existing) return existing
-  // Monitoring holds until the debugger detaches. Enabling the page's domains again would wait for the page, which a
-  // website dialog holds until someone answers it, and every debugger operation waits for that.
+  // Enabling the page's domains again would wait for the page, which a website dialog holds until someone answers it,
+  // and every debugger operation waits for that.
   if (tab.networkDebuggerEnabled && webContents.debugger.isAttached()) return Promise.resolve()
   const attaching = (async () => {
     if (

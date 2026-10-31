@@ -138,4 +138,13 @@ describe('dialog monitoring that is already in place', () => {
     await ensureDialogMonitoring(f.browser, f.tab as never)
     expect(f.commands).toEqual(['Page.enable', 'Page.getFrameTree', 'Runtime.enable', 'Runtime.setAsyncCallStackDepth', 'Log.enable', 'Audits.enable', 'Network.enable', 'Input.setIgnoreInputEvents'])
   })
+
+  it('sets monitoring up in full on a debugger another operation attached', async () => {
+    const f = fixture()
+    f.state.crashed = false
+    f.state.attached = true
+    await ensureDialogMonitoring(f.browser, f.tab as never)
+    expect(f.commands).toEqual(['Page.enable', 'Page.getFrameTree', 'Runtime.enable', 'Runtime.setAsyncCallStackDepth', 'Log.enable', 'Audits.enable', 'Network.enable', 'Input.setIgnoreInputEvents'])
+    expect(f.tab.networkDebuggerEnabled).toBe(true)
+  })
 })
