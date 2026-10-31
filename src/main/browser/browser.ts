@@ -36,6 +36,7 @@ import { createReproRecorder } from './repro-recorder/browser-repro-recorder.js'
 import { networkConditionState } from './network-conditions/network-conditions.js'
 import { type HeldResponses } from './network-conditions/held-responses.js'
 import { createDownloadsController } from './downloads/browser-downloads.js'
+import { checkSaveDialogFolder } from './downloads/save-dialog-folder.js'
 import type { DownloadHistoryStore, SavedDownload } from './download-history/download-history.js'
 import { createProfilingController } from './profiling/browser-profiling.js'
 import { WorkspaceContinuityStore } from '../mcp/workspace-continuity-store.js'
@@ -462,6 +463,8 @@ export class Browser {
     this.closedTabsStore = options.closedTabsPath ? new ClosedTabsStore(options.closedTabsPath) : undefined
     // Before the shell first lists the downloads, so it never takes the kept ones for new downloads.
     if (options.downloadHistory) this.downloadController.restoreHistory(options.downloadHistory.saved, options.downloadHistory.store)
+    // Known by the first save dialog, which may come as soon as a page opens.
+    void checkSaveDialogFolder(this)
     this.toolbarHeight = options.toolbarHeight ?? 104
     this.mcpUrl = options.mcpUrl
     this.memorySaverEnabled = options.memorySaverEnabled !== false
