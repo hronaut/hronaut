@@ -185,6 +185,11 @@ function workspaceNavigationDecision(browser: Browser, groupId: string, url: str
   return { allowed: false, targetOrigin: decision.targetOrigin, reason: 'unsupported-scheme' }
 }
 
+/** Whether the workspace may open the URL, without reporting or recording the decision, as when looking ahead. */
+export function workspaceMayOpen(browser: Browser, groupId: string, url: string): boolean {
+  return browser.mcpTabGroups.has(groupId) && workspaceNavigationDecision(browser, groupId, url).allowed
+}
+
 /**
  * Adds a denial to the workspace's audit, skipping a repeat of the latest
  * entry within a second and keeping the most recent entries up to the limit.

@@ -17,7 +17,8 @@ vi.mock('../src/main/browser/workspace-navigation/workspace-navigation.js', asyn
   ...await importOriginal<typeof import('../src/main/browser/workspace-navigation/workspace-navigation.js')>(),
   workspaceNavigationAllowed: (browser: { workspaceNavigationAllowed: (...args: unknown[]) => boolean }, ...args: unknown[]) => (
     browser.workspaceNavigationAllowed(...args)
-  )
+  ),
+  workspaceMayOpen: (browser: { workspaceMayOpen: (...args: unknown[]) => boolean }, ...args: unknown[]) => browser.workspaceMayOpen(...args)
 }))
 vi.mock('../src/main/browser/tab-selection/person-tab-switch.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/tab-selection/person-tab-switch.js')>(),
@@ -101,6 +102,7 @@ function pageThatAsksToStay(confirmLeavePage: (question: 'leave' | 'reload') => 
     selectTabForPerson: vi.fn(async (_tabId: string) => undefined),
     focusPageAfterQuestion: vi.fn(),
     workspaceNavigationAllowed: vi.fn(() => true),
+    workspaceMayOpen: vi.fn((_groupId: string, _url: string) => true),
     getState: () => ({ ok: true })
   }
   const listening = (): number => ['will-prevent-unload', 'did-start-navigation', 'did-stop-loading', 'destroyed']
@@ -250,5 +252,51 @@ describe('a page picked from the history list, from a page that asks before it i
     await goToHistoryEntry(browser, 'tab', draftsFirst)
     expect(fake.workspaceNavigationAllowed).toHaveBeenCalledWith('client', PAGES[0], 'history')
     expect(calls).toEqual(['go to'])
+  })
+})
+
+// Chromium's Back skips a page that opened the next by script without the person's activation, so it landed on the page
+// before that one, which only the next page's check stood for: a page of a site the workspace no longer allows opened.
+describe('Back and Forward in a workspace that may not open a page further along', () => {
+  it('go exactly one step, to the page checked, and as Chromium goes otherwise', async () => {
+    for (const [mayOpenFurther, groupId, expected] of [
+      [false, 'client', ['go to', 'go to']], [true, 'client', ['back', 'forward']], [false, undefined, ['back', 'forward']]
+    ] as const) {
+      const { browser, fake, tab, history, calls, stopAsking } = pageThatAsksToStay()
+      stopAsking()
+      if (groupId) tab.mcpGroupId = groupId
+      fake.workspaceMayOpen.mockImplementation((_groupId, url) => mayOpenFurther || url === PAGES[1])
+      history.activeIndex = 2
+      await back(browser, 'tab')
+      history.activeIndex = 0
+      await forward(browser, 'tab')
+      expect(calls).toEqual(expected)
+      if (expected[0] === 'go to') expect(history.goToIndex.mock.calls).toEqual([[1], [1]])
+      // The page checked is still checked, and recorded when refused; the pages further along are only looked at.
+      if (groupId) expect(fake.workspaceNavigationAllowed.mock.calls).toEqual([['client', PAGES[1], 'history'], ['client', PAGES[1], 'history']])
+      expect(fake.workspaceMayOpen.mock.calls).toEqual(groupId ? [['client', PAGES[0]], ['client', PAGES[2]]] : [])
+    }
+  })
+
+  it('look at no page when none is further along', async () => {
+    const { browser, fake, tab, calls, stopAsking } = pageThatAsksToStay()
+    stopAsking()
+    tab.mcpGroupId = 'client'
+    await back(browser, 'tab')
+    await forward(browser, 'tab')
+    expect(calls).toEqual(['back', 'forward'])
+    expect(fake.workspaceMayOpen).not.toHaveBeenCalled()
+  })
+
+  it('go exactly one step when the workspace stopped allowing a page further along while the person was asked', async () => {
+    const { browser, fake, tab, history, calls } = pageThatAsksToStay(async () => {
+      fake.workspaceMayOpen.mockImplementation((_groupId, url) => url !== PAGES[0])
+      return true
+    })
+    tab.mcpGroupId = 'client'
+    history.activeIndex = 2
+    await back(browser, 'tab', { byPerson: true })
+    expect(calls).toEqual(['back', 'go to'])
+    expect(history.goToIndex).toHaveBeenCalledExactlyOnceWith(1)
   })
 })
