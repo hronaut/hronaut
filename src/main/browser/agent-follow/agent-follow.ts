@@ -35,6 +35,7 @@ export function handleMcpTabActivity(browser: Browser, activity: McpTabActivity,
   const activities = browser.mcpActivitiesByTab.get(tab.id) ?? new Set<string>()
   if (activity.phase === 'started') {
     activities.add(activity.activityId)
+    tab.agentCallStartedAt = performance.now()
     browser.mcpActivitiesByTab.set(tab.id, activities)
   } else {
     activities.delete(activity.activityId)

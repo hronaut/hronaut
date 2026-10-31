@@ -212,6 +212,7 @@ export async function createTab(browser: Browser, options: {
     inspectorIssuesTruncated: false,
     networkDebuggerEnabled: false,
     lastHumanInteractionAt: Number.NEGATIVE_INFINITY,
+    agentCallStartedAt: Number.NEGATIVE_INFINITY,
     suppressInitialHistory: options.suppressInitialHistory === true,
     pendingHistoryUrl: null,
     emulation: { ...DEFAULT_EMULATION },
