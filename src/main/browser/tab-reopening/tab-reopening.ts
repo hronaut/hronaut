@@ -115,7 +115,7 @@ export async function duplicateTabAfterLabelSave(browser: Browser, tabId: string
   const source = getTab(browser, tabId)
   if (isHronautHomeUrl(source.url)) throw new LocalizedError('appErrors.tabs.homeNotDuplicated')
   const navigationHistory = browser.navigationHistorySnapshot(source)
-  // Closed right away, the copy showed the tab beside it rather than the tab the person was on.
+  // The copy goes back to the tab shown now, when it is in the copy's workspace, as a new tab from + does.
   const shown = browser.activeTabId ? findTab(browser, browser.activeTabId) : undefined
   const returnsTo = shown?.mcpGroupId && shown.mcpGroupId === source.mcpGroupId ? shown.id : undefined
   const duplicate = await browser.createTab({
