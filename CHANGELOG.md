@@ -6,7 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
-- In a workspace limited to listed sites, **Back** could open a page of a site the workspace no longer allowed, when the page before had opened the next one by script, as a sign-in hop does: Chromium's Back skips such a page, and only that page was checked. Back and Forward now go exactly one page while a page further along is one the workspace may not open. The **Back** button is also off when Back would go nowhere because every page behind opened the next by script; it stayed on and did nothing.
+- In a workspace limited to listed sites, **Back** and **Forward** could open a page of a site the workspace no longer allowed, past a page Chromium skips, such as one that opened the next by script as a sign-in hop does: only the page next to the current one was checked. Back and Forward now go exactly one page while a page further along is one the workspace may not open.
 
 ## [3.14.5] - 2026-10-31
 

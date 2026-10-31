@@ -67,20 +67,45 @@ test('Back never opens a page the workspace stopped allowing, past a page that o
   }
 })
 
-// With only a page that opened the next by script behind it, Chromium's Back goes nowhere; the button stayed on.
-test('Back is off when the only page behind opened the next by script, as in Chrome', async ({ appWindow }) => {
-  const requests: string[] = []
-  const server = site(requests)
-  const origin = await listen(server)
+
+// A page's own script that goes back past the page that opened it is checked as the page navigating, before it loads.
+test('A page cannot go back by script to a page the workspace stopped allowing', async ({ appWindow, electronApp }) => {
+  const allowedRequests: string[] = []
+  const droppedRequests: string[] = []
+  const allowedServer = site(allowedRequests)
+  const droppedServer = site(droppedRequests)
+  const allowed = await listen(allowedServer)
+  const dropped = await listen(droppedServer)
   try {
-    const tabId = await appWindow.evaluate(async url => (await (window as unknown as Hronaut).hronaut
-      .newTab({ url, active: true })).activeTabId!, `${origin}/redirect`)
+    const { workspace, tabId } = await appWindow.evaluate(async (dropped) => {
+      const hronaut = (window as unknown as Hronaut).hronaut
+      const name = `History script ${Date.now()}`
+      const created = await hronaut.createWorkspace({ name, storage: 'scratch' })
+      const workspace = created.mcpTabGroups.find(group => group.name === name)!.id
+      const tabId = (await hronaut.newTab({ url: `${dropped}/`, mcpGroupId: workspace, active: true })).activeTabId!
+      return { workspace, tabId }
+    }, dropped)
     const tab = () => appWindow.evaluate(id => (window as unknown as Hronaut).hronaut.getState()
       .then(state => state.tabs.find(tab => tab.id === id)), tabId)
-    await expect.poll(async () => { const shown = await tab(); return shown?.url === `${origin}/next` && !shown.loading }).toBe(true)
-    expect((await tab())?.canGoBack).toBe(false)
-    await expect(appWindow.getByRole('button', { name: 'Back', exact: true })).toBeDisabled()
+    await expect.poll(async () => { const shown = await tab(); return shown?.url === `${dropped}/` && !shown.loading }).toBe(true)
+    await appWindow.evaluate(({ tabId, url }) => (window as unknown as Hronaut).hronaut.navigate({ tabId, url }), { tabId, url: `${allowed}/redirect` })
+    await expect.poll(async () => { const shown = await tab(); return shown?.url === `${allowed}/next` && !shown.loading }).toBe(true)
+
+    await appWindow.evaluate(({ workspace, allowed }) => (window as unknown as Hronaut).hronaut
+      .updateWorkspaceNavigationPolicy(workspace, { mode: 'restricted', rules: [allowed] }), { workspace, allowed })
+    droppedRequests.length = 0
+    // Without a user gesture, as the page's own script runs.
+    await electronApp.evaluate(async ({ webContents }, url) => {
+      const page = webContents.getAllWebContents().find(candidate => candidate.getURL() === url)
+      if (!page) throw new Error('Missing page that goes back by script')
+      await page.executeJavaScript('history.go(-2)')
+    }, `${allowed}/next`)
+    await expect.poll(() => appWindow.evaluate(id => (window as unknown as Hronaut).hronaut.listWorkspaceNavigationAudit(id), workspace))
+      .toEqual(expect.arrayContaining([expect.objectContaining({ targetOrigin: dropped, reason: 'no-match', source: 'page' })]))
+    expect((await tab())?.url).toBe(`${allowed}/next`)
+    expect(droppedRequests).toEqual([])
   } finally {
-    await closeFixtureServer(server)
+    await closeFixtureServer(allowedServer)
+    await closeFixtureServer(droppedServer)
   }
 })

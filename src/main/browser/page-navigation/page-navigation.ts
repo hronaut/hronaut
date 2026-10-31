@@ -375,20 +375,27 @@ export async function forward(browser: Browser, tabId?: string, options: { byPer
 }
 
 /**
- * Starts Back or Forward from the page at activeIndex. Chromium's Back and Forward skip a page that moved on by itself,
- * without the person's activation, as a page that opens another by script does, so they can land past the next page;
- * the workspace's navigation policy is checked for the next page only. While a page further along is one the
- * workspace may not open, they go exactly one step, to the page checked.
+ * Back or Forward from the page at activeIndex, as a start that leavePage calls again once the person left a page that
+ * asked. Chromium's Back and Forward skip pages that moved on by themselves, without the person's activation, such as
+ * one that opened the next by script, so they can land past the next page, while the workspace's navigation policy is
+ * checked for the next page only. While a page further along is one the workspace may not open, they go exactly one
+ * step, to the page checked. That is decided as they start, since the policy can change while the person is asked.
  */
 function historyStep(browser: Browser, tab: BrowserTab, activeIndex: number, step: -1 | 1): () => void {
   const history = tab.webContents.navigationHistory
-  const entries = history.getAllEntries()
-  const further = step < 0 ? entries.slice(0, Math.max(activeIndex - 1, 0)) : entries.slice(activeIndex + 2)
-  const groupId = tab.mcpGroupId
-  if (groupId && further.some(entry => !workspaceMayOpen(browser, groupId, entry.url))) {
-    return () => history.goToIndex(activeIndex + step)
+  return () => {
+    const groupId = tab.mcpGroupId
+    if (groupId) {
+      const entries = history.getAllEntries()
+      const further = step < 0 ? entries.slice(0, Math.max(activeIndex - 1, 0)) : entries.slice(activeIndex + 2)
+      if (further.some(entry => !workspaceMayOpen(browser, groupId, entry.url))) {
+        history.goToIndex(activeIndex + step)
+        return
+      }
+    }
+    if (step < 0) history.goBack()
+    else history.goForward()
   }
-  return step < 0 ? () => history.goBack() : () => history.goForward()
 }
 
 /**
