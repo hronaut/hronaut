@@ -42,7 +42,8 @@ describe('Chrome\'s keys a website may keep', () => {
       ['Ctrl+E', 'focus-address'], ['Alt+Home', 'open-home'],
       ['F3', 'find-next'], ['Shift+F3', 'find-previous'],
       ['Ctrl+Shift+PageDown', 'move-tab-next'], ['Ctrl+Shift+PageUp', 'move-tab-previous'],
-      ['Ctrl+1', 'select-tab-1'], ['Ctrl+8', 'select-tab-8'], ['Ctrl+9', 'select-last-tab']
+      ['Ctrl+1', 'select-tab-1'], ['Ctrl+8', 'select-tab-8'], ['Ctrl+9', 'select-last-tab'],
+      ['Ctrl+num1', 'select-tab-1'], ['Ctrl+num8', 'select-tab-8'], ['Ctrl+num9', 'select-last-tab']
     ] as const) {
       const item = key(accelerator)!
       expect(item.visible, accelerator).toBe(false)

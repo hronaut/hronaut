@@ -93,7 +93,8 @@ describe('keys pressed in a page', () => {
 
   it('leaves a workspace key an agent sends to the page, so an agent cannot switch the person\'s workspace', () => {
     for (const action of workspaceActions) expect(pageShortcut(action, { available: true, expectedAgentInput: true })).toBeNull()
-    // Tab keys an agent sends still work as before.
+    // Tab keys an agent sends, such as Cmd+1 on macOS, still work as before; elsewhere Ctrl with a digit goes to the
+    // page first, for the person as for an agent.
     expect(pageShortcut('select-tab-1', { available: true, expectedAgentInput: true })).toBe('select-tab-1')
   })
 })

@@ -131,8 +131,12 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
       item(host.text('native.menu.findPrevious'), 'Shift+F3', 'find-previous'),
       item(host.text('runtime.shortcuts.moveTabNext'), 'Ctrl+Shift+PageDown', 'move-tab-next'),
       item(host.text('runtime.shortcuts.moveTabPrevious'), 'Ctrl+Shift+PageUp', 'move-tab-previous'),
-      ...TAB_POSITIONS.map((position) => item(host.text('runtime.shortcuts.directTab'), `Ctrl+${position}`, `select-tab-${position}` as const)),
-      item(host.text('runtime.shortcuts.lastTab'), 'Ctrl+9', 'select-last-tab')
+      // With the digits of the number row and, as in Chrome, of the numeric keypad.
+      ...TAB_POSITIONS.flatMap((position) => [`Ctrl+${position}`, `Ctrl+num${position}`].map((accelerator) => (
+        item(host.text('runtime.shortcuts.directTab'), accelerator, `select-tab-${position}` as const)
+      ))),
+      item(host.text('runtime.shortcuts.lastTab'), 'Ctrl+9', 'select-last-tab'),
+      item(host.text('runtime.shortcuts.lastTab'), 'Ctrl+num9', 'select-last-tab')
     ]
   }
 

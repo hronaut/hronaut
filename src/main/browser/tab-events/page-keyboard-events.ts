@@ -1,5 +1,5 @@
 import type { Input, WebContents } from 'electron'
-import { browserShortcutAction, websiteKeptShortcutAction, type BrowserShortcutAction } from '../../../shared/browser-shortcuts.js'
+import { browserShortcutAction, websiteKeptShortcutAction, type BrowserShortcutAction, type BrowserShortcutInput } from '../../../shared/browser-shortcuts.js'
 import type { Browser } from '../browser.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { consumeExpectedAgentKeyboardInput } from '../agent-input-authorization/agent-input-authorization.js'
@@ -51,9 +51,9 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
         composing: input.isComposing,
         mac: process.platform === 'darwin'
       }
-      // The page cannot have a key a website may keep, such as F5 or Ctrl+1, so the browser takes it, as it does
-      // its own keys.
-      const shortcut = input.type === 'keyDown' ? browserShortcutAction(keys) ?? websiteKeptShortcutAction(keys) : null
+      // The page cannot have Ctrl with a digit, a key a website may keep, which went to the tabs from here before it
+      // was one; the other such keys, such as F5, stay dead here, as they are in Hronaut's window under its dialogs.
+      const shortcut = input.type === 'keyDown' ? browserShortcutAction(keys) ?? tabNumberKey(keys) : null
       if (shortcut) {
         notePageShortcutKey(browser, webContents, input, shortcut)
         browser.options.onShortcutRequested?.(shortcut)
@@ -130,7 +130,7 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
     if (browser.isHumanInteractionLocked(tab) && !expectedAgentInput) {
       event.preventDefault()
       // The locked page cannot have a key a website may keep, such as F5 or Ctrl+1, which the menu then never got
-      // either, so the browser takes it, as it does its own keys.
+      // either, so the browser takes it, as it does its own keys; F6 goes on to the address bar, as from the page.
       const kept = !shortcut && input.type === 'keyDown' ? websiteKeptShortcutAction(keys) : null
       const taken = shortcut ?? (kept && browser.options.shortcutAvailable?.(kept, tab.mcpGroupId, tab.id) !== false ? kept : null)
       if (taken) {
@@ -158,6 +158,12 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
       event.preventDefault()
       return
     }
+    if (!input.isAutoRepeat && input.type === 'keyDown' && input.code && !expectedAgentInput && websiteKeptShortcutAction(keys)) {
+      // A key a website may keep, such as Ctrl+2, goes to the page first and to the menu when the page leaves it alone.
+      // Held down, it repeats into this page only: not into the page of the tab the menu went to, as a web editor
+      // there would read each repeat as its own Ctrl+2.
+      browser.pageShortcutKey = { code: input.code, webContentsId: webContents.id }
+    }
     browser.reproRecorder.observeReproKeyboard(tab, input)
     // The overview shows the page as it was last seen, after the latest typing settles.
     if (input.type === 'keyUp') scheduleTabOverviewPreview(browser, tab, TAB_OVERVIEW_INPUT_SETTLE_MS)
@@ -169,6 +175,12 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
       browser.options.onUserInteraction?.({ tabId: tab.id, workspaceId: tab.mcpGroupId })
     }
   })
+}
+
+/** Ctrl with a digit elsewhere than macOS, which goes to that tab once the page leaves it alone. */
+function tabNumberKey(keys: BrowserShortcutInput): BrowserShortcutAction | null {
+  const kept = websiteKeptShortcutAction(keys)
+  return kept?.startsWith('select-tab-') || kept === 'select-last-tab' ? kept : null
 }
 
 /**

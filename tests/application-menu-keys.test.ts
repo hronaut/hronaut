@@ -57,6 +57,8 @@ function press(accelerator: string, mac: boolean): BrowserShortcutInput {
     if (optionKey === undefined) throw new Error(`No Option character for ${accelerator}`)
     key = { key: optionKey, code: `Key${name}` }
   } else if (/^[0-9]$/u.test(name)) key = { key: name, code: `Digit${name}` }
+  // Electron's num0 to num9 are the digits of the numeric keypad.
+  else if (/^num[0-9]$/u.test(name)) key = { key: name.slice(3), code: `Numpad${name.slice(3)}` }
   else if (/^F[0-9]{1,2}$/u.test(name)) key = { key: name, code: name }
   else throw new Error(`Unknown key in ${accelerator}`)
   const shift = modifiers.has('Shift') || key.shift === true
