@@ -31,9 +31,10 @@ interface BrowserSessionHost {
   effectiveDownloadDirectory(): string
   /**
    * Asks the person in Hronaut's own dialog over the main window's pages, where every tab is shown, or in the system
-   * dialog while that window cannot show it; resolves with the chosen button as `dialog.showMessageBox` does.
+   * dialog while that window cannot show it; resolves with the chosen button as `dialog.showMessageBox` does, and
+   * `unanswered` when it closed with its cancel answer because nobody could answer it, as when Hronaut quits meanwhile.
    */
-  showDialog(options: Omit<TrustedDialogOptions, 'window'>): Promise<{ response: number }>
+  showDialog(options: Omit<TrustedDialogOptions, 'window'>): Promise<{ response: number, unanswered?: true }>
   /** The open and archived workspaces, read when a permission prompt names the one it asks in. */
   workspaces(): ReadonlyArray<{ id: string, name: string }>
   /** The persistent session and the site permissions; index.ts creates the record, and other features read it too. */
@@ -138,6 +139,12 @@ interface PagePermissionRequests {
   denied: Set<string>
   /** What the person allowed for the page's document, by page document, website, permission and scope. */
   allowed: Set<string>
+  /**
+   * Whether the page asked to open a link in another app since the person last clicked, pressed a key or touched it,
+   * in any of its frames. As in Chrome, a page then asks no more until they do, so it cannot ask over and over, a new
+   * scheme each time.
+   */
+  appLinkAsked: boolean
 }
 
 /** How long after a website's Save dialog empties the file the person picked Hronaut still takes it for that file. */
@@ -213,8 +220,21 @@ export function createBrowserSession(host: BrowserSessionHost): {
   function permissionRequestsOf(webContents: WebContents): PagePermissionRequests {
     const known = pagePermissionRequests.get(webContents)
     if (known) return known
-    const page: PagePermissionRequests = { pageDocument: ++documentCount, frameDocuments: new Map(), prompts: new Map(), denied: new Set(), allowed: new Set() }
+    const page: PagePermissionRequests = {
+      pageDocument: ++documentCount, frameDocuments: new Map(), prompts: new Map(), denied: new Set(), allowed: new Set(), appLinkAsked: false
+    }
     pagePermissionRequests.set(webContents, page)
+    // Electron reports a click or key in any of the page's frames before the page gets it, and a touch only on the page
+    // itself, which is enough for a computer without a touch screen.
+    webContents.on('before-mouse-event', (_event, mouse) => {
+      if (mouse.type === 'mouseDown') page.appLinkAsked = false
+    })
+    webContents.on('before-input-event', (_event, input) => {
+      if (input.type === 'keyDown') page.appLinkAsked = false
+    })
+    webContents.on('input-event', (_event, input) => {
+      if (input.type === 'touchStart') page.appLinkAsked = false
+    })
     webContents.on('did-frame-navigate', (_event, _url, _httpResponseCode, _httpStatusText, isMainFrame, frameProcessId, frameRoutingId) => {
       if (webContents.isDestroyed()) return
       const mainFrame = webContents.mainFrame
@@ -430,12 +450,20 @@ export function createBrowserSession(host: BrowserSessionHost): {
         return
       }
       // One prompt answers identical requests from the same frame's document. Electron opens the link each answer
-      // belongs to, so only the same link shares a prompt: one Allow must not open several different links.
+      // belongs to, so a link to another app shares no prompt: one Allow must not open it, or other links, several times.
       const request = [frameTreeNodeId, document, origin, permission, externalLink?.url ?? scope].join('\u0000')
       const waiting = page.prompts.get(request)
       if (waiting) {
-        void waiting.then(respond)
+        if (externalLink) respond(false)
+        else void waiting.then(respond)
         return
+      }
+      if (permission === 'openExternal') {
+        if (page.appLinkAsked) {
+          respond(false)
+          return
+        }
+        page.appLinkAsked = true
       }
       const requestIsCurrent = (): boolean => {
         if (webContents.isDestroyed() || (page.frameDocuments.get(frameTreeNodeId) ?? page.pageDocument) !== document) return false
@@ -519,8 +547,9 @@ export function createBrowserSession(host: BrowserSessionHost): {
           ...(externalLink ? { externalScheme: shownScheme(externalLink.scheme) } : {})
         }
         let response: number
+        let unanswered: true | undefined
         try {
-          ({ response } = await host.showDialog({
+          ({ response, unanswered } = await host.showDialog({
             variant,
             signal: promptClosing.signal,
             type: 'question',
@@ -543,7 +572,8 @@ export function createBrowserSession(host: BrowserSessionHost): {
           webContents.removeListener('did-fail-load', closeWhenStale)
           webContents.removeListener('destroyed', closeWhenStale)
         }
-        if (promptClosing.signal.aborted || !requestIsCurrent()) return false
+        // A prompt nobody answered, as when Hronaut quits while it shows, refuses this request and keeps no Deny.
+        if (unanswered || promptClosing.signal.aborted || !requestIsCurrent()) return false
         const decision: SitePermissionDecision = response === 1 ? 'allow' : 'deny'
         if (requiresFreshConsent) {
           // Allow is never reused, but Deny holds for the page's document: a page that asks again at once, or many

@@ -16,7 +16,8 @@ const { registerBrowsingDataIpc } = await import('../src/main/site-data/browsing
 
 type RequestHandler = Parameters<Session['setPermissionRequestHandler']>[0] & {}
 type CheckHandler = Parameters<Session['setPermissionCheckHandler']>[0] & {}
-type Answer = 'allow' | 'deny'
+/** The person's answer to a prompt, or `unanswered` when it closed with nobody to answer it, as when Hronaut quits. */
+type Answer = 'allow' | 'deny' | 'unanswered'
 
 interface FakeFrame {
   frameTreeNodeId: number
@@ -68,7 +69,9 @@ async function createHarness(locale: SupportedLocale = 'en-US') {
       shown.push(options)
       // Electron closes the box as if it were cancelled once its signal aborts.
       const closed = new Promise<Answer>((resolve) => { options.signal?.addEventListener('abort', () => resolve('deny')) })
-      return { response: await Promise.race([harness.decide(options), closed]) === 'allow' ? 1 : 0, checkboxChecked: false }
+      const answer = await Promise.race([harness.decide(options), closed])
+      if (answer === 'unanswered') return { response: 0, checkboxChecked: false, unanswered: true as const }
+      return { response: answer === 'allow' ? 1 : 0, checkboxChecked: false }
     },
     workspaces: () => harness.workspaces,
     state: { persistentSession: null, sitePermissionStore: store },
@@ -167,6 +170,11 @@ function answerLater(harness: { decide: (options: MessageBoxOptions) => Answer |
 const meet = { url: 'https://meet.example/join', origin: 'https://meet.example' }
 const fromMeet = { requestingUrl: meet.url, isMainFrame: true }
 
+/** The person clicks in the page, in any of its frames, which Electron reports before the page gets it. */
+function click(page: { contents: EventEmitter }): void {
+  page.contents.emit('before-mouse-event', {}, { type: 'mouseDown' })
+}
+
 describe('links that open another app', () => {
   it('names the link scheme, never the whole link, and asks again for every link', async () => {
     // The prompt used to read "https://meet.example requests “openExternal” permission." without naming the app, and
@@ -182,6 +190,7 @@ describe('links that open another app', () => {
     })
     expect(`${harness.shown[0]!.message} ${harness.shown[0]!.detail}`).not.toMatch(/zoom\.us|confno|secret/)
 
+    click(page)
     expect(await ask(harness, page, 'openExternal', { ...fromMeet, externalURL: 'ms-msdt:/id PCWDiagnostic /skip force' })).toBe(true)
     expect(harness.shown).toHaveLength(2)
     expect(harness.shown[1]!.detail).toContain('ms-msdt:')
@@ -198,11 +207,14 @@ describe('links that open another app', () => {
     const clone = open('vscode://vscode.git/clone?url=https://good.example/repo')
     await vi.waitFor(() => expect(harness.shown).toHaveLength(1))
     const sameClone = open('vscode://vscode.git/clone?url=https://good.example/repo')
+    click(page)
     const otherClone = open('vscode://vscode.git/clone?url=https://evil.example/repo')
+    click(page)
     const file = open('vscode://file/etc/passwd')
     answers[0]!('allow')
     expect(await clone).toBe(true)
-    expect(await sameClone).toBe(true)
+    // The same link asked again while its prompt showed is refused, so one Allow opens it once.
+    expect(await sameClone).toBe(false)
 
     await vi.waitFor(() => expect(harness.shown).toHaveLength(2))
     answers[1]!('deny')
@@ -212,10 +224,41 @@ describe('links that open another app', () => {
     expect(harness.shown).toHaveLength(2)
 
     // Another app's links still ask.
+    click(page)
     const zoom = open('zoommtg://zoom.us/join')
     await vi.waitFor(() => expect(harness.shown).toHaveLength(3))
     answers[2]!('allow')
     expect(await zoom).toBe(true)
+  })
+
+  it('asks once, then refuses every link until the person clicks or presses a key in the page, as Chrome does', async () => {
+    // A page could ask over and over, a new scheme each time, keeping the person busy with prompts.
+    const harness = await createHarness()
+    const page = createPage(meet)
+    const open = (url: string): Promise<boolean> => ask(harness, page, 'openExternal', { ...fromMeet, externalURL: url })
+    expect(await open('x1:go')).toBe(false)
+    for (const url of ['x2:go', 'x3:go', 'zoommtg://zoom.us/join']) expect(await open(url), url).toBe(false)
+    expect(harness.shown).toHaveLength(1)
+    // A link of a scheme the person denied is refused without using up the page's next ask.
+    click(page)
+    expect(await open('x1:again')).toBe(false)
+    harness.decide = () => 'allow'
+    expect(await open('zoommtg://zoom.us/join')).toBe(true)
+    expect(harness.shown).toHaveLength(2)
+    // Neither moving the pointer, releasing a key nor a new document lets it ask again.
+    page.contents.emit('before-mouse-event', {}, { type: 'mouseMove' })
+    page.contents.emit('before-input-event', {}, { type: 'keyUp' })
+    page.navigate(page.frames[0]!, 'https://meet.example/again')
+    expect(await open('zoommtg://zoom.us/join?second')).toBe(false)
+    expect(harness.shown).toHaveLength(2)
+    page.contents.emit('before-input-event', {}, { type: 'keyDown' })
+    expect(await open('zoommtg://zoom.us/join?second')).toBe(true)
+    page.contents.emit('input-event', {}, { type: 'touchStart' })
+    expect(await open('zoommtg://zoom.us/join?third')).toBe(true)
+    expect(harness.shown).toHaveLength(4)
+    // Other permissions still ask.
+    expect(await ask(harness, page, 'notifications', { requestingUrl: 'https://meet.example/again', isMainFrame: true })).toBe(true)
+    expect(harness.shown).toHaveLength(5)
   })
 
   it('cuts a very long scheme short in the prompt', async () => {
@@ -808,5 +851,22 @@ describe('decisions that belong to a workspace and a page', () => {
     // Nothing to forget tells the shell nothing.
     await harness.forgetWorkspaceSitePermissions(CLIENT)
     expect(harness.sent).toHaveLength(1)
+  })
+})
+
+describe('a prompt nobody answered', () => {
+  it('keeps no decision, as when Hronaut quits while it shows, and the website may ask again', async () => {
+    // Quitting while a prompt showed saved a Deny the person never chose, which blocked the website for good.
+    const harness = await createHarness()
+    harness.decide = () => 'unanswered'
+    const page = createPage(meet)
+    const camera = { ...fromMeet, mediaTypes: ['video'] }
+    expect(await ask(harness, page, 'geolocation', fromMeet)).toBe(false)
+    expect(await ask(harness, page, 'media', camera)).toBe(false)
+    expect(harness.store.list()).toEqual([])
+    harness.decide = () => 'allow'
+    expect(await ask(harness, page, 'geolocation', fromMeet)).toBe(true)
+    expect(await ask(harness, page, 'media', camera)).toBe(true)
+    expect(harness.shown).toHaveLength(4)
   })
 })
