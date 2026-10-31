@@ -24,7 +24,9 @@ export class PageFindController {
     // As in Chrome, a search waits as long as the page takes to count its matches, which on a very long page, such as
     // a large log, takes many seconds. It ends when the person searches again or closes Find, or the page goes.
     return new Promise((resolve, reject) => {
-      let requestId = -1
+      let requestId: number | undefined
+      // Chromium may answer before findInPage returns the request's id, such as when the page has no document to search.
+      const answeredEarly: Electron.Result[] = []
       const cleanup = (): void => {
         webContents.removeListener('found-in-page', onFound)
         webContents.removeListener('destroyed', onDestroyed)
@@ -35,11 +37,15 @@ export class PageFindController {
         cleanup()
         reject(new Error('Page search was cancelled or superseded'))
       }
-      const onFound = (_event: Electron.Event, result: Electron.Result): void => {
-        if (result.requestId !== requestId || !result.finalUpdate) return
+      const settle = (result: Electron.Result): void => {
         cleanup()
         if (result.activeMatchOrdinal > 0) this.matched.add(webContents)
         resolve({ activeMatchOrdinal: result.activeMatchOrdinal, matches: result.matches })
+      }
+      const onFound = (_event: Electron.Event, result: Electron.Result): void => {
+        if (!result.finalUpdate) return
+        if (requestId === undefined) answeredEarly.push(result)
+        else if (result.requestId === requestId) settle(result)
       }
       const onDestroyed = (): void => {
         cleanup()
@@ -58,7 +64,10 @@ export class PageFindController {
       } catch (error) {
         cleanup()
         reject(error)
+        return
       }
+      const answer = answeredEarly.find((result) => result.requestId === requestId)
+      if (answer !== undefined && this.pending.get(webContents) === cancel) settle(answer)
     })
   }
 
