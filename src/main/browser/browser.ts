@@ -169,6 +169,10 @@ export interface BrowserOptions {
   profilePath: string
   downloadDirectory: string
   askWhereToSaveDownloads: boolean
+  /** The folder the last save dialog saved into, as the settings keep it; none until one saved. */
+  getSaveDialogDirectory?: () => string | null
+  /** Keeps the folder a save dialog saved into for the next one, as the settings do. */
+  setSaveDialogDirectory?: (folder: string) => void
   memorySaverEnabled?: boolean
   memorySaverTimeoutMinutes?: MemorySaverTimeoutMinutes
   followAgentActivity?: boolean

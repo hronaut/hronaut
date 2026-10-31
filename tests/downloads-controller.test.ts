@@ -42,6 +42,8 @@ async function fixture(askWhereToSaveDownloads = false, platform?: NodeJS.Platfo
   const deniedAddresses = new Set<string>()
   const published: BrowserDownloadState[][] = []
   const ready: (number | undefined)[] = []
+  /** The file each ready download was saved as in the save dialog, if it was asked for. */
+  const savedFromDialog: (string | undefined)[] = []
   const controller = new BrowserDownloadsController({
     getSettings: () => ({ downloadDirectory: directory, saveDialogTitle: 'Save', askWhereToSaveDownloads }),
     // Tab 3's page is in no workspace.
@@ -50,7 +52,7 @@ async function fixture(askWhereToSaveDownloads = false, platform?: NodeJS.Platfo
     isWorkspaceOpen: id => openWorkspaces.has(id),
     retrySession: id => (openWorkspaces.has(id) ? session as unknown as Session : undefined),
     allowsAddress: (_id, url) => !deniedAddresses.has(url),
-    downloadReady: id => { ready.push(id) },
+    downloadReady: (id, saved) => { ready.push(id); savedFromDialog.push(saved) },
     isAvailable: () => true,
     publish: downloads => { published.push(downloads) }
   }, platform)
@@ -100,7 +102,7 @@ async function fixture(askWhereToSaveDownloads = false, platform?: NodeJS.Platfo
       complete: () => { state = 'completed'; item.emit('done', {}, state) }
     }
   }
-  return { controller, session, downloadURL, generations, openWorkspaces, deniedAddresses, download, published, ready }
+  return { controller, session, downloadURL, generations, openWorkspaces, deniedAddresses, download, published, ready, savedFromDialog }
 }
 
 it('redacts URL credentials and token parameters before exposing download history', async () => {
@@ -547,6 +549,24 @@ it('lists a download once the person chose where to save it, and none they cance
   chosen.complete()
   expect(controller.manageWorkspaceDownloads('first', 'list').map(({ filename, state }) => ({ filename, state })))
     .toEqual([{ filename: 'chosen.txt', state: 'completed' }])
+})
+
+it('says which file the person chose in the save dialog, so the next dialog starts in its folder, as in Chrome', async () => {
+  const asking = await fixture(true)
+  const chosen = asking.download(1, false, 'https://download.example/chosen.txt', 'chosen.txt')
+  ;(chosen.item as DownloadItem).setSavePath(join(tmpdir(), 'picked', 'chosen.txt'))
+  chosen.item.emit('updated', {}, 'progressing')
+  asking.download(1, false, 'https://download.example/cancelled.txt', 'cancelled.txt').cancel()
+  // A small file can finish before Electron says it is under way.
+  const quick = asking.download(1, false, 'https://download.example/quick.txt', 'quick.txt')
+  ;(quick.item as DownloadItem).setSavePath(join(tmpdir(), 'other', 'quick.txt'))
+  quick.complete()
+  expect(asking.savedFromDialog).toEqual([join(tmpdir(), 'picked', 'chosen.txt'), undefined, join(tmpdir(), 'other', 'quick.txt')])
+
+  // A download saved without asking leaves the save dialog's folder alone.
+  const saving = await fixture()
+  saving.download(1).complete()
+  expect(saving.savedFromDialog).toEqual([undefined])
 })
 
 it('keeps a download that has its file when it is cancelled, as Chrome lists it as Cancelled', async () => {

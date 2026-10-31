@@ -22,17 +22,21 @@ let root: string
 beforeEach(async () => { root = await mkdtemp(join(tmpdir(), 'hronaut-download-folder-')) })
 afterEach(async () => { await rm(root, { recursive: true, force: true }) })
 
-function settingsIpc(options: { directory: string, openPath?: () => Promise<string>, chosen?: string }) {
+function settingsIpc(options: { directory: string, openPath?: () => Promise<string>, chosen?: string, saveDialogDirectory?: string }) {
   const handlers = new Map<string, Handler>()
   const ipcMain = { handle: (channel: string, handler: Handler) => { handlers.set(channel, handler) }, on: () => ipcMain } as unknown as IpcMain
   const translated = withTranslatedIpcErrors(ipcMain, { isHronautPage: () => true, text: (key, parameters) => translate('de-DE', key, parameters) })
   const openPath = vi.fn(options.openPath ?? (async () => ''))
   const setDownloadPath = vi.fn()
+  const save = vi.fn(async () => undefined)
+  const settings = { ...DEFAULT_SETTINGS, saveDialogDirectory: options.saveDialogDirectory ?? null }
   // The real settings runtime, so choosing a folder creates it the way Hronaut does before saving the setting.
   const runtime = createSettingsRuntime({
-    state: { store: null, persisted: DEFAULT_SETTINGS, current: DEFAULT_SETTINGS, systemLocale: 'de-DE', resolvedLocale: 'de-DE', mutationQueue: Promise.resolve(), startupLaunchManager: null },
+    state: { store: { save }, persisted: settings, current: settings, systemLocale: 'de-DE', resolvedLocale: 'de-DE', mutationQueue: Promise.resolve(), startupLaunchManager: null },
     persistentSession: () => ({ setDownloadPath }),
-    tabs: () => null
+    tabs: () => null,
+    sendToShellWindows: () => undefined,
+    mainWindowRefs: { material: undefined }
   } as never)
   registerSettingsIpc(translated, {
     assertTrustedSender: () => undefined,
@@ -43,7 +47,7 @@ function settingsIpc(options: { directory: string, openPath?: () => Promise<stri
     applyDownloadSettings: runtime.applyDownloadSettings
   } as never)
   const invoke = (channel: string) => Promise.resolve().then(() => handlers.get(channel)!({} as IpcMainInvokeEvent))
-  return { invoke, openPath, setDownloadPath }
+  return { invoke, openPath, setDownloadPath, save, runtime }
 }
 
 describe('opening the download folder from Settings', () => {
@@ -78,5 +82,27 @@ describe('choosing the download folder in Settings', () => {
     expect(error).toBeInstanceOf(Error)
     expect((error as Error).message).toBe('Eine Datei steht dem Downloadordner im Weg (ENOTDIR). Wählen Sie einen anderen Ordner.')
     expect(setDownloadPath).not.toHaveBeenCalled()
+  })
+})
+
+describe('the folder the save dialogs start in', () => {
+  it('is the one the last save dialog saved into, kept with the settings, until the person picks a download folder, as in Chrome', async () => {
+    const last = join(root, 'Last')
+    const { invoke, save, runtime } = settingsIpc({ directory: join(root, 'Downloads'), chosen: join(root, 'Picked') })
+    const options = runtime.browserDownloadOptions()
+    expect(options.getSaveDialogDirectory!()).toBeNull()
+    options.setSaveDialogDirectory!(last)
+    await vi.waitFor(() => { expect(options.getSaveDialogDirectory!()).toBe(last) })
+    expect(save).toHaveBeenLastCalledWith(expect.objectContaining({ saveDialogDirectory: last }))
+
+    const chosen = await invoke('settings:choose-download-directory') as { settings: { saveDialogDirectory: string | null }, canceled: boolean }
+    expect(chosen).toMatchObject({ canceled: false, settings: { downloadDirectory: join(root, 'Picked'), saveDialogDirectory: null } })
+    expect(options.getSaveDialogDirectory!()).toBeNull()
+  })
+
+  it('goes back to the download folder when Settings resets downloads', async () => {
+    const { invoke, runtime } = settingsIpc({ directory: join(root, 'Downloads'), saveDialogDirectory: join(root, 'Last') })
+    await expect(invoke('settings:reset-downloads')).resolves.toMatchObject({ saveDialogDirectory: null })
+    expect(runtime.browserDownloadOptions().getSaveDialogDirectory!()).toBeNull()
   })
 })

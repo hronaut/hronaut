@@ -9,6 +9,7 @@ import { workspaceSession } from '../workspace-data/workspace-data.js'
 import { workspaceNavigationAllowed } from '../workspace-navigation/workspace-navigation.js'
 import { assertWorkspaceIdle } from '../workspace-operations/workspace-operations.js'
 import { BrowserDownloadsController } from './downloads-controller.js'
+import { checkSaveDialogFolder, rememberSaveDialogFolder, saveDialogFolder } from './save-dialog-folder.js'
 import { DOWNLOADS_IPC } from '../../../shared/ipc/downloads.js'
 import { sendTo } from '../../typed-ipc.js'
 
@@ -17,9 +18,12 @@ import { sendTo } from '../../typed-ipc.js'
  * retry uses, and the Downloads panel they are shown in.
  */
 export function createDownloadsController(browser: Browser): BrowserDownloadsController {
+  // Known by the first save dialog, which may come as soon as a page opens.
+  void checkSaveDialogFolder(browser)
   return new BrowserDownloadsController({
     getSettings: () => ({
-      downloadDirectory: browser.options.downloadDirectory,
+      // The folder a download is saved in, or its save dialog starts in, as in Chrome, when Hronaut asks where to save.
+      downloadDirectory: browser.options.askWhereToSaveDownloads ? saveDialogFolder(browser) : browser.options.downloadDirectory,
       askWhereToSaveDownloads: browser.options.askWhereToSaveDownloads,
       saveDialogTitle: browser.text('native.dialog.saveDownload')
     }),
@@ -45,7 +49,10 @@ export function createDownloadsController(browser: Browser): BrowserDownloadsCon
       return browserSession
     },
     allowsAddress: (workspaceId, url, source) => browser.mcpTabGroups.has(workspaceId) && workspaceNavigationAllowed(browser, workspaceId, url, source),
-    downloadReady: (webContentsId) => closeTabLeftEmptyByDownload(browser, webContentsId),
+    downloadReady: (webContentsId, savedFromDialog) => {
+      if (savedFromDialog) rememberSaveDialogFolder(browser, savedFromDialog)
+      closeTabLeftEmptyByDownload(browser, webContentsId)
+    },
     isAvailable: () => !browser.destroyed && !browser.window.isDestroyed(),
     publish: (downloads) => {
       if (browser.destroyed || browser.window.isDestroyed() || browser.window.webContents.isDestroyed()) return

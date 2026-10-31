@@ -74,6 +74,11 @@ export interface AppSettings {
   mcpToolSet: import('../mcp-tool-sets.js').McpToolSet
   downloadDirectory: string | null
   askWhereToSaveDownloads: boolean
+  /**
+   * The folder the last save dialog saved into, where the next one starts, as Chrome's; not shown in Settings. None
+   * until a save dialog saved, and none again once the person picks a download folder.
+   */
+  saveDialogDirectory: string | null
   memorySaverEnabled: boolean
   memorySaverTimeoutMinutes: MemorySaverTimeoutMinutes
   /**
