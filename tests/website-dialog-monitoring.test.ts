@@ -117,3 +117,34 @@ describe('dialog monitoring on a page that has not loaded yet', () => {
     expect(f.commands).toEqual(['Page.enable', 'Page.getFrameTree', 'Runtime.enable', 'Runtime.setAsyncCallStackDepth', 'Log.enable', 'Audits.enable', 'Network.enable', 'Input.setIgnoreInputEvents'])
   })
 })
+
+describe('dialog monitoring that is already in place', () => {
+  // An agent's network or issues tool set monitoring up again while a website dialog held the page. Enabling the page's
+  // domains waited for the page, and every debugger operation waited for that, the agent's dialog answer included.
+  it('enables nothing again until the debugger detaches', async () => {
+    const f = fixture()
+    f.state.crashed = false
+    await ensureDialogMonitoring(f.browser, f.tab as never)
+    expect(f.tab.networkDebuggerEnabled).toBe(true)
+    f.commands.length = 0
+
+    await ensureDialogMonitoring(f.browser, f.tab as never)
+    expect(f.commands).toEqual([])
+    expect(f.attachments.size).toBe(0)
+
+    // The debugger detached, as for Developer Tools, which forgets the page's monitoring.
+    f.state.attached = false
+    f.tab.networkDebuggerEnabled = false
+    await ensureDialogMonitoring(f.browser, f.tab as never)
+    expect(f.commands).toEqual(['Page.enable', 'Page.getFrameTree', 'Runtime.enable', 'Runtime.setAsyncCallStackDepth', 'Log.enable', 'Audits.enable', 'Network.enable', 'Input.setIgnoreInputEvents'])
+  })
+
+  it('sets monitoring up in full on a debugger another operation attached', async () => {
+    const f = fixture()
+    f.state.crashed = false
+    f.state.attached = true
+    await ensureDialogMonitoring(f.browser, f.tab as never)
+    expect(f.commands).toEqual(['Page.enable', 'Page.getFrameTree', 'Runtime.enable', 'Runtime.setAsyncCallStackDepth', 'Log.enable', 'Audits.enable', 'Network.enable', 'Input.setIgnoreInputEvents'])
+    expect(f.tab.networkDebuggerEnabled).toBe(true)
+  })
+})
