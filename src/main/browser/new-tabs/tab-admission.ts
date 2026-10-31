@@ -16,9 +16,10 @@ export function assertCanCreateTab(browser: Browser, mcpGroupId: string | undefi
 
 /**
  * The web preferences of every website tab: Hronaut's page script in an isolated world, a sandboxed renderer without
- * Node, and the web's own security. A page a tab opens for a window gets them too. As in Chrome, a website's second
- * alert or confirm box onward offers to stop its boxes, so a page that shows them one after another cannot hold the
- * window, which each box blocks until it is answered.
+ * Node, and the web's own security. A page a tab opens for a window gets them too. Like Chrome, a website's second
+ * alert or confirm box onward in a tab offers to stop its boxes, so a page that shows them one after another cannot
+ * hold the window, which each box blocks until it is answered; Electron keeps them stopped until the tab closes. The
+ * offer's text is in the language Hronaut had when the tab opened: a live page's preferences cannot change.
  */
 export function pageWebPreferences(browser: Browser): WebPreferences {
   return {

@@ -17,14 +17,14 @@ test('offers to stop a website\'s boxes from its second one on, as Chrome does',
   if (!address || typeof address === 'string') throw new Error('Missing fixture port')
   const url = `http://127.0.0.1:${address.port}/boxes`
   try {
-    // The person answers each box with OK, and ticks its box to stop them on the second one.
+    // The person answers each box with OK, and ticks the offer to stop them where a box makes it.
     await electronApp.evaluate(({ dialog }) => {
       const seen: Array<{ message: string, checkboxLabel?: string }> = []
       ;(globalThis as BoxesGlobal).__pageBoxes = seen
       dialog.showMessageBox = (async (...args: unknown[]) => {
         const options = (args.length > 1 ? args[1] : args[0]) as Electron.MessageBoxOptions
         seen.push({ message: options.message, checkboxLabel: options.checkboxLabel })
-        return { response: 0, checkboxChecked: seen.length === 2 }
+        return { response: 0, checkboxChecked: Boolean(options.checkboxLabel) && seen.length === 2 }
       }) as typeof dialog.showMessageBox
     })
     const created = await appWindow.evaluate(`window.hronaut.createWorkspace({ name: 'Boxes', storage: 'scratch' })`) as { mcpTabGroups: Array<{ id: string, name: string }> }

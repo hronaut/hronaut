@@ -4331,7 +4331,7 @@ export const ruRU: MessageSchema = {
       reloadPageMessage: 'Эта страница просит Hronaut подтвердить её перезагрузку.',
       reloadPageDetail: 'При перезагрузке страницы несохранённые изменения могут быть потеряны.',
       reloadPage: 'Перезагрузить страницу',
-      preventMoreDialogs: 'Запретить этой странице показывать другие диалоговые окна',
+      preventMoreDialogs: 'Запретить этой странице показывать дополнительные диалоговые окна',
       pageDestroyedTitle: 'Страница больше недоступна',
       pageDestroyedMessage: 'Закройте эту вкладку и откройте её снова из недавно закрытых.',
       pageUnavailable: 'Страница недоступна',
