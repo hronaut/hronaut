@@ -336,10 +336,15 @@ describe('workspace write leases', () => {
       expect(foreign.structuredContent).toMatchObject({ status: 'BUSY', reason: 'WORKSPACE_BUSY', effects: 'none' })
       expect(manager.handleDialog).not.toHaveBeenCalled()
 
-      const answered = await call(writer, 'browser_dialog', { workspaceId, action: 'accept' })
+      // The id of the dialog the agent read reaches the browser, which answers only that dialog.
+      const malformed = await call(writer, 'browser_dialog', { workspaceId, action: 'accept', dialogId: 'the-confirm' })
+      expect(malformed.isError, resultText(malformed)).toBe(true)
+      expect(manager.handleDialog).not.toHaveBeenCalled()
+      const dialogId = '5f0c8a1e-2b3d-4e6f-8a9b-0c1d2e3f4a5b'
+      const answered = await call(writer, 'browser_dialog', { workspaceId, action: 'accept', dialogId })
       expect(answered.isError, resultText(answered)).not.toBe(true)
       expect(manager.handleDialog).toHaveBeenCalledOnce()
-      expect(manager.handleDialog.mock.calls[0]![0]).toBe('accept')
+      expect(manager.handleDialog.mock.calls[0]).toEqual(['accept', tabId, dialogId])
       releaseClick()
       const clicked = await clicking
       expect(clicked.isError, resultText(clicked)).not.toBe(true)

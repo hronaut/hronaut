@@ -11,6 +11,7 @@ All notable changes to Hronaut are documented in this file.
 - Closing Find in page with Escape or its Close button left the keyboard in Hronaut's window, so Space, Page Down and the arrow keys no longer scrolled the page and typing went nowhere. As in Chrome, the page now takes the keyboard back.
 - The View menu's Actual Size, Zoom In and Zoom Out zoomed Hronaut Home and a page under Settings, which their keys leave alone, and Home stayed zoomed after restarting Hronaut. Chosen from the menu, they now zoom as their keys do, and Home always opens at 100%, also where it was zoomed before.
 - With Follow agents on, an agent working in another tab could take the view while you searched a page with Find, which closed Find and lost your place among its matches. Following now waits while the keyboard is in Find, as it does in the address bar.
+- An agent that answered a website's alert or confirm box after you had already answered it answered the page's next box instead, such as one asking to delete something. The tab and the agent's results now name each box, and an agent that passes that name answers only the box it read.
 
 ## [3.14.4] - 2026-10-31
 

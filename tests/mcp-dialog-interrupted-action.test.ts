@@ -4,6 +4,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { describe, expect, it, vi } from 'vitest'
 import { PrintDialogOpenError } from '../src/main/browser/print-dialog-guard.js'
 import { WebsiteDialogOpenError } from '../src/main/browser/website-dialog-guard.js'
+import { WebsiteDialogChangedError } from '../src/main/browser/website-dialogs/website-dialogs.js'
 import { McpHttpServer } from '../src/main/mcp/server.js'
 
 // The fake browser below stubs the functions its tool calls go through; these reach its stubs.
@@ -16,6 +17,10 @@ vi.mock('../src/main/browser/workspace-continuity/workspace-continuity.js', asyn
 vi.mock('../src/main/browser/agent-page-actions/click.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/agent-page-actions/click.js')>(),
   click: (browser: { click: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.click(...args)
+}))
+vi.mock('../src/main/browser/website-dialogs/website-dialogs.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/website-dialogs/website-dialogs.js')>(),
+  handleDialog: (browser: { handleDialog: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.handleDialog(...args)
 }))
 vi.mock('../src/main/browser/page-snapshots/page-snapshots.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/page-snapshots/page-snapshots.js')>(),
@@ -54,14 +59,15 @@ const tabId = '01912345-6790-7abc-8def-0123456789ab'
 const TOOL_CALLS = {
   browser_click: { selector: '#delete' },
   browser_find: { query: 'Delete' },
-  browser_live_region: { action: 'get' }
+  browser_live_region: { action: 'get' },
+  browser_dialog: { action: 'accept', dialogId: '5f0c8a1e-2b3d-4e6f-8a9b-0c1d2e3f4a5b' }
 }
 
 /**
  * Calls a tool whose page call fails with this error, on a tab that shows this website dialog; with loseAccess, the
  * person turns off agent access to the workspace while the call runs.
  */
-async function callStoppedBy(error: Error, tool: keyof typeof TOOL_CALLS, dialog?: { type: string; message: string }, loseAccess = false) {
+async function callStoppedBy(error: Error, tool: keyof typeof TOOL_CALLS, dialog?: { id?: string; type: string; message: string }, loseAccess = false) {
   const workspace = { id: workspaceId, name: 'Dialogs', agentAccess: true, contextClass: 'standard' }
   const manager = {
     suspendWorkspaceContinuity: vi.fn(() => false), requireWorkspaceContinuityDispatch: vi.fn(),
@@ -77,6 +83,7 @@ async function callStoppedBy(error: Error, tool: keyof typeof TOOL_CALLS, dialog
     }),
     findSnapshot: vi.fn(async () => { throw error }),
     liveRegion: vi.fn(async () => { throw error }),
+    handleDialog: vi.fn(async () => { throw error }),
     getMcpGroupState: vi.fn(() => ({
       activeTabId: tabId,
       tabs: [{ id: tabId, url: 'https://example.test/', navigationGeneration: 1, observationGeneration: 1, humanInteractionGeneration: 0,
@@ -168,5 +175,22 @@ describe('an agent\'s action that a page\'s dialog stops after it reached the pa
     const { result } = await callStoppedBy(new WebsiteDialogOpenError(true), 'browser_click', { type: 'confirm', message: 'Delete invoice 4471?' }, true)
     expect(result.structuredContent).toMatchObject({ status: 'OUTCOME_UNKNOWN', reason: 'WEBSITE_DIALOG_OPENED', retrySafe: false })
     expect(JSON.stringify(result)).not.toContain('invoice 4471')
+  })
+})
+
+// The agent read a confirm, the person answered it, and the page asked another. The agent's answer to the first was
+// refused, but the refusal read as a failure that may have answered something.
+describe('an agent\'s answer to a website dialog the tab no longer shows', () => {
+  it('reports that nothing was answered and names the dialog the tab shows now', async () => {
+    const shown = '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d'
+    const { result, text, activity, auditStatuses } = await callStoppedBy(new WebsiteDialogChangedError(), 'browser_dialog',
+      { id: shown, type: 'confirm', message: 'Delete the draft?' })
+    expect(result.isError).toBe(true)
+    expect(result.structuredContent).toMatchObject({
+      status: 'NOT_DISPATCHED', reason: 'DIALOG_CHANGED', dispatch: 'not-dispatched', effects: 'none', retrySafe: false
+    })
+    expect(text).toContain(`answer it with browser_dialog and dialogId "${shown}"`)
+    expect(activity).toMatchObject({ outcome: 'failed', dispatch: 'not-dispatched', effects: 'none' })
+    expect(auditStatuses).toEqual(['failed'])
   })
 })

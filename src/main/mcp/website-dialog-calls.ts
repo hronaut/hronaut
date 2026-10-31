@@ -10,7 +10,7 @@ import { textResult } from './tool-results.js'
 export function withWebsiteDialogNote(result: CallToolResult, dialog: BrowserJavaScriptDialog | undefined): CallToolResult {
   if (!dialog) return result
   const note = `The page now shows a website ${dialog.type}: ${JSON.stringify(dialog.message)}. `
-    + 'It answers nothing else until the dialog is answered; answer it with browser_dialog.'
+    + `It answers nothing else until the dialog is answered; answer it with browser_dialog and dialogId "${dialog.id}".`
   return { ...result, content: [...result.content, { type: 'text', text: note }] }
 }
 
