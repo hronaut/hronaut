@@ -85,26 +85,26 @@ function workspaceShortcut(input: BrowserShortcutInput): BrowserShortcutAction |
 
 /**
  * Chrome's other keys for changing tabs, which Chrome keeps from websites as it keeps Ctrl+Tab: Ctrl+Page Down and
- * Ctrl+Page Up elsewhere than macOS; on macOS, Cmd+Shift+] and Cmd+Shift+[ and Cmd+Option+Right and Cmd+Option+Left.
+ * Ctrl+Page Up, on macOS too, and there also Cmd+Shift+] and Cmd+Shift+[ and Cmd+Option+Right and Cmd+Option+Left.
  */
 function chromeTabShortcut(input: BrowserShortcutInput, key: string): BrowserShortcutAction | null {
-  if (input.mac) {
-    if (!input.meta || input.control) return null
-    // By the character, so a layout whose bracket key types a letter, such as German ü, gains no tab key.
-    if (input.shift && !input.alt && (input.key === '}' || input.key === ']')) return 'next-tab'
-    if (input.shift && !input.alt && (input.key === '{' || input.key === '[')) return 'previous-tab'
-    if (input.alt && !input.shift && key === 'arrowright') return 'next-tab'
-    if (input.alt && !input.shift && key === 'arrowleft') return 'previous-tab'
-    return null
+  if (input.control && !input.meta && !input.alt && !input.shift) {
+    if (key === 'pagedown') return 'next-tab'
+    if (key === 'pageup') return 'previous-tab'
   }
-  if (!input.control || input.meta || input.alt || input.shift) return null
-  return key === 'pagedown' ? 'next-tab' : key === 'pageup' ? 'previous-tab' : null
+  if (!input.mac || !input.meta || input.control) return null
+  // By the character, so a layout whose bracket key types a letter, such as German ü, gains no tab key.
+  if (input.shift && !input.alt && (input.key === '}' || input.key === ']')) return 'next-tab'
+  if (input.shift && !input.alt && (input.key === '{' || input.key === '[')) return 'previous-tab'
+  if (input.alt && !input.shift && key === 'arrowright') return 'next-tab'
+  if (input.alt && !input.shift && key === 'arrowleft') return 'previous-tab'
+  return null
 }
 
 /**
- * Chrome's keys a website may keep, elsewhere than macOS: F5 reloads, Shift+F5 or Ctrl+F5 reloads without the cache,
- * Alt+D and Ctrl+E go to the address bar, Alt+Home opens Home, F3 or Ctrl+G finds the next match, with Shift the
- * previous one, Ctrl+Shift+Page Down and Ctrl+Shift+Page Up move the tab, Ctrl+1 to Ctrl+8 go to that website tab and
+ * Chrome's keys a website may keep: Ctrl+Shift+Page Down and Ctrl+Shift+Page Up move the tab, on macOS too, and
+ * elsewhere F5 reloads, Shift+F5 or Ctrl+F5 reloads without the cache, Alt+D and Ctrl+E go to the address bar, Alt+Home
+ * opens Home, F3 or Ctrl+G finds the next match, with Shift the previous one, Ctrl+1 to Ctrl+8 go to that website tab and
  * Ctrl+9 to the last one, and F6 or Shift+F6 goes to the next pane: from a page to the address bar, and from Hronaut's
  * window back to the page. A website's own keys come first there, as in Chrome, where a web editor runs F5 as its
  * debugger, Ctrl+G to go to a line, Ctrl+Shift+Page Down to move its own editor tab and Ctrl+1 to go to its first editor
@@ -113,8 +113,13 @@ function chromeTabShortcut(input: BrowserShortcutInput, key: string): BrowserSho
  * and Find Previous.
  */
 export function websiteKeptShortcutAction(input: BrowserShortcutInput): BrowserShortcutAction | null {
-  if (input.mac || input.meta || input.repeat || input.composing) return null
+  if (input.meta || input.repeat || input.composing) return null
   const key = shortcutKey(input)
+  if (input.control && input.shift && !input.alt) {
+    if (key === 'pagedown') return 'move-tab-next'
+    if (key === 'pageup') return 'move-tab-previous'
+  }
+  if (input.mac) return null
   if (key === 'f5' && !input.alt) {
     if (!input.control && !input.shift) return 'reload'
     if (input.control !== input.shift) return 'reload-ignoring-cache'
@@ -124,10 +129,6 @@ export function websiteKeptShortcutAction(input: BrowserShortcutInput): BrowserS
   if (key === 'home' && input.alt && !input.control && !input.shift) return 'open-home'
   if (key === 'f6' && !input.alt && !input.control) return 'focus-next-pane'
   if (!input.alt && ((key === 'f3' && !input.control) || (key === 'g' && input.control))) return input.shift ? 'find-previous' : 'find-next'
-  if (input.control && input.shift && !input.alt) {
-    if (key === 'pagedown') return 'move-tab-next'
-    if (key === 'pageup') return 'move-tab-previous'
-  }
   if (input.control && !input.shift && !input.alt) {
     if (/^[1-8]$/.test(key)) return `select-tab-${key}` as BrowserShortcutAction
     if (key === '9') return 'select-last-tab'

@@ -49,13 +49,15 @@ describe('help dialog controller', () => {
     expect(mac.keys['runtime.shortcuts.addressWwwCom']).toEqual(['Control', 'Return'])
     expect(mac.keys['runtime.shortcuts.findFollowLink']).toEqual(['Control', 'Return'])
     expect(mac.keys['runtime.shortcuts.addressForgetVisit']).toEqual(['Shift', 'Fn', 'Delete'])
-    expect(mac.keys['runtime.shortcuts.moveTabNext']).toBeUndefined()
+    expect(mac.keys['runtime.shortcuts.moveTabNext']).toEqual(['Control', 'Shift', 'Page Down'])
+    // macOS names the key Control, as in the rows beside it.
+    expect(mac.keys['runtime.shortcuts.nextTab']).toEqual(['Control', 'Tab'])
     expect(mac.keys['runtime.shortcuts.nextPane']).toBeUndefined()
     expect(mac.keys['shell.home.open']).toBeUndefined()
     expect(mac.keys['runtime.shortcuts.stop']).toBeUndefined()
     // Chrome gives its Task manager no key on macOS.
     expect(mac.keys['runtime.shortcuts.taskManager']).toBeUndefined()
-    expect(mac.keys['runtime.shortcuts.moveTabPrevious']).toBeUndefined()
+    expect(mac.keys['runtime.shortcuts.moveTabPrevious']).toEqual(['Control', 'Shift', 'Page Up'])
     expect(mac.keys['runtime.shortcuts.settings']).toEqual(['Cmd', ','])
     const linux = keysFor('linux')
     expect(linux.mac).toBe(false)

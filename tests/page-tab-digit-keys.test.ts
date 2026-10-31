@@ -122,3 +122,16 @@ describe('Ctrl with a digit in a page elsewhere than macOS', () => {
     expect(onShortcutRequested).toHaveBeenCalledExactlyOnceWith('select-tab-1', expect.anything())
   })
 })
+
+describe('Control with Page Down in a page on macOS', () => {
+  // Chrome goes to the next tab with Ctrl+Page Down there and keeps the key from websites; Ctrl+Shift+Page Down moves
+  // the tab once the website leaves it alone. Both did nothing.
+  it('goes to the next tab at once, and leaves Ctrl+Shift+Page Down to the page first', () => {
+    Object.defineProperty(process, 'platform', { value: 'darwin' })
+    const { contents, onShortcutRequested } = pageWith()
+    expect(press(contents, { key: 'PageDown', code: 'PageDown', control: true })).toBe(true)
+    expect(onShortcutRequested).toHaveBeenCalledExactlyOnceWith('next-tab', expect.anything())
+    expect(press(contents, { key: 'PageDown', code: 'PageDown', control: true, shift: true })).toBe(false)
+    expect(onShortcutRequested).toHaveBeenCalledOnce()
+  })
+})

@@ -15,6 +15,7 @@ All notable changes to Hronaut are documented in this file.
 - As in Chrome, a copy made with **Duplicate Tab** (or **Duplicate Tabs**) and closed right away shows the tab of its workspace you were on again, instead of the tab after the copy.
 - As in Chrome, a new tab closed without being used is left out of **Recently closed** and offers no Undo, so **Reopen Closed Tab** (Ctrl/Cmd+Shift+T) brings back the tab you closed before it instead of an empty tab. A pinned tab or a tab with a label is still remembered.
 - On Windows and Linux, Ctrl+1 to Ctrl+8 now reach the website in focus first, as in Chrome, so a web editor can use them, such as to go to its first editor group; when the website leaves one alone it goes to that tab, and Ctrl+9 to the last one, with the number row or the numeric keypad. A page locked while an agent works still sends them to the browser, and now also F5, F6, Alt+D and Chrome's other keys a website may keep, which did nothing there.
+- On macOS, Control+Page Down and Control+Page Up go to the next and previous tab, and Control+Shift+Page Down and Control+Shift+Page Up move the tab once the website in focus leaves them alone, as in Chrome; they did nothing, and **Keyboard shortcuts** now lists the keys that move the tab there too.
 
 ## [3.14.6] - 2026-10-31
 
