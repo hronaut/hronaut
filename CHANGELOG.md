@@ -13,7 +13,7 @@ All notable changes to Hronaut are documented in this file.
 - As in Chrome, **Close Tabs to the Right** (**Close Tabs Below** with vertical tabs) on a pinned tab closes the tabs of its workspace that are not pinned; it was always off there.
 - Holding Ctrl+W or another browser shortcut pressed in a page no longer sends the key's repeats to the page of the tab shown next, which a web IDE may read as closing an editor; Chrome keeps Ctrl+W from pages. Likewise, a held Escape that ends the screenshot area or the element picker no longer reaches the page.
 - As in Chrome, a copy made with **Duplicate Tab** (or **Duplicate Tabs**) and closed right away shows the tab of its workspace you were on again, instead of the tab after the copy.
-- As in Chrome, a new tab closed without being used is left out of **Recently closed**, so **Reopen Closed Tab** (Ctrl+Shift+T) brings back the tab you closed before it instead of an empty tab. A pinned or named one is still remembered.
+- As in Chrome, a new tab closed without being used is left out of **Recently closed** and offers no Undo, so **Reopen Closed Tab** (Ctrl/Cmd+Shift+T) brings back the tab you closed before it instead of an empty tab. A pinned tab or a tab with a label is still remembered.
 
 ## [3.14.6] - 2026-10-31
 

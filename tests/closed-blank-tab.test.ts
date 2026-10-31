@@ -26,7 +26,8 @@ function closing(changes: Partial<BrowserTab>, entries: NavigationEntry[]): stri
 describe('a closed blank tab', () => {
   it('is left out of Recently closed when it only ever showed the blank page, as in Chrome', () => {
     expect(closing({}, [BLANK])).toEqual([])
-    // Closed before its blank page came.
+    // Closed before its blank page came, such as Ctrl+T then Ctrl+W at once, or once its page was gone.
+    expect(closing({}, [{ url: '', title: '' }])).toEqual([])
     expect(closing({}, [])).toEqual([])
   })
 

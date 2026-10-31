@@ -220,11 +220,12 @@ export function rememberClosedTab(
 /**
  * Whether a tab only ever showed a blank page, as a new tab closed unused does. Reopen closed tab brought it back, empty,
  * rather than the tab closed before it; Chrome leaves a tab that only showed its New Tab page out of its closed tabs
- * (TabRestoreServiceHelper::IsTabInteresting). A pinned or named tab is kept, as Chrome keeps a pinned one.
+ * (TabRestoreServiceHelper::IsTabInteresting). A pinned or named tab is kept, as Chrome keeps a pinned one. A tab closed
+ * before its blank page came has no entry, or one with no address.
  */
 function onlyShowedBlankPage(tab: BrowserTab, history: NavigationHistorySnapshot): boolean {
   return tab.url === 'about:blank' && !tab.pinned && !tab.label
-    && history.entries.length <= 1 && history.entries.every((entry) => entry.url === 'about:blank')
+    && history.entries.length <= 1 && history.entries.every((entry) => entry.url === 'about:blank' || entry.url === '')
 }
 
 /** What a remembered closed tab restores when it reopens: its back and forward history, and whether it is a visit. */
