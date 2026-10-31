@@ -23,6 +23,7 @@ import type {
 import { hasSwitchToTabButton } from '../../../../shared/address-suggestions.js'
 import type { ActiveTabPresentationController } from '../../composables/useActiveTabPresentationController.js'
 import type { AddressBarController } from './useAddressBarController.js'
+import { useAddressClickSelection } from './address-click-selection.js'
 import type { EmulationController } from '../emulation/useEmulationController.js'
 import type { PageToolsPresentationController } from '../page-tools/usePageToolsPresentationController.js'
 import type { SiteDataSummaryController } from '../site-controls/useSiteDataSummaryController.js'
@@ -87,6 +88,7 @@ const {
   handleKeydown,
   submit
 } = props.addressController
+useAddressClickSelection(input)
 const {
   activeWebUrl,
   activeOrigin,
