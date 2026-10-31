@@ -237,3 +237,18 @@ describe('the tab menu of several selected tabs', () => {
     expect(order()).toEqual(['p*', 'a*', 'c*', 'b', 'd'])
   })
 })
+
+describe('the tab menu of one pinned tab', () => {
+  // Close Tabs to the Right was off on a pinned tab; Chrome closes the tabs after it that are not pinned.
+  it('closes the tabs of its workspace after it that are not pinned, as Chrome does', async () => {
+    // Listed out of order: the strip shows pinned tabs first.
+    const fake = menuBrowser([tab('a'), tab('p', 'work', { pinned: true }), tab('x', 'other'), tab('q', 'work', { pinned: true }), tab('b')])
+    showTabContextMenu(fake.browser, 'p')
+    expect(item('close-tabs-to-right').enabled).toBe(true)
+    await click('close-tabs-to-right')
+    expect(fake.calls).toEqual(['close a,b'])
+    // With only pinned tabs after it, there is nothing to close.
+    showTabContextMenu(menuBrowser([tab('p', 'work', { pinned: true }), tab('q', 'work', { pinned: true }), tab('x', 'other')]).browser, 'p')
+    expect(item('close-tabs-to-right').enabled).toBe(false)
+  })
+})
