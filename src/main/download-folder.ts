@@ -1,5 +1,7 @@
-import { accessSync, constants, mkdirSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
+import { accessSync, closeSync, constants, mkdirSync, openSync, statSync, unlinkSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
+import { join } from 'node:path'
 import type { MessageKey } from '../shared/i18n.js'
 import { LocalizedError } from './localized-error.js'
 
@@ -43,12 +45,24 @@ export async function createDownloadFolder(directory: string): Promise<void> {
 
 /**
  * Whether a download can be saved in the download folder now, making the folder again first when it is gone, as Chrome
- * does with its download folder. A download asks as it starts, which must be answered at once.
+ * does with its download folder. A download asks as it starts, which must be answered at once, so the folder is looked
+ * at with as few calls as tell.
  */
 export function downloadFolderWritable(directory: string): boolean {
   try {
-    mkdirSync(directory, { recursive: true })
-    accessSync(directory, constants.W_OK)
+    const found = statSync(directory, { throwIfNoEntry: false })
+    // Made only when gone: Windows refuses to make a drive's root, such as `D:\`, even though it is there.
+    if (!found) mkdirSync(directory, { recursive: true })
+    else if (!found.isDirectory()) return false
+    if (process.platform !== 'win32') {
+      accessSync(directory, constants.W_OK)
+      return true
+    }
+    // Windows answers a folder's access check as writable whatever its permissions say, so a file is made there, as
+    // Chrome checks the folder's permissions themselves.
+    const probe = join(directory, `.hronaut-${randomUUID()}.tmp`)
+    closeSync(openSync(probe, 'wx'))
+    unlinkSync(probe)
     return true
   } catch {
     return false
