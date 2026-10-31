@@ -5,7 +5,7 @@ import { isHronautHomeUrl } from '../url.js'
 import type { NavigationHistorySnapshot } from '../navigation-history.js'
 import type { SavedClosedTab } from '../saved-closed-tabs/saved-closed-tabs.js'
 import type { Browser } from '../browser.js'
-import { getTab, orderedTabs } from '../browser-core.js'
+import { findTab, getTab, orderedTabs } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { browserState } from '../browser-state/browser-state.js'
 import { reorderTab } from '../tab-arrangement/tab-arrangement.js'
@@ -107,11 +107,17 @@ function moveToPlace(browser: Browser, tab: BrowserTab, place: number): void {
   if (target) reorderTab(browser, tab.id, target.id, place < others.length ? 'before' : 'after')
 }
 
-/** Opens a copy of the tab, with its back and forward history, right after it, once tab label saves have settled. Hronaut Home has no copy. */
+/**
+ * Opens a copy of the tab, with its back and forward history, right after it, once tab label saves have settled. Hronaut
+ * Home has no copy. Closed right away, the copy shows the tab the person was on, as in Chrome.
+ */
 export async function duplicateTabAfterLabelSave(browser: Browser, tabId: string): Promise<BrowserState> {
   const source = getTab(browser, tabId)
   if (isHronautHomeUrl(source.url)) throw new LocalizedError('appErrors.tabs.homeNotDuplicated')
   const navigationHistory = browser.navigationHistorySnapshot(source)
+  // The copy goes back to the tab shown now, when it is in the copy's workspace, as a new tab from + does.
+  const shown = browser.activeTabId ? findTab(browser, browser.activeTabId) : undefined
+  const returnsTo = shown?.mcpGroupId && shown.mcpGroupId === source.mcpGroupId ? shown.id : undefined
   const duplicate = await browser.createTab({
     url: source.url,
     title: source.title,
@@ -125,7 +131,8 @@ export async function duplicateTabAfterLabelSave(browser: Browser, tabId: string
     defaultFontSize: source.defaultFontSize,
     muted: source.tabMuted,
     tabAgentPaused: source.tabAgentPaused,
-    humanInteractionLocked: source.humanInteractionLocked
+    humanInteractionLocked: source.humanInteractionLocked,
+    ...(returnsTo ? { onCreated: (tab: BrowserTab) => { tab.returnsToTabId = returnsTo } } : {})
   })
   reorderTab(browser, duplicate.id, source.id, 'after')
   return browserState(browser)

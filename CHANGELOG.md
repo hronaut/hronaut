@@ -12,6 +12,7 @@ All notable changes to Hronaut are documented in this file.
 - As in Chrome, text typed in the address bar and not sent is shown again when you come back to its tab, with a keyword search's engine; switching tabs threw it away. A tab that opened another page meanwhile shows that page's address, and so does the address bar when the page moves on while you are no longer typing in it.
 - As in Chrome, **Close Tabs to the Right** (**Close Tabs Below** with vertical tabs) on a pinned tab closes the tabs of its workspace that are not pinned; it was always off there.
 - Holding Ctrl+W or another browser shortcut pressed in a page no longer sends the key's repeats to the page of the tab shown next, which a web IDE may read as closing an editor; Chrome keeps Ctrl+W from pages. Likewise, a held Escape that ends the screenshot area or the element picker no longer reaches the page.
+- As in Chrome, a copy made with **Duplicate Tab** (or **Duplicate Tabs**) and closed right away shows the tab of its workspace you were on again, instead of the tab after the copy.
 
 ## [3.14.6] - 2026-10-31
 
