@@ -1,4 +1,5 @@
 import type { WebContents } from 'electron'
+import { ISOLATED_WORLDS } from './isolated-worlds.js'
 
 /** Chromium has one active find operation per page. Mirror that lifecycle. */
 export class PageFindController {
@@ -82,6 +83,11 @@ export class PageFindController {
     const activate = action === 'activateSelection' && this.matched.has(webContents)
     this.matched.delete(webContents)
     this.sessionQueries.delete(webContents)
+    // The person's key went to Find, not to the page, so the click came with no user activation: Chromium then skipped
+    // the page the link left on Back, as it skips pages that move on by themselves. The click is the person's, as their
+    // own click on the link would be, so the page gets their activation first, from a script that does nothing.
+    if (activate) void webContents.executeJavaScriptInIsolatedWorld(ISOLATED_WORLDS.findMatchClick, [{ code: 'void 0' }], true)
+      .catch(() => undefined)
     webContents.stopFindInPage(activate ? 'activateSelection' : action === 'keepSelection' ? 'keepSelection' : 'clearSelection')
     return activate
   }

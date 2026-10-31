@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events'
 import type { WebContents } from 'electron'
 import { afterEach, expect, it, vi } from 'vitest'
 import { PageFindController } from '../src/main/browser/page-find-controller.js'
+import { ISOLATED_WORLDS } from '../src/main/browser/isolated-worlds.js'
 
 afterEach(() => vi.useRealTimers())
 
@@ -10,7 +11,8 @@ function fixture() {
   let requestId = 0
   const contents = Object.assign(new EventEmitter(), {
     findInPage: vi.fn(() => ++requestId),
-    stopFindInPage: vi.fn()
+    stopFindInPage: vi.fn(),
+    executeJavaScriptInIsolatedWorld: vi.fn(() => Promise.resolve())
   })
   const controller = new PageFindController()
   const webContents = contents as unknown as WebContents
@@ -171,6 +173,39 @@ it('clears the selection when a search ends, and clicks only an active match a s
   expect(page.stop('activateSelection')).toBe(false)
   expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('clearSelection')
   expect(await next).toBe('Page search was cancelled or superseded')
+})
+
+// The person's Ctrl+Enter went to Find, not to the page, so Chromium clicked the link with no user activation and
+// skipped the page the link left on Back, as it skips pages that move on by themselves.
+it('gives the page the person\'s activation before it clicks the match, and only then', async () => {
+  const page = fixture()
+  const calls: string[] = []
+  page.contents.executeJavaScriptInIsolatedWorld.mockImplementation(((worldId: number, scripts: { code: string }[], userGesture: boolean) => {
+    calls.push(`activate ${worldId} ${JSON.stringify(scripts)} ${userGesture}`)
+    return Promise.reject(new Error('Page went away'))
+  }) as never)
+  page.contents.stopFindInPage.mockImplementation(((action: string) => { calls.push(`stop ${action}`) }) as never)
+
+  const search = page.search()
+  page.complete()
+  await search
+  expect(page.stop('activateSelection')).toBe(true)
+  expect(calls).toEqual([`activate ${ISOLATED_WORLDS.findMatchClick} [{"code":"void 0"}] true`, 'stop activateSelection'])
+
+  // Nothing to click: no search, a search with no match, or a stop that does not click.
+  calls.length = 0
+  expect(page.stop('activateSelection')).toBe(false)
+  const empty = page.search()
+  page.contents.emit('found-in-page', {}, { requestId: page.contents.findInPage.mock.results.at(-1)!.value, finalUpdate: true, activeMatchOrdinal: 0, matches: 0 })
+  await empty
+  expect(page.stop('activateSelection')).toBe(false)
+  const matched = page.search()
+  page.complete()
+  await matched
+  expect(page.stop()).toBe(false)
+  expect(calls).toEqual(['stop clearSelection', 'stop clearSelection', 'stop clearSelection'])
+  // A page that went away meanwhile leaves no unhandled rejection.
+  await Promise.resolve()
 })
 
 it('ends a search session before a new one finds the same text again, so its active match can still be clicked', () => {

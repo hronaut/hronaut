@@ -2,6 +2,10 @@ import { createServer } from 'node:http'
 import type { HronautApi } from '../../src/shared/types.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
+// A trace's snapshots run Playwright's scripts in the page with a user gesture, which gave the page the activation the
+// person's Ctrl+Enter must give it for Back to return to the page the link left.
+test.use({ trace: 'off' })
+
 test('Ctrl+Enter in Find closes it and follows the link the match is in, as Chrome does', async ({ appWindow, electronApp }) => {
   const server = createServer((request, response) => {
     response.writeHead(200, { 'content-type': 'text/html', 'cache-control': 'no-store' })
@@ -77,8 +81,10 @@ test('Ctrl+Enter in Find closes it and follows the link the match is in, as Chro
     await expect.poll(async () => (await activeTab())?.url).toBe(`${url}pricing`)
     await expect.poll(async () => (await activeTab())?.title).toBe('Pricing fixture')
 
+    // Back returns to the page the link left: the click came with no user activation, and Chromium skipped that page.
     // Find opens again on its last text, which is typed again and searched with Match case: searches that find the
     // same text again left Chromium nothing to click.
+    await expect(appWindow.getByRole('button', { name: 'Back', exact: true })).toBeEnabled()
     await appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.back(tabId), tabId)
     await expect.poll(async () => { const tab = await activeTab(); return tab?.url === url && !tab.loading }).toBe(true)
     await find('pricing', '1 / 1')
