@@ -243,8 +243,11 @@ export interface BrowserOptions {
   /** True while a page in the tab still waits on a wallet request, so the tab must not sleep. */
   walletKeepsTabAwake?: (tabId: string) => boolean
   confirmBeforeUnloadClose?: () => Promise<boolean>
-  /** Asks the person whether to leave a page that asked to confirm before it is left, for a load they started. */
-  confirmBeforeUnloadLeave?: () => Promise<boolean>
+  /**
+   * Asks the person whether to leave a page that asked to confirm before it is left, for a load, Back or Forward they
+   * started, or whether to reload it for a Reload.
+   */
+  confirmBeforeUnloadLeave?: (question: 'leave' | 'reload') => Promise<boolean>
   /**
    * Asks the person to sign in to a website that asks for a username and password, in Hronaut's own dialog; resolves
    * with what they typed, 'cancelled' when they cancel, or null when nobody answered. Without it, Hronaut cancels the

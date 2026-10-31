@@ -153,12 +153,12 @@ export function showTabContextMenu(browser: Browser, tabId: string, onClosed?: (
     {
       id: 'reload-tab',
       label: browser.text('native.context.reloadTab'),
-      click: () => runAction('reload the tab', () => reload(browser, tab.id))
+      click: () => runAction('reload the tab', () => reload(browser, tab.id, { byPerson: true }))
     },
     {
       id: 'reload-tab-ignoring-cache',
       label: browser.text('native.context.reloadNoCache'),
-      click: () => runAction('reload the tab without cache', () => reloadIgnoringCache(browser, tab.id))
+      click: () => runAction('reload the tab without cache', () => reloadIgnoringCache(browser, tab.id, { byPerson: true }))
     },
     {
       id: 'duplicate-tab',

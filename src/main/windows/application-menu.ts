@@ -65,7 +65,9 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
   // shown tab, and only from the main window: typed in a panel in its own window, they would change a page out of view.
   function goInHistory(direction: 'back' | 'forward', window: BaseWindow | undefined, event: KeyboardEvent): void {
     if (!event.triggeredByAccelerator) {
-      host.runNativeBrowserAction(`go ${direction}`, () => withBrowser((browser) => direction === 'back' ? back(browser) : forward(browser)))
+      host.runNativeBrowserAction(`go ${direction}`, () => withBrowser((browser) => direction === 'back'
+        ? back(browser, undefined, { byPerson: true })
+        : forward(browser, undefined, { byPerson: true })))
     } else if (window !== undefined && window.id === host.mainWindow()?.id) {
       host.runNativeBrowserAction(`go ${direction}`, () => withBrowser((browser) => historyGesture(browser, direction)))
     }
@@ -278,12 +280,14 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
             {
               label: host.text('native.menu.reload'),
               accelerator: 'CmdOrCtrl+R',
-              click: () => host.runNativeBrowserAction('reload', () => withBrowser(reload))
+              click: () => host.runNativeBrowserAction('reload', () => withBrowser((browser) => reload(browser, undefined, { byPerson: true })))
             },
             {
               label: host.text('native.menu.reloadWithoutCache'),
               accelerator: 'CmdOrCtrl+Shift+R',
-              click: () => host.runNativeBrowserAction('reload without cache', () => withBrowser(reloadIgnoringCache))
+              click: () => host.runNativeBrowserAction('reload without cache', () => withBrowser((browser) => (
+                reloadIgnoringCache(browser, undefined, { byPerson: true })
+              )))
             },
             ...websiteKeptKeys(),
             {

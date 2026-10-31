@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events'
 import type { IpcMainInvokeEvent, MenuItemConstructorOptions } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -34,20 +35,33 @@ const { registerNavigationIpc } = await import('../src/main/navigation-ipc.js')
 
 type Entry = { url: string; title: string }
 
+// The tab's page, which starts going to the page picked as Chromium does once no page asks before it is left.
 function historyOf(entries: Entry[], activeIndex: number) {
+  const page = new EventEmitter()
   const history = {
     entries,
     activeIndex,
+    page,
     getAllEntries: () => history.entries,
     getActiveIndex: () => history.activeIndex,
-    goToIndex: vi.fn((index: number) => { history.activeIndex = index })
+    goToIndex: vi.fn((index: number) => {
+      history.activeIndex = index
+      const url = history.entries[index]?.url
+      page.emit('did-start-navigation', { url, isMainFrame: true, isSameDocument: false }, url, false, true)
+    })
   }
   return history
 }
 
+/** Lets the item picked from the list run, as it does after the menu closes. */
+const picked = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 0))
+
 function setup(entries: Entry[], activeIndex: number, tabFields: { sleeping?: boolean; wakePromise?: Promise<void> } = {}) {
   const history = historyOf(entries, activeIndex)
-  const tab = { id: 'tab-1', sleeping: false, ...tabFields, webContents: { isDestroyed: () => false, navigationHistory: history } }
+  const tab = {
+    id: 'tab-1', sleeping: false, ...tabFields,
+    webContents: Object.assign(history.page, { isDestroyed: () => false, navigationHistory: history })
+  }
   const send = vi.fn()
   const onActionFailed = vi.fn()
   const browser = {
@@ -130,30 +144,33 @@ describe('the list of pages Back and Forward go through', () => {
     expect(showHistoryMenu(setup(pages(3), 2).browser, 'tab-1', 'back')).toBe(true)
   })
 
-  it('goes to the picked page as the history stood when the list opened', () => {
+  it('goes to the picked page as the history stood when the list opened', async () => {
     const { browser, history } = setup(pages(4), 3)
     showHistoryMenu(browser, 'tab-1', 'back')
     const item = shown().menu.template.find((candidate) => candidate.label === 'Page 1')!
     ;(item.click as () => void)()
+    await picked()
     expect(history.goToIndex).toHaveBeenCalledExactlyOnceWith(1)
   })
 
-  it('asks the window for the history panel from Show Full History', () => {
+  it('asks the window for the history panel from Show Full History', async () => {
     const { browser, send, history } = setup(pages(2), 1)
     showHistoryMenu(browser, 'tab-1', 'back')
     const item = shown().menu.template.find((candidate) => candidate.id === 'show-full-history')!
     ;(item.click as () => void)()
+    await picked()
     expect(send).toHaveBeenCalledExactlyOnceWith('browser:visit-history-requested')
     expect(history.goToIndex).not.toHaveBeenCalled()
   })
 
-  it('reports a page it could not go to', () => {
+  it('reports a page it could not go to', async () => {
     const { browser, history, onActionFailed } = setup(pages(2), 1)
     const failure = new Error('gone')
     history.goToIndex.mockImplementation(() => { throw failure })
     const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     showHistoryMenu(browser, 'tab-1', 'back')
     ;(shown().menu.template[0]!.click as () => void)()
+    await picked()
     expect(onActionFailed).toHaveBeenCalledWith('go to a page in the tab history', failure)
     logged.mockRestore()
   })
@@ -165,7 +182,7 @@ describe('going to a page picked from the list', () => {
     const history = historyOf(entries, activeIndex)
     const tab = {
       id: 'tab-1', mcpGroupId: options.mcpGroupId, sleeping: options.sleeping ?? false, wakePromise: options.wakePromise,
-      webContents: { isDestroyed: () => options.destroyed ?? false, navigationHistory: history }
+      webContents: Object.assign(history.page, { isDestroyed: () => options.destroyed ?? false, navigationHistory: history })
     }
     const prepareDiagnosticNavigation = vi.fn()
     const workspaceNavigationAllowed = vi.fn(() => options.allowed ?? true)
@@ -178,41 +195,41 @@ describe('going to a page picked from the list', () => {
     return { history, prepareDiagnosticNavigation, workspaceNavigationAllowed, browser: browser as never }
   }
 
-  it('goes straight to the page', () => {
+  it('goes straight to the page', async () => {
     const { browser, history, prepareDiagnosticNavigation } = navigation(pages(4), 3)
-    goToHistoryEntry(browser, 'tab-1', { index: 1, url: 'https://site.test/1', activeIndex: 3 })
+    await goToHistoryEntry(browser, 'tab-1', { index: 1, url: 'https://site.test/1', activeIndex: 3 })
     expect(history.goToIndex).toHaveBeenCalledExactlyOnceWith(1)
     expect(prepareDiagnosticNavigation).toHaveBeenCalledOnce()
   })
 
-  it('goes nowhere once the tab moved in its history or its history changed', () => {
+  it('goes nowhere once the tab moved in its history or its history changed', async () => {
     const moved = navigation(pages(4), 2)
-    goToHistoryEntry(moved.browser, 'tab-1', { index: 1, url: 'https://site.test/1', activeIndex: 3 })
+    await goToHistoryEntry(moved.browser, 'tab-1', { index: 1, url: 'https://site.test/1', activeIndex: 3 })
     const replaced = navigation([...pages(1), { url: 'https://other.test/', title: 'Other' }, ...pages(4).slice(2)], 3)
-    goToHistoryEntry(replaced.browser, 'tab-1', { index: 1, url: 'https://site.test/1', activeIndex: 3 })
+    await goToHistoryEntry(replaced.browser, 'tab-1', { index: 1, url: 'https://site.test/1', activeIndex: 3 })
     const shortened = navigation(pages(2), 1)
-    goToHistoryEntry(shortened.browser, 'tab-1', { index: 5, url: 'https://site.test/5', activeIndex: 1 })
+    await goToHistoryEntry(shortened.browser, 'tab-1', { index: 5, url: 'https://site.test/5', activeIndex: 1 })
     const asleep = navigation(pages(4), 3, { sleeping: true })
-    goToHistoryEntry(asleep.browser, 'tab-1', { index: 1, url: 'https://site.test/1', activeIndex: 3 })
-    goToHistoryEntry(asleep.browser, 'closed-tab', { index: 1, url: 'https://site.test/1', activeIndex: 3 })
+    await goToHistoryEntry(asleep.browser, 'tab-1', { index: 1, url: 'https://site.test/1', activeIndex: 3 })
+    await goToHistoryEntry(asleep.browser, 'closed-tab', { index: 1, url: 'https://site.test/1', activeIndex: 3 })
     const waking = navigation(pages(4), 3, { wakePromise: Promise.resolve() })
-    goToHistoryEntry(waking.browser, 'tab-1', { index: 1, url: 'https://site.test/1', activeIndex: 3 })
+    await goToHistoryEntry(waking.browser, 'tab-1', { index: 1, url: 'https://site.test/1', activeIndex: 3 })
     const destroyed = navigation(pages(4), 3, { destroyed: true })
-    goToHistoryEntry(destroyed.browser, 'tab-1', { index: 1, url: 'https://site.test/1', activeIndex: 3 })
+    await goToHistoryEntry(destroyed.browser, 'tab-1', { index: 1, url: 'https://site.test/1', activeIndex: 3 })
     for (const { history, prepareDiagnosticNavigation } of [moved, replaced, shortened, asleep, waking, destroyed]) {
       expect(history.goToIndex).not.toHaveBeenCalled()
       expect(prepareDiagnosticNavigation).not.toHaveBeenCalled()
     }
   })
 
-  it('keeps to the workspace\'s sites, as Back does', () => {
+  it('keeps to the workspace\'s sites, as Back does', async () => {
     const denied = navigation(pages(4), 3, { mcpGroupId: 'client', allowed: false })
-    goToHistoryEntry(denied.browser, 'tab-1', { index: 0, url: 'https://site.test/0', activeIndex: 3 })
+    await goToHistoryEntry(denied.browser, 'tab-1', { index: 0, url: 'https://site.test/0', activeIndex: 3 })
     expect(denied.workspaceNavigationAllowed).toHaveBeenCalledWith('client', 'https://site.test/0', 'history')
     expect(denied.history.goToIndex).not.toHaveBeenCalled()
     expect(denied.prepareDiagnosticNavigation).not.toHaveBeenCalled()
     const allowed = navigation(pages(4), 3, { mcpGroupId: 'client', allowed: true })
-    goToHistoryEntry(allowed.browser, 'tab-1', { index: 0, url: 'https://site.test/0', activeIndex: 3 })
+    await goToHistoryEntry(allowed.browser, 'tab-1', { index: 0, url: 'https://site.test/0', activeIndex: 3 })
     expect(allowed.history.goToIndex).toHaveBeenCalledWith(0)
   })
 })
