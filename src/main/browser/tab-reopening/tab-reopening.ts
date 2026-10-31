@@ -184,15 +184,15 @@ export function forgetWorkspaceClosedTabs(browser: Browser, workspaceId: string,
 
 /**
  * Remembers a closed tab, with its place among its workspace's tabs and its history, given when it was taken before its
- * page went away, so it can be reopened, keeping only the newest; Hronaut Home and a tab a download left empty are not
- * remembered. It is called while the tab is still among the open tabs.
+ * page went away, so it can be reopened, keeping only the newest; Hronaut Home, a tab a download left empty and a new
+ * tab closed unused are not remembered. It is called while the tab is still among the open tabs.
  */
 export function rememberClosedTab(
   browser: Browser,
   tab: BrowserTab,
   navigationHistory: NavigationHistorySnapshot = browser.navigationHistorySnapshot(tab)
 ): void {
-  if (isHronautHomeUrl(tab.url) || tab.leftEmptyByDownload) return
+  if (isHronautHomeUrl(tab.url) || tab.leftEmptyByDownload || onlyShowedBlankPage(tab, navigationHistory)) return
   const place = tabPeers(browser, tab).indexOf(tab)
   const closed: BrowserClosedTabState = {
     id: uuidV7(),
@@ -215,6 +215,17 @@ export function rememberClosedTab(
   if (pages) closedTabHistories.set(closed, { pages, visited })
   browser.closedTabs.push(closed)
   if (browser.closedTabs.length > MAX_CLOSED_TABS) browser.closedTabs.shift()
+}
+
+/**
+ * Whether a tab only ever showed a blank page, as a new tab closed unused does. Reopen closed tab brought it back, empty,
+ * rather than the tab closed before it; Chrome leaves a tab that only showed its New Tab page out of its closed tabs
+ * (TabRestoreServiceHelper::IsTabInteresting). A pinned or named tab is kept, as Chrome keeps a pinned one. A tab closed
+ * before its blank page came has no entry, or one with no address.
+ */
+function onlyShowedBlankPage(tab: BrowserTab, history: NavigationHistorySnapshot): boolean {
+  return tab.url === 'about:blank' && !tab.pinned && !tab.label
+    && history.entries.length <= 1 && history.entries.every((entry) => entry.url === 'about:blank' || entry.url === '')
 }
 
 /** What a remembered closed tab restores when it reopens: its back and forward history, and whether it is a visit. */

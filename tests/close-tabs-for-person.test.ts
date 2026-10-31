@@ -85,6 +85,7 @@ function sites(...ids: string[]): Tab[] {
 describe('closing tabs for the person', () => {
   it('names a closed blank tab in the interface language on its Undo offer', async () => {
     // Hronaut calls a blank tab "New tab" until a page names it; the Undo toast showed that English title in every language.
+    // A blank tab is remembered, and so offered, once it has pages to go Back to; the close is stubbed here.
     const { browser, offers } = openBrowser([
       { id: 'blank', title: 'New tab', url: 'about:blank', pinned: false },
       { id: 'site', title: 'New tab', url: 'https://example.test/new', pinned: false }
