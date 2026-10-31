@@ -5,10 +5,12 @@ import { answerEveryTrustedDialog } from './trusted-dialog-fixture.js'
 
 const TITLE = 'Fullscreen video'
 
-async function openVideoPage(appWindow: Page, electronApp: ElectronApplication): Promise<{ server: ReturnType<typeof createServer> }> {
-  const server = createServer((_request, response) => {
+async function openVideoPage(appWindow: Page, electronApp: ElectronApplication): Promise<{ server: ReturnType<typeof createServer>, origin: string }> {
+  const server = createServer((request, response) => {
     response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
-    response.end(`<!doctype html><title>${TITLE}</title><video id="video" style="width:320px;height:180px;background:#000"></video>`)
+    response.end(request.url === '/popup'
+      ? '<!doctype html><title>Popup</title>'
+      : `<!doctype html><title>${TITLE}</title><video id="video" style="width:320px;height:180px;background:#000"></video>`)
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()))
   const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`
@@ -18,7 +20,7 @@ async function openVideoPage(appWindow: Page, electronApp: ElectronApplication):
   ), TITLE)).toBe(true)
   // The person allows the site's full screen request.
   await answerEveryTrustedDialog(appWindow, 'Allow')
-  return { server }
+  return { server, origin }
 }
 
 /** The video page's view bounds, the window's content size and whether the window and the page are in full screen. */
@@ -94,6 +96,36 @@ test('takes a page out of full screen when another tab is selected', async ({ ap
     // Back on the video, the page is in its card and no longer in full screen.
     await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
     await expect.poll(() => fullscreenState(electronApp)).toEqual(before)
+  } finally {
+    await closeFixtureServer(server)
+  }
+})
+
+test('keeps a page in full screen when the split pane it hides opens a window', async ({ appWindow, electronApp }) => {
+  // The hidden pane's window took the view, which ended the split view and the full screen the person was watching.
+  const { server, origin } = await openVideoPage(appWindow, electronApp)
+  try {
+    const tabId = await videoTabId(appWindow)
+    const paneUrl = 'data:text/html,<title>Hidden pane</title>'
+    await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(paneUrl)}, active: false })`)
+    await expect.poll(() => appWindow.evaluate("window.hronaut.getState().then((state) => state.tabs.some((tab) => tab.title === 'Hidden pane'))")).toBe(true)
+    const paneId = await appWindow.evaluate("window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.title === 'Hidden pane').id)") as string
+    await appWindow.evaluate(`window.hronaut.openSplitView(${JSON.stringify(paneId)})`)
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => Boolean(state.splitView))')).toBe(true)
+    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
+    expect(await requestFullscreen(electronApp)).toBe('entered')
+    await expect.poll(async () => (await fullscreenState(electronApp)).windowFullScreen).toBe(true)
+
+    // The hidden pane's page opens a window on its own, such as from a timer.
+    await electronApp.evaluate(async ({ webContents }, url) => {
+      await webContents.getAllWebContents().find((contents) => contents.getTitle() === 'Hidden pane')!
+        .executeJavaScript(`window.open(${JSON.stringify(url)}); true`)
+    }, `${origin}/popup`)
+    await expect.poll(() => appWindow.evaluate("window.hronaut.getState().then((state) => state.tabs.some((tab) => tab.title === 'Popup'))")).toBe(true)
+    // It opens behind: the video stays in full screen and the split view stays.
+    expect(await appWindow.evaluate('window.hronaut.getState().then((state) => ({ active: state.activeTabId, split: Boolean(state.splitView) }))'))
+      .toEqual({ active: tabId, split: true })
+    expect(await fullscreenState(electronApp)).toMatchObject({ windowFullScreen: true, pageFullscreen: true })
   } finally {
     await closeFixtureServer(server)
   }
