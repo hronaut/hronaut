@@ -16,7 +16,7 @@ import {
 import { isImeCompositionEvent } from '../../keyboard-composition.js'
 import { vTooltip } from '../../ui/tooltip.js'
 
-type FindBrowserApi = Pick<HronautApi, 'findInPage' | 'stopFindInPage'>
+type FindBrowserApi = Pick<HronautApi, 'findInPage' | 'stopFindInPage' | 'focusActivePage'>
 
 const props = defineProps<{
   activeTab?: BrowserTabState
@@ -94,12 +94,12 @@ function handleBarKeydown(event: KeyboardEvent): void {
   if (isImeCompositionEvent(event) || event.defaultPrevented) return
   if (isFollowMatchKey(event)) {
     event.preventDefault()
-    void close({ activateMatch: true })
+    void close({ activateMatch: true, returnKeyboard: true })
     return
   }
   if (event.key !== 'Escape') return
   event.preventDefault()
-  void close()
+  void close({ returnKeyboard: true })
 }
 
 function retrySearch(): void {
@@ -156,8 +156,11 @@ async function cleanup(options: { activateMatch?: boolean } = {}): Promise<void>
   await stopped.catch(() => undefined)
 }
 
-async function close(options: { activateMatch?: boolean } = {}): Promise<void> {
+async function close(options: { activateMatch?: boolean; returnKeyboard?: boolean } = {}): Promise<void> {
   open.value = false
+  // The person closing Find gives the keyboard back to the page, as in Chrome. Main lets the page have it once nothing
+  // covers it, and drops the repeats of a key still held from the shell, so a held Escape or Enter goes no further.
+  if (options.returnKeyboard) void props.browser.focusActivePage().catch(() => undefined)
   await cleanup(options)
 }
 
@@ -231,7 +234,8 @@ defineExpose({ close, openForTab })
     >
       <IconKeyboardArrowDown aria-hidden="true" />
     </UiButton>
-    <UiButton appearance="application" class="find-action" type="button" v-tooltip="t('find.closeTitle')" :aria-label="t('find.close')" @click="close()">
+    <UiButton appearance="application" class="find-action" type="button" v-tooltip="t('find.closeTitle')" :aria-label="t('find.close')"
+      @click="close({ returnKeyboard: true })">
       <IconClose aria-hidden="true" />
     </UiButton>
   </div>
