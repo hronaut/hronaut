@@ -9,15 +9,19 @@ let callingThroughDialogs = false
  * is done with it, so it is neither failed nor refused. The call is made at once.
  */
 export function callThroughPageDialogs<T>(call: () => Promise<T>): Promise<T> {
+  const outer = callingThroughDialogs
   callingThroughDialogs = true
   try {
     return call()
   } finally {
-    callingThroughDialogs = false
+    callingThroughDialogs = outer
   }
 }
 
-/** Whether the page call being made now comes through callThroughPageDialogs; the guards wrap the calls synchronously. */
+/**
+ * Whether the page call being made now comes through callThroughPageDialogs. The guards wrap the calls synchronously,
+ * and a wrapper that makes a call later makes it through callThroughPageDialogs again.
+ */
 export function callingThroughPageDialogs(): boolean {
   return callingThroughDialogs
 }
