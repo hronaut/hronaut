@@ -26,6 +26,7 @@ import type { Browser } from '../browser/browser.js'
 import type { McpTabActivity, UserAttentionInput, UserAttentionRequest } from '../../shared/types.js'
 import type { McpToolSet } from '../../shared/mcp-tool-sets.js'
 import { errorResult, textResult, toolDefinition } from './tool-results.js'
+import { pageDialogInterrupted } from './website-dialog-calls.js'
 import { mcpCapabilityAction, mcpCapabilityOperationClass } from './capability-classification.js'
 import { registerBrowserWorkspaces } from './tools/browser-workspaces/index.js'
 import { registerBrowserSavedWorkspaces } from './tools/browser-saved-workspaces/index.js'
@@ -213,6 +214,8 @@ export function createBrowserMcpServer(
       // Keep trusted native-dispatch provenance until workspace settlement has
       // recorded its uncertain outcome and attempted review finalization.
       if (error instanceof NativeInputCleanupError || error instanceof NativeWheelOutcomeUnknownError || error instanceof WebStorageInputError || error instanceof StorageComparisonInputError || error instanceof EmulationInputError) throw error
+      // So does an action a page's dialog stopped after it reached the page, whose effects the workspace call reports.
+      if (pageDialogInterrupted(error)) throw error
       return errorResult(error)
     }
   }

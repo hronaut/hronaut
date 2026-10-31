@@ -20,10 +20,10 @@ import {
   type BrowserActionAuthorityReason
 } from './browser-action-authority.js'
 import type { BrowserState } from '../../shared/types.js'
-import { type PublicBrowserReconciliation, classifyMcpActivityResult, closedTabWaitResult, isTimeoutError, mcpWorkspaceState, nativeClickFailureResult, nativeInputCleanupResult, nativeKeyHoldUnknownResult, nativeWheelUnknownResult, publicBrowserReconciliation, textResult, toolDefinition, urlDetailOmitted } from './tool-results.js'
+import { type PublicBrowserReconciliation, classifyMcpActivityResult, closedTabWaitResult, errorResult, isTimeoutError, mcpWorkspaceState, nativeClickFailureResult, nativeInputCleanupResult, nativeKeyHoldUnknownResult, nativeWheelUnknownResult, publicBrowserReconciliation, textResult, toolDefinition, urlDetailOmitted } from './tool-results.js'
 import { mcpCapabilityOperationClass } from './capability-classification.js'
 import { workspaceIdSchema } from './tool-schemas.js'
-import { withWebsiteDialogNote } from './website-dialog-calls.js'
+import { pageDialogInterrupted, pageDialogInterruptedResult, withWebsiteDialogNote } from './website-dialog-calls.js'
 import type { McpToolContext, ToolActivityClassification, ToolCallSettlement, ToolOptions, WorkspaceToolCall, WorkspaceToolHandler, WorkspaceToolOptions } from './tools/tool-context.js'
 import type { RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { auditEvidenceAvailability } from '../browser/debug-report/debug-report.js'
@@ -544,6 +544,14 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
               resolvedTabId ? workspaceState.tabs.find(tab => tab.id === resolvedTabId)?.dialog : undefined
             )
           } catch (error) {
+            // A page's dialog that holds the page stopped a call that had reached it, as a click that opens a confirm. A
+            // change then has unknown effects.
+            if (pageDialogInterrupted(error)) {
+              if (!readOnly) invalidatedOutcome = 'outcome-unknown'
+              const reviewFinalizationFailed = await finishReviewedAttempt('unknown').then(() => false, () => true)
+              return withWebsiteDialogNote(readOnly ? errorResult(error) : pageDialogInterruptedResult(error, reviewFinalizationFailed),
+                resolvedTabId ? getMcpGroupState(manager, workspaceId).tabs.find(tab => tab.id === resolvedTabId)?.dialog : undefined)
+            }
             if (!(error instanceof NativeInputCleanupError) && !(error instanceof NativeWheelOutcomeUnknownError)) throw error
             const uncertainResult = error instanceof NativeClickAdmissionError
               ? (failed = false) => nativeClickFailureResult(error.progress, error.reason, failed, settlement?.inputPolicy?.())
