@@ -11,7 +11,7 @@ All notable changes to Hronaut are documented in this file.
 - A download into a download folder Hronaut cannot write to, such as one on a drive that became read-only, now asks where to save it, starting in your Documents folder, as in Chrome, instead of failing.
 - As in Chrome, text typed in the address bar and not sent is shown again when you come back to its tab, with a keyword search's engine; switching tabs threw it away. A tab that opened another page meanwhile shows that page's address, and so does the address bar when the page moves on while you are no longer typing in it.
 - As in Chrome, **Close Tabs to the Right** (**Close Tabs Below** with vertical tabs) on a pinned tab closes the tabs of its workspace that are not pinned; it was always off there.
-- Holding a browser shortcut pressed in a page, such as Ctrl+W, no longer sends its key's repeats to the page; they reached the page of the tab shown next as that shortcut, which a web app such as a web IDE could act on, while Chrome keeps such a key from pages.
+- Holding Ctrl+W or another browser shortcut pressed in a page no longer sends the key's repeats to the page of the tab shown next, which a web IDE may read as closing an editor; Chrome keeps Ctrl+W from pages. Likewise, a held Escape that ends the screenshot area or the element picker no longer reaches the page.
 
 ## [3.14.6] - 2026-10-31
 

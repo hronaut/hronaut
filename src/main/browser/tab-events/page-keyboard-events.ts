@@ -1,4 +1,4 @@
-import type { WebContents } from 'electron'
+import type { Input, WebContents } from 'electron'
 import { browserShortcutAction } from '../../../shared/browser-shortcuts.js'
 import type { Browser } from '../browser.js'
 import type { BrowserTab } from '../browser-tab.js'
@@ -20,14 +20,17 @@ const TAB_OVERVIEW_INPUT_SETTLE_MS = 1_000
  * the human input lock may hold the key back, and the key is recorded,
  * refreshes the tab's overview preview and makes following wait. A key held
  * down in the shell when it hands the focus to the page does not repeat into it,
- * and neither does the key of a browser shortcut taken from a page, such as
- * Ctrl+W, whose repeats went on to the page of the tab shown next.
+ * nor does the key of a browser shortcut a page gave up, such as Ctrl+W, into
+ * the page of the tab shown next.
  */
 export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webContents: WebContents): void {
   webContents.on('before-input-event', (event, input) => {
     // A key pressed or released here ends the keys held in the shell: the keyboard repeats only the newest key, and a
     // held key whose repeats were dropped is let go without its release reaching any page.
-    if (!input.isAutoRepeat) browser.shellHeldKeys.clear()
+    if (!input.isAutoRepeat) {
+      browser.shellHeldKeys.clear()
+      browser.pageShortcutKey = null
+    }
     if (browser.browserContentOccluded && !browser.agentInputWebContents.has(webContents.id)) {
       // Trusted chrome is open; the page is only on screen until its snapshot is shown.
       event.preventDefault()
@@ -43,7 +46,7 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
         mac: process.platform === 'darwin'
       }) : null
       if (shortcut) {
-        noteShellHeldKey(browser.shellHeldKeys, input)
+        notePageShortcutKey(browser, webContents, input)
         browser.options.onShortcutRequested?.(shortcut)
       }
       return
@@ -57,7 +60,11 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
         && !input.control
         && !input.meta
         && !input.alt
-      ) void cancelScreenshotArea(browser, tab.id).catch(() => undefined)
+      ) {
+        // Its repeats would reach the page once the area is gone, such as closing the page's own dialog.
+        noteShellHeldKey(browser.shellHeldKeys, input)
+        void cancelScreenshotArea(browser, tab.id).catch(() => undefined)
+      }
       return
     }
     const elementPickerSession = browser.elementPickerSessions.get(webContents.id)
@@ -74,14 +81,17 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
         composing: input.isComposing,
         mac: process.platform === 'darwin'
       }) : null
-      if (
+      if ((
         input.type === 'keyDown'
         && input.key === 'Escape'
         && !input.control
         && !input.meta
         && !input.alt
-      ) void cancelElementPicker(browser, tab.id).catch(() => undefined)
-      else if (shortcut === 'pick-element') void cancelElementPicker(browser, tab.id).catch(() => undefined)
+      ) || shortcut === 'pick-element') {
+        // Its repeats would reach the page once the picker is gone, as for the screenshot area.
+        noteShellHeldKey(browser.shellHeldKeys, input)
+        void cancelElementPicker(browser, tab.id).catch(() => undefined)
+      }
       return
     }
     const requested = input.type === 'keyDown' ? browserShortcutAction({
@@ -110,7 +120,7 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
     if (browser.isHumanInteractionLocked(tab) && !expectedAgentInput) {
       event.preventDefault()
       if (shortcut) {
-        noteShellHeldKey(browser.shellHeldKeys, input)
+        notePageShortcutKey(browser, webContents, input)
         browser.options.onUserInteraction?.()
         browser.options.onShortcutRequested?.(shortcut, page)
       }
@@ -118,16 +128,19 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
     }
     if (shortcut) {
       event.preventDefault()
-      // The shell took the key, so its repeats are the shell's too, here and in the page of the tab it shows next.
-      noteShellHeldKey(browser.shellHeldKeys, input)
+      if (!expectedAgentInput) notePageShortcutKey(browser, webContents, input)
       browser.options.onUserInteraction?.()
       browser.options.onShortcutRequested?.(shortcut, page)
       return
     }
-    if (input.isAutoRepeat && !expectedAgentInput && input.code && browser.shellHeldKeys.has(input.code)) {
+    if (input.isAutoRepeat && !expectedAgentInput && input.code && (
+      browser.shellHeldKeys.has(input.code)
+      || (browser.pageShortcutKey?.code === input.code && browser.pageShortcutKey.webContentsId !== webContents.id)
+    )) {
       // The repeats of a key the shell took, such as Delete closing the active tab, which gave this page the focus:
-      // a held Delete went on to delete the text in this page's focused field. A held Ctrl+W likewise reached the next
-      // page as Ctrl+W, which a web IDE may read as closing an editor.
+      // a held Delete went on to delete the text in this page's focused field. A held Ctrl+W likewise reached the page
+      // of the tab shown next as Ctrl+W, which a web IDE may read as closing an editor. Those of a key a page gave up,
+      // such as a held Ctrl+=, still reach that page, so the View menu goes on zooming it.
       event.preventDefault()
       return
     }
@@ -142,4 +155,9 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
       browser.options.onUserInteraction?.({ tabId: tab.id, workspaceId: tab.mcpGroupId })
     }
   })
+}
+
+/** Notes the key of a browser shortcut the person pressed in this page, whose repeats then stay out of other pages. */
+function notePageShortcutKey(browser: Browser, webContents: WebContents, input: Input): void {
+  if (input.code) browser.pageShortcutKey = { code: input.code, webContentsId: webContents.id }
 }
