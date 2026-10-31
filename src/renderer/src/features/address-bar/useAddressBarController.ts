@@ -659,31 +659,31 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
       }
     ),
     () => watch(
-      [() => options.activeTab.value?.id, () => options.activeTab.value?.url],
-      ([tabId, url], [previousTabId, previousUrl]) => {
+      [() => options.activeTab.value?.id, () => options.activeTab.value?.url, () => options.activeTab.value?.navigationGeneration],
+      ([tabId, url, navigationGeneration], [previousTabId, previousUrl, previousGeneration]) => {
         if (disposed) return
         const tabChanged = previousTabId !== undefined && tabId !== previousTabId
-        // As in Chrome, what was typed for the tab left and not sent is shown again on coming back to it.
-        if (tabChanged && dirty.value) {
-          tabEdits.keep(previousTabId, previousUrl, { text: query.value, keyword: keywordMode.keyword.value }, options.tabs.value)
+        // As in Chrome, what was typed for the tab left and not sent is shown again on coming back to it. A field emptied
+        // shows the page's address again.
+        if (tabChanged && dirty.value && (address.value || keywordMode.keyword.value)) {
+          const edit = { text: address.value, keyword: keywordMode.keyword.value }
+          tabEdits.keep(previousTabId, { url: previousUrl, navigationGeneration: previousGeneration }, edit, options.tabs.value)
         }
+        const kept = tabId && tabId !== previousTabId ? tabEdits.take(tabId, { url, navigationGeneration }, options.tabs.value) : undefined
+        // As in Chrome, the page's new address replaces what was typed while the field does not have the keyboard.
+        const movedOn = !tabChanged && previousUrl !== undefined && url !== previousUrl && !focused.value
         if (tabChanged || (
           pendingNavigation
           && pendingNavigation.tabId === tabId
           && pendingNavigation.initialUrl !== url
         )) pendingNavigation = null
-        if (tabChanged || (!editing.value && !dirty.value)) {
+        if (tabChanged || movedOn || (!editing.value && !dirty.value)) {
           cancelBlur()
           close()
           if (tabChanged) editing.value = false
-          address.value = displayedAddress(url)
+          address.value = kept?.text ?? displayedAddress(url)
           inlineCompletion.value = null
-          keywordMode.clear()
-          const kept = tabChanged && tabId ? tabEdits.take(tabId, url) : undefined
-          if (kept) {
-            address.value = kept.text
-            keywordMode.keyword.value = kept.keyword
-          }
+          keywordMode.keyword.value = kept?.keyword ?? null
           dirty.value = kept !== undefined
         }
       },

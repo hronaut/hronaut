@@ -139,7 +139,7 @@ describe('inline completion in the address bar', () => {
     expect(h.onNavigate).toHaveBeenCalledExactlyOnceWith('https://github.com/')
   })
 
-  it('shows the typed text, without the rest it filled in, on coming back to the tab, as Chrome does', async () => {
+  it('shows the text the field showed, with the rest it filled in, on coming back to the tab, as Chrome does', async () => {
     const otherTab = { ...shownTab, id: 'other', url: 'https://other.test/' }
     const h = createHarness([visit('repo', 'https://github.com/hronaut/hronaut', 3)], [], [shownTab, otherTab])
     await clear(h.input)
@@ -150,7 +150,7 @@ describe('inline completion in the address bar', () => {
     await nextTick()
     h.active.value = shownTab
     await nextTick()
-    expect(h.field().value).toBe('gi')
+    expect(h.field().value).toBe('github.com')
     expect(h.controller.dirty.value).toBe(true)
   })
 
