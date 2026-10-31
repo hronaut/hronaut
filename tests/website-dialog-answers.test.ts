@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
 import { BrowserDebuggerQueue } from '../src/main/browser/debugger-queue.js'
-import { closeWebsiteDialogBox, handleDialog, withOptionalDialogHandling } from '../src/main/browser/website-dialogs/website-dialogs.js'
+import { closeWebsiteDialogBox, closeWebsiteDialogBoxOfDestroyedPage, handleDialog, withOptionalDialogHandling } from '../src/main/browser/website-dialogs/website-dialogs.js'
 
 // The debugger reports a website dialog before Electron handles it. Electron shows a box for an alert or confirm, and
 // answers a page asking before it unloads, or a prompt, itself at once. Answering through the debugger closes the
@@ -125,5 +125,14 @@ describe('answering website dialogs through the debugger', () => {
     await new Promise((resolve) => setImmediate(resolve))
     f.close('the person')
     expect(f.events).toEqual(['box shown', 'closed by the person'])
+  })
+
+  // Electron closes no box when a page is destroyed, as when an agent closed the tab, and the box kept the window disabled.
+  it('closes the box of a dialog whose page was destroyed', async () => {
+    const f = fixture()
+    f.pageOpens('alert', 'shows a box')
+    await new Promise((resolve) => setImmediate(resolve))
+    closeWebsiteDialogBoxOfDestroyedPage(f.webContents as never)
+    expect(f.events).toEqual(['box shown', 'box closed'])
   })
 })

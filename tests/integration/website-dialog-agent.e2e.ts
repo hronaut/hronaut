@@ -141,6 +141,10 @@ test('returns an agent\'s press or click that opens a confirm, and lets the agen
   const snapshot = await call('browser_snapshot', { tabId })
   expect(snapshot.isError).toBe(true)
   expect(text(snapshot)).toContain('The page is showing a website dialog, which holds it until it is answered; nothing was sent to it.')
+  // Chromium drops input to the page meanwhile, so another key press is refused rather than reported as pressed.
+  const pressedAgain = await call('browser_press', { tabId, key: 'Escape' })
+  expect(pressedAgain.isError).toBe(true)
+  expect(text(pressedAgain)).toContain('nothing was sent to it')
   const accepted = await call('browser_dialog', { tabId, action: 'accept' })
   expect(accepted.isError, text(accepted)).not.toBe(true)
   await expect.poll(async () => (await tabState(appWindow, tabId))?.title).toBe('Deleted')
@@ -151,6 +155,15 @@ test('returns an agent\'s press or click that opens a confirm, and lets the agen
   const dismissed = await call('browser_dialog', { tabId, action: 'dismiss' })
   expect(dismissed.isError, text(dismissed)).not.toBe(true)
   await expect.poll(async () => (await tabState(appWindow, tabId))?.title).toBe('Kept')
+
+  // A click run in the page ends once the confirm holds the page, saying so.
+  const semantic = await call('browser_click', { tabId, selector: '#ask' })
+  expect(semantic.isError).toBe(true)
+  expect(text(semantic)).toContain('The page opened a website dialog during this action')
+  await expect.poll(async () => (await tabState(appWindow, tabId))?.dialog?.message).toBe('Delete it?')
+  const acceptedAgain = await call('browser_dialog', { tabId, action: 'accept' })
+  expect(acceptedAgain.isError, text(acceptedAgain)).not.toBe(true)
+  await expect.poll(async () => (await tabState(appWindow, tabId))?.title).toBe('Deleted')
 })
 
 // A script that opened a confirm waited for it until its deadline, and the agent could not answer it meanwhile.
@@ -160,7 +173,8 @@ test('returns an agent\'s script that opens a confirm, and lets the agent answer
   const call = callWithin(client)
   const evaluated = await call('browser_evaluate', { tabId, script: 'document.title = confirm("Delete it?") ? "Deleted" : "Kept"' })
   expect(evaluated.isError).toBe(true)
-  expect(text(evaluated)).toContain('The page opened a website dialog during this action')
+  // The script goes on once the confirm is answered.
+  expect(evaluated.structuredContent).toMatchObject({ status: 'OUTCOME_UNKNOWN', reason: 'WEBSITE_DIALOG_OPENED', dispatch: 'dispatched', retrySafe: false })
   await expect.poll(async () => (await tabState(appWindow, tabId))?.dialog?.message).toBe('Delete it?')
   const accepted = await call('browser_dialog', { tabId, action: 'accept' })
   expect(accepted.isError, text(accepted)).not.toBe(true)

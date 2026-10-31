@@ -42,6 +42,8 @@ test('offers to stop a website\'s boxes from its second one on, as Chrome does',
     await pageAnswers('setTimeout(() => { window.answers = window.showBoxes() }); true')
     // Once stopped, the page's next boxes are answered Cancel without showing.
     await expect.poll(() => pageAnswers('window.answers ?? null').catch(() => null)).toEqual([true, true, false, false])
+    // A box Electron turns down at once holds nothing, so a call waiting on the page still gets its answer.
+    expect(await pageAnswers('confirm("Box 4")')).toBe(false)
     expect(await electronApp.evaluate(() => (globalThis as BoxesGlobal).__pageBoxes)).toEqual([
       { message: 'Box 0', checkboxLabel: '' },
       { message: 'Box 1', checkboxLabel: 'Prevent this page from creating additional dialogs' }

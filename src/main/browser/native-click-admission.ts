@@ -6,7 +6,7 @@ import { RendererExitedError } from './renderer-exit-guard.js'
 import { WebsiteDialogOpenError, whenWebsiteDialogCloses } from './website-dialog-guard.js'
 import type { NativeInputDispatchObserver } from './native-key-hold.js'
 
-interface AttachedDebugger { sendCommand(method: string, params?: Record<string, unknown>): Promise<unknown> }
+interface AttachedDebugger { sendCommand(method: string, params?: Record<string, unknown>): Promise<unknown>; isAttached?(): boolean }
 interface Evaluation { result?: { objectId?: string; value?: unknown }; exceptionDetails?: unknown }
 export interface NativeClickProgress {
   inputCleanupFailed: boolean
@@ -65,8 +65,8 @@ export async function acquireNativeClickAdmission(api: AttachedDebugger, target:
   const release = async (): Promise<void> => {
     try { await api.sendCommand('Runtime.releaseObjectGroup', { objectGroup: group }); progress.targetCleanup = 'confirmed' }
     catch (cause) {
-      // The object group lived in the renderer and exited with it.
-      if (cause instanceof RendererExitedError) { progress.targetCleanup = 'confirmed'; return }
+      // The object group lived in the renderer and exited with it, or in the debugger session that ended.
+      if (cause instanceof RendererExitedError || api.isAttached?.() === false) { progress.targetCleanup = 'confirmed'; return }
       // The page answers nothing until its website dialog closes, so the click returns now and the release waits.
       if (cause instanceof WebsiteDialogOpenError && page) { void whenWebsiteDialogCloses(page).then(release).catch(() => undefined); return }
       progress.targetCleanup = 'unconfirmed'; throw new NativeClickAdmissionError('TARGET_CLEANUP_UNCONFIRMED', { ...progress }, cause)

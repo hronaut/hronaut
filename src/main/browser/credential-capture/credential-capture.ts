@@ -2,6 +2,7 @@ import { pageScript } from '../../../shared/page-script.js'
 import { credentialSubmissionInPage } from './credential-capture.page.js'
 import { ISOLATED_WORLDS } from '../isolated-worlds.js'
 import { isHronautHomeUrl } from '../url.js'
+import { callThroughWebsiteDialogs } from '../website-dialog-guard.js'
 import type { Browser } from '../browser.js'
 import type { BrowserTab } from '../browser-tab.js'
 
@@ -26,7 +27,8 @@ const CREDENTIAL_CAPTURE_WORLD_ID = ISOLATED_WORLDS.credentialCapture
 export function watchCredentialSubmission(browser: Browser, tab: Pick<BrowserTab, 'url' | 'webContents' | 'lastHumanInteractionAt'>): void {
   if (!browser.options.onCredentialSubmitted || isHronautHomeUrl(tab.url) || tab.webContents.isDestroyed()) return
   const script = pageScript(credentialSubmissionInPage)
-  void tab.webContents.executeJavaScriptInIsolatedWorld(CREDENTIAL_CAPTURE_WORLD_ID, [{ code: script }], false)
+  // It waits for the person's submission, which a website dialog, such as a sign-in error, only pauses.
+  void callThroughWebsiteDialogs(() => tab.webContents.executeJavaScriptInIsolatedWorld(CREDENTIAL_CAPTURE_WORLD_ID, [{ code: script }], false))
     .then((candidate: BrowserCredentialCandidate | null) => {
       if (!candidate) return
       watchCredentialSubmission(browser, tab)

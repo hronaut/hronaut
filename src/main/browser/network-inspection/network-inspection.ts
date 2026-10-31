@@ -41,6 +41,7 @@ import { findTab, getTab } from '../browser-core.js'
 import { isUnavailableCdpMethod } from '../unavailable-cdp-method.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { withDebugger } from '../debugger-lease/debugger-lease.js'
+import { WebsiteDialogOpenError } from '../website-dialog-guard.js'
 
 /** A header's value by case-insensitive name, with repeated values joined. */
 function headerValue(headers: Record<string, string | string[] | undefined> | undefined, name: string): string | undefined {
@@ -210,6 +211,8 @@ export async function networkRequestDetails(
         })
       }
     } catch (error) {
+      // A website dialog holds the page that keeps the body; it is there again once the dialog is answered.
+      if (error instanceof WebsiteDialogOpenError) throw error
       responseBody = {
         available: false,
         reason: /Close Developer Tools/.test(String(error))

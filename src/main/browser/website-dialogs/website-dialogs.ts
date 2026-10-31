@@ -194,7 +194,11 @@ export function closeWebsiteDialogBox(webContents: WebContents): void {
  */
 export function closeWebsiteDialogBoxOfDestroyedPage(webContents: WebContents): void {
   answeredThroughDebugger.delete(webContents)
-  webContents.emit('-cancel-dialogs')
+  try {
+    webContents.emit('-cancel-dialogs')
+  } catch (error) {
+    console.warn('[browser] Could not close the dialog box of a closed page:', error)
+  }
 }
 
 /**

@@ -38,6 +38,22 @@ export function whenWebsiteDialogCloses(page: object): Promise<void> {
   return new Promise(resolve => { state.closed.push(resolve) })
 }
 
+let callingThroughDialogs = false
+
+/**
+ * Makes a call that waits on the page for the person, such as the watch for a submitted sign-in form or Hronaut's
+ * element picker, outside the hold: a website dialog only pauses it until someone answers, so it is neither failed
+ * nor refused. The call is made at once.
+ */
+export function callThroughWebsiteDialogs<T>(call: () => Promise<T>): Promise<T> {
+  callingThroughDialogs = true
+  try {
+    return call()
+  } finally {
+    callingThroughDialogs = false
+  }
+}
+
 type GuardedPage = Pick<WebContents, 'executeJavaScript' | 'executeJavaScriptInIsolatedWorld'> & {
   on(event: 'render-process-gone' | 'did-navigate' | 'destroyed', listener: () => void): unknown
   debugger: Pick<Debugger, 'sendCommand'> & {
@@ -50,25 +66,30 @@ type GuardedPage = Pick<WebContents, 'executeJavaScript' | 'executeJavaScriptInI
  * A website's alert or confirm holds the page's renderer until someone answers it: Chromium answers none of its
  * scripts or DevTools commands meanwhile, so an agent's call that met one never returned and kept its tab, debugger
  * queue and workspace busy until the person answered. Installed once on each tab's page after the print dialog guard,
- * this makes the calls in flight when such a dialog opens fail with WebsiteDialogOpenError and new ones fail at once,
+ * this makes the calls in flight when such a dialog shows fail with WebsiteDialogOpenError and new ones fail at once,
  * unsent, until it closes. The page's debugger reports the dialog, so pages whose Developer Tools are open are not
- * guarded. A dialog that is answered at once, as one an agent's action answers or one turned down while Hronaut's own
- * screens cover the pages, holds nothing. Electron answers a prompt and a page asking before it unloads itself.
- * Commands the browser process answers, such as the dialog's own answer, the input commands, whose wait the agent's
- * input ends itself, and those for the page's workers and out-of-process frames still go through. Nothing is
- * retried; whenWebsiteDialogCloses lets cleanup run again once the dialog closes.
+ * guarded; it reports the dialogs of the page's frames from other sites the same way, so those count too. A dialog
+ * that is answered at once holds nothing: one an agent's action answers, one turned down while Hronaut's own screens
+ * cover the pages, and one Electron turns down itself, as for a page the person stopped from showing more. Electron
+ * also answers a prompt and a page asking before it unloads itself. Commands the browser process answers, such as the
+ * dialog's own answer, the input commands, which Chromium answers at once while a dialog shows, and those of the
+ * page's workers still go through, and so do calls made through callThroughWebsiteDialogs. Nothing is retried;
+ * whenWebsiteDialogCloses lets cleanup run again once the dialog closes.
  */
 export function guardPageCallsDuringWebsiteDialog(page: GuardedPage, answeredAtOnce: () => boolean): void {
   const state: WebsiteDialogState = { open: false, closed: [] }
   states.set(page, state)
   // Only calls in flight are held, so a long-lived page keeps nothing per call.
   const inFlight = new Set<(error: WebsiteDialogOpenError) => void>()
+  // Counts the ends of holds, so a dialog that closed before its hold began starts none.
+  let holdsEnded = 0
   const endHold = (): void => {
+    holdsEnded++
     state.open = false
     for (const resolve of state.closed.splice(0)) resolve()
   }
   page.debugger.on('message', (_event, method, params, sessionId) => {
-    // A worker or an out-of-process frame reports through its own session; its dialog does not hold the page.
+    // A worker attached through its own session reports there; its dialog does not hold the page.
     if (sessionId) return
     if (method === 'Page.javascriptDialogClosed') {
       endHold()
@@ -76,10 +97,15 @@ export function guardPageCallsDuringWebsiteDialog(page: GuardedPage, answeredAtO
     }
     if (method !== 'Page.javascriptDialogOpening' || (params.type !== 'alert' && params.type !== 'confirm')) return
     if (answeredAtOnce()) return
-    state.open = true
-    const rejecters = [...inFlight]
-    inFlight.clear()
-    for (const reject of rejecters) reject(new WebsiteDialogOpenError(true))
+    // Electron turns a dialog down within the debugger's report of it, before a new turn, and shows a box otherwise.
+    const endedBefore = holdsEnded
+    setImmediate(() => {
+      if (holdsEnded !== endedBefore) return
+      state.open = true
+      const rejecters = [...inFlight]
+      inFlight.clear()
+      for (const reject of rejecters) reject(new WebsiteDialogOpenError(true))
+    })
   })
   // A detached debugger reports no close, and a new document or renderer is not held by the old page's dialog.
   page.debugger.on('detach', endHold)
@@ -87,6 +113,7 @@ export function guardPageCallsDuringWebsiteDialog(page: GuardedPage, answeredAtO
   page.on('render-process-gone', endHold)
   page.on('destroyed', endHold)
   const settleBeforeDialog = <T>(call: () => Promise<T>): Promise<T> => {
+    if (callingThroughDialogs) return call()
     if (state.open) return Promise.reject(new WebsiteDialogOpenError(false))
     const pending = call()
     return new Promise<T>((resolve, reject) => {
@@ -105,7 +132,10 @@ export function guardPageCallsDuringWebsiteDialog(page: GuardedPage, answeredAtO
     : settleBeforeDialog(() => sendCommand(method, ...args))
 }
 
-/** The dialog's own answer, and agent input, whose wait sendAuthorizedAgentInputCommand ends when a dialog opens. */
+/**
+ * The dialog's own answer, and input: sendAuthorizedAgentInputCommand ends the wait of input that opens a dialog, and
+ * Chromium drops input that arrives while a dialog shows and answers it at once.
+ */
 function passesWebsiteDialog(method: string): boolean {
   return method === 'Page.handleJavaScriptDialog' || method.startsWith('Input.')
 }

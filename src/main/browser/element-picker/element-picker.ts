@@ -16,6 +16,7 @@ import { getTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { syncHumanInteractionInputGuard } from '../interaction-lock/human-input-guard.js'
 import { screenshot } from '../screenshots/screenshots.js'
+import { callThroughWebsiteDialogs } from '../website-dialog-guard.js'
 
 /** What the element picker's page script resolves: the element's raw inspection, or that the person canceled. */
 export interface BrowserElementPickerScriptResult {
@@ -78,7 +79,8 @@ async function selectElement(browser: Browser, tabId?: string): Promise<BrowserE
   browser.elementPickerSessions.set(webContents.id, session)
   try {
     if (browser.isHumanInteractionLocked(tab)) await syncHumanInteractionInputGuard(browser, tab)
-    void webContents.executeJavaScript(elementPickerScript(), true)
+    // It waits for the person's pick, which a website dialog only pauses.
+    void callThroughWebsiteDialogs(() => webContents.executeJavaScript(elementPickerScript(), true))
       .then((selected: BrowserElementPickerScriptResult) => {
         if (selected?.canceled || selected?.inspection) session.resolve(selected)
       })

@@ -92,6 +92,8 @@ describe('operation-owned native click admission', () => {
       const publish = vi.fn()
       const guard = await acquireNativeClickAdmission(page.debugger, { selector: '#one' }, () => {}, f.progress, publish, page)
       report('Page.javascriptDialogOpening')
+      // Electron shows the box in the next turn.
+      await new Promise(resolve => setImmediate(resolve))
       await expect(guard.dispose()).resolves.toBeUndefined()
       expect(f.progress.targetCleanup).toBe('pending')
       expect(f.calls.filter(([m]) => m === 'Runtime.releaseObjectGroup')).toHaveLength(0)
@@ -104,6 +106,15 @@ describe('operation-owned native click admission', () => {
       expect(publish.mock.calls.length).toBeGreaterThan(published)
     })
   }
+  it('confirms cleanup when the debugger session that held the target has ended', async () => {
+    const f = fixture({ cleanupFails: true })
+    let attached = true
+    const api = { sendCommand: f.api.sendCommand, isAttached: () => attached }
+    const guard = await acquireNativeClickAdmission(api, { selector: '#one' }, () => {}, f.progress, () => {})
+    attached = false
+    await expect(guard.dispose()).resolves.toBeUndefined()
+    expect(f.progress.targetCleanup).toBe('confirmed')
+  })
   it('distinguishes an attempted down from its acknowledgement and matching release', () => {
     const p = nativeClickProgress(), publish = vi.fn(), observer = nativeClickObserver(p, publish)
     observer.rawAttempted({ type: 'mousePressed' }); expect(p.downAcknowledged).toBe(0)
