@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [3.14.4] - 2026-10-31
+
 ### Fixed
 
 - A website that showed alert or confirm boxes one after another held Hronaut's window: each box had to be answered before anything else worked, and the next one came at once. As in Chrome, from a website's second box onward in a tab, the box now offers to prevent the page from creating more; once you tick it, that website's later boxes in the tab are answered Cancel without showing, until the tab closes.
