@@ -51,7 +51,10 @@ export function navigationButtons(tab: BrowserTab): { canGoBack: boolean; canGoF
       }
       return false
     }
-    return shown < 0 ? { canGoBack: false, canGoForward: false } : { canGoBack: pageTo(-1), canGoForward: pageTo(1) }
+    // Chromium goes Back or Forward only past pages the person moved on from, so a page that opened the next by script
+    // without the person's activation is none to go to: with only such pages behind, Back does nothing, as in Chrome.
+    if (shown < 0) return { canGoBack: false, canGoForward: false }
+    return { canGoBack: navigation.canGoBack() && pageTo(-1), canGoForward: navigation.canGoForward() && pageTo(1) }
   } catch {
     // Electron can destroy the page between the calls.
     return { canGoBack: false, canGoForward: false }

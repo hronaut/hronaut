@@ -14,7 +14,7 @@ function savedHistory(browser: unknown, everyTab: boolean): { unchanged(tab: unk
   return savedTabHistoryAccess(browser as never, everyTab) as unknown as { unchanged(tab: unknown): boolean }
 }
 
-function liveTab(urls: string[], index: number, options: { destroyed?: boolean; throws?: boolean } = {}) {
+function liveTab(urls: string[], index: number, options: { destroyed?: boolean; throws?: boolean; chromiumSteps?: boolean } = {}) {
   const getEntryAtIndex = vi.fn((at: number) => (at in urls ? { url: urls[at], title: '' } : null))
   return {
     id: 'tab', url: urls[index] ?? '', title: 'Title',
@@ -23,6 +23,8 @@ function liveTab(urls: string[], index: number, options: { destroyed?: boolean; 
       navigationHistory: {
         length: () => { if (options.throws) throw new Error('Object has been destroyed'); return urls.length },
         getActiveIndex: () => index,
+        canGoBack: () => options.chromiumSteps ?? true,
+        canGoForward: () => options.chromiumSteps ?? true,
         getEntryAtIndex,
         getAllEntries: vi.fn(() => urls.map(url => ({ url, title: '' })))
       }
@@ -54,6 +56,13 @@ describe('Back and Forward of a tab in the browser state', () => {
       })
       expect(tab.webContents.navigationHistory.getAllEntries).not.toHaveBeenCalled()
     }
+  })
+
+  // Chromium goes nowhere when every page behind opened the next by script without the person's activation, and the
+  // Back button stayed on and did nothing.
+  it('stay off where Chromium goes nowhere', () => {
+    expect(navigationButtons(liveTab([PAGE + 'a', PAGE + 'b', PAGE + 'c'], 1, { chromiumSteps: false }) as never))
+      .toEqual({ canGoBack: false, canGoForward: false })
   })
 
   it('come from the history a sleeping tab keeps', () => {

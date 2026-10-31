@@ -8,7 +8,7 @@ import { RendererExitedError } from '../renderer-exit-guard.js'
 import { keepSessionCookies } from '../session-cookies/saved-session-cookies.js'
 import { isHronautHomeUrl, normalizeAddress } from '../url.js'
 import type { Browser } from '../browser.js'
-import { assertWorkspaceNavigationAllowed, workspaceNavigationAllowed } from '../workspace-navigation/workspace-navigation.js'
+import { assertWorkspaceNavigationAllowed, workspaceMayOpen, workspaceNavigationAllowed } from '../workspace-navigation/workspace-navigation.js'
 import { forgetTabsOpenedFrom } from '../link-tab-placement/link-tab-openers.js'
 import { findTab, getTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
@@ -346,7 +346,8 @@ export async function back(browser: Browser, tabId?: string, options: { byPerson
       && target
       && !workspaceNavigationAllowed(browser, tab.mcpGroupId, target.url, 'history')) return browserState(browser)
     browser.prepareDiagnosticNavigation(tab)
-    await leavePage(browser, tab, () => history.goBack(), 'leave', options, () => stillSteps(browser, tab, activeIndex, -1, target?.url))
+    await leavePage(browser, tab, historyStep(browser, tab, activeIndex, -1), 'leave', options,
+      () => stillSteps(browser, tab, activeIndex, -1, target?.url))
   }
   return browserState(browser)
 }
@@ -367,9 +368,27 @@ export async function forward(browser: Browser, tabId?: string, options: { byPer
       && target
       && !workspaceNavigationAllowed(browser, tab.mcpGroupId, target.url, 'history')) return browserState(browser)
     browser.prepareDiagnosticNavigation(tab)
-    await leavePage(browser, tab, () => history.goForward(), 'leave', options, () => stillSteps(browser, tab, activeIndex, 1, target?.url))
+    await leavePage(browser, tab, historyStep(browser, tab, activeIndex, 1), 'leave', options,
+      () => stillSteps(browser, tab, activeIndex, 1, target?.url))
   }
   return browserState(browser)
+}
+
+/**
+ * Starts Back or Forward from the page at activeIndex. Chromium's Back and Forward skip a page that moved on by itself,
+ * without the person's activation, as a page that opens another by script does, so they can land past the next page;
+ * the workspace's navigation policy is checked for the next page only. While a page further along is one the
+ * workspace may not open, they go exactly one step, to the page checked.
+ */
+function historyStep(browser: Browser, tab: BrowserTab, activeIndex: number, step: -1 | 1): () => void {
+  const history = tab.webContents.navigationHistory
+  const entries = history.getAllEntries()
+  const further = step < 0 ? entries.slice(0, Math.max(activeIndex - 1, 0)) : entries.slice(activeIndex + 2)
+  const groupId = tab.mcpGroupId
+  if (groupId && further.some(entry => !workspaceMayOpen(browser, groupId, entry.url))) {
+    return () => history.goToIndex(activeIndex + step)
+  }
+  return step < 0 ? () => history.goBack() : () => history.goForward()
 }
 
 /**
