@@ -9,6 +9,7 @@ import {
   mcpCapabilityArgumentValueDigest
 } from '../src/main/mcp/capability-profile-store.js'
 import { McpActionTracker } from '../src/main/mcp/action-tracker.js'
+import { mcpCapabilityProfileInputFromPreset } from '../src/main/mcp/capability-presets.js'
 import {
   assertMcpToolRegistrationContract,
   MCP_FAILED_AUTH_LIMIT,
@@ -506,7 +507,7 @@ describe('MCP capability profile authentication', () => {
       listMcpTabGroups: () => [workspace], listSavedTabGroups: () => [], listWorkspaceForkSources: () => [],
       createMcpTabGroup: async () => workspace, mcpWorkspaceResumeKey: () => `hrw1_${'a'.repeat(43)}`,
       isWorkspaceAgentAccessible: () => true, requireMcpTabGroup: () => workspace,
-      requireWorkspaceContinuityDispatch: () => undefined, beginWorkspaceContinuityAction: () => () => undefined,
+      requireWorkspaceContinuityDispatch: () => undefined, beginWorkspaceContinuityAction: vi.fn((_workspaceId: string, _readOnly: boolean) => () => undefined),
       requireTabInMcpGroup: () => tabId, tabBelongsToMcpGroup: () => true,
       getMcpGroupState: () => ({ activeTabId: tabId, tabs: [{ id: tabId, url: 'https://allowed.example/' }] }),
       pwaLifecycle: async (_options: unknown, validate: (origin: string) => void) => {
@@ -528,6 +529,48 @@ describe('MCP capability profile authentication', () => {
     expect(allowed.isError).not.toBe(true)
     expect(effect).toHaveBeenCalledOnce()
     expect(JSON.stringify(allowed)).toContain('synthetic-evidence')
+    // Reading the recorded lifecycle is a read for the workspace's continuity; stopping or clearing the recording is not.
+    expect(manager.beginWorkspaceContinuityAction).toHaveBeenLastCalledWith(WORKSPACE_ID, action === 'get')
+  })
+
+  // An agent that called browser_zoom to see a tab's zoom reset the person's zoom for the site, and a read of the zoom
+  // counted as a change in the workspace's activity, audit and continuity, holding up the agent that held its lease.
+  it.each([{}, { action: 'get' }])('reads the zoom as a read for browser_zoom %j, and keeps a read-only agent from changing it', async extra => {
+    const tabId = '01912345-6790-7abc-8def-0123456789ab'
+    const workspace = { id: WORKSPACE_ID, name: 'Synthetic zoom', contextClass: 'standard' }
+    const page = { isDestroyed: () => false, getZoomFactor: () => 1.5, setZoomFactor: vi.fn() }
+    const beginWorkspaceContinuityAction = vi.fn((_workspaceId: string, _readOnly: boolean) => () => undefined)
+    const onTabActivity = vi.fn()
+    const manager = {
+      listMcpTabGroups: () => [workspace], listSavedTabGroups: () => [], listWorkspaceForkSources: () => [],
+      createMcpTabGroup: async () => workspace, mcpWorkspaceResumeKey: () => `hrw1_${'a'.repeat(43)}`,
+      isWorkspaceAgentAccessible: () => true, requireMcpTabGroup: () => workspace,
+      requireWorkspaceContinuityDispatch: () => undefined, beginWorkspaceContinuityAction,
+      requireTabInMcpGroup: () => tabId, tabBelongsToMcpGroup: () => true, wakeTab: async () => undefined,
+      getMcpGroupState: () => ({ activeTabId: tabId, tabs: [{ id: tabId, url: 'https://allowed.example/' }] }),
+      tabs: new Map([[tabId, { id: tabId, url: 'https://allowed.example/', webContents: page, zoomIsolated: true }]]), activeTabId: tabId,
+      // What resuming the workspace touches, as a read-only agent picks up a workspace it was handed.
+      continuityRevision: 0, workspaceObservationGenerations: new Map(), continuityActions: new Map(),
+      pwaLifecycleRecorder: { interruptWorkspace: () => undefined }, downloadController: { advanceWorkspaceObservationGeneration: () => undefined },
+      workspaceContinuity: { suspend: () => undefined, guardedWorkspaceIds: () => [] }
+    }
+    await connectProfile(mcpCapabilityProfileInputFromPreset({ name: 'Zoom reader', preset: 'read-only' }), undefined, { manager, onTabActivity })
+    const resumed = await client!.callTool({ name: 'browser_workspaces', arguments: { action: 'resume', workspaceId: WORKSPACE_ID, resumeKey: manager.mcpWorkspaceResumeKey() } })
+    expect(resumed.isError, JSON.stringify(resumed)).not.toBe(true)
+    beginWorkspaceContinuityAction.mockClear()
+    const read = await client!.callTool({ name: 'browser_zoom', arguments: { workspaceId: WORKSPACE_ID, tabId, ...extra } })
+    expect(read.isError, JSON.stringify(read)).not.toBe(true)
+    expect(JSON.parse((read.content as Array<{ text: string }>)[0]!.text)).toEqual({ tabId, zoomPercent: 150, zoomIsolated: true })
+    expect(beginWorkspaceContinuityAction).toHaveBeenCalledExactlyOnceWith(WORKSPACE_ID, true)
+    const finished = onTabActivity.mock.calls.map(([activity]) => activity as { phase: string; result?: { effects: string } })
+      .find(activity => activity.phase === 'finished')
+    expect(finished?.result?.effects).toBe('none')
+
+    for (const change of [{ action: 'reset' }, { action: 'set', percent: 125 }]) {
+      const refused = await client!.callTool({ name: 'browser_zoom', arguments: { workspaceId: WORKSPACE_ID, tabId, ...change } })
+      expect(refused.isError).toBe(true)
+    }
+    expect(page.setZoomFactor).not.toHaveBeenCalled()
   })
 
   it.each(['human-decision', 'audit-receipt'] as const)('discards lifecycle evidence after expiry during final %s await', async boundary => {
