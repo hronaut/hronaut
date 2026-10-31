@@ -1,6 +1,6 @@
 import type { BrowserState } from '../../../shared/types.js'
 import type { Browser } from '../browser.js'
-import { getTab, orderedTabs } from '../browser-core.js'
+import { findTab, getTab, orderedTabs } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { browserState, publishChange } from '../browser-state/browser-state.js'
 import type { NavigationHistorySnapshot } from '../navigation-history.js'
@@ -15,6 +15,7 @@ import { stageBeforeUnloadClose } from './before-unload-staging.js'
 import { closeTabTransition } from './close-transition.js'
 import { removeTabRecord } from './remove-tab-record.js'
 import { markTabActiveInGroup } from '../tab-selection/active-tab.js'
+import { selectTabAndWait } from '../tab-selection/tab-selection.js'
 
 const HRONAUT_HOME_URL = 'hronaut://home/'
 
@@ -112,7 +113,52 @@ async function prepareActiveCloseReplacement(browser: Browser, tab: BrowserTab, 
   }
 }
 
-/** Closes the tab, opening a replacement when it was the last and ensureReplacement is set. */
+/** The tab the person was looking at when a page closed from behind was shown for its question. */
+interface ShownBeforeQuestion {
+  tabId: string
+  /** Where that tab returns when it closes, which showing another tab forgets. */
+  returnsToTabId: string | undefined
+}
+
+/**
+ * Shows a tab closed from behind for its page's question, as Chrome shows the page that asks, and returns the tab
+ * the person was on. An open split view stays, since showing another tab would end it, and the question then asks
+ * over it. The page gets no keyboard yet: a key the person holds from the close would reach it before the question.
+ */
+async function showTabForQuestion(browser: Browser, tab: BrowserTab): Promise<ShownBeforeQuestion | undefined> {
+  const shown = browser.activeTabId ? findTab(browser, browser.activeTabId) : undefined
+  if (!shown || browser.splitView || shown === tab || findTab(browser, tab.id) !== tab || tab.webContents.isDestroyed()) {
+    return undefined
+  }
+  const before = { tabId: shown.id, returnsToTabId: shown.returnsToTabId }
+  try {
+    await selectTabAndWait(browser, tab.id, { focus: false })
+  } catch (error) {
+    console.error('[browser] Could not show the tab whose page asks before it closes:', error)
+  }
+  return browser.activeTabId === tab.id ? before : undefined
+}
+
+/** Takes the person back to the tab they were on before a page was shown for its question, unless they moved. */
+async function returnAfterQuestion(browser: Browser, tab: BrowserTab, before: ShownBeforeQuestion): Promise<void> {
+  const shown = findTab(browser, before.tabId)
+  if (browser.activeTabId !== tab.id || !shown || shown.webContents.isDestroyed()) return
+  try {
+    await selectTabAndWait(browser, shown.id)
+  } catch (error) {
+    // The discarded page still closes, and the tab beside it shows.
+    console.error('[browser] Could not go back to the tab shown before a close question:', error)
+    return
+  }
+  if (browser.activeTabId === shown.id && before.returnsToTabId) shown.returnsToTabId = before.returnsToTabId
+}
+
+/**
+ * Closes the tab, opening a replacement when it was the last and ensureReplacement is set. A page closed from
+ * behind the shown tab that asks to stay is shown for the person's question, unless a split view is open; once they
+ * discard it, they are back on the tab they were on. A tab the person moves away from while its page decides stays
+ * behind for the question.
+ */
 async function performCloseTab(
   browser: Browser,
   tabId: string,
@@ -150,6 +196,9 @@ async function performCloseTab(
     const navigationGeneration = tab.navigationGeneration
     // Taking the page out of view while it decides takes the keyboard from it, which it gets back only if it had it.
     const pageHadKeyboard = keyboardPage(browser) === webContents
+    // A tab the person closed from behind the one shown; one they move away from while its page decides stays behind.
+    const closedFromBehind = browser.activeTabId !== tab.id && !browser.splitViewContains(tab.id)
+    const selectionGeneration = browser.tabSelectionGeneration
     stagedClose = stageBeforeUnloadClose(browser, tab)
     browser.expectedTabClosures.add(webContents)
     let disposition: 'closed' | 'prevented'
@@ -171,8 +220,12 @@ async function performCloseTab(
     if (disposition === 'prevented') {
       // The question over the page takes the keyboard now; a page that had it gets it back once the person keeps it.
       stagedClose.rollback(false)
+      const shownBefore = closedFromBehind && browser.tabSelectionGeneration === selectionGeneration
+        ? await showTabForQuestion(browser, tab)
+        : undefined
+      // A page the person was shown for the question and kept is the one they went on to edit.
       const keepPage = (): void => {
-        if (pageHadKeyboard && !webContents.isDestroyed()) focusPageAfterQuestion(browser, webContents)
+        if ((pageHadKeyboard || shownBefore) && !webContents.isDestroyed()) focusPageAfterQuestion(browser, webContents)
       }
       if (!webContents.isDestroyed() && browser.tabs.get(tab.id) === tab) {
         await ensureDialogMonitoring(browser, tab)
@@ -190,15 +243,19 @@ async function performCloseTab(
         keepPage()
         return browserState(browser)
       }
-      if (
-        browser.tabs.get(tab.id) !== tab
+      const pageChanged = (): boolean => browser.tabs.get(tab.id) !== tab
         || tab.webContents !== webContents
         || webContents.isDestroyed()
         || tab.navigationGeneration !== navigationGeneration
-      ) {
+      if (pageChanged()) {
         // The page changed while the person decided, so it stays open as if they had kept it.
         keepPage()
         return browserState(browser)
+      }
+      if (shownBefore) {
+        await returnAfterQuestion(browser, tab, shownBefore)
+        // A tab waking to take the person back gives the page time to change, and then it stays open behind.
+        if (pageChanged()) return browserState(browser)
       }
       return performCloseTab(browser, tabId, ensureReplacement, true, true, yieldsToNewerSelection)
     }
