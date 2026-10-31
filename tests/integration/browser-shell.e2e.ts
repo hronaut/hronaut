@@ -8610,7 +8610,17 @@ test('preserves human focus across agent presentation, input, and active tab cha
     // foregrounded agent operation is still pending. Its later page callback
     // must not reactivate the application.
     await appWindow.evaluate('window.hronaut.setAllHumanInteractionLocked(true)')
-    await electronApp.evaluate(({ BrowserWindow }, windowId) => BrowserWindow.fromId(windowId)?.focus(), humanWindowId)
+    await electronApp.evaluate(({ BrowserWindow }, windowId) => {
+      const mainWindow = BrowserWindow.getAllWindows().find((candidate) => candidate.id !== windowId)
+      if (!mainWindow) throw new Error('Hronaut focus isolation window was not found')
+      // Hronaut learns that the person left from this event, which Electron emits soon after the window loses focus.
+      mainWindow.once('blur', () => { (globalThis as { hronautWindowBlurred?: boolean }).hronautWindowBlurred = true })
+      BrowserWindow.fromId(windowId)?.focus()
+    }, humanWindowId)
+    // Xvfb has no window manager: Chromium reports the person's window focused at once, and Hronaut's window learns
+    // that it lost focus from the X server moments later, so the person's window having focus is not enough.
+    await expect.poll(() => electronApp.evaluate(() => (globalThis as { hronautWindowBlurred?: boolean }).hronautWindowBlurred))
+      .toBe(true)
     await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id))
       .toBe(humanWindowId)
     await electronApp.evaluate(({ webContents }, requestedUrl) => {
@@ -8621,8 +8631,10 @@ test('preserves human focus across agent presentation, input, and active tab cha
     const delayedResult = await delayedForegroundEvaluation
     expect(delayedResult.isError, mcpResultText(delayedResult)).not.toBe(true)
     expect(mcpResultText(delayedResult)).toBe('delayed foreground evaluation')
-    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id))
-      .toBe(humanWindowId)
+    // getFocusedWindow() lists the person's window first, so it names that window even while Hronaut's has focus too.
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()
+      .filter((window) => window.isFocused()).map((window) => window.id)))
+      .toEqual([humanWindowId])
   } finally {
     // The app fixture stops tracing and closes every window during shutdown.
     // Force-destroying the focused helper here can disconnect Electron before
