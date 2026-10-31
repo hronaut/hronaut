@@ -749,7 +749,8 @@ test('fails MCP page, URL, text, element, and network waits promptly on tab tear
         const page = webContents.getAllWebContents().find((contents) => contents.getURL().includes(input.path))
         if (!page) throw new Error(`Network wait ${input.failure} fixture WebContents was not found`)
         if (input.failure === 'close') {
-          page.close()
+          // Electron's destroy, which its typings leave out, takes the page away without the page closing itself.
+          ;(page as unknown as { destroy(): void }).destroy()
           return
         }
         const processId = page.getOSProcessId()

@@ -105,7 +105,8 @@ for (const change of ['navigate', 'reload', 'close', 'unchanged', 'pending-navig
       } else if (change !== 'unchanged') {
         await electronApp.evaluate(async ({ webContents }, { target, action }) => {
           const contents = webContents.getAllWebContents().find(page => page.getURL() === target)!
-          if (action === 'close') contents.close()
+          // Electron's destroy, which its typings leave out, takes the page away without the page closing itself.
+          if (action === 'close') (contents as unknown as { destroy(): void }).destroy()
           else await contents.loadURL(action === 'reload' ? target : `${target}next`)
         }, { target: url, action: change })
       }

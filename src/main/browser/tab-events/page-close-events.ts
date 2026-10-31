@@ -5,9 +5,9 @@ import type { BrowserTab } from '../browser-tab.js'
 import { recoverFromDestroyedPage } from './page-destroyed-events.js'
 
 /**
- * Closes the tab of a page opened for a window when the page closes itself
- * with window.close(), as a sign-in popup does once it has answered the page
- * that opened it, and as Chrome closes its window. Electron destroys the page
+ * Closes the tab of a page that closes itself with window.close(), as a
+ * sign-in popup does once it has answered the page that opened it, and as the
+ * page a desktop app's sign-in ends on asks to. Electron destroys the page
  * right after, which would otherwise leave the tab saying its page is no
  * longer available; it still says so when the tab cannot close. A close
  * Hronaut makes itself is left alone: the tab is gone by then, or the close
