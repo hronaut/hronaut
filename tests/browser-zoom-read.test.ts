@@ -36,6 +36,14 @@ describe('browser_zoom without an action', () => {
     expect(page.setZoomFactor).not.toHaveBeenCalled()
   })
 
+  it('refuses a percent without set, which would only have read the zoom, and changes nothing', async () => {
+    const { page, run } = zoomTool()
+    for (const input of [{ percent: 125 }, { action: 'get', percent: 125 }, { action: 'in', percent: 125 }]) {
+      await expect(run({ tabId: TAB_ID, ...input })).rejects.toThrow('percent is used only with action "set"; nothing was changed.')
+    }
+    expect(page.setZoomFactor).not.toHaveBeenCalled()
+  })
+
   it('counts as a read, which a read-only access profile allows, while the other actions change the browser', () => {
     expect(mcpCapabilityOperationClass('browser_zoom', {})).toBe('read')
     expect(mcpCapabilityOperationClass('browser_zoom', { action: 'get' })).toBe('read')

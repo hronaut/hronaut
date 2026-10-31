@@ -21,6 +21,11 @@ export function registerBrowserZoom(context: McpToolContext): void {
       tabId?: string
       action: 'get' | 'in' | 'out' | 'reset' | 'set'
       percent?: number
-    }) => textResult(action === 'get' ? readZoom(manager, tabId) : setZoom(manager, { tabId, action, percent })))
+    }) => {
+      // A percent without set would read the zoom and leave it, which the agent would take for a change.
+      if (percent !== undefined && action !== 'set') throw new Error('percent is used only with action "set"; nothing was changed.')
+      return textResult(action === 'get' ? readZoom(manager, tabId) : setZoom(manager, { tabId, action, percent }))
+    }),
+    { readOnly: input => input.action === undefined || input.action === 'get' }
   )
 }

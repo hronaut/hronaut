@@ -18,6 +18,7 @@ export function registerBrowserPwaLifecycle(context: McpToolContext): void {
       }
     },
     tabTool('browser_pwa_lifecycle', async (options: PwaLifecycleOptions, call) =>
-      textResult(await pwaLifecycle(manager, options, call.validateLifecycle)), 'never')
+      textResult(await pwaLifecycle(manager, options, call.validateLifecycle)), 'never'),
+    { readOnly: input => input.action === undefined || input.action === 'get' }
   )
 }
