@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- After an agent's script on a page was interrupted by the page's print dialog or a website's alert or confirm box, the page's own alert, confirm and prompt boxes stayed answered without showing for as long as the script went on running, so a confirm you met on the page was answered for you; a script waiting for something that never came could leave them answered until the page loaded again. This happened while you worked in another app, or when the agent asked for the page's boxes to be answered. The page's boxes now show again once the interrupting box closes, or at once.
+
 ## [3.14.4] - 2026-10-31
 
 ### Fixed
