@@ -151,6 +151,8 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   let fillingCompletion = false
   // Whether the field is taking pasted text, which it leaves as pasted.
   let insertingPaste = false
+  // The text typed, when the field had filled in the rest of an address after it, as the highlight left it for a row.
+  let typedBeforeRows: string | undefined
   let pendingNavigation: {
     tabId: string | undefined
     initialUrl: string | undefined
@@ -247,10 +249,12 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
 
   // Typing at the end of the field fills in the rest of a site or page it starts, selected, so that typing on replaces
   // it, Backspace or Delete takes it away, and Enter opens it, as in Chrome's address bar. Text pasted, dropped, typed
-  // elsewhere in the field or still being composed is left as it is, as Chrome leaves it.
-  function completeInline(event: Event | undefined): void {
+  // elsewhere in the field or still being composed is left as it is, as Chrome leaves it. The highlight going back from
+  // the rows to the text typed fills it in again.
+  function completeInline(event: Event | undefined, highlightReturned = false): void {
     const field = input.value
-    if (disposed || insertingPaste || !field || !(event instanceof InputEvent) || event.inputType !== 'insertText' || event.isComposing) return
+    if (disposed || insertingPaste || !field) return
+    if (!highlightReturned && (!(event instanceof InputEvent) || event.inputType !== 'insertText' || event.isComposing)) return
     const typed = field.value
     if (field.selectionStart !== typed.length || field.selectionEnd !== typed.length) return
     const completion = inlineAddressCompletion(typed, suggestions.value, visitsBySite.value)
@@ -505,14 +509,17 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   async function moveSelection(offset: -1 | 1): Promise<void> {
     const count = suggestions.value.length
     if (!count) return
-    // Moving the highlight goes back from Switch to this tab, even to the same row when it is the only one.
+    // Moving the highlight goes back from Switch to this tab.
     switchFocusedState.value = false
+    if (selection.value < 0 || !open.value) typedBeforeRows = completionShown.value ? inlineCompletion.value?.typed : undefined
     dropInlineCompletion()
     if (!open.value) openSuggestions()
-    if (selection.value < 0) selection.value = offset === 1 ? 0 : count - 1
-    else selection.value = (selection.value + offset + count) % count
+    // As in Chrome, whose first row is the text typed, the highlight goes through the rows and back to that text.
+    const next = selection.value + offset
+    selection.value = next >= count ? -1 : next < -1 ? count - 1 : next
     open.value = true
     await nextTick()
+    if (selection.value < 0 && typedBeforeRows !== undefined && input.value?.value === typedBeforeRows) completeInline(undefined, true)
     revealSelected()
   }
 

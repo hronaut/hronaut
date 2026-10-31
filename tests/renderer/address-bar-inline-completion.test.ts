@@ -194,6 +194,48 @@ describe('inline completion in the address bar', () => {
     await waitFor(() => expect(h.onNavigate).toHaveBeenCalledExactlyOnceWith('https://github.com/hronaut/hronaut'))
   })
 
+  // Chrome's first row is the text typed: the highlight goes through the rows and back to it. Hronaut's went round the
+  // rows only, so once a row was highlighted Enter could no longer open what was typed without editing it.
+  it('goes through the rows and back to the typed text, with the rest filled in again, where Enter opens it', async () => {
+    const h = createHarness([visit('repo', 'https://github.com/hronaut/hronaut'), visit('docs', 'https://docs.github.com/en')])
+    await clear(h.input)
+    await type(h.input, 'gi')
+    expect(h.field()).toEqual({ value: 'github.com', selected: 'thub.com' })
+    const rows = h.controller.suggestions.value.length
+    expect(rows).toBeGreaterThan(1)
+    for (let press = 0; press < rows; press++) await key(h.input, { key: 'ArrowDown' })
+    expect(h.controller.selected.value).toBe(h.controller.suggestions.value.at(-1))
+    expect(h.field()).toEqual({ value: 'gi', selected: '' })
+    await key(h.input, { key: 'ArrowDown' })
+    expect(h.controller.selection.value).toBe(-1)
+    expect(h.field()).toEqual({ value: 'github.com', selected: 'thub.com' })
+
+    await key(h.input, { key: 'ArrowDown' })
+    expect(h.controller.selection.value).toBe(0)
+    await key(h.input, { key: 'ArrowUp' })
+    expect(h.controller.selection.value).toBe(-1)
+    expect(h.field()).toEqual({ value: 'github.com', selected: 'thub.com' })
+    await key(h.input, { key: 'ArrowUp' })
+    expect(h.controller.selection.value).toBe(rows - 1)
+    await key(h.input, { key: 'ArrowDown' })
+    // Enter with no row highlighted submits the field, which opens the site filled in.
+    expect(h.controller.selected.value).toBeUndefined()
+    await h.controller.submit()
+    expect(h.onNavigate).toHaveBeenCalledExactlyOnceWith('https://github.com/')
+  })
+
+  it('goes back to the typed text without filling in a rest that was taken away', async () => {
+    const h = createHarness([visit('repo', 'https://github.com/hronaut/hronaut')])
+    await clear(h.input)
+    await type(h.input, 'gi')
+    await edit(h.input, '', 'deleteContentBackward')
+    expect(h.field()).toEqual({ value: 'gi', selected: '' })
+    await key(h.input, { key: 'ArrowDown' })
+    await key(h.input, { key: 'ArrowUp' })
+    expect(h.controller.selection.value).toBe(-1)
+    expect(h.field()).toEqual({ value: 'gi', selected: '' })
+  })
+
   it('adds www. and .com to the typed text with Ctrl+Enter, and opens the site in a new tab with Alt+Enter', async () => {
     const h = createHarness([visit('repo', 'https://github.com/')])
     await clear(h.input)

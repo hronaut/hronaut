@@ -15,6 +15,7 @@ All notable changes to Hronaut are documented in this file.
 - Clicking a link that only starts a download, or that the website answers with no content, closed Find and lost your place among its matches, though the page stayed. Find now stays open over such a link, as in Chrome, and closes only when another page replaces the one it searched, so it also stays while the next page loads.
 - On a very long page, such as a large log, Find said its search failed when the page took more than 5 seconds to count the matches, and Retry failed the same way, though the page had highlighted them. Find now waits for the count, as Chrome does.
 - A click in the address bar put the caret where it landed, so a new address typed after it went into the middle of the page's. As in Chrome, the click that puts the keyboard in the field selects the whole address, so typing replaces it; a drag or a second click still selects part of it or places the caret, and a right click selects it before its menu opens.
+- Up and Down in the address bar's suggestions went round the rows only, so once a row was highlighted, Enter could not open the text you typed without editing it. As in Chrome, they now go through the rows and back to the text typed, with the rest of an address the field had filled in after it.
 
 ## [3.14.4] - 2026-10-31
 

@@ -149,13 +149,16 @@ describe('Switch to this tab in the address bar', () => {
     expect(h.onSwitchToTab).not.toHaveBeenCalled()
   })
 
-  it('goes back from the button when the highlight moves, even with only one row', async () => {
+  it('goes back from the button when the highlight moves, to the typed text and to the row, even with only one row', async () => {
     const h = createHarness({ tabs: [tab('shown'), tab('docs')], history: [visit('docs')] })
     await typeAddress(h.input, 'docs')
     await key(h.input, { key: 'ArrowDown' })
     await key(h.input, { key: 'Tab' })
     expect(h.controller.switchFocused.value).toBe(true)
     await key(h.input, { key: 'ArrowDown' })
+    expect(h.controller.selected.value).toBeUndefined()
+    expect(h.controller.switchFocused.value).toBe(false)
+    await key(h.input, { key: 'ArrowUp' })
     expect(h.controller.selected.value?.id).toBe('history:docs')
     expect(h.controller.switchFocused.value).toBe(false)
     await key(h.input, { key: 'Enter' })
