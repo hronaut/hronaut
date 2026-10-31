@@ -33,7 +33,8 @@ export const READ_ONLY_MULTI_ACTIONS: Readonly<Record<string, ReadonlySet<string
   // Records are what expressions read from the page, so reading them takes the same permission as adding them.
   browser_logpoint: new Set(['scripts']),
   browser_downloads: new Set(['list']),
-  browser_webmcp: new Set(['status', 'list'])
+  browser_webmcp: new Set(['status', 'list']),
+  browser_zoom: new Set(['get'])
 }
 
 export const MCP_NON_READ_OPERATION_CLASSES: Readonly<Record<string, McpCapabilityOperationClass>> = {
@@ -134,7 +135,7 @@ export function mcpCapabilityAction(toolName: string, input: Record<string, unkn
   if (typeof input.action === 'string') return input.action
   if (toolName === 'browser_console' || toolName === 'browser_network') return input.clear === true ? 'clear' : 'list'
   if (toolName === 'browser_downloads') return 'list'
-  if (toolName === 'browser_pwa_lifecycle') return 'get'
+  if (toolName === 'browser_pwa_lifecycle' || toolName === 'browser_zoom') return 'get'
   return undefined
 }
 

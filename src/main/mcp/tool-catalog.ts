@@ -134,7 +134,7 @@ export const BROWSER_TOOL_METADATA = {
   browser_emulate: nonDestructiveTool('Emulate a browser environment'),
   browser_page_lifecycle: nonDestructiveTool('Freeze or resume one live page'),
   browser_resize: nonDestructiveTool('Resize the page viewport', true),
-  browser_zoom: nonDestructiveTool('Change page zoom'),
+  browser_zoom: nonDestructiveTool('Read or change page zoom'),
   browser_audio: nonDestructiveTool('Control tab audio', true),
   browser_screenshot: nonDestructiveTool('Capture a screenshot', true),
   browser_pdf_save: nonDestructiveTool('Save the page as PDF'),
@@ -301,7 +301,12 @@ const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'ti
   { name: 'browser_page_lifecycle', category: 'Inspection', description: 'Inspect, freeze, or explicitly resume the main document in one live tab without selecting, sleeping, or reloading it. A freeze is a QA hold, not a security boundary or complete browser snapshot.' },
   { name: 'browser_fixed_date', category: 'Inspection', description: 'Stage, check or reset a fixed current Date for one tab\'s top-level documents of its current HTTP(S) origin, for date-boundary UI checks such as today in a date picker, a greeting or an expiry banner. stage takes at (ISO 8601 with Z or a UTC offset) or epochMs and never reloads: while armed it applies to every later top-level document of that origin, before its first script, whoever loads it (reloads, navigations, Back, waking from sleep), so reload or navigate within the origin next, then check status. Date.now(), new Date() and Date() return the instant; explicit dates, parsing, Date.UTC, subclasses and instanceof stay native, and timers, performance.now, Intl formatting without a date, Temporal.Now, workers, frames, other tabs, the server and the system clock keep real time. Time zone emulation still applies; the native date input picker uses the real clock. The fixed clock never advances, so debounce, throttle, backoff and elapsed-time labels can stall: reset when done. One instant per tab, kept in memory only. A document of another origin, a change of agent control, write ownership, capability or human input on the page, or the tab leaving its workspace disarms it instead of installing it (status disarmed with a reason); status rechecks this too. reset stops future installs; a document that has the fixed Date keeps it until it reloads (reloadRequired). currentDocument says fixed, native or unknown (a navigation that may not have committed, a back-forward cache restore, an error page or a renderer exit). An expired write lease also disarms it.' },
   { name: 'browser_resize', category: 'Inspection', description: 'Set or reset the page viewport for responsive UI testing.' },
-  { name: 'browser_zoom', category: 'Inspection', description: 'Inspect or change page zoom from 50% to 400% without resizing the browser chrome.' },
+  {
+    name: 'browser_zoom',
+    category: 'Inspection',
+    description: 'Read or change page zoom from 50% to 400% without resizing the browser chrome. Without an action it only reads the tab\'s zoom; '
+      + 'in, out, reset and set change it, as the person\'s zoom does, for the site\'s tabs in the workspace unless the tab\'s zoom is isolated.'
+  },
   { name: 'browser_audio', category: 'Interaction', description: 'Mute or unmute one browser tab without changing site-wide sound permissions.' },
   { name: 'browser_screenshot', category: 'Inspection', description: 'Return a viewport, full page, element, or selected rectangle as a chat-ready PNG or compact JPEG. Optionally label up to 50 selected current snapshot refs in a viewport image with a bounded geometry legend. For a plain viewport capture, trackChanges returns an observationId; ifChangedSince with that id returns UNCHANGED and no image when the returned pixels are identical at the same page, scroll, viewport, zoom, forced CSS state and options, else the image with CHANGED, NEW or NOT_TRACKED. JPEG and downscaling can hide small changes. Unchanged pixels do not prove unchanged page state.' },
   { name: 'browser_pdf_save', category: 'Inspection', description: 'Save the rendered page as a collision-safe PDF in the download directory, optionally with heading bookmarks or the paper size from the page\'s CSS.' },

@@ -28,12 +28,10 @@ describe('MCP tool sets', () => {
     expect(profile.allowedTools).toEqual(expect.arrayContaining([
       'browser_snapshot', 'browser_storage', 'browser_downloads', 'browser_network'
     ]))
-    expect(profile.allowedTools).not.toEqual(expect.arrayContaining([
-      'browser_click', 'browser_audio', 'browser_zoom', 'wallet_request_status'
-    ]))
+    for (const tool of ['browser_click', 'browser_audio', 'wallet_request_status']) expect(profile.allowedTools).not.toContain(tool)
     expect(profile.allowedActions).toMatchObject({
       browser_storage: ['list', 'get'], browser_downloads: ['list'], browser_network: ['list'],
-      browser_task_runs: ['get', 'list', 'metrics', 'list-saved', 'preview'], browser_webmcp: ['status', 'list']
+      browser_task_runs: ['get', 'list', 'metrics', 'list-saved', 'preview'], browser_webmcp: ['status', 'list'], browser_zoom: ['get']
     })
     expect(profile).toMatchObject({ expiresAt: '2026-09-11T13:00:00.000Z', maxUses: 1 })
     expect(profile.argumentValueDigests).toEqual({

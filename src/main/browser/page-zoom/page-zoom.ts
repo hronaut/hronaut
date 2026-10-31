@@ -6,6 +6,12 @@ import { browserState, publishChange } from '../browser-state/browser-state.js'
 
 const PAGE_ZOOM_STEPS = [50, 60, 67, 75, 80, 90, 100, 110, 125, 150, 175, 200, 250, 300, 400] as const
 
+/** The tab's page zoom, read without changing it, and whether the tab keeps its zoom apart from its site's other tabs. */
+export function readZoom(browser: Browser, tabId?: string): { tabId: string; zoomPercent: number; zoomIsolated: boolean } {
+  const tab = getTab(browser, tabId)
+  return { tabId: tab.id, zoomPercent: Math.round(tab.webContents.getZoomFactor() * 100), zoomIsolated: tab.zoomIsolated === true }
+}
+
 /**
  * Zooms the tab's page to the next or previous step, back to 100%, or to an
  * exact percent from 50 to 400, then returns the browser state.
