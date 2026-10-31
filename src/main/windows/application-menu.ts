@@ -99,9 +99,9 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
   // website or field in focus leaves them alone, and never from an agent; typed in a panel in its own window, they
   // would act on a page out of view. Hronaut's window runs them itself, so one it leaves alone, as under one of its
   // dialogs or the command palette, does nothing here either. Hidden, because Reload, the address bar and the Edit
-  // menu's Find Next and Find Previous already show their main keys.
+  // menu's Find Next and Find Previous already show their main keys. On macOS only the keys that move the tab are
+  // Chrome's there.
   function websiteKeptKeys(): MenuItemConstructorOptions[] {
-    if (process.platform === 'darwin') return []
     const stopLoading = (): void => host.runNativeBrowserAction('stop loading the page', () => withBrowser(stopFocusedPageLoading))
     const item = (label: string, accelerator: string, action: BrowserShortcutAction | (() => void)): MenuItemConstructorOptions => ({
       label,
@@ -114,6 +114,11 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
         else host.runShortcut(action)
       }
     })
+    const moveTab = [
+      item(host.text('runtime.shortcuts.moveTabNext'), 'Ctrl+Shift+PageDown', 'move-tab-next'),
+      item(host.text('runtime.shortcuts.moveTabPrevious'), 'Ctrl+Shift+PageUp', 'move-tab-previous')
+    ]
+    if (process.platform === 'darwin') return moveTab
     return [
       item(host.text('native.menu.reload'), 'F5', 'reload'),
       item(host.text('native.menu.reloadWithoutCache'), 'Shift+F5', 'reload-ignoring-cache'),
@@ -129,8 +134,7 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
       item(host.text('runtime.shortcuts.nextPane'), 'Shift+F6', host.runPageNextPane),
       item(host.text('native.menu.findNext'), 'F3', 'find-next'),
       item(host.text('native.menu.findPrevious'), 'Shift+F3', 'find-previous'),
-      item(host.text('runtime.shortcuts.moveTabNext'), 'Ctrl+Shift+PageDown', 'move-tab-next'),
-      item(host.text('runtime.shortcuts.moveTabPrevious'), 'Ctrl+Shift+PageUp', 'move-tab-previous'),
+      ...moveTab,
       // With the digits of the number row and, as in Chrome, of the numeric keypad.
       ...TAB_POSITIONS.flatMap((position) => [`Ctrl+${position}`, `Ctrl+num${position}`].map((accelerator) => (
         item(host.text('runtime.shortcuts.directTab'), accelerator, `select-tab-${position}` as const)

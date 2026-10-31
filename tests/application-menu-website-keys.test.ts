@@ -56,9 +56,20 @@ describe('Chrome\'s keys a website may keep', () => {
     expect(menu('darwin').key('Ctrl+E')).toBeUndefined()
     expect(menu('darwin').key('Alt+Home')).toBeUndefined()
     expect(menu('darwin').key('F3')).toBeUndefined()
-    expect(menu('darwin').key('Ctrl+Shift+PageDown')).toBeUndefined()
     expect(menu('darwin').key('Ctrl+1')).toBeUndefined()
     expect(menu('darwin').key('F6')).toBeUndefined()
+  })
+
+  it('are only the keys that move the tab on macOS, as Chrome has there', () => {
+    // Ctrl+Shift+Page Down did nothing on macOS, where Chrome moves the tab with it once the website leaves it alone.
+    const { runShortcut, mainWindow, key, view } = menu('darwin')
+    for (const [accelerator, action] of [['Ctrl+Shift+PageDown', 'move-tab-next'], ['Ctrl+Shift+PageUp', 'move-tab-previous']] as const) {
+      const item = key(accelerator)!
+      expect(item.visible, accelerator).toBe(false)
+      item.click!(item, mainWindow, { triggeredByAccelerator: true })
+      expect(runShortcut).toHaveBeenLastCalledWith(action)
+    }
+    expect(view.filter((item) => item.visible === false).map((item) => item.accelerator)).toEqual(['Ctrl+Shift+PageDown', 'Ctrl+Shift+PageUp'])
   })
 
   it('go to the pane after the page with F6 and Shift+F6', () => {
