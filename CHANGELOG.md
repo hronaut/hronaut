@@ -8,6 +8,7 @@ All notable changes to Hronaut are documented in this file.
 
 - After an agent's script on a page was interrupted by the page's print dialog or a website's alert or confirm box, the page's own alert, confirm and prompt boxes stayed answered without showing for as long as the script went on running, so a confirm you met on the page was answered for you; a script waiting for something that never came could leave them answered until the page loaded again. This happened while you worked in another app, or when the agent asked for the page's boxes to be answered. The page's boxes now show again once the interrupting box closes, or at once.
 - An agent that asked for a page's zoom without saying what to change reset the zoom you had chosen for that site, in that workspace's tabs and after restarting Hronaut. Asking now only reads the zoom, and read-only agent access you set up from now on can read it too.
+- Closing Find in page with Escape or its Close button left the keyboard in Hronaut's window, so Space, Page Down and the arrow keys no longer scrolled the page and typing went nowhere. As in Chrome, the page now takes the keyboard back, once the key that closed Find is released.
 
 ## [3.14.4] - 2026-10-31
 

@@ -16,7 +16,7 @@ import {
 import { isImeCompositionEvent } from '../../keyboard-composition.js'
 import { vTooltip } from '../../ui/tooltip.js'
 
-type FindBrowserApi = Pick<HronautApi, 'findInPage' | 'stopFindInPage'>
+type FindBrowserApi = Pick<HronautApi, 'findInPage' | 'stopFindInPage' | 'focusActivePage'>
 
 const props = defineProps<{
   activeTab?: BrowserTabState
@@ -33,6 +33,9 @@ const searching = ref(false)
 const result = ref<BrowserFindResult>({ activeMatchOrdinal: 0, matches: 0 })
 let targetTabId: string | undefined
 let requestSequence = 0
+// The key last pressed down in the bar and not yet released there, such as Enter on its Close button.
+let heldKey: string | undefined
+let stopWaitingForRelease = (): void => undefined
 
 async function search(forward: boolean, newSearch: boolean): Promise<void> {
   const tabId = targetTabId
@@ -91,15 +94,53 @@ function handleSearchKeydown(event: KeyboardEvent): void {
 // storage, even in its own window. Ctrl+Enter anywhere in it closes Find and clicks the active match, as in Chrome,
 // which follows the link the match is in.
 function handleBarKeydown(event: KeyboardEvent): void {
+  heldKey = event.key
   if (isImeCompositionEvent(event) || event.defaultPrevented) return
   if (isFollowMatchKey(event)) {
     event.preventDefault()
-    void close({ activateMatch: true })
+    void close({ activateMatch: true, returnKeyboard: true, releaseKey: event.key })
     return
   }
   if (event.key !== 'Escape') return
   event.preventDefault()
-  void close()
+  void close({ returnKeyboard: true, releaseKey: event.key })
+}
+
+function handleBarKeyup(event: KeyboardEvent): void {
+  if (event.key === heldKey) heldKey = undefined
+}
+
+// A click from the keyboard comes with Enter still down; Space clicks once it is up.
+function closeFromButton(event: MouseEvent): void {
+  void close({ returnKeyboard: true, releaseKey: event.detail === 0 ? heldKey : undefined })
+}
+
+/**
+ * Gives the keyboard back to the page, as Chrome does when the person closes Find, once the key that closed it is up: a
+ * held Escape or Enter repeats, and the page would take the repeats as keys of its own, such as Enter on a button.
+ */
+function returnKeyboardToPage(key: string | undefined): void {
+  stopWaitingForRelease()
+  heldKey = undefined
+  const focusPage = (): void => { void props.browser.focusActivePage().catch(() => undefined) }
+  if (!key) {
+    focusPage()
+    return
+  }
+  const released = (event: KeyboardEvent): void => {
+    if (event.key !== key) return
+    stopWaitingForRelease()
+    // Find opened again meanwhile keeps the keyboard in its field.
+    if (!open.value) focusPage()
+  }
+  // A key let go of while another window has the keyboard never reaches this one, so leaving the window ends the wait.
+  stopWaitingForRelease = () => {
+    window.removeEventListener('keyup', released, true)
+    window.removeEventListener('blur', stopWaitingForRelease)
+    stopWaitingForRelease = () => undefined
+  }
+  window.addEventListener('keyup', released, true)
+  window.addEventListener('blur', stopWaitingForRelease)
 }
 
 function retrySearch(): void {
@@ -156,8 +197,9 @@ async function cleanup(options: { activateMatch?: boolean } = {}): Promise<void>
   await stopped.catch(() => undefined)
 }
 
-async function close(options: { activateMatch?: boolean } = {}): Promise<void> {
+async function close(options: { activateMatch?: boolean; returnKeyboard?: boolean; releaseKey?: string } = {}): Promise<void> {
   open.value = false
+  if (options.returnKeyboard) returnKeyboardToPage(options.releaseKey)
   await cleanup(options)
 }
 
@@ -176,12 +218,15 @@ watch([
   if (open.value && targetTabId) void close()
 }, { flush: 'sync' })
 
-onBeforeUnmount(() => { void close() })
+onBeforeUnmount(() => {
+  stopWaitingForRelease()
+  void close()
+})
 defineExpose({ close, openForTab })
 </script>
 
 <template>
-  <div v-if="open" class="find-bar" role="search" :aria-label="t('find.region')" @keydown="handleBarKeydown">
+  <div v-if="open" class="find-bar" role="search" :aria-label="t('find.region')" @keydown="handleBarKeydown" @keyup="handleBarKeyup">
     <div class="find-field">
       <IconSearch aria-hidden="true" />
       <input
@@ -231,7 +276,8 @@ defineExpose({ close, openForTab })
     >
       <IconKeyboardArrowDown aria-hidden="true" />
     </UiButton>
-    <UiButton appearance="application" class="find-action" type="button" v-tooltip="t('find.closeTitle')" :aria-label="t('find.close')" @click="close()">
+    <UiButton appearance="application" class="find-action" type="button" v-tooltip="t('find.closeTitle')" :aria-label="t('find.close')"
+      @click="closeFromButton">
       <IconClose aria-hidden="true" />
     </UiButton>
   </div>

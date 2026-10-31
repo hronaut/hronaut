@@ -42,7 +42,8 @@ function renderBar(options: {
   const activeTab = options.activeTab ?? tab('first')
   const browser = {
     findInPage: vi.fn(options.browser?.findInPage ?? (async (): Promise<BrowserFindResult> => ({ activeMatchOrdinal: 1, matches: 3 }))),
-    stopFindInPage: vi.fn(options.browser?.stopFindInPage ?? (async () => undefined))
+    stopFindInPage: vi.fn(options.browser?.stopFindInPage ?? (async () => undefined)),
+    focusActivePage: vi.fn(async () => undefined)
   }
   const view = render(FindInPageBar, {
     global: { plugins: [createHronautI18n('en-US')] },
@@ -503,7 +504,8 @@ describe('Find Next and Find Previous', () => {
     const activeTab = tab('first')
     const browser = {
       findInPage: vi.fn(async (_request: unknown): Promise<BrowserFindResult> => ({ activeMatchOrdinal: 1, matches: 3 })),
-      stopFindInPage: vi.fn(async (_tabId: string) => undefined)
+      stopFindInPage: vi.fn(async (_tabId: string) => undefined),
+      focusActivePage: vi.fn(async () => undefined)
     }
     const wrapper = mount(FindInPageBar, {
       attachTo: document.body,
@@ -572,6 +574,120 @@ describe('Find Next and Find Previous', () => {
       browser.findInPage.mockClear()
       await exposed.openForTab(activeTab)
       expect(browser.findInPage).toHaveBeenCalledWith(expect.objectContaining({ forward: true, findNext: true }))
+    } finally { wrapper.unmount() }
+  })
+})
+
+// Closing Find with Escape or its Close button left the keyboard in Hronaut's window, so Space, Page Down and the arrow
+// keys no longer scrolled the page and typing went nowhere. Chrome gives the keyboard back to the page.
+describe('closing Find', () => {
+  function mountOpenBar() {
+    const activeTab = tab('first')
+    const browser = {
+      findInPage: vi.fn(async (_request: unknown): Promise<BrowserFindResult> => ({ activeMatchOrdinal: 1, matches: 3 })),
+      stopFindInPage: vi.fn(async (_tabId: string, _options?: { activateMatch: boolean }) => undefined),
+      focusActivePage: vi.fn(async () => undefined)
+    }
+    const wrapper = mount(FindInPageBar, {
+      attachTo: document.body,
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: { open: true, activeTab, browser, 'onUpdate:open': (next: boolean) => wrapper.setProps({ open: next }) }
+    })
+    const field = () => wrapper.find<HTMLInputElement>('input[type="search"]').element
+    const closeButton = () => wrapper.find<HTMLButtonElement>('button[aria-label="Close find in page"]').element
+    const key = (target: EventTarget, type: 'keydown' | 'keyup', init: KeyboardEventInit) =>
+      target.dispatchEvent(new KeyboardEvent(type, { bubbles: true, cancelable: true, ...init }))
+    return { wrapper, browser, field, closeButton, key }
+  }
+
+  it('gives the keyboard back to the page once the Escape that closed it is up, so its repeats stay out of the page', async () => {
+    const { wrapper, browser, field, key } = mountOpenBar()
+    try {
+      await flushPromises()
+      await wrapper.find('input[type="search"]').setValue('needle')
+      await flushPromises()
+      key(field(), 'keydown', { key: 'Escape' })
+      await flushPromises()
+      expect(wrapper.props('open')).toBe(false)
+      key(window, 'keydown', { key: 'Escape', repeat: true })
+      await flushPromises()
+      expect(browser.focusActivePage).not.toHaveBeenCalled()
+
+      key(window, 'keyup', { key: 'Escape' })
+      expect(browser.focusActivePage).toHaveBeenCalledOnce()
+      key(window, 'keyup', { key: 'Escape' })
+      expect(browser.focusActivePage).toHaveBeenCalledOnce()
+    } finally { wrapper.unmount() }
+  })
+
+  it('gives it back at once to a click on Close, and once Enter is up when Enter pressed it', async () => {
+    const clicked = mountOpenBar()
+    try {
+      await flushPromises()
+      clicked.closeButton().dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }))
+      await flushPromises()
+      expect(clicked.wrapper.props('open')).toBe(false)
+      expect(clicked.browser.focusActivePage).toHaveBeenCalledOnce()
+    } finally { clicked.wrapper.unmount() }
+
+    const pressed = mountOpenBar()
+    try {
+      await flushPromises()
+      pressed.key(pressed.closeButton(), 'keydown', { key: 'Enter' })
+      pressed.closeButton().dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 0 }))
+      await flushPromises()
+      expect(pressed.wrapper.props('open')).toBe(false)
+      expect(pressed.browser.focusActivePage).not.toHaveBeenCalled()
+      pressed.key(window, 'keyup', { key: 'Enter' })
+      expect(pressed.browser.focusActivePage).toHaveBeenCalledOnce()
+    } finally { pressed.wrapper.unmount() }
+  })
+
+  it('gives it back once Enter is up after Ctrl+Enter followed the match', async () => {
+    const { wrapper, browser, field, key } = mountOpenBar()
+    try {
+      await flushPromises()
+      await wrapper.find('input[type="search"]').setValue('pricing')
+      await flushPromises()
+      key(field(), 'keydown', { key: 'Enter', ctrlKey: true })
+      await flushPromises()
+      expect(browser.stopFindInPage).toHaveBeenCalledWith('first', { activateMatch: true })
+      expect(browser.focusActivePage).not.toHaveBeenCalled()
+      key(window, 'keyup', { key: 'Enter' })
+      expect(browser.focusActivePage).toHaveBeenCalledOnce()
+    } finally { wrapper.unmount() }
+  })
+
+  it('leaves the keyboard alone when the person left the window holding Escape, or Find opened again first', async () => {
+    const left = mountOpenBar()
+    try {
+      await flushPromises()
+      left.key(left.field(), 'keydown', { key: 'Escape' })
+      await flushPromises()
+      window.dispatchEvent(new Event('blur'))
+      left.key(window, 'keyup', { key: 'Escape' })
+      expect(left.browser.focusActivePage).not.toHaveBeenCalled()
+    } finally { left.wrapper.unmount() }
+
+    const reopened = mountOpenBar()
+    try {
+      await flushPromises()
+      reopened.key(reopened.field(), 'keydown', { key: 'Escape' })
+      await flushPromises()
+      await reopened.wrapper.setProps({ open: true })
+      reopened.key(window, 'keyup', { key: 'Escape' })
+      expect(reopened.browser.focusActivePage).not.toHaveBeenCalled()
+    } finally { reopened.wrapper.unmount() }
+  })
+
+  it('leaves the keyboard where it is when another tab or page ends Find', async () => {
+    const { wrapper, browser } = mountOpenBar()
+    try {
+      await flushPromises()
+      await wrapper.setProps({ activeTab: tab('second') })
+      await flushPromises()
+      expect(wrapper.props('open')).toBe(false)
+      expect(browser.focusActivePage).not.toHaveBeenCalled()
     } finally { wrapper.unmount() }
   })
 })
