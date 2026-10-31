@@ -52,6 +52,7 @@ export async function withOptionalDialogHandling<T>(
     const listener = (_event: Electron.Event, method: string): void => {
       if (method !== 'Page.javascriptDialogOpening') return
       handling = handling.then(async () => {
+        await afterDialogBoxShows()
         await webContents.debugger.sendCommand('Page.handleJavaScriptDialog', {
           accept: dialogAction === 'accept',
           ...(options.promptText !== undefined ? { promptText: options.promptText } : {})
@@ -88,8 +89,8 @@ export async function dismissWebsiteDialogForTrustedChrome(browser: Browser, tab
     tab.dialog = undefined
     publishChange(browser, false)
   }
-  if (browser.destroyed || webContents.isDestroyed() || findTab(browser, tab.id) !== tab) return
-  await ensureDialogMonitoring(browser, tab)
+  // The dialog was reported through the page's debugger. Enabling its domains again, as monitoring does, would wait for
+  // the page, which the dialog holds until someone answers it.
   if (
     browser.destroyed
     || webContents.isDestroyed()
@@ -100,7 +101,28 @@ export async function dismissWebsiteDialogForTrustedChrome(browser: Browser, tab
   // above renderer-owned trusted chrome. Reject them while a trusted modal
   // owns the window; the page must never get to cover or impersonate the
   // approval surface.
+  await afterDialogBoxShows()
+  if (webContents.isDestroyed() || !webContents.debugger.isAttached()) return
   await webContents.debugger.sendCommand('Page.handleJavaScriptDialog', { accept: false }).catch(() => undefined)
+}
+
+/**
+ * Waits until Electron has shown its box for the dialog the page just opened. The debugger reports the dialog before
+ * Electron shows its box, and a dialog answered before then leaves the box on screen with nothing to close it.
+ */
+function afterDialogBoxShows(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve))
+}
+
+/**
+ * Closes the box Electron shows for a website dialog that closed. Answering the dialog through the debugger, as for
+ * trusted chrome covering the pages or an agent's answer, leaves Electron's box on screen, and the box keeps Hronaut's
+ * window disabled until the person clicks it. Electron closes its boxes for a page on its internal `-cancel-dialogs`
+ * event; a box the person answered is already gone. Called as the dialog closes, before its page can open another;
+ * Hronaut answers a dialog only once its box shows, so the box is there to close.
+ */
+export function closeWebsiteDialogBox(webContents: WebContents): void {
+  if (!webContents.isDestroyed()) webContents.emit('-cancel-dialogs')
 }
 
 /**
