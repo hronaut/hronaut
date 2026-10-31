@@ -31,7 +31,7 @@ function documentsFolder(): string {
  * retry uses, and the Downloads panel they are shown in.
  */
 export function createDownloadsController(browser: Browser): BrowserDownloadsController {
-  // Made while the browser is being built, before it has its options, so they are read only as downloads come.
+  // Made while the browser is being built, before it has its options, so its callbacks read them only when called.
   return new BrowserDownloadsController({
     getSettings: () => {
       const saveDialogTitle = browser.text('native.dialog.saveDownload')

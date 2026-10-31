@@ -15,20 +15,20 @@ test('starts the first save dialog after a restart in the folder the last one sa
   mcpPort
 }) => {
   const folder = mkdtempSync(join(tmpdir(), 'hronaut-save-dialog-startup-'))
-  await writeFile(join(profileDirectory, 'settings.json'), `${JSON.stringify({
-    theme: 'system', interfaceScale: 1, tabPosition: 'top', mcpToolSet: 'complete', mcpAuthentication: false,
-    saveDialogDirectory: folder
-  }, null, 2)}\n`, 'utf8')
   const server = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
     response.end('<!doctype html><title>Saved after restart</title><p>A page to save</p>')
   })
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
-  const address = server.address()
-  if (!address || typeof address === 'string') throw new Error('Missing fixture port')
-  const url = `http://127.0.0.1:${address.port}/page`
   let instance: Awaited<ReturnType<typeof launchHronaut>> | undefined
   try {
+    await writeFile(join(profileDirectory, 'settings.json'), `${JSON.stringify({
+      theme: 'system', interfaceScale: 1, tabPosition: 'top', mcpToolSet: 'complete', mcpAuthentication: false,
+      saveDialogDirectory: folder
+    }, null, 2)}\n`, 'utf8')
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Missing fixture port')
+    const url = `http://127.0.0.1:${address.port}/page`
     instance = await launchHronaut(profileDirectory, mcpPort)
     const { app, window } = instance
     // The system dialog is out of reach here: note where it is asked to start, and cancel it.
@@ -45,13 +45,13 @@ test('starts the first save dialog after a restart in the folder the last one sa
       webContents.getAllWebContents().some((candidate) => candidate.getURL() === address && !candidate.isLoading())
     ), url)).toBe(true)
 
-    // Ctrl+S in Hronaut's own window saves the page shown, as Save Page As does.
-    await app.evaluate(({ webContents }, { shellUrl, primary }) => {
-      const shell = webContents.getAllWebContents().find((candidate) => candidate.getURL() === shellUrl)
-      if (!shell) throw new Error('Hronaut\'s window was not found')
-      shell.sendInputEvent({ type: 'keyDown', keyCode: 'S', modifiers: [primary] })
-      shell.sendInputEvent({ type: 'keyUp', keyCode: 'S', modifiers: [primary] })
-    }, { shellUrl: window.url(), primary: process.platform === 'darwin' ? 'meta' as const : 'control' as const })
+    // View → Save Page As…, from the menu rather than with Ctrl+S, which needs the window to have the keyboard.
+    await app.evaluate(({ BrowserWindow, Menu }) => {
+      const item = Menu.getApplicationMenu()?.items.find((candidate) => candidate.label === 'View')
+        ?.submenu?.items.find((candidate) => candidate.label === 'Save Page As…')
+      if (!item?.click) throw new Error('Missing View → Save Page As…')
+      item.click(item, BrowserWindow.getAllWindows()[0], {} as Electron.KeyboardEvent)
+    })
     await expect.poll(() => app.evaluate(() => (
       (globalThis as typeof globalThis & { __saveDialogs?: SaveDialog[] }).__saveDialogs!.length
     ))).toBe(1)
