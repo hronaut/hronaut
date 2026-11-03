@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Security
+
+- Hronaut now runs on Electron 45.2.1 with Chromium 156.0.8078.75, which brings Chrome's security fixes of October 27, among them the critical CVE-2026-118306 (FileSystem), CVE-2026-118331 (FileAPI), CVE-2026-118344 (Layout) and CVE-2026-118348 (Skia). Hronaut 3.14.7 ran Chromium 156.0.8078.49, which they affect. Agents open any website in Hronaut, also in workspaces signed in to your accounts, so update soon.
+
 ## [3.14.7] - 2026-10-31
 
 ### Fixed
