@@ -114,13 +114,17 @@ export function createSpellCheck(host: SpellCheckHost): {
     for (const session of sessions) giveLanguages(session, languages)
   }
 
-  /** Only where Chromium has dictionaries, and only a change: a session keeps its languages across restarts. */
+  /**
+   * Only where Chromium has dictionaries, and only a change: a session keeps its languages across restarts. Electron
+   * turns checking on whenever it gives a session languages, so the session is then told again whether to check.
+   */
   function giveLanguages(session: SpellCheckSession, chosen: readonly string[]): void {
     const wanted = languagesFor(chosen)
     if (!wanted) return
     const current = session.getSpellCheckerLanguages()
     if (current.length === wanted.length && current.every((language, index) => language === wanted[index])) return
     session.setSpellCheckerLanguages(wanted)
+    session.setSpellCheckerEnabled(isEnabled())
   }
 
   /** The chosen languages Chromium still has, or the automatic one; none where it has no dictionaries. */

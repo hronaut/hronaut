@@ -50,18 +50,22 @@ function spellCheckRuntime(saved: Partial<AppSettings> = {}, platform: { availab
     const languageCalls: string[][] = []
     let languages = [...startLanguages]
     const words = new Set(startWords)
+    let checking = true
     return {
       calls,
       languageCalls,
       languages: () => languages,
       words: () => [...words].sort(),
+      checking: () => checking,
       addWordToSpellCheckerDictionary: vi.fn((word: string) => { words.add(word); return true }),
       listWordsInSpellCheckerDictionary: async () => [...words],
-      setSpellCheckerEnabled: (enabled: boolean) => { calls.push(enabled); order.push(`session ${enabled}`) },
+      setSpellCheckerEnabled: (enabled: boolean) => { calls.push(enabled); checking = enabled; order.push(`session ${enabled}`) },
       getSpellCheckerLanguages: () => [...languages],
       setSpellCheckerLanguages: (next: string[]) => {
         languageCalls.push([...next])
         languages = [...next]
+        // As Electron does: languages turn checking on, and none turn it off.
+        checking = next.length > 0
         order.push(`session languages ${next.join(',')}`)
       }
     }
@@ -314,11 +318,36 @@ describe('spell check languages', () => {
 
     await expect(runtime.spellCheck.setLanguages(['en-US', 'uk'])).resolves.toMatchObject({ spellCheckLanguages: ['en-US', 'uk'] })
     expect(runtime.settings().spellCheckLanguages).toEqual(['en-US', 'uk'])
-    expect(runtime.order).toEqual(['session languages en-US,uk', 'session languages en-US,uk', 'published'])
+    // Each session is told again to check, as Electron turns checking on with the languages anyway.
+    expect(runtime.order).toEqual(['session languages en-US,uk', 'session true', 'session languages en-US,uk', 'session true', 'published'])
 
     runtime.spellCheck.applyLanguages([])
     expect(workspace.languages()).toEqual(['en-US'])
     expect(home.languages()).toEqual(['en-US'])
+  })
+
+  // Electron turns checking on whenever it gives a session languages, so a workspace opened while spell check was off, or
+  // one given new languages then, checked spelling anyway.
+  it('keeps spell checking off in a session given languages while it is off', async () => {
+    const runtime = spellCheckRuntime({ spellCheck: false, spellCheckLanguages: ['uk'] })
+    const opened = runtime.session(['en-US'])
+    runtime.spellCheck.track(opened)
+    expect([opened.languages(), opened.checking()]).toEqual([['uk'], false])
+
+    await runtime.spellCheck.setLanguages(['de'])
+    expect([opened.languages(), opened.checking()]).toEqual([['de'], false])
+    await runtime.spellCheck.setEnabled(true)
+    expect(opened.checking()).toBe(true)
+  })
+
+  it('keeps spell checking off when new languages cannot be saved while it is off', async () => {
+    const runtime = spellCheckRuntime({ spellCheck: false })
+    const workspace = runtime.session(['en-US'])
+    runtime.spellCheck.track(workspace)
+    runtime.failSaves()
+    await expect(runtime.spellCheck.setLanguages(['de'])).rejects.toThrow('disk full')
+    expect(workspace.languageCalls).toEqual([['de'], ['en-US']])
+    expect(workspace.checking()).toBe(false)
   })
 
   it('gives a session tracked while new languages save those, and puts the sessions back when they cannot be saved', async () => {
