@@ -6,6 +6,7 @@ import { showHistoryMenu } from './browser/context-menus/history-menu.js'
 import { showDevToolsConsole, toggleDevTools } from './browser/devtools/devtools.js'
 import { openNavigationInNewTab } from './browser/navigation-new-tab/navigation-new-tab.js'
 import { forwardFindKeyToPage } from './browser/page-find/find-page-keys.js'
+import { findSelectionText } from './browser/page-find/find-selection-text.js'
 import { findInPage, stopFindInPage } from './browser/page-find/page-find.js'
 import { back, forward, reload, reloadIgnoringCache, stop, navigate } from './browser/page-navigation/page-navigation.js'
 import { setZoom } from './browser/page-zoom/page-zoom.js'
@@ -122,6 +123,11 @@ export function registerNavigationIpc(host: NavigationIpcHost): void {
     host.assertTrustedSender(event)
     if (typeof tabId !== 'string') throw new TypeError('Invalid find tab')
     forwardFindKeyToPage(host.tabs()!, tabId, findPageKey(key))
+  })
+  host.handleBrowserIpc(NAVIGATION_IPC.findSelectionText, (event, tabId: unknown) => {
+    host.assertTrustedSender(event)
+    if (typeof tabId !== 'string') throw new TypeError('Invalid find tab')
+    return findSelectionText(host.tabs()!, tabId)
   })
   host.handleBrowserIpc(NAVIGATION_IPC.setZoom, (event, options: unknown) => {
     host.assertTrustedSender(event)

@@ -155,6 +155,8 @@ export interface HronautNavigationApi {
   stopFindInPage(tabId?: string, options?: { activateMatch?: boolean; clearSelection?: boolean }): Promise<void>
   /** Sends a key pressed in the Find field on to the tab's page, as Chrome's find bar does with the keys that scroll it. */
   forwardFindKey(tabId: string, key: BrowserFindPageKey): Promise<void>
+  /** The text selected in the tab's page, of at most 250 characters, which Find opens with, as Chrome's find bar does. */
+  findSelectionText(tabId: string): Promise<string>
   setZoom(options: BrowserZoomOptions): Promise<BrowserState>
   /** Saves the page as a PDF in the downloads folder; null when that folder cannot be written to and the person cancels the save dialog. */
   savePdf(options?: BrowserPdfOptions): Promise<BrowserPdfExport | null>

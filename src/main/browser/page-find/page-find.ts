@@ -13,9 +13,25 @@ const searchedDocuments = new WeakMap<WebContents, number>()
 /** Each page's selection collapsing for a search, which the page's later searches and the search's end follow. */
 const collapsing = new WeakMap<WebContents, Promise<void>>()
 
-// Collapses the main frame's selection to its start, and does nothing else. It runs in a world of its own, so the page
-// cannot change what it does.
-const COLLAPSE_SELECTION_SCRIPT = 'void (getSelection()?.rangeCount ? getSelection().collapseToStart() : undefined)'
+// Collapses the selection to its start in the frame within the page that has the focus, as far as the page's own frames
+// and open shadow roots go, which is where Chromium's search starts, and does nothing else. It runs in a world of its
+// own, so the page cannot change what it does.
+export const COLLAPSE_SELECTION_SCRIPT = `(() => {
+  let frame = document
+  let focused = frame.activeElement
+  for (;;) {
+    if (focused?.contentDocument) {
+      frame = focused.contentDocument
+      focused = frame.activeElement
+    } else if (focused?.shadowRoot?.activeElement) {
+      focused = focused.shadowRoot.activeElement
+    } else {
+      break
+    }
+  }
+  const selection = frame.getSelection()
+  if (selection?.rangeCount) selection.collapseToStart()
+})()`
 
 // How long a search waits for the page to answer that it collapsed its selection. The script is on its way to the
 // page by then, ahead of the search, so a page busy with its own work runs it first, and Find only stops waiting.
@@ -38,7 +54,8 @@ export async function findInPage(
   const tab = getTab(browser, options.tabId)
   const webContents = tab.webContents
   const earlier = collapsing.get(webContents)
-  if (options.fromSelectionStart === true && pageScriptsRunNow(webContents)) {
+  const fromSelection = options.fromSelectionStart === true && pageScriptsRunNow(webContents)
+  if (fromSelection) {
     // Chrome finds the selected match itself by collapsing its search's starting point to the start, which Electron's
     // search cannot ask for, so the page's selection is collapsed to its start.
     const collapsed = (earlier ?? Promise.resolve()).then(() => collapseSelectionToStart(webContents))
@@ -56,7 +73,7 @@ export async function findInPage(
     forward: options.forward ?? true,
     findNext: options.findNext ?? true,
     matchCase: options.caseSensitive ?? false
-  })
+  }, fromSelection)
 }
 
 async function collapseSelectionToStart(page: WebContents): Promise<void> {

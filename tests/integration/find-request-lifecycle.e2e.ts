@@ -51,10 +51,12 @@ test('settles superseded and stopped page searches and permits a real search aft
     await appWindow.evaluate(`window.hronaut.stopFindInPage(${JSON.stringify(tabId)})`)
     const bar = appWindow.getByRole('search', { name: 'Find in page' })
     await appWindow.getByRole('button', { name: 'Find in page', exact: true }).click()
+    // Ending the search above left its first match selected, as Chrome's find bar does when it closes, so Find opens with
+    // its text and finds that match, as in Chrome.
+    await expect(bar.getByRole('searchbox', { name: 'Find text' })).toHaveValue('needle')
+    await expect(bar.locator('.find-count')).toHaveText('1 / 3')
     await bar.getByRole('searchbox', { name: 'Find text' }).fill('needle')
-    // Ending the search above left its first match selected, as Chrome's find bar does when it closes, and a new search
-    // in Chromium passes over a match that is the selection it starts from.
-    await expect(bar.locator('.find-count')).toHaveText('2 / 3')
+    await expect(bar.locator('.find-count')).toHaveText('1 / 3')
     await electronApp.evaluate(({ ipcMain }) => {
       type Handler = (event: Electron.IpcMainInvokeEvent, ...args: unknown[]) => unknown
       const original = (ipcMain as typeof ipcMain & { _invokeHandlers: Map<string, Handler> })._invokeHandlers.get('browser:find-in-page')!

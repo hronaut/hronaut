@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import UiButton from "../../ui/UiButton.vue"
-import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconKeyboardArrowDown from '~icons/material-symbols/keyboard-arrow-down-rounded'
@@ -18,7 +18,7 @@ import {
 import { isImeCompositionEvent } from '../../keyboard-composition.js'
 import { vTooltip } from '../../ui/tooltip.js'
 
-type FindBrowserApi = Pick<HronautApi, 'findInPage' | 'stopFindInPage' | 'forwardFindKey' | 'focusActivePage'>
+type FindBrowserApi = Pick<HronautApi, 'findInPage' | 'stopFindInPage' | 'forwardFindKey' | 'findSelectionText' | 'focusActivePage'>
 
 const props = defineProps<{
   activeTab?: BrowserTabState
@@ -34,11 +34,22 @@ const query = ref('')
 const caseSensitive = ref(false)
 const searchFailed = ref(false)
 const searching = ref(false)
+// Whether Find waits for the page's selected text, which it may search for instead of the text in its field.
+const readingSelection = ref(false)
+// The bar shows Find searching while it waits for the page too, rather than a count for no search.
+const busy = computed(() => searching.value || (readingSelection.value && Boolean(query.value)))
 const result = ref<BrowserFindResult>({ activeMatchOrdinal: 0, matches: 0 })
 let targetTabId: string | undefined
 let requestSequence = 0
 // The keys the field sent on to the page as pressed, by the key on the keyboard, and the tab they went to.
 const pageHeldKeys = new Map<string, { tabId: string; key: BrowserFindPageKey['key'] }>()
+// Whether the person typed text in the field since Find opened, which then keeps it rather than take up the page's
+// selected text, as in Chrome.
+let typedText = false
+// The latest read of the page's selected text, which supersedes an earlier one still answering.
+let selectionRead = 0
+// Whether a search session started on the page since Find opened, which Find Next and Find Previous go on with.
+let pageSearched = false
 
 async function search(forward: boolean, newSearch: boolean, fromSelectionStart = false): Promise<void> {
   const tabId = targetTabId
@@ -49,11 +60,13 @@ async function search(forward: boolean, newSearch: boolean, fromSelectionStart =
   searching.value = Boolean(tabId && normalizedQuery)
   if (!tabId) return
   if (!normalizedQuery) {
+    pageSearched = false
     result.value = { activeMatchOrdinal: 0, matches: 0 }
     // As in Chrome, emptying the field clears the page's selection, where closing Find keeps the match selected.
     await props.browser.stopFindInPage(tabId, { clearSelection: true }).catch(() => undefined)
     return
   }
+  if (newSearch) pageSearched = true
   try {
     const next = await props.browser.findInPage({
       tabId,
@@ -75,11 +88,13 @@ async function search(forward: boolean, newSearch: boolean, fromSelectionStart =
 }
 
 function navigateMatch(forward: boolean): void {
-  if (searching.value || !query.value || !result.value.matches) return
+  if (busy.value || !query.value || !result.value.matches) return
   void search(forward, false)
 }
 
 function handleSearchInput(event: Event): void {
+  // Also while an input method composes text, which the field's model takes only once it ends.
+  typedText = (event.target as HTMLInputElement).value !== ''
   if ((event as InputEvent).isComposing) return
   void search(true, true)
 }
@@ -93,7 +108,8 @@ function handleSearchKeydown(event: KeyboardEvent): void {
   if (isImeCompositionEvent(event) || forwardPageKey(event)) return
   if (event.key !== 'Enter' || isFollowMatchKey(event)) return
   event.preventDefault()
-  void search(!event.shiftKey, false)
+  // Enter pressed before Find searched the page, while it waits for the page's selected text, starts the search.
+  void search(!event.shiftKey, !pageSearched)
 }
 
 function handleSearchKeyup(event: KeyboardEvent): void {
@@ -190,10 +206,13 @@ async function activate(tab: BrowserTabState | undefined): Promise<void> {
   if (!tab) return
   const shouldRepeatQuery = Boolean(query.value)
   targetTabId = tab.id
+  typedText = false
+  pageSearched = false
   await nextTick()
-  if (!open.value || targetTabId !== tab.id || props.activeTab?.id !== tab.id) return
+  if (!showsTab(tab)) return
   input.value?.focus()
   input.value?.select()
+  if (await takeSelectedText(tab) !== 'none') return
   // As in Chrome, Find opening again finds the match it closed on, which the page keeps selected.
   if (shouldRepeatQuery) await search(true, true, true)
 }
@@ -201,24 +220,56 @@ async function activate(tab: BrowserTabState | undefined): Promise<void> {
 // As in Chrome, in an open bar Find takes the keyboard to its field and selects its text, leaving the current match
 // where it is, and Find Next and Find Previous go to the next or previous match as Enter and Shift+Enter do in the
 // field. With Find closed, each opens it and searches for its last text again: Find from the match it closed on,
-// which the page keeps selected, and Find Next and Find Previous from the match after or before it.
+// which the page keeps selected, and Find Next and Find Previous from the match after or before it. Find, open or
+// not, first takes up the text selected in the page until the person types in the field.
 async function openForTab(tab: BrowserTabState | undefined = props.activeTab, again?: 'next' | 'previous'): Promise<void> {
   if (!tab) return
   const forward = again !== 'previous'
   if (open.value && targetTabId === tab.id) {
     input.value?.focus()
     input.value?.select()
-    if (again && query.value) await search(forward, false)
+    if (again) {
+      if (query.value) await search(forward, !pageSearched)
+    } else {
+      await takeSelectedText(tab)
+    }
     return
   }
   const shouldRepeatQuery = Boolean(query.value)
   targetTabId = tab.id
+  typedText = false
+  pageSearched = false
   open.value = true
   await nextTick()
-  if (!open.value || targetTabId !== tab.id || props.activeTab?.id !== tab.id) return
+  if (!showsTab(tab)) return
   input.value?.focus()
   input.value?.select()
+  if (again === undefined && await takeSelectedText(tab) !== 'none') return
   if (shouldRepeatQuery) await search(forward, true, again === undefined)
+}
+
+// As in Chrome, Find takes up the text selected in the page, of at most 250 characters, and finds it there: the
+// selected text itself, as the page keeps it selected. The person typing or searching while the page answers, or a
+// newer read, goes on instead: then nothing more is searched for this one ('overtaken'). With nothing selected ('none'),
+// Find goes on as it would without.
+async function takeSelectedText(tab: BrowserTabState): Promise<'taken' | 'none' | 'overtaken'> {
+  if (typedText) return 'none'
+  const read = ++selectionRead
+  const sequence = requestSequence
+  readingSelection.value = true
+  const text = await props.browser.findSelectionText(tab.id).catch(() => '')
+  if (read === selectionRead) readingSelection.value = false
+  if (read !== selectionRead || sequence !== requestSequence || typedText || !showsTab(tab)) return 'overtaken'
+  if (!text) return 'none'
+  query.value = text
+  await nextTick()
+  if (document.activeElement === input.value) input.value?.select()
+  await search(true, true, true)
+  return 'taken'
+}
+
+function showsTab(tab: BrowserTabState): boolean {
+  return open.value && targetTabId === tab.id && props.activeTab?.id === tab.id
 }
 
 async function cleanup(options: { activateMatch?: boolean; keepMatch?: boolean } = {}): Promise<void> {
@@ -227,6 +278,7 @@ async function cleanup(options: { activateMatch?: boolean; keepMatch?: boolean }
   targetTabId = undefined
   releasePageKeys()
   searching.value = false
+  readingSelection.value = false
   searchFailed.value = false
   result.value = { activeMatchOrdinal: 0, matches: 0 }
   if (!tabId) return
@@ -289,8 +341,8 @@ defineExpose({ close, openForTab })
         @blur="releasePageKeys"
       />
     </div>
-    <output class="find-count" aria-live="polite" :aria-busy="searching">
-      {{ searching ? t('find.searching') : searchFailed ? t('find.failed') : query ? `${result.activeMatchOrdinal} / ${result.matches}` : '0 / 0' }}
+    <output class="find-count" aria-live="polite" :aria-busy="busy">
+      {{ busy ? t('find.searching') : searchFailed ? t('find.failed') : query ? `${result.activeMatchOrdinal} / ${result.matches}` : '0 / 0' }}
     </output>
     <UiButton v-if="searchFailed" appearance="application" class="find-action" type="button" v-tooltip="t('find.retry')" :aria-label="t('find.retry')" @click="retrySearch">
       <IconRefresh aria-hidden="true" />
@@ -308,7 +360,7 @@ defineExpose({ close, openForTab })
       type="button"
       v-tooltip="t('find.previousTitle')"
       :aria-label="t('find.previous')"
-      :aria-disabled="searching || !query || !result.matches"
+      :aria-disabled="busy || !query || !result.matches"
       @click="navigateMatch(false)"
     >
       <IconKeyboardArrowUp aria-hidden="true" />
@@ -318,7 +370,7 @@ defineExpose({ close, openForTab })
       type="button"
       v-tooltip="t('find.nextTitle')"
       :aria-label="t('find.next')"
-      :aria-disabled="searching || !query || !result.matches"
+      :aria-disabled="busy || !query || !result.matches"
       @click="navigateMatch(true)"
     >
       <IconKeyboardArrowDown aria-hidden="true" />

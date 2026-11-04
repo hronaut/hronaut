@@ -37,13 +37,14 @@ function deferred<T>() {
 
 function renderBar(options: {
   activeTab?: BrowserTabState
-  browser?: Partial<Pick<HronautApi, 'findInPage' | 'stopFindInPage'>>
+  browser?: Partial<Pick<HronautApi, 'findInPage' | 'stopFindInPage' | 'findSelectionText'>>
 } = {}) {
   const activeTab = options.activeTab ?? tab('first')
   const browser = {
     findInPage: vi.fn(options.browser?.findInPage ?? (async (): Promise<BrowserFindResult> => ({ activeMatchOrdinal: 1, matches: 3 }))),
     stopFindInPage: vi.fn(options.browser?.stopFindInPage ?? (async () => undefined)),
     forwardFindKey: vi.fn(async () => undefined),
+    findSelectionText: vi.fn(options.browser?.findSelectionText ?? (async (_tabId: string) => '')),
     focusActivePage: vi.fn(async () => undefined)
   }
   const view = render(FindInPageBar, {
@@ -535,6 +536,7 @@ describe('Find Next and Find Previous', () => {
       findInPage: vi.fn(async (_request: unknown): Promise<BrowserFindResult> => ({ activeMatchOrdinal: 1, matches: 3 })),
       stopFindInPage: vi.fn(async (_tabId: string) => undefined),
       forwardFindKey: vi.fn(async () => undefined),
+      findSelectionText: vi.fn(async (_tabId: string) => ''),
       focusActivePage: vi.fn(async () => undefined)
     }
     const wrapper = mount(FindInPageBar, {
@@ -678,6 +680,7 @@ describe('the keyboard in Find', () => {
           findInPage: vi.fn(async (_request: unknown): Promise<BrowserFindResult> => ({ activeMatchOrdinal: 1, matches: 3 })),
           stopFindInPage: vi.fn(async () => undefined),
           forwardFindKey: vi.fn(async () => undefined),
+          findSelectionText: vi.fn(async (_tabId: string) => ''),
           focusActivePage: vi.fn(async () => undefined)
         },
         'onUpdate:open': (next: boolean) => wrapper.setProps({ open: next }),
@@ -730,6 +733,7 @@ describe('closing Find', () => {
       findInPage: vi.fn(async (_request: unknown): Promise<BrowserFindResult> => ({ activeMatchOrdinal: 1, matches: 3 })),
       stopFindInPage: vi.fn(async (_tabId: string, _options?: { activateMatch: boolean }) => undefined),
       forwardFindKey: vi.fn(async () => undefined),
+      findSelectionText: vi.fn(async (_tabId: string) => ''),
       focusActivePage: vi.fn(async () => undefined)
     }
     const wrapper = mount(FindInPageBar, {
