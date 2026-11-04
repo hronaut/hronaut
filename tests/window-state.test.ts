@@ -46,18 +46,53 @@ describe('restoreWindowBounds', () => {
     })
   })
 
-  it('centers on the primary display when the saved display is disconnected', () => {
+  it('opens where it was when its display came back with another id', () => {
     const saved: SavedWindowState = {
-      bounds: { x: 3000, y: 100, width: 1200, height: 800 },
+      bounds: { x: 3000, y: 100, width: 1400, height: 900 },
+      displayId: 99,
+      maximized: false,
+      fullScreen: false
+    }
+    expect(restoreWindowBounds(saved, displays, { width: 1200, height: 800 })).toEqual(saved.bounds)
+  })
+
+  it('opens on the display its saved bounds lie on when the saved id now names another display', () => {
+    const saved: SavedWindowState = {
+      bounds: { x: 2200, y: 180, width: 1400, height: 900 },
+      displayId: 1,
+      maximized: false,
+      fullScreen: false
+    }
+    expect(restoreWindowBounds(saved, displays, { width: 1200, height: 800 })).toEqual(saved.bounds)
+  })
+
+  it('moves a window onto its display when that display moved away from the saved bounds', () => {
+    const saved: SavedWindowState = {
+      bounds: { x: 5000, y: 180, width: 1400, height: 900 },
+      displayId: 2,
+      maximized: false,
+      fullScreen: false
+    }
+    expect(restoreWindowBounds(saved, displays, { width: 1200, height: 800 })).toEqual({
+      x: 3080,
+      y: 180,
+      width: 1400,
+      height: 900
+    })
+  })
+
+  it('keeps the saved size, centered on the primary display, when its display is disconnected', () => {
+    const saved: SavedWindowState = {
+      bounds: { x: 5000, y: 100, width: 1400, height: 900 },
       displayId: 99,
       maximized: false,
       fullScreen: false
     }
     expect(restoreWindowBounds(saved, displays, { width: 1200, height: 800 })).toEqual({
-      x: 360,
-      y: 140,
-      width: 1200,
-      height: 800
+      x: 260,
+      y: 90,
+      width: 1400,
+      height: 900
     })
   })
 })
