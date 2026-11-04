@@ -3,7 +3,11 @@ import type { TypedIpcMain } from '../typed-ipc.js'
 import type { AppSettings, SpellCheckLanguages } from '../../shared/types.js'
 import { SETTINGS_IPC } from '../../shared/ipc/settings.js'
 
-type SpellCheckSession = Pick<Session, 'setSpellCheckerEnabled' | 'getSpellCheckerLanguages' | 'setSpellCheckerLanguages'>
+type SpellCheckSession = Pick<
+  Session,
+  'setSpellCheckerEnabled' | 'getSpellCheckerLanguages' | 'setSpellCheckerLanguages'
+  | 'addWordToSpellCheckerDictionary' | 'listWordsInSpellCheckerDictionary'
+>
 
 interface SpellCheckHost {
   /** The current settings; read on every use because each committed update replaces the object. */
@@ -40,7 +44,8 @@ export function automaticSpellCheckLanguages(locale: string, available: readonly
 /**
  * Spell checking in websites' text fields, as Chrome's "Check for spelling errors when you type text on web pages" and
  * its spell check languages: every browser session follows the one setting, in Settings and in a text field's context
- * menu alike.
+ * menu alike. The words added to the dictionary are one list too, as Chrome keeps one dictionary for its profile: each session keeps
+ * its own on disk, so a session tracked takes the words the others have, and gives them its own.
  */
 export function createSpellCheck(host: SpellCheckHost): {
   /** Has a browser session check spelling as the settings say, now and after every change. */
@@ -57,8 +62,12 @@ export function createSpellCheck(host: SpellCheckHost): {
   languages(): SpellCheckLanguages
   /** Checks spelling in these languages, saves them and tells both shells. */
   setLanguages(languages: readonly string[]): Promise<AppSettings>
+  /** Adds a word to the dictionary of every tracked session, as Add to dictionary in a text field's menu does. */
+  addWord(word: string): void
 } {
   const sessions = new Set<SpellCheckSession>()
+  /** The words added to any tracked session's dictionary, which every tracked session is given. */
+  const words = new Set<string>()
   // The values last applied, which an update applies before it commits, so a session tracked while it saves gets them.
   let applied: boolean | undefined
   let appliedLanguages: readonly string[] | undefined
@@ -68,6 +77,31 @@ export function createSpellCheck(host: SpellCheckHost): {
     sessions.add(session)
     session.setSpellCheckerEnabled(isEnabled())
     giveLanguages(session, appliedLanguages ?? host.settings().spellCheckLanguages)
+    // Words added from now on reach this session as they are added, so it is given only the ones known before.
+    const known = [...words]
+    const giveKnown = (own: readonly string[]): void => {
+      const has = new Set(own)
+      for (const word of known) if (!has.has(word)) session.addWordToSpellCheckerDictionary(word)
+    }
+    void session.listWordsInSpellCheckerDictionary().then((own) => {
+      giveKnown(own)
+      for (const word of own) {
+        if (words.has(word)) continue
+        words.add(word)
+        for (const other of sessions) if (other !== session) other.addWordToSpellCheckerDictionary(word)
+      }
+    }, () => {
+      // A session whose words cannot be read still gets the words the others have.
+      console.warn('[spell-check] Could not read a session\'s dictionary words.')
+      giveKnown([])
+    }).catch(() => {
+      console.warn('[spell-check] Could not add words to a session\'s dictionary.')
+    })
+  }
+
+  function addWord(word: string): void {
+    words.add(word)
+    for (const session of sessions) session.addWordToSpellCheckerDictionary(word)
   }
 
   function apply(enabled: boolean): void {
@@ -118,7 +152,7 @@ export function createSpellCheck(host: SpellCheckHost): {
     return { ...host.settings() }
   }
 
-  return { track, apply, applyLanguages, isEnabled, setEnabled, languages, setLanguages }
+  return { track, apply, applyLanguages, isEnabled, setEnabled, languages, setLanguages, addWord }
 }
 
 /** The spell check switch and languages in Settings → General; main checks the values. */

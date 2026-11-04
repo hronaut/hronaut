@@ -38,8 +38,7 @@ function openMenu(params: Partial<ContextMenuParams>, url = PAGE, pageText?: () 
     options: {
       copyText, copyImageAt: async () => undefined,
       getSearchEngine: () => 'google',
-      getSpellCheck: () => true,
-      setSpellCheck: async () => undefined,
+      spellCheck: { isEnabled: () => true, setEnabled: async () => undefined, addWord: () => undefined },
       offersSpellCheckLanguages: () => true,
       openSpellCheckSettings: () => undefined
     },

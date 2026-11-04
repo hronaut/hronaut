@@ -170,3 +170,69 @@ test('checks spelling in the languages chosen in Settings, for every website, fr
     await closeFixtureServer(server)
   }
 })
+
+// Add to dictionary wrote the word only to the page's own session, so it stayed misspelled in every other workspace,
+// such as Home's. Chromium marks a misspelling only with a dictionary it downloads, so the menu is asked for here with
+// Electron's own parameters for a misspelled word, rather than found by a right-click.
+test('adds a misspelled word to the dictionary of every workspace from a text field menu', async ({ appWindow, electronApp }) => {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end('<!doctype html><title>Dictionary fixture</title><textarea id="note" rows="4" cols="40">Zorblaxian</textarea>')
+  })
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('Missing fixture port')
+  const url = `http://127.0.0.1:${address.port}/compose`
+  try {
+    await appWindow.evaluate(url => (window as unknown as { hronaut: { newTab(options: { url: string; active: boolean }): Promise<unknown> } }).hronaut.newTab({ url, active: true }), url)
+    await expect(appWindow.getByRole('tab', { name: /Dictionary fixture/ })).toBeVisible()
+    // The words in the dictionaries of the website's session and of Home's, which belong to different workspaces.
+    const words = (): Promise<{ page?: string[]; home?: string[]; separate: boolean }> => electronApp.evaluate(async ({ webContents }, url) => {
+      const contents = webContents.getAllWebContents()
+      const page = contents.find(candidate => candidate.getURL() === url)?.session
+      const home = contents.find(candidate => candidate.getURL().startsWith('hronaut://home'))?.session
+      return { page: await page?.listWordsInSpellCheckerDictionary(), home: await home?.listWordsInSpellCheckerDictionary(), separate: page !== home }
+    }, url)
+    expect(await words()).toEqual({ page: [], home: [], separate: true })
+
+    await electronApp.evaluate(({ Menu, webContents }, url) => {
+      Menu.prototype.popup = function (): void {
+        ;(globalThis as typeof globalThis & { __hronautContextMenu?: Electron.Menu }).__hronautContextMenu = this
+      }
+      const contents = webContents.getAllWebContents().find(candidate => candidate.getURL() === url)!
+      contents.emit('context-menu', { preventDefault: () => undefined }, {
+        x: 20, y: 20, linkURL: '', linkText: '', pageURL: url, frameURL: url, srcURL: '', mediaType: 'none', hasImageContents: false,
+        // A right-click on a misspelled word selects it.
+        isEditable: true, selectionText: 'Zorblaxian', titleText: '', altText: '', suggestedFilename: '', misspelledWord: 'Zorblaxian',
+        dictionarySuggestions: [], frameCharset: 'UTF-8', formControlType: 'text-area', spellcheckEnabled: true, menuSourceType: 'mouse',
+        mediaFlags: { inError: false, isPaused: false, isMuted: false, canSave: false, hasAudio: false, isLooping: false, isControlsVisible: false,
+          canToggleControls: false, canPrint: false, canRotate: false, canShowPictureInPicture: false, isShowingPictureInPicture: false,
+          canLoop: false },
+        editFlags: { canUndo: false, canRedo: false, canCut: true, canCopy: true, canPaste: true, canDelete: true, canSelectAll: true, canEditRichly: false },
+        selectionRect: { x: 4, y: 4, width: 80, height: 16 }, selectionStartOffset: 0, referrerPolicy: 'strict-origin-when-cross-origin',
+        frame: contents.mainFrame
+      })
+    }, url)
+    await expect.poll(() => electronApp.evaluate(() => (globalThis as typeof globalThis & { __hronautContextMenu?: Electron.Menu })
+      .__hronautContextMenu?.getMenuItemById('add-to-dictionary')?.label)).toBe('Add “Zorblaxian” to Dictionary')
+    await electronApp.evaluate(() => {
+      const item = (globalThis as typeof globalThis & { __hronautContextMenu?: Electron.Menu }).__hronautContextMenu!.getMenuItemById('add-to-dictionary')!
+      ;(item.click as unknown as () => void)()
+    })
+    await expect.poll(words).toEqual({ page: ['Zorblaxian'], home: ['Zorblaxian'], separate: true })
+
+    // A workspace made afterwards gets the word too.
+    const created = await appWindow.evaluate(`window.hronaut.createWorkspace({ name: 'Later', storage: 'scratch' })`) as { mcpTabGroups: Array<{ id: string, name: string }> }
+    const later = created.mcpTabGroups.find(group => group.name === 'Later')!.id
+    const laterUrl = `${url}?later`
+    await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(laterUrl)}, mcpGroupId: ${JSON.stringify(later)}, active: true })`)
+    await expect.poll(() => electronApp.evaluate(async ({ webContents }, { url, laterUrl }) => {
+      const contents = webContents.getAllWebContents()
+      const page = contents.find(candidate => candidate.getURL() === url)?.session
+      const laterSession = contents.find(candidate => candidate.getURL() === laterUrl)?.session
+      return laterSession && laterSession !== page ? await laterSession.listWordsInSpellCheckerDictionary() : null
+    }, { url, laterUrl })).toEqual(['Zorblaxian'])
+  } finally {
+    await closeFixtureServer(server)
+  }
+})

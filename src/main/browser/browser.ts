@@ -184,10 +184,11 @@ export interface BrowserOptions {
   /** Agents see tab addresses without query or fragment (the person's setting); read at each publication. */
   getOmitAgentUrlDetail?: () => boolean
   getSearchEngine?: () => SearchEngineName
-  /** Whether websites' text fields check spelling; on unless this says false. */
-  getSpellCheck?: () => boolean
-  /** Turns spell checking on or off for every website and saves it, as Settings does. */
-  setSpellCheck?: (enabled: boolean) => Promise<unknown>
+  /**
+   * Spell checking in websites' text fields: whether it is on, which it is unless `isEnabled()` says false; turning it on or off
+   * for every website and saving it, as Settings does; and adding a word to the dictionary of every workspace.
+   */
+  spellCheck?: { isEnabled(): boolean; setEnabled(enabled: boolean): Promise<unknown>; addWord(word: string): void }
   /** Whether Settings offers spell check languages; not on macOS, where the system's spell checker picks the language. */
   offersSpellCheckLanguages?: () => boolean
   /** Opens Settings → General, where the spell check languages are, as Chrome's Language settings. */

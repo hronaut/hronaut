@@ -1,5 +1,5 @@
 import type { IpcMain, IpcMainInvokeEvent, Session } from 'electron'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import type { AppSettings } from '../src/shared/types.js'
 
 vi.mock('electron', () => ({ app: { getPath: () => '' }, nativeTheme: {}, session: { fromPartition: vi.fn() } }))
@@ -45,14 +45,18 @@ function spellCheckRuntime(saved: Partial<AppSettings> = {}, platform: { availab
   }
   const spellCheck = createSpellCheck(host)
   // A session starts with the languages it was given last, which Chromium keeps in the profile across restarts.
-  const session = (startLanguages: string[] = ['en-US']) => {
+  const session = (startLanguages: string[] = ['en-US'], startWords: string[] = []) => {
     const calls: boolean[] = []
     const languageCalls: string[][] = []
     let languages = [...startLanguages]
+    const words = new Set(startWords)
     return {
       calls,
       languageCalls,
       languages: () => languages,
+      words: () => [...words].sort(),
+      addWordToSpellCheckerDictionary: vi.fn((word: string) => { words.add(word); return true }),
+      listWordsInSpellCheckerDictionary: async () => [...words],
       setSpellCheckerEnabled: (enabled: boolean) => { calls.push(enabled); order.push(`session ${enabled}`) },
       getSpellCheckerLanguages: () => [...languages],
       setSpellCheckerLanguages: (next: string[]) => {
@@ -144,7 +148,9 @@ describe('spell check', () => {
       on: () => undefined,
       setSpellCheckerEnabled: (enabled: boolean) => { steps.push(`${name} spell check ${enabled}`) },
       getSpellCheckerLanguages: () => ['en-US'],
-      setSpellCheckerLanguages: (languages: string[]) => { steps.push(`${name} languages ${languages.join(',')}`) }
+      setSpellCheckerLanguages: (languages: string[]) => { steps.push(`${name} languages ${languages.join(',')}`) },
+      addWordToSpellCheckerDictionary: () => true,
+      listWordsInSpellCheckerDictionary: async () => []
     }) as unknown as Session
     const workspace = fakeSession('workspace')
     const home = fakeSession('home')
@@ -192,6 +198,49 @@ describe('spell check', () => {
     await expect(invoke({}, 'off')).rejects.toThrow('Spell check must be a boolean')
     await expect(invoke({ untrusted: true }, true)).rejects.toThrow('untrusted sender')
     expect(setEnabled).toHaveBeenCalledOnce()
+  })
+})
+
+describe('words added to the dictionary', () => {
+  // Add to dictionary wrote the word only to the page's own session, so it stayed misspelled in every other workspace.
+  it('adds a word to the dictionary of every tracked session, as Chrome has one dictionary', () => {
+    const runtime = spellCheckRuntime()
+    const workspace = runtime.session()
+    const home = runtime.session()
+    runtime.spellCheck.track(workspace)
+    runtime.spellCheck.track(home)
+    runtime.spellCheck.addWord('Hronaut')
+    expect(workspace.words()).toEqual(['Hronaut'])
+    expect(home.words()).toEqual(['Hronaut'])
+  })
+
+  it('gives a session tracked later the words the others have, and gives them the words it kept', async () => {
+    const runtime = spellCheckRuntime()
+    const first = runtime.session(['en-US'], ['kubectl'])
+    runtime.spellCheck.track(first)
+    runtime.spellCheck.addWord('Hronaut')
+    // A workspace opened later, whose session kept a word from an earlier start.
+    const later = runtime.session(['en-US'], ['Electron'])
+    runtime.spellCheck.track(later)
+    await vi.waitFor(() => expect(later.words()).toEqual(['Electron', 'Hronaut', 'kubectl']))
+    expect(first.words()).toEqual(['Electron', 'Hronaut', 'kubectl'])
+    // Each word is written to a session once.
+    expect(first.addWordToSpellCheckerDictionary.mock.calls.map(([word]) => word).sort()).toEqual(['Electron', 'Hronaut'])
+    expect(later.addWordToSpellCheckerDictionary.mock.calls.map(([word]) => word).sort()).toEqual(['Hronaut', 'kubectl'])
+  })
+
+  it('still gives the words the others have to a session whose own words cannot be read', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    onTestFinished(() => warn.mockRestore())
+    const runtime = spellCheckRuntime()
+    const first = runtime.session(['en-US'], ['kubectl'])
+    runtime.spellCheck.track(first)
+    runtime.spellCheck.addWord('Hronaut')
+    const unreadable = runtime.session()
+    unreadable.listWordsInSpellCheckerDictionary = async () => { throw new Error('Spellcheck in unexpected state') }
+    runtime.spellCheck.track(unreadable)
+    await vi.waitFor(() => expect(unreadable.words()).toEqual(['Hronaut', 'kubectl']))
+    expect(warn).toHaveBeenCalledExactlyOnceWith('[spell-check] Could not read a session\'s dictionary words.')
   })
 })
 

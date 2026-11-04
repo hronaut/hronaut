@@ -25,14 +25,17 @@ function menu(
   params: Partial<ContextMenuParams>,
   options: { spellCheck?: boolean, setSpellCheck?: (enabled: boolean) => Promise<void>, offersLanguages?: boolean } = {}
 ) {
+  const pageSession = { addWordToSpellCheckerDictionary: vi.fn(() => true) }
   const webContents = {
     id: 7,
     isDestroyed: () => false,
-    navigationHistory: { canGoBack: () => false, canGoForward: () => false }
+    navigationHistory: { canGoBack: () => false, canGoForward: () => false },
+    session: pageSession
   } as unknown as WebContents
   const tab: PageTab = { id: 'tab', url: PAGE, webContents }
   const onActionFailed = vi.fn()
   const setSpellCheck = vi.fn(options.setSpellCheck ?? (async () => undefined))
+  const addWord = vi.fn()
   const openSpellCheckSettings = vi.fn()
   const browser = {
     tabs: new Map([[tab.id, tab]]),
@@ -40,8 +43,7 @@ function menu(
     options: {
       copyText: async () => undefined, copyImageAt: async () => undefined, onActionFailed,
       getSearchEngine: () => 'google',
-      getSpellCheck: () => options.spellCheck ?? true,
-      setSpellCheck,
+      spellCheck: { isEnabled: () => options.spellCheck ?? true, setEnabled: setSpellCheck, addWord },
       offersSpellCheckLanguages: () => options.offersLanguages ?? true,
       openSpellCheckSettings
     },
@@ -55,7 +57,7 @@ function menu(
   } as unknown as ContextMenuParams)
   const items = built.templates.at(-1)!
   const spellCheck = items.find(item => item.id === 'spell-check')
-  return { items, ids: items.map(item => item.id ?? item.type), spellCheck, setSpellCheck, openSpellCheckSettings, onActionFailed }
+  return { items, ids: items.map(item => item.id ?? item.type), spellCheck, setSpellCheck, addWord, openSpellCheckSettings, onActionFailed, pageSession }
 }
 
 function choose(item: MenuItemConstructorOptions, checked: boolean): void {
@@ -85,6 +87,16 @@ describe('Spell check in a text field\'s page menu', () => {
 
     const misspelled = menu({ isEditable: true, formControlType: 'text-area', misspelledWord: 'teh', dictionarySuggestions: ['the'] })
     expect(misspelled.ids.indexOf('add-to-dictionary')).toBeLessThan(misspelled.ids.indexOf('spell-check'))
+  })
+
+  it('adds a misspelled word to the dictionary of every workspace, not only the page\'s', () => {
+    // Add to dictionary wrote the word only to the page's own session, so it stayed misspelled in every other workspace.
+    const misspelled = menu({ isEditable: true, formControlType: 'text-area', misspelledWord: 'Hronaut', dictionarySuggestions: [] })
+    const add = misspelled.items.find(item => item.id === 'add-to-dictionary')!
+    ;(add.click as () => void)()
+    expect(misspelled.addWord).toHaveBeenCalledExactlyOnceWith('Hronaut')
+    expect(misspelled.pageSession.addWordToSpellCheckerDictionary).not.toHaveBeenCalled()
+    expect(misspelled.onActionFailed).not.toHaveBeenCalled()
   })
 
   it('opens the settings with the spell check languages from Language settings, as Chrome\'s submenu does', () => {

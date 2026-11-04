@@ -373,7 +373,7 @@ export function showContextMenu(browser: Browser, tab: BrowserTab, params: Conte
       spellingItems.push({
         id: 'add-to-dictionary',
         label: browser.text('native.context.addDictionary', { word: params.misspelledWord }),
-        click: withLiveContents('add word to dictionary', () => { webContents.session.addWordToSpellCheckerDictionary(params.misspelledWord) })
+        click: withLiveContents('add word to dictionary', () => browser.options.spellCheck?.addWord(params.misspelledWord))
       })
       groups.push(spellingItems)
     }
@@ -415,7 +415,7 @@ export function showContextMenu(browser: Browser, tab: BrowserTab, params: Conte
           id: 'check-spelling',
           type: 'checkbox',
           label: browser.text('native.context.checkSpelling'),
-          checked: browser.options.getSpellCheck?.() !== false,
+          checked: browser.options.spellCheck?.isEnabled() !== false,
           click: (item) => {
             void setSpellCheck(browser, item.checked).catch((error) => reportActionFailure('change spell check', error))
           }
@@ -651,7 +651,7 @@ export async function showTabBeside(browser: Browser, tab: BrowserTab, besideTab
 
 /** Turns spell checking on or off for every website and saves it, as Settings does. */
 async function setSpellCheck(browser: Browser, enabled: boolean): Promise<void> {
-  await browser.options.setSpellCheck?.(enabled)
+  await browser.options.spellCheck?.setEnabled(enabled)
 }
 
 // The clipboard's text, to tell whether anything was copied since; it stays in main.
