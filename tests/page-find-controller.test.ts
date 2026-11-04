@@ -140,7 +140,7 @@ it('keeps searches in different pages independent', async () => {
   expect(vi.getTimerCount()).toBe(0)
 })
 
-it('clears the selection when a search ends, and clicks only an active match a search settled on', async () => {
+it('clears the selection when asked, clicks only an active match a search settled on, and keeps the selection otherwise', async () => {
   const page = fixture()
   const settle = async (activeMatchOrdinal: number) => {
     const search = page.search()
@@ -149,11 +149,12 @@ it('clears the selection when a search ends, and clicks only an active match a s
     await search
   }
   // Chromium clicks the page's focused element, which is the match's link only once a search found it: before, it is
-  // whatever had the focus, such as a button the person pressed.
+  // whatever had the focus, such as a button the person pressed. The search then ends keeping the selection, as Escape
+  // does, which may select a match the search had found, so the stop reports it.
   const unanswered = page.search().catch(error => error.message)
-  expect(page.stop('activateSelection')).toBe(false)
+  expect(page.stop('activateSelection')).toBe(true)
   expect(await unanswered).toBe('Page search was cancelled or superseded')
-  expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('clearSelection')
+  expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('keepSelection')
 
   await settle(1)
   expect(page.stop()).toBe(false)
@@ -161,19 +162,23 @@ it('clears the selection when a search ends, and clicks only an active match a s
   await settle(1)
   expect(page.stop('activateSelection')).toBe(true)
   expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('activateSelection')
-  // The search ended with it.
+  await settle(1)
+  expect(page.stop('keepSelection')).toBe(true)
+  expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('keepSelection')
+  // The search ended with it, so nothing is left to select or click.
   expect(page.stop('activateSelection')).toBe(false)
-  expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('clearSelection')
+  expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('keepSelection')
 
   await settle(0)
   expect(page.stop('activateSelection')).toBe(false)
-  expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('clearSelection')
+  expect(page.stop('keepSelection')).toBe(false)
+  expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('keepSelection')
 
   // A match, then a search that has not answered yet.
   await settle(1)
   const next = page.search().catch(error => error.message)
-  expect(page.stop('activateSelection')).toBe(false)
-  expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('clearSelection')
+  expect(page.stop('activateSelection')).toBe(true)
+  expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('keepSelection')
   expect(await next).toBe('Page search was cancelled or superseded')
 })
 
@@ -201,18 +206,18 @@ it('marks the page activated, by a script with a user gesture, when it clicks th
 
   // Nothing to click: no search, a search with no match, a stop that does not click, or a newer search not answered.
   calls.length = 0
-  expect(page.stop('activateSelection')).toBe(false)
+  page.stop('activateSelection')
   await settle(0)
-  expect(page.stop('activateSelection')).toBe(false)
+  page.stop('activateSelection')
   await settle()
-  expect(page.stop()).toBe(false)
+  page.stop()
   await settle()
-  expect(page.stop('keepSelection')).toBe(false)
+  page.stop('keepSelection')
   await settle()
   const unanswered = page.search().catch(() => undefined)
-  expect(page.stop('activateSelection')).toBe(false)
+  page.stop('activateSelection')
   await unanswered
-  expect(calls).toEqual(['stop clearSelection', 'stop clearSelection', 'stop clearSelection', 'stop keepSelection', 'stop clearSelection'])
+  expect(calls).toEqual(['stop keepSelection', 'stop keepSelection', 'stop clearSelection', 'stop keepSelection', 'stop keepSelection'])
 
   // A script sent while the page loads its next document would wait for it and activate that one instead: the match is
   // still clicked, without the mark.

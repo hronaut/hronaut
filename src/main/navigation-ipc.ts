@@ -78,15 +78,16 @@ export function registerNavigationIpc(host: NavigationIpcHost): void {
   host.handleBrowserIpc(NAVIGATION_IPC.findInPage, (event, options: unknown) => {
     host.assertTrustedSender(event)
     if (typeof options !== 'object' || options === null) throw new TypeError('Invalid find options')
-    const { query, tabId, forward, findNext, caseSensitive } = options as Record<string, unknown>
+    const { query, tabId, forward, findNext, caseSensitive, fromSelectionStart } = options as Record<string, unknown>
     if (
       typeof query !== 'string'
       || (tabId !== undefined && typeof tabId !== 'string')
       || (forward !== undefined && typeof forward !== 'boolean')
       || (findNext !== undefined && typeof findNext !== 'boolean')
       || (caseSensitive !== undefined && typeof caseSensitive !== 'boolean')
+      || (fromSelectionStart !== undefined && typeof fromSelectionStart !== 'boolean')
     ) throw new TypeError('Invalid find options')
-    return findInPage(host.tabs()!, query, { tabId, forward, findNext, caseSensitive })
+    return findInPage(host.tabs()!, query, { tabId, forward, findNext, caseSensitive, fromSelectionStart })
   })
   host.handleBrowserIpc(NAVIGATION_IPC.stopFindInPage, (event, tabId: unknown, options: unknown = {}) => {
     host.assertTrustedSender(event)

@@ -7,7 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - With Find open, pressing Ctrl+F or Cmd+F again, or the Find button, selects the text in its field and keeps the current match, as in Chrome, instead of searching again from the first match.
-- Closing Find with Escape or its Close button leaves the current match selected, as in Chrome, so you can copy it, and a match in a link gives the link the page's focus, so Enter follows it; emptying the Find field still clears the selection.
+- Closing Find with Escape or its Close button leaves the current match selected, as in Chrome, so you can copy it, a match in a link gives the link the page's focus, so Enter follows it, and Find opens again on that match; emptying the Find field still clears the selection.
 
 ## [3.14.11] - 2026-11-04
 

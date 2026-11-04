@@ -343,13 +343,14 @@ describe('FindInPageBar', () => {
     expect(view.emitted()['update:open']).toBeUndefined()
   })
 
-  it('closes and clears the original page search when the active tab changes', async () => {
+  // Selecting the match would move the page's focus to its link, in a tab the person left.
+  it('closes and clears the original page search when the active tab changes, without selecting its match', async () => {
     const { view, browser } = renderBar()
     await vi.waitFor(() => expect(screen.getByRole('searchbox', { name: 'Find text' })).toHaveFocus())
 
     await view.rerender({ activeTab: tab('second') })
 
-    await vi.waitFor(() => expect(browser.stopFindInPage).toHaveBeenCalledWith('first'))
+    await vi.waitFor(() => expect(browser.stopFindInPage).toHaveBeenCalledExactlyOnceWith('first', { clearSelection: true }))
     expect(view.emitted()['update:open']?.at(-1)).toEqual([false])
   })
 
@@ -378,7 +379,7 @@ describe('FindInPageBar', () => {
 
     await view.rerender({ activeTab: { ...activeTab, ...changes } })
 
-    expect(browser.stopFindInPage).toHaveBeenCalledWith('first')
+    expect(browser.stopFindInPage).toHaveBeenCalledWith('first', { clearSelection: true })
     expect(view.emitted()['update:open']?.at(-1)).toEqual([false])
     expect(screen.queryByText('1 / 3')).not.toBeInTheDocument()
   })
@@ -427,7 +428,7 @@ describe('FindInPageBar', () => {
     pending.resolve({ activeMatchOrdinal: 1, matches: 9 })
     await pending.promise
 
-    expect(browser.stopFindInPage).toHaveBeenCalledWith('first')
+    expect(browser.stopFindInPage).toHaveBeenCalledWith('first', { clearSelection: true })
     expect(view.emitted()['update:open']?.at(-1)).toEqual([false])
     expect(screen.queryByText('1 / 9')).not.toBeInTheDocument()
   })
@@ -443,20 +444,20 @@ describe('FindInPageBar', () => {
     expect(screen.getByText('1 / 3')).toBeVisible()
   })
 
-  it('invalidates pending work and ends the page search, keeping its match selected, when unmounted', async () => {
+  it('invalidates pending work and ends the page search, without selecting its match, when unmounted', async () => {
     const pending = deferred<BrowserFindResult>()
     const { view, browser } = renderBar({ browser: { findInPage: () => pending.promise } })
     await fireEvent.update(screen.getByRole('searchbox', { name: 'Find text' }), 'needle')
 
     view.unmount()
 
-    await vi.waitFor(() => expect(browser.stopFindInPage).toHaveBeenCalledExactlyOnceWith('first'))
+    await vi.waitFor(() => expect(browser.stopFindInPage).toHaveBeenCalledExactlyOnceWith('first', { clearSelection: true }))
     expect(view.emitted()['update:open']?.at(-1)).toEqual([false])
     pending.resolve({ activeMatchOrdinal: 1, matches: 1 })
   })
 
   // As in Chrome, where closing Find leaves the match selected in the page.
-  it('clears the page selection once the field is emptied, and keeps it when Find closes', async () => {
+  it('clears the page selection once the field is emptied, and keeps it when the person closes Find', async () => {
     const { browser } = renderBar()
     const search = screen.getByRole('searchbox', { name: 'Find text' })
     await fireEvent.update(search, 'needle')
@@ -469,6 +470,16 @@ describe('FindInPageBar', () => {
     await vi.waitFor(() => expect(screen.getByText('1 / 3')).toBeVisible())
     browser.stopFindInPage.mockClear()
     await fireEvent.keyDown(search, { key: 'Escape' })
+    await vi.waitFor(() => expect(browser.stopFindInPage).toHaveBeenCalledExactlyOnceWith('first'))
+  })
+
+  it('keeps the match selected when the person clicks Close', async () => {
+    const { browser } = renderBar()
+    await fireEvent.update(screen.getByRole('searchbox', { name: 'Find text' }), 'needle')
+    await vi.waitFor(() => expect(screen.getByText('1 / 3')).toBeVisible())
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Close find in page' }))
+
     await vi.waitFor(() => expect(browser.stopFindInPage).toHaveBeenCalledExactlyOnceWith('first'))
   })
 })
@@ -620,8 +631,11 @@ describe('Find Next and Find Previous', () => {
 
       await exposed.openForTab(activeTab)
 
+      // From the start of the match Find closed on, which the page keeps selected, so that match is found again.
       expect(browser.findInPage).toHaveBeenCalledOnce()
-      expect(browser.findInPage).toHaveBeenCalledWith({ tabId: 'first', query: 'needle', forward: true, findNext: true, caseSensitive: false })
+      expect(browser.findInPage).toHaveBeenCalledWith({
+        tabId: 'first', query: 'needle', forward: true, findNext: true, caseSensitive: false, fromSelectionStart: true
+      })
     } finally { wrapper.unmount() }
   })
 })

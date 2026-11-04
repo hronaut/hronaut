@@ -78,13 +78,16 @@ export class PageFindController {
 
   /**
    * Ends the page's search, clearing its selection, keeping it, or clicking the active match as Chrome's Ctrl+Enter
-   * does, and reports whether it clicked. Chromium clicks the page's focused element when it ends a search, which is the match's
-   * link only once a search settled on a match: a search that found nothing, or has not answered yet, leaves the focus
-   * where it was, such as on a button the person pressed before, so it is cleared instead.
+   * does, and reports whether that may have acted on a match in the page: selected it, which focuses the link it is in,
+   * or clicked it. Chromium clicks the page's focused element when it ends a search, which is the match's link only once
+   * a search settled on a match: a search that found nothing, or has not answered yet, leaves the focus where it was,
+   * such as on a button the person pressed before, so the search ends keeping the selection instead, as Escape does.
    */
   stop(webContents: WebContents, action: 'clearSelection' | 'keepSelection' | 'activateSelection' = 'clearSelection'): boolean {
+    const answering = this.pending.has(webContents)
     this.pending.get(webContents)?.()
-    const activate = action === 'activateSelection' && this.matched.has(webContents)
+    const matched = this.matched.has(webContents)
+    const activate = action === 'activateSelection' && matched
     this.matched.delete(webContents)
     this.sessionQueries.delete(webContents)
     // The person's key went to Find, not to the page, so the click had no user activation, and Chromium skipped on Back
@@ -97,7 +100,9 @@ export class PageFindController {
       void webContents.executeJavaScriptInIsolatedWorld(ISOLATED_WORLDS.findMatchClick, [{ code: ACTIVATION_ONLY_SCRIPT }], true)
         .catch(() => undefined)
     }
-    webContents.stopFindInPage(activate ? 'activateSelection' : action === 'keepSelection' ? 'keepSelection' : 'clearSelection')
-    return activate
+    const ending = activate ? 'activateSelection' : action === 'clearSelection' ? 'clearSelection' : 'keepSelection'
+    webContents.stopFindInPage(ending)
+    // Chromium selects the active match a search found, or one still answering may have found.
+    return activate || (ending === 'keepSelection' && (matched || answering))
   }
 }

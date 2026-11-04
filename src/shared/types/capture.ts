@@ -42,6 +42,8 @@ export interface BrowserFindOptions {
   forward?: boolean
   findNext?: boolean
   caseSensitive?: boolean
+  /** Searches from the start of the page's selection, so a selected match is found itself, instead of from after it. */
+  fromSelectionStart?: boolean
 }
 
 export interface BrowserFindResult {
