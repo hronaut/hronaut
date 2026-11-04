@@ -46,7 +46,7 @@ export function registerNavigationIpc(host: NavigationIpcHost): void {
     if (typeof options !== 'object' || options === null) throw new TypeError('Invalid navigation options')
     const { url, tabId } = options as Record<string, unknown>
     if (typeof url !== 'string') throw new TypeError('Invalid navigation options')
-    return stateReply(host, navigate(host.tabs()!, url, optionalTabId(tabId), { byPerson: true }))
+    return stateReply(host, navigate(host.tabs()!, url, optionalTabId(tabId), { byPerson: true, typed: true }))
   })
   host.handleBrowserIpc(NAVIGATION_IPC.back, (event, tabId) => { host.assertTrustedSender(event); return stateReply(host, back(host.tabs()!, optionalTabId(tabId), { byPerson: true })) })
   host.handleBrowserIpc(NAVIGATION_IPC.forward, (event, tabId) => { host.assertTrustedSender(event); return stateReply(host, forward(host.tabs()!, optionalTabId(tabId), { byPerson: true })) })
