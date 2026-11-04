@@ -38,6 +38,11 @@ export interface MainWindowRefs {
    * then shows it even when it starts hidden in the tray.
    */
   showRequested: boolean
+  /**
+   * The maximized and full screen state a window that starts hidden in the tray takes when the person first shows it,
+   * saved in place of the window's own while it stays hidden.
+   */
+  stateUntilShown?: Pick<SavedWindowState, 'maximized' | 'fullScreen'> | null
 }
 
 interface MainWindowHost {

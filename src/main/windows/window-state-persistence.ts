@@ -3,9 +3,11 @@ import type { SavedWindowState, WindowStateStore } from '../window-state.js'
 
 interface WindowStatePersistenceHost {
   /** The window whose bounds are saved; read on every use because it opens later and goes when it closes. */
-  window(): Pick<BrowserWindow, 'isDestroyed' | 'getNormalBounds' | 'isMaximized' | 'isFullScreen'> | null
+  window(): Pick<BrowserWindow, 'isDestroyed' | 'getNormalBounds' | 'isMaximized' | 'isFullScreen' | 'isVisible'> | null
   /** The full screen to save when it is not simply the window's, such as while a page holds it; the window's otherwise. */
   fullScreen?(): boolean
+  /** The maximized and full screen state to save in place of the window's while it stays hidden, waiting to be shown with it. */
+  stateUntilShown?(): Pick<SavedWindowState, 'maximized' | 'fullScreen'> | null | undefined
   /** The window's state file, once it is open. */
   store(): Pick<WindowStateStore, 'save'> | null
   /** The bounds last seen while the window was open, saved when the window has already gone. */
@@ -29,11 +31,12 @@ export function createWindowStatePersistence(host: WindowStatePersistenceHost): 
   function currentState(): SavedWindowState | null {
     if (!host.window() || host.window()!.isDestroyed()) return null
     const bounds = host.window()!.getNormalBounds()
+    const untilShown = host.window()!.isVisible() ? null : host.stateUntilShown?.()
     return {
       bounds,
       displayId: screen.getDisplayMatching(bounds).id,
-      maximized: host.window()!.isMaximized(),
-      fullScreen: host.fullScreen?.() ?? host.window()!.isFullScreen()
+      maximized: untilShown?.maximized ?? host.window()!.isMaximized(),
+      fullScreen: untilShown?.fullScreen ?? host.fullScreen?.() ?? host.window()!.isFullScreen()
     }
   }
 
