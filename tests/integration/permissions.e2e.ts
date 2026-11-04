@@ -319,7 +319,6 @@ test('does not persist a stale permission decision after the requesting tab clos
     expect(await appWindow.evaluate('window.hronautPermissions.list()')).toEqual([])
     await expect(appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.length)'))
       .resolves.toBeGreaterThan(0)
-    expect(await electronApp.evaluate(() => process.exitCode ?? 0)).toBe(0)
   } finally {
     await closeFixtureServer(server)
   }

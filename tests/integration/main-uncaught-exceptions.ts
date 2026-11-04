@@ -48,8 +48,8 @@ export function readMainUncaughtExceptions(testInfo: TestInfo, output: NodeJS.Re
 }
 
 /**
- * Reads the main process's uncaught exceptions and unhandled rejections from output that arrives in chunks: the logged line, then the stack
- * lines that follow it, without color codes. An exception is passed on as its logged line arrives and fills in as its
+ * Reads the main process's uncaught exceptions and unhandled rejections from output that arrives in chunks: the logged
+ * line, then the stack lines that follow it, without color codes. An exception is passed on as its logged line arrives and fills in as its
  * stack lines do, until a line that is not part of its stack. A line too long to keep is cut short.
  */
 export function mainUncaughtExceptionReader(onException: (exception: MainUncaughtException) => void): (chunk: string) => void {

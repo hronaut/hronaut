@@ -57,8 +57,6 @@ test('starts the first save dialog after a restart in the folder the last one sa
     ))).toBe(1)
     const asked = await app.evaluate(() => (globalThis as typeof globalThis & { __saveDialogs?: SaveDialog[] }).__saveDialogs![0]!)
     expect(dirname(asked.defaultPath ?? '')).toBe(folder)
-    // Nor was main left with a promise rejected as it started.
-    expect(await app.evaluate(() => process.exitCode ?? 0)).toBe(0)
   } finally {
     if (instance) await closeHronaut(instance.app)
     await closeFixtureServer(server)

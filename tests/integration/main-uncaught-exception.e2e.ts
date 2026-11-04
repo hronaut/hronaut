@@ -18,21 +18,6 @@ test('an uncaught exception in the main process is logged and the app keeps answ
   mainUncaughtExceptions(testInfo).splice(0)
 })
 
-// A save dialog's folder failed to load as the browser was built, and the rejected promise left main with only Node's
-// warning and exit code 1, which no test read.
-test('a promise rejected in the main process that nothing handles is logged, for the test that caused it to fail on', async ({ electronApp, appWindow }, testInfo) => {
-  await electronApp.evaluate(() => {
-    setTimeout(() => { void Promise.reject(new Error('Deliberate unhandled rejection')) }, 0)
-  })
-  await expect.poll(() => mainUncaughtExceptions(testInfo).map((exception) => exception.lines.join('\n'))).toEqual([
-    expect.stringMatching(/^\[main\] Unhandled rejection: Error: Deliberate unhandled rejection\n\s+at /)
-  ])
-  expect(await electronApp.evaluate(() => process.exitCode ?? 0)).toBe(0)
-  expect(await appWindow.evaluate('window.hronaut.getState().then((state) => typeof state.activeTabId)')).toBe('string')
-  // Caused on purpose, so the fixture that fails a test over one leaves this one alone.
-  mainUncaughtExceptions(testInfo).splice(0)
-})
-
 // The first CI run with the check above caught one: the toast view's last report arrived after the closing window
 // closed the view, and the listener's sender check threw. Nothing waits for an answer to a report, so it is dropped.
 test('an overlay view report from anything but the current view is dropped, not an uncaught exception', async ({ electronApp, appWindow }, testInfo) => {
@@ -50,4 +35,20 @@ test('an overlay view report from anything but the current view is dropped, not 
   expect(reached).toBe(true)
   expect(await appWindow.evaluate('window.hronaut.getState().then((state) => typeof state.activeTabId)')).toBe('string')
   expect(mainUncaughtExceptions(testInfo)).toEqual([])
+})
+
+// A save dialog's folder failed to load as the browser was built, and the rejected promise left main with only Node's
+// warning and exit code 1, which no test read.
+test('a promise rejected in the main process that nothing handles is logged, for the test that caused it to fail on', async ({ electronApp, appWindow }, testInfo) => {
+  await electronApp.evaluate(() => {
+    setTimeout(() => { void Promise.reject(new Error('Deliberate unhandled rejection')) }, 0)
+  })
+  await expect.poll(() => mainUncaughtExceptions(testInfo).map((exception) => exception.lines.join('\n'))).toEqual([
+    expect.stringMatching(/^\[main\] Unhandled rejection: Error: Deliberate unhandled rejection\n\s+at /)
+  ])
+  // Handled by the app, it leaves none of Node's exit code 1 behind.
+  expect(await electronApp.evaluate(() => process.exitCode ?? 0)).toBe(0)
+  expect(await appWindow.evaluate('window.hronaut.getState().then((state) => typeof state.activeTabId)')).toBe('string')
+  // Caused on purpose, so the fixture that fails a test over one leaves this one alone.
+  mainUncaughtExceptions(testInfo).splice(0)
 })

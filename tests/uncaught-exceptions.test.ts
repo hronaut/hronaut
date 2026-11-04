@@ -1,18 +1,16 @@
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
-import {
-  logUncaughtExceptions, logUnhandledRejections, UNCAUGHT_EXCEPTION_LOG_PREFIX, UNHANDLED_REJECTION_LOG_PREFIX
-} from '../src/main/uncaught-exceptions.js'
+import { logMainProcessErrors, UNCAUGHT_EXCEPTION_LOG_PREFIX, UNHANDLED_REJECTION_LOG_PREFIX } from '../src/main/uncaught-exceptions.js'
 import { mainUncaughtExceptionReader, type MainUncaughtException } from './integration/main-uncaught-exceptions.js'
 
 // Electron's own handler showed an uncaught exception in a native error box that blocked the main process, which a CI
 // run's csp-disposition case hung on until teardown aborted the app.
 
-describe('uncaught exceptions in the main process', () => {
-  it('are logged with the error, by a handler of the app\'s own, so Electron shows no error box', () => {
+describe('errors nothing in the main process caught', () => {
+  it('log an uncaught exception with the error, by a handler of the app\'s own, so Electron shows no error box', () => {
     const source = new EventEmitter()
     const log = vi.fn()
-    logUncaughtExceptions(source, log)
+    logMainProcessErrors(source, log)
     // Electron's handler leaves the box out whenever another handler is listening.
     expect(source.listenerCount('uncaughtException')).toBe(1)
     const error = new Error('broken listener')
@@ -20,16 +18,13 @@ describe('uncaught exceptions in the main process', () => {
     expect(log).toHaveBeenCalledOnce()
     expect(log).toHaveBeenCalledWith(UNCAUGHT_EXCEPTION_LOG_PREFIX, error)
   })
-})
 
-// A save dialog's folder failed to load as the browser was built, and the rejected promise left main with only Node's
-// warning and exit code 1, which no e2e test read: the first save dialog after a restart opened in the wrong folder.
-
-describe('unhandled rejections in the main process', () => {
-  it('are logged with their reason under a line of their own', () => {
+  // A save dialog's folder failed to load as the browser was built, and the rejected promise left main with only Node's
+  // warning and exit code 1, which no e2e test read: the first save dialog after a restart opened in the wrong folder.
+  it('log a promise rejected with nothing to handle it, with its reason, under a line of its own', () => {
     const source = new EventEmitter()
     const log = vi.fn()
-    logUnhandledRejections(source, log)
+    logMainProcessErrors(source, log)
     expect(source.listenerCount('unhandledRejection')).toBe(1)
     const reason = new TypeError('Cannot read properties of undefined (reading \'downloadDirectory\')')
     source.emit('unhandledRejection', reason, Promise.resolve())
