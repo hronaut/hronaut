@@ -320,7 +320,9 @@ export const enUSAppErrors = {
     nameUnavailable: 'Could not find a free file name in the download folder.',
     saveDenied: 'Hronaut does not have permission to save files in the download folder ({code}).',
     saveDiskFull: 'There is not enough disk space to save the file ({code}).',
-    saveReadOnly: 'The download folder is read-only ({code}).'
+    saveReadOnly: 'The download folder is read-only ({code}).',
+    chosenSaveDenied: 'Hronaut does not have permission to save files in the folder you chose ({code}).',
+    chosenReadOnly: 'The folder you chose is read-only ({code}).'
   },
   previews: {
     timedOut: 'Full-page preview timed out. Try again when the page is ready.',

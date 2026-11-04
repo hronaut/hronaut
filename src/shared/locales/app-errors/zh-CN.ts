@@ -316,7 +316,9 @@ export const zhCNAppErrors: AppErrorMessages = {
     nameUnavailable: '在下载文件夹中找不到可用的文件名。',
     saveDenied: 'Hronaut 没有在下载文件夹中保存文件的权限（{code}）。',
     saveDiskFull: '磁盘空间不足，无法保存文件（{code}）。',
-    saveReadOnly: '下载文件夹为只读（{code}）。'
+    saveReadOnly: '下载文件夹为只读（{code}）。',
+    chosenSaveDenied: 'Hronaut 没有在所选文件夹中保存文件的权限（{code}）。',
+    chosenReadOnly: '所选文件夹为只读（{code}）。'
   },
   previews: {
     timedOut: '整页预览超时。请在页面准备就绪后重试。',

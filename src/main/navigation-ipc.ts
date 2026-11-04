@@ -121,7 +121,7 @@ export function registerNavigationIpc(host: NavigationIpcHost): void {
     ) throw new TypeError('Invalid PDF options')
     const browser = host.tabs()!
     const pdf = { tabId, filename, landscape, pageSize: pageSize ?? host.defaultPdfPageSize(), outline, preferCSSPageSize }
-    return savePdf(browser, pdf, undefined, undefined, personExportFile(browser))
+    return savePdf(browser, pdf, undefined, undefined, personExportFile(browser, event.sender))
   })
 }
 

@@ -316,7 +316,9 @@ export const ptBRAppErrors: AppErrorMessages = {
     nameUnavailable: 'Não foi possível encontrar um nome de arquivo livre na pasta de downloads.',
     saveDenied: 'O Hronaut não tem permissão para salvar arquivos na pasta de downloads ({code}).',
     saveDiskFull: 'Não há espaço em disco suficiente para salvar o arquivo ({code}).',
-    saveReadOnly: 'A pasta de downloads é somente leitura ({code}).'
+    saveReadOnly: 'A pasta de downloads é somente leitura ({code}).',
+    chosenSaveDenied: 'O Hronaut não tem permissão para salvar arquivos na pasta escolhida ({code}).',
+    chosenReadOnly: 'A pasta escolhida é somente leitura ({code}).'
   },
   previews: {
     timedOut: 'A visualização da página inteira expirou. Tente novamente quando a página estiver pronta.',

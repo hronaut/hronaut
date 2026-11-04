@@ -316,7 +316,9 @@ export const zhTWAppErrors: AppErrorMessages = {
     nameUnavailable: '在下載資料夾中找不到可用的檔案名稱。',
     saveDenied: 'Hronaut 沒有在下載資料夾中儲存檔案的權限（{code}）。',
     saveDiskFull: '磁碟空間不足，無法儲存檔案（{code}）。',
-    saveReadOnly: '下載資料夾為唯讀（{code}）。'
+    saveReadOnly: '下載資料夾為唯讀（{code}）。',
+    chosenSaveDenied: 'Hronaut 沒有在所選資料夾中儲存檔案的權限（{code}）。',
+    chosenReadOnly: '所選資料夾為唯讀（{code}）。'
   },
   previews: {
     timedOut: '整頁預覽逾時。請在網頁準備好後再試一次。',

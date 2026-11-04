@@ -316,7 +316,9 @@ export const esESAppErrors: AppErrorMessages = {
     nameUnavailable: 'No se encontró un nombre de archivo libre en la carpeta de descargas.',
     saveDenied: 'Hronaut no tiene permiso para guardar archivos en la carpeta de descargas ({code}).',
     saveDiskFull: 'No hay suficiente espacio en el disco para guardar el archivo ({code}).',
-    saveReadOnly: 'La carpeta de descargas es de solo lectura ({code}).'
+    saveReadOnly: 'La carpeta de descargas es de solo lectura ({code}).',
+    chosenSaveDenied: 'Hronaut no tiene permiso para guardar archivos en la carpeta elegida ({code}).',
+    chosenReadOnly: 'La carpeta elegida es de solo lectura ({code}).'
   },
   previews: {
     timedOut: 'Se agotó el tiempo de la vista de página completa. Vuelve a intentarlo cuando la página esté lista.',

@@ -276,7 +276,7 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
       throw new TypeError('Invalid network HAR save options')
     }
     const browser = host.tabs()!
-    return saveNetworkHar(browser, value as BrowserNetworkHarSaveOptions, personExportFile(browser))
+    return saveNetworkHar(browser, value as BrowserNetworkHarSaveOptions, personExportFile(browser, event.sender))
   })
   host.handleBrowserIpc(PAGE_INSPECTION_IPC.captureArea, async (event, tabId: unknown) => {
     host.assertTrustedSender(event)

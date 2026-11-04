@@ -167,7 +167,7 @@ export function registerDiagnosticsIpc(ipcMain: Pick<TypedIpcMain, 'handle'>, ho
     // The shell adds audio only through importVideoAudio, from a file the person picks; it never names a file itself.
     if (options.action === 'import-audio' || options.audioPath !== undefined) throw new TypeError('Audio is imported only from a file the person picks')
     // A recording the person exports asks where to save it when the download folder cannot be written to.
-    return videoRecording(host.tabs(), options, undefined, undefined, personExportFile(host.tabs()))
+    return videoRecording(host.tabs(), options, undefined, undefined, personExportFile(host.tabs(), event.sender))
   })
   ipcMain.handle(DIAGNOSTICS_IPC.videoPreview, (event, tabId: unknown) => {
     host.assertTrustedSender(event)

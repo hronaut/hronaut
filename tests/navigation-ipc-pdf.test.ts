@@ -9,7 +9,10 @@ vi.mock('../src/main/browser/pdf-export/pdf-export.js', async (importOriginal) =
 }))
 
 // The person's own PDF asks where to save it when the download folder cannot be written to; an agent's never does.
-vi.mock('../src/main/browser/person-export/person-export-file.js', () => ({ personExportFile: (browser: unknown) => ({ askingOver: browser }) }))
+// It asks over the window of the page that asked, which can be Page tools moved to its own window.
+vi.mock('../src/main/browser/person-export/person-export-file.js', () => ({
+  personExportFile: (browser: unknown, asking: unknown) => ({ askingOver: browser, from: asking })
+}))
 
 function savePdfHandler(paper: 'A4' | 'Letter') {
   const handlers = new Map<string, (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown>()
@@ -22,15 +25,16 @@ function savePdfHandler(paper: 'A4' | 'Letter') {
     defaultPdfPageSize: () => paper
   })
   const handler = handlers.get('browser:save-pdf')!
-  return { save: (options: unknown) => handler({} as IpcMainInvokeEvent, options), savePdf, browser }
+  const sender = { id: 7 }
+  return { save: (options: unknown) => handler({ sender } as never, options), savePdf, browser, sender }
 }
 
 describe('saving a PDF from Hronaut controls', () => {
   it('uses the paper of the person\'s region when the control names none', async () => {
     // The PDF button always saved Letter.
-    const { save, savePdf, browser } = savePdfHandler('A4')
+    const { save, savePdf, browser, sender } = savePdfHandler('A4')
     await save({ tabId: 'tab' })
-    expect(savePdf).toHaveBeenCalledWith(expect.objectContaining({ tabId: 'tab', pageSize: 'A4' }), undefined, undefined, { askingOver: browser })
+    expect(savePdf).toHaveBeenCalledWith(expect.objectContaining({ tabId: 'tab', pageSize: 'A4' }), undefined, undefined, { askingOver: browser, from: sender })
   })
 
   it('keeps a paper the control names', async () => {

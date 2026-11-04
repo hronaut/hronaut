@@ -316,7 +316,9 @@ export const koKRAppErrors: AppErrorMessages = {
     nameUnavailable: '다운로드 폴더에서 사용 가능한 파일 이름을 찾을 수 없습니다.',
     saveDenied: 'Hronaut에 다운로드 폴더에 파일을 저장할 권한이 없습니다({code}).',
     saveDiskFull: '파일을 저장할 디스크 공간이 부족합니다({code}).',
-    saveReadOnly: '다운로드 폴더가 읽기 전용입니다({code}).'
+    saveReadOnly: '다운로드 폴더가 읽기 전용입니다({code}).',
+    chosenSaveDenied: 'Hronaut에 선택한 폴더에 파일을 저장할 권한이 없습니다({code}).',
+    chosenReadOnly: '선택한 폴더가 읽기 전용입니다({code}).'
   },
   previews: {
     timedOut: '전체 페이지 미리보기 시간이 초과되었습니다. 페이지가 준비되면 다시 시도하세요.',
