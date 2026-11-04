@@ -938,6 +938,43 @@ describe('held Enter', () => {
       expect(repeat.defaultPrevented).toBe(true)
     }
   })
+
+  // Add current turned into Remove current and back with each repeat, adding the bookmark anew without its name or
+  // collection; Open in background opened one more tab; Rename and Edit address opened the name field and the repeat
+  // saved it unchanged, so the field opened and closed until the key was let go.
+  it.each(['Remove current', 'Rename Alpha docs', 'Edit address for Alpha docs', 'Open Alpha docs in background tab'])(
+    'keeps a held Enter from pressing %s again', name => {
+      renderPanel()
+      const button = screen.getByRole('button', { name })
+      const press = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+      const repeat = new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true })
+      button.dispatchEvent(press)
+      button.dispatchEvent(repeat)
+
+      expect(press.defaultPrevented).toBe(false)
+      expect(repeat.defaultPrevented).toBe(true)
+    })
+
+  it('saves a new name only for a new press of Enter, not the repeats of the one held on Rename', async () => {
+    const renameBookmark = vi.fn(async () => [bookmark('alpha', 'Alpha guide'), bookmark('beta', 'Beta page')])
+    renderPanel({ renameBookmark })
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Rename Alpha docs' }))
+    const field = screen.getByRole('textbox', { name: 'Rename Alpha docs' })
+    expect(field).toHaveFocus()
+
+    const repeat = new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true })
+    field.dispatchEvent(repeat)
+    await flushPromises()
+    expect(repeat.defaultPrevented).toBe(true)
+    expect(renameBookmark).not.toHaveBeenCalled()
+    expect(field).toHaveFocus()
+
+    await fireEvent.update(field, 'Alpha guide')
+    await fireEvent.keyDown(field, { key: 'Enter' })
+    await flushPromises()
+    expect(renameBookmark).toHaveBeenCalledExactlyOnceWith('alpha', 'Alpha guide')
+    expect(screen.queryByRole('textbox', { name: 'Rename Alpha docs' })).toBeNull()
+  })
 })
 
 // A middle-click or Ctrl+click on a bookmark opened it in front and closed the list, where Chrome opens it in a new

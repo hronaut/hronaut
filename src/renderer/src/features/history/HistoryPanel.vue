@@ -219,7 +219,8 @@ async function clearOrigin(event: Event): Promise<void> {
         <h2 id="history-title">{{ t('history.heading') }}</h2>
       </div>
       <div class="history-header-actions">
-        <UiButton appearance="application" type="button" :disabled="!entries.length || pendingAction !== null" @click="keepFocusThrough($event, clear)">{{ t('history.clearAll') }}</UiButton>
+        <UiButton appearance="application" type="button" :disabled="!entries.length || pendingAction !== null"
+          @keydown="ignoreHeldEnter" @click="keepFocusThrough($event, clear)">{{ t('history.clearAll') }}</UiButton>
         <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('history.close')" @keydown="ignoreHeldEnter" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
       </div>
     </header>
@@ -282,6 +283,7 @@ async function clearOrigin(event: Event): Promise<void> {
           :aria-disabled="pendingAction !== null"
           :aria-label="t('history.backgroundAria', { title: entry.title })"
           v-tooltip="t('history.background')"
+          @keydown="ignoreHeldEnter"
           @click="openInBackground(entry)">
           <IconBackground aria-hidden="true" />
         </UiButton>

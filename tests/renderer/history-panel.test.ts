@@ -808,9 +808,11 @@ describe('History keyboard focus while an action disables its control', () => {
 })
 
 describe('held Enter', () => {
-  it('keeps a held Enter from pressing Remove or Close again', () => {
+  it('keeps a held Enter from pressing Remove, Close, Open in background or Clear all again', () => {
     renderPanel()
-    for (const name of ['Remove Alpha docs from history', 'Close browsing history']) {
+    // Open in background keeps its focus, so each repeat opened one more tab, and Clear all gets it back after Cancel,
+    // so an Enter held from the question asked it again.
+    for (const name of ['Remove Alpha docs from history', 'Close browsing history', 'Open Alpha docs in background tab', 'Clear all']) {
       const button = screen.getByRole('button', { name })
       const press = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
       const repeat = new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true })

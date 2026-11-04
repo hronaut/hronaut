@@ -3,7 +3,9 @@
  * to the next row's Remove would otherwise remove one row after another until the key is let go. Removing the last
  * row hands the focus to the panel's Close, which takes it too. Elsewhere Hronaut keeps the focus off such a control
  * instead; a list's next row is where the focus belongs, so here the repeat is ignored. A review step whose confirm
- * button takes the focus on purpose ignores it too, so that confirming takes a new press.
+ * button takes the focus on purpose ignores it too, so that confirming takes a new press. A button that keeps or gets
+ * back the focus would do its work again with each repeat: Add current turns into Remove current and back, which adds the bookmark
+ * anew without its name or collection, and Open in background opens one more tab.
  */
 export function ignoreHeldEnter(event: KeyboardEvent): void {
   if (event.repeat && event.key === 'Enter') event.preventDefault()
