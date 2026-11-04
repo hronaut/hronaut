@@ -1,4 +1,4 @@
-import { PAGE_ZOOM_LIMITS, PAGE_ZOOM_STEPS } from '../../../shared/page-zoom.js'
+import { PAGE_ZOOM_LIMITS, PAGE_ZOOM_STEPS, pageZoomFactor } from '../../../shared/page-zoom.js'
 import type { BrowserState } from '../../../shared/types.js'
 import { LocalizedError } from '../../localized-error.js'
 import type { Browser } from '../browser.js'
@@ -31,7 +31,7 @@ export function setZoom(browser: Browser, options: { tabId?: string; action: 'in
     }
     percent = wanted
   }
-  webContents.setZoomFactor(percent / 100)
+  webContents.setZoomFactor(pageZoomFactor(percent))
   publishChange(browser, false)
   return browserState(browser)
 }
