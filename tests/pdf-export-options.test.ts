@@ -41,6 +41,9 @@ function exporter(output: Buffer = pages(1)) {
   }) as Browser
   return {
     save: (options: BrowserPdfOptions) => savePdf(manager, { tabId: tab.id, ...options }),
+    saveThrough: (saveFile: (filename: string, data: Buffer, validate: () => void) => Promise<string | undefined>) => (
+      savePdf(manager, { tabId: tab.id }, undefined, undefined, saveFile)
+    ),
     printed: () => (printToPDF.mock.calls[0] as unknown[])[0],
     writeUniqueDownload
   }
@@ -93,4 +96,14 @@ it('refuses a CSS-sized PDF over 1,000 pages, or one whose pages it cannot count
 it('leaves the page count of an ordinary export alone', async () => {
   const pdf = exporter(pages(5_000))
   await expect(pdf.save({})).resolves.toMatchObject({ bytes: pages(5_000).length })
+})
+
+it('saves the PDF through the writer its caller chose, and gives null when the person chose not to save it', async () => {
+  const pdf = exporter()
+  const saveFile = vi.fn(async (_filename: string, _data: Buffer, _validate: () => void): Promise<string | undefined> => undefined)
+  expect(await pdf.saveThrough(saveFile)).toBeNull()
+  expect(saveFile).toHaveBeenCalledWith('Guide.pdf', expect.any(Buffer), expect.any(Function))
+  saveFile.mockResolvedValueOnce('/Documents/Guide.pdf')
+  expect(await pdf.saveThrough(saveFile)).toEqual({ filename: 'Guide.pdf', path: '/Documents/Guide.pdf', bytes: pages(1).length })
+  expect(pdf.writeUniqueDownload).not.toHaveBeenCalled()
 })

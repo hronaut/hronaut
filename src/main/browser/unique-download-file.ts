@@ -18,7 +18,7 @@ const SAVE_FAILURE_MESSAGES: Record<string, MessageKey> = {
  * message stays Node's, for MCP results and logs, and so do the code, errno, syscall and path Node gave. Any other
  * failure, including the caller's own validation, is returned as it is.
  */
-function localizedSaveFailure(error: unknown): unknown {
+export function localizedSaveFailure(error: unknown): unknown {
   if (!(error instanceof Error) || error instanceof LocalizedError) return error
   const failure = error as NodeJS.ErrnoException
   if (typeof failure.code !== 'string' || !Object.hasOwn(SAVE_FAILURE_MESSAGES, failure.code)) return error
@@ -29,6 +29,12 @@ function localizedSaveFailure(error: unknown): unknown {
   }
   return localized
 }
+
+/**
+ * Saves an export's file and gives its path, or undefined when the person chose not to save it: a new file in the
+ * download folder (writeUniqueDownloadFile), or one the person names (see person-export-file.ts).
+ */
+export type ExportFileWriter = (filename: string, data: Buffer, validate: () => void) => Promise<string | undefined>
 
 /** Reserve a new export exclusively and remove its partial contents on failure. */
 export async function writeUniqueDownloadFile(

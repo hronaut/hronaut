@@ -13,6 +13,7 @@ import { captureElementScreenshot, pickElement, cancelElementPicker } from './br
 import { captureScreenshotArea, cancelScreenshotArea } from './browser/screenshot-area/screenshot-area.js'
 import { consoleMessages } from './browser/console-messages/console-messages.js'
 import { networkHar, networkRequestDetails, networkRequests, networkSearch, replayNetworkRequest, saveNetworkHar } from './browser/network-inspection/network-inspection.js'
+import { personExportFile } from './browser/person-export/person-export-file.js'
 import { inspectPwa } from './browser/pwa-inspection/pwa-inspection.js'
 import { manageStorage } from './browser/site-storage/manage-storage.js'
 import { storageChanges } from './browser/site-storage/storage-changes.js'
@@ -274,7 +275,8 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
     ) {
       throw new TypeError('Invalid network HAR save options')
     }
-    return saveNetworkHar(host.tabs()!, value as BrowserNetworkHarSaveOptions)
+    const browser = host.tabs()!
+    return saveNetworkHar(browser, value as BrowserNetworkHarSaveOptions, personExportFile(browser))
   })
   host.handleBrowserIpc(PAGE_INSPECTION_IPC.captureArea, async (event, tabId: unknown) => {
     host.assertTrustedSender(event)

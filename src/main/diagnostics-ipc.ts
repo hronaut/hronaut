@@ -18,6 +18,7 @@ import type {
   BrowserVisualCompareOptions
 } from '../shared/types.js'
 import { videoPreview, videoRecording } from './browser/video-recording/video-recording.js'
+import { personExportFile } from './browser/person-export/person-export-file.js'
 import { visualDiff, visualCompare } from './browser/visual-compare/visual-compare.js'
 import { debugReport, setDiagnosticLogPreservation } from './browser/debug-report/debug-report.js'
 import { inspectorIssues } from './browser/inspector-issues/inspector-issues.js'
@@ -165,7 +166,8 @@ export function registerDiagnosticsIpc(ipcMain: Pick<TypedIpcMain, 'handle'>, ho
     const options = videoOptionsSchema.parse(value)
     // The shell adds audio only through importVideoAudio, from a file the person picks; it never names a file itself.
     if (options.action === 'import-audio' || options.audioPath !== undefined) throw new TypeError('Audio is imported only from a file the person picks')
-    return videoRecording(host.tabs(), options)
+    // A recording the person exports asks where to save it when the download folder cannot be written to.
+    return videoRecording(host.tabs(), options, undefined, undefined, personExportFile(host.tabs()))
   })
   ipcMain.handle(DIAGNOSTICS_IPC.videoPreview, (event, tabId: unknown) => {
     host.assertTrustedSender(event)

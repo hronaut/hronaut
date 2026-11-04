@@ -9,6 +9,7 @@ import { findInPage, stopFindInPage } from './browser/page-find/page-find.js'
 import { back, forward, reload, reloadIgnoringCache, stop, navigate } from './browser/page-navigation/page-navigation.js'
 import { setZoom } from './browser/page-zoom/page-zoom.js'
 import { savePdf } from './browser/pdf-export/pdf-export.js'
+import { personExportFile } from './browser/person-export/person-export-file.js'
 import { proceedPastTabCertificateError } from './browser/certificate-errors/browser-certificate-errors.js'
 import { NAVIGATION_IPC } from '../shared/ipc/navigation.js'
 
@@ -118,7 +119,9 @@ export function registerNavigationIpc(host: NavigationIpcHost): void {
       || (outline !== undefined && typeof outline !== 'boolean')
       || (preferCSSPageSize !== undefined && typeof preferCSSPageSize !== 'boolean')
     ) throw new TypeError('Invalid PDF options')
-    return savePdf(host.tabs()!, { tabId, filename, landscape, pageSize: pageSize ?? host.defaultPdfPageSize(), outline, preferCSSPageSize })
+    const browser = host.tabs()!
+    const pdf = { tabId, filename, landscape, pageSize: pageSize ?? host.defaultPdfPageSize(), outline, preferCSSPageSize }
+    return savePdf(browser, pdf, undefined, undefined, personExportFile(browser))
   })
 }
 

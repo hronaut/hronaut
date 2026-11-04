@@ -3,6 +3,7 @@ import { VIDEO_LIMITS, type BrowserVideoOptions, type BrowserVideoState } from '
 import { captureStableVideoImage } from '../video-capture.js'
 import { LocalizedError } from '../../localized-error.js'
 import type { PendingVideoInspection, VideoSourceBinding } from '../video-recorder.js'
+import type { ExportFileWriter } from '../unique-download-file.js'
 import type { Browser } from '../browser.js'
 import { findTab, getTab } from '../browser-core.js'
 import { withRenderableTab } from '../renderable-tab/renderable-tab.js'
@@ -12,9 +13,15 @@ import { withRenderableTab } from '../renderable-tab/renderable-tab.js'
  * it to editing and exporting it. Frames are captured only while Hronaut is
  * visible and the tab stays awake, active and at the origin it started on, in
  * its workspace, at its first viewport size; the recording is reachable only
- * from that origin.
+ * from that origin. An export is saved through saveFile when the caller chose one, else in the download folder.
  */
-export async function videoRecording(browser: Browser, options: BrowserVideoOptions, validateAuthority: () => void = () => undefined, signal?: AbortSignal): Promise<BrowserVideoState> {
+export async function videoRecording(
+  browser: Browser,
+  options: BrowserVideoOptions,
+  validateAuthority: () => void = () => undefined,
+  signal?: AbortSignal,
+  saveFile?: ExportFileWriter
+): Promise<BrowserVideoState> {
   const tab = getTab(browser, options.tabId)
   const origin = new URL(tab.url).origin
   const workspaceId = tab.mcpGroupId
@@ -45,7 +52,7 @@ export async function videoRecording(browser: Browser, options: BrowserVideoOpti
   const validateSource = (): void => {
     if (findTab(browser, tab.id) !== tab || tab.mcpGroupId !== workspaceId || new URL(tab.url).origin !== origin) throw new LocalizedError('video.errors.returnToOrigin')
   }
-  return browser.videoRecorder.manage(tab.id, options, capture, valid, validateSource, signal, { tabId: tab.id, workspaceId, origin })
+  return browser.videoRecorder.manage(tab.id, options, capture, valid, validateSource, signal, { tabId: tab.id, workspaceId, origin }, saveFile)
 }
 
 /** Prepares frames of the tab's recording for inspection while its tab and workspace stay the recording's own. */
