@@ -263,6 +263,7 @@ const invokes: Array<[api: string, method: string, args: unknown[], channel: str
   ['hronautDownloads', 'startDrag', ['download-1'], 'downloads:start-drag', ['download-1']],
   ['hronautBookmarks', 'list', [], 'bookmarks:list', []],
   ['hronautBookmarks', 'add', ['https://a.test/', 'A'], 'bookmarks:add', ['https://a.test/', 'A']],
+  ['hronautBookmarks', 'add', ['https://a.test/', 'A', 'reading'], 'bookmarks:add', ['https://a.test/', 'A', 'reading']],
   ['hronautBookmarks', 'addIfMissing', ['https://a.test/', 'A'], 'bookmarks:add-if-missing', ['https://a.test/', 'A']],
   ['hronautBookmarks', 'rename', ['bookmark-1', 'B'], 'bookmarks:rename', ['bookmark-1', 'B']],
   ['hronautBookmarks', 'updateDestination', ['bookmark-1', 'https://b.test/'], 'bookmarks:update-destination', ['bookmark-1', 'https://b.test/']],

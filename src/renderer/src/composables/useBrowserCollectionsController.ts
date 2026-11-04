@@ -164,8 +164,8 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
     return resolveBookmarks(() => options.bookmarksApi.list())
   }
 
-  function addBookmark(url: string, title: string): Promise<BrowserBookmark[]> {
-    return resolveBookmarks(() => options.bookmarksApi.add(url, title))
+  function addBookmark(url: string, title: string, collectionId?: string): Promise<BrowserBookmark[]> {
+    return resolveBookmarks(() => options.bookmarksApi.add(url, title, collectionId))
   }
 
   async function saveHistoryBookmark(url: string, title: string): Promise<void> {

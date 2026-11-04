@@ -31,7 +31,8 @@ const props = defineProps<{
   activeTitle: string
   currentBookmark?: BrowserBookmark
   listBookmarks: () => Promise<BrowserBookmark[]>
-  addBookmark: (url: string, title: string) => Promise<BrowserBookmark[]>
+  /** Saves a page; a new bookmark goes into the collection named, if it is still there. */
+  addBookmark: (url: string, title: string, collectionId?: string) => Promise<BrowserBookmark[]>
   renameBookmark: (id: string, title: string) => Promise<BrowserBookmark[]>
   updateBookmarkDestination: (id: string, url: string) => Promise<BrowserBookmark[]>
   removeBookmark: (id: string) => Promise<BrowserBookmark[]>
@@ -83,7 +84,7 @@ const {
   activeTitle: toRef(props, 'activeTitle'),
   currentBookmark: toRef(props, 'currentBookmark'),
   listBookmarks: props.listBookmarks,
-  addBookmark: props.addBookmark,
+  addBookmark: addCurrentBookmark,
   renameBookmark: props.renameBookmark,
   updateBookmarkDestination: props.updateBookmarkDestination,
   removeBookmark: props.removeBookmark,
@@ -122,6 +123,14 @@ const collectionController = useBookmarkCollectionsController({
   api: props.collectionsApi, open, blocked: computed(() => pendingAction.value !== null), translate: (key) => t(key)
 })
 const { pending: collectionsPending, collections, selection } = collectionController
+
+/**
+ * Saves the current page. One saved while the list shows a collection goes into it, as a page added in Chrome's
+ * bookmark manager goes into the folder it shows, so that the list shows the new bookmark.
+ */
+function addCurrentBookmark(url: string, title: string): Promise<BrowserBookmark[]> {
+  return props.addBookmark(url, title, collectionController.selected.value?.id)
+}
 const visibleBookmarks = computed(() => filteredBookmarks.value.filter(bookmark => collectionController.includes(bookmark.id)))
 const openAll = useBookmarksOpenAll({
   bookmarks: visibleBookmarks,

@@ -89,7 +89,8 @@ describe('AppBrowserCollectionsLayer', () => {
     expect(screen.getByRole('dialog', { name: 'Bookmarks' })).toBeVisible()
     expect(harness.controller.bookmarksPanel.value).not.toBeNull()
     await user.click(screen.getByRole('button', { name: 'Add current' }))
-    expect(harness.addBookmark).toHaveBeenCalledWith('https://example.test/app', 'Example')
+    // The panel shows All bookmarks, so the page is saved in no collection.
+    expect(harness.addBookmark).toHaveBeenCalledWith('https://example.test/app', 'Example', undefined)
 
     harness.bookmarksOpen.value = false
     harness.historyOpen.value = true

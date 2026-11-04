@@ -117,7 +117,8 @@ export interface HronautTaskManagerApi {
 export interface HronautBookmarksApi {
   collections?: HronautBookmarkCollectionsApi
   list(): Promise<BrowserBookmark[]>
-  add(url: string, title: string): Promise<BrowserBookmark[]>
+  /** Saves a page, or updates the bookmark of an address saved before; a new bookmark goes into the collection named, if it is still there. */
+  add(url: string, title: string, collectionId?: string): Promise<BrowserBookmark[]>
   addIfMissing(url: string, title: string): Promise<BrowserBookmark[]>
   rename(id: string, title: string): Promise<BrowserBookmark[]>
   updateDestination(id: string, url: string): Promise<BrowserBookmark[]>

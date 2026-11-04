@@ -6,7 +6,7 @@ export const BOOKMARKS_IPC = {
   /** Shell → main: every bookmark. */
   list: 'bookmarks:list' as InvokeChannel<[], BrowserBookmark[]>,
   /** Shell → main: bookmarks a page, answering with every bookmark after. */
-  add: 'bookmarks:add' as InvokeChannel<[url: string, title: string], BrowserBookmark[]>,
+  add: 'bookmarks:add' as InvokeChannel<[url: string, title: string, collectionId?: string], BrowserBookmark[]>,
   /** Shell → main: bookmarks a page unless it already is, answering with every bookmark after. */
   addIfMissing: 'bookmarks:add-if-missing' as InvokeChannel<[url: string, title: string], BrowserBookmark[]>,
   /** Shell → main: renames a bookmark, answering with every bookmark after. */

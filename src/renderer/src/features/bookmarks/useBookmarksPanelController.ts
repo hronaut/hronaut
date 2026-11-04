@@ -120,17 +120,27 @@ export function useBookmarksPanelController(options: BookmarksPanelControllerOpt
     }
   }
 
+  /**
+   * Opens the panel through its owner, which shows it later. Its opening ends any action under way and loads the
+   * collections, which an action under way holds off, so the action that opens the panel starts once it is open and a
+   * failure shows in it.
+   */
+  async function openPanel(): Promise<void> {
+    options.open.value = true
+    await nextTick()
+  }
+
   async function toggle(): Promise<void> {
     if (options.open.value) {
       options.open.value = false
       return
     }
-    options.open.value = true
+    await openPanel()
     await runAction('load', options.listBookmarks)
   }
 
   async function toggleCurrent(): Promise<void> {
-    options.open.value = true
+    if (!options.open.value) await openPanel()
     const url = options.activeUrl.value
     if (!url) return
     const current = options.currentBookmark.value
