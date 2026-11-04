@@ -82,7 +82,7 @@ export const itITAppErrors: AppErrorMessages = {
     rendererLostWhileWaiting: 'Il renderer della scheda non è più disponibile durante l’attesa della pagina.',
     loadTimedOut: 'Tempo scaduto in attesa del completamento del caricamento della pagina.',
     signInAsked: 'Il sito web chiede un nome utente e una password, e Hronaut ha chiesto alla persona di accedere; la pagina si apre appena lo fa. Chiedi alla persona di accedere, poi controlla di nuovo la scheda.',
-    zoomPercent: 'La percentuale di zoom della pagina deve essere un numero intero da 50 a 400',
+    zoomPercent: 'La percentuale di zoom della pagina deve essere un numero intero da 25 a 500',
     findQuery: 'La ricerca deve contenere da 1 a 1.000 caratteri',
     printFailed: 'Hronaut non è riuscito a stampare questa pagina.',
     printAgentWorking: 'Un agente sta lavorando su questa pagina. Prendi il controllo o metti in pausa gli agenti per stamparla.',

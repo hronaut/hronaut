@@ -82,7 +82,7 @@ export const jaJPAppErrors: AppErrorMessages = {
     rendererLostWhileWaiting: 'ページを待っている間にタブのレンダラが利用できなくなりました。',
     loadTimedOut: 'ページの読み込みの完了を待機中にタイムアウトしました。',
     signInAsked: 'ウェブサイトがユーザー名とパスワードを求めているため、Hronaut はユーザーにサインインを依頼しました。サインインするとページが開きます。ユーザーにサインインを依頼してから、もう一度タブを確認してください。',
-    zoomPercent: 'ページのズームの割合は 50～400 の整数にしてください',
+    zoomPercent: 'ページのズームの割合は 25～500 の整数にしてください',
     findQuery: '検索語句は 1～1,000 文字にしてください',
     printFailed: 'Hronaut はこのページを印刷できませんでした。',
     printAgentWorking: 'エージェントがこのページで作業中です。印刷するには、操作を引き継ぐかエージェントを一時停止してください。',

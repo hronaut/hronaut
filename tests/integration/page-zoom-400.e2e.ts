@@ -70,7 +70,13 @@ test('supports real 400% page zoom, reflow, input and isolated workspaces', asyn
     await appWindow.getByRole('button', { name: /^Page zoom controls, \d+%$/ }).click()
     const controls = appWindow.getByRole('group', { name: 'Page zoom controls' })
     await expect(controls.locator('output')).toHaveText('400%')
+    // As in Chrome, zoom goes one step past 400%, to 500%, and no further.
+    await controls.getByRole('button', { name: 'Zoom in', exact: true }).click()
+    await expect(controls.locator('output')).toHaveText('500%')
+    await expect.poll(() => page.evaluate(() => innerWidth).then(width => Math.abs(width - before.width / 5) <= 1)).toBe(true)
     await expect(controls.getByRole('button', { name: 'Zoom in', exact: true })).toBeDisabled()
+    await controls.getByRole('button', { name: 'Zoom out', exact: true }).click()
+    await expect(controls.locator('output')).toHaveText('400%')
     await controls.getByRole('button', { name: 'Zoom out', exact: true }).click()
     await expect(controls.locator('output')).toHaveText('300%')
     await expect(controls.getByRole('button', { name: 'Zoom in', exact: true })).toBeEnabled()
@@ -78,7 +84,11 @@ test('supports real 400% page zoom, reflow, input and isolated workspaces', asyn
     await expect(controls.locator('output')).toHaveText('400%')
     await controls.getByRole('button', { name: 'Reset', exact: true }).click()
     await expect(controls.locator('output')).toHaveText('100%')
-    for (const percent of [50, 125, 300]) await call('browser_zoom', { tabId, action: 'set', percent })
+    // 25% is the lowest zoom, as in Chrome, and a page renders at it.
+    await call('browser_zoom', { tabId, action: 'set', percent: 25 })
+    await expect.poll(() => page.evaluate(() => innerWidth).then(width => Math.abs(width - before.width * 4) <= 4)).toBe(true)
+    await expect(controls.getByRole('button', { name: 'Zoom out', exact: true })).toBeDisabled()
+    for (const percent of [125, 300]) await call('browser_zoom', { tabId, action: 'set', percent })
     await electronApp.evaluate(({ webContents }, url) => {
       const page = webContents.getAllWebContents().find(c => c.getURL() === url)!
       page.focus()
@@ -87,7 +97,7 @@ test('supports real 400% page zoom, reflow, input and isolated workspaces', asyn
       page.sendInputEvent({ type: 'keyUp', keyCode: '=', modifiers: [...modifiers] })
     }, url)
     await expect.poll(() => appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.getState().then(s => s.tabs.find(t => t.id === id)?.zoomPercent), tabId)).toBe(400)
-    for (const percent of [49, 401, 400.5]) {
+    for (const percent of [24, 501, 400.5]) {
       const rejected = await client.callTool({ name: 'browser_zoom', arguments: { tabId, action: 'set', percent } }) as CallToolResult
       expect(rejected.isError).toBe(true)
     }
