@@ -27,6 +27,17 @@ const EMOJI_FIELDS: ReadonlySet<ContextMenuParams['formControlType']> = new Set(
 // Copy link to highlight reads the page before it copies, so a copy the menu made meanwhile is newer and keeps the
 // clipboard: each copy the menu makes counts here.
 let menuCopies = 0
+// As in Chrome, an image, video or audio saves from an http or https address, and from a data or blob one the page made
+// itself, such as a chart drawn into an image. Chrome also saves from file and filesystem addresses and opens data and
+// blob ones in a new tab; Hronaut does neither, and opens only a web address in a tab.
+const SAVABLE_PROTOCOLS: ReadonlySet<string> = new Set(['http:', 'https:', 'data:', 'blob:'])
+function isSavableAddress(url: string): boolean {
+  try {
+    return SAVABLE_PROTOCOLS.has(new URL(url).protocol)
+  } catch {
+    return false
+  }
+}
 
 /**
  * Shows the native context menu for a right-click in the page: link, image,
@@ -163,11 +174,11 @@ export function showContextMenu(browser: Browser, tab: BrowserTab, params: Conte
       .catch((error) => reportCopyFailure('image', error))
   }
   // A video's or audio's open, save and copy of its address.
-  const addressedMediaItems = (video: boolean, savable: boolean): MenuItemConstructorOptions[] => [
+  const addressedMediaItems = (video: boolean, openable: boolean, savable: boolean): MenuItemConstructorOptions[] => [
     {
       id: video ? 'open-video-new-tab' : 'open-audio-new-tab',
       label: browser.text(video ? 'native.context.openVideo' : 'native.context.openAudio'),
-      enabled: savable,
+      enabled: openable,
       click: () => openBackgroundTab(params.srcURL)
     },
     {
@@ -292,7 +303,7 @@ export function showContextMenu(browser: Browser, tab: BrowserTab, params: Conte
       {
         id: 'save-image',
         label: browser.text('native.context.saveImage'),
-        enabled: isWebUrl(params.srcURL),
+        enabled: isSavableAddress(params.srcURL),
         click: withLiveContents('save image', () => download(params.srcURL))
       }
     ])
@@ -301,8 +312,8 @@ export function showContextMenu(browser: Browser, tab: BrowserTab, params: Conte
   // A video or audio, as in Chrome: Loop and Show controls first, then open it in a new tab, save it or copy its
   // address, and for a video, copy or save the frame it shows and Picture in picture. Chromium cannot save a stream a
   // page builds itself, such as one from a MediaSource, and Chrome then neither saves nor opens it, so neither does
-  // this. As for an image, only an http or https address opens or saves. A video with no address, such as a camera's,
-  // still has its frame items, and an audio without one its Loop and Show controls.
+  // this. As for an image, an http or https address opens and saves, and a data or blob one only saves. A video with no
+  // address, such as a camera's, still has its frame items, and an audio without one its Loop and Show controls.
   const video = params.mediaType === 'video'
   if (video || params.mediaType === 'audio') {
     const flags = params.mediaFlags
@@ -310,11 +321,13 @@ export function showContextMenu(browser: Browser, tab: BrowserTab, params: Conte
       mediaPlayerItem('media-loop', 'native.context.loop', 'loop', flags.canLoop, flags.isLooping),
       mediaPlayerItem('media-controls', 'native.context.showControls', 'controls', flags.canToggleControls, flags.isControlsVisible)
     ])
-    const savable = isWebUrl(params.srcURL) && flags.canSave
+    const openable = isWebUrl(params.srcURL) && flags.canSave
+    const savable = isSavableAddress(params.srcURL) && flags.canSave
     const items = [
-      ...params.srcURL ? addressedMediaItems(video, savable) : [],
+      ...params.srcURL ? addressedMediaItems(video, openable, savable) : [],
       ...video
-        ? [...videoFrameItems(), mediaPlayerItem('picture-in-picture', 'native.context.pictureInPicture', 'picture-in-picture', flags.canShowPictureInPicture, flags.isShowingPictureInPicture)]
+        ? [...videoFrameItems(), mediaPlayerItem('picture-in-picture', 'native.context.pictureInPicture', 'picture-in-picture',
+            flags.canShowPictureInPicture, flags.isShowingPictureInPicture)]
         : []
     ]
     if (items.length) groups.push(items)

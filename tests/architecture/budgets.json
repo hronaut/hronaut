@@ -26,7 +26,7 @@
     "src/main/browser/context-menus/media-player-actions.page.ts": 1,
     "src/main/browser/context-menus/media-player-actions.ts": 1,
     "src/main/browser/context-menus/page-context-menu-referrer.ts": 1,
-    "src/main/browser/context-menus/page-context-menu.ts": 7,
+    "src/main/browser/context-menus/page-context-menu.ts": 6,
     "src/main/browser/context-menus/text-fragment-link.ts": 2,
     "src/main/browser/credential-capture/credential-capture.page.ts": 1,
     "src/main/browser/credential-fill/credential-fill.page.ts": 1,

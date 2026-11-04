@@ -200,6 +200,17 @@ describe('the page menu on a video or audio', () => {
     expect(local.item('copy-audio-address')!.enabled).not.toBe(false)
   })
 
+  it('saves a video or audio the page made from a file or its own data, which opens in no tab', () => {
+    // Save Video and Save Audio were unavailable for a data or blob address, which Chrome saves.
+    for (const [mediaType, srcURL] of [['audio', 'blob:https://films.example/7a2e'], ['video', 'data:video/webm;base64,GkXfow==']] as const) {
+      const recording = mediaMenu({ mediaType, srcURL })
+      expect(recording.item(`open-${mediaType}-new-tab`)?.enabled).toBe(false)
+      expect(recording.item(`save-${mediaType}`)?.enabled).toBe(true)
+      recording.click(`save-${mediaType}`)
+      expect(recording.downloadURL).toHaveBeenCalledExactlyOnceWith(srcURL)
+    }
+  })
+
   it('offers only the frame items for a camera stream, which has no address, and no address items for an audio without one', () => {
     const camera = mediaMenu({ mediaType: 'video', srcURL: '' })
     expect(camera.items.filter(entry => entry.id?.includes('video')).map(entry => entry.id)).toEqual(['copy-video-frame', 'save-video-frame'])
