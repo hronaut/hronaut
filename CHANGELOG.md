@@ -8,7 +8,7 @@ All notable changes to Hronaut are documented in this file.
 
 - The command palette, opened with its shortcut while the pointer rests where its list appears, no longer selects the command under the pointer, so Enter runs the command it opened on, and a pointer resting beside its rows no longer selects the one the list scrolls or moves under it; the pointer selects a command once it moves, as before.
 - Closing a new tab after you type a second address into it, or a duplicated tab after you type any address into it, no longer takes you back to the tab it was opened from, as in Chrome.
-- Once you press End, Home or an arrow key, or click in the address field, while it fills in the rest of an address, the rest counts as typed, as in Chrome: the suggestions follow the whole address, and going up from them comes back to it rather than to the letters you typed.
+- Once you press End, Home, Left or Right, or click in the address field, while it fills in the rest of an address, the rest counts as typed, as in Chrome: the suggestions follow the whole address, and going up from them comes back to it rather than to the letters you typed.
 
 ## [3.14.10] - 2026-11-04
 

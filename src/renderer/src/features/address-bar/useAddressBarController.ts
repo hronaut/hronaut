@@ -16,7 +16,8 @@ import type { SiteSearch } from '../../../../shared/site-search.js'
 import type { BrowserBookmark, BrowserHistoryEntry, BrowserTabState } from '../../../../shared/types.js'
 import { isImeCompositionEvent } from '../../keyboard-composition.js'
 import { addressEnterAction, withWwwAndCom, type AddressEnterAction } from '../../address-enter.js'
-import { inlineAddressCompletion, siteVisits, type AddressInlineCompletion } from '../../address-inline-completion.js'
+import { inlineAddressCompletion, siteVisits } from '../../address-inline-completion.js'
+import { acceptedInlineCompletion, keepsTakenCompletion, type ShownInlineCompletion } from './address-inline-acceptance.js'
 import { keywordSearchTarget } from '../../address-keyword-search.js'
 import { disposeAll, registerDisposers } from '../../composables/dispose-all.js'
 import { createAddressTabEdits } from './address-tab-edits.js'
@@ -90,7 +91,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   // The rest of an address the field filled in after the text typed at its end, selected, as Chrome's address bar does;
   // see address-inline-completion.ts. It holds while the field has the keyboard and its text is still the typed text
   // and that rest.
-  const inlineCompletion = shallowRef<(AddressInlineCompletion & { typed: string }) | null>(null)
+  const inlineCompletion = shallowRef<ShownInlineCompletion | null>(null)
   const completionShown = computed(() => inlineCompletion.value !== null && address.value === inlineCompletion.value.text)
   // What the suggestions match: the typed text, without the rest the field filled in.
   const query = computed(() => completionShown.value && inlineCompletion.value ? inlineCompletion.value.typed : address.value)
@@ -153,8 +154,8 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   let fillingCompletion = false
   // Whether the field is taking pasted text, which it leaves as pasted.
   let insertingPaste = false
-  // The text typed, when the field had filled in the rest of an address after it, as the highlight left it for a row.
-  let typedBeforeRows: string | undefined
+  // The rest the field had filled in after the typed text, or taken as typed, as the highlight left it for a row.
+  let completionBeforeRows: ShownInlineCompletion | undefined
   let pendingNavigation: {
     tabId: string | undefined
     initialUrl: string | undefined
@@ -279,14 +280,12 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     field.setSelectionRange(typed.length, field.value.length)
   }
 
-  // Moving the caret or the selection while the rest shows, as End, an arrow key or a click does, takes the rest as
-  // typed, as in Chrome's address bar: the suggestions follow the whole text, and the highlight comes back to it.
+  // Moving the caret or the selection while the rest shows takes the rest as typed, as in Chrome's address bar: the
+  // suggestions follow the whole text, and the highlight comes back to it; see address-inline-acceptance.ts.
   function handleSelectionChange(): void {
-    const field = input.value
     const completion = completionShown.value ? inlineCompletion.value : null
-    if (fillingCompletion || !field || !completion || completion.typed === completion.text) return
-    if (field.selectionStart === completion.typed.length && field.selectionEnd === completion.text.length) return
-    inlineCompletion.value = { ...completion, typed: completion.text }
+    const accepted = !fillingCompletion && input.value && completion ? acceptedInlineCompletion(completion, input.value) : null
+    if (accepted) inlineCompletion.value = accepted
   }
 
   // The rest the field filled in leaves, and the field shows the typed text, as when the highlight moves to a row.
@@ -494,10 +493,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   async function moveSelection(offset: -1 | 1): Promise<void> {
     const count = suggestions.value.length
     if (!count) return
-    const completion = completionShown.value ? inlineCompletion.value : null
-    if (selection.value < 0 || !open.value) typedBeforeRows = completion?.typed
-    // A rest taken as typed stays, with the caret after it, as the caret is after the typed text when the rest leaves.
-    if (completion && completion.typed === completion.text) input.value?.setSelectionRange(completion.text.length, completion.text.length)
+    if (selection.value < 0 || !open.value) completionBeforeRows = (completionShown.value ? inlineCompletion.value : null) ?? undefined
     dropInlineCompletion()
     if (!open.value) openSuggestions()
     // As in Chrome, whose first row is what the field shows, the highlight goes through the rows and back to it.
@@ -505,7 +501,11 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     selection.value = next >= count ? -1 : next < -1 ? count - 1 : next
     open.value = true
     await nextTick()
-    if (selection.value < 0 && typedBeforeRows !== undefined && input.value?.value === typedBeforeRows) completeInline(undefined, true)
+    if (selection.value < 0 && completionBeforeRows && input.value?.value === completionBeforeRows.typed) {
+      // A rest taken as typed comes back with the address it came from; a rest apart from the typed text fills in again.
+      if (keepsTakenCompletion(completionBeforeRows, suggestions.value)) inlineCompletion.value = completionBeforeRows
+      else completeInline(undefined, true)
+    }
     revealSelected()
   }
 
@@ -550,6 +550,8 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
 
   function handleKeydown(event: KeyboardEvent): void {
     if (isImeCompositionEvent(event)) return
+    // The caret may have moved since its selectionchange was queued, as with End and then at once ArrowDown.
+    handleSelectionChange()
     if (event.key === 'Escape' && (open.value || dirty.value)) {
       event.preventDefault()
       close()
@@ -654,7 +656,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     // away one they no longer give, leaving the typed text.
     () => watch(suggestions, (next) => {
       const completion = inlineCompletion.value
-      if (!completion || !completionShown.value) return
+      if (!completion || !completionShown.value || keepsTakenCompletion(completion, next)) return
       const still = inlineAddressCompletion(completion.typed, next, visitsBySite.value)
       if (still?.text !== completion.text) dropInlineCompletion()
       else if (still.url !== completion.url || still.suggestionId !== completion.suggestionId) inlineCompletion.value = { ...still, typed: completion.typed }
