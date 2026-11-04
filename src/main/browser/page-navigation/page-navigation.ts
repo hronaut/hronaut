@@ -58,10 +58,14 @@ function watchRendererExit(webContents: WebContents): { reported(waitMs: number)
   }
 }
 
-/** Whether the tab is a new tab at the end of its workspace that has shown nothing but its blank page, or not yet that. */
+/**
+ * Whether the tab is a new tab at the end of its workspace that has shown nothing but its blank page, or not yet that.
+ * A tab asleep or loading in turn has shown nothing yet either, but it stands for its own address.
+ */
 function isUntouchedNewTabAtEnd(browser: Browser, tab: BrowserTab): boolean {
   const contents = tab.webContents
-  if (contents.isDestroyed() || !['', 'about:blank'].includes(contents.getURL()) || contents.navigationHistory.length() > 1) return false
+  if (tab.url !== 'about:blank' || contents.isDestroyed() || !['', 'about:blank'].includes(contents.getURL())
+    || contents.navigationHistory.length() > 1) return false
   return orderedTabs(browser).filter((candidate) => candidate.mcpGroupId === tab.mcpGroupId).at(-1) === tab
 }
 
@@ -78,7 +82,7 @@ function isUntouchedNewTabAtEnd(browser: Browser, tab: BrowserTab): boolean {
  * happen.
  */
 export async function navigate(browser: Browser, url: string, tabId?: string,
-  options: { byPerson?: boolean } = {}): Promise<BrowserState> {
+  options: { byPerson?: boolean; typed?: boolean } = {}): Promise<BrowserState> {
   const tab = getTab(browser, tabId)
   const normalized = normalizeAddress(url, browser.options.getSearchEngine?.())
   if (tab.mcpGroupId && isHronautHomeUrl(normalized)) {
@@ -86,15 +90,14 @@ export async function navigate(browser: Browser, url: string, tabId?: string,
   }
   if (tab.mcpGroupId) {
     assertWorkspaceNavigationAllowed(browser, tab.mcpGroupId, normalized, 'direct')
-    // A tab sent to another address starts a new task, so its workspace forgets which page opened which tab, and which
-    // tab a new tab goes back to when it closes, as Chrome does for a typed address. A new tab at the end of its
-    // workspace that has shown nothing else goes to one address first, as in Chrome, so a quick look-up from it still
-    // goes back to the tab it was opened from.
+    // A tab sent to another address starts a new task, so its workspace forgets which page opened which tab, as Chrome
+    // does for a typed address. An address the person typed or chose makes a new or duplicated tab forget the tab it
+    // goes back to when it closes too, which only the tab in view still has; a link dropped on it or the certificate
+    // page's Proceed does not, as in Chrome. A new tab at the end of its workspace that has shown nothing else goes to
+    // one address first, as in Chrome, so a quick look-up from it still goes back to the tab it was opened from.
     if (!isUntouchedNewTabAtEnd(browser, tab)) {
       forgetTabsOpenedFrom(browser.tabs.values(), tab.mcpGroupId)
-      for (const candidate of browser.tabs.values()) {
-        if (candidate.mcpGroupId === tab.mcpGroupId) delete candidate.returnsToTabId
-      }
+      if (options.typed) delete tab.returnsToTabId
     }
   }
   // A tab restored asleep loads nothing before its workspace's session cookies are back, and its wake loads first. A

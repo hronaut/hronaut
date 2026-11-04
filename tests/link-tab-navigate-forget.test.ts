@@ -17,11 +17,19 @@ vi.mock('../src/main/browser/workspace-navigation/workspace-navigation.js', asyn
 
 interface FakeTab { id: string; url: string; pinned: boolean; mcpGroupId: string | undefined; openedFromTabId?: string; returnsToTabId?: string }
 
-function navigation(mcpGroupId: string | undefined, allowed = true, page: { url: string; entries: number; last?: boolean } = { url: 'https://page.example/', entries: 2 }) {
+interface FakePage {
+  url: string
+  entries: number
+  last?: boolean
+  /** The address the tab stands for, when it has not loaded it yet, as a tab restored asleep. */
+  address?: string
+}
+
+function navigation(mcpGroupId: string | undefined, allowed = true, page: FakePage = { url: 'https://page.example/', entries: 2 }) {
   const loadURL = vi.fn(async () => undefined)
   let shown = page
   const tab: FakeTab & Record<string, unknown> = {
-    id: 'tab', url: page.url || 'about:blank', pinned: false, mcpGroupId, navigationGeneration: 0, navigationPolicyDenialSequence: 0,
+    id: 'tab', url: page.address ?? (page.url || 'about:blank'), pinned: false, mcpGroupId, navigationGeneration: 0, navigationPolicyDenialSequence: 0,
     sleeping: false, returnsToTabId: 'before',
     webContents: {
       on: vi.fn(), once: vi.fn(), removeListener: vi.fn(), isCrashed: () => false, isDestroyed: () => false, loadURL,
@@ -42,7 +50,10 @@ function navigation(mcpGroupId: string | undefined, allowed = true, page: { url:
     getState: () => ({})
   }
   return {
-    go: () => navigate(browser as never, 'https://next.example/'),
+    // An address the person typed or chose, as the address field sends it.
+    go: (options: { byPerson?: boolean; typed?: boolean } = { byPerson: true, typed: true }) => (
+      navigate(browser as never, 'https://next.example/', undefined, options)
+    ),
     // The tab now shows the address it went to.
     moved: () => { shown = { url: 'https://next.example/', entries: 2 } },
     loadURL, opened, tab
@@ -63,6 +74,23 @@ describe('sending a tab to another address', () => {
     const { go, tab } = navigation('work')
     await go()
     expect(tab.returnsToTabId).toBeUndefined()
+  })
+
+  // Chrome keeps it for a link dropped on the tab and for the certificate page's Proceed, which reloads.
+  it('keeps which tab a new tab goes back to for an address the person did not type or choose', async () => {
+    for (const options of [{ byPerson: true }, {}]) {
+      const { go, opened, tab } = navigation('work')
+      await go(options)
+      expect(tab.returnsToTabId).toBe('before')
+      expect(opened.openedFromTabId).toBeUndefined()
+    }
+  })
+
+  it('does not take a tab restored asleep at the end of its workspace for a new tab', async () => {
+    const { go, opened, tab } = navigation('work', true, { url: '', entries: 0, last: true, address: 'https://restored.example/' })
+    await go()
+    expect(tab.returnsToTabId).toBeUndefined()
+    expect(opened.openedFromTabId).toBeUndefined()
   })
 
   it('lets a new tab at the end of its workspace go to one address first, as Chrome does for a quick look-up', async () => {
