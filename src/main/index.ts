@@ -103,6 +103,7 @@ import { createMainWindowSnapshot } from './windows/main-window-snapshot.js'
 import { createApplicationMenu } from './windows/application-menu.js'
 import { attachHistoryMouseButtons } from './windows/history-mouse-buttons.js'
 import { createWindowStatePersistence } from './windows/window-state-persistence.js'
+import { showSavedWindow } from './windows/show-saved-window.js'
 import { createOverlaySurfaces } from './windows/overlay-surfaces.js'
 import { createMcpControlState } from './mcp-runtime/mcp-control-state.js'
 import { registerAddressOverlayIpc } from './overlays/address-overlay-ipc.js'
@@ -312,6 +313,7 @@ const {
   window: () => mainWindowRefs.window,
   // A page's full screen, such as a video's, ends with the page, so the next start opens the window as the person had it.
   fullScreen: () => tabRuntime.tabs ? windowFullScreenToSave(tabRuntime.tabs) : Boolean(mainWindowRefs.window?.isFullScreen()),
+  stateUntilShown: () => mainWindowRefs.stateUntilShown,
   store: () => mainWindowRefs.stateStore,
   lastState: () => mainWindowRefs.lastState,
   setLastState: (state) => { mainWindowRefs.lastState = state },
@@ -1514,9 +1516,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     if (tabRuntime.initialization === currentTabsInitialization) tabRuntime.initialization = null
   }
   sendWorkspacesRestoredSnapshot(mainWindowRefs.window)
-  if (savedWindowState?.maximized) mainWindowRefs.window.maximize()
-  if (savedWindowState?.fullScreen) mainWindowRefs.window.setFullScreen(true)
-  if (!startMinimized || mainWindowRefs.showRequested) mainWindowRefs.window.show()
+  showSavedWindow(mainWindowRefs, savedWindowState, startMinimized)
 }
 
 const { releaseRuntimeResources } = createRuntimeShutdown({
