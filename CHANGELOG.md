@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Pressing Ctrl+F or Cmd+F, or the Find button, again while Find is open takes the keyboard to its field and selects its text, leaving the current match where it is, as in Chrome, instead of searching again from the first match.
+
 ## [3.14.11] - 2026-11-04
 
 ### Fixed

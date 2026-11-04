@@ -565,15 +565,41 @@ describe('Find Next and Find Previous', () => {
     } finally { wrapper.unmount() }
   })
 
-  it('leave Find itself repeating its search from the start', async () => {
+  // As in Chrome, Find in an open bar only takes the keyboard to its field, so the page keeps the match in view.
+  it('leave Find itself selecting its text in the open bar, keeping the current match', async () => {
+    const { wrapper, browser, activeTab, exposed, field } = mountBar(true)
+    try {
+      await flushPromises()
+      await wrapper.find('input[type="search"]').setValue('needle')
+      await flushPromises()
+      field().blur()
+      browser.findInPage.mockClear()
+      browser.stopFindInPage.mockClear()
+
+      await exposed.openForTab(activeTab)
+
+      expect(browser.findInPage).not.toHaveBeenCalled()
+      expect(browser.stopFindInPage).not.toHaveBeenCalled()
+      expect(wrapper.find('.find-count').text()).toBe('1 / 3')
+      expect(document.activeElement).toBe(field())
+      expect([field().selectionStart, field().selectionEnd]).toEqual([0, 'needle'.length])
+    } finally { wrapper.unmount() }
+  })
+
+  it('leave Find itself searching for its last text again once Find has closed', async () => {
     const { wrapper, browser, activeTab, exposed } = mountBar(true)
     try {
       await flushPromises()
       await wrapper.find('input[type="search"]').setValue('needle')
       await flushPromises()
+      await wrapper.setProps({ open: false })
+      await flushPromises()
       browser.findInPage.mockClear()
+
       await exposed.openForTab(activeTab)
-      expect(browser.findInPage).toHaveBeenCalledWith(expect.objectContaining({ forward: true, findNext: true }))
+
+      expect(browser.findInPage).toHaveBeenCalledOnce()
+      expect(browser.findInPage).toHaveBeenCalledWith({ tabId: 'first', query: 'needle', forward: true, findNext: true, caseSensitive: false })
     } finally { wrapper.unmount() }
   })
 })
