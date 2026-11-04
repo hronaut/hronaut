@@ -347,6 +347,7 @@ describe('release quality gates', () => {
     expect(announce).toContain('continue-on-error: true')
     expect(announce).toContain('persist-credentials: false')
     expect(announce).toContain('secrets.DISCORD_RELEASE_WEBHOOK_URL')
+    expect(announce).toContain('secrets.DISCORD_RELEASE_BOT_TOKEN')
     expect(announce).toContain('git show "$NOTES_SHA:CHANGELOG.md"')
     for (const name of ['publish-release', 'verify-public-release', 'publish-mcp-registry', 'update-scoop-manifest']) {
       expect(job(releaseWorkflow, name)).not.toContain('announce-discord')

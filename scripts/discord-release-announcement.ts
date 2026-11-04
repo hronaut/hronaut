@@ -43,6 +43,41 @@ export function discordReleaseAnnouncement(changelog: string, version: string): 
   }
 }
 
+interface DiscordCredentials {
+  webhookUrl: string
+  botToken?: string | undefined
+}
+
+/**
+ * Posts through the webhook, then publishes the post to the servers that follow the channel. A webhook can post to an
+ * Announcement channel but cannot publish there, so publishing takes a bot. Both credentials stay out of every error.
+ */
+export async function announceOnDiscord(
+  changelog: string,
+  version: string,
+  { webhookUrl, botToken }: DiscordCredentials,
+  send: typeof fetch = fetch
+): Promise<{ published: boolean }> {
+  const postUrl = new URL(webhookUrl)
+  // Without wait, Discord answers 204 and never says which message it created.
+  postUrl.searchParams.set('wait', 'true')
+  const posted = await send(postUrl, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(discordReleaseAnnouncement(changelog, version))
+  })
+  if (!posted.ok) throw new Error(`Discord rejected the announcement with status ${posted.status}`)
+  if (!botToken) return { published: false }
+
+  const { id, channel_id: channelId } = await posted.json() as { id: string; channel_id: string }
+  const published = await send(`https://discord.com/api/v10/channels/${channelId}/messages/${id}/crosspost`, {
+    method: 'POST',
+    headers: { authorization: `Bot ${botToken}` }
+  })
+  if (!published.ok) throw new Error(`Discord posted the announcement but refused to publish it with status ${published.status}`)
+  return { published: true }
+}
+
 if (isMainModule(import.meta.url)) {
   const version = process.argv[2]
   if (!version) throw new Error('Usage: node scripts/discord-release-announcement.ts <version> [changelog-path]')
@@ -51,13 +86,10 @@ if (isMainModule(import.meta.url)) {
     console.log('DISCORD_RELEASE_WEBHOOK_URL is not set; skipping the Discord announcement.')
   } else {
     const changelog = await readFile(resolve(process.argv[3] ?? 'CHANGELOG.md'), 'utf8')
-    const response = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(discordReleaseAnnouncement(changelog, version))
+    const { published } = await announceOnDiscord(changelog, version, {
+      webhookUrl,
+      botToken: process.env.DISCORD_RELEASE_BOT_TOKEN || undefined
     })
-    // The webhook URL is a credential, so the error names only the status.
-    if (!response.ok) throw new Error(`Discord rejected the announcement with status ${response.status}`)
-    console.log(`Announced Hronaut ${version} on Discord.`)
+    console.log(`Announced Hronaut ${version} on Discord${published ? ' and published it to followers' : ''}.`)
   }
 }
