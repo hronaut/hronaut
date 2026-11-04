@@ -596,6 +596,44 @@ jobs:
     with:
       tag: ${{ needs.prepare-release.outputs.tag }}
 
+  announce-discord:
+    name: Announce the release on Discord
+    if: github.event_name != 'workflow_dispatch' || inputs.dry_run != true
+    needs:
+      - prepare-release
+      - publish-release
+      - verify-public-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # The release is already public here; a failed post must not mark it failed.
+    continue-on-error: true
+    steps:
+      - name: Checkout immutable release source
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Set up announcement runtime
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Post the published changelog section to Discord
+        env:
+          DISCORD_RELEASE_WEBHOOK_URL: ${{ secrets.DISCORD_RELEASE_WEBHOOK_URL }}
+          NOTES_SHA: ${{ needs.prepare-release.outputs.notes_sha }}
+          VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$NOTES_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Validated release-notes SHA is malformed." >&2
+            exit 1
+          fi
+          git show "$NOTES_SHA:CHANGELOG.md" > "$RUNNER_TEMP/hronaut-release-CHANGELOG.md"
+          node scripts/discord-release-announcement.ts "$VERSION" "$RUNNER_TEMP/hronaut-release-CHANGELOG.md"
+
   update-scoop-manifest:
     name: Publish verified Scoop manifest
     if: github.event_name != 'workflow_dispatch' || inputs.dry_run != true
