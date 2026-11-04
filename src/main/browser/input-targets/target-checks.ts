@@ -104,11 +104,19 @@ async function refusePinchedPage(webContents: WebContents, action: 'click' | 'ho
 /**
  * Refuses native pointer input on a page a person pinched larger: Chromium sends it to the part of the page the pinch
  * shows, from its offset, so a point measured on the page would land somewhere else. A page going to another document,
- * or still reading its own, is not asked, as a script would wait for it and hold the input with it; the input's own
- * check before it is sent covers that page.
+ * or still reading its own, is not asked, as a script would wait for it and hold the input with it. A page no script
+ * runs in, such as a page's source or a page whose renderer exited, is left to the input, which reports there what it
+ * pressed and what it left behind. The input's own check before it is sent covers both.
  */
 export async function assertPageAtNormalScale(webContents: WebContents, action: 'click' | 'hover' | 'drag'): Promise<void> {
-  if (pageScriptsRunNow(webContents)) await refusePinchedPage(webContents, action)
+  if (!pageScriptsRunNow(webContents)) return
+  let pinched: unknown
+  try {
+    pinched = await webContents.executeJavaScript(PAGE_PINCHED, false)
+  } catch {
+    return
+  }
+  if (pinched === true) throw pinchedPageError(action)
 }
 
 /**
