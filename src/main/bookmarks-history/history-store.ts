@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { readFile } from 'node:fs/promises'
+import { chmod, readdir, readFile, rename, stat, unlink } from 'node:fs/promises'
+import { basename, dirname, join } from 'node:path'
 import type { BrowserHistoryChanges, BrowserHistoryEntry } from '../../shared/types.js'
 import { compareHistoryEntries } from '../../shared/visit-history.js'
 import { normalizeCollectionTitle } from './collection-title.js'
@@ -139,6 +140,66 @@ function sortedHistory<Entry extends BrowserHistoryEntry>(entries: Iterable<Entr
   return [...entries].sort(compareHistoryEntries).map((entry) => ({ ...entry }))
 }
 
+/**
+ * Moves a history file Hronaut cannot read, such as one cut short by a disk error or written by a newer version, to
+ * `history.json.unreadable-<UTC time>` beside it, just before the first save of a new visit writes a new file, so that
+ * save does not replace every visit in it, as an unreadable bookmarks file is kept. Until then the file stays where it
+ * is, so a newer Hronaut opened again before anything is saved still finds it. When the file cannot be moved, the save
+ * replaces it as before. The kept file is made readable by its owner only, as a new history file is. Says whether the
+ * file was moved.
+ */
+async function keepUnreadableHistory(path: string): Promise<boolean> {
+  const aside = `${path}.unreadable-${new Date().toISOString().replace(/[:.]/g, '-')}`
+  try {
+    await rename(path, aside)
+  } catch (error) {
+    // An earlier save that moved the file aside and then failed to write left nothing here to keep.
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      console.warn('[history] Could not keep an unreadable history file aside; a save that succeeds replaces it.')
+    }
+    return false
+  }
+  await chmod(aside, 0o600).catch(() => undefined)
+  console.warn('[history] Kept an unreadable history file aside before saving a new one.')
+  return true
+}
+
+/** When the file was last written, or NaN when that cannot be read. */
+async function writtenAt(path: string): Promise<number> {
+  return stat(path).then((status) => status.mtimeMs, () => Number.NaN)
+}
+
+/**
+ * The history files kept aside beside the history, with when each was last written, as every visit in one is from
+ * before then; NaN when that cannot be read. Null when the folder cannot be read.
+ */
+async function keptHistoryFiles(path: string): Promise<Array<{ path: string; writtenAt: number }> | null> {
+  const prefix = `${basename(path)}.unreadable-`
+  const names = await readdir(dirname(path)).catch((error: NodeJS.ErrnoException) => error.code === 'ENOENT' ? [] : null)
+  if (!names) return null
+  return Promise.all(names.filter((name) => name.startsWith(prefix)).map(async (name) => {
+    const keptPath = join(dirname(path), name)
+    return { path: keptPath, writtenAt: await writtenAt(keptPath) }
+  }))
+}
+
+/**
+ * Removes the kept history files `picks` chooses by when each was last written, and says whether any kept file is
+ * left, counting one it could not remove. It never throws, so clearing the history does not wait on a file kept aside.
+ */
+async function removeKeptHistory(path: string, picks: (writtenAt: number) => boolean): Promise<boolean> {
+  const kept = await keptHistoryFiles(path)
+  if (!kept) {
+    console.warn('[history] Could not check the history files kept aside.')
+    return true
+  }
+  const picked = kept.filter((file) => picks(file.writtenAt))
+  const removals = await Promise.allSettled(picked.map((file) => unlink(file.path)))
+  const failed = removals.filter((removal) => removal.status === 'rejected' && (removal.reason as NodeJS.ErrnoException).code !== 'ENOENT')
+  if (failed.length) console.warn('[history] Could not delete a history file kept aside.')
+  return kept.length - picked.length + failed.length > 0
+}
+
 export class HistoryStore {
   private readonly entries = new Map<string, StoredHistoryEntry>()
   private mutationQueue: Promise<void> = Promise.resolve()
@@ -155,6 +216,8 @@ export class HistoryStore {
   private disposed = false
   /** The file holds history Hronaut could not read, such as a newer version's, which only replacing the file removes. */
   private unreadableFile = false
+  /** History files Hronaut could not read may be kept aside beside the history, holding their visits. */
+  private keptFiles = false
 
   constructor(
     private readonly path: string,
@@ -169,9 +232,12 @@ export class HistoryStore {
     this.changedIds.clear()
     this.removedIds.clear()
     this.unreadableFile = false
+    await this.forgetExpiredKeptFiles()
     try {
       const parsed = JSON.parse(await readFile(this.path, 'utf8')) as unknown
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      // A file that holds only null has no visits to keep, as for bookmarks and saved passwords.
+      if (parsed === null) return []
+      if (typeof parsed !== 'object' || Array.isArray(parsed)) {
         this.unreadableFile = true
         return []
       }
@@ -360,9 +426,9 @@ export class HistoryStore {
 
   async clear(): Promise<void> {
     await this.queueMutation(async () => {
-      // A file Hronaut could not read still holds its visits, though none are listed.
-      if (!this.entries.size && !this.unreadableFile) return
-      await this.persist([])
+      // A file Hronaut could not read, or one kept aside, still holds its visits, though none are listed.
+      if (!this.entries.size && !this.unreadableFile && !this.keptFiles) return
+      await this.persist([], () => true)
       this.replaceEntries(new Map())
     })
   }
@@ -396,9 +462,10 @@ export class HistoryStore {
           ...entry.earlierVisitAt === undefined ? {} : { earlierVisitAt: entry.earlierVisitAt }
         })
       }
-      // A file Hronaut could not read may hold visits from that time, though none are listed.
-      if (!cleared.length && !this.unreadableFile) return []
-      await this.persist(nextEntries.values())
+      // A file Hronaut could not read, or one kept aside, may hold visits from that time, though none are listed.
+      if (!cleared.length && !this.unreadableFile && !this.keptFiles) return []
+      // A file last written before then holds no visits from that time.
+      await this.persist(nextEntries.values(), (written) => !(written < since))
       this.replaceEntries(nextEntries)
       return cleared
     })
@@ -413,12 +480,21 @@ export class HistoryStore {
         nextEntries.delete(entry.id)
         removed += 1
       }
-      // A file Hronaut could not read may hold the website's visits, though none are listed.
-      if (!removed && !this.unreadableFile) return 0
-      await this.persist(nextEntries.values())
+      // A file Hronaut could not read, or one kept aside, may hold the website's visits, though none are listed.
+      if (!removed && !this.unreadableFile && !this.keptFiles) return 0
+      await this.persist(nextEntries.values(), () => true)
       this.replaceEntries(nextEntries)
       return removed
     })
+  }
+
+  /**
+   * Removes the history files kept aside that were last written more than 90 days ago, whose visits are therefore all
+   * older than the history keeps, and notes whether any are left.
+   */
+  private async forgetExpiredKeptFiles(): Promise<void> {
+    const oldestAllowed = this.now() - HISTORY_RETENTION_MS
+    this.keptFiles = await removeKeptHistory(this.path, (written) => written < oldestAllowed)
   }
 
   /** The page the history holds at the address. */
@@ -501,12 +577,23 @@ export class HistoryStore {
     this.expiryTimer.unref()
   }
 
-  private persist(entries: Iterable<StoredHistoryEntry> = this.entries.values()): Promise<void> {
+  /**
+   * Saves the history. A save that clears visits is given `clears`, which says whether visits up to a time may be among
+   * them. It first removes the history files kept aside that may hold such visits, as Hronaut cannot tell which visits
+   * they hold, and replaces an unreadable file that may. Any other save first keeps an unreadable file aside.
+   */
+  private persist(entries: Iterable<StoredHistoryEntry> = this.entries.values(), clears?: (writtenAt: number) => boolean): Promise<void> {
     const value: PersistedHistory = { version: HISTORY_VERSION, entries: sortedHistory(entries) }
     const operation = this.saveQueue.then(async () => {
-      // Without indenting: the file is Hronaut's own, and indenting only made it larger to write.
-      await writeTextFileAtomically(this.path, `${JSON.stringify(value)}\n`)
-      this.unreadableFile = false
+      if (clears && this.keptFiles) this.keptFiles = await removeKeptHistory(this.path, clears)
+      // Until the new file replaces it, the unreadable file waits, so a save that fails before then keeps it next time.
+      if (this.unreadableFile && !(clears?.(await writtenAt(this.path)))) {
+        if (await keepUnreadableHistory(this.path)) this.keptFiles = true
+      }
+    // Without indenting: the file is Hronaut's own, and indenting only made it larger to write.
+      await writeTextFileAtomically(this.path, `${JSON.stringify(value)}\n`, 0o600, undefined, () => {
+        this.unreadableFile = false
+      })
     })
     this.saveQueue = operation.catch(() => undefined)
     return operation
