@@ -548,7 +548,8 @@ defineExpose({
   tabListScrollTop,
   scrollTabListTo,
   stopWorkerCapture,
-  selectedTabs: () => [...selectedTabIds.value]
+  selectedTabs: () => [...selectedTabIds.value],
+  shownTabIds: () => visibleTabs.value.map((tab) => tab.id)
 })
 </script>
 

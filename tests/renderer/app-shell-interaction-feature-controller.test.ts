@@ -51,7 +51,7 @@ function deferred<Value>() {
 function createHarness(extraNavigation: {
   selectBrowserTab?: (tabId: string) => Promise<boolean>
   takeOverFromAgent?: () => unknown
-  selectedTabIds?: () => readonly string[]
+  tabStrip?: () => { selectedTabs: () => readonly string[]; shownTabIds: () => readonly string[] | undefined } | undefined
 } = {}) {
   const state = ref(browserState())
   const activeTab = computed(() => state.value.tabs.find((candidate) => candidate.id === state.value.activeTabId))
@@ -243,12 +243,23 @@ function createHarness(extraNavigation: {
 
 describe('app shell interaction feature controller', () => {
   it('closes the tabs selected in the tab strip with the close-tab key', async () => {
-    const harness = createHarness({ selectedTabIds: () => ['active', 'other'] })
+    const harness = createHarness({ tabStrip: () => ({ selectedTabs: () => ['active', 'other'], shownTabIds: () => undefined }) })
 
     await expect(harness.controller.runBrowserShortcut('close-tab')).resolves.toBe(true)
 
     expect(harness.browser.closeTabs).toHaveBeenCalledExactlyOnceWith(['active', 'other'])
     expect(harness.browser.closeTab).not.toHaveBeenCalled()
+    harness.controller.dispose()
+  })
+
+  it('passes over the tabs the tab strip does not show with the tab keys, as in a folded workspace', async () => {
+    const harness = createHarness({ tabStrip: () => ({ selectedTabs: () => [], shownTabIds: () => ['active', 'shown'] }) })
+    harness.state.value = { ...harness.state.value, tabs: [tab('active'), tab('folded'), tab('shown')] }
+
+    await expect(harness.controller.runBrowserShortcut('select-tab-2')).resolves.toBe(true)
+    await expect(harness.controller.runBrowserShortcut('select-last-tab')).resolves.toBe(true)
+
+    expect(harness.browser.selectTab.mock.calls).toEqual([['shown'], ['shown']])
     harness.controller.dispose()
   })
 

@@ -556,7 +556,7 @@ const {
     openAgentCard: () => browserChromeLayer.value?.openAgentCard(),
     takeOverFromAgent: () => browserChromeLayer.value?.takeOverFromAgent(),
     toggleFullPageView: fullPageView.toggle,
-    selectedTabIds: () => browserChromeLayer.value?.selectedTabs() ?? []
+    tabStrip: () => browserChromeLayer.value ?? undefined
   },
   actions: {
     closeTransientPanels,

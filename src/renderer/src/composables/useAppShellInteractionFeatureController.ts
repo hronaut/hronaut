@@ -207,8 +207,8 @@ export interface AppShellInteractionFeatureControllerOptions {
     toggleFullPageView?: () => unknown
     /** Takes over from the agent working on the page you just touched; nothing happens without an offer. */
     takeOverFromAgent?: () => unknown
-    /** The tabs selected together in the tab strip while there are several. */
-    selectedTabIds?: () => readonly string[]
+    /** The tab strip: the tabs selected together in it while there are several, and the website tabs it shows. */
+    tabStrip?: () => { selectedTabs: () => readonly string[]; shownTabIds: () => readonly string[] | undefined } | undefined
   }
   actions: {
     closeTransientPanels: (options?: TransientPanelsCloseOptions) => void
@@ -356,7 +356,8 @@ export function useAppShellInteractionFeatureController(
   const browserShortcuts = useBrowserShortcutController({
     state: options.state,
     activeTab: options.activeTab,
-    selectedTabIds: navigation.selectedTabIds,
+    selectedTabIds: () => navigation.tabStrip?.()?.selectedTabs() ?? [],
+    shownTabIds: () => navigation.tabStrip?.()?.shownTabIds(),
     browser: options.browser,
     syncState: options.syncState,
     settingsOpen: surfaces.settings.open,

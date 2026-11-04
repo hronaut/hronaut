@@ -47,7 +47,11 @@ function deferred<Value>() {
   return { promise, resolve, reject }
 }
 
-function createController(canRunAction = (_action: string) => true, selectedTabIds?: () => readonly string[]) {
+function createController(
+  canRunAction = (_action: string) => true,
+  selectedTabIds?: () => readonly string[],
+  shownTabIds?: () => readonly string[] | undefined
+) {
   const state = ref(browserState())
   const activeTab = ref<BrowserTabState | undefined>(state.value.tabs[1])
   const browser = {
@@ -100,6 +104,7 @@ function createController(canRunAction = (_action: string) => true, selectedTabI
     state,
     activeTab,
     ...(selectedTabIds ? { selectedTabIds } : {}),
+    ...(shownTabIds ? { shownTabIds } : {}),
     browser,
     syncState,
     settingsOpen,
@@ -386,6 +391,54 @@ describe('browser shortcut controller', () => {
     await expect(harness.controller.run('select-tab-8')).resolves.toBe(true)
     await expect(harness.controller.run('select-last-tab')).resolves.toBe(true)
     expect(harness.browser.selectTab).not.toHaveBeenCalled()
+    harness.controller.dispose()
+  })
+
+  it('passes over the tabs of a folded workspace with Ctrl+Tab and Ctrl+Shift+Tab, as Chrome skips a collapsed group', async () => {
+    // Workspace B is folded, so the strip shows Home, a1 and c1.
+    const harness = createController(undefined, undefined, () => ['a1', 'c1'])
+    const home = { ...tab('home'), url: 'hronaut://home/' }
+    const showing = (activeTabId: string) => {
+      harness.state.value = { ...browserState(activeTabId), tabs: [home, tab('a1'), tab('b1'), tab('b2'), tab('c1')] }
+    }
+
+    showing('a1')
+    await harness.controller.selectRelativeTab(1)
+    await harness.controller.selectRelativeTab(-1)
+    showing('c1')
+    await harness.controller.selectRelativeTab(1)
+    await harness.controller.selectRelativeTab(-1)
+    // The tab in view stays where it is when its own workspace is folded, and the keys go on from its place.
+    showing('b1')
+    await harness.controller.selectRelativeTab(1)
+    await harness.controller.selectRelativeTab(-1)
+
+    expect(harness.browser.selectTab.mock.calls.map(([tabId]) => tabId)).toEqual(['c1', 'home', 'home', 'a1', 'c1', 'a1'])
+    harness.controller.dispose()
+  })
+
+  it('counts only the website tabs the strip shows for Ctrl+1 to Ctrl+8 and Ctrl+9, as Chrome does', async () => {
+    const harness = createController(undefined, undefined, () => ['a1', 'c1'])
+    harness.state.value = {
+      ...browserState('a1'),
+      tabs: [{ ...tab('home'), url: 'hronaut://home/' }, tab('a1', true), tab('b1'), tab('b2'), tab('c1')]
+    }
+
+    await expect(harness.controller.run('select-tab-2')).resolves.toBe(true)
+    await expect(harness.controller.run('select-tab-3')).resolves.toBe(true)
+    await expect(harness.controller.run('select-last-tab')).resolves.toBe(true)
+
+    expect(harness.browser.selectTab.mock.calls.map(([tabId]) => tabId)).toEqual(['c1', 'c1'])
+    harness.controller.dispose()
+  })
+
+  it('goes to every tab while no tab strip says which it shows', async () => {
+    const harness = createController(undefined, undefined, () => undefined)
+
+    await harness.controller.selectRelativeTab(1)
+    await expect(harness.controller.run('select-last-tab')).resolves.toBe(true)
+
+    expect(harness.browser.selectTab.mock.calls.map(([tabId]) => tabId)).toEqual(['third', 'third'])
     harness.controller.dispose()
   })
 

@@ -106,6 +106,7 @@ interface BrowserTabsBarHandle {
   scrollTabListTo?: (top: number) => void
   stopWorkerCapture?: (tabId: string) => Promise<void>
   selectedTabs?: () => string[]
+  shownTabIds?: () => string[]
 }
 
 const browserTabsBar = ref<BrowserTabsBarHandle | null>(null)
@@ -445,7 +446,12 @@ function selectedTabs(): string[] {
   return browserTabsBar.value?.selectedTabs?.() ?? []
 }
 
-defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFromAgent, selectedTabs })
+/** The website tabs the tab strip shows, in its order, or nothing while it is not there. */
+function shownTabIds(): string[] | undefined {
+  return browserTabsBar.value?.shownTabIds?.()
+}
+
+defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFromAgent, selectedTabs, shownTabIds })
 </script>
 
 <template>
