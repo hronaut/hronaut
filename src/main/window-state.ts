@@ -54,6 +54,12 @@ export class WindowStateStore {
   }
 }
 
+/**
+ * Returns where a window opens from its saved state: on the display it was saved on while its saved place still overlaps that display, else on the
+ * display its saved place lies on most, as Chrome matches a saved window to a display, else on the display it was saved on, wherever that display now
+ * is. Display ids can change between starts (a monitor on another port, a driver update), so a window whose display is no longer found by id still opens
+ * where it was. A window that no display holds keeps its saved size, centered on the primary.
+ */
 export function restoreWindowBounds(
   saved: SavedWindowState | null,
   displays: DisplayLike[],
@@ -61,11 +67,13 @@ export function restoreWindowBounds(
 ): Rectangle {
   const primary = displays[0]
   if (!primary) return { x: 0, y: 0, ...fallback }
+  if (!saved || saved.bounds.width < 320 || saved.bounds.height < 240) return centeredBounds(primary.workArea, fallback)
 
-  const target = saved ? displays.find((display) => display.id === saved.displayId) : undefined
-  if (!saved || !target || saved.bounds.width < 320 || saved.bounds.height < 240) {
-    return centeredBounds(primary.workArea, fallback)
-  }
+  const savedOn = displays.find((display) => display.id === saved.displayId)
+  // A display that moved, as when the one to its left changed resolution, still holds the window it holds a part of.
+  const target = (savedOn && intersectionArea(saved.bounds, savedOn.workArea) > 0 ? savedOn : undefined)
+    ?? displayHoldingMost(saved.bounds, displays) ?? savedOn
+  if (!target) return centeredBounds(primary.workArea, saved.bounds)
 
   const width = Math.min(saved.bounds.width, target.workArea.width)
   const height = Math.min(saved.bounds.height, target.workArea.height)
@@ -75,6 +83,25 @@ export function restoreWindowBounds(
     width,
     height
   }
+}
+
+function displayHoldingMost(bounds: Rectangle, displays: DisplayLike[]): DisplayLike | undefined {
+  let best: DisplayLike | undefined
+  let bestArea = 0
+  for (const display of displays) {
+    const area = intersectionArea(bounds, display.workArea)
+    if (area > bestArea) {
+      best = display
+      bestArea = area
+    }
+  }
+  return best
+}
+
+function intersectionArea(a: Rectangle, b: Rectangle): number {
+  const width = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)
+  const height = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y)
+  return width > 0 && height > 0 ? width * height : 0
 }
 
 function centeredBounds(workArea: Rectangle, fallback: { width: number; height: number }): Rectangle {
