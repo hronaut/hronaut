@@ -110,13 +110,19 @@ export function screenshotAreaInPage(): Promise<ScreenshotAreaSelection> {
       const bottom = Math.ceil(Math.max(start.y, current.y))
       return { x: left, y: top, width: right - left, height: bottom - top }
     }
+    // The area as the view shows it, which the capture takes: a pinch shows part of the page from an offset, larger.
     const selectionResult = (): ScreenshotAreaSelection & { canceled: false } | null => {
-      const clip = rectangle()
-      if (!clip) return null
+      const area = rectangle()
+      if (!area) return null
+      const viewport = window.visualViewport
+      const root = document.compatMode === 'BackCompat' ? document.body : document.documentElement
+      const pinch = viewport && root && root.clientWidth - viewport.width > 1 ? root.clientWidth / viewport.width : 1
+      const left = viewport ? viewport.offsetLeft : 0
+      const top = viewport ? viewport.offsetTop : 0
       return {
         canceled: false,
-        clip,
-        pageClip: { x: scrollX + clip.x, y: scrollY + clip.y, width: clip.width, height: clip.height },
+        clip: { x: (area.x - left) * pinch, y: (area.y - top) * pinch, width: area.width * pinch, height: area.height * pinch },
+        pageClip: { x: scrollX + area.x, y: scrollY + area.y, width: area.width, height: area.height },
         viewport: { width: innerWidth, height: innerHeight },
         url: location.href
       }
@@ -243,16 +249,22 @@ export function screenshotAreaInPage(): Promise<ScreenshotAreaSelection> {
   })
 }
 
-/** Runs in the page: hands a native pointer step to the running area picker, scaled from main's viewport to the page's. */
+/**
+ * Runs in the page: hands a native pointer step to the running area picker, scaled from main's viewport to the page's.
+ * A pinch shows part of the page from an offset, larger, so the point is that much nearer the offset.
+ */
 export function screenshotAreaNativeInputInPage(type: 'down' | 'move' | 'up', x: number, y: number, viewportWidth: number, viewportHeight: number): boolean {
   const picker = (window as AreaPage).__hronautScreenshotArea
   if (!picker || typeof picker.nativeInput !== 'function') return false
   const width = Math.max(1, viewportWidth)
   const height = Math.max(1, viewportHeight)
+  const viewport = window.visualViewport
+  const root = document.compatMode === 'BackCompat' ? document.body : document.documentElement
+  const pinch = viewport && root && root.clientWidth - viewport.width > 1 ? root.clientWidth / viewport.width : 1
   return picker.nativeInput(
     type,
-    x * innerWidth / width,
-    y * innerHeight / height
+    (viewport ? viewport.offsetLeft : 0) + x * innerWidth / width / pinch,
+    (viewport ? viewport.offsetTop : 0) + y * innerHeight / height / pinch
   )
 }
 

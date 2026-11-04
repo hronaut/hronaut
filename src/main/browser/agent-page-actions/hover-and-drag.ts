@@ -4,7 +4,9 @@ import type { Browser } from '../browser.js'
 import { agentInputDebugger } from '../agent-input-authorization/agent-input-authorization.js'
 import { showAgentPointer } from '../agent-pointer/agent-pointer.js'
 import { coordinateDragPointsOrValidateTargets, coordinatePointOrValidateTarget } from '../input-targets/input-targets.js'
-import { assertPointInsideVisibleViewport } from '../input-targets/target-checks.js'
+import {
+  assertPageAtNormalScale, assertPageAtNormalScaleBeforeInput, assertPointInsideVisibleViewport, refusesPinchedPage
+} from '../input-targets/target-checks.js'
 import { getTab } from '../browser-core.js'
 import { withDebugger } from '../debugger-lease/debugger-lease.js'
 import { withAgentInput } from '../agent-input-scope/agent-input-scope.js'
@@ -21,6 +23,9 @@ export async function hover(browser: Browser, target: {
   const coordinatePoint = coordinatePointOrValidateTarget(target, 'hover')
   const tab = getTab(browser, target.tabId)
   const webContents = tab.webContents
+  // Before the hover begins; a point given is checked with the viewport.
+  const refusePinch = refusesPinchedPage(tab)
+  if (refusePinch && !coordinatePoint) await assertPageAtNormalScale(webContents, 'hover')
   const authority = nativeInputAuthority(browser, tab, validateInput)
   try {
     const point = coordinatePoint ?? await webContents.executeJavaScript(targetPointScript(target), false) as {
@@ -28,15 +33,16 @@ export async function hover(browser: Browser, target: {
       y: number
       tag: string
     }
-    if (coordinatePoint) await assertPointInsideVisibleViewport(webContents, coordinatePoint, 'hover')
+    if (coordinatePoint) await assertPointInsideVisibleViewport(webContents, coordinatePoint, 'hover', refusePinch)
     await showAgentPointer(browser, webContents, point, 'move', { agent })
-    await withAgentInput(browser, webContents, () => withDebugger(browser, webContents, () =>
-      agentInputDebugger(browser, webContents, authority.validate).sendCommand('Input.dispatchMouseEvent', {
+    await withAgentInput(browser, webContents, () => withDebugger(browser, webContents, async () => {
+      if (refusePinch) await assertPageAtNormalScaleBeforeInput(webContents, 'hover')
+      return agentInputDebugger(browser, webContents, authority.validate).sendCommand('Input.dispatchMouseEvent', {
         type: 'mouseMoved',
         x: point.x,
         y: point.y
       })
-    ))
+    }))
     authority.validate()
     return { ok: true, ...point }
   } finally { authority.dispose() }
@@ -64,6 +70,9 @@ export async function drag(browser: Browser, options: {
   const coordinatePoints = coordinateDragPointsOrValidateTargets(options, source, target)
   const tab = getTab(browser, options.tabId)
   const webContents = tab.webContents
+  // Before the drag begins; points given are checked with the viewport.
+  const refusePinch = refusesPinchedPage(tab)
+  if (refusePinch && !coordinatePoints) await assertPageAtNormalScale(webContents, 'drag')
   const authority = nativeInputAuthority(browser, tab, validateInput)
   try {
     const { from, to } = coordinatePoints
@@ -72,15 +81,14 @@ export async function drag(browser: Browser, options: {
         to: { x: number; y: number; tag: string }
       }
     if (coordinatePoints) {
-      await assertPointInsideVisibleViewport(webContents, from, 'drag')
-      await assertPointInsideVisibleViewport(webContents, to, 'drag')
+      await assertPointInsideVisibleViewport(webContents, from, 'drag', refusePinch)
+      await assertPointInsideVisibleViewport(webContents, to, 'drag', refusePinch)
     }
     await showAgentPointer(browser, webContents, from, 'drag-start', { agent })
-    await withAgentInput(browser, webContents, () => withDebugger(
-      browser,
-      webContents,
-      () => dispatchNativeDrag(agentInputDebugger(browser, webContents, authority.validate), from, to, agentInputDebugger(browser, webContents), modifierBits)
-    ))
+    await withAgentInput(browser, webContents, () => withDebugger(browser, webContents, async () => {
+      if (refusePinch) await assertPageAtNormalScaleBeforeInput(webContents, 'drag')
+      return dispatchNativeDrag(agentInputDebugger(browser, webContents, authority.validate), from, to, agentInputDebugger(browser, webContents), modifierBits)
+    }))
     authority.validate()
     await showAgentPointer(browser, webContents, to, 'drag-end', { origin: from, agent })
     authority.validate()

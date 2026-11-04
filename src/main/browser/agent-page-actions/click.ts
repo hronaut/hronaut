@@ -13,7 +13,10 @@ import type { Browser } from '../browser.js'
 import { showAgentPointer } from '../agent-pointer/agent-pointer.js'
 import { evaluateWithAttachedDebugger, mainWorldContextId } from '../debugger-evaluation/debugger-evaluation.js'
 import { coordinatePointOrValidateTarget } from '../input-targets/input-targets.js'
-import { assertClickTargetEnabled, assertPointInsideVisibleViewport, assertRightClickViewport } from '../input-targets/target-checks.js'
+import {
+  assertClickTargetEnabled, assertPageAtNormalScale, assertPageAtNormalScaleBeforeInput, assertPointInsideVisibleViewport,
+  assertRightClickViewport, refusesPinchedPage
+} from '../input-targets/target-checks.js'
 import { dispatchNativeClick } from '../native-click/native-click.js'
 import { rightClickEnvironment } from '../native-click/right-click-environment.js'
 import { assertRightClickPlatform } from '../owned-right-click.js'
@@ -90,6 +93,9 @@ async function dispatchClick(browser: Browser, target: BrowserClickTarget, valid
   if (target.native && dialogAction !== undefined) {
     throw new TypeError('native cannot be combined with dialogAction or promptText')
   }
+  // Before the click begins, so that the agent learns how to go on rather than that the click's outcome is unknown.
+  const refusePinch = refusesPinchedPage(tab)
+  if (refusePinch && !coordinatePoint && (target.doubleClick || target.native)) await assertPageAtNormalScale(webContents, 'click')
   // A reload may already be pending when the click begins. Its commit does
   // not increment navigationGeneration again, but replaces the target document.
   const authority = nativeInputAuthority(browser, tab, validateClick)
@@ -99,7 +105,7 @@ async function dispatchClick(browser: Browser, target: BrowserClickTarget, valid
   try {
     if (rightClick) { environment = rightClickEnvironment(browser, tab); assertClickCurrent() }
     if (coordinatePoint) {
-      await assertPointInsideVisibleViewport(webContents, coordinatePoint, 'click')
+      await assertPointInsideVisibleViewport(webContents, coordinatePoint, 'click', refusePinch)
       await showAgentPointer(browser, webContents, coordinatePoint, 'click', { agent })
       if (dialogAction !== undefined) {
         await withAgentInput(browser, webContents, () => withOptionalDialogHandling(browser, webContents, target, async () => {
@@ -112,11 +118,11 @@ async function dispatchClick(browser: Browser, target: BrowserClickTarget, valid
           )
         }))
       } else {
-        await withAgentInput(browser, webContents, () => withDebugger(
-          browser,
-          webContents,
-          () => dispatchNativeClick(browser, webContents, coordinatePoint, target.doubleClick === true, assertClickCurrent, undefined, undefined, rightClick)
-        ))
+        await withAgentInput(browser, webContents, () => withDebugger(browser, webContents, async () => {
+          // A pinch made while the pointer moved there would send the click elsewhere.
+          if (refusePinch) await assertPageAtNormalScaleBeforeInput(webContents, 'click')
+          return dispatchNativeClick(browser, webContents, coordinatePoint, target.doubleClick === true, assertClickCurrent, undefined, undefined, rightClick)
+        }))
       }
       return { ok: true, ...coordinatePoint, ...(target.doubleClick ? { doubleClick: true } : {}) }
     }
@@ -134,7 +140,9 @@ async function dispatchClick(browser: Browser, target: BrowserClickTarget, valid
         progress.preparationAttempted = true; publish()
         const result = await withAgentInput(browser, webContents, () => withDebugger(browser, webContents, async () => {
           if (browser.unconfirmedSemanticClicks.has(webContents)) throw new NativeClickAdmissionError('CLICK_STATE_UNCONFIRMED', { ...progress })
-          const admission = await acquireNativeClickAdmission(webContents.debugger, target, assertClickCurrent, progress, publish, webContents)
+          const admission = await acquireNativeClickAdmission(
+            webContents.debugger, { ...target, refusePinch }, assertClickCurrent, progress, publish, webContents
+          )
           let failure: unknown
           try {
             assertClickCurrent()

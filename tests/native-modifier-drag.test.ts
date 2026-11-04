@@ -4,13 +4,14 @@ import { shouldBlockHumanMouseInput, type AuthorizedAgentMouseInput } from '../s
 import type { Browser } from '../src/main/browser/browser.js'
 import type { BrowserTab } from '../src/main/browser/browser-tab.js'
 import { type BrowserDragModifier, drag } from '../src/main/browser/agent-page-actions/hover-and-drag.js'
+import { assertPageAtNormalScaleBeforeInput } from '../src/main/browser/input-targets/target-checks.js'
 import { dispatchNativeDrag } from '../src/main/browser/native-pointer.js'
 import { browserActionPayloadFingerprint } from '../src/main/mcp/browser-action-authority.js'
 import { humanWaitingArtifactHash } from '../src/main/mcp/human-waiting-store.js'
 import { browserDragInputShape, browserDragSchema } from '../src/main/mcp/tools/browser-drag/input.js'
 
 // The drag below runs through the fake browser's stubs for the agent's input authority, pointer, input scope,
-// debugger lease and input debugger, and finds its points inside the viewport.
+// debugger lease and input debugger, and finds its points inside the viewport, with the page at its normal scale.
 vi.mock('../src/main/browser/native-input-authority/native-input-authority.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/native-input-authority/native-input-authority.js')>(),
   nativeInputAuthority: (browser: { nativeInputAuthority: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.nativeInputAuthority(...args)
@@ -33,7 +34,9 @@ vi.mock('../src/main/browser/agent-input-authorization/agent-input-authorization
 }))
 vi.mock('../src/main/browser/input-targets/target-checks.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/input-targets/target-checks.js')>(),
-  assertPointInsideVisibleViewport: async () => {}
+  assertPointInsideVisibleViewport: async () => {},
+  assertPageAtNormalScaleBeforeInput: vi.fn(async () => {}),
+  refusesPinchedPage: () => true
 }))
 
 function recordingDebugger(failAt?: number) {
@@ -108,6 +111,15 @@ describe('native modifier drags', () => {
     } finally {
       Object.defineProperty(process, 'platform', original)
     }
+  })
+
+  // A page pinched larger since its points were measured would take the drag somewhere else.
+  it('sends nothing to a page that is pinched right before the drag', async () => {
+    const { tabManager, commands } = dragBrowser()
+    vi.mocked(assertPageAtNormalScaleBeforeInput).mockRejectedValueOnce(new Error('Drag with native input needs the page at its normal scale'))
+    await expect(drag(tabManager, coordinates)).rejects.toThrow('Drag with native input needs the page at its normal scale')
+    expect(commands).toEqual([])
+    expect(assertPageAtNormalScaleBeforeInput).toHaveBeenLastCalledWith(expect.anything(), 'drag')
   })
 
   it('leaves a drag without keys unchanged', async () => {

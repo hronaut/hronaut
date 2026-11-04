@@ -1,4 +1,7 @@
 import type { WebContents } from 'electron'
+import type { BrowserTab } from '../browser-tab.js'
+import { pageScriptsRunNow } from '../page-script-readiness.js'
+import { PAGE_PINCHED } from '../page-zoom/pinch-zoom.js'
 
 /**
  * Requires the point inside the page's visual viewport at default scale and
@@ -81,12 +84,60 @@ function filledBefore(index: number | undefined): string {
   return index === 2 ? ' Form field 1 was already filled.' : ` Form fields 1–${index - 1} were already filled.`
 }
 
-/** Requires the coordinate point inside the page's visible viewport. */
+/**
+ * Whether the agent's native pointer input refuses a pinched page of this tab: not in a phone viewport the agent
+ * emulates, which sets its own scale, can show its page panned at it, and keeps that scale when the zoom is reset.
+ */
+export function refusesPinchedPage(tab: Pick<BrowserTab, 'emulation'>): boolean {
+  return tab.emulation.viewport?.mobile !== true
+}
+
+function pinchedPageError(action: 'click' | 'hover' | 'drag'): Error {
+  return new Error(`${action[0]!.toUpperCase()}${action.slice(1)} with native input needs the page at its normal scale, and it is pinched larger. `
+    + 'Reset it with browser_zoom (action reset), then try again.')
+}
+
+async function refusePinchedPage(webContents: WebContents, action: 'click' | 'hover' | 'drag'): Promise<void> {
+  if (await webContents.executeJavaScript(PAGE_PINCHED, false) === true) throw pinchedPageError(action)
+}
+
+/**
+ * Refuses native pointer input on a page a person pinched larger: Chromium sends it to the part of the page the pinch
+ * shows, from its offset, so a point measured on the page would land somewhere else. A page going to another document,
+ * or still reading its own, is not asked, as a script would wait for it and hold the input with it; the input's own
+ * check before it is sent covers that page.
+ */
+export async function assertPageAtNormalScale(webContents: WebContents, action: 'click' | 'hover' | 'drag'): Promise<void> {
+  if (pageScriptsRunNow(webContents)) await refusePinchedPage(webContents, action)
+}
+
+/**
+ * As assertPageAtNormalScale, from Chromium's visual viewport with the debugger already attached, right before the input
+ * is sent: it waits for no document and finds a pinch made since the page was measured. Its scale is the pinch alone,
+ * whatever the page zoom; a phone viewport emulated in Developer Tools has a scale of 1 or less while not pinched, though
+ * its layout viewport can be wider than the part shown.
+ */
+export async function assertPageAtNormalScaleBeforeInput(webContents: WebContents, action: 'click' | 'hover' | 'drag'): Promise<void> {
+  const metrics = await webContents.debugger.sendCommand('Page.getLayoutMetrics') as {
+    cssVisualViewport?: { scale: number; offsetX: number; offsetY: number }
+  } | undefined
+  const visual = metrics?.cssVisualViewport
+  if (visual && (visual.scale > 1.001 || Math.abs(visual.offsetX) > 0.01 || Math.abs(visual.offsetY) > 0.01)) {
+    throw pinchedPageError(action)
+  }
+}
+
+/**
+ * Requires the coordinate point inside the page's visible viewport, with the page at its normal scale unless
+ * `refusePinch` is false (see refusesPinchedPage).
+ */
 export async function assertPointInsideVisibleViewport(
   webContents: WebContents,
   point: { x: number; y: number },
-  action: 'click' | 'hover' | 'drag'
+  action: 'click' | 'hover' | 'drag',
+  refusePinch = true
 ): Promise<void> {
+  if (refusePinch) await refusePinchedPage(webContents, action)
   const viewport = await webContents.executeJavaScript('({ width: innerWidth, height: innerHeight })', false) as {
     width: number
     height: number

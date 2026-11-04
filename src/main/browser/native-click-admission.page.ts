@@ -1,5 +1,5 @@
 /** A sample's verdict: ADMITTED, or why the native click must not go ahead. */
-export type NativeClickSample = 'ADMITTED' | 'TARGET_CHANGED' | 'TARGET_DISABLED' | 'POINT_OUTSIDE_VIEWPORT' | 'TARGET_OCCLUDED'
+export type NativeClickSample = 'ADMITTED' | 'TARGET_CHANGED' | 'TARGET_DISABLED' | 'POINT_OUTSIDE_VIEWPORT' | 'PAGE_PINCHED' | 'TARGET_OCCLUDED'
   | 'TARGET_UNVERIFIABLE' | 'EMBEDDED_HIT_UNSUPPORTED' | 'HIT_CHANGED'
 
 /** The operation-local admission object the debugger keeps a handle to; it retains the original node. */
@@ -14,7 +14,7 @@ export interface NativeClickTarget {
  * method call, or exported node identity. Each sample checks that the target is unchanged, enabled and hit at the point,
  * not through an embedded document; the first sample records the element hit, and the final one must hit it again.
  */
-export function nativeClickTargetInPage(request: { ref?: string; selector?: string }): NativeClickTarget {
+export function nativeClickTargetInPage(request: { ref?: string; selector?: string; refusePinch?: boolean }): NativeClickTarget {
   const contentType = Object.getOwnPropertyDescriptor(Document.prototype, 'contentType')!.get!
   if (contentType.call(document) !== 'text/html') throw Error('TARGET_UNAVAILABLE')
   const query = Document.prototype.querySelectorAll, item = NodeList.prototype.item
@@ -33,6 +33,12 @@ export function nativeClickTargetInPage(request: { ref?: string; selector?: stri
       if (document !== doc || !connected.call(original) || root.call(original) !== doc || resolve() !== original) return 'TARGET_CHANGED'
       if (matches.call(original as Element, ':disabled')) return 'TARGET_DISABLED'
       if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0 || x >= innerWidth || y >= innerHeight) return 'POINT_OUTSIDE_VIEWPORT'
+      // On a page pinched larger since the point was measured, the input would land somewhere else; a phone viewport
+      // the agent emulates sets its own scale (see refusesPinchedPage).
+      const viewport = request.refusePinch === true ? window.visualViewport : null
+      const shown = document.compatMode === 'BackCompat' ? document.body : document.documentElement
+      if (viewport && (Math.abs(viewport.offsetLeft) > 0.01 || Math.abs(viewport.offsetTop) > 0.01
+        || (shown && shown.clientWidth - viewport.width > 1))) return 'PAGE_PINCHED'
       const current = hit.call(doc, x, y)
       if (!current || root.call(current) !== doc || !contains.call(original, current)) return 'TARGET_OCCLUDED'
       let ancestor: Node | null = current, depth = 0

@@ -312,7 +312,8 @@ const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'ti
     name: 'browser_zoom',
     category: 'Inspection',
     description: 'Read or change page zoom from 25% to 500% without resizing the browser chrome. Without an action it only reads the tab\'s zoom; '
-      + 'in, out, reset and set change it, as the person\'s zoom does, for the site\'s tabs in the workspace unless the tab\'s zoom is isolated.'
+      + 'in, out, reset and set change it, as the person\'s zoom does, for the site\'s tabs in the workspace unless the tab\'s zoom is isolated. '
+      + 'reset also shows a page the person pinched at its normal scale again, except in an emulated phone viewport, which keeps its own scale.'
   },
   { name: 'browser_audio', category: 'Interaction', description: 'Mute or unmute one browser tab without changing site-wide sound permissions.' },
   { name: 'browser_screenshot', category: 'Inspection', description: 'Return a viewport, full page, element, or selected rectangle as a chat-ready PNG or compact JPEG. Optionally label up to 50 selected current snapshot refs in a viewport image with a bounded geometry legend. For a plain viewport capture, trackChanges returns an observationId; ifChangedSince with that id returns UNCHANGED and no image when the returned pixels are identical at the same page, scroll, viewport, zoom, forced CSS state and options, else the image with CHANGED, NEW or NOT_TRACKED. JPEG and downscaling can hide small changes. Unchanged pixels do not prove unchanged page state.' },
