@@ -38,6 +38,7 @@ import BrowserNavigationControls from './BrowserNavigationControls.vue'
 import BrowserPageActions from './BrowserPageActions.vue'
 import BrowserTabsBar from '../features/tabs/BrowserTabsBar.vue'
 import PanelResizeHandle from '../features/panels/PanelResizeHandle.vue'
+import { resolveDetachedPanelId } from '../features/panels/useDetachedPanelPresentationController.js'
 import ShellTitleBarSurface from './ShellTitleBarSurface.vue'
 
 export interface AppBrowserChromeLayerActions {
@@ -449,6 +450,15 @@ function selectedTabs(): string[] {
 function foldedWorkspaceIds(): ReadonlySet<string> | undefined {
   return browserTabsBar.value?.collapsedTabGroupIds
 }
+
+// Main hands the view past a folded workspace's tabs when a tab closes or sleeps, as the tab keys pass over them. Only
+// the main window says which: a detached panel's window keeps its own copy of the folds, read once as it opened.
+const inMainWindow = resolveDetachedPanelId(window.location.search) === null
+watch(() => inMainWindow && props.hydrated && [...(foldedWorkspaceIds() ?? [])].sort().join('|'), (folded) => {
+  if (folded === false) return
+  void props.browser.setFoldedWorkspaces?.([...(foldedWorkspaceIds() ?? [])])
+    ?.catch((error: unknown) => { console.warn('[shell] Could not tell main which workspaces are folded:', error) })
+}, { immediate: true })
 
 defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFromAgent, selectedTabs, foldedWorkspaceIds })
 </script>

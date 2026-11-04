@@ -60,5 +60,7 @@ export const WORKSPACES_IPC = {
   /** Shell → main: deletes an archived workspace. */
   deleteSaved: 'browser:delete-saved-tab-group' as InvokeChannel<[savedGroupId: string], BrowserState>,
   /** Shell → main: shows the workspace's menu. */
-  showContextMenu: 'browser:show-workspace-context-menu' as InvokeChannel<[workspaceId: string], void>
+  showContextMenu: 'browser:show-workspace-context-menu' as InvokeChannel<[workspaceId: string], void>,
+  /** Shell → main: the workspaces folded in the tab strip, which a closing or sleeping tab hands the view past. */
+  setFolded: 'browser:set-folded-workspaces' as InvokeChannel<[workspaceIds: string[]], void>
 } as const

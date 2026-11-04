@@ -235,6 +235,8 @@ export interface HronautWorkspacesApi {
   restoreSavedTabGroup(savedGroupId: string): Promise<BrowserState>
   deleteSavedTabGroup(savedGroupId: string): Promise<BrowserState>
   showWorkspaceContextMenu(workspaceId: string): Promise<void>
+  /** Tells main which workspaces the tab strip folds, so a tab that closes or sleeps hands the view past their tabs. */
+  setFoldedWorkspaces(workspaceIds: string[]): Promise<void>
   browserImport: BrowserImportApi
 }
 
