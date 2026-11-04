@@ -345,14 +345,16 @@ describe('FindInPageBar', () => {
     expect(view.emitted()['update:open']).toBeUndefined()
   })
 
-  // Selecting the match would move the page's focus to its link, in a tab the person left.
-  it('closes and clears the original page search when the active tab changes, without selecting its match', async () => {
+  // Find belongs to its tab, as in Chrome: the page keeps its search, without selecting its match, which would move the
+  // page's focus to its link, in a tab the person left.
+  it('hides Find when the active tab changes, leaving the original page search', async () => {
     const { view, browser } = renderBar()
     await vi.waitFor(() => expect(screen.getByRole('searchbox', { name: 'Find text' })).toHaveFocus())
 
     await view.rerender({ activeTab: tab('second') })
+    await flushPromises()
 
-    await vi.waitFor(() => expect(browser.stopFindInPage).toHaveBeenCalledExactlyOnceWith('first', { clearSelection: true }))
+    expect(browser.stopFindInPage).not.toHaveBeenCalled()
     expect(view.emitted()['update:open']?.at(-1)).toEqual([false])
   })
 
@@ -666,7 +668,7 @@ describe('Find Next and Find Previous', () => {
 })
 
 describe('the keyboard in Find', () => {
-  // Following the agents' activity waits while it is there, since showing another tab would close Find.
+  // Following the agents' activity waits while it is there, since showing another tab would hide Find.
   it('is reported while focus is anywhere in the bar, and no longer once it leaves or Find closes', async () => {
     const outside = document.createElement('button')
     document.body.append(outside)

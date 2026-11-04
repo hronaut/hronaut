@@ -1,4 +1,4 @@
-import { nextTick, type Ref } from 'vue'
+import { nextTick, watch, type Ref } from 'vue'
 import type { BrowserState, BrowserTabState, HronautApi } from '../../../../shared/types.js'
 
 type AddressFocusBrowserApi = Pick<HronautApi, 'newTab'>
@@ -19,6 +19,11 @@ export interface AddressFocusControllerOptions {
    * from. One the person opens while the focus waits keeps its place and the focus.
    */
   otherSurfacesOpen: readonly Readonly<Ref<boolean>>[]
+  /**
+   * What a tab brings back when it is shown, such as its Find. Shown once the tab this chooses from Home is shown, it
+   * came with the tab, which the person did not open.
+   */
+  surfacesShownWithTab?: readonly Readonly<Ref<boolean>>[]
   runFindTransition: (action: () => void | Promise<void>) => Promise<void>
   focusInput: () => void
 }
@@ -45,18 +50,35 @@ export function useAddressFocusController(options: AddressFocusControllerOptions
     return [...overlays(), ...options.otherSurfacesOpen].filter((surface) => surface.value)
   }
 
-  async function focusClosing(openAtStart: readonly Readonly<Ref<boolean>>[], expectedActiveTabId?: string): Promise<boolean> {
+  /** Selects the tab, and reports the surfaces that came with it, shown once it was shown. */
+  async function selectWithSurfaces(tabId: string): Promise<{ selected: boolean; shownWithTab: Readonly<Ref<boolean>>[] }> {
+    const surfaces = options.surfacesShownWithTab ?? []
+    const shownWithTab: Readonly<Ref<boolean>>[] = []
+    const stop = watch([...surfaces], (open) => {
+      if (options.state.value.activeTabId !== tabId) return
+      surfaces.forEach((surface, index) => { if (open[index] && !shownWithTab.includes(surface)) shownWithTab.push(surface) })
+    }, { flush: 'sync' })
+    try {
+      return { selected: await options.selectBrowserTab(tabId), shownWithTab }
+    } finally {
+      stop()
+    }
+  }
+
+  async function focusClosing(openedBefore: readonly Readonly<Ref<boolean>>[], expectedActiveTabId?: string): Promise<boolean> {
     if (expectedActiveTabId && options.state.value.activeTabId !== expectedActiveTabId) return false
 
+    let openAtStart = openedBefore
     const startingActiveTabId = options.state.value.activeTabId
     let focusTabId = expectedActiveTabId ?? options.state.value.activeTabId
     if (options.isHome()) {
       const tab = options.preferredWebTab()
       if (tab) {
-        const selected = await options.selectBrowserTab(tab.id)
+        const { selected, shownWithTab } = await selectWithSurfaces(tab.id)
         if (selected) {
           if (options.state.value.activeTabId !== tab.id) return false
           focusTabId = tab.id
+          openAtStart = [...openAtStart, ...shownWithTab]
         } else {
           if (options.state.value.activeTabId !== startingActiveTabId) return false
           focusTabId = await createFallbackTab()

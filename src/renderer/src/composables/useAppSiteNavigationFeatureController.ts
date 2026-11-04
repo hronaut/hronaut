@@ -169,7 +169,7 @@ export function useAppSiteNavigationFeatureController(
     onFocusLeft: () => (siteControlsOpen.value = false)
   })
   // Following the agents' activity waits while the person types in the address bar or Find: showing another tab would
-  // replace the address they are typing, or close Find under them. The keyboard moving from one to the other leaves and
+  // replace the address they are typing, or hide Find under them. The keyboard moving from one to the other leaves and
   // enters within one turn, which the watch sees as one change, so following does not resume in between.
   const stopFollowAgentActivitySuspensionWatch = watch(
     () => addressBarController.focused.value || shell.findFocused.value,

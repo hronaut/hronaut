@@ -12,6 +12,8 @@ export class PageFindController {
   private readonly sessionQueries = new WeakMap<WebContents, string>()
   /** The pages whose latest search settled on an active match, the only thing ending the search may click. */
   private readonly matched = new WeakSet<WebContents>()
+  /** The pages an agent sent input to since their latest search, whose focus may no longer be on its match. */
+  private readonly agentTouched = new WeakSet<WebContents>()
 
   /** fromSelection: the page's selection was collapsed for this search, which Chromium then starts from. */
   search(
@@ -22,6 +24,7 @@ export class PageFindController {
   ): Promise<{ activeMatchOrdinal: number; matches: number }> {
     this.pending.get(webContents)?.()
     this.matched.delete(webContents)
+    this.agentTouched.delete(webContents)
     if (options.findNext === true) {
       // A new session that finds the same text again, as switching Match case does, leaves Chromium without the
       // active match it ends the search on, so a later Ctrl+Enter would click nothing: the earlier session ends first. A
@@ -93,8 +96,9 @@ export class PageFindController {
     const answering = this.pending.has(webContents)
     this.pending.get(webContents)?.()
     const matched = this.matched.has(webContents)
-    const activate = action === 'activateSelection' && matched
+    const activate = action === 'activateSelection' && matched && !this.agentTouched.has(webContents)
     this.matched.delete(webContents)
+    this.agentTouched.delete(webContents)
     this.sessionQueries.delete(webContents)
     // The person's key went to Find, not to the page, so the click had no user activation, and Chromium skipped on Back
     // the page the link left, as it skips pages that move on by themselves. A script sent with a user gesture marks the
@@ -110,5 +114,14 @@ export class PageFindController {
     webContents.stopFindInPage(ending)
     // Chromium selects the active match a search found, or one still answering may have found.
     return activate || (ending === 'keepSelection' && (matched || answering))
+  }
+
+  /**
+   * An agent's input to the page, which can move the page's focus off the match its search settled on, as in a tab
+   * Find stays with while the person is elsewhere. Chromium clicks the focused element when a search ends on a match
+   * that is gone, so ending it with Ctrl+Enter keeps the selection instead, until the person searches again.
+   */
+  noteAgentInput(webContents: WebContents): void {
+    if (this.matched.has(webContents)) this.agentTouched.add(webContents)
   }
 }

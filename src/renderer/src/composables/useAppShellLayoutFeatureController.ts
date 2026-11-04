@@ -71,6 +71,8 @@ export interface AppShellLayoutFeatureController {
   resizeWithKeyboard: (event: KeyboardEvent) => void
   resetSize: () => void
   fullModalOpen: ComputedRef<boolean>
+  /** Whether a surface other than Find is open, which Find coming back with its tab would close: Find waits for it. */
+  surfaceBesideFindOpen: ComputedRef<boolean>
   dispose: () => void
 }
 
@@ -169,6 +171,12 @@ export function useAppShellLayoutFeatureController(
       if (!layout.detachedWindow) layout.shellApi.setWindowControlsScrim(color)
     }
   })
+  // A panel in a window of its own leaves room for Find.
+  const dockedPanelOpen = (): boolean => overlays.activePanel.value !== null && !options.keepsSeparatePanelOpen()
+  const surfaceBesideFindOpen = computed(() => fullModalOpen.value || dockedPanelOpen() || [
+    overlays.siteControls, overlays.siteStorage, overlays.addressSuggestions, overlays.zoom, overlays.splitMenu,
+    overlays.tabSearch, overlays.downloads, overlays.bookmarks, overlays.history
+  ].some((open) => open.value))
   let disposed = false
 
   function dispose(): void {
@@ -180,6 +188,7 @@ export function useAppShellLayoutFeatureController(
   return {
     ...panelDockLayout,
     fullModalOpen,
+    surfaceBesideFindOpen,
     dispose
   }
 }

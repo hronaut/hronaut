@@ -629,7 +629,8 @@ const {
   resizeWithKeyboard: resizePanelWithKeyboard,
   resetSize: resetPanelDockSize,
   dispose: disposeAppShellLayoutFeatureController,
-  fullModalOpen: shellFullModalOpen
+  fullModalOpen: shellFullModalOpen,
+  surfaceBesideFindOpen
 } = useAppShellLayoutFeatureController({
   layout: {
     dock: panelDock,
@@ -935,6 +936,7 @@ useAppLifecycleController({
       :active-origin="activeOrigin"
       :help-dialog-open="helpDialogOpen"
       :settings-open="settingsOpen"
+      :find-waits="surfaceBesideFindOpen"
       :website-available="Boolean(activeTab && !activeIsHome)"
       :browser="browser"
       :sync-state="syncState"

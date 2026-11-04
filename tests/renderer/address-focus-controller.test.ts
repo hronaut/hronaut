@@ -77,6 +77,7 @@ function createController() {
     zoomOpen,
     tabSearchOpen,
     otherSurfacesOpen: [findOpen, downloadsOpen],
+    surfacesShownWithTab: [findOpen],
     runFindTransition,
     focusInput
   })
@@ -100,6 +101,22 @@ function createController() {
 }
 
 describe('useAddressFocusController', () => {
+  // Find stays with its tab, so the website tab chosen from Home brings its Find back, which the person did not open.
+  it('focuses the address of the website tab chosen from Home that brings its Find back', async () => {
+    const harness = createController()
+    harness.home.value = true
+    harness.preferred.value = tab('newer')
+    harness.selectBrowserTab.mockImplementationOnce(async (tabId: string) => {
+      harness.state.value = { ...harness.state.value, activeTabId: tabId }
+      harness.findOpen.value = true
+      return true
+    })
+
+    await expect(harness.controller.focus()).resolves.toBe(true)
+    expect(harness.focusInput).toHaveBeenCalledOnce()
+    expect(harness.runFindTransition).toHaveBeenCalledOnce()
+  })
+
   it('focuses the current tab address and closes conflicting overlays', async () => {
     const harness = createController()
 

@@ -1999,7 +1999,9 @@ test('opens Privacy immediately and keeps a newer close authoritative after dela
   }
 })
 
-test('does not open Home after a newer tab selection during delayed Find cleanup', async ({
+// Going Home ended the page's search first, and a newer tab chosen while that answered had to win. Home now hides Find
+// like any other tab, without ending the search, which the tab shown again brings back.
+test('leaves the page search when Home opens, and keeps a newer tab selection', async ({
   appWindow,
   electronApp
 }) => {
@@ -2025,32 +2027,27 @@ test('does not open Home after a newer tab selection during delayed Find cleanup
     await expect(appWindow.getByRole('search', { name: 'Find in page' })).toBeVisible()
 
     await electronApp.evaluate(({ ipcMain }) => {
-      const mainGlobal = globalThis as typeof globalThis & { __resolveDelayedHomeFindCleanup?: () => void }
+      const stops: unknown[] = []
+      Reflect.set(globalThis, 'qaHomeFindStops', stops)
       ipcMain.removeHandler('browser:stop-find-in-page')
-      ipcMain.handle('browser:stop-find-in-page', () => new Promise<void>(resolve => {
-        mainGlobal.__resolveDelayedHomeFindCleanup = resolve
-      }))
+      ipcMain.handle('browser:stop-find-in-page', (_event, ...args: unknown[]) => { stops.push(args) })
     })
+    const stops = () => electronApp.evaluate(() => Reflect.get(globalThis, 'qaHomeFindStops') as unknown[])
+    const activeTitle = () => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)')
 
     await appWindow.getByRole('button', { name: 'Open Hronaut Home' }).click()
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.url)')).toMatch(/^hronaut:\/\/home/)
+    await expect(appWindow.getByRole('search', { name: 'Find in page' })).toBeHidden()
     await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(newerTabId)})`)
-    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)')).toBe('Newer tab choice')
+    await expect.poll(activeTitle).toBe('Newer tab choice')
+    await expect(appWindow.getByRole('search', { name: 'Find in page' })).toBeHidden()
+    expect(await stops()).toEqual([])
 
-    await electronApp.evaluate(() => {
-      const mainGlobal = globalThis as typeof globalThis & { __resolveDelayedHomeFindCleanup?: () => void }
-      if (!mainGlobal.__resolveDelayedHomeFindCleanup) throw new Error('Delayed Home Find cleanup did not start')
-      mainGlobal.__resolveDelayedHomeFindCleanup()
-      delete mainGlobal.__resolveDelayedHomeFindCleanup
-    })
-
-    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)')).toBe('Newer tab choice')
+    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(fixtureTabId)})`)
+    await expect.poll(activeTitle).toBe('Home race fixture')
+    await expect(appWindow.getByRole('search', { name: 'Find in page' })).toBeVisible()
+    expect(await stops()).toEqual([])
   } finally {
-    await electronApp.evaluate(() => {
-      const mainGlobal = globalThis as typeof globalThis & { __resolveDelayedHomeFindCleanup?: () => void }
-      mainGlobal.__resolveDelayedHomeFindCleanup?.()
-      delete mainGlobal.__resolveDelayedHomeFindCleanup
-    }).catch(() => undefined)
     await closeFixtureServer(server)
   }
 })
@@ -6828,14 +6825,17 @@ test('finds text from a website shortcut and navigates page matches', async ({ a
     await findBar.getByRole('button', { name: 'Previous match' }).click()
     await expect(findBar.locator('.find-count')).toHaveText('2 / 2')
 
+    // Find stays with its tab, as in Chrome: Home hides it, and the tab brings it back on the match it was on.
     await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(homeTabId)})`)
     await expect(findBar).toBeHidden()
     await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(findTabId)})`)
-    await expect(findBar).toBeHidden()
-
-    await appWindow.getByRole('button', { name: 'Find in page' }).click()
     await expect(findBar).toBeVisible()
-    await expect(findBar.locator('.find-count')).toHaveText('1 / 2')
+    await expect(findInput).toHaveValue('needle')
+    await expect(findBar.locator('.find-count')).toHaveText('2 / 2')
+
+    await appWindow.getByRole('button', { name: 'Find in page', exact: true }).click()
+    await expect(findInput).toBeFocused()
+    await expect(findBar.locator('.find-count')).toHaveText('2 / 2')
     await appWindow.keyboard.press('Escape')
     await expect(findBar).toBeHidden()
   } finally {

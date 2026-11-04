@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
+import { PageFindController } from '../src/main/browser/page-find-controller.js'
 
 vi.mock('electron', () => ({ webContents: { getFocusedWebContents: () => null } }))
 vi.mock('../src/main/browser/agent-input-scope/focus-isolation.js', () => ({
@@ -57,6 +58,7 @@ function agentInputBrowser(locked = false) {
       agentInputWebContents: agentInput,
       agentInputFocusSnapshots: new Map(),
       agentInputFocusGuardReleases: new Map(),
+      pageFind: new PageFindController(),
       tabs: new Map([[tab.id, tab]]),
       webContentsToTab: new Map([[7, tab.id]]),
       isHumanInteractionLocked: () => locked

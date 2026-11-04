@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
+import { PageFindController } from '../src/main/browser/page-find-controller.js'
 
 vi.mock('electron', () => ({ webContents: { getFocusedWebContents: () => null } }))
 vi.mock('../src/main/browser/agent-input-scope/focus-isolation.js', () => ({
@@ -46,6 +47,7 @@ function agentInputBrowser() {
       agentInputWebContents: agentInput,
       agentInputFocusSnapshots: new Map(),
       agentInputFocusGuardReleases: new Map(),
+      pageFind: new PageFindController(),
       tabs: new Map([[tab.id, tab]]),
       webContentsToTab: new Map([[7, tab.id]]),
       isHumanInteractionLocked: () => false
@@ -93,5 +95,16 @@ describe('page work around a website dialog', () => {
     await vi.waitFor(() => expect(onCredentialSubmitted).toHaveBeenCalledWith({ origin: 'https://example.test', username: 'ada', password: 'correct horse' }))
     // It watches again after the submission.
     expect(watches).toHaveBeenCalledTimes(2)
+  })
+})
+
+// Ctrl+Enter in Find clicks the page's focused element when its match is gone, which an agent's input can make it.
+describe('an agent\'s input and the page\'s search', () => {
+  it('tells the page\'s search about the agent\'s input, so ending it clicks nothing the agent focused', async () => {
+    const { page } = pageWithDialogs()
+    const { browser } = agentInputBrowser()
+    const noted = vi.spyOn(browser.pageFind, 'noteAgentInput')
+    await expect(withAgentInput(browser as never, page as never, async () => 'pressed')).resolves.toBe('pressed')
+    expect(noted).toHaveBeenCalledExactlyOnceWith(page)
   })
 })
