@@ -4054,6 +4054,7 @@ export const jaJP: MessageSchema = {
     workspaceArchived: 'ワークスペースをアーカイブしました',
     workspaceClosed: 'ワークスペースを閉じました',
     bookmarkRemoved: 'ブックマークを削除しました',
+    collectionRemoved: 'コレクションを削除しました',
     expiredTitle: '元に戻す操作はありません',
     expired: 'この操作はもう元に戻せません。',
     failed: '元に戻せませんでした',

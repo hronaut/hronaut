@@ -4054,6 +4054,7 @@ export const zhTW: MessageSchema = {
     workspaceArchived: '已封存工作區',
     workspaceClosed: '已關閉工作區',
     bookmarkRemoved: '已移除書籤',
+    collectionRemoved: '已移除集合',
     expiredTitle: '沒有可復原的項目',
     expired: '這項操作已無法復原。',
     failed: '無法復原',

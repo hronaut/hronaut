@@ -4054,6 +4054,7 @@ export const frFR: MessageSchema = {
     workspaceArchived: 'Espace de travail archivé',
     workspaceClosed: 'Espace de travail fermé',
     bookmarkRemoved: 'Favori supprimé',
+    collectionRemoved: 'Collection supprimée',
     expiredTitle: 'Rien à annuler',
     expired: 'Cette action ne peut plus être annulée.',
     failed: 'Impossible d’annuler',

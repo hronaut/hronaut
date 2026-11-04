@@ -4054,6 +4054,7 @@ export const esES: MessageSchema = {
     workspaceArchived: 'Espacio de trabajo archivado',
     workspaceClosed: 'Espacio de trabajo cerrado',
     bookmarkRemoved: 'Marcador eliminado',
+    collectionRemoved: 'Colección eliminada',
     expiredTitle: 'Nada que deshacer',
     expired: 'Ya no se puede deshacer.',
     failed: 'No se pudo deshacer',

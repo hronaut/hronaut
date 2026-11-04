@@ -8,6 +8,8 @@ All notable changes to Hronaut are documented in this file.
 
 - Save Image in a page's context menu was unavailable for an image the page made itself from a `data:` or `blob:` address, such as a chart drawn into an image. It now saves such an image, as in Chrome, and Save Video and Save Audio save such a recording; they still do not open in a new tab.
 - On Windows and Linux, opening a page's context menu with Shift+F10 or the Menu key opened it at the mouse pointer, wherever it was, even outside the window; it opens at the focused element or the selection, as in Chrome, and a right-click's menu still opens at the pointer.
+- Remove collection in Bookmarks could not be undone, so a slip lost the collection's name and which bookmarks it held; it now shows an Undo toast, as removing a bookmark does, which puts the collection back in its place with its bookmarks and shows it in the panel again.
+- Ctrl+Z (Cmd+Z on macOS) did nothing while a drop-down list in Hronaut's window had the keyboard, such as the bookmark filter that Remove collection leaves it in, as if the list had text of its own to undo; it now runs Undo while one is on offer, as it does outside text fields.
 
 ## [3.14.12] - 2026-11-04
 

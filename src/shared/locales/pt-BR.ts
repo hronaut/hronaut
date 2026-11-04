@@ -4054,6 +4054,7 @@ export const ptBR: MessageSchema = {
     workspaceArchived: 'Espaço de trabalho arquivado',
     workspaceClosed: 'Espaço de trabalho fechado',
     bookmarkRemoved: 'Favorito removido',
+    collectionRemoved: 'Coleção removida',
     expiredTitle: 'Nada para desfazer',
     expired: 'Não é mais possível desfazer essa ação.',
     failed: 'Não foi possível desfazer',

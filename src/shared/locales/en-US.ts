@@ -4052,6 +4052,7 @@ export const enUS = {
     workspaceArchived: 'Workspace archived',
     workspaceClosed: 'Workspace closed',
     bookmarkRemoved: 'Bookmark removed',
+    collectionRemoved: 'Collection removed',
     expiredTitle: 'Nothing to undo',
     expired: 'That can no longer be undone.',
     failed: 'Could not undo',

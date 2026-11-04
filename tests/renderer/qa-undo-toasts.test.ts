@@ -286,7 +286,8 @@ describe('useUndoToasts', () => {
     [{ kind: 'tabs-closed' as const, count: 3 }, '3 tabs closed'],
     [{ kind: 'workspace-archived' as const, count: 1 }, 'Workspace archived'],
     [{ kind: 'workspace-closed' as const, count: 1 }, 'Workspace closed'],
-    [{ kind: 'bookmark-removed' as const, count: 1 }, 'Bookmark removed']
+    [{ kind: 'bookmark-removed' as const, count: 1 }, 'Bookmark removed'],
+    [{ kind: 'collection-removed' as const, count: 1 }, 'Collection removed']
   ])('shows %o as a toast titled "%s" with an Undo button for six seconds', async (fields, title) => {
     vi.useFakeTimers()
     const undo = setupUndo()
@@ -446,7 +447,6 @@ describe('useUndoToasts', () => {
     ['a text input', () => Object.assign(document.createElement('input'), { type: 'text' })],
     ['a search input', () => Object.assign(document.createElement('input'), { type: 'search' })],
     ['a textarea', () => document.createElement('textarea')],
-    ['a select', () => document.createElement('select')],
     ['an editable region', () => {
       const element = document.createElement('div')
       element.contentEditable = 'true'
@@ -469,17 +469,21 @@ describe('useUndoToasts', () => {
     undo.dispose()
   })
 
-  it('undoes on Ctrl+Z from a checkbox, which has no text to undo', async () => {
+  // A select kept Ctrl+Z, so Undo did nothing from the bookmark filter, where Remove collection leaves the keyboard.
+  it.each([
+    ['a checkbox', () => Object.assign(document.createElement('input'), { type: 'checkbox' })],
+    ['a select', () => document.createElement('select')]
+  ])('undoes on Ctrl+Z from %s, which has no text to undo', async (_name, create) => {
     const undo = setupUndo()
-    const checkbox = Object.assign(document.createElement('input'), { type: 'checkbox' })
-    document.body.append(checkbox)
+    onTestFinished(undo.dispose)
+    const control = create()
+    document.body.append(control)
+    onTestFinished(() => control.remove())
     undo.offer(offer())
 
-    expect(pressZ({}, checkbox).defaultPrevented).toBe(true)
+    expect(pressZ({}, control).defaultPrevented).toBe(true)
 
     await vi.waitFor(() => expect(undo.browser.undo).toHaveBeenCalledWith(TOKEN_A))
-    checkbox.remove()
-    undo.dispose()
   })
 
   it.each([

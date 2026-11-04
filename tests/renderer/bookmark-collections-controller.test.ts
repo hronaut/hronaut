@@ -40,6 +40,30 @@ it('filters All, Unfiled and one collection and preserves newer subscription sna
   } finally { controller.dispose() }
 })
 
+it('shows a collection again when Undo puts it back, unless the person picked another meanwhile', () => {
+  const { controller, notify } = fixture()
+  try {
+    // After Undo the panel stayed on Unfiled, so the bookmarks put back in the collection were not shown.
+    controller.selection.value = 'c:one'
+    notify({ revision: 2, collections: [] })
+    expect(controller.selection.value).toBe('unfiled')
+    notify({ revision: 3, collections: [{ id: 'two', name: 'Two', bookmarkIds: [] }] })
+    expect(controller.selection.value).toBe('unfiled')
+    notify({ revision: 4, collections: [{ id: 'one', name: 'One', bookmarkIds: ['a'] }, { id: 'two', name: 'Two', bookmarkIds: [] }] })
+    expect(controller.selection.value).toBe('c:one')
+    // Once shown again, a later removal and return of another collection does not move the selection.
+    notify({ revision: 5, collections: [{ id: 'one', name: 'One', bookmarkIds: ['a'] }] })
+    notify({ revision: 6, collections: [{ id: 'one', name: 'One', bookmarkIds: ['a'] }, { id: 'two', name: 'Two', bookmarkIds: [] }] })
+    expect(controller.selection.value).toBe('c:one')
+
+    notify({ revision: 7, collections: [{ id: 'two', name: 'Two', bookmarkIds: [] }] })
+    expect(controller.selection.value).toBe('unfiled')
+    controller.selection.value = 'all'
+    notify({ revision: 8, collections: [{ id: 'one', name: 'One', bookmarkIds: ['a'] }, { id: 'two', name: 'Two', bookmarkIds: [] }] })
+    expect(controller.selection.value).toBe('all')
+  } finally { controller.dispose() }
+})
+
 it('retains failed drafts for retry and ignores late saves after close/reopen', async () => {
   const { controller, api, open } = fixture()
   try {

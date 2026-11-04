@@ -4054,6 +4054,7 @@ export const idID: MessageSchema = {
     workspaceArchived: 'Ruang kerja diarsipkan',
     workspaceClosed: 'Ruang kerja ditutup',
     bookmarkRemoved: 'Bookmark dihapus',
+    collectionRemoved: 'Koleksi dihapus',
     expiredTitle: 'Tidak ada yang dapat diurungkan',
     expired: 'Tindakan itu tidak dapat diurungkan lagi.',
     failed: 'Tidak dapat mengurungkan',

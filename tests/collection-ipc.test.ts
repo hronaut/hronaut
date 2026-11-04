@@ -76,6 +76,25 @@ it.each([
   expect(host.tabs).not.toHaveBeenCalled()
 })
 
+it('offers to undo a removed collection once the removal is saved and published', async () => {
+  const { host, bookmarks, invoke } = fixture()
+  const removed = { collection: { id: 'reading', name: 'Reading', bookmarkIds: ['a'] }, index: 0 }
+  bookmarks.removeCollection.mockResolvedValue(removed)
+  const collectionRemoved = vi.fn(() => expect(host.publishBookmarks).toHaveBeenCalledOnce())
+  Object.assign(host, { collectionRemoved })
+  await invoke('bookmark-collections:remove', 'reading')
+  expect(bookmarks.removeCollection).toHaveBeenCalledExactlyOnceWith('reading')
+  expect(collectionRemoved).toHaveBeenCalledExactlyOnceWith(removed)
+
+  // A removal that fails offers nothing.
+  bookmarks.removeCollection.mockRejectedValueOnce(new Error('Disk full'))
+  await expect(invoke('bookmark-collections:remove', 'reading')).rejects.toThrow('Disk full')
+  expect(collectionRemoved).toHaveBeenCalledOnce()
+  // Nor does any other change to the collections.
+  await invoke('bookmark-collections:rename', 'reading', 'Later')
+  expect(collectionRemoved).toHaveBeenCalledOnce()
+})
+
 it('bookmarks the tabs main reads for the workspace named, and publishes only after they are saved', async () => {
   const { host, bookmarks, invoke } = fixture()
   host.tabs.mockReturnValue([

@@ -1,6 +1,6 @@
 import { app } from 'electron'
 import { join } from 'node:path'
-import { BookmarkStore, type RemovedBookmark } from './bookmark-store.js'
+import { BookmarkStore, type RemovedBookmark, type RemovedCollection } from './bookmark-store.js'
 import { HistoryStore, normalizeHistoryUrl } from './history-store.js'
 import { LocalizedError } from '../localized-error.js'
 import type { Browser } from '../browser/browser.js'
@@ -42,8 +42,9 @@ interface BookmarksAndHistoryHost {
 
 /**
  * Bookmarks and visit history at runtime: opening both stores, recording the pages tabs visit, telling both shell
- * windows what they hold after each change, offering to undo a bookmark the person removed, forgetting agents' finished
- * steps with the history, and the operations the MCP server offers agents on them, `agentBookmarks` and `agentHistory`.
+ * windows what they hold after each change, offering to undo a bookmark or collection the person removed, forgetting
+ * agents' finished steps with the history, and the operations the MCP server offers agents on them, `agentBookmarks`
+ * and `agentHistory`.
  */
 export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
   publishBookmarks(): BrowserBookmark[]
@@ -52,7 +53,8 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
   openVisitHistory(): Promise<BrowserHistoryEntry[]>
   recordPageVisit(visit: { url: string; title: string; samePage: boolean }): void
   updatePageTitle(page: { url: string; title: string }): void
-  offerBookmarkRestore(removed: RemovedBookmark): void
+  /** Offer Undo for what the person removed. */
+  undoHooks: { bookmarkRemoved(removed: RemovedBookmark): void; collectionRemoved(removed: RemovedCollection): void }
   historyCleared(): void
   historyEntryRemoved(url: string): void
   agentBookmarks: BookmarkOperations
@@ -126,6 +128,21 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
     })
   }
 
+  /** Offers to undo a collection the person removed, which puts it back with its bookmarks and publishes them. */
+  function offerCollectionRestore(removed: RemovedCollection): void {
+    host.offerUndo({
+      kind: 'collection-removed',
+      name: removed.collection.name,
+      undo: async () => {
+        if (!host.state.bookmarks) throw new LocalizedError('appErrors.bookmarks.storageUnavailable')
+        // A collection made meanwhile with its name stays as it is, and the refusal says so.
+        if (!await host.state.bookmarks.restoreCollection(removed)) return false
+        publishBookmarks()
+        return true
+      }
+    })
+  }
+
   /**
    * The history was cleared, by the person or an agent. Agents' finished steps (Home's feed and each agent's "All steps")
    * name and picture pages they acted on, Recently closed names pages tabs showed and tabs' Back and Forward lists hold
@@ -192,7 +209,7 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
     openVisitHistory,
     recordPageVisit,
     updatePageTitle,
-    offerBookmarkRestore,
+    undoHooks: { bookmarkRemoved: offerBookmarkRestore, collectionRemoved: offerCollectionRestore },
     historyCleared,
     historyEntryRemoved,
     agentBookmarks,
