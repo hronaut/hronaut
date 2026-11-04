@@ -1,4 +1,4 @@
-import { app, clipboard, Menu, type ContextMenuParams, type MenuItemConstructorOptions, type WebFrameMain } from 'electron'
+import { app, clipboard, Menu, type ContextMenuParams, type MenuItemConstructorOptions, type WebContents, type WebFrameMain } from 'electron'
 import { isHronautHomeUrl, isWebUrl } from '../url.js'
 import { pageSourceAddress, viewFrameSource, viewPageSource } from '../page-source/page-source.js'
 import { searchEngineLabel, selectionAddressKept, selectionGoToUrl, selectionSearchLabelText, selectionSearchQuery, selectionSearchUrl } from '../selection-search/selection-search.js'
@@ -176,8 +176,8 @@ export function showContextMenu(browser: Browser, tab: BrowserTab, params: Conte
     }
     return [{ id: 'copy-link-to-highlight', label: browser.text('native.context.copyLinkToHighlight'), click: () => void copyLink() }]
   }
-  const copyImage = (): void => {
-    void browser.options.copyImageAt(webContents, params.x, params.y)
+  const copyImage = (picture: 'image' | 'canvas' = 'image'): void => {
+    void browser.options.copyImageAt(webContents, params.x, params.y, picture)
       .catch((error) => reportCopyFailure('image', error))
   }
   // A video's or audio's open, save and copy of its address.
@@ -294,7 +294,7 @@ export function showContextMenu(browser: Browser, tab: BrowserTab, params: Conte
         id: 'copy-image',
         label: browser.text('native.context.copyImage'),
         enabled: params.hasImageContents,
-        click: copyImage
+        click: () => copyImage()
       },
       {
         id: 'copy-image-address',
@@ -314,6 +314,20 @@ export function showContextMenu(browser: Browser, tab: BrowserTab, params: Conte
         click: withLiveContents('save image', () => download(params.srcURL))
       }
     ])
+  }
+
+  // A canvas copies the picture it shows, as Chrome's Copy Image does. Electron reports whether there is a picture only
+  // for an image, so the item is offered for every canvas the copy can reach. Chrome leaves it unavailable for a
+  // canvas with another website's picture in it, which the page may not read; Hronaut copies that too, for the person
+  // who asked, as Chrome copies the same picture shown as an image. The copy hit-tests from the page's own frame, which
+  // does not reach into a frame another process runs, such as one of another site, so there the item is unavailable.
+  if (params.mediaType === 'canvas') {
+    groups.push([{
+      id: 'copy-canvas-image',
+      label: browser.text('native.context.copyImage'),
+      enabled: reachableFromPage(params.frame, webContents),
+      click: () => copyImage('canvas')
+    }])
   }
 
   // A video or audio, as in Chrome: Loop and Show controls first, then open it in a new tab, save it or copy its
@@ -600,6 +614,21 @@ function hasOpaqueOrigin(frame: WebFrameMain | null | undefined): boolean {
   } catch {
     // A frame that is already gone cannot show its origin, so it gets no referrer.
     return true
+  }
+}
+
+/** Whether the frame of the click runs in the page's own process, as every frame between it and the page does. */
+function reachableFromPage(frame: WebFrameMain | null | undefined, webContents: WebContents): boolean {
+  if (!frame) return false
+  try {
+    const pageProcess = webContents.mainFrame.processId
+    for (let current: WebFrameMain | null = frame; current?.parent; current = current.parent) {
+      if (current.processId !== pageProcess) return false
+    }
+    return true
+  } catch {
+    // A frame that is already gone has nothing left to copy.
+    return false
   }
 }
 

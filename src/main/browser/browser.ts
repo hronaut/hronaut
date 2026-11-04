@@ -215,7 +215,8 @@ export interface BrowserOptions {
   /** Whether an agent is working on the tab now, which a print dialog holding its page still would stall. */
   agentWorkingOnTab?: (tabId: string, workspaceId: string | undefined) => boolean
   copyText: (text: string) => Promise<void>
-  copyImageAt: (webContents: WebContents, x: number, y: number) => Promise<void>
+  /** Copies the image, or the picture of the canvas, at (x, y) in the page. */
+  copyImageAt: (webContents: WebContents, x: number, y: number, picture?: 'image' | 'canvas') => Promise<void>
   /** Copies the frame a video shows at (x, y), in the page's coordinates, from the frame of the page it is in. */
   copyVideoFrameAt: (frame: WebFrameMain, x: number, y: number) => Promise<void>
   onClipboardCopyFailed?: (error: unknown) => void

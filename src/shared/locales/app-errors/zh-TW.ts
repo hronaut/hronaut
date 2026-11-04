@@ -52,7 +52,8 @@ export const zhTWAppErrors: AppErrorMessages = {
     screenshotRejected: '已擷取螢幕畫面，但系統剪貼簿不接受該圖片',
     pageClosed: '網頁在複製圖片前已關閉',
     imageRejected: '已選取網頁圖片，但系統剪貼簿不接受',
-    videoFrameRejected: '影片沒有可複製的畫面，或系統剪貼簿不接受'
+    videoFrameRejected: '影片沒有可複製的畫面，或系統剪貼簿不接受',
+    canvasRejected: '畫布沒有可複製的圖像，或系統剪貼簿不接受'
   },
   tabs: {
     noActiveTab: '沒有使用中的分頁',

@@ -52,7 +52,8 @@ export const idIDAppErrors: AppErrorMessages = {
     screenshotRejected: 'Screenshot sudah diambil, tetapi papan klip sistem tidak menerima gambarnya',
     pageClosed: 'Halaman ditutup sebelum gambarnya dapat disalin',
     imageRejected: 'Gambar halaman sudah dipilih, tetapi papan klip sistem tidak menerimanya',
-    videoFrameRejected: 'Video tidak memiliki bingkai untuk disalin, atau papan klip sistem tidak menerimanya'
+    videoFrameRejected: 'Video tidak memiliki bingkai untuk disalin, atau papan klip sistem tidak menerimanya',
+    canvasRejected: 'Kanvas tidak memiliki gambar untuk disalin, atau papan klip sistem tidak menerimanya'
   },
   tabs: {
     noActiveTab: 'Tidak ada tab aktif',

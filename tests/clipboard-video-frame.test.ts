@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { WebFrameMain } from 'electron'
+import type { WebContents, WebFrameMain } from 'electron'
 
 // A fake system clipboard holding items by media type, and images whose size is the PNG's first two bytes.
 const board = vi.hoisted(() => ({ items: [] as Array<Record<string, Blob | string>>, rejects: undefined as Buffer | undefined }))
@@ -80,6 +80,16 @@ describe('copying a video frame to the clipboard', () => {
     await expect(operations().copyVideoFrameToClipboard(frame as unknown as WebFrameMain, 10, 20))
       .rejects.toMatchObject({ key: 'appErrors.clipboard.screenshotRejected' })
     expect(board.items).toEqual([{ 'image/png': earlier }])
+  })
+
+  it('reports a canvas with no picture to give as the canvas\'s, and an image as the image\'s', async () => {
+    // A canvas that gave nothing read as if the system clipboard had refused its picture.
+    const page = { isDestroyed: () => false, copyImageAt: vi.fn() }
+    await expect(operations().copyPageImageToClipboard(page as unknown as WebContents, 10, 20, 'canvas'))
+      .rejects.toMatchObject({ key: 'appErrors.clipboard.canvasRejected' })
+    expect(page.copyImageAt).toHaveBeenCalledWith(10, 20)
+    await expect(operations().copyPageImageToClipboard(page as unknown as WebContents, 10, 20))
+      .rejects.toMatchObject({ key: 'appErrors.clipboard.imageRejected' })
   })
 
   it('reports a frame the page removed without asking it to copy or touching the clipboard', async () => {

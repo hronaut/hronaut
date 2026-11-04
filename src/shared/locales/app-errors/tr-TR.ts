@@ -52,7 +52,8 @@ export const trTRAppErrors: AppErrorMessages = {
     screenshotRejected: 'Ekran görüntüsü alındı, ancak sistem panosu görüntüyü kabul etmedi',
     pageClosed: 'Sayfa, görüntüsü kopyalanamadan kapandı',
     imageRejected: 'Sayfa görüntüsü seçildi, ancak sistem panosu kabul etmedi',
-    videoFrameRejected: 'Videoda kopyalanacak kare yoktu ya da sistem panosu kabul etmedi'
+    videoFrameRejected: 'Videoda kopyalanacak kare yoktu ya da sistem panosu kabul etmedi',
+    canvasRejected: 'Tuvalde kopyalanacak resim yoktu ya da sistem panosu kabul etmedi'
   },
   tabs: {
     noActiveTab: 'Etkin sekme yok',

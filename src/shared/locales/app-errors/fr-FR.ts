@@ -52,7 +52,8 @@ export const frFRAppErrors: AppErrorMessages = {
     screenshotRejected: 'La capture d’écran a été prise, mais le presse-papiers du système n’a pas accepté l’image.',
     pageClosed: 'La page s’est fermée avant que son image puisse être copiée.',
     imageRejected: 'L’image de la page a été sélectionnée, mais le presse-papiers du système ne l’a pas acceptée.',
-    videoFrameRejected: 'La vidéo n’avait aucune image à copier, ou le presse-papiers du système ne l’a pas acceptée.'
+    videoFrameRejected: 'La vidéo n’avait aucune image à copier, ou le presse-papiers du système ne l’a pas acceptée.',
+    canvasRejected: 'Le canevas n’avait aucune image à copier, ou le presse-papiers du système ne l’a pas acceptée.'
   },
   tabs: {
     noActiveTab: 'Aucun onglet n’est actif.',

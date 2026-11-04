@@ -52,7 +52,8 @@ export const jaJPAppErrors: AppErrorMessages = {
     screenshotRejected: 'スクリーンショットは撮影できましたが、システムのクリップボードが画像を受け付けませんでした',
     pageClosed: '画像をコピーする前にページが閉じられました',
     imageRejected: 'ページの画像は選択できましたが、システムのクリップボードが受け付けませんでした',
-    videoFrameRejected: '動画にコピーできるフレームがなかったか、システムのクリップボードが受け付けませんでした'
+    videoFrameRejected: '動画にコピーできるフレームがなかったか、システムのクリップボードが受け付けませんでした',
+    canvasRejected: 'キャンバスにコピーできる画像がなかったか、システムのクリップボードが受け付けませんでした'
   },
   tabs: {
     noActiveTab: 'アクティブなタブがありません',

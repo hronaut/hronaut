@@ -52,7 +52,8 @@ export const plPLAppErrors: AppErrorMessages = {
     screenshotRejected: 'Zrzut ekranu został wykonany, ale schowek systemowy nie przyjął obrazu.',
     pageClosed: 'Strona została zamknięta, zanim udało się skopiować jej obraz.',
     imageRejected: 'Obraz na stronie został wybrany, ale schowek systemowy go nie przyjął.',
-    videoFrameRejected: 'Wideo nie miało klatki do skopiowania albo schowek systemowy jej nie przyjął.'
+    videoFrameRejected: 'Wideo nie miało klatki do skopiowania albo schowek systemowy jej nie przyjął.',
+    canvasRejected: 'Kanwa nie miała obrazu do skopiowania albo schowek systemowy go nie przyjął.'
   },
   tabs: {
     noActiveTab: 'Brak aktywnej karty.',
