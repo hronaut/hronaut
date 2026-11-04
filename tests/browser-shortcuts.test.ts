@@ -237,6 +237,19 @@ describe('browserShortcutAction', () => {
     }
   })
 
+  // Chrome zooms out with Ctrl+Shift and the minus key elsewhere than macOS, as it zooms in with Ctrl+Shift+=; Hronaut
+  // did nothing with it.
+  it('zooms out with Ctrl+Shift+Minus elsewhere than macOS, as Chrome does', () => {
+    expect(browserShortcutAction(input({ key: '_', code: 'Minus', control: true, shift: true }))).toBe('zoom-out')
+    // A German keyboard has its minus key where a US keyboard has /, with the minus key's code.
+    expect(browserShortcutAction(input({ key: '_', code: 'Slash', keyCode: 189, control: true, shift: true }))).toBe('zoom-out')
+    expect(browserShortcutAction(input({ key: '_', code: 'Minus', control: true, shift: true, repeat: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: '_', code: 'Minus', control: true, shift: true, alt: true }))).toBeNull()
+    // AZERTY types _ on the 8 key, which stays the eighth tab's; Chrome has no such key on macOS.
+    expect(browserShortcutAction(input({ key: '8', code: 'Digit8', control: true, shift: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: '_', code: 'Minus', meta: true, shift: true, mac: true }))).toBeNull()
+  })
+
   // Electron reports the character the layout types, so with a Russian or Ukrainian layout on Ctrl+L came as Ctrl+д and
   // no browser key worked. Chrome goes by the key's place on a US keyboard for such layouts.
   it.each([

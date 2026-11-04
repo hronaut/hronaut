@@ -378,6 +378,14 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
               accelerator: 'CmdOrCtrl+-',
               click: (_item, _window, event) => zoomShownPage('zoom-out', event)
             },
+            // Chrome's other key for zooming out elsewhere than macOS, hidden as Zoom Out shows its main key; held down,
+            // its repeats zoom out here, as Zoom Out's do.
+            ...(process.platform === 'darwin' ? [] : [{
+              label: host.text('native.menu.zoomOut'),
+              accelerator: 'Ctrl+Shift+-',
+              visible: false,
+              click: (_item, _window, event) => zoomShownPage('zoom-out', event)
+            } satisfies MenuItemConstructorOptions]),
             { role: 'togglefullscreen' }
           ]
         },

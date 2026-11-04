@@ -58,8 +58,9 @@ export interface BrowserShortcutInput {
   mac?: boolean
 }
 
-/** Chromium's codes, named as on Windows, for the keys that type = and +, and / and ? on a US keyboard. */
+/** Chromium's codes, named as on Windows, for the keys that type = and +, - and _, and / and ? on a US keyboard. */
 const VKEY_OEM_PLUS = 187
+const VKEY_OEM_MINUS = 189
 const VKEY_OEM_2 = 191
 
 /**
@@ -218,6 +219,8 @@ export function browserShortcutAction(input: BrowserShortcutInput): BrowserShort
 
   if (key === '+' || key === '=') return 'zoom-in'
   if (!input.shift && key === '-') return 'zoom-out'
+  // Elsewhere than macOS, Chrome also zooms out with Ctrl+Shift and the minus key, as it zooms in with Ctrl+Shift+=.
+  if (!input.mac && input.shift && (key === '_' || input.keyCode === VKEY_OEM_MINUS)) return 'zoom-out'
   if (!input.shift && key === '0') return 'zoom-reset'
   if (key === 't') return input.shift ? 'reopen-closed-tab' : 'new-tab'
   if (input.shift && key === 'f') return 'toggle-full-page'
