@@ -62,6 +62,7 @@ function createHarness() {
   const findFocused = ref(false)
   const browser = {
     closeTab: vi.fn(async () => browserState.value),
+    focusActivePage: vi.fn(async () => undefined),
     navigate: vi.fn(async () => browserState.value),
     newTab: vi.fn(async () => browserState.value),
     reload: vi.fn(async () => browserState.value),
@@ -136,6 +137,7 @@ function createHarness() {
           closeTransientPanels: vi.fn(),
           closeHelp: vi.fn(),
           closeFind,
+          returnFindFocus: vi.fn(() => false),
           openSettingsSection: vi.fn(),
           loadSiteSummary,
           onActionError: vi.fn(),

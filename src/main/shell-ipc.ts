@@ -11,6 +11,7 @@ import { setContentInsets, setToolbarHeight } from './browser/window-layout/cont
 import { setFollowAgentActivitySuspended, setBrowserContentOccluded } from './browser/trusted-chrome-occlusion/trusted-chrome-occlusion.js'
 import { SHELL_IPC } from '../shared/ipc/shell.js'
 import { TABS_IPC } from '../shared/ipc/tabs.js'
+import { isShellTabField } from '../shared/tab-field.js'
 
 interface ShellIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
@@ -128,5 +129,12 @@ export function registerShellIpc(ipcMain: Pick<TypedIpcMain, 'handle' | 'on'>, h
     host.followSuspension.shellSuspended = suspended
     const browser = host.tabs()
     if (browser) setFollowAgentActivitySuspended(browser, host.followSuspension.shellSuspended || host.followSuspension.agentCardOpen)
+  })
+  ipcMain.on(SHELL_IPC.tabFieldFocused, (event, field: unknown) => {
+    if (host.workspaceStartupFailure()) return
+    host.assertMainShellSender(event)
+    if (field !== null && !isShellTabField(field)) throw new TypeError('Invalid tab field')
+    const browser = host.tabs()
+    if (browser) browser.shellTabField = field
   })
 }

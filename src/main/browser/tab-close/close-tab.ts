@@ -8,7 +8,7 @@ import { cancelNativeSelectionSessions } from '../native-selections/native-selec
 import { holdTabHistory } from '../tab-history-pages/forget-tab-history-pages.js'
 import { withTabLabelLifecycle } from '../tab-labels/tab-labels.js'
 import { rememberClosedTab } from '../tab-reopening/tab-reopening.js'
-import { focusTabOrTrustedChrome, focusPageAfterQuestion, keyboardPage } from '../trusted-chrome-focus/trusted-chrome-focus.js'
+import { focusTabOrTrustedChrome, focusPageAfterQuestion, keyboardPage, returnTabFieldFocus } from '../trusted-chrome-focus/trusted-chrome-focus.js'
 import { detachDialogMonitoring, ensureDialogMonitoring } from '../website-dialogs/website-dialogs.js'
 import { attemptBeforeUnloadClose } from './before-unload-close.js'
 import { stageBeforeUnloadClose } from './before-unload-staging.js'
@@ -321,7 +321,10 @@ async function performCloseTab(
     browser.layout()
     if (stagedClose && wasActive && browser.activeTabId) {
       const replacement = browser.tabs.get(browser.activeTabId)
-      if (replacement && !replacement.webContents.isDestroyed()) focusTabOrTrustedChrome(browser, replacement)
+      // As selecting it does, the tab shown gives its field the keyboard back when it was left with it, its page otherwise.
+      if (replacement && !replacement.webContents.isDestroyed() && !returnTabFieldFocus(browser, replacement)) {
+        focusTabOrTrustedChrome(browser, replacement)
+      }
     }
     publishChange(browser)
   }

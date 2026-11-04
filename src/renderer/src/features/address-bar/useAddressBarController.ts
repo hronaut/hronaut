@@ -20,7 +20,9 @@ import { inlineAddressCompletion, siteVisits } from '../../address-inline-comple
 import { acceptedInlineCompletion, keepsTakenCompletion, type ShownInlineCompletion } from './address-inline-acceptance.js'
 import { keywordSearchTarget } from '../../address-keyword-search.js'
 import { disposeAll, registerDisposers } from '../../composables/dispose-all.js'
+import { addressSuggestionId, addressSuggestionMeta, addressSwitchSuggestionId } from './address-suggestion-labels.js'
 import { createAddressTabEdits } from './address-tab-edits.js'
+import { useAddressFocusReturn } from './useAddressFocusReturn.js'
 import { useAddressFieldDrop } from './useAddressFieldDrop.js'
 import { useAddressKeywordMode } from './useAddressKeywordMode.js'
 
@@ -164,23 +166,6 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   let disposed = false
   const tabEdits = createAddressTabEdits()
 
-  function suggestionId(suggestion: AddressSuggestion): string {
-    return `address-suggestion-${suggestion.id}`
-  }
-
-  /** The screen reader's option for a row's Switch to this tab button, which Tab goes on to. */
-  function switchSuggestionId(suggestion: AddressSuggestion): string {
-    return `${suggestionId(suggestion)}-switch`
-  }
-
-  function suggestionMeta(suggestion: AddressSuggestion): string {
-    if (suggestion.kind === 'bookmark') return options.translate('runtime.suggestion.bookmark')
-    if (suggestion.kind === 'tab') return options.translate('runtime.suggestion.openTab')
-    return suggestion.visitCount && suggestion.visitCount > 1
-      ? options.translate('runtime.suggestion.visits', { count: options.formatNumber(suggestion.visitCount) }, suggestion.visitCount)
-      : options.translate('runtime.suggestion.history')
-  }
-
   function cancelBlur(): void {
     if (blurTimer === undefined) return
     window.clearTimeout(blurTimer)
@@ -233,7 +218,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   function handleFocus(): void {
     focused.value = true
     editing.value = true
-    openSuggestions()
+    if (!focusReturn.returning()) openSuggestions()
   }
 
   function handleInput(event?: Event): void {
@@ -322,6 +307,8 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   }
 
   const fieldDrop = useAddressFieldDrop({ address, input, disposed: () => disposed, onInput: () => handleInput() })
+  // Coming back to a tab the field had the keyboard in, it takes it back as it was; see useAddressFocusReturn.ts.
+  const focusReturn = useAddressFocusReturn({ input, activeTabId: () => options.activeTab.value?.id, tabs: () => options.tabs.value, disposed: () => disposed })
 
   function finishBlur(): void {
     blurTimer = undefined
@@ -487,7 +474,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   function revealSelected(): void {
     const suggestion = selected.value
     if (!suggestion) return
-    document.getElementById(suggestionId(suggestion))?.scrollIntoView?.({ block: 'nearest' })
+    document.getElementById(addressSuggestionId(suggestion))?.scrollIntoView?.({ block: 'nearest' })
   }
 
   async function moveSelection(offset: -1 | 1): Promise<void> {
@@ -682,6 +669,8 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
         // sent address stays shown while the destination connects, as in Chrome. Only the count of navigations kept
         // with an edit needs it.
         if (!tabChanged && previousTabId !== undefined && url === previousUrl && navigationGeneration !== previousGeneration) return
+        // The field's selection for the tab left, given back with the keyboard on coming back to it.
+        if (tabChanged) focusReturn.keepSelection(previousTabId)
         // As in Chrome, what was typed for the tab left and not sent is shown again on coming back to it. A field emptied
         // shows the page's address again.
         if (tabChanged && dirty.value && (address.value || keywordMode.keyword.value)) {
@@ -779,11 +768,18 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     dirty,
     keyword: keywordMode.keyword,
     keywordHint: keywordMode.hint,
-    suggestionId,
-    switchSuggestionId,
-    suggestionMeta,
+    suggestionId: addressSuggestionId,
+    switchSuggestionId: addressSwitchSuggestionId,
+    suggestionMeta: (suggestion: AddressSuggestion) => addressSuggestionMeta(suggestion, options.translate, options.formatNumber),
     close,
     handleFocus,
+    expectFocusReturn: focusReturn.expect,
+    cancelFocusReturn: focusReturn.cancel,
+    /** Gives the field the keyboard back for the tab shown again; false when it shows no field. */
+    returnFocus: (tabId: string) => focusReturn.give(tabId, () => {
+      focused.value = true
+      editing.value = true
+    }),
     handleInput,
     handleSelectionChange,
     handlePaste,

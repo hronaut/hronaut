@@ -1,4 +1,7 @@
 import { webContents as electronWebContents, type WebContents } from 'electron'
+import { SHELL_IPC } from '../../../shared/ipc/shell.js'
+import type { ShellTabField } from '../../../shared/tab-field.js'
+import { sendTo } from '../../typed-ipc.js'
 import type { Browser } from '../browser.js'
 import type { BrowserTab } from '../browser-tab.js'
 
@@ -75,6 +78,30 @@ export function focusTabOrTrustedChrome(browser: Browser, tab: BrowserTab): void
     return
   }
   tab.webContents.focus()
+}
+
+/** The shown tab's field in the shell that has the keyboard, while the shell has it in the focused window. */
+export function shellTabFieldWithKeyboard(browser: Browser): ShellTabField | undefined {
+  const field = browser.shellTabField
+  if (!field || browser.window.isDestroyed() || !browser.window.isFocused()) return undefined
+  const shell = browser.window.webContents
+  return !shell.isDestroyed() && shell.isFocused() ? field : undefined
+}
+
+/**
+ * Gives the keyboard back to the field of a tab shown again that had it when the person left the tab, its address
+ * field or Find's, as Chrome gives a tab its focused view back; false when the tab's page is to take it instead. The
+ * shell is told before it takes the keyboard, so that the address field taking it back does not open its suggestions.
+ */
+export function returnTabFieldFocus(browser: Browser, tab: BrowserTab): boolean {
+  const field = tab.fieldFocusOnReturn
+  if (!field || browser.window.isDestroyed() || !browser.window.isFocused()) return false
+  const shell = browser.window.webContents
+  if (shell.isDestroyed() || browser.browserContentOccluded || browser.isHumanInteractionLocked(tab)) return false
+  tab.fieldFocusOnReturn = undefined
+  sendTo(shell, SHELL_IPC.tabFieldFocusReturned, tab.id, field)
+  shell.focus()
+  return true
 }
 
 /**

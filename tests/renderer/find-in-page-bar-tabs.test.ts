@@ -34,7 +34,7 @@ function deferred<T>() {
 }
 
 type FindRequest = { tabId: string; query: string; forward: boolean; findNext: boolean; caseSensitive: boolean }
-type Exposed = { openForTab(tab?: BrowserTabState, again?: 'next' | 'previous'): Promise<void> }
+type Exposed = { openForTab(tab?: BrowserTabState, again?: 'next' | 'previous'): Promise<void>; returnFocus(tabId: string): boolean }
 
 // As in Chrome, whose find bar belongs to its tab: another tab hides it and the tab shown again brings it back. Find
 // closed on every tab switch and ended the page's search, so coming back to a tab meant searching it again.
@@ -276,6 +276,29 @@ describe('Find in each tab', () => {
       expect(browser.findSelectionText).not.toHaveBeenCalled()
       await exposed.openForTab(first, 'next')
       expect(browser.findInPage).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ tabId: 'first', findNext: false }))
+    } finally { wrapper.unmount() }
+  })
+
+  it('gives its field the keyboard back, all its text selected, for the tab it came back with', async () => {
+    const { wrapper, exposed, field, show, searchFor, first, second } = mountBar()
+    try {
+      await exposed.openForTab(first)
+      await searchFor('needle')
+      await show(second)
+      // Not open for the tab shown.
+      expect(exposed.returnFocus('second')).toBe(false)
+      ;(document.activeElement as HTMLElement | null)?.blur()
+      await show(first)
+      expect(document.activeElement).not.toBe(field().element)
+      expect(exposed.returnFocus('second')).toBe(false)
+      expect(exposed.returnFocus('first')).toBe(true)
+      expect(document.activeElement).toBe(field().element)
+      expect([field().element.selectionStart, field().element.selectionEnd]).toEqual([0, 6])
+      expect(wrapper.emitted('update:focused')?.at(-1)).toEqual([true])
+
+      await field().trigger('keydown', { key: 'Escape' })
+      await flushPromises()
+      expect(exposed.returnFocus('first')).toBe(false)
     } finally { wrapper.unmount() }
   })
 })

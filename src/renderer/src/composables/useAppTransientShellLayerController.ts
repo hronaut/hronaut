@@ -12,6 +12,8 @@ export interface AppTransientShellSurface {
   openFindForTab: (tab: BrowserTabState, again?: 'next' | 'previous') => Promise<void>
   /** keepMatch: the person closed Find, which leaves its match selected in the page, as in Chrome. */
   closeFind: (options?: { keepMatch?: boolean }) => Promise<void>
+  /** Gives Find's field the keyboard back for the tab shown again; false when Find is not open for it. */
+  returnFindFocus: (tabId: string) => boolean
   openZoomForTab: (tab: BrowserTabState) => Promise<void>
   closeZoom: () => void
   setZoom: (action: ZoomAction) => Promise<void>
@@ -114,6 +116,7 @@ export function useAppTransientShellLayerController() {
     closeWorkspace: workspaceEditorController.close,
     openFindForTab,
     closeFind,
+    returnFindFocus: (tabId: string) => layer.value?.returnFindFocus(tabId) ?? false,
     openCredentialPicker,
     setZoom
   }

@@ -1,6 +1,7 @@
 import type { Confirmation } from '../confirmation.js'
 import type { BrowserShortcutAction } from '../browser-shortcuts.js'
 import type { HomeWorkspaceEditorRequest } from '../home-workspaces.js'
+import type { ShellTabField } from '../tab-field.js'
 import type { BrowserActionFailure, BrowserOcclusionSnapshot, HelpMenuAction } from '../types.js'
 import type { EventChannel, InvokeChannel, SendChannel } from './channel.js'
 
@@ -26,6 +27,10 @@ export const SHELL_IPC = {
   windowControlsScrim: 'shell:window-controls-scrim' as SendChannel<[color: string | null]>,
   /** Main window → main: whether the shell holds off following agent activity, as while the address field has focus. */
   followAgentActivitySuspended: 'browser:follow-agent-activity-suspended' as SendChannel<[suspended: boolean]>,
+  /** Main window → main: the shown tab's field that has the keyboard in the shell, or null, kept for when the person leaves the tab. */
+  tabFieldFocused: 'shell:tab-field-focused' as SendChannel<[field: ShellTabField | null]>,
+  /** Main → main window: the tab shown again had this field with the keyboard when it was left, and gets it back. */
+  tabFieldFocusReturned: 'shell:tab-field-focus-returned' as EventChannel<[tabId: string, field: ShellTabField]>,
   /** Main → main window: a Help dialog or a part of Settings to show, as a menu item asks. */
   helpRequested: 'help:open' as EventChannel<[action: HelpMenuAction]>,
   /** Main → main window: copying to the clipboard failed, with the message to show. */

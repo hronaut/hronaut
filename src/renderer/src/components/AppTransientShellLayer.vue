@@ -126,6 +126,7 @@ interface TabSearchSurface {
 interface FindSurface {
   openForTab: (tab: BrowserTabState, again?: 'next' | 'previous') => Promise<void>
   close: (options?: { keepMatch?: boolean }) => Promise<void>
+  returnFocus: (tabId: string) => boolean
 }
 
 interface ZoomSurface {
@@ -203,6 +204,10 @@ async function closeFind(options: { keepMatch?: boolean } = {}): Promise<void> {
   await findBar.value?.close(options)
 }
 
+function returnFindFocus(tabId: string): boolean {
+  return findBar.value?.returnFocus(tabId) ?? false
+}
+
 async function openZoomForTab(tab: BrowserTabState): Promise<void> {
   await zoomBar.value?.openForTab(tab)
 }
@@ -253,6 +258,7 @@ defineExpose({
   closeTabSearch,
   openFindForTab,
   closeFind,
+  returnFindFocus,
   openZoomForTab,
   closeZoom,
   setZoom,

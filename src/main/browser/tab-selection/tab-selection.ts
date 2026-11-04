@@ -2,7 +2,7 @@ import type { BrowserState } from '../../../shared/types.js'
 import { LocalizedError } from '../../localized-error.js'
 import type { Browser } from '../browser.js'
 import { exitPageFullscreenCovering } from '../page-fullscreen/page-fullscreen.js'
-import { focusTabOrTrustedChrome } from '../trusted-chrome-focus/trusted-chrome-focus.js'
+import { focusTabOrTrustedChrome, returnTabFieldFocus, shellTabFieldWithKeyboard } from '../trusted-chrome-focus/trusted-chrome-focus.js'
 import { findTab, getTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { browserState, publishChange } from '../browser-state/browser-state.js'
@@ -96,6 +96,8 @@ export function selectTab(browser: Browser, tabId: string, options: BrowserTabSe
     return browserState(browser)
   }
   const current = browser.activeTabId ? findTab(browser, browser.activeTabId) : undefined
+  // The tab left keeps its field that has the keyboard, for when it is shown again.
+  if (current && current.id !== next.id) current.fieldFocusOnReturn = shellTabFieldWithKeyboard(browser)
   // A page leaving the window was in view until now, so Memory Saver counts its inactivity from here.
   if (browser.splitView) {
     for (const visibleTabId of [browser.splitView.firstTabId, browser.splitView.secondTabId]) {
@@ -114,7 +116,7 @@ export function selectTab(browser: Browser, tabId: string, options: BrowserTabSe
   writeActiveTabId(browser, next.id)
   markTabActiveInGroup(browser, next)
   browser.layout()
-  if (options.focus !== false) focusTabOrTrustedChrome(browser, next)
+  if (options.focus !== false && !returnTabFieldFocus(browser, next)) focusTabOrTrustedChrome(browser, next)
   publishChange(browser)
   return browserState(browser)
 }
