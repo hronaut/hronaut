@@ -207,6 +207,7 @@ const invokes: Array<[api: string, method: string, args: unknown[], channel: str
   ['hronaut', 'stopFindInPage', [], 'browser:stop-find-in-page', [undefined, undefined]],
   ['hronaut', 'forwardFindKey', ['tab-1', { type: 'keyDown', key: 'PageDown', shift: false, control: false, alt: false, meta: false, repeat: false }],
     'browser:forward-find-key', ['tab-1', { type: 'keyDown', key: 'PageDown', shift: false, control: false, alt: false, meta: false, repeat: false }]],
+  ['hronaut', 'findSelectionText', ['tab-1'], 'browser:find-selection-text', ['tab-1']],
   ['hronaut', 'setZoom', [{ tabId: 'tab-1', action: 'set', percent: 125 }], 'browser:set-zoom', [{ tabId: 'tab-1', action: 'set', percent: 125 }]],
   ['hronaut', 'savePdf', [{ tabId: 'tab-1', landscape: true, pageSize: 'A4' }], 'browser:save-pdf', [{ tabId: 'tab-1', landscape: true, pageSize: 'A4' }]],
   ['hronaut', 'savePdf', [], 'browser:save-pdf', [{}]],

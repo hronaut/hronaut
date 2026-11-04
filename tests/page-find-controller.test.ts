@@ -262,3 +262,25 @@ it('ends a search session before a new one finds the same text again, so its act
     'find pricing details new'
   ])
 })
+
+it('keeps the page\'s selection, ending a session before one from that selection finds the same text again', () => {
+  const page = fixture()
+  const controller = new PageFindController()
+  const webContents = page.contents as unknown as WebContents
+  const calls: string[] = []
+  page.contents.findInPage.mockImplementation(((query: string) => { calls.push(`find ${query}`); return calls.length }) as never)
+  page.contents.stopFindInPage.mockImplementation(((action: string) => { calls.push(`stop ${action}`) }) as never)
+  const search = (query: string, fromSelection: boolean) => {
+    void controller.search(webContents, query, { findNext: true }, fromSelection).catch(() => undefined)
+  }
+
+  search('needle', false)
+  // Text selected in the page, taken up again: Chromium starts the new session from it.
+  search('Needle', true)
+  search('needle', false)
+  search('haystack', true)
+
+  expect(calls).toEqual([
+    'find needle', 'stop keepSelection', 'find Needle', 'stop clearSelection', 'find needle', 'find haystack'
+  ])
+})

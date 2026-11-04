@@ -13,17 +13,23 @@ export class PageFindController {
   /** The pages whose latest search settled on an active match, the only thing ending the search may click. */
   private readonly matched = new WeakSet<WebContents>()
 
+  /** fromSelection: the page's selection was collapsed for this search, which Chromium then starts from. */
   search(
     webContents: WebContents,
     query: string,
-    options: Electron.FindInPageOptions
+    options: Electron.FindInPageOptions,
+    fromSelection = false
   ): Promise<{ activeMatchOrdinal: number; matches: number }> {
     this.pending.get(webContents)?.()
     this.matched.delete(webContents)
     if (options.findNext === true) {
       // A new session that finds the same text again, as switching Match case does, leaves Chromium without the
-      // active match it ends the search on, so a later Ctrl+Enter would click nothing: the earlier session ends first.
-      if (this.sessionQueries.get(webContents)?.toLowerCase() === query.toLowerCase()) webContents.stopFindInPage('clearSelection')
+      // active match it ends the search on, so a later Ctrl+Enter would click nothing: the earlier session ends first. A
+      // search from the page's selection keeps it for the new session to start from, since Chromium clearing it would
+      // remove a caret in a text field too.
+      if (this.sessionQueries.get(webContents)?.toLowerCase() === query.toLowerCase()) {
+        webContents.stopFindInPage(fromSelection ? 'keepSelection' : 'clearSelection')
+      }
       this.sessionQueries.set(webContents, query)
     }
     // As in Chrome, a search waits as long as the page takes to count its matches, which on a very long page, such as

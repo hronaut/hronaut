@@ -4,7 +4,7 @@ import { ISOLATED_WORLDS } from '../src/main/browser/isolated-worlds.js'
 
 vi.mock('electron', () => ({ app: { isPackaged: false } }))
 
-const { findInPage, stopFindInPage } = await import('../src/main/browser/page-find/page-find.js')
+const { COLLAPSE_SELECTION_SCRIPT, findInPage, stopFindInPage } = await import('../src/main/browser/page-find/page-find.js')
 afterEach(() => vi.useRealTimers())
 type Browser = import('../src/main/browser/browser.js').Browser
 type PageTab = {
@@ -134,7 +134,7 @@ describe('ending a page search', () => {
 // Chrome finds the match its find bar closed on when it opens again, as the page keeps that match selected, where a
 // new search in Chromium goes on from after the selection.
 describe('searching from the start of the selection', () => {
-  const collapse = [ISOLATED_WORLDS.findFromSelection, [{ code: 'void (getSelection()?.rangeCount ? getSelection().collapseToStart() : undefined)' }]]
+  const collapse = [ISOLATED_WORLDS.findFromSelection, [{ code: COLLAPSE_SELECTION_SCRIPT }]]
 
   it('collapses the page\'s selection to its start, in a world of its own, before the search', async () => {
     const page = pageSearch()
@@ -144,6 +144,8 @@ describe('searching from the start of the selection', () => {
     expect(await findInPage(page.browser, 'needle', { tabId: 'tab', fromSelectionStart: true })).toEqual({ activeMatchOrdinal: 2, matches: 3 })
     expect(page.tab.webContents.executeJavaScriptInIsolatedWorld).toHaveBeenCalledExactlyOnceWith(...collapse)
     expect(calls).toEqual(['collapse', 'search'])
+    // So a search for the session's own text keeps the selection to start from.
+    expect(vi.mocked(page.browser.pageFind.search).mock.calls[0]?.[3]).toBe(true)
   })
 
   it('leaves the selection alone for any other search, and while the page cannot run a script now', async () => {
@@ -152,7 +154,7 @@ describe('searching from the start of the selection', () => {
     vi.mocked(page.tab.webContents.isLoadingMainFrame).mockReturnValue(true)
     await findInPage(page.browser, 'needle', { tabId: 'tab', fromSelectionStart: true })
     expect(page.tab.webContents.executeJavaScriptInIsolatedWorld).not.toHaveBeenCalled()
-    expect(page.browser.pageFind.search).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(page.browser.pageFind.search).mock.calls.map((call) => call[3])).toEqual([false, false])
   })
 
   it('searches anyway once a page slow to run the script has had a moment, or the script failed', async () => {
