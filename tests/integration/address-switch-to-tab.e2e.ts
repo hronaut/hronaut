@@ -31,6 +31,15 @@ test('switches to a bookmarked page\'s open tab from the address bar with Tab an
       const contents = webContents.getAllWebContents().find(candidate => candidate.getURL().includes('address-overlay.html'))
       return contents?.executeJavaScript(script) as Promise<unknown> | undefined
     }, script)
+    // Whether the window shows the suggestions view: the rows of an earlier search stay in the hidden view's page until
+    // it shows new ones, and real input sent to it meanwhile reaches nothing.
+    const viewShown = () => electronApp.evaluate(({ BrowserWindow, webContents }) => {
+      const contents = webContents.getAllWebContents().find(candidate => candidate.getURL().includes('address-overlay.html'))
+      const main = BrowserWindow.getAllWindows().find(window => window.getTitle() === 'Hronaut')
+      return main?.contentView.children.some(child => (
+        (child as unknown as { webContents?: { id: number } }).webContents?.id === contents?.id && child.getVisible()
+      )) === true
+    })
     const showSelected = async (id: string) => {
       await appWindow.evaluate(id => (window as unknown as TestWindow).hronaut.selectTab(id), id)
       await expect.poll(async () => (await state()).activeTabId).toBe(id)
@@ -77,7 +86,9 @@ test('switches to a bookmarked page\'s open tab from the address bar with Tab an
     await showSelected(ids.shown)
     await address.fill('')
     await address.fill('Docs bookmark')
-    await expect.poll(() => overlay("document.querySelector('.address-suggestion-switch') ? 'shown' : null")).toBe('shown')
+    // The earlier search's button, still in the hidden view's page, passed for this one's: the click went to the hidden
+    // view, before it showed this search, and switched nothing.
+    await expect.poll(async () => await viewShown() ? overlay("document.querySelector('.address-suggestion-switch') ? 'shown' : null") : null).toBe('shown')
     await electronApp.evaluate(async ({ webContents }) => {
       const contents = webContents.getAllWebContents().find(candidate => candidate.getURL().includes('address-overlay.html'))!
       const box = await contents.executeJavaScript("(() => { const r = document.querySelector('.address-suggestion-switch').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 } })()") as { x: number; y: number }
