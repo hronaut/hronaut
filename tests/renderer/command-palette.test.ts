@@ -96,6 +96,7 @@ describe('CommandPalette', () => {
     const settings = screen.getByRole('option', { name: /Open Settings/ })
     const history = screen.getByRole('option', { name: /Show browsing history/ })
 
+    await fireEvent.pointerMove(settings, { clientX: 40, clientY: 76 })
     await fireEvent.pointerMove(settings, { clientX: 40, clientY: 80 })
     expect(settings).toHaveAttribute('aria-selected', 'true')
     await view.rerender({ websiteAvailable: false })
@@ -108,9 +109,19 @@ describe('CommandPalette', () => {
     vi.spyOn(Date, 'now').mockReturnValue(Date.now() - 3_600_000)
     await fireEvent.pointerMove(history, { clientX: 42, clientY: 80 })
     expect(history).toHaveAttribute('aria-selected', 'true')
+
+    // A rehearsal's e2e case caught one later than the guard: the event the reflow sent came where the system's pointer
+    // rested, not where the test's had moved, and the row under it was taken. The first event after a reflow only says
+    // where the pointer rests, however late it comes.
+    await view.rerender({ websiteAvailable: true })
+    now += 151
+    await fireEvent.pointerMove(settings, { clientX: 60, clientY: 90 })
+    expect(history).toHaveAttribute('aria-selected', 'true')
+    await fireEvent.pointerMove(settings, { clientX: 60, clientY: 94 })
+    expect(settings).toHaveAttribute('aria-selected', 'true')
   })
 
-  it('accepts the first intentional pointer move after opening over a recently changed list', async () => {
+  it('takes the first pointer event after opening as where the pointer rests, and follows it once it moves', async () => {
     const now = 1_000
     vi.spyOn(performance, 'now').mockImplementation(() => now)
     const view = render(CommandPalette, {
@@ -127,8 +138,14 @@ describe('CommandPalette', () => {
     await view.rerender({ websiteAvailable: true })
     await view.rerender({ open: true })
     const settings = screen.getByRole('option', { name: /Open Settings/ })
+    const first = screen.getAllByRole('option')[0]
+    expect(first).toHaveAttribute('aria-selected', 'true')
+    // Opened with a shortcut, the palette hid the pages under it and the window was handed the pointer where it rested,
+    // over a row: that row was taken, and Enter ran it instead of the command the palette opened on.
     await fireEvent.pointerMove(settings, { clientX: 40, clientY: 80 })
-
+    expect(first).toHaveAttribute('aria-selected', 'true')
+    // A list changed just before it opened does not hold back a pointer that moves.
+    await fireEvent.pointerMove(settings, { clientX: 40, clientY: 84 })
     expect(settings).toHaveAttribute('aria-selected', 'true')
   })
 })

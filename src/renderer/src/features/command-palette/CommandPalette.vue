@@ -98,31 +98,38 @@ const {
 useModalDialogFocus({ open, panel, focusOnOpen: false })
 
 const liveListPointerGuardMs = 150
-let lastPointerPosition: { x: number; y: number } | null = null
+// Where the pointer was at its last event since the palette opened or its list last moved. The first event only says
+// where it rests: hiding the pages under the palette hands Hronaut's window a pointer event wherever the pointer already
+// was, and commands that come and go with the website or an agent, and tabs or workspaces that open, close or are
+// renamed while a search shows them, move the list under a resting pointer, which sends more. Only a pointer that moves
+// selects a command, so Enter still runs the one the palette opened on or the keyboard chose.
+let lastPointer: { x: number; y: number } | null = null
 let pointerSelectionBlockedUntil = 0
-// Commands that come and go with the website or an agent, and tabs or workspaces that open, close or are renamed while
-// a search shows them, move the list under a resting pointer.
 const entryKeys = computed(() => entries.value.map((entry) => entry.key).join('\u0000'))
 const stopWebsiteAvailabilityTracking = watch([websiteAvailable, agentActive, takeOverAvailable, entryKeys], () => {
+  lastPointer = null
   pointerSelectionBlockedUntil = performance.now() + liveListPointerGuardMs
 })
 const stopOpenTracking = watch(open, (isOpen) => {
   if (!isOpen) return
-  lastPointerPosition = null
+  lastPointer = null
   pointerSelectionBlockedUntil = 0
 }, { flush: 'sync' })
 
 async function openPanel(): Promise<void> {
-  lastPointerPosition = null
+  lastPointer = null
   pointerSelectionBlockedUntil = 0
   await openControllerPanel()
 }
 
+function pointerMoved(event: PointerEvent): boolean {
+  const moved = lastPointer !== null && (lastPointer.x !== event.clientX || lastPointer.y !== event.clientY)
+  lastPointer = { x: event.clientX, y: event.clientY }
+  return moved
+}
+
 function selectFromPointer(event: PointerEvent, index: number): void {
-  if (performance.now() < pointerSelectionBlockedUntil) return
-  const position = { x: event.clientX, y: event.clientY }
-  if (lastPointerPosition?.x === position.x && lastPointerPosition.y === position.y) return
-  lastPointerPosition = position
+  if (!pointerMoved(event) || performance.now() < pointerSelectionBlockedUntil) return
   selection.value = index
 }
 
@@ -139,7 +146,7 @@ onBeforeUnmount(disposeComponent)
 
 <template>
   <UiOverlayTransition>
-    <div v-if="open" class="settings-overlay command-palette-overlay" @click.self="close">
+    <div v-if="open" class="settings-overlay command-palette-overlay" @click.self="close" @pointermove="pointerMoved">
       <section
         ref="panel"
         class="command-palette"

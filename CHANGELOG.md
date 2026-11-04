@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- The command palette, opened with its shortcut while the pointer rests where its list appears, no longer selects the command under the pointer, so Enter runs the command it opened on; the pointer selects a command once it moves, as before.
+
 ## [3.14.10] - 2026-11-04
 
 ### Changed
