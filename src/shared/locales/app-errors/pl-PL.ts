@@ -82,7 +82,7 @@ export const plPLAppErrors: AppErrorMessages = {
     rendererLostWhileWaiting: 'Karta przestała działać podczas oczekiwania na stronę.',
     loadTimedOut: 'Upłynął limit czasu oczekiwania na wczytanie strony.',
     signInAsked: 'Witryna prosi o nazwę użytkownika i hasło, a Hronaut poprosił osobę o zalogowanie się; strona otworzy się, gdy to zrobi. Poproś osobę o zalogowanie się, a potem ponownie sprawdź kartę.',
-    zoomPercent: 'Powiększenie strony musi być liczbą całkowitą od 50 do 400 procent.',
+    zoomPercent: 'Powiększenie strony musi być liczbą całkowitą od 25 do 500 procent.',
     findQuery: 'Wyszukiwana fraza musi mieć od 1 do 1000 znaków.',
     printFailed: 'Hronaut nie mógł wydrukować tej strony.',
     printAgentWorking: 'Na tej stronie pracuje agent. Przejmij kontrolę lub wstrzymaj agentów, aby ją wydrukować.',

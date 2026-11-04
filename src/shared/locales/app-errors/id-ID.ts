@@ -82,7 +82,7 @@ export const idIDAppErrors: AppErrorMessages = {
     rendererLostWhileWaiting: 'Renderer tab menjadi tidak tersedia saat menunggu halaman.',
     loadTimedOut: 'Waktu habis saat menunggu halaman selesai dimuat.',
     signInAsked: 'Situs meminta nama pengguna dan sandi, dan Hronaut meminta orang tersebut untuk masuk; halaman terbuka setelah mereka masuk. Minta orang tersebut untuk masuk, lalu periksa tab lagi.',
-    zoomPercent: 'Persentase zoom halaman harus berupa bilangan bulat dari 50 hingga 400',
+    zoomPercent: 'Persentase zoom halaman harus berupa bilangan bulat dari 25 hingga 500',
     findQuery: 'Kueri pencarian harus berisi 1 hingga 1.000 karakter',
     printFailed: 'Hronaut tidak dapat mencetak halaman ini.',
     printAgentWorking: 'Agen sedang bekerja di halaman ini. Ambil alih atau jeda agen untuk mencetaknya.',

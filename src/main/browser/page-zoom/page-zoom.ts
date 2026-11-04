@@ -1,10 +1,9 @@
+import { PAGE_ZOOM_LIMITS, PAGE_ZOOM_STEPS } from '../../../shared/page-zoom.js'
 import type { BrowserState } from '../../../shared/types.js'
 import { LocalizedError } from '../../localized-error.js'
 import type { Browser } from '../browser.js'
 import { getTab } from '../browser-core.js'
 import { browserState, publishChange } from '../browser-state/browser-state.js'
-
-const PAGE_ZOOM_STEPS = [50, 60, 67, 75, 80, 90, 100, 110, 125, 150, 175, 200, 250, 300, 400] as const
 
 /** The tab's page zoom, read without changing it, and whether the tab keeps its zoom apart from its site's other tabs. */
 export function readZoom(browser: Browser, tabId?: string): { tabId: string; zoomPercent: number; zoomIsolated: boolean } {
@@ -13,8 +12,8 @@ export function readZoom(browser: Browser, tabId?: string): { tabId: string; zoo
 }
 
 /**
- * Zooms the tab's page to the next or previous step, back to 100%, or to an
- * exact percent from 50 to 400, then returns the browser state.
+ * Zooms the tab's page to Chrome's next or previous step, back to 100%, or to an exact percent from 25 to 500, then
+ * returns the browser state.
  */
 export function setZoom(browser: Browser, options: { tabId?: string; action: 'in' | 'out' | 'reset' | 'set'; percent?: number }): BrowserState {
   const tab = getTab(browser, options.tabId)
@@ -26,10 +25,11 @@ export function setZoom(browser: Browser, options: { tabId?: string; action: 'in
   else if (options.action === 'in') percent = PAGE_ZOOM_STEPS.find((step) => step > current) ?? PAGE_ZOOM_STEPS.at(-1)!
   else if (options.action === 'out') percent = [...PAGE_ZOOM_STEPS].reverse().find((step) => step < current) ?? PAGE_ZOOM_STEPS[0]
   else {
-    if (options.percent === undefined || !Number.isInteger(options.percent) || options.percent < 50 || options.percent > 400) {
+    const wanted = options.percent
+    if (wanted === undefined || !Number.isInteger(wanted) || wanted < PAGE_ZOOM_LIMITS.min || wanted > PAGE_ZOOM_LIMITS.max) {
       throw new LocalizedError('appErrors.page.zoomPercent')
     }
-    percent = options.percent
+    percent = wanted
   }
   webContents.setZoomFactor(percent / 100)
   publishChange(browser, false)

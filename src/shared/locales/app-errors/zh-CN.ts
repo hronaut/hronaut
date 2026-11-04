@@ -82,7 +82,7 @@ export const zhCNAppErrors: AppErrorMessages = {
     rendererLostWhileWaiting: '在等待页面期间，标签页的渲染程序变得不可用。',
     loadTimedOut: '等待页面加载完毕时超时。',
     signInAsked: '该网站要求提供用户名和密码，Hronaut 已请用户登录；用户登录后页面即会打开。请让用户登录，然后再次检查该标签页。',
-    zoomPercent: '页面缩放百分比必须是 50 到 400 之间的整数',
+    zoomPercent: '页面缩放百分比必须是 25 到 500 之间的整数',
     findQuery: '查找内容必须包含 1 到 1,000 个字符',
     printFailed: 'Hronaut 无法打印此页面。',
     printAgentWorking: '有智能体正在此页面上工作。请接管或暂停智能体后再打印。',

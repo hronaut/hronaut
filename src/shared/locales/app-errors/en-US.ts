@@ -86,7 +86,7 @@ export const enUSAppErrors = {
     rendererLostWhileWaiting: 'The tab renderer became unavailable while waiting for the page.',
     loadTimedOut: 'Timed out waiting for the page to finish loading.',
     signInAsked: 'The website asks for a username and password, and Hronaut asked the person to sign in; the page opens once they do. Ask the person to sign in, then check the tab again.',
-    zoomPercent: 'Page zoom percent must be an integer from 50 to 400',
+    zoomPercent: 'Page zoom percent must be an integer from 25 to 500',
     findQuery: 'Find query must contain between 1 and 1,000 characters',
     printFailed: 'Hronaut could not print this page.',
     printAgentWorking: 'An agent is working on this page. Take over or pause agents to print it.',

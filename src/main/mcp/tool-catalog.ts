@@ -308,7 +308,7 @@ const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'ti
   {
     name: 'browser_zoom',
     category: 'Inspection',
-    description: 'Read or change page zoom from 50% to 400% without resizing the browser chrome. Without an action it only reads the tab\'s zoom; '
+    description: 'Read or change page zoom from 25% to 500% without resizing the browser chrome. Without an action it only reads the tab\'s zoom; '
       + 'in, out, reset and set change it, as the person\'s zoom does, for the site\'s tabs in the workspace unless the tab\'s zoom is isolated.'
   },
   { name: 'browser_audio', category: 'Interaction', description: 'Mute or unmute one browser tab without changing site-wide sound permissions.' },

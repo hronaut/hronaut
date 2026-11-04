@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { PAGE_ZOOM_LIMITS } from '../../../../shared/page-zoom.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
@@ -14,7 +15,7 @@ export function registerBrowserZoom(context: McpToolContext): void {
         tabId: tabIdSchema.optional(),
         // Reading is the default, so a call that names no action never changes the zoom of the person's site.
         action: z.enum(['get', 'in', 'out', 'reset', 'set']).default('get'),
-        percent: z.number().int().min(50).max(400).optional()
+        percent: z.number().int().min(PAGE_ZOOM_LIMITS.min).max(PAGE_ZOOM_LIMITS.max).optional()
       }
     },
     tabTool('browser_zoom', async ({ tabId, action, percent }: {

@@ -82,7 +82,7 @@ export const ptBRAppErrors: AppErrorMessages = {
     rendererLostWhileWaiting: 'O renderizador da guia ficou indisponível enquanto aguardava a página.',
     loadTimedOut: 'Tempo esgotado aguardando a página terminar de carregar.',
     signInAsked: 'O site pede um nome de usuário e uma senha, e o Hronaut pediu à pessoa que faça login; a página abre assim que ela fizer isso. Peça à pessoa que faça login e verifique a guia novamente.',
-    zoomPercent: 'A porcentagem de zoom da página deve ser um número inteiro de 50 a 400',
+    zoomPercent: 'A porcentagem de zoom da página deve ser um número inteiro de 25 a 500',
     findQuery: 'A consulta de pesquisa deve ter entre 1 e 1.000 caracteres',
     printFailed: 'O Hronaut não conseguiu imprimir esta página.',
     printAgentWorking: 'Um agente está trabalhando nesta página. Assuma o controle ou pause os agentes para imprimi-la.',

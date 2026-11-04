@@ -82,7 +82,7 @@ export const viVNAppErrors: AppErrorMessages = {
     rendererLostWhileWaiting: 'Trình kết xuất của thẻ không còn khả dụng trong khi đang chờ trang.',
     loadTimedOut: 'Đã hết thời gian chờ trang tải xong.',
     signInAsked: 'Trang web yêu cầu tên người dùng và mật khẩu, và Hronaut đã yêu cầu người dùng đăng nhập; trang sẽ mở ngay khi họ đăng nhập. Hãy yêu cầu người dùng đăng nhập, rồi kiểm tra lại thẻ.',
-    zoomPercent: 'Phần trăm thu phóng trang phải là số nguyên từ 50 đến 400',
+    zoomPercent: 'Phần trăm thu phóng trang phải là số nguyên từ 25 đến 500',
     findQuery: 'Truy vấn tìm kiếm phải có từ 1 đến 1.000 ký tự',
     printFailed: 'Hronaut không thể in trang này.',
     printAgentWorking: 'Một tác nhân đang làm việc trên trang này. Hãy tiếp quản hoặc tạm dừng các tác nhân để in trang.',
