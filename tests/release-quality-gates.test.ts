@@ -337,6 +337,22 @@ describe('release quality gates', () => {
     expect(buildMcpb).toContain('dist/hronaut-operator-manifest.json')
   })
 
+  it('announces only a publicly verified release on Discord, without blocking it', async () => {
+    const releaseWorkflow = await readFile('.github/workflows/release.yml', 'utf8')
+    const announce = job(releaseWorkflow, 'announce-discord')
+
+    expect(announce).toContain("if: github.event_name != 'workflow_dispatch' || inputs.dry_run != true")
+    expect(announce).toContain('- publish-release')
+    expect(announce).toContain('- verify-public-release')
+    expect(announce).toContain('continue-on-error: true')
+    expect(announce).toContain('persist-credentials: false')
+    expect(announce).toContain('secrets.DISCORD_RELEASE_WEBHOOK_URL')
+    expect(announce).toContain('git show "$NOTES_SHA:CHANGELOG.md"')
+    for (const name of ['publish-release', 'verify-public-release', 'publish-mcp-registry', 'update-scoop-manifest']) {
+      expect(job(releaseWorkflow, name)).not.toContain('announce-discord')
+    }
+  })
+
   it('publishes only verified release MCPB assets to the official Registry', async () => {
     const [releaseWorkflow, registryWorkflow] = await Promise.all([
       readFile('.github/workflows/release.yml', 'utf8'),
