@@ -52,7 +52,8 @@ export const itITAppErrors: AppErrorMessages = {
     screenshotRejected: 'Lo screenshot è stato acquisito, ma gli appunti di sistema non hanno accettato l’immagine',
     pageClosed: 'La pagina si è chiusa prima che la sua immagine potesse essere copiata',
     imageRejected: 'L’immagine della pagina è stata selezionata, ma gli appunti di sistema non l’hanno accettata',
-    videoFrameRejected: 'Il video non aveva un fotogramma da copiare, oppure gli appunti di sistema non l’hanno accettato'
+    videoFrameRejected: 'Il video non aveva un fotogramma da copiare, oppure gli appunti di sistema non l’hanno accettato',
+    canvasRejected: 'Il canvas non aveva un’immagine da copiare, oppure gli appunti di sistema non l’hanno accettata'
   },
   tabs: {
     noActiveTab: 'Non c’è nessuna scheda attiva',

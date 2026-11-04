@@ -52,7 +52,8 @@ export const viVNAppErrors: AppErrorMessages = {
     screenshotRejected: 'Đã chụp ảnh màn hình, nhưng bảng nhớ tạm của hệ thống không nhận hình ảnh',
     pageClosed: 'Trang đã đóng trước khi có thể sao chép hình ảnh của trang',
     imageRejected: 'Đã chọn hình ảnh của trang, nhưng bảng nhớ tạm của hệ thống không nhận',
-    videoFrameRejected: 'Video không có khung hình để sao chép, hoặc bảng nhớ tạm của hệ thống không nhận'
+    videoFrameRejected: 'Video không có khung hình để sao chép, hoặc bảng nhớ tạm của hệ thống không nhận',
+    canvasRejected: 'Canvas không có hình ảnh để sao chép, hoặc bảng nhớ tạm của hệ thống không nhận'
   },
   tabs: {
     noActiveTab: 'Không có thẻ nào đang hoạt động',

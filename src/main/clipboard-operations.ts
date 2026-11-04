@@ -22,7 +22,7 @@ export function createClipboardOperations(host: ClipboardOperationsHost): {
   copyTextToClipboard(text: string): Promise<void>
   reportClipboardFailure(error: unknown): void
   copyPngToClipboard(data: Buffer): Promise<{ width: number; height: number }>
-  copyPageImageToClipboard(webContents: WebContents, x: number, y: number): Promise<void>
+  copyPageImageToClipboard(webContents: WebContents, x: number, y: number, picture?: 'image' | 'canvas'): Promise<void>
   copyVideoFrameToClipboard(frame: WebFrameMain, x: number, y: number): Promise<void>
 } {
   let clipboardOperationQueue: Promise<void> = Promise.resolve()
@@ -114,7 +114,7 @@ export function createClipboardOperations(host: ClipboardOperationsHost): {
   async function copyImageThePageGives(
     pageGone: () => boolean,
     copy: () => void,
-    rejected: 'appErrors.clipboard.imageRejected' | 'appErrors.clipboard.videoFrameRejected'
+    rejected: 'appErrors.clipboard.imageRejected' | 'appErrors.clipboard.canvasRejected' | 'appErrors.clipboard.videoFrameRejected'
   ): Promise<void> {
     await queueClipboardOperation(async () => {
       if (pageGone()) throw new LocalizedError('appErrors.clipboard.pageClosed')
@@ -146,8 +146,10 @@ export function createClipboardOperations(host: ClipboardOperationsHost): {
     })
   }
 
-  async function copyPageImageToClipboard(webContents: WebContents, x: number, y: number): Promise<void> {
-    await copyImageThePageGives(() => webContents.isDestroyed(), () => webContents.copyImageAt(x, y), 'appErrors.clipboard.imageRejected')
+  /** Copies the image or canvas at (x, y) in the page. A canvas with no picture to give copies nothing, a rejected copy. */
+  async function copyPageImageToClipboard(webContents: WebContents, x: number, y: number, picture: 'image' | 'canvas' = 'image'): Promise<void> {
+    const rejected = picture === 'canvas' ? 'appErrors.clipboard.canvasRejected' : 'appErrors.clipboard.imageRejected'
+    await copyImageThePageGives(() => webContents.isDestroyed(), () => webContents.copyImageAt(x, y), rejected)
   }
 
   /**
