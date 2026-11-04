@@ -63,6 +63,7 @@ import type {
   BrowserElementCaptureResult,
   BrowserElementSelection,
   BrowserFindOptions,
+  BrowserFindPageKey,
   BrowserFindResult,
   BrowserPageCaptureOptions,
   BrowserPageCaptureResult,
@@ -152,6 +153,8 @@ export interface HronautNavigationApi {
    * also clicks it, as Ctrl+Enter there does, and with clearSelection, clears the selection instead.
    */
   stopFindInPage(tabId?: string, options?: { activateMatch?: boolean; clearSelection?: boolean }): Promise<void>
+  /** Sends a key pressed in the Find field on to the tab's page, as Chrome's find bar does with the keys that scroll it. */
+  forwardFindKey(tabId: string, key: BrowserFindPageKey): Promise<void>
   setZoom(options: BrowserZoomOptions): Promise<BrowserState>
   /** Saves the page as a PDF in the downloads folder; null when that folder cannot be written to and the person cancels the save dialog. */
   savePdf(options?: BrowserPdfOptions): Promise<BrowserPdfExport | null>

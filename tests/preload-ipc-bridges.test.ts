@@ -205,6 +205,8 @@ const invokes: Array<[api: string, method: string, args: unknown[], channel: str
   ['hronaut', 'findInPage', [{ tabId: 'tab-1', query: 'docs', forward: true, findNext: true }], 'browser:find-in-page', [{ tabId: 'tab-1', query: 'docs', forward: true, findNext: true }]],
   ['hronaut', 'stopFindInPage', ['tab-1', { activateMatch: true }], 'browser:stop-find-in-page', ['tab-1', { activateMatch: true }]],
   ['hronaut', 'stopFindInPage', [], 'browser:stop-find-in-page', [undefined, undefined]],
+  ['hronaut', 'forwardFindKey', ['tab-1', { type: 'keyDown', key: 'PageDown', shift: false, control: false, alt: false, meta: false, repeat: false }],
+    'browser:forward-find-key', ['tab-1', { type: 'keyDown', key: 'PageDown', shift: false, control: false, alt: false, meta: false, repeat: false }]],
   ['hronaut', 'setZoom', [{ tabId: 'tab-1', action: 'set', percent: 125 }], 'browser:set-zoom', [{ tabId: 'tab-1', action: 'set', percent: 125 }]],
   ['hronaut', 'savePdf', [{ tabId: 'tab-1', landscape: true, pageSize: 'A4' }], 'browser:save-pdf', [{ tabId: 'tab-1', landscape: true, pageSize: 'A4' }]],
   ['hronaut', 'savePdf', [], 'browser:save-pdf', [{}]],

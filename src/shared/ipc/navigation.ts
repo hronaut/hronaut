@@ -1,5 +1,6 @@
 import type {
   BrowserFindOptions,
+  BrowserFindPageKey,
   BrowserFindResult,
   BrowserPdfExport,
   BrowserPdfOptions,
@@ -33,6 +34,8 @@ export const NAVIGATION_IPC = {
   findInPage: 'browser:find-in-page' as InvokeChannel<[options: BrowserFindOptions], BrowserFindResult>,
   /** Shell → main: ends the search, leaving the active match selected; activateMatch clicks it, clearSelection clears it. */
   stopFindInPage: 'browser:stop-find-in-page' as InvokeChannel<[tabId?: string, options?: { activateMatch?: boolean; clearSelection?: boolean }], void>,
+  /** Shell → main: sends a key pressed in the Find field on to the tab's page, which scrolls it, as Chrome's find bar does. */
+  forwardFindKey: 'browser:forward-find-key' as InvokeChannel<[tabId: string, key: BrowserFindPageKey], void>,
   /** Shell → main: zooms the page in, out, back to its default or to a percent. */
   setZoom: 'browser:set-zoom' as InvokeChannel<[options: BrowserZoomOptions], BrowserState>,
   /** Shell → main: saves the page as a PDF. */

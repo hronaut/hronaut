@@ -15,6 +15,7 @@ export const navigationApi: HronautNavigationApi = {
   stop: (tabId) => invoke(NAVIGATION_IPC.stop, tabId),
   findInPage: (options) => invoke(NAVIGATION_IPC.findInPage, options),
   stopFindInPage: (tabId, options) => invoke(NAVIGATION_IPC.stopFindInPage, tabId, options),
+  forwardFindKey: (tabId, key) => invoke(NAVIGATION_IPC.forwardFindKey, tabId, key),
   setZoom: (options) => invoke(NAVIGATION_IPC.setZoom, options),
   savePdf: (options = {}) => invoke(NAVIGATION_IPC.savePdf, options),
   toggleDevTools: (tabId) => invoke(NAVIGATION_IPC.toggleDevTools, tabId),
