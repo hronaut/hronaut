@@ -123,6 +123,31 @@ describe('the workspace storage, wait, screenshot, scroll, full screen, favicon 
     expect(exitFullscreen).toHaveBeenCalledTimes(2)
   })
 
+  // Once a page out of view was shown, an event with no element in full screen came before the one of its entering,
+  // and the page then kept a full screen it was refused, in its card.
+  it('passes over a full screen change that finds no element in full screen, and leaves on the next one', async () => {
+    vi.useFakeTimers()
+    const exitFullscreen = vi.fn(async () => undefined)
+    stub(document, 'exitFullscreen', exitFullscreen)
+    stub(document, 'fullscreenElement', null)
+    const waiting = run<Promise<boolean>>(pageScript(exitFullscreenInPage))
+    document.dispatchEvent(new Event('fullscreenchange'))
+    vi.advanceTimersByTime(1_000)
+    expect(exitFullscreen).not.toHaveBeenCalled()
+    stub(document, 'fullscreenElement', document.body)
+    document.dispatchEvent(new Event('fullscreenchange'))
+    await expect(waiting).resolves.toBe(true)
+    // It stops listening once it leaves, and once it gives up.
+    document.dispatchEvent(new Event('fullscreenchange'))
+    stub(document, 'fullscreenElement', null)
+    const never = run<Promise<boolean>>(pageScript(exitFullscreenInPage))
+    vi.advanceTimersByTime(2_000)
+    await expect(never).resolves.toBe(false)
+    stub(document, 'fullscreenElement', document.body)
+    document.dispatchEvent(new Event('fullscreenchange'))
+    expect(exitFullscreen).toHaveBeenCalledOnce()
+  })
+
   it('gives a favicon that does not load as null', async () => {
     vi.useFakeTimers()
     const failed = run<Promise<unknown>>(pageScript(decodeFaviconInPage, 'data:image/png;base64,broken'))
