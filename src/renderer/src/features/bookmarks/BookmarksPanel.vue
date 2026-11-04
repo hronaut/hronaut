@@ -315,7 +315,8 @@ function handleRenameKeydown(event: KeyboardEvent, bookmarkId: string): void {
   if (isImeCompositionEvent(event)) return
   if (event.key === 'Enter') {
     event.preventDefault()
-    void commitRename(bookmarkId)
+    // The Enter held on Rename or Edit address repeats into the field it opens, which would save it before the person types.
+    if (!event.repeat) void commitRename(bookmarkId)
   } else if (event.key === 'Escape') {
     event.preventDefault()
     cancelRename()
@@ -344,6 +345,7 @@ function handleRenameKeydown(event: KeyboardEvent, bookmarkId: string): void {
         <UiButton appearance="application"
           type="button"
           :disabled="!activeUrl || anyPending"
+          @keydown="ignoreHeldEnter"
           @click="toggleCurrentPage"
         >{{ currentBookmark ? t('bookmarks.removeCurrent') : t('bookmarks.addCurrent') }}</UiButton>
         <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('bookmarks.close')" @keydown="ignoreHeldEnter" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
@@ -410,12 +412,22 @@ function handleRenameKeydown(event: KeyboardEvent, bookmarkId: string): void {
           </span>
         </UiButton>
         <UiButton appearance="application" v-if="editingBookmarkId === bookmark.id" class="bookmark-action confirm" type="button" :disabled="anyPending" :aria-label="t(editingDestination ? 'bookmarks.saveDestinationAria' : 'bookmarks.saveAria', { title: bookmark.title })" v-tooltip="t(editingDestination ? 'bookmarks.saveDestination' : 'bookmarks.save')" @click="commitRename(bookmark.id)"><IconCheck aria-hidden="true" /></UiButton>
-        <UiButton appearance="application" v-else class="bookmark-action" type="button" :disabled="anyPending" :aria-label="t('bookmarks.renameAria', { title: bookmark.title })" v-tooltip="t('bookmarks.rename')" @click="beginRename(bookmark)"><IconEdit aria-hidden="true" /></UiButton>
-        <UiButton appearance="application" v-if="editingBookmarkId !== bookmark.id" class="bookmark-action bookmark-destination" type="button" :disabled="anyPending" :aria-label="t('bookmarks.destinationAria', { title: bookmark.title })" v-tooltip="t('bookmarks.destination')" @click="beginRename(bookmark, true)"><IconLink aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" v-else class="bookmark-action" type="button" :disabled="anyPending"
+          :aria-label="t('bookmarks.renameAria', { title: bookmark.title })"
+          v-tooltip="t('bookmarks.rename')"
+          @keydown="ignoreHeldEnter"
+          @click="beginRename(bookmark)"><IconEdit aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" v-if="editingBookmarkId !== bookmark.id" class="bookmark-action bookmark-destination" type="button"
+          :disabled="anyPending"
+          :aria-label="t('bookmarks.destinationAria', { title: bookmark.title })"
+          v-tooltip="t('bookmarks.destination')"
+          @keydown="ignoreHeldEnter"
+          @click="beginRename(bookmark, true)"><IconLink aria-hidden="true" /></UiButton>
         <UiButton appearance="application" v-if="editingBookmarkId !== bookmark.id" class="bookmark-action bookmark-background" type="button"
           :aria-disabled="anyPending"
           :aria-label="t('bookmarks.backgroundAria', { title: bookmark.title })"
           v-tooltip="t('bookmarks.background')"
+          @keydown="ignoreHeldEnter"
           @click="!anyPending && openInBackground(bookmark)"><IconBackground aria-hidden="true" /></UiButton>
         <UiButton appearance="application" v-if="editingBookmarkId !== bookmark.id" class="bookmark-action bookmark-copy-address" type="button"
           :aria-disabled="anyPending"

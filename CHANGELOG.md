@@ -14,6 +14,7 @@ All notable changes to Hronaut are documented in this file.
 - Switching tabs hides Find and the tab shown again brings it back with its text, its count and the match it was on, as in Chrome, also after Home; it closed Find and ended the page's search, so coming back meant searching again.
 - Coming back to a tab you left with the keyboard in the address field or Find's field, such as with Ctrl+Tab, gives that field the keyboard again, as in Chrome: the address field has the text and selection it had and shows no suggestions until you type, and Find's field has its text selected; the page took the keyboard.
 - `browser_press` with `Shift+F10` in a page the person had not locked opened Hronaut's page menu as the person's own, at their pointer and over whatever tab they were on, where Paste would give the agent's page their clipboard; on Windows and Linux it now needs a page locked in the trusted UI, where only the page's own menu opens.
+- Holding Enter on Add current or Remove current in Bookmarks, on a bookmark's Rename or Edit address, or on Open in background in Bookmarks or History pressed it again with each repeat until the key was let go: the bookmark was removed and added anew without its name or collection, the name or address field opened and closed, and one more tab opened each time; a held Enter now presses it once, as it does Remove.
 
 ## [3.14.11] - 2026-11-04
 
