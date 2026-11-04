@@ -237,6 +237,37 @@ describe('browserShortcutAction', () => {
     }
   })
 
+  // Chrome zooms out with Ctrl+Shift and the minus key elsewhere than macOS, as it zooms in with Ctrl+Shift+=, once the
+  // page leaves the key alone, as JupyterLab doesn't when it splits a cell with it; Hronaut did nothing with it.
+  it('zooms out with Ctrl+Shift+Minus elsewhere than macOS once the page leaves it alone, as Chrome does', () => {
+    const minus = (keys: Partial<BrowserShortcutInput>) => {
+      const pressed = input({ control: true, shift: true, ...keys })
+      return { browser: browserShortcutAction(pressed), kept: websiteKeptShortcutAction(pressed) }
+    }
+    expect(minus({ key: '_', code: 'Minus' })).toEqual({ browser: null, kept: 'zoom-out' })
+    // A German keyboard has its minus key where a US keyboard has /; Hronaut's window also gives the minus key's code.
+    expect(minus({ key: '_', code: 'Slash' })).toEqual({ browser: null, kept: 'zoom-out' })
+    expect(minus({ key: '_', code: 'Slash', keyCode: 189 })).toEqual({ browser: null, kept: 'zoom-out' })
+    // A layout whose minus key types another script's character with Shift, as Devanagari InScript does.
+    expect(minus({ key: 'ः', code: 'Minus' })).toEqual({ browser: null, kept: 'zoom-out' })
+    expect(minus({ key: 'ः', code: 'Minus', keyCode: 189 })).toEqual({ browser: null, kept: 'zoom-out' })
+    // A Japanese keyboard's minus key types = with Shift, which zoomed in; its \ key types _ and is no zoom key.
+    expect(minus({ key: '=', code: 'Minus' })).toEqual({ browser: null, kept: 'zoom-out' })
+    expect(minus({ key: '=', code: 'Minus', keyCode: 189 })).toEqual({ browser: null, kept: 'zoom-out' })
+    expect(minus({ key: '_', code: 'IntlRo' })).toEqual({ browser: null, kept: null })
+    expect(minus({ key: '_', code: 'IntlRo', keyCode: 226 })).toEqual({ browser: null, kept: null })
+    // Ctrl+Shift+= still zooms in, and Shift with the keypad's minus is no key, as in Chrome.
+    expect(minus({ key: '+', code: 'Equal', keyCode: 187 })).toEqual({ browser: 'zoom-in', kept: null })
+    expect(minus({ key: '-', code: 'NumpadSubtract', keyCode: 109 })).toEqual({ browser: null, kept: null })
+    expect(minus({ key: '_', code: 'Minus', repeat: true })).toEqual({ browser: null, kept: null })
+    expect(minus({ key: '_', code: 'Minus', alt: true })).toEqual({ browser: null, kept: null })
+    // AZERTY types _ on the 8 key without Shift, which goes by its digit.
+    expect(minus({ key: '8', code: 'Digit8' })).toEqual({ browser: null, kept: null })
+    // Not with Super or the Windows key, nor on macOS, where Chrome has no such key.
+    expect(minus({ key: '_', code: 'Minus', control: false, meta: true })).toEqual({ browser: null, kept: null })
+    expect(minus({ key: '_', code: 'Minus', control: false, meta: true, mac: true })).toEqual({ browser: null, kept: null })
+  })
+
   // Electron reports the character the layout types, so with a Russian or Ukrainian layout on Ctrl+L came as Ctrl+д and
   // no browser key worked. Chrome goes by the key's place on a US keyboard for such layouts.
   it.each([

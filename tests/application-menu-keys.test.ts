@@ -63,7 +63,7 @@ function press(accelerator: string, mac: boolean): BrowserShortcutInput {
   else throw new Error(`Unknown key in ${accelerator}`)
   const shift = modifiers.has('Shift') || key.shift === true
   return {
-    key: shift && key.key === '/' ? '?' : key.key,
+    key: shift && key.key === '/' ? '?' : shift && key.key === '-' ? '_' : key.key,
     code: key.code,
     control: modifiers.has('Ctrl') || (!mac && modifiers.has('CmdOrCtrl')),
     meta: modifiers.has('Cmd') || (mac && modifiers.has('CmdOrCtrl')),

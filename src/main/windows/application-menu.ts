@@ -98,8 +98,8 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
   // Chrome's keys a website may keep (websiteKeptShortcutAction). As keys of the menu they reach it only when the
   // website or field in focus leaves them alone, and never from an agent; typed in a panel in its own window, they
   // would act on a page out of view. Hronaut's window runs them itself, so one it leaves alone, as under one of its
-  // dialogs or the command palette, does nothing here either. Hidden, because Reload, the address bar and the Edit
-  // menu's Find Next and Find Previous already show their main keys. On macOS only the keys that move the tab are
+  // dialogs or the command palette, does nothing here either. Hidden, because Reload, the address bar, Zoom Out and the
+  // Edit menu's Find Next and Find Previous already show their main keys. On macOS only the keys that move the tab are
   // Chrome's there.
   function websiteKeptKeys(): MenuItemConstructorOptions[] {
     const stopLoading = (): void => host.runNativeBrowserAction('stop loading the page', () => withBrowser(stopFocusedPageLoading))
@@ -140,7 +140,9 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
         item(host.text('runtime.shortcuts.directTab'), accelerator, `select-tab-${position}` as const)
       ))),
       item(host.text('runtime.shortcuts.lastTab'), 'Ctrl+9', 'select-last-tab'),
-      item(host.text('runtime.shortcuts.lastTab'), 'Ctrl+num9', 'select-last-tab')
+      item(host.text('runtime.shortcuts.lastTab'), 'Ctrl+num9', 'select-last-tab'),
+      // Not Zoom Out's own label, which names the visible item.
+      item(host.text('zoom.out'), 'Ctrl+Shift+-', 'zoom-out')
     ]
   }
 
