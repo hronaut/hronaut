@@ -36,7 +36,7 @@ const result = ref<BrowserFindResult>({ activeMatchOrdinal: 0, matches: 0 })
 let targetTabId: string | undefined
 let requestSequence = 0
 
-async function search(forward: boolean, newSearch: boolean): Promise<void> {
+async function search(forward: boolean, newSearch: boolean, fromSelectionStart = false): Promise<void> {
   const tabId = targetTabId
   const normalizedQuery = query.value.slice(0, MAX_FIND_QUERY_LENGTH)
   if (normalizedQuery !== query.value) query.value = normalizedQuery
@@ -46,7 +46,8 @@ async function search(forward: boolean, newSearch: boolean): Promise<void> {
   if (!tabId) return
   if (!normalizedQuery) {
     result.value = { activeMatchOrdinal: 0, matches: 0 }
-    await props.browser.stopFindInPage(tabId).catch(() => undefined)
+    // As in Chrome, emptying the field clears the page's selection, where closing Find keeps the match selected.
+    await props.browser.stopFindInPage(tabId, { clearSelection: true }).catch(() => undefined)
     return
   }
   try {
@@ -55,7 +56,8 @@ async function search(forward: boolean, newSearch: boolean): Promise<void> {
       query: normalizedQuery,
       forward,
       findNext: newSearch,
-      caseSensitive: caseSensitive.value
+      caseSensitive: caseSensitive.value,
+      ...(fromSelectionStart ? { fromSelectionStart } : {})
     })
     if (sequence === requestSequence && tabId === targetTabId) result.value = next
   } catch {
@@ -101,7 +103,7 @@ function handleBarKeydown(event: KeyboardEvent): void {
   }
   if (event.key !== 'Escape') return
   event.preventDefault()
-  void close({ returnKeyboard: true })
+  void close({ keepMatch: true, returnKeyboard: true })
 }
 
 // A click on the count or between the controls focuses the bar itself, which takes focus only that way, so the
@@ -129,12 +131,14 @@ async function activate(tab: BrowserTabState | undefined): Promise<void> {
   if (!open.value || targetTabId !== tab.id || props.activeTab?.id !== tab.id) return
   input.value?.focus()
   input.value?.select()
-  if (shouldRepeatQuery) await search(true, true)
+  // As in Chrome, Find opening again finds the match it closed on, which the page keeps selected.
+  if (shouldRepeatQuery) await search(true, true, true)
 }
 
 // As in Chrome, in an open bar Find takes the keyboard to its field and selects its text, leaving the current match
 // where it is, and Find Next and Find Previous go to the next or previous match as Enter and Shift+Enter do in the
-// field. With Find closed, each opens it and searches for its last text again, Find Previous backwards.
+// field. With Find closed, each opens it and searches for its last text again: Find from the match it closed on,
+// which the page keeps selected, and Find Next and Find Previous from the match after or before it.
 async function openForTab(tab: BrowserTabState | undefined = props.activeTab, again?: 'next' | 'previous'): Promise<void> {
   if (!tab) return
   const forward = again !== 'previous'
@@ -151,10 +155,10 @@ async function openForTab(tab: BrowserTabState | undefined = props.activeTab, ag
   if (!open.value || targetTabId !== tab.id || props.activeTab?.id !== tab.id) return
   input.value?.focus()
   input.value?.select()
-  if (shouldRepeatQuery) await search(forward, true)
+  if (shouldRepeatQuery) await search(forward, true, again === undefined)
 }
 
-async function cleanup(options: { activateMatch?: boolean } = {}): Promise<void> {
+async function cleanup(options: { activateMatch?: boolean; keepMatch?: boolean } = {}): Promise<void> {
   const tabId = targetTabId
   requestSequence += 1
   targetTabId = undefined
@@ -162,14 +166,20 @@ async function cleanup(options: { activateMatch?: boolean } = {}): Promise<void>
   searchFailed.value = false
   result.value = { activeMatchOrdinal: 0, matches: 0 }
   if (!tabId) return
-  const stopped = options.activateMatch ? props.browser.stopFindInPage(tabId, { activateMatch: true }) : props.browser.stopFindInPage(tabId)
+  // The person closing Find leaves its match selected, as in Chrome. Find closing for another reason, such as another
+  // tab, another page or a panel opening, ends the search without selecting the match, which would move the page's
+  // focus to the link it is in.
+  const stopped = options.activateMatch
+    ? props.browser.stopFindInPage(tabId, { activateMatch: true })
+    : options.keepMatch ? props.browser.stopFindInPage(tabId) : props.browser.stopFindInPage(tabId, { clearSelection: true })
   await stopped.catch(() => undefined)
 }
 
-async function close(options: { activateMatch?: boolean; returnKeyboard?: boolean } = {}): Promise<void> {
+async function close(options: { activateMatch?: boolean; keepMatch?: boolean; returnKeyboard?: boolean } = {}): Promise<void> {
   open.value = false
-  // The person closing Find gives the keyboard back to the page, as in Chrome. Main lets the page have it once nothing
-  // covers it, and drops the repeats of a key still held from the shell, so a held Escape or Enter goes no further.
+  // The person closing Find from the bar gives the keyboard back to the page, as in Chrome. Main lets the page have it
+  // once nothing covers it, and drops the repeats of a key still held from the shell, so a held Escape or Enter goes no
+  // further.
   if (options.returnKeyboard) void props.browser.focusActivePage().catch(() => undefined)
   await cleanup(options)
 }
@@ -248,7 +258,7 @@ defineExpose({ close, openForTab })
       <IconKeyboardArrowDown aria-hidden="true" />
     </UiButton>
     <UiButton appearance="application" class="find-action" type="button" v-tooltip="t('find.closeTitle')" :aria-label="t('find.close')"
-      @click="close({ returnKeyboard: true })">
+      @click="close({ keepMatch: true, returnKeyboard: true })">
       <IconClose aria-hidden="true" />
     </UiButton>
   </div>

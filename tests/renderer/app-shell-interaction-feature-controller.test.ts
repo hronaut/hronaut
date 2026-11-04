@@ -85,6 +85,7 @@ function createHarness(extraNavigation: {
   const toggleTaskManager = vi.fn()
   const cancelTrustedDialog = vi.fn()
   const closeAgentSteps = vi.fn()
+  const closeFind = vi.fn(async (_options?: { keepMatch?: boolean }) => undefined)
   const closeResponsivePreview = vi.fn()
   const reportActionError = vi.fn()
   const reportShortcutError = vi.fn()
@@ -173,7 +174,7 @@ function createHarness(extraNavigation: {
       agentStepsOpen: refs.agentSteps,
       closeAgentSteps,
       openFindForTab: asyncNoop,
-      closeFind: asyncNoop,
+      closeFind,
       closeWorkspace: noop,
       setZoom: asyncNoop
     },
@@ -235,6 +236,7 @@ function createHarness(extraNavigation: {
     toggleTaskManager,
     cancelTrustedDialog,
     closeAgentSteps,
+    closeFind,
     closeResponsivePreview,
     reportActionError,
     reportShortcutError
@@ -287,6 +289,16 @@ describe('app shell interaction feature controller', () => {
       expect(close, surface).toHaveBeenCalledOnce()
       harness.refs[surface].value = false
     }
+    harness.controller.dispose()
+  })
+
+  it('closes Find with the person\'s Escape from elsewhere in the window, keeping its match', () => {
+    const harness = createHarness()
+    harness.refs.find.value = true
+
+    harness.controller.handleKeyDown(new KeyboardEvent('keydown', { key: 'Escape', cancelable: true }))
+
+    expect(harness.closeFind).toHaveBeenCalledExactlyOnceWith({ keepMatch: true })
     harness.controller.dispose()
   })
 

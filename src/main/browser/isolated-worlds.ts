@@ -39,7 +39,8 @@ export const ISOLATED_WORLDS = {
   suggestedPassword: 1032,
   mediaPlayerAction: 1033,
   tabSleep: 1034,
-  findMatchClick: 1035
+  findMatchClick: 1035,
+  findFromSelection: 1036
 } as const satisfies Record<string, number>
 
 export type IsolatedWorldName = keyof typeof ISOLATED_WORLDS

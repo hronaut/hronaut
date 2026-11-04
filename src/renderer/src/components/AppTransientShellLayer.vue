@@ -123,7 +123,7 @@ interface TabSearchSurface {
 
 interface FindSurface {
   openForTab: (tab: BrowserTabState, again?: 'next' | 'previous') => Promise<void>
-  close: () => Promise<void>
+  close: (options?: { keepMatch?: boolean }) => Promise<void>
 }
 
 interface ZoomSurface {
@@ -197,8 +197,8 @@ async function openFindForTab(tab: BrowserTabState, again?: 'next' | 'previous')
   await findBar.value?.openForTab(tab, again)
 }
 
-async function closeFind(): Promise<void> {
-  await findBar.value?.close()
+async function closeFind(options: { keepMatch?: boolean } = {}): Promise<void> {
+  await findBar.value?.close(options)
 }
 
 async function openZoomForTab(tab: BrowserTabState): Promise<void> {

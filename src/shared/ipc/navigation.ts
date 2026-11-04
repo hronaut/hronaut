@@ -31,8 +31,8 @@ export const NAVIGATION_IPC = {
   stop: 'browser:stop' as InvokeChannel<[tabId?: string], BrowserState>,
   /** Shell → main: finds the text in the page, or the next or previous match. */
   findInPage: 'browser:find-in-page' as InvokeChannel<[options: BrowserFindOptions], BrowserFindResult>,
-  /** Shell → main: ends the search; with activateMatch, also clicks the active match. */
-  stopFindInPage: 'browser:stop-find-in-page' as InvokeChannel<[tabId?: string, options?: { activateMatch?: boolean }], void>,
+  /** Shell → main: ends the search, leaving the active match selected; activateMatch clicks it, clearSelection clears it. */
+  stopFindInPage: 'browser:stop-find-in-page' as InvokeChannel<[tabId?: string, options?: { activateMatch?: boolean; clearSelection?: boolean }], void>,
   /** Shell → main: zooms the page in, out, back to its default or to a percent. */
   setZoom: 'browser:set-zoom' as InvokeChannel<[options: BrowserZoomOptions], BrowserState>,
   /** Shell → main: saves the page as a PDF. */
