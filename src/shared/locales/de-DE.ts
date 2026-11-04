@@ -4285,6 +4285,7 @@ export const deDE: MessageSchema = {
     errors: {
       clipboard: 'Die Systemzwischenablage hat den Text nicht angenommen.',
       tabUnavailable: 'Der Tab ist nicht mehr verfügbar.',
+      tabNotShown: 'Der Tab wird nicht mehr angezeigt.',
       actionFailed: 'Die angeforderte Browseraktion konnte nicht abgeschlossen werden.',
       screenshotCreate: 'Das ausgewählte Bildschirmfoto konnte nicht erstellt werden',
       linuxSecrets: 'Hronaut hat auf diesem Computer keinen nutzbaren Schlüsselbund wie GNOME Keyring oder KDE Wallet gefunden und speichert daher keine Passwörter und Schlüssel. Starten oder installieren Sie einen und starten Sie Hronaut dann neu.',

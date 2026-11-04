@@ -4285,6 +4285,7 @@ export const itIT: MessageSchema = {
     errors: {
       clipboard: 'Gli appunti di sistema non hanno accettato il testo.',
       tabUnavailable: 'La scheda non è più disponibile.',
+      tabNotShown: 'La scheda non è più visualizzata.',
       actionFailed: 'Impossibile completare l’azione del browser richiesta.',
       screenshotCreate: 'Impossibile creare lo screenshot selezionato',
       linuxSecrets: 'Hronaut non ha trovato su questo computer un portachiavi utilizzabile, come GNOME Keyring o KDE Wallet, quindi non salva password e chiavi. Avviane o installane uno, quindi riavvia Hronaut.',

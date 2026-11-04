@@ -5,12 +5,13 @@ import { showContextMenu } from './page-context-menu.js'
 
 /**
  * Replaces the page's own context menu with Hronaut's on every right-click;
- * while the person's input to the tab is locked, no menu opens.
+ * while the person's input to the tab is locked, no menu opens. Following an
+ * agent waits while the menu is open, so the page its items act on stays in view.
  */
 export function attachPageContextMenuEvents(browser: Browser, tab: BrowserTab, webContents: WebContents): void {
   webContents.on('context-menu', (event, params) => {
     event.preventDefault()
     if (browser.isHumanInteractionLocked(tab)) return
-    showContextMenu(browser, tab, params)
+    showContextMenu(browser, tab, params, () => browser.mcpActivityFollower.pageMenuOpened())
   })
 }

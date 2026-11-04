@@ -15,6 +15,7 @@ All notable changes to Hronaut are documented in this file.
 - Coming back to a tab you left with the keyboard in the address field or Find's field, such as with Ctrl+Tab, gives that field the keyboard again, as in Chrome: the address field has the text and selection it had and shows no suggestions until you type, and Find's field has its text selected; the page took the keyboard.
 - `browser_press` with `Shift+F10` in a page the person had not locked opened Hronaut's page menu as the person's own, at their pointer and over whatever tab they were on, where Paste would give the agent's page their clipboard; on Windows and Linux it now needs a page locked in the trusted UI, where only the page's own menu opens.
 - Holding Enter on Add current or Remove current in Bookmarks, on a bookmark's Rename or Edit address, or on Open in background in Bookmarks or History pressed it again with each repeat until the key was let go: the bookmark was removed and added anew without its name or collection, the name or address field opened and closed, and one more tab opened each time; a held Enter now presses it once, as it does Remove.
+- With Follow agents on, a page's context menu left open longer than following waits after a click had an agent's tab brought into view under it, and its items, such as Paste, then acted on the page that had left the view. Following now waits while the menu is open and for a few seconds after it closes, and an item whose page is no longer shown says so instead of acting on it.
 
 ## [3.14.11] - 2026-11-04
 

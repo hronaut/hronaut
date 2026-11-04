@@ -4285,6 +4285,7 @@ export const idID: MessageSchema = {
     errors: {
       clipboard: 'Papan klip sistem tidak menerima teks.',
       tabUnavailable: 'Tab tersebut sudah tidak tersedia.',
+      tabNotShown: 'Tab tersebut sudah tidak ditampilkan.',
       actionFailed: 'Tindakan browser yang diminta tidak dapat diselesaikan.',
       screenshotCreate: 'Tidak dapat membuat screenshot yang dipilih',
       linuxSecrets: 'Hronaut tidak menemukan keyring yang dapat digunakan di komputer ini, seperti GNOME Keyring atau KDE Wallet, sehingga sandi dan kunci tidak disimpan. Mulai atau instal keyring, lalu mulai ulang Hronaut.',

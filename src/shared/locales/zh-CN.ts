@@ -4285,6 +4285,7 @@ export const zhCN: MessageSchema = {
     errors: {
       clipboard: '系统剪贴板未接受该文本。',
       tabUnavailable: '该标签页已不可用。',
+      tabNotShown: '该标签页已不再显示。',
       actionFailed: '无法完成所请求的浏览器操作。',
       screenshotCreate: '无法创建所选的屏幕截图',
       linuxSecrets: 'Hronaut 在此计算机上找不到可用的密钥环（例如 GNOME Keyring 或 KDE Wallet），因此不会保存密码和密钥。请启动或安装一个密钥环，然后重启 Hronaut。',

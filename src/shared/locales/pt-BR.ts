@@ -4285,6 +4285,7 @@ export const ptBR: MessageSchema = {
     errors: {
       clipboard: 'A área de transferência do sistema não aceitou o texto.',
       tabUnavailable: 'A guia não está mais disponível.',
+      tabNotShown: 'A guia não está mais sendo exibida.',
       actionFailed: 'Não foi possível concluir a ação solicitada no navegador.',
       screenshotCreate: 'Não foi possível criar a captura de tela selecionada',
       linuxSecrets: 'O Hronaut não encontrou neste computador nenhum chaveiro que possa usar, como o GNOME Keyring ou o KDE Wallet, então não salva senhas nem chaves. Inicie ou instale um e reinicie o Hronaut.',
