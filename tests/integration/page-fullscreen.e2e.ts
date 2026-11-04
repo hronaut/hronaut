@@ -5,16 +5,23 @@ import { answerEveryTrustedDialog } from './trusted-dialog-fixture.js'
 
 const TITLE = 'Fullscreen video'
 
-async function openVideoPage(appWindow: Page, electronApp: ElectronApplication): Promise<{ server: ReturnType<typeof createServer>, origin: string }> {
+async function openVideoPage(
+  appWindow: Page,
+  electronApp: ElectronApplication,
+  path = ''
+): Promise<{ server: ReturnType<typeof createServer>, origin: string }> {
+  const video = '<video id="video" style="width:320px;height:180px;background:#000"></video>'
   const server = createServer((request, response) => {
     response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
     response.end(request.url === '/popup'
       ? '<!doctype html><title>Popup</title>'
-      : `<!doctype html><title>${TITLE}</title><video id="video" style="width:320px;height:180px;background:#000"></video>`)
+      : request.url === '/player'
+        ? `<!doctype html><title>${TITLE}</title><div id="player">${video}</div>`
+        : `<!doctype html><title>${TITLE}</title>${video}`)
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()))
   const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`
-  await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(origin)}, active: true })`)
+  await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(origin + path)}, active: true })`)
   await expect.poll(() => electronApp.evaluate(({ webContents }, title) => (
     webContents.getAllWebContents().some((contents) => contents.getTitle() === title && !contents.isLoading())
   ), TITLE)).toBe(true)
@@ -47,14 +54,14 @@ function videoTabId(appWindow: Page): Promise<string> {
   ) as Promise<string>
 }
 
-function requestFullscreen(electronApp: ElectronApplication): Promise<string> {
-  return electronApp.evaluate(async ({ webContents }, title) => {
+function requestFullscreen(electronApp: ElectronApplication, elementId = 'video'): Promise<string> {
+  return electronApp.evaluate(async ({ webContents }, { title, elementId }) => {
     const page = webContents.getAllWebContents().find((contents) => contents.getTitle() === title)!
     return page.executeJavaScript(
-      'document.getElementById("video").requestFullscreen().then(() => "entered", (error) => error.name)',
+      `document.getElementById(${JSON.stringify(elementId)}).requestFullscreen().then(() => "entered", (error) => error.name)`,
       true
     ) as Promise<string>
-  }, TITLE)
+  }, { title: TITLE, elementId })
 }
 
 test('gives a video in full screen the whole window and puts the page back in its card when it leaves', async ({
@@ -94,6 +101,27 @@ test('takes a page out of full screen when another tab is selected', async ({ ap
       BrowserWindow.getAllWindows().find((candidate) => candidate.isVisible())!.isFullScreen()
     ))).toBe(false)
     // Back on the video, the page is in its card and no longer in full screen.
+    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
+    await expect.poll(() => fullscreenState(electronApp)).toEqual(before)
+  } finally {
+    await closeFixtureServer(server)
+  }
+})
+
+test('takes a page out of every full screen it nested when another tab is selected', async ({ appWindow, electronApp }) => {
+  // Leaving took only the video out of full screen, inside a player that stayed in it, so the window stayed in full
+  // screen over the new tab.
+  const { server } = await openVideoPage(appWindow, electronApp, '/player')
+  try {
+    const before = await fullscreenState(electronApp)
+    const tabId = await videoTabId(appWindow)
+    expect(await requestFullscreen(electronApp, 'player')).toBe('entered')
+    await expect.poll(async () => (await fullscreenState(electronApp)).windowFullScreen).toBe(true)
+    expect(await requestFullscreen(electronApp, 'video')).toBe('entered')
+    await appWindow.evaluate("window.hronaut.newTab({ url: 'about:blank', active: true })")
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => (
+      BrowserWindow.getAllWindows().find((candidate) => candidate.isVisible())!.isFullScreen()
+    ))).toBe(false)
     await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
     await expect.poll(() => fullscreenState(electronApp)).toEqual(before)
   } finally {

@@ -107,7 +107,7 @@ describe('the workspace storage, wait, screenshot, scroll, full screen, favicon 
 
   it('leaves full screen, waits for it when the document has not shown it yet, and gives up after 2 seconds', async () => {
     vi.useFakeTimers()
-    const exitFullscreen = vi.fn(async () => undefined)
+    const exitFullscreen = vi.fn(async () => { stub(document, 'fullscreenElement', null) })
     stub(document, 'exitFullscreen', exitFullscreen)
     stub(document, 'fullscreenElement', document.body)
     await expect(run<Promise<boolean>>(pageScript(exitFullscreenInPage))).resolves.toBe(true)
@@ -123,11 +123,31 @@ describe('the workspace storage, wait, screenshot, scroll, full screen, favicon 
     expect(exitFullscreen).toHaveBeenCalledTimes(2)
   })
 
+  // Each exit leaves only the element in full screen inside another, so the page kept full screen and the window too.
+  it('leaves every element a page put in full screen inside another, and gives up on one that stays after 16', async () => {
+    const outer = document.createElement('div')
+    const inner = document.createElement('video')
+    const inFullScreen = [outer, inner]
+    Object.defineProperty(document, 'fullscreenElement', { configurable: true, get: () => inFullScreen.at(-1) ?? null })
+    cleanups.push(() => { Reflect.deleteProperty(document, 'fullscreenElement') })
+    const exitFullscreen = vi.fn(async () => { inFullScreen.pop() })
+    stub(document, 'exitFullscreen', exitFullscreen)
+    await expect(run<Promise<boolean>>(pageScript(exitFullscreenInPage))).resolves.toBe(true)
+    expect(exitFullscreen).toHaveBeenCalledTimes(2)
+    expect(inFullScreen).toEqual([])
+    // A page that puts an element back in full screen each time it leaves is left to the next ask.
+    const stays = vi.fn(async () => undefined)
+    stub(document, 'exitFullscreen', stays)
+    inFullScreen.push(outer)
+    await expect(run<Promise<boolean>>(pageScript(exitFullscreenInPage))).resolves.toBe(false)
+    expect(stays).toHaveBeenCalledTimes(16)
+  })
+
   // Once a page out of view was shown, an event with no element in full screen came before the one of its entering,
   // and the page then kept a full screen it was refused, in its card.
   it('passes over a full screen change that finds no element in full screen, and leaves on the next one', async () => {
     vi.useFakeTimers()
-    const exitFullscreen = vi.fn(async () => undefined)
+    const exitFullscreen = vi.fn(async () => { stub(document, 'fullscreenElement', null) })
     stub(document, 'exitFullscreen', exitFullscreen)
     stub(document, 'fullscreenElement', null)
     const waiting = run<Promise<boolean>>(pageScript(exitFullscreenInPage))
