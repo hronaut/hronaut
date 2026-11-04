@@ -2,6 +2,7 @@ import type { WebContents } from 'electron'
 import { MAX_FIND_QUERY_LENGTH } from '../../../shared/types.js'
 import { LocalizedError } from '../../localized-error.js'
 import type { Browser } from '../browser.js'
+import type { BrowserTab } from '../browser-tab.js'
 import { getTab } from '../browser-core.js'
 import { ISOLATED_WORLDS } from '../isolated-worlds.js'
 import { pageScriptsRunNow } from '../page-script-readiness.js'
@@ -9,24 +10,24 @@ import { pageScriptsRunNow } from '../page-script-readiness.js'
 /** The document each page's latest search ran in, by its tab's document generation. */
 const searchedDocuments = new WeakMap<WebContents, number>()
 
-/** Each page's latest request to search or to end the search, which supersedes an earlier search still preparing. */
-const latestRequests = new WeakMap<WebContents, object>()
+/** Each page's selection collapsing for a search, which the page's later searches and the search's end follow. */
+const collapsing = new WeakMap<WebContents, Promise<void>>()
 
-// Collapses the page's selection to its start, and does nothing else. It runs in a world of its own, so the page
+// Collapses the main frame's selection to its start, and does nothing else. It runs in a world of its own, so the page
 // cannot change what it does.
 const COLLAPSE_SELECTION_SCRIPT = 'void (getSelection()?.rangeCount ? getSelection().collapseToStart() : undefined)'
 
-// How long a search waits for the page to collapse its selection. A page whose script cannot run soon, such as one
-// busy with its own work, is searched anyway, from after its selection.
+// How long a search waits for the page to answer that it collapsed its selection. The script is on its way to the
+// page by then, ahead of the search, so a page busy with its own work runs it first, and Find only stops waiting.
 const COLLAPSE_SELECTION_WAIT_MS = 300
 
 /**
  * Finds the query in the tab's page, forward and to the next match unless
  * told otherwise, superseding the page's earlier search, and reports the
- * active match and the match count. A new search goes on from after the page's
- * selection, as Chromium searches; fromSelectionStart searches from its start
- * instead, so a selected match is found itself, as Chrome finds the match its
- * find bar closed on when it opens again.
+ * active match and the match count. A new search in Chromium skips a selected
+ * match it starts from, so it goes on to the next one; fromSelectionStart
+ * collapses the selection first, so a selected match is found itself, as
+ * Chrome finds the match its find bar closed on when it opens again.
  */
 export async function findInPage(
   browser: Browser,
@@ -36,14 +37,20 @@ export async function findInPage(
   if (!query || query.length > MAX_FIND_QUERY_LENGTH) throw new LocalizedError('appErrors.page.findQuery')
   const tab = getTab(browser, options.tabId)
   const webContents = tab.webContents
-  const request = {}
-  latestRequests.set(webContents, request)
-  // Chrome finds the selected match itself by collapsing its search's starting point to the start, which Electron's
-  // search cannot ask for, so the page's selection is collapsed to its start.
+  const earlier = collapsing.get(webContents)
   if (options.fromSelectionStart === true && pageScriptsRunNow(webContents)) {
-    await collapseSelectionToStart(webContents)
-    if (latestRequests.get(webContents) !== request || webContents.isDestroyed()) throw new Error('Page search was cancelled or superseded')
+    // Chrome finds the selected match itself by collapsing its search's starting point to the start, which Electron's
+    // search cannot ask for, so the page's selection is collapsed to its start.
+    const collapsed = (earlier ?? Promise.resolve()).then(() => collapseSelectionToStart(webContents))
+    collapsing.set(webContents, collapsed)
+    await collapsed
+    if (collapsing.get(webContents) === collapsed) collapsing.delete(webContents)
+  } else if (earlier) {
+    // A search asked for meanwhile, such as Enter pressed as Find opens, follows the one the page collapses its
+    // selection for, as in Chrome, which sends that one at once.
+    await earlier
   }
+  if (webContents.isDestroyed()) throw new Error('Page search was cancelled or superseded')
   searchedDocuments.set(webContents, tab.documentGeneration)
   return browser.pageFind.search(webContents, query, {
     forward: options.forward ?? true,
@@ -78,7 +85,19 @@ export function stopFindInPage(
   options: { activateMatch?: boolean; clearSelection?: boolean } = {}
 ): void {
   const tab = getTab(browser, tabId)
-  latestRequests.set(tab.webContents, {})
+  // Ended while the page collapses its selection for Find opening again, the search ends once it went to the page, so
+  // the match it finds there is the one kept, as in Chrome, which sends that search at once.
+  const pending = collapsing.get(tab.webContents)
+  if (pending) {
+    void pending.then(() => {
+      if (!tab.webContents.isDestroyed() && browser.tabs.get(tab.id) === tab) endSearch(browser, tab, options)
+    })
+    return
+  }
+  endSearch(browser, tab, options)
+}
+
+function endSearch(browser: Browser, tab: BrowserTab, options: { activateMatch?: boolean; clearSelection?: boolean }): void {
   // Find closes once another document replaces the one it searched, which leaves nothing of the search on the page.
   // Clearing the selection then would clear the new page's own, such as one a page coming back from Back kept, so the
   // selection is kept, as Chrome does.

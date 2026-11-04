@@ -456,7 +456,8 @@ export function useAppShellInteractionFeatureController(
       siteStorage: surfaces.siteStorage,
       siteControls: surfaces.siteControls,
       addressSuggestions: surfaces.addressSuggestions,
-      find: { open: transient.findOpen, close: () => { void transient.closeFind() } },
+      // The person's Escape closing Find from elsewhere in Hronaut's window keeps its match, as Escape in the bar does.
+      find: { open: transient.findOpen, close: () => { void transient.closeFind({ keepMatch: true }) } },
       tabSearch: transient.tabSearchOpen,
       splitMenu: splitView.open,
       zoom: transient.zoomOpen,

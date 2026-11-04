@@ -42,7 +42,10 @@ export interface BrowserFindOptions {
   forward?: boolean
   findNext?: boolean
   caseSensitive?: boolean
-  /** Searches from the start of the page's selection, so a selected match is found itself, instead of from after it. */
+  /**
+   * Collapses the page's selection to its start first. A new Chromium search passes over a match that is the selection it
+   * starts from, so this finds a selected match itself instead of the one after it.
+   */
   fromSelectionStart?: boolean
 }
 

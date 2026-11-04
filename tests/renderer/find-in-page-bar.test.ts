@@ -625,8 +625,10 @@ describe('Find Next and Find Previous', () => {
       await flushPromises()
       await wrapper.find('input[type="search"]').setValue('needle')
       await flushPromises()
-      await wrapper.setProps({ open: false })
+      await wrapper.find('input[type="search"]').trigger('keydown', { key: 'Escape' })
       await flushPromises()
+      expect(wrapper.props('open')).toBe(false)
+      expect(browser.stopFindInPage).toHaveBeenCalledExactlyOnceWith('first')
       browser.findInPage.mockClear()
 
       await exposed.openForTab(activeTab)
@@ -634,6 +636,25 @@ describe('Find Next and Find Previous', () => {
       // From the start of the match Find closed on, which the page keeps selected, so that match is found again.
       expect(browser.findInPage).toHaveBeenCalledOnce()
       expect(browser.findInPage).toHaveBeenCalledWith({
+        tabId: 'first', query: 'needle', forward: true, findNext: true, caseSensitive: false, fromSelectionStart: true
+      })
+    } finally { wrapper.unmount() }
+  })
+
+  it('search for the last text again from the match Find closed on when Find opens another way', async () => {
+    const { wrapper, browser } = mountBar(true)
+    try {
+      await flushPromises()
+      await wrapper.find('input[type="search"]').setValue('needle')
+      await flushPromises()
+      await wrapper.find('input[type="search"]').trigger('keydown', { key: 'Escape' })
+      await flushPromises()
+      browser.findInPage.mockClear()
+
+      await wrapper.setProps({ open: true })
+      await flushPromises()
+
+      expect(browser.findInPage).toHaveBeenCalledExactlyOnceWith({
         tabId: 'first', query: 'needle', forward: true, findNext: true, caseSensitive: false, fromSelectionStart: true
       })
     } finally { wrapper.unmount() }

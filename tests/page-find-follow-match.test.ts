@@ -171,19 +171,61 @@ describe('searching from the start of the selection', () => {
     expect(vi.getTimerCount()).toBe(0)
   })
 
-  it('gives way to a newer search or the search ending while the selection collapses', async () => {
+  // Chrome sends the search for its reopened bar at once, so Enter pressed straight after goes on from the match it
+  // found, and Escape keeps that match.
+  it('sends a search or the search\'s end asked for while the selection collapses after the search it collapses for', async () => {
     const page = pageSearch()
+    const calls: string[] = []
+    let collapsed!: () => void
+    vi.mocked(page.tab.webContents.executeJavaScriptInIsolatedWorld)
+      .mockImplementation(() => new Promise((resolve) => { collapsed = () => { calls.push('collapsed'); resolve(undefined) } }))
+    vi.mocked(page.browser.pageFind.search).mockImplementation(async (_page, query, options) => {
+      calls.push(`search ${query} ${options.findNext ? 'new' : 'next'}`)
+      return { activeMatchOrdinal: 1, matches: 3 }
+    })
+    page.stopPageSearch.mockImplementation((_page, action) => { calls.push(`stop ${action}`); return true })
+
+    const reopened = findInPage(page.browser, 'needle', { tabId: 'tab', fromSelectionStart: true })
+    const next = findInPage(page.browser, 'needle', { tabId: 'tab', findNext: false })
+    stopFindInPage(page.browser, 'tab')
+    await vi.waitFor(() => expect(page.tab.webContents.executeJavaScriptInIsolatedWorld).toHaveBeenCalledOnce())
+    expect(calls).toEqual([])
+    collapsed()
+    await Promise.all([reopened, next])
+    await vi.waitFor(() => expect(calls).toHaveLength(4))
+    expect(calls).toEqual(['collapsed', 'search needle new', 'search needle next', 'stop keepSelection'])
+    // The match kept is the person's interaction, as for an end not kept waiting.
+    expect(page.onUserInteraction).toHaveBeenCalledOnce()
+
+    // Nothing waits once the collapse is over.
+    calls.length = 0
+    await findInPage(page.browser, 'needle', { tabId: 'tab', findNext: false })
+    stopFindInPage(page.browser, 'tab', { clearSelection: true })
+    expect(calls).toEqual(['search needle next', 'stop clearSelection'])
+  })
+
+  it('sends nothing to a page that went, or a tab that closed, while its selection collapsed', async () => {
+    const page = pageSearch()
+    let destroyed = false
+    Object.assign(page.tab.webContents, { isDestroyed: () => destroyed })
     let collapsed!: () => void
     vi.mocked(page.tab.webContents.executeJavaScriptInIsolatedWorld)
       .mockImplementation(() => new Promise((resolve) => { collapsed = () => resolve(undefined) }))
-    const superseded = findInPage(page.browser, 'needle', { tabId: 'tab', fromSelectionStart: true }).catch((error: Error) => error.message)
-    await findInPage(page.browser, 'other', { tabId: 'tab' })
+    const reopened = findInPage(page.browser, 'needle', { tabId: 'tab', fromSelectionStart: true }).catch((error: Error) => error.message)
+    stopFindInPage(page.browser, 'tab')
+    await vi.waitFor(() => expect(page.tab.webContents.executeJavaScriptInIsolatedWorld).toHaveBeenCalledOnce())
+    destroyed = true
     collapsed()
-    expect(await superseded).toBe('Page search was cancelled or superseded')
-    const stopped = findInPage(page.browser, 'needle', { tabId: 'tab', fromSelectionStart: true }).catch((error: Error) => error.message)
-    stopFindInPage(page.browser, 'tab', { clearSelection: true })
+    expect(await reopened).toBe('Page search was cancelled or superseded')
+    destroyed = false
+    const again = findInPage(page.browser, 'needle', { tabId: 'tab', fromSelectionStart: true })
+    stopFindInPage(page.browser, 'tab')
+    await vi.waitFor(() => expect(page.tab.webContents.executeJavaScriptInIsolatedWorld).toHaveBeenCalledTimes(2))
+    ;(page.browser.tabs as Map<string, unknown>).delete('tab')
     collapsed()
-    expect(await stopped).toBe('Page search was cancelled or superseded')
-    expect(vi.mocked(page.browser.pageFind.search).mock.calls.map(([, query]) => query)).toEqual(['other'])
+    await again
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(page.browser.pageFind.search).toHaveBeenCalledOnce()
+    expect(page.stopPageSearch).not.toHaveBeenCalled()
   })
 })

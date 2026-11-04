@@ -10,7 +10,8 @@ export interface AppTransientShellSurface {
   openTabSearch: () => Promise<void>
   closeTabSearch: () => void
   openFindForTab: (tab: BrowserTabState, again?: 'next' | 'previous') => Promise<void>
-  closeFind: () => Promise<void>
+  /** keepMatch: the person closed Find, which leaves its match selected in the page, as in Chrome. */
+  closeFind: (options?: { keepMatch?: boolean }) => Promise<void>
   openZoomForTab: (tab: BrowserTabState) => Promise<void>
   closeZoom: () => void
   setZoom: (action: ZoomAction) => Promise<void>
@@ -68,8 +69,8 @@ export function useAppTransientShellLayerController() {
     await layer.value?.openFindForTab(tab, again)
   }
 
-  async function closeFind(): Promise<void> {
-    await layer.value?.closeFind()
+  async function closeFind(options: { keepMatch?: boolean } = {}): Promise<void> {
+    await layer.value?.closeFind(options)
   }
 
   async function openCredentialPicker(): Promise<void> {

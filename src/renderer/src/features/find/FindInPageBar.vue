@@ -98,12 +98,12 @@ function handleBarKeydown(event: KeyboardEvent): void {
   if (isImeCompositionEvent(event) || event.defaultPrevented) return
   if (isFollowMatchKey(event)) {
     event.preventDefault()
-    void close({ activateMatch: true, byPerson: true })
+    void close({ activateMatch: true, returnKeyboard: true })
     return
   }
   if (event.key !== 'Escape') return
   event.preventDefault()
-  void close({ byPerson: true })
+  void close({ keepMatch: true, returnKeyboard: true })
 }
 
 // A click on the count or between the controls focuses the bar itself, which takes focus only that way, so the
@@ -158,7 +158,7 @@ async function openForTab(tab: BrowserTabState | undefined = props.activeTab, ag
   if (shouldRepeatQuery) await search(forward, true, again === undefined)
 }
 
-async function cleanup(options: { activateMatch?: boolean; byPerson?: boolean } = {}): Promise<void> {
+async function cleanup(options: { activateMatch?: boolean; keepMatch?: boolean } = {}): Promise<void> {
   const tabId = targetTabId
   requestSequence += 1
   targetTabId = undefined
@@ -171,15 +171,16 @@ async function cleanup(options: { activateMatch?: boolean; byPerson?: boolean } 
   // focus to the link it is in.
   const stopped = options.activateMatch
     ? props.browser.stopFindInPage(tabId, { activateMatch: true })
-    : options.byPerson ? props.browser.stopFindInPage(tabId) : props.browser.stopFindInPage(tabId, { clearSelection: true })
+    : options.keepMatch ? props.browser.stopFindInPage(tabId) : props.browser.stopFindInPage(tabId, { clearSelection: true })
   await stopped.catch(() => undefined)
 }
 
-async function close(options: { activateMatch?: boolean; byPerson?: boolean } = {}): Promise<void> {
+async function close(options: { activateMatch?: boolean; keepMatch?: boolean; returnKeyboard?: boolean } = {}): Promise<void> {
   open.value = false
-  // The person closing Find gives the keyboard back to the page, as in Chrome. Main lets the page have it once nothing
-  // covers it, and drops the repeats of a key still held from the shell, so a held Escape or Enter goes no further.
-  if (options.byPerson) void props.browser.focusActivePage().catch(() => undefined)
+  // The person closing Find from the bar gives the keyboard back to the page, as in Chrome. Main lets the page have it
+  // once nothing covers it, and drops the repeats of a key still held from the shell, so a held Escape or Enter goes no
+  // further.
+  if (options.returnKeyboard) void props.browser.focusActivePage().catch(() => undefined)
   await cleanup(options)
 }
 
@@ -257,7 +258,7 @@ defineExpose({ close, openForTab })
       <IconKeyboardArrowDown aria-hidden="true" />
     </UiButton>
     <UiButton appearance="application" class="find-action" type="button" v-tooltip="t('find.closeTitle')" :aria-label="t('find.close')"
-      @click="close({ byPerson: true })">
+      @click="close({ keepMatch: true, returnKeyboard: true })">
       <IconClose aria-hidden="true" />
     </UiButton>
   </div>
