@@ -36,7 +36,7 @@ export const NAVIGATION_IPC = {
   /** Shell → main: zooms the page in, out, back to its default or to a percent. */
   setZoom: 'browser:set-zoom' as InvokeChannel<[options: BrowserZoomOptions], BrowserState>,
   /** Shell → main: saves the page as a PDF. */
-  savePdf: 'browser:save-pdf' as InvokeChannel<[options: BrowserPdfOptions], BrowserPdfExport>,
+  savePdf: 'browser:save-pdf' as InvokeChannel<[options: BrowserPdfOptions], BrowserPdfExport | null>,
   /** Shell → main: opens or closes Developer Tools; true when they are open after. */
   toggleDevTools: 'browser:toggle-devtools' as InvokeChannel<[tabId?: string], boolean>,
   /** Shell → main: opens Developer Tools on the Console, or turns open ones to it. */

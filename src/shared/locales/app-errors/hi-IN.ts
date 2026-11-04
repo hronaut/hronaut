@@ -316,7 +316,9 @@ export const hiINAppErrors: AppErrorMessages = {
     nameUnavailable: 'डाउनलोड फ़ोल्डर में फ़ाइल का कोई खाली नाम नहीं मिला।',
     saveDenied: 'Hronaut के पास डाउनलोड फ़ोल्डर में फ़ाइलें सेव करने की अनुमति नहीं है ({code})।',
     saveDiskFull: 'फ़ाइल सेव करने के लिए डिस्क में काफ़ी जगह नहीं है ({code})।',
-    saveReadOnly: 'डाउनलोड फ़ोल्डर सिर्फ़ पढ़ने के लिए है ({code})।'
+    saveReadOnly: 'डाउनलोड फ़ोल्डर सिर्फ़ पढ़ने के लिए है ({code})।',
+    chosenSaveDenied: 'Hronaut के पास चुने गए फ़ोल्डर में फ़ाइलें सेव करने की अनुमति नहीं है ({code})।',
+    chosenReadOnly: 'चुना गया फ़ोल्डर सिर्फ़ पढ़ने के लिए है ({code})।'
   },
   previews: {
     timedOut: 'पूरे पेज की झलक का समय खत्म हो गया। पेज तैयार होने पर फिर से कोशिश करें।',

@@ -316,7 +316,9 @@ export const itITAppErrors: AppErrorMessages = {
     nameUnavailable: 'Impossibile trovare un nome file libero nella cartella dei download.',
     saveDenied: 'Hronaut non ha l’autorizzazione per salvare file nella cartella dei download ({code}).',
     saveDiskFull: 'Lo spazio su disco non è sufficiente per salvare il file ({code}).',
-    saveReadOnly: 'La cartella dei download è di sola lettura ({code}).'
+    saveReadOnly: 'La cartella dei download è di sola lettura ({code}).',
+    chosenSaveDenied: 'Hronaut non ha l’autorizzazione per salvare file nella cartella scelta ({code}).',
+    chosenReadOnly: 'La cartella scelta è di sola lettura ({code}).'
   },
   previews: {
     timedOut: 'Tempo scaduto per l’anteprima della pagina intera. Riprova quando la pagina è pronta.',

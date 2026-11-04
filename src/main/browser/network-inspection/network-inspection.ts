@@ -34,7 +34,7 @@ import { isHronautHomeUrl } from '../url.js'
 import { LocalizedError } from '../../localized-error.js'
 import type { Browser } from '../browser.js'
 import { ensureDialogMonitoring } from '../website-dialogs/website-dialogs.js'
-import { writeUniqueDownloadFile } from '../unique-download-file.js'
+import { writeUniqueDownloadFile, type ExportFileWriter } from '../unique-download-file.js'
 import { currentNetworkRequests } from './network-request-records.js'
 import { networkRequestSummary } from './network-request-summary.js'
 import { findTab, getTab } from '../browser-core.js'
@@ -146,12 +146,20 @@ export async function networkHar(browser: Browser, options: BrowserNetworkHarOpt
   })
 }
 
-/** Writes the sanitized HAR log to a unique file in the downloads folder. */
-export async function saveNetworkHar(browser: Browser, options: BrowserNetworkHarSaveOptions = {}): Promise<BrowserNetworkHarExport> {
+/**
+ * Writes the sanitized HAR log through saveFile, a unique file in the downloads folder unless the caller chose another;
+ * null when the person chose not to save it.
+ */
+export async function saveNetworkHar(
+  browser: Browser,
+  options: BrowserNetworkHarSaveOptions = {},
+  saveFile: ExportFileWriter = (name, data, validate) => writeUniqueDownloadFile(browser.options.downloadDirectory, name, data, validate)
+): Promise<BrowserNetworkHarExport | null> {
   const tab = getTab(browser, options.tabId)
   const har = await networkHar(browser, options)
   const data = Buffer.from(`${JSON.stringify(har, null, 2)}\n`, 'utf8')
-  const path = await writeUniqueDownloadFile(browser.options.downloadDirectory, networkHarFilename(options.filename, tab.title), data)
+  const path = await saveFile(networkHarFilename(options.filename, tab.title), data, () => undefined)
+  if (path === undefined) return null
   return {
     filename: basename(path),
     path,

@@ -316,7 +316,9 @@ export const viVNAppErrors: AppErrorMessages = {
     nameUnavailable: 'Không tìm thấy tên tệp còn trống trong thư mục tải xuống.',
     saveDenied: 'Hronaut không có quyền lưu tệp vào thư mục tải xuống ({code}).',
     saveDiskFull: 'Không đủ dung lượng ổ đĩa để lưu tệp ({code}).',
-    saveReadOnly: 'Thư mục tải xuống chỉ cho phép đọc ({code}).'
+    saveReadOnly: 'Thư mục tải xuống chỉ cho phép đọc ({code}).',
+    chosenSaveDenied: 'Hronaut không có quyền lưu tệp vào thư mục đã chọn ({code}).',
+    chosenReadOnly: 'Thư mục đã chọn chỉ cho phép đọc ({code}).'
   },
   previews: {
     timedOut: 'Đã hết thời gian chờ bản xem trước toàn trang. Hãy thử lại khi trang đã sẵn sàng.',

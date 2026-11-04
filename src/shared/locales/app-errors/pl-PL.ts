@@ -316,7 +316,9 @@ export const plPLAppErrors: AppErrorMessages = {
     nameUnavailable: 'Nie udało się znaleźć wolnej nazwy pliku w folderze pobierania.',
     saveDenied: 'Hronaut nie ma uprawnień do zapisywania plików w folderze pobierania ({code}).',
     saveDiskFull: 'Za mało miejsca na dysku, aby zapisać plik ({code}).',
-    saveReadOnly: 'Folder pobierania jest tylko do odczytu ({code}).'
+    saveReadOnly: 'Folder pobierania jest tylko do odczytu ({code}).',
+    chosenSaveDenied: 'Hronaut nie ma uprawnień do zapisywania plików w wybranym folderze ({code}).',
+    chosenReadOnly: 'Wybrany folder jest tylko do odczytu ({code}).'
   },
   previews: {
     timedOut: 'Upłynął czas oczekiwania na podgląd całej strony. Spróbuj ponownie, gdy strona będzie gotowa.',

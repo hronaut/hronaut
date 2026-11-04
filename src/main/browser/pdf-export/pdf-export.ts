@@ -8,16 +8,23 @@ import { dismissAgentPointer } from '../agent-pointer/agent-pointer.js'
 import type { Browser } from '../browser.js'
 import { findTab, getTab } from '../browser-core.js'
 import { withRenderableTab } from '../renderable-tab/renderable-tab.js'
-import { writeUniqueDownloadFile } from '../unique-download-file.js'
+import { writeUniqueDownloadFile, type ExportFileWriter } from '../unique-download-file.js'
 
 /**
  * Prints the tab's page to a PDF in the downloads folder, without the agent's
  * pointer. It throws when the tab, its document or its workspace's authority
  * changed during the export, and refuses a PDF sized by the page's CSS that
  * runs past the page limit or whose pages cannot be counted. A deferred
- * export keeps its document check until the caller publishes it.
+ * export keeps its document check until the caller publishes it. The PDF is saved by saveFile, a new file in the
+ * downloads folder unless the caller chose another; it is null when the person chose not to save it.
  */
-export async function savePdf(browser: Browser, options: BrowserPdfOptions = {}, validateExport?: () => void, deferExport?: (pending: PendingPdfExport) => void): Promise<BrowserPdfExport> {
+export async function savePdf(
+  browser: Browser,
+  options: BrowserPdfOptions = {},
+  validateExport?: () => void,
+  deferExport?: (pending: PendingPdfExport) => void,
+  saveFile: ExportFileWriter = (name, data, validate) => writeUniqueDownloadFile(browser.options.downloadDirectory, name, data, validate)
+): Promise<BrowserPdfExport | null> {
   const tab = getTab(browser, options.tabId)
   const workspace = tab.mcpGroupId ? browser.mcpTabGroups.get(tab.mcpGroupId) : undefined
   const permissionGeneration = workspace ? browser.inspectionPermissions.get(workspace) ?? 0 : 0
@@ -72,7 +79,8 @@ export async function savePdf(browser: Browser, options: BrowserPdfOptions = {},
         throw new Error(`This PDF has more than ${CSS_PAGE_SIZE_PAGE_LIMIT.toLocaleString('en-US')} pages with preferCSSPageSize, so it was not saved. Check the page's CSS @page size, or export without preferCSSPageSize to use pageSize instead.`)
       }
     }
-    const path = await writeUniqueDownloadFile(browser.options.downloadDirectory, filename, data, assertCurrent)
+    const path = await saveFile(filename, data, assertCurrent)
+    if (path === undefined) return null
     if (deferExport) {
       deferExport({ assertCurrent, discard })
       publicationDeferred = true

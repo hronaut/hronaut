@@ -41,6 +41,20 @@ it('excludes paused time, keeps source frames immutable, and exports edited clip
   recorder.destroy()
 })
 
+it('saves an export through the writer its caller chose, and keeps none when the person saved nothing', async () => {
+  const { recorder, manage, capture, validate, source, host } = fixture()
+  await manage('start')
+  await vi.advanceTimersByTimeAsync(1000)
+  await manage('stop')
+  const saveFile = vi.fn(async (): Promise<string | undefined> => undefined)
+  host.save.mockResolvedValueOnce(undefined)
+  const output = await recorder.manage('tab', { action: 'export' }, capture, validate, source, undefined, undefined, saveFile)
+  expect(host.save).toHaveBeenCalledWith(expect.any(Uint8Array), expect.any(Function), saveFile)
+  expect(output).toMatchObject({ status: 'stopped', previewReady: true })
+  expect(output.exported).toBeUndefined()
+  recorder.destroy()
+})
+
 it('drops an in-flight frame after pause and resume instead of appending it to the new timeline', async () => {
   const { recorder, manage, capture } = fixture()
   await manage('start')
