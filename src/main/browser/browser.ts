@@ -392,6 +392,8 @@ export class Browser {
   readonly pageCornerRadii = new WeakMap<WebContentsView, number>()
   /** Whether the person has the window in full screen apart from any page's, which ends with the page. */
   personFullScreen = false
+  /** Whether Hronaut put the window in full screen for a page, so it leaves it once no page holds full screen. */
+  pageWindowFullScreen = false
   browserContentOccluded = false
   occludedEmulationFrames: EmulationFrameGeometry[] = []
   occludedPageCards: PageCardGeometry[] = []

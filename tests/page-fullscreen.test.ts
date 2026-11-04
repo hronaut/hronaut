@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' } }))
 // The prototype-built browser below stubs scheduleTabOverviewPreview and publishPageGeometry, with which laying out
 // the pages asks for their overview previews and sends their cards to the shell, and changed, getState and
@@ -37,11 +37,6 @@ import {
 } from '../src/main/browser/page-fullscreen/page-fullscreen.js'
 import { pageArea } from '../src/main/browser/window-layout/content-area.js'
 import { getSplitDivider } from '../src/main/browser/window-layout/window-layout.js'
-
-// The window's full screen is asked for as on Windows and Linux, whatever runs the tests; macOS has its own test.
-const platform = process.platform
-beforeEach(() => { Object.defineProperty(process, 'platform', { value: 'linux' }) })
-afterEach(() => { Object.defineProperty(process, 'platform', { value: platform }) })
 
 function pageView() {
   return { setBounds: vi.fn(), setVisible: vi.fn(), setBorderRadius: vi.fn(), getVisible: () => true, getBounds: () => ({ x: 280, y: 60, width: 1150, height: 830 }) }
@@ -367,20 +362,50 @@ describe('page full screen lifecycle', () => {
     expect(window.setFullScreen).not.toHaveBeenCalled()
   })
 
-  it('asks macOS to leave the full screen a page took while the window still reports entering it', () => {
+  it('takes the window out of the full screen it took for a page even while the window still reports entering it', () => {
     // macOS changes full screen with an animation, and a page that leaves during it would leave the window in full
-    // screen, showing no page.
-    Object.defineProperty(process, 'platform', { value: 'darwin' })
+    // screen, showing no page; the change then waits for the animation.
     const { window, tabs, enter } = fullscreenFixture()
     window.setFullScreen.mockImplementation(() => undefined)
     enter('video')
     tabs.get('video')!.webContents.emit('leave-html-full-screen')
     expect(window.setFullScreen.mock.calls).toEqual([[true], [false]])
-    // A page that never had the window's full screen leaves it alone, also during the person's own animation.
-    const hidden = fullscreenFixture({ shown: ['other'] })
-    hidden.enter('video')
-    hidden.tabs.get('video')!.webContents.emit('leave-html-full-screen')
-    expect(hidden.window.setFullScreen).not.toHaveBeenCalled()
+  })
+
+  it('leaves a window that was already in full screen as it is, also when it is not the person\'s', () => {
+    // On macOS the person's own full screen reports itself only once its animation ends, by when a page may hold full
+    // screen, so it is not counted as theirs; the window left full screen with the page.
+    const { window, tabs, enter, browser } = fullscreenFixture({ windowFullScreen: true })
+    browser.personFullScreen = false
+    enter('video')
+    tabs.get('video')!.webContents.emit('leave-html-full-screen')
+    expect(window.setFullScreen).not.toHaveBeenCalled()
+  })
+
+  it('refuses the window\'s full screen to the split view pane that the other pane\'s full screen hides', () => {
+    // An agent's click in the hidden pane gave it full screen too, so the window stayed in full screen for that page
+    // once the person left the other.
+    const { window, tabs, enter } = fullscreenFixture({ shown: ['video', 'other'] })
+    enter('video')
+    enter('other')
+    expect([tabs.get('other')!.pageFullscreen, tabs.get('other')!.pageFullscreenRefused]).toEqual([undefined, true])
+    expect(tabs.get('other')!.webContents.executeJavaScriptInIsolatedWorld).toHaveBeenCalledOnce()
+    tabs.get('video')!.webContents.emit('leave-html-full-screen')
+    expect(window.setFullScreen.mock.calls).toEqual([[true], [false]])
+  })
+
+  it('asks a page refused full screen while the window was hidden again once the window shows', async () => {
+    // The window showing again lays nothing out, and the page gets its full screen then, in its page card.
+    const { window, tabs, enter } = fullscreenFixture()
+    const run = tabs.get('video')!.webContents.executeJavaScriptInIsolatedWorld
+    run.mockResolvedValueOnce(false)
+    window.visible = false
+    enter('video')
+    await nextTurn()
+    window.visible = true
+    window.emit('show')
+    expect(run).toHaveBeenCalledTimes(2)
+    expect(window.setFullScreen).not.toHaveBeenCalled()
   })
 
   it('takes the window out of full screen when a page in full screen closes', async () => {
@@ -407,10 +432,9 @@ describe('page full screen lifecycle', () => {
 
   it('reads the window\'s full screen report on the next turn, so a page\'s full screen is never taken for the person\'s', async () => {
     const { window, tabs, personFullScreen } = fullscreenFixture()
-    // The window reports the full screen it takes for the page around the page's report.
-    window.setFullScreen(true)
-    window.emit('enter-full-screen')
+    // The window reports the full screen Hronaut asks for a page after the page's report.
     tabs.get('video')!.webContents.emit('enter-html-full-screen')
+    window.emit('enter-full-screen')
     await nextTurn()
     expect(personFullScreen()).toBe(false)
     tabs.get('video')!.webContents.emit('leave-html-full-screen')

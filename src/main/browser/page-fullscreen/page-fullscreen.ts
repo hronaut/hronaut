@@ -23,26 +23,33 @@ function pageFullscreenHolder(browser: Browser): BrowserTab | undefined {
 
 /**
  * Whether a page taking full screen gets the window's: as in Chrome, only one the window shows, in a window on screen,
- * and not one in the background an agent clicked in, or in a window that is hidden or minimized.
+ * and not one in the background an agent clicked in, in a window that is hidden or minimized, or in the split view pane
+ * that the other pane's full screen hides.
  */
 function mayHaveWindowFullScreen(browser: Browser, tab: BrowserTab): boolean {
-  return !browser.destroyed && !browser.window.isDestroyed() && browser.window.isVisible() && !browser.window.isMinimized()
-    && isShown(browser, tab.id)
+  if (browser.destroyed || browser.window.isDestroyed() || !browser.window.isVisible() || browser.window.isMinimized()) return false
+  const holder = pageFullscreenHolder(browser)
+  return isShown(browser, tab.id) && (!holder || holder === tab)
 }
 
 /**
- * Puts the window in or out of full screen. macOS changes it with an animation, during which the window can report its
- * old state; a change asked for then waits for the animation, and one to the state the window has does nothing.
- * Elsewhere a change is asked for only when the window does not have that state, as Windows reports one even then.
+ * Puts the window in full screen for a page, as Electron did: a window already in full screen, the person's or one
+ * still changing, is left as it is, and the page's full screen then never takes it out.
  */
-function setWindowFullScreen(browser: Browser, fullScreen: boolean): void {
-  if (process.platform === 'darwin' || browser.window.isFullScreen() !== fullScreen) browser.window.setFullScreen(fullScreen)
+function takeWindowFullScreen(browser: Browser): void {
+  if (browser.window.isFullScreen()) return
+  browser.pageWindowFullScreen = true
+  browser.window.setFullScreen(true)
 }
 
-/** Takes the window out of the full screen a page put it in once no page holds full screen; the person's own stays. */
+/**
+ * Takes the window out of the full screen Hronaut put it in for a page, once no page holds full screen. On macOS the
+ * window may still be entering it with an animation, and the change then waits for the animation.
+ */
 function endPageWindowFullScreen(browser: Browser): void {
-  if (browser.destroyed || browser.window.isDestroyed() || browser.personFullScreen || pageFullscreenHolder(browser)) return
-  setWindowFullScreen(browser, false)
+  if (browser.destroyed || browser.window.isDestroyed() || !browser.pageWindowFullScreen || pageFullscreenHolder(browser)) return
+  browser.pageWindowFullScreen = false
+  browser.window.setFullScreen(false)
 }
 
 /**
@@ -82,7 +89,7 @@ export function attachPageFullscreenEvents(
     tab.pageFullscreenExitRequested = false
     if (mayHaveWindowFullScreen(browser, tab)) {
       tab.pageFullscreen = true
-      setWindowFullScreen(browser, true)
+      takeWindowFullScreen(browser)
     } else {
       tab.pageFullscreenRefused = true
       requestPageFullscreenExit(tab)
@@ -121,7 +128,8 @@ export function attachPageFullscreenEvents(
  * full screen is the person's choice too; when a page still held full
  * screen, the person left it from the system or the View menu, so the page
  * leaves too. A window in full screen is the person's only while no page
- * holds it.
+ * holds it. A page refused full screen while the window was hidden gets it
+ * once the window shows again, which lays nothing out, so it is asked then.
  */
 export function watchWindowFullScreen(browser: Browser): void {
   browser.personFullScreen = browser.window.isFullScreen()
@@ -131,6 +139,7 @@ export function watchWindowFullScreen(browser: Browser): void {
       const holder = pageFullscreenHolder(browser)
       if (!browser.window.isFullScreen()) {
         browser.personFullScreen = false
+        browser.pageWindowFullScreen = false
         if (holder) requestPageFullscreenExit(holder)
       } else if (!holder) {
         browser.personFullScreen = true
@@ -139,6 +148,9 @@ export function watchWindowFullScreen(browser: Browser): void {
   }
   browser.window.on('enter-full-screen', follow)
   browser.window.on('leave-full-screen', follow)
+  browser.window.on('show', () => {
+    if (!browser.destroyed && !browser.window.isDestroyed()) exitHiddenPageFullscreen(browser)
+  })
 }
 
 /**
