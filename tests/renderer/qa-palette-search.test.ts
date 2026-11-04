@@ -644,6 +644,8 @@ describe('CommandPalette search results', () => {
     now += 1_000
 
     const first = screen.getByRole('option', { name: /Zeta a/ })
+    // The search's new rows moved under the pointer, whose first event only says where it rests.
+    await fireEvent.pointerMove(first, { clientX: 40, clientY: 76 })
     await fireEvent.pointerMove(first, { clientX: 40, clientY: 80 })
     expect(first).toHaveAttribute('aria-selected', 'true')
 
