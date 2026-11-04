@@ -74,7 +74,8 @@ function createHarness(entries: BrowserHistoryEntry[], bookmarks: BrowserBookmar
     },
     template: `
       <form ref="form" @submit.prevent="submit" @focusout="handleFocusOut">
-        <input ref="input" v-model="address" aria-label="Address" @focus="handleFocus" @input="handleInput" @paste="handlePaste" @keydown="handleKeydown" />
+        <input ref="input" v-model="address" aria-label="Address" @focus="handleFocus" @input="handleInput" @selectionchange="handleSelectionChange" @paste="handlePaste"
+          @keydown="handleKeydown" />
       </form>
     `
   })
@@ -115,6 +116,13 @@ async function clear(input: HTMLInputElement): Promise<void> {
   input.focus()
   input.select()
   await edit(input, '', 'deleteContentBackward')
+}
+
+// Where the caret or the selection goes, as a key or a click puts it; the field reports the change.
+async function moveCaret(input: HTMLInputElement, start: number, end = start): Promise<void> {
+  input.setSelectionRange(start, end)
+  input.dispatchEvent(new Event('selectionchange', { bubbles: true }))
+  await nextTick()
 }
 
 async function key(input: HTMLInputElement, init: KeyboardEventInit): Promise<KeyboardEvent> {
@@ -195,6 +203,75 @@ describe('inline completion in the address bar', () => {
     h.input.setSelectionRange(0, 0)
     await edit(h.input, 'g')
     expect(h.field()).toEqual({ value: 'gub', selected: '' })
+  })
+
+  // Chrome takes the rest it filled in as typed once the caret or the selection moves, as End, an arrow key or a click
+  // does. Hronaut's went on matching the typed text alone, and the highlight came back to it without the rest.
+  it.each([
+    ['End', 10, 10],
+    ['Home', 0, 0],
+    ['Left, or a click', 4, 4],
+    ['Shift+Left from the start of the rest', 1, 10]
+  ])('takes the rest as typed once the caret or the selection moves (%s), and the highlight comes back to the whole text', async (_move, start, end) => {
+    const h = createHarness([visit('repo', 'https://github.com/hronaut/hronaut'), visit('docs', 'https://docs.github.com/en')])
+    await clear(h.input)
+    await type(h.input, 'gi')
+    expect(h.field()).toEqual({ value: 'github.com', selected: 'thub.com' })
+    await moveCaret(h.input, start, end)
+    await key(h.input, { key: 'ArrowDown' })
+    expect(h.field().value).toBe('github.com')
+    expect(h.controller.selected.value?.id).toBe('history:repo')
+    await key(h.input, { key: 'ArrowUp' })
+    // The caret or the selection is where the person left it, as Chrome puts it back.
+    expect(h.field()).toEqual({ value: 'github.com', selected: 'github.com'.slice(start, end) })
+    await h.controller.submit()
+    expect(h.onNavigate).toHaveBeenCalledExactlyOnceWith('https://github.com/')
+  })
+
+  it('makes the suggestions follow the whole text once the rest is taken as typed', async () => {
+    const h = createHarness([visit('repo', 'https://github.com/hronaut/hronaut'), visit('lab', 'https://gitlab.com/')])
+    await clear(h.input)
+    await type(h.input, 'gi')
+    await waitFor(() => expect(h.controller.suggestions.value.map(suggestion => suggestion.id)).toContain('history:lab'))
+    await moveCaret(h.input, 10)
+    await waitFor(() => expect(h.controller.suggestions.value.map(suggestion => suggestion.id)).not.toContain('history:lab'))
+  })
+
+  // Matching the whole text again took the first suggestion for the site, whichever its scheme or page, so Enter could
+  // open http:// where the rest came from https://.
+  it('keeps the address the rest came from once it is taken as typed', async () => {
+    const h = createHarness([visit('plain', 'http://github.com/', 1), visit('repo', 'https://github.com/hronaut/hronaut', 3)])
+    await clear(h.input)
+    await type(h.input, 'gi')
+    expect(h.field()).toEqual({ value: 'github.com', selected: 'thub.com' })
+    await moveCaret(h.input, 10)
+    h.history.value = [...h.history.value]
+    await nextTick()
+    await key(h.input, { key: 'ArrowDown' })
+    await key(h.input, { key: 'ArrowUp' })
+    await h.controller.submit()
+    expect(h.onNavigate).toHaveBeenCalledExactlyOnceWith('https://github.com/')
+  })
+
+  it('takes the rest as typed when a key comes before the field reports where the caret went', async () => {
+    const h = createHarness([visit('repo', 'https://github.com/hronaut/hronaut')])
+    await clear(h.input)
+    await type(h.input, 'gi')
+    h.input.setSelectionRange(10, 10)
+    await key(h.input, { key: 'ArrowDown' })
+    expect(h.field().value).toBe('github.com')
+  })
+
+  it.each([
+    ['the rest', 2, 10],
+    ['the whole text, as Ctrl+L selects it', 0, 10]
+  ])('keeps the rest apart from the typed text while the selection is %s', async (_selection, start, end) => {
+    const h = createHarness([visit('repo', 'https://github.com/hronaut/hronaut')])
+    await clear(h.input)
+    await type(h.input, 'gi')
+    await moveCaret(h.input, start, end)
+    await key(h.input, { key: 'ArrowDown' })
+    expect(h.field()).toEqual({ value: 'gi', selected: '' })
   })
 
   it('goes back to the typed text when the highlight moves to a row, where Enter opens the row', async () => {

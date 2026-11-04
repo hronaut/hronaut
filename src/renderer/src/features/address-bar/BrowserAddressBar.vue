@@ -80,6 +80,7 @@ const {
   suggestionMeta,
   handleFocus,
   handleInput,
+  handleSelectionChange,
   handlePaste,
   handleDragStart,
   handleDragEnd,
@@ -238,6 +239,7 @@ async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean>
       :placeholder="keyword ? '' : t('shell.toolbar.addressPlaceholder')"
       @focus="handleFocus"
       @input="handleInput"
+      @selectionchange="handleSelectionChange"
       @paste="handlePaste"
       @dragstart="handleDragStart"
       @dragend="handleDragEnd"

@@ -66,6 +66,22 @@ test('fills in the rest of a visited site as it is typed, as in Chrome, and Back
     await address.press('ArrowDown')
     await expect.poll(field).toEqual({ value: 'local', selected: '' })
     await expect(address).toHaveAttribute('aria-activedescendant', /^address-suggestion-history:/u)
+
+    // End takes the rest as typed, as in Chrome: the highlight goes to a row and back to the whole address, and Enter
+    // opens the site.
+    const third = await blankTab()
+    await address.pressSequentially('localh')
+    await expect.poll(field).toEqual({ value: site, selected: site.slice('localh'.length) })
+    await address.press('End')
+    await expect.poll(field).toEqual({ value: site, selected: '' })
+    await address.press('ArrowDown')
+    await expect(address).toHaveAttribute('aria-activedescendant', /^address-suggestion-history:/u)
+    await expect.poll(field).toEqual({ value: site, selected: '' })
+    await address.press('ArrowUp')
+    await expect(address).not.toHaveAttribute('aria-activedescendant', /^address-suggestion-history:/u)
+    await expect.poll(field).toEqual({ value: site, selected: '' })
+    await address.press('Enter')
+    await expect.poll(async () => (await state()).tabs.find(tab => tab.id === third)?.url).toBe(`http://${site}/`)
   } finally {
     await closeFixtureServer(server)
   }
