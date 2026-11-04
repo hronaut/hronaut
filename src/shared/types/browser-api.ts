@@ -150,7 +150,8 @@ export interface HronautNavigationApi {
   /** Ends the page search; with activateMatch, also clicks the active match, as Ctrl+Enter in Chrome's find bar. */
   stopFindInPage(tabId?: string, options?: { activateMatch?: boolean }): Promise<void>
   setZoom(options: BrowserZoomOptions): Promise<BrowserState>
-  savePdf(options?: BrowserPdfOptions): Promise<BrowserPdfExport>
+  /** Saves the page as a PDF in the downloads folder; null when that folder cannot be written to and the person cancels the save dialog. */
+  savePdf(options?: BrowserPdfOptions): Promise<BrowserPdfExport | null>
   toggleDevTools(tabId?: string): Promise<boolean>
   /** Opens Developer Tools on the Console, or turns open ones to it. */
   showDevToolsConsole(tabId?: string): Promise<boolean>
@@ -303,7 +304,8 @@ export interface HronautConsoleNetworkApi {
   replayNetworkRequest(tabId: string, requestId: string, confirmSideEffects?: boolean): Promise<BrowserNetworkReplayResult>
   searchNetwork(options: BrowserNetworkSearchOptions): Promise<BrowserNetworkSearchResult>
   createNetworkHar(options?: BrowserNetworkHarOptions): Promise<BrowserNetworkHar>
-  saveNetworkHar(options?: BrowserNetworkHarSaveOptions): Promise<BrowserNetworkHarExport>
+  /** Saves a HAR file in the downloads folder; null when that folder cannot be written to and the person cancels the save dialog. */
+  saveNetworkHar(options?: BrowserNetworkHarSaveOptions): Promise<BrowserNetworkHarExport | null>
 }
 
 /** A tab's accessibility, quality, performance, design, metadata and security reports. */

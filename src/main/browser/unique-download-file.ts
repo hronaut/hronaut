@@ -14,21 +14,28 @@ const SAVE_FAILURE_MESSAGES: Record<string, MessageKey> = {
 }
 
 /**
- * A common file system failure as a person reads it: a sentence that ends with its code and leaves out the path. Its
- * message stays Node's, for MCP results and logs, and so do the code, errno, syscall and path Node gave. Any other
- * failure, including the caller's own validation, is returned as it is.
+ * A common file system failure as a person reads it: a sentence that ends with its code and leaves out the path, from
+ * the download folder's sentences unless the caller names others. Its message stays Node's, for MCP results and logs,
+ * and so do the code, errno, syscall and path Node gave. Any other failure, including the caller's own validation, is
+ * returned as it is.
  */
-function localizedSaveFailure(error: unknown): unknown {
+export function localizedSaveFailure(error: unknown, messages: Record<string, MessageKey> = SAVE_FAILURE_MESSAGES): unknown {
   if (!(error instanceof Error) || error instanceof LocalizedError) return error
   const failure = error as NodeJS.ErrnoException
-  if (typeof failure.code !== 'string' || !Object.hasOwn(SAVE_FAILURE_MESSAGES, failure.code)) return error
-  const localized = new LocalizedError(SAVE_FAILURE_MESSAGES[failure.code]!, { code: failure.code }, { message: error.message, cause: error })
+  if (typeof failure.code !== 'string' || !Object.hasOwn(messages, failure.code)) return error
+  const localized = new LocalizedError(messages[failure.code]!, { code: failure.code }, { message: error.message, cause: error })
   // Only the details Node gave, so a missing one stays absent rather than undefined.
   for (const detail of ['code', 'errno', 'syscall', 'path'] as const) {
     if (failure[detail] !== undefined) Object.assign(localized, { [detail]: failure[detail] })
   }
   return localized
 }
+
+/**
+ * Saves an export's file and gives its path, or undefined when the person chose not to save it: a new file in the
+ * download folder (writeUniqueDownloadFile), or one the person names (see person-export-file.ts).
+ */
+export type ExportFileWriter = (filename: string, data: Buffer, validate: () => void) => Promise<string | undefined>
 
 /** Reserve a new export exclusively and remove its partial contents on failure. */
 export async function writeUniqueDownloadFile(

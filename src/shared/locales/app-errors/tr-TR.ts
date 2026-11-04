@@ -316,7 +316,9 @@ export const trTRAppErrors: AppErrorMessages = {
     nameUnavailable: 'İndirme klasöründe boş bir dosya adı bulunamadı.',
     saveDenied: 'Hronaut’un indirme klasörüne dosya kaydetme izni yok ({code}).',
     saveDiskFull: 'Dosyayı kaydetmek için yeterli disk alanı yok ({code}).',
-    saveReadOnly: 'İndirme klasörü salt okunur ({code}).'
+    saveReadOnly: 'İndirme klasörü salt okunur ({code}).',
+    chosenSaveDenied: 'Hronaut’un seçilen klasöre dosya kaydetme izni yok ({code}).',
+    chosenReadOnly: 'Seçilen klasör salt okunur ({code}).'
   },
   previews: {
     timedOut: 'Tam sayfa önizlemesi zaman aşımına uğradı. Sayfa hazır olduğunda tekrar deneyin.',

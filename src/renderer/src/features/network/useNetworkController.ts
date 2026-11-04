@@ -440,6 +440,11 @@ export function useNetworkController(options: NetworkControllerOptions) {
     try {
       const exported = await options.browser.saveNetworkHar(harOptions(tab.id))
       if (!isCurrent(tab.id, expectedGeneration)) return
+      // The person cancelled the save dialog Hronaut showed because the download folder cannot be written to.
+      if (!exported) {
+        harSaveState.value = 'idle'
+        return
+      }
       harExport.value = exported
       harSaveState.value = 'saved'
       feedbackTimers.schedule('har-save', () => {

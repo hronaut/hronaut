@@ -238,7 +238,7 @@ function createController(
         caveats: []
       }
     })),
-    saveNetworkHar: vi.fn(async () => ({
+    saveNetworkHar: vi.fn(async (): Promise<BrowserNetworkHarExport | null> => ({
       filename: 'network.har',
       path: '/tmp/network.har',
       bytes: 1,
@@ -867,6 +867,16 @@ describe('network controller', () => {
     expect(controller.monitorError.value).toBe(outcome === 'success' ? '' : 'Export failed')
     await controller.saveHar()
     expect(browser.saveNetworkHar).toHaveBeenCalledTimes(2)
+    controller.dispose()
+  })
+
+  it('shows nothing saved when the person cancels the save dialog of an unwritable download folder', async () => {
+    const { browser, controller } = createController()
+    browser.saveNetworkHar.mockResolvedValueOnce(null)
+    await controller.saveHar()
+    expect(controller.harSaveState.value).toBe('idle')
+    expect(controller.harExport.value).toBeNull()
+    expect(controller.monitorError.value).toBe('')
     controller.dispose()
   })
 

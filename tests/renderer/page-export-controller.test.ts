@@ -25,7 +25,7 @@ function createController() {
   const pdfFailed = vi.fn()
   const browser = {
     copySnapshot: vi.fn(async (): Promise<BrowserSnapshotCopyResult> => ({ copied: true, characters: 42, truncated: false })),
-    savePdf: vi.fn(async (): Promise<BrowserPdfExport> => ({ filename: 'page.pdf', path: '/tmp/page.pdf', bytes: 42 }))
+    savePdf: vi.fn(async (): Promise<BrowserPdfExport | null> => ({ filename: 'page.pdf', path: '/tmp/page.pdf', bytes: 42 }))
   }
   const controller = usePageExportController({
     activeTab,
@@ -127,6 +127,17 @@ describe('page export controller', () => {
 
     expect(controller.snapshotState.value).toBe('copied')
     expect(snapshotCopied).toHaveBeenCalledWith({ copied: true, characters: 99, truncated: false })
+    controller.dispose()
+  })
+
+  it('shows nothing saved when the person cancels the save dialog of an unwritable download folder', async () => {
+    const { browser, controller, pdfSaved, pdfFailed } = createController()
+    browser.savePdf.mockResolvedValueOnce(null)
+    await controller.savePdf()
+    expect(controller.pdfState.value).toBe('idle')
+    expect(controller.pdfExport.value).toBeNull()
+    expect(pdfSaved).not.toHaveBeenCalled()
+    expect(pdfFailed).not.toHaveBeenCalled()
     controller.dispose()
   })
 

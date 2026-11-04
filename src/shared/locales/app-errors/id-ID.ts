@@ -316,7 +316,9 @@ export const idIDAppErrors: AppErrorMessages = {
     nameUnavailable: 'Tidak dapat menemukan nama file yang tersedia di folder download.',
     saveDenied: 'Hronaut tidak memiliki izin untuk menyimpan file di folder download ({code}).',
     saveDiskFull: 'Ruang disk tidak cukup untuk menyimpan file ({code}).',
-    saveReadOnly: 'Folder download bersifat hanya baca ({code}).'
+    saveReadOnly: 'Folder download bersifat hanya baca ({code}).',
+    chosenSaveDenied: 'Hronaut tidak memiliki izin untuk menyimpan file di folder yang dipilih ({code}).',
+    chosenReadOnly: 'Folder yang dipilih bersifat hanya baca ({code}).'
   },
   previews: {
     timedOut: 'Waktu pratinjau halaman penuh habis. Coba lagi setelah halaman siap.',

@@ -100,6 +100,11 @@ export function usePageExportController(options: PageExportControllerOptions) {
     try {
       const exported = await options.browser.savePdf({ tabId: request.tabId })
       if (!current('pdf', request)) return
+      // The person cancelled the save dialog Hronaut showed because the download folder cannot be written to.
+      if (!exported) {
+        pdfState.value = 'idle'
+        return
+      }
       pdfExport.value = exported
       pdfState.value = 'saved'
       options.pdfSaved(exported)

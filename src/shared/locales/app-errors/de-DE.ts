@@ -316,7 +316,9 @@ export const deDEAppErrors: AppErrorMessages = {
     nameUnavailable: 'Im Downloadordner konnte kein freier Dateiname gefunden werden.',
     saveDenied: 'Hronaut darf keine Dateien im Downloadordner speichern ({code}).',
     saveDiskFull: 'Es ist nicht genug Speicherplatz vorhanden, um die Datei zu speichern ({code}).',
-    saveReadOnly: 'Der Downloadordner ist schreibgeschützt ({code}).'
+    saveReadOnly: 'Der Downloadordner ist schreibgeschützt ({code}).',
+    chosenSaveDenied: 'Hronaut darf keine Dateien im gewählten Ordner speichern ({code}).',
+    chosenReadOnly: 'Der gewählte Ordner ist schreibgeschützt ({code}).'
   },
   previews: {
     timedOut: 'Zeitüberschreitung bei der Ansicht der ganzen Seite. Versuchen Sie es erneut, wenn die Seite bereit ist.',

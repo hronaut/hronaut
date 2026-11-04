@@ -2,6 +2,7 @@ import { VIDEO_INSPECTION_LIMITS, videoInspectionSchema, type BrowserVideoInspec
 import { selectVideoFrames, type SelectedVideoFrame } from './video-inspection-frames.js'
 import { randomUUID } from 'node:crypto'
 import { LocalizedError } from '../localized-error.js'
+import type { ExportFileWriter } from './unique-download-file.js'
 import { VIDEO_LIMITS, VIDEO_RECORDING_NOTICES, videoOptionsSchema, validateVideoEdit, type BrowserVideoOptions, type BrowserVideoState, type VideoFrame, type VideoRenderPlan, type VideoTimingObservation } from '../../shared/video.js'
 import { VIDEO_AUDIO_BUILTINS, VIDEO_AUDIO_LIMITS, normalizeVideoAudioWav } from '../../shared/video-audio.js'
 
@@ -38,7 +39,8 @@ export interface VideoRecorderHost {
   inspect?(frames: readonly SelectedVideoFrame[], signal: AbortSignal, validate: () => void): Promise<Uint8Array>
   changed(): void
   render(plan: VideoRenderPlan, frames: readonly VideoFrame[], signal: AbortSignal, validate: () => void, assets?: readonly { id: string; data: Uint8Array }[]): Promise<Uint8Array>
-  save(data: Uint8Array, validate: () => void): Promise<{ filename: string; path: string }>
+  /** Saves the rendered video through saveFile when the caller chose one; undefined when the person chose not to save it. */
+  save(data: Uint8Array, validate: () => void, saveFile?: ExportFileWriter): Promise<{ filename: string; path: string } | undefined>
   loadAudio?(path: string, validate: () => void): Promise<Uint8Array>
   now?: () => number
 }
@@ -114,7 +116,16 @@ export class BrowserVideoRecorder {
     return Math.min(VIDEO_LIMITS.durationMs, Math.round(r.elapsedMs + (r.state.status === 'recording' ? now - r.runningSince : 0)))
   }
 
-  async manage(tabId: string, input: BrowserVideoOptions, capture: () => Promise<CapturedFrame | null>, validate: () => void, validateSource: () => void = validate, signal?: AbortSignal, source?: VideoSourceBinding): Promise<BrowserVideoState> {
+  async manage(
+    tabId: string,
+    input: BrowserVideoOptions,
+    capture: () => Promise<CapturedFrame | null>,
+    validate: () => void,
+    validateSource: () => void = validate,
+    signal?: AbortSignal,
+    source?: VideoSourceBinding,
+    saveFile?: ExportFileWriter
+  ): Promise<BrowserVideoState> {
     const options = videoOptionsSchema.parse(input)
     if (options.action === 'inspect') throw new Error('Use the video inspection operation')
     if (['recordingId', 'expectedRevision', 'startMs', 'endMs', 'maxFrames'].some(key => input[key as keyof BrowserVideoOptions] !== undefined)) throw new Error('Inspection arguments require inspect')
@@ -230,9 +241,9 @@ export class BrowserVideoRecorder {
         current()
         r.state.previewReady = true
         if (options.action === 'export') {
-          const saved = await this.host.save(r.preview, current)
+          const saved = await this.host.save(r.preview, current, saveFile)
           current()
-          r.state.exported = { ...saved, bytes: r.preview.byteLength, mimeType: 'video/webm', codec: 'vp9', ...(r.state.audio?.length ? { audioCodec: 'opus' as const } : {}), durationMs: clips.reduce((sum, clip) => sum + clip.endMs - clip.startMs, 0) }
+          if (saved) r.state.exported = { ...saved, bytes: r.preview.byteLength, mimeType: 'video/webm', codec: 'vp9', ...(r.state.audio?.length ? { audioCodec: 'opus' as const } : {}), durationMs: clips.reduce((sum, clip) => sum + clip.endMs - clip.startMs, 0) }
         }
       } finally {
         r.busy = false

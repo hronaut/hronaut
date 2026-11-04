@@ -84,5 +84,5 @@ export const PAGE_INSPECTION_IPC = {
   /** Shell → main: the page's requests as a HAR. */
   networkHar: 'browser:network-har' as InvokeChannel<[options: BrowserNetworkHarOptions], BrowserNetworkHar>,
   /** Shell → main: saves the page's requests as a HAR file in the downloads folder. */
-  saveNetworkHar: 'browser:save-network-har' as InvokeChannel<[options: BrowserNetworkHarSaveOptions], BrowserNetworkHarExport>
+  saveNetworkHar: 'browser:save-network-har' as InvokeChannel<[options: BrowserNetworkHarSaveOptions], BrowserNetworkHarExport | null>
 } as const

@@ -316,7 +316,9 @@ export const jaJPAppErrors: AppErrorMessages = {
     nameUnavailable: 'ダウンロード フォルダに使用可能なファイル名が見つかりませんでした。',
     saveDenied: 'Hronaut にはダウンロード フォルダにファイルを保存する権限がありません（{code}）。',
     saveDiskFull: 'ファイルを保存するためのディスク容量が不足しています（{code}）。',
-    saveReadOnly: 'ダウンロード フォルダは読み取り専用です（{code}）。'
+    saveReadOnly: 'ダウンロード フォルダは読み取り専用です（{code}）。',
+    chosenSaveDenied: 'Hronaut には選択したフォルダにファイルを保存する権限がありません（{code}）。',
+    chosenReadOnly: '選択したフォルダは読み取り専用です（{code}）。'
   },
   previews: {
     timedOut: 'ページ全体のプレビューがタイムアウトしました。ページの準備ができてから、もう一度お試しください。',

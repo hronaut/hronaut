@@ -316,7 +316,9 @@ export const frFRAppErrors: AppErrorMessages = {
     nameUnavailable: 'Impossible de trouver un nom de fichier libre dans le dossier de téléchargement.',
     saveDenied: 'Hronaut n’a pas l’autorisation d’enregistrer des fichiers dans le dossier de téléchargement ({code}).',
     saveDiskFull: 'L’espace disque est insuffisant pour enregistrer le fichier ({code}).',
-    saveReadOnly: 'Le dossier de téléchargement est en lecture seule ({code}).'
+    saveReadOnly: 'Le dossier de téléchargement est en lecture seule ({code}).',
+    chosenSaveDenied: 'Hronaut n’a pas l’autorisation d’enregistrer des fichiers dans le dossier choisi ({code}).',
+    chosenReadOnly: 'Le dossier choisi est en lecture seule ({code}).'
   },
   previews: {
     timedOut: 'Le délai de l’aperçu de la page entière est dépassé. Réessayez quand la page sera prête.',
