@@ -11,11 +11,13 @@ import type {
   BrowserState,
   BrowserTabState,
   BrowsingDataSiteSummary,
-  HronautApi
+  HronautApi,
+  HronautShellApi
 } from '../../../shared/types.js'
 import { useAddressBarController } from '../features/address-bar/useAddressBarController.js'
 import { useAppSiteManagementFeatureController } from './useAppSiteManagementFeatureController.js'
 import { useBrowserTabActionsController } from '../features/tabs/useBrowserTabActionsController.js'
+import { useTabFieldFocusReturn } from '../features/tabs/useTabFieldFocusReturn.js'
 import { disposeAll } from './dispose-all.js'
 import { friendlyUiError, type AppToastTone } from './useAppToastController.js'
 import type { SettingsSection } from '../features/settings/useSettingsDialogController.js'
@@ -25,6 +27,7 @@ import type { SiteStorageShellPanel } from '../features/site-storage/useSiteStor
 type SiteNavigationBrowserApi = Pick<
   HronautApi,
   | 'closeTab'
+  | 'focusActivePage'
   | 'navigate'
   | 'newTab'
   | 'proceedPastCertificateError'
@@ -62,6 +65,8 @@ export interface AppSiteNavigationFeatureControllerOptions {
   }
   shell: {
     setFollowAgentActivitySuspended: (suspended: boolean) => void
+    /** Main, which gives the address field or Find's the keyboard back on coming back to a tab; none in a panel window. */
+    tabFieldFocus?: Pick<HronautShellApi, 'setTabFieldFocused' | 'onTabFieldFocusReturned'>
     settingsOpen: Ref<boolean>
     settingsSection: Readonly<Ref<SettingsSection>>
     updateNoticeOpen: Ref<boolean>
@@ -93,6 +98,8 @@ export interface AppSiteNavigationFeatureControllerOptions {
     closeTransientPanels: () => void
     closeHelp: () => void
     closeFind: () => Promise<void>
+    /** Gives Find's field the keyboard back for the tab shown again; false when Find is not open for it. */
+    returnFindFocus: (tabId: string) => boolean
     openSettingsSection: (section: SettingsSection) => void
     loadSiteSummary: (context: { tabId: string; url: string }) => Promise<BrowsingDataSiteSummary>
     onActionError: (error: unknown) => void
@@ -176,6 +183,14 @@ export function useAppSiteNavigationFeatureController(
     (suspended) => options.shell.setFollowAgentActivitySuspended(suspended),
     { immediate: true }
   )
+  const stopTabFieldFocusReturn = useTabFieldFocusReturn({
+    shell: shell.tabFieldFocus,
+    browserState: () => options.state.value,
+    focusedField: () => addressBarController.focused.value ? 'address' : shell.findFocused.value ? 'find' : null,
+    address: addressBarController,
+    returnFindFocus: actions.returnFindFocus,
+    focusPage: () => { void options.browser.focusActivePage().catch(() => undefined) }
+  })
   const siteManagementController = useAppSiteManagementFeatureController({
     siteDataController,
     siteControlsOpen,
@@ -217,6 +232,7 @@ export function useAppSiteNavigationFeatureController(
         stopFollowAgentActivitySuspensionWatch()
         options.shell.setFollowAgentActivitySuspended(false)
       },
+      stopTabFieldFocusReturn,
       browserTabActionsController.dispose,
       addressBarController.dispose,
       siteManagementController.dispose,

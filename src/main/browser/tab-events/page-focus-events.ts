@@ -34,6 +34,8 @@ export function attachPageFocusEvents(browser: Browser, tab: BrowserTab, webCont
       return
     }
     tab.lastActiveAt = performance.now()
+    // The person goes on in the page, which the tab gives the keyboard when it is shown again.
+    tab.fieldFocusOnReturn = undefined
     if (tab.sleeping) void browser.wakeTab(tab.id).catch((error) => console.error('[browser] Could not wake focused tab:', error))
     // A WebContentsView can receive a delayed programmatic focus while its
     // sibling is being restored. Human split-pane activation is handled by

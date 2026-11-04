@@ -174,7 +174,7 @@ const {
   openWorkspace: openTabGroupEditor,
   openWorkspaceDecisions,
   openNewWorkspace: openNewWorkspaceEditor,
-  closeFind,
+  closeFind, returnFindFocus,
   openCredentialPicker
 } = appTransientShellLayerController
 const appEmulationFeatureController = useAppEmulationFeatureController({
@@ -353,6 +353,7 @@ const appSiteNavigationFeatureController = useAppSiteNavigationFeatureController
   },
   shell: {
     setFollowAgentActivitySuspended: (suspended) => { if (!isDetachedPanelWindow) window.hronautShell.setFollowAgentActivitySuspended(suspended) },
+    tabFieldFocus: isDetachedPanelWindow ? undefined : window.hronautShell,
     settingsOpen,
     settingsSection,
     updateNoticeOpen,
@@ -383,6 +384,7 @@ const appSiteNavigationFeatureController = useAppSiteNavigationFeatureController
     closeTransientPanels,
     closeHelp: closeHelpDialog,
     closeFind,
+    returnFindFocus,
     openSettingsSection,
     loadSiteSummary: ({ url, tabId }) => window.hronautBrowsingData.siteSummary(url, tabId),
     onActionError: reportShellActionError,

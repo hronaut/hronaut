@@ -20,6 +20,7 @@ import type {
 } from '../wallet.js'
 import type { CommercialLicenseState } from './license.js'
 import type { BrowserActionFailure } from './page-problems.js'
+import type { ShellTabField } from '../tab-field.js'
 import type { TaskManagerProcess } from './task-manager.js'
 import type {
   McpCapabilityCredentialResult,
@@ -247,6 +248,10 @@ export interface HronautShellApi {
   /** Hides the tooltip with this id, or any tooltip when none is given. */
   hideTooltip(id?: number): void
   setFollowAgentActivitySuspended(suspended: boolean): void
+  /** The shown tab's field that has the keyboard in the shell, or null; main gives it back on coming back to the tab. */
+  setTabFieldFocused(field: ShellTabField | null): void
+  /** Main showed the tab again whose field had the keyboard when it was left; the shell gives it back, or the page. */
+  onTabFieldFocusReturned(listener: (tabId: string, field: ShellTabField) => void): () => void
   onHelpRequested(listener: (action: HelpMenuAction) => void): () => void
   onClipboardFailed(listener: (message: string) => void): () => void
   onActionFailed(listener: (failure: BrowserActionFailure) => void): () => void

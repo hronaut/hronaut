@@ -1,6 +1,7 @@
 import type { NavigationEntry, Session, WebContents, WebContentsView } from 'electron'
 import type { BrowserSnapshotDeltaContext } from '../../shared/snapshot-delta.js'
 import type { BrowserStorageSnapshot } from '../../shared/storage-changes.js'
+import type { ShellTabField } from '../../shared/tab-field.js'
 import type {
   BrowserAccessibilityAudit,
   BrowserAuthChallengeObservation,
@@ -97,6 +98,11 @@ export interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordi
   pageLifecycleAnimations?: Array<{ currentTime: number | null; playbackRate: number }>
   /** When the tab was last in view or used, on the monotonic clock, from which Memory Saver times its sleep whatever the wall clock does. */
   lastActiveAt: number
+  /**
+   * Runtime only: the shell's field that had the keyboard when the person left the tab, the address field or Find's,
+   * which takes it back when the tab is shown again, as Chrome gives a tab its focused view back; the page otherwise.
+   */
+  fieldFocusOnReturn?: ShellTabField
   sleepNavigationHistory?: { entries: NavigationEntry[]; index: number }
   wakePromise?: Promise<void>
   /** What a tab created asleep waits for before it first wakes. */

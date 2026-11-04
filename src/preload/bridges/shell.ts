@@ -1,6 +1,7 @@
 import { SHELL_IPC } from '../../shared/ipc/shell.js'
 import { SHELL_TOOLTIP_IPC } from '../../shared/ipc/shell-tooltip.js'
 import type { HronautAppApi, HronautShellApi, HronautShellRequestsApi } from '../../shared/types.js'
+import { isShellTabField } from '../../shared/tab-field.js'
 import { createPanelRequestBuffer } from '../panel-requests.js'
 import { invoke, send, subscribe } from './ipc.js'
 
@@ -29,6 +30,10 @@ export const shellApi: HronautShellApi = {
   showTooltip: (request) => send(SHELL_TOOLTIP_IPC.show, request),
   hideTooltip: (id) => send(SHELL_TOOLTIP_IPC.hide, id),
   setFollowAgentActivitySuspended: (suspended) => send(SHELL_IPC.followAgentActivitySuspended, suspended),
+  setTabFieldFocused: (field) => send(SHELL_IPC.tabFieldFocused, field),
+  onTabFieldFocusReturned: (listener) => subscribe(SHELL_IPC.tabFieldFocusReturned, (tabId: unknown, field: unknown) => {
+    if (typeof tabId === 'string' && isShellTabField(field)) listener(tabId, field)
+  }),
   onHelpRequested: (listener) => subscribe(SHELL_IPC.helpRequested, (action) => listener(action)),
   onClipboardFailed: (listener) => subscribe(SHELL_IPC.clipboardFailed, (message) => listener(message)),
   onActionFailed: (listener) => subscribe(SHELL_IPC.actionFailed, (failure) => listener(failure))

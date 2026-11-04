@@ -58,6 +58,7 @@ import { trackShellHeldKeys } from './tab-events/shell-held-keys.js'
 import { translate, type MessageKey, type MessageParameters } from '../../shared/i18n.js'
 import type { SupportedLocale } from '../../shared/locale.js'
 import type { TabPosition } from '../../shared/tab-position.js'
+import type { ShellTabField } from '../../shared/tab-field.js'
 import {
   snapshot,
   type BrowserSnapshotBaselineRecord
@@ -395,6 +396,8 @@ export class Browser {
   /** A tab that should take keyboard focus once trusted chrome closes, such as one picked in the tab overview. */
   focusAfterTrustedChrome: PendingTrustedChromeFocus | undefined
   followAgentActivitySuspended = false
+  /** The shown tab's field that has the keyboard in the shell, as the shell last said; read only while the shell has it. */
+  shellTabField: ShellTabField | null = null
   readonly downloadController = createDownloadsController(this)
   readonly networkHookSessions = new WeakSet<Session>()
   readonly browserSessionAuthorityHooks = new Map<Session, () => void>()

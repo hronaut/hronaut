@@ -424,8 +424,18 @@ function restore(tab: BrowserTabState | undefined): boolean {
   return true
 }
 
+// Gives the field the keyboard back, all its text selected, for the tab shown again that had it in Find, as Chrome's
+// Find bar does; false when Find is not open for the tab.
+function returnFocus(tabId: string): boolean {
+  const field = input.value
+  if (!open.value || targetTabId !== tabId || !field) return false
+  field.focus({ preventScroll: true })
+  field.select()
+  return document.activeElement === field
+}
+
 onBeforeUnmount(() => { void close() })
-defineExpose({ close, openForTab })
+defineExpose({ close, openForTab, returnFocus })
 </script>
 
 <template>
