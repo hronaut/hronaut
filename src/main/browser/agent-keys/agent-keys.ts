@@ -1,4 +1,4 @@
-import { parseBrowserKeyPress } from '../../../shared/keyboard-input.js'
+import { parseBrowserKeyPress, type BrowserKeyPress } from '../../../shared/keyboard-input.js'
 import {
   nativeHeldKeyCommands,
   nativeKeyHoldInput,
@@ -114,17 +114,40 @@ export async function holdKey(browser: Browser, input: NativeKeyHoldInput, valid
   }
 }
 
+/**
+ * Shift+F10 opens the page's context menu on Windows and Linux, as a right-click does, and Hronaut's menu would open
+ * with it as the person's own, at their pointer and whatever tab they are on, where Paste gives the agent's page their
+ * clipboard.
+ */
+function opensContextMenu(input: BrowserKeyPress): boolean {
+  return process.platform !== 'darwin' && input.keyCode.toLowerCase() === 'f10' && input.modifiers.includes('shift')
+}
+
 /** Presses a key or key combination on the tab's page as native input while the agent's input stays authorized. */
 export async function press(browser: Browser, key: string, tabId?: string, validateInput?: (validateContext: () => void) => void): Promise<void> {
   const tab = getTab(browser, tabId)
   const webContents = tab.webContents
   const input = parseBrowserKeyPress(key)
+  // As for a right-click, the page's own menu opens only in a page the person locked for the agent, which opens none of
+  // Hronaut's. They may unlock it while the press waits for the page, so the key goes down only while it is still locked.
+  const menuKey = opensContextMenu(input)
+  const requireLocked = (): void => {
+    if (!menuKey) return
+    if (browser.nativeInputLockMutations > 0 || !browser.isHumanInteractionLocked(tab)) {
+      throw new Error('Shift+F10 opens the context menu, which requires a page locked in the trusted UI')
+    }
+  }
+  requireLocked()
   const authority = nativeInputAuthority(browser, tab, validateInput)
+  const validate = (): void => {
+    authority.validate()
+    requireLocked()
+  }
   try {
     await withAgentInput(browser, webContents, () => withDebugger(
       browser,
       webContents,
-      () => dispatchNativeKeyPress(agentInputDebugger(browser, webContents, authority.validate), input, agentInputDebugger(browser, webContents))
+      () => dispatchNativeKeyPress(agentInputDebugger(browser, webContents, validate), input, agentInputDebugger(browser, webContents))
     ))
     // No check once the key is up, as after a click: a key that submits a form or follows a link navigates the page,
     // and that is the press working, not the page changing under it.
