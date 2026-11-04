@@ -1,11 +1,12 @@
 import type { TestInfo } from '@playwright/test'
-import { UNCAUGHT_EXCEPTION_LOG_PREFIX } from '../../src/main/uncaught-exceptions.js'
+import { UNCAUGHT_EXCEPTION_LOG_PREFIX, UNHANDLED_REJECTION_LOG_PREFIX } from '../../src/main/uncaught-exceptions.js'
 
 // The app logs an uncaught exception in its main process and carries on, where Electron's own handler froze it in a
-// native error box. Carrying on would let a test pass over the bug, so each launch's error output is read for those
-// lines and a test whose launches logged one fails with the error and its stack.
+// native error box, and logs a promise rejected there that nothing handled. Carrying on would let a test pass over the
+// bug, so each launch's error output is read for those lines and a test whose launches logged one fails with the error
+// and its stack.
 
-/** One uncaught exception as the main process logged it: the logged line, then its stack lines. */
+/** One uncaught exception or unhandled rejection as the main process logged it: the logged line, then its stack lines. */
 export interface MainUncaughtException {
   lines: string[]
 }
@@ -47,8 +48,8 @@ export function readMainUncaughtExceptions(testInfo: TestInfo, output: NodeJS.Re
 }
 
 /**
- * Reads the main process's uncaught exceptions from output that arrives in chunks: the logged line, then the stack
- * lines that follow it, without color codes. An exception is passed on as its logged line arrives and fills in as its
+ * Reads the main process's uncaught exceptions and unhandled rejections from output that arrives in chunks: the logged
+ * line, then the stack lines that follow it, without color codes. An exception is passed on as its logged line arrives and fills in as its
  * stack lines do, until a line that is not part of its stack. A line too long to keep is cut short.
  */
 export function mainUncaughtExceptionReader(onException: (exception: MainUncaughtException) => void): (chunk: string) => void {
@@ -58,7 +59,7 @@ export function mainUncaughtExceptionReader(onException: (exception: MainUncaugh
   let current: MainUncaughtException | undefined
   const readLine = (raw: string): void => {
     const line = raw.replace(/\r$/, '').replace(COLOR, '')
-    if (line.startsWith(UNCAUGHT_EXCEPTION_LOG_PREFIX)) {
+    if (line.startsWith(UNCAUGHT_EXCEPTION_LOG_PREFIX) || line.startsWith(UNHANDLED_REJECTION_LOG_PREFIX)) {
       current = { lines: [line] }
       onException(current)
       return

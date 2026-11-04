@@ -109,7 +109,7 @@ import { registerAddressOverlayIpc } from './overlays/address-overlay-ipc.js'
 import { registerAppLifecycle, type AppQuitState } from './app-lifecycle.js'
 import { createQuitRequest, createQuitWithDownloadsConfirmation } from './quit-with-downloads.js'
 import { createRuntimeShutdown } from './runtime-shutdown.js'
-import { logUncaughtExceptions } from './uncaught-exceptions.js'
+import { logMainProcessErrors } from './uncaught-exceptions.js'
 import { isTabAgentPaused } from './browser/agent-pause/agent-pause.js'
 import { listMcpTabGroups } from './browser/mcp-tab-groups/mcp-tab-groups.js'
 import { captureAgentStepThumbnail } from './browser/agent-step-thumbnail/agent-step-thumbnail.js'
@@ -122,7 +122,7 @@ import { applySiteMutingToTabs } from './browser/site-muting/site-muting.js'
 import { handleMcpTabActivity } from './browser/agent-follow/agent-follow.js'
 import { noteShellKey } from './browser/tab-events/shell-held-keys.js'
 
-logUncaughtExceptions()
+logMainProcessErrors()
 
 const mcpRuntime: McpRuntimeState = {
   host: process.env.HRONAUT_MCP_HOST || '127.0.0.1',

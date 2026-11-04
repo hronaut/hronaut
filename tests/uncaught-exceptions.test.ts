@@ -1,22 +1,35 @@
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
-import { logUncaughtExceptions, UNCAUGHT_EXCEPTION_LOG_PREFIX } from '../src/main/uncaught-exceptions.js'
+import { logMainProcessErrors, UNCAUGHT_EXCEPTION_LOG_PREFIX, UNHANDLED_REJECTION_LOG_PREFIX } from '../src/main/uncaught-exceptions.js'
 import { mainUncaughtExceptionReader, type MainUncaughtException } from './integration/main-uncaught-exceptions.js'
 
 // Electron's own handler showed an uncaught exception in a native error box that blocked the main process, which a CI
 // run's csp-disposition case hung on until teardown aborted the app.
 
-describe('uncaught exceptions in the main process', () => {
-  it('are logged with the error, by a handler of the app\'s own, so Electron shows no error box', () => {
+describe('errors nothing in the main process caught', () => {
+  it('log an uncaught exception with the error, by a handler of the app\'s own, so Electron shows no error box', () => {
     const source = new EventEmitter()
     const log = vi.fn()
-    logUncaughtExceptions(source, log)
+    logMainProcessErrors(source, log)
     // Electron's handler leaves the box out whenever another handler is listening.
     expect(source.listenerCount('uncaughtException')).toBe(1)
     const error = new Error('broken listener')
     source.emit('uncaughtException', error)
     expect(log).toHaveBeenCalledOnce()
     expect(log).toHaveBeenCalledWith(UNCAUGHT_EXCEPTION_LOG_PREFIX, error)
+  })
+
+  // A save dialog's folder failed to load as the browser was built, and the rejected promise left main with only Node's
+  // warning and exit code 1, which no e2e test read: the first save dialog after a restart opened in the wrong folder.
+  it('log a promise rejected with nothing to handle it, with its reason, under a line of its own', () => {
+    const source = new EventEmitter()
+    const log = vi.fn()
+    logMainProcessErrors(source, log)
+    expect(source.listenerCount('unhandledRejection')).toBe(1)
+    const reason = new TypeError('Cannot read properties of undefined (reading \'downloadDirectory\')')
+    source.emit('unhandledRejection', reason, Promise.resolve())
+    expect(log).toHaveBeenCalledOnce()
+    expect(log).toHaveBeenCalledWith(UNHANDLED_REJECTION_LOG_PREFIX, reason)
   })
 })
 
@@ -68,7 +81,14 @@ describe('uncaught exceptions in a launch\'s error output', () => {
     expect(exception?.split('\n')).toEqual([long.slice(0, 4096), logged[1]])
   })
 
+  it('keep an unhandled rejection the way they keep an uncaught exception', () => {
+    const rejection = ['[main] Unhandled rejection: TypeError: broken', '    at checkSaveDialogFolder (/workspace/out/main/index.js:20:3)']
+    expect(read([[...rejection, '(node:1) other', ''].join('\n')])).toEqual([rejection.join('\n')])
+  })
+
   it('ignore other output', () => {
     expect(read(['Error: not uncaught\n    at somewhere (file.js:1:1)\n', `${'y'.repeat(5000)}\n`])).toEqual([])
+    // Node's own warning, which it gives only when nothing listens, is not the app's line.
+    expect(read(['(node:802) UnhandledPromiseRejectionWarning: Error: boom\n    at main.js:4:18\n'])).toEqual([])
   })
 })
