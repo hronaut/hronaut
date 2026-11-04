@@ -957,6 +957,19 @@ describe('AppBrowserChromeLayer', () => {
     expect(surface.foldedWorkspaceIds()).toBeUndefined()
   })
 
+  it('leaves telling main which workspaces are folded to the main window, not a detached panel\'s', async () => {
+    // A panel's window reads the folds once as it opens, so its copy would undo later folds in the main window.
+    window.history.replaceState(null, '', '/?hronautPanel=bookmarks')
+    try {
+      const harness = createHarness()
+      await nextTick()
+      expect(harness.browser.setFoldedWorkspaces).not.toHaveBeenCalled()
+      harness.wrapper.unmount()
+    } finally {
+      window.history.replaceState(null, '', '/')
+    }
+  })
+
   it('routes independent agent and lifecycle actions through the tab controller', async () => {
     const harness = createHarness()
     const page = harness.wrapper.getComponent(BrowserPageActionsStub)

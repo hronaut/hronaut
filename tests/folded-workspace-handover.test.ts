@@ -51,10 +51,14 @@ describe('a tab closing or going to sleep beside a folded workspace', () => {
     expect(fallbackWhenSleeping(fixture(threeWorkspaces, ['docs']), 'work-1')).toBe('notes-1')
   })
 
-  it('passes over the other tabs of its own workspace when the strip folds that too', () => {
+  it('stays in its own workspace when the person folded that one, rather than going to another', () => {
     const tabs = [{ id: 'work-1', mcpGroupId: 'work' }, { id: 'work-2', mcpGroupId: 'work' }, { id: 'docs-1', mcpGroupId: 'docs' }]
-    expect(nextAfterClosing(fixture(tabs, ['work']), 'work-2')).toBe('docs-1')
-    expect(fallbackWhenSleeping(fixture(tabs, ['work']), 'work-2')).toBe('docs-1')
+    expect(nextAfterClosing(fixture(tabs, ['work']), 'work-2')).toBe('work-1')
+    expect(fallbackWhenSleeping(fixture(tabs, ['work']), 'work-2')).toBe('work-1')
+    // Leaving it, the view still passes over another folded workspace.
+    const others = [{ id: 'work-1', mcpGroupId: 'work' }, { id: 'docs-1', mcpGroupId: 'docs' }, { id: 'notes-1', mcpGroupId: 'notes' }]
+    expect(nextAfterClosing(fixture(others, ['work', 'docs']), 'work-1')).toBe('notes-1')
+    expect(fallbackWhenSleeping(fixture(others, ['work', 'docs']), 'work-1')).toBe('notes-1')
   })
 
   it('still shows a folded workspace\'s tab when no other is left', () => {

@@ -329,8 +329,9 @@ export function sleepFallbackTab(browser: Browser, tab: BrowserTab): BrowserTab 
     const sameWorkspace = among.filter((candidate) => candidate.mcpGroupId === tab.mcpGroupId)
     return sameWorkspace.find((candidate) => !candidate.sleeping) ?? sameWorkspace[0] ?? among.find((candidate) => !candidate.sleeping) ?? among[0]
   }
-  // A tab of a workspace the strip folds comes only when no other is left, as when a tab closes.
-  return pick(candidates.filter((candidate) => !isInFoldedWorkspace(browser, candidate))) ?? pick(candidates)
+  // A tab of another workspace the strip folds comes only when no other is left, as when a tab closes.
+  const shown = candidates.filter((candidate) => candidate.mcpGroupId === tab.mcpGroupId || !isInFoldedWorkspace(browser, candidate))
+  return pick(shown) ?? pick(candidates)
 }
 
 /**

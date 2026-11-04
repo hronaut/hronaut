@@ -31,9 +31,13 @@ export function closeTabTransition(browser: Browser, tab: BrowserTab): { splitPa
     const candidate = browser.tabs.get(candidateId)
     return candidate !== undefined && candidate.id !== tab.id && !candidate.webContents.isDestroyed()
   }
-  // A tab of a workspace the strip folds comes only when no other is left, as Chrome passes over collapsed groups: the
-  // tab strip would unfold it to show it. Home is in none, so one is always left. A split view keeps its partner.
-  const shown = (candidateId: string): boolean => splitPartnerId !== null || !isInFoldedWorkspace(browser, browser.tabs.get(candidateId)!)
+  // A tab of another workspace the strip folds comes only when no other is left, as Chrome passes over collapsed groups:
+  // the strip would unfold it to show it. The person may fold the workspace they are in, whose tabs still come first,
+  // as before. A split view keeps its partner.
+  const shown = (candidateId: string): boolean => {
+    const candidate = browser.tabs.get(candidateId)!
+    return splitPartnerId !== null || candidate.mcpGroupId === tab.mcpGroupId || !isInFoldedWorkspace(browser, candidate)
+  }
   const nextId = tab.id === browser.activeTabId
     ? orderedCandidates.find((candidateId) => usable(candidateId) && shown(candidateId)) ?? orderedCandidates.find(usable)
     : undefined
