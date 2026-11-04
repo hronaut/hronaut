@@ -123,8 +123,8 @@ test('preserves a selected global command when live tab state removes website co
   const selected = palette.locator('[role="option"][aria-selected="true"]')
   const search = palette.getByRole('combobox', { name: 'Search commands' })
   // Chosen with the keyboard. Under Xvfb the system's pointer rests where Playwright's never goes, and the window is
-  // handed its events, as when the pages under the palette hide: a rehearsal's case that chose Open Settings with
-  // Playwright's pointer saw the row under the system's taken, the pointer having moved from one to the other.
+  // handed its events, as when the pages under the palette hide: chosen with Playwright's pointer, Open Settings lost
+  // the selection to the row under the system's, the pointer having seemed to move from one to the other.
   for (let presses = 0; await selected.getAttribute('id') !== 'command-palette-settings'; presses += 1) {
     if (presses > 80) throw new Error('ArrowDown never reached Open Settings')
     const before = await selected.getAttribute('id')

@@ -110,9 +110,9 @@ describe('CommandPalette', () => {
     await fireEvent.pointerMove(history, { clientX: 42, clientY: 80 })
     expect(history).toHaveAttribute('aria-selected', 'true')
 
-    // A rehearsal's e2e case caught one later than the guard: the event the reflow sent came where the system's pointer
-    // rested, not where the test's had moved, and the row under it was taken. The first event after a reflow only says
-    // where the pointer rests, however late it comes.
+    // The event a reflow sends can come after the guard, where the pointer rests rather than where it last moved over a
+    // row, as for a pointer resting beside the rows or, under Xvfb, the system's pointer beside Playwright's. The first
+    // event after a reflow only says where the pointer rests, however late it comes.
     await view.rerender({ websiteAvailable: true })
     now += 151
     await fireEvent.pointerMove(settings, { clientX: 60, clientY: 90 })
@@ -147,5 +147,44 @@ describe('CommandPalette', () => {
     // A list changed just before it opened does not hold back a pointer that moves.
     await fireEvent.pointerMove(settings, { clientX: 40, clientY: 84 })
     expect(settings).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('remembers where the pointer rests beside the rows, and starts afresh each time it opens', async () => {
+    const now = 1_000
+    vi.spyOn(performance, 'now').mockImplementation(() => now)
+    const view = render(CommandPalette, {
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: {
+        open: true,
+        websiteAvailable: true,
+        formatNumber: String,
+        runCommand: vi.fn(),
+        reportCommandError: vi.fn()
+      }
+    })
+    const settings = () => screen.getByRole('option', { name: /Open Settings/ })
+    const history = () => screen.getByRole('option', { name: /Show browsing history/ })
+    const selectedId = () => screen.getAllByRole('option').find((option) => option.getAttribute('aria-selected') === 'true')?.id
+    await fireEvent.pointerMove(settings(), { clientX: 40, clientY: 76 })
+    await fireEvent.pointerMove(settings(), { clientX: 40, clientY: 80 })
+    expect(settings()).toHaveAttribute('aria-selected', 'true')
+
+    // The pointer leaves the rows to rest beside them, and the keyboard goes on to the next command, scrolling a row
+    // under the resting pointer, which the window hands an event where it rests.
+    await fireEvent.pointerMove(screen.getByRole('dialog').parentElement!, { clientX: 900, clientY: 40 })
+    await fireEvent.keyDown(screen.getByRole('combobox', { name: 'Search commands, tabs and pages' }), { key: 'ArrowDown' })
+    const chosen = selectedId()
+    expect(chosen).not.toBe(settings().id)
+    await fireEvent.pointerMove(history(), { clientX: 900, clientY: 40 })
+    expect(selectedId()).toBe(chosen)
+
+    // Opened again with its shortcut under a pointer resting elsewhere than when it closed.
+    await view.rerender({ open: false })
+    await view.rerender({ open: true })
+    const opened = selectedId()
+    await fireEvent.pointerMove(history(), { clientX: 60, clientY: 90 })
+    expect(selectedId()).toBe(opened)
+    await fireEvent.pointerMove(history(), { clientX: 60, clientY: 94 })
+    expect(history()).toHaveAttribute('aria-selected', 'true')
   })
 })
