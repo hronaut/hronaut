@@ -297,7 +297,8 @@ function createHarness(home = false, options: { attach?: boolean } = {}) {
     setTabPageLifecycle: vi.fn(async () => browserState),
     showTabContextMenu: vi.fn(async () => undefined),
     dropLink: vi.fn(async (_text: string, _target: unknown) => browserState),
-    answerUserAttention: vi.fn(async (_id: string, _answer: 'resolved' | 'dismissed') => true)
+    answerUserAttention: vi.fn(async (_id: string, _answer: 'resolved' | 'dismissed') => true),
+    setFoldedWorkspaces: vi.fn(async (_workspaceIds: string[]) => undefined)
   }
   const actions = {
     openHome: vi.fn(),
@@ -944,6 +945,8 @@ describe('AppBrowserChromeLayer', () => {
     expect(surface.selectedTabs()).toEqual(['first', 'second'])
     // The workspaces folded in the strip, whose tabs the tab keys pass over.
     expect(surface.foldedWorkspaceIds()).toEqual(new Set(['workspace-2']))
+    // Main hears of them too, so a tab closing or going to sleep hands the view past their tabs.
+    expect(harness.browser.setFoldedWorkspaces).toHaveBeenCalledWith(['workspace-2'])
 
     harness.wrapper.unmount()
     surface.expandTabGroup('workspace-2')

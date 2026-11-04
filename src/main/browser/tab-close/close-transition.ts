@@ -1,5 +1,6 @@
 import type { Browser } from '../browser.js'
 import { orderedTabs } from '../browser-core.js'
+import { isInFoldedWorkspace } from '../folded-workspaces/folded-workspaces.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { tabAfterClosingLinkTab } from '../link-tab-placement/link-tab-openers.js'
 
@@ -26,11 +27,15 @@ export function closeTabTransition(browser: Browser, tab: BrowserTab): { splitPa
   const orderedCandidates = splitPartnerId
     ? [splitPartnerId, ...ids]
     : [...openerId, ...returnId, ...fromPageId, ...after.filter(sameWorkspace), ...before.filter(sameWorkspace), ...after, ...before]
+  const usable = (candidateId: string): boolean => {
+    const candidate = browser.tabs.get(candidateId)
+    return candidate !== undefined && candidate.id !== tab.id && !candidate.webContents.isDestroyed()
+  }
+  // A tab of a workspace the strip folds comes only when no other is left, as Chrome passes over collapsed groups: the
+  // tab strip would unfold it to show it. Home is in none, so one is always left. A split view keeps its partner.
+  const shown = (candidateId: string): boolean => splitPartnerId !== null || !isInFoldedWorkspace(browser, browser.tabs.get(candidateId)!)
   const nextId = tab.id === browser.activeTabId
-    ? orderedCandidates.find((candidateId) => {
-      const candidate = browser.tabs.get(candidateId)
-      return candidate !== undefined && candidate.id !== tab.id && !candidate.webContents.isDestroyed()
-    })
+    ? orderedCandidates.find((candidateId) => usable(candidateId) && shown(candidateId)) ?? orderedCandidates.find(usable)
     : undefined
   return { splitPartnerId, nextId }
 }

@@ -450,6 +450,13 @@ function foldedWorkspaceIds(): ReadonlySet<string> | undefined {
   return browserTabsBar.value?.collapsedTabGroupIds
 }
 
+// Main hands the view past a folded workspace's tabs when a tab closes or sleeps, as the tab keys pass over them.
+watch(() => props.hydrated && [...(foldedWorkspaceIds() ?? [])].sort().join('|'), (folded) => {
+  if (folded === false) return
+  void props.browser.setFoldedWorkspaces?.([...(foldedWorkspaceIds() ?? [])])
+    ?.catch((error: unknown) => { console.warn('[shell] Could not tell main which workspaces are folded:', error) })
+}, { immediate: true })
+
 defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFromAgent, selectedTabs, foldedWorkspaceIds })
 </script>
 

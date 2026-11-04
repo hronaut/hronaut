@@ -26,6 +26,7 @@ export const workspacesApi: HronautWorkspacesApi = {
   restoreSavedTabGroup: (savedGroupId) => invoke(WORKSPACES_IPC.restoreSaved, savedGroupId),
   deleteSavedTabGroup: (savedGroupId) => invoke(WORKSPACES_IPC.deleteSaved, savedGroupId),
   showWorkspaceContextMenu: (workspaceId) => invoke(WORKSPACES_IPC.showContextMenu, workspaceId),
+  setFoldedWorkspaces: (workspaceIds) => invoke(WORKSPACES_IPC.setFolded, workspaceIds),
   browserImport: {
     list: (workspaceId) => invoke(BROWSER_IMPORT_IPC.list, workspaceId),
     preview: (workspaceId, profileId) => invoke(BROWSER_IMPORT_IPC.preview, workspaceId, profileId),

@@ -17,6 +17,7 @@ import { formStateChangedInPage, pictureInPictureShownInPage } from './tab-sleep
 import type { Browser } from '../browser.js'
 import { ensureDialogMonitoring } from '../website-dialogs/website-dialogs.js'
 import { findTab, getTab, orderedTabs } from '../browser-core.js'
+import { isInFoldedWorkspace } from '../folded-workspaces/folded-workspaces.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { browserState, publishChange } from '../browser-state/browser-state.js'
 import { withDebugger } from '../debugger-lease/debugger-lease.js'
@@ -324,11 +325,12 @@ export function sleepFallbackTab(browser: Browser, tab: BrowserTab): BrowserTab 
     ...ordered.slice(index + 1),
     ...ordered.slice(0, index).reverse()
   ].filter((candidate) => candidate.id !== tab.id && !candidate.webContents.isDestroyed())
-  const sameWorkspace = candidates.filter((candidate) => candidate.mcpGroupId === tab.mcpGroupId)
-  return sameWorkspace.find((candidate) => !candidate.sleeping)
-    ?? sameWorkspace[0]
-    ?? candidates.find((candidate) => !candidate.sleeping)
-    ?? candidates[0]
+  const pick = (among: BrowserTab[]): BrowserTab | undefined => {
+    const sameWorkspace = among.filter((candidate) => candidate.mcpGroupId === tab.mcpGroupId)
+    return sameWorkspace.find((candidate) => !candidate.sleeping) ?? sameWorkspace[0] ?? among.find((candidate) => !candidate.sleeping) ?? among[0]
+  }
+  // A tab of a workspace the strip folds comes only when no other is left, as when a tab closes.
+  return pick(candidates.filter((candidate) => !isInFoldedWorkspace(browser, candidate))) ?? pick(candidates)
 }
 
 /**
