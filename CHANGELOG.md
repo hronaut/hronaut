@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [3.14.14] - 2026-11-04
+
 ### Security
 
 - Hronaut now runs on Electron 45.2.3, which backports upstream fixes to Chromium, V8, ANGLE, Dawn, FFmpeg, PDFium, Skia and minigbm; Chromium stays at 156.0.8078.80.
