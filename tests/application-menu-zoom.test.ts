@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-type Item = { label?: string; type?: string; role?: string; accelerator?: string; visible?: boolean; click?: (item: unknown, window: unknown, event: { triggeredByAccelerator?: boolean }) => void }
+type Item = { label?: string; type?: string; role?: string; accelerator?: string; click?: (item: unknown, window: unknown, event: { triggeredByAccelerator?: boolean }) => void }
 const installed = vi.hoisted(() => ({ template: [] as Array<{ label?: string; submenu?: Item[] }> }))
 vi.mock('electron', () => ({ Menu: { buildFromTemplate: (template: typeof installed.template) => template, setApplicationMenu: (menu: typeof installed.template) => { installed.template = menu } } }))
 import { createApplicationMenu } from '../src/main/windows/application-menu.js'
@@ -53,21 +53,5 @@ describe('the View menu\'s zoom', () => {
     }
     expect(runShortcut).toHaveBeenCalledTimes(6)
     expect(showWindow).not.toHaveBeenCalled()
-  })
-
-  // Held down, Chrome's Ctrl+Shift+Minus zooms out with each repeat elsewhere than macOS, as Zoom Out's key does here.
-  it.each(['linux', 'win32'] as const)('zooms out with Chrome\'s other key, Ctrl+Shift+Minus, hidden, on %s', (on) => {
-    const { runShortcut, mainWindow } = menu(on)
-    const view = installed.template.find((candidate) => candidate.label === 'native.menu.view')!.submenu!
-    const other = view.find((candidate) => candidate.accelerator === 'Ctrl+Shift+-')!
-    expect(other).toMatchObject({ label: 'native.menu.zoomOut', visible: false })
-    other.click!(other, mainWindow, { triggeredByAccelerator: true })
-    expect(runShortcut).toHaveBeenCalledExactlyOnceWith('zoom-out')
-  })
-
-  it('has no other zoom out key on macOS, as Chrome there', () => {
-    menu('darwin')
-    const view = installed.template.find((candidate) => candidate.label === 'native.menu.view')!.submenu!
-    expect(view.filter((candidate) => candidate.label === 'native.menu.zoomOut').map((item) => item.accelerator)).toEqual(['CmdOrCtrl+-'])
   })
 })

@@ -96,7 +96,8 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D, Ctrl+E, Alt+Home, F6, Ctrl+F4 and Ctrl+Page 
     await expect(addressBar).toBeFocused()
     // Over a Hronaut dialog F6, Alt+D, Ctrl+E, Alt+Home, F5 and the application menu's keys leave the keyboard where it
     // is in the dialog, and the tab where it is: Ctrl+R reloaded the page behind it, Ctrl+Plus and Ctrl+Minus zoomed it,
-    // and Ctrl+Shift+P and Ctrl+Shift+/ put the command palette and Keyboard shortcuts in the dialog's place.
+    // as Ctrl+Shift+Minus would, and Ctrl+Shift+P and Ctrl+Shift+/ put the command palette and Keyboard shortcuts in the
+    // dialog's place.
     await electronApp.evaluate(({ BrowserWindow }, url) => {
       BrowserWindow.getAllWindows().find((window) => window.webContents.getURL() === url)!.webContents.send('help:open', 'about')
     }, appWindow.url())
@@ -118,6 +119,7 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D, Ctrl+E, Alt+Home, F6, Ctrl+F4 and Ctrl+Page 
     await pressInWindow('R', ['control', 'shift'])
     await pressInWindow('=', ['control', 'shift'])
     await pressInWindow('-', ['control'])
+    await pressInWindow('_', ['control', 'shift'])
     await pressInWindow('P', ['control', 'shift'])
     await pressInWindow('/', ['control', 'shift'])
     await appWindow.waitForTimeout(500)
@@ -139,6 +141,7 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D, Ctrl+E, Alt+Home, F6, Ctrl+F4 and Ctrl+Page 
     await expect(palette).toBeVisible()
     await pressInWindow('R', ['control'])
     await pressInWindow('=', ['control', 'shift'])
+    await pressInWindow('_', ['control', 'shift'])
     await pressInWindow('/', ['control', 'shift'])
     await appWindow.waitForTimeout(500)
     await expect(palette).toBeVisible()

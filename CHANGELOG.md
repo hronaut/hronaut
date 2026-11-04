@@ -13,7 +13,7 @@ All notable changes to Hronaut are documented in this file.
 - Closing or putting to sleep the tab in view no longer shows a tab of a workspace folded in the tab strip, which then unfolded, while a tab of another workspace is left, as Chrome passes over a collapsed tab group.
 - Save as PDF, and saving a recording's video or a HAR file from Hronaut's own controls, into a download folder Hronaut cannot write to, such as on a drive that became read-only, asks where to save the file, over the window you asked from and starting in your Documents folder, as a website download does, instead of failing.
 - Page zoom goes through Chrome's steps, from 25% to 500%, in the toolbar, the keys, Ctrl with the mouse wheel and `browser_zoom`, instead of stopping at 50% and 400% with a 60% step Chrome does not have.
-- On Windows and Linux, Ctrl+Shift+Minus zooms the page out, held down too, as in Chrome, which zooms in with Ctrl+Shift+= as Hronaut already did.
+- On Windows and Linux, Ctrl+Shift+Minus zooms the page out, as in Chrome, once the page leaves the key alone: JupyterLab, which splits a cell with it, keeps it. A Japanese keyboard's Ctrl+Shift with the minus key no longer zooms in.
 
 ## [3.14.10] - 2026-11-04
 
