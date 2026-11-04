@@ -4,6 +4,12 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [3.14.10] - 2026-11-04
+
+### Changed
+
+- Hronaut now ships Mediabunny 1.65.0, which exports recorded page videos, and @solana/kit 8.6.0, which Solana wallets use.
+
 ## [3.14.9] - 2026-11-04
 
 ### Security
