@@ -1,4 +1,5 @@
 import { DEFAULT_SEARCH_ENGINE, searchUrl, type SearchEngineName } from '../../shared/search-engine.js'
+import { TOP_LEVEL_DOMAINS } from './top-level-domains.js'
 export { isHronautHomeUrl } from '../../shared/home-url.js'
 
 const SCHEME_PATTERN = /^[a-zA-Z][a-zA-Z\d+.-]*:/
@@ -14,6 +15,9 @@ const SINGLE_LABEL_HOST_WITH_PORT = /^([a-z](?:[a-z\d_-]*[a-z\d])?):\d{1,5}(?:[/
 // a query and a fragment, such as `wiki/page?id=4`, names a machine on the local network, as in Chrome. A word alone, or
 // one with only a path, a query or a fragment after it, such as `and/or` or `why?`, is a search.
 const SINGLE_LABEL_HOST_WITH_PATH = /^[a-z](?:[a-z\d_-]*[a-z\d])?(?<path>\/[^?#\s]*)?(?<query>\?[^#\s]*)?(?<fragment>#\S*)?$/i
+// The names Chrome opens as addresses although their last part is no top-level domain, with a name before it: the
+// special-use `.example`, `.test` and `.onion`, `.local` for Multicast DNS and `.internal`, reserved for private use.
+const SPECIAL_USE_DOMAINS = ['example', 'test', 'onion', 'local', 'internal']
 // The page whose source `view-source:` shows, which Chrome reads as a typed address, so `view-source:example.com` works.
 const VIEW_SOURCE = /^view-source:(?<page>.*)$/is
 // Links whose whole value can be a short number, such as `tel:911` or a SIP extension, stay links. A web scheme such as
@@ -98,6 +102,44 @@ function isSingleLabelHostAddress(value: string): boolean {
   return path.endsWith('/') || [path, query.slice(1), fragment.slice(1)].filter(Boolean).length > 1
 }
 
+// The host name a scheme-less address names, in lowercase and without a trailing dot.
+function schemeLessHostname(value: string): string | undefined {
+  try {
+    return new URL(`http://${value}`).hostname.toLowerCase().replace(/\.$/, '')
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Whether a scheme-less address names a host under no top-level domain, such as `nas.lan` or `node.js`, which no
+ * public site, and no public certificate, can have. An IP address and a loopback name are none.
+ */
+function namesUnknownTopLevelDomain(value: string): boolean {
+  const hostname = schemeLessHostname(value)
+  if (!hostname || hostname.startsWith('[') || /^\d+(?:\.\d+){3}$/.test(hostname) || isLoopbackAddress(value)) return false
+  return !TOP_LEVEL_DOMAINS.has(hostname.slice(hostname.lastIndexOf('.') + 1))
+}
+
+/**
+ * Whether a scheme-less dotted name reads as search terms, as in Chrome: its last part is no top-level domain, as in
+ * `node.js`, `index.html` or `nas.lan`, and nothing after it marks it as an address, which a port does, a path that
+ * ends in a slash, as in `nas.lan/`, or two of a path, a query and a fragment. A name under the special-use `.invalid`,
+ * which can never be reached, is always searched; the other special-use names stay addresses.
+ */
+function isUnknownDomainSearch(value: string): boolean {
+  if (!namesUnknownTopLevelDomain(value)) return false
+  const hostname = schemeLessHostname(value)!
+  if (hostname.endsWith('.invalid')) return true
+  if (SPECIAL_USE_DOMAINS.some((domain) => hostname.endsWith(`.${domain}`))) return false
+  const restAt = value.search(/[/\\?#]/)
+  if (/:\d+$/.test(restAt < 0 ? value : value.slice(0, restAt))) return false
+  const rest = /^(?<path>[/\\][^?#]*)?(?<query>\?[^#]*)?(?<fragment>#.*)?$/s.exec(restAt < 0 ? '' : value.slice(restAt))?.groups
+  if (!rest) return false
+  const { path = '', query = '', fragment = '' } = rest
+  return !/[/\\]$/.test(path) && [path, query.slice(1), fragment.slice(1)].filter(Boolean).length < 2
+}
+
 function hasSchemeLessUserInfo(value: string): boolean {
   const authorityEnd = value.search(/[/?#]/)
   const authority = authorityEnd < 0 ? value : value.slice(0, authorityEnd)
@@ -128,13 +170,19 @@ export function isAgentWorkspaceNavigationUrl(value: string): boolean {
 
 /** The address a typed input names, without falling back to a search: undefined when it reads as search terms. */
 export function webAddress(input: string): string | undefined {
+  return typedAddress(input, true)
+}
+
+// unknownDomainsSearched: a dotted name under no top-level domain is searched, as it is in the address bar, rather
+// than after `view-source:`, where Chrome reads any name as a page's address.
+function typedAddress(input: string, unknownDomainsSearched: boolean): string | undefined {
   const value = input.trim()
   if (!value) return 'about:blank'
   const viewedPage = VIEW_SOURCE.exec(value)?.groups?.page
   if (viewedPage !== undefined) {
     // As in Chrome, the source of a source page is not an address, so a long chain of them is never read one by one.
     if (/^\s*view-source:/i.test(viewedPage)) return value
-    const page = webAddress(viewedPage)
+    const page = typedAddress(viewedPage, false)
     return page && isWebUrl(page) ? `view-source:${page}` : value
   }
   if (/^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(value) || /^(about|data|file):/i.test(value)) return value
@@ -144,7 +192,11 @@ export function webAddress(input: string): string | undefined {
     return URL.canParse(candidate) ? candidate : undefined
   }
   if (!hasSchemeLessUserInfo(value) && !isShortNumberSearch(value) && HOST_LIKE_PATTERN.test(value)) {
-    const plainHttp = !namesHttpsPort(value) && (isLoopbackAddress(value) || isLocalNetworkAddress(value))
+    // Read as search terms, a name such as `site.invalid:80` is no scheme either.
+    if (unknownDomainsSearched && isUnknownDomainSearch(value)) return undefined
+    // A name under no top-level domain, which no public certificate can name, opens over HTTP too, as in Chrome.
+    const plainHttp = !namesHttpsPort(value)
+      && (isLoopbackAddress(value) || isLocalNetworkAddress(value) || namesUnknownTopLevelDomain(value))
     const candidate = `${plainHttp ? 'http' : 'https'}://${value}`
     try {
       new URL(candidate)

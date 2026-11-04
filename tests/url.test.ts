@@ -264,6 +264,49 @@ describe('normalizeAddress', () => {
     expect(normalizeAddress(input)).toBe(expected)
   })
 
+  it.each([
+    'node.js', 'index.html', 'package.json', 'browser.tabs.closeButtons', 'nas.lan', 'NODE.JS', 'node.js.', 'next.js/docs',
+    'node.js?v=22', 'node.js#install', 'printer.home', 'site.invalid', 'site.invalid/', 'site.invalid:80/a?b'
+  ])('searches %s, a dotted name whose last part is no top-level domain, as Chrome does', (input) => {
+    // These opened as sites, such as https://node.js, which no server answers.
+    expect(normalizeAddress(input)).toBe(`https://www.google.com/search?q=${encodeURIComponent(input)}`)
+  })
+
+  it.each([
+    ['nas.lan/', 'http://nas.lan/'],
+    ['nas.lan\\', 'http://nas.lan\\'],
+    ['node.js/docs/', 'http://node.js/docs/'],
+    ['nas.lan:5000', 'http://nas.lan:5000'],
+    ['nas.lan:443/', 'https://nas.lan:443/'],
+    ['wiki.corp/page?id=4', 'http://wiki.corp/page?id=4'],
+    ['docs.lan/guide#install', 'http://docs.lan/guide#install'],
+    ['wiki.corp?page=4#top', 'http://wiki.corp?page=4#top'],
+    ['example.com', 'https://example.com'],
+    ['Example.COM.', 'https://Example.COM.'],
+    ['README.md', 'https://README.md'],
+    ['app.dev', 'https://app.dev'],
+    ['bbc.co.uk', 'https://bbc.co.uk'],
+    ['site.example', 'http://site.example'],
+    ['abcdefghijklmnop.onion', 'http://abcdefghijklmnop.onion'],
+    ['api.test', 'http://api.test'],
+    ['printer.local', 'http://printer.local'],
+    ['db.internal', 'http://db.internal'],
+    ['nas.home.arpa', 'http://nas.home.arpa'],
+    ['dev.localhost', 'http://dev.localhost'],
+    ['\u4f8b\u5b50.\u4e2d\u56fd', 'https://\u4f8b\u5b50.\u4e2d\u56fd']
+  ])('still opens %s: a known or special-use top-level domain, a port, a trailing slash, or two of a path, a query and a fragment', (
+    input, expected
+  ) => {
+    // One under no top-level domain, which no public certificate can name, opens over HTTP, as in Chrome.
+    expect(normalizeAddress(input)).toBe(expected)
+  })
+
+  it('shows the source of a page under no top-level domain, as Chrome reads any name after view-source:', () => {
+    expect(normalizeAddress('view-source:node.js')).toBe('view-source:http://node.js')
+    expect(normalizeAddress('view-source:nas.lan/admin')).toBe('view-source:http://nas.lan/admin')
+    expect(normalizeAddress('view-source:example.com')).toBe('view-source:https://example.com')
+  })
+
   it('searches email-shaped input instead of treating it as URL credentials', () => {
     expect(normalizeAddress('person@example.com')).toBe(
       'https://www.google.com/search?q=person%40example.com'
