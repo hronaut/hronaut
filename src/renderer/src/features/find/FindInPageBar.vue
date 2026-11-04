@@ -37,6 +37,8 @@ const searching = ref(false)
 const result = ref<BrowserFindResult>({ activeMatchOrdinal: 0, matches: 0 })
 let targetTabId: string | undefined
 let requestSequence = 0
+// The keys the field sent on to the page as pressed, by the key on the keyboard, and the tab they went to.
+const pageHeldKeys = new Map<string, { tabId: string; key: BrowserFindPageKey['key'] }>()
 
 async function search(forward: boolean, newSearch: boolean, fromSelectionStart = false): Promise<void> {
   const tabId = targetTabId
@@ -88,20 +90,20 @@ function isFollowMatchKey(event: KeyboardEvent): boolean {
 }
 
 function handleSearchKeydown(event: KeyboardEvent): void {
-  if (isImeCompositionEvent(event) || forwardPageKey(event, 'keyDown')) return
+  if (isImeCompositionEvent(event) || forwardPageKey(event)) return
   if (event.key !== 'Enter' || isFollowMatchKey(event)) return
   event.preventDefault()
   void search(!event.shiftKey, false)
 }
 
 function handleSearchKeyup(event: KeyboardEvent): void {
-  if (!isImeCompositionEvent(event)) forwardPageKey(event, 'keyUp')
+  releasePageKey(event)
 }
 
 // As in Chrome, Up, Down, Page Up and Page Down in the field, and Home and End with Ctrl, scroll the page: the field
 // sends them on to it, pressed and released, and keeps its own text and caret. A browser key stays the browser's, such
 // as Ctrl+Page Down going to the next tab, also while held.
-function forwardPageKey(event: KeyboardEvent, type: BrowserFindPageKey['type']): boolean {
+function forwardPageKey(event: KeyboardEvent): boolean {
   const key = pageKey(event)
   const tabId = targetTabId
   if (!key || !tabId) return false
@@ -117,9 +119,33 @@ function forwardPageKey(event: KeyboardEvent, type: BrowserFindPageKey['type']):
   }
   if (browserShortcutAction(input) ?? websiteKeptShortcutAction(input)) return false
   event.preventDefault()
-  const modifiers = { shift: event.shiftKey, control: event.ctrlKey, alt: event.altKey, meta: event.metaKey }
-  void props.browser.forwardFindKey(tabId, { type, key, ...modifiers, repeat: event.repeat }).catch(() => undefined)
+  pageHeldKeys.set(event.code || event.key, { tabId, key })
+  void props.browser.forwardFindKey(tabId, { type: 'keyDown', key, ...modifiers(event), repeat: event.repeat }).catch(() => undefined)
   return true
+}
+
+// The release of a key the field sent on to the page goes there too, as in Chrome, whatever else is held by then, so
+// the page does not keep the key held down.
+function releasePageKey(event: KeyboardEvent): void {
+  const held = pageHeldKeys.get(event.code || event.key)
+  if (!held) return
+  pageHeldKeys.delete(event.code || event.key)
+  event.preventDefault()
+  void props.browser.forwardFindKey(held.tabId, { type: 'keyUp', key: held.key, ...modifiers(event), repeat: false }).catch(() => undefined)
+}
+
+// Once the field no longer has the keyboard, the page gets the releases of the keys it still has pressed from it, which
+// go elsewhere.
+function releasePageKeys(): void {
+  const released = { shift: false, control: false, alt: false, meta: false, repeat: false }
+  for (const { tabId, key } of pageHeldKeys.values()) {
+    void props.browser.forwardFindKey(tabId, { type: 'keyUp', key, ...released }).catch(() => undefined)
+  }
+  pageHeldKeys.clear()
+}
+
+function modifiers(event: KeyboardEvent): Pick<BrowserFindPageKey, 'shift' | 'control' | 'alt' | 'meta'> {
+  return { shift: event.shiftKey, control: event.ctrlKey, alt: event.altKey, meta: event.metaKey }
 }
 
 function pageKey(event: KeyboardEvent): BrowserFindPageKey['key'] | null {
@@ -199,6 +225,7 @@ async function cleanup(options: { activateMatch?: boolean; keepMatch?: boolean }
   const tabId = targetTabId
   requestSequence += 1
   targetTabId = undefined
+  releasePageKeys()
   searching.value = false
   searchFailed.value = false
   result.value = { activeMatchOrdinal: 0, matches: 0 }
@@ -259,6 +286,7 @@ defineExpose({ close, openForTab })
         @input="handleSearchInput"
         @keydown="handleSearchKeydown"
         @keyup="handleSearchKeyup"
+        @blur="releasePageKeys"
       />
     </div>
     <output class="find-count" aria-live="polite" :aria-busy="searching">

@@ -840,9 +840,48 @@ describe('the keys that scroll the page from the Find field', () => {
     expect(await press('keyUp', { key: 'End', shiftKey: true })).toBe(false)
     expect(await press('keyDown', { key: 'End', ctrlKey: true })).toBe(true)
     expect(await press('keyDown', { key: 'Home', ctrlKey: true, shiftKey: true })).toBe(true)
+    // Ctrl released first, as the page got the key pressed.
+    expect(await press('keyUp', { key: 'End' })).toBe(true)
     expect(browser.forwardFindKey.mock.calls).toEqual([
       ['first', key({ type: 'keyDown', key: 'End', control: true })],
-      ['first', key({ type: 'keyDown', key: 'Home', control: true, shift: true })]
+      ['first', key({ type: 'keyDown', key: 'Home', control: true, shift: true })],
+      ['first', key({ type: 'keyUp', key: 'End' })]
+    ])
+  })
+
+  it('sends the release of each key it sent, whatever is held by then, and releases the rest once the field loses the keyboard', async () => {
+    const { browser } = renderBar()
+    const field = screen.getByRole('searchbox', { name: 'Find text' })
+    await vi.waitFor(() => expect(field).toHaveFocus())
+    // Ctrl pressed while Page Down is held makes its repeats and release Ctrl+Page Down, which go to the next tab.
+    expect(await press('keyDown', { key: 'PageDown', code: 'PageDown' })).toBe(true)
+    expect(await press('keyDown', { key: 'PageDown', code: 'PageDown', ctrlKey: true, repeat: true })).toBe(false)
+    expect(await press('keyUp', { key: 'PageDown', code: 'PageDown', ctrlKey: true })).toBe(true)
+    expect(await press('keyUp', { key: 'PageDown', code: 'PageDown' })).toBe(false)
+    expect(await press('keyDown', { key: 'ArrowDown', code: 'ArrowDown' })).toBe(true)
+    expect(await press('keyUp', { key: 'ArrowDown', code: 'ArrowDown', isComposing: true })).toBe(true)
+    expect(await press('keyDown', { key: 'ArrowUp', code: 'ArrowUp', shiftKey: true })).toBe(true)
+    field.blur()
+    await flushPromises()
+    expect(await press('keyUp', { key: 'ArrowUp', code: 'ArrowUp' })).toBe(false)
+    expect(browser.forwardFindKey.mock.calls).toEqual([
+      ['first', key({ type: 'keyDown', key: 'PageDown' })],
+      ['first', key({ type: 'keyUp', key: 'PageDown', control: true })],
+      ['first', key({ type: 'keyDown', key: 'ArrowDown' })],
+      ['first', key({ type: 'keyUp', key: 'ArrowDown' })],
+      ['first', key({ type: 'keyDown', key: 'ArrowUp', shift: true })],
+      ['first', key({ type: 'keyUp', key: 'ArrowUp' })]
+    ])
+  })
+
+  it('releases the keys the page still has pressed from the field when Find closes', async () => {
+    const { browser } = renderBar()
+    await vi.waitFor(() => expect(screen.getByRole('searchbox', { name: 'Find text' })).toHaveFocus())
+    expect(await press('keyDown', { key: 'PageDown', code: 'PageDown' })).toBe(true)
+    await press('keyDown', { key: 'Escape', code: 'Escape' })
+    expect(browser.forwardFindKey.mock.calls).toEqual([
+      ['first', key({ type: 'keyDown', key: 'PageDown' })],
+      ['first', key({ type: 'keyUp', key: 'PageDown' })]
     ])
   })
 

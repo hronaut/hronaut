@@ -32,14 +32,17 @@ describe('a key from Hronaut\'s Find field for the page', () => {
     const { send, forwardFindKeyToPage, assertTrustedSender } = keyHandler()
     send('tab-1', key())
     send('tab-1', key({ type: 'keyUp', key: 'End', control: true, shift: true, repeat: true, extra: 'ignored' }))
-    expect(assertTrustedSender).toHaveBeenCalledTimes(2)
+    // Released once Ctrl was.
+    send('tab-1', key({ type: 'keyUp', key: 'Home' }))
+    expect(assertTrustedSender).toHaveBeenCalledTimes(3)
     expect(forwardFindKeyToPage.mock.calls).toEqual([
       ['tab-1', key()],
-      ['tab-1', key({ type: 'keyUp', key: 'End', control: true, shift: true, repeat: true })]
+      ['tab-1', key({ type: 'keyUp', key: 'End', control: true, shift: true, repeat: true })],
+      ['tab-1', key({ type: 'keyUp', key: 'Home' })]
     ])
   })
 
-  it('refuses any other key, Home and End without Ctrl, and fields that are not true or false', () => {
+  it('refuses any other key, Home and End pressed without Ctrl, and fields that are not true or false', () => {
     const { send, forwardFindKeyToPage } = keyHandler()
     for (const value of [
       null, 'ArrowDown', key({ type: 'char' }), key({ key: 'Enter' }), key({ key: 'a' }), key({ key: 'Home' }), key({ key: 'End', control: 1 }),

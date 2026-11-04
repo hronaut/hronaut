@@ -5,11 +5,16 @@ import type { BrowserFindPageKey } from '../src/shared/types.js'
 
 vi.mock('electron', () => ({ app: { isPackaged: false } }))
 
-const { forwardFindKeyToPage } = await import('../src/main/browser/page-find/find-page-keys.js')
+const { clearFocusScript, forwardFindKeyToPage } = await import('../src/main/browser/page-find/find-page-keys.js')
 type Browser = import('../src/main/browser/browser.js').Browser
-afterEach(() => vi.useRealTimers())
+afterEach(() => {
+  vi.useRealTimers()
+  vi.restoreAllMocks()
+})
 
-const UNFOCUS = [ISOLATED_WORLDS.findPageKeys, [{ code: 'void document.activeElement?.blur?.()' }]]
+const NOW = 1_000_000
+// Unfocusing only until the key goes without it.
+const UNFOCUS = [ISOLATED_WORLDS.findPageKeys, [{ code: clearFocusScript(NOW + 300) }]]
 
 function key(overrides: Partial<BrowserFindPageKey> = {}): BrowserFindPageKey {
   return { type: 'keyDown', key: 'ArrowDown', shift: false, control: false, alt: false, meta: false, repeat: false, ...overrides }
@@ -43,6 +48,7 @@ function findField(options: { active?: boolean; locked?: boolean; occluded?: boo
 
 describe('sending a key from the Find field on to the page', () => {
   it('unfocuses the page\'s focused element in a world of its own, then sends the key as pressed, held or released', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(NOW)
     const field = findField()
     forwardFindKeyToPage(field.browser, 'tab', key())
     forwardFindKeyToPage(field.browser, 'tab', key({ repeat: true }))
@@ -84,14 +90,52 @@ describe('sending a key from the Find field on to the page', () => {
 
   it('sends nothing once the page went, or a lock took it, while its element was unfocused', async () => {
     const field = findField()
+    field.webContents.executeJavaScriptInIsolatedWorld.mockImplementationOnce(async () => { field.calls.push('unfocus'); field.tab.locked = true })
     forwardFindKeyToPage(field.browser, 'tab', key())
-    field.tab.locked = true
     await field.settled()
     field.tab.locked = false
+    field.webContents.executeJavaScriptInIsolatedWorld.mockImplementationOnce(async () => { field.calls.push('unfocus'); field.destroy() })
     forwardFindKeyToPage(field.browser, 'tab', key())
-    field.destroy()
     await field.settled()
     expect(field.calls).toEqual(['unfocus', 'unfocus'])
+  })
+
+  it('leaves the page\'s element focused for a key whose turn came once a lock took the page', async () => {
+    const field = findField()
+    let unfocused!: () => void
+    field.webContents.executeJavaScriptInIsolatedWorld.mockImplementationOnce(() => new Promise((resolve) => {
+      unfocused = () => { field.calls.push('unfocus'); resolve(undefined) }
+    }))
+    forwardFindKeyToPage(field.browser, 'tab', key())
+    forwardFindKeyToPage(field.browser, 'tab', key({ repeat: true }))
+    await field.settled()
+    field.tab.locked = true
+    unfocused()
+    await field.settled()
+    expect(field.calls).toEqual(['unfocus'])
+  })
+
+  it('sends the release of a key to the page its press reached, also once a lock took it or another tab is in view', async () => {
+    const field = findField()
+    forwardFindKeyToPage(field.browser, 'tab', key({ key: 'PageDown' }))
+    forwardFindKeyToPage(field.browser, 'tab', key({ key: 'ArrowUp' }))
+    await field.settled()
+    field.tab.locked = true
+    forwardFindKeyToPage(field.browser, 'tab', key({ type: 'keyUp', key: 'PageDown', control: true }))
+    field.browser.activeTabId = 'other'
+    forwardFindKeyToPage(field.browser, 'tab', key({ type: 'keyUp', key: 'ArrowUp' }))
+    await field.settled()
+    expect(field.calls).toEqual(['unfocus', 'keyDown PageDown ', 'unfocus', 'keyDown Up ', 'keyUp PageDown control', 'keyUp Up '])
+  })
+
+  it('sends no release for a key the page did not get pressed, or got released already', async () => {
+    const field = findField()
+    forwardFindKeyToPage(field.browser, 'tab', key({ type: 'keyUp' }))
+    forwardFindKeyToPage(field.browser, 'tab', key())
+    forwardFindKeyToPage(field.browser, 'tab', key({ type: 'keyUp' }))
+    forwardFindKeyToPage(field.browser, 'tab', key({ type: 'keyUp' }))
+    await field.settled()
+    expect(field.calls).toEqual(['unfocus', 'keyDown Down ', 'keyUp Down '])
   })
 
   it('sends the key without unfocusing while the page cannot run a script now, or once the script failed', async () => {
