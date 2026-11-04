@@ -279,6 +279,16 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     field.setSelectionRange(typed.length, field.value.length)
   }
 
+  // Moving the caret or the selection while the rest shows, as End, an arrow key or a click does, takes the rest as
+  // typed, as in Chrome's address bar: the suggestions follow the whole text, and the highlight comes back to it.
+  function handleSelectionChange(): void {
+    const field = input.value
+    const completion = completionShown.value ? inlineCompletion.value : null
+    if (fillingCompletion || !field || !completion || completion.typed === completion.text) return
+    if (field.selectionStart === completion.typed.length && field.selectionEnd === completion.text.length) return
+    inlineCompletion.value = { ...completion, typed: completion.text }
+  }
+
   // The rest the field filled in leaves, and the field shows the typed text, as when the highlight moves to a row.
   function dropInlineCompletion(): void {
     const completion = inlineCompletion.value
@@ -484,7 +494,10 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   async function moveSelection(offset: -1 | 1): Promise<void> {
     const count = suggestions.value.length
     if (!count) return
-    if (selection.value < 0 || !open.value) typedBeforeRows = completionShown.value ? inlineCompletion.value?.typed : undefined
+    const completion = completionShown.value ? inlineCompletion.value : null
+    if (selection.value < 0 || !open.value) typedBeforeRows = completion?.typed
+    // A rest taken as typed stays, with the caret after it, as the caret is after the typed text when the rest leaves.
+    if (completion && completion.typed === completion.text) input.value?.setSelectionRange(completion.text.length, completion.text.length)
     dropInlineCompletion()
     if (!open.value) openSuggestions()
     // As in Chrome, whose first row is what the field shows, the highlight goes through the rows and back to it.
@@ -770,6 +783,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     close,
     handleFocus,
     handleInput,
+    handleSelectionChange,
     handlePaste,
     ...fieldDrop,
     handleFocusOut,
