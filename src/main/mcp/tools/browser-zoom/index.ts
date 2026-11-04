@@ -3,7 +3,7 @@ import { PAGE_ZOOM_LIMITS } from '../../../../shared/page-zoom.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
-import { readZoom, setZoom } from '../../../browser/page-zoom/page-zoom.js'
+import { readZoom, setZoomForAgent } from '../../../browser/page-zoom/page-zoom.js'
 
 export function registerBrowserZoom(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -25,7 +25,7 @@ export function registerBrowserZoom(context: McpToolContext): void {
     }) => {
       // A percent without set would read the zoom and leave it, which the agent would take for a change.
       if (percent !== undefined && action !== 'set') throw new Error('percent is used only with action "set"; nothing was changed.')
-      return textResult(action === 'get' ? readZoom(manager, tabId) : setZoom(manager, { tabId, action, percent }))
+      return textResult(action === 'get' ? readZoom(manager, tabId) : await setZoomForAgent(manager, { tabId, action, percent }))
     }),
     { readOnly: input => input.action === undefined || input.action === 'get' }
   )

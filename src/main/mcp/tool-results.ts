@@ -36,6 +36,8 @@ export const nativeClickFailureResult = (progress: NativeClickProgress, reasonVa
     effects: possible ? 'possible' : 'none', retrySafe: false,
     press: progress.downAttempted > 0 ? 'attempted' : 'not-dispatched', progress: { ...progress },
     ...(reason === 'TARGET_DISABLED' ? { message: 'Target is natively disabled.' } : {}),
+    ...(reason === 'PAGE_PINCHED'
+      ? { message: 'The page is pinched larger, so the press was not sent. Reset it with browser_zoom (action reset) first.' } : {}),
     ...(reviewFinalizationFailed ? { reviewFinalization: 'failed' } : {}),
     nextAction: (reason === 'CLICK_STATE_UNCONFIRMED' || progress.targetCleanup === 'unconfirmed' || progress.inputCleanupFailed || progress.downAttempted > progress.upAcknowledged ? 'Close this tab before another semantic native click; retained handles or input cleanup could not be confirmed. ' : '') + 'Inspect fresh visible state before a new request. Preparatory scroll/hover and earlier presses are not rolled back. Press acknowledgements do not prove target routing or handler execution; do not replay automatically.' }
   return { ...textResult(outcome), structuredContent: outcome, isError: true }

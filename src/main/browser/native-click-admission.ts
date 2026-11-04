@@ -21,7 +21,7 @@ export interface NativeClickProgress {
 }
 export const nativeClickProgress = (): NativeClickProgress => ({ inputCleanupFailed: false, preparationAttempted: false, moveAttempted: 0,
   moveAcknowledged: 0, downAttempted: 0, downAcknowledged: 0, upAttempted: 0, upAcknowledged: 0, targetCleanup: 'not-acquired' })
-const clickReasons = ['TARGET_CHANGED', 'TARGET_DISABLED', 'POINT_OUTSIDE_VIEWPORT', 'TARGET_OCCLUDED', 'HIT_CHANGED',
+const clickReasons = ['TARGET_CHANGED', 'TARGET_DISABLED', 'POINT_OUTSIDE_VIEWPORT', 'PAGE_PINCHED', 'TARGET_OCCLUDED', 'HIT_CHANGED',
   'TARGET_UNVERIFIABLE', 'HIT_UNVERIFIABLE', 'EMBEDDED_HIT_UNSUPPORTED', 'TARGET_UNAVAILABLE',
   'TARGET_CLEANUP_UNCONFIRMED', 'NATIVE_INPUT_CLEANUP_FAILED', 'CONTEXT_OR_INPUT_UNCERTAIN', 'CLICK_STATE_UNCONFIRMED'] as const
 export type NativeClickReason = typeof clickReasons[number]
@@ -49,7 +49,7 @@ export function nativeClickObserver(progress: NativeClickProgress, publish: () =
 
 // An operation-local object in an isolated realm retains the original node. No
 // page-global target registry, page-owned method call, or exported node identity.
-export function nativeClickTargetScript(target: { ref?: string; selector?: string }): string {
+export function nativeClickTargetScript(target: { ref?: string; selector?: string; refusePinch?: boolean }): string {
   return pageScript(nativeClickTargetInPage, target)
 }
 
@@ -57,7 +57,7 @@ export function nativeClickTargetScript(target: { ref?: string; selector?: strin
  * Uses an ALREADY acquired debugger. Never enter BrowserDebuggerQueue here. The page is the one whose website dialog,
  * such as a confirm the click opened, may hold the target's release; the target is released once that dialog closes.
  */
-export async function acquireNativeClickAdmission(api: AttachedDebugger, target: { ref?: string; selector?: string },
+export async function acquireNativeClickAdmission(api: AttachedDebugger, target: { ref?: string; selector?: string; refusePinch?: boolean },
   validate: () => void, progress: NativeClickProgress, publish: () => void,
   page?: object): Promise<{ sample(x: number, y: number): Promise<void>; dispose(): Promise<void> }> {
   const group = `hronaut-native-click-${randomUUID()}`
@@ -104,7 +104,7 @@ export async function acquireNativeClickAdmission(api: AttachedDebugger, target:
         const result = await call(pageFunctionExpression(nativeClickSampleInPage), [x, y, final])
         if (result.result?.value !== 'ADMITTED') {
           const reason = result.result?.value
-          throw new NativeClickAdmissionError(typeof reason === 'string' && ['TARGET_CHANGED', 'TARGET_DISABLED', 'POINT_OUTSIDE_VIEWPORT', 'TARGET_OCCLUDED', 'HIT_CHANGED', 'EMBEDDED_HIT_UNSUPPORTED'].includes(reason) ? nativeClickReason(reason) : 'TARGET_UNVERIFIABLE', { ...progress })
+          throw new NativeClickAdmissionError(typeof reason === 'string' && ['TARGET_CHANGED', 'TARGET_DISABLED', 'POINT_OUTSIDE_VIEWPORT', 'PAGE_PINCHED', 'TARGET_OCCLUDED', 'HIT_CHANGED', 'EMBEDDED_HIT_UNSUPPORTED'].includes(reason) ? nativeClickReason(reason) : 'TARGET_UNVERIFIABLE', { ...progress })
         }
       }
       await inspect(false)

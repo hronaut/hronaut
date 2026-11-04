@@ -20,8 +20,12 @@ type CreateSnapshotText = (options: SnapshotTextOptions, maxChars: number) => Sn
 export function reproTargetInPage(point: ReproPoint | undefined, createSnapshotText: CreateSnapshotText): BrowserReproTarget | null {
   const snapshotText = createSnapshotText({ excludeFormControls: true, textContentFallback: true, collapseWhitespace: true }, 180)
   const compact = (value: unknown, limit: number): string => String(value || '').replace(/\s+/g, ' ').trim().slice(0, limit)
-  const x = point ? Number(point.x) * innerWidth / Math.max(1, Number(point.viewportWidth)) : 0
-  const y = point ? Number(point.y) * innerHeight / Math.max(1, Number(point.viewportHeight)) : 0
+  // A pinch shows part of the page from an offset, larger, so the click's point is that much nearer the offset.
+  const viewport = window.visualViewport
+  const root = document.compatMode === 'BackCompat' ? document.body : document.documentElement
+  const pinch = viewport && root && root.clientWidth - viewport.width > 1 ? root.clientWidth / viewport.width : 1
+  const x = point ? (viewport ? viewport.offsetLeft : 0) + Number(point.x) * innerWidth / Math.max(1, Number(point.viewportWidth)) / pinch : 0
+  const y = point ? (viewport ? viewport.offsetTop : 0) + Number(point.y) * innerHeight / Math.max(1, Number(point.viewportHeight)) / pinch : 0
   let element = point ? document.elementFromPoint(x, y) : document.activeElement
   // Document hit testing/focus retargets shadow descendants to their host.
   // Find the actual open-shadow target so it cannot receive the host's selector.

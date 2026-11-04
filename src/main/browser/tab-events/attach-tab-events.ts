@@ -8,6 +8,7 @@ import { followSignIns } from '../http-auth/http-auth.js'
 import { attachPageFullscreenEvents } from '../page-fullscreen/page-fullscreen.js'
 import { runPageScriptsOnceDocumentReady } from '../page-script-readiness.js'
 import { attachPageWheelZoom } from '../page-zoom/page-wheel-zoom.js'
+import { allowPinchZoom } from '../page-zoom/pinch-zoom.js'
 import { guardPageCallsDuringPrintDialog } from '../print-dialog-guard.js'
 import { guardPageCallsAcrossRendererExit } from '../renderer-exit-guard.js'
 import { refusePageScriptsInSourceView } from '../source-view-guard.js'
@@ -40,6 +41,7 @@ export function attachTabEvents(browser: Browser, tab: BrowserTab, openedBy?: We
   attachPagePointerEvents(browser, tab, webContents)
   attachPageTargetUrlEvents(browser, tab, webContents)
   attachPageWheelZoom(browser, tab, webContents)
+  allowPinchZoom(webContents, tab.url, () => tab.emulation.viewport?.mobile === true)
   attachPageContextMenuEvents(browser, tab, webContents)
   attachDevToolsEvents(browser, tab, webContents)
   browser.frameObservation.track(webContents)

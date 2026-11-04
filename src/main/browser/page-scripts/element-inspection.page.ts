@@ -458,20 +458,29 @@ export function cancelElementPickerInPage(): boolean {
   return true
 }
 
-/** Runs in the page: hands native input from main to the open element picker, scaled from main's viewport to the page's. */
+/**
+ * Runs in the page: hands native input from main to the open element picker, scaled from main's viewport to the page's.
+ * A pinch shows part of the page from an offset, larger, so the point is that much nearer the offset.
+ */
 export function elementPickerNativeInputInPage(type: 'down' | 'move' | 'up', x: number, y: number, viewportWidth: number, viewportHeight: number): boolean {
   const picker = (window as ElementPickerPage).__hronautElementPicker
   if (!picker || typeof picker.nativeInput !== 'function') return false
   const width = Math.max(1, viewportWidth)
   const height = Math.max(1, viewportHeight)
+  const viewport = window.visualViewport
+  const root = document.compatMode === 'BackCompat' ? document.body : document.documentElement
+  const pinch = viewport && root && root.clientWidth - viewport.width > 1 ? root.clientWidth / viewport.width : 1
   return picker.nativeInput(
     type,
-    x * innerWidth / width,
-    y * innerHeight / height
+    (viewport ? viewport.offsetLeft : 0) + x * innerWidth / width / pinch,
+    (viewport ? viewport.offsetTop : 0) + y * innerHeight / height / pinch
   )
 }
 
-/** Runs in the page: the inspection of the element at a point of main's viewport, scaled to the page's. */
+/**
+ * Runs in the page: the inspection of the element at a point of main's viewport, scaled to the page's. A pinch shows
+ * part of the page from an offset, larger, so the point is that much nearer the offset.
+ */
 export function elementPickerInspectionAtPointInPage(
   point: { x: number; y: number; viewportWidth: number; viewportHeight: number },
   createTools: CreateInspectionTools,
@@ -480,9 +489,12 @@ export function elementPickerInspectionAtPointInPage(
   const tools = createTools(createSnapshotText)
   const width = Math.max(1, point.viewportWidth)
   const height = Math.max(1, point.viewportHeight)
+  const viewport = window.visualViewport
+  const root = document.compatMode === 'BackCompat' ? document.body : document.documentElement
+  const pinch = viewport && root && root.clientWidth - viewport.width > 1 ? root.clientWidth / viewport.width : 1
   const candidate = document.elementFromPoint(
-    Math.max(0, Math.min(innerWidth - 1, point.x * innerWidth / width)),
-    Math.max(0, Math.min(innerHeight - 1, point.y * innerHeight / height))
+    Math.max(0, Math.min(innerWidth - 1, (viewport ? viewport.offsetLeft : 0) + point.x * innerWidth / width / pinch)),
+    Math.max(0, Math.min(innerHeight - 1, (viewport ? viewport.offsetTop : 0) + point.y * innerHeight / height / pinch))
   )
   if (!(candidate instanceof Element) || candidate.hasAttribute('data-hronaut-element-picker')) {
     throw new Error('No selectable element was found at the pointer position.')
