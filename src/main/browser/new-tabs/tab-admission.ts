@@ -19,7 +19,9 @@ export function assertCanCreateTab(browser: Browser, mcpGroupId: string | undefi
  * Node, and the web's own security. A page a tab opens for a window gets them too. Like Chrome, a website's second
  * alert or confirm box onward in a tab offers to stop its boxes, so a page that shows them one after another cannot
  * hold the window, which each box blocks until it is answered; Electron keeps them stopped until the tab closes. The
- * offer's text is in the language Hronaut had when the tab opened: a live page's preferences cannot change.
+ * offer's text is in the language Hronaut had when the tab opened: a live page's preferences cannot change. Electron
+ * would put the window in full screen for a page's full screen in any tab, so it leaves the window alone and Hronaut
+ * puts it in full screen only for a page the window shows (page-fullscreen.ts).
  */
 export function pageWebPreferences(browser: Browser): WebPreferences {
   return {
@@ -30,6 +32,7 @@ export function pageWebPreferences(browser: Browser): WebPreferences {
     webSecurity: true,
     allowRunningInsecureContent: false,
     safeDialogs: true,
-    safeDialogsMessage: browser.text('native.dialog.preventMoreDialogs')
+    safeDialogsMessage: browser.text('native.dialog.preventMoreDialogs'),
+    disableHtmlFullscreenWindowResize: true
   }
 }

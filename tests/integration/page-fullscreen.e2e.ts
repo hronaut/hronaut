@@ -165,3 +165,69 @@ test('takes a page out of full screen when a browser shortcut opens the address 
     await closeFixtureServer(server)
   }
 })
+
+test('keeps the window out of full screen for a page in a tab it does not show, and the page in its card', async ({ appWindow, electronApp }) => {
+  // Electron put the window in full screen for a page in any tab, so a page in a tab the person did not see, such as one
+  // an agent clicked in, put the person's window in full screen and straight back.
+  const { server } = await openVideoPage(appWindow, electronApp)
+  try {
+    const tabId = await videoTabId(appWindow)
+    const inCard = await fullscreenState(electronApp)
+    // The person allows the site full screen once, so its later requests need no prompt.
+    expect(await requestFullscreen(electronApp)).toBe('entered')
+    await expect.poll(async () => (await fullscreenState(electronApp)).windowFullScreen).toBe(true)
+    await electronApp.evaluate(async ({ webContents }, title) => {
+      await webContents.getAllWebContents().find((contents) => contents.getTitle() === title)!.executeJavaScript('document.exitFullscreen()')
+    }, TITLE)
+    await expect.poll(async () => (await fullscreenState(electronApp)).windowFullScreen).toBe(false)
+    await appWindow.evaluate("window.hronaut.newTab({ url: 'about:blank', active: true })")
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.activeTabId !== ${JSON.stringify(tabId)})`)).toBe(true)
+
+    await electronApp.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows().find((candidate) => candidate.isVisible())!
+      const record = globalThis as { fullScreenChanges?: string[], noteFullScreen?: () => void }
+      record.fullScreenChanges = []
+      record.noteFullScreen = () => { record.fullScreenChanges!.push(window.isFullScreen() ? 'entered' : 'left') }
+      window.on('enter-full-screen', record.noteFullScreen)
+      window.on('leave-full-screen', record.noteFullScreen)
+    })
+    const windowChanges = () => electronApp.evaluate(({ BrowserWindow }) => ({
+      windowFullScreen: BrowserWindow.getAllWindows().find((candidate) => candidate.isVisible())!.isFullScreen(),
+      changes: (globalThis as { fullScreenChanges?: string[] }).fullScreenChanges
+    }))
+    try {
+      // The request is kept to see how it ends: Chromium answers a page out of view once the page is shown.
+      await electronApp.evaluate(async ({ webContents }, title) => {
+        await webContents.getAllWebContents().find((contents) => contents.getTitle() === title)!.executeJavaScript(`
+          window.fullscreenAnswer = 'none'
+          document.getElementById('video').requestFullscreen().then(() => { window.fullscreenAnswer = 'entered' }, (error) => { window.fullscreenAnswer = error.name })
+          true
+        `, true)
+      }, TITLE)
+      await new Promise((resolve) => setTimeout(resolve, 500))
+      expect(await windowChanges()).toEqual({ windowFullScreen: false, changes: [] })
+
+      // Shown, the page gets the full screen Chromium kept for it and leaves it at once, in its card.
+      await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
+      await expect.poll(() => electronApp.evaluate(({ webContents }, title) => (
+        webContents.getAllWebContents().find((contents) => contents.getTitle() === title)!.executeJavaScript('window.fullscreenAnswer')
+      ), TITLE)).toBe('entered')
+      await expect.poll(() => fullscreenState(electronApp)).toEqual(inCard)
+      await new Promise((resolve) => setTimeout(resolve, 500))
+      expect(await windowChanges()).toEqual({ windowFullScreen: false, changes: [] })
+    } finally {
+      await electronApp.evaluate(({ BrowserWindow }) => {
+        const window = BrowserWindow.getAllWindows().find((candidate) => candidate.isVisible())!
+        const record = globalThis as { noteFullScreen?: () => void }
+        window.removeListener('enter-full-screen', record.noteFullScreen!)
+        window.removeListener('leave-full-screen', record.noteFullScreen!)
+      })
+    }
+
+    // The page the window shows takes the window's full screen as before.
+    expect(await requestFullscreen(electronApp)).toBe('entered')
+    await expect.poll(async () => (await fullscreenState(electronApp)).windowFullScreen).toBe(true)
+  } finally {
+    await closeFixtureServer(server)
+  }
+})

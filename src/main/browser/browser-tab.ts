@@ -85,6 +85,11 @@ export interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordi
   /** Whether Hronaut already asked the page to leave full screen since it took it. */
   pageFullscreenExitRequested?: boolean
   /**
+   * Whether the page took full screen while the window did not show it, so it does not hold the window's and stays in
+   * its page card until it leaves, which it is asked to.
+   */
+  pageFullscreenRefused?: boolean
+  /**
    * Set while going to sleep replaces the page: the discarded page may still
    * run until the sleeping page loads, and it cannot start a wallet call.
    */

@@ -13,4 +13,10 @@ describe('the web preferences of every website tab', () => {
       safeDialogsMessage: 'Weitere Dialogfelder auf dieser Seite verhindern'
     })
   })
+
+  // Electron put the window in full screen for a page's full screen in any tab, even one the window did not show.
+  it('leave the window\'s full screen to Hronaut, which gives it only to a page the window shows', () => {
+    const browser = { text: (key: MessageKey) => translate('en-US', key) }
+    expect(pageWebPreferences(browser as never)).toMatchObject({ disableHtmlFullscreenWindowResize: true })
+  })
 })
