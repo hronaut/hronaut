@@ -71,7 +71,14 @@ test('a held Enter on the command palette button leaves the choice of command to
   const search = palette.getByRole('combobox', { name: 'Search commands' })
   await holdEnterIntoSearch(appWindow, search)
   await expect(palette).toBeVisible()
-  // A new press runs the selected command: with nothing typed, Switch workspace, which shows the switcher instead.
+  // The held Enter ran nothing and left the palette on the command it opened on, its first one. Before the palette
+  // ignored a resting pointer, the pointer event Hronaut's window gets as the palette opens selected the row under the
+  // pointer, Switch workspace here, which this test had counted on.
+  const first = await palette.getByRole('option').first().getAttribute('id')
+  expect(first).toBeTruthy()
+  await expect(search).toHaveAttribute('aria-activedescendant', first!)
+  // A new press runs the selected command: Switch workspace, once typed, which shows the switcher instead.
+  await search.fill('Switch workspace')
   await expect(search).toHaveAttribute('aria-activedescendant', 'command-palette-switch-workspace')
   await appWindow.keyboard.press('Enter')
   const switcher = appWindow.getByRole('dialog', { name: 'Switch workspace' })
