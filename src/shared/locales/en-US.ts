@@ -4283,6 +4283,7 @@ export const enUS = {
     errors: {
       clipboard: 'The system clipboard did not accept the text.',
       tabUnavailable: 'The tab is no longer available.',
+      tabNotShown: 'The tab is no longer shown.',
       actionFailed: 'The requested browser action could not be completed.',
       screenshotCreate: 'Could not create the selected screenshot',
       linuxSecrets: "Hronaut found no keyring it can use on this computer, such as GNOME Keyring or KDE Wallet, so it doesn't save passwords and keys. Start or install one, then restart Hronaut.",

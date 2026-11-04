@@ -59,6 +59,8 @@ export class McpActivityFollowController {
   private pausedUntil = 0
   /** The person used a page since following last moved the view, so the end of a hold does not move it. */
   private humanInputSinceFollow = false
+  /** The open menu of a page in view, such as its context menu; one native menu is open at a time. */
+  private pageMenu: object | undefined
 
   constructor(private readonly options: McpActivityFollowControllerOptions) {}
 
@@ -96,6 +98,23 @@ export class McpActivityFollowController {
     this.pausedUntil = this.now() + AGENT_FOLLOW_HUMAN_PAUSE_MS
     this.humanInputSinceFollow = true
     this.generation += 1
+  }
+
+  /**
+   * A menu of a page in view opened, such as its context menu. Following waits while it is open, so the page its items
+   * act on stays in view, and once it closes waits as after the person's other input. Call the result when it closes.
+   * A menu opened since takes its place, as it closes any other, so one whose close never came does not keep following
+   * waiting.
+   */
+  pageMenuOpened(): () => void {
+    const menu = {}
+    this.pageMenu = menu
+    this.generation += 1
+    return () => {
+      if (this.pageMenu !== menu) return
+      this.pageMenu = undefined
+      this.noteHumanInput()
+    }
   }
 
   setOccluded(occluded: boolean): void {
@@ -168,6 +187,7 @@ export class McpActivityFollowController {
       !entry
       || !this.options.isEnabled()
       || this.options.isOccluded()
+      || this.pageMenu !== undefined
       || this.now() < this.pausedUntil
       || !this.options.tabExists(entry.activity.tabId)
     ) return
@@ -191,6 +211,7 @@ export class McpActivityFollowController {
       generation !== this.generation
       || !this.options.isEnabled()
       || this.options.isOccluded()
+      || this.pageMenu !== undefined
       || this.now() < this.pausedUntil
       || !this.options.tabExists(entry.activity.tabId)
       || this.options.getSelectionGeneration() !== selectionGeneration

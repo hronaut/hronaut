@@ -32,11 +32,14 @@ let menuCopies = 0
  * Shows the native context menu for a right-click in the page: link, image,
  * editing and selection actions for what was clicked, with a link to the
  * selected text and a search for it or a visit to a selected address, then page navigation, copy address, save, print, view source, the
- * source and reload of a frame inside the page, and inspect. Each action checks that its tab is still open.
+ * source and reload of a frame inside the page, and inspect. No item acts on its page once another tab took its place
+ * in view, and those that act on the page check that its tab is still open. `whileOpen` runs as the menu opens, and
+ * what it returns as it closes.
  */
-export function showContextMenu(browser: Browser, tab: BrowserTab, params: ContextMenuParams): void {
+export function showContextMenu(browser: Browser, tab: BrowserTab, params: ContextMenuParams, whileOpen?: () => () => void): void {
   const webContents = tab.webContents
   if (webContents.isDestroyed()) return
+  const selection = browser.tabSelectionGeneration
   const groups: MenuItemConstructorOptions[][] = []
   const frame = subframe(params.frame)
   const reportActionFailure = (action: string, error: unknown): void => {
@@ -45,7 +48,7 @@ export function showContextMenu(browser: Browser, tab: BrowserTab, params: Conte
   }
   const withLiveContents = (actionName: string, action: () => void): (() => void) => () => {
     if (webContents.isDestroyed() || findTab(browser, tab.id) !== tab) {
-      reportActionFailure(actionName, new Error('The tab is no longer available.'))
+      reportActionFailure(actionName, new LocalizedError('native.errors.tabUnavailable'))
       return
     }
     try {
@@ -500,14 +503,38 @@ export function showContextMenu(browser: Browser, tab: BrowserTab, params: Conte
     }]
   ])
 
-  const template = groups.flatMap((group, index) => index === 0
-    ? group
-    : [{ type: 'separator' as const }, ...group])
-  const menu = Menu.buildFromTemplate(template)
-  menu.popup({
-    window: browser.window,
-    ...(params.frame ? { frame: params.frame } : {})
+  // The person picks an item for the page they see under the menu, so none acts on its page once another tab took its
+  // place there, as an agent's tool or a tray click can bring one into view while the menu is open.
+  const leftView = (): boolean => browser.tabSelectionGeneration !== selection && findTab(browser, tab.id) === tab
+    && browser.activeTabId !== tab.id && !browser.splitViewContains(tab.id)
+  const forShownPage = (items: MenuItemConstructorOptions[]): MenuItemConstructorOptions[] => items.map((item) => {
+    const { click, submenu } = item
+    return {
+      ...item,
+      ...click ? {
+        click: (...args: Parameters<NonNullable<MenuItemConstructorOptions['click']>>) => {
+          if (!leftView()) return click(...args)
+          reportActionFailure(item.id?.replaceAll('-', ' ') ?? 'use the page menu', new LocalizedError('native.errors.tabNotShown'))
+        }
+      } : {},
+      ...Array.isArray(submenu) ? { submenu: forShownPage(submenu) } : {}
+    }
   })
+  const template = forShownPage(groups.flatMap((group, index) => index === 0
+    ? group
+    : [{ type: 'separator' as const }, ...group]))
+  const menu = Menu.buildFromTemplate(template)
+  const closed = whileOpen?.()
+  try {
+    menu.popup({
+      window: browser.window,
+      ...(params.frame ? { frame: params.frame } : {}),
+      ...(closed ? { callback: closed } : {})
+    })
+  } catch (error) {
+    closed?.()
+    throw error
+  }
 }
 
 // The characters Chrome keeps escaped when it writes out an address: spaces, controls and characters that show

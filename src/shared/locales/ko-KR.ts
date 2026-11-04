@@ -4285,6 +4285,7 @@ export const koKR: MessageSchema = {
     errors: {
       clipboard: '시스템 클립보드에서 텍스트를 받아들이지 않았습니다.',
       tabUnavailable: '탭을 더 이상 사용할 수 없습니다.',
+      tabNotShown: '탭이 더 이상 표시되지 않습니다.',
       actionFailed: '요청한 브라우저 작업을 완료할 수 없습니다.',
       screenshotCreate: '선택한 스크린샷을 만들 수 없습니다',
       linuxSecrets: 'Hronaut에서 이 컴퓨터에서 사용할 수 있는 GNOME Keyring이나 KDE Wallet 같은 키링을 찾지 못해 비밀번호와 키를 저장하지 않습니다. 키링을 시작하거나 설치한 후 Hronaut을 다시 시작하세요.',

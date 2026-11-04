@@ -4285,6 +4285,7 @@ export const plPL: MessageSchema = {
     errors: {
       clipboard: 'Schowek systemowy nie przyjął tekstu.',
       tabUnavailable: 'Karta nie jest już dostępna.',
+      tabNotShown: 'Karta nie jest już wyświetlana.',
       actionFailed: 'Nie udało się ukończyć żądanego działania przeglądarki.',
       screenshotCreate: 'Nie udało się utworzyć wybranego zrzutu ekranu',
       linuxSecrets: 'Hronaut nie znalazł na tym komputerze pęku kluczy, którego mógłby użyć, takiego jak GNOME Keyring lub KDE Wallet, więc nie zapisuje haseł i kluczy. Uruchom lub zainstaluj go, a potem uruchom ponownie Hronaut.',

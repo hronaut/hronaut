@@ -4285,6 +4285,7 @@ export const frFR: MessageSchema = {
     errors: {
       clipboard: 'Le presse-papiers système n’a pas accepté le texte.',
       tabUnavailable: 'L’onglet n’est plus disponible.',
+      tabNotShown: 'L’onglet n’est plus affiché.',
       actionFailed: 'Impossible de terminer l’action demandée au navigateur.',
       screenshotCreate: 'Impossible de créer la capture d’écran sélectionnée',
       linuxSecrets: 'Hronaut n’a trouvé sur cet ordinateur aucun trousseau utilisable, comme GNOME Keyring ou KDE Wallet, il n’enregistre donc pas les mots de passe et les clés. Démarrez ou installez-en un, puis redémarrez Hronaut.',

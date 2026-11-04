@@ -4285,6 +4285,7 @@ export const esES: MessageSchema = {
     errors: {
       clipboard: 'El portapapeles del sistema no aceptó el texto.',
       tabUnavailable: 'La pestaña ya no está disponible.',
+      tabNotShown: 'La pestaña ya no se muestra.',
       actionFailed: 'No se pudo completar la acción solicitada del navegador.',
       screenshotCreate: 'No se pudo crear la captura de pantalla seleccionada',
       linuxSecrets: 'Hronaut no encontró en este equipo ningún llavero que pueda usar, como GNOME Keyring o KDE Wallet, así que no guarda contraseñas ni claves. Inicia o instala uno y luego reinicia Hronaut.',

@@ -328,6 +328,57 @@ describe('following agents across workspaces', () => {
     }
   })
 
+  // The page's context menu waited only the few seconds after the right-click, and following then brought another tab
+  // into view under it, where its items acted on the page that had left the view.
+  it('waits while a page menu is open, and after it closes as after the person\'s other input', () => {
+    vi.useFakeTimers()
+    try {
+      const harness = createHarness()
+      harness.enable()
+      harness.controller.accept(activity('claude-1', 'tab-a'), claude)
+      harness.controller.accept(activity('claude-1', 'tab-a', 'finished'), claude)
+      harness.controller.noteHumanInput()
+      const firstClosed = harness.controller.pageMenuOpened()
+      const secondClosed = harness.controller.pageMenuOpened()
+      vi.advanceTimersByTime(AGENT_FOLLOW_HUMAN_PAUSE_MS + AGENT_FOLLOW_HOLD_MS + 1)
+      harness.controller.accept(activity('claude-2', 'tab-b'), claude)
+      harness.controller.refresh()
+      expect(shown(harness)).toBe('tab-a')
+      // The second menu took the first one's place, as a native menu closes any other, so the first one's close, also a
+      // late or repeated one, leaves following waiting for the second.
+      firstClosed()
+      firstClosed()
+      harness.controller.accept(activity('claude-3', 'tab-b'), claude)
+      expect(shown(harness)).toBe('tab-a')
+      secondClosed()
+      harness.controller.accept(activity('claude-4', 'tab-b'), claude)
+      vi.advanceTimersByTime(AGENT_FOLLOW_HUMAN_PAUSE_MS - 1)
+      harness.controller.accept(activity('claude-5', 'tab-b'), claude)
+      expect(shown(harness)).toBe('tab-a')
+      vi.advanceTimersByTime(1)
+      harness.controller.accept(activity('claude-6', 'tab-b'), claude)
+      expect(harness.selectTabPassively).toHaveBeenLastCalledWith('tab-b')
+      harness.controller.dispose()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('cancels a wake under way when a page menu opens', async () => {
+    const harness = createHarness()
+    const wake = deferred()
+    harness.wakeTab.mockImplementationOnce(() => wake.promise)
+    harness.requireWake('tab-a')
+    harness.enable()
+    harness.controller.accept(activity('slow', 'tab-a'), claude)
+    await vi.waitFor(() => expect(harness.wakeTab).toHaveBeenCalledWith('tab-a'))
+    const closed = harness.controller.pageMenuOpened()
+    wake.resolve()
+    await Promise.resolve()
+    expect(harness.selectTabPassively).not.toHaveBeenCalled()
+    closed()
+  })
+
   it('cancels a wake under way when the person starts typing', async () => {
     const harness = createHarness()
     const wake = deferred()

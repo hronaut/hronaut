@@ -4285,6 +4285,7 @@ export const zhTW: MessageSchema = {
     errors: {
       clipboard: '系統剪貼簿不接受這段文字。',
       tabUnavailable: '這個分頁已無法使用。',
+      tabNotShown: '這個分頁已不再顯示。',
       actionFailed: '無法完成要求的瀏覽器動作。',
       screenshotCreate: '無法建立所選的螢幕截圖',
       linuxSecrets: 'Hronaut 在這部電腦上找不到可用的金鑰圈（例如 GNOME Keyring 或 KDE Wallet），因此不會儲存密碼和金鑰。請啟動或安裝金鑰圈，然後重新啟動 Hronaut。',

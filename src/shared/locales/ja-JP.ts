@@ -4285,6 +4285,7 @@ export const jaJP: MessageSchema = {
     errors: {
       clipboard: 'システムのクリップボードがテキストを受け付けませんでした。',
       tabUnavailable: 'このタブは利用できなくなりました。',
+      tabNotShown: 'このタブは表示されなくなりました。',
       actionFailed: 'リクエストされたブラウザ操作を完了できませんでした。',
       screenshotCreate: '選択したスクリーンショットを作成できませんでした',
       linuxSecrets: 'このパソコンには GNOME Keyring や KDE Wallet など Hronaut が使用できるキーリングが見つからないため、パスワードとキーは保存されません。キーリングを起動またはインストールしてから、Hronaut を再起動してください。',

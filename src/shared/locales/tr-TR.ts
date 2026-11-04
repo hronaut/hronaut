@@ -4285,6 +4285,7 @@ export const trTR: MessageSchema = {
     errors: {
       clipboard: 'Sistem panosu metni kabul etmedi.',
       tabUnavailable: 'Sekme artık kullanılamıyor.',
+      tabNotShown: 'Sekme artık gösterilmiyor.',
       actionFailed: 'İstenen tarayıcı eylemi tamamlanamadı.',
       screenshotCreate: 'Seçilen ekran görüntüsü oluşturulamadı',
       linuxSecrets: 'Hronaut bu bilgisayarda GNOME Keyring veya KDE Wallet gibi kullanabileceği bir anahtarlık bulamadı, bu nedenle şifreleri ve anahtarları kaydetmiyor. Bir anahtarlık başlatın veya yükleyin, ardından Hronaut’u yeniden başlatın.',

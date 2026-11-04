@@ -4285,6 +4285,7 @@ export const viVN: MessageSchema = {
     errors: {
       clipboard: 'Bảng nhớ tạm của hệ thống không nhận văn bản.',
       tabUnavailable: 'Thẻ không còn khả dụng.',
+      tabNotShown: 'Thẻ không còn được hiển thị.',
       actionFailed: 'Không thể hoàn tất thao tác trình duyệt được yêu cầu.',
       screenshotCreate: 'Không thể tạo ảnh chụp màn hình đã chọn',
       linuxSecrets: 'Hronaut không tìm thấy chuỗi khóa nào có thể dùng trên máy tính này, chẳng hạn như GNOME Keyring hoặc KDE Wallet, nên không lưu mật khẩu và khóa. Hãy khởi động hoặc cài đặt một chuỗi khóa, rồi khởi động lại Hronaut.',
