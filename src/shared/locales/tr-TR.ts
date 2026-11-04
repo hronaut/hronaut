@@ -4054,6 +4054,7 @@ export const trTR: MessageSchema = {
     workspaceArchived: 'Çalışma alanı arşivlendi',
     workspaceClosed: 'Çalışma alanı kapatıldı',
     bookmarkRemoved: 'Yer işareti kaldırıldı',
+    collectionRemoved: 'Koleksiyon kaldırıldı',
     expiredTitle: 'Geri alınacak bir şey yok',
     expired: 'Bu işlem artık geri alınamaz.',
     failed: 'Geri alınamadı',

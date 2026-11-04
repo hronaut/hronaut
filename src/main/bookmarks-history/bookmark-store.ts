@@ -111,6 +111,12 @@ export interface RemovedBookmark {
   collections: { id: string; index: number }[]
 }
 
+/** A removed collection, with the bookmarks it held, and where it was among the collections. */
+export interface RemovedCollection {
+  collection: BrowserBookmarkCollection
+  index: number
+}
+
 /**
  * Moves a bookmarks file Hronaut cannot read, such as one cut short by a disk error or written by a newer version, to
  * `bookmarks.json.unreadable-<UTC time>` beside it, just before the first save writes a new file, so that save does not
@@ -452,10 +458,33 @@ export class BookmarkStore {
     })
   }
 
-  removeCollection(id: string): Promise<void> {
+  /** Removes a collection; its bookmarks stay, in no collection. What it returns lets Undo put the collection back. */
+  removeCollection(id: string): Promise<RemovedCollection> {
     return this.queueMutation(async () => {
-      this.requireCollection(id)
-      await this.commitCollections(this.collections.filter(collection => collection.id !== id))
+      const index = this.collections.findIndex(collection => collection.id === id)
+      if (index < 0) throw new LocalizedError('appErrors.bookmarks.collectionMissing')
+      const collection = this.collections[index]!
+      await this.commitCollections(this.collections.filter(candidate => candidate.id !== id))
+      return { collection: { ...collection, bookmarkIds: [...collection.bookmarkIds] }, index }
+    })
+  }
+
+  /**
+   * Puts a removed collection back in its place, with its id and name and the bookmarks it held that are still saved
+   * and in no other collection. False when it is already back; a collection that took its name meanwhile refuses it.
+   */
+  restoreCollection(removed: RemovedCollection): Promise<boolean> {
+    return this.queueMutation(async () => {
+      const { collection } = removed
+      if (this.collections.some(existing => existing.id === collection.id)) return false
+      this.assertCollectionNameAvailable(collection.name)
+      if (this.collections.length >= 50) throw new LocalizedError('appErrors.bookmarks.collectionLimit')
+      const inCollections = new Set(this.collections.flatMap(existing => existing.bookmarkIds))
+      const bookmarkIds = collection.bookmarkIds.filter(id => this.entries.has(id) && !inCollections.has(id))
+      const collections = [...this.collections]
+      collections.splice(Math.min(removed.index, collections.length), 0, { ...collection, bookmarkIds })
+      await this.commitCollections(collections)
+      return true
     })
   }
 

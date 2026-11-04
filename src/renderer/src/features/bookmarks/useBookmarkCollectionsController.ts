@@ -24,6 +24,8 @@ export function useBookmarkCollectionsController(options: {
   /** The name Bookmark all tabs suggested, kept up to date with the collections until the person changes it. */
   let tabsSuggestion: { base: string; name: string } | null = null
   let selectionGeneration = 0
+  /** The collection shown before it went and the panel showed Unfiled instead, until the person picks another. */
+  let goneSelection: { selection: string; generation: number } | null = null
   let disposed = false
   const collections = computed(() => snapshot.value.collections)
   const selected = computed(() => collections.value.find(collection => `c:${collection.id}` === selection.value))
@@ -32,7 +34,16 @@ export function useBookmarkCollectionsController(options: {
   function accept(next: BookmarkCollectionSnapshot): void {
     if (disposed || next.revision < snapshot.value.revision) return
     snapshot.value = next
-    if (selection.value.startsWith('c:') && !selected.value) selection.value = 'unfiled'
+    if (selection.value.startsWith('c:') && !selected.value) {
+      const gone = selection.value
+      selection.value = 'unfiled'
+      goneSelection = { selection: gone, generation: selectionGeneration }
+    } else if (goneSelection && goneSelection.generation === selectionGeneration
+      && collections.value.some(collection => `c:${collection.id}` === goneSelection!.selection)) {
+      // Undo put the collection back, so it shows again, unless the person picked another meanwhile.
+      selection.value = goneSelection.selection
+      goneSelection = null
+    }
     if (editor.value?.startsWith('edit:') && !collections.value.some(collection => collection.id === editor.value!.slice(5))) cancelEdit()
     if (editor.value?.startsWith('tabs:') && tabsSuggestion && draft.value === tabsSuggestion.name) {
       tabsSuggestion.name = availableName(tabsSuggestion.base)

@@ -4054,6 +4054,7 @@ export const viVN: MessageSchema = {
     workspaceArchived: 'Đã lưu trữ không gian làm việc',
     workspaceClosed: 'Đã đóng không gian làm việc',
     bookmarkRemoved: 'Đã xóa dấu trang',
+    collectionRemoved: 'Đã xóa bộ sưu tập',
     expiredTitle: 'Không có gì để hoàn tác',
     expired: 'Không thể hoàn tác thao tác đó nữa.',
     failed: 'Không thể hoàn tác',

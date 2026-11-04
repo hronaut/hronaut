@@ -122,3 +122,83 @@ describe('BookmarkStore restore after Undo', () => {
     expect((await new BookmarkStore(path).load()).some((bookmark) => bookmark.id === 'saved-7')).toBe(false)
   })
 })
+
+describe('BookmarkStore restore of a removed collection after Undo', () => {
+  // Remove collection could not be undone, so a slip lost the collection's name and which bookmarks it held.
+  it('puts a removed collection back in its place with its id, name and bookmarks, and saves it', async () => {
+    const { path, store } = await createStore()
+    const a = await store.add({ url: 'https://a.example/', title: 'A' })
+    const b = await store.add({ url: 'https://b.example/', title: 'B' })
+    const first = await store.createCollection('First')
+    const reading = await store.createCollection('Reading')
+    const last = await store.createCollection('Last')
+    await store.assignCollection(b.id, reading.id)
+    await store.assignCollection(a.id, reading.id)
+
+    const removed = await store.removeCollection(reading.id)
+    expect(removed).toEqual({ collection: { id: reading.id, name: 'Reading', bookmarkIds: [b.id, a.id] }, index: 1 })
+    expect(store.collectionSnapshot().collections.map(collection => collection.id)).toEqual([first.id, last.id])
+    // Its bookmarks stay saved, in no collection.
+    expect(store.list().map(bookmark => bookmark.id).sort()).toEqual([a.id, b.id].sort())
+
+    expect(await store.restoreCollection(removed)).toBe(true)
+    const expected = [
+      { id: first.id, name: 'First', bookmarkIds: [] },
+      { id: reading.id, name: 'Reading', bookmarkIds: [b.id, a.id] },
+      { id: last.id, name: 'Last', bookmarkIds: [] }
+    ]
+    expect(store.collectionSnapshot().collections).toEqual(expected)
+    const reloaded = new BookmarkStore(path)
+    await reloaded.load()
+    expect(reloaded.collectionSnapshot().collections).toEqual(expected)
+    // Only once.
+    expect(await store.restoreCollection(removed)).toBe(false)
+  })
+
+  it('leaves out bookmarks removed or put in another collection meanwhile, and goes last if the list shrank', async () => {
+    const { store } = await createStore()
+    const kept = await store.add({ url: 'https://kept.example/', title: 'Kept' })
+    const moved = await store.add({ url: 'https://moved.example/', title: 'Moved' })
+    const gone = await store.add({ url: 'https://gone.example/', title: 'Gone' })
+    const first = await store.createCollection('First')
+    const other = await store.createCollection('Other')
+    const doomed = await store.createCollection('Doomed')
+    for (const bookmark of [kept, moved, gone]) await store.assignCollection(bookmark.id, doomed.id)
+    const removed = await store.removeCollection(doomed.id)
+    expect(removed.index).toBe(2)
+    await store.assignCollection(moved.id, other.id)
+    await store.remove(gone.id)
+    await store.removeCollection(first.id)
+
+    expect(await store.restoreCollection(removed)).toBe(true)
+    expect(store.collectionSnapshot().collections).toEqual([
+      { id: other.id, name: 'Other', bookmarkIds: [moved.id] },
+      { id: doomed.id, name: 'Doomed', bookmarkIds: [kept.id] }
+    ])
+  })
+
+  it('refuses, saying why, once a collection took its name meanwhile, keeping the newer one, and keeps to the collection limit', async () => {
+    const { store } = await createStore()
+    const reading = await store.createCollection('Reading')
+    const removed = await store.removeCollection(reading.id)
+    const again = await store.createCollection('READING')
+    await expect(store.restoreCollection(removed)).rejects.toMatchObject({ key: 'appErrors.bookmarks.collectionNameTaken' })
+    expect(store.collectionSnapshot().collections).toEqual([again])
+
+    await store.removeCollection(again.id)
+    for (let index = 0; index < 50; index += 1) await store.createCollection(`Collection ${index}`)
+    await expect(store.restoreCollection(removed)).rejects.toMatchObject({ key: 'appErrors.bookmarks.collectionLimit' })
+    expect(store.collectionSnapshot().collections).toHaveLength(50)
+  })
+
+  it('takes its turn with other changes: one made with its name at the same moment after it refuses', async () => {
+    const { store } = await createStore()
+    const reading = await store.createCollection('Reading')
+    const removed = await store.removeCollection(reading.id)
+
+    const [restored, created] = await Promise.allSettled([store.restoreCollection(removed), store.createCollection('reading')])
+    expect(restored).toEqual({ status: 'fulfilled', value: true })
+    expect(created).toMatchObject({ status: 'rejected', reason: { key: 'appErrors.bookmarks.collectionNameTaken' } })
+    expect(store.collectionSnapshot().collections).toEqual([{ id: reading.id, name: 'Reading', bookmarkIds: [] }])
+  })
+})

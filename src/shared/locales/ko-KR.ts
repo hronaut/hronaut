@@ -4054,6 +4054,7 @@ export const koKR: MessageSchema = {
     workspaceArchived: '작업 공간 보관처리됨',
     workspaceClosed: '작업 공간 닫힘',
     bookmarkRemoved: '북마크 삭제됨',
+    collectionRemoved: '컬렉션 삭제됨',
     expiredTitle: '실행취소할 항목 없음',
     expired: '더 이상 실행취소할 수 없습니다.',
     failed: '실행취소할 수 없음',

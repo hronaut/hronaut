@@ -4054,6 +4054,7 @@ export const plPL: MessageSchema = {
     workspaceArchived: 'Obszar roboczy zarchiwizowany',
     workspaceClosed: 'Obszar roboczy zamknięty',
     bookmarkRemoved: 'Zakładka usunięta',
+    collectionRemoved: 'Kolekcja usunięta',
     expiredTitle: 'Nie ma czego cofnąć',
     expired: 'Tego nie można już cofnąć.',
     failed: 'Nie udało się cofnąć',

@@ -4054,6 +4054,7 @@ export const zhCN: MessageSchema = {
     workspaceArchived: '已归档工作区',
     workspaceClosed: '已关闭工作区',
     bookmarkRemoved: '已移除书签',
+    collectionRemoved: '已移除集合',
     expiredTitle: '没有可撤消的操作',
     expired: '该操作已无法撤消。',
     failed: '无法撤消',

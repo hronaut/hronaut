@@ -4054,6 +4054,7 @@ export const itIT: MessageSchema = {
     workspaceArchived: 'Area di lavoro archiviata',
     workspaceClosed: 'Area di lavoro chiusa',
     bookmarkRemoved: 'Preferito rimosso',
+    collectionRemoved: 'Raccolta rimossa',
     expiredTitle: 'Niente da annullare',
     expired: 'Questa operazione non può più essere annullata.',
     failed: 'Impossibile annullare',

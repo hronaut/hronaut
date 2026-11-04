@@ -4054,6 +4054,7 @@ export const hiIN: MessageSchema = {
     workspaceArchived: 'वर्कस्पेस संग्रहित किया गया',
     workspaceClosed: 'वर्कस्पेस बंद किया गया',
     bookmarkRemoved: 'बुकमार्क हटाया गया',
+    collectionRemoved: 'कलेक्शन हटाया गया',
     expiredTitle: 'पहले जैसा करने के लिए कुछ नहीं है',
     expired: 'इसे अब पहले जैसा नहीं किया जा सकता।',
     failed: 'पहले जैसा नहीं किया जा सका',

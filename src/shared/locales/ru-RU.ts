@@ -4054,6 +4054,7 @@ export const ruRU: MessageSchema = {
     workspaceArchived: 'Рабочее пространство в архиве',
     workspaceClosed: 'Рабочее пространство закрыто',
     bookmarkRemoved: 'Закладка удалена',
+    collectionRemoved: 'Коллекция удалена',
     expiredTitle: 'Нечего отменять',
     expired: 'Это уже нельзя отменить.',
     failed: 'Не удалось отменить',

@@ -4054,6 +4054,7 @@ export const ukUA: MessageSchema = {
     workspaceArchived: 'Робочий простір в архіві',
     workspaceClosed: 'Робочий простір закрито',
     bookmarkRemoved: 'Закладку видалено',
+    collectionRemoved: 'Колекцію видалено',
     expiredTitle: 'Нічого скасовувати',
     expired: 'Це вже не можна скасувати.',
     failed: 'Не вдалося скасувати',

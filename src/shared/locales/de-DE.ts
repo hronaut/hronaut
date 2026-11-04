@@ -4054,6 +4054,7 @@ export const deDE: MessageSchema = {
     workspaceArchived: 'Arbeitsbereich archiviert',
     workspaceClosed: 'Arbeitsbereich geschlossen',
     bookmarkRemoved: 'Lesezeichen entfernt',
+    collectionRemoved: 'Sammlung entfernt',
     expiredTitle: 'Nichts rückgängig zu machen',
     expired: 'Das lässt sich nicht mehr rückgängig machen.',
     failed: 'Rückgängig machen fehlgeschlagen',

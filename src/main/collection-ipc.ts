@@ -1,6 +1,6 @@
 import type { IpcMainInvokeEvent } from 'electron'
 import type { TypedIpcMain } from './typed-ipc.js'
-import type { BookmarkStore, RemovedBookmark } from './bookmarks-history/bookmark-store.js'
+import type { BookmarkStore, RemovedBookmark, RemovedCollection } from './bookmarks-history/bookmark-store.js'
 import type { HistoryStore } from './bookmarks-history/history-store.js'
 import type { Browser } from './browser/browser.js'
 import type { BookmarkCollectionSnapshot, BookmarkTabsOutcome, BrowserBookmark, BrowserHistoryEntry } from '../shared/types.js'
@@ -17,6 +17,8 @@ interface CollectionIpcHost {
   tabs(): readonly { url: string; title: string; mcpGroupId?: string }[]
   /** The person removed a bookmark from Hronaut's own controls; Undo can put it back. */
   bookmarkRemoved?(removed: RemovedBookmark): void
+  /** The person removed a collection; Undo can put it back. */
+  collectionRemoved?(removed: RemovedCollection): void
   history(): Pick<HistoryStore, 'list' | 'remove' | 'clear'>
   /** The person cleared their history, so anything else that names visited pages goes too. */
   historyCleared?(): void
@@ -104,11 +106,13 @@ export function registerCollectionIpc(ipcMain: Pick<TypedIpcMain, 'handle'>, hos
         throw new TypeError('Invalid bookmark collection arguments')
       }
       const store = host.bookmarks()
+      let removed: RemovedCollection | undefined
       if (action === 'create') await store.createCollection(first)
       else if (action === 'rename') await store.renameCollection(first, second as string)
-      else if (action === 'remove') await store.removeCollection(first)
+      else if (action === 'remove') removed = await store.removeCollection(first)
       else await store.assignCollection(first, second as string | null)
       host.publishBookmarks()
+      if (removed) host.collectionRemoved?.(removed)
       return store.collectionSnapshot()
     })
   }

@@ -424,7 +424,7 @@ const {
   openVisitHistory,
   recordPageVisit,
   updatePageTitle,
-  offerBookmarkRestore,
+  undoHooks,
   historyCleared,
   historyEntryRemoved,
   agentBookmarks,
@@ -986,7 +986,7 @@ function registerIpc(): void {
     publishVisitHistory,
     historyCleared,
     historyEntryRemoved,
-    bookmarkRemoved: offerBookmarkRestore
+    ...undoHooks
   })
   registerBookmarksFileIpc(hronautIpcMain, {
     assertTrustedSender: assertInitializedTrustedShellSender,
