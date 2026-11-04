@@ -39,15 +39,22 @@ function isSavableAddress(url: string): boolean {
   }
 }
 
+/** How the menu opens: its point in the window, and what runs while it is open. */
+export interface PageMenuPopup {
+  at?: { x: number, y: number }
+  /** Runs as the menu opens, and what it returns as it closes. */
+  whileOpen?: () => () => void
+}
+
 /**
- * Shows the native context menu for a right-click in the page: link, image,
+ * Shows the native context menu for a right-click, Menu key or Shift+F10 in the page: link, image,
  * editing and selection actions for what was clicked, with a link to the
  * selected text and a search for it or a visit to a selected address, then page navigation, copy address, save, print, view source, the
  * source and reload of a frame inside the page, and inspect. No item acts on its page once another tab took its place
- * in view, and those that act on the page check that its tab is still open. `whileOpen` runs as the menu opens, and
- * what it returns as it closes.
+ * in view, and those that act on the page check that its tab is still open. The menu opens at `popup.at` in the window,
+ * or at the pointer without one, and `popup.whileOpen` runs while it is open.
  */
-export function showContextMenu(browser: Browser, tab: BrowserTab, params: ContextMenuParams, whileOpen?: () => () => void): void {
+export function showContextMenu(browser: Browser, tab: BrowserTab, params: ContextMenuParams, popup: PageMenuPopup = {}): void {
   const webContents = tab.webContents
   if (webContents.isDestroyed()) return
   const selection = browser.tabSelectionGeneration
@@ -537,10 +544,13 @@ export function showContextMenu(browser: Browser, tab: BrowserTab, params: Conte
     ? group
     : [{ type: 'separator' as const }, ...group]))
   const menu = Menu.buildFromTemplate(template)
-  const closed = whileOpen?.()
+  const closed = popup.whileOpen?.()
   try {
     menu.popup({
       window: browser.window,
+      ...popup.at ?? {},
+      // On Windows and Linux the menu knows whether the keyboard, a mouse or a touch opened it, as Chrome's does.
+      sourceType: params.menuSourceType,
       ...(params.frame ? { frame: params.frame } : {}),
       ...(closed ? { callback: closed } : {})
     })
