@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { isHronautHomeUrl } from '../../../../shared/home-url.js'
+import { PAGE_ZOOM_LIMITS } from '../../../../shared/page-zoom.js'
 import UiButton from "../../ui/UiButton.vue"
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -126,7 +127,7 @@ defineExpose({ close, openForTab, setZoom })
       type="button"
       v-tooltip="t('zoom.outTitle')"
       :aria-label="t('zoom.out')"
-      :disabled="busy || (activeTab?.zoomPercent ?? 100) <= 50"
+      :disabled="busy || (activeTab?.zoomPercent ?? 100) <= PAGE_ZOOM_LIMITS.min"
       @click="zoomFromControl('out')"
     ><IconRemove aria-hidden="true" /></UiButton>
     <output aria-live="polite">{{ formatPercent(activeTab?.zoomPercent ?? 100) }}</output>
@@ -134,7 +135,7 @@ defineExpose({ close, openForTab, setZoom })
       type="button"
       v-tooltip="t('zoom.inTitle')"
       :aria-label="t('zoom.in')"
-      :disabled="busy || (activeTab?.zoomPercent ?? 100) >= 400"
+      :disabled="busy || (activeTab?.zoomPercent ?? 100) >= PAGE_ZOOM_LIMITS.max"
       @click="zoomFromControl('in')"
     ><IconZoomIn aria-hidden="true" /></UiButton>
     <UiButton appearance="application"
