@@ -102,7 +102,7 @@ export interface HronautFixtures {
   standInHome: boolean
   /** Collects the native stack traces of the processes the test's launches crash, for a failure to attach. */
   nativeCrashStacks: void
-  /** Fails the test when one of its launches logged an uncaught exception in the main process, with that error. */
+  /** Fails the test when one of its launches logged an uncaught exception or unhandled rejection in main, with that error. */
   mainUncaughtExceptions: void
 }
 
@@ -439,7 +439,7 @@ export const test = base.extend<HronautFixtures, { workerDisplay: void }>({
     try { await use() } finally { untrackMainUncaughtExceptions(testInfo) }
     if (exceptions.length > 0) {
       const logged = exceptions.map((exception) => exception.lines.join('\n')).join('\n')
-      throw new Error(`The main process logged ${exceptions.length === 1 ? 'an uncaught exception' : 'uncaught exceptions'}:\n${logged}`)
+      throw new Error(`The main process logged ${exceptions.length === 1 ? 'an uncaught error' : 'uncaught errors'}:\n${logged}`)
     }
   }, { auto: true }],
 
