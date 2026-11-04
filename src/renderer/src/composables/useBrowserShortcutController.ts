@@ -21,10 +21,10 @@ export interface BrowserShortcutControllerOptions {
   /** The tabs selected together in the tab strip while there are several, which close together, as in Chrome. */
   selectedTabIds?: () => readonly string[]
   /**
-   * The website tabs the tab strip shows, which leave out a folded workspace's. Tab keys pass over the others, as
-   * Chrome's skip the tabs of a collapsed group, so the workspace stays folded. Without it, they go to every tab.
+   * The workspaces folded in the tab strip. Tab keys pass over their tabs, as Chrome's skip the tabs of a collapsed
+   * group, so they stay folded.
    */
-  shownTabIds?: () => readonly string[] | undefined
+  foldedWorkspaceIds?: () => ReadonlySet<string> | undefined
   browser: ShortcutBrowserApi
   syncState: (operation: Promise<BrowserState> | BrowserState) => Promise<void>
   settingsOpen: Ref<boolean>
@@ -81,12 +81,10 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
     return options.state.value.tabs.filter((tab) => !isHronautHomeUrl(tab.url))
   }
 
-  /** Whether a tab key may go to the tab: Home always, a website tab while the tab strip shows it. */
+  /** Whether a tab key may go to the tab: any but one of a workspace folded in the tab strip. */
   function tabKeyReaches(): (tab: BrowserTabState) => boolean {
-    const shown = options.shownTabIds?.()
-    if (!shown) return () => true
-    const shownIds = new Set(shown)
-    return (tab) => isHronautHomeUrl(tab.url) || shownIds.has(tab.id)
+    const folded = options.foldedWorkspaceIds?.()
+    return (tab) => !tab.mcpGroupId || !folded?.has(tab.mcpGroupId)
   }
 
   async function performRelativeTabSelection(offset: -1 | 1): Promise<void> {
@@ -99,7 +97,7 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
     if (tabs.length < 2 || !activeTabId) return
     const current = tabs.findIndex((tab) => tab.id === activeTabId)
     if (current < 0) return
-    // The tab in view counts from its place even when the strip hides it, as in a workspace folded since it was shown.
+    // The tab in view counts from its place even when its own workspace was folded since it was shown.
     const others = [...tabs.slice(current + 1), ...tabs.slice(0, current)]
     const next = (offset > 0 ? others : others.reverse()).find((tab) => tab.reachable)
     if (next?.id === settingsId) await options.openSettings?.()

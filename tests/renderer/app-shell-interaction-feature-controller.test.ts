@@ -51,7 +51,7 @@ function deferred<Value>() {
 function createHarness(extraNavigation: {
   selectBrowserTab?: (tabId: string) => Promise<boolean>
   takeOverFromAgent?: () => unknown
-  tabStrip?: () => { selectedTabs: () => readonly string[]; shownTabIds: () => readonly string[] | undefined } | undefined
+  tabStrip?: () => { selectedTabs: () => readonly string[]; foldedWorkspaceIds: () => ReadonlySet<string> | undefined } | undefined
 } = {}) {
   const state = ref(browserState())
   const activeTab = computed(() => state.value.tabs.find((candidate) => candidate.id === state.value.activeTabId))
@@ -243,7 +243,7 @@ function createHarness(extraNavigation: {
 
 describe('app shell interaction feature controller', () => {
   it('closes the tabs selected in the tab strip with the close-tab key', async () => {
-    const harness = createHarness({ tabStrip: () => ({ selectedTabs: () => ['active', 'other'], shownTabIds: () => undefined }) })
+    const harness = createHarness({ tabStrip: () => ({ selectedTabs: () => ['active', 'other'], foldedWorkspaceIds: () => undefined }) })
 
     await expect(harness.controller.runBrowserShortcut('close-tab')).resolves.toBe(true)
 
@@ -252,9 +252,10 @@ describe('app shell interaction feature controller', () => {
     harness.controller.dispose()
   })
 
-  it('passes over the tabs the tab strip does not show with the tab keys, as in a folded workspace', async () => {
-    const harness = createHarness({ tabStrip: () => ({ selectedTabs: () => [], shownTabIds: () => ['active', 'shown'] }) })
-    harness.state.value = { ...harness.state.value, tabs: [tab('active'), tab('folded'), tab('shown')] }
+  it('passes over the tabs of a workspace folded in the tab strip with the tab keys', async () => {
+    const harness = createHarness({ tabStrip: () => ({ selectedTabs: () => [], foldedWorkspaceIds: () => new Set(['folded']) }) })
+    const inWorkspace = (id: string, mcpGroupId: string) => ({ ...tab(id), mcpGroupId })
+    harness.state.value = { ...harness.state.value, tabs: [inWorkspace('active', 'open'), inWorkspace('folded', 'folded'), inWorkspace('shown', 'open')] }
 
     await expect(harness.controller.runBrowserShortcut('select-tab-2')).resolves.toBe(true)
     await expect(harness.controller.runBrowserShortcut('select-last-tab')).resolves.toBe(true)

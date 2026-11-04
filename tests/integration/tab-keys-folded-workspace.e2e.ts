@@ -26,6 +26,7 @@ async function workspaceInView(appWindow: Page): Promise<string | null> {
 test('tab keys pass over the tabs of a folded workspace and leave it folded, as Chrome skips a collapsed group', async ({ appWindow }) => {
   const primary = process.platform === 'darwin' ? 'Meta' : 'Control'
   await appWindow.evaluate("window.hronautSettings.setTabPosition('left')")
+  await expect(appWindow.locator('.browser-tabs-bar.vertical')).toBeVisible()
   for (const name of NAMES) {
     await appWindow.evaluate((workspace) => (globalThis as KeysScope).hronaut.createWorkspace({ name: workspace, storage: 'scratch' }), name)
   }

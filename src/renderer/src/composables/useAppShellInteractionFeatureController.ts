@@ -207,8 +207,8 @@ export interface AppShellInteractionFeatureControllerOptions {
     toggleFullPageView?: () => unknown
     /** Takes over from the agent working on the page you just touched; nothing happens without an offer. */
     takeOverFromAgent?: () => unknown
-    /** The tab strip: the tabs selected together in it while there are several, and the website tabs it shows. */
-    tabStrip?: () => { selectedTabs: () => readonly string[]; shownTabIds: () => readonly string[] | undefined } | undefined
+    /** The tab strip: the tabs selected together in it while there are several, and the workspaces folded in it. */
+    tabStrip?: () => { selectedTabs: () => readonly string[]; foldedWorkspaceIds: () => ReadonlySet<string> | undefined } | undefined
   }
   actions: {
     closeTransientPanels: (options?: TransientPanelsCloseOptions) => void
@@ -357,7 +357,7 @@ export function useAppShellInteractionFeatureController(
     state: options.state,
     activeTab: options.activeTab,
     selectedTabIds: () => navigation.tabStrip?.()?.selectedTabs() ?? [],
-    shownTabIds: () => navigation.tabStrip?.()?.shownTabIds(),
+    foldedWorkspaceIds: () => navigation.tabStrip?.()?.foldedWorkspaceIds(),
     browser: options.browser,
     syncState: options.syncState,
     settingsOpen: surfaces.settings.open,

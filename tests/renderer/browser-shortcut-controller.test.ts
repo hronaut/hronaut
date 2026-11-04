@@ -50,7 +50,7 @@ function deferred<Value>() {
 function createController(
   canRunAction = (_action: string) => true,
   selectedTabIds?: () => readonly string[],
-  shownTabIds?: () => readonly string[] | undefined
+  foldedWorkspaceIds?: () => ReadonlySet<string> | undefined
 ) {
   const state = ref(browserState())
   const activeTab = ref<BrowserTabState | undefined>(state.value.tabs[1])
@@ -104,7 +104,7 @@ function createController(
     state,
     activeTab,
     ...(selectedTabIds ? { selectedTabIds } : {}),
-    ...(shownTabIds ? { shownTabIds } : {}),
+    ...(foldedWorkspaceIds ? { foldedWorkspaceIds } : {}),
     browser,
     syncState,
     settingsOpen,
@@ -113,6 +113,12 @@ function createController(
     ...callbacks
   })
   return { state, activeTab, browser, syncState, settingsOpen, settingsTabOpen, callbacks, controller }
+}
+
+// Home, then workspace a with a1, b with b1 and b2, and c with c1.
+function workspaceTabs(): BrowserTabState[] {
+  const inWorkspace = (id: string): BrowserTabState => ({ ...tab(id), mcpGroupId: id.slice(0, 1) })
+  return [{ ...tab('home'), url: 'hronaut://home/' }, inWorkspace('a1'), inWorkspace('b1'), inWorkspace('b2'), inWorkspace('c1')]
 }
 
 describe('browser shortcut controller', () => {
@@ -395,11 +401,10 @@ describe('browser shortcut controller', () => {
   })
 
   it('passes over the tabs of a folded workspace with Ctrl+Tab and Ctrl+Shift+Tab, as Chrome skips a collapsed group', async () => {
-    // Workspace B is folded, so the strip shows Home, a1 and c1.
-    const harness = createController(undefined, undefined, () => ['a1', 'c1'])
-    const home = { ...tab('home'), url: 'hronaut://home/' }
+    // Workspace b is folded, so the strip shows Home, a1 and c1.
+    const harness = createController(undefined, undefined, () => new Set(['b']))
     const showing = (activeTabId: string) => {
-      harness.state.value = { ...browserState(activeTabId), tabs: [home, tab('a1'), tab('b1'), tab('b2'), tab('c1')] }
+      harness.state.value = { ...browserState(activeTabId), tabs: workspaceTabs() }
     }
 
     showing('a1')
@@ -417,12 +422,21 @@ describe('browser shortcut controller', () => {
     harness.controller.dispose()
   })
 
+  it('keeps Settings in the tab keys while they pass over a folded workspace', async () => {
+    const harness = createController(undefined, undefined, () => new Set(['b']))
+    harness.settingsTabOpen.value = true
+    harness.state.value = { ...browserState('c1'), tabs: workspaceTabs() }
+    await harness.controller.selectRelativeTab(1)
+    expect(harness.browser.selectTab).toHaveBeenLastCalledWith('home')
+    harness.state.value = { ...browserState('a1'), tabs: workspaceTabs() }
+    await harness.controller.selectRelativeTab(-1)
+    expect(harness.callbacks.openSettings).toHaveBeenCalledOnce()
+    harness.controller.dispose()
+  })
+
   it('counts only the website tabs the strip shows for Ctrl+1 to Ctrl+8 and Ctrl+9, as Chrome does', async () => {
-    const harness = createController(undefined, undefined, () => ['a1', 'c1'])
-    harness.state.value = {
-      ...browserState('a1'),
-      tabs: [{ ...tab('home'), url: 'hronaut://home/' }, tab('a1', true), tab('b1'), tab('b2'), tab('c1')]
-    }
+    const harness = createController(undefined, undefined, () => new Set(['b']))
+    harness.state.value = { ...browserState('a1'), tabs: workspaceTabs() }
 
     await expect(harness.controller.run('select-tab-2')).resolves.toBe(true)
     await expect(harness.controller.run('select-tab-3')).resolves.toBe(true)
@@ -432,7 +446,7 @@ describe('browser shortcut controller', () => {
     harness.controller.dispose()
   })
 
-  it('goes to every tab while no tab strip says which it shows', async () => {
+  it('goes to every tab while no tab strip says which workspaces it folds', async () => {
     const harness = createController(undefined, undefined, () => undefined)
 
     await harness.controller.selectRelativeTab(1)
