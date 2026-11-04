@@ -234,8 +234,13 @@ export function createPanelWindow(host: PanelWindowHost): {
         sendPanelWindowSnapshot(created)
         sendTo(created.webContents, PANEL_WINDOW_IPC.showPanel, requestedPanel)
       })
+      // It opens maximized or in full screen as it was saved, as the main window does; Electron shows a hidden window
+      // to take either, so it opens that way at once.
       created.once('ready-to-show', () => {
-        if (!created.isDestroyed()) created.show()
+        if (created.isDestroyed()) return
+        if (savedPanelState?.maximized) created.maximize()
+        if (savedPanelState?.fullScreen) created.setFullScreen(true)
+        created.show()
       })
       created.on('resize', host.schedulePanelWindowStateSave)
       created.on('move', host.schedulePanelWindowStateSave)
