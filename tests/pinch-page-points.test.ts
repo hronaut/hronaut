@@ -127,6 +127,19 @@ describe('an agent\'s native input on a pinched page', () => {
     }
   })
 
+  // The check's own refusal answered a native click on a page's source or on a page whose renderer exited, in place of
+  // the click's outcome, which says that nothing was pressed and nothing is left to clean up.
+  it('leaves a page no script runs in to the input, which reports its own outcome there', async () => {
+    const unscriptable = {
+      getURL: () => 'view-source:https://example.com/',
+      isLoadingMainFrame: () => false,
+      executeJavaScript: vi.fn(async () => { throw new Error('This tab shows a page\'s source (a view-source: address)') })
+    } as unknown as WebContents
+    await expect(assertPageAtNormalScale(unscriptable, 'click')).resolves.toBeUndefined()
+    await expect(assertPageAtNormalScale(unscriptable, 'hover')).resolves.toBeUndefined()
+    expect(unscriptable.executeJavaScript).toHaveBeenCalledTimes(2)
+  })
+
   // A phone viewport the agent emulates sets its own scale and can show its page panned at it, and a zoom reset leaves
   // that scale as it is, so its tab is not refused.
   it('is not refused in a phone viewport the agent emulates', async () => {
