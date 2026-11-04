@@ -284,3 +284,37 @@ it('keeps the page\'s selection, ending a session before one from that selection
     'find needle', 'stop keepSelection', 'find Needle', 'stop clearSelection', 'find needle', 'find haystack'
   ])
 })
+
+// Find stays with its tab while the person is elsewhere, where an agent may work in the page. Its input can move the
+// page's focus off the match, and Chromium clicks the focused element when a search ends on a match that is gone, so
+// Ctrl+Enter after coming back would click what the agent last focused, such as a Delete button.
+it('keeps the selection rather than click once an agent sent input to the page, until the person searches again', async () => {
+  const page = fixture()
+  const controller = new PageFindController()
+  const webContents = page.contents as unknown as WebContents
+  const settle = async () => {
+    const search = controller.search(webContents, 'needle', {})
+    const requestId = page.contents.findInPage.mock.results.at(-1)!.value as number
+    page.contents.emit('found-in-page', {}, { requestId, finalUpdate: true, activeMatchOrdinal: 1, matches: 3 })
+    await search
+  }
+
+  await settle()
+  controller.noteAgentInput(webContents)
+  // It may still select the match, as keeping the selection does.
+  expect(controller.stop(webContents, 'activateSelection')).toBe(true)
+  expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('keepSelection')
+  expect(page.contents.executeJavaScriptInIsolatedWorld).not.toHaveBeenCalled()
+
+  await settle()
+  controller.noteAgentInput(webContents)
+  await settle()
+  expect(controller.stop(webContents, 'activateSelection')).toBe(true)
+  expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('activateSelection')
+
+  // Input before any match leaves the next search's match to click.
+  controller.noteAgentInput(webContents)
+  await settle()
+  expect(controller.stop(webContents, 'activateSelection')).toBe(true)
+  expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('activateSelection')
+})

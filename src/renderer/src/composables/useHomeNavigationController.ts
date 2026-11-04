@@ -12,7 +12,6 @@ export interface HomeNavigationControllerOptions {
   historyOpen: Ref<boolean>
   tabSearchOpen: Ref<boolean>
   zoomOpen: Ref<boolean>
-  runFindTransition: (operation: () => Promise<void>) => Promise<void>
   navigateHome: () => Promise<void>
 }
 
@@ -37,7 +36,8 @@ export function useHomeNavigationController(options: HomeNavigationControllerOpt
     options.historyOpen.value = false
     options.tabSearchOpen.value = false
     options.zoomOpen.value = false
-    await options.runFindTransition(options.navigateHome)
+    // Find stays with the website's tab, as with any other tab shown, and comes back with it.
+    await options.navigateHome()
   }
 
   return {

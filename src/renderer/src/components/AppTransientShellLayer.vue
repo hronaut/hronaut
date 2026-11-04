@@ -45,6 +45,8 @@ const props = defineProps<{
   activeOrigin: string | null
   helpDialogOpen: boolean
   settingsOpen: boolean
+  /** Whether another surface is open, which a tab's Find coming back would close. */
+  findWaits?: boolean
   websiteAvailable: boolean
   browser: HronautApi
   syncState: (next: Promise<BrowserState> | BrowserState) => Promise<void>
@@ -283,7 +285,15 @@ defineExpose({
     @new-tab="emit('newTab')"
     @transfer-workspace-data="openWorkspaceTransfer"
   />
-  <FindInPageBar ref="findBar" v-model:open="findOpen" v-model:focused="findFocused" :active-tab="activeTab" :browser="browser" />
+  <FindInPageBar
+    ref="findBar"
+    v-model:open="findOpen"
+    v-model:focused="findFocused"
+    :active-tab="activeTab"
+    :tabs="state.tabs"
+    :return-held="findWaits"
+    :browser="browser"
+  />
   <ZoomBar
     ref="zoomBar"
     v-model:open="zoomOpen"

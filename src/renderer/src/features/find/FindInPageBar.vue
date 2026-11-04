@@ -22,6 +22,11 @@ type FindBrowserApi = Pick<HronautApi, 'findInPage' | 'stopFindInPage' | 'forwar
 
 const props = defineProps<{
   activeTab?: BrowserTabState
+  // Every open tab, whose Find the bar keeps while another tab is shown.
+  tabs?: readonly BrowserTabState[]
+  // Whether another surface is open, which a tab's Find coming back would close: it comes back once that closes, or
+  // when the person opens Find.
+  returnHeld?: boolean
   browser: FindBrowserApi
 }>()
 
@@ -50,12 +55,32 @@ let typedText = false
 let selectionRead = 0
 // Whether a search session started on the page since Find opened, which Find Next and Find Previous go on with.
 let pageSearched = false
+// The search still answering for a tab Find came back to, which the bar shows once it answers.
+let adoptedSequence: number | undefined
+
+// As in Chrome, Find belongs to its tab: another tab shown hides it, leaving the page's matches marked, and the tab
+// shown again brings it back with its text, its count and the match it was on. A page the tab goes to meanwhile, or a
+// reload, ends it, as it does in the tab shown.
+interface ParkedFind {
+  query: string
+  caseSensitive: boolean
+  result: BrowserFindResult
+  searchFailed: boolean
+  searching: boolean
+  // The search the tab was waiting for when it was hidden, whose answer comes to this Find.
+  sequence: number
+  pageSearched: boolean
+  typedText: boolean
+  documentGeneration: number
+}
+const parkedFinds = new Map<string, ParkedFind>()
 
 async function search(forward: boolean, newSearch: boolean, fromSelectionStart = false): Promise<void> {
   const tabId = targetTabId
   const normalizedQuery = query.value.slice(0, MAX_FIND_QUERY_LENGTH)
   if (normalizedQuery !== query.value) query.value = normalizedQuery
   const sequence = ++requestSequence
+  adoptedSequence = undefined
   searchFailed.value = false
   searching.value = Boolean(tabId && normalizedQuery)
   if (!tabId) return
@@ -76,15 +101,24 @@ async function search(forward: boolean, newSearch: boolean, fromSelectionStart =
       caseSensitive: caseSensitive.value,
       ...(fromSelectionStart ? { fromSelectionStart } : {})
     })
-    if (sequence === requestSequence && tabId === targetTabId) result.value = next
+    settleSearch(tabId, sequence, next, false)
   } catch {
-    if (sequence === requestSequence && tabId === targetTabId) {
-      result.value = { activeMatchOrdinal: 0, matches: 0 }
-      searchFailed.value = true
-    }
-  } finally {
-    if (sequence === requestSequence && tabId === targetTabId) searching.value = false
+    settleSearch(tabId, sequence, { activeMatchOrdinal: 0, matches: 0 }, true)
   }
+}
+
+// A search's answer goes to the bar while it shows the search's tab, or to the tab's hidden Find, when it is the latest
+// search there.
+function settleSearch(tabId: string, sequence: number, next: BrowserFindResult, failed: boolean): void {
+  if (tabId === targetTabId && (sequence === requestSequence || sequence === adoptedSequence)) {
+    adoptedSequence = undefined
+    result.value = next
+    searchFailed.value = failed
+    searching.value = false
+    return
+  }
+  const parked = parkedFinds.get(tabId)
+  if (parked?.searching && parked.sequence === sequence) Object.assign(parked, { result: next, searchFailed: failed, searching: false })
 }
 
 function navigateMatch(forward: boolean): void {
@@ -225,6 +259,8 @@ async function activate(tab: BrowserTabState | undefined): Promise<void> {
 async function openForTab(tab: BrowserTabState | undefined = props.activeTab, again?: 'next' | 'previous'): Promise<void> {
   if (!tab) return
   const forward = again !== 'previous'
+  // Find the tab kept while another surface was open goes on where it was.
+  if (!open.value && restore(tab)) await nextTick()
   if (open.value && targetTabId === tab.id) {
     input.value?.focus()
     input.value?.select()
@@ -275,6 +311,7 @@ function showsTab(tab: BrowserTabState): boolean {
 async function cleanup(options: { activateMatch?: boolean; keepMatch?: boolean } = {}): Promise<void> {
   const tabId = targetTabId
   requestSequence += 1
+  adoptedSequence = undefined
   targetTabId = undefined
   releasePageKeys()
   searching.value = false
@@ -307,15 +344,85 @@ watch(open, (isOpen) => {
   else if (!isOpen && targetTabId) void cleanup()
 }, { immediate: true })
 
-// Another tab, another page or a reload ends the search, including one opened while the next page was still loading. A
-// change within the page keeps it, as in Chrome, such as a documentation site moving its address to the section in
-// view while the person steps through matches.
+// Another tab hides Find, which that tab shown again brings back. Another page or a reload ends the search, including
+// one opened while the next page was still loading. A change within the page keeps it, as in Chrome, such as a
+// documentation site moving its address to the section in view while the person steps through matches.
 watch([
   () => props.activeTab?.id,
   () => props.activeTab?.documentGeneration
-], () => {
-  if (open.value && targetTabId) void close()
+], ([tabId], [previousTabId, previousGeneration]) => {
+  if (tabId === previousTabId) {
+    if (open.value && targetTabId) void close()
+    return
+  }
+  if (open.value && targetTabId && targetTabId === previousTabId && previousGeneration !== undefined) {
+    park(previousTabId, previousGeneration)
+  } else if (open.value && targetTabId) void close()
+  if (!props.returnHeld) restore(props.activeTab)
 }, { flush: 'sync' })
+
+watch(() => props.returnHeld, (held) => {
+  if (!held && !open.value) restore(props.activeTab)
+})
+
+// The tabs closed, gone to another page or put to sleep take their hidden Find with them.
+watch(() => props.tabs, (tabs) => {
+  if (!tabs) return
+  for (const [tabId, parked] of parkedFinds) {
+    const tab = tabs.find((candidate) => candidate.id === tabId)
+    if (tab && !tab.sleeping && tab.documentGeneration === parked.documentGeneration) continue
+    parkedFinds.delete(tabId)
+    if (tab && !tab.sleeping) void props.browser.stopFindInPage(tabId, { clearSelection: true }).catch(() => undefined)
+  }
+})
+
+// Hides Find for a tab another tab replaces, without ending the page's search, whose matches stay marked, as in Chrome.
+function park(tabId: string, documentGeneration: number): void {
+  releasePageKeys()
+  selectionRead += 1
+  readingSelection.value = false
+  parkedFinds.set(tabId, {
+    query: query.value,
+    caseSensitive: caseSensitive.value,
+    result: result.value,
+    searchFailed: searchFailed.value,
+    searching: searching.value,
+    sequence: adoptedSequence ?? requestSequence,
+    pageSearched,
+    typedText,
+    documentGeneration
+  })
+  adoptedSequence = undefined
+  targetTabId = undefined
+  searching.value = false
+  // The tab's count stays with it, not with the next tab Find opens in.
+  result.value = { activeMatchOrdinal: 0, matches: 0 }
+  searchFailed.value = false
+  open.value = false
+}
+
+// Brings back the Find a tab had when another tab replaced it, as it was, while the tab still shows the page it searched.
+function restore(tab: BrowserTabState | undefined): boolean {
+  const parked = tab && parkedFinds.get(tab.id)
+  if (!tab || !parked) return false
+  parkedFinds.delete(tab.id)
+  if (tab.sleeping || parked.documentGeneration !== tab.documentGeneration) {
+    // Main keeps the next page's selection when the search's own page is gone, and clears the search's otherwise.
+    if (!tab.sleeping) void props.browser.stopFindInPage(tab.id, { clearSelection: true }).catch(() => undefined)
+    return false
+  }
+  query.value = parked.query
+  caseSensitive.value = parked.caseSensitive
+  result.value = parked.result
+  searchFailed.value = parked.searchFailed
+  searching.value = parked.searching
+  adoptedSequence = parked.searching ? parked.sequence : undefined
+  pageSearched = parked.pageSearched
+  typedText = parked.typedText
+  targetTabId = tab.id
+  open.value = true
+  return true
+}
 
 onBeforeUnmount(() => { void close() })
 defineExpose({ close, openForTab })

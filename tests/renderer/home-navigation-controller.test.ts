@@ -19,7 +19,6 @@ function harness() {
   const tabSearchOpen = ref(true)
   const zoomOpen = ref(true)
   const navigateHome = vi.fn(async () => undefined)
-  const runFindTransition = vi.fn(async (operation: () => Promise<void>) => operation())
   const controller = useHomeNavigationController({
     activeTab,
     websiteTabs: () => [first, second],
@@ -30,7 +29,6 @@ function harness() {
     historyOpen,
     tabSearchOpen,
     zoomOpen,
-    runFindTransition,
     navigateHome
   })
   return {
@@ -47,7 +45,6 @@ function harness() {
       zoomOpen
     ],
     navigateHome,
-    runFindTransition,
     controller
   }
 }
@@ -63,14 +60,14 @@ describe('useHomeNavigationController', () => {
     expect(view.controller.preferredWebsiteTab()).toBe(view.first)
   })
 
-  it('closes competing surfaces and opens Home through the Find transition', async () => {
+  // Find stays with the website's tab, which the bar hides while Home is shown and brings back with the tab.
+  it('closes competing surfaces and opens Home, leaving Find to the website\'s tab', async () => {
     const view = harness()
 
     await view.controller.openHome()
 
     expect(view.surfaces.every((surface) => surface.value === false)).toBe(true)
     expect(view.controller.preferredWebsiteTab()).toBe(view.first)
-    expect(view.runFindTransition).toHaveBeenCalledOnce()
     expect(view.navigateHome).toHaveBeenCalledOnce()
   })
 })

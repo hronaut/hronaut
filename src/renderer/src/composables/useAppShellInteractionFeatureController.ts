@@ -286,7 +286,6 @@ export function useAppShellInteractionFeatureController(
     historyOpen: features.collections.historyOpen,
     tabSearchOpen: transient.tabSearchOpen,
     zoomOpen: transient.zoomOpen,
-    runFindTransition,
     navigateHome: () => options.syncState(options.browser.openHome())
   })
   const tabNavigation = useTabNavigationController({
@@ -316,6 +315,7 @@ export function useAppShellInteractionFeatureController(
       features.collections.historyOpen,
       features.collections.bookmarksOpen
     ],
+    surfacesShownWithTab: [transient.findOpen],
     runFindTransition,
     focusInput: navigation.focusAddressInput,
     expandTabGroup: navigation.expandTabGroup,

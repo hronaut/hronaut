@@ -136,6 +136,31 @@ afterEach(() => {
 })
 
 describe('useAppShellLayoutFeatureController', () => {
+  // A tab's Find coming back would close a docked panel, or cover a menu or dialog, the person opened meanwhile.
+  it('reports another surface open beside Find, which a tab\'s Find waits for', () => {
+    const harness = createHarness()
+    expect(harness.controller.surfaceBesideFindOpen.value).toBe(false)
+    harness.overlays.find.value = true
+    harness.overlays.updateNotice.value = true
+    expect(harness.controller.surfaceBesideFindOpen.value).toBe(false)
+
+    const surfaces = [
+      ...Object.values(harness.modals),
+      ...(['zoom', 'addressSuggestions', 'tabSearch', 'downloads', 'history', 'splitMenu', 'siteControls', 'siteStorage', 'bookmarks'] as const)
+        .map((name) => harness.overlays[name])
+    ]
+    for (const surface of surfaces) {
+      surface.value = true
+      expect(harness.controller.surfaceBesideFindOpen.value).toBe(true)
+      surface.value = false
+    }
+    harness.overlays.activePanel.value = 'console'
+    expect(harness.controller.surfaceBesideFindOpen.value).toBe(true)
+    // A panel in a window of its own leaves room for Find, which opening does not close it for.
+    harness.separatePanel.value = true
+    expect(harness.controller.surfaceBesideFindOpen.value).toBe(false)
+  })
+
   it('owns full-modal state and synchronously clears native address suggestions', () => {
     const harness = createHarness()
 

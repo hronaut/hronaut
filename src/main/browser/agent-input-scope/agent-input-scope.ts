@@ -34,6 +34,7 @@ export async function withAgentInput<T>(
     })
   }
   browser.agentInputWebContents.set(webContents.id, depth)
+  browser.pageFind.noteAgentInput(webContents)
   let nativeCleanupFailure: NativeInputCleanupError | undefined
   try {
     if (depth === 1 && !options.deferRendererFlag && !webContents.isDestroyed()) {
