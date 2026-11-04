@@ -134,7 +134,7 @@ async function activate(tab: BrowserTabState | undefined): Promise<void> {
 
 // As in Chrome, in an open bar Find takes the keyboard to its field and selects its text, leaving the current match
 // where it is, and Find Next and Find Previous go to the next or previous match as Enter and Shift+Enter do in the
-// field. With Find closed, Find Next and Find Previous open it and search for its last text again.
+// field. With Find closed, each opens it and searches for its last text again, Find Previous backwards.
 async function openForTab(tab: BrowserTabState | undefined = props.activeTab, again?: 'next' | 'previous'): Promise<void> {
   if (!tab) return
   const forward = again !== 'previous'

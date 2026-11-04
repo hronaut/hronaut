@@ -572,15 +572,20 @@ describe('Find Next and Find Previous', () => {
       await flushPromises()
       await wrapper.find('input[type="search"]').setValue('needle')
       await flushPromises()
+      browser.findInPage.mockResolvedValueOnce({ activeMatchOrdinal: 2, matches: 3 })
+      await wrapper.find('input[type="search"]').trigger('keydown', { key: 'Enter' })
+      await flushPromises()
+      expect(wrapper.find('.find-count').text()).toBe('2 / 3')
       field().blur()
       browser.findInPage.mockClear()
       browser.stopFindInPage.mockClear()
 
       await exposed.openForTab(activeTab)
+      await flushPromises()
 
       expect(browser.findInPage).not.toHaveBeenCalled()
       expect(browser.stopFindInPage).not.toHaveBeenCalled()
-      expect(wrapper.find('.find-count').text()).toBe('1 / 3')
+      expect(wrapper.find('.find-count').text()).toBe('2 / 3')
       expect(document.activeElement).toBe(field())
       expect([field().selectionStart, field().selectionEnd]).toEqual([0, 'needle'.length])
     } finally { wrapper.unmount() }

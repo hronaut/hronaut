@@ -45,11 +45,14 @@ test('Ctrl/Cmd+F in an open Find selects its text and keeps the current match, a
     await search.press('ControlOrMeta+F')
     await expect.poll(selected).toEqual([0, 'needle'.length])
     await expect(search).toBeFocused()
-    // From the page.
+    // From the page, with the caret again at the end of the field's text, so the key shows it reached Find.
+    await search.press('End')
+    await expect.poll(selected).toEqual(['needle'.length, 'needle'.length])
     await pressOnPage('F')
+    await expect.poll(() => electronApp.evaluate(({ webContents }) => webContents.getFocusedWebContents()?.getURL())).toBe(appWindow.url())
     await expect(search).toBeFocused()
-    await expect(count).toHaveText('2 / 3')
     await expect.poll(selected).toEqual([0, 'needle'.length])
+    await expect(count).toHaveText('2 / 3')
     // Enter still goes on from the match in view.
     await search.press('Enter')
     await expect(count).toHaveText('3 / 3')
