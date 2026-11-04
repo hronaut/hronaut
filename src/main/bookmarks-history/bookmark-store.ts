@@ -218,7 +218,8 @@ export class BookmarkStore {
     return entry ? { ...entry } : undefined
   }
 
-  add(value: { url: string; title: string }): Promise<BrowserBookmark> {
+  /** Saves a page, or updates the bookmark of an address saved before; a new bookmark goes into the collection named, if it is still there. */
+  add(value: { url: string; title: string; collectionId?: string }): Promise<BrowserBookmark> {
     return this.saveBookmark(value, false)
   }
 
@@ -226,7 +227,7 @@ export class BookmarkStore {
     return this.saveBookmark(value, true)
   }
 
-  private async saveBookmark(value: { url: string; title: string }, onlyIfMissing: boolean): Promise<BrowserBookmark> {
+  private async saveBookmark(value: { url: string; title: string; collectionId?: string }, onlyIfMissing: boolean): Promise<BrowserBookmark> {
     const url = normalizeBookmarkUrl(value.url)
     if (!url) throw new LocalizedError('appErrors.bookmarks.invalidUrl')
     return this.queueMutation(async () => {
@@ -243,7 +244,13 @@ export class BookmarkStore {
         updatedAt: now
       }
       nextEntries.set(entry.id, entry)
-      await this.persist(nextEntries.values())
+      // In the same write, so that the bookmark is never saved without the collection it was saved into.
+      const into = existing ? undefined : this.collections.find(collection => collection.id === value.collectionId)
+      const collections = into
+        ? this.collections.map(collection => collection === into ? { ...collection, bookmarkIds: [...collection.bookmarkIds, entry.id] } : collection)
+        : this.collections
+      await this.persist(nextEntries.values(), collections)
+      this.collections = collections
       this.replaceEntries(nextEntries)
       return { ...entry }
     })

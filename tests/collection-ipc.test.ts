@@ -62,6 +62,7 @@ it.each([
   ['bookmarks:add-if-missing', [null, 'Title']],
   ['bookmarks:add-if-missing', ['https://example.test/', {}]],
   ['bookmarks:add', ['https://example.com/', {}]],
+  ['bookmarks:add', ['https://example.com/', 'Title', 7]],
   ['bookmarks:rename', ['bookmark', null]],
   ['bookmarks:remove', [{}]],
   ['bookmarks:update-destination', ['bookmark', null]],
@@ -182,6 +183,17 @@ it('publishes destination changes only after persistence and keeps failures unpu
   bookmarks.updateDestination.mockRejectedValueOnce(new Error('Persistence failed'))
   await expect(invoke('bookmarks:update-destination', 'saved', 'https://example.test/other')).rejects.toThrow('Persistence failed')
   expect(host.publishBookmarks).toHaveBeenCalledOnce()
+})
+
+// The panel names the collection it shows, which a new bookmark goes into in the same write.
+it('passes the collection a page is saved into to the store, and names none when the window gives none', async () => {
+  const { bookmarks, invoke } = fixture()
+  await invoke('bookmarks:add', 'https://example.test/', 'Title', 'reading')
+  await invoke('bookmarks:add', 'https://example.test/other', 'Other')
+  expect(bookmarks.add.mock.calls).toEqual([
+    [{ url: 'https://example.test/', title: 'Title', collectionId: 'reading' }],
+    [{ url: 'https://example.test/other', title: 'Other' }]
+  ])
 })
 
 it('publishes a history bookmark only after persistence succeeds', async () => {

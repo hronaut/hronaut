@@ -14,7 +14,9 @@ export const bookmarksApi: HronautBookmarksApi = {
     onChanged: (listener) => subscribe(BOOKMARK_COLLECTIONS_IPC.changed, (snapshot) => listener(snapshot))
   },
   list: () => invoke(BOOKMARKS_IPC.list),
-  add: (url: string, title: string) => invoke(BOOKMARKS_IPC.add, url, title),
+  add: (url: string, title: string, collectionId?: string) => collectionId === undefined
+    ? invoke(BOOKMARKS_IPC.add, url, title)
+    : invoke(BOOKMARKS_IPC.add, url, title, collectionId),
   addIfMissing: (url: string, title: string) => invoke(BOOKMARKS_IPC.addIfMissing, url, title),
   rename: (id: string, title: string) => invoke(BOOKMARKS_IPC.rename, id, title),
   updateDestination: (id: string, url: string) => invoke(BOOKMARKS_IPC.updateDestination, id, url),

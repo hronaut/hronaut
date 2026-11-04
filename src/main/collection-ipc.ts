@@ -63,10 +63,12 @@ export function registerCollectionIpc(ipcMain: Pick<TypedIpcMain, 'handle'>, hos
     await host.downloads().downloadController.startDownloadDrag(downloadId, event.sender)
   })
   ipcMain.handle(BOOKMARKS_IPC.list, (event) => host.runRead(event, () => host.bookmarks().list()))
-  ipcMain.handle(BOOKMARKS_IPC.add, async (event, url: unknown, title: unknown) => {
+  ipcMain.handle(BOOKMARKS_IPC.add, async (event, url: unknown, title: unknown, collectionId: unknown) => {
     host.assertTrustedSender(event)
-    if (typeof url !== 'string' || typeof title !== 'string') throw new TypeError('Invalid bookmark')
-    await host.bookmarks().add({ url, title })
+    if (typeof url !== 'string' || typeof title !== 'string' || (collectionId !== undefined && typeof collectionId !== 'string')) {
+      throw new TypeError('Invalid bookmark')
+    }
+    await host.bookmarks().add({ url, title, ...(collectionId === undefined ? {} : { collectionId }) })
     return host.publishBookmarks()
   })
   ipcMain.handle(BOOKMARKS_IPC.addIfMissing, async (event, url: unknown, title: unknown) => {

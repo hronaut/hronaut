@@ -922,6 +922,115 @@ describe('current page bookmark focus', () => {
   })
 })
 
+// Chrome's bookmark manager adds a page to the folder it shows; Add current and Ctrl/Cmd+D put it in Unfiled, so a
+// collection's list did not show it.
+describe('saving the current page while a collection is shown', () => {
+  const gamma = bookmark('gamma', 'Gamma notes')
+
+  function collectionsApi() {
+    let changed!: (snapshot: BookmarkCollectionSnapshot) => void
+    const api = {
+      list: vi.fn(async () => ({ revision: 1, collections: [{ id: 'project', name: 'Project', bookmarkIds: [] }] })),
+      onChanged: vi.fn((callback: typeof changed) => { changed = callback; return () => undefined }),
+      create: vi.fn(), rename: vi.fn(), remove: vi.fn(), assign: vi.fn()
+    }
+    return { api, changed: (snapshot: BookmarkCollectionSnapshot) => changed(snapshot) }
+  }
+
+  it.each(['Add current', 'the shortcut'])('saves the page into the collection from %s', async via => {
+    const { api, changed } = collectionsApi()
+    const addBookmark = vi.fn(async () => [gamma, bookmark('alpha', 'Alpha docs'), bookmark('beta', 'Beta page')])
+    const wrapper = mount(BookmarksPanel, {
+      attachTo: document.body,
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: panelProps({ collectionsApi: api, currentBookmark: undefined, activeUrl: gamma.url, activeTitle: gamma.title, addBookmark })
+    })
+    try {
+      await flushPromises()
+      const user = userEvent.setup()
+      await user.selectOptions(screen.getByRole('combobox', { name: 'Filter bookmarks by collection' }), 'c:project')
+      expect(screen.getByText('No bookmarks in this collection')).toBeVisible()
+      if (via === 'Add current') await user.click(screen.getByRole('button', { name: 'Add current' }))
+      else await (wrapper.vm as unknown as { toggleCurrent: () => Promise<void> }).toggleCurrent()
+      await flushPromises()
+      expect(addBookmark).toHaveBeenCalledExactlyOnceWith(gamma.url, gamma.title, 'project')
+      expect(api.assign).not.toHaveBeenCalled()
+      // Main saves both in one write and sends the collections on.
+      changed({ revision: 2, collections: [{ id: 'project', name: 'Project', bookmarkIds: ['gamma'] }] })
+      await wrapper.setProps({ bookmarks: [gamma, bookmark('alpha', 'Alpha docs'), bookmark('beta', 'Beta page')], currentBookmark: gamma })
+      expect(screen.getByRole('button', { name: /^Gamma notes/ })).toBeVisible()
+      expect(screen.queryByRole('button', { name: /^Alpha docs/ })).toBeNull()
+      expect(screen.getByRole('combobox', { name: 'Collection for Gamma notes' })).toHaveValue('project')
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  it('names no collection when the list shows every bookmark or Unfiled', async () => {
+    for (const shown of ['all', 'unfiled']) {
+      const { api } = collectionsApi()
+      const addBookmark = vi.fn(async () => [gamma])
+      const view = renderPanel({ collectionsApi: api, bookmarks: [], currentBookmark: undefined, activeUrl: gamma.url, activeTitle: gamma.title, addBookmark })
+      await flushPromises()
+      const user = userEvent.setup()
+      await user.selectOptions(screen.getByRole('combobox', { name: 'Filter bookmarks by collection' }), shown)
+      await user.click(screen.getByRole('button', { name: 'Add current' }))
+      await flushPromises()
+      expect(addBookmark).toHaveBeenCalledExactlyOnceWith(gamma.url, gamma.title, undefined)
+      view.unmount()
+    }
+  })
+
+  // The panel opens through its owner, and its opening ended the save already under way, so its failure was never shown.
+  it('shows a failed save from the shortcut that opened the panel', async () => {
+    const { api } = collectionsApi()
+    const addBookmark = vi.fn(async () => { throw new Error('Could not save the bookmarks') })
+    const wrapper = mount(BookmarksPanel, {
+      attachTo: document.body,
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: panelProps({
+        collectionsApi: api, open: false, currentBookmark: undefined, activeUrl: gamma.url, activeTitle: gamma.title, addBookmark,
+        'onUpdate:open': (open: boolean) => wrapper.setProps({ open })
+      })
+    })
+    try {
+      await flushPromises()
+      await (wrapper.vm as unknown as { toggleCurrent: () => Promise<void> }).toggleCurrent()
+      await flushPromises()
+      expect(addBookmark).toHaveBeenCalledOnce()
+      expect(screen.getByRole('alert')).toHaveTextContent('Could not save the bookmarks')
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  // The star opens the panel and loads its list; the panel's opening dropped that load's failure too. The opening also
+  // loads the collections, which a load already under way would hold off.
+  it('shows a failed load from the star that opened the panel, with its collections', async () => {
+    const { api } = collectionsApi()
+    const listBookmarks = vi.fn(async () => { throw new Error('Bookmark storage is unavailable') })
+    const wrapper = mount(BookmarksPanel, {
+      attachTo: document.body,
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: panelProps({
+        collectionsApi: api, open: false, listBookmarks,
+        'onUpdate:open': (open: boolean) => wrapper.setProps({ open })
+      })
+    })
+    try {
+      await flushPromises()
+      await (wrapper.vm as unknown as { toggle: () => Promise<void> }).toggle()
+      await flushPromises()
+      expect(listBookmarks).toHaveBeenCalled()
+      expect(screen.getByRole('alert')).toHaveTextContent('Bookmark storage is unavailable')
+      expect(api.list).toHaveBeenCalledOnce()
+      expect(screen.getByRole('combobox', { name: 'Filter bookmarks by collection' })).toHaveTextContent('Project')
+    } finally {
+      wrapper.unmount()
+    }
+  })
+})
+
 describe('held Enter', () => {
   it('keeps a held Enter from pressing Remove or Close again', () => {
     renderPanel()
