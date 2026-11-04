@@ -135,6 +135,24 @@ describe('the address field taking the keyboard back', () => {
     } finally { view.unmount() }
   })
 
+  it('closes the suggestions it opened taking the keyboard back before main said why', async () => {
+    const { view, controller, field, show, pageTakesKeyboard, first, second } = mountField()
+    try {
+      field.focus()
+      await fireEvent.update(field, 'page')
+      field.setSelectionRange(1, 3)
+      await show(second)
+      await pageTakesKeyboard()
+      await show(first)
+      field.focus()
+      await nextTick()
+      expect(controller.open.value).toBe(true)
+      expect(controller.returnFocus('first')).toBe(true)
+      expect(controller.open.value).toBe(false)
+      expect([field.selectionStart, field.selectionEnd]).toEqual([1, 3])
+    } finally { view.unmount() }
+  })
+
   it('selects all its text when the text changed since the tab was left', async () => {
     const { view, controller, field, show, pageTakesKeyboard, activeTab, second } = mountField()
     try {

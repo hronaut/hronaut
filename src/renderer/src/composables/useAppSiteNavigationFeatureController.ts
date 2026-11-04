@@ -185,7 +185,7 @@ export function useAppSiteNavigationFeatureController(
   )
   const stopTabFieldFocusReturn = useTabFieldFocusReturn({
     shell: shell.tabFieldFocus,
-    activeTabId: () => options.state.value.activeTabId,
+    browserState: () => options.state.value,
     focusedField: () => addressBarController.focused.value ? 'address' : shell.findFocused.value ? 'find' : null,
     address: addressBarController,
     returnFindFocus: actions.returnFindFocus,

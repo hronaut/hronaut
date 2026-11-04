@@ -777,6 +777,8 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     cancelFocusReturn: focusReturn.cancel,
     /** Gives the field the keyboard back for the tab shown again; false when it shows no field. */
     returnFocus: (tabId: string) => focusReturn.give(tabId, () => {
+      // Its suggestions wait for the person to type, also when the field took the keyboard before main said why.
+      close()
       focused.value = true
       editing.value = true
     }),

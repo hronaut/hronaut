@@ -68,7 +68,7 @@ function fixture() {
     browserContentOccluded: false,
     allHumanInteractionLocked: false,
     globallyUnlockedTabIds: new Set(),
-    agentInputWebContents: new Set(),
+    agentInputWebContents: new Map(),
     shellTabField: null,
     layout: vi.fn(),
     changed: vi.fn(),
@@ -140,8 +140,8 @@ describe('the keyboard on coming back to a tab', () => {
     expect(tab('first').fieldFocusOnReturn).toBeUndefined()
   })
 
-  it('keeps the field for its tab while trusted chrome covers the pages, the person is in another window, or the tab is locked', () => {
-    for (const reason of ['covered', 'other window', 'locked'] as const) {
+  it('gives no field back to a tab shown while trusted chrome covers the pages, the person is in another window, the tab is locked or an agent types in its page, and keeps none for later', () => {
+    for (const reason of ['covered', 'other window', 'locked', 'agent input'] as const) {
       const { manager, takeEvents, focusField, tab, leaveWindow } = fixture()
       focusField('address')
       manager.selectTab('second')
@@ -149,10 +149,27 @@ describe('the keyboard on coming back to a tab', () => {
       if (reason === 'covered') (manager as unknown as { browserContentOccluded: boolean }).browserContentOccluded = true
       if (reason === 'other window') leaveWindow()
       if (reason === 'locked') (tab('first') as unknown as { humanInteractionLocked: boolean }).humanInteractionLocked = true
+      if (reason === 'agent input') manager.agentInputWebContents.set(tab('first').webContents.id, 1)
       manager.selectTab('first')
       expect(takeEvents().filter((event) => event.startsWith('shell:tab-field-focus-returned')), reason).toEqual([])
-      expect(tab('first').fieldFocusOnReturn, reason).toBe('address')
+      // Kept, it would take the keyboard from the page the next time the tab is selected.
+      expect(tab('first').fieldFocusOnReturn, reason).toBeUndefined()
     }
+  })
+
+  it('gives no field back to a tab selected again or shown without the keyboard', () => {
+    const { manager, takeEvents, focusField, tab } = fixture()
+    focusField('address')
+    manager.selectTab('second')
+    // Such as an agent showing the tab, which leaves the keyboard where it is.
+    manager.selectTab('first', { focus: false })
+    expect(tab('first').fieldFocusOnReturn).toBeUndefined()
+    takeEvents()
+
+    tab('first').fieldFocusOnReturn = 'find'
+    manager.selectTab('first')
+    expect(takeEvents()).toEqual(['first page takes the keyboard'])
+    expect(tab('first').fieldFocusOnReturn).toBeUndefined()
   })
 
   it('keeps no field for a tab left while the person is in another window', () => {

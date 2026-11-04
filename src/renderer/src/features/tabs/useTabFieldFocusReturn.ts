@@ -5,7 +5,8 @@ import type { HronautShellApi } from '../../../../shared/types.js'
 export interface TabFieldFocusReturnOptions {
   /** Main, which keeps the field of the tab left and says when the tab is shown again; none in a panel window. */
   shell: Pick<HronautShellApi, 'setTabFieldFocused' | 'onTabFieldFocusReturned'> | undefined
-  activeTabId: () => string | null | undefined
+  /** The browser state the shell shows, a new one for each that main sends. */
+  browserState: () => { activeTabId: string | null }
   /** The shown tab's field that has the keyboard now. */
   focusedField: () => ShellTabField | null
   address: {
@@ -35,12 +36,23 @@ export function useTabFieldFocusReturn(options: TabFieldFocusReturnOptions): () 
   // its text. With Ctrl, Alt or Cmd the key is a shortcut and goes on repeating, such as Ctrl+Tab going through tabs.
   let holdingKeys = false
   const dropHeldRepeat = (event: KeyboardEvent): void => {
-    if (!event.repeat) holdingKeys = false
+    if (!event.repeat) {
+      holdingKeys = false
+      // The person goes on, so a field still waiting for its tab does not take the keyboard later.
+      giveUp()
+    }
     if (!holdingKeys || event.ctrlKey || event.altKey || event.metaKey) return
     event.preventDefault()
     event.stopImmediatePropagation()
   }
   window.addEventListener('keydown', dropHeldRepeat, true)
+  window.addEventListener('pointerdown', giveUp, true)
+
+  function giveUp(): void {
+    if (!pending) return
+    pending = undefined
+    options.address.cancelFocusReturn()
+  }
 
   async function give(request: { tabId: string; field: ShellTabField }): Promise<void> {
     // The tab's address and its Find come back with the tab first.
@@ -58,16 +70,14 @@ export function useTabFieldFocusReturn(options: TabFieldFocusReturnOptions): () 
     pending = request
     holdingKeys = true
     options.address.expectFocusReturn()
-    if (options.activeTabId() === tabId) void give(request)
+    if (options.browserState().activeTabId === tabId) void give(request)
   })
-  const stopWatching = watch(options.activeTabId, (tabId) => {
+  // The next state main sends shows the tab, or another the person went on to, such as with a held Ctrl+Tab: then the
+  // field gives up waiting, not to take the keyboard from a page later.
+  const stopWatching = watch(options.browserState, (state) => {
     if (!pending) return
-    if (tabId === pending.tabId) {
-      void give(pending)
-      return
-    }
-    pending = undefined
-    options.address.cancelFocusReturn()
+    if (state.activeTabId === pending.tabId) void give(pending)
+    else giveUp()
   })
 
   return () => {
@@ -75,6 +85,7 @@ export function useTabFieldFocusReturn(options: TabFieldFocusReturnOptions): () 
     stopListening()
     stopWatching()
     window.removeEventListener('keydown', dropHeldRepeat, true)
+    window.removeEventListener('pointerdown', giveUp, true)
     pending = undefined
     options.address.cancelFocusReturn()
   }

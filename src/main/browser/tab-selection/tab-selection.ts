@@ -87,6 +87,8 @@ export function selectTab(browser: Browser, tabId: string, options: BrowserTabSe
   next.lastActiveAt = performance.now()
   if (next.sleeping) void browser.wakeTab(next.id).catch((error) => console.error('[browser] Could not wake selected tab:', error))
   if (browser.splitView && browser.splitViewContains(tabId)) {
+    // A pane gives its page the keyboard, so the field it was left with is out of date.
+    next.fieldFocusOnReturn = undefined
     exitPageFullscreenCovering(browser, next.id)
     writeActiveTabId(browser, next.id)
     markTabActiveInGroup(browser, next)
@@ -116,7 +118,10 @@ export function selectTab(browser: Browser, tabId: string, options: BrowserTabSe
   writeActiveTabId(browser, next.id)
   markTabActiveInGroup(browser, next)
   browser.layout()
-  if (options.focus !== false && !returnTabFieldFocus(browser, next)) focusTabOrTrustedChrome(browser, next)
+  // The field the tab was left with comes back only as the tab is shown again, never when it is selected once more.
+  const fieldReturned = options.focus !== false && current?.id !== next.id && returnTabFieldFocus(browser, next)
+  if (options.focus !== false && !fieldReturned) focusTabOrTrustedChrome(browser, next)
+  next.fieldFocusOnReturn = undefined
   publishChange(browser)
   return browserState(browser)
 }

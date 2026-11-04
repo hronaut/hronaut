@@ -28,10 +28,18 @@ function covered(options: { agentInput?: boolean } = {}) {
     options: { onCoveredPageKeyboard: vi.fn() }
   }
   attachPageFocusEvents(browser as never, tab as never, page as never)
-  return { browser, shell, page }
+  return { browser, shell, page, tab }
 }
 
 afterEach(() => { electron.focused = null })
+
+it('leaves the tab no field to give the keyboard back to once its page takes it', () => {
+  const { browser, page, tab } = covered()
+  browser.browserContentOccluded = false
+  Object.assign(tab, { fieldFocusOnReturn: 'address' })
+  page.emit('focus')
+  expect((tab as { fieldFocusOnReturn?: string }).fieldFocusOnReturn).toBeUndefined()
+})
 
 const nextTurn = () => new Promise<void>((resolve) => setImmediate(resolve))
 

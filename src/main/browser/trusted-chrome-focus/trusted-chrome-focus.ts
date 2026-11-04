@@ -90,15 +90,18 @@ export function shellTabFieldWithKeyboard(browser: Browser): ShellTabField | und
 
 /**
  * Gives the keyboard back to the field of a tab shown again that had it when the person left the tab, its address
- * field or Find's, as Chrome gives a tab its focused view back; false when the tab's page is to take it instead. The
- * shell is told before it takes the keyboard, so that the address field taking it back does not open its suggestions.
+ * field or Find's, as Chrome gives a tab its focused view back; false when the tab's page is to take it instead, such
+ * as while trusted chrome covers the pages or an agent's input goes to the page. The shell is told before it takes the
+ * keyboard, so that the address field taking it back does not open its suggestions.
  */
 export function returnTabFieldFocus(browser: Browser, tab: BrowserTab): boolean {
   const field = tab.fieldFocusOnReturn
+  // Only as the tab is shown: a field it does not get back now would take the keyboard from its page later.
+  tab.fieldFocusOnReturn = undefined
   if (!field || browser.window.isDestroyed() || !browser.window.isFocused()) return false
   const shell = browser.window.webContents
   if (shell.isDestroyed() || browser.browserContentOccluded || browser.isHumanInteractionLocked(tab)) return false
-  tab.fieldFocusOnReturn = undefined
+  if (browser.agentInputWebContents.has(tab.webContents.id)) return false
   sendTo(shell, SHELL_IPC.tabFieldFocusReturned, tab.id, field)
   shell.focus()
   return true

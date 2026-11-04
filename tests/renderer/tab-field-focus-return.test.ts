@@ -1,4 +1,4 @@
-import { effectScope, nextTick, ref } from 'vue'
+import { effectScope, nextTick, ref, shallowRef } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import { useTabFieldFocusReturn } from '../../src/renderer/src/features/tabs/useTabFieldFocusReturn.js'
 import type { ShellTabField } from '../../src/shared/tab-field.js'
@@ -7,7 +7,9 @@ import type { ShellTabField } from '../../src/shared/tab-field.js'
 // field of the shown tab has the keyboard, and gives it back when main shows the tab again.
 describe('giving a tab\'s field the keyboard back', () => {
   function setup(options: { returnFocus?: boolean; returnFindFocus?: boolean } = {}) {
-    const activeTabId = ref<string | null>('second')
+    const state = shallowRef<{ activeTabId: string | null }>({ activeTabId: 'second' })
+    /** Main's next state, showing this tab. */
+    const show = (tabId: string) => { state.value = { activeTabId: tabId } }
     const focusedField = ref<ShellTabField | null>(null)
     let returned: ((tabId: string, field: ShellTabField) => void) | undefined
     const stopListening = vi.fn()
@@ -28,14 +30,14 @@ describe('giving a tab\'s field the keyboard back', () => {
     const scope = effectScope()
     const stop = scope.run(() => useTabFieldFocusReturn({
       shell,
-      activeTabId: () => activeTabId.value,
+      browserState: () => state.value,
       focusedField: () => focusedField.value,
       address,
       returnFindFocus,
       focusPage
     }))!
     return {
-      activeTabId, focusedField, shell, address, returnFindFocus, focusPage, stopListening,
+      show, focusedField, shell, address, returnFindFocus, focusPage, stopListening,
       returned: (tabId: string, field: ShellTabField) => returned!(tabId, field),
       stop: () => { stop(); scope.stop() }
     }
@@ -55,21 +57,21 @@ describe('giving a tab\'s field the keyboard back', () => {
   })
 
   it('gives the address field the keyboard back once the tab is shown, keeping its suggestions closed until then', async () => {
-    const { activeTabId, address, focusPage, returned, stop } = setup()
+    const { show, address, focusPage, returned, stop } = setup()
     try {
       // Main says so before the shell shows the tab.
       returned('first', 'address')
       expect(address.expectFocusReturn).toHaveBeenCalledOnce()
       await nextTick()
       expect(address.returnFocus).not.toHaveBeenCalled()
-      activeTabId.value = 'first'
+      show('first')
       await nextTick()
       await nextTick()
       expect(address.returnFocus).toHaveBeenCalledExactlyOnceWith('first')
       expect(focusPage).not.toHaveBeenCalled()
 
       // Or once the tab is already shown.
-      activeTabId.value = 'second'
+      show('second')
       await nextTick()
       returned('second', 'address')
       await nextTick()
@@ -79,10 +81,10 @@ describe('giving a tab\'s field the keyboard back', () => {
   })
 
   it('gives Find\'s field the keyboard back, and the page when the field cannot take it', async () => {
-    const { activeTabId, address, returnFindFocus, focusPage, returned, stop } = setup({ returnFindFocus: false })
+    const { show, address, returnFindFocus, focusPage, returned, stop } = setup({ returnFindFocus: false })
     try {
       returned('first', 'find')
-      activeTabId.value = 'first'
+      show('first')
       await nextTick()
       await nextTick()
       expect(address.cancelFocusReturn).toHaveBeenCalledOnce()
@@ -94,9 +96,9 @@ describe('giving a tab\'s field the keyboard back', () => {
   })
 
   it('gives the page the keyboard when the address field cannot take it', async () => {
-    const { activeTabId, focusPage, returned, stop } = setup({ returnFocus: false })
+    const { show, focusPage, returned, stop } = setup({ returnFocus: false })
     try {
-      activeTabId.value = 'first'
+      show('first')
       await nextTick()
       returned('first', 'address')
       await nextTick()
@@ -105,13 +107,34 @@ describe('giving a tab\'s field the keyboard back', () => {
   })
 
   it('gives nothing back when another tab is shown first', async () => {
-    const { activeTabId, address, returnFindFocus, focusPage, returned, stop } = setup()
+    const { show, address, returnFindFocus, focusPage, returned, stop } = setup()
     try {
       returned('first', 'address')
-      activeTabId.value = 'third'
+      show('third')
       await nextTick()
       expect(address.cancelFocusReturn).toHaveBeenCalledOnce()
-      activeTabId.value = 'first'
+      show('first')
+      await nextTick()
+      await nextTick()
+      expect(address.returnFocus).not.toHaveBeenCalled()
+      expect(returnFindFocus).not.toHaveBeenCalled()
+      expect(focusPage).not.toHaveBeenCalled()
+    } finally { stop() }
+  })
+
+  it('gives up waiting when main\'s next state shows another tab, or the person presses a key or clicks first', async () => {
+    const { show, address, returnFindFocus, focusPage, returned, stop } = setup()
+    try {
+      // Such as a held Ctrl+Tab going on to the next tab before the shell drew this one.
+      returned('first', 'address')
+      show('second')
+      await nextTick()
+      returned('first', 'find')
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }))
+      returned('first', 'address')
+      document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }))
+      expect(address.cancelFocusReturn).toHaveBeenCalledTimes(3)
+      show('first')
       await nextTick()
       await nextTick()
       expect(address.returnFocus).not.toHaveBeenCalled()
@@ -159,7 +182,7 @@ describe('giving a tab\'s field the keyboard back', () => {
     const scope = effectScope()
     const stopPanel = scope.run(() => useTabFieldFocusReturn({
       shell: undefined,
-      activeTabId: () => 'first',
+      browserState: () => ({ activeTabId: 'first' }),
       focusedField: () => 'address',
       address,
       returnFindFocus: vi.fn(),
