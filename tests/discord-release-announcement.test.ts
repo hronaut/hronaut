@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { discordReleaseAnnouncement } from '../scripts/discord-release-announcement.js'
+import { describe, expect, it, vi } from 'vitest'
+import { announceOnDiscord, discordReleaseAnnouncement } from '../scripts/discord-release-announcement.js'
 
 interface Announcement {
   allowed_mentions: { parse: string[] }
@@ -50,5 +50,60 @@ describe('Discord release announcement', () => {
 
   it('rejects a version the changelog does not have', () => {
     expect(() => discordReleaseAnnouncement('# Changelog\n', '9.9.9')).toThrow('no section for 9.9.9')
+  })
+})
+
+describe('Discord release delivery', () => {
+  const changelog = '# Changelog\n\n## [2.0.0] - 2026-08-14\n\n### Fixed\n\n- A fix.\n'
+  const webhookUrl = 'https://discord.com/api/webhooks/1/webhook-secret'
+  const botToken = 'bot-secret'
+
+  function discord(...responses: Response[]) {
+    const send = vi.fn<typeof fetch>()
+    for (const response of responses) send.mockResolvedValueOnce(response)
+    return send
+  }
+
+  function posted(): Response {
+    return Response.json({ id: '22', channel_id: '33' })
+  }
+
+  it('asks the webhook for the created message and publishes that message as the bot', async () => {
+    const send = discord(posted(), new Response('{}'))
+
+    await expect(announceOnDiscord(changelog, '2.0.0', { webhookUrl, botToken }, send)).resolves.toEqual({ published: true })
+
+    expect(send).toHaveBeenCalledTimes(2)
+    expect(String(send.mock.calls[0]![0])).toBe(`${webhookUrl}?wait=true`)
+    expect(send.mock.calls[0]![1]).not.toHaveProperty('headers.authorization')
+    expect(send.mock.calls[1]![0]).toBe('https://discord.com/api/v10/channels/33/messages/22/crosspost')
+    expect(send.mock.calls[1]![1]).toEqual({ method: 'POST', headers: { authorization: 'Bot bot-secret' } })
+  })
+
+  it('still posts without the bot token and leaves publishing to a person', async () => {
+    const send = discord(posted())
+
+    await expect(announceOnDiscord(changelog, '2.0.0', { webhookUrl }, send)).resolves.toEqual({ published: false })
+
+    expect(send).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not try to publish a post Discord rejected, and names only the status', async () => {
+    const send = discord(new Response('{}', { status: 404 }))
+
+    const failure = announceOnDiscord(changelog, '2.0.0', { webhookUrl, botToken }, send)
+
+    await expect(failure).rejects.toThrow('Discord rejected the announcement with status 404')
+    await expect(failure).rejects.not.toThrow('webhook-secret')
+    expect(send).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports a refused publish separately, without the bot token', async () => {
+    const send = discord(posted(), new Response('{}', { status: 403 }))
+
+    const failure = announceOnDiscord(changelog, '2.0.0', { webhookUrl, botToken }, send)
+
+    await expect(failure).rejects.toThrow('Discord posted the announcement but refused to publish it with status 403')
+    await expect(failure).rejects.not.toThrow('bot-secret')
   })
 })

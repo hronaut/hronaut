@@ -622,6 +622,7 @@ jobs:
 
       - name: Post the published changelog section to Discord
         env:
+          DISCORD_RELEASE_BOT_TOKEN: ${{ secrets.DISCORD_RELEASE_BOT_TOKEN }}
           DISCORD_RELEASE_WEBHOOK_URL: ${{ secrets.DISCORD_RELEASE_WEBHOOK_URL }}
           NOTES_SHA: ${{ needs.prepare-release.outputs.notes_sha }}
           VERSION: ${{ needs.prepare-release.outputs.version }}
