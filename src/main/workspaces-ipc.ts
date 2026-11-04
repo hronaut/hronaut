@@ -33,7 +33,11 @@ import { armWorkspaceContinuity, inspectWorkspaceContinuity, reconcileWorkspaceC
 import { browserState } from './browser/browser-state/browser-state.js'
 import { showWorkspaceContextMenu } from './browser/context-menus/workspace-context-menu.js'
 import { closeWorkspace } from './browser/mcp-tab-groups/close-mcp-tab-group.js'
+import { setFoldedWorkspaces } from './browser/folded-workspaces/folded-workspaces.js'
 import { WORKSPACES_IPC } from '../shared/ipc/workspaces.js'
+
+/** More workspaces than anyone folds; a longer list is refused rather than kept. */
+const MAX_FOLDED_WORKSPACES = 10_000
 
 interface WorkspacesIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
@@ -286,5 +290,11 @@ export function registerWorkspacesIpc(host: WorkspacesIpcHost): void {
     host.assertTrustedSender(event)
     if (typeof workspaceId !== 'string') throw new TypeError('Invalid workspace ID')
     showWorkspaceContextMenu(host.tabs()!, workspaceId)
+  })
+  host.handleBrowserIpc(WORKSPACES_IPC.setFolded, (event, workspaceIds: unknown) => {
+    host.assertTrustedSender(event)
+    if (!Array.isArray(workspaceIds) || workspaceIds.length > MAX_FOLDED_WORKSPACES
+      || !workspaceIds.every((id) => typeof id === 'string' && id.length <= 200)) throw new TypeError('Invalid folded workspaces')
+    setFoldedWorkspaces(host.tabs()!, workspaceIds as string[])
   })
 }

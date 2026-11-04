@@ -10,6 +10,7 @@ All notable changes to Hronaut are documented in this file.
 - Closing a new tab after you type a second address into it, or a duplicated tab after you type any address into it, no longer takes you back to the tab it was opened from, as in Chrome.
 - The tab keys, such as Ctrl+Tab, Ctrl+Page Down and Ctrl+1 to Ctrl+9, pass over the tabs of a workspace folded in the tab strip and leave it folded, as Chrome does with a collapsed tab group.
 - Once you press End, Home, Left or Right, or click in the address field, while it fills in the rest of an address, the rest counts as typed, as in Chrome: the suggestions follow the whole address, and going up from them comes back to it rather than to the letters you typed.
+- Closing or putting to sleep the tab in view no longer shows a tab of a workspace folded in the tab strip, which then unfolded, while a tab of another workspace is left, as Chrome passes over a collapsed tab group.
 
 ## [3.14.10] - 2026-11-04
 
