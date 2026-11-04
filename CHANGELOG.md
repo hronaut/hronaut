@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Save Image in a page's context menu was unavailable for an image the page made itself from a `data:` or `blob:` address, such as a chart drawn into an image. It now saves such an image, as in Chrome, and Save Video and Save Audio save such a recording; they still do not open in a new tab.
+
 ## [3.14.12] - 2026-11-04
 
 ### Fixed

@@ -89,6 +89,24 @@ describe('saving from the page menu', () => {
     expect(expectSavedLinkName).not.toHaveBeenCalled()
   })
 
+  it('saves an image the page made itself, from a data or blob address, which opens in no tab', () => {
+    // Save Image was unavailable for both, which Chrome saves, such as a chart a page draws into an image.
+    for (const srcURL of ['data:image/png;base64,iVBORw0KGgo=', 'blob:https://gallery.example/8c4f']) {
+      const saved = saveFromMenu('save-image', { mediaType: 'image', srcURL, hasImageContents: true })
+      const items = built.templates.at(-1)!
+      expect(items.find(entry => entry.id === 'save-image')?.enabled).toBe(true)
+      expect(items.find(entry => entry.id === 'open-image-new-tab')?.enabled).toBe(false)
+      expect(saved).toHaveBeenCalledExactlyOnceWith(srcURL)
+    }
+  })
+
+  it('keeps Save Image unavailable for an address other than http, https, data or blob', () => {
+    for (const srcURL of ['file:///home/user/a.png', 'filesystem:https://gallery.example/temporary/a.png', 'not an address']) {
+      saveFromMenu('save-image', { mediaType: 'image', srcURL, hasImageContents: true })
+      expect(built.templates.at(-1)!.find(entry => entry.id === 'save-image')?.enabled).toBe(false)
+    }
+  })
+
   it('takes the referrer from the frame that was right-clicked, not the top-level page', () => {
     const link = saveFromMenu('save-link', { linkURL: 'https://files.example/a.zip', frameURL: '' })
     expect(link).toHaveBeenCalledWith('https://files.example/a.zip')
