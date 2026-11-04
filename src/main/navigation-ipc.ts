@@ -1,10 +1,11 @@
 import type { IpcMainInvokeEvent } from 'electron'
 import type { TypedIpcMain } from './typed-ipc.js'
-import type { BrowserPdfPageSize, BrowserState } from '../shared/types.js'
+import { FIND_PAGE_KEYS, type BrowserFindPageKey, type BrowserPdfPageSize, type BrowserState } from '../shared/types.js'
 import type { Browser } from './browser/browser.js'
 import { showHistoryMenu } from './browser/context-menus/history-menu.js'
 import { showDevToolsConsole, toggleDevTools } from './browser/devtools/devtools.js'
 import { openNavigationInNewTab } from './browser/navigation-new-tab/navigation-new-tab.js'
+import { forwardFindKeyToPage } from './browser/page-find/find-page-keys.js'
 import { findInPage, stopFindInPage } from './browser/page-find/page-find.js'
 import { back, forward, reload, reloadIgnoringCache, stop, navigate } from './browser/page-navigation/page-navigation.js'
 import { setZoom } from './browser/page-zoom/page-zoom.js'
@@ -12,6 +13,20 @@ import { savePdf } from './browser/pdf-export/pdf-export.js'
 import { personExportFile } from './browser/person-export/person-export-file.js'
 import { proceedPastTabCertificateError } from './browser/certificate-errors/browser-certificate-errors.js'
 import { NAVIGATION_IPC } from '../shared/ipc/navigation.js'
+
+/** A key from the Find field, only as the shell may send it: one of the keys that scroll the page, Home and End with Ctrl. */
+function findPageKey(value: unknown): BrowserFindPageKey {
+  if (typeof value !== 'object' || value === null) throw new TypeError('Invalid find key')
+  const { type, key, shift, control, alt, meta, repeat } = value as Record<string, unknown>
+  if (
+    (type !== 'keyDown' && type !== 'keyUp')
+    || !FIND_PAGE_KEYS.includes(key as BrowserFindPageKey['key'])
+    || [shift, control, alt, meta, repeat].some((flag) => typeof flag !== 'boolean')
+    || ((key === 'Home' || key === 'End') && control !== true)
+  ) throw new TypeError('Invalid find key')
+  const flags = { shift, control, alt, meta, repeat } as Record<'shift' | 'control' | 'alt' | 'meta' | 'repeat', boolean>
+  return { type, key: key as BrowserFindPageKey['key'], ...flags }
+}
 
 interface NavigationIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
@@ -99,6 +114,11 @@ export function registerNavigationIpc(host: NavigationIpcHost): void {
       || (clearSelection !== undefined && typeof clearSelection !== 'boolean')
     ) throw new TypeError('Invalid stop find options')
     stopFindInPage(host.tabs()!, tabId, { activateMatch, clearSelection })
+  })
+  host.handleBrowserIpc(NAVIGATION_IPC.forwardFindKey, (event, tabId: unknown, key: unknown) => {
+    host.assertTrustedSender(event)
+    if (typeof tabId !== 'string') throw new TypeError('Invalid find tab')
+    forwardFindKeyToPage(host.tabs()!, tabId, findPageKey(key))
   })
   host.handleBrowserIpc(NAVIGATION_IPC.setZoom, (event, options: unknown) => {
     host.assertTrustedSender(event)

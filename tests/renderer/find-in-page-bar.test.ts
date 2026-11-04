@@ -43,6 +43,7 @@ function renderBar(options: {
   const browser = {
     findInPage: vi.fn(options.browser?.findInPage ?? (async (): Promise<BrowserFindResult> => ({ activeMatchOrdinal: 1, matches: 3 }))),
     stopFindInPage: vi.fn(options.browser?.stopFindInPage ?? (async () => undefined)),
+    forwardFindKey: vi.fn(async () => undefined),
     focusActivePage: vi.fn(async () => undefined)
   }
   const view = render(FindInPageBar, {
@@ -533,6 +534,7 @@ describe('Find Next and Find Previous', () => {
     const browser = {
       findInPage: vi.fn(async (_request: unknown): Promise<BrowserFindResult> => ({ activeMatchOrdinal: 1, matches: 3 })),
       stopFindInPage: vi.fn(async (_tabId: string) => undefined),
+      forwardFindKey: vi.fn(async () => undefined),
       focusActivePage: vi.fn(async () => undefined)
     }
     const wrapper = mount(FindInPageBar, {
@@ -675,6 +677,7 @@ describe('the keyboard in Find', () => {
         browser: {
           findInPage: vi.fn(async (_request: unknown): Promise<BrowserFindResult> => ({ activeMatchOrdinal: 1, matches: 3 })),
           stopFindInPage: vi.fn(async () => undefined),
+          forwardFindKey: vi.fn(async () => undefined),
           focusActivePage: vi.fn(async () => undefined)
         },
         'onUpdate:open': (next: boolean) => wrapper.setProps({ open: next }),
@@ -726,6 +729,7 @@ describe('closing Find', () => {
     const browser = {
       findInPage: vi.fn(async (_request: unknown): Promise<BrowserFindResult> => ({ activeMatchOrdinal: 1, matches: 3 })),
       stopFindInPage: vi.fn(async (_tabId: string, _options?: { activateMatch: boolean }) => undefined),
+      forwardFindKey: vi.fn(async () => undefined),
       focusActivePage: vi.fn(async () => undefined)
     }
     const wrapper = mount(FindInPageBar, {
@@ -797,5 +801,66 @@ describe('closing Find', () => {
     unmounted.wrapper.unmount()
     await flushPromises()
     expect(unmounted.browser.focusActivePage).not.toHaveBeenCalled()
+  })
+})
+
+// As in Chrome, whose find bar sends these keys from its field on to the page, which scrolls it.
+describe('the keys that scroll the page from the Find field', () => {
+  const press = async (type: 'keyDown' | 'keyUp', init: KeyboardEventInit) => {
+    const event = new KeyboardEvent(type === 'keyDown' ? 'keydown' : 'keyup', { bubbles: true, cancelable: true, ...init })
+    screen.getByRole('searchbox', { name: 'Find text' }).dispatchEvent(event)
+    await flushPromises()
+    return event.defaultPrevented
+  }
+  const key = (overrides: Record<string, unknown>) => ({ shift: false, control: false, alt: false, meta: false, repeat: false, ...overrides })
+
+  it('sends Up, Down, Page Up and Page Down, pressed, held and released, on to the page, and keeps them from the field', async () => {
+    const { browser } = renderBar()
+    await vi.waitFor(() => expect(screen.getByRole('searchbox', { name: 'Find text' })).toHaveFocus())
+    expect(await press('keyDown', { key: 'ArrowDown' })).toBe(true)
+    expect(await press('keyDown', { key: 'ArrowDown', repeat: true })).toBe(true)
+    expect(await press('keyUp', { key: 'ArrowDown' })).toBe(true)
+    expect(await press('keyDown', { key: 'ArrowUp', shiftKey: true })).toBe(true)
+    expect(await press('keyDown', { key: 'PageDown' })).toBe(true)
+    expect(await press('keyDown', { key: 'PageUp', altKey: true })).toBe(true)
+    expect(browser.forwardFindKey.mock.calls).toEqual([
+      ['first', key({ type: 'keyDown', key: 'ArrowDown' })],
+      ['first', key({ type: 'keyDown', key: 'ArrowDown', repeat: true })],
+      ['first', key({ type: 'keyUp', key: 'ArrowDown' })],
+      ['first', key({ type: 'keyDown', key: 'ArrowUp', shift: true })],
+      ['first', key({ type: 'keyDown', key: 'PageDown' })],
+      ['first', key({ type: 'keyDown', key: 'PageUp', alt: true })]
+    ])
+    expect(browser.findInPage).not.toHaveBeenCalled()
+  })
+
+  it('sends Home and End with Ctrl, and leaves Home and End alone in the field', async () => {
+    const { browser } = renderBar()
+    expect(await press('keyDown', { key: 'Home' })).toBe(false)
+    expect(await press('keyUp', { key: 'End', shiftKey: true })).toBe(false)
+    expect(await press('keyDown', { key: 'End', ctrlKey: true })).toBe(true)
+    expect(await press('keyDown', { key: 'Home', ctrlKey: true, shiftKey: true })).toBe(true)
+    expect(browser.forwardFindKey.mock.calls).toEqual([
+      ['first', key({ type: 'keyDown', key: 'End', control: true })],
+      ['first', key({ type: 'keyDown', key: 'Home', control: true, shift: true })]
+    ])
+  })
+
+  it('leaves the browser its own keys, such as Ctrl+Page Down going to the next tab, also while held', async () => {
+    const { browser } = renderBar()
+    expect(await press('keyDown', { key: 'PageDown', ctrlKey: true })).toBe(false)
+    expect(await press('keyDown', { key: 'PageDown', ctrlKey: true, repeat: true })).toBe(false)
+    expect(await press('keyDown', { key: 'PageUp', ctrlKey: true, shiftKey: true })).toBe(false)
+    expect(await press('keyUp', { key: 'PageUp', ctrlKey: true })).toBe(false)
+    expect(browser.forwardFindKey).not.toHaveBeenCalled()
+  })
+
+  it('sends nothing while an input method composes, or for Enter and the other keys', async () => {
+    const { browser } = renderBar()
+    expect(await press('keyDown', { key: 'ArrowDown', isComposing: true })).toBe(false)
+    expect(await press('keyDown', { key: 'Enter' })).toBe(true)
+    expect(await press('keyDown', { key: 'ArrowLeft' })).toBe(false)
+    expect(await press('keyDown', { key: 'a' })).toBe(false)
+    expect(browser.forwardFindKey).not.toHaveBeenCalled()
   })
 })

@@ -7,8 +7,10 @@ import IconKeyboardArrowDown from '~icons/material-symbols/keyboard-arrow-down-r
 import IconKeyboardArrowUp from '~icons/material-symbols/keyboard-arrow-up-rounded'
 import IconSearch from '~icons/material-symbols/search-rounded'
 import IconRefresh from '~icons/material-symbols/refresh-rounded'
+import { browserShortcutAction, websiteKeptShortcutAction } from '../../../../shared/browser-shortcuts.js'
 import {
   MAX_FIND_QUERY_LENGTH,
+  type BrowserFindPageKey,
   type BrowserFindResult,
   type BrowserTabState,
   type HronautApi
@@ -16,7 +18,7 @@ import {
 import { isImeCompositionEvent } from '../../keyboard-composition.js'
 import { vTooltip } from '../../ui/tooltip.js'
 
-type FindBrowserApi = Pick<HronautApi, 'findInPage' | 'stopFindInPage' | 'focusActivePage'>
+type FindBrowserApi = Pick<HronautApi, 'findInPage' | 'stopFindInPage' | 'forwardFindKey' | 'focusActivePage'>
 
 const props = defineProps<{
   activeTab?: BrowserTabState
@@ -86,9 +88,44 @@ function isFollowMatchKey(event: KeyboardEvent): boolean {
 }
 
 function handleSearchKeydown(event: KeyboardEvent): void {
-  if (isImeCompositionEvent(event) || event.key !== 'Enter' || isFollowMatchKey(event)) return
+  if (isImeCompositionEvent(event) || forwardPageKey(event, 'keyDown')) return
+  if (event.key !== 'Enter' || isFollowMatchKey(event)) return
   event.preventDefault()
   void search(!event.shiftKey, false)
+}
+
+function handleSearchKeyup(event: KeyboardEvent): void {
+  if (!isImeCompositionEvent(event)) forwardPageKey(event, 'keyUp')
+}
+
+// As in Chrome, Up, Down, Page Up and Page Down in the field, and Home and End with Ctrl, scroll the page: the field
+// sends them on to it, pressed and released, and keeps its own text and caret. A browser key stays the browser's, such
+// as Ctrl+Page Down going to the next tab, also while held.
+function forwardPageKey(event: KeyboardEvent, type: BrowserFindPageKey['type']): boolean {
+  const key = pageKey(event)
+  const tabId = targetTabId
+  if (!key || !tabId) return false
+  const input = {
+    key: event.key,
+    code: event.code,
+    keyCode: event.keyCode,
+    control: event.ctrlKey,
+    meta: event.metaKey,
+    alt: event.altKey,
+    shift: event.shiftKey,
+    mac: window.hronautShell?.windowChrome.platform === 'darwin'
+  }
+  if (browserShortcutAction(input) ?? websiteKeptShortcutAction(input)) return false
+  event.preventDefault()
+  const modifiers = { shift: event.shiftKey, control: event.ctrlKey, alt: event.altKey, meta: event.metaKey }
+  void props.browser.forwardFindKey(tabId, { type, key, ...modifiers, repeat: event.repeat }).catch(() => undefined)
+  return true
+}
+
+function pageKey(event: KeyboardEvent): BrowserFindPageKey['key'] | null {
+  if (event.key === 'ArrowUp' || event.key === 'ArrowDown' || event.key === 'PageUp' || event.key === 'PageDown') return event.key
+  if ((event.key === 'Home' || event.key === 'End') && event.ctrlKey) return event.key
+  return null
 }
 
 // Escape typed anywhere in the bar closes Find itself, not the first panel in the shell's Escape order, such as Site
@@ -221,6 +258,7 @@ defineExpose({ close, openForTab })
         :placeholder="t('find.placeholder')"
         @input="handleSearchInput"
         @keydown="handleSearchKeydown"
+        @keyup="handleSearchKeyup"
       />
     </div>
     <output class="find-count" aria-live="polite" :aria-busy="searching">
