@@ -38,6 +38,7 @@
     "capture:marketing": "node scripts/capture-marketing-assets.ts",
     "check:public-copy": "node scripts/check-public-copy.ts",
     "format:locales": "node scripts/format-locales.ts",
+    "update:top-level-domains": "node scripts/update-top-level-domains.ts",
     "preview:website": "vite preview --config vite.website.config.ts",
     "postinstall": "node node_modules/electron/install.js && electron-builder install-app-deps",
     "build:unpack": "npm run build && electron-builder --dir --config.electronDist=node_modules/electron/dist",

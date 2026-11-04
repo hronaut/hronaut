@@ -54,6 +54,8 @@ describe('what the address bar fills in after the typed text', () => {
     expect(complete('localhost:3000/', [visit('http://localhost:3000/dashboard'), visit('http://localhost:3000/', 1)])?.url).toBe('http://localhost:3000/')
     // Without one, the longer one fills in, shown before Enter.
     expect(complete('github.c', [community])?.text).toBe('github.community')
+    // A site under no top-level domain, which the address bar would search for, opens once visited.
+    expect(complete('nas.lan', [visit('http://nas.lan/', 1)])?.url).toBe('http://nas.lan/')
   })
 
   it('fills in only sites and pages bookmarked or visited more than once, and pages without a query or fragment', () => {
