@@ -42,8 +42,7 @@ function menu(params: Partial<ContextMenuParams>, tabOpen = true) {
     options: {
       copyText: async () => undefined, copyImageAt: async () => undefined, onActionFailed,
       getSearchEngine: () => 'google',
-      getSpellCheck: () => true,
-      setSpellCheck: async () => undefined,
+      spellCheck: { isEnabled: () => true, setEnabled: async () => undefined, addWord: () => undefined },
       offersSpellCheckLanguages: () => true,
       openSpellCheckSettings: () => undefined
     },

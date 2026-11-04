@@ -39,8 +39,7 @@ function openMenu(params: Partial<ContextMenuParams>, options: { engine?: Search
     options: {
       copyText: async () => undefined, copyImageAt: async () => undefined, onActionFailed,
       getSearchEngine: searchEngine,
-      getSpellCheck: () => true,
-      setSpellCheck: async () => undefined,
+      spellCheck: { isEnabled: () => true, setEnabled: async () => undefined, addWord: () => undefined },
       offersSpellCheckLanguages: () => true,
       openSpellCheckSettings: () => undefined
     },
