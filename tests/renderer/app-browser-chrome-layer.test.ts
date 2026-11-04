@@ -44,6 +44,7 @@ function state(activeTab = tab()): BrowserState {
 const expandTabGroup = vi.fn()
 const expandTabGroupForTab = vi.fn()
 const selectedTabs = vi.fn(() => ['first', 'second'])
+const collapsedTabGroupIds = new Set(['workspace-2'])
 const BrowserTabsBarStub = defineComponent({
   name: 'BrowserTabsBar',
   props: {
@@ -77,7 +78,7 @@ const BrowserTabsBarStub = defineComponent({
     'switchWorkspace'
   ],
   setup(_props, { expose }) {
-    expose({ expandTabGroup, expandTabGroupForTab, selectedTabs })
+    expose({ expandTabGroup, expandTabGroupForTab, selectedTabs, collapsedTabGroupIds })
     return () => h('div', { 'data-testid': 'tabs' })
   }
 })
@@ -933,6 +934,7 @@ describe('AppBrowserChromeLayer', () => {
       expandTabGroup: (groupId: string) => void
       expandTabGroupForTab: (tab: BrowserTabState) => void
       selectedTabs: () => string[]
+      foldedWorkspaceIds: () => ReadonlySet<string> | undefined
     }
     surface.expandTabGroup('workspace-1')
     surface.expandTabGroupForTab(harness.props.state.tabs[0])
@@ -940,6 +942,8 @@ describe('AppBrowserChromeLayer', () => {
     expect(expandTabGroupForTab).toHaveBeenCalledWith(harness.props.state.tabs[0])
     // The tabs selected in the strip, which the close-tab key closes together.
     expect(surface.selectedTabs()).toEqual(['first', 'second'])
+    // The workspaces folded in the strip, whose tabs the tab keys pass over.
+    expect(surface.foldedWorkspaceIds()).toEqual(new Set(['workspace-2']))
 
     harness.wrapper.unmount()
     surface.expandTabGroup('workspace-2')
@@ -947,6 +951,7 @@ describe('AppBrowserChromeLayer', () => {
     expect(expandTabGroup).toHaveBeenCalledTimes(1)
     expect(expandTabGroupForTab).toHaveBeenCalledTimes(1)
     expect(surface.selectedTabs()).toEqual([])
+    expect(surface.foldedWorkspaceIds()).toBeUndefined()
   })
 
   it('routes independent agent and lifecycle actions through the tab controller', async () => {

@@ -20,6 +20,11 @@ export interface BrowserShortcutControllerOptions {
   activeTab: Readonly<Ref<BrowserTabState | undefined>>
   /** The tabs selected together in the tab strip while there are several, which close together, as in Chrome. */
   selectedTabIds?: () => readonly string[]
+  /**
+   * The workspaces folded in the tab strip. Tab keys pass over their tabs, as Chrome's skip the tabs of a collapsed
+   * group, so they stay folded.
+   */
+  foldedWorkspaceIds?: () => ReadonlySet<string> | undefined
   browser: ShortcutBrowserApi
   syncState: (operation: Promise<BrowserState> | BrowserState) => Promise<void>
   settingsOpen: Ref<boolean>
@@ -76,16 +81,25 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
     return options.state.value.tabs.filter((tab) => !isHronautHomeUrl(tab.url))
   }
 
+  /** Whether a tab key may go to the tab: any but one of a workspace folded in the tab strip. */
+  function tabKeyReaches(): (tab: BrowserTabState) => boolean {
+    const folded = options.foldedWorkspaceIds?.()
+    return (tab) => !tab.mcpGroupId || !folded?.has(tab.mcpGroupId)
+  }
+
   async function performRelativeTabSelection(offset: -1 | 1): Promise<void> {
     if (disposed) return
     const settingsId = 'hronaut:settings'
-    const tabs = options.state.value.tabs.map(tab => ({ id: tab.id }))
-    if (options.settingsTabOpen?.value) tabs.splice(1, 0, { id: settingsId })
+    const reaches = tabKeyReaches()
+    const tabs = options.state.value.tabs.map(tab => ({ id: tab.id, reachable: reaches(tab) }))
+    if (options.settingsTabOpen?.value) tabs.splice(1, 0, { id: settingsId, reachable: true })
     const activeTabId = options.settingsOpen.value ? settingsId : options.state.value.activeTabId
     if (tabs.length < 2 || !activeTabId) return
     const current = tabs.findIndex((tab) => tab.id === activeTabId)
     if (current < 0) return
-    const next = tabs[(current + offset + tabs.length) % tabs.length]
+    // The tab in view counts from its place even when its own workspace was folded since it was shown.
+    const others = [...tabs.slice(current + 1), ...tabs.slice(0, current)]
+    const next = (offset > 0 ? others : others.reverse()).find((tab) => tab.reachable)
     if (next?.id === settingsId) await options.openSettings?.()
     else if (next) {
       options.settingsOpen.value = false
@@ -130,7 +144,7 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
 
   async function performDirectTabSelection(index: number): Promise<void> {
     if (disposed) return
-    const tabs = websiteTabs()
+    const tabs = websiteTabs().filter(tabKeyReaches())
     const target = index === -1 ? tabs.at(-1) : tabs[index]
     if (!target) return
     options.settingsOpen.value = false

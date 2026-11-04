@@ -445,7 +445,12 @@ function selectedTabs(): string[] {
   return browserTabsBar.value?.selectedTabs?.() ?? []
 }
 
-defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFromAgent, selectedTabs })
+/** The workspaces folded in the tab strip, which the tab keys pass over. */
+function foldedWorkspaceIds(): ReadonlySet<string> | undefined {
+  return browserTabsBar.value?.collapsedTabGroupIds
+}
+
+defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFromAgent, selectedTabs, foldedWorkspaceIds })
 </script>
 
 <template>
