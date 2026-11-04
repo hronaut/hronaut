@@ -46,7 +46,8 @@ async function search(forward: boolean, newSearch: boolean): Promise<void> {
   if (!tabId) return
   if (!normalizedQuery) {
     result.value = { activeMatchOrdinal: 0, matches: 0 }
-    await props.browser.stopFindInPage(tabId).catch(() => undefined)
+    // As in Chrome, emptying the field clears the page's selection, where closing Find keeps the match selected.
+    await props.browser.stopFindInPage(tabId, { clearSelection: true }).catch(() => undefined)
     return
   }
   try {

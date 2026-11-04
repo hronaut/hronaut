@@ -147,8 +147,11 @@ export interface HronautNavigationApi {
   reloadIgnoringCache(tabId?: string): Promise<BrowserState>
   stop(tabId?: string): Promise<BrowserState>
   findInPage(options: BrowserFindOptions): Promise<BrowserFindResult>
-  /** Ends the page search; with activateMatch, also clicks the active match, as Ctrl+Enter in Chrome's find bar. */
-  stopFindInPage(tabId?: string, options?: { activateMatch?: boolean }): Promise<void>
+  /**
+   * Ends the page search, leaving the active match selected as Chrome's find bar does when it closes; with activateMatch,
+   * also clicks it, as Ctrl+Enter there does, and with clearSelection, clears the selection instead.
+   */
+  stopFindInPage(tabId?: string, options?: { activateMatch?: boolean; clearSelection?: boolean }): Promise<void>
   setZoom(options: BrowserZoomOptions): Promise<BrowserState>
   /** Saves the page as a PDF in the downloads folder; null when that folder cannot be written to and the person cancels the save dialog. */
   savePdf(options?: BrowserPdfOptions): Promise<BrowserPdfExport | null>

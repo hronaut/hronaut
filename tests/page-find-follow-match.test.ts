@@ -48,12 +48,21 @@ function pageSearch(options: { locked?: boolean; occluded?: boolean; agentInput?
 }
 
 describe('ending a page search', () => {
-  it('clears the selection by default', () => {
+  // As Chrome's find bar does when it closes, and Chromium then focuses the link the match is in.
+  it('keeps the active match selected by default', () => {
     const page = pageSearch()
     stopFindInPage(page.browser, 'tab')
-    expect(page.stopPageSearch).toHaveBeenCalledExactlyOnceWith(page.tab.webContents, 'clearSelection')
+    expect(page.stopPageSearch).toHaveBeenCalledExactlyOnceWith(page.tab.webContents, 'keepSelection')
     expect(page.tab.humanInteractionGeneration).toBe(7)
     expect(page.noteHumanInput).not.toHaveBeenCalled()
+  })
+
+  it('clears the selection when asked, as emptying the Find field does in Chrome, also over a click', () => {
+    const page = pageSearch()
+    stopFindInPage(page.browser, 'tab', { clearSelection: true })
+    stopFindInPage(page.browser, 'tab', { clearSelection: true, activateMatch: true })
+    expect(page.stopPageSearch.mock.calls).toEqual([[page.tab.webContents, 'clearSelection'], [page.tab.webContents, 'clearSelection']])
+    expect(page.onUserInteraction).not.toHaveBeenCalled()
   })
 
   it('clicks the active match when asked, as Ctrl+Enter in Chrome\'s find bar follows the link it is in, as the person\'s click', () => {
@@ -87,7 +96,9 @@ describe('ending a page search', () => {
   ])('only ends the search of a page %s, as the person\'s Back key leaves it alone', (_case, options) => {
     const page = pageSearch(options)
     stopFindInPage(page.browser, 'tab', { activateMatch: true })
-    expect(page.stopPageSearch).toHaveBeenCalledExactlyOnceWith(page.tab.webContents, 'clearSelection')
+    // Keeping the match selected would move the page's focus to the link it is in.
+    stopFindInPage(page.browser, 'tab')
+    expect(page.stopPageSearch.mock.calls).toEqual([[page.tab.webContents, 'clearSelection'], [page.tab.webContents, 'clearSelection']])
     expect(page.tab.humanInteractionGeneration).toBe(7)
     expect(page.onUserInteraction).not.toHaveBeenCalled()
   })
@@ -101,9 +112,9 @@ describe('ending a page search', () => {
     stopFindInPage(page.browser, 'tab', { activateMatch: true })
     expect(page.stopPageSearch).toHaveBeenCalledExactlyOnceWith(page.tab.webContents, 'keepSelection')
     expect(page.onUserInteraction).not.toHaveBeenCalled()
-    // A search on the page in view clears its selection again when it ends.
+    // A search on the page in view can click its match again when it ends.
     await findInPage(page.browser, 'needle', { tabId: 'tab' })
-    stopFindInPage(page.browser, 'tab')
-    expect(page.stopPageSearch).toHaveBeenLastCalledWith(page.tab.webContents, 'clearSelection')
+    stopFindInPage(page.browser, 'tab', { activateMatch: true })
+    expect(page.stopPageSearch).toHaveBeenLastCalledWith(page.tab.webContents, 'activateSelection')
   })
 })

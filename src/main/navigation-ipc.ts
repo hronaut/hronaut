@@ -92,9 +92,12 @@ export function registerNavigationIpc(host: NavigationIpcHost): void {
     host.assertTrustedSender(event)
     if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid find tab')
     if (typeof options !== 'object' || options === null) throw new TypeError('Invalid stop find options')
-    const { activateMatch } = options as Record<string, unknown>
-    if (activateMatch !== undefined && typeof activateMatch !== 'boolean') throw new TypeError('Invalid stop find options')
-    stopFindInPage(host.tabs()!, tabId, { activateMatch })
+    const { activateMatch, clearSelection } = options as Record<string, unknown>
+    if (
+      (activateMatch !== undefined && typeof activateMatch !== 'boolean')
+      || (clearSelection !== undefined && typeof clearSelection !== 'boolean')
+    ) throw new TypeError('Invalid stop find options')
+    stopFindInPage(host.tabs()!, tabId, { activateMatch, clearSelection })
   })
   host.handleBrowserIpc(NAVIGATION_IPC.setZoom, (event, options: unknown) => {
     host.assertTrustedSender(event)
