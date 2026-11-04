@@ -6,7 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
-- A window whose monitor came back with another display id, as after plugging it into another port or a driver update, opened centered on the primary monitor at the default size; Hronaut's window and a detached panel now open on the monitor their saved place lies on, at their saved size, as in Chrome, and a window whose monitor is gone keeps its size, centered on the primary monitor.
+- A window whose monitor came back with another display id, as after plugging it into another port or a driver update, opened centered on the primary monitor at the default size; Hronaut's window and a detached panel now open on the monitor their saved place lies on, at their saved size, as in Chrome, and a window no monitor holds any more keeps its size, centered on the primary monitor.
 
 ## [3.14.14] - 2026-11-04
 

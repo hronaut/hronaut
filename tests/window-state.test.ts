@@ -66,16 +66,52 @@ describe('restoreWindowBounds', () => {
     expect(restoreWindowBounds(saved, displays, { width: 1200, height: 800 })).toEqual(saved.bounds)
   })
 
-  it('moves a window onto its display when that display moved away from the saved bounds', () => {
+  it('keeps a window on its display when that display moved away from the saved bounds', () => {
     const saved: SavedWindowState = {
-      bounds: { x: 5000, y: 180, width: 1400, height: 900 },
+      bounds: { x: 2200, y: 180, width: 1400, height: 900 },
       displayId: 2,
       maximized: false,
       fullScreen: false
     }
+    const moved: DisplayLike[] = [displays[0]!, { id: 2, workArea: { x: 1920, y: 1080, width: 2560, height: 1440 } }]
+    expect(restoreWindowBounds(saved, moved, { width: 1200, height: 800 })).toEqual({
+      x: 2200,
+      y: 1080,
+      width: 1400,
+      height: 900
+    })
+  })
+
+  it('keeps a window on its display while its saved place still overlaps it, even if another display now holds more', () => {
+    // The primary grew from 1920 to 2560 pixels wide, so the display to its right moved from x 1920 to 2560.
+    const saved: SavedWindowState = {
+      bounds: { x: 2000, y: 100, width: 1000, height: 700 },
+      displayId: 2,
+      maximized: false,
+      fullScreen: false
+    }
+    const shifted: DisplayLike[] = [
+      { id: 1, workArea: { x: 0, y: 0, width: 2560, height: 1440 } },
+      { id: 2, workArea: { x: 2560, y: 0, width: 2560, height: 1440 } }
+    ]
+    expect(restoreWindowBounds(saved, shifted, { width: 1200, height: 800 })).toEqual({
+      x: 2560,
+      y: 100,
+      width: 1000,
+      height: 700
+    })
+  })
+
+  it('opens a window that spans two displays on the one holding most of it when its saved id is gone', () => {
+    const saved: SavedWindowState = {
+      bounds: { x: 1500, y: 100, width: 1400, height: 900 },
+      displayId: 99,
+      maximized: false,
+      fullScreen: false
+    }
     expect(restoreWindowBounds(saved, displays, { width: 1200, height: 800 })).toEqual({
-      x: 3080,
-      y: 180,
+      x: 1920,
+      y: 100,
       width: 1400,
       height: 900
     })

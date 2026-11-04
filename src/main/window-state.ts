@@ -55,9 +55,10 @@ export class WindowStateStore {
 }
 
 /**
- * Returns where a window opens from its saved state: on the display its saved bounds lie on most, as Chrome matches a saved window to a display, else on
- * the display it was saved on, wherever that display now is. Display ids can change between starts (a monitor on another port, a driver update), so a
- * window whose display is no longer found by id still opens where it was. A window that no display holds keeps its saved size, centered on the primary.
+ * Returns where a window opens from its saved state: on the display it was saved on while its saved place still overlaps that display, else on the
+ * display its saved place lies on most, as Chrome matches a saved window to a display, else on the display it was saved on, wherever that display now
+ * is. Display ids can change between starts (a monitor on another port, a driver update), so a window whose display is no longer found by id still opens
+ * where it was. A window that no display holds keeps its saved size, centered on the primary.
  */
 export function restoreWindowBounds(
   saved: SavedWindowState | null,
@@ -68,7 +69,10 @@ export function restoreWindowBounds(
   if (!primary) return { x: 0, y: 0, ...fallback }
   if (!saved || saved.bounds.width < 320 || saved.bounds.height < 240) return centeredBounds(primary.workArea, fallback)
 
-  const target = displayHoldingMost(saved.bounds, displays) ?? displays.find((display) => display.id === saved.displayId)
+  const savedOn = displays.find((display) => display.id === saved.displayId)
+  // A display that moved, as when the one to its left changed resolution, still holds the window it holds a part of.
+  const target = (savedOn && intersectionArea(saved.bounds, savedOn.workArea) > 0 ? savedOn : undefined)
+    ?? displayHoldingMost(saved.bounds, displays) ?? savedOn
   if (!target) return centeredBounds(primary.workArea, saved.bounds)
 
   const width = Math.min(saved.bounds.width, target.workArea.width)
