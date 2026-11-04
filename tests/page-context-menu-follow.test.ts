@@ -53,7 +53,7 @@ function openMenu(whileOpen?: () => () => void) {
     x: 10, y: 20, linkURL: '', srcURL: '', selectionText: '', isEditable: true, formControlType: 'none', mediaType: 'none',
     misspelledWord: '', dictionarySuggestions: [], editFlags: { canPaste: true },
     pageURL: tab.url, frameURL: tab.url, referrerPolicy: 'strict-origin-when-cross-origin'
-  } as unknown as ContextMenuParams, whileOpen)
+  } as unknown as ContextMenuParams, { whileOpen })
   const template = built.templates.at(-1)!
   const choose = (id: string) => (template.find((item) => item.id === id)!.click as () => void)()
   return { browser, paste, onActionFailed, choose, choosePaste: () => choose('paste') }
