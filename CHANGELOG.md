@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [3.14.16] - 2026-11-05
+
 ### Changed
 
 - Search tabs, opened with Ctrl/Cmd+Shift+A, the tab-search button or the workspace switcher, is now the Tabs view of Hronaut Home, the first of its views, instead of a dialog drawn over the page: it lists the open tabs as cards with their pictures grouped by workspace, with archived workspaces and recently closed tabs, gives its search field the keyboard, and Escape goes back to the page you came from.
