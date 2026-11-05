@@ -6,6 +6,9 @@ import IconLocationOnOutlineRounded from '~icons/material-symbols/location-on-ou
 import IconNotificationsOutlineRounded from '~icons/material-symbols/notifications-outline-rounded'
 import IconContentPasteRounded from '~icons/material-symbols/content-paste-rounded'
 import IconPianoOutlineRounded from '~icons/material-symbols/piano-outline-rounded'
+import IconFontDownloadOutlineRounded from '~icons/material-symbols/font-download-outline-rounded'
+import IconRouterOutlineRounded from '~icons/material-symbols/router-outline-rounded'
+import IconComputerOutlineRounded from '~icons/material-symbols/computer-outline-rounded'
 import IconFolderOpenOutlineRounded from '~icons/material-symbols/folder-open-outline-rounded'
 import IconOpenInNewRounded from '~icons/material-symbols/open-in-new-rounded'
 import IconFullscreenRounded from '~icons/material-symbols/fullscreen-rounded'
@@ -84,7 +87,12 @@ const SITE_PERMISSION_ASKS: Readonly<Record<string, { key: MessageKey, icon: Com
   notifications: { key: 'trustedDialogs.sitePermission.wants.notifications', icon: IconNotificationsOutlineRounded },
   'clipboard-read': { key: 'trustedDialogs.sitePermission.wants.clipboardRead', icon: IconContentPasteRounded },
   'clipboard-sanitized-write': { key: 'trustedDialogs.sitePermission.wants.clipboardWrite', icon: IconContentPasteRounded },
+  midi: { key: 'trustedDialogs.sitePermission.wants.midi', icon: IconPianoOutlineRounded },
   midiSysex: { key: 'trustedDialogs.sitePermission.wants.midiSysex', icon: IconPianoOutlineRounded },
+  'local-fonts': { key: 'trustedDialogs.sitePermission.wants.localFonts', icon: IconFontDownloadOutlineRounded },
+  'local-network': { key: 'trustedDialogs.sitePermission.wants.localNetwork', icon: IconRouterOutlineRounded },
+  'local-network-access': { key: 'trustedDialogs.sitePermission.wants.localNetwork', icon: IconRouterOutlineRounded },
+  'loopback-network': { key: 'trustedDialogs.sitePermission.wants.loopbackNetwork', icon: IconComputerOutlineRounded },
   fileSystem: { key: 'trustedDialogs.sitePermission.wants.fileSystem', icon: IconFolderOpenOutlineRounded },
   openExternal: { key: 'trustedDialogs.sitePermission.wants.openExternal', icon: IconOpenInNewRounded },
   fullscreen: { key: 'trustedDialogs.sitePermission.wants.fullscreen', icon: IconFullscreenRounded },

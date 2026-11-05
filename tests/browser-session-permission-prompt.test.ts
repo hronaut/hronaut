@@ -123,8 +123,16 @@ describe('site permission prompt', () => {
   })
 
   it('shows a permission Settings has no name for as Settings does, without reading inherited names', async () => {
-    expect((await prompt('en-US', 'local-fonts')).message).toBe('https://files.example requests “local fonts” permission.')
+    expect((await prompt('en-US', 'web-printing')).message).toBe('https://files.example requests “web printing” permission.')
     expect((await prompt('en-US', 'toString')).message).toBe('https://files.example requests “toString” permission.')
+  })
+
+  it('names Local Network Access, fonts and MIDI the way Settings does', async () => {
+    expect((await prompt('en-US', 'local-network')).message).toBe('https://files.example requests “Local network devices” permission.')
+    expect((await prompt('en-US', 'loopback-network')).message).toBe('https://files.example requests “Apps on this device” permission.')
+    expect((await prompt('en-US', 'local-fonts')).message).toBe('https://files.example requests “Local fonts” permission.')
+    expect((await prompt('en-US', 'local-network-access')).message).toBe('https://files.example requests “Local network devices” permission.')
+    expect((await prompt('de-DE', 'midi')).message).toBe('https://files.example fordert die Berechtigung „MIDI-Geräte“ an.')
   })
 
   it('names read and write file access in the interface language', async () => {
