@@ -1,4 +1,5 @@
 import type { BrowserState } from '../../../shared/types.js'
+import { inAgentCall } from './agent-calls.js'
 
 /**
  * The shortest time between two publications of a burst of changes. Pages loading together change the browser state
@@ -87,9 +88,11 @@ export class StatePublication {
   /**
    * The state is about to be read, perhaps for an action's reply, which the shell drops for a publication that arrived
    * meanwhile. A change still waiting goes out first, so the publication the shell keeps is never older than the reply.
-   * A change waiting for the shell to draw goes out once it did.
+   * A change waiting for the shell to draw goes out once it did. An agent's tool call reads for the agent, so its reads
+   * change nothing here: four agents each reading after every navigation sent the shell about 18 states a second.
    */
   beforeRead(): void {
+    if (inAgentCall()) return
     if (this.timer) this.publishNow()
     this.lastSent = undefined
   }

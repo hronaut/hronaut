@@ -38,6 +38,7 @@ import { registerBrowserTaskRuns } from './tools/browser-task-runs/index.js'
 import { registerBrowserStatus } from './tools/browser-status/index.js'
 import { registerBrowserShow } from './tools/browser-show/index.js'
 import { registerBrowserUserAttention } from './tools/browser-user-attention/index.js'
+import { runAgentCall } from '../browser/browser-state/agent-calls.js'
 import { registerBrowserRequestUserAttention } from './tools/browser-request-user-attention/index.js'
 import { registerBrowserTabs } from './tools/browser-tabs/index.js'
 import { registerBrowserNewTab } from './tools/browser-new-tab/index.js'
@@ -425,7 +426,7 @@ export function createBrowserMcpServer(
         requireAgentControl(name, input)
         const result = await actionTracker.run(() => agentControlContext.run(
           () => { if (!singleTabControlTools.has(name)) requireAgentControl(name, input) },
-          () => (handler as (...input: unknown[]) => Promise<CallToolResult>)(...args)
+          () => runAgentCall(() => (handler as (...input: unknown[]) => Promise<CallToolResult>)(...args))
         ))
         try {
           await authorizeCapability(name, settlement?.capabilityInput?.(input) ?? input, 'active-dispatch')

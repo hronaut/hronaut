@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { inAgentCall, runAgentCall } from '../src/main/browser/browser-state/agent-calls.js'
 import { shownTabIds, StatePublication, STATE_DRAWN_TIMEOUT_MS, STATE_PUBLISH_MS } from '../src/main/browser/browser-state/state-publication.js'
 import type { BrowserState, BrowserTabState } from '../src/shared/types.js'
 
@@ -128,6 +129,57 @@ it('publishes a waiting change before the state is read, so an action reply is n
   expect(shell.titles()).toEqual(['First', 'Second'])
   await advance(STATE_PUBLISH_MS)
   expect(shell.titles()).toEqual(['First', 'Second'])
+})
+
+// Four agents each read the state after every navigation, and each read sent the shell a waiting change at once:
+// about 18 states a second instead of 10, each with every tab.
+it('leaves a waiting change to its time when an agent\'s tool call reads the state, which goes to the agent', async () => {
+  const shell = publication()
+  shell.change({ title: 'First' })
+  await advance(5)
+  shell.change({ title: 'Second' })
+  await runAgentCall(async () => { shell.states.beforeRead() })
+  expect(shell.titles()).toEqual(['First'])
+  await advance(STATE_PUBLISH_MS)
+  expect(shell.titles()).toEqual(['First', 'Second'])
+})
+
+it('keeps an agent\'s read from sending an equal state again, as no reply of it reaches the shell', async () => {
+  const shell = publication()
+  shell.change({ title: 'Same' })
+  await advance(100)
+  await runAgentCall(async () => { shell.states.beforeRead() })
+  shell.change({ title: 'Same' })
+  expect(shell.titles()).toEqual(['Same'])
+})
+
+it('publishes a waiting change before a read that a finished agent call left behind, which may be for the shell', async () => {
+  const shell = publication()
+  let leftBehind: Promise<boolean> | undefined
+  await runAgentCall(async () => {
+    leftBehind = new Promise((resolve) => setTimeout(() => {
+      shell.states.beforeRead()
+      resolve(inAgentCall())
+    }, 20))
+  })
+  shell.change({ title: 'First' })
+  await advance(5)
+  shell.change({ title: 'Second' })
+  await advance(15)
+  expect(await leftBehind).toBe(false)
+  expect(shell.titles()).toEqual(['First', 'Second'])
+})
+
+it('tells an agent\'s call from other code only while the call runs, through what it awaits', async () => {
+  expect(inAgentCall()).toBe(false)
+  const seen = await runAgentCall(async () => {
+    const before = inAgentCall()
+    await Promise.resolve()
+    await advance(1)
+    return [before, inAgentCall()]
+  })
+  expect(seen).toEqual([true, true])
+  expect(inAgentCall()).toBe(false)
 })
 
 it('publishes nothing while the browser closes, and nothing waits once disposed', async () => {
