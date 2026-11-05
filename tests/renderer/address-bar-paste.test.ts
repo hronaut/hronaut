@@ -72,8 +72,10 @@ function paste(input: HTMLInputElement, text: string): boolean {
   return !event.defaultPrevented
 }
 
-function drop(input: HTMLInputElement, text: string): boolean {
-  const event = createEvent.drop(input, { dataTransfer: { getData: (type: string) => type === 'text/plain' ? text : '' } })
+/** Drops text, or the given data by type, on the field, and says whether the field was left to take it itself. */
+function drop(input: HTMLInputElement, text: string | Record<string, string>): boolean {
+  const data = typeof text === 'string' ? { 'text/plain': text } : text
+  const event = createEvent.drop(input, { dataTransfer: { types: Object.keys(data), getData: (type: string) => data[type] ?? '' } })
   input.dispatchEvent(event)
   return !event.defaultPrevented
 }
@@ -146,10 +148,79 @@ describe('dropping text on the address field', () => {
     expect(rendered.controller.focused.value).toBe(true)
   })
 
-  it('leaves clean text, an empty drop and text dragged within the field to the field itself', async () => {
+  // A link dropped on the field landed where the pointer was in the address shown, such as
+  // https://example.test/fihttps://hronaut.dev/rst; Chrome's address bar takes the link in place of its text.
+  it('replaces the field\'s text with clean dropped text and gives the field the keyboard with it selected', async () => {
     const rendered = createHarness()
-    expect(drop(rendered.input, 'hronaut.dev')).toBe(true)
-    expect(drop(rendered.input, '')).toBe(true)
+    screen.getByRole('button', { name: 'Page' }).focus()
+
+    expect(drop(rendered.input, 'https://hronaut.dev/')).toBe(false)
+    await nextTick()
+    expect(rendered.input.value).toBe('https://hronaut.dev/')
+    expect(rendered.controller.address.value).toBe('https://hronaut.dev/')
+    expect(document.activeElement).toBe(rendered.input)
+    expect([rendered.input.selectionStart, rendered.input.selectionEnd]).toEqual([0, 'https://hronaut.dev/'.length])
+    expect(rendered.onNavigate).not.toHaveBeenCalled()
+  })
+
+  it('takes a dragged link or image by its address, as Chrome\'s address bar does', async () => {
+    const rendered = createHarness()
+    // An image dragged from a page carries its address and its picture as a file, and no text.
+    expect(drop(rendered.input, { 'text/uri-list': '# picture\r\nhttps://example.com/cat.png\r\n', 'text/html': '<img src="cat.png">', Files: '' })).toBe(false)
+    await nextTick()
+    expect(rendered.input.value).toBe('https://example.com/cat.png')
+
+    expect(drop(rendered.input, { 'text/uri-list': 'https://example.com/linked', 'text/plain': 'Linked page' })).toBe(false)
+    await nextTick()
+    expect(rendered.input.value).toBe('https://example.com/linked')
+
+    // The first of several addresses, and never a javascript: one as script.
+    expect(drop(rendered.input, { 'text/uri-list': 'https://example.com/one\r\nhttps://example.com/two' })).toBe(false)
+    await nextTick()
+    expect(rendered.input.value).toBe('https://example.com/one')
+    expect(drop(rendered.input, { 'text/uri-list': 'javascript:alert(1)' })).toBe(false)
+    await nextTick()
+    expect(rendered.input.value).toBe('alert(1)')
+  })
+
+  // A link dropped while the field searched a site, such as Search Bing, was searched for there instead of opened.
+  it('leaves keyword mode, as Chrome\'s address bar does for text set anew', async () => {
+    const rendered = createHarness()
+    rendered.input.focus()
+    rendered.input.select()
+    for (const character of 'bing.com') {
+      rendered.input.setRangeText(character, rendered.input.selectionStart ?? 0, rendered.input.selectionEnd ?? 0, 'end')
+      rendered.input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: character }))
+      await nextTick()
+    }
+    await fireEvent.keyDown(rendered.input, { key: 'Tab' })
+    await nextTick()
+    expect(rendered.controller.keyword.value).not.toBeNull()
+
+    expect(drop(rendered.input, { 'text/uri-list': 'https://example.com/linked' })).toBe(false)
+    await nextTick()
+    expect(rendered.controller.keyword.value).toBeNull()
+    await rendered.controller.submit()
+    expect(rendered.onNavigate).toHaveBeenCalledWith('https://example.com/linked')
+  })
+
+  it('drops nothing for a file from the computer, a tab of the rail or a drop with no text', async () => {
+    const rendered = createHarness()
+    const shown = rendered.input.value
+    expect(drop(rendered.input, { Files: '', 'text/uri-list': 'file:///home/me/notes.txt' })).toBe(false)
+    expect(drop(rendered.input, { Files: '', 'text/plain': '/home/me/notes.txt' })).toBe(false)
+    expect(drop(rendered.input, { 'application/x-hronaut-tab': 'tab', 'text/plain': 'tab-1' })).toBe(false)
+    expect(drop(rendered.input, '')).toBe(false)
+    await nextTick()
+    expect(rendered.input.value).toBe(shown)
+    expect(rendered.controller.dirty.value).toBe(false)
+    // As Chrome refuses such a drop, the field takes no keyboard and suggests nothing.
+    expect(document.activeElement).not.toBe(rendered.input)
+    expect(rendered.controller.focused.value).toBe(false)
+  })
+
+  it('leaves text dragged within the field to the field itself', async () => {
+    const rendered = createHarness()
 
     // Moving the field's own selected text, even text that reads as script, is the field's move, not a paste.
     await fireEvent.update(rendered.input, 'go javascript:void(0)')

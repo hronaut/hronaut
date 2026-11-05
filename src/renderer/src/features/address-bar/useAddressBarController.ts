@@ -24,6 +24,7 @@ import { addressSuggestionId, addressSuggestionMeta, addressSwitchSuggestionId }
 import { createAddressTabEdits } from './address-tab-edits.js'
 import { useAddressFocusReturn } from './useAddressFocusReturn.js'
 import { useAddressFieldDrop } from './useAddressFieldDrop.js'
+import { insertAsPaste, type PasteInsertion } from './address-field-insert.js'
 import { useAddressKeywordMode } from './useAddressKeywordMode.js'
 
 /**
@@ -154,8 +155,8 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   let switchKeyHeld = false
   // Whether the field is taking the rest of an address it fills in, which is not typing.
   let fillingCompletion = false
-  // Whether the field is taking pasted text, which it leaves as pasted.
-  let insertingPaste = false
+  // Whether the field is taking pasted or dropped text, which it leaves as it came.
+  const pasteInsertion: PasteInsertion = { inserting: false }
   // The rest the field had filled in after the typed text, or taken as typed, as the highlight left it for a row.
   let completionBeforeRows: ShownInlineCompletion | undefined
   let pendingNavigation: {
@@ -241,7 +242,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   // the rows to the text typed fills it in again.
   function completeInline(event: Event | undefined, highlightReturned = false): void {
     const field = input.value
-    if (disposed || insertingPaste || !field) return
+    if (disposed || pasteInsertion.inserting || !field) return
     if (!highlightReturned && (!(event instanceof InputEvent) || event.inputType !== 'insertText' || event.isComposing)) return
     const typed = field.value
     if (field.selectionStart !== typed.length || field.selectionEnd !== typed.length) return
@@ -294,19 +295,15 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     const field = input.value
     if (disposed || text === pasted || !field) return
     event.preventDefault()
-    if (!text) return
-    // insertText keeps the paste on the field's undo stack and reports it as input, as a plain paste does.
-    insertingPaste = true
-    try {
-      if (typeof document.execCommand === 'function' && document.execCommand('insertText', false, text)) return
-    } finally {
-      insertingPaste = false
-    }
-    field.setRangeText(text, field.selectionStart ?? field.value.length, field.selectionEnd ?? field.value.length, 'end')
-    field.dispatchEvent(new Event('input', { bubbles: true }))
+    if (text) insertAsPaste(field, text, pasteInsertion)
   }
 
-  const fieldDrop = useAddressFieldDrop({ address, input, disposed: () => disposed, onInput: () => handleInput() })
+  const fieldDrop = useAddressFieldDrop({
+    input,
+    disposed: () => disposed,
+    leaveKeyword: () => keywordMode.clear(),
+    insert: (field, text) => insertAsPaste(field, text, pasteInsertion)
+  })
   // Coming back to a tab the field had the keyboard in, it takes it back as it was; see useAddressFocusReturn.ts.
   const focusReturn = useAddressFocusReturn({ input, activeTabId: () => options.activeTab.value?.id, tabs: () => options.tabs.value, disposed: () => disposed })
 
