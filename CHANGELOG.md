@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [3.14.17] - 2026-11-05
+
 ### Changed
 
 - Agent calls build less of the browser's state, so Hronaut's window pauses less while several agents work, and their snapshots and screenshots answer sooner.
