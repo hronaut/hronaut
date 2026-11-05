@@ -7,7 +7,10 @@ import type { SaveDialogOptions, SaveDialogReturnValue, WebContents } from 'elec
 import type { Browser } from '../src/main/browser/browser.js'
 import type { BrowserTab } from '../src/main/browser/browser-tab.js'
 import { checkSaveDialogFolder } from '../src/main/browser/downloads/save-dialog-folder.js'
-import { savedPageFilename, savedPageType, savePageAs, saveShownPage } from '../src/main/browser/page-save/page-save.js'
+import { ISOLATED_WORLDS } from '../src/main/browser/isolated-worlds.js'
+import { documentContentTypeInPage } from '../src/main/browser/page-save/page-save.page.js'
+import { pageScript } from '../src/shared/page-script.js'
+import { savedFileFilename, savedPageFilename, savedPageType, savePageAs, saveShownPage } from '../src/main/browser/page-save/page-save.js'
 import type { LocalizedError } from '../src/main/localized-error.js'
 
 // The save dialog opens over the fake browser's window, which records the options it was asked with.
@@ -31,18 +34,24 @@ function harness(options: {
   tab?: Partial<SaveTab>
   choose?: (options: SaveDialogOptions) => Promise<SaveDialogReturnValue>
   savePage?: (path: string, type: string) => Promise<void>
+  /** What the page answers when asked the type of its document. */
+  contentType?: () => Promise<unknown>
   /** The folder the last save dialog saved into. */
   saveDialogDirectory?: string
 } = {}) {
   const events = new EventEmitter()
   const savePage = vi.fn(options.savePage ?? (async (path: string) => { await writeFile(path, '<html></html>') }))
+  const readType = vi.fn(options.contentType ?? (async () => 'text/html'))
   const webContents = Object.assign(events, {
     id: 7,
     isDestroyed: () => false,
     isCrashed: () => false,
+    isLoadingMainFrame: () => false,
     getURL: () => 'https://docs.example/guide',
     getTitle: () => 'Guide: Getting started',
-    savePage
+    savePage,
+    executeJavaScriptInIsolatedWorld: readType,
+    downloadURL: vi.fn()
   }) as unknown as WebContents
   const tab: SaveTab = { id: 'tab', url: 'https://docs.example/guide', sleeping: false, webContents, ...options.tab }
   const saving = new Set<number>()
@@ -60,9 +69,10 @@ function harness(options: {
     },
     window: { isDestroyed: () => false, showSaveDialog },
     text: (key: string) => `text:${key}`,
-    pageSaving: saving
+    pageSaving: saving,
+    downloadController: { expectSavedFile: vi.fn() }
   } as unknown as Browser
-  return { browser, tab: tab as BrowserTab, events, savePage, showSaveDialog, saving, kept: () => kept }
+  return { browser, tab: tab as BrowserTab, events, savePage, showSaveDialog, saving, readType, kept: () => kept }
 }
 
 describe('the name Save Page As suggests', () => {
@@ -81,6 +91,28 @@ describe('the name Save Page As suggests', () => {
     expect(savedPageFilename('app.example/callback#access_token=secret', callback)).toBe('app.example.html')
     expect(savedPageFilename('127.0.0.1:3000/dashboard', 'http://127.0.0.1:3000/dashboard')).toBe('127.0.0.1.html')
     expect(savedPageFilename('\u202Aapp.example/مرحبا#token\u202C', 'https://app.example/x')).toBe('app.example.html')
+  })
+
+  it('is the name a file\'s address ends in for a document that is not a web page, with its type\'s extension, as a download\'s', () => {
+    expect(savedFileFilename('https://cdn.example/photos/sunset.png?size=large#token=secret', 'image/png')).toBe('sunset.png')
+    expect(savedFileFilename('https://cdn.example/photos/Sunset.JPEG', 'image/jpeg')).toBe('Sunset.JPEG')
+    expect(savedFileFilename('https://api.example/v1/status', 'application/json')).toBe('status.json')
+    // A name keeps its own extension, as Chromium's download keeps it, and any other text is named as text.
+    expect(savedFileFilename('https://api.example/v1/status.php', 'application/json')).toBe('status.php')
+    expect(savedFileFilename('https://raw.example/project/main.py', 'text/plain')).toBe('main.py')
+    expect(savedFileFilename('https://raw.example/project/README', 'text/x-readme')).toBe('README.txt')
+    // An extension Windows runs or follows when it shows the file is not suggested, as for Save Link As.
+    expect(savedFileFilename('https://share.example/files/share.url', 'text/x-shortcut')).toBe('share.download')
+    expect(savedFileFilename('https://share.example/files/report.LNK', 'image/png')).toBe('report.download')
+    expect(savedFileFilename('https://docs.example/files/Annual%20report%202025.pdf', 'application/pdf')).toBe('Annual report 2025.pdf')
+    expect(savedFileFilename('https://notes.example/', 'text/plain')).toBe('notes.example.txt')
+    expect(savedFileFilename('http://127.0.0.1:8080/', 'application/json')).toBe('127.0.0.1.json')
+    // A name a file system refuses, and an address that names no file, as a data: one.
+    expect(savedFileFilename('https://files.example/a%2Fb%3Ac.txt', 'text/plain')).toBe('a-b-c.txt')
+    expect(savedFileFilename('https://files.example/con.png', 'image/png')).toBe('download-con.png')
+    expect(savedFileFilename('https://files.example/%E0%A4%A', 'text/plain')).toBe('%E0%A4%A.txt')
+    expect(savedFileFilename('data:text/plain,secret', 'text/plain')).toBe('download.txt')
+    expect(savedFileFilename('https://media.example/stream', 'application/octet-stream')).toBe('stream')
   })
 
   it('saves a name ending in .mhtml or .mht as one file, and any other with a folder of its files', () => {
@@ -107,6 +139,91 @@ describe('Save Page As', () => {
     })
     expect(savePage).toHaveBeenCalledExactlyOnceWith(join(directory, 'guide.html'), 'HTMLComplete')
     expect(saving.size).toBe(0)
+  })
+
+  it('asks what the page shows in a world of its own, and saves a web page whatever case its type is in', async () => {
+    const { browser, tab, savePage, readType } = harness({ contentType: async () => 'APPLICATION/XHTML+XML' })
+    await expect(savePageAs(browser, tab)).resolves.toBe(true)
+    expect(readType).toHaveBeenCalledExactlyOnceWith(ISOLATED_WORLDS.pageSave, [{ code: pageScript(documentContentTypeInPage) }])
+    expect(savePage).toHaveBeenCalledExactlyOnceWith(join(directory, 'guide.html'), 'HTMLComplete')
+  })
+
+  it('downloads an image, a PDF, text or JSON to the file chosen, as Chrome saves a document it cannot save as a page', async () => {
+    for (const [url, type, name] of [
+      ['https://cdn.example/photos/sunset.png', 'image/png', 'sunset.png'],
+      ['https://docs.example/report.pdf', 'application/pdf', 'report.pdf'],
+      ['https://notes.example/today', 'text/plain', 'today.txt'],
+      ['https://api.example/status', 'application/json', 'status.json']
+    ] as const) {
+      // Whatever name the person gives it, even one ending in .mhtml, it is the file itself.
+      const chosen = join(directory, `${name}.mhtml`)
+      const { browser, tab, savePage, showSaveDialog } = harness({ contentType: async () => type, choose: async () => ({ canceled: false, filePath: chosen }) })
+      ;(tab.webContents as unknown as { getURL: () => string }).getURL = () => url
+      await expect(savePageAs(browser, tab)).resolves.toBe(true)
+      expect(showSaveDialog).toHaveBeenCalledExactlyOnceWith({
+        title: 'text:native.dialog.savePageTitle',
+        defaultPath: join(directory, name),
+        properties: ['showOverwriteConfirmation', 'createDirectory']
+      })
+      expect(browser.downloadController.expectSavedFile).toHaveBeenCalledExactlyOnceWith(7, url, chosen)
+      expect(tab.webContents.downloadURL).toHaveBeenCalledExactlyOnceWith(url)
+      expect(savePage).not.toHaveBeenCalled()
+    }
+  })
+
+  it('opens no dialog when the person moved on while the page said what it shows', async () => {
+    let answer: (type: string) => void = () => undefined
+    const asking = () => harness({ contentType: () => new Promise((resolve) => { answer = resolve }) })
+    const left = asking()
+    const leaving = savePageAs(left.browser, left.tab)
+    left.events.emit('did-start-navigation', {}, 'https://docs.example/other', false, true)
+    answer('text/html')
+    expect(((await leaving.catch((error: unknown) => error)) as LocalizedError).key).toBe('appErrors.page.saveChanged')
+    expect(left.showSaveDialog).not.toHaveBeenCalled()
+
+    for (const moveOn of [
+      (browser: Browser) => { (browser as { browserContentOccluded: boolean }).browserContentOccluded = true },
+      (_browser: Browser, tab: BrowserTab) => { (tab as { sleeping: boolean }).sleeping = true },
+      (_browser: Browser, tab: BrowserTab) => { (tab.webContents as unknown as { isDestroyed: () => boolean }).isDestroyed = () => true }
+    ]) {
+      const moved = asking()
+      const saving = savePageAs(moved.browser, moved.tab)
+      moveOn(moved.browser, moved.tab)
+      answer('image/png')
+      await expect(saving).resolves.toBe(false)
+      expect(moved.showSaveDialog).not.toHaveBeenCalled()
+      expect(moved.saving.size).toBe(0)
+    }
+  })
+
+  it('saves a page as a web page when it cannot say what it shows in time', async () => {
+    const failed = harness({ contentType: async () => { throw new Error('Script failed to execute') } })
+    await expect(savePageAs(failed.browser, failed.tab)).resolves.toBe(true)
+    expect(failed.savePage).toHaveBeenCalledExactlyOnceWith(join(directory, 'guide.html'), 'HTMLComplete')
+
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const busy = harness({ contentType: () => new Promise(() => undefined) })
+      const saving = savePageAs(busy.browser, busy.tab)
+      await vi.advanceTimersByTimeAsync(999)
+      expect(busy.showSaveDialog).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(1)
+      await expect(saving).resolves.toBe(true)
+      expect(busy.showSaveDialog.mock.calls[0]?.[0]?.filters).toHaveLength(2)
+      expect(busy.savePage).toHaveBeenCalledExactlyOnceWith(join(directory, 'guide.html'), 'HTMLComplete')
+      expect(vi.getTimerCount()).toBe(0)
+
+      // A page still loading, as an image or a text file answers once it has all of it, gets ten seconds.
+      const loading = harness({ contentType: () => new Promise(() => undefined) })
+      ;(loading.tab.webContents as unknown as { isLoadingMainFrame: () => boolean }).isLoadingMainFrame = () => true
+      const loadingSave = savePageAs(loading.browser, loading.tab)
+      await vi.advanceTimersByTimeAsync(9_999)
+      expect(loading.showSaveDialog).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(1)
+      await expect(loadingSave).resolves.toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('asks in the folder the last save dialog saved into, and keeps the folder chosen for the next, as in Chrome', async () => {
@@ -164,12 +281,15 @@ describe('Save Page As', () => {
     let choose: (value: SaveDialogReturnValue) => void = () => undefined
     const { browser, tab, showSaveDialog } = harness({ choose: () => new Promise((resolve) => { choose = resolve }) })
     const first = savePageAs(browser, tab)
+    // Neither while the page says what it shows nor while the dialog is open.
+    await expect(savePageAs(browser, tab)).resolves.toBe(false)
+    await vi.waitFor(() => expect(showSaveDialog).toHaveBeenCalledOnce())
     await expect(savePageAs(browser, tab)).resolves.toBe(false)
     expect(showSaveDialog).toHaveBeenCalledOnce()
     choose({ canceled: true, filePath: '' })
     await expect(first).resolves.toBe(false)
     const again = savePageAs(browser, tab)
-    expect(showSaveDialog).toHaveBeenCalledTimes(2)
+    await vi.waitFor(() => expect(showSaveDialog).toHaveBeenCalledTimes(2))
     choose({ canceled: true, filePath: '' })
     await expect(again).resolves.toBe(false)
   })
@@ -179,6 +299,7 @@ describe('Save Page As', () => {
     const chosen = { canceled: false, filePath: join(directory, 'guide.html') }
     const left = harness({ choose: () => new Promise((resolve) => { choose = resolve }) })
     const leaving = savePageAs(left.browser, left.tab)
+    await vi.waitFor(() => expect(left.showSaveDialog).toHaveBeenCalledOnce())
     left.events.emit('did-start-navigation', {}, 'https://docs.example/other', false, true)
     choose(chosen)
     const failure = await leaving.catch((error: unknown) => error)
@@ -190,16 +311,28 @@ describe('Save Page As', () => {
     for (const event of ['did-navigate', 'render-process-gone']) {
       const loaded = harness({ choose: () => new Promise((resolve) => { choose = resolve }) })
       const loading = savePageAs(loaded.browser, loaded.tab)
+      await vi.waitFor(() => expect(loaded.showSaveDialog).toHaveBeenCalledOnce())
       loaded.events.emit(event)
       choose(chosen)
       expect(((await loading.catch((error: unknown) => error)) as LocalizedError).key).toBe('appErrors.page.saveChanged')
       expect(loaded.savePage).not.toHaveBeenCalled()
     }
 
+    // Nor download the file of a document that is not a web page.
+    const image = harness({ contentType: async () => 'image/png', choose: () => new Promise((resolve) => { choose = resolve }) })
+    const imageSave = savePageAs(image.browser, image.tab)
+    await vi.waitFor(() => expect(image.showSaveDialog).toHaveBeenCalledOnce())
+    image.events.emit('did-navigate')
+    choose(chosen)
+    expect(((await imageSave.catch((error: unknown) => error)) as LocalizedError).key).toBe('appErrors.page.saveChanged')
+    expect(image.browser.downloadController.expectSavedFile).not.toHaveBeenCalled()
+    expect(image.tab.webContents.downloadURL).not.toHaveBeenCalled()
+
     const stayed = harness({ choose: () => new Promise((resolve) => { choose = resolve }) })
     const staying = savePageAs(stayed.browser, stayed.tab)
     stayed.events.emit('did-start-navigation', {}, 'https://docs.example/guide#setup', true, true)
     stayed.events.emit('did-start-navigation', {}, 'https://ads.example/frame', false, false)
+    await vi.waitFor(() => expect(stayed.showSaveDialog).toHaveBeenCalledOnce())
     choose(chosen)
     await expect(staying).resolves.toBe(true)
   })

@@ -42,7 +42,8 @@ export const ISOLATED_WORLDS = {
   findMatchClick: 1035,
   findFromSelection: 1036,
   findPageKeys: 1037,
-  findSelectionText: 1038
+  findSelectionText: 1038,
+  pageSave: 1039
 } as const satisfies Record<string, number>
 
 export type IsolatedWorldName = keyof typeof ISOLATED_WORLDS

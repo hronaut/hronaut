@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { access, lstat } from 'node:fs/promises'
-import { basename, extname, join } from 'node:path'
+import { basename, join } from 'node:path'
 import { shell, type DownloadItem, type Event, type Session, type WebContents } from 'electron'
 import { isActiveDownload } from '../../../shared/download-state.js'
 import { redactNetworkUrl } from '../../../shared/network-details.js'
@@ -9,6 +9,7 @@ import { isWindowsReservedFilename } from '../../../shared/portable-filename.js'
 import type { BrowserDownloadAction, BrowserDownloadState } from '../../../shared/types.js'
 import { LocalizedError } from '../../localized-error.js'
 import { DownloadDragIcons } from '../download-drag-icons.js'
+import { downloadExtension } from './download-extension.js'
 import { savedDownloads, type DownloadHistoryStore, type SavedDownload } from '../download-history/download-history.js'
 import { SavedLinkNames, savedLinkFilename, staysOnOrigin } from '../saved-link-names.js'
 
@@ -86,23 +87,6 @@ interface BrowserDownloadsHost {
   publish(downloads: BrowserDownloadState[]): void
 }
 
-/** Endings after which Chrome counts a short part before them as part of the extension, as in `.tar.gz` or `.tar.zst`. */
-const COMPRESSED_ENDING = /^\.(?:bz2?|gz|lz(?:ma|o)?|xz|z|zst)$/i
-
-/**
- * A download name's extension as Chrome reads it: one to four characters before a compressed ending count as part of
- * it, as does `.user` before `.js`, so a second `release.tar.gz` is saved as `release (1).tar.gz` rather than
- * `release.tar (1).gz`, and a shortened name keeps both parts.
- */
-function downloadExtension(filename: string): string {
-  const final = extname(filename)
-  if (!final) return final
-  const inner = extname(filename.slice(0, -final.length))
-  if (inner.length < 2) return final
-  if ((inner + final).toLowerCase() === '.user.js') return inner + final
-  return COMPRESSED_ENDING.test(final) && inner.length <= 5 ? inner + final : final
-}
-
 /** Whether a finished download's file is still there. Only a missing file counts as gone; one Hronaut may not read stays. */
 async function fileStillThere(path: string): Promise<boolean> {
   try {
@@ -138,6 +122,8 @@ export class BrowserDownloadsController {
   private readonly savedLinkNames = new SavedLinkNames()
   // Names Hronaut gives the files it makes itself, such as a QR code's image.
   private readonly generatedFileNames = new SavedLinkNames()
+  // The files the person chose to save a tab's document as with Save Page As, for a minute, as its download starts at once.
+  private readonly savedFilePaths = new SavedLinkNames(undefined, 60_000)
   private readonly dragIcons = new DownloadDragIcons()
   /** Where the download history is kept for the next start, once the history it kept is back, so no save loses it. */
   private history: DownloadHistoryStore | undefined
@@ -278,6 +264,7 @@ export class BrowserDownloadsController {
     this.fileChecks.clear()
     this.savedLinkNames.clear()
     this.generatedFileNames.clear()
+    this.savedFilePaths.clear()
   }
 
   /**
@@ -294,6 +281,11 @@ export class BrowserDownloadsController {
    */
   expectGeneratedFile(webContentsId: number, url: string, filename: string): void {
     if (!this.destroyed) this.generatedFileNames.expect(webContentsId, url, filename)
+  }
+
+  /** Saves the download that Save Page As is about to start of the document this page shows to the file the person chose. */
+  expectSavedFile(webContentsId: number, url: string, savePath: string): void {
+    if (!this.destroyed) this.savedFilePaths.expect(webContentsId, url, savePath)
   }
 
   listDownloads(): BrowserDownloadState[] {
@@ -570,6 +562,7 @@ export class BrowserDownloadsController {
         const urlChain = item.getURLChain()
         const linkName = this.savedLinkNames.take(webContents?.id, urlChain[0] ?? item.getURL())
         const generatedName = this.generatedFileNames.take(webContents?.id, urlChain[0] ?? item.getURL())
+        const savedPath = this.savedFilePaths.take(webContents?.id, urlChain[0] ?? item.getURL())
         // A retry starts from no page, so the retry names its workspace.
         const retry = webContents ? undefined : this.takeRetry(browserSession, urlChain[0] ?? item.getURL())
         // Electron gives a download without a page no redirect check, so one that went outside the workspace's Site
@@ -589,18 +582,20 @@ export class BrowserDownloadsController {
         const downloadUrl = item.getURL()
         const sourceWebContentsId = webContents?.id
         const settings = this.host.getSettings()
+        // Save Page As asked where to save it already, as Chrome asks for its download of a document it cannot save as a page.
+        const asks = settings.askWhereToSaveDownloads === true && !savedPath
         let readyReported = false
         const reportReady = () => {
           if (readyReported) return
           readyReported = true
-          this.host.downloadReady(sourceWebContentsId, settings.askWhereToSaveDownloads ? item.getSavePath() || undefined : undefined)
+          this.host.downloadReady(sourceWebContentsId, asks ? item.getSavePath() || undefined : undefined)
         }
         const { tabId, workspaceId, observationGeneration } = retry
           ? { tabId: undefined, workspaceId: retry.workspaceId, observationGeneration: retry.observationGeneration }
           : this.host.getSource(sourceWebContentsId, downloadUrl)
         // As for a click on the link, the name holds only while the download stays on the link's origin: Hronaut saves
         // without asking, so a redirect elsewhere must not get to name its file, such as a script saved as `update.bat`.
-        const filename = generatedName ?? (linkName && staysOnOrigin(urlChain)
+        const filename = savedPath ? basename(savedPath) : generatedName ?? (linkName && staysOnOrigin(urlChain)
           ? savedLinkFilename(linkName, item.getFilename(), item.getContentDisposition())
           : item.getFilename())
         const download: BrowserDownloadState = {
@@ -620,8 +615,9 @@ export class BrowserDownloadsController {
         if (isRetryableUrl(downloadUrl)) this.retryUrls.set(id, downloadUrl)
         let suggestedPath = ''
         try {
-          suggestedPath = this.reserveAvailableDownloadPath(filename, settings.downloadDirectory)
-          if (settings.askWhereToSaveDownloads) {
+          suggestedPath = savedPath ?? this.reserveAvailableDownloadPath(filename, settings.downloadDirectory)
+          if (savedPath) this.reservedDownloadPaths.add(this.reservationKey(savedPath))
+          if (asks) {
             item.setSaveDialogOptions({
               title: settings.saveDialogTitle,
               defaultPath: suggestedPath
@@ -642,9 +638,9 @@ export class BrowserDownloadsController {
           return
         }
         download.filename = basename(suggestedPath)
-        download.savePath = settings.askWhereToSaveDownloads ? '' : suggestedPath
+        download.savePath = asks ? '' : suggestedPath
         this.downloadItems.set(id, item)
-        if (settings.askWhereToSaveDownloads) this.awaitingSavePath.add(id)
+        if (asks) this.awaitingSavePath.add(id)
         this.downloadSessions.set(id, browserSession)
         const onUpdated = (_downloadEvent: Event, state: 'interrupted' | 'progressing') => {
           download.state = state === 'interrupted' ? 'interrupted' : 'progressing'
@@ -698,7 +694,7 @@ export class BrowserDownloadsController {
         this.notifyDownloadsChanged(true)
         // A new download opens the Downloads panel, so its finished files are checked as when the panel opens.
         this.checkCompletedFiles()
-        if (!settings.askWhereToSaveDownloads) reportReady()
+        if (!asks) reportReady()
       }
       browserSession.on('will-download', onWillDownload)
       this.downloadHookSessions.set(browserSession, () => browserSession.removeListener('will-download', onWillDownload))

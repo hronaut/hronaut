@@ -36,7 +36,7 @@ export function staysOnOrigin(urlChain: readonly string[]): boolean {
 export class SavedLinkNames {
   private readonly pending = new Map<number, PendingName[]>()
 
-  constructor(private readonly now: () => number = () => performance.now()) {}
+  constructor(private readonly now: () => number = () => performance.now(), private readonly waitMs = PENDING_NAME_MS) {}
 
   expect(webContentsId: number, url: string, filename: string): void {
     if (!filename) return
@@ -47,7 +47,7 @@ export class SavedLinkNames {
       else this.pending.delete(id)
     }
     const names = this.pending.get(webContentsId) ?? []
-    names.push({ url: withoutFragment(url), filename, expiresAt: now + PENDING_NAME_MS })
+    names.push({ url: withoutFragment(url), filename, expiresAt: now + this.waitMs })
     this.pending.set(webContentsId, names.slice(-MAX_PENDING_PER_PAGE))
   }
 
@@ -73,7 +73,7 @@ export class SavedLinkNames {
 
 // Endings Windows runs or follows when it shows the file, which Chromium renames to `.download` (`.url` can send the
 // person's Windows credentials to another computer just by being shown in a folder).
-const SHELL_INTEGRATED_EXTENSION = /^\.(?:lnk|local|scf|url|\{.*\})$/i
+export const SHELL_INTEGRATED_EXTENSION = /^\.(?:lnk|local|scf|url|\{.*\})$/i
 
 /**
  * The name for a Save Link As download, much as Chromium chooses it: the server's own name when its
