@@ -4,6 +4,7 @@ import type { BrowserTabGroupState } from '../../../shared/types.js'
 import { BROWSER_TAB_GROUP_COLOR_HEX } from '../../../shared/tab-groups.js'
 import { tabTitleForDisplay } from '../../../shared/tab-title.js'
 import { interpolate } from './dom.js'
+import { icon, type HomeIcon } from './icons.js'
 
 type WorkspaceCard = Pick<BrowserTabGroupState,
   'id' | 'name' | 'color' | 'description' | 'agentAccess' | 'hiddenFromSidebar' |
@@ -45,7 +46,7 @@ function siteName(url: string): string {
 }
 
 /** Up to four of the workspace's tabs over its color: each with its site icon, or the site's initial, and its title. */
-function renderTabs(group: WorkspaceCard, context: CardContext): HTMLElement {
+function renderTabs(group: WorkspaceCard, context: Pick<CardContext, 'messages' | 'labels' | 'untitledTab' | 'count'>): HTMLElement {
   const tiles = document.createElement('ul')
   tiles.className = 'card-tabs'
   tiles.style.setProperty('--workspace-color', BROWSER_TAB_GROUP_COLOR_HEX[group.color])
@@ -77,6 +78,47 @@ function renderTabs(group: WorkspaceCard, context: CardContext): HTMLElement {
   return tiles
 }
 
+/** What each part of a card is drawn from. Its tab tiles and its counts of tabs and websites change as agents browse;
+ * the rest, with its menu, changes only with the workspace's settings, or when it gains its first tab or loses its last
+ * (archiving it may then need the person), so a busy agent never rebuilds the menu under the person's pointer. */
+export function cardSignatures(group: WorkspaceCard, allHumanInteractionLocked: boolean): { frame: string; tabs: string } {
+  const { id, name, color, description, agentAccess, hiddenFromSidebar, deletionProtected, navigationPolicy, archived, tabs } = group
+  return {
+    frame: JSON.stringify([
+      id, name, color, description, agentAccess, hiddenFromSidebar, deletionProtected, navigationPolicy, archived, tabs.length > 0,
+      allHumanInteractionLocked
+    ]),
+    tabs: JSON.stringify([color, tabs.map(tab => [tab.title, tab.url, tab.faviconDataUrl])])
+  }
+}
+
+/** Redraws only a card's tab tiles, keeping its header, menu and focus. */
+export function updateCardTabs(card: HTMLElement, group: WorkspaceCard, context: Pick<CardContext, 'messages' | 'labels' | 'untitledTab' | 'count'>): void {
+  card.querySelector('.card-tabs')?.replaceWith(renderTabs(group, context))
+}
+
+/** Rewrites a card's tab count and, in its menu, its count of websites with kept data, only when they change. */
+export function updateCardCounts(card: HTMLElement, group: WorkspaceCard, context: Pick<CardContext, 'labels' | 'count'>): void {
+  const { labels, count } = context
+  for (const [selector, value] of [
+    ['.card-count', count(labels.workspaceTabs, group.tabs.length)],
+    ['.card-menu-note', count(labels.workspaceSites, group.storageOriginCount || 0)]
+  ] as const) {
+    const node = card.querySelector(selector)
+    if (node && node.textContent !== value) node.textContent = value
+  }
+}
+
+/** A workspace setting the card shows as a small icon; its tooltip is its name, to screen readers too. */
+function badge(name: HomeIcon, label: string): HTMLElement {
+  const node = document.createElement('span')
+  node.className = 'card-badge'
+  node.setAttribute('role', 'img')
+  node.title = label
+  node.append(icon(name))
+  return node
+}
+
 // Layout construction is independent of polling, reconciliation and action dispatch.
 export function renderWorkspaceCard(card: HTMLElement, group: WorkspaceCard, context: CardContext): void {
   const { messages, labels, mission, count, allHumanInteractionLocked, status } = context
@@ -101,7 +143,15 @@ export function renderWorkspaceCard(card: HTMLElement, group: WorkspaceCard, con
   const list = document.createElement('div')
   list.className = 'card-menu-list'
   if (!group.archived) list.append(button('edit', labels.manageWorkspace))
-  list.append(button('transfer', labels.transferData))
+  // The websites whose data the workspace keeps are what Copy or move data copies, so their count sits under that item,
+  // as its description: the item keeps its name.
+  const transfer = button('transfer', '')
+  const sites = text('small', count(labels.workspaceSites, group.storageOriginCount || 0), 'card-menu-note')
+  sites.id = `workspace-sites-${group.id}`
+  transfer.setAttribute('aria-label', labels.transferData)
+  transfer.setAttribute('aria-describedby', sites.id)
+  transfer.append(text('span', labels.transferData), sites)
+  list.append(transfer)
   for (const preference of ['hiddenFromSidebar', 'deletionProtected'] as const) {
     const label = document.createElement('label')
     const input = document.createElement('input')
@@ -112,10 +162,25 @@ export function renderWorkspaceCard(card: HTMLElement, group: WorkspaceCard, con
     label.append(input, document.createTextNode(messages[preference === 'hiddenFromSidebar' ? 'hideFromSidebar' : 'protectDeletion']))
     list.append(label)
   }
+  // The settings the card shows only as icons also read here in words, where the keyboard reaches them.
+  for (const [name, label] of [
+    ...(group.agentAccess === false ? [['person', messages.personal] as const] : []),
+    ...(group.navigationPolicy.mode === 'restricted' ? [['shield', messages.restricted] as const] : [])
+  ]) {
+    const fact = text('p', label, 'card-menu-fact')
+    fact.prepend(icon(name))
+    list.append(fact)
+  }
   list.append(document.createElement('hr'))
   if (group.archived) list.append(button('delete', messages.delete, archiveLocked || group.deletionProtected, 'danger'))
   else list.append(button('archive', messages.archive, archiveLocked), button('clear', messages.clear, group.deletionProtected, 'danger'))
   menu.append(summary, list)
+
+  const badges: Array<[HomeIcon, string]> = []
+  if (group.agentAccess === false) badges.push(['person', messages.personal])
+  if (group.hiddenFromSidebar) badges.push(['hidden', messages.hidden])
+  if (group.deletionProtected) badges.push(['lock', messages.protected])
+  if (group.navigationPolicy.mode === 'restricted') badges.push(['shield', messages.restricted])
 
   const header = document.createElement('header')
   const dot = document.createElement('span')
@@ -123,23 +188,21 @@ export function renderWorkspaceCard(card: HTMLElement, group: WorkspaceCard, con
   dot.style.setProperty('--workspace-color', BROWSER_TAB_GROUP_COLOR_HEX[group.color])
   dot.setAttribute('aria-hidden', 'true')
   header.append(dot, text('h2', group.name), menu)
+  // One short line under the name: how many tabs, then the workspace's settings as icons, so the name keeps its room and
+  // the card spends its lines on what agents do.
+  const facts = document.createElement('p')
+  facts.className = 'card-facts'
+  facts.append(
+    text('span', count(labels.workspaceTabs, group.tabs.length), 'card-count'),
+    ...badges.map(([name, label]) => badge(name, label))
+  )
 
-  const meta = text('p', `${count(labels.workspaceTabs, group.tabs.length)} · ${count(labels.workspaceSites, group.storageOriginCount || 0)}`, 'card-meta')
   const statusLine = document.createElement('p')
   statusLine.className = 'card-status'
   const statusDot = document.createElement('span')
   statusDot.className = 'card-status-dot'
   statusDot.setAttribute('aria-hidden', 'true')
   statusLine.append(statusDot, text('span', ''))
-
-  const badgeLabels: string[] = []
-  if (group.agentAccess === false) badgeLabels.push(messages.personal)
-  if (group.hiddenFromSidebar) badgeLabels.push(messages.hidden)
-  if (group.deletionProtected) badgeLabels.push(messages.protected)
-  if (group.navigationPolicy.mode === 'restricted') badgeLabels.push(messages.restricted)
-  const badges = document.createElement('div')
-  badges.className = 'home-workspace-badges'
-  badges.append(...badgeLabels.map(label => text('span', label)))
 
   // An open workspace opens from anywhere on its card: its open button stretches over the card and keeps its name.
   // An archived one asks for its Restore button, since restoring changes the sidebar.
@@ -151,8 +214,7 @@ export function renderWorkspaceCard(card: HTMLElement, group: WorkspaceCard, con
 
   card.className = `home-workspace-card${group.archived ? ' archived' : ''}`
   card.setAttribute('aria-label', group.name)
-  card.replaceChildren(renderTabs(group, context), header, meta, statusLine,
-    ...(badgeLabels.length ? [badges] : []),
+  card.replaceChildren(renderTabs(group, context), header, facts, statusLine,
     ...(group.description ? [text('p', group.description, 'home-workspace-description')] : []),
     footer)
   updateCardStatus(card, status)
@@ -168,19 +230,6 @@ export function updateCardStatus(card: HTMLElement, status: CardStatus): void {
   if (line.className !== className) line.className = className
   if (label.textContent !== status.text) label.textContent = status.text
   card.classList.toggle('needs-you', status.tone === 'needs-you')
-}
-
-/** The last tile of the open workspaces: a new, empty workspace. */
-export function renderNewWorkspaceTile(tile: HTMLElement, title: string, help: string): void {
-  const control = document.createElement('button')
-  control.type = 'button'
-  control.className = 'new-workspace-tile'
-  control.dataset.workspaceAction = 'create'
-  const plus = text('span', '+', 'new-workspace-plus')
-  plus.setAttribute('aria-hidden', 'true')
-  control.append(plus, text('strong', title), text('span', help))
-  tile.className = 'home-workspace-new'
-  tile.replaceChildren(control)
 }
 
 export function renderWorkspaceEmpty(grid: HTMLElement, title: string, help: string): void {

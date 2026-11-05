@@ -140,7 +140,6 @@ export const esES: MessageSchema = {
     delete: 'Eliminar…',
     undo: 'Deshacer archivo',
     archiveHelp: 'Los espacios archivados conservan sus pestañas e inicios de sesión. Restáuralos cuando los necesites.',
-    openHelp: 'Archiva el trabajo terminado para ordenar la lista. Se conservan las pestañas y los inicios de sesión.',
     empty: 'Empieza con tu primer espacio',
     emptyHelp: 'Crea un espacio para un proyecto, una cuenta o una tarea de agente. Cada espacio tiene sus propios datos de sitios.',
     noArchived: 'No hay espacios archivados',
@@ -3835,7 +3834,6 @@ export const esES: MessageSchema = {
       lastUsed: 'Usado por última vez {time}',
       open: 'Abrir {name}',
       moreActions: 'Más acciones para {name}',
-      newWorkspaceHelp: 'Con sus propias pestañas y sesiones',
       checks: {
         ok: 'Listo',
         failed: 'Requiere atención',

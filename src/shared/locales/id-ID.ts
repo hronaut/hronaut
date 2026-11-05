@@ -140,7 +140,6 @@ export const idID: MessageSchema = {
     delete: 'Hapus…',
     undo: 'Urungkan pengarsipan',
     archiveHelp: 'Ruang kerja yang diarsipkan tetap menyimpan tab dan login-nya. Pulihkan kapan pun Anda membutuhkannya.',
-    openHelp: 'Arsipkan pekerjaan yang sudah selesai agar daftar ini tetap rapi. Tab dan login Anda tetap disimpan.',
     empty: 'Ruang kerja pertama Anda dimulai di sini',
     emptyHelp: 'Buat ruang untuk proyek, akun, atau tugas agen. Setiap ruang kerja memiliki data situsnya sendiri.',
     noArchived: 'Tidak ada ruang kerja yang diarsipkan',
@@ -3835,7 +3834,6 @@ export const idID: MessageSchema = {
       lastUsed: 'Terakhir digunakan {time}',
       open: 'Buka {name}',
       moreActions: 'Tindakan lainnya untuk {name}',
-      newWorkspaceHelp: 'Tab dan login tersendiri',
       checks: {
         ok: 'Siap',
         failed: 'Memerlukan perhatian',

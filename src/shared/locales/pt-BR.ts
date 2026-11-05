@@ -140,7 +140,6 @@ export const ptBR: MessageSchema = {
     delete: 'Excluir…',
     undo: 'Desfazer arquivamento',
     archiveHelp: 'Espaços de trabalho arquivados mantêm as guias e os logins. Restaure um quando precisar.',
-    openHelp: 'Arquive trabalhos concluídos para manter esta lista organizada. Suas guias e logins são mantidos.',
     empty: 'Seu primeiro espaço de trabalho começa aqui',
     emptyHelp: 'Crie um espaço para um projeto, uma conta ou uma tarefa de agente. Cada espaço de trabalho tem os próprios dados de sites.',
     noArchived: 'Nenhum espaço de trabalho arquivado',
@@ -3835,7 +3834,6 @@ export const ptBR: MessageSchema = {
       lastUsed: 'Último uso: {time}',
       open: 'Abrir {name}',
       moreActions: 'Mais ações para {name}',
-      newWorkspaceHelp: 'Guias e logins próprios',
       checks: {
         ok: 'Pronto',
         failed: 'Precisa de atenção',

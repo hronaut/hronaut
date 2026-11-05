@@ -140,7 +140,6 @@ export const itIT: MessageSchema = {
     delete: 'Elimina…',
     undo: 'Annulla archiviazione',
     archiveHelp: 'Le aree di lavoro archiviate conservano schede e accessi. Ripristinane una quando ti serve.',
-    openHelp: 'Archivia il lavoro concluso per tenere in ordine questo elenco. Schede e accessi vengono conservati.',
     empty: 'La tua prima area di lavoro inizia qui',
     emptyHelp: 'Crea uno spazio per un progetto, un account o un’attività di un agente. Ogni area di lavoro ha i propri dati dei siti web.',
     noArchived: 'Nessuna area di lavoro archiviata',
@@ -3835,7 +3834,6 @@ export const itIT: MessageSchema = {
       lastUsed: 'Ultimo utilizzo {time}',
       open: 'Apri {name}',
       moreActions: 'Altre azioni per {name}',
-      newWorkspaceHelp: 'Schede e accessi propri',
       checks: {
         ok: 'Pronto',
         failed: 'Richiede attenzione',

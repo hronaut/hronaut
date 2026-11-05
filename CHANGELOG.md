@@ -9,6 +9,7 @@ All notable changes to Hronaut are documented in this file.
 - Agent calls build less of the browser's state, so Hronaut's window pauses less while several agents work, and their snapshots and screenshots answer sooner.
 - Screenshots agents take are made into PNG images in a background thread rather than in the process that runs Hronaut's window, so the window pauses less while several agents work.
 - Hronaut Home has three views instead of five: Tabs, Workspaces and Agents. Agents holds the connected agents with their live activity, connecting an agent, the overview and the tool library, and the agent status at the top opens it. Each view is headed by its name and what it holds, with no greeting, and an agent waiting for you is named on one line above every view, with a button that opens its workspace. Workspaces take the whole width.
+- Workspace cards on Home are quieter: the name keeps its row, a line under it holds the tab count and the workspace's settings as small icons named in their tooltips (the card's menu names them too), an agent's step reads on two lines, and the count of websites whose data the workspace keeps moves to Copy or move data in the card's menu. The "New workspace" tile and the hint over the list are gone; Create workspace stays above the list. The filters inside each Home view, such as Open and Archived, are small pills under Home's tabs.
 
 ### Fixed
 
@@ -17,6 +18,7 @@ All notable changes to Hronaut are documented in this file.
 - View Page Source, Save Page As, Print, Find Next and Find Previous chosen with the keyboard, with Enter in the open menu or with Ctrl+F2 or VoiceOver on macOS, now act while a panel in its own window has focus, as when chosen with the mouse, and Back and Forward chosen with the keyboard go back and forward as the toolbar's arrows do.
 - A tab left with a click on another tab now gives the address field or Find the keyboard back when you come back to it, as one left with Ctrl+Tab does and as in Chrome; it gave its page the keyboard.
 - Keys typed right after Ctrl/Cmd+L, Ctrl/Cmd+F or F6 in a page now go to the field the key opens, as in Chrome, also while Hronaut's window is busy, such as with many tabs open. They could reach the window first and go where it had the keyboard before, such as after the address's text, which the address field then selected along with them.
+- A workspace card's open menu on Home now stays put while an agent browses in that workspace. Each page the agent opened drew the whole card again, menu included, under the pointer and the keyboard.
 
 ## [3.14.16] - 2026-11-05
 

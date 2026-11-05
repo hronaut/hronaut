@@ -140,7 +140,6 @@ export const trTR: MessageSchema = {
     delete: 'Sil…',
     undo: 'Arşivlemeyi geri al',
     archiveHelp: 'Arşivlenen çalışma alanları sekmelerini ve oturumlarını korur. İhtiyaç duyduğunuzda geri yükleyin.',
-    openHelp: 'Listeyi düzenli tutmak için biten işleri arşivleyin. Sekmeleriniz ve oturumlarınız korunur.',
     empty: 'İlk çalışma alanınız burada başlıyor',
     emptyHelp: 'Bir proje, hesap veya ajan görevi için alan oluşturun. Her çalışma alanının kendi web sitesi verileri vardır.',
     noArchived: 'Arşivlenmiş çalışma alanı yok',
@@ -3835,7 +3834,6 @@ export const trTR: MessageSchema = {
       lastUsed: 'Son kullanım: {time}',
       open: 'Aç: {name}',
       moreActions: '{name} için diğer işlemler',
-      newWorkspaceHelp: 'Kendi sekmeleri ve oturumlarıyla',
       checks: {
         ok: 'Hazır',
         failed: 'İlgi gerektiriyor',

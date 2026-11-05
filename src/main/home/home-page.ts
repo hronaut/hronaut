@@ -52,7 +52,10 @@ hidden><kbd>Esc</kbd> <span id="tabs-hint-back-text"></span></span></footer></di
 <section id="home-workspaces" class="home-view" role="tabpanel" aria-labelledby="home-tab-workspaces">
 <div class="workspace-toolbar"><label class="search-field"><span class="visually-hidden">${h(library.search)}</span><input id="workspace-search" type="search" autocomplete="off" placeholder="${h(library.search)}" aria-controls="workspace-grid"></label><button type="button" class="workspace-primary" data-workspace-action="create">${h(data.messages.workspaceEditor.create)}</button><button type="button" data-workspace-action="templates">${h(data.messages.workspaceTemplates.title)}</button></div>
 <div class="workspace-feedback"><p id="workspace-notice" role="status"></p><button id="workspace-undo" type="button" hidden>${h(data.messages.undo.action)}</button></div>
-<div class="workspace-collections" role="tablist" aria-label="${h(library.views)}"><button id="workspaces-open" type="button" role="tab" aria-selected="true" aria-controls="workspace-grid">${h(library.open)}</button><button id="workspaces-archived" type="button" role="tab" aria-selected="false" aria-controls="workspace-grid" tabindex="-1">${h(library.archived)}</button></div><p id="workspace-hint"></p><div id="workspace-grid" role="tabpanel" aria-labelledby="workspaces-open"></div></section>
+<div class="workspace-collections" role="tablist" aria-label="${h(library.views)}"><button id="workspaces-open" type="button" role="tab" aria-selected="true"
+aria-controls="workspace-grid">${h(library.open)}</button><button id="workspaces-archived" type="button" role="tab" aria-selected="false"
+aria-controls="workspace-grid" tabindex="-1">${h(library.archived)}</button></div>
+<div id="workspace-grid" role="tabpanel" aria-labelledby="workspaces-open"></div></section>
 <section id="home-agents-view" class="home-view" role="tabpanel" aria-labelledby="home-tab-agents" hidden>
 <div class="workspace-collections agent-sections" role="tablist"
 aria-label="${h(home.navigation.agents)}">${(['connected', 'connect', 'overview', 'tools'] as const).map(section => `<button id="agents-section-${section}"

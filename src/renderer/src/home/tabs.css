@@ -6,7 +6,6 @@
 .tabs-search kbd { position: absolute; top: 50%; right: 12px; transform: translateY(-50%); pointer-events: none; }
 .tabs-toolbar > button { min-height: 44px; padding: 8px 16px; border: 1px solid var(--border); border-radius: var(--corner-2); font-size: var(--type-body-size); font-weight: 600; }
 #home-tabs kbd { display: inline-flex; align-items: center; min-width: 22px; height: 22px; padding: 0 6px; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: var(--corner-1); color: var(--muted); background: var(--soft); font: 600 var(--type-micro-size)/1 var(--font-ui); }
-.tab-kinds { margin-bottom: 20px; }
 .tabs-error { margin-bottom: 16px; padding: 10px 14px; border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--border)); border-radius: var(--corner-2); color: var(--text); background: color-mix(in srgb, var(--danger) 8%, var(--panel)); font-size: var(--type-small-size); line-height: 1.5; }
 .tab-results { display: grid; gap: 28px; min-width: 0; }
 .tab-results[aria-busy=true] { cursor: progress; }

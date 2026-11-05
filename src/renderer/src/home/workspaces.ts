@@ -7,7 +7,9 @@ import { agentStepText } from '../../../shared/agent-step-text.js'
 import { tabTitleForDisplay } from '../../../shared/tab-title.js'
 import { mountActivityFeed } from './activity-feed.js'
 import { element, errorText, interpolate, messageAt, pluralText, timeAgo } from './dom.js'
-import { renderNewWorkspaceTile, renderWorkspaceCard, renderWorkspaceEmpty, updateCardStatus, type CardStatus } from './workspace-card.js'
+import {
+  cardSignatures, renderWorkspaceCard, renderWorkspaceEmpty, updateCardCounts, updateCardStatus, updateCardTabs, type CardStatus
+} from './workspace-card.js'
 
 type LiveAgents = Pick<HomeDashboard, 'agents' | 'workspaceActivity' | 'feed'>
 
@@ -59,8 +61,7 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
   const error = element('workspace-error')
   const notice = element('workspace-notice')
   const undo = element<HTMLButtonElement>('workspace-undo')
-  const cards = new Map<string, { node: HTMLElement; signature: string }>()
-  const newTile = document.createElement('div')
+  const cards = new Map<string, { node: HTMLElement; frame: string; tabs: string }>()
   const feed = mountActivityFeed(data)
   const count = (message: string, value: number): string => pluralText(data.locale, message, value)
   const t = (key: string, values?: Record<string, unknown>): string => messageAt(data.messages, key, values as Record<string, string | number>)
@@ -141,40 +142,48 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
       tab.tabIndex = view === collection ? 0 : -1
     }
     grid.setAttribute('aria-labelledby', `workspaces-${view}`)
-    element('workspace-hint').textContent = messages[view === 'archived' ? 'archiveHelp' : 'openHelp']
     // Undo stays while the archive does: a cleared workspace's goes once the shell deletes it.
     undo.hidden = !undoId || !state.savedTabGroups.some(group => group.id === undoId)
     for (const [id, card] of cards) if (!visible.some(group => group.id === id)) { card.node.remove(); cards.delete(id) }
     grid.querySelector('.workspace-empty')?.remove()
     visible.forEach((group, index) => {
       const status = cardStatus(group)
-      const signature = JSON.stringify([group, state.allHumanInteractionLocked])
+      const signatures = cardSignatures(group, state.allHumanInteractionLocked)
       let card = cards.get(group.id)
-      if (!card) { card = { node: document.createElement('article'), signature: '' }; cards.set(group.id, card) }
+      if (!card) { card = { node: document.createElement('article'), frame: '', tabs: '' }; cards.set(group.id, card) }
       const focused = card.node.contains(document.activeElement) ? document.activeElement as HTMLElement : null
       const focusKey = focused?.dataset.workspaceAction ?? focused?.dataset.workspacePreference
       let focusTarget = focused
-      if (card.signature !== signature) {
-        renderWorkspaceCard(card.node, group, { messages, labels, mission, untitledTab: data.messages.tabSearch.newTabTitle, count, allHumanInteractionLocked: state.allHumanInteractionLocked, status })
-        card.signature = signature
+      const untitledTab = data.messages.tabSearch.newTabTitle
+      if (card.frame !== signatures.frame) {
+        const allHumanInteractionLocked = state.allHumanInteractionLocked
+        renderWorkspaceCard(card.node, group, { messages, labels, mission, untitledTab, count, allHumanInteractionLocked, status })
         focusTarget = focusKey
           ? card.node.querySelector<HTMLElement>(`[data-workspace-action="${focusKey}"],[data-workspace-preference="${focusKey}"]`)
           : focused?.tagName === 'SUMMARY' ? card.node.querySelector('summary') : null
-      } else updateCardStatus(card.node, status)
+      } else {
+        // As an agent browses, only the tiles and counts change: the card's menu, and the person's pointer and focus on it, stay.
+        if (card.tabs !== signatures.tabs) updateCardTabs(card.node, group, { messages, labels, untitledTab, count })
+        updateCardCounts(card.node, group, { labels, count })
+        updateCardStatus(card.node, status)
+      }
+      card.frame = signatures.frame
+      card.tabs = signatures.tabs
       // Failed or unchanged saves still need to restore the authoritative values.
       if (!pending) for (const preference of ['hiddenFromSidebar', 'deletionProtected'] as const) {
         const input = card.node.querySelector<HTMLInputElement>(`[data-workspace-preference="${preference}"]`)
         if (input) input.checked = Boolean(group[preference])
       }
-      // Retain the same card and controls on polling; move only when ordering changes.
-      if (grid.children[index] !== card.node) grid.insertBefore(card.node, grid.children[index] ?? null)
-      // Moving an existing card can blur its controls; restore only after ordering.
+      // Retain the same card and controls on polling; move only when ordering changes. A card already on Home moves without
+      // taking the focus off its controls, which would close its open menu: an agent's step moves its workspace first.
+      if (grid.children[index] !== card.node) {
+        const before = grid.children[index] ?? null
+        if (card.node.parentNode === grid && 'moveBefore' in grid) grid.moveBefore(card.node, before)
+        else grid.insertBefore(card.node, before)
+      }
+      // Moving an existing card without moveBefore can blur its controls; restore only after ordering.
       if (focusTarget?.isConnected && document.activeElement !== focusTarget) focusTarget.focus({ preventScroll: true })
     })
-    // Open workspaces end with a tile for a new one; a search or the archive shows only what matches.
-    if (view === 'open' && !query && visible.length) {
-      if (grid.lastElementChild !== newTile) grid.append(newTile)
-    } else newTile.remove()
     if (!visible.length) renderWorkspaceEmpty(grid, messages[query ? 'noMatches' : view === 'archived' ? 'noArchived' : 'empty'], messages[query ? 'searchHelp' : view === 'archived' ? 'archiveHelp' : 'emptyHelp'])
     feed.update(live.feed ?? [], {
       workspaceName: id => state.mcpTabGroups.find(group => group.id === id)?.name,
@@ -303,7 +312,6 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
       render(); element(`workspaces-${view}`).focus()
     }, { signal })
   }
-  renderNewWorkspaceTile(newTile, data.messages.workspaceSwitcher.newWorkspace, mission.newWorkspaceHelp)
   render()
   /** Agents' state from Home's status, read with the dashboard. */
   function setLive(next: LiveAgents): void {

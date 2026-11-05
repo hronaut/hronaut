@@ -140,7 +140,6 @@ export const plPL: MessageSchema = {
     delete: 'Usuń…',
     undo: 'Cofnij archiwizację',
     archiveHelp: 'Zarchiwizowane obszary zachowują karty i logowania. Przywróć je, gdy będą potrzebne.',
-    openHelp: 'Archiwizuj ukończoną pracę, aby uporządkować listę. Karty i logowania zostaną zachowane.',
     empty: 'Zacznij od pierwszego obszaru roboczego',
     emptyHelp: 'Utwórz obszar dla projektu, konta lub zadania agenta. Każdy obszar ma osobne dane witryn.',
     noArchived: 'Brak zarchiwizowanych obszarów',
@@ -3835,7 +3834,6 @@ export const plPL: MessageSchema = {
       lastUsed: 'Ostatnio używany {time}',
       open: 'Otwórz {name}',
       moreActions: 'Więcej działań: {name}',
-      newWorkspaceHelp: 'Własne karty i logowania',
       checks: {
         ok: 'Gotowe',
         failed: 'Wymaga uwagi',

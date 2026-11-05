@@ -138,7 +138,6 @@ export const enUS = {
     delete: 'Delete…',
     undo: 'Undo archive',
     archiveHelp: 'Archived workspaces keep their tabs and sign-ins. Restore one whenever you need it.',
-    openHelp: 'Archive finished work to keep this list tidy. Your tabs and sign-ins are kept.',
     empty: 'Your first workspace starts here',
     emptyHelp: 'Create a space for a project, account, or agent task. Each workspace has its own website data.',
     noArchived: 'No archived workspaces',
@@ -3833,7 +3832,6 @@ export const enUS = {
       lastUsed: 'Last used {time}',
       open: 'Open {name}',
       moreActions: 'More actions for {name}',
-      newWorkspaceHelp: 'Its own tabs and sign-ins',
       checks: {
         ok: 'Ready',
         failed: 'Needs attention',

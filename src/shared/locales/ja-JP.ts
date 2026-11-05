@@ -140,7 +140,6 @@ export const jaJP: MessageSchema = {
     delete: '削除…',
     undo: 'アーカイブを元に戻す',
     archiveHelp: 'アーカイブしたワークスペースのタブとログイン情報は保持されます。必要なときにいつでも復元できます。',
-    openHelp: '完了した作業をアーカイブすると、この一覧を整理できます。タブとログイン情報は保持されます。',
     empty: '最初のワークスペースはここから',
     emptyHelp: 'プロジェクト、アカウント、エージェントのタスクごとに作業場所を作成できます。各ワークスペースには独自のウェブサイト データがあります。',
     noArchived: 'アーカイブしたワークスペースはありません',
@@ -3835,7 +3834,6 @@ export const jaJP: MessageSchema = {
       lastUsed: '最終使用：{time}',
       open: '{name} を開く',
       moreActions: '{name} のその他の操作',
-      newWorkspaceHelp: '専用のタブとログイン情報',
       checks: {
         ok: '準備完了',
         failed: '要確認',

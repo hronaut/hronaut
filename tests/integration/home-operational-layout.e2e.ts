@@ -174,6 +174,74 @@ test('Home lists many live steps in the Agents view beside the agents and keeps 
   }
 })
 
+test('keeps a workspace card\'s open menu and the keyboard in it while its agent browses and moves the card first', async ({ electronApp, appWindow, mcpPort, mcpToken }) => {
+  const site = createServer((request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html', 'cache-control': 'no-store' })
+    response.end(`<!doctype html><title>Page ${request.url}</title><h1>${request.url}</h1>`)
+  })
+  await new Promise<void>(resolve => site.listen(0, '127.0.0.1', resolve))
+  const port = (site.address() as AddressInfo).port
+  const origin = `http://127.0.0.1:${port}`
+  const clients: Client[] = []
+  // Two agents, each in its own workspace.
+  const agentIn = async (workspace: string) => {
+    const client = new Client({ name: 'Codex', version: '1.0.0' })
+    clients.push(client)
+    await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), { requestInit: { headers: { authorization: `Bearer ${mcpToken}` } } }))
+    await connectMcpWorkspace(client, workspace, false)
+    return async (name: string, args: Record<string, unknown>): Promise<string> => {
+      const result = await client.callTool({ name, arguments: args }) as CallToolResult
+      const text = result.content.filter(part => part.type === 'text').map(part => part.text).join('\n')
+      expect(result.isError, text).not.toBe(true)
+      return text
+    }
+  }
+  try {
+    await expect.poll(async () => {
+      try { return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`, { headers: { authorization: `Bearer ${mcpToken}` } })).ok } catch { return false }
+    }).toBe(true)
+    const alpha = await agentIn('Alpha')
+    const tabId = (JSON.parse(await alpha('browser_new_tab', { url: `${origin}/alpha`, active: true })) as BrowserState).activeTabId!
+    const beta = await agentIn('Beta')
+    await beta('browser_new_tab', { url: `${origin}/beta`, active: true })
+    await appWindow.evaluate('window.hronaut.openHome()')
+    await expect.poll(() => electronApp.context().pages().some(page => page.url().startsWith('hronaut://home'))).toBe(true)
+    const home = electronApp.context().pages().find(page => page.url().startsWith('hronaut://home'))!
+    await home.getByRole('tab', { name: 'Workspaces', exact: true }).click()
+    const order = () => home.locator('.home-workspace-card').evaluateAll(cards => cards.map(card => card.getAttribute('aria-label'))
+      .filter(name => name === 'Alpha' || name === 'Beta'))
+    const card = home.getByRole('article', { name: 'Alpha', exact: true })
+    await expect(card).toContainText('Page /alpha')
+    await expect.poll(order).toEqual(['Beta', 'Alpha'])
+
+    await card.getByLabel('More actions for Alpha', { exact: true }).click()
+    const clear = card.getByRole('button', { name: 'Clear…', exact: true })
+    await clear.focus()
+    // Alpha's agent opens another page, which moves its workspace first; then a page on another site.
+    await alpha('browser_navigate', { tabId, url: `${origin}/alpha-2` })
+    await expect.poll(order).toEqual(['Alpha', 'Beta'])
+    await expect(card).toContainText('Page /alpha-2')
+    await expect(clear).toBeVisible()
+    await expect(clear).toBeFocused()
+    await alpha('browser_navigate', { tabId, url: `http://localhost:${port}/alpha-3` })
+    await expect(card.locator('.card-menu-note')).toHaveText('2 known websites')
+    await expect(clear).toBeFocused()
+    // Beta's agent moves its workspace first again, and Alpha's moves Alpha back.
+    await beta('browser_navigate', { url: `${origin}/beta-2` })
+    await expect.poll(order).toEqual(['Beta', 'Alpha'])
+    await alpha('browser_navigate', { tabId, url: `${origin}/alpha-4` })
+    await expect.poll(order).toEqual(['Alpha', 'Beta'])
+    await expect(card).toContainText('Page /alpha-4')
+    await expect(clear).toBeFocused()
+    await home.keyboard.press('Escape')
+    await expect(clear).toBeHidden()
+    await expect(card.getByLabel('More actions for Alpha', { exact: true })).toBeFocused()
+  } finally {
+    for (const client of clients) await client.close()
+    await closeFixtureServer(site)
+  }
+})
+
 test('Home keeps client setup accessible in a compact layout across themes and languages', async ({ electronApp, appWindow }, testInfo) => {
   const home = async <T>(source: string): Promise<T> => electronApp.evaluate(async ({ webContents }, script) => {
     const page = webContents.getAllWebContents().find(contents => contents.getURL().startsWith('hronaut://home'))
