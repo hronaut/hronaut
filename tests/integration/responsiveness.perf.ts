@@ -19,7 +19,7 @@ const LIMITS = {
   shellFirstPaintMs: 1_000, // before 352-432, now 272-336, CI 372
   shellHeapMB: 12, // before 15.1, now 8.3, CI 8.3
   clickToActiveTabP90Ms: 150, // before 63-117, now 41-59, CI 54
-  mainThreadMsPerAgentCall: 60, // before 42.5-44.4, now 25.3-26.0, CI pending
+  mainThreadMsPerAgentCall: 60, // before 42.5-44.4, now 24.5-26.0, CI not measured yet (about 40 at its 1.5x tool times)
   mainEventLoopLagP99Ms: 40, // before 40-56, now 9-12, CI 21
   shellBusyPercent: 80, // before 45-50, now 42-45, CI 36
   screenshotP50Ms: 400, // before 126-156, now 113-128, CI 183
