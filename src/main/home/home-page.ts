@@ -25,7 +25,7 @@ export function renderHomePage(options: HomePageOptions, assets = { script: '/ho
 <title>${h(home.title)}</title>${assets.styles.map(path => `<link rel="stylesheet" href="${h(path)}">`).join('')}</head>
 <body><main class="page">
 <header class="hero"><div class="hero-copy"><h1 id="home-view-title">${h(library.title)}</h1><p id="home-view-description" class="hero-description">${h(library.description)}</p></div>
-<div class="hero-status" aria-live="polite"><button type="button" id="server-state" class="status-label" data-open-view="agents"></button><details class="status-details"><summary>${h(data.messages.agentStatus.details)}</summary><div class="status-facts"><span id="server-detail" class="status-detail"></span><strong id="active-count" class="status-value"></strong><span id="request-count" class="status-detail"></span><div class="endpoint"><span class="endpoint-label">${h(home.endpoint)}</span><code id="endpoint">${h(options.endpoint)}</code>${copy('endpoint', home.copyUrl)}</div></div></details></div></header>
+<div class="hero-status" aria-live="polite"><button type="button" id="server-state" class="status-label" data-open-view="connected"></button><details class="status-details"><summary>${h(data.messages.agentStatus.details)}</summary><div class="status-facts"><span id="server-detail" class="status-detail"></span><strong id="active-count" class="status-value"></strong><span id="request-count" class="status-detail"></span><div class="endpoint"><span class="endpoint-label">${h(home.endpoint)}</span><code id="endpoint">${h(options.endpoint)}</code>${copy('endpoint', home.copyUrl)}</div></div></details></div></header>
 <section id="mcp-port-problem" class="panel port-problem" role="alert" hidden><p id="mcp-port-problem-text"></p><div class="port-problem-actions"><button type="button" id="mcp-port-use" hidden></button><span id="mcp-port-status" class="port-problem-status" aria-live="polite"></span></div></section>
 <section id="home-onboarding" class="panel onboarding" hidden aria-labelledby="onboarding-title">
 <h2 id="onboarding-title">${h(home.connect.heading)}</h2><p>${h(home.connect.description)}</p>
@@ -33,7 +33,7 @@ export function renderHomePage(options: HomePageOptions, assets = { script: '/ho
 <button class="workspace-primary" type="button" data-open-view="connect">${h(home.connect.heading)}</button></section>
 <nav class="home-navigation" role="tablist" aria-label="${h(home.navigation.label)}">
 ${(['tabs', 'workspaces', 'agents'] as const).map(view => `<button id="home-tab-${view}" type="button" role="tab" data-home-view="${view}" aria-selected="${view === 'workspaces'}" tabindex="${view === 'workspaces' ? 0 : -1}" aria-controls="home-${view === 'agents' ? 'agents-view' : view}">${h(view === 'tabs' ? tabs.heading : view === 'workspaces' ? library.title : home.navigation.agents)}</button>`).join('')}</nav>
-<div id="home-needs-you" class="needs-you-list" aria-live="polite" hidden></div>
+<div id="home-needs-you" class="needs-you-list" hidden></div><p id="workspace-error" role="alert" hidden></p>
 <section id="home-tabs" class="home-view" role="tabpanel" aria-labelledby="home-tab-tabs" hidden><div id="tabs-browse">
 <div class="tabs-toolbar"><div class="tabs-search"><label class="visually-hidden"
 for="tab-search">${h(tabs.search)}</label><input id="tab-search" type="search" role="searchbox" autocomplete="off" spellcheck="false"
@@ -51,7 +51,7 @@ hidden><kbd>Esc</kbd> <span id="tabs-hint-back-text"></span></span></footer></di
 <section id="tab-page-preview" class="tab-page-preview" aria-label="${h(tabs.pagePreview)}" hidden></section></section>
 <section id="home-workspaces" class="home-view" role="tabpanel" aria-labelledby="home-tab-workspaces">
 <div class="workspace-toolbar"><label class="search-field"><span class="visually-hidden">${h(library.search)}</span><input id="workspace-search" type="search" autocomplete="off" placeholder="${h(library.search)}" aria-controls="workspace-grid"></label><button type="button" class="workspace-primary" data-workspace-action="create">${h(data.messages.workspaceEditor.create)}</button><button type="button" data-workspace-action="templates">${h(data.messages.workspaceTemplates.title)}</button></div>
-<div class="workspace-feedback"><p id="workspace-notice" role="status"></p><button id="workspace-undo" type="button" hidden>${h(data.messages.undo.action)}</button></div><p id="workspace-error" role="alert" hidden></p>
+<div class="workspace-feedback"><p id="workspace-notice" role="status"></p><button id="workspace-undo" type="button" hidden>${h(data.messages.undo.action)}</button></div>
 <div class="workspace-collections" role="tablist" aria-label="${h(library.views)}"><button id="workspaces-open" type="button" role="tab" aria-selected="true" aria-controls="workspace-grid">${h(library.open)}</button><button id="workspaces-archived" type="button" role="tab" aria-selected="false" aria-controls="workspace-grid" tabindex="-1">${h(library.archived)}</button></div><p id="workspace-hint"></p><div id="workspace-grid" role="tabpanel" aria-labelledby="workspaces-open"></div></section>
 <section id="home-agents-view" class="home-view" role="tabpanel" aria-labelledby="home-tab-agents" hidden>
 <div class="workspace-collections agent-sections" role="tablist"

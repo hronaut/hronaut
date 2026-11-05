@@ -12,7 +12,7 @@ import type { HomeWorkspaceState } from '../src/shared/home-workspaces.js'
 import type { SupportedLocale } from '../src/shared/locale.js'
 import type { BrowserSavedTabGroupState, BrowserTabGroupState } from '../src/shared/types.js'
 
-/** Home's clock in every QA test: 10:00 local time, so the greeting is "Good morning" in any time zone. */
+/** Home's clock in every QA test: 10:00 local time in any time zone. */
 export const NOW = new Date(2026, 8, 13, 10, 0, 0).getTime()
 export const minutesAgo = (minutes: number): number => NOW - minutes * 60_000
 export const isoMinutesAgo = (minutes: number): string => new Date(minutesAgo(minutes)).toISOString()

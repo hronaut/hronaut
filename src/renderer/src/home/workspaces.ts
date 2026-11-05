@@ -116,12 +116,15 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
       words.className = 'needs-you-words'; words.textContent = interpolate(mission.needsYouIn, { name: item.name, workspace: item.workspace })
       const open = document.createElement('button')
       open.type = 'button'; open.dataset.workspaceAction = 'open'; open.dataset.workspaceId = item.id; open.textContent = messages.openWorkspace
+      // Each line's button says which workspace it opens, as a card's and an agent's do.
+      open.setAttribute('aria-label', interpolate(mission.open, { name: item.workspace }))
       line.append(dot, words, open)
       return line
     }))
     needsYou.hidden = !waiting.length
     const again = [...needsYou.querySelectorAll<HTMLElement>('[data-workspace-id]')].find(button => button.dataset.workspaceId === focused)
-    if (focused) again?.focus({ preventScroll: true })
+    // The line the person was on went once its agent stopped waiting: the view's own tab keeps the keyboard on Home.
+    if (focused) (again ?? document.querySelector<HTMLElement>('.home-navigation [aria-selected="true"]'))?.focus({ preventScroll: true })
   }
   function render(): void {
     renderNeedsYou()
@@ -221,9 +224,11 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
       if (generation === revision && !signal.aborted) {
         pending = false
         render()
-        // A card that went away took focus with it: keep the person in the list, on Undo when it is offered.
+        // A card that went away took focus with it: keep the person in the list, on Undo when it is offered, or on the
+        // view's own tab when the action came from another view.
         const stayed = places.some(place => place.contains(document.activeElement))
-        if (!stayed && 'workspaceId' in request) (undo.hidden ? search : undo).focus({ preventScroll: true })
+        const fallback = root.hidden ? document.querySelector<HTMLElement>('.home-navigation [aria-selected="true"]') : undo.hidden ? search : undo
+        if (!stayed && 'workspaceId' in request) fallback?.focus({ preventScroll: true })
       }
     }
   }

@@ -342,6 +342,23 @@ describe('One header for every view (HRO-65)', () => {
     expect(words(byId('home-view-description'))).toBe(summary)
   })
 
+  // One workspace read "1 abiertos" in Spanish.
+  it.each([
+    ['es-ES', '1 abierto · 1 archivado', '2 abiertos · 2 archivados'],
+    ['fr-FR', '1 ouvert · 1 archivé', '2 ouverts · 2 archivés'],
+    ['it-IT', '1 aperta · 1 archiviata', '2 aperte · 2 archiviate'],
+    ['pt-BR', '1 aberto · 1 arquivado', '2 abertos · 2 arquivados']
+  ] as const)('counts one workspace and several in %s', async (locale, one, two) => {
+    const archived = (id: string) => archivedWorkspace(openWorkspace(id, { name: `Old ${id}` }))
+    const home = mountTestHome({ locale, workspaces: inventory({ mcpTabGroups: [docs], savedTabGroups: [archived('a')] }) })
+    await flush()
+    expect(words(byId('home-view-description'))).toBe(one)
+    home.setWorkspaces(inventory({ savedTabGroups: [archived('a'), archived('b')] }))
+    await home.page.refresh()
+    await flush()
+    expect(words(byId('home-view-description'))).toBe(two)
+  })
+
   it('counts again when a workspace is archived', async () => {
     const home = mountTestHome({ workspaces: inventory() })
     await flush()
@@ -428,7 +445,28 @@ describe('Agents view (HRO-65)', () => {
     await flush()
     byId<HTMLButtonElement>('server-state').click()
     expect(shown()).toEqual(['home-agents-view', 'home-connected'])
-    expect(document.activeElement).toBe(byId('home-tab-agents'))
+    expect(document.activeElement).toBe(byId('agents-section-connected'))
+  })
+
+  // Every way into setup showed Connect an agent last, so the status and the Agents tab kept opening the setup guide.
+  it('opens on the connected agents, not on connecting one, once an agent is connected', async () => {
+    const home = mountTestHome({ workspaces: inventory() })
+    await flush()
+    byId<HTMLButtonElement>('home-tab-agents').click()
+    expect(shown()).toEqual(['home-agents-view', 'home-connect'])
+    byId<HTMLButtonElement>('home-tab-workspaces').click()
+    home.show({ ...baseDashboard, agents })
+    await flush()
+    byId<HTMLButtonElement>('home-tab-agents').click()
+    expect(shown()).toEqual(['home-agents-view', 'home-connected'])
+    byId<HTMLButtonElement>('agents-section-connect').click()
+    byId<HTMLButtonElement>('home-tab-tabs').click()
+    byId<HTMLButtonElement>('server-state').click()
+    expect(shown()).toEqual(['home-agents-view', 'home-connected'])
+    byId<HTMLButtonElement>('agents-section-connect').click()
+    byId<HTMLButtonElement>('home-tab-tabs').click()
+    byId<HTMLButtonElement>('home-tab-agents').click()
+    expect(shown()).toEqual(['home-agents-view', 'home-connected'])
   })
 })
 
@@ -441,6 +479,7 @@ describe('Needs-you line (HRO-65)', () => {
     await flush()
     expect(byId('home-needs-you').hidden).toBe(false)
     expect(lines().map(line => [words(query('.needs-you-words', line)), words(query('button', line))])).toEqual([['Claude Code needs you in Acme Store', 'Open workspace']])
+    expect(byId('home-needs-you').hasAttribute('aria-live')).toBe(false)
     for (const view of ['tabs', 'agents', 'workspaces']) {
       byId<HTMLButtonElement>(`home-tab-${view}`).click()
       expect(byId('home-needs-you').hidden).toBe(false)
@@ -470,6 +509,42 @@ describe('Needs-you line (HRO-65)', () => {
     await flush()
     expect(query('#home-needs-you button')).toBe(button)
     expect(document.activeElement).toBe(button)
+  })
+
+  it('names the workspace each line\'s button opens', async () => {
+    mountTestHome({ workspaces: inventory(), dashboard: { ...baseDashboard, agents, workspaceActivity: { shop: activity('needs-you', 'claude', 'askYou'), docs: activity('needs-you', 'codex', 'askYou') } } })
+    await flush()
+    expect(lines().map(line => query('button', line).getAttribute('aria-label'))).toEqual(['Open Acme Store', 'Open Docs'])
+  })
+
+  it('gives the keyboard to the view\'s tab when the line it was on goes', async () => {
+    const live = { ...baseDashboard, agents, workspaceActivity: { shop: activity('needs-you', 'claude', 'askYou') } }
+    const home = mountTestHome({ workspaces: inventory(), dashboard: live })
+    await flush()
+    byId<HTMLButtonElement>('home-tab-tabs').click()
+    query<HTMLButtonElement>('#home-needs-you button').focus()
+    home.show({ ...live, workspaceActivity: { shop: activity('working', 'claude') } })
+    await flush()
+    expect(byId('home-needs-you').hidden).toBe(true)
+    expect(document.activeElement).toBe(byId('home-tab-tabs'))
+  })
+
+  // The error line sat in the Workspaces view, so a workspace that went away while it was opened from another view said
+  // nothing, and focus went to a field hidden with that view.
+  it('says why a workspace did not open from another view, and keeps the keyboard on that view', async () => {
+    const workspaceAction = vi.fn().mockRejectedValue(new Error('Workspace is no longer available.'))
+    mountTestHome({ workspaces: inventory(), api: { workspaceAction }, dashboard: { ...baseDashboard, agents, workspaceActivity: { shop: activity('needs-you', 'claude', 'askYou') } } })
+    await flush()
+    byId<HTMLButtonElement>('home-tab-agents').click()
+    const open = query<HTMLButtonElement>('#home-needs-you button')
+    open.focus()
+    open.click()
+    await flush()
+    const error = byId('workspace-error')
+    expect(byId('home-workspaces').contains(error)).toBe(false)
+    expect(error.hidden).toBe(false)
+    expect(words(error)).toBe('Workspace is no longer available.')
+    expect(byId('home-agents-view').hidden).toBe(false)
   })
 
   it('says nothing about an archived workspace', async () => {

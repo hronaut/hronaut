@@ -444,13 +444,15 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
   const savedView = remember('hronaut.home.view.v2')
   if (isView(savedView)) selectedView = savedView
   // Agents opens on the section last shown there; at first, on the connected agents once one is, else on connecting one.
+  // Connecting one is a task, so once an agent is connected Agents opens on the connected agents instead.
   let agentView: AgentView | null = null
   const savedAgentView = remember('hronaut.home.agents.view')
   if (isAgentView(savedAgentView)) agentView = savedAgentView
   const tabs = mountTabs(data, api, signal, () => { if (selectedView === 'tabs') renderHeading() })
   /** Shows a view, or Agents on its last section. Focus goes to the tab chosen: Agents' own, or the section's. */
   function selectView(target: View | 'agents', focus = false): void {
-    const view: View = target === 'agents' ? agentView ?? (connectedAgents().length ? 'connected' : 'connect') : target
+    const connected = connectedAgents().length > 0
+    const view: View = target !== 'agents' ? target : agentView && !(agentView === 'connect' && connected) ? agentView : connected ? 'connected' : 'connect'
     const section = sectionOf(view)
     selectedView = view
     if (isAgentView(view)) { agentView = view; remember('hronaut.home.agents.view', view) }

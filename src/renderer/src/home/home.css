@@ -73,7 +73,7 @@ h2 { font-size: var(--type-title-size); font-weight: 600; line-height: 1.4; lett
 /* An agent waiting for the person: one amber line over whichever view shows, with the way to its workspace. */
 .needs-you-list { display: grid; gap: 8px; margin: -8px 0 20px; }
 .needs-you-line { display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 6px 6px 6px 14px; border: 1px solid color-mix(in srgb, var(--needs-you) 45%, var(--border)); border-radius: var(--corner-2); background: color-mix(in srgb, var(--needs-you) 10%, var(--panel)); }
-.needs-you-words { flex: 1; min-width: 0; overflow: hidden; color: var(--text); font-size: var(--type-body-size); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.needs-you-words { flex: 1; min-width: 0; color: var(--text); font-size: var(--type-body-size); font-weight: 600; overflow-wrap: anywhere; }
 .needs-you-line button { flex: none; min-height: 32px; padding: 6px 12px; border: 1px solid var(--needs-you); border-radius: var(--corner-2); color: var(--text); background: var(--panel); font-size: var(--type-small-size); font-weight: 600; }
 .needs-you-line button:hover { background: color-mix(in srgb, var(--needs-you) 16%, var(--panel)); }
 .agent-sections { margin-bottom: 20px; }
@@ -237,7 +237,8 @@ pre { min-height: 88px; margin: 0; padding: 16px 74px 16px 16px; overflow: auto;
 .workspace-toolbar input[type=search], .workspace-toolbar > button { height: 40px; }
 .workspace-toolbar button, .home-workspace-card button, #workspace-undo { min-height: 38px; padding: 8px 13px; border: 1px solid var(--border); border-radius: var(--corner-2); background: var(--panel); font-size: var(--type-body-size); font-weight: 600; }
 .workspace-primary { background: var(--accent) !important; color: var(--button-text) !important; border-color: transparent !important; }
-.workspace-collections { display: flex; gap: 6px; border-bottom: 1px solid var(--border); }
+.workspace-collections { display: flex; gap: 6px; overflow-x: auto; overflow-y: hidden; border-bottom: 1px solid var(--border); scrollbar-width: thin; }
+.workspace-collections button { flex: none; }
 .workspace-collections button { padding: 12px 18px; border: 0; background: transparent; border-bottom: 2px solid transparent; color: var(--muted); font-weight: 600; }
 .workspace-collections button[aria-selected=true] { color: var(--accent); border-bottom-color: var(--accent); }
 #workspace-hint { color: var(--muted); font-size: var(--type-body-size); margin: 16px 0; }
@@ -292,7 +293,7 @@ pre { min-height: 88px; margin: 0; padding: 16px 74px 16px 16px; overflow: auto;
 .new-workspace-tile:hover:not(:disabled) { border-color: var(--accent); color: var(--text); }
 .workspace-empty { grid-column: 1 / -1; padding: 50px 20px; text-align: center; color: var(--muted); border: 1px dashed var(--border); border-radius: var(--corner-3); }
 .workspace-empty h2 { font-size: var(--type-heading-size); color: var(--text); }
-#workspace-error { color: var(--danger); }
+#workspace-error { margin: -8px 0 16px; color: var(--danger); }
 .workspace-feedback { display: flex; align-items: center; gap: 12px; font-size: var(--type-body-size); color: var(--accent-2); }
 @media (max-width: 760px) { .workspace-toolbar .search-field { flex-basis: 100%; } .workspace-toolbar > button { flex: 1; } }
 /* The connected agents beside their live activity; the activity moves under them on narrower windows. */
