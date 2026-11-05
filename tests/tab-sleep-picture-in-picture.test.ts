@@ -56,7 +56,7 @@ function manager(tabs: FakeTab[]) {
     screenshotAreaSessions: new Map(),
     elementPickerSessions: new Map(),
     agentInputWebContents: new Map(),
-    videoRecorder: { state: () => ({ status: 'idle' }) },
+    videoRecorder: { status: () => 'idle' },
     cssStatePreview: none,
     domMutationSource: none,
     virtualPasskeys: none,

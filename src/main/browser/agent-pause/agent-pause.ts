@@ -107,9 +107,15 @@ export function isTabAgentPaused(browser: Browser, tabId: string): boolean {
     : tab.tabAgentPaused
 }
 
-/** Whether the agent may not act in some tab now, read from the browser state as it is now (see browserState). */
+/**
+ * Whether the agent may not act in some tab now. Every agent call asks, so it reads the tabs' pauses alone: building
+ * every tab's state to read one field took a good part of main's time under agents.
+ */
 export function hasPausedAgentTab(browser: Browser): boolean {
-  return browserState(browser).tabs.some((tab) => isTabAgentPaused(browser, tab.id))
+  for (const tabId of browser.tabs.keys()) {
+    if (isTabAgentPaused(browser, tabId)) return true
+  }
+  return false
 }
 
 /** Whether any tab is resumed as an exception to a global pause. */

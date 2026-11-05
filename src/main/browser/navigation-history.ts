@@ -34,8 +34,16 @@ export function safeNavigationHistorySnapshot(
 }
 
 /**
- * Whether the tab can go Back and Forward, read without its history's pages: the state is built many times a second
- * while pages load, and reading every tab's whole history took a good part of it. The sleeping page is none to go to.
+ * Each tab's Back and Forward, with where its history stood when they were read: the place shown, the number of pages
+ * and the tab's navigations and documents. A page Electron reads comes with its saved state, so reading them again for
+ * each tab in each state built took a good part of main's time under agents.
+ */
+const navigationButtonsRead = new WeakMap<BrowserTab, { at: string; buttons: { canGoBack: boolean; canGoForward: boolean } }>()
+
+/**
+ * Whether the tab can go Back and Forward, read from the pages next to the one shown until one is not the sleeping
+ * page, which is none to go to: the state is built many times a second while pages load. A history that has not moved
+ * since is not read again; a page added, removed or gone to, in the same document too, moves it.
  */
 export function navigationButtons(tab: BrowserTab): { canGoBack: boolean; canGoForward: boolean } {
   const history = tab.sleepNavigationHistory
@@ -45,13 +53,18 @@ export function navigationButtons(tab: BrowserTab): { canGoBack: boolean; canGoF
     const navigation = tab.webContents.navigationHistory
     const shown = navigation.getActiveIndex()
     const length = navigation.length()
+    const at = `${shown}:${length}:${tab.navigationGeneration}:${tab.documentGeneration}`
+    const read = navigationButtonsRead.get(tab)
+    if (read?.at === at) return read.buttons
     const pageTo = (step: number): boolean => {
       for (let index = shown + step; index >= 0 && index < length; index += step) {
         if (navigation.getEntryAtIndex(index)?.url !== SLEEPING_PAGE_URL) return true
       }
       return false
     }
-    return shown < 0 ? { canGoBack: false, canGoForward: false } : { canGoBack: pageTo(-1), canGoForward: pageTo(1) }
+    const buttons = shown < 0 ? { canGoBack: false, canGoForward: false } : { canGoBack: pageTo(-1), canGoForward: pageTo(1) }
+    navigationButtonsRead.set(tab, { at, buttons })
+    return buttons
   } catch {
     // Electron can destroy the page between the calls.
     return { canGoBack: false, canGoForward: false }

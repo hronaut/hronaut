@@ -40,7 +40,7 @@ function sleepBrowser(tabs: Array<ReturnType<typeof websiteTab>>) {
     screenshotAreaSessions: new Map(),
     elementPickerSessions: new Map(),
     agentInputWebContents: new Map(),
-    videoRecorder: { state: () => ({ status: 'idle' }) },
+    videoRecorder: { status: () => 'idle' },
     cssStatePreview: { active: () => false },
     domMutationSource: { active: () => false },
     virtualPasskeys: { active: () => false },

@@ -410,7 +410,7 @@ export function sleepBlockReason(browser: Browser, tab: BrowserTab, allowActiveT
   ) {
     return 'appErrors.sleep.interaction'
   }
-  if (browser.videoRecorder.state(tab.id).status === 'recording') return 'appErrors.sleep.video'
+  if (browser.videoRecorder.status(tab.id) === 'recording') return 'appErrors.sleep.video'
   if (tab.reproRecording?.active) return 'appErrors.sleep.repro'
   if (tab.domChangesRecording?.active) return 'appErrors.sleep.domChanges'
   if (liveRegionRecordingKeepsTabAwake(tab)) return 'appErrors.sleep.liveRegion'

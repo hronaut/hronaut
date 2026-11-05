@@ -51,6 +51,11 @@ export class BrowserVideoRecorder {
   private readonly now: () => number
   constructor(private readonly host: VideoRecorderHost) { this.now = host.now ?? (() => performance.now()) }
 
+  /** The tab's recording status alone, which every browser state built reads: the whole state is a deep copy. */
+  status(tabId: string): BrowserVideoState['status'] {
+    return this.recordings.get(tabId)?.state.status ?? 'idle'
+  }
+
   state(tabId: string): BrowserVideoState {
     const r = this.recordings.get(tabId)
     const state = r?.state ?? { tabId, status: 'idle', durationMs: 0, width: 0, height: 0, frameCount: 0, bytes: 0, annotations: [], clips: [], audio: [], cameras: [], audioAssets: [...VIDEO_AUDIO_BUILTINS], previewReady: false }

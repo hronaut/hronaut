@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Agent calls build less of the browser's state, so Hronaut's window pauses less while several agents work, and their snapshots and screenshots answer sooner.
+
 ### Fixed
 
 - A held Ctrl+J (Cmd+Option+L on macOS) now opens or closes Downloads once, as in Chrome, and a held Shift+Esc opens the Task manager once. Each repeat the page or Hronaut's window left alone opened or closed them again, so they ended open or closed by chance.
