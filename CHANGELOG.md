@@ -8,6 +8,7 @@ All notable changes to Hronaut are documented in this file.
 
 - Agent calls build less of the browser's state, so Hronaut's window pauses less while several agents work, and their snapshots and screenshots answer sooner.
 - Screenshots agents take are made into PNG images in a background thread rather than in the process that runs Hronaut's window, so the window pauses less while several agents work.
+- Hronaut Home has three views instead of five: Tabs, Workspaces and Agents. Agents holds the connected agents with their live activity, connecting an agent, the overview and the tool library, and the agent status at the top opens it. Each view is headed by its name and what it holds, with no greeting, and an agent waiting for you is named on one line above every view, with a button that opens its workspace. Workspaces take the whole width.
 
 ### Fixed
 

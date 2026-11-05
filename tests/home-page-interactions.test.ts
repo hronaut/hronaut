@@ -202,7 +202,7 @@ describe('Home setup journey', () => {
   it('updates Cyberpunk Turbo from local status without losing the current setup focus', () => {
     const page = mount()
     // Only the view on screen can take focus.
-    button('[data-home-view="connect"]').click()
+    button('#agents-section-connect').click()
     const guide = button('[data-guide="opencode"]')
     guide.focus()
     const themedState = { ...state, theme: 'cyberpunk-turbo' as const }
@@ -241,7 +241,7 @@ describe('Home setup journey', () => {
   it('filters guides without losing focus or replacing the selected guide and recovers from no results', () => {
     const home = mount()
     // Only the view on screen can take focus.
-    button('[data-home-view="connect"]').click()
+    button('#agents-section-connect').click()
     const search = document.querySelector<HTMLInputElement>('#agent-search')!
     search.focus()
     search.value = 'qwen'
@@ -263,32 +263,34 @@ describe('Home setup journey', () => {
 
   it('keeps the selected view and focus when new activity arrives', () => {
     const home = mount()
-    button('[data-home-view="connect"]').click()
+    button('#agents-section-connect').click()
     const guide = button('[data-guide="opencode"]')
     guide.focus()
     home.update({ ...state, clients: [{ name: 'Example agent', version: '1', lastSeenAt: '2026-09-04T12:00:00.000Z', activeRequests: 0, requestCount: 1 }] })
     expect(document.querySelector<HTMLElement>('#home-connect')?.hidden).toBe(false)
     expect(document.activeElement).toBe(guide)
     expect(document.querySelector('#connection-note')?.textContent).toContain('A client has been seen')
-    button('[data-home-view="overview"]').click()
+    button('#agents-section-overview').click()
     expect(document.querySelector<HTMLElement>('#home-connect')?.hidden).toBe(true)
     expect(document.querySelector<HTMLElement>('#home-overview')?.hidden).toBe(false)
   })
 
   it('remembers a view, accepts only known destinations, and supports roving keyboard navigation', () => {
     mount()
-    button('[data-home-view="overview"]').click()
+    button('#agents-section-overview').click()
     mount()
     expect(document.querySelector<HTMLElement>('#home-overview')?.hidden).toBe(false)
-    const overview = button('[data-home-view="overview"]')
+    const overview = button('#agents-section-overview')
     overview.focus()
     overview.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
-    expect(button('[data-home-view="tools"]')).toBe(document.activeElement)
-    expect(button('[data-home-view="tools"]').getAttribute('aria-selected')).toBe('true')
+    expect(button('#agents-section-tools')).toBe(document.activeElement)
+    expect(button('#agents-section-tools').getAttribute('aria-selected')).toBe('true')
     expect(document.querySelector<HTMLElement>('#home-tools')?.hidden).toBe(false)
-    expect(button('[data-home-view="overview"]').tabIndex).toBe(-1)
-    // Home goes to the first section, Tabs; the default section is still Workspaces.
-    button('[data-home-view="tools"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }))
+    expect(button('#agents-section-overview').tabIndex).toBe(-1)
+    // Home goes to the first tab of its own list: the connected agents among Agents' sections, Tabs among the views.
+    button('#agents-section-tools').dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }))
+    expect(document.querySelector<HTMLElement>('#home-connected')?.hidden).toBe(false)
+    button('#home-tab-agents').dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }))
     expect(document.querySelector<HTMLElement>('#home-tabs')?.hidden).toBe(false)
     expect(document.querySelector<HTMLElement>('#home-workspaces')?.hidden).toBe(true)
     window.localStorage.setItem('hronaut.home.view.v2', '<invalid>')
@@ -331,7 +333,7 @@ describe('Home setup journey', () => {
   it('restores catalog order after clearing search without replacing retained cards', () => {
     const home = mount()
     // Only the view on screen can take focus.
-    button('[data-home-view="tools"]').click()
+    button('#agents-section-tools').click()
     const tools: McpDashboardState['tools'] = [
       { name: 'browser_navigate', category: 'Navigation', description: 'Open a page' },
       { name: 'browser_click', category: 'Interaction', description: 'Click an element' }
@@ -352,7 +354,7 @@ describe('Home setup journey', () => {
   it('reorders refreshed tools and updates labels while retaining expanded focus and literal text', () => {
     const home = mount()
     // Only the view on screen can take focus.
-    button('[data-home-view="tools"]').click()
+    button('#agents-section-tools').click()
     const tools: McpDashboardState['tools'] = [
       { name: 'browser_navigate', category: 'Navigation', description: 'Open a page' },
       { name: 'browser_click<img src=x>', category: 'Interaction', description: '<b>Literal description</b>' }
@@ -375,7 +377,7 @@ describe('Home setup journey', () => {
   it('preserves an expanded tool and keyboard focus while activity updates', () => {
     const home = mount()
     // Only the view on screen can take focus.
-    button('[data-home-view="tools"]').click()
+    button('#agents-section-tools').click()
     const next: McpDashboardState = { ...state, tools: [{ name: 'browser_navigate', category: 'Navigation', description: 'Open a page' }] }
     home.update(next)
     const entry = document.querySelector<HTMLDetailsElement>('#tool-grid details')!
@@ -772,7 +774,7 @@ describe('Home tool-reference search terms', () => {
   it('retains matching expanded cards, focus and query through dashboard updates and restores catalog order on clear', () => {
     const home = mount()
     // Only the view on screen can take focus.
-    button('[data-home-view="tools"]').click()
+    button('#agents-section-tools').click()
     home.update({ ...state, tools })
     const retained = document.querySelector<HTMLDetailsElement>('[data-tool="browser_network_request"]')!
     retained.open = true

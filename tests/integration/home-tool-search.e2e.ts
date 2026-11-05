@@ -11,7 +11,7 @@ test('searches Home tool-reference words across tool metadata without losing ret
       const query = ${JSON.stringify(query)};
       const search = document.querySelector('#tool-search');
       if (query !== null) {
-        document.querySelector('[data-home-view="tools"]').click();
+        document.querySelector('#agents-section-tools').click();
         search.focus(); search.value = query;
         search.dispatchEvent(new Event('input', { bubbles: true }));
       }

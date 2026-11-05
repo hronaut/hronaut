@@ -121,10 +121,11 @@ export const zhTW: MessageSchema = {
     protectDeletion: '防止刪除',
     protectionDescription: '防止使用者和代理程式永久刪除。仍可封存。',
     title: '工作區',
-    heading: '每個專案都有專屬空間',
     description: '將專案和登入資訊分別放在獨立的瀏覽器空間中，隨時從上次中斷的地方繼續。',
     open: '開啟中',
     archived: '已封存',
+    openCount: '{count} 個開啟中',
+    archivedCount: '{count} 個已封存',
     search: '搜尋工作區或分頁',
     views: '工作區檢視',
     current: '目前',
@@ -3813,7 +3814,8 @@ export const zhTW: MessageSchema = {
       label: '首頁區段',
       overview: '總覽',
       connect: '連結代理程式',
-      tools: '工具庫'
+      tools: '工具庫',
+      agents: '代理程式'
     },
     agentList: {
       connect: '連結',
@@ -3824,15 +3826,10 @@ export const zhTW: MessageSchema = {
       connected: '連線時間：{time}'
     },
     mission: {
-      greeting: {
-        morning: '早安',
-        afternoon: '午安',
-        evening: '晚安'
-      },
       agentsConnected: '已連線 {count} 個代理程式。',
-      workspacesNeedYou: '{count} 個工作區需要你處理。',
       agents: '已連線的代理程式',
       needsYou: '{name} 需要你處理',
+      needsYouIn: '{name} 在 {workspace} 中需要你處理',
       step: '{name} · {step}',
       lastStep: '{name} · {step} · {time}',
       lastUsed: '上次使用時間：{time}',
@@ -3980,7 +3977,6 @@ export const zhTW: MessageSchema = {
       copy: '複製提示'
     },
     activity: {
-      heading: '代理程式活動',
       description: '這次啟動期間 Hronaut 處理過的工作，以不含內容的方式在本機呈現。',
       tabActionsCompleted: '已完成的分頁動作',
       toolsUsed: '使用的工具',

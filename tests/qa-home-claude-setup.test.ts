@@ -56,7 +56,7 @@ const panel = () => ({
   preview: !byId('claude-setup-preview').hidden
 })
 // The guides and the setup panel are on the Connect view; only the view on screen can take focus.
-const openConnect = () => byId<HTMLButtonElement>('home-tab-connect').click()
+const openConnect = () => byId<HTMLButtonElement>('agents-section-connect').click()
 const startButton = () => byId<HTMLButtonElement>('claude-setup-start')
 const applyButton = () => byId<HTMLButtonElement>('claude-setup-apply')
 const command = () => byId('guide-code').closest('pre')!
@@ -104,7 +104,7 @@ describe('Agents found on this computer (#874)', () => {
     const bridge = setupBridge(setupState('not-configured', ['opencode']))
     bridge.hold()
     await mountSetup(bridge)
-    byId<HTMLButtonElement>('home-tab-connect').click()
+    byId<HTMLButtonElement>('agents-section-connect').click()
     bridge.held[0]!.resolve(setupState('not-configured', ['opencode']))
     await flush()
     expect(words(byId('guide-name'))).toBe('Codex')

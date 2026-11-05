@@ -26,7 +26,7 @@ test('listener startup preserves the initialized Home document and setup draft',
     // Wait for the intercepted boundary, rather than treating that UI state as it.
     await expect.poll(() => app.evaluate(() => typeof (globalThis as typeof globalThis & { __completeMcpStartup?: () => void }).__completeMcpStartup)).toBe('function')
     await home(`
-      document.querySelector('[data-home-view="connect"]').click();
+      document.querySelector('#agents-section-connect').click();
       const search = document.getElementById('agent-search');
       search.focus(); search.value = 'codex'; search.dispatchEvent(new Event('input'));
       window.__startupDocument = 'before-ready';

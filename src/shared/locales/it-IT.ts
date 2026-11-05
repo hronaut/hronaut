@@ -121,10 +121,11 @@ export const itIT: MessageSchema = {
     protectDeletion: 'Proteggi dall’eliminazione',
     protectionDescription: 'Impedisci l’eliminazione definitiva da parte di persone e agenti. L’archiviazione resta disponibile.',
     title: 'Aree di lavoro',
-    heading: 'Uno spazio per ogni progetto',
     description: 'Tieni progetti e accessi in spazi del browser separati. Riprendi da dove avevi interrotto.',
     open: 'Aperte',
     archived: 'Archiviate',
+    openCount: '{count} aperta | {count} aperte',
+    archivedCount: '{count} archiviata | {count} archiviate',
     search: 'Cerca aree di lavoro o schede',
     views: 'Visualizzazioni delle aree di lavoro',
     current: 'Attuale',
@@ -3813,7 +3814,8 @@ export const itIT: MessageSchema = {
       label: 'Sezioni della Home',
       overview: 'Panoramica',
       connect: 'Connetti un agente',
-      tools: 'Libreria di strumenti'
+      tools: 'Libreria di strumenti',
+      agents: 'Agenti'
     },
     agentList: {
       connect: 'Connetti',
@@ -3824,15 +3826,10 @@ export const itIT: MessageSchema = {
       connected: 'connesso {time}'
     },
     mission: {
-      greeting: {
-        morning: 'Buongiorno',
-        afternoon: 'Buon pomeriggio',
-        evening: 'Buonasera'
-      },
       agentsConnected: '{count} agente connesso. | {count} agenti connessi.',
-      workspacesNeedYou: '{count} area di lavoro richiede il tuo intervento. | {count} aree di lavoro richiedono il tuo intervento.',
       agents: 'Agenti connessi',
       needsYou: '{name} ha bisogno di te',
+      needsYouIn: '{name} ha bisogno di te in {workspace}',
       step: '{name} · {step}',
       lastStep: '{name} · {step} · {time}',
       lastUsed: 'Ultimo utilizzo {time}',
@@ -3980,7 +3977,6 @@ export const itIT: MessageSchema = {
       copy: 'Copia prompt'
     },
     activity: {
-      heading: 'Attività degli agenti',
       description: 'Una vista locale, senza contenuti, di ciò che Hronaut ha gestito durante questo avvio.',
       tabActionsCompleted: 'Azioni sulle schede completate',
       toolsUsed: 'Strumenti usati',

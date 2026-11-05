@@ -121,10 +121,11 @@ export const ukUA: MessageSchema = {
     protectDeletion: 'Захистити від видалення',
     protectionDescription: 'Заборонити остаточне видалення людьми й агентами. Архівування залишається доступним.',
     title: 'Робочі простори',
-    heading: 'Місце для кожного проєкту',
     description: 'Розділяйте проєкти та облікові записи в окремих просторах браузера. Продовжуйте з того місця, де зупинилися.',
     open: 'Відкриті',
     archived: 'Архів',
+    openCount: 'Відкрито: {count}',
+    archivedCount: 'В архіві: {count}',
     search: 'Пошук просторів або вкладок',
     views: 'Перегляди робочих просторів',
     current: 'Поточний',
@@ -3813,7 +3814,8 @@ export const ukUA: MessageSchema = {
       label: 'Розділи головної',
       overview: 'Огляд',
       connect: 'Підключити агента',
-      tools: 'Бібліотека інструментів'
+      tools: 'Бібліотека інструментів',
+      agents: 'Агенти'
     },
     agentList: {
       connect: 'Підключити',
@@ -3824,15 +3826,10 @@ export const ukUA: MessageSchema = {
       connected: 'підключено {time}'
     },
     mission: {
-      greeting: {
-        morning: 'Доброго ранку',
-        afternoon: 'Добрий день',
-        evening: 'Добрий вечір'
-      },
       agentsConnected: '{count} агент підключений. | {count} агенти підключені. | {count} агентів підключено.',
-      workspacesNeedYou: '{count} простір чекає на вас. | {count} простори чекають на вас. | {count} просторів чекають на вас.',
       agents: 'Підключені агенти',
       needsYou: '{name} чекає на вас',
+      needsYouIn: '{name} чекає на вас у «{workspace}»',
       step: '{name} · {step}',
       lastStep: '{name} · {step} · {time}',
       lastUsed: 'Востаннє: {time}',
@@ -3980,7 +3977,6 @@ export const ukUA: MessageSchema = {
       copy: 'Копіювати запит'
     },
     activity: {
-      heading: 'Активність агентів',
       description: 'Локальний перегляд без вмісту того, що Hronaut опрацював під час цього запуску.',
       tabActionsCompleted: 'Виконані дії з вкладками',
       toolsUsed: 'Використані інструменти',

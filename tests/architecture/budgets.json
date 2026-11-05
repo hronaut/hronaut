@@ -348,7 +348,7 @@
     "src/renderer/src/home/activity-feed.ts": 1,
     "src/renderer/src/home/agent-list.ts": 3,
     "src/renderer/src/home/claude-setup.ts": 1,
-    "src/renderer/src/home/controller.ts": 22,
+    "src/renderer/src/home/controller.ts": 19,
     "src/renderer/src/home/workspace-card.ts": 1,
     "src/renderer/src/home/workspaces.ts": 9,
     "src/renderer/src/stores/settings.ts": 1,

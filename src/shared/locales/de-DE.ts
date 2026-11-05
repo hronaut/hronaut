@@ -121,10 +121,11 @@ export const deDE: MessageSchema = {
     protectDeletion: 'Vor Löschen schützen',
     protectionDescription: 'Verhindert endgültiges Löschen durch Menschen und Agenten. Archivieren bleibt möglich.',
     title: 'Arbeitsbereiche',
-    heading: 'Ein Platz für jedes Projekt',
     description: 'Trennen Sie Projekte und Anmeldungen in eigenen Browserbereichen. Machen Sie dort weiter, wo Sie aufgehört haben.',
     open: 'Geöffnet',
     archived: 'Archiviert',
+    openCount: '{count} geöffnet',
+    archivedCount: '{count} archiviert',
     search: 'Arbeitsbereiche oder Tabs suchen',
     views: 'Arbeitsbereichsansichten',
     current: 'Aktuell',
@@ -3813,7 +3814,8 @@ export const deDE: MessageSchema = {
       label: 'Startbereiche',
       overview: 'Übersicht',
       connect: 'Agent verbinden',
-      tools: 'Werkzeugbibliothek'
+      tools: 'Werkzeugbibliothek',
+      agents: 'Agenten'
     },
     agentList: {
       connect: 'Verbinden',
@@ -3824,15 +3826,10 @@ export const deDE: MessageSchema = {
       connected: '{time} verbunden'
     },
     mission: {
-      greeting: {
-        morning: 'Guten Morgen',
-        afternoon: 'Guten Tag',
-        evening: 'Guten Abend'
-      },
       agentsConnected: '{count} Agent verbunden. | {count} Agenten verbunden.',
-      workspacesNeedYou: '{count} Arbeitsbereich wartet auf Sie. | {count} Arbeitsbereiche warten auf Sie.',
       agents: 'Verbundene Agenten',
       needsYou: '{name} wartet auf Sie',
+      needsYouIn: '{name} wartet in {workspace} auf Sie',
       step: '{name} · {step}',
       lastStep: '{name} · {step} · {time}',
       lastUsed: 'Zuletzt verwendet {time}',
@@ -3980,7 +3977,6 @@ export const deDE: MessageSchema = {
       copy: 'Prompt kopieren'
     },
     activity: {
-      heading: 'Agentenaktivität',
       description: 'Eine lokale, inhaltsfreie Ansicht dessen, was Hronaut bei diesem Start verarbeitet hat.',
       tabActionsCompleted: 'Abgeschlossene Tabaktionen',
       toolsUsed: 'Verwendete Werkzeuge',

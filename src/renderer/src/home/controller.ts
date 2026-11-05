@@ -14,6 +14,17 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
   const library = data.messages.workspaceLibrary
   const mission = messages.mission
   let hasWorkspaces = data.workspaces.mcpTabGroups.length > 0 || data.workspaces.savedTabGroups.length > 0
+  let workspaceState = data.workspaces
+  // Three views: Tabs, Workspaces and Agents. Agents holds its own sections: the connected agents with their live
+  // activity, connecting one, the overview and the tool library.
+  const sections = ['tabs', 'workspaces', 'agents'] as const
+  type Section = typeof sections[number]
+  const agentViews = ['connected', 'connect', 'overview', 'tools'] as const
+  type AgentView = typeof agentViews[number]
+  type View = Exclude<Section, 'agents'> | AgentView
+  const isAgentView = (value: unknown): value is AgentView => agentViews.includes(value as AgentView)
+  const isView = (value: unknown): value is View => value === 'tabs' || value === 'workspaces' || isAgentView(value)
+  const sectionOf = (view: View): Section => isAgentView(view) ? 'agents' : view
   let dashboard = data.dashboard
   const revision = dashboard.presentationRevision
   const lifetime = new AbortController()
@@ -245,24 +256,27 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
   }
   /** Agents Home can name: none while the MCP server is not ready. */
   const connectedAgents = () => dashboard.status === 'ready' ? dashboard.agents ?? [] : []
-  const greeting = (): string => {
-    const hour = new Date().getHours()
-    return mission.greeting[hour >= 5 && hour < 12 ? 'morning' : hour >= 12 && hour < 18 ? 'afternoon' : 'evening']
+  /** "3 open · 1 archived", or what workspaces are for while there are none. */
+  const workspaceSummary = (): string => {
+    const open = workspaceState.mcpTabGroups.length
+    const archived = workspaceState.savedTabGroups.length
+    if (!open && !archived) return library.description
+    return [count(library.openCount, open), ...(archived ? [count(library.archivedCount, archived)] : [])].join(' · ')
   }
-  /** "2 agents connected. 1 workspace needs you.", or what workspaces are for while no agent is connected. */
-  const summary = (): string => {
+  /** What the agents section in view is for; the connected agents say how many there are. */
+  const agentSummary = (view: AgentView): string => {
     const agents = connectedAgents().length
-    const needing = Object.values(dashboard.workspaceActivity ?? {}).filter(activity => activity.state === 'needs-you').length
-    const parts = [...(agents ? [pluralText(locale, mission.agentsConnected, agents)] : []), ...(needing ? [pluralText(locale, mission.workspacesNeedYou, needing)] : [])]
-    return parts.length ? parts.join(' ') : library.description
+    if (view === 'connected') return agents ? count(mission.agentsConnected, agents) : messages.connect.description
+    return view === 'connect' ? messages.connect.description : view === 'overview' ? messages.activity.description : messages.tools.description
   }
+  /** One header for every view: its name and what it holds, never a greeting. */
   function renderHeading(): void {
-    text('home-view-title', selectedView === 'tabs' ? data.messages.tabSearch.heading : selectedView === 'workspaces' ? greeting() : selectedView === 'connect' ? messages.connect.heading : selectedView === 'overview' ? messages.activity.heading : messages.navigation.tools)
-    text('home-view-description', selectedView === 'tabs' ? tabs.summary() : selectedView === 'workspaces' ? summary() : selectedView === 'connect' ? messages.connect.description : selectedView === 'overview' ? messages.activity.description : messages.tools.description)
+    const section = sectionOf(selectedView)
+    text('home-view-title', section === 'tabs' ? data.messages.tabSearch.heading : section === 'workspaces' ? library.title : messages.navigation.agents)
+    text('home-view-description', section === 'tabs' ? tabs.summary() : section === 'workspaces' ? workspaceSummary() : agentSummary(selectedView as AgentView))
   }
   /** The connected agents, grouped by client, with the workspace each one is in. */
   const connectedAgentList = mountAgentList(data, signal)
-  let workspaceState = data.workspaces
   function renderAgents(): void {
     connectedAgentList.update(dashboard.agents ?? [], {
       ready: dashboard.status === 'ready',
@@ -424,45 +438,63 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     workspaceState = state
     renderOnboarding()
     renderAgents()
+    renderHeading()
   })
-  const views = ['tabs', 'workspaces', 'connect', 'overview', 'tools'] as const
-  type View = typeof views[number]
-  const isView = (value: unknown): value is View => views.includes(value as View)
   let selectedView: View = 'workspaces'
   const savedView = remember('hronaut.home.view.v2')
   if (isView(savedView)) selectedView = savedView
+  // Agents opens on the section last shown there; at first, on the connected agents once one is, else on connecting one.
+  // Connecting one is a task, so once an agent is connected Agents opens on the connected agents instead.
+  let agentView: AgentView | null = null
+  const savedAgentView = remember('hronaut.home.agents.view')
+  if (isAgentView(savedAgentView)) agentView = savedAgentView
   const tabs = mountTabs(data, api, signal, () => { if (selectedView === 'tabs') renderHeading() })
-  function selectView(view: View, focus = false): void {
+  /** Shows a view, or Agents on its last section. Focus goes to the tab chosen: Agents' own, or the section's. */
+  function selectView(target: View | 'agents', focus = false): void {
+    const connected = connectedAgents().length > 0
+    const view: View = target !== 'agents' ? target : agentView && !(agentView === 'connect' && connected) ? agentView : connected ? 'connected' : 'connect'
+    const section = sectionOf(view)
     selectedView = view
+    if (isAgentView(view)) { agentView = view; remember('hronaut.home.agents.view', view) }
     document.documentElement.dataset.homeSelectedView = view
-    views.forEach(id => {
+    sections.forEach(id => {
       const button = element<HTMLButtonElement>(`home-tab-${id}`)
-      button.setAttribute('aria-selected', String(id === view)); button.tabIndex = id === view ? 0 : -1
+      button.setAttribute('aria-selected', String(id === section)); button.tabIndex = id === section ? 0 : -1
+      element(id === 'agents' ? 'home-agents-view' : `home-${id}`).hidden = id !== section
+    })
+    agentViews.forEach(id => {
+      const button = element<HTMLButtonElement>(`agents-section-${id}`)
+      // The section shown keeps its place in the Tab order while another view shows, as the open collection does.
+      button.setAttribute('aria-selected', String(id === agentView)); button.tabIndex = id === (agentView ?? 'connected') ? 0 : -1
       element(`home-${id}`).hidden = id !== view
     })
     tabs.setVisible(view === 'tabs')
     renderHeading()
-    if (focus) element(`home-tab-${view}`).focus()
+    if (focus) element(target === 'agents' || !isAgentView(view) ? `home-tab-${section}` : `agents-section-${view}`).focus()
     remember('hronaut.home.view.v2', view)
     if (view === 'connect') {
       const selected = document.querySelector<HTMLElement>(`[data-guide="${selectedGuide}"]`)!
       if (!selected.hidden) agentList.scrollTop += selected.getBoundingClientRect().top - agentList.getBoundingClientRect().top
     }
   }
-  views.forEach((view, index) => {
-    const button = element(`home-tab-${view}`)
+  // Arrow keys, Home and End move along a tab list and show the tab reached, as the tabs pattern asks.
+  const tabList = <T extends View | 'agents'>(list: readonly T[], id: (view: T) => string): void => list.forEach((view, index) => {
+    const button = element(id(view))
     button.addEventListener('click', () => selectView(view), { signal })
     button.addEventListener('keydown', event => {
       if (event.isComposing || event.altKey || event.ctrlKey || event.metaKey) return
-      const next = event.key === 'ArrowRight' ? (index + 1) % views.length : event.key === 'ArrowLeft' ? (index + views.length - 1) % views.length : event.key === 'Home' ? 0 : event.key === 'End' ? views.length - 1 : -1
-      if (next >= 0) { event.preventDefault(); selectView(views[next]!, true) }
+      const next = event.key === 'ArrowRight' ? (index + 1) % list.length : event.key === 'ArrowLeft' ? (index + list.length - 1) % list.length : event.key === 'Home' ? 0 : event.key === 'End' ? list.length - 1 : -1
+      if (next >= 0) { event.preventDefault(); selectView(list[next]!, true) }
     }, { signal })
   })
+  tabList(sections, view => `home-tab-${view}`)
+  tabList(agentViews, view => `agents-section-${view}`)
   document.querySelectorAll<HTMLElement>('[data-open-view]').forEach(button => button.addEventListener('click', () => {
-    if (!isView(button.dataset.openView)) return
+    const target = button.dataset.openView
+    if (target !== 'agents' && !isView(target)) return
     // The connection check's link leads to the checks themselves, not to Details folded over them.
     if (button.dataset.openDetails !== undefined) document.querySelector<HTMLDetailsElement>('.overview-details')!.open = true
-    selectView(button.dataset.openView, true)
+    selectView(target, true)
   }, { signal }))
   // Details opens over the page, so it closes on Escape, a click elsewhere or focus moving past it, as a menu does.
   const statusDetails = document.querySelector<HTMLDetailsElement>('.status-details')!

@@ -121,10 +121,11 @@ export const idID: MessageSchema = {
     protectDeletion: 'Lindungi dari penghapusan',
     protectionDescription: 'Mencegah penghapusan permanen oleh orang dan agen. Pengarsipan tetap tersedia.',
     title: 'Ruang kerja',
-    heading: 'Tempat untuk setiap proyek',
     description: 'Simpan proyek dan login di ruang browser yang terpisah. Lanjutkan dari bagian terakhir yang Anda tinggalkan.',
     open: 'Terbuka',
     archived: 'Diarsipkan',
+    openCount: '{count} terbuka',
+    archivedCount: '{count} diarsipkan',
     search: 'Telusuri ruang kerja atau tab',
     views: 'Tampilan ruang kerja',
     current: 'Saat ini',
@@ -3813,7 +3814,8 @@ export const idID: MessageSchema = {
       label: 'Bagian Beranda',
       overview: 'Ringkasan',
       connect: 'Hubungkan agen',
-      tools: 'Pustaka alat'
+      tools: 'Pustaka alat',
+      agents: 'Agen'
     },
     agentList: {
       connect: 'Hubungkan',
@@ -3824,15 +3826,10 @@ export const idID: MessageSchema = {
       connected: 'terhubung {time}'
     },
     mission: {
-      greeting: {
-        morning: 'Selamat pagi',
-        afternoon: 'Selamat siang',
-        evening: 'Selamat malam'
-      },
       agentsConnected: '{count} agen terhubung.',
-      workspacesNeedYou: '{count} ruang kerja memerlukan tindakan Anda.',
       agents: 'Agen yang terhubung',
       needsYou: '{name} memerlukan tindakan Anda',
+      needsYouIn: '{name} memerlukan tindakan Anda di {workspace}',
       step: '{name} · {step}',
       lastStep: '{name} · {step} · {time}',
       lastUsed: 'Terakhir digunakan {time}',
@@ -3980,7 +3977,6 @@ export const idID: MessageSchema = {
       copy: 'Salin prompt'
     },
     activity: {
-      heading: 'Aktivitas agen',
       description: 'Tampilan lokal tanpa konten tentang apa yang ditangani Hronaut selama peluncuran ini.',
       tabActionsCompleted: 'Tindakan tab yang selesai',
       toolsUsed: 'Alat yang digunakan',

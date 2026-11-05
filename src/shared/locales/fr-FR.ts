@@ -121,10 +121,11 @@ export const frFR: MessageSchema = {
     protectDeletion: 'Protéger contre la suppression',
     protectionDescription: 'Empêche la suppression définitive par les personnes et les agents. L’archivage reste possible.',
     title: 'Espaces de travail',
-    heading: 'Une place pour chaque projet',
     description: 'Séparez projets et connexions dans des espaces de navigateur distincts. Reprenez là où vous en étiez.',
     open: 'Ouverts',
     archived: 'Archivés',
+    openCount: '{count} ouvert | {count} ouverts',
+    archivedCount: '{count} archivé | {count} archivés',
     search: 'Rechercher des espaces ou onglets',
     views: 'Vues des espaces de travail',
     current: 'Actuel',
@@ -3813,7 +3814,8 @@ export const frFR: MessageSchema = {
       label: 'Rubriques de l’accueil',
       overview: 'Vue d’ensemble',
       connect: 'Connecter un agent',
-      tools: 'Bibliothèque d’outils'
+      tools: 'Bibliothèque d’outils',
+      agents: 'Agents'
     },
     agentList: {
       connect: 'Connecter',
@@ -3824,15 +3826,10 @@ export const frFR: MessageSchema = {
       connected: 'connexion {time}'
     },
     mission: {
-      greeting: {
-        morning: 'Bonjour',
-        afternoon: 'Bonjour',
-        evening: 'Bonsoir'
-      },
       agentsConnected: '{count} agent connecté. | {count} agents connectés.',
-      workspacesNeedYou: '{count} espace vous attend. | {count} espaces vous attendent.',
       agents: 'Agents connectés',
       needsYou: '{name} vous attend',
+      needsYouIn: '{name} vous attend dans {workspace}',
       step: '{name} · {step}',
       lastStep: '{name} · {step} · {time}',
       lastUsed: 'Dernière utilisation {time}',
@@ -3980,7 +3977,6 @@ export const frFR: MessageSchema = {
       copy: 'Copier la consigne'
     },
     activity: {
-      heading: 'Activité des agents',
       description: 'Une vue locale, sans contenu, de ce que Hronaut a traité pendant ce lancement.',
       tabActionsCompleted: 'Actions d’onglet terminées',
       toolsUsed: 'Outils utilisés',

@@ -121,10 +121,11 @@ export const plPL: MessageSchema = {
     protectDeletion: 'Chroń przed usunięciem',
     protectionDescription: 'Zapobiega trwałemu usunięciu przez ludzi i agentów. Archiwizacja nadal jest dostępna.',
     title: 'Obszary robocze',
-    heading: 'Miejsce dla każdego projektu',
     description: 'Oddziel projekty i logowania w osobnych obszarach przeglądarki. Wróć do pracy tam, gdzie ją zakończono.',
     open: 'Otwarte',
     archived: 'Zarchiwizowane',
+    openCount: 'Otwarte: {count}',
+    archivedCount: 'Zarchiwizowane: {count}',
     search: 'Szukaj obszarów lub kart',
     views: 'Widoki obszarów roboczych',
     current: 'Bieżący',
@@ -3813,7 +3814,8 @@ export const plPL: MessageSchema = {
       label: 'Sekcje główne',
       overview: 'Przegląd',
       connect: 'Połącz agenta',
-      tools: 'Biblioteka narzędzi'
+      tools: 'Biblioteka narzędzi',
+      agents: 'Agenci'
     },
     agentList: {
       connect: 'Połącz',
@@ -3824,15 +3826,10 @@ export const plPL: MessageSchema = {
       connected: 'połączono {time}'
     },
     mission: {
-      greeting: {
-        morning: 'Dzień dobry',
-        afternoon: 'Dzień dobry',
-        evening: 'Dobry wieczór'
-      },
       agentsConnected: 'Połączono {count} agenta. | Połączono {count} agentów. | Połączono {count} agentów.',
-      workspacesNeedYou: '{count} obszar czeka na Ciebie. | {count} obszary czekają na Ciebie. | {count} obszarów czeka na Ciebie.',
       agents: 'Połączeni agenci',
       needsYou: '{name} czeka na Ciebie',
+      needsYouIn: '{name} czeka na Ciebie w obszarze roboczym {workspace}',
       step: '{name} · {step}',
       lastStep: '{name} · {step} · {time}',
       lastUsed: 'Ostatnio używany {time}',
@@ -3980,7 +3977,6 @@ export const plPL: MessageSchema = {
       copy: 'Kopiuj prompt'
     },
     activity: {
-      heading: 'Aktywność agentów',
       description: 'Lokalny, pozbawiony treści widok działań obsłużonych przez Hronaut podczas tego uruchomienia.',
       tabActionsCompleted: 'Ukończone działania na kartach',
       toolsUsed: 'Użyte narzędzia',

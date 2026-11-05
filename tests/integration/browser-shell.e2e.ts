@@ -912,7 +912,7 @@ test('keeps keyboard focus and selection state when switching Home setup guides'
     const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
     if (!home) throw new Error('Hronaut Home web contents was not found')
     return home.executeJavaScript(`(() => {
-      document.querySelector('[data-home-view="connect"]').click();
+      document.querySelector('#agents-section-connect').click();
       const button = document.querySelector('[data-guide="opencode"]');
       button.focus();
       button.click();
@@ -7882,7 +7882,7 @@ test('locks website input while keeping trusted browser chrome usable', async ({
       // can shift the target after coordinates are read.
       // Reveal only as much as needed before sending real native input.
       const guidePoint = await home.executeJavaScript(`(async () => {
-        document.querySelector('[data-home-view="connect"]').click();
+        document.querySelector('#agents-section-connect').click();
         const guide = document.querySelector('[data-guide="opencode"]')
         guide.scrollIntoView({ block: 'nearest', behavior: 'instant' })
         await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))

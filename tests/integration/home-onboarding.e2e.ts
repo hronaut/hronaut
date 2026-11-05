@@ -24,7 +24,7 @@ async function ready(app: ElectronApplication) {
     () => homeScript(app, `Boolean(document.getElementById('guide-name')?.textContent)`),
     { timeout: HOME_READY_TIMEOUT_MS }
   ).toBe(true)
-  await homeScript(app, `document.querySelector('[data-home-view=connect]').click()`)
+  await homeScript(app, `document.querySelector('#agents-section-connect').click()`)
 }
 
 for (const [selector, status] of [
@@ -52,7 +52,7 @@ test('Home remembers the selected view and coding agent through reload', async (
   await ready(electronApp)
   await homeScript(electronApp, `(() => {
     document.querySelector('[data-guide="qwen-code"]').click();
-    document.querySelector('[data-home-view="overview"]').click();
+    document.querySelector('#agents-section-overview').click();
   })()`)
   await expect.poll(() => homeScript(electronApp, `localStorage.getItem('hronaut.home.view.v2')`)).toBe('overview')
   await electronApp.evaluate(({ webContents }) => {
