@@ -121,8 +121,9 @@ MCPB tests, and builds every platform package. Dispatch the release with
 
 The responsiveness gate (`tests/integration/responsiveness.perf.ts`) measures
 the app while four agents work and fails when a measurement passes its limit.
-A missed limit is a regression to find, never a flake to retry. Change a limit
-only with measurements that show why, and say so in the pull request.
+A missed limit is a regression to find before releasing, even when a re-run
+passes. Change a limit only with measurements that show why, and say so in the
+pull request.
 
 Install with Node.js 22 or newer:
 

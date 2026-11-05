@@ -4,7 +4,7 @@ import { createServer, type Server } from 'node:http'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import type { ElectronApplication, Page } from '@playwright/test'
+import type { CDPSession, ElectronApplication, Page } from '@playwright/test'
 import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
@@ -13,25 +13,26 @@ const AGENTS = 4
 const TABS_PER_AGENT = 4
 const CLICKS = 40
 
-// Each limit sits well above what a hosted CI runner measured and below what Hronaut measured before the HRO-64
-// changes, so a run on a slow machine passes and a return of the old costs fails.
+// Measured under Xvfb on a 4-core machine before HRO-64 (008faba29) and now, and now on a hosted CI runner. Each limit
+// sits well above what the CI runner measured; the shell's heap fails the tree from before HRO-64.
 const LIMITS = {
-  shellFirstPaintMs: 1_000,
-  shellHeapMB: 12,
-  clickToActiveTabP90Ms: 150,
-  mainThreadBusyPercent: 80,
-  mainEventLoopDelayP99Ms: 50,
-  shellBusyPercent: 80,
-  screenshotP50Ms: 400,
-  snapshotP50Ms: 200,
-  windowBytesPerAgentCallKB: 90
+  shellFirstPaintMs: 1_000, // before 352-432, now 272-336, CI 372
+  shellHeapMB: 12, // before 15.1, now 8.3, CI 8.3
+  clickToActiveTabP90Ms: 150, // before 63-117, now 41-59, CI 54
+  mainThreadMsPerAgentCall: 60, // before 42.5-44.4, now 25.3-26.0, CI pending
+  mainEventLoopLagP99Ms: 40, // before 40-56, now 9-12, CI 21
+  shellBusyPercent: 80, // before 45-50, now 42-45, CI 36
+  screenshotP50Ms: 400, // before 126-156, now 113-128, CI 183
+  snapshotP50Ms: 200, // before 86-106, now 60-61, CI 88
+  windowBytesPerAgentCallKB: 90 // before 59-65, now 42-46, CI 44.5
 }
 
 interface Percentiles { count: number; p50: number; p90: number; max: number }
 
 function percentiles(values: number[]): Percentiles {
   const sorted = [...values].sort((a, b) => a - b)
-  const at = (quantile: number) => sorted[Math.min(sorted.length - 1, Math.floor(quantile * sorted.length))] ?? 0
+  // The nearest rank: the smallest value with at least that share of the values at or below it.
+  const at = (quantile: number) => sorted[Math.max(0, Math.ceil(quantile * sorted.length) - 1)] ?? 0
   return { count: sorted.length, p50: Math.round(at(0.5)), p90: Math.round(at(0.9)), max: Math.round(sorted.at(-1) ?? 0) }
 }
 
@@ -89,64 +90,66 @@ function startSite(): Promise<{ server: Server; base: string }> {
 }
 
 /** The shell's first paint and its heap after a full garbage collection, before the person opens anything. */
-async function shellStart(electronApp: ElectronApplication, appWindow: Page) {
+async function shellStart(appWindow: Page) {
   await appWindow.waitForFunction(() => performance.getEntriesByName('first-contentful-paint').length > 0)
   const firstPaintMs = await appWindow.evaluate(() => Math.round(performance.getEntriesByName('first-contentful-paint')[0]!.startTime))
-  const heapBytes = await electronApp.evaluate(async ({ BrowserWindow }) => {
-    const shell = BrowserWindow.getAllWindows()[0]!.webContents
-    const debug = shell.debugger
-    const attached = debug.isAttached()
-    if (!attached) debug.attach('1.3')
-    try {
-      await debug.sendCommand('HeapProfiler.collectGarbage')
-      await debug.sendCommand('HeapProfiler.collectGarbage')
-      return (await debug.sendCommand('Runtime.getHeapUsage') as { usedSize: number }).usedSize
-    } finally {
-      if (!attached) debug.detach()
-    }
-  })
-  return { firstPaintMs, heapMB: Math.round(heapBytes / 1024 / 102.4) / 10 }
+  const shell = await appWindow.context().newCDPSession(appWindow)
+  try {
+    await shell.send('HeapProfiler.collectGarbage')
+    await shell.send('HeapProfiler.collectGarbage')
+    const { usedSize } = await shell.send('Runtime.getHeapUsage')
+    return { firstPaintMs, heapMB: Math.round(usedSize / 1024 / 102.4) / 10 }
+  } finally {
+    await shell.detach()
+  }
 }
+
+interface MainLoad { busyMs: number; wallMs: number; eventLoopLagP99Ms: number }
+
+const EVENT_LOOP_RESOLUTION_MS = 10
 
 /**
  * The time main's own thread ran, from Linux's account of it, and how late main's event loop ran its timers.
  * The thread's time counts Chromium's work on it as well as JavaScript's.
  */
 function startMainLoad(electronApp: ElectronApplication): Promise<void> {
-  return electronApp.evaluate(() => {
+  return electronApp.evaluate((_electron, resolution) => {
     const { readFileSync } = process.getBuiltinModule('node:fs') as typeof import('node:fs')
     const { monitorEventLoopDelay } = process.getBuiltinModule('node:perf_hooks') as typeof import('node:perf_hooks')
     const threadTicks = () => {
       const fields = readFileSync(`/proc/self/task/${process.pid}/stat`, 'utf8').split(')').at(-1)!.trim().split(' ')
       return Number(fields[11]) + Number(fields[12])
     }
-    const delay = monitorEventLoopDelay({ resolution: 10 })
+    const delay = monitorEventLoopDelay({ resolution })
     delay.enable()
     const started = { ticks: threadTicks(), at: performance.now() }
     ;(globalThis as Record<string, unknown>).__responsivenessMainLoad = () => {
       delay.disable()
-      const wallMs = performance.now() - started.at
-      // Linux counts a thread's time in ticks of 10 ms (USER_HZ is 100 on every architecture Hronaut builds for).
-      const busyMs = (threadTicks() - started.ticks) * 10
-      return { busyPercent: Math.round(100 * busyMs / wallMs), eventLoopDelayP99Ms: Math.round(delay.percentile(99) / 1e6) }
+      return {
+        // Linux counts a thread's time in ticks of 10 ms (USER_HZ is 100 on every architecture Hronaut builds for).
+        busyMs: (threadTicks() - started.ticks) * 10,
+        wallMs: performance.now() - started.at,
+        // The histogram records the time between two runs of its timer, so an idle loop records the resolution.
+        eventLoopLagP99Ms: Math.max(0, Math.round(delay.percentile(99) / 1e6 - resolution))
+      }
     }
-  })
+  }, EVENT_LOOP_RESOLUTION_MS)
 }
 
-function stopMainLoad(electronApp: ElectronApplication): Promise<{ busyPercent: number; eventLoopDelayP99Ms: number }> {
+/** What main did since startMainLoad, or null when it was not started. */
+function stopMainLoad(electronApp: ElectronApplication): Promise<MainLoad | null> {
   return electronApp.evaluate(() => {
-    const stop = (globalThis as Record<string, unknown>).__responsivenessMainLoad as () => { busyPercent: number; eventLoopDelayP99Ms: number }
+    const stop = (globalThis as Record<string, unknown>).__responsivenessMainLoad as (() => MainLoad) | undefined
     delete (globalThis as Record<string, unknown>).__responsivenessMainLoad
-    return stop()
+    return stop?.() ?? null
   })
 }
 
 /** How long, from the pointer going down on a tab, until the shell paints that tab as the active one. */
 async function clickTabs(appWindow: Page): Promise<number[]> {
   await appWindow.evaluate(() => {
-    const record = { times: [] as number[] }
-    ;(window as unknown as { __tabClicks: typeof record }).__tabClicks = record
-    document.addEventListener('pointerdown', (event) => {
+    const record = { times: [] as number[], stop: () => {} }
+    const measure = (event: PointerEvent) => {
       const id = (event.target as Element | null)?.closest<HTMLElement>('[data-tab-id]')?.dataset.tabId
       if (!id) return
       const start = event.timeStamp
@@ -158,22 +161,29 @@ async function clickTabs(appWindow: Page): Promise<number[]> {
         }
       }
       requestAnimationFrame(check)
-    }, { capture: true })
+    }
+    document.addEventListener('pointerdown', measure, { capture: true })
+    record.stop = () => document.removeEventListener('pointerdown', measure, { capture: true })
+    ;(window as unknown as { __tabClicks: typeof record }).__tabClicks = record
   })
   const recorded = () => appWindow.evaluate(() => (window as unknown as { __tabClicks: { times: number[] } }).__tabClicks.times.length)
-  const tabs = appWindow.locator('[role="tablist"] [data-tab-id]')
-  const count = Math.min(await tabs.count(), PERSON_TABS)
-  for (let i = 0; i < CLICKS; i += 1) {
-    const target = tabs.nth((i * 5 + 1) % count)
-    if (await target.getAttribute('data-active-tab') === 'true') continue
-    const before = await recorded()
-    await target.click()
-    await expect.poll(recorded, { timeout: 15_000 }).toBeGreaterThan(before)
-    // The pointer then rests on another tab, the way a person moves over the strip.
-    await tabs.nth((i * 3) % count).hover()
-    await appWindow.waitForTimeout(150)
+  try {
+    const tabs = appWindow.locator('[role="tablist"] [data-tab-id]')
+    const count = Math.min(await tabs.count(), PERSON_TABS)
+    for (let i = 0; i < CLICKS; i += 1) {
+      const target = tabs.nth((i * 5 + 1) % count)
+      if (await target.getAttribute('data-active-tab') === 'true') continue
+      const before = await recorded()
+      await target.click()
+      await expect.poll(recorded, { timeout: 15_000 }).toBeGreaterThan(before)
+      // The pointer then rests on another tab, the way a person moves over the strip.
+      await tabs.nth((i * 3) % count).hover()
+      await appWindow.waitForTimeout(150)
+    }
+    return await appWindow.evaluate(() => (window as unknown as { __tabClicks: { times: number[] } }).__tabClicks.times)
+  } finally {
+    await appWindow.evaluate(() => (window as unknown as { __tabClicks: { stop(): void } }).__tabClicks.stop()).catch(() => undefined)
   }
-  return appWindow.evaluate(() => (window as unknown as { __tabClicks: { times: number[] } }).__tabClicks.times)
 }
 
 /** What Hronaut sends its own windows (the shell and the overlays), in bytes of JSON, while counting is on. */
@@ -183,7 +193,8 @@ function startCountingWindowMessages(electronApp: ElectronApplication): Promise<
     for (const contents of webContents.getAllWebContents().filter((candidate) => candidate.getURL().startsWith('file:'))) {
       const send = contents.send
       contents.send = (channel: string, ...args: unknown[]) => {
-        counted.bytes += channel.length + JSON.stringify(args).length
+        // IPC also carries what JSON cannot, such as a BigInt; counting such a message must not stop it.
+        try { counted.bytes += channel.length + JSON.stringify(args).length } catch { /* not counted */ }
         send.call(contents, channel, ...args)
       }
       counted.restore.push(() => { contents.send = send })
@@ -192,20 +203,22 @@ function startCountingWindowMessages(electronApp: ElectronApplication): Promise<
   })
 }
 
-function stopCountingWindowMessages(electronApp: ElectronApplication): Promise<number> {
+/** The bytes counted since startCountingWindowMessages, or null when counting was not on. */
+function stopCountingWindowMessages(electronApp: ElectronApplication): Promise<number | null> {
   return electronApp.evaluate(() => {
-    const counted = (globalThis as Record<string, unknown>).__responsivenessWindowMessages as { bytes: number; restore: (() => void)[] }
+    const counted = (globalThis as Record<string, unknown>).__responsivenessWindowMessages as { bytes: number; restore: (() => void)[] } | undefined
     delete (globalThis as Record<string, unknown>).__responsivenessWindowMessages
-    for (const restore of counted.restore) restore()
-    return counted.bytes
+    for (const restore of counted?.restore ?? []) restore()
+    return counted?.bytes ?? null
   })
 }
 
 test('stays responsive to the person while four agents work', async ({ appWindow, electronApp, mcpPort, mcpToken }) => {
   test.setTimeout(240_000)
-  const start = await shellStart(electronApp, appWindow)
+  const start = await shellStart(appWindow)
   const { server, base } = await startSite()
   const clients: Client[] = []
+  let shell: CDPSession | undefined
   const toolTimes: Record<string, number[]> = {}
   const toolErrors: string[] = []
   let calls = 0
@@ -259,22 +272,24 @@ test('stays responsive to the person while four agents work', async ({ appWindow
 
     // While the person clicks tabs.
     for (const name of Object.keys(toolTimes)) toolTimes[name] = []
-    const shell = await appWindow.context().newCDPSession(appWindow)
-    await shell.send('Performance.enable')
-    const shellTaskSeconds = async () => (await shell.send('Performance.getMetrics')).metrics.find((metric) => metric.name === 'TaskDuration')!.value
+    const session = shell = await appWindow.context().newCDPSession(appWindow)
+    await session.send('Performance.enable')
+    const shellTaskSeconds = async () => (await session.send('Performance.getMetrics')).metrics.find((metric) => metric.name === 'TaskDuration')!.value
     const shellBefore = { task: await shellTaskSeconds(), at: performance.now() }
+    const callsBeforeClicks = calls
     await startMainLoad(electronApp)
     const clicks = percentiles(await clickTabs(appWindow))
     const main = await stopMainLoad(electronApp)
+    if (!main) throw new Error('Main\'s load was not measured.')
+    const callsWhileClicking = calls - callsBeforeClicks
     const shellBusyPercent = Math.round(100 * 1000 * (await shellTaskSeconds() - shellBefore.task) / (performance.now() - shellBefore.at))
-    await shell.detach()
 
     // Then, with nobody clicking, what the agents' work sends Hronaut's own windows.
     await startCountingWindowMessages(electronApp)
-    const callsBefore = calls
+    const callsBeforeCounting = calls
     await appWindow.waitForTimeout(5_000)
-    const windowBytes = await stopCountingWindowMessages(electronApp)
-    const windowBytesPerAgentCallKB = Math.round(windowBytes / Math.max(1, calls - callsBefore) / 102.4) / 10
+    const windowBytes = await stopCountingWindowMessages(electronApp) ?? 0
+    const windowBytesPerAgentCallKB = Math.round(windowBytes / Math.max(1, calls - callsBeforeCounting) / 102.4) / 10
 
     stop = true
     await Promise.all(agents)
@@ -284,23 +299,36 @@ test('stays responsive to the person while four agents work', async ({ appWindow
       shellFirstPaintMs: start.firstPaintMs,
       shellHeapMB: start.heapMB,
       clickToActiveTabP90Ms: clicks.p90,
-      mainThreadBusyPercent: main.busyPercent,
-      mainEventLoopDelayP99Ms: main.eventLoopDelayP99Ms,
+      mainThreadMsPerAgentCall: Math.round(10 * main.busyMs / Math.max(1, callsWhileClicking)) / 10,
+      mainEventLoopLagP99Ms: main.eventLoopLagP99Ms,
       shellBusyPercent,
       screenshotP50Ms: screenshots.p50,
       snapshotP50Ms: snapshots.p50,
       windowBytesPerAgentCallKB
     }
-    const report = { measured, limits: LIMITS, clicks, screenshots, snapshots, agentCalls: calls }
+    const report = {
+      measured,
+      limits: LIMITS,
+      clicks,
+      screenshots,
+      snapshots,
+      mainThreadBusyPercent: Math.round(100 * main.busyMs / main.wallMs),
+      agentCallsPerSecond: Math.round(10_000 * callsWhileClicking / main.wallMs) / 10
+    }
     console.log(`Responsiveness: ${JSON.stringify(report)}`)
     await test.info().attach('responsiveness.json', { body: JSON.stringify(report, null, 2), contentType: 'application/json' })
 
     expect(toolErrors, 'The agents\' tools answered without errors').toEqual([])
     expect(clicks.count, 'Every click on a tab was measured').toBeGreaterThanOrEqual(CLICKS / 2)
+    expect(Math.min(screenshots.count, snapshots.count), 'The agents took screenshots and snapshots').toBeGreaterThan(0)
     for (const [name, limit] of Object.entries(LIMITS) as [keyof typeof LIMITS, number][]) {
       expect.soft(measured[name], `${name} stays at or under ${limit}`).toBeLessThanOrEqual(limit)
     }
   } finally {
+    // A step that failed may have left a measurement running.
+    await stopCountingWindowMessages(electronApp).catch(() => undefined)
+    await stopMainLoad(electronApp).catch(() => undefined)
+    await shell?.detach().catch(() => undefined)
     stop = true
     await Promise.allSettled(agents)
     await Promise.allSettled(clients.map((client) => client.close()))
