@@ -10,7 +10,7 @@ const rendererMaxWorkers = Math.min(ciMaxWorkers, 2)
 
 /**
  * Starts a worker thread of main as electron-vite's `?nodeWorker` import does in the app, from its TypeScript file,
- * which Node runs as it is: such a worker imports only Node's built-in modules.
+ * which Node runs as it is: such a worker imports only Node's built-in modules and its own files, by their .ts names.
  */
 function nodeWorkers(): Plugin {
   const prefix = '\0node-worker:'
