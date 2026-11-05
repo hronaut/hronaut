@@ -16,8 +16,11 @@ const { registerBrowsingDataIpc } = await import('../src/main/site-data/browsing
 
 type RequestHandler = Parameters<Session['setPermissionRequestHandler']>[0] & {}
 type CheckHandler = Parameters<Session['setPermissionCheckHandler']>[0] & {}
-/** The person's answer to a prompt, or `unanswered` when it closed with nobody to answer it, as when Hronaut quits. */
-type Answer = 'allow' | 'deny' | 'unanswered'
+/**
+ * The person's answer to a prompt, `dismissed` when they closed it with Escape or its close button, or `unanswered`
+ * when it closed with nobody to answer it, as when Hronaut quits.
+ */
+type Answer = 'allow' | 'deny' | 'dismissed' | 'unanswered'
 
 interface FakeFrame {
   frameTreeNodeId: number
@@ -71,6 +74,7 @@ async function createHarness(locale: SupportedLocale = 'en-US') {
       const closed = new Promise<Answer>((resolve) => { options.signal?.addEventListener('abort', () => resolve('deny')) })
       const answer = await Promise.race([harness.decide(options), closed])
       if (answer === 'unanswered') return { response: 0, checkboxChecked: false, unanswered: true as const }
+      if (answer === 'dismissed') return { response: 0, checkboxChecked: false, dismissed: true as const }
       return { response: answer === 'allow' ? 1 : 0, checkboxChecked: false }
     },
     workspaces: () => harness.workspaces,
@@ -557,6 +561,46 @@ describe('camera and microphone prompts', () => {
     answers[0]!('allow')
     expect(await pending).toBe(true)
     expect([page.contents.listenerCount('did-frame-navigate'), page.contents.listenerCount('destroyed')]).toEqual([1, 1])
+  })
+})
+
+describe('prompts closed with Escape or their close button', () => {
+  const maps = { url: 'https://maps.example/route', origin: 'https://maps.example' }
+  const fromMaps = { requestingUrl: maps.url, isMainFrame: true }
+
+  it('refuse the page’s document and keep no Deny, so the website may ask again once it loads another', async () => {
+    // Closing a Location prompt with Escape saved a Deny for the website, as clicking Deny does, so it never asked
+    // again and Settings listed a choice the person did not make.
+    const harness = await createHarness()
+    harness.decide = () => 'dismissed'
+    const page = createPage(maps)
+    expect(await ask(harness, page, 'geolocation', fromMaps)).toBe(false)
+    expect(harness.shown).toHaveLength(1)
+    expect(harness.store.list()).toEqual([])
+
+    // The page that asked is refused without a prompt while it keeps its document.
+    expect(await ask(harness, page, 'geolocation', fromMaps)).toBe(false)
+    expect(harness.shown).toHaveLength(1)
+
+    page.navigate(page.frames[0]!, maps.url)
+    harness.decide = () => 'allow'
+    expect(await ask(harness, page, 'geolocation', fromMaps)).toBe(true)
+    expect(harness.shown).toHaveLength(2)
+    expect(harness.store.list()).toEqual([{ origin: maps.origin, permission: 'geolocation', decision: 'allow', workspaceId: WORK }])
+  })
+
+  it('refuse a camera request for the page’s document as Deny does', async () => {
+    const harness = await createHarness()
+    harness.decide = () => 'dismissed'
+    const call = { url: 'https://call.example/room', origin: 'https://call.example' }
+    const camera = { requestingUrl: call.url, isMainFrame: true, mediaTypes: ['video'] }
+    const page = createPage(call)
+    expect(await ask(harness, page, 'media', camera)).toBe(false)
+    expect(await ask(harness, page, 'media', camera)).toBe(false)
+    expect(harness.shown).toHaveLength(1)
+    page.navigate(page.frames[0]!, call.url)
+    expect(await ask(harness, page, 'media', camera)).toBe(false)
+    expect(harness.shown).toHaveLength(2)
   })
 })
 

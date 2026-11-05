@@ -31,10 +31,11 @@ interface BrowserSessionHost {
   effectiveDownloadDirectory(): string
   /**
    * Asks the person in Hronaut's own dialog over the main window's pages, where every tab is shown, or in the system
-   * dialog while that window cannot show it; resolves with the chosen button as `dialog.showMessageBox` does, and
-   * `unanswered` when it closed with its cancel answer because nobody could answer it, as when Hronaut quits meanwhile.
+   * dialog while that window cannot show it; resolves with the chosen button as `dialog.showMessageBox` does,
+   * `unanswered` when it closed with its cancel answer because nobody could answer it, as when Hronaut quits meanwhile,
+   * and `dismissed` when the person closed it with Escape or its close button.
    */
-  showDialog(options: Omit<TrustedDialogOptions, 'window'>): Promise<{ response: number, unanswered?: true }>
+  showDialog(options: Omit<TrustedDialogOptions, 'window'>): Promise<{ response: number, unanswered?: true, dismissed?: true }>
   /** The open and archived workspaces, read when a permission prompt names the one it asks in. */
   workspaces(): ReadonlyArray<{ id: string, name: string }>
   /** The persistent session and the site permissions; index.ts creates the record, and other features read it too. */
@@ -554,8 +555,9 @@ export function createBrowserSession(host: BrowserSessionHost): {
         }
         let response: number
         let unanswered: true | undefined
+        let dismissed: true | undefined
         try {
-          ({ response, unanswered } = await host.showDialog({
+          ({ response, unanswered, dismissed } = await host.showDialog({
             variant,
             signal: promptClosing.signal,
             type: 'question',
@@ -594,6 +596,12 @@ export function createBrowserSession(host: BrowserSessionHost): {
           }
           if (permission === 'fileSystem') fileAccessPages.add(webContents)
           return decision === 'allow'
+        }
+        // Closed with Escape or its close button instead, as in Chrome, the prompt refuses the page's document and
+        // remembers nothing: the website may ask again once the page loads another document, and Settings keeps no Deny.
+        if (dismissed) {
+          page.denied.add(hold)
+          return false
         }
         try {
           await host.state.sitePermissionStore?.set(origin, permission, decision, decisionScope)

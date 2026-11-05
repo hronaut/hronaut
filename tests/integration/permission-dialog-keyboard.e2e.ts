@@ -3,7 +3,7 @@ import { closeFixtureServer, expect, test } from './fixtures.js'
 import { trustedDialog, trustedDialogHeadline } from './trusted-dialog-fixture.js'
 
 // A website's permission request was a system dialog. It is now Hronaut's own dialog over the page, so Hronaut keeps
-// what the system dialog guaranteed: the page cannot draw over it, Enter never chooses Allow, and Escape denies.
+// what the system dialog guaranteed: the page cannot draw over it, Enter never chooses Allow, and Escape refuses.
 test('hides the page under a permission dialog and answers it from the keyboard only with Deny', async ({ appWindow, electronApp }) => {
   const server = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
@@ -40,8 +40,17 @@ test('hides the page under a permission dialog and answers it from the keyboard 
     await expect(dialog).toHaveAttribute('data-armed', 'true')
     await appWindow.keyboard.press('Escape')
     await expect(dialog).toHaveCount(0)
-    await expect.poll(async () => (await appWindow.evaluate('window.hronautPermissions.list()') as Array<{ permission: string, decision: string }>)
-      .map((entry) => `${entry.permission}:${entry.decision}`).sort()).toEqual(['geolocation:deny', 'persistent-storage:deny'])
+    // Escape closes it as in Chrome: the page's document is refused without asking again, and no Deny is kept that the
+    // person never chose, so the website may ask once it loads another document.
+    const askedAgain = await electronApp.evaluate(async ({ webContents }) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getTitle() === 'Keyboard prompt')
+      if (!page) throw new Error('Permission fixture web contents was not found')
+      return await page.executeJavaScript('navigator.storage.persist()', true) as boolean
+    })
+    expect(askedAgain).toBe(false)
+    await expect(dialog).toHaveCount(0)
+    expect((await appWindow.evaluate('window.hronautPermissions.list()') as Array<{ permission: string, decision: string }>)
+      .map((entry) => `${entry.permission}:${entry.decision}`)).toEqual(['geolocation:deny'])
   } finally {
     await closeFixtureServer(server)
   }

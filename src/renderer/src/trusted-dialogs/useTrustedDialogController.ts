@@ -39,10 +39,15 @@ export function useTrustedDialogController(api: HronautTrustedDialogsApi | undef
     else api?.respond(id, response)
   }
 
-  /** Answers the shown request as Escape does. */
+  /**
+   * Closes the shown request as Escape or its close button does, if it is not answered yet: main gives it its cancel
+   * answer and knows the person chose none of its buttons.
+   */
   function cancel(): void {
     const current = request.value
-    if (current) respond(current.id, current.cancelId)
+    if (!current || answeredId.value === current.id) return
+    answeredId.value = current.id
+    api?.dismiss(current.id)
   }
 
   function dispose(): void {

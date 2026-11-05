@@ -168,5 +168,7 @@ export interface TrustedDialogShellState {
 export interface HronautTrustedDialogsApi {
   ready(): void
   respond(id: string, response: number, credentials?: TrustedDialogCredentials): void
+  /** Closes the request without a choice, as Escape or its close button does; main gives it its cancel answer. */
+  dismiss(id: string): void
   onChanged(listener: (request: TrustedDialogRequest | null, state: TrustedDialogShellState) => void): () => void
 }
