@@ -5,6 +5,7 @@ import { getTab } from '../browser-core.js'
 import { withDebugger } from '../debugger-lease/debugger-lease.js'
 import { nativeInputAuthority } from '../native-input-authority/native-input-authority.js'
 import { hasEmulationOverrides } from '../emulation-state.js'
+import { pinchedPageError, visualViewportPinched } from '../input-targets/target-checks.js'
 
 /** How long wheel events after an agent's wheel call still count as the agent's. */
 const AGENT_WHEEL_SETTLE_MS = 250
@@ -86,6 +87,8 @@ export async function wheel(browser: Browser, input: NativeWheelInput, validateI
       }
       validate()
       const viewport = metrics.cssVisualViewport
+      // Wheel runs without emulation, so any scale or offset is a person's pinch, which browser_zoom resets.
+      if (viewport && visualViewportPinched(viewport)) throw pinchedPageError('wheel')
       if (!viewport || viewport.scale !== 1 || viewport.offsetX !== 0 || viewport.offsetY !== 0
         || !Number.isFinite(viewport.clientWidth) || !Number.isFinite(viewport.clientHeight)
         || options.x >= viewport.clientWidth || options.y >= viewport.clientHeight) {

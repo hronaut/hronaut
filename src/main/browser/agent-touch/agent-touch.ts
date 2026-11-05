@@ -3,6 +3,7 @@ import { getTab } from '../browser-core.js'
 import { withDebugger } from '../debugger-lease/debugger-lease.js'
 import { withAgentInput } from '../agent-input-scope/agent-input-scope.js'
 import { nativeInputAuthority } from '../native-input-authority/native-input-authority.js'
+import { pinchedPageError, refusesPinchedPage, visualViewportPinched } from '../input-targets/target-checks.js'
 import { nativeTouchInput, notStartedTouchProgress, type NativeTouchInput, type NativeTouchProgress } from './touch-input.js'
 
 /** How many moves a swipe sends on its way from the start point to the end point. */
@@ -111,6 +112,8 @@ export async function touch(browser: Browser, input: NativeTouchInput, validateI
         }
         validate()
         const viewport = metrics.cssVisualViewport
+        // A person's pinch, which browser_zoom resets; a phone viewport keeps its own scale, which the reset leaves.
+        if (viewport && refusesPinchedPage(tab) && visualViewportPinched(viewport)) throw pinchedPageError('touch')
         const inside = (point: { x: number; y: number }): boolean => viewport !== undefined
           && point.x < viewport.clientWidth && point.y < viewport.clientHeight && point.x < bounds.width && point.y < bounds.height
         if (!viewport || viewport.scale !== 1 || viewport.offsetX !== 0 || viewport.offsetY !== 0

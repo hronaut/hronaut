@@ -34,6 +34,8 @@ function touchPage(options: {
   unacknowledged?: (type: TouchType) => boolean
   /** A rejection Chromium reports for the cancel after taking it, as its input handler does. */
   cancelRejection?: Error
+  /** Chromium's visual viewport, as Page.getLayoutMetrics gives it; at its normal scale unless given. */
+  viewport?: { clientWidth: number; clientHeight: number; scale: number; offsetX: number; offsetY: number }
 } = {}) {
   const commands: Command[] = []
   const debuggerEvents = new EventEmitter()
@@ -46,7 +48,9 @@ function touchPage(options: {
     mainFrame: { framesInSubtree: [{}] },
     debugger: Object.assign(debuggerEvents, {
       sendCommand: vi.fn(async (method: string, params?: Record<string, unknown>) => {
-        if (method === 'Page.getLayoutMetrics') return { cssVisualViewport: { clientWidth: 390, clientHeight: 600, scale: 1, offsetX: 0, offsetY: 0 } }
+        if (method === 'Page.getLayoutMetrics') {
+          return { cssVisualViewport: options.viewport ?? { clientWidth: 390, clientHeight: 600, scale: 1, offsetX: 0, offsetY: 0 } }
+        }
         commands.push({ method, params })
         const type = params?.type as TouchType
         if (type !== 'touchStart' && !held) throw new Error('Must send a TouchStart first to start a new touch.')
@@ -183,6 +187,20 @@ describe('touch gestures', () => {
     const outside = touchPage()
     await expect(touch(outside.browser, { tabId: 'tab-1', gesture: 'swipe', x: 10, y: 10, endX: 390, endY: 10 }, check => check(), () => undefined)).rejects.toThrow('inside the visible CSS viewport')
     expect([...noEmulation.commands, ...locked.commands, ...lockChanging.commands, ...outside.commands]).toEqual([])
+  })
+
+  // A touch on a page a person pinched larger was refused without saying how to go on.
+  it('refuses a page a person pinched larger, saying how to go on, and leaves a phone viewport its own scale', async () => {
+    const pinched = touchPage({ viewport: { clientWidth: 195, clientHeight: 300, scale: 2, offsetX: 40, offsetY: 30 } })
+    pinched.tab.emulation = { viewport: { width: 800, height: 700, deviceScaleFactor: 1, mobile: false, touch: true } } as never
+    await expect(touch(pinched.browser, tap, check => check(), () => undefined)).rejects
+      .toThrow('Touch with native input needs the page at its normal scale, and it is pinched larger. Reset it with browser_zoom (action reset)')
+    // A phone viewport keeps its own scale when the zoom is reset, so the reset is not offered there.
+    const phone = touchPage({ viewport: { clientWidth: 195, clientHeight: 300, scale: 2, offsetX: 40, offsetY: 30 } })
+    const refused = touch(phone.browser, tap, check => check(), () => undefined)
+    await expect(refused).rejects.toThrow('inside the visible CSS viewport')
+    await expect(refused).rejects.not.toThrow('browser_zoom')
+    expect([...pinched.commands, ...phone.commands]).toEqual([])
   })
 
   it('cancels the contact when a change stops the swipe, and a fresh gesture then works', async () => {

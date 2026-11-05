@@ -8,6 +8,10 @@ All notable changes to Hronaut are documented in this file.
 
 - Search tabs, opened with Ctrl/Cmd+Shift+A, the tab-search button or the workspace switcher, is now the Tabs view of Hronaut Home, the first of its views, instead of a dialog drawn over the page: it lists the open tabs as cards with their pictures grouped by workspace, with archived workspaces and recently closed tabs, gives its search field the keyboard, and Escape goes back to the page you came from.
 
+### Fixed
+
+- An agent's wheel input, or touch input outside an emulated phone viewport, on a page the person pinched larger now says that the page is pinched and that `browser_zoom` `reset` undoes it, as clicks, hover and drag already did, instead of only that the point must be inside the viewport; a native right-click on a page pinched while the pointer moved to it now gives the pinch as its reason, with the same advice.
+
 ## [3.14.15] - 2026-11-05
 
 ### Fixed
