@@ -115,3 +115,38 @@ test('leaves a phone viewport\'s fit-to-width scale alone across loads and a zoo
     await closeFixtureServer(server)
   }
 })
+
+// A page's source refuses page scripts, so it could not say it was pinched, and a zoom reset left the pinch there, while
+// the agent's native input on the page was refused until a reset undid it.
+test('undoes a pinch on a page\'s source when the zoom is reset, and lets it be pinched again', async ({ capabilities, electronApp }) => {
+  const { client, tabId, fixtureUrl } = capabilities
+  const sourceUrl = `view-source:${fixtureUrl}`
+  // The page's own executeJavaScript never settles on a source; its main frame's does.
+  const scale = (): Promise<number> => electronApp.evaluate(async ({ webContents }, url) => {
+    const contents = webContents.getAllWebContents().find(candidate => candidate.getURL() === url)!
+    return Math.round(Number(await contents.mainFrame.executeJavaScript('visualViewport.scale')) * 100) / 100
+  }, sourceUrl)
+  // A pinch sent before the page drew its first frame is lost, so it is sent again until the page shows it.
+  const pinched = async (): Promise<number> => {
+    await electronApp.evaluate(async ({ webContents }, url) => {
+      const contents = webContents.getAllWebContents().find(candidate => candidate.getURL() === url)!
+      const attached = contents.debugger.isAttached()
+      if (!attached) contents.debugger.attach('1.3')
+      try {
+        await contents.debugger.sendCommand('Input.synthesizePinchGesture', { x: 300, y: 200, scaleFactor: 2, gestureSourceType: 'mouse' })
+      } finally {
+        if (!attached) contents.debugger.detach()
+      }
+    }, sourceUrl)
+    return scale()
+  }
+  const opened = await client.callTool({ name: 'browser_navigate', arguments: { tabId, url: sourceUrl } }) as CallToolResult
+  expect(opened.isError, text(opened)).not.toBe(true)
+  await expect.poll(pinched).toBeGreaterThanOrEqual(2)
+  const reset = await client.callTool({ name: 'browser_zoom', arguments: { tabId, action: 'reset' } }) as CallToolResult
+  expect(reset.isError, text(reset)).not.toBe(true)
+  // The answer comes once the pinch is undone.
+  expect(await scale()).toBe(1)
+  // The limits were widened again, which a reset that never finished would not do: the page can still be pinched.
+  await expect.poll(pinched).toBeGreaterThanOrEqual(2)
+})

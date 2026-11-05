@@ -20,7 +20,12 @@ function tab(options: { fails?: boolean; held?: boolean; url?: string; mobile?: 
   const webContents = {
     getZoomFactor: () => 1.25,
     getURL: () => url,
-    executeJavaScript: vi.fn(async () => options.pinched ?? true),
+    // A page's source refuses page scripts, as Hronaut's source view guard does; its main frame's own call answers.
+    executeJavaScript: vi.fn(async () => {
+      if (url.startsWith('view-source:')) throw new Error('SourceViewError')
+      return options.pinched ?? true
+    }),
+    mainFrame: { executeJavaScript: vi.fn(async () => options.pinched ?? true) },
     setZoomFactor: vi.fn(),
     on: vi.fn((name: string, listener: (event: unknown, url: string) => void) => {
       if (name === 'did-navigate') navigated.push(listener)
@@ -106,6 +111,19 @@ describe('pinch zoom', () => {
     setZoom(page.browser, { action: 'reset' })
     expect(page.webContents.setZoomFactor).toHaveBeenCalledExactlyOnceWith(1)
     await vi.waitFor(() => expect(page.limits).toEqual([[1, 1], [1, PINCH_ZOOM_MAXIMUM]]))
+  })
+
+  // A page's source runs no page script, so it could not say it was pinched, and neither a reset nor Ctrl/Cmd+0 undid
+  // a pinch there, while an agent's native input on it was refused until a reset.
+  it('asks a page source through its main frame whether it is pinched when its zoom is reset', async () => {
+    const source = tab({ url: 'view-source:https://example.com/' })
+    await setZoomForAgent(source.browser, { action: 'reset' })
+    expect(source.webContents.executeJavaScript).not.toHaveBeenCalled()
+    expect(source.webContents.mainFrame.executeJavaScript).toHaveBeenCalledOnce()
+    expect(source.limits).toEqual([[1, 1], [1, PINCH_ZOOM_MAXIMUM]])
+    const unpinched = tab({ url: 'view-source:https://example.com/', pinched: false })
+    await setZoomForAgent(unpinched.browser, { action: 'reset' })
+    expect(unpinched.limits).toEqual([])
   })
 
   // The agent's next native input refuses a pinched page, so the agent is answered once the pinch is undone.
