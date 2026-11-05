@@ -51,6 +51,7 @@ class FakeWindow {
   /** The page finished loading, as Electron's did-finish-load reports. */
   finishPageLoad() { for (const listener of this.pageListeners.get('did-finish-load') ?? []) listener() }
   show() { this.shown = true }
+  isVisible() { return this.shown }
   focus() {}
   restore() {}
   close() {

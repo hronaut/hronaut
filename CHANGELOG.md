@@ -12,6 +12,7 @@ All notable changes to Hronaut are documented in this file.
 - A panel in its own window, such as Page tools, saved whether its window was maximized or in full screen but always opened at its normal size; it now opens maximized or in full screen as it was left.
 - An agent's click on a page pinched larger that was still loading scrolled the page to its target and moved the pointer there before it was refused, so the person's pinched view moved and the page could react to a pointer at the wrong place; it is now refused before the page scrolls or the pointer moves.
 - A page in a tab out of view that took full screen, as when an agent clicked a video's full screen button there, could stay in full screen inside its page card when the person switched to it about two seconds later; it now leaves full screen there too.
+- A panel in its own window that was still opening when an agent showed Hronaut with `browser_show`, which takes no focus, took the focus from the person's app once it had painted; it now stays without focus, as Hronaut's window does.
 
 ## [3.14.14] - 2026-11-04
 

@@ -246,11 +246,14 @@ export function createPanelWindow(host: PanelWindowHost): {
         sendTo(created.webContents, PANEL_WINDOW_IPC.showPanel, requestedPanel)
       })
       // It opens maximized or in full screen as it was saved, as the main window does, here or on whichever show comes
-      // first; Electron shows a hidden window to take either, so it opens that way at once.
+      // first; Electron shows a hidden window to take either, so it opens that way at once. A window shown before it
+      // painted, such as without focus for an agent, is not shown again, which would take the focus; nor is one the
+      // person minimized since, which Windows and macOS do not count as visible.
       created.once('ready-to-show', () => {
         if (created.isDestroyed() || host.refs.window !== created) return
+        const shownBefore = created.isVisible() || created.isMinimized()
         takeStateUntilShown(host.refs)
-        created.show()
+        if (!shownBefore) created.show()
       })
       created.on('resize', host.schedulePanelWindowStateSave)
       created.on('move', host.schedulePanelWindowStateSave)
