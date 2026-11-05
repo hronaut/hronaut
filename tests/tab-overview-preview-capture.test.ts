@@ -4,7 +4,7 @@ import type { Browser } from '../src/main/browser/browser.js'
 vi.mock('electron', () => ({ nativeImage: {} }))
 
 const { NativePreviewCapture } = await import('../src/main/browser/native-preview-capture.js')
-const { performTabOverviewPreviewCapture, scheduleTabOverviewPreview, storeTabOverviewPreview } =
+const { keepBackgroundTabOverviewPreview, performTabOverviewPreviewCapture, scheduleTabOverviewPreview, storeTabOverviewPreview } =
   await import('../src/main/browser/tab-overview-previews/tab-overview-previews.js')
 type Tab = Parameters<typeof performTabOverviewPreviewCapture>[1]
 
@@ -77,15 +77,58 @@ describe('tab overview preview capture', () => {
     const { tab, browser } = busyTab()
     const previews = new Map<string, { revision?: number }>()
     Object.assign(browser, { tabOverviewPreviews: previews })
-    const jpeg = Buffer.from('jpeg')
-    const image = {
-      isEmpty: () => false, getSize: () => ({ width: 480, height: 300 }), toJPEG: () => jpeg
-    } as unknown as Electron.NativeImage
-    storeTabOverviewPreview(browser, tab, image, 1)
+    const preview = { jpeg: Buffer.from('jpeg'), width: 480, height: 300 }
+    storeTabOverviewPreview(browser, tab, preview, 1)
     const first = previews.get(tab.id)?.revision
-    storeTabOverviewPreview(browser, tab, image, 1)
+    storeTabOverviewPreview(browser, tab, preview, 1)
     const second = previews.get(tab.id)?.revision
     expect(first).toEqual(expect.any(Number))
     expect(second).toBeGreaterThan(first!)
+  })
+
+  describe('made from an agent\'s screenshot of a tab in the background', () => {
+    /** The tab in the background of the busy fixture, its stored previews, and its frame when the screenshot was taken. */
+    function backgroundTab() {
+      const { tab, browser } = busyTab()
+      const previews = new Map<string, { dataUrl: string; width: number; height: number }>()
+      Object.assign(browser, { activeTabId: 'other-tab', tabOverviewPreviews: previews })
+      const frame = { navigationGeneration: 1, overviewPreviewSequence: tab.overviewPreviewSequence }
+      const encoded = deferred()
+      const keep = () => keepBackgroundTabOverviewPreview(browser, tab, encoded.promise as never, frame)
+      const encode = async () => {
+        encoded.resolve({ jpeg: Buffer.from('jpeg'), width: 480, height: 300 })
+        await new Promise(resolve => setImmediate(resolve))
+      }
+      return { tab, browser, previews, keep, encode }
+    }
+
+    it('is kept as its picture once encoded, which happens after the agent has its screenshot', async () => {
+      const { tab, previews, keep, encode } = backgroundTab()
+      keep()
+      expect(previews.size).toBe(0)
+      await encode()
+      expect(previews.get(tab.id)).toMatchObject({ dataUrl: `data:image/jpeg;base64,${Buffer.from('jpeg').toString('base64')}`, width: 480, height: 300 })
+    })
+
+    it.each([
+      ['came into view, whose own capture is newer', (fixture: ReturnType<typeof backgroundTab>) => {
+        Object.assign(fixture.browser, { activeTabId: fixture.tab.id })
+      }],
+      ['was in view and back in the background meanwhile', (fixture: ReturnType<typeof backgroundTab>) => {
+        fixture.tab.overviewPreviewSequence += 1
+      }],
+      ['navigated', (fixture: ReturnType<typeof backgroundTab>) => {
+        fixture.tab.navigationGeneration += 1
+      }],
+      ['went to sleep', (fixture: ReturnType<typeof backgroundTab>) => {
+        fixture.tab.sleeping = true
+      }]
+    ])('is dropped when the tab %s while it was encoded', async (_, change) => {
+      const fixture = backgroundTab()
+      fixture.keep()
+      change(fixture)
+      await fixture.encode()
+      expect(fixture.previews.size).toBe(0)
+    })
   })
 })

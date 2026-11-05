@@ -4,7 +4,8 @@ import { Worker } from 'node:worker_threads'
 import { crc32, inflateSync } from 'node:zlib'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-// Under several agents main spent a fifth of its time encoding their screenshots as PNG; a worker thread does it now.
+// Under several agents main spent a fifth of its time encoding their screenshots as PNG, and a twentieth making tabs'
+// pictures for Home; a worker thread does both now.
 
 /** The bytes Chromium gives for a pixel of rgb(10, 20, 30), in the order this test's platform has them. */
 const platform = vi.hoisted(() => ({ knownPixel: [30, 20, 10, 255] }))
@@ -13,27 +14,40 @@ vi.mock('electron', () => ({
 }))
 
 afterEach(async () => {
-  await (await import('../src/main/browser/screenshots/png-encoder.js')).stopPngEncoder()
+  await (await import('../src/main/browser/screenshots/image-encoder.js')).stopImageEncoder()
   platform.knownPixel = [30, 20, 10, 255]
-  vi.doUnmock('../src/main/browser/screenshots/png-encoder.worker?nodeWorker')
+  vi.doUnmock('../src/main/browser/screenshots/image-encoder.worker?nodeWorker')
   vi.restoreAllMocks()
   vi.resetModules()
 })
 
 /** A fresh encoder, as in a new app: it reads the byte order and starts its worker on first use. */
 async function encoder() {
-  return (await import('../src/main/browser/screenshots/png-encoder.js')).encodePng
+  return (await import('../src/main/browser/screenshots/image-encoder.js')).encodePng
 }
 
-/** A captured image whose bitmap is the given bytes, in memory of its own as Electron gives it, or shared with others. */
+/**
+ * A captured image whose bitmap is the given bytes, in memory of its own as Electron gives it, or shared with others.
+ * Main scales it to a smaller image whose JPEG says its size.
+ */
 function image(width: number, height: number, bitmap: number[] | Buffer, memory: 'own' | 'shared' = 'shared') {
   const bytes = Buffer.from(bitmap)
-  return {
+  const captured = {
     isEmpty: () => width === 0,
     getSize: () => ({ width, height }),
     toBitmap: vi.fn(() => memory === 'own' ? Buffer.from(Uint8Array.from(bytes).buffer) : Buffer.from(bytes)),
-    toPNG: vi.fn(() => Buffer.from('main-png'))
+    toPNG: vi.fn(() => Buffer.from('main-png')),
+    toJPEG: vi.fn((quality: number) => Buffer.from(`main-jpeg ${width}x${height} at ${quality}`)),
+    resize: vi.fn((size: { width: number; height: number }) => image(size.width, size.height, []))
   }
+  return captured
+}
+
+/** The size a JPEG's frame header gives, once its markers are checked to begin and end the file. */
+function jpegSize(jpeg: Buffer): { width: number; height: number } {
+  expect([...jpeg.subarray(0, 2), ...jpeg.subarray(-2)]).toEqual([0xff, 0xd8, 0xff, 0xd9])
+  const frame = jpeg.indexOf(Buffer.of(0xff, 0xc0))
+  return { width: jpeg.readUInt16BE(frame + 7), height: jpeg.readUInt16BE(frame + 5) }
 }
 
 /** Reads a PNG back as straight RGBA, checking its chunks as a decoder does. */
@@ -165,10 +179,10 @@ describe('a screenshot encoded as PNG', () => {
 
   it('gives the capture waiting for the worker its PNG from main when the encoder is stopped, and starts another after', async () => {
     const encodePng = await encoder()
-    const { stopPngEncoder } = await import('../src/main/browser/screenshots/png-encoder.js')
+    const { stopImageEncoder } = await import('../src/main/browser/screenshots/image-encoder.js')
     const bitmap = pageLike(3, 2)
     const waiting = encodePng(image(3, 2, bitmap) as never)
-    await stopPngEncoder()
+    await stopImageEncoder()
     expect(await waiting).toEqual({ data: Buffer.from('main-png'), pixels: { digest: digest(3, 2, bitmap), width: 3, height: 2 } })
     expect(decodePng((await encodePng(image(3, 2, bitmap) as never)).data).rgba).toEqual(asRgba(bitmap))
   })
@@ -197,7 +211,7 @@ describe('a screenshot encoded as PNG', () => {
     ['sends a reply that cannot be read', () => fakeWorker((worker) => setTimeout(() => worker.emit('messageerror', new Error('unreadable')), 5))]
   ])('is encoded by main from then on when the worker %s, and the capture waiting for it still gets its PNG', async (_, startWorker) => {
     const start = vi.fn(startWorker)
-    vi.doMock('../src/main/browser/screenshots/png-encoder.worker?nodeWorker', () => ({ default: start }))
+    vi.doMock('../src/main/browser/screenshots/image-encoder.worker?nodeWorker', () => ({ default: start }))
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const encodePng = await encoder()
     const bitmap = pageLike(3, 2)
@@ -207,6 +221,61 @@ describe('a screenshot encoded as PNG', () => {
     const second = image(3, 2, bitmap)
     expect((await encodePng(second as never)).data.toString()).toBe('main-png')
     expect(start).toHaveBeenCalledOnce()
-    expect(warn).toHaveBeenCalledExactlyOnceWith('[screenshots] The PNG encoder failed; screenshots are encoded in the main process from now on.')
+    expect(warn).toHaveBeenCalledExactlyOnceWith('[screenshots] The image encoder failed; screenshots and tab previews are encoded in the main process from now on.')
+  })
+})
+
+describe('a preview of a capture', () => {
+  const PREVIEW = { maxWidth: 16, maxHeight: 16, quality: 65 }
+
+  it('is made in the worker from the PNG\'s own pixels, which main reads once, and arrives after the PNG', async () => {
+    const { encodePngAndPreview } = await import('../src/main/browser/screenshots/image-encoder.js')
+    const bitmap = pageLike(32, 20)
+    const captured = image(32, 20, bitmap, 'own')
+    const encoded = encodePngAndPreview(captured as never, PREVIEW)
+    const arrived: string[] = []
+    const [png, preview] = await Promise.all([
+      encoded.png.then((value) => { arrived.push('png'); return value }),
+      encoded.preview.then((value) => { arrived.push('preview'); return value })
+    ])
+    expect(arrived).toEqual(['png', 'preview'])
+    expect([decodePng(png.data).width, png.pixels.height]).toEqual([32, 20])
+    // Made to fit 16x16 in the capture's proportions.
+    expect(preview).toEqual({ jpeg: expect.any(Buffer), width: 16, height: 10 })
+    expect(jpegSize(preview!.jpeg)).toEqual({ width: 16, height: 10 })
+    expect(captured.toBitmap).toHaveBeenCalledOnce()
+    expect(captured.resize).not.toHaveBeenCalled()
+    expect(captured.toJPEG).not.toHaveBeenCalled()
+  })
+
+  it('is made alone when only the preview is wanted, and keeps the size of a capture that already fits', async () => {
+    const { encodePreview } = await import('../src/main/browser/screenshots/image-encoder.js')
+    const small = image(12, 9, pageLike(12, 9))
+    const preview = await encodePreview(small as never, PREVIEW)
+    expect(preview).toEqual({ jpeg: expect.any(Buffer), width: 12, height: 9 })
+    expect(jpegSize(preview!.jpeg)).toEqual({ width: 12, height: 9 })
+    expect(small.toPNG).not.toHaveBeenCalled()
+    expect(await encodePreview(image(0, 0, []) as never, PREVIEW)).toBeUndefined()
+  })
+
+  it('is made by main when the worker cannot take the bitmap: scaled as Chromium scales it, at the same quality', async () => {
+    platform.knownPixel = [20, 10, 30, 255]
+    const { encodePngAndPreview, encodePreview } = await import('../src/main/browser/screenshots/image-encoder.js')
+    const captured = image(32, 20, pageLike(32, 20))
+    expect(await encodePreview(captured as never, PREVIEW)).toEqual({ jpeg: Buffer.from('main-jpeg 16x10 at 65'), width: 16, height: 10 })
+    expect(captured.resize).toHaveBeenCalledExactlyOnceWith({ width: 16, height: 10, quality: 'good' })
+    const fits = image(12, 9, pageLike(12, 9))
+    expect(await encodePngAndPreview(fits as never, PREVIEW).preview).toEqual({ jpeg: Buffer.from('main-jpeg 12x9 at 65'), width: 12, height: 9 })
+    expect(fits.resize).not.toHaveBeenCalled()
+  })
+
+  it('is made by main when the worker fails while making it, as the PNG is', async () => {
+    const start = vi.fn(() => new Worker('setTimeout(() => process.exit(0), 20)', { eval: true }))
+    vi.doMock('../src/main/browser/screenshots/image-encoder.worker?nodeWorker', () => ({ default: start }))
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const { encodePngAndPreview } = await import('../src/main/browser/screenshots/image-encoder.js')
+    const encoded = encodePngAndPreview(image(32, 20, pageLike(32, 20)) as never, PREVIEW)
+    expect((await encoded.png).data.toString()).toBe('main-png')
+    expect(await encoded.preview).toEqual({ jpeg: Buffer.from('main-jpeg 16x10 at 65'), width: 16, height: 10 })
   })
 })

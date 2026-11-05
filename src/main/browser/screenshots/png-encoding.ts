@@ -1,34 +1,11 @@
-import { createHash } from 'node:crypto'
-import { parentPort } from 'node:worker_threads'
 import { crc32, deflateSync } from 'node:zlib'
 
-// Encodes screenshots as PNG off the main process, which spent a fifth of its time encoding them under several agents.
-// Node built-ins only: the worker runs on its own, outside the app's bundle of main.
-
-/** The order of a pixel's bytes in a bitmap Chromium hands out: BGRA on every platform it was seen on. */
-export type PixelOrder = 'bgra' | 'rgba'
-
-/** A bitmap's pixels as Chromium keeps them, premultiplied by their alpha, row after row with no padding. */
-export interface PngRequest { id: number; width: number; height: number; order: PixelOrder; pixels: ArrayBuffer }
-
-/** The PNG, with the SHA-256 of the size and pixels it was made from; or why it could not be made. */
-export type PngReply = { id: number; png: Uint8Array; digest: string } | { id: number; error: string }
+// A screenshot's PNG, made in the image encoder's worker: Node built-ins only, as the worker runs them under test as they are.
 
 const SIGNATURE = Uint8Array.of(137, 80, 78, 71, 13, 10, 26, 10)
 
-parentPort?.on('message', (request: PngRequest) => {
-  try {
-    const pixels = new Uint8Array(request.pixels)
-    const digest = createHash('sha256').update(`${request.width}x${request.height}:`).update(pixels).digest('hex')
-    const png = encodePng(request.width, request.height, request.order, pixels)
-    parentPort!.postMessage({ id: request.id, png, digest } satisfies PngReply, [png.buffer as ArrayBuffer])
-  } catch (error) {
-    parentPort!.postMessage({ id: request.id, error: error instanceof Error ? error.name : 'Error' } satisfies PngReply)
-  }
-})
-
 /** An 8-bit RGBA PNG of the pixels, their colour taken out of the alpha again as Chromium's own encoder does. */
-function encodePng(width: number, height: number, order: PixelOrder, pixels: Uint8Array): Uint8Array {
+export function pngOfBitmap(width: number, height: number, order: 'bgra' | 'rgba', pixels: Uint8Array): Uint8Array {
   if (pixels.length !== width * height * 4) throw new RangeError('The bitmap does not match its size')
   const header = new Uint8Array(13)
   const view = new DataView(header.buffer)
@@ -50,7 +27,7 @@ function encodePng(width: number, height: number, order: PixelOrder, pixels: Uin
 }
 
 /** The pixels as RGBA whose colour no longer carries the alpha, as PNG keeps them. */
-function straightRgba(order: PixelOrder, pixels: Uint8Array): Uint8Array {
+function straightRgba(order: 'bgra' | 'rgba', pixels: Uint8Array): Uint8Array {
   const red = order === 'bgra' ? 2 : 0
   const blue = 2 - red
   const rgba = new Uint8Array(pixels.length)

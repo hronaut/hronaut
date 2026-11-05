@@ -69,7 +69,7 @@ try {
   }
   // Hronaut encodes screenshots in a worker thread, which writes RGBA; main's fallback, Chromium's encoder, writes an opaque
   // page as RGB. The colour type is the 26th byte of a PNG.
-  if (Buffer.from(image.data, 'base64')[25] !== 6) fail('browser_screenshot was encoded by main: the PNG encoder worker did not run')
+  if (Buffer.from(image.data, 'base64')[25] !== 6) fail('browser_screenshot was encoded by main: the image encoder worker did not run')
 
   const debugReport = await client.callTool({
     name: 'browser_debug_report',

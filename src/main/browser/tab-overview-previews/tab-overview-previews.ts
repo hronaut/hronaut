@@ -12,6 +12,7 @@ import type { BrowserTab } from '../browser-tab.js'
 import { withDebugger } from '../debugger-lease/debugger-lease.js'
 import { withRenderableTab } from '../renderable-tab/renderable-tab.js'
 import { screenshotPixelRatio } from '../screenshots/screenshot-scale.js'
+import { encodePreview, type EncodedPreview, type PreviewSize } from '../screenshots/image-encoder.js'
 
 /** One queued capture of the frame in view of a tab, superseded by a newer sequence. */
 export interface TabOverviewPreviewCaptureRequest<Tab> {
@@ -19,10 +20,9 @@ export interface TabOverviewPreviewCaptureRequest<Tab> {
   sequence: number
 }
 
-const MAX_TAB_OVERVIEW_PREVIEW_WIDTH = 480
-const MAX_TAB_OVERVIEW_PREVIEW_HEIGHT = 300
+/** A tab's picture in Home's Tabs view: its frame in view, made to fit 480x300, as a JPEG of quality 65. */
+export const TAB_OVERVIEW_PREVIEW_SIZE: PreviewSize = { maxWidth: 480, maxHeight: 300, quality: 65 }
 const MAX_TAB_OVERVIEW_PREVIEW_BYTES = 256 * 1024
-const TAB_OVERVIEW_PREVIEW_JPEG_QUALITY = 65
 const MAX_TAB_OVERVIEW_PAGE_WIDTH = 1_440
 const MAX_TAB_OVERVIEW_PAGE_HEIGHT = 12_000
 const MAX_TAB_OVERVIEW_PAGE_PIXELS = 12_000_000
@@ -252,42 +252,58 @@ export async function performTabOverviewPreviewCapture(browser: Browser, tab: Br
     () => { setImmediate(() => scheduleTabOverviewPreview(browser, tab)) }
   )
   if (!captured || !isEligible() || tab.navigationGeneration !== navigationGeneration || captured.isEmpty()) return
-  storeTabOverviewPreview(browser, tab, captured, navigationGeneration, isEligible)
+  storeTabOverviewPreview(browser, tab, await encodePreview(captured, TAB_OVERVIEW_PREVIEW_SIZE), navigationGeneration, isEligible)
+}
+
+/** What an agent's screenshot of a tab in the background tells of it when the screenshot was taken. */
+export interface BackgroundTabFrame {
+  navigationGeneration: number
+  /** The tab's preview sequence then, which a capture of the tab in view or a navigation moves on. */
+  overviewPreviewSequence: number
 }
 
 /**
- * Keeps a captured frame, made compact, as the tab's preview, unless it no longer applies or exceeds the size limit.
+ * Keeps the preview made from an agent's screenshot of a tab in the background as the tab's picture in Home's Tabs view,
+ * once it is encoded, unless the tab came into view meanwhile, whose own capture is newer, or navigated or went to sleep.
+ */
+export function keepBackgroundTabOverviewPreview(
+  browser: Browser,
+  tab: BrowserTab,
+  preview: Promise<EncodedPreview | undefined>,
+  frame: BackgroundTabFrame
+): void {
+  const stillInBackground = (): boolean => tab.overviewPreviewSequence === frame.overviewPreviewSequence
+    && tab.id !== browser.activeTabId && !browser.splitViewContains(tab.id)
+  void preview.then((encoded) => storeTabOverviewPreview(browser, tab, encoded, frame.navigationGeneration, stillInBackground))
+    .catch((error: unknown) => console.warn(`[browser] Could not make the tab overview preview of ${tab.id}:`, error))
+}
+
+/**
+ * Keeps an encoded frame as the tab's preview, unless it no longer applies or exceeds the size limit.
  * Memory only: never saved, sent to agents or reported.
  */
 export function storeTabOverviewPreview(
   browser: Browser,
   tab: BrowserTab,
-  captured: Electron.NativeImage,
+  preview: EncodedPreview | undefined,
   navigationGeneration: number,
   stillCurrent: () => boolean = () => true
 ): void {
-  if (captured.isEmpty()) return
-  const original = captured.getSize()
-  const bounded = boundedScreenshotSize(original.width, original.height, MAX_TAB_OVERVIEW_PREVIEW_WIDTH, MAX_TAB_OVERVIEW_PREVIEW_HEIGHT)
-  const image = bounded.width === original.width && bounded.height === original.height
-    ? captured
-    : captured.resize({ width: bounded.width, height: bounded.height, quality: 'good' })
-  const jpeg = image.toJPEG(TAB_OVERVIEW_PREVIEW_JPEG_QUALITY)
-  const size = image.getSize()
   if (
-    !stillCurrent()
+    !preview
+    || !stillCurrent()
     || browser.destroyed
     || findTab(browser, tab.id) !== tab
     || tab.sleeping
     || tab.navigationGeneration !== navigationGeneration
-    || jpeg.length > MAX_TAB_OVERVIEW_PREVIEW_BYTES
+    || preview.jpeg.length > MAX_TAB_OVERVIEW_PREVIEW_BYTES
   ) return
   browser.tabOverviewPreviews.set(tab.id, {
     tabId: tab.id,
     navigationGeneration,
-    dataUrl: `data:image/jpeg;base64,${jpeg.toString('base64')}`,
-    width: size.width,
-    height: size.height,
+    dataUrl: `data:image/jpeg;base64,${preview.jpeg.toString('base64')}`,
+    width: preview.width,
+    height: preview.height,
     revision: ++lastPreviewRevision
   })
 }

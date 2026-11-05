@@ -11,14 +11,16 @@ import { targetElementInPage } from '../page-scripts/target-action.page.js'
 import type { Browser } from '../browser.js'
 import { findTab, getTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
-import { storeTabOverviewPreview } from '../tab-overview-previews/tab-overview-previews.js'
+import {
+  keepBackgroundTabOverviewPreview, TAB_OVERVIEW_PREVIEW_SIZE, type BackgroundTabFrame
+} from '../tab-overview-previews/tab-overview-previews.js'
 import { visualCompareContext } from '../visual-compare/visual-capture.js'
 import { withDebugger } from '../debugger-lease/debugger-lease.js'
 import { withRenderableTab } from '../renderable-tab/renderable-tab.js'
 import { dismissAgentPointer } from '../agent-pointer/agent-pointer.js'
 import { validateTarget } from '../input-targets/input-targets.js'
 import { screenshotPixelRatio } from './screenshot-scale.js'
-import { encodePng, type EncodedPng } from './png-encoder.js'
+import { encodePng, encodePngAndPreview, encodePreview, type EncodedPng } from './image-encoder.js'
 import { screenshotClipInPage, screenshotTargetClipInPage } from './screenshots.page.js'
 
 const SCREENSHOT_ANNOTATION_WORLD_ID = ISOLATED_WORLDS.screenshotAnnotation
@@ -71,6 +73,8 @@ export async function screenshot(browser: Browser, options: BrowserScreenshotOpt
     if (options.fullPage || hasTarget || options.clip) throw new Error('annotateRefs supports viewport screenshots only; omit fullPage, ref, selector and clip')
     return annotatedScreenshot(browser, tab, options, refs)
   }
+  // A screenshot of the viewport of a tab in the background, once its page has settled, is also its picture in Home.
+  const shot: { background?: BackgroundTabFrame & { captured: NativeImage } } = {}
   const result = await withRenderableTab(browser, tab, async (): Promise<Screenshot | { image: NativeImage }> => {
     const webContents = tab.webContents
     await dismissAgentPointer(webContents)
@@ -128,7 +132,7 @@ export async function screenshot(browser: Browser, options: BrowserScreenshotOpt
     const overviewEligible = settledForOverview()
     const captured = await webContents.capturePage()
     if (overviewEligible && settledForOverview() && tab.id !== browser.activeTabId && !browser.splitViewContains(tab.id)) {
-      storeTabOverviewPreview(browser, tab, captured, navigationGeneration)
+      shot.background = { captured, navigationGeneration, overviewPreviewSequence: tab.overviewPreviewSequence }
     }
     const original = captured.getSize()
     const bounded = boundedScreenshotSize(original.width, original.height, options.maxWidth, options.maxHeight)
@@ -141,10 +145,31 @@ export async function screenshot(browser: Browser, options: BrowserScreenshotOpt
   // the page itself. Waiting for a separate compositor subscription first can
   // strand an otherwise healthy capture when Chromium omits that notification.
   }, options.fullPage ? 'surface' : 'presented-frame')
-  if (!('image' in result)) return result
   // Encoded once the tab is let go, so that its next capture need not wait for the encoder.
-  const png = await encodePng(result.image)
+  const { background } = shot
+  if (!('image' in result)) {
+    if (background) keepBackgroundTabOverviewPreview(browser, tab, encodePreview(background.captured, TAB_OVERVIEW_PREVIEW_SIZE), background)
+    return result
+  }
+  // The tab's preview comes from the PNG's own pixels, read once for both, unless the screenshot is smaller than it.
+  const previewFromPng = background !== undefined && sameSize(previewSize(result.image), previewSize(background.captured))
+  const encoded = encodePngAndPreview(result.image, previewFromPng ? TAB_OVERVIEW_PREVIEW_SIZE : undefined)
+  if (background) {
+    const preview = previewFromPng ? encoded.preview : encodePreview(background.captured, TAB_OVERVIEW_PREVIEW_SIZE)
+    keepBackgroundTabOverviewPreview(browser, tab, preview, background)
+  }
+  const png = await encoded.png
   return { data: png.data, mimeType: 'image/png', pixels: png.pixels }
+}
+
+/** The size of a tab's preview made from the image. */
+function previewSize(image: NativeImage): { width: number; height: number } {
+  const { width, height } = image.getSize()
+  return boundedScreenshotSize(width, height, TAB_OVERVIEW_PREVIEW_SIZE.maxWidth, TAB_OVERVIEW_PREVIEW_SIZE.maxHeight)
+}
+
+function sameSize(first: { width: number; height: number }, second: { width: number; height: number }): boolean {
+  return first.width === second.width && first.height === second.height
 }
 
 /**
