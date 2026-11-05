@@ -46,7 +46,7 @@ function siteName(url: string): string {
 }
 
 /** Up to four of the workspace's tabs over its color: each with its site icon, or the site's initial, and its title. */
-function renderTabs(group: WorkspaceCard, context: CardContext): HTMLElement {
+function renderTabs(group: WorkspaceCard, context: Pick<CardContext, 'messages' | 'labels' | 'untitledTab' | 'count'>): HTMLElement {
   const tiles = document.createElement('ul')
   tiles.className = 'card-tabs'
   tiles.style.setProperty('--workspace-color', BROWSER_TAB_GROUP_COLOR_HEX[group.color])
@@ -76,6 +76,37 @@ function renderTabs(group: WorkspaceCard, context: CardContext): HTMLElement {
   if (hidden) tiles.append(text('li', `+${hidden}`, 'card-tab card-tab-more'))
   if (!group.tabs.length) tiles.append(text('li', context.messages.noTabs, 'card-tab card-tab-empty'))
   return tiles
+}
+
+/** What each part of a card is drawn from. Its tab tiles and its counts of tabs and websites change as agents browse;
+ * the rest, with its menu, changes only with the workspace's settings, or when it gains its first tab or loses its last
+ * (archiving it may then need the person), so a busy agent never rebuilds the menu under the person's pointer. */
+export function cardSignatures(group: WorkspaceCard, allHumanInteractionLocked: boolean): { frame: string; tabs: string } {
+  const { id, name, color, description, agentAccess, hiddenFromSidebar, deletionProtected, navigationPolicy, archived, tabs } = group
+  return {
+    frame: JSON.stringify([
+      id, name, color, description, agentAccess, hiddenFromSidebar, deletionProtected, navigationPolicy, archived, tabs.length > 0,
+      allHumanInteractionLocked
+    ]),
+    tabs: JSON.stringify([color, tabs.map(tab => [tab.title, tab.url, tab.faviconDataUrl])])
+  }
+}
+
+/** Redraws only a card's tab tiles, keeping its header, menu and focus. */
+export function updateCardTabs(card: HTMLElement, group: WorkspaceCard, context: Pick<CardContext, 'messages' | 'labels' | 'untitledTab' | 'count'>): void {
+  card.querySelector('.card-tabs')?.replaceWith(renderTabs(group, context))
+}
+
+/** Rewrites a card's tab count and, in its menu, its count of websites with kept data, only when they change. */
+export function updateCardCounts(card: HTMLElement, group: WorkspaceCard, context: Pick<CardContext, 'labels' | 'count'>): void {
+  const { labels, count } = context
+  for (const [selector, value] of [
+    ['.card-count', count(labels.workspaceTabs, group.tabs.length)],
+    ['.card-menu-note', count(labels.workspaceSites, group.storageOriginCount || 0)]
+  ] as const) {
+    const node = card.querySelector(selector)
+    if (node && node.textContent !== value) node.textContent = value
+  }
 }
 
 /** A workspace setting the card shows as a small icon; its tooltip is its name, to screen readers too. */

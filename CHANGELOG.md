@@ -18,6 +18,7 @@ All notable changes to Hronaut are documented in this file.
 - View Page Source, Save Page As, Print, Find Next and Find Previous chosen with the keyboard, with Enter in the open menu or with Ctrl+F2 or VoiceOver on macOS, now act while a panel in its own window has focus, as when chosen with the mouse, and Back and Forward chosen with the keyboard go back and forward as the toolbar's arrows do.
 - A tab left with a click on another tab now gives the address field or Find the keyboard back when you come back to it, as one left with Ctrl+Tab does and as in Chrome; it gave its page the keyboard.
 - Keys typed right after Ctrl/Cmd+L, Ctrl/Cmd+F or F6 in a page now go to the field the key opens, as in Chrome, also while Hronaut's window is busy, such as with many tabs open. They could reach the window first and go where it had the keyboard before, such as after the address's text, which the address field then selected along with them.
+- A workspace card's open menu on Home now stays put while an agent browses in that workspace. Each page the agent opened drew the whole card again, menu included, under the pointer and the keyboard.
 
 ## [3.14.16] - 2026-11-05
 

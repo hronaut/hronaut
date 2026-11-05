@@ -117,6 +117,57 @@ describe('Workspace card menu (#872)', () => {
     return { home, menu, workspaceAction, summary: query('summary', menu), open: query<HTMLButtonElement>('[data-workspace-action="open"]', card('Acme Store')) }
   }
 
+  it('stays open, with its items and the focus on them, while an agent browses: only the tiles and counts change', async () => {
+    const cart = { id: 'a', mcpGroupId: 'shop', title: 'Cart', url: 'https://shop.example/cart' }
+    let workspaces = inventory({ tabs: [cart] })
+    const getWorkspaces = vi.fn(async () => workspaces)
+    mountTestHome({ workspaces, api: { getWorkspaces } })
+    await flush()
+    const node = card('Acme Store')
+    const header = query('header', node)
+    const menu = query<HTMLDetailsElement>('.card-menu', node)
+    menu.open = true
+    const clear = query<HTMLButtonElement>('[data-workspace-action="clear"]', menu)
+    clear.focus()
+    expect(words(query('.card-tabs', node))).toBe('SCart')
+    expect(cardStatus('Acme Store').text).toBe('Last used 1 hour ago')
+    const keeps = () => {
+      expect(query('header', node)).toBe(header)
+      expect(query('[data-workspace-action="clear"]', node)).toBe(clear)
+      expect(menu.open).toBe(true)
+      expect(document.activeElement).toBe(clear)
+    }
+
+    // The agent opens another page on the same site, which also marks the workspace as just used.
+    const reads = getWorkspaces.mock.calls.length
+    const used = { ...shop, lastUsedAt: isoMinutesAgo(0) }
+    workspaces = inventory({ mcpTabGroups: [used, docs], tabs: [{ ...cart, title: 'Payment', url: 'https://shop.example/pay' }] })
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(getWorkspaces.mock.calls.length).toBeGreaterThan(reads)
+    expect(words(query('.card-tabs', node))).toBe('SPayment')
+    expect(cardStatus('Acme Store').text).toBe('Last used now')
+    keeps()
+
+    // It opens a second tab on another site: the card's tab count and its menu's website count follow.
+    workspaces = inventory({
+      mcpTabGroups: [{ ...used, storageOriginCount: 2 }, docs],
+      tabs: [cart, { ...cart, id: 'b', title: 'Docs', url: 'https://docs.example/' }]
+    })
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(words(query('.card-count', node))).toBe('2 tabs')
+    expect(words(query('.card-menu-note', node))).toBe('2 known websites')
+    expect(words(query('.card-tabs', node))).toBe('SCartDDocs')
+    keeps()
+
+    // A setting changes what the menu shows, so the card is drawn again, still open on the same item.
+    workspaces = inventory({ mcpTabGroups: [{ ...used, storageOriginCount: 2, hiddenFromSidebar: true }, docs], tabs: [cart] })
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(query('header', node)).not.toBe(header)
+    expect(query<HTMLDetailsElement>('.card-menu', node).open).toBe(true)
+    expect(document.activeElement).toBe(query('[data-workspace-action="clear"]', node))
+    expect(words(query('.card-count', node))).toBe('1 tab')
+  })
+
   it('names its button after the workspace', async () => {
     const { summary } = await mountWithMenu()
     expect(summary.getAttribute('aria-label')).toBe('More actions for Acme Store')
