@@ -6,7 +6,9 @@ import { homeStatus } from './home-status.js'
 type RightGate = { held: boolean; commands: string[]; release: () => void; restore: () => void }
 type RightScope = typeof globalThis & { rightClickGate?: RightGate }
 
-for (const change of ['unchanged', 'zoom-aba', 'selection-aba', 'bounds-aba', 'pause-aba', 'global-pause-aba', 'access-aba', 'route', 'close', 'cancel', 'frame', 'global-lock-requests', 'cleanup-zoom-aba'] as const) {
+// The page's viewport is read twice in the click's debugger turn: before the pointer moves, for a pinch, and after it,
+// for the right-click's point. Each change lands during the second read, or for before-move-pause-aba during the first.
+for (const change of ['unchanged', 'zoom-aba', 'selection-aba', 'bounds-aba', 'pause-aba', 'global-pause-aba', 'access-aba', 'route', 'close', 'cancel', 'frame', 'global-lock-requests', 'cleanup-zoom-aba', 'before-move-pause-aba'] as const) {
   test(`right-click revalidates after viewport await: ${change}`, async ({ capabilities, electronApp, appWindow }, testInfo) => {
     const { client, tabId, fixtureUrl } = capabilities
     await appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.setTabHumanInteractionLocked(id, true), tabId)
@@ -20,7 +22,9 @@ for (const change of ['unchanged', 'zoom-aba', 'selection-aba', 'bounds-aba', 'p
       ;(globalThis as RightScope).rightClickGate = gate
       page.debugger.sendCommand = async (method, ...args) => {
         if (method === 'Input.dispatchMouseEvent') gate.commands.push(String((args[0] as Record<string, unknown>)?.type))
-        if (method === (change === 'cleanup-zoom-aba' ? 'Runtime.releaseObjectGroup' : 'Page.getLayoutMetrics') && !gate.held) {
+        const held = change === 'cleanup-zoom-aba' ? method === 'Runtime.releaseObjectGroup'
+          : method === 'Page.getLayoutMetrics' && (change === 'before-move-pause-aba' || gate.commands.includes('mouseMoved'))
+        if (held && !gate.held) {
           const result = await original.call(page.debugger, method, ...args)
           gate.held = true
           await hold
@@ -53,7 +57,7 @@ for (const change of ['unchanged', 'zoom-aba', 'selection-aba', 'bounds-aba', 'p
         await api.selectTab(other.id)
         await api.selectTab(id)
       }, tabId)
-      if (change === 'pause-aba') await appWindow.evaluate(async id => {
+      if (change === 'pause-aba' || change === 'before-move-pause-aba') await appWindow.evaluate(async id => {
         const api = (window as unknown as { hronaut: HronautApi }).hronaut
         await api.setTabAgentPaused(id, true)
         await api.setTabAgentPaused(id, false)
@@ -106,7 +110,8 @@ for (const change of ['unchanged', 'zoom-aba', 'selection-aba', 'bounds-aba', 'p
       const commands = await electronApp.evaluate(() => (globalThis as RightScope).rightClickGate!.commands)
       await testInfo.attach('rightClick-authority', { body: JSON.stringify({ change, result, commands }), contentType: 'application/json' })
       expect(result.isError === true, text(result)).toBe(change !== 'unchanged')
-      expect(commands).toEqual(change === 'unchanged' || change === 'cleanup-zoom-aba' ? ['mouseMoved', 'mousePressed', 'mouseReleased'] : ['mouseMoved'])
+      expect(commands).toEqual(change === 'unchanged' || change === 'cleanup-zoom-aba' ? ['mouseMoved', 'mousePressed', 'mouseReleased']
+        : change === 'before-move-pause-aba' ? [] : ['mouseMoved'])
     } finally {
       transport.send = send
       await electronApp.evaluate(() => { (globalThis as RightScope).rightClickGate?.restore(); delete (globalThis as RightScope).rightClickGate }).catch(() => undefined)

@@ -15,7 +15,7 @@ import { evaluateWithAttachedDebugger, mainWorldContextId } from '../debugger-ev
 import { coordinatePointOrValidateTarget } from '../input-targets/input-targets.js'
 import {
   assertClickTargetEnabled, assertPageAtNormalScale, assertPageAtNormalScaleBeforeInput, assertPointInsideVisibleViewport,
-  assertRightClickViewport, refusesPinchedPage
+  assertRightClickViewport, pagePinchedBeforeInput, refusesPinchedPage
 } from '../input-targets/target-checks.js'
 import { dispatchNativeClick } from '../native-click/native-click.js'
 import { rightClickEnvironment } from '../native-click/right-click-environment.js'
@@ -146,6 +146,9 @@ async function dispatchClick(browser: Browser, target: BrowserClickTarget, valid
           let failure: unknown
           try {
             assertClickCurrent()
+            // A page still reading its document is not asked before the click. Refused only at the press, it would have
+            // been scrolled to the target, which pans the pinched view, and had the pointer moved there first.
+            if (refusePinch && await pagePinchedBeforeInput(webContents)) throw new NativeClickAdmissionError('PAGE_PINCHED', { ...progress })
             // Retain the original before any page-owned flag setter or scroll preparation.
             await webContents.executeJavaScript('window.__hronautAgentInputActive = true', false).catch(() => undefined)
             assertClickCurrent()

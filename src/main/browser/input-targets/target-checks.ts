@@ -127,13 +127,16 @@ export async function assertPageAtNormalScale(webContents: WebContents, action: 
  * its layout viewport can be wider than the part shown.
  */
 export async function assertPageAtNormalScaleBeforeInput(webContents: WebContents, action: 'click' | 'hover' | 'drag'): Promise<void> {
+  if (await pagePinchedBeforeInput(webContents)) throw pinchedPageError(action)
+}
+
+/** Whether Chromium's visual viewport shows the page pinched larger or panned, read with the debugger already attached. */
+export async function pagePinchedBeforeInput(webContents: WebContents): Promise<boolean> {
   const metrics = await webContents.debugger.sendCommand('Page.getLayoutMetrics') as {
     cssVisualViewport?: { scale: number; offsetX: number; offsetY: number }
   } | undefined
   const visual = metrics?.cssVisualViewport
-  if (visual && (visual.scale > 1.001 || Math.abs(visual.offsetX) > 0.01 || Math.abs(visual.offsetY) > 0.01)) {
-    throw pinchedPageError(action)
-  }
+  return visual !== undefined && (visual.scale > 1.001 || Math.abs(visual.offsetX) > 0.01 || Math.abs(visual.offsetY) > 0.01)
 }
 
 /**
