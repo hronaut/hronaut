@@ -282,7 +282,8 @@ function applyDocument(next: SidebarOverlayModel): void {
   const root = document.documentElement
   root.dataset.theme = next.theme
   root.style.colorScheme = themeColorScheme(next.theme)
-  root.lang = next.locale
+  // The language the rail shows: English when the shell's could not be loaded.
+  root.lang = i18n.locale.value
   if (next.tint) root.style.setProperty('--workspace-tint', next.tint)
   else root.style.removeProperty('--workspace-tint')
   root.style.setProperty('--sidebar-overlay-top', `${next.top}px`)

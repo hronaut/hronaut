@@ -56,8 +56,20 @@ describe('the languages a renderer window loads', () => {
     expect(await loadLocaleMessages('fr-FR')).toBeUndefined()
     expect(attempts).toBe(1)
     expect(translate('fr-FR', 'addressOverlay.localOnly')).toBe('Local only')
+    // The English text takes English's plural form: French would take the singular for none.
+    expect(translate('fr-FR', 'addressOverlay.historyVisits', { count: 0 })).toBe('History · 0 visits')
     expect(warn).toHaveBeenCalledOnce()
     expect(String(warn.mock.calls[0]?.[0])).toBe('[i18n] The fr-FR messages could not be loaded; this window shows English instead.')
+  })
+})
+
+describe('a language Hronaut does not have', () => {
+  it('shows English, as one that cannot be loaded', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const { loadLocaleMessages, translate } = await freshWindow()
+    const unknown = 'xx-XX' as 'de-DE'
+    expect(await loadLocaleMessages(unknown)).toBeUndefined()
+    expect(translate(unknown, 'addressOverlay.localOnly')).toBe('Local only')
   })
 })
 
@@ -92,8 +104,11 @@ describe('switching a window to another language', () => {
     const { i18n, createLocaleSwitch, label, unmount } = await mounted('en-US')
     const switchLocale = createLocaleSwitch(i18n.global)
     const french = switchLocale('fr-FR')
-    expect(await switchLocale('de-DE')).toBe('de-DE')
-    releaseFrench()
+    try {
+      expect(await switchLocale('de-DE')).toBe('de-DE')
+    } finally {
+      releaseFrench()
+    }
     expect(await french).toBeUndefined()
     expect(i18n.global.locale.value).toBe('de-DE')
     expect(label()).toBe('Nur lokal')

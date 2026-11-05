@@ -5,7 +5,7 @@ import type {
   BrowserInspectorIssueSource
 } from './types.js'
 
-// The renderer names these codes in the interface language (src/shared/locales/browser-issue-titles.ts);
+// The renderer names these codes in the interface language (src/shared/locales/browser-issue-titles/);
 // MCP results keep the English title.
 export const INSPECTOR_ISSUE_METADATA: Readonly<Record<string, { title: string; severity: BrowserInspectorIssueSeverity }>> = {
   BlockedByResponseIssue: { title: 'Response blocked by browser security', severity: 'error' },

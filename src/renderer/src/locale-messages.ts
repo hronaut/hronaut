@@ -36,7 +36,9 @@ export function loadLocaleMessages(locale: SupportedLocale): Promise<MessageSche
   if (messages) return Promise.resolve(messages)
   let pending = loading.get(locale)
   if (!pending) {
-    pending = LANGUAGES[locale as Exclude<SupportedLocale, 'en-US'>]().then((messages) => {
+    // Main sends only the languages Hronaut has; any other shows English as one that cannot be loaded does.
+    const load = Object.hasOwn(LANGUAGES, locale) ? LANGUAGES[locale as Exclude<SupportedLocale, 'en-US'>] : undefined
+    pending = (load ? load() : Promise.reject(new Error('Unknown language'))).then((messages) => {
       loaded.set(locale, messages)
       return messages
     }, () => {

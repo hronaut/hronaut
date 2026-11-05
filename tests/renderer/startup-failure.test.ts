@@ -48,14 +48,17 @@ describe('startup failure screen', () => {
     vi.resetModules()
     vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     vi.doMock('../../src/shared/locales/uk-UA.js', () => { throw new Error('missing') })
-    const { renderStartupFailure: render } = await import('../../src/renderer/src/startup-failure.js')
-    const root = document.createElement('div')
-    document.body.append(root)
-    await render(root, new Error('settings offline'), vi.fn(), 'uk-UA')
+    try {
+      const { renderStartupFailure: render } = await import('../../src/renderer/src/startup-failure.js')
+      const root = document.createElement('div')
+      document.body.append(root)
+      await render(root, new Error('settings offline'), vi.fn(), 'uk-UA')
 
-    expect(document.documentElement.lang).toBe('en-US')
-    expect(root.querySelector('[role="alert"]')).toHaveAccessibleName('Hronaut could not start')
-    vi.doUnmock('../../src/shared/locales/uk-UA.js')
-    vi.restoreAllMocks()
+      expect(document.documentElement.lang).toBe('en-US')
+      expect(root.querySelector('[role="alert"]')).toHaveAccessibleName('Hronaut could not start')
+    } finally {
+      vi.doUnmock('../../src/shared/locales/uk-UA.js')
+      vi.restoreAllMocks()
+    }
   })
 })

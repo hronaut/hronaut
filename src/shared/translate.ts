@@ -27,8 +27,8 @@ function messageAt(messages: MessageSchema | undefined, key: MessageKey): string
 
 /**
  * The message from the locale's catalog, or from English when the catalog has none or is not at hand, with its
- * placeholders filled in. A message with plural forms ("{count} account | {count} accounts") takes the form the locale
- * uses for a numeric `count`.
+ * placeholders filled in. A message with plural forms ("{count} account | {count} accounts") takes the form its own
+ * language uses for a numeric `count`: English's for an English message.
  */
 export function translateFrom(
   messages: MessageSchema | undefined,
@@ -37,10 +37,11 @@ export function translateFrom(
   key: MessageKey,
   parameters: MessageParameters = {}
 ): string {
-  let template = messageAt(messages, key) ?? messageAt(english, key) ?? key
+  const own = messageAt(messages, key)
+  let template = own ?? messageAt(english, key) ?? key
   if (typeof parameters.count === 'number' && template.includes(' | ')) {
     const forms = template.split(' | ')
-    template = forms[pluralFormIndex(locale, parameters.count, forms.length)] ?? forms[0]!
+    template = forms[pluralFormIndex(own === undefined ? 'en-US' : locale, parameters.count, forms.length)] ?? forms[0]!
   }
   return template.replace(/\{([A-Za-z][\w]*)\}/g, (_match, name: string) => String(parameters[name] ?? `{${name}}`))
 }

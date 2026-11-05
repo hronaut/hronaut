@@ -214,4 +214,17 @@ describe('the address overlay in the shell\'s language', () => {
     expect(document.querySelector('[role=listbox]')).toHaveAccessibleName('Local address suggestions')
     expect(measured).toHaveBeenCalledOnce()
   })
+
+  it('says it is English when the language cannot be loaded, as its text is', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    vi.doMock('../../src/shared/locales/de-DE.js', () => { throw new Error('missing') })
+    try {
+      const { receive } = await freshOverlay()
+      receive(state('de-DE', 'Startseite'))
+      await vi.waitFor(() => expect(document.querySelector('[role=listbox]')).toHaveAccessibleName('Local address suggestions'))
+      expect(document.documentElement.lang).toBe('en-US')
+    } finally {
+      vi.doUnmock('../../src/shared/locales/de-DE.js')
+    }
+  })
 })

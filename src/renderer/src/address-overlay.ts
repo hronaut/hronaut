@@ -101,7 +101,9 @@ function suggestionButton(
   return button
 }
 
-function render(state: AddressSuggestionOverlayState): void {
+function render(shown: AddressSuggestionOverlayState): void {
+  // English, as the text is, when the language's messages could not be loaded.
+  const state = loadedLocaleMessages(shown.locale) ? shown : { ...shown, locale: 'en-US' as const }
   document.documentElement.dataset.theme = state.theme
   document.documentElement.lang = state.locale
   document.documentElement.dir = 'ltr'
