@@ -114,20 +114,36 @@ function chromeTabShortcut(input: BrowserShortcutInput, key: string): BrowserSho
 }
 
 /**
- * Chrome's keys for bookmarking the page and for history, which a website may keep on every system, as a web editor adds
- * the next match with Ctrl+D and opens Replace with Ctrl+H, a design tool duplicates with Cmd+D and a document redoes
- * with Cmd+Y: Ctrl/Cmd+D, and Ctrl+H elsewhere than macOS or Cmd+Y there.
+ * Chrome's keys with Ctrl, or Cmd on macOS, that a website may keep on every system, since Chrome reserves only those that
+ * close, open or change tabs and windows: Ctrl/Cmd+D bookmarks the page, Ctrl+H or Cmd+Y opens history, Ctrl/Cmd+F
+ * finds, Ctrl/Cmd+L goes to the address bar, Ctrl/Cmd+R reloads, with Shift without the cache, and Ctrl/Cmd with =, +,
+ * - and 0 zoom, also on the numeric keypad. A web editor adds the next match with Ctrl+D, opens Replace with Ctrl+H,
+ * finds with Ctrl+F, selects a line with Ctrl+L and opens recent folders with Ctrl+R, a design tool duplicates with
+ * Cmd+D and zooms its canvas with Ctrl/Cmd with = and -, and a document redoes with Cmd+Y.
  */
-function bookmarkOrHistoryKey(input: BrowserShortcutInput, key: string): BrowserShortcutAction | null {
-  if (input.alt || input.shift) return null
+export function primaryWebsiteKeptAction(input: BrowserShortcutInput): BrowserShortcutAction | null {
+  if (input.repeat || input.composing || input.alt) return null
   const primary = input.mac ? input.meta && !input.control : input.control && !input.meta
   if (!primary) return null
+  const key = shortcutKey(input)
+  // Elsewhere than macOS Chrome and the application menu zoom in by Chromium's code for the key in the layout, also
+  // with Shift, so also with the + key of a German keyboard, which types * with Shift.
+  if (!input.mac && input.keyCode === VKEY_OEM_PLUS) return 'zoom-in'
+  // Ctrl+Shift+= types +; a Japanese keyboard's minus key types = with Shift, and Ctrl+Shift with it zooms out below.
+  // Shift with the keypad's + is no zoom key, as in Chrome.
+  if ((key === '+' || key === '=') && !shiftedMinusKey(input, key) && !(input.shift && input.code === 'NumpadAdd')) return 'zoom-in'
+  if (key === 'r') return input.shift ? 'reload-ignoring-cache' : 'reload'
+  if (input.shift) return null
   if (key === 'd') return 'bookmark'
-  return key === (input.mac ? 'y' : 'h') ? 'visit-history' : null
+  if (key === (input.mac ? 'y' : 'h')) return 'visit-history'
+  if (key === 'f') return 'find'
+  if (key === 'l') return 'focus-address'
+  if (key === '-') return 'zoom-out'
+  return key === '0' ? 'zoom-reset' : null
 }
 
 /**
- * Chrome's keys a website may keep: Ctrl/Cmd+D and Ctrl+H or Cmd+Y (bookmarkOrHistoryKey), Ctrl+Shift+Page Down and
+ * Chrome's keys a website may keep: those with Ctrl/Cmd (primaryWebsiteKeptAction), Ctrl+Shift+Page Down and
  * Ctrl+Shift+Page Up move the tab, on macOS too, and elsewhere F5 reloads, Shift+F5 or Ctrl+F5 reloads without the
  * cache, Alt+D and Ctrl+E go to the address bar, Alt+Home opens Home, F3 or Ctrl+G finds the next match, with Shift the
  * previous one, Ctrl+1 to Ctrl+8 go to that website tab and Ctrl+9 to the last one, F6 or Shift+F6 goes to the next
@@ -140,9 +156,9 @@ function bookmarkOrHistoryKey(input: BrowserShortcutInput, key: string): Browser
  */
 export function websiteKeptShortcutAction(input: BrowserShortcutInput): BrowserShortcutAction | null {
   if (input.repeat || input.composing) return null
+  const primary = primaryWebsiteKeptAction(input)
+  if (primary) return primary
   const key = shortcutKey(input)
-  const bookmarkOrHistory = bookmarkOrHistoryKey(input, key)
-  if (bookmarkOrHistory) return bookmarkOrHistory
   if (input.meta) return null
   if (input.control && input.shift && !input.alt) {
     if (key === 'pagedown') return 'move-tab-next'
@@ -189,10 +205,10 @@ export function applicationMenuKey(input: BrowserShortcutInput): boolean {
   if (input.meta) return false
   if (input.alt) return !input.control && !input.shift && (key === 'arrowleft' || key === 'arrowright')
   if (!input.control) return key === 'escape'
-  // There the menu goes by Chromium's code for the key in the layout, so Zoom In's Ctrl+Shift+= and Keyboard
-  // shortcuts' Ctrl+Shift+/ are also Ctrl+Shift with the + key and with the # key of a German keyboard, which have
-  // those codes and type * and ' with Shift.
-  if (input.shift && (input.keyCode === VKEY_OEM_PLUS || input.keyCode === VKEY_OEM_2)) return true
+  // There the menu goes by Chromium's code for the key in the layout, so Keyboard shortcuts' Ctrl+Shift+/ is also
+  // Ctrl+Shift with the # key of a German keyboard, which has that code and types ' with Shift; Zoom In's key goes by
+  // its code in primaryWebsiteKeptAction.
+  if (input.shift && input.keyCode === VKEY_OEM_2) return true
   if (input.shift) return slash || key === 'd'
   return key === 'p' || key === 's' || key === 'u' || key === 'j'
 }
@@ -243,19 +259,11 @@ export function browserShortcutAction(input: BrowserShortcutInput): BrowserShort
   if (input.shift && (key === 'delete' || key === 'backspace')) return 'clear-browsing-data'
   if (input.shift && key === 'p') return 'command-palette'
   if (input.shift && key === 'a') return 'search-tabs'
-  if (key === 'r') return input.shift ? 'reload-ignoring-cache' : 'reload'
-
-  // A Japanese keyboard's minus key types = with Shift; Ctrl+Shift with it zooms out (websiteKeptShortcutAction).
-  if ((key === '+' || key === '=') && !shiftedMinusKey(input, key)) return 'zoom-in'
-  if (!input.shift && key === '-') return 'zoom-out'
-  if (!input.shift && key === '0') return 'zoom-reset'
   if (key === 't') return input.shift ? 'reopen-closed-tab' : 'new-tab'
   if (input.shift && key === 'f') return 'toggle-full-page'
   if (input.shift && key === 'o') return 'take-over'
   if (input.shift) return null
-  if (key === 'l') return 'focus-address'
   if (key === 'w') return 'close-tab'
-  if (key === 'f') return 'find'
   if (key === '.') return 'agent-card'
   if (key === 'k') return 'switch-workspace'
   return null

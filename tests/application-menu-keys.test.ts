@@ -33,7 +33,9 @@ function accelerators(on: NodeJS.Platform): Array<{ label: string; accelerator: 
 
 // Electron's Plus is the = key with Shift, as on a US keyboard.
 const NAMED_KEYS: Readonly<Record<string, { key: string; code: string; shift?: true }>> = {
-  Plus: { key: '+', code: 'Equal', shift: true }, '-': { key: '-', code: 'Minus' }, '/': { key: '/', code: 'Slash' },
+  Plus: { key: '+', code: 'Equal', shift: true }, '=': { key: '=', code: 'Equal' }, '-': { key: '-', code: 'Minus' }, '/': { key: '/', code: 'Slash' },
+  // Electron's numadd and numsub are the numeric keypad's + and -.
+  numadd: { key: '+', code: 'NumpadAdd' }, numsub: { key: '-', code: 'NumpadSubtract' },
   '[': { key: '[', code: 'BracketLeft' }, ']': { key: ']', code: 'BracketRight' },
   Left: { key: 'ArrowLeft', code: 'ArrowLeft' }, Right: { key: 'ArrowRight', code: 'ArrowRight' },
   PageUp: { key: 'PageUp', code: 'PageUp' }, PageDown: { key: 'PageDown', code: 'PageDown' }, Home: { key: 'Home', code: 'Home' },

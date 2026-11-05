@@ -1,13 +1,16 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-type Item = { label?: string; accelerator?: string; visible?: boolean; click?: (item: unknown, window: unknown, event: { triggeredByAccelerator?: boolean }) => void }
+type Item = { label?: string; accelerator?: string; visible?: boolean; click?: (item: unknown, window: unknown, event: { triggeredByAccelerator?: boolean; ctrlKey?: boolean; metaKey?: boolean }) => void }
 type Contents = { on: (name: string, listener: (event: unknown, input: Partial<Electron.Input>) => void) => void }
 const installed = vi.hoisted(() => ({ template: [] as Array<{ label?: string; submenu?: Item[] }>, created: [] as Array<(event: unknown, contents: Contents) => void> }))
 vi.mock('electron', () => ({ app: { on: (_name: string, listener: (event: unknown, contents: Contents) => void) => { installed.created.push(listener) } }, Menu: { buildFromTemplate: (template: typeof installed.template) => template, setApplicationMenu: (menu: typeof installed.template) => { installed.template = menu } } }))
 import { createApplicationMenu } from '../src/main/windows/application-menu.js'
 
-// The menu stops loading with the browser; that runs on the fake browser's stub.
+// The menu stops loading with the browser; that runs on the fake browser's stub. Reloads are recorded.
+const navigation = vi.hoisted(() => ({ reloads: [] as string[] }))
 vi.mock('../src/main/browser/page-navigation/page-navigation.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/page-navigation/page-navigation.js')>(),
+  reload: () => { navigation.reloads.push('reload') },
+  reloadIgnoringCache: () => { navigation.reloads.push('reload-ignoring-cache') },
   stopFocusedPageLoading: (browser: { stopFocusedPageLoading: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.stopFocusedPageLoading(...args)
 }))
 
@@ -51,7 +54,9 @@ describe('Chrome\'s keys a website may keep', () => {
       ['CmdOrCtrl+D', 'bookmark'], ['Ctrl+H', 'visit-history'],
       ['Ctrl+1', 'select-tab-1'], ['Ctrl+8', 'select-tab-8'], ['Ctrl+9', 'select-last-tab'],
       ['Ctrl+num1', 'select-tab-1'], ['Ctrl+num8', 'select-tab-8'], ['Ctrl+num9', 'select-last-tab'],
-      ['Ctrl+Shift+-', 'zoom-out']
+      ['Ctrl+Shift+-', 'zoom-out'],
+      ['CmdOrCtrl+F', 'find'], ['CmdOrCtrl+L', 'focus-address'], ['CmdOrCtrl+=', 'zoom-in'],
+      ['Ctrl+numadd', 'zoom-in'], ['Ctrl+numsub', 'zoom-out'], ['Ctrl+num0', 'zoom-reset']
     ] as const) {
       const item = key(accelerator)!
       expect(item.visible, accelerator).toBe(false)
@@ -70,11 +75,13 @@ describe('Chrome\'s keys a website may keep', () => {
   })
 
   // Ctrl+Shift+Page Down did nothing on macOS, where Chrome moves the tab with it once the website leaves it alone. A
-  // design tool's Cmd+D and a document's Cmd+Y never reached their page, which Chrome lets keep them.
-  it('are only the keys that move the tab, bookmark the page and open history on macOS, as Chrome has there', () => {
+  // design tool's Cmd+D and a document's Cmd+Y never reached their page, which Chrome lets keep them, nor did Cmd+F,
+  // Cmd+L, or Cmd with = in a design tool that zooms its canvas with it.
+  it('are only the keys that move the tab and those with Cmd on macOS, as Chrome has there', () => {
     const { runShortcut, mainWindow, key, view } = menu('darwin')
     const keys = [
-      ['Ctrl+Shift+PageDown', 'move-tab-next'], ['Ctrl+Shift+PageUp', 'move-tab-previous'], ['CmdOrCtrl+D', 'bookmark'], ['Cmd+Y', 'visit-history']
+      ['Ctrl+Shift+PageDown', 'move-tab-next'], ['Ctrl+Shift+PageUp', 'move-tab-previous'], ['CmdOrCtrl+D', 'bookmark'], ['Cmd+Y', 'visit-history'],
+      ['CmdOrCtrl+F', 'find'], ['CmdOrCtrl+L', 'focus-address'], ['CmdOrCtrl+=', 'zoom-in']
     ] as const
     for (const [accelerator, action] of keys) {
       const item = key(accelerator)!
@@ -98,6 +105,22 @@ describe('Chrome\'s keys a website may keep', () => {
       }
     }
     expect(runShortcut.mock.calls).toEqual([['bookmark'], ['bookmark'], ['visit-history'], ['visit-history']])
+  })
+
+  // A held Ctrl+F or Ctrl+L on a page that left it alone acted on each repeat, where Chrome finds or goes to the address
+  // bar once, as it moves the tab, goes to the next pane and finds the next match for each repeat.
+  it('find and go to the address bar once for a held key, and repeat moving the tab, the next pane and the next match', () => {
+    const { runShortcut, runPageNextPane, mainWindow, key, pressKey } = menu('linux')
+    const hold = (accelerator: string) => {
+      const item = key(accelerator)!
+      for (const repeat of [false, true, true]) {
+        pressKey(repeat)
+        item.click!(item, mainWindow, { triggeredByAccelerator: true })
+      }
+    }
+    for (const accelerator of ['CmdOrCtrl+F', 'CmdOrCtrl+L', 'Ctrl+Shift+PageDown', 'F3', 'F6']) hold(accelerator)
+    expect(runShortcut.mock.calls).toEqual([['find'], ['focus-address'], ['move-tab-next'], ['move-tab-next'], ['move-tab-next'], ['find-next'], ['find-next'], ['find-next']])
+    expect(runPageNextPane).toHaveBeenCalledTimes(3)
   })
 
   it('go to the pane after the page with F6 and Shift+F6', () => {
@@ -146,6 +169,35 @@ describe('Chrome\'s keys a website may keep', () => {
     item.click!(item, { id: 2, webContents: {} }, { triggeredByAccelerator: true })
     item.click!(item, undefined, { triggeredByAccelerator: true })
     item.click!(item, { id: 1, webContents: {} }, { triggeredByAccelerator: false })
+    expect(runShortcut).not.toHaveBeenCalled()
+  })
+
+  // A website's own Ctrl+R, as a web editor opens recent folders with it, never reached it: Hronaut reloaded the page.
+  it('reload, and without the cache, once for each press of Reload\'s key the page leaves alone, from the main window only', () => {
+    const { runShortcut, shellFocused, mainWindow, view, pressKey } = menu('linux')
+    const reloads: string[] = []
+    for (const [accelerator, label] of [['CmdOrCtrl+R', 'native.menu.reload'], ['CmdOrCtrl+Shift+R', 'native.menu.reloadWithoutCache']] as const) {
+      const item = view.find((candidate) => candidate.accelerator === accelerator && candidate.visible !== false)!
+      expect(item.label).toBe(label)
+      const before = navigation.reloads.length
+      for (const repeat of [false, true, true, false]) {
+        pressKey(repeat)
+        item.click!(item, mainWindow, { triggeredByAccelerator: true, ctrlKey: true })
+      }
+      // Typed in a panel in its own window, in Hronaut's window, or where no window of Hronaut's has focus.
+      pressKey()
+      item.click!(item, { id: 2, webContents: {} }, { triggeredByAccelerator: true, ctrlKey: true })
+      item.click!(item, undefined, { triggeredByAccelerator: true, ctrlKey: true })
+      shellFocused.value = true
+      item.click!(item, mainWindow, { triggeredByAccelerator: true, ctrlKey: true })
+      // Chosen from the menu with the mouse or, after Alt, with the keyboard, it reloads each time, wherever the keyboard is.
+      item.click!(item, mainWindow, { triggeredByAccelerator: false })
+      item.click!(item, mainWindow, { triggeredByAccelerator: true })
+      item.click!(item, mainWindow, { triggeredByAccelerator: true })
+      shellFocused.value = false
+      reloads.push(`${label} ${navigation.reloads.length - before}`)
+    }
+    expect(reloads).toEqual(['native.menu.reload 5', 'native.menu.reloadWithoutCache 5'])
     expect(runShortcut).not.toHaveBeenCalled()
   })
 

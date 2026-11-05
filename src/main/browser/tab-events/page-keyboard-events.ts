@@ -1,5 +1,11 @@
 import type { Input, WebContents } from 'electron'
-import { browserShortcutAction, websiteKeptShortcutAction, type BrowserShortcutAction, type BrowserShortcutInput } from '../../../shared/browser-shortcuts.js'
+import {
+  browserShortcutAction,
+  primaryWebsiteKeptAction,
+  websiteKeptShortcutAction,
+  type BrowserShortcutAction,
+  type BrowserShortcutInput
+} from '../../../shared/browser-shortcuts.js'
 import { shortcutKey } from '../../../shared/shortcut-key.js'
 import type { Browser } from '../browser.js'
 import type { BrowserTab } from '../browser-tab.js'
@@ -9,12 +15,6 @@ import { pageShortcut } from '../take-over.js'
 import { cancelElementPicker } from '../element-picker/element-picker.js'
 import { cancelScreenshotArea } from '../screenshot-area/screenshot-area.js'
 import { noteShellHeldKey } from './shell-held-keys.js'
-
-/**
- * The browser shortcuts whose held key goes on acting on its own page through the View menu, zooming or reloading it.
- * The repeats of any other one stay out of every page, as Chrome keeps Ctrl+W, Ctrl+T and Ctrl+Tab from pages.
- */
-const REPEATED_ON_ITS_PAGE: ReadonlySet<BrowserShortcutAction> = new Set(['zoom-in', 'zoom-out', 'zoom-reset', 'reload', 'reload-ignoring-cache'])
 
 /**
  * Whether the key toggles the window's full screen, as the View menu's item does: F11, or Ctrl+Cmd+F on macOS, whose F
@@ -74,8 +74,8 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
         composing: input.isComposing,
         mac: process.platform === 'darwin'
       }
-      // The page cannot have Ctrl with a digit or the bookmark and history keys, keys a website may keep, which went to
-      // the browser from here before they were; the other such keys, such as F5, stay dead here, as they are in
+      // The page cannot have Ctrl with a digit or the website-kept keys with Ctrl/Cmd, such as Ctrl+F or Ctrl+D, which
+      // went to the browser from here before they were; the other such keys, such as F5, stay dead here, as they are in
       // Hronaut's window under its dialogs. The full screen key toggles full screen there, as it does here.
       if (input.type === 'keyDown' && fullScreenKey(input)) {
         toggleFullScreenFromPage(browser, input)
@@ -83,7 +83,7 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
       }
       const shortcut = input.type === 'keyDown' ? browserShortcutAction(keys) ?? coveredPageKey(keys) : null
       if (shortcut) {
-        notePageShortcutKey(browser, webContents, input, shortcut)
+        notePageShortcutKey(browser, input)
         browser.options.onShortcutRequested?.(shortcut)
       }
       return
@@ -170,7 +170,7 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
       const kept = !shortcut && input.type === 'keyDown' ? websiteKeptShortcutAction(keys) : null
       const taken = shortcut ?? (kept && browser.options.shortcutAvailable?.(kept, tab.mcpGroupId, tab.id) !== false ? kept : null)
       if (taken) {
-        notePageShortcutKey(browser, webContents, input, taken)
+        notePageShortcutKey(browser, input)
         browser.options.onUserInteraction?.()
         browser.options.onShortcutRequested?.(taken, page)
       }
@@ -178,7 +178,7 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
     }
     if (shortcut) {
       event.preventDefault()
-      if (!expectedAgentInput) notePageShortcutKey(browser, webContents, input, shortcut)
+      if (!expectedAgentInput) notePageShortcutKey(browser, input)
       browser.options.onUserInteraction?.()
       browser.options.onShortcutRequested?.(shortcut, page)
       return
@@ -189,15 +189,15 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
     )) {
       // The repeats of a key the shell took, such as Delete closing the active tab, which gave this page the focus:
       // a held Delete went on to delete the text in this page's focused field. A held Ctrl+W likewise reached the page
-      // of the tab shown next as Ctrl+W, which a web IDE may read as closing an editor. Those of a held Ctrl+= still reach
-      // its own page, so the View menu goes on zooming it.
+      // of the tab shown next as Ctrl+W, which a web IDE may read as closing an editor. Those of a key a website may
+      // keep, such as Ctrl+=, still reach their own page.
       event.preventDefault()
       return
     }
     if (!input.isAutoRepeat && input.type === 'keyDown' && input.code && !expectedAgentInput && websiteKeptShortcutAction(keys)) {
-      // A key a website may keep, such as Ctrl+2, goes to the page first and to the menu when the page leaves it alone.
-      // Held down, it repeats into this page only: not into the page of the tab the menu went to, as a web editor
-      // there would read each repeat as its own Ctrl+2.
+      // A key a website may keep, such as Ctrl+2 or Ctrl+F, goes to the page first and to the menu when the page leaves
+      // it alone, which acts once for a held key. Held down, it repeats into this page only: not into the page of the
+      // tab the menu went to, as a web editor there would read each repeat as its own Ctrl+2.
       browser.pageShortcutKey = { code: input.code, webContentsId: webContents.id }
     }
     browser.reproRecorder.observeReproKeyboard(tab, input)
@@ -215,17 +215,16 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
 
 /**
  * The keys a website may keep that went to the browser from a page Hronaut's dialogs cover before they were: Ctrl with a
- * digit elsewhere than macOS, which goes to that tab once the page leaves it alone, and the bookmark and history keys.
+ * digit elsewhere than macOS, which goes to that tab once the page leaves it alone, and those with Ctrl/Cmd
+ * (primaryWebsiteKeptAction), such as Ctrl+F, Ctrl+R and the zoom keys.
  */
 function coveredPageKey(keys: BrowserShortcutInput): BrowserShortcutAction | null {
   const kept = websiteKeptShortcutAction(keys)
-  return kept?.startsWith('select-tab-') || kept === 'select-last-tab' || kept === 'bookmark' || kept === 'visit-history' ? kept : null
+  if (kept?.startsWith('select-tab-') || kept === 'select-last-tab') return kept
+  return primaryWebsiteKeptAction(keys)
 }
 
-/**
- * Notes the key of a browser shortcut the person pressed in this page, whose repeats then stay out of every page, or out
- * of the other pages when they go on zooming or reloading this one.
- */
-function notePageShortcutKey(browser: Browser, webContents: WebContents, input: Input, shortcut: BrowserShortcutAction): void {
-  if (input.code) browser.pageShortcutKey = { code: input.code, webContentsId: REPEATED_ON_ITS_PAGE.has(shortcut) ? webContents.id : null }
+/** Notes the key of a browser shortcut the person pressed in this page, whose repeats then stay out of every page. */
+function notePageShortcutKey(browser: Browser, input: Input): void {
+  if (input.code) browser.pageShortcutKey = { code: input.code, webContentsId: null }
 }
