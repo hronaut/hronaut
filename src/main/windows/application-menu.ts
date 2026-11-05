@@ -361,6 +361,9 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
               accelerator: 'CmdOrCtrl+P',
               click: (_item, window, event) => {
                 if (event.triggeredByAccelerator && (window === undefined || window.id !== host.mainWindow()?.id)) return
+                // Chosen from the menu, the main window may be hidden behind a panel in its own window or in the tray, as
+                // for Save Page As, and the print dialog would then be for a page out of view.
+                if (!event.triggeredByAccelerator) host.showWindow()
                 host.runNativeBrowserAction('print the page', () => withBrowser(printShownPage))
               }
             },
