@@ -33,7 +33,7 @@ published tags. The CI workflow remains available by manual dispatch for an
 explicit investigation or rehearsal; dispatching it on a `release/` branch also
 checks platform packaging. When that rehearsal passed `npm run validate` (lint,
 unit/component tests, typecheck and the application build) and every Electron
-shard (including native dialogs) on the tag's own tree, the release workflow takes
+shard (including native dialogs and the responsiveness gate) on the tag's own tree, the release workflow takes
 those results from it instead of running them again. It still audits production
 dependencies, runs the MCPB tests, and builds every platform package. Dispatch
 the release with `full_tests` to run every gate again.
@@ -50,6 +50,24 @@ The isolated Docker/Xvfb integration suite is available for browser, Electron li
 
 ```bash
 npm run test:integration:docker
+```
+
+The Docker suite ends with the responsiveness gate,
+`tests/integration/responsiveness.perf.ts`, which runs alone once every other
+test is done; hosted CI and the release run it after shard 2. Four agents open
+pages, read them and take screenshots in their own workspaces while the person
+clicks tabs. The gate fails when a measurement passes its limit: the shell's
+first paint and heap, how long a click takes to show its tab, main's thread
+time per agent call, how late main's event loop runs its timers, how busy the
+shell is, the agents' screenshot and snapshot times, and the bytes their work
+sends Hronaut's windows per call. The test prints each measurement with its
+limit. A missed limit is a regression to find before releasing, even when a
+re-run passes; change a limit only with measurements that show why. To run it
+alone after `npm run build`, or in the pinned Docker image:
+
+```bash
+npm run test:performance:headless
+npm run test:integration:docker:focused -- --config playwright.performance.config.ts
 ```
 
 When investigating a release regression, run a single Electron Playwright file or

@@ -8,7 +8,7 @@ describe('integration environment isolation', () => {
   it('sets launch environment inside hooks or tests, never when a file is imported', async () => {
     // With fullyParallel, a file's afterAll runs after each group of its tests, and a later group in the
     // same worker does not import the file again, so an import-time assignment is gone by then.
-    const files = (await readdir(integrationDirectory)).filter((name) => name.endsWith('.e2e.ts'))
+    const files = (await readdir(integrationDirectory)).filter((name) => /\.(?:e2e|perf)\.ts$/u.test(name))
     const offenders: string[] = []
     for (const name of files) {
       const lines = (await readFile(join(integrationDirectory, name), 'utf8')).split('\n')

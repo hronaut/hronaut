@@ -44,6 +44,15 @@ case "$run_dialogs" in
     ;;
 esac
 
+run_performance="${HRONAUT_INTEGRATION_RUN_PERFORMANCE:-true}"
+case "$run_performance" in
+  true|false) ;;
+  *)
+    echo "HRONAUT_INTEGRATION_RUN_PERFORMANCE must be true or false." >&2
+    exit 2
+    ;;
+esac
+
 node scripts/verify-dependency-manifest.ts
 case "${HRONAUT_INTEGRATION_SKIP_TYPECHECK:-false}" in
   true) npm run build:app ;;
@@ -153,4 +162,9 @@ fi
 
 if [[ "$run_dialogs" == 'true' ]]; then
   npm run test:integration:dialogs:headless
+fi
+
+# The responsiveness gate measures time, so it runs last, alone on the machine (playwright.performance.config.ts).
+if [[ "$run_performance" == 'true' ]]; then
+  npm run test:performance:headless
 fi

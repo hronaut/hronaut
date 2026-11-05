@@ -106,17 +106,24 @@ remaining checks; CodeQL continues independently.
 
 Full validation is required at release time. Use the existing version-bump →
 auto-tag → release pipeline: the immutable release tag gets static validation,
-all unit/component tests, the full Docker/Electron and native-dialog gate, and
-platform packaging before publication. A failed release gate blocks publication;
-fix it without overwriting a published tag. The CI workflow is manual-only for
-explicit investigations or release rehearsals, with packaging on `release/`
-branches. When a rehearsal on a `release/` branch passed `npm run validate`
-(lint, unit/component tests, typecheck and the application build) and every
-Electron shard (including native dialogs) on the tag's own tree, the release
+all unit/component tests, the full Docker/Electron, native-dialog and
+responsiveness gate, and platform packaging before publication. A failed
+release gate blocks publication; fix it without overwriting a published tag.
+The CI workflow is manual-only for explicit investigations or release
+rehearsals, with packaging on `release/` branches. When a rehearsal on a
+`release/` branch passed `npm run validate` (lint, unit/component tests,
+typecheck and the application build) and every Electron shard (including
+native dialogs and the responsiveness gate) on the tag's own tree, the release
 takes those results from it, with a notice linking the rehearsal, instead of
 running them again. The release still audits production dependencies, runs the
 MCPB tests, and builds every platform package. Dispatch the release with
 `full_tests` to run everything. Never describe unexecuted checks as passing.
+
+The responsiveness gate (`tests/integration/responsiveness.perf.ts`) measures
+the app while four agents work and fails when a measurement passes its limit.
+A missed limit is a regression to find before releasing, even when a re-run
+passes. Change a limit only with measurements that show why, and say so in the
+pull request.
 
 Install with Node.js 22 or newer:
 
@@ -165,7 +172,8 @@ Keep both Playwright image pins in `Dockerfile.test` aligned with the resolved
 `tests/docker-playwright-version.test.ts` checks this: a mismatched image can
 pass Electron-only tests while standalone browser launches cannot find a binary.
 
-It builds and runs both the Playwright Electron suite and native-dialog checks
+It builds and runs the Playwright Electron suite, native-dialog checks and the
+responsiveness gate (`tests/integration/responsiveness.perf.ts`, alone, last)
 inside the pinned Docker/Xvfb image. The single test service uses Docker's
 existing bridge network: Electron, MCP, and fixture servers communicate through
 container-local loopback. New project names and dependency cache keys therefore
@@ -236,9 +244,10 @@ through the same warm dependency volume without repeating type analysis:
 npm run test:integration:docker:fast
 ```
 
-This fast full-suite preflight includes native-dialog coverage and supports
-`HRONAUT_INTEGRATION_SHARDS=1` through `8`, but its bind-mounted source is not
-the immutable-image proof supplied by the authoritative Docker gate.
+This fast full-suite preflight includes native-dialog coverage and the
+responsiveness gate, and supports `HRONAUT_INTEGRATION_SHARDS=1` through `8`,
+but its bind-mounted source is not the immutable-image proof supplied by the
+authoritative Docker gate.
 
 ## Releases and adjacent repositories
 

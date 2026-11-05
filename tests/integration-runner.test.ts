@@ -71,6 +71,7 @@ if (args.includes('test:integration:run')) {
   }
   process.exit(Number((recheck ? process.env.TEST_RECHECK_STATUS : process.env.TEST_ELECTRON_STATUS) || 0));
 }
+if (args.includes('test:performance:headless')) process.exit(Number(process.env.TEST_PERFORMANCE_STATUS || 0));
 `)
     await writeFile(join(root, 'bin/xvfb-run'), '#!/usr/bin/env bash\nshift 2\nexec "$@"\n')
     await chmod(join(root, 'bin/npm'), 0o755)
@@ -85,6 +86,7 @@ if (args.includes('test:integration:run')) {
         HRONAUT_INTEGRATION_SHARD: '',
         HRONAUT_INTEGRATION_SHARD_WORKERS: '1',
         HRONAUT_INTEGRATION_RUN_DIALOGS: 'true',
+        HRONAUT_INTEGRATION_RUN_PERFORMANCE: 'false',
         HRONAUT_INTEGRATION_SKIP_TYPECHECK: 'false',
         ...environment
       }
@@ -162,6 +164,42 @@ describe.skipIf(process.platform === 'win32')('Docker Electron scheduling', () =
     expect(calls.some(call => call.args.includes('test:integration:dialogs:headless'))).toBe(false)
     // Only a hosted shard rechecks its failures; the local queue reports every failure as it is.
     expect(calls.some(call => call.args.includes('--test-list'))).toBe(false)
+  })
+
+  // The responsiveness gate measures time, so it runs only once every other test is done, alone on the machine.
+  it('measures responsiveness last, after the suite and the dialogs', async () => {
+    const { status, calls } = await runSuite({ HRONAUT_INTEGRATION_RUN_PERFORMANCE: 'true' })
+    expect(status).toBe(0)
+    expect(calls.map(call => call.args)).toEqual([
+      ['run', 'build'],
+      ['run', 'test:integration:run', '--', '--workers=4'],
+      ['run', 'test:integration:dialogs:headless'],
+      ['run', 'test:performance:headless']
+    ])
+  })
+
+  it('measures responsiveness after a hosted shard that asks for it, and fails when it misses a limit', async () => {
+    const shard = { HRONAUT_INTEGRATION_SHARD: '2/5', HRONAUT_INTEGRATION_RUN_DIALOGS: 'false', HRONAUT_INTEGRATION_RUN_PERFORMANCE: 'true' }
+    const passed = await runSuite(shard)
+    expect(passed.status).toBe(0)
+    expect(passed.calls.map(call => call.args).slice(2)).toEqual([
+      ['run', 'test:integration:run', '--', '--shard=2/5', '--workers=1'],
+      ['run', 'test:performance:headless']
+    ])
+    const missed = await runSuite({ ...shard, TEST_PERFORMANCE_STATUS: '1' })
+    expect(missed.status).toBe(1)
+  })
+
+  it('does not measure responsiveness when a test failed', async () => {
+    const { status, calls } = await runSuite({ HRONAUT_INTEGRATION_RUN_PERFORMANCE: 'true', TEST_ELECTRON_STATUS: '1' })
+    expect(status).toBe(1)
+    expect(calls.some(call => call.args.includes('test:performance:headless'))).toBe(false)
+  })
+
+  it('rejects an unknown choice of the responsiveness gate before building', async () => {
+    const { status, calls } = await runSuite({ HRONAUT_INTEGRATION_RUN_PERFORMANCE: 'yes' })
+    expect(status).toBe(2)
+    expect(calls).toEqual([])
   })
 
   // One flaky test failed a whole hosted shard, and the shard was re-run for 16-20 minutes.
