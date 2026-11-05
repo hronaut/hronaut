@@ -13,6 +13,8 @@ import { withDebugger } from '../debugger-lease/debugger-lease.js'
 import { withRenderableTab } from '../renderable-tab/renderable-tab.js'
 import { screenshotPixelRatio } from '../screenshots/screenshot-scale.js'
 import { encodePreview, type EncodedPreview, type PreviewSize } from '../screenshots/image-encoder.js'
+import { HOME_IPC } from '../../../shared/ipc/home.js'
+import { sendTo } from '../../typed-ipc.js'
 
 /** One queued capture of the frame in view of a tab, superseded by a newer sequence. */
 export interface TabOverviewPreviewCaptureRequest<Tab> {
@@ -252,7 +254,10 @@ export async function performTabOverviewPreviewCapture(browser: Browser, tab: Br
     () => { setImmediate(() => scheduleTabOverviewPreview(browser, tab)) }
   )
   if (!captured || !isEligible() || tab.navigationGeneration !== navigationGeneration || captured.isEmpty()) return
-  storeTabOverviewPreview(browser, tab, await encodePreview(captured, TAB_OVERVIEW_PREVIEW_SIZE), navigationGeneration, isEligible)
+  // The frame was the tab's in view when captured. Leaving the tab while it is encoded, such as for Home's Tabs view,
+  // keeps it: only a newer capture of the tab replaces it.
+  const preview = await encodePreview(captured, TAB_OVERVIEW_PREVIEW_SIZE)
+  storeTabOverviewPreview(browser, tab, preview, navigationGeneration, () => tab.overviewPreviewSequence === sequence)
 }
 
 /** What an agent's screenshot of a tab in the background tells of it when the screenshot was taken. */
@@ -279,8 +284,9 @@ export function keepBackgroundTabOverviewPreview(
 }
 
 /**
- * Keeps an encoded frame as the tab's preview, unless it no longer applies or exceeds the size limit.
- * Memory only: never saved, sent to agents or reported.
+ * Keeps an encoded frame as the tab's preview, unless it no longer applies or exceeds the size limit, and tells an open
+ * Home to read its tabs again. A tab that went to sleep while its frame was encoded keeps the frame as the one Home shows
+ * while it sleeps. Memory only: never saved, sent to agents or reported.
  */
 export function storeTabOverviewPreview(
   browser: Browser,
@@ -294,18 +300,22 @@ export function storeTabOverviewPreview(
     || !stillCurrent()
     || browser.destroyed
     || findTab(browser, tab.id) !== tab
-    || tab.sleeping
     || tab.navigationGeneration !== navigationGeneration
     || preview.jpeg.length > MAX_TAB_OVERVIEW_PREVIEW_BYTES
   ) return
-  browser.tabOverviewPreviews.set(tab.id, {
+  const frame = {
     tabId: tab.id,
     navigationGeneration,
     dataUrl: `data:image/jpeg;base64,${preview.jpeg.toString('base64')}`,
     width: preview.width,
     height: preview.height,
     revision: ++lastPreviewRevision
-  })
+  }
+  if (tab.sleeping) browser.tabOverviewSleepPreviews.set(tab.id, frame)
+  else browser.tabOverviewPreviews.set(tab.id, frame)
+  for (const home of browser.tabs.values()) {
+    if (isHronautHomeUrl(home.url) && !home.webContents.isDestroyed()) sendTo(home.webContents, HOME_IPC.tabsChanged)
+  }
 }
 
 /** Drops the tab's overview preview and pending refresh, and supersedes any capture already under way. */
