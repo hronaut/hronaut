@@ -82,13 +82,31 @@ function siteIcon(tab: HomeTab, className: string): HTMLElement {
   return holder
 }
 
-/** The conditions a tab card names, such as Pinned or Agent active; its workspace is the section it is listed in. */
-function tabConditions(tab: HomeTab, words: TabWords): Array<{ text: string; tone?: 'agent' | 'warning' }> {
-  const conditions: Array<{ text: string; tone?: 'agent' | 'warning' }> = []
+type Condition = { text: string; tone?: 'agent' | 'warning' }
+
+/** A state every tab of a workspace shares, said once beside the workspace's name instead of on each card. */
+export type SharedCondition = 'locked' | 'muted'
+
+/** What all of a workspace's tabs share; a single tab keeps its states on its own card. */
+export function sharedConditions(tabs: readonly HomeTab[]): SharedCondition[] {
+  return tabs.length < 2 ? [] : (['locked', 'muted'] as const).filter(condition => tabs.every(tab => tab[condition]))
+}
+
+/** The chips for what a workspace's tabs share, in the order a card names them. */
+export function renderSharedConditions(shared: readonly SharedCondition[], words: TabWords): HTMLElement[] {
+  return shared.map(condition => condition === 'locked'
+    ? text('span', words.t('tabSearch.meta.locked'), 'condition warning')
+    : text('span', words.t('tabSearch.meta.muted'), 'condition'))
+}
+
+/** The conditions a tab card names, such as Pinned or Agent active; its workspace is the section it is listed in, and
+ * what all of that workspace's tabs share is said there. */
+function tabConditions(tab: HomeTab, words: TabWords, shared: readonly SharedCondition[]): Condition[] {
+  const conditions: Condition[] = []
   if (tab.agentActive) conditions.push({ text: words.t('tabSearch.meta.agent'), tone: 'agent' })
   if (tab.pinned) conditions.push({ text: words.t('tabSearch.meta.pinned') })
-  if (tab.locked) conditions.push({ text: words.t('tabSearch.meta.locked'), tone: 'warning' })
-  if (tab.muted) conditions.push({ text: words.t('tabSearch.meta.muted') })
+  if (tab.locked && !shared.includes('locked')) conditions.push({ text: words.t('tabSearch.meta.locked'), tone: 'warning' })
+  if (tab.muted) { if (!shared.includes('muted')) conditions.push({ text: words.t('tabSearch.meta.muted') }) }
   else if (tab.audible) conditions.push({ text: words.t('tabSearch.meta.audio') })
   if (tab.emulation) conditions.push({ text: words.t('tabSearch.meta.emulated', { state: words.describeEmulation(tab.emulation) }), tone: 'warning' })
   if (tab.networkRouteCount) conditions.push({ text: words.count('tabSearch.meta.routes', tab.networkRouteCount), tone: 'warning' })
@@ -100,19 +118,21 @@ export interface OpenTabCard {
   /** The page shown before Home. */
   current: boolean
   preview?: BrowserTabOverviewPreview
+  /** What all of its workspace's tabs share, which its workspace's heading says instead. */
+  shared: readonly SharedCondition[]
   /** Whether its ⋯ menu was open, so a refresh keeps it open. */
   menuOpen: boolean
 }
 
 /** Changes exactly when the card's drawing would; a refresh redraws only the cards whose signature changed. */
-export function openTabSignature({ tab, current, preview }: OpenTabCard): string {
+export function openTabSignature({ tab, current, preview, shared }: OpenTabCard): string {
   const picture = preview && [preview.navigationGeneration, preview.sleeping, preview.width, preview.height, preview.dataUrl.length, preview.dataUrl.slice(-24)]
-  return JSON.stringify([tab, current, picture])
+  return JSON.stringify([tab, current, picture, shared])
 }
 
 /** An open tab: its picture, name, site and conditions, opened by a click, with its ⋯ menu and close button. */
 export function renderOpenTabCard(card: HTMLElement, model: OpenTabCard, words: TabWords): void {
-  const { tab, current, preview } = model
+  const { tab, current, preview, shared } = model
   const name = tabName(tab, words)
   card.classList.toggle('current', current)
   card.classList.toggle('sleeping', tab.sleeping)
@@ -135,12 +155,12 @@ export function renderOpenTabCard(card: HTMLElement, model: OpenTabCard, words: 
       picture.append(sleeping)
     }
   } else {
+    // Without a picture the card shows the site's own icon, asleep or not, so tabs of different sites stay apart; a
+    // sleeping one says so under it.
     const placeholder = document.createElement('span')
     placeholder.className = 'tab-card-placeholder'
     const site = siteName(tab.url)
-    const symbol = tab.sleeping ? text('span', '', 'tab-card-placeholder-icon') : siteIcon(tab, 'tab-card-placeholder-icon')
-    if (tab.sleeping) { symbol.setAttribute('aria-hidden', 'true'); symbol.append(icon('sleeping')) }
-    placeholder.append(symbol)
+    placeholder.append(siteIcon(tab, 'tab-card-placeholder-icon'))
     if (site) placeholder.append(text('strong', site))
     placeholder.append(text('small', words.t(tab.sleeping ? 'tabSearch.previewSleeping' : 'tabSearch.previewNotYet')))
     picture.append(placeholder)
@@ -154,7 +174,7 @@ export function renderOpenTabCard(card: HTMLElement, model: OpenTabCard, words: 
   copy.append(title)
   if (tab.label) copy.append(text('small', tabTitleForDisplay(tab, words.t('tabSearch.newTabTitle')), 'tab-card-page-title'))
   copy.append(text('span', displayUrl(tab.url, words), 'tab-card-url'))
-  const conditions = tabConditions(tab, words)
+  const conditions = tabConditions(tab, words, shared)
   if (conditions.length) {
     const list = document.createElement('span')
     list.className = 'tab-card-conditions'

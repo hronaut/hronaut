@@ -10,7 +10,10 @@
 .tab-results { display: grid; gap: 28px; min-width: 0; }
 .tab-results[aria-busy=true] { cursor: progress; }
 .tab-section { min-width: 0; }
-.tab-section h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: var(--type-body-size); font-weight: 600; }
+/* A workspace's name, then what all of its tabs share, such as Interaction locked, said once instead of on each card. */
+.tab-section-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0 0 12px; }
+.tab-section h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: var(--type-body-size); font-weight: 600; }
+.tab-section-conditions { margin-top: 0; }
 .tab-section h3 .count { margin-left: 2px; }
 .tab-section .workspace-dot { width: 10px; height: 10px; flex: 0 0 10px; border-radius: 50%; background: var(--workspace-color); }
 .tab-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 14px; }

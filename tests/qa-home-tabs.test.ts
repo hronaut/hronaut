@@ -5,6 +5,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { HomeTab, HomeTabAction, HomeTabsState } from '../src/shared/home-tabs.js'
 import type { HronautHomeApi } from '../src/shared/home.js'
+import type { SupportedLocale } from '../src/shared/locale.js'
 import type { BrowserTabOverviewPreview } from '../src/shared/types.js'
 import { byId, deferred, flush, installHomeHooks, isoMinutesAgo, mountTestHome, query, words } from './qa-home-harness.js'
 
@@ -42,13 +43,14 @@ interface TabsHarness {
   showTabs(): Promise<void>
 }
 
-function mountTabs(initial = tabsState(), api: Partial<HronautHomeApi> = {}): TabsHarness {
+function mountTabs(initial = tabsState(), api: Partial<HronautHomeApi> = {}, locale?: SupportedLocale): TabsHarness {
   let current = initial
   let showTabs: (() => void) | undefined
   const getTabs = vi.fn(async () => current)
   const tabAction = vi.fn(async (_action: HomeTabAction) => current)
   const getTabPreviews = vi.fn(async (_tabIds: string[]): Promise<BrowserTabOverviewPreview[]> => [])
   const harness = mountTestHome({
+    ...(locale ? { locale } : {}),
     api: {
       getTabs, tabAction, getTabPreviews,
       onShowTabs: listener => { showTabs = listener; return () => { showTabs = undefined } },
@@ -113,6 +115,91 @@ describe('Home Tabs view', () => {
     const conditions = [...card('busy').querySelectorAll('.condition')].map(words)
     expect(conditions).toEqual(['Agent active', 'Pinned', 'Interaction locked', 'Muted', expect.stringMatching(/^Emulated: /u), '2 temporary network routes'])
     expect(words(card('busy'))).not.toContain('Group:')
+  })
+
+  // Every card of a workspace locked by the person said "Interaction locked" (HRO-65).
+  it('says once beside a workspace what all of its tabs share, and the rest on each card', async () => {
+    const initial = () => tabsState({
+      workspaces: [{ id: 'shop', name: 'Acme Store', color: 'blue' }, { id: 'docs', name: 'Docs', color: 'green' }],
+      tabs: [
+        tab('cart', { workspaceId: 'shop', locked: true, muted: true, pinned: true }),
+        tab('pay', { workspaceId: 'shop', locked: true, muted: true }),
+        tab('guide', { workspaceId: 'docs', muted: true, locked: true }),
+        tab('api', { workspaceId: 'docs', audible: true }),
+        tab('alone', { locked: true, muted: true })
+      ]
+    })
+    const tabs = mountTabs(initial())
+    await tabs.showTabs()
+    const shared = (title: string) => {
+      const head = [...document.querySelectorAll<HTMLElement>('.tab-section-head')].find(node => words(node.querySelector('h3')).startsWith(title))!
+      const list = query('.tab-section-conditions', head)
+      return list.hidden ? [] : [...list.querySelectorAll('.condition')].map(words)
+    }
+    const conditions = (id: string) => [...card(id).querySelectorAll('.condition')].map(words)
+    expect(shared('Acme Store')).toEqual(['Interaction locked', 'Muted'])
+    expect(conditions('cart')).toEqual(['Pinned'])
+    expect(conditions('pay')).toEqual([])
+    // Not every Docs tab is locked or muted, and a lone tab keeps its own.
+    expect(shared('Docs')).toEqual([])
+    expect(conditions('guide')).toEqual(['Interaction locked', 'Muted'])
+    expect(conditions('api')).toEqual(['Playing audio'])
+    expect(shared('Other tabs')).toEqual([])
+    expect(conditions('alone')).toEqual(['Interaction locked', 'Muted'])
+    // The heading still names the workspace and counts its tabs.
+    expect(sectionTitles().slice(0, 2)).toEqual(['Acme Store2', 'Docs2'])
+    // A refresh with nothing new leaves what they share as it is.
+    const chip = document.querySelector('.tab-section-conditions .condition')
+    const observer = new MutationObserver(() => {})
+    observer.observe(chip!.parentElement!, { childList: true, attributes: true })
+    tabs.set(initial())
+    await tabs.showTabs()
+    expect(document.querySelector('.tab-section-conditions .condition')).toBe(chip)
+    expect(observer.takeRecords()).toEqual([])
+    observer.disconnect()
+    // Unlocking one tab puts the lock back on the card still locked.
+    tabs.set(tabsState({
+      workspaces: [{ id: 'shop', name: 'Acme Store', color: 'blue' }],
+      tabs: [tab('cart', { workspaceId: 'shop', locked: true, muted: true, pinned: true }), tab('pay', { workspaceId: 'shop', muted: true })]
+    }))
+    await tabs.showTabs()
+    expect(shared('Acme Store')).toEqual(['Muted'])
+    expect(conditions('cart')).toEqual(['Pinned', 'Interaction locked'])
+    expect(conditions('pay')).toEqual([])
+  })
+
+  it('shows a sleeping tab without a picture by its site\'s icon, as an awake one, and says it is asleep', async () => {
+    const icon = 'data:image/png;base64,iVBORw0KGgo='
+    const tabs = mountTabs(tabsState({
+      tabs: [tab('cart', { sleeping: true, faviconDataUrl: icon }), tab('news', { sleeping: true, url: 'https://news.example.org/' }), tab('docs')]
+    }))
+    await tabs.showTabs()
+    const placeholder = (id: string) => query('.tab-card-placeholder', card(id))
+    expect(query<HTMLImageElement>('.tab-card-placeholder-icon img', placeholder('cart')).src).toBe(icon)
+    expect(words(query('.tab-card-placeholder-icon', placeholder('news')))).toBe('N')
+    for (const id of ['cart', 'news', 'docs']) expect(placeholder(id).querySelector('svg')).toBeNull()
+    expect([...placeholder('news').children].slice(1).map(words)).toEqual(['news.example.org', 'Sleeping — open to preview'])
+    expect([...placeholder('docs').children].slice(1).map(words)).toEqual(['docs.example.com', 'No preview yet'])
+    expect(card('news').classList.contains('sleeping')).toBe(true)
+  })
+
+  // One open tab read "1 abiertas" in Spanish.
+  it.each([
+    ['es-ES', '1 abierta · 1 guardada · 1 cerrada', '2 abiertas · 2 guardadas · 2 cerradas'],
+    ['fr-FR', '1 ouvert · 1 enregistré · 1 fermé', '2 ouverts · 2 enregistrés · 2 fermés'],
+    ['it-IT', '1 aperta · 1 salvata · 1 chiusa', '2 aperte · 2 salvate · 2 chiuse'],
+    ['pt-BR', '1 aberta · 1 salva · 1 fechada', '2 abertas · 2 salvas · 2 fechadas']
+  ] as const)('counts one tab and several under the Tabs name in %s', async (locale, one, two) => {
+    const closed = tabsState().closedTabs[0]!
+    const archived = tabsState().archivedWorkspaces[0]!
+    const tabs = mountTabs(tabsState({ tabs: [tab('docs')] }), {}, locale)
+    await tabs.showTabs()
+    expect(words(byId('home-view-description'))).toBe(one)
+    tabs.set(tabsState({
+      tabs: [tab('docs'), tab('news')], closedTabs: [closed, { ...closed, id: 'closed-2' }], archivedWorkspaces: [archived, { ...archived, id: 'older' }]
+    }))
+    await tabs.showTabs()
+    expect(words(byId('home-view-description'))).toBe(two)
   })
 
   it('searches labels, titles, addresses and workspace names with every word, and says when nothing matches', async () => {

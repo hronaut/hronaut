@@ -12,7 +12,8 @@ import { tabTitleForDisplay } from '../../../shared/tab-title.js'
 import { element, errorText, interpolate, messageAt } from './dom.js'
 import { icon } from './icons.js'
 import {
-  closedTabMeta, openTabSignature, renderArchivedRow, renderClosedTabRow, renderOpenTabCard, tabName, tabResultId, type TabResultKind, type TabWords
+  closedTabMeta, openTabSignature, renderArchivedRow, renderClosedTabRow, renderOpenTabCard, renderSharedConditions, sharedConditions, tabName,
+  tabResultId, type TabResultKind, type TabWords
 } from './tab-cards.js'
 import { labelEditorSignature, renderLabelEditor, type LabelEdit } from './tab-label-editor.js'
 import { mountTabPagePreview } from './tab-page-preview.js'
@@ -262,21 +263,34 @@ export function mountTabs(data: HomeBootstrap, api: HronautHomeApi, signal: Abor
   }
 
   let sectionCount = 0
-  function section(key: string, heading: string, count: number, list: 'grid' | 'rows', color?: BrowserTabGroupColor): HTMLElement {
+  function section(key: string, heading: string, count: number, list: 'grid' | 'rows', color?: BrowserTabGroupColor, shared: HTMLElement[] = []): HTMLElement {
     let node = sections.get(key)
     if (!node) {
       const id = `tab-section-${++sectionCount}`
       node = document.createElement('section')
       node.className = 'tab-section'
+      const head = document.createElement('div')
+      head.className = 'tab-section-head'
       const title = document.createElement('h3')
       title.id = id
+      const conditions = document.createElement('span')
+      conditions.className = 'tab-card-conditions tab-section-conditions'
+      head.append(title, conditions)
       const items = document.createElement('div')
       items.className = list === 'grid' ? 'tab-grid' : 'tab-rows'
       items.setAttribute('role', 'list')
       items.setAttribute('aria-labelledby', id)
       node.setAttribute('aria-labelledby', id)
-      node.append(title, items)
+      node.append(head, items)
       sections.set(key, node)
+    }
+    // Rewritten only when they change, as the cards are: Home refreshes the view as tabs change.
+    const conditions = node.querySelector<HTMLElement>('.tab-section-conditions')!
+    const said = JSON.stringify(shared.map(chip => [chip.className, chip.textContent]))
+    if (conditions.dataset.said !== said) {
+      conditions.dataset.said = said
+      conditions.replaceChildren(...shared)
+      conditions.hidden = !shared.length
     }
     const title = node.querySelector('h3')!
     const parts: Node[] = []
@@ -329,11 +343,12 @@ export function mountTabs(data: HomeBootstrap, api: HronautHomeApi, signal: Abor
     const locked = state?.locked === true
     const children: HTMLElement[] = []
     for (const group of view.groups) {
-      const node = section(group.key, group.name, group.tabs.length, 'grid', group.color)
+      const shared = sharedConditions(group.tabs)
+      const node = section(group.key, group.name, group.tabs.length, 'grid', group.color, renderSharedConditions(shared, words))
       node.style.setProperty('--workspace-color', BROWSER_TAB_GROUP_COLOR_HEX[group.color])
       const cards = group.tabs.map(tab => {
         const key = keyOf('open', tab.id)
-        const model = { tab, current: tab.id === state?.previousTabId, preview: frames.get(tab.id), menuOpen: false }
+        const model = { tab, current: tab.id === state?.previousTabId, preview: frames.get(tab.id), shared, menuOpen: false }
         const card = item(key, 'tab-card', openTabSignature(model), node => {
           model.menuOpen = node.querySelector<HTMLDetailsElement>('.card-menu')?.open ?? false
           renderOpenTabCard(node, model, words)
@@ -646,9 +661,9 @@ export function mountTabs(data: HomeBootstrap, api: HronautHomeApi, signal: Abor
     /** The counts under the heading: open tabs, archived workspaces and recently closed tabs. */
     summary(): string {
       if (!state) return ''
-      const parts = [t('tabSearch.countOpen', { count: number(state.tabs.length) })]
-      if (state.archivedWorkspaces.length) parts.push(t('tabSearch.countSaved', { count: number(state.archivedWorkspaces.length) }))
-      if (state.closedTabs.length) parts.push(t('tabSearch.countClosed', { count: number(state.closedTabs.length) }))
+      const parts = [words.count('tabSearch.countOpen', state.tabs.length)]
+      if (state.archivedWorkspaces.length) parts.push(words.count('tabSearch.countSaved', state.archivedWorkspaces.length))
+      if (state.closedTabs.length) parts.push(words.count('tabSearch.countClosed', state.closedTabs.length))
       return parts.join(' ')
     },
     /** Whether the Tabs view shows; it reads tabs only then. */
