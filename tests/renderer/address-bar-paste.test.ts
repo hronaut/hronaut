@@ -173,6 +173,35 @@ describe('dropping text on the address field', () => {
     expect(drop(rendered.input, { 'text/uri-list': 'https://example.com/linked', 'text/plain': 'Linked page' })).toBe(false)
     await nextTick()
     expect(rendered.input.value).toBe('https://example.com/linked')
+
+    // The first of several addresses, and never a javascript: one as script.
+    expect(drop(rendered.input, { 'text/uri-list': 'https://example.com/one\r\nhttps://example.com/two' })).toBe(false)
+    await nextTick()
+    expect(rendered.input.value).toBe('https://example.com/one')
+    expect(drop(rendered.input, { 'text/uri-list': 'javascript:alert(1)' })).toBe(false)
+    await nextTick()
+    expect(rendered.input.value).toBe('alert(1)')
+  })
+
+  // A link dropped while the field searched a site, such as Search Bing, was searched for there instead of opened.
+  it('leaves keyword mode, as Chrome\'s address bar does for text set anew', async () => {
+    const rendered = createHarness()
+    rendered.input.focus()
+    rendered.input.select()
+    for (const character of 'bing.com') {
+      rendered.input.setRangeText(character, rendered.input.selectionStart ?? 0, rendered.input.selectionEnd ?? 0, 'end')
+      rendered.input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: character }))
+      await nextTick()
+    }
+    await fireEvent.keyDown(rendered.input, { key: 'Tab' })
+    await nextTick()
+    expect(rendered.controller.keyword.value).not.toBeNull()
+
+    expect(drop(rendered.input, { 'text/uri-list': 'https://example.com/linked' })).toBe(false)
+    await nextTick()
+    expect(rendered.controller.keyword.value).toBeNull()
+    await rendered.controller.submit()
+    expect(rendered.onNavigate).toHaveBeenCalledWith('https://example.com/linked')
   })
 
   it('drops nothing for a file from the computer, a tab of the rail or a drop with no text', async () => {
@@ -185,6 +214,9 @@ describe('dropping text on the address field', () => {
     await nextTick()
     expect(rendered.input.value).toBe(shown)
     expect(rendered.controller.dirty.value).toBe(false)
+    // As Chrome refuses such a drop, the field takes no keyboard and suggests nothing.
+    expect(document.activeElement).not.toBe(rendered.input)
+    expect(rendered.controller.focused.value).toBe(false)
   })
 
   it('leaves text dragged within the field to the field itself', async () => {

@@ -19,6 +19,11 @@ async function dragAndDrop(from: { x: number; y: number }, to: { x: number; y: n
   await exec('python3', [join(process.cwd(), 'tests/integration/x11-input.py'), String(from.x), String(from.y), `--drag-and-drop-to=${to.x},${to.y}`])
 }
 
+/** Presses keys with the X11 keyboard, as a person does, in whatever has the keyboard. */
+async function press(keys: string): Promise<void> {
+  await exec('python3', [join(process.cwd(), 'tests/integration/x11-input.py'), '0', '0', `--shortcut=${keys}`])
+}
+
 /** Where an element of the page in view is on the screen. */
 async function onPage(electronApp: ElectronApplication, url: string, selector: string): Promise<{ x: number; y: number }> {
   return electronApp.evaluate(async ({ BrowserWindow, WebContentsView }, { url, selector }) => {
@@ -43,7 +48,7 @@ async function onScreen(electronApp: ElectronApplication, control: Locator): Pro
 }
 
 // A link dropped on the address field landed where the pointer was in the address shown, in the middle of it.
-test('puts a link or image dropped on the address field in place of its text, selected', async ({ appWindow, electronApp }) => {
+test('puts a link or image dropped on the address field in place of its text, selected, for Enter to open', async ({ appWindow, electronApp }) => {
   const server = createServer((request, response) => {
     if (request.url === '/pixel.png') {
       response.writeHead(200, { 'content-type': 'image/png' })
@@ -59,22 +64,31 @@ test('puts a link or image dropped on the address field in place of its text, se
   const origin = `http://127.0.0.1:${address.port}`
   const field = appWindow.getByRole('combobox', { name: 'Address', exact: true })
   const selection = () => field.evaluate((input: HTMLInputElement) => [input.selectionStart, input.selectionEnd, document.activeElement === input])
+  const shownUrl = () => electronApp.evaluate(({ BrowserWindow, WebContentsView }) => BrowserWindow.getAllWindows()[0]!.contentView.children
+    .filter((child): child is InstanceType<typeof WebContentsView> => child instanceof WebContentsView && child.getVisible())
+    .map((view) => view.webContents.getURL()).find((url) => url.startsWith('http')))
   try {
     await appWindow.evaluate(`window.hronaut.newTab({ url: '${origin}/source', active: true })`)
     await expect(appWindow.getByRole('tab', { name: /Drag source/ })).toBeVisible()
     await expect.poll(() => electronApp.evaluate(({ webContents }, url) => webContents.getAllWebContents()
       .some((contents) => contents.getURL() === url && !contents.isLoading()), `${origin}/source`)).toBe(true)
 
-    await dragAndDrop(await onPage(electronApp, `${origin}/source`, '#link'), await onScreen(electronApp, field))
-    await expect(field).toHaveValue(`${origin}/dropped`)
-    await expect.poll(selection).toEqual([0, `${origin}/dropped`.length, true])
+    const shown = await field.inputValue()
 
-    // An image goes by its address. The page stays where it was: a drop opens nothing until Enter.
+    // An image goes by its address, and the field has the keyboard: Ctrl+Z gives the address shown back.
     await dragAndDrop(await onPage(electronApp, `${origin}/source`, '#image'), await onScreen(electronApp, field))
     await expect(field).toHaveValue(`${origin}/pixel.png`)
     await expect.poll(selection).toEqual([0, `${origin}/pixel.png`.length, true])
-    expect(await electronApp.evaluate(({ webContents }, url) => webContents.getAllWebContents()
-      .some((contents) => contents.getURL() === url), `${origin}/source`)).toBe(true)
+    await press('Control_L+z')
+    await expect(field).toHaveValue(shown)
+
+    // A link: the page stays where it was until Enter, which opens it.
+    await dragAndDrop(await onPage(electronApp, `${origin}/source`, '#link'), await onScreen(electronApp, field))
+    await expect(field).toHaveValue(`${origin}/dropped`)
+    await expect.poll(selection).toEqual([0, `${origin}/dropped`.length, true])
+    expect(await shownUrl()).toBe(`${origin}/source`)
+    await press('Return')
+    await expect.poll(shownUrl).toBe(`${origin}/dropped`)
   } finally {
     await closeFixtureServer(server)
   }
