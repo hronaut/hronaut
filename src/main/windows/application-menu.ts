@@ -16,6 +16,40 @@ import { sendTo } from '../typed-ipc.js'
 
 type MenuClick = NonNullable<MenuItemConstructorOptions['click']>
 
+/**
+ * Whether a menu item's click comes from its key rather than from the menu. Electron reports any click without a mouse
+ * button as triggered by an accelerator, so also an item chosen with the keyboard, after Alt elsewhere than macOS, or
+ * with Ctrl+F2 or VoiceOver on macOS. Such a choice lacks the modifiers the item's key holds, and an item without a key
+ * is only ever chosen. On macOS the key is the person's own when they set one for the item in System Settings.
+ */
+function clickedByItsKey(item: { accelerator?: string | null; userAccelerator?: string | null }, event: KeyboardEvent): boolean {
+  const mac = process.platform === 'darwin'
+  const accelerator = (mac ? item.userAccelerator : null) ?? item.accelerator
+  if (!event.triggeredByAccelerator || !accelerator) return false
+  return accelerator.split('+').slice(0, -1).every((modifier) => {
+    switch (modifier.toLowerCase()) {
+      case 'commandorcontrol':
+      case 'cmdorctrl':
+        return mac ? event.metaKey === true : event.ctrlKey === true
+      case 'command':
+      case 'cmd':
+      case 'super':
+      case 'meta':
+        return event.metaKey === true
+      case 'control':
+      case 'ctrl':
+        return event.ctrlKey === true
+      case 'alt':
+      case 'option':
+        return event.altKey === true
+      case 'shift':
+        return event.shiftKey === true
+      default:
+        return true
+    }
+  })
+}
+
 /** The website tabs Ctrl with a digit goes to; Ctrl+9 goes to the last one. */
 const TAB_POSITIONS = [1, 2, 3, 4, 5, 6, 7, 8] as const
 
@@ -67,8 +101,8 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
 
   // Choosing Back or Forward goes like the toolbar's arrow. Their keys go by the rules of the person's own input on the
   // shown tab, and only from the main window: typed in a panel in its own window, they would change a page out of view.
-  function goInHistory(direction: 'back' | 'forward', window: BaseWindow | undefined, event: KeyboardEvent): void {
-    if (!event.triggeredByAccelerator) {
+  function goInHistory(direction: 'back' | 'forward', window: BaseWindow | undefined, byKey: boolean): void {
+    if (!byKey) {
       host.runNativeBrowserAction(`go ${direction}`, () => withBrowser((browser) => direction === 'back'
         ? back(browser, undefined, { byPerson: true })
         : forward(browser, undefined, { byPerson: true })))
@@ -81,10 +115,10 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
   // closed, as in Chrome. Their keys are Chrome's, which a website may keep, as a web editor does to go to a line: as
   // keys of the menu they reach it only when the website or field in focus leaves them alone, and never from an agent,
   // and only from the main window, since typed in a panel in its own window they would search a page out of view.
-  function findAgain(action: 'find-next' | 'find-previous', window: BaseWindow | undefined, event: KeyboardEvent): void {
-    if (event.triggeredByAccelerator && (window === undefined || window.id !== host.mainWindow()?.id)) return
+  function findAgain(action: 'find-next' | 'find-previous', window: BaseWindow | undefined, byKey: boolean): void {
+    if (byKey && (window === undefined || window.id !== host.mainWindow()?.id)) return
     // Chosen from the menu, the main window may be hidden behind a panel in its own window or in the tray.
-    if (!event.triggeredByAccelerator) host.showWindow()
+    if (!byKey) host.showWindow()
     host.runShortcut(action)
   }
 
@@ -134,10 +168,9 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
     { shown = false, repeatable = false }: { shown?: boolean; repeatable?: boolean } = {}
   ): MenuClick {
     const pressed = newKeyPress()
-    return (_item, window, event) => {
-      // Electron also reports an item chosen with the keyboard, as after Alt elsewhere than macOS, as triggered by an
-      // accelerator, but without the Ctrl or Cmd that the key of each shown item holds.
-      const byKey = event.triggeredByAccelerator && (!shown || event.ctrlKey === true || event.metaKey === true)
+    return (item, window, event) => {
+      // A hidden item is never chosen from the menu.
+      const byKey = shown ? clickedByItsKey(item, event) : event.triggeredByAccelerator === true
       if (!byKey) {
         if (shown) run(true)
         return
@@ -156,7 +189,7 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
   function oncePerKeyPress(click: MenuClick): MenuClick {
     const pressed = newKeyPress()
     return (item, window, event) => {
-      if (event.triggeredByAccelerator && !pressed() && window !== undefined) return
+      if (clickedByItsKey(item, event) && !pressed() && window !== undefined) return
       click(item, window, event)
     }
   }
@@ -304,12 +337,12 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
             {
               label: host.text('native.menu.findNext'),
               accelerator: 'CmdOrCtrl+G',
-              click: (_item, window, event) => findAgain('find-next', window, event)
+              click: (item, window, event) => findAgain('find-next', window, clickedByItsKey(item, event))
             },
             {
               label: host.text('native.menu.findPrevious'),
               accelerator: 'CmdOrCtrl+Shift+G',
-              click: (_item, window, event) => findAgain('find-previous', window, event)
+              click: (item, window, event) => findAgain('find-previous', window, clickedByItsKey(item, event))
             }
           ]
         },
@@ -373,12 +406,12 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
               // Chrome's keys. As keys of the menu they reach it only when the website or field in focus leaves them
               // alone, as in Chrome, and never from an agent: Chromium keeps the keys an agent sends from the menu.
               accelerator: process.platform === 'darwin' ? 'Cmd+[' : 'Alt+Left',
-              click: (_item, window, event) => goInHistory('back', window, event)
+              click: (item, window, event) => goInHistory('back', window, clickedByItsKey(item, event))
             },
             {
               label: host.text('native.menu.forward'),
               accelerator: process.platform === 'darwin' ? 'Cmd+]' : 'Alt+Right',
-              click: (_item, window, event) => goInHistory('forward', window, event)
+              click: (item, window, event) => goInHistory('forward', window, clickedByItsKey(item, event))
             },
             {
               label: host.text('native.menu.reload'),
@@ -406,11 +439,12 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
               // the menu only when the website or field in focus leaves it alone, and never from an agent. Typed in a
               // panel in its own window, it would open the source of a page out of view.
               accelerator: process.platform === 'darwin' ? 'Cmd+Alt+U' : 'Ctrl+U',
-              click: (_item, window, event) => {
-                if (event.triggeredByAccelerator && (window === undefined || window.id !== host.mainWindow()?.id)) return
-                if (event.triggeredByAccelerator && !sourcePress()) return
+              click: (item, window, event) => {
+                const byKey = clickedByItsKey(item, event)
+                if (byKey && (window === undefined || window.id !== host.mainWindow()?.id)) return
+                if (byKey && !sourcePress()) return
                 // Chosen from the menu, the main window may be hidden behind a panel in its own window or in the tray.
-                if (!event.triggeredByAccelerator) host.showWindow()
+                if (!byKey) host.showWindow()
                 host.runNativeBrowserAction('view page source', () => withBrowser(viewShownPageSource))
               }
             },
@@ -430,11 +464,12 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
               // reaches the menu only when the website or field in focus leaves it alone, and never from an agent. Typed
               // in a panel in its own window, it would save a page out of view.
               accelerator: 'CmdOrCtrl+S',
-              click: (_item, window, event) => {
-                if (event.triggeredByAccelerator && (window === undefined || window.id !== host.mainWindow()?.id)) return
-                if (event.triggeredByAccelerator && !savePress()) return
+              click: (item, window, event) => {
+                const byKey = clickedByItsKey(item, event)
+                if (byKey && (window === undefined || window.id !== host.mainWindow()?.id)) return
+                if (byKey && !savePress()) return
                 // Chosen from the menu, the main window may be hidden behind a panel in its own window or in the tray.
-                if (!event.triggeredByAccelerator) host.showWindow()
+                if (!byKey) host.showWindow()
                 host.runNativeBrowserAction('save the page', () => withBrowser(saveShownPage))
               }
             },
@@ -444,12 +479,13 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
               // menu's key it reaches the menu only when the website or field in focus leaves it alone, and never from
               // an agent. Typed in a panel in its own window, it would print a page out of view.
               accelerator: 'CmdOrCtrl+P',
-              click: (_item, window, event) => {
-                if (event.triggeredByAccelerator && (window === undefined || window.id !== host.mainWindow()?.id)) return
-                if (event.triggeredByAccelerator && !printPress()) return
+              click: (item, window, event) => {
+                const byKey = clickedByItsKey(item, event)
+                if (byKey && (window === undefined || window.id !== host.mainWindow()?.id)) return
+                if (byKey && !printPress()) return
                 // Chosen from the menu, the main window may be hidden behind a panel in its own window or in the tray, as
                 // for Save Page As, and the print dialog would then be for a page out of view.
-                if (!event.triggeredByAccelerator) host.showWindow()
+                if (!byKey) host.showWindow()
                 host.runNativeBrowserAction('print the page', () => withBrowser(printShownPage))
               }
             },

@@ -8,6 +8,7 @@ All notable changes to Hronaut are documented in this file.
 
 - A held Ctrl+J (Cmd+Option+L on macOS) now opens or closes Downloads once, as in Chrome, and a held Shift+Esc opens the Task manager once. Each repeat the page or Hronaut's window left alone opened or closed them again, so they ended open or closed by chance.
 - A website that handles Ctrl/Cmd+F, Ctrl/Cmd+L, Ctrl/Cmd+R, with or without Shift, or Ctrl/Cmd with =, +, - or 0 itself now keeps the key, as in Chrome, such as a web editor's own search, line selection or recent folders, or a design tool zooming its canvas; Hronaut opened Find, went to the address bar, reloaded or zoomed instead. Where the website leaves them alone they still do, once for a held key, as in Chrome: a held Ctrl/Cmd+= or -, Ctrl/Cmd+R or F5 zoomed or reloaded again with each repeat. On Linux and Windows the Super or Windows key no longer works in place of Ctrl with these keys, as in Chrome.
+- View Page Source, Save Page As, Print, Find Next and Find Previous chosen with the keyboard, with Enter in the open menu or with Ctrl+F2 or VoiceOver on macOS, now act while a panel in its own window has focus, as when chosen with the mouse, and Back and Forward chosen with the keyboard go back and forward as the toolbar's arrows do.
 
 ## [3.14.16] - 2026-11-05
 

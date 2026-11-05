@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-type Item = { label?: string; type?: string; accelerator?: string; click?: (item: unknown, window: unknown, event: { triggeredByAccelerator?: boolean }) => void }
+type Item = { label?: string; type?: string; accelerator?: string; click?: (item: unknown, window: unknown, event: Partial<Electron.KeyboardEvent>) => void }
 const installed = vi.hoisted(() => ({ template: [] as Array<{ label?: string; submenu?: Item[] }> }))
 vi.mock('electron', () => ({ app: { on: () => undefined }, Menu: { buildFromTemplate: (template: typeof installed.template) => template, setApplicationMenu: (menu: typeof installed.template) => { installed.template = menu } } }))
 import { createApplicationMenu } from '../src/main/windows/application-menu.js'
@@ -55,10 +55,10 @@ describe('Print in the View menu', () => {
 
   it('prints for its key only from the main window', () => {
     const { tabs, mainWindow, showWindow, print } = viewMenu('linux')
-    print.click!(print, { id: 2 }, { triggeredByAccelerator: true })
-    print.click!(print, undefined, { triggeredByAccelerator: true })
+    print.click!(print, { id: 2 }, { triggeredByAccelerator: true, ctrlKey: true })
+    print.click!(print, undefined, { triggeredByAccelerator: true, ctrlKey: true })
     expect(tabs.printShownPage).not.toHaveBeenCalled()
-    print.click!(print, mainWindow, { triggeredByAccelerator: true })
+    print.click!(print, mainWindow, { triggeredByAccelerator: true, ctrlKey: true })
     expect(tabs.printShownPage).toHaveBeenCalledOnce()
     // The key is pressed in the main window, which is in view.
     expect(showWindow).not.toHaveBeenCalled()

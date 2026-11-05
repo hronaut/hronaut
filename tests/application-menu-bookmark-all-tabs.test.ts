@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { applicationMenuKey, browserShortcutAction, isBrowserKey } from '../src/shared/browser-shortcuts.js'
-type Item = { label?: string; type?: string; accelerator?: string; click?: (item: unknown, window: unknown, event: { triggeredByAccelerator?: boolean }) => void }
+type Item = { label?: string; type?: string; accelerator?: string; click?: (item: unknown, window: unknown, event: Partial<Electron.KeyboardEvent>) => void }
 const installed = vi.hoisted(() => ({ template: [] as Array<{ label?: string; submenu?: Item[] }> }))
 vi.mock('electron', () => ({ app: { on: () => undefined }, Menu: { buildFromTemplate: (template: typeof installed.template) => template, setApplicationMenu: (menu: typeof installed.template) => { installed.template = menu } } }))
 import { createApplicationMenu } from '../src/main/windows/application-menu.js'
@@ -36,7 +36,7 @@ describe('Bookmark All Tabs in the View menu', () => {
   it('shows the window and runs Bookmark all tabs as a browser key, from the menu or its key', () => {
     const { runShortcut, showWindow, bookmarkAllTabs } = viewMenu('linux')
     bookmarkAllTabs.click!(bookmarkAllTabs, undefined, {})
-    bookmarkAllTabs.click!(bookmarkAllTabs, { id: 1 }, { triggeredByAccelerator: true })
+    bookmarkAllTabs.click!(bookmarkAllTabs, { id: 1 }, { triggeredByAccelerator: true, ctrlKey: true, shiftKey: true })
     expect(showWindow).toHaveBeenCalledTimes(2)
     expect(runShortcut.mock.calls).toEqual([['bookmark-all-tabs'], ['bookmark-all-tabs']])
   })

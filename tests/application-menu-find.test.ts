@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-type Item = { label?: string; type?: string; role?: string; accelerator?: string; visible?: boolean; click?: (item: unknown, window: unknown, event: { triggeredByAccelerator?: boolean }) => void }
+type Item = { label?: string; type?: string; role?: string; accelerator?: string; visible?: boolean; click?: (item: unknown, window: unknown, event: Partial<Electron.KeyboardEvent>) => void }
 const installed = vi.hoisted(() => ({ template: [] as Array<{ label?: string; submenu?: Item[] }> }))
 vi.mock('electron', () => ({ app: { on: () => undefined }, Menu: { buildFromTemplate: (template: typeof installed.template) => template, setApplicationMenu: (menu: typeof installed.template) => { installed.template = menu } } }))
 import { createApplicationMenu } from '../src/main/windows/application-menu.js'
@@ -38,17 +38,21 @@ describe('Find Next and Find Previous', () => {
     expect(runShortcut).toHaveBeenLastCalledWith('find-next')
     item('native.menu.findPrevious').click!({}, undefined, { triggeredByAccelerator: false })
     expect(runShortcut).toHaveBeenLastCalledWith('find-previous')
-    expect(showWindow).toHaveBeenCalledTimes(2)
+    // Chosen with the keyboard after Alt, which Electron reports as an accelerator without the Ctrl its key holds.
+    const next = item('native.menu.findNext')
+    next.click!(next, { id: 2, webContents: {} }, { triggeredByAccelerator: true })
+    expect(runShortcut).toHaveBeenLastCalledWith('find-next')
+    expect(showWindow).toHaveBeenCalledTimes(3)
   })
 
   it('act on their keys only from the main window', () => {
     const { runShortcut, showWindow, mainWindow, item } = menu('darwin')
     const next = item('native.menu.findNext')
     // Typed in a panel in its own window, the key would search a page out of view.
-    next.click!(next, { id: 2, webContents: {} }, { triggeredByAccelerator: true })
-    next.click!(next, undefined, { triggeredByAccelerator: true })
+    next.click!(next, { id: 2, webContents: {} }, { triggeredByAccelerator: true, metaKey: true })
+    next.click!(next, undefined, { triggeredByAccelerator: true, metaKey: true })
     expect(runShortcut).not.toHaveBeenCalled()
-    next.click!(next, mainWindow, { triggeredByAccelerator: true })
+    next.click!(next, mainWindow, { triggeredByAccelerator: true, metaKey: true })
     expect(runShortcut).toHaveBeenCalledWith('find-next')
     expect(showWindow).not.toHaveBeenCalled()
   })

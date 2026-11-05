@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-type MenuEvent = { triggeredByAccelerator?: boolean; ctrlKey?: boolean; metaKey?: boolean }
+type MenuEvent = Partial<Electron.KeyboardEvent>
 type Item = { label?: string; type?: string; role?: string; accelerator?: string; click?: (item: unknown, window: unknown, event: MenuEvent) => void }
 type Contents = { on: (name: string, listener: (event: unknown, input: Partial<Electron.Input>) => void) => void }
 const installed = vi.hoisted(() => ({ template: [] as Array<{ label?: string; submenu?: Item[] }>, created: [] as Array<(event: unknown, contents: Contents) => void> }))
@@ -82,14 +82,15 @@ describe('the View menu\'s zoom', () => {
   })
 
   // Chosen with the keyboard after Alt, Electron reports the item as triggered by an accelerator, without the Ctrl its key
-  // holds; it zooms each time, wherever the keyboard was, showing the main window first as when chosen with the mouse.
-  it('zooms each time it is chosen from the menu with the keyboard, showing the main window first', () => {
-    const { runShortcut, showWindow, shellFocused, mainWindow, item } = menu('linux')
+  // holds; it zooms each time, wherever the keyboard was, showing the main window first as when chosen with the mouse. On
+  // macOS VoiceOver's own keys hold Control and Option, which may still be down when it chooses an item.
+  it.each([['linux', {}], ['darwin', { ctrlKey: true, altKey: true }]] as const)('zooms each time it is chosen from the menu with the keyboard, showing the main window first, on %s', (on, held) => {
+    const { runShortcut, showWindow, shellFocused, mainWindow, item } = menu(on)
     shellFocused.value = true
     for (const [label, , action] of ZOOM_ITEMS) {
       const zoom = item(label)
-      zoom.click!(zoom, mainWindow, { triggeredByAccelerator: true })
-      zoom.click!(zoom, mainWindow, { triggeredByAccelerator: true })
+      zoom.click!(zoom, mainWindow, { triggeredByAccelerator: true, ...held })
+      zoom.click!(zoom, mainWindow, { triggeredByAccelerator: true, ...held })
       expect(runShortcut.mock.calls.filter(([called]) => called === action)).toHaveLength(2)
     }
     expect(showWindow).toHaveBeenCalledTimes(6)

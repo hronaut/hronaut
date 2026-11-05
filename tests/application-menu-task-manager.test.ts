@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { applicationMenuKey, isBrowserKey } from '../src/shared/browser-shortcuts.js'
-type Item = { label?: string; type?: string; accelerator?: string; click?: (item: unknown, window: unknown, event: { triggeredByAccelerator?: boolean }) => void }
+type Item = { label?: string; type?: string; accelerator?: string; click?: (item: unknown, window: unknown, event: Partial<Electron.KeyboardEvent>) => void }
 const installed = vi.hoisted(() => ({ template: [] as Array<{ label?: string; submenu?: Item[] }> }))
 vi.mock('electron', () => ({ app: { on: () => undefined }, Menu: { buildFromTemplate: (template: typeof installed.template) => template, setApplicationMenu: (menu: typeof installed.template) => { installed.template = menu } } }))
 import { createApplicationMenu } from '../src/main/windows/application-menu.js'
@@ -35,7 +35,7 @@ describe('Task manager in the View menu', () => {
   it('shows the window and runs the Task manager key as a browser key, from the menu or its key', () => {
     const { runShortcut, showWindow, taskManager } = viewMenu('linux')
     taskManager.click!(taskManager, undefined, {})
-    taskManager.click!(taskManager, { id: 1 }, { triggeredByAccelerator: true })
+    taskManager.click!(taskManager, { id: 1 }, { triggeredByAccelerator: true, shiftKey: true })
     expect(showWindow).toHaveBeenCalledTimes(2)
     expect(runShortcut.mock.calls).toEqual([['task-manager'], ['task-manager']])
   })
