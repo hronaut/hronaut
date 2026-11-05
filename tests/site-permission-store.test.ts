@@ -210,6 +210,8 @@ describe('SitePermissionStore', () => {
         { origin: widget, permission: 'notifications', decision: 'allow', workspaceId: WORK, embeddedIn: `${firstSite}/page` },
         { origin: widget, permission: 'notifications', decision: 'allow', workspaceId: WORK, embeddedIn: 'file:///tmp/page.html' },
         { origin: widget, permission: 'notifications', decision: 'allow', workspaceId: WORK, tabUrl: `${firstSite}/page` },
+        // An embedded website never asks to show notifications, so no decision is kept for one.
+        { origin: widget, permission: 'notifications', decision: 'allow', workspaceId: WORK, embeddedIn: firstSite },
         { origin: widget, permission: 'media', decision: 'allow', workspaceId: WORK },
         { origin: widget, permission: 'fileSystem', decision: 'allow', workspaceId: WORK },
         { origin: widget, permission: 'openExternal', decision: 'allow', workspaceId: WORK }
@@ -223,7 +225,7 @@ describe('SitePermissionStore', () => {
     const { path, store } = await createStore()
     await store.set(widget, 'geolocation', 'allow', { workspaceId: WORK })
     await store.set(widget, 'geolocation', 'deny', { workspaceId: CLIENT })
-    await store.set(widget, 'notifications', 'allow', { workspaceId: CLIENT, embeddedIn: firstSite })
+    await store.set(widget, 'clipboard-read', 'allow', { workspaceId: CLIENT, embeddedIn: firstSite })
     // A change that arrives after the workspace went, such as a late answer, is not kept.
     const late = expect(store.set(widget, 'camera', 'allow', { workspaceId: CLIENT })).rejects.toThrow('removed')
     expect(await store.removeWorkspace(CLIENT)).toBe(2)
@@ -244,7 +246,7 @@ describe('SitePermissionStore', () => {
     const added = '01912345-678b-7abc-8def-0123456789ab'
     await store.set(widget, 'geolocation', 'allow', { workspaceId: WORK })
     await store.set(widget, 'geolocation', 'deny', { workspaceId: CLIENT })
-    await store.set(widget, 'notifications', 'allow', { workspaceId: CLIENT, embeddedIn: firstSite })
+    await store.set(widget, 'clipboard-read', 'allow', { workspaceId: CLIENT, embeddedIn: firstSite })
     expect(await store.retainWorkspaces(() => null)).toBe(0)
     expect(store.list()).toHaveLength(3)
 

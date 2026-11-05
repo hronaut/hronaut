@@ -3,7 +3,7 @@ import { statSync } from 'node:fs'
 import { isAbsolute, join } from 'node:path'
 import { flushBrowserSessionStorage } from './browser/workspace-storage.js'
 import { isHronautHomeUrl } from '../shared/home-url.js'
-import { FRESH_CONSENT_PERMISSIONS, normalizeSitePermissionOrigin, SitePermissionStore } from './site-data/site-permission-store.js'
+import { FRESH_CONSENT_PERMISSIONS, normalizeSitePermissionOrigin, SitePermissionStore, TOP_LEVEL_ONLY_PERMISSIONS } from './site-data/site-permission-store.js'
 import type { MessageKey, MessageParameters } from '../shared/i18n.js'
 import { sitePermissionName } from '../shared/site-permission-names.js'
 import type { SitePermissionDecision } from '../shared/types.js'
@@ -181,8 +181,8 @@ function permissionHold(page: PagePermissionRequests, origin: string, permission
  * session the page runs in and, for a website embedded in a page of another website, to that page's website, as
  * `SitePermissionStore.decisionFor` looks it up; a session no workspace claimed gets no permission. Camera, microphone,
  * file system access and every link to another app always ask again, unless the person denied the same request for the
- * same page document, and a check finds them allowed only as `freshConsentAllows` says. Screen sharing is refused
- * without asking. Home never gets a permission.
+ * same page document, and a check finds them allowed only as `freshConsentAllows` says. Screen sharing, and
+ * notifications for a website embedded in another's page, are refused without asking. Home never gets a permission.
  * `configurePersistentSession` opens the remembered site permissions and the profile's own session,
  * `publishSitePermissions` tells both shell windows the remembered permissions, `forgetWorkspaceSitePermissions` forgets
  * the decisions of a workspace that is gone for good, `forgetRemovedWorkspacesSitePermissions` those of every workspace
@@ -412,6 +412,12 @@ export function createBrowserSession(host: BrowserSessionHost): {
         }
       })()
       if (permission === 'openExternal' && !externalLink) {
+        respond(false)
+        return
+      }
+      // A website embedded in another's page may not ask to show notifications, as in Chrome: an ad or a widget could ask
+      // on every page that embeds it.
+      if (embeddedIn && TOP_LEVEL_ONLY_PERMISSIONS.has(permission)) {
         respond(false)
         return
       }

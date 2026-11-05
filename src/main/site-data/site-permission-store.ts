@@ -23,8 +23,19 @@ const SCOPE_FIELDS: ReadonlySet<string> = new Set(['workspaceId', 'embeddedIn'])
  */
 export const FRESH_CONSENT_PERMISSIONS: ReadonlySet<string> = new Set(['media', 'fileSystem', 'openExternal'])
 
+/**
+ * Permissions only a page's own website may ask for, as in Chrome: a website embedded in another's page, such as an
+ * ad, is refused without a prompt, and the store keeps no decision for one embedded.
+ */
+export const TOP_LEVEL_ONLY_PERMISSIONS: ReadonlySet<string> = new Set(['notifications'])
+
 function rememberablePermission(permission: string): boolean {
   return PERMISSION_NAME.test(permission) && !FRESH_CONSENT_PERMISSIONS.has(permission)
+}
+
+/** Whether a decision for `permission` may be kept in a scope: one embedded in a page only for a permission it asks. */
+function rememberableIn(permission: string, scope: { embeddedIn?: string }): boolean {
+  return rememberablePermission(permission) && (scope.embeddedIn === undefined || !TOP_LEVEL_ONLY_PERMISSIONS.has(permission))
 }
 
 export function normalizeSitePermissionOrigin(value: string): string | null {
@@ -75,7 +86,7 @@ function validEntry(value: unknown): value is SitePermissionEntry {
   if (Object.keys(entry).some((field) => !ENTRY_FIELDS.has(field))) return false
   const { workspaceId, embeddedIn } = entry
   const scope = normalizeSitePermissionScope(entry.origin, embeddedIn === undefined ? { workspaceId } : { workspaceId, embeddedIn })
-  return scope !== null && scope.embeddedIn === embeddedIn
+  return scope !== null && scope.embeddedIn === embeddedIn && rememberableIn(entry.permission, scope)
 }
 
 /** A copy of a decision with only its own fields. */
@@ -166,7 +177,7 @@ export class SitePermissionStore {
     if (!rememberablePermission(permission)) throw new TypeError('Invalid site permission name')
     if (!isSitePermissionDecision(decision)) throw new TypeError('Invalid site permission decision')
     const normalizedScope = normalizeSitePermissionScope(normalizedOrigin, scope)
-    if (!normalizedScope) throw new TypeError('Invalid site permission scope')
+    if (!normalizedScope || !rememberableIn(permission, normalizedScope)) throw new TypeError('Invalid site permission scope')
     return this.queueMutation(async () => {
       if (this.forgottenWorkspaces.has(normalizedScope.workspaceId)) {
         throw new Error('The workspace of this site permission was removed')

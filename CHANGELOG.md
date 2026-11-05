@@ -13,6 +13,7 @@ All notable changes to Hronaut are documented in this file.
 - An agent's click on a page pinched larger that was still loading scrolled the page to its target and moved the pointer there before it was refused, so the person's pinched view moved and the page could react to a pointer at the wrong place; it is now refused before the page scrolls or the pointer moves.
 - A page in a tab out of view that took full screen, as when an agent clicked a video's full screen button there, could stay in full screen inside its page card when the person switched to it about two seconds later; it now leaves full screen there too.
 - A panel in its own window that was still opening when an agent showed Hronaut with `browser_show`, which takes no focus, took the focus from the person's app once it had painted; it now stays without focus, as Hronaut's window does.
+- A website embedded in another's page, such as an ad or a chat widget, could ask to show notifications on every page that embedded it; as in Chrome, only the page's own website may ask now, a frame of another website is refused without a prompt, and an Allow or Deny saved for one is forgotten.
 
 ## [3.14.14] - 2026-11-04
 
