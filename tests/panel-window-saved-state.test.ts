@@ -39,6 +39,7 @@ class FakeWindow {
   maximize() { this.calls.push('maximize'); this.visible = true }
   setFullScreen(value: boolean) { this.calls.push(`fullScreen ${value}`); this.visible = true }
   show() { this.calls.push('show'); this.visible = true }
+  showInactive() { this.calls.push('showInactive'); this.visible = true }
   focus() {}
   restore() {}
   close() {
@@ -132,9 +133,26 @@ describe('a detached panel window saved maximized and in full screen', () => {
       expect(panel.refs.stateUntilShown).toEqual({ maximized: true, fullScreen: true })
       await panel.open('network')
       expect(panel.window().calls).toEqual(['maximize', 'fullScreen true', 'show'])
+      // Shown already, it is not shown again once it paints.
       panel.window().paint()
-      expect(panel.window().calls).toEqual(['maximize', 'fullScreen true', 'show', 'show'])
+      expect(panel.window().calls).toEqual(['maximize', 'fullScreen true', 'show'])
       expect(panel.refs.stateUntilShown).toBeNull()
+    } finally {
+      FakeWindow.paintsLater = false
+    }
+  })
+
+  // Showing it again on its first paint would take the focus the agent's show left with the window the person uses.
+  it('stays without focus when an agent showed it before it painted', async () => {
+    FakeWindow.paintsLater = true
+    try {
+      const panel = panelWindow()
+      await panel.open('console')
+      // As showing Hronaut for an agent does: without focus, at its normal size.
+      panel.refs.stateUntilShown = null
+      panel.window().showInactive()
+      panel.window().paint()
+      expect(panel.window().calls).toEqual(['showInactive'])
     } finally {
       FakeWindow.paintsLater = false
     }
