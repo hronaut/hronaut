@@ -16,7 +16,13 @@ const SITE_PERMISSION_NAMES: Readonly<Record<string, MessageKey>> = {
   geolocation: 'runtime.permissions.location',
   'idle-detection': 'runtime.permissions.activity',
   keyboardLock: 'runtime.permissions.keyboardLock',
+  'local-fonts': 'runtime.permissions.localFonts',
+  // Chromium's Local Network Access: a public website reaching a device on the local network, or an app on this device.
+  'local-network': 'runtime.permissions.localNetwork',
+  'local-network-access': 'runtime.permissions.localNetwork',
+  'loopback-network': 'runtime.permissions.loopbackNetwork',
   media: 'runtime.permissions.media',
+  midi: 'runtime.permissions.midi',
   midiSysex: 'runtime.permissions.midiControl',
   notifications: 'runtime.permissions.notifications',
   openExternal: 'runtime.permissions.externalApps',

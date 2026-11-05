@@ -102,8 +102,25 @@ describe('Hronaut’s permission dialog', () => {
     await show(sitePermission('file', { permission: 'fileSystem', freshConsent: true, file: { path: '/home/notes.txt', access: 'writable' } }))
     expect(screen.getByTestId('trusted-dialog-quoted')).toHaveTextContent('/home/notes.txt')
     expect(screen.getByRole('alertdialog')).toHaveTextContent('Write access')
-    await show(sitePermission('fonts', { permission: 'local-fonts' }))
-    expect(screen.getByRole('alertdialog', { name: 'https://maps.example wants to use “local fonts”' })).toBeInTheDocument()
+    await show(sitePermission('printing', { permission: 'web-printing' }))
+    expect(screen.getByRole('alertdialog', { name: 'https://maps.example wants to use “web printing”' })).toBeInTheDocument()
+  })
+
+  it('names what Local Network Access, fonts and MIDI requests ask for instead of their identifiers', async () => {
+    // A public website reaching a device on the local network, or an app on this computer such as a local dev server,
+    // asked for “local network” or “loopback network”, which tells the person nothing.
+    const { show } = mountDialog()
+    const asks: Array<[string, string]> = [
+      ['local-network', 'https://maps.example wants to find and connect to devices on your local network'],
+      ['local-network-access', 'https://maps.example wants to find and connect to devices on your local network'],
+      ['loopback-network', 'https://maps.example wants to connect to apps and services on this device'],
+      ['local-fonts', 'https://maps.example wants to use the fonts on your computer'],
+      ['midi', 'https://maps.example wants to use your MIDI devices']
+    ]
+    for (const [permission, headline] of asks) {
+      await show(sitePermission(permission, { permission }))
+      expect(screen.getByRole('alertdialog', { name: headline })).toBeInTheDocument()
+    }
   })
 
   it('speaks the interface language', async () => {
