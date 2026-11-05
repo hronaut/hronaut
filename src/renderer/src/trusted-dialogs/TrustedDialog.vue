@@ -130,7 +130,7 @@ onBeforeUnmount(() => {
 
 /**
  * A key held since before the dialog opened, such as Enter or Tab on the page, repeats; it never presses a button or
- * moves the focus here. Escape's first press still denies. In a sign-in's field, where a key presses nothing, a held
+ * moves the focus here. Escape's first press still closes it. In a sign-in's field, where a key presses nothing, a held
  * key repeats as in any field, such as Backspace deleting, except Enter and Tab.
  */
 function ignoreHeldKeys(event: KeyboardEvent): void {

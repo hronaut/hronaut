@@ -14,6 +14,7 @@ All notable changes to Hronaut are documented in this file.
 - A page in a tab out of view that took full screen, as when an agent clicked a video's full screen button there, could stay in full screen inside its page card when the person switched to it about two seconds later; it now leaves full screen there too.
 - A panel in its own window that was still opening when an agent showed Hronaut with `browser_show`, which takes no focus, took the focus from the person's app once it had painted; it now stays without focus, as Hronaut's window does.
 - A website embedded in another's page, such as an ad or a chat widget, could ask to show notifications on every page that embedded it; as in Chrome, only the page's own website may ask now, a frame of another website is refused without a prompt, and an Allow or Deny saved for one is forgotten.
+- Closing a website's permission prompt with Escape or its close button, such as one asking for your location or to show notifications, saved a Deny for the website as clicking Deny does, so it never asked again and Settings listed a choice you did not make; as in Chrome, it now refuses only that request and keeps nothing, so the website may ask again, and a website whose prompt you closed three times is refused without asking for a week, until Hronaut restarts or you decide in Site controls or Settings. Camera, microphone, file and app link prompts, which Hronaut never remembers, still refuse for the page until it loads again.
 
 ## [3.14.14] - 2026-11-04
 

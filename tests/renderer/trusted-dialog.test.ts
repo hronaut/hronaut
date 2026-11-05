@@ -31,9 +31,11 @@ function mountDialog(locale: SupportedLocale = 'en-US') {
   let publish: (request: TrustedDialogRequest | null, state: TrustedDialogShellState) => void = () => undefined
   const ready = vi.fn()
   const respond = vi.fn()
+  const dismiss = vi.fn()
   const api: HronautTrustedDialogsApi = {
     ready,
     respond,
+    dismiss,
     onChanged: (listener) => {
       publish = listener
       return () => undefined
@@ -42,7 +44,7 @@ function mountDialog(locale: SupportedLocale = 'en-US') {
   const controller = useTrustedDialogController(api)
   render(TrustedDialog, { props: { controller }, global: { plugins: [createHronautI18n(locale)] } })
   return {
-    api: { ready, respond },
+    api: { ready, respond, dismiss },
     controller,
     /** Main shows the request, or none, and says whether a sign-in closed unanswered moments ago. */
     show: async (request: TrustedDialogRequest | null, state: TrustedDialogShellState = { afterInterruptedSignIn: false }) => {
@@ -126,7 +128,7 @@ describe('Hronaut’s permission dialog', () => {
     expect(api.respond).toHaveBeenCalledOnce()
   })
 
-  it('answers Escape as Deny, ignores a held key from the page, and keeps open on a backdrop click', async () => {
+  it('closes on Escape without choosing Deny, ignores a held key from the page, and keeps open on a backdrop click', async () => {
     const { api, show, settle } = mountDialog()
     await show(sitePermission('one'))
     await settle()
@@ -142,8 +144,17 @@ describe('Hronaut’s permission dialog', () => {
     expect(screen.getByRole('alertdialog')).toBeInTheDocument()
     expect(api.respond).not.toHaveBeenCalled()
 
+    expect(api.dismiss).not.toHaveBeenCalled()
+
+    // Main gives it its cancel answer and knows the person chose no button, so it keeps no Deny.
     await fireEvent.keyDown(deny, { key: 'Escape' })
-    expect(api.respond).toHaveBeenCalledExactlyOnceWith('one', 0)
+    expect(api.dismiss).toHaveBeenCalledExactlyOnceWith('one')
+    expect(api.respond).not.toHaveBeenCalled()
+    // Answered, it takes no other answer until main shows the next request.
+    await fireEvent.click(deny)
+    await fireEvent.keyDown(deny, { key: 'Escape' })
+    expect(api.respond).not.toHaveBeenCalled()
+    expect(api.dismiss).toHaveBeenCalledOnce()
   })
 
   it('never answers Allow from Enter: Enter presses the focused Deny', async () => {
@@ -180,7 +191,9 @@ describe('Hronaut’s permission dialog', () => {
   it('waits for the page to leave the screen when its own request covers the page', async () => {
     // The shell starts covering the page from the request itself, before the dialog could start its moment on screen.
     let publish: (request: TrustedDialogRequest | null, state: TrustedDialogShellState) => void = () => undefined
-    const api: HronautTrustedDialogsApi = { ready: vi.fn(), respond: vi.fn(), onChanged: (listener) => { publish = listener; return () => undefined } }
+    const api: HronautTrustedDialogsApi = {
+      ready: vi.fn(), respond: vi.fn(), dismiss: vi.fn(), onChanged: (listener) => { publish = listener; return () => undefined }
+    }
     const covered: Array<[boolean, number]> = []
     const shellApi = { setBrowserContentOccluded: (occluded: boolean, request: number) => { covered.push([occluded, request]) } }
     const Shell = defineComponent({
@@ -511,7 +524,7 @@ describe('Hronaut’s wallet recovery phrase dialog', () => {
     expect(screen.getByRole('alertdialog').textContent).not.toContain('abandon')
   })
 
-  it('never answers I saved it from an Enter held since before it opened, and answers Escape as Not yet', async () => {
+  it('never answers I saved it from an Enter held since before it opened, and closes on Escape as Not yet does', async () => {
     const { api, show, settle } = mountDialog()
     await show(walletRecovery('recovery'))
     await settle()
@@ -521,7 +534,8 @@ describe('Hronaut’s wallet recovery phrase dialog', () => {
     expect(heldEnter.defaultPrevented).toBe(true)
     expect(api.respond).not.toHaveBeenCalled()
     await fireEvent.keyDown(notYet, { key: 'Escape' })
-    expect(api.respond).toHaveBeenCalledExactlyOnceWith('recovery', 1)
+    expect(api.dismiss).toHaveBeenCalledExactlyOnceWith('recovery')
+    expect(api.respond).not.toHaveBeenCalled()
   })
 
   it('speaks the interface language', async () => {
@@ -882,7 +896,8 @@ describe('Hronaut’s question before opening a page whose certificate was refus
     await show(certificate('two'))
     await settle()
     await user.keyboard('{Escape}')
-    expect(api.respond).toHaveBeenLastCalledWith('two', 0)
+    expect(api.dismiss).toHaveBeenCalledExactlyOnceWith('two')
+    expect(api.respond).toHaveBeenCalledOnce()
 
     await show(certificate('three'))
     await settle()

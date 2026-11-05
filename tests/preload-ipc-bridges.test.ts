@@ -419,6 +419,7 @@ const sends: Array<[api: string, method: string, args: unknown[], channel: strin
   ['hronautShell', 'setFollowAgentActivitySuspended', [true], 'browser:follow-agent-activity-suspended', [true]],
   ['hronautTrustedDialogs', 'ready', [], 'trusted-dialogs:ready', []],
   ['hronautTrustedDialogs', 'respond', ['dialog-1', 0], 'trusted-dialogs:respond', ['dialog-1', 0]],
+  ['hronautTrustedDialogs', 'dismiss', ['dialog-1'], 'trusted-dialogs:dismiss', ['dialog-1']],
   // Only the name and password go to main, whatever else the object holds.
   ['hronautTrustedDialogs', 'respond', ['dialog-1', 1, { username: 'name', password: 'secret', extra: true }], 'trusted-dialogs:respond', ['dialog-1', 1, { username: 'name', password: 'secret' }]]
 ]

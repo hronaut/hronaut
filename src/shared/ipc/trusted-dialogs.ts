@@ -7,6 +7,8 @@ export const TRUSTED_DIALOGS_IPC = {
   ready: 'trusted-dialogs:ready' as SendChannel<[]>,
   /** Shell → main: the person chose a button of a request, with what they typed to sign in when they sign in. */
   respond: 'trusted-dialogs:respond' as SendChannel<[id: string, response: number, credentials?: TrustedDialogCredentials]>,
+  /** Shell → main: the person closed a request with Escape or its close button instead of choosing a button. */
+  dismiss: 'trusted-dialogs:dismiss' as SendChannel<[id: string]>,
   /** Main → shell: the dialog to show, or null for none, with the shell's state then. */
   changed: 'trusted-dialogs:changed' as EventChannel<[request: TrustedDialogRequest | null, state: TrustedDialogShellState]>
 } as const

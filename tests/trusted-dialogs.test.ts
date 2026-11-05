@@ -80,7 +80,8 @@ function harness() {
     ready: (window: { contents: unknown } = main) => send(window, TRUSTED_DIALOGS_IPC.ready),
     respond: (window: { contents: unknown }, id: unknown, response: unknown, ...credentials: unknown[]) => (
       send(window, TRUSTED_DIALOGS_IPC.respond, id, response, ...credentials)
-    )
+    ),
+    dismiss: (window: { contents: unknown }, id: unknown) => send(window, TRUSTED_DIALOGS_IPC.dismiss, id)
   }
 }
 
@@ -175,6 +176,33 @@ describe('Hronaut’s own dialogs', () => {
     expect(untrusted.sent).toEqual([])
     respond(main, id, 0)
     await expect(answer).resolves.toMatchObject({ response: 0 })
+  })
+
+  it('closes a dialog the person dismissed with its cancel answer, telling it apart from choosing that button', async () => {
+    // Escape and the close button answered as the cancel button does, so a permission prompt closed with Escape saved
+    // a Deny the person never chose.
+    const { dialogs, main, panel, untrusted, ready, respond, dismiss } = harness()
+    ready()
+    ready(panel)
+    let settled = false
+    const dismissed = dialogs.show({ ...permission, cancelId: 1 }).then((value) => { settled = true; return value })
+    const { id } = main.shown()!
+    // Only the shell document that shows the dialog dismisses it, and only the dialog it shows now.
+    dismiss(untrusted, id)
+    dismiss(panel, id)
+    dismiss(main, 'another-id')
+    await Promise.resolve()
+    expect(settled).toBe(false)
+    dismiss(main, id)
+    await expect(dismissed).resolves.toEqual({ response: 1, checkboxChecked: false, dismissed: true })
+    expect(main.shown()).toBeNull()
+
+    // An answer or a dismissal that arrives after the dialog closed changes nothing, and a chosen button is no dismissal.
+    respond(main, id, 0)
+    dismiss(main, id)
+    const chosen = dialogs.show(permission)
+    respond(main, main.shown()!.id, 0)
+    await expect(chosen).resolves.toEqual({ response: 0, checkboxChecked: false })
   })
 
   it('asks in the panel window when given it', async () => {

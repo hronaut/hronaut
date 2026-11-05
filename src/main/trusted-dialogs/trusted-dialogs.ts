@@ -58,6 +58,11 @@ export interface TrustedDialogAnswer extends MessageBoxReturnValue {
    * dialog takes.
    */
   unanswered?: true
+  /**
+   * True when the person closed the dialog with Escape or its close button instead of choosing a button, so its answer
+   * is its cancel answer. A system dialog never reports it.
+   */
+  dismissed?: true
 }
 
 /**
@@ -251,7 +256,9 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
    * Closes the dialog with the person's answer, or with its cancel answer when it closed `unanswered` or was
    * `answered-elsewhere`.
    */
-  function settle(pending: Pending, response: number, credentials?: TrustedDialogCredentials, closed?: 'unanswered' | 'answered-elsewhere'): void {
+  function settle(
+    pending: Pending, response: number, credentials?: TrustedDialogCredentials, closed?: 'unanswered' | 'answered-elsewhere', dismissed = false
+  ): void {
     const contents = pending.window.webContents
     const shell = shells.get(contents)
     pending.release()
@@ -276,7 +283,10 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
       if (!interrupted) shell.keyboardPage = null
       shell.awayWhenOpened = false
     }
-    pending.resolve({ response, checkboxChecked: false, ...(credentials ? { credentials } : {}), ...(closed ? { unanswered: true as const } : {}) })
+    pending.resolve({
+      response, checkboxChecked: false, ...(credentials ? { credentials } : {}), ...(closed ? { unanswered: true as const } : {}),
+      ...(dismissed ? { dismissed: true as const } : {})
+    })
     if (interrupted) withholdKeyboard()
     // The shell keeps the focus a dialog over the pages took, on the control it held before, while the page the
     // person was in waits for the keyboard: typing went nowhere, and Delete closed the tab whose control it was. The
@@ -416,6 +426,14 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
         return
       }
       settle(visible, response)
+    })
+
+    ipc.ipcMain.on(TRUSTED_DIALOGS_IPC.dismiss, (event, id: unknown) => {
+      if (!trusted(event)) return
+      // As for an answer, only the window that shows the dialog closes it, and only the dialog it shows now.
+      const visible = shells.get(event.sender)?.visible
+      if (!visible || visible.window.webContents !== event.sender || visible.request.id !== id) return
+      settle(visible, visible.request.cancelId, undefined, undefined, true)
     })
   }
 

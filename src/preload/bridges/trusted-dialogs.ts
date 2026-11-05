@@ -9,6 +9,7 @@ export const trustedDialogsApi: HronautTrustedDialogsApi = {
   respond: (id, response, credentials) => credentials
     ? send(TRUSTED_DIALOGS_IPC.respond, id, response, { username: credentials.username, password: credentials.password })
     : send(TRUSTED_DIALOGS_IPC.respond, id, response),
+  dismiss: (id) => send(TRUSTED_DIALOGS_IPC.dismiss, id),
   onChanged: (listener) => subscribe(TRUSTED_DIALOGS_IPC.changed, (request, state?: TrustedDialogShellState) => (
     listener(request, { afterInterruptedSignIn: state?.afterInterruptedSignIn === true })
   ))
