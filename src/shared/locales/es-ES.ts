@@ -3306,7 +3306,7 @@ export const esES: MessageSchema = {
     moreActions: 'Más acciones',
     moreActionsAria: 'Más acciones para {title}',
     countOpen: '{count} abierta | {count} abiertas',
-    countSaved: '· {count} guardada | · {count} guardadas',
+    countSaved: '· {count} guardado | · {count} guardados',
     countClosed: '· {count} cerrada | · {count} cerradas',
     search: 'Buscar pestañas',
     placeholder: 'Buscar títulos y direcciones',

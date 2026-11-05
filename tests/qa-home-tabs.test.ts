@@ -140,6 +140,10 @@ describe('Home Tabs view', () => {
     expect(shared('Acme Store')).toEqual(['Interaction locked', 'Muted'])
     expect(conditions('cart')).toEqual(['Pinned'])
     expect(conditions('pay')).toEqual([])
+    // The cards still read them, as from Up and Down in the search field, without showing them.
+    expect(words(query('.tab-card-open .visually-hidden', card('cart')))).toBe('Interaction locked, Muted')
+    expect(words(query('.tab-card-open', card('pay')))).toContain('Interaction locked, Muted')
+    expect(card('guide').querySelector('.visually-hidden')).toBeNull()
     // Not every Docs tab is locked or muted, and a lone tab keeps its own.
     expect(shared('Docs')).toEqual([])
     expect(conditions('guide')).toEqual(['Interaction locked', 'Muted'])
@@ -168,6 +172,25 @@ describe('Home Tabs view', () => {
     expect(conditions('pay')).toEqual([])
   })
 
+  it('says beside a workspace only what all of its open tabs share, also while a search shows some of them', async () => {
+    const tabs = mountTabs(tabsState({
+      workspaces: [{ id: 'shop', name: 'Acme Store', color: 'blue' }],
+      tabs: [
+        tab('cart', { workspaceId: 'shop', title: 'Cart', locked: true }),
+        tab('pay', { workspaceId: 'shop', title: 'Cart payment', locked: true }),
+        tab('guide', { workspaceId: 'shop', title: 'Guide' })
+      ]
+    }))
+    await tabs.showTabs()
+    const search = byId<HTMLInputElement>('tab-search')
+    search.value = 'cart'
+    search.dispatchEvent(new Event('input'))
+    expect(document.querySelector('[data-result-key="open:guide"]')).toBeNull()
+    expect(query<HTMLElement>('.tab-section-conditions').hidden).toBe(true)
+    expect([...card('cart').querySelectorAll('.condition')].map(words)).toEqual(['Interaction locked'])
+    expect([...card('pay').querySelectorAll('.condition')].map(words)).toEqual(['Interaction locked'])
+  })
+
   it('shows a sleeping tab without a picture by its site\'s icon, as an awake one, and says it is asleep', async () => {
     const icon = 'data:image/png;base64,iVBORw0KGgo='
     const tabs = mountTabs(tabsState({
@@ -185,10 +208,10 @@ describe('Home Tabs view', () => {
 
   // One open tab read "1 abiertas" in Spanish.
   it.each([
-    ['es-ES', '1 abierta · 1 guardada · 1 cerrada', '2 abiertas · 2 guardadas · 2 cerradas'],
+    ['es-ES', '1 abierta · 1 guardado · 1 cerrada', '2 abiertas · 2 guardados · 2 cerradas'],
     ['fr-FR', '1 ouvert · 1 enregistré · 1 fermé', '2 ouverts · 2 enregistrés · 2 fermés'],
     ['it-IT', '1 aperta · 1 salvata · 1 chiusa', '2 aperte · 2 salvate · 2 chiuse'],
-    ['pt-BR', '1 aberta · 1 salva · 1 fechada', '2 abertas · 2 salvas · 2 fechadas']
+    ['pt-BR', '1 aberta · 1 salvo · 1 fechada', '2 abertas · 2 salvos · 2 fechadas']
   ] as const)('counts one tab and several under the Tabs name in %s', async (locale, one, two) => {
     const closed = tabsState().closedTabs[0]!
     const archived = tabsState().archivedWorkspaces[0]!

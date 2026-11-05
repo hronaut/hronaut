@@ -24,7 +24,8 @@ type Result =
   | { kind: 'open'; item: HomeTab }
   | { kind: 'closed'; item: HomeClosedTab }
   | { kind: 'saved'; item: HomeArchivedWorkspace }
-interface Group { key: string; name: string; color: BrowserTabGroupColor; tabs: HomeTab[] }
+/** A section of open tabs: the ones the search leaves, and every open tab of its workspace, which what they share is read from. */
+interface Group { key: string; name: string; color: BrowserTabGroupColor; tabs: HomeTab[]; members: HomeTab[] }
 interface Drawn { node: HTMLElement; signature: string; labelSignature?: string }
 
 const keyOf = (kind: TabResultKind, id: string): string => `${kind}:${id}`
@@ -241,10 +242,12 @@ export function mountTabs(data: HomeBootstrap, api: HronautHomeApi, signal: Abor
       : []
     const groups = state.workspaces.flatMap((workspace): Group[] => {
       const tabs = open.filter(tab => tab.workspaceId === workspace.id)
-      return tabs.length ? [{ key: `workspace:${workspace.id}`, name: workspace.name, color: workspace.color, tabs }] : []
+      const members = state!.tabs.filter(tab => tab.workspaceId === workspace.id)
+      return tabs.length ? [{ key: `workspace:${workspace.id}`, name: workspace.name, color: workspace.color, tabs, members }] : []
     })
-    const other = open.filter(tab => !tab.workspaceId || !names.has(tab.workspaceId))
-    if (other.length) groups.push({ key: 'workspace:', name: t('tabSearch.ungrouped'), color: 'gray', tabs: other })
+    const ungrouped = (tab: HomeTab): boolean => !tab.workspaceId || !names.has(tab.workspaceId)
+    const other = open.filter(ungrouped)
+    if (other.length) groups.push({ key: 'workspace:', name: t('tabSearch.ungrouped'), color: 'gray', tabs: other, members: state.tabs.filter(ungrouped) })
     const saved = kind === 'all' || kind === 'saved'
       ? state.archivedWorkspaces.filter(group => matches(wanted, group.name)
         || group.tabs.some(tab => matches(wanted, group.name, tab.label ?? '', pageTitle(tab), tab.url)))
@@ -343,7 +346,8 @@ export function mountTabs(data: HomeBootstrap, api: HronautHomeApi, signal: Abor
     const locked = state?.locked === true
     const children: HTMLElement[] = []
     for (const group of view.groups) {
-      const shared = sharedConditions(group.tabs)
+      // Read from all of the workspace's open tabs, so a search never makes the heading say what only the matches share.
+      const shared = sharedConditions(group.members)
       const node = section(group.key, group.name, group.tabs.length, 'grid', group.color, renderSharedConditions(shared, words))
       node.style.setProperty('--workspace-color', BROWSER_TAB_GROUP_COLOR_HEX[group.color])
       const cards = group.tabs.map(tab => {

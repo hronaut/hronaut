@@ -3306,7 +3306,7 @@ export const ptBR: MessageSchema = {
     moreActions: 'Mais ações',
     moreActionsAria: 'Mais ações para {title}',
     countOpen: '{count} aberta | {count} abertas',
-    countSaved: '· {count} salva | · {count} salvas',
+    countSaved: '· {count} salvo | · {count} salvos',
     countClosed: '· {count} fechada | · {count} fechadas',
     search: 'Pesquisar guias',
     placeholder: 'Pesquisar títulos e endereços',

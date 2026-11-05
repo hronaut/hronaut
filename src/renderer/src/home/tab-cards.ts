@@ -82,7 +82,8 @@ function siteIcon(tab: HomeTab, className: string): HTMLElement {
   return holder
 }
 
-type Condition = { text: string; tone?: 'agent' | 'warning' }
+/** A state a card names; a shared one is said beside its workspace's name and only read, not shown, on the card. */
+type Condition = { text: string; tone?: 'agent' | 'warning'; shared?: boolean }
 
 /** A state every tab of a workspace shares, said once beside the workspace's name instead of on each card. */
 export type SharedCondition = 'locked' | 'muted'
@@ -100,13 +101,13 @@ export function renderSharedConditions(shared: readonly SharedCondition[], words
 }
 
 /** The conditions a tab card names, such as Pinned or Agent active; its workspace is the section it is listed in, and
- * what all of that workspace's tabs share is said there. */
+ * what all of that workspace's tabs share is said there, so the card only reads it out. */
 function tabConditions(tab: HomeTab, words: TabWords, shared: readonly SharedCondition[]): Condition[] {
   const conditions: Condition[] = []
   if (tab.agentActive) conditions.push({ text: words.t('tabSearch.meta.agent'), tone: 'agent' })
   if (tab.pinned) conditions.push({ text: words.t('tabSearch.meta.pinned') })
-  if (tab.locked && !shared.includes('locked')) conditions.push({ text: words.t('tabSearch.meta.locked'), tone: 'warning' })
-  if (tab.muted) { if (!shared.includes('muted')) conditions.push({ text: words.t('tabSearch.meta.muted') }) }
+  if (tab.locked) conditions.push({ text: words.t('tabSearch.meta.locked'), tone: 'warning', shared: shared.includes('locked') })
+  if (tab.muted) conditions.push({ text: words.t('tabSearch.meta.muted'), shared: shared.includes('muted') })
   else if (tab.audible) conditions.push({ text: words.t('tabSearch.meta.audio') })
   if (tab.emulation) conditions.push({ text: words.t('tabSearch.meta.emulated', { state: words.describeEmulation(tab.emulation) }), tone: 'warning' })
   if (tab.networkRouteCount) conditions.push({ text: words.count('tabSearch.meta.routes', tab.networkRouteCount), tone: 'warning' })
@@ -175,12 +176,16 @@ export function renderOpenTabCard(card: HTMLElement, model: OpenTabCard, words: 
   if (tab.label) copy.append(text('small', tabTitleForDisplay(tab, words.t('tabSearch.newTabTitle')), 'tab-card-page-title'))
   copy.append(text('span', displayUrl(tab.url, words), 'tab-card-url'))
   const conditions = tabConditions(tab, words, shared)
-  if (conditions.length) {
+  const shown = conditions.filter(condition => !condition.shared)
+  if (shown.length) {
     const list = document.createElement('span')
     list.className = 'tab-card-conditions'
-    for (const condition of conditions) list.append(text('span', condition.text, condition.tone ? `condition ${condition.tone}` : 'condition'))
+    for (const condition of shown) list.append(text('span', condition.text, condition.tone ? `condition ${condition.tone}` : 'condition'))
     copy.append(list)
   }
+  // A screen reader on the card, as from Up and Down in the search field, still hears what its workspace's name says.
+  const unseen = conditions.filter(condition => condition.shared).map(condition => condition.text)
+  if (unseen.length) copy.append(text('span', ` ${unseen.join(', ')}`, 'visually-hidden'))
   open.append(picture, copy)
 
   const actions = document.createElement('div')

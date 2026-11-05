@@ -13,7 +13,7 @@
 /* A workspace's name, then what all of its tabs share, such as Interaction locked, said once instead of on each card. */
 .tab-section-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0 0 12px; }
 .tab-section h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: var(--type-body-size); font-weight: 600; }
-.tab-section-conditions { margin-top: 0; }
+.tab-section .tab-section-conditions { margin-top: 0; }
 .tab-section h3 .count { margin-left: 2px; }
 .tab-section .workspace-dot { width: 10px; height: 10px; flex: 0 0 10px; border-radius: 50%; background: var(--workspace-color); }
 .tab-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 14px; }
@@ -24,7 +24,7 @@
 .tab-card-open:focus-visible { outline: none; }
 .tab-card-preview { position: relative; display: block; aspect-ratio: 16 / 10; overflow: hidden; border-bottom: 1px solid var(--border); border-radius: calc(var(--corner-3) - 1px) calc(var(--corner-3) - 1px) 0 0; background: var(--soft); }
 .tab-card-preview img { display: block; width: 100%; height: 100%; object-fit: contain; }
-.tab-card.sleeping .tab-card-preview img { filter: saturate(.55); opacity: .82; }
+.tab-card.sleeping .tab-card-preview img, .tab-card.sleeping .tab-card-placeholder-icon { filter: saturate(.55); opacity: .82; }
 .tab-card-placeholder { display: grid; height: 100%; place-content: center; justify-items: center; gap: 6px; padding: 12px; color: var(--muted); text-align: center; }
 .tab-card-placeholder strong { max-width: 100%; overflow: hidden; color: var(--text); font-size: var(--type-small-size); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .tab-card-placeholder small { font-size: var(--type-micro-size); }
