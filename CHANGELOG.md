@@ -12,6 +12,7 @@ All notable changes to Hronaut are documented in this file.
 
 - An agent's wheel input, or touch input outside an emulated phone viewport, on a page the person pinched larger now says that the page is pinched and that `browser_zoom` `reset` undoes it, as clicks, hover and drag already did, instead of only that the point must be inside the viewport; a native right-click on a page pinched while the pointer moved to it now gives the pinch as its reason, with the same advice.
 - Resetting the zoom, such as with Ctrl/Cmd+0, Reset in the zoom bar or an agent's `browser_zoom` `reset`, now also shows a pinched page's source (a `view-source:` address) at its normal scale again; it stayed pinched, and an agent's native input there kept being refused.
+- A website that keeps F11 (Control+Command+F on macOS) to itself no longer holds you in full screen: as in Chrome, the key is the browser's while the window is in full screen, and on a locked page or under Hronaut's dialogs it always toggles full screen.
 
 ## [3.14.15] - 2026-11-05
 

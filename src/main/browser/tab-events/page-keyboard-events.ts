@@ -1,5 +1,6 @@
 import type { Input, WebContents } from 'electron'
 import { browserShortcutAction, websiteKeptShortcutAction, type BrowserShortcutAction, type BrowserShortcutInput } from '../../../shared/browser-shortcuts.js'
+import { shortcutKey } from '../../../shared/shortcut-key.js'
 import type { Browser } from '../browser.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { consumeExpectedAgentKeyboardInput } from '../agent-input-authorization/agent-input-authorization.js'
@@ -15,14 +16,36 @@ import { noteShellHeldKey } from './shell-held-keys.js'
  */
 const REPEATED_ON_ITS_PAGE: ReadonlySet<BrowserShortcutAction> = new Set(['zoom-in', 'zoom-out', 'zoom-reset', 'reload', 'reload-ignoring-cache'])
 
+/**
+ * Whether the key toggles the window's full screen, as the View menu's item does: F11, or Ctrl+Cmd+F on macOS, whose F
+ * is the key that types it, as for the menu, or the F key's place with a layout of another script.
+ */
+function fullScreenKey(input: Pick<Input, 'key' | 'code' | 'control' | 'meta' | 'alt' | 'shift'>): boolean {
+  if (process.platform === 'darwin') return shortcutKey(input) === 'f' && input.control && input.meta && !input.alt && !input.shift
+  return input.key === 'F11' && !input.control && !input.meta && !input.alt && !input.shift
+}
+
+/**
+ * Toggles the window's full screen for the full screen key the page did not get. Its repeats toggle nothing, and stay
+ * out of the page once the window left full screen.
+ */
+function toggleFullScreenFromPage(browser: Browser, input: Input): void {
+  if (input.isAutoRepeat) return
+  noteShellHeldKey(browser.shellHeldKeys, input)
+  browser.options.onUserInteraction?.()
+  browser.window.setFullScreen(!browser.window.isFullScreen())
+}
+
 /** After a click, key or scroll on the page in view, its overview preview waits this long for the page to settle. The pointer listeners keep their own copy. */
 const TAB_OVERVIEW_INPUT_SETTLE_MS = 1_000
 
 /**
  * Follows the person's keyboard input on a page. While trusted chrome covers
- * the pages, a key goes to the shell as a browser shortcut or nowhere; while
+ * the pages, a key goes to the shell as a browser shortcut, toggles full
+ * screen or goes nowhere; while
  * a screenshot area selection or element picker is in progress, Escape ends
- * it. Otherwise a browser shortcut the page does not keep goes to the shell,
+ * it. Otherwise the full screen key is the browser's while the window is in
+ * full screen, a browser shortcut the page does not keep goes to the shell,
  * the human input lock may hold the key back, and the key is recorded,
  * refreshes the tab's overview preview and makes following wait. A key held
  * down in the shell when it hands the focus to the page does not repeat into it,
@@ -52,7 +75,12 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
         mac: process.platform === 'darwin'
       }
       // The page cannot have Ctrl with a digit, a key a website may keep, which went to the tabs from here before it
-      // was one; the other such keys, such as F5, stay dead here, as they are in Hronaut's window under its dialogs.
+      // was one; the other such keys, such as F5, stay dead here, as they are in Hronaut's window under its dialogs. The
+      // full screen key toggles full screen there, as it does here.
+      if (input.type === 'keyDown' && fullScreenKey(input)) {
+        toggleFullScreenFromPage(browser, input)
+        return
+      }
       const shortcut = input.type === 'keyDown' ? browserShortcutAction(keys) ?? tabNumberKey(keys) : null
       if (shortcut) {
         notePageShortcutKey(browser, webContents, input, shortcut)
@@ -118,6 +146,14 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
     // Consume one expected event even on unlocked tabs. An awaited agent
     // operation does not establish the origin of every arriving key event.
     const expectedAgentInput = consumeExpectedAgentKeyboardInput(browser, webContents.id, input)
+    // As in Chrome, the key that toggles full screen is the browser's while the window is in full screen, so a page that
+    // keeps it cannot hold the person there; a locked page keeps no key, so there it toggles full screen either way.
+    if (input.type === 'keyDown' && !expectedAgentInput && fullScreenKey(input)
+      && (browser.window.isFullScreen() || browser.isHumanInteractionLocked(tab))) {
+      event.preventDefault()
+      toggleFullScreenFromPage(browser, input)
+      return
+    }
     // Ctrl+. is also a page's own key, such as an editor's quick fix. It opens the agent card only
     // when a person presses it while there are agents to show; Ctrl+Shift+O likewise takes the page
     // over only from a person. An agent's debugger keys usually skip this handler; one that arrives
