@@ -14,6 +14,7 @@ All notable changes to Hronaut are documented in this file.
 - Resetting the zoom, such as with Ctrl/Cmd+0, Reset in the zoom bar or an agent's `browser_zoom` `reset`, now also shows a pinched page's source (a `view-source:` address) at its normal scale again; it stayed pinched, and an agent's native input there kept being refused.
 - A website that keeps F11 (Control+Command+F on macOS) to itself no longer holds you in full screen: as in Chrome, the key is the browser's while the window is in full screen, and on a locked page or under Hronaut's dialogs it always toggles full screen.
 - A tab you drag no longer carries its internal id: released over a website, the website could read the id from the drop, as text and as the tab's own type. The tab strip still moves the tabs you drag.
+- View → Print… chosen from the menu now brings the main window forward first, as Save Page As does, so its print dialog is no longer for a page out of view behind a panel in its own window or in the tray.
 
 ## [3.14.15] - 2026-11-05
 

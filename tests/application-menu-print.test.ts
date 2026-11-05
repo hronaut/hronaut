@@ -20,15 +20,16 @@ function viewMenu(on: NodeJS.Platform) {
   const tabs = { printShownPage: vi.fn(async () => undefined) }
   const actions: string[] = []
   const mainWindow = { id: 1, webContents: {} }
+  const showWindow = vi.fn()
   createApplicationMenu({
-    text: (key) => key, showWindow: vi.fn(), mainWindow: () => mainWindow as never, checkForUpdates: vi.fn(), requestQuit: vi.fn(),
+    text: (key) => key, showWindow, mainWindow: () => mainWindow as never, checkForUpdates: vi.fn(), requestQuit: vi.fn(),
     runNativeBrowserAction: (action, callback) => { actions.push(action); void callback() },
     runShortcut: vi.fn(),
     runPageNextPane: vi.fn(),
     tabs: () => tabs as never
   }).installApplicationMenu()
   const view = installed.template.find((menu) => menu.label === 'native.menu.view')!.submenu!
-  return { tabs, actions, mainWindow, view, print: view.find((item) => item.label === 'native.menu.print')! }
+  return { tabs, actions, showWindow, mainWindow, view, print: view.find((item) => item.label === 'native.menu.print')! }
 }
 
 describe('Print in the View menu', () => {
@@ -41,20 +42,25 @@ describe('Print in the View menu', () => {
     }
   })
 
-  it('prints the shown page when chosen, from any window', () => {
-    const { tabs, actions, print } = viewMenu('linux')
+  // Chosen from a panel in its own window, or with the main window in the tray, Print opened its dialog for a page out
+  // of view; Save Page As already brought the main window forward.
+  it('prints the shown page when chosen, from any window, bringing the main window forward', () => {
+    const { tabs, actions, showWindow, print } = viewMenu('linux')
     print.click!(print, { id: 2 }, {})
     print.click!(print, undefined, {})
     expect(tabs.printShownPage).toHaveBeenCalledTimes(2)
     expect(actions).toEqual(['print the page', 'print the page'])
+    expect(showWindow).toHaveBeenCalledTimes(2)
   })
 
   it('prints for its key only from the main window', () => {
-    const { tabs, mainWindow, print } = viewMenu('linux')
+    const { tabs, mainWindow, showWindow, print } = viewMenu('linux')
     print.click!(print, { id: 2 }, { triggeredByAccelerator: true })
     print.click!(print, undefined, { triggeredByAccelerator: true })
     expect(tabs.printShownPage).not.toHaveBeenCalled()
     print.click!(print, mainWindow, { triggeredByAccelerator: true })
     expect(tabs.printShownPage).toHaveBeenCalledOnce()
+    // The key is pressed in the main window, which is in view.
+    expect(showWindow).not.toHaveBeenCalled()
   })
 })
