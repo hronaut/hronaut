@@ -3,13 +3,14 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
+import { STATE_PUBLISH_MS } from '../../src/main/browser/browser-state/state-publication.js'
+import type { BrowserState } from '../../src/shared/types.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
 // An agent's browser_navigate reads the browser state for its answer, and that read sent the shell any change still
-// waiting for its time. An agent going from page to page sent the shell two states a call, 10 to 20 ms apart: four
+// waiting for its time. An agent going from page to page sent the shell two states a call, 6 to 27 ms apart: four
 // agents sent it about 18 states a second, not the 10 the shell's publications allow.
 
-const STATE_PUBLISH_MS = 100
 const NAVIGATIONS = 30
 
 function toolText(result: CallToolResult): string {
@@ -41,38 +42,44 @@ test('an agent going from page to page leaves the states sent to the shell at th
     // The person does nothing, so every state the shell gets comes from the agent's work.
     await appWindow.waitForTimeout(1_000)
 
-    await electronApp.evaluate(({ webContents }, shellUrl) => {
+    await electronApp.evaluate(({ webContents }, { shellUrl, tabId }) => {
       const shell = webContents.getAllWebContents().find((candidate) => candidate.getURL() === shellUrl)
       if (!shell) throw new Error('The shell was not found.')
       const send = shell.send
-      const sentAt: number[] = []
+      const pace = { sentAt: [] as number[], lastUrl: '', restore: () => { shell.send = send } }
       shell.send = (channel: string, ...args: unknown[]) => {
-        if (channel === 'browser:state-changed') sentAt.push(performance.now())
+        if (channel === 'browser:state-changed') {
+          pace.sentAt.push(performance.now())
+          pace.lastUrl = (args[0] as BrowserState).tabs.find((tab) => tab.id === tabId)?.url ?? ''
+        }
         send.call(shell, channel, ...args)
       }
-      ;(globalThis as Record<string, unknown>).__publicationPace = { sentAt, restore: () => { shell.send = send } }
-    }, shellUrl)
+      ;(globalThis as Record<string, unknown>).__publicationPace = pace
+    }, { shellUrl, tabId: tabId! })
     for (let i = 1; i <= NAVIGATIONS; i += 1) {
       const navigated = await client.callTool({ name: 'browser_navigate', arguments: { tabId: tabId!, url: `${base}/page/${i}` } }) as CallToolResult
       expect(navigated.isError, toolText(navigated)).not.toBe(true)
     }
     await appWindow.waitForTimeout(500)
-    const sentAt = await electronApp.evaluate(() => {
-      const pace = (globalThis as Record<string, unknown>).__publicationPace as { sentAt: number[]; restore: () => void }
-      return pace.sentAt
+    const { sentAt, lastUrl } = await electronApp.evaluate(() => {
+      const pace = (globalThis as Record<string, unknown>).__publicationPace as { sentAt: number[]; lastUrl: string }
+      return { sentAt: pace.sentAt, lastUrl: pace.lastUrl }
     })
     const gaps = sentAt.slice(1).map((at, index) => Math.round(at - sentAt[index]!))
-    // The agent's pages change the state the shell shows, so it still gets them, never sooner than its pace allows.
+    // The agent's pages change the state the shell shows, so it still gets them, up to the last, never sooner than its
+    // pace allows.
     expect(sentAt.length, `gaps ${gaps.join(', ')} ms`).toBeGreaterThan(1)
+    expect(lastUrl).toBe(`${base}/page/${NAVIGATIONS}`)
     // A gap is measured from one send to the next, after each read of the state, so it can be a little short of the pace.
     expect(gaps.filter((gap) => gap < STATE_PUBLISH_MS / 2), `gaps ${gaps.join(', ')} ms`).toEqual([])
   } finally {
+    // A step that failed, even the app's end, leaves the rest of the cleanup to do and its own error to report.
     await electronApp.evaluate(() => {
       const pace = (globalThis as Record<string, unknown>).__publicationPace as { restore: () => void } | undefined
       delete (globalThis as Record<string, unknown>).__publicationPace
       pace?.restore()
-    })
-    await client.close()
+    }).catch(() => undefined)
+    await client.close().catch(() => undefined)
     await closeFixtureServer(server)
   }
 })

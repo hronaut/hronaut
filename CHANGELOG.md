@@ -10,7 +10,7 @@ All notable changes to Hronaut are documented in this file.
 - A tab you click, move or mute in the tab strip, or reach with Ctrl+Tab, Ctrl+1 to Ctrl+9 or Ctrl+Shift+Page Up/Down, now shows the change at once, before Hronaut finishes it, so the strip keeps up while several agents work. A sleeping or loading tab still shows once it has woken, and the strip shows Hronaut's own result if it differs.
 - The pictures of your tabs in Home's **Tabs** view are now made in the background, as agents' screenshots already were, rather than by the part of Hronaut that runs its window, so the window answers a little sooner while several agents take screenshots. The pictures look as they did.
 - Hronaut's window and the panels it opens over the page, such as address suggestions and the tab rail, now load only English and the language you use rather than all seventeen. The window starts drawing sooner, address suggestions appear in about half the time the first time you type, and the three use about 60 MB less memory between them.
-- Agents that go from page to page no longer make Hronaut's window update its tabs more than ten times a second, so the window spends about a fifth less of its time keeping up while several agents work.
+- Agents working in tabs you are not looking at no longer make Hronaut's window update its tabs more than ten times a second, so the window spends about a sixth less of its time keeping up while several agents work.
 
 ## [3.14.17] - 2026-11-05
 

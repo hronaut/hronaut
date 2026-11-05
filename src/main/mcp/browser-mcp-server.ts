@@ -38,7 +38,6 @@ import { registerBrowserTaskRuns } from './tools/browser-task-runs/index.js'
 import { registerBrowserStatus } from './tools/browser-status/index.js'
 import { registerBrowserShow } from './tools/browser-show/index.js'
 import { registerBrowserUserAttention } from './tools/browser-user-attention/index.js'
-import { runAgentCall } from '../browser/browser-state/agent-calls.js'
 import { registerBrowserRequestUserAttention } from './tools/browser-request-user-attention/index.js'
 import { registerBrowserTabs } from './tools/browser-tabs/index.js'
 import { registerBrowserNewTab } from './tools/browser-new-tab/index.js'
@@ -142,6 +141,7 @@ import { listMcpTabGroups, requireMcpTabGroup } from '../browser/mcp-tab-groups/
 import { suspendWorkspaceContinuity } from '../browser/workspace-continuity/workspace-continuity.js'
 import { getMcpGroupState } from '../browser/workspace-scope/workspace-scope.js'
 import { agentStepName } from '../browser/page-snapshots/page-snapshots.js'
+import { runAgentCall } from '../browser/browser-state/agent-calls.js'
 
 function matchesWorkspaceResumeKey(expected: string, supplied: string): boolean {
   const expectedBytes = Buffer.from(expected, 'utf8')

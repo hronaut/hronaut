@@ -14,8 +14,8 @@ export async function runAgentCall<T>(call: () => Promise<T>): Promise<T> {
     try {
       return await call()
     } finally {
-      // A callback the call left behind keeps its context after the call returned, and what it reads may be for the
-      // shell, as when a person's action waits on a page the agent opened.
+      // A callback the call left behind, such as a timer it set or a promise handler it attached, keeps its context
+      // after the call returned, and what it reads then may be for the shell.
       context.running = false
     }
   })

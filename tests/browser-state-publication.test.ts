@@ -22,15 +22,19 @@ async function advance(ms: number): Promise<void> {
 /**
  * A publication of a state holding one tab, whose title, loading and navigation a test changes, sent to a fake shell.
  * The shell says it drew each state right after it arrives, unless the test draws them itself; the tab is shown unless
- * hidden.
+ * hidden. An agent may open more tabs behind it.
  */
 function publication(options: { drawsItself?: boolean; hidden?: boolean } = {}) {
   const sent: BrowserState[] = []
   const page = { title: 'Start', loading: false, navigation: 0 }
+  const agentTabs: string[] = []
   let open = true
   let failing = false
   const read = (): BrowserState => ({
-    tabs: [{ id: 'tab', title: page.title, loading: page.loading, navigationGeneration: page.navigation } as BrowserTabState],
+    tabs: [
+      { id: 'tab', title: page.title, loading: page.loading, navigationGeneration: page.navigation } as BrowserTabState,
+      ...agentTabs.map(id => ({ id, title: id, loading: false, navigationGeneration: 0 }) as BrowserTabState)
+    ],
     closedTabs: [],
     activeTabId: 'tab',
     allTabsMuted: false,
@@ -58,6 +62,8 @@ function publication(options: { drawsItself?: boolean; hidden?: boolean } = {}) 
     loading: () => sent.map(state => state.tabs[0]!.loading),
     pages: () => sent.map(state => [state.tabs[0]!.loading, state.tabs[0]!.navigationGeneration]),
     change: (next: Partial<typeof page>) => { Object.assign(page, next); states.changed() },
+    openAgentTab: (id: string) => { agentTabs.push(id); states.changed() },
+    tabIds: () => sent.map(state => state.tabs.map(tab => tab.id)),
     close: () => { open = false },
     fail: (next: boolean) => { failing = next }
   }
@@ -153,33 +159,68 @@ it('keeps an agent\'s read from sending an equal state again, as no reply of it 
   expect(shell.titles()).toEqual(['Same'])
 })
 
+/** A promise the test settles, and code awaiting it that the call left behind, which runs on in the call's context. */
+function later() {
+  let goOn!: () => void
+  const settled = new Promise<void>((resolve) => { goOn = resolve })
+  return { goOn, then: <T>(next: () => T): Promise<T> => (async () => { await settled; return next() })() }
+}
+
 it('publishes a waiting change before a read that a finished agent call left behind, which may be for the shell', async () => {
   const shell = publication()
+  const after = later()
   let leftBehind: Promise<boolean> | undefined
   await runAgentCall(async () => {
-    leftBehind = new Promise((resolve) => setTimeout(() => {
+    leftBehind = after.then(() => {
       shell.states.beforeRead()
-      resolve(inAgentCall())
-    }, 20))
+      return inAgentCall()
+    })
   })
   shell.change({ title: 'First' })
   await advance(5)
   shell.change({ title: 'Second' })
-  await advance(15)
+  after.goOn()
   expect(await leftBehind).toBe(false)
   expect(shell.titles()).toEqual(['First', 'Second'])
 })
 
-it('tells an agent\'s call from other code only while the call runs, through what it awaits', async () => {
+it('tells an agent\'s call from other code only while the call runs, through what it awaits and what it leaves behind', async () => {
   expect(inAgentCall()).toBe(false)
+  const after = later()
+  let leftBehind: Promise<boolean> | undefined
   const seen = await runAgentCall(async () => {
     const before = inAgentCall()
+    leftBehind = after.then(() => inAgentCall())
     await Promise.resolve()
     await advance(1)
     return [before, inAgentCall()]
   })
   expect(seen).toEqual([true, true])
   expect(inAgentCall()).toBe(false)
+  after.goOn()
+  expect(await leftBehind).toBe(false)
+})
+
+it('sends a tab the agent opened before its activity in it, which the shell drops for a tab no state it got lists', async () => {
+  const shell = publication()
+  shell.change({ title: 'First' })
+  await advance(5)
+  shell.openAgentTab('agent-tab')
+  shell.states.beforeTabActivity('tab')
+  expect(shell.tabIds()).toEqual([['tab']])
+  shell.states.beforeTabActivity('agent-tab')
+  expect(shell.tabIds()).toEqual([['tab'], ['tab', 'agent-tab']])
+  shell.states.beforeTabActivity('agent-tab')
+  expect(shell.sent).toHaveLength(2)
+})
+
+it('sends a tab the agent opened before its activity in it even while the shell draws', () => {
+  const shell = publication({ drawsItself: true })
+  shell.change({ title: 'First' })
+  shell.openAgentTab('agent-tab')
+  expect(shell.tabIds()).toEqual([['tab']])
+  shell.states.beforeTabActivity('agent-tab')
+  expect(shell.tabIds()).toEqual([['tab'], ['tab', 'agent-tab']])
 })
 
 it('publishes nothing while the browser closes, and nothing waits once disposed', async () => {

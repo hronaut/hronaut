@@ -44,4 +44,6 @@ export function handleMcpTabActivity(browser: Browser, activity: McpTabActivity,
     tab.lastActiveAt = performance.now()
   }
   browser.mcpActivityFollower.accept(activity, agent)
+  // The shell hears of the activity next, and drops it for a tab no state it got lists.
+  browser.statePublication.beforeTabActivity(tab.id)
 }
