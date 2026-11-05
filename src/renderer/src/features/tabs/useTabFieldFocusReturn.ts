@@ -27,9 +27,40 @@ export interface TabFieldFocusReturnOptions {
 export function useTabFieldFocusReturn(options: TabFieldFocusReturnOptions): () => void {
   const shell = options.shell
   if (!shell) return () => undefined
+  // A tab's row takes the keyboard on the press of the click that selects another tab, which Chrome's tabs do not, so
+  // until that click is over main is told the field that had the keyboard, which the tab left then keeps.
+  let fieldOfTabLeft: ShellTabField | null = null
   // Told at once, so that a tab selected in the turn the field gives up the keyboard, as Switch to this tab does, is
   // left without it.
-  const stopTelling = watch(options.focusedField, (field) => shell.setTabFieldFocused(field), { immediate: true, flush: 'sync' })
+  const stopTelling = watch(options.focusedField, (field) => {
+    if (field === null && fieldOfTabLeft !== null) return
+    fieldOfTabLeft = null
+    shell.setTabFieldFocused(field)
+  }, { immediate: true, flush: 'sync' })
+  // Only the main button clicks a tab; another opens its menu, or closes it.
+  const holdFieldForTabClick = (event: MouseEvent): void => {
+    const field = options.focusedField()
+    if (event.button !== 0 || field === null) return
+    if (event.target instanceof Element && event.target.closest('[role="tab"][data-tab-id]')) fieldOfTabLeft = field
+  }
+  const releaseField = (): void => {
+    if (fieldOfTabLeft === null) return
+    fieldOfTabLeft = null
+    shell.setTabFieldFocused(options.focusedField())
+  }
+  // The click comes after the press ends, in the same task, and selects its tab before a timer runs.
+  let releaseTimer: ReturnType<typeof setTimeout> | undefined
+  const releaseFieldAfterClick = (): void => {
+    clearTimeout(releaseTimer)
+    releaseTimer = setTimeout(releaseField, 0)
+  }
+  window.addEventListener('pointerdown', holdFieldForTabClick, true)
+  window.addEventListener('pointerup', releaseFieldAfterClick, true)
+  // A tab dragged away is not clicked, nor one whose menu opens, as with Ctrl and the click on macOS: the menu takes the
+  // end of the press. Nor is one when the person leaves the window during the press.
+  window.addEventListener('pointercancel', releaseField, true)
+  window.addEventListener('contextmenu', releaseField, true)
+  window.addEventListener('blur', releaseField)
   let pending: { tabId: string; field: ShellTabField } | undefined
   // As in a trusted dialog, a key held since before the field takes the keyboard back does not repeat into it, such as
   // Enter on Switch to this tab, which would open the address shown again, or Delete closing a tab, which would delete
@@ -82,6 +113,12 @@ export function useTabFieldFocusReturn(options: TabFieldFocusReturnOptions): () 
 
   return () => {
     stopTelling()
+    clearTimeout(releaseTimer)
+    window.removeEventListener('pointerdown', holdFieldForTabClick, true)
+    window.removeEventListener('pointerup', releaseFieldAfterClick, true)
+    window.removeEventListener('pointercancel', releaseField, true)
+    window.removeEventListener('contextmenu', releaseField, true)
+    window.removeEventListener('blur', releaseField)
     stopListening()
     stopWatching()
     window.removeEventListener('keydown', dropHeldRepeat, true)

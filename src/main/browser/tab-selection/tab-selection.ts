@@ -2,7 +2,7 @@ import type { BrowserState } from '../../../shared/types.js'
 import { LocalizedError } from '../../localized-error.js'
 import type { Browser } from '../browser.js'
 import { exitPageFullscreenCovering } from '../page-fullscreen/page-fullscreen.js'
-import { focusTabOrTrustedChrome, returnTabFieldFocus, shellTabFieldWithKeyboard } from '../trusted-chrome-focus/trusted-chrome-focus.js'
+import { focusTabOrTrustedChrome, returnTabFieldFocus, shellHasKeyboard, shellTabFieldWithKeyboard } from '../trusted-chrome-focus/trusted-chrome-focus.js'
 import { findTab, getTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { browserState, publishChange } from '../browser-state/browser-state.js'
@@ -26,6 +26,7 @@ export async function selectTabAndWait(browser: Browser, tabId: string, options:
   browser.tabSelectionGeneration += 1
   const selectionGeneration = browser.tabSelectionGeneration
   if (next.sleeping || next.wakePromise) {
+    notePickedField(browser)
     try {
       await browser.wakeTab(next.id)
     } catch (error) {
@@ -33,14 +34,28 @@ export async function selectTabAndWait(browser: Browser, tabId: string, options:
         selectionGeneration !== browser.tabSelectionGeneration
         || findTab(browser, next.id) !== next
       ) return browserState(browser)
+      browser.fieldAsPicked = undefined
       throw error
     }
   }
-  if (
-    selectionGeneration !== browser.tabSelectionGeneration
-    || findTab(browser, next.id) !== next
-  ) return browserState(browser)
+  if (selectionGeneration !== browser.tabSelectionGeneration) return browserState(browser)
+  if (findTab(browser, next.id) !== next) {
+    browser.fieldAsPicked = undefined
+    return browserState(browser)
+  }
   return selectTab(browser, next.id, options)
+}
+
+/**
+ * Notes the field that has the keyboard as the person picks a tab that has to wake first, for the tab shown to keep
+ * when the picked tab is shown. A click on the picked tab's row gives the field up as soon as the click is over, so a
+ * second pick of a tab still waking, such as a double click, keeps the field the first one noted.
+ */
+function notePickedField(browser: Browser): void {
+  const field = shellTabFieldWithKeyboard(browser)
+  const shownId = browser.activeTabId
+  if (field && shownId) browser.fieldAsPicked = { tabId: shownId, field }
+  else if (browser.fieldAsPicked?.tabId !== shownId) browser.fieldAsPicked = undefined
 }
 
 /**
@@ -84,6 +99,8 @@ export function selectTab(browser: Browser, tabId: string, options: BrowserTabSe
     throw new LocalizedError('appErrors.tabs.rendererUnavailable')
   }
   browser.tabSelectionGeneration += 1
+  const picked = browser.fieldAsPicked
+  browser.fieldAsPicked = undefined
   next.lastActiveAt = performance.now()
   if (next.sleeping) void browser.wakeTab(next.id).catch((error) => console.error('[browser] Could not wake selected tab:', error))
   if (browser.splitView && browser.splitViewContains(tabId)) {
@@ -98,8 +115,12 @@ export function selectTab(browser: Browser, tabId: string, options: BrowserTabSe
     return browserState(browser)
   }
   const current = browser.activeTabId ? findTab(browser, browser.activeTabId) : undefined
-  // The tab left keeps its field that has the keyboard, for when it is shown again.
-  if (current && current.id !== next.id) current.fieldFocusOnReturn = shellTabFieldWithKeyboard(browser)
+  // The tab left keeps its field that has the keyboard, for when it is shown again, or the field that had it as the
+  // person picked a tab that woke first, while the shell still has the keyboard.
+  if (current && current.id !== next.id) {
+    const fieldAsPicked = picked?.tabId === current.id && shellHasKeyboard(browser) ? picked.field : undefined
+    current.fieldFocusOnReturn = shellTabFieldWithKeyboard(browser) ?? fieldAsPicked
+  }
   // A page leaving the window was in view until now, so Memory Saver counts its inactivity from here.
   if (browser.splitView) {
     for (const visibleTabId of [browser.splitView.firstTabId, browser.splitView.secondTabId]) {

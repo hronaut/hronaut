@@ -36,9 +36,12 @@ afterEach(() => { electron.focused = null })
 it('leaves the tab no field to give the keyboard back to once its page takes it', () => {
   const { browser, page, tab } = covered()
   browser.browserContentOccluded = false
+  // Also none the person had as they picked a tab that is still waking.
   Object.assign(tab, { fieldFocusOnReturn: 'address' })
+  Object.assign(browser, { fieldAsPicked: { tabId: tab.id, field: 'find' } })
   page.emit('focus')
   expect((tab as { fieldFocusOnReturn?: string }).fieldFocusOnReturn).toBeUndefined()
+  expect((browser as { fieldAsPicked?: unknown }).fieldAsPicked).toBeUndefined()
 })
 
 const nextTurn = () => new Promise<void>((resolve) => setImmediate(resolve))

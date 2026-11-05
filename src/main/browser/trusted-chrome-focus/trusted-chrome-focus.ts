@@ -83,9 +83,14 @@ export function focusTabOrTrustedChrome(browser: Browser, tab: BrowserTab): void
 /** The shown tab's field in the shell that has the keyboard, while the shell has it in the focused window. */
 export function shellTabFieldWithKeyboard(browser: Browser): ShellTabField | undefined {
   const field = browser.shellTabField
-  if (!field || browser.window.isDestroyed() || !browser.window.isFocused()) return undefined
+  return field && shellHasKeyboard(browser) ? field : undefined
+}
+
+/** Whether the shell has the keyboard in the focused window, in a field or elsewhere, such as on a tab's row. */
+export function shellHasKeyboard(browser: Browser): boolean {
+  if (browser.window.isDestroyed() || !browser.window.isFocused()) return false
   const shell = browser.window.webContents
-  return !shell.isDestroyed() && shell.isFocused() ? field : undefined
+  return !shell.isDestroyed() && shell.isFocused()
 }
 
 /**

@@ -404,6 +404,11 @@ export class Browser {
   followAgentActivitySuspended = false
   /** The shown tab's field that has the keyboard in the shell, as the shell last said; read only while the shell has it. */
   shellTabField: ShellTabField | null = null
+  /**
+   * The field that had the keyboard as the person picked a tab that wakes before it is shown, which the tab shown then
+   * keeps when it is left: the click on the picked tab's row gives the field up as soon as it is over.
+   */
+  fieldAsPicked: { tabId: string; field: ShellTabField } | undefined
   readonly downloadController = createDownloadsController(this)
   readonly networkHookSessions = new WeakSet<Session>()
   readonly browserSessionAuthorityHooks = new Map<Session, () => void>()
