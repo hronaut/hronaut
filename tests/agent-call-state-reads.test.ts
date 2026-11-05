@@ -4,6 +4,8 @@ import { navigationButtons } from '../src/main/browser/navigation-history.js'
 import { SLEEPING_PAGE_URL } from '../src/main/browser/tab-sleep/sleeping-page.js'
 import { BrowserVideoRecorder } from '../src/main/browser/video-recorder.js'
 import { getMcpGroupState } from '../src/main/browser/workspace-scope/workspace-scope.js'
+import { homeWorkspaceState } from '../src/main/home/home-workspace-actions.js'
+import { homeTabsState } from '../src/main/home/home-tabs.js'
 
 // Under four agents, main was busy more than half the time, a third of it building every tab's state on each agent
 // call: to read whether any tab is paused, to read one workspace's tabs, and in each tab its video recording as a deep
@@ -75,7 +77,7 @@ describe('what an agent call reads of the browser', () => {
     expect((own.statePublication as { beforeRead: ReturnType<typeof vi.fn> }).beforeRead).not.toHaveBeenCalled()
   })
 
-  it('builds only the tabs of the workspace it reads', () => {
+  it('builds only the tabs of the workspace it reads, without sending a waiting change to the shell early', () => {
     const tabs = [tab('one', 'first'), tab('two', 'second'), tab('three', 'first')]
     const { own, browser } = browserWith(tabs)
     const state = getMcpGroupState(browser, 'first')
@@ -83,9 +85,16 @@ describe('what an agent call reads of the browser', () => {
     expect(state.activeTabId).toBe('one')
     expect(tabs[1]!.webContents.getZoomFactor).not.toHaveBeenCalled()
     expect(tabs[0]!.webContents.getZoomFactor).toHaveBeenCalledOnce()
-    // As any read of the state, a change still waiting to be published goes out first.
-    expect((own.statePublication as { beforeRead: ReturnType<typeof vi.fn> }).beforeRead).toHaveBeenCalledOnce()
+    // The state goes to the agent, not to the shell as an action's reply, so a change waiting to be published waits on.
+    expect((own.statePublication as { beforeRead: ReturnType<typeof vi.fn> }).beforeRead).not.toHaveBeenCalled()
     expect(() => getMcpGroupState(browser, 'missing')).toThrow()
+  })
+
+  it('lets a change waiting to be published wait on while Home reads its workspaces and tabs', () => {
+    const { own, browser } = browserWith([tab('one', 'first'), tab('two', 'second')])
+    expect(homeWorkspaceState(browser).tabs.map((entry) => entry.id)).toEqual(['one', 'two'])
+    expect(homeTabsState(browser).tabs.map((entry) => entry.id)).toEqual(['one', 'two'])
+    expect((own.statePublication as { beforeRead: ReturnType<typeof vi.fn> }).beforeRead).not.toHaveBeenCalled()
   })
 
   it('reads a tab\'s video recording status without copying the recording\'s state', () => {

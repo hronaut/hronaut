@@ -10,7 +10,7 @@ import { mcpWorkspaceState } from '../src/main/mcp/tool-results.js'
 
 // The whole browser's state, as the browser would publish it.
 const published = vi.hoisted(() => ({ state: undefined as unknown }))
-vi.mock('../src/main/browser/browser-state/browser-state.js', () => ({ browserState: () => published.state }))
+vi.mock('../src/main/browser/browser-state/browser-state.js', () => ({ browserState: () => published.state, buildBrowserState: () => published.state }))
 // The fake browser below stubs the functions its tool calls go through; these reach its stubs.
 vi.mock('../src/main/browser/workspace-continuity/workspace-continuity.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/workspace-continuity/workspace-continuity.js')>(),

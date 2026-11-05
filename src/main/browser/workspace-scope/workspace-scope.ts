@@ -1,7 +1,7 @@
 import type { BrowserState, BrowserTabState } from '../../../shared/types.js'
 import type { Browser } from '../browser.js'
 import { findTab } from '../browser-core.js'
-import { browserState } from '../browser-state/browser-state.js'
+import { buildBrowserState } from '../browser-state/browser-state.js'
 import { requireMcpTabGroup } from '../mcp-tab-groups/mcp-tab-groups.js'
 
 /**
@@ -32,12 +32,13 @@ export function tabBelongsToMcpGroup(browser: Browser, groupId: string, tabId: s
 
 /**
  * The browser state as the workspace sees it: only its tabs and closed tabs, the split view only when both panes
- * are its own, and the agent that Follow shows only when the tab in view is its own.
+ * are its own, and the agent that Follow shows only when the tab in view is its own. The state goes to an agent, never
+ * to the shell as an action's reply, so a change waiting to be published waits on (see StatePublication.beforeRead).
  */
 export function getMcpGroupState(browser: Browser, groupId: string): BrowserState {
   requireMcpTabGroup(browser, groupId)
   // Only the workspace's tabs are built: every agent call reads its workspace's state.
-  const state = browserState(browser, groupId)
+  const state = buildBrowserState(browser, groupId)
   const tabs = state.tabs.filter((tab) => tab.mcpGroupId === groupId)
   const group = browser.mcpTabGroups.get(groupId)!
   const { splitView, agentFollow, ...scopedState } = state

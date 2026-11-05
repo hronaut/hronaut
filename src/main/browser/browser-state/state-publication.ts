@@ -2,9 +2,11 @@ import type { BrowserState } from '../../../shared/types.js'
 
 /**
  * The shortest time between two publications of a burst of changes. Pages loading together change the browser state
- * many times a second, and each publication sends every tab to the shell.
+ * many times a second, and each publication sends every tab to the shell. Ten a second is as often as a person follows
+ * a tab's title or spinner; a shown tab that starts loading, and the shell's own actions, which read the state for
+ * their reply, still go out at once.
  */
-export const STATE_PUBLISH_MS = 33
+export const STATE_PUBLISH_MS = 100
 
 /** How long a publication waits for the shell to say it drew the last one, in case it never says so. */
 export const STATE_DRAWN_TIMEOUT_MS = 250

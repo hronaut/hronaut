@@ -2,13 +2,17 @@ import type { Browser } from '../browser/browser.js'
 import { HOME_CARD_ICON_MAX_LENGTH, HOME_CARD_TAB_LIMIT, type HomeWorkspaceAction, type HomeWorkspaceEditorRequest, type HomeWorkspaceState } from '../../shared/home-workspaces.js'
 import { closeWorkspaceForPerson, restoreSavedTabGroup, updateArchivedWorkspacePreferences, archiveWorkspaceForPerson, deleteSavedTabGroup } from '../browser/workspace-archive/workspace-archive.js'
 import { updateMcpTabGroup } from '../browser/mcp-tab-groups/mcp-tab-groups.js'
-import { browserState } from '../browser/browser-state/browser-state.js'
+import { buildBrowserState } from '../browser/browser-state/browser-state.js'
 import { openHome } from '../browser/home-tabs/home-tabs.js'
 import { closeWorkspace } from '../browser/mcp-tab-groups/close-mcp-tab-group.js'
 import { newTab } from '../browser/new-tabs/open-new-tab.js'
 
+/**
+ * What Home shows of the workspaces and tabs. It goes to Home, never to the shell as an action's reply, so a change
+ * waiting to be published waits on (see StatePublication.beforeRead).
+ */
 export function homeWorkspaceState(manager: Browser): HomeWorkspaceState {
-  const state = browserState(manager)
+  const state = buildBrowserState(manager)
   const shown = new Map<string | undefined, number>()
   // Only the tabs a card shows carry their icon, and only a small image one, so polling stays light.
   const icon = (tab: HomeWorkspaceState['tabs'][number]): string | undefined => {
@@ -37,7 +41,7 @@ export async function runHomeWorkspaceAction(
 ): Promise<HomeWorkspaceState> {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('Invalid workspace action')
   const request = input as HomeWorkspaceAction
-  const state = browserState(manager)
+  const state = buildBrowserState(manager)
   if (request.view === 'create' || request.view === 'templates') {
     edit({ view: request.view })
     return homeWorkspaceState(manager)
