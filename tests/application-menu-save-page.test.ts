@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-type Item = { label?: string; type?: string; accelerator?: string; click?: (item: unknown, window: unknown, event: { triggeredByAccelerator?: boolean }) => void }
+type Item = { label?: string; type?: string; accelerator?: string; click?: (item: unknown, window: unknown, event: Partial<Electron.KeyboardEvent>) => void }
 const installed = vi.hoisted(() => ({ template: [] as Array<{ label?: string; submenu?: Item[] }> }))
 vi.mock('electron', () => ({ app: { on: () => undefined }, Menu: { buildFromTemplate: (template: typeof installed.template) => template, setApplicationMenu: (menu: typeof installed.template) => { installed.template = menu } } }))
 import { createApplicationMenu } from '../src/main/windows/application-menu.js'
@@ -52,10 +52,10 @@ describe('Save Page As in the View menu', () => {
 
   it('saves for its key only from the main window', () => {
     const { tabs, mainWindow, showWindow, save } = viewMenu('linux')
-    save.click!(save, { id: 2 }, { triggeredByAccelerator: true })
-    save.click!(save, undefined, { triggeredByAccelerator: true })
+    save.click!(save, { id: 2 }, { triggeredByAccelerator: true, ctrlKey: true })
+    save.click!(save, undefined, { triggeredByAccelerator: true, ctrlKey: true })
     expect(tabs.saveShownPage).not.toHaveBeenCalled()
-    save.click!(save, mainWindow, { triggeredByAccelerator: true })
+    save.click!(save, mainWindow, { triggeredByAccelerator: true, ctrlKey: true })
     expect(tabs.saveShownPage).toHaveBeenCalledOnce()
     expect(showWindow).not.toHaveBeenCalled()
   })

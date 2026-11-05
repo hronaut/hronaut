@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-type Item = { label?: string; accelerator?: string; visible?: boolean; click?: (item: unknown, window: unknown, event: { triggeredByAccelerator?: boolean; ctrlKey?: boolean; metaKey?: boolean }) => void }
+type Item = { label?: string; accelerator?: string; visible?: boolean; click?: (item: unknown, window: unknown, event: Partial<Electron.KeyboardEvent>) => void }
 type Contents = { on: (name: string, listener: (event: unknown, input: Partial<Electron.Input>) => void) => void }
 const installed = vi.hoisted(() => ({ template: [] as Array<{ label?: string; submenu?: Item[] }>, created: [] as Array<(event: unknown, contents: Contents) => void> }))
 vi.mock('electron', () => ({ app: { on: (_name: string, listener: (event: unknown, contents: Contents) => void) => { installed.created.push(listener) } }, Menu: { buildFromTemplate: (template: typeof installed.template) => template, setApplicationMenu: (menu: typeof installed.template) => { installed.template = menu } } }))
@@ -180,16 +180,17 @@ describe('Chrome\'s keys a website may keep', () => {
       const item = view.find((candidate) => candidate.accelerator === accelerator && candidate.visible !== false)!
       expect(item.label).toBe(label)
       const before = navigation.reloads.length
+      const key = { triggeredByAccelerator: true, ctrlKey: true, shiftKey: accelerator.includes('Shift') }
       for (const repeat of [false, true, true, false]) {
         pressKey(repeat)
-        item.click!(item, mainWindow, { triggeredByAccelerator: true, ctrlKey: true })
+        item.click!(item, mainWindow, key)
       }
       // Typed in a panel in its own window, in Hronaut's window, or where no window of Hronaut's has focus.
       pressKey()
-      item.click!(item, { id: 2, webContents: {} }, { triggeredByAccelerator: true, ctrlKey: true })
-      item.click!(item, undefined, { triggeredByAccelerator: true, ctrlKey: true })
+      item.click!(item, { id: 2, webContents: {} }, key)
+      item.click!(item, undefined, key)
       shellFocused.value = true
-      item.click!(item, mainWindow, { triggeredByAccelerator: true, ctrlKey: true })
+      item.click!(item, mainWindow, key)
       // Chosen from the menu with the mouse or, after Alt, with the keyboard, it reloads each time, wherever the keyboard is.
       item.click!(item, mainWindow, { triggeredByAccelerator: false })
       item.click!(item, mainWindow, { triggeredByAccelerator: true })
