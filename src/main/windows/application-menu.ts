@@ -99,8 +99,8 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
   // website or field in focus leaves them alone, and never from an agent; typed in a panel in its own window, they
   // would act on a page out of view. Hronaut's window runs them itself, so one it leaves alone, as under one of its
   // dialogs or the command palette, does nothing here either. Hidden, because Reload, the address bar, Zoom Out and the
-  // Edit menu's Find Next and Find Previous already show their main keys. On macOS only the keys that move the tab are
-  // Chrome's there.
+  // Edit menu's Find Next and Find Previous already show their main keys, and Bookmarks and History have no menu. On
+  // macOS only the keys that move the tab, bookmark the page and open history are Chrome's there.
   function websiteKeptKeys(): MenuItemConstructorOptions[] {
     const stopLoading = (): void => host.runNativeBrowserAction('stop loading the page', () => withBrowser(stopFocusedPageLoading))
     const item = (label: string, accelerator: string, action: BrowserShortcutAction | (() => void)): MenuItemConstructorOptions => ({
@@ -114,11 +114,24 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
         else host.runShortcut(action)
       }
     })
-    const moveTab = [
+    // As in Chrome, a held key bookmarks the page or opens history once, and its repeats reach only the page. The page
+    // answers each key before the menu gets it, so a repeat can reach the menu after the next key is sent to the page.
+    const once = (action: BrowserShortcutAction): (() => void) => {
+      let press: number | undefined
+      return () => {
+        const presses = host.tabs()?.pageKeyPresses
+        if (presses !== undefined && presses === press) return
+        press = presses
+        host.runShortcut(action)
+      }
+    }
+    const everywhere = [
       item(host.text('runtime.shortcuts.moveTabNext'), 'Ctrl+Shift+PageDown', 'move-tab-next'),
-      item(host.text('runtime.shortcuts.moveTabPrevious'), 'Ctrl+Shift+PageUp', 'move-tab-previous')
+      item(host.text('runtime.shortcuts.moveTabPrevious'), 'Ctrl+Shift+PageUp', 'move-tab-previous'),
+      item(host.text('runtime.shortcuts.bookmark'), 'CmdOrCtrl+D', once('bookmark')),
+      item(host.text('runtime.shortcuts.history'), process.platform === 'darwin' ? 'Cmd+Y' : 'Ctrl+H', once('visit-history'))
     ]
-    if (process.platform === 'darwin') return moveTab
+    if (process.platform === 'darwin') return everywhere
     return [
       item(host.text('native.menu.reload'), 'F5', 'reload'),
       item(host.text('native.menu.reloadWithoutCache'), 'Shift+F5', 'reload-ignoring-cache'),
@@ -134,7 +147,7 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
       item(host.text('runtime.shortcuts.nextPane'), 'Shift+F6', host.runPageNextPane),
       item(host.text('native.menu.findNext'), 'F3', 'find-next'),
       item(host.text('native.menu.findPrevious'), 'Shift+F3', 'find-previous'),
-      ...moveTab,
+      ...everywhere,
       // With the digits of the number row and, as in Chrome, of the numeric keypad.
       ...TAB_POSITIONS.flatMap((position) => [`Ctrl+${position}`, `Ctrl+num${position}`].map((accelerator) => (
         item(host.text('runtime.shortcuts.directTab'), accelerator, `select-tab-${position}` as const)

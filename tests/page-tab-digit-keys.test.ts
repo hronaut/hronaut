@@ -31,6 +31,7 @@ function pageWith(state: { locked?: boolean, occluded?: boolean, offered?: boole
     isHumanInteractionLocked: () => state.locked === true,
     shellHeldKeys: new Set<string>(),
     pageShortcutKey: null as { code: string; webContentsId: number | null } | null,
+    pageKeyPresses: 0,
     tabs: new Map(),
     reproRecorder: { observeReproKeyboard: vi.fn() },
     mcpActivityFollower: { noteHumanInput: vi.fn() },
@@ -133,5 +134,40 @@ describe('Control with Page Down in a page on macOS', () => {
     expect(onShortcutRequested).toHaveBeenCalledExactlyOnceWith('next-tab', expect.anything())
     expect(press(contents, { key: 'PageDown', code: 'PageDown', control: true, shift: true })).toBe(false)
     expect(onShortcutRequested).toHaveBeenCalledOnce()
+  })
+})
+
+// A web editor's Ctrl+D (add the next match) and Ctrl+H (Replace), a design tool's Cmd+D (duplicate) and a document's
+// Cmd+Y (redo) never reached their page: Hronaut took them for Bookmark and History, which Chrome lets a page keep.
+describe('the bookmark and history keys in a page', () => {
+  const keys = { linux: [{ key: 'd', code: 'KeyD', control: true }, { key: 'h', code: 'KeyH', control: true }],
+    darwin: [{ key: 'd', code: 'KeyD', meta: true }, { key: 'y', code: 'KeyY', meta: true }] }
+
+  it.each(['linux', 'darwin'] as const)('reach the page first on %s, so the menu acts only when the page leaves them alone', (system) => {
+    Object.defineProperty(process, 'platform', { value: system })
+    const { contents, onShortcutRequested } = pageWith()
+    for (const pressed of keys[system]) expect(press(contents, pressed), pressed.key).toBe(false)
+    expect(onShortcutRequested).not.toHaveBeenCalled()
+  })
+
+  it.each(['linux', 'darwin'] as const)('still bookmark and open history on %s from a page the person cannot use', (system) => {
+    Object.defineProperty(process, 'platform', { value: system })
+    for (const state of [{ locked: true }, { occluded: true }]) {
+      const { contents, onShortcutRequested } = pageWith(state)
+      for (const pressed of keys[system]) expect(press(contents, pressed), pressed.key).toBe(true)
+      expect(onShortcutRequested.mock.calls.map(([action]) => action), JSON.stringify(state)).toEqual(['bookmark', 'visit-history'])
+    }
+  })
+
+  it('count the presses of a held key once, which the menu then acts on once', () => {
+    const { contents, browser } = pageWith()
+    const held = { key: 'd', code: 'KeyD', control: true }
+    press(contents, held)
+    expect(browser.pageKeyPresses).toBe(1)
+    expect(press(contents, { ...held, isAutoRepeat: true })).toBe(false)
+    contents.emit('before-input-event', { preventDefault: vi.fn() }, { ...held, type: 'keyUp', isAutoRepeat: false, modifiers: [] })
+    expect(browser.pageKeyPresses).toBe(1)
+    press(contents, held)
+    expect(browser.pageKeyPresses).toBe(2)
   })
 })
