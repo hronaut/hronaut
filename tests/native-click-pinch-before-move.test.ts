@@ -48,15 +48,18 @@ function loadingTab(scale: number, offsetX = 0, offsetY = 0) {
   return { browser }
 }
 
-// A page still reading its document is not asked before the click, and the press was refused only after the
-// pointer's move went out, to the part of the page the pinch shows.
+// A page still reading its document is not asked before the click, and the press was refused only after the page
+// scrolled to its target and the pointer's move went out, to the part of the page the pinch shows.
 describe('a native click on a pinched page that still reads its document', () => {
-  it('is refused before the pointer moves', async () => {
+  it('is refused before the page scrolls or the pointer moves', async () => {
     const { browser } = loadingTab(2, 200, 150)
     await expect(click(browser, { tabId: 'tab-1', selector: '#go', native: true })).rejects.toMatchObject({
       reason: 'PAGE_PINCHED', progress: { moveAttempted: 0, downAttempted: 0 }
     })
     expect(dispatchNativeClick).not.toHaveBeenCalled()
+    // Nor was the page scrolled to its target, which would have panned the pinched view.
+    const scripts = vi.mocked(browser.tabs.get('tab-1')!.webContents.executeJavaScript).mock.calls.map(([script]) => String(script))
+    expect(scripts.filter((script) => script.includes('scrollIntoView'))).toEqual([])
   })
 
   it('clicks a page at its normal scale', async () => {

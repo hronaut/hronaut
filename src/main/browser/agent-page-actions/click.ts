@@ -146,6 +146,9 @@ async function dispatchClick(browser: Browser, target: BrowserClickTarget, valid
           let failure: unknown
           try {
             assertClickCurrent()
+            // A page still reading its document is not asked before the click. Refused only at the press, it would have
+            // been scrolled to the target, which pans the pinched view, and had the pointer moved there first.
+            if (refusePinch && await pagePinchedBeforeInput(webContents)) throw new NativeClickAdmissionError('PAGE_PINCHED', { ...progress })
             // Retain the original before any page-owned flag setter or scroll preparation.
             await webContents.executeJavaScript('window.__hronautAgentInputActive = true', false).catch(() => undefined)
             assertClickCurrent()
@@ -158,9 +161,6 @@ async function dispatchClick(browser: Browser, target: BrowserClickTarget, valid
               retainClickAuthority({ validate: assertClickCurrent, dispose: () => { environment?.dispose(); authority.dispose() } })
               retained = true
             }
-            // A page still reading its document is not asked before the click, and its press is refused only after the
-            // pointer moved, to the part of the page the pinch shows.
-            if (refusePinch && await pagePinchedBeforeInput(webContents)) throw new NativeClickAdmissionError('PAGE_PINCHED', { ...progress })
             await dispatchNativeClick(browser, webContents, point, target.doubleClick === true, assertClickCurrent, rightClick ? async (x, y) => {
               await assertRightClickViewport(webContents, x, y, assertClickCurrent)
               await admission.sample(x, y)
