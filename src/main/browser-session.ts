@@ -181,8 +181,8 @@ function permissionHold(page: PagePermissionRequests, origin: string, permission
  * session the page runs in and, for a website embedded in a page of another website, to that page's website, as
  * `SitePermissionStore.decisionFor` looks it up; a session no workspace claimed gets no permission. Camera, microphone,
  * file system access and every link to another app always ask again, unless the person denied the same request for the
- * same page document, and a check finds them allowed only as `freshConsentAllows` says. Screen sharing is refused
- * without asking. Home never gets a permission.
+ * same page document, and a check finds them allowed only as `freshConsentAllows` says. Screen sharing, and
+ * notifications for a website embedded in another's page, are refused without asking. Home never gets a permission.
  * `configurePersistentSession` opens the remembered site permissions and the profile's own session,
  * `publishSitePermissions` tells both shell windows the remembered permissions, `forgetWorkspaceSitePermissions` forgets
  * the decisions of a workspace that is gone for good, `forgetRemovedWorkspacesSitePermissions` those of every workspace

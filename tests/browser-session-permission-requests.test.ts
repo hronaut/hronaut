@@ -743,13 +743,22 @@ describe('decisions that belong to a workspace and a page', () => {
     await expect(harness.store.set(widget.origin, 'notifications', 'allow', { workspaceId: WORK, embeddedIn: firstSite.origin }))
       .rejects.toThrow('Invalid site permission scope')
 
-    // The page's own website still asks, in its main frame or in a frame that runs as it.
+    // Nor is one of the page's website's subdomains, which is another origin, and no check finds one allowed.
+    const chat = { url: 'https://chat.first.example/widget', origin: 'https://chat.first.example' }
+    const withChat = createPage(firstSite, [chat])
+    expect(await ask(harness, withChat, 'notifications', { requestingUrl: chat.url, isMainFrame: false })).toBe(false)
+    expect(harness.shown).toEqual([])
+    expect(harness.check!(page.contents as never, 'notifications', `${widget.origin}/`, fromWidget as never)).toBe(false)
+
+    // The page's own website still asks, in a frame that runs as it or in its main frame.
     expect(await ask(harness, page, 'notifications', { requestingUrl: ownFrame.url, isMainFrame: false })).toBe(true)
     expect(harness.shown).toHaveLength(1)
     expect(harness.store.list()).toEqual([{ origin: firstSite.origin, permission: 'notifications', decision: 'allow', workspaceId: WORK }])
+    expect(await ask(harness, createPage(secondSite), 'notifications', { requestingUrl: secondSite.url, isMainFrame: true })).toBe(true)
+    expect(harness.shown).toHaveLength(2)
     // An embedded website's other permissions still ask.
     expect(await ask(harness, page, 'geolocation', fromWidget)).toBe(true)
-    expect(harness.shown).toHaveLength(2)
+    expect(harness.shown).toHaveLength(3)
   })
 
   it('does not use a website’s own decision for it embedded in a page, and a same-site frame uses the page’s', async () => {
