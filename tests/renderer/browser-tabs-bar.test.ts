@@ -2179,7 +2179,7 @@ describe('BrowserTabsBar dropped links', () => {
     bounds(first)
     bounds(second)
     const data = new Map<string, string>()
-    const tabDrag = { types: ['text/plain', 'application/x-hronaut-tab'], effectAllowed: 'move', dropEffect: 'none', setData: (type: string, value: string) => { data.set(type, value) }, getData: (type: string) => data.get(type) ?? '' }
+    const tabDrag = { types: ['application/x-hronaut-tab'], effectAllowed: 'move', dropEffect: 'none', setData: (type: string, value: string) => { data.set(type, value) }, getData: (type: string) => data.get(type) ?? '' }
 
     await fireEvent.dragStart(first, { dataTransfer: tabDrag })
     await dragEnter(first, { clientX: 100, dataTransfer: tabDrag })
@@ -2254,7 +2254,8 @@ describe('BrowserTabsBar dropped links', () => {
   it.each([
     ['a file from the computer', link('/home/me/notes.txt', ['Files'])],
     ['a file from the computer with its name as text', link('/home/me/notes.txt', ['Files', 'text/plain'])],
-    ['a tab from the other copy of the rail', link('0199f0a2-tab', ['text/plain', 'application/x-hronaut-tab'])],
+    ['a tab from the other copy of the rail', link('tab', ['application/x-hronaut-tab'])],
+    ['a tab that also carries text', link('tab', ['text/plain', 'application/x-hronaut-tab'])],
     ['nothing it can read as text', link('', ['text/html'])]
   ])('takes no drop of %s', async (_name, dataTransfer) => {
     const view = renderWithLinkDrops(browserState({ tabs: [tab('first')], activeTabId: 'first' }))
@@ -2289,7 +2290,8 @@ describe('BrowserTabsBar dropped links', () => {
     const dataTransfer = { types: ['text/plain'], effectAllowed: 'all', dropEffect: 'none', setData: (type: string, value: string) => { data.set(type, value) }, getData: (type: string) => data.get(type) ?? '' }
 
     await fireEvent.dragStart(first, { dataTransfer })
-    expect(data.get('application/x-hronaut-tab')).toBe('first')
+    // The drag says it is a tab, and gives a page or another app it is released over no tab id to read.
+    expect([...data]).toEqual([['application/x-hronaut-tab', 'tab']])
     await dragOver(second, { clientX: 100, dataTransfer })
     expect(second).toHaveClass('drop-after')
     await drop(second, { clientX: 100, dataTransfer })
