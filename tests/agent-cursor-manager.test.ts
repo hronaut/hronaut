@@ -1,5 +1,9 @@
 import { afterEach, expect, it, vi } from 'vitest'
-vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' } }))
+// A bitmap whose byte order is neither BGRA nor RGBA, so that main encodes the screenshot itself, as the fake image does.
+vi.mock('electron', () => ({
+  session: {}, WebContentsView: class {}, shell: {}, app: { getPath: () => '/tmp' },
+  nativeImage: { createFromBuffer: () => ({ toBitmap: () => Buffer.alloc(4) }) }
+}))
 // Rendering a hidden page, as the fixture's manager answers it.
 vi.mock('../src/main/browser/renderable-tab/renderable-tab.js', () => ({
   withRenderableTab: (browser: { withRenderableTab(...args: unknown[]): unknown }, ...args: unknown[]) => browser.withRenderableTab(...args)

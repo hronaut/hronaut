@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Changed
 
 - Agent calls build less of the browser's state, so Hronaut's window pauses less while several agents work, and their snapshots and screenshots answer sooner.
+- Screenshots agents take are made into PNG images in a background thread rather than in the process that runs Hronaut's window, so the window pauses less while several agents work.
 
 ### Fixed
 

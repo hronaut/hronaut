@@ -20,7 +20,12 @@ const CONTEXT = { tabId: 'tab-1', workspaceId: 'workspace-1', navigationGenerati
 const HOVER: Preview = { states: ['hover'], selector: '#a', startedAt: '2026-10-18T18:00:00.000Z' }
 
 /** A tab whose page answers each geometry read with the next entry (a function entry is called), and whose capture runs the given hook. */
-function fakeTab(geometries: Array<number[] | (() => Promise<unknown>)>, duringCapture?: (state: { context: typeof CONTEXT; preview: Preview }) => void, pixels = 'pixels') {
+function fakeTab(
+  geometries: Array<number[] | (() => Promise<unknown>)>,
+  duringCapture?: (state: { context: typeof CONTEXT; preview: Preview }) => void,
+  pixels = 'pixels',
+  fingerprint?: { digest: string; width: number; height: number }
+) {
   const scripts: Array<{ world: number }> = []
   const webContents = {
     isDestroyed: () => false,
@@ -42,7 +47,7 @@ function fakeTab(geometries: Array<number[] | (() => Promise<unknown>)>, duringC
     screenshot: async (options: unknown) => {
       captures.push(options)
       duringCapture?.(state)
-      return { data: Buffer.from(pixels), mimeType: 'image/png' }
+      return { data: Buffer.from(pixels), mimeType: 'image/png', ...fingerprint ? { pixels: fingerprint } : {} }
     }
   } as unknown as Parameters<typeof trackedViewportScreenshot>[0]
   return { browser, scripts, captures, state }
@@ -109,6 +114,15 @@ describe('trackedViewportScreenshot', () => {
     expect(capture).toMatchObject({ untracked: 'geometry-unavailable', data: Buffer.from('pixels') })
     expect(blocked.scripts).toHaveLength(1)
     expect(blocked.captures).toHaveLength(1)
+  })
+
+  it('takes the fingerprint the capture was encoded with, without decoding the image again', async () => {
+    const fingerprint = { digest: 'encoded-digest', width: 1280, height: 720 }
+    const capture = await trackedViewportScreenshot(fakeTab([STILL, STILL], undefined, 'pixels', fingerprint).browser, {})
+    expect(capture.pixels).toEqual(fingerprint)
+    expect(capture.comparable).toBeDefined()
+    const empty = await trackedViewportScreenshot(fakeTab([STILL, STILL], undefined, '', { digest: '', width: 0, height: 0 }).browser, {})
+    expect(empty).toMatchObject({ untracked: 'empty-capture' })
   })
 
   it('never compares an empty capture', async () => {

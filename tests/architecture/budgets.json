@@ -83,7 +83,7 @@
     "src/main/browser/saved-tab-history/saved-tab-history.ts": 1,
     "src/main/browser/screenshot-export/screenshot-export.ts": 1,
     "src/main/browser/screenshot-observations/tracked-screenshot.ts": 2,
-    "src/main/browser/screenshots/screenshots.ts": 6,
+    "src/main/browser/screenshots/screenshots.ts": 5,
     "src/main/browser/semantic-multi-select.page.ts": 2,
     "src/main/browser/shadow-snapshot/shadow-snapshot-script.ts": 1,
     "src/main/browser/shadow-snapshot/shadow-snapshot.page.ts": 3,
