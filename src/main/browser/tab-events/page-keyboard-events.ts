@@ -15,6 +15,12 @@ import { noteShellHeldKey } from './shell-held-keys.js'
  */
 const REPEATED_ON_ITS_PAGE: ReadonlySet<BrowserShortcutAction> = new Set(['zoom-in', 'zoom-out', 'zoom-reset', 'reload', 'reload-ignoring-cache'])
 
+/** Whether the key toggles the window's full screen, as the View menu's item does: F11, or Ctrl+Cmd+F on macOS. */
+function fullScreenKey(input: Pick<Input, 'key' | 'code' | 'control' | 'meta' | 'alt' | 'shift'>): boolean {
+  if (process.platform === 'darwin') return input.code === 'KeyF' && input.control && input.meta && !input.alt && !input.shift
+  return input.key === 'F11' && !input.control && !input.meta && !input.alt && !input.shift
+}
+
 /** After a click, key or scroll on the page in view, its overview preview waits this long for the page to settle. The pointer listeners keep their own copy. */
 const TAB_OVERVIEW_INPUT_SETTLE_MS = 1_000
 
@@ -118,6 +124,17 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
     // Consume one expected event even on unlocked tabs. An awaited agent
     // operation does not establish the origin of every arriving key event.
     const expectedAgentInput = consumeExpectedAgentKeyboardInput(browser, webContents.id, input)
+    // As in Chrome, the key that toggles full screen is the browser's while the window is in full screen, so a page that
+    // keeps it cannot hold the person there; a locked page keeps no key, so there it toggles full screen either way.
+    // Its repeats toggle nothing, and stay out of the page once it left full screen.
+    if (input.type === 'keyDown' && !expectedAgentInput && fullScreenKey(input)
+      && (browser.window.isFullScreen() || browser.isHumanInteractionLocked(tab))) {
+      event.preventDefault()
+      if (input.isAutoRepeat) return
+      noteShellHeldKey(browser.shellHeldKeys, input)
+      browser.window.setFullScreen(!browser.window.isFullScreen())
+      return
+    }
     // Ctrl+. is also a page's own key, such as an editor's quick fix. It opens the agent card only
     // when a person presses it while there are agents to show; Ctrl+Shift+O likewise takes the page
     // over only from a person. An agent's debugger keys usually skip this handler; one that arrives
