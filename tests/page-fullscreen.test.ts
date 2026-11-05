@@ -512,17 +512,19 @@ describe('page full screen lifecycle', () => {
     expect(window.setFullScreen).not.toHaveBeenCalled()
   })
 
-  it('does not ask a refused page again by itself while the window does not show it on screen', async () => {
-    // Still out of view, or shown in a window that is minimized or hidden, which asks again once it shows.
-    for (const state of [null, { minimized: true }, { visible: false }]) {
+  it('does not ask a refused page again by itself while the window does not show it on screen or another page holds it', async () => {
+    // Still out of view, shown in a window that is minimized or hidden, which asks again once it shows, or shown as the
+    // split view pane the other pane's full screen hides, which the layout asks again once the other pane leaves.
+    for (const state of [null, { minimized: true }, { visible: false }, 'other pane in full screen'] as const) {
       const { window, tabs, shown, enter } = fullscreenFixture({ shown: ['other'] })
       const run = tabs.get('video')!.webContents.executeJavaScriptInIsolatedWorld
       let giveUp!: (left: boolean) => void
       run.mockImplementationOnce(() => new Promise<boolean>((resolve) => { giveUp = resolve }))
+      if (state === 'other pane in full screen') enter('other')
       enter('video')
       if (state) {
         shown.add('video')
-        Object.assign(window, state)
+        if (typeof state === 'object') Object.assign(window, state)
       }
       giveUp(false)
       await nextTurn()

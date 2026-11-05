@@ -56,24 +56,19 @@ function endPageWindowFullScreen(browser: Browser): void {
  * Asks the page to leave full screen, and the window then leaves the full screen the page had. A request still running
  * is not repeated, and one that did not leave lets the next layout ask again. A page refused the window's full screen
  * that the window started to show while the request ran gets its full screen only then, after the request may have
- * given up, and nothing lays the window out again, so it is asked once more.
+ * given up, and nothing lays the window out again, so it is asked once more. A page still kept from the window's full
+ * screen, such as the split view pane another pane's full screen hides, is asked by the layout that shows it instead.
  */
 function requestPageFullscreenExit(browser: Browser, tab: BrowserTab, askAgain = true): void {
   if (tab.pageFullscreenExitRequested || tab.webContents.isDestroyed()) return
   tab.pageFullscreenExitRequested = true
   const notLeft = (): void => {
     tab.pageFullscreenExitRequested = false
-    if (askAgain && tab.pageFullscreenRefused && shownOnScreen(browser, tab)) requestPageFullscreenExit(browser, tab, false)
+    if (askAgain && tab.pageFullscreenRefused && mayHaveWindowFullScreen(browser, tab)) requestPageFullscreenExit(browser, tab, false)
   }
   tab.webContents.executeJavaScriptInIsolatedWorld(ISOLATED_WORLDS.pageFullscreen, [{ code: EXIT_FULLSCREEN_SCRIPT }])
     .then((left) => { if (left !== true) notLeft() })
     .catch(notLeft)
-}
-
-/** Whether the window shows this tab's page on screen, where Chromium gives the page the full screen it asked for. */
-function shownOnScreen(browser: Browser, tab: BrowserTab): boolean {
-  return !browser.destroyed && !browser.window.isDestroyed() && browser.window.isVisible() && !browser.window.isMinimized()
-    && isShown(browser, tab.id)
 }
 
 /**
