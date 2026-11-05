@@ -41,11 +41,13 @@ describe('workspace keys on Windows and Linux', () => {
   })
 
   it('keeps Ctrl with a digit for the tabs and Ctrl+0 for zoom reset', () => {
-    // Ctrl with a digit is a key a website may keep, as in Chrome, so it goes to the tabs once the page leaves it alone.
+    // Ctrl with a digit and Ctrl+0 are keys a website may keep, as in Chrome, so they go to the tabs or reset the zoom
+    // once the page leaves them alone.
     expect(browserShortcutAction(input({ key: '1', code: 'Digit1', control: true }))).toBeNull()
     expect(websiteKeptShortcutAction(input({ key: '1', code: 'Digit1', control: true }))).toBe('select-tab-1')
     expect(websiteKeptShortcutAction(input({ key: '9', code: 'Digit9', control: true }))).toBe('select-last-tab')
-    expect(browserShortcutAction(input({ key: '0', code: 'Digit0', control: true }))).toBe('zoom-reset')
+    expect(browserShortcutAction(input({ key: '0', code: 'Digit0', control: true }))).toBeNull()
+    expect(websiteKeptShortcutAction(input({ key: '0', code: 'Digit0', control: true }))).toBe('zoom-reset')
   })
 
   it('ignores held and composing keys', () => {
@@ -71,7 +73,9 @@ describe('workspace keys on macOS', () => {
   it('keeps Cmd with a digit for the tabs and zoom reset, and Control with Shift does nothing', () => {
     expect(browserShortcutAction(input({ key: '1', code: 'Digit1', meta: true, mac: true }))).toBe('select-tab-1')
     expect(browserShortcutAction(input({ key: '9', code: 'Digit9', meta: true, mac: true }))).toBe('select-last-tab')
-    expect(browserShortcutAction(input({ key: '0', code: 'Digit0', meta: true, mac: true }))).toBe('zoom-reset')
+    // Cmd+0 is a key a website may keep, as in Chrome, so it resets the zoom once the page leaves it alone.
+    expect(browserShortcutAction(input({ key: '0', code: 'Digit0', meta: true, mac: true }))).toBeNull()
+    expect(websiteKeptShortcutAction(input({ key: '0', code: 'Digit0', meta: true, mac: true }))).toBe('zoom-reset')
     expect(browserShortcutAction(input({ key: '!', code: 'Digit1', control: true, shift: true, mac: true }))).toBeNull()
   })
 

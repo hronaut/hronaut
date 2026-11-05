@@ -89,12 +89,13 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
   }
 
   // Actual Size, Zoom In and Zoom Out zoom the page in view as their keys do in Hronaut's window, which leaves Hronaut
-  // Home and a page under Settings at their zoom. Their keys reach the menu only where Hronaut's windows leave them to
-  // it, such as the repeats of a held key.
-  function zoomShownPage(action: 'zoom-reset' | 'zoom-in' | 'zoom-out', event: KeyboardEvent): void {
-    // Chosen from the menu, the main window may be hidden behind a panel in its own window or in the tray.
-    if (!event.triggeredByAccelerator) host.showWindow()
-    host.runShortcut(action)
+  // Home and a page under Settings at their zoom. Their keys are Chrome's keys a website may keep (websiteKeptKeyClick).
+  function zoomShownPage(action: 'zoom-reset' | 'zoom-in' | 'zoom-out'): MenuClick {
+    return websiteKeptKeyClick((chosen) => {
+      // Chosen from the menu, the main window may be hidden behind a panel in its own window or in the tray.
+      if (chosen) host.showWindow()
+      host.runShortcut(action)
+    }, { shown: true })
   }
 
   // The keys pressed in Hronaut's windows, views and pages, not counting a held key's repeats. A key the window or page
@@ -121,6 +122,33 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
   }
 
   /**
+   * The click of a menu item whose key is one of Chrome's keys a website may keep (websiteKeptShortcutAction). As the
+   * menu's key it reaches the menu only when the website or field in focus leaves it alone, and never from an agent;
+   * typed in a panel in its own window it would act on a page out of view, and Hronaut's window runs it itself, so one
+   * it leaves alone, as under one of its dialogs or the command palette, does nothing here either. Held down, it acts
+   * once (newKeyPress), as in Chrome, unless Chrome repeats its command, as it moves the tab, goes to the next pane and
+   * finds the next match. A shown item chosen from the menu acts each time; a hidden one acts only by its key.
+   */
+  function websiteKeptKeyClick(
+    run: (chosen: boolean) => void,
+    { shown = false, repeatable = false }: { shown?: boolean; repeatable?: boolean } = {}
+  ): MenuClick {
+    const pressed = newKeyPress()
+    return (_item, window, event) => {
+      // Electron also reports an item chosen with the keyboard, as after Alt elsewhere than macOS, as triggered by an
+      // accelerator, but without the Ctrl or Cmd that the key of each shown item holds.
+      const byKey = event.triggeredByAccelerator && (!shown || event.ctrlKey === true || event.metaKey === true)
+      if (!byKey) {
+        if (shown) run(true)
+        return
+      }
+      const main = host.mainWindow()
+      if (window === undefined || !main || window.id !== main.id || main.webContents.isFocused()) return
+      if (repeatable || pressed()) run(false)
+    }
+  }
+
+  /**
    * A menu item's click that acts once for each press of its key (newKeyPress), and always when chosen from the menu or
    * when no window of Hronaut's has focus: a key typed in detached DevTools, or on macOS with every window closed,
    * passes through no web contents that counts it.
@@ -133,37 +161,34 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
     }
   }
 
-  // Chrome's keys a website may keep (websiteKeptShortcutAction). As keys of the menu they reach it only when the
-  // website or field in focus leaves them alone, and never from an agent; typed in a panel in its own window, they
-  // would act on a page out of view. Hronaut's window runs them itself, so one it leaves alone, as under one of its
-  // dialogs or the command palette, does nothing here either. Hidden, because Reload, the address bar, Zoom Out and the
-  // Edit menu's Find Next and Find Previous already show their main keys, and Bookmarks and History have no menu. On
-  // macOS only the keys that move the tab, bookmark the page and open history are Chrome's there.
+  // Chrome's keys a website may keep (websiteKeptShortcutAction) that no visible item shows: Reload, Zoom In, Zoom Out,
+  // Actual Size and the Edit menu's Find Next and Find Previous show their main keys, and Find, the address bar,
+  // Bookmarks and History have no menu. On macOS only the keys with Cmd and those that move the tab are Chrome's there.
   function websiteKeptKeys(): MenuItemConstructorOptions[] {
     const stopLoading = (): void => host.runNativeBrowserAction('stop loading the page', () => withBrowser(stopFocusedPageLoading))
-    const item = (label: string, accelerator: string, action: BrowserShortcutAction | (() => void)): MenuItemConstructorOptions => ({
+    const item = (
+      label: string,
+      accelerator: string,
+      action: BrowserShortcutAction | (() => void),
+      repeatable = false
+    ): MenuItemConstructorOptions => ({
       label,
       accelerator,
       visible: false,
-      click: (_item, window, event) => {
-        const main = host.mainWindow()
-        if (!event.triggeredByAccelerator || window === undefined || !main || window.id !== main.id || main.webContents.isFocused()) return
+      click: websiteKeptKeyClick(() => {
         if (typeof action === 'function') action()
         else host.runShortcut(action)
-      }
+      }, { repeatable })
     })
-    // As in Chrome, a held key bookmarks the page or opens history once, and its repeats reach only the page.
-    const once = (action: BrowserShortcutAction): (() => void) => {
-      const pressed = newKeyPress()
-      return () => {
-        if (pressed()) host.runShortcut(action)
-      }
-    }
     const everywhere = [
-      item(host.text('runtime.shortcuts.moveTabNext'), 'Ctrl+Shift+PageDown', 'move-tab-next'),
-      item(host.text('runtime.shortcuts.moveTabPrevious'), 'Ctrl+Shift+PageUp', 'move-tab-previous'),
-      item(host.text('runtime.shortcuts.bookmark'), 'CmdOrCtrl+D', once('bookmark')),
-      item(host.text('runtime.shortcuts.history'), process.platform === 'darwin' ? 'Cmd+Y' : 'Ctrl+H', once('visit-history'))
+      item(host.text('runtime.shortcuts.moveTabNext'), 'Ctrl+Shift+PageDown', 'move-tab-next', true),
+      item(host.text('runtime.shortcuts.moveTabPrevious'), 'Ctrl+Shift+PageUp', 'move-tab-previous', true),
+      item(host.text('runtime.shortcuts.bookmark'), 'CmdOrCtrl+D', 'bookmark'),
+      item(host.text('runtime.shortcuts.history'), process.platform === 'darwin' ? 'Cmd+Y' : 'Ctrl+H', 'visit-history'),
+      item(host.text('runtime.shortcuts.find'), 'CmdOrCtrl+F', 'find'),
+      item(host.text('runtime.shortcuts.address'), 'CmdOrCtrl+L', 'focus-address'),
+      // Zoom In shows Ctrl/Cmd with +, which takes Shift; Chrome's main key types = without it.
+      item(host.text('zoom.in'), 'CmdOrCtrl+=', 'zoom-in')
     ]
     if (process.platform === 'darwin') return everywhere
     return [
@@ -177,10 +202,10 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
       item(host.text('runtime.shortcuts.address'), 'Ctrl+E', 'focus-address'),
       item(host.text('shell.home.open'), 'Alt+Home', 'open-home'),
       // Hronaut's window and its rail run F6 themselves, going to the page; from a page it goes to the next pane.
-      item(host.text('runtime.shortcuts.nextPane'), 'F6', host.runPageNextPane),
-      item(host.text('runtime.shortcuts.nextPane'), 'Shift+F6', host.runPageNextPane),
-      item(host.text('native.menu.findNext'), 'F3', 'find-next'),
-      item(host.text('native.menu.findPrevious'), 'Shift+F3', 'find-previous'),
+      item(host.text('runtime.shortcuts.nextPane'), 'F6', host.runPageNextPane, true),
+      item(host.text('runtime.shortcuts.nextPane'), 'Shift+F6', host.runPageNextPane, true),
+      item(host.text('native.menu.findNext'), 'F3', 'find-next', true),
+      item(host.text('native.menu.findPrevious'), 'Shift+F3', 'find-previous', true),
       ...everywhere,
       // With the digits of the number row and, as in Chrome, of the numeric keypad.
       ...TAB_POSITIONS.flatMap((position) => [`Ctrl+${position}`, `Ctrl+num${position}`].map((accelerator) => (
@@ -188,8 +213,11 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
       ))),
       item(host.text('runtime.shortcuts.lastTab'), 'Ctrl+9', 'select-last-tab'),
       item(host.text('runtime.shortcuts.lastTab'), 'Ctrl+num9', 'select-last-tab'),
-      // Not Zoom Out's own label, which names the visible item.
-      item(host.text('zoom.out'), 'Ctrl+Shift+-', 'zoom-out')
+      // Not the visible items' own labels. Zoom also has the numeric keypad's keys, as in Chrome.
+      item(host.text('zoom.out'), 'Ctrl+Shift+-', 'zoom-out'),
+      item(host.text('zoom.in'), 'Ctrl+numadd', 'zoom-in'),
+      item(host.text('zoom.out'), 'Ctrl+numsub', 'zoom-out'),
+      item(host.text('runtime.shortcuts.resetZoom'), 'Ctrl+num0', 'zoom-reset')
     ]
   }
 
@@ -354,15 +382,18 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
             },
             {
               label: host.text('native.menu.reload'),
+              // Chrome's keys, which a website may keep, as a web editor opens recent folders with Ctrl+R.
               accelerator: 'CmdOrCtrl+R',
-              click: () => host.runNativeBrowserAction('reload', () => withBrowser((browser) => reload(browser, undefined, { byPerson: true })))
+              click: websiteKeptKeyClick(() => host.runNativeBrowserAction('reload', () => withBrowser((browser) => (
+                reload(browser, undefined, { byPerson: true })
+              ))), { shown: true })
             },
             {
               label: host.text('native.menu.reloadWithoutCache'),
               accelerator: 'CmdOrCtrl+Shift+R',
-              click: () => host.runNativeBrowserAction('reload without cache', () => withBrowser((browser) => (
+              click: websiteKeptKeyClick(() => host.runNativeBrowserAction('reload without cache', () => withBrowser((browser) => (
                 reloadIgnoringCache(browser, undefined, { byPerson: true })
-              )))
+              ))), { shown: true })
             },
             ...websiteKeptKeys(),
             {
@@ -426,17 +457,17 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
             {
               label: host.text('native.menu.actualSize'),
               accelerator: 'CmdOrCtrl+0',
-              click: (_item, _window, event) => zoomShownPage('zoom-reset', event)
+              click: zoomShownPage('zoom-reset')
             },
             {
               label: host.text('native.menu.zoomIn'),
               accelerator: 'CmdOrCtrl+Plus',
-              click: (_item, _window, event) => zoomShownPage('zoom-in', event)
+              click: zoomShownPage('zoom-in')
             },
             {
               label: host.text('native.menu.zoomOut'),
               accelerator: 'CmdOrCtrl+-',
-              click: (_item, _window, event) => zoomShownPage('zoom-out', event)
+              click: zoomShownPage('zoom-out')
             },
             { role: 'togglefullscreen' }
           ]

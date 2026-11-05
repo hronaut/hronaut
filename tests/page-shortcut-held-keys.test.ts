@@ -72,13 +72,21 @@ describe('the key of a browser shortcut taken from a page', () => {
     expect(press(next, { ...held, key: 'a', code: 'KeyA' })).toBe(false)
   })
 
-  it('repeats into its own page, where the View menu goes on zooming it while Ctrl+= is held', () => {
-    const { page, onShortcutRequested } = browserWith()
+  // Ctrl+= went to the browser before the page saw it, and its repeats went on to the page so the View menu zoomed it
+  // again on each one. A website keeps it now, as in Chrome, and the menu zooms once for a held key the page leaves alone.
+  it('leaves Ctrl/Cmd+= and its repeats to the page, and takes it once from a locked page, keeping its repeats out', () => {
+    const { browser, page, onShortcutRequested } = browserWith()
     const shown = page()
-    expect(press(shown, { type: 'keyDown', ...zoomIn })).toBe(true)
-    expect(onShortcutRequested).toHaveBeenCalledExactlyOnceWith('zoom-in', expect.anything())
+    expect(press(shown, { type: 'keyDown', ...zoomIn })).toBe(false)
     expect(press(shown, { ...held, ...zoomIn })).toBe(false)
-    expect(press(page(), { ...held, ...zoomIn })).toBe(true)
+    expect(onShortcutRequested).not.toHaveBeenCalled()
+    expect(browser.pageShortcutKey).toEqual({ code: 'Equal', webContentsId: shown.id })
+    const locked = browserWith({ locked: true })
+    const lockedPage = locked.page()
+    expect(press(lockedPage, { type: 'keyDown', ...zoomIn })).toBe(true)
+    expect(locked.onShortcutRequested).toHaveBeenCalledExactlyOnceWith('zoom-in', expect.anything())
+    expect(press(lockedPage, { ...held, ...zoomIn })).toBe(true)
+    expect(locked.onShortcutRequested).toHaveBeenCalledOnce()
   })
 
   it('does not repeat into its own page for any other shortcut, such as Ctrl+W before the tab closes', () => {
