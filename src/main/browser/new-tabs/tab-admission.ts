@@ -21,7 +21,8 @@ export function assertCanCreateTab(browser: Browser, mcpGroupId: string | undefi
  * hold the window, which each box blocks until it is answered; Electron keeps them stopped until the tab closes. The
  * offer's text is in the language Hronaut had when the tab opened: a live page's preferences cannot change. Electron
  * would put the window in full screen for a page's full screen in any tab, so it leaves the window alone and Hronaut
- * puts it in full screen only for a page the window shows (page-fullscreen.ts).
+ * puts it in full screen only for a page the window shows (page-fullscreen.ts). As in Chrome, Chromium opens a link
+ * dropped on a page that does not take it, which the window open handler opens as the person's drop.
  */
 export function pageWebPreferences(browser: Browser): WebPreferences {
   return {
@@ -33,6 +34,7 @@ export function pageWebPreferences(browser: Browser): WebPreferences {
     allowRunningInsecureContent: false,
     safeDialogs: true,
     safeDialogsMessage: browser.text('native.dialog.preventMoreDialogs'),
-    disableHtmlFullscreenWindowResize: true
+    disableHtmlFullscreenWindowResize: true,
+    navigateOnDragDrop: true
   }
 }

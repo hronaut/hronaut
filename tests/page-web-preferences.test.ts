@@ -19,4 +19,10 @@ describe('the web preferences of every website tab', () => {
     const browser = { text: (key: MessageKey) => translate('en-US', key) }
     expect(pageWebPreferences(browser as never)).toMatchObject({ disableHtmlFullscreenWindowResize: true })
   })
+
+  // A link dropped on a page that did not take it, from another app or the other side of a split view, opened nothing.
+  it('open a link dropped on a page that does not take it, as Chrome does', () => {
+    const browser = { text: (key: MessageKey) => translate('en-US', key) }
+    expect(pageWebPreferences(browser as never)).toMatchObject({ navigateOnDragDrop: true })
+  })
 })

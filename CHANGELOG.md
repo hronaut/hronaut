@@ -17,6 +17,7 @@ All notable changes to Hronaut are documented in this file.
 - View → Print… chosen from the menu now brings the main window forward first, as Save Page As does, so its print dialog is no longer for a page out of view behind a panel in its own window or in the tray.
 - A link, image or text dropped on the address field now takes the place of the address shown, selected, as in Chrome, so Enter opens it and Ctrl+Z brings the address back; it landed where the pointer was in that address, such as right after the current page's address.
 - Save Page As on a tab showing an image, a PDF, text or JSON now downloads that file to the name you choose, as Chrome does, suggesting the name its address ends in. It suggested a name ending in .html, wrote a web page showing the file under a name ending in .html instead of the one chosen, and then said it could not save the page.
+- A link dropped on a page that does not take it, from another app or the other side of a split view, now opens in a new tab beside the page, as Chrome does. It opened nothing. A file dropped there is still not opened, and Hronaut now says why.
 
 ## [3.14.15] - 2026-11-05
 

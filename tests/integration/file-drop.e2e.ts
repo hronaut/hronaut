@@ -235,7 +235,7 @@ test('leaves a drag the page accepted on dragenter without dropping when no upda
   expect(state.received).toEqual([])
 })
 
-test('reports only what trusted drag events showed: synthetic events, a drop the page hides and a drop it does not handle', async ({ capabilities, electronApp, profileDirectory }) => {
+test('reports only what trusted drag events showed: synthetic events, a drop the page hides and a drop it does not handle', async ({ capabilities, electronApp, appWindow, profileDirectory }) => {
   const { client, tabId, fixtureUrl } = capabilities
   const folder = join(profileDirectory, 'drop-fixtures')
   await mkdir(folder, { recursive: true })
@@ -301,7 +301,11 @@ test('reports only what trusted drag events showed: synthetic events, a drop the
     loose.addEventListener('drop', (event) => { window.looseDrops += event.dataTransfer.files.length; });
     return true;
   })()`)
+  const tabsBefore = await appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.length)')
   const loose = await drop({ selector: '#loose', paths: [file] })
   expect(JSON.parse(text(loose)), text(loose)).toMatchObject({ status: 'DROPPED', files: 1, pageHandledDrop: false })
   expect(await onPage(electronApp, fixtureUrl, 'window.looseDrops')).toBe(1)
+  // Chrome would go on to open the file the page left alone; the agent's drop opens nothing, and the person sees no error.
+  expect(await appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.length)')).toBe(tabsBefore)
+  await expect(appWindow.getByRole('alert', { name: 'Browser action failed' })).toHaveCount(0)
 })

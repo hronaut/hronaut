@@ -8,6 +8,9 @@ import { getTab, orderedTabs } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { browserState } from '../browser-state/browser-state.js'
 
+/** The address Chromium gives a dropped link the page's process may not open (content::kBlockedURL). */
+const BLOCKED_DROP_URL = 'about:blank#blocked'
+
 /** The longest address Chrome loads (url::kMaxURLChars); longer text opens nothing. */
 const MAX_DROPPED_TEXT_LENGTH = 2 * 1024 * 1024
 
@@ -30,6 +33,20 @@ export async function openDroppedLink(browser: Browser, text: string,
   if (target.placement === 'onto') return navigate(browser, address, tab.id, { byPerson: true })
   const placement = target.placement
   return createNewTab(browser, { url: address, mcpGroupId: tab.mcpGroupId }, true, (created) => placeBeside(browser, created, tab, placement))
+}
+
+/**
+ * Opens a link dropped on a tab's page that did not take it, as Chrome does: in a new tab beside that tab, shown, as a
+ * link dropped beside the tab on the tab strip opens. Chromium hands such a drop over as a window the page opens, but
+ * the person dropped it, so it opens even while an agent works on the page, under the workspace's navigation policy
+ * for an address the person opens. An address the workspace refuses, such as a dropped file's `file:` address, says
+ * why nothing opened, as when the person types it.
+ */
+export function openLinkDroppedOnPage(browser: Browser, tab: BrowserTab, url: string): void {
+  // Chromium's address for a dropped link its page may not open, such as a javascript: link, which opens nothing.
+  if (url === BLOCKED_DROP_URL) return
+  void openDroppedLink(browser, url, { tabId: tab.id, placement: 'after' })
+    .catch((error: unknown) => browser.options.onActionFailed?.('open dropped link', error))
 }
 
 /**

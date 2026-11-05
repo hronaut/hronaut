@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { orderedTabs } from '../src/main/browser/browser-core.js'
-import { openDroppedLink } from '../src/main/browser/dropped-links/dropped-links.js'
+import { openDroppedLink, openLinkDroppedOnPage } from '../src/main/browser/dropped-links/dropped-links.js'
+import { LocalizedError } from '../src/main/localized-error.js'
 import type { BrowserState } from '../src/shared/types.js'
 
 // The browser below stubs navigate, createNewTab and getState, which a dropped link opens through and publishes with.
@@ -24,14 +25,16 @@ function tab(id: string, overrides: Partial<Tab> = {}): Tab {
 }
 
 /** The browser's tabs in display order, where a new tab opens last in its workspace, as createTab adds it. */
-function fakeBrowser(initial: Tab[], options: { beforeCreated?: (tabs: Map<string, Tab>) => void } = {}) {
+function fakeBrowser(initial: Tab[], options: { beforeCreated?: (tabs: Map<string, Tab>) => void; refuse?: Error } = {}) {
   const tabs = new Map(initial.map((candidate) => [candidate.id, candidate]))
   const browser = {
     tabs,
+    options: { onActionFailed: vi.fn() },
     // The workspaces as the strip shows them.
     mcpTabGroups: new Map([['workspace-1', { id: 'workspace-1' }], ['workspace-2', { id: 'workspace-2' }]]),
     navigate: vi.fn(async (_address: string, _tabId: string, _options: { byPerson?: boolean }) => STATE),
     createNewTab: vi.fn(async (newTab: { url: string; mcpGroupId?: string }, _selectVisible: boolean, onCreated?: (created: Tab) => void) => {
+      if (options.refuse) throw options.refuse
       const created = tab('new', { url: newTab.url, mcpGroupId: newTab.mcpGroupId ?? 'workspace-1' })
       tabs.set(created.id, created)
       options.beforeCreated?.(tabs)
@@ -145,5 +148,40 @@ describe('a link dropped on the tab strip or rail', () => {
 
     expect(browser.navigate).not.toHaveBeenCalled()
     expect(browser.createNewTab).not.toHaveBeenCalled()
+  })
+})
+
+// A link dropped on a page that did not take it, from another app or the other side of a split view, opened nothing.
+describe('a link dropped on a page that does not take it', () => {
+  it('opens in a new tab beside the page\'s tab, shown, as a link dropped beside that tab opens', async () => {
+    const view = fakeBrowser([tab('first'), tab('second'), tab('third')])
+
+    openLinkDroppedOnPage(view.browser as never, view.browser.tabs.get('second') as never, 'https://example.com/dropped')
+
+    await vi.waitFor(() => expect(view.order()).toEqual(['first', 'second', 'new', 'third']))
+    expect(view.browser.createNewTab).toHaveBeenCalledExactlyOnceWith({ url: 'https://example.com/dropped', mcpGroupId: 'workspace-1' }, true, expect.any(Function))
+    expect(view.browser.options.onActionFailed).not.toHaveBeenCalled()
+  })
+
+  // Chromium gives a dropped link the page may not open, such as a javascript: link, this address.
+  it('opens nothing for the address Chromium gives a link the page may not open', async () => {
+    const view = fakeBrowser([tab('first')])
+
+    openLinkDroppedOnPage(view.browser as never, view.browser.tabs.get('first') as never, 'about:blank#blocked')
+    await Promise.resolve()
+
+    expect(view.browser.createNewTab).not.toHaveBeenCalled()
+    expect(view.browser.options.onActionFailed).not.toHaveBeenCalled()
+  })
+
+  // As when the person types the address: a workspace opens no file from the computer, and a dropped file is one.
+  it('says why nothing opened when the workspace refuses the address', async () => {
+    const refusal = new LocalizedError('appErrors.navigation.agentSchemes')
+    const view = fakeBrowser([tab('first')], { refuse: refusal })
+
+    openLinkDroppedOnPage(view.browser as never, view.browser.tabs.get('first') as never, 'file:///home/person/report.pdf')
+
+    await vi.waitFor(() => expect(view.browser.options.onActionFailed).toHaveBeenCalledExactlyOnceWith('open dropped link', refusal))
+    expect(view.order()).toEqual(['first'])
   })
 })
