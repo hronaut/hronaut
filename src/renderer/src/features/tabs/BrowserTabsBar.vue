@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { isHronautHomeUrl } from '../../../../shared/home-url.js'
 import { shortcutKey } from '../../../../shared/shortcut-key.js'
 import UiButton from "../../ui/UiButton.vue"
 import BrowserTabRow from './BrowserTabRow.vue'
@@ -18,7 +17,7 @@ import IconKeepOff from '~icons/material-symbols/keep-off-rounded'
 import IconSearch from '~icons/material-symbols/search-rounded'
 import IconVisibility from '~icons/material-symbols/visibility-rounded'
 import IconStacks from '~icons/material-symbols/stacks-rounded'
-import type { BrowserState, BrowserTabGroupColor, BrowserTabGroupState, BrowserTabState, DroppedLinkTarget, McpTabActivity, UserAttentionRequest } from '../../../../shared/types.js'
+import type { BrowserState, BrowserTabGroupColor, BrowserTabState, DroppedLinkTarget, McpTabActivity, UserAttentionRequest } from '../../../../shared/types.js'
 import { AGENT_AVATAR_VISIBLE_LIMIT, agentAvatarColorHex, type AgentPresence, type HronautAgentPresenceApi } from '../../../../shared/agent-presence.js'
 import { BROWSER_TAB_GROUP_COLOR_HEX, defaultTabGroupColor } from '../../../../shared/tab-groups.js'
 import { foldRailWorkspaces, pinnedWorkspacesFirst } from '../../../../shared/workspace-rail.js'
@@ -30,11 +29,13 @@ import { useTabDragReorder } from './useTabDragReorder.js'
 import { useTabLinkDrop } from './useTabLinkDrop.js'
 import { useTabSelection } from './useTabSelection.js'
 import { useTabStripScroll } from './useTabStripScroll.js'
+import { useTabStripModel, type StripTab, type StripWorkspace } from './useTabStripModel.js'
 import { vTooltip } from '../../ui/tooltip.js'
 import { ignoreHeldEnter } from '../../held-enter.js'
 
 const props = defineProps<{
-  state: BrowserState
+  /** Reads the browser state: a function, so a new state draws again the rows of the tabs that changed, not the strip. */
+  readState: () => BrowserState
   settingsActive?: boolean
   userAttention?: UserAttentionRequest | null
   /** The workspace switcher is open. */
@@ -44,7 +45,8 @@ const props = defineProps<{
   railPinned: boolean
   railRevealed?: boolean
   forceRailCollapsed?: boolean
-  mcpActivityByTab: Record<string, McpTabActivity>
+  /** Reads the tool an agent runs on each tab, as readState reads the state. */
+  readMcpActivity: () => Record<string, McpTabActivity>
   /** The agents in each workspace; the shell's own presence channel when left out. */
   presenceApi?: HronautAgentPresenceApi
   formatNumber: (value: number) => string
@@ -94,8 +96,11 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
-const homeTab = computed(() => props.state.tabs.find((tab) => isHronautHomeUrl(tab.url)))
-const regularTabs = computed(() => props.state.tabs.filter((tab) => !isHronautHomeUrl(tab.url)))
+const strip = useTabStripModel(() => props.readState())
+const { readTab, allHumanInteractionLocked, allTabsMuted, workspaces } = strip
+const homeTab = strip.home
+const regularTabs = computed(() => strip.tabs.value.filter((tab) => !tab.home))
+const readAgentCommand = (tabId: string): string | undefined => props.readMcpActivity()[tabId]?.toolName
 const ownTabGroups = useCollapsedTabGroups()
 const collapsedTabGroupIds = computed(() => props.collapsedTabGroupIds ? new Set(props.collapsedTabGroupIds) : ownTabGroups.collapsedTabGroupIds.value)
 const isTabGroupCollapsed = (groupId: string): boolean => collapsedTabGroupIds.value.has(groupId)
@@ -160,19 +165,19 @@ function handleTabDrop(event: DragEvent, tab: BrowserTabState): void {
   if (!dropOnTab(event, tab)) finishTabDrop(event, tab)
 }
 
-function tabDropMarker(tab: BrowserTabState): 'onto' | 'before' | 'after' | undefined {
+function tabDropMarker(tab: StripTab): 'onto' | 'before' | 'after' | undefined {
   if (tabDropTargetId.value === tab.id) return tabDropPlacement.value ?? undefined
   return linkDropTabId.value === tab.id ? linkDropPlacement.value ?? undefined : undefined
 }
 
-function tabGroupColor(tab: BrowserTabState): string | undefined {
+function tabGroupColor(tab: StripTab): string | undefined {
   if (!tab.mcpGroupId) return undefined
-  const color = props.state.mcpTabGroups.find((group) => group.id === tab.mcpGroupId)?.color ?? defaultTabGroupColor(tab.mcpGroupId)
+  const color = workspaces.value.find((group) => group.id === tab.mcpGroupId)?.color ?? defaultTabGroupColor(tab.mcpGroupId)
   return BROWSER_TAB_GROUP_COLOR_HEX[color]
 }
 
-function tabSplitOrientation(tab: BrowserTabState): 'horizontal' | 'vertical' | undefined {
-  const split = props.state.splitView
+function tabSplitOrientation(tab: StripTab): 'horizontal' | 'vertical' | undefined {
+  const split = strip.splitView.value
   if (!split || (split.firstTabId !== tab.id && split.secondTabId !== tab.id)) return undefined
   return split.orientation === 'horizontal' ? 'horizontal' : 'vertical'
 }
@@ -181,7 +186,7 @@ function tabGroupColorStyle(color: BrowserTabGroupColor): Record<string, string>
   return { '--tab-group-color': BROWSER_TAB_GROUP_COLOR_HEX[color] }
 }
 
-function tabGroupTabs(groupId: string): BrowserTabState[] {
+function tabGroupTabs(groupId: string): StripTab[] {
   return regularTabs.value.filter((tab) => tab.mcpGroupId === groupId)
 }
 
@@ -191,20 +196,21 @@ function tabGroupTabCount(groupId: string): number {
 
 // The workspace whose page is in view: none while Home or Settings is showing, as for the tabs themselves.
 const activeWorkspaceId = computed(() => (
-  props.settingsActive ? undefined : props.state.tabs.find((tab) => tab.active)?.mcpGroupId
+  props.settingsActive ? undefined : strip.tabs.value.find((tab) => tab.active)?.mcpGroupId
 ))
 
 // The workspace following brought into view, while its tab is still the one shown.
 const followedWorkspaceId = computed(() => {
-  const follow = props.state.agentFollow
+  const follow = props.readState().agentFollow
   if (!follow || props.settingsActive || props.orientation !== 'vertical') return undefined
-  return props.state.tabs.find((tab) => tab.id === follow.tabId && tab.active)?.mcpGroupId
+  return strip.tabs.value.find((tab) => tab.id === follow.tabId && tab.active)?.mcpGroupId
 })
 
 // A client whose name cleans to nothing is named as in its avatar.
-const followingLabel = computed(() => (
-  props.state.agentFollow ? t('shell.tabs.followingAgent', { name: props.state.agentFollow.agentName || t('shell.agents.unnamed') }) : ''
-))
+const followingLabel = computed(() => {
+  const follow = props.readState().agentFollow
+  return follow ? t('shell.tabs.followingAgent', { name: follow.agentName || t('shell.agents.unnamed') }) : ''
+})
 
 // Why the agent needs you, as the tab and workspace tooltips say it.
 const attentionLine = computed(() => props.userAttention
@@ -216,11 +222,11 @@ const attentionLine = computed(() => props.userAttention
 function workspaceNeedsYou(groupId: string): boolean {
   const request = props.userAttention
   if (!request) return false
-  if (request.tabId) return props.state.tabs.some((tab) => tab.id === request.tabId && tab.mcpGroupId === groupId)
+  if (request.tabId) return strip.tabs.value.some((tab) => tab.id === request.tabId && tab.mcpGroupId === groupId)
   return request.workspaceId === groupId
 }
 
-function tabGroupLabelName(workspace: BrowserTabGroupState): string {
+function tabGroupLabelName(workspace: StripWorkspace): string {
   const count = tabGroupTabCount(workspace.id)
   const name = t(isTabGroupCollapsed(workspace.id) ? 'runtime.tabs.expandAria' : 'runtime.tabs.collapseAria', { name: workspace.name, count: props.formatNumber(count) }, count)
   return workspaceNeedsYou(workspace.id) ? `${name}, ${t('shell.tabs.needsYou')}` : name
@@ -243,10 +249,10 @@ function tabGroupAgentsDescription(workspaceId: string): string {
 // The first nine pinned workspaces in the rail have a key each: Alt with their number, Control on macOS.
 const pinnedWorkspaceKeys = computed(() => {
   const modifier = (props.platform ?? window.hronautShell?.windowChrome.platform) === 'darwin' ? 'Control' : 'Alt'
-  return new Map(keyedPinnedWorkspaces(props.state.mcpTabGroups).map((group, index) => [group.id, `${modifier}+${index + 1}`]))
+  return new Map(keyedPinnedWorkspaces(workspaces.value).map((group, index) => [group.id, `${modifier}+${index + 1}`]))
 })
 
-function tabGroupLabelDescription(workspace: BrowserTabGroupState): string | undefined {
+function tabGroupLabelDescription(workspace: StripWorkspace): string | undefined {
   const reason = workspaceNeedsYou(workspace.id) ? attentionLine.value : ''
   const key = pinnedWorkspaceKeys.value.get(workspace.id)
   const pinned = workspace.pinnedAt ? (key ? t('shell.tabs.pinnedWorkspaceKey', { key }) : t('shell.tabs.pinnedWorkspace')) : ''
@@ -254,10 +260,10 @@ function tabGroupLabelDescription(workspace: BrowserTabGroupState): string | und
 }
 
 // Pinned workspaces stay on top, in the order the person pinned them.
-const sidebarWorkspaces = computed(() => pinnedWorkspacesFirst(props.state.mcpTabGroups.filter(group => !vertical.value || !group.hiddenFromSidebar)))
+const sidebarWorkspaces = computed(() => pinnedWorkspacesFirst(workspaces.value.filter(group => !vertical.value || !group.hiddenFromSidebar)))
 // The workspace of the last active website tab, which Home, having none of its own, leaves in place.
 const lastActiveWorkspaceId = ref<string | undefined>()
-watch(() => props.state.tabs.find((tab) => tab.active)?.mcpGroupId, (groupId) => {
+watch(() => strip.tabs.value.find((tab) => tab.active)?.mcpGroupId, (groupId) => {
   if (groupId) lastActiveWorkspaceId.value = groupId
 }, { immediate: true })
 
@@ -270,12 +276,12 @@ const railFold = computed(() => {
 })
 const railWorkspaces = computed(() => railFold.value.listed)
 // A workspace hidden from the rail can still need you; the row then appears with an amber dot.
-const unlistedWorkspaceNeedsYou = computed(() => vertical.value && props.state.mcpTabGroups.some((group) => (
+const unlistedWorkspaceNeedsYou = computed(() => vertical.value && workspaces.value.some((group) => (
   !railWorkspaces.value.includes(group) && workspaceNeedsYou(group.id)
 )))
 const allWorkspacesRow = computed(() => vertical.value && (railFold.value.folded.length > 0 || unlistedWorkspaceNeedsYou.value))
 const allWorkspacesLabel = computed(() => {
-  const count = props.state.mcpTabGroups.length
+  const count = workspaces.value.length
   return t('shell.tabs.allWorkspaces', { count: props.formatNumber(count) }, count)
 })
 const visibleTabs = computed(() => railWorkspaces.value.flatMap((group) => (
@@ -284,7 +290,7 @@ const visibleTabs = computed(() => railWorkspaces.value.flatMap((group) => (
 const { selectedTabIds, clickTab: clickTabWithSelection, selectionWith } = useTabSelection({
   enabled: () => props.tabSelection === true,
   tabs: visibleTabs,
-  activeTabId: () => props.state.activeTabId,
+  activeTabId: () => strip.activeTabId.value,
   covered: () => props.settingsActive === true,
   platform: () => props.platform ?? window.hronautShell?.windowChrome.platform,
   activate: activateTab
@@ -296,11 +302,11 @@ const selectedWorkspaceId = computed(() => (
 const keyboardTabId = computed(() => {
   const visibleIds = new Set(visibleTabs.value.map((tab) => tab.id))
   if (focusedTabId.value && visibleIds.has(focusedTabId.value)) return focusedTabId.value
-  if (props.state.activeTabId && visibleIds.has(props.state.activeTabId)) return props.state.activeTabId
+  if (strip.activeTabId.value && visibleIds.has(strip.activeTabId.value)) return strip.activeTabId.value
   return visibleTabs.value[0]?.id ?? null
 })
 
-function tabKeyboardIndex(tab: BrowserTabState): 0 | -1 {
+function tabKeyboardIndex(tab: StripTab): 0 | -1 {
   return keyboardTabId.value === tab.id ? 0 : -1
 }
 
@@ -400,7 +406,7 @@ watch(() => visibleTabs.value.map((tab) => tab.id), async (ids, previousIds) => 
   if (!tabId) return
   const remaining = new Set(ids)
   const index = previousIds.indexOf(tabId)
-  const closed = !props.state.tabs.some((tab) => tab.id === tabId)
+  const closed = !props.readState().tabs.some((tab) => tab.id === tabId)
   const target = remaining.has(tabId) ? tabId : !closed || index < 0 ? undefined
     : previousIds.slice(index + 1).find((id) => remaining.has(id)) ?? previousIds.slice(0, index).reverse().find((id) => remaining.has(id))
   await nextTick()
@@ -412,20 +418,20 @@ watch(() => visibleTabs.value.map((tab) => tab.id), async (ids, previousIds) => 
 // starts waiting for you. The top strip has room for neither; the toolbar shows the agents of the workspace in view.
 const groupAgents = useWorkspaceGroupAgents({
   api: props.presenceApi ?? window.hronautAgentPresence,
-  workspaceIds: () => props.state.mcpTabGroups.map((group) => group.id),
+  workspaceIds: () => workspaces.value.map((group) => group.id),
   needsYou: workspaceNeedsYou,
   open: (groupId) => { if (vertical.value) expandTabGroup(groupId) }
 })
 
-function expandTabGroupForTab(tab: BrowserTabState): void {
+function expandTabGroupForTab(tab: Pick<BrowserTabState, 'mcpGroupId'>): void {
   if (tab.mcpGroupId) expandTabGroup(tab.mcpGroupId)
 }
 
 watch(
-  [() => props.hydrated, () => props.state.mcpTabGroups.map((group) => group.id).join(',')],
+  [() => props.hydrated, () => workspaces.value.map((group) => group.id).join(',')],
   ([hydrated]) => {
     if (!hydrated) return
-    forgetMissingTabGroups(props.state.mcpTabGroups.map((group) => group.id))
+    forgetMissingTabGroups(workspaces.value.map((group) => group.id))
   },
   { immediate: true }
 )
@@ -435,9 +441,9 @@ watch(
 watch(
   [
     // A tab's worker capture adds its Stop button beside the tab.
-    () => props.state.tabs.map((tab) => `${tab.id}:${tab.label ?? ''}:${tab.pinned}:${tab.mcpGroupId ?? ''}:${tab.pwaLifecycleActive === true}`).join('|'),
+    () => props.readState().tabs.map((tab) => `${tab.id}:${tab.label ?? ''}:${tab.pinned}:${tab.mcpGroupId ?? ''}:${tab.pwaLifecycleActive === true}`).join('|'),
     // A workspace that needs you widens its header with a dot.
-    () => props.state.mcpTabGroups.map((group) => `${group.id}:${group.name}:${group.description}:${workspaceNeedsYou(group.id)}`).join('|'),
+    () => workspaces.value.map((group) => `${group.id}:${group.name}:${group.description}:${workspaceNeedsYou(group.id)}`).join('|'),
     () => [...collapsedTabGroupIds.value].sort().join('|'),
     // Workspaces fold in and out of a long rail as the active tab or a request moves, and the row comes and goes.
     () => `${railWorkspaces.value.map((group) => group.id).join('|')}:${allWorkspacesRow.value}`,
@@ -462,7 +468,7 @@ watch(
 )
 
 watch(
-  () => props.state.activeTabId,
+  () => strip.activeTabId.value,
   async (activeTabId) => {
     markActiveTabVisible()
     const tab = visibleTabs.value.find((candidate) => candidate.id === activeTabId)
@@ -474,11 +480,12 @@ watch(
 
 onMounted(async () => {
   await nextTick()
-  if (props.hydrated && props.state.activeTabId) {
-    const activeTab = props.state.tabs.find((tab) => tab.id === props.state.activeTabId)
+  const activeTabId = strip.activeTabId.value
+  if (props.hydrated && activeTabId) {
+    const activeTab = strip.tabs.value.find((tab) => tab.id === activeTabId)
     if (activeTab) expandTabGroupForTab(activeTab)
   }
-  const active = visibleTabs.value.find((tab) => tab.id === props.state.activeTabId)
+  const active = visibleTabs.value.find((tab) => tab.id === activeTabId)
   if (active) focusedTabId.value = active.id
   if (props.initialScrollTop === undefined || !tabsStrip.value) revealActiveTab()
   updateTabOverflow()
@@ -498,15 +505,15 @@ onBeforeUnmount(() => {
 watch(
   [
     () => props.hydrated,
-    () => props.state.activeTabId,
-    () => props.state.tabs.find((tab) => tab.id === props.state.activeTabId)?.mcpGroupId
+    () => strip.activeTabId.value,
+    () => strip.tabs.value.find((tab) => tab.id === strip.activeTabId.value)?.mcpGroupId
   ],
   async ([hydrated, activeTabId, activeTabGroupId], [wasHydrated, previousActiveTabId, previousActiveTabGroupId]) => {
     if (
       !hydrated
       || (wasHydrated && activeTabId === previousActiveTabId && activeTabGroupId === previousActiveTabGroupId)
     ) return
-    const tab = props.state.tabs.find((candidate) => candidate.id === activeTabId)
+    const tab = strip.tabs.value.find((candidate) => candidate.id === activeTabId)
     if (!tab) return
     expandTabGroupForTab(tab)
     focusedTabId.value = tab.id
@@ -526,7 +533,7 @@ function scrollTabListTo(top: number): void {
 
 /** Why stopping a tab's worker capture failed, shown on that tab's Stop button until a stop works or the capture ends. */
 const workerCaptureErrors = ref(new Map<string, string>())
-const capturingTabIds = (): string[] => props.state.tabs.filter((tab) => tab.pwaLifecycleActive).map((tab) => tab.id)
+const capturingTabIds = (): string[] => props.readState().tabs.filter((tab) => tab.pwaLifecycleActive).map((tab) => tab.id)
 watch(capturingTabIds, (capturing) => {
   for (const tabId of workerCaptureErrors.value.keys()) if (!capturing.includes(tabId)) workerCaptureErrors.value.delete(tabId)
 })
@@ -669,7 +676,7 @@ defineExpose({
         </span> <span class="tab-group-count" aria-hidden="true">{{ tabGroupTabCount(workspace.id) }}</span>
       </UiButton>
       <!-- Beside the header, not in it: the header is a button. -->
-      <div v-if="followedWorkspaceId === workspace.id && state.agentFollow" class="tab-group-following" data-testid="workspace-following">
+      <div v-if="followedWorkspaceId === workspace.id && followingLabel" class="tab-group-following" data-testid="workspace-following">
         <IconVisibility class="tab-group-following-icon" aria-hidden="true" />
         <!-- The tooltip shows a long name in full; screen readers already read the whole text. -->
         <span class="tab-group-following-name" :data-tooltip="followingLabel">{{ followingLabel }}</span>
@@ -691,21 +698,22 @@ defineExpose({
         <BrowserTabRow
           v-for="tab in isTabGroupCollapsed(workspace.id) ? [] : tabGroupTabs(workspace.id)"
           :key="tab.id"
-          :tab="tab"
+          :tab-id="tab.id"
+          :read-tab="readTab"
+          :tab-label="tabTooltip"
+          :describe-emulation="describeEmulation"
+          :read-agent-command="readAgentCommand"
           :active="tab.active && !settingsActive"
           :selected="selectedTabIds.includes(tab.id)"
           :dragging="draggedTabIds.includes(tab.id)"
           :drop-placement="tabDropMarker(tab)"
-          :all-human-interaction-locked="state.allHumanInteractionLocked"
-          :all-tabs-muted="state.allTabsMuted === true"
+          :all-human-interaction-locked="allHumanInteractionLocked"
+          :all-tabs-muted="allTabsMuted"
           :split-orientation="tabSplitOrientation(tab)"
-          :agent-command="mcpActivityByTab[tab.id]?.toolName"
           :attention="userAttention?.tabId === tab.id ? attentionLine : undefined"
           :keyboard-index="tabKeyboardIndex(tab)"
           :group-color="tabGroupColor(tab)"
           :worker-capture-error="workerCaptureErrors.get(tab.id)"
-          :label="tabTooltip(tab)"
-          :emulation-description="tab.emulation ? describeEmulation(tab) : undefined"
           :format-number="formatNumber"
           @select="clickTab"
           @focused="noteFocusedTab"
@@ -750,7 +758,7 @@ defineExpose({
       @keydown="ignoreHeldEnter"
       @click="emit('switchWorkspace')"
     ><IconStacks aria-hidden="true" /><span class="all-workspaces-label">{{ allWorkspacesLabel }}</span><span v-if="unlistedWorkspaceNeedsYou" class="all-workspaces-needs-you" aria-hidden="true" /></UiButton>
-    <UiButton v-if="!state.mcpTabGroups.length" appearance="application"
+    <UiButton v-if="!workspaces.length" appearance="application"
       class="new-tab"
       :class="{ 'link-drop-target': linkDropWorkspaceId === '' }"
       type="button"

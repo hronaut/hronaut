@@ -22,12 +22,19 @@ import { vTooltip } from '../../ui/tooltip.js'
 import type { BrowserTabState } from '../../../../shared/types.js'
 import { tabTitleForDisplay } from '../../../../shared/tab-title.js'
 
-// One tab of the tab strip or rail. Each value it shows comes in as a prop that stays equal while it does not change,
-// so a row draws again only when its own tab changed, not whenever another tab loads. Its name and emulation
-// description are worked out by the tab bar: they read the whole browser state, which a row reading them would
-// draw again for on every change.
+// One tab of the tab strip or rail. It reads its own tab, name and agent command, and each other value it shows comes
+// in as a prop that stays equal while it does not change, so a row draws again only when its own tab changed, and the
+// strip around it does not draw again whenever a tab loads.
 const props = defineProps<{
-  tab: BrowserTabState
+  tabId: string
+  /** A tab of the latest browser state by its id. */
+  readTab: (tabId: string) => BrowserTabState | undefined
+  /** A tab's name with its states, as its tooltip shows them. */
+  tabLabel: (tab: BrowserTabState) => string
+  /** What a tab emulates, while it does. */
+  describeEmulation: (tab: BrowserTabState) => string
+  /** The tool an agent runs on a tab, while one does. */
+  readAgentCommand: (tabId: string) => string | undefined
   /** The tab is the one in view, and Settings does not cover it. */
   active: boolean
   /** The tab is one of several selected with Ctrl, Cmd or Shift and a click, which its menu and a drag act on. */
@@ -40,18 +47,12 @@ const props = defineProps<{
   allTabsMuted: boolean
   /** How the split view shows this tab beside another, while it does. */
   splitOrientation?: 'horizontal' | 'vertical'
-  /** The tool an agent runs on this tab, while one does. */
-  agentCommand?: string
   /** Why an agent needs you, while it asks on this tab. */
   attention?: string
   keyboardIndex: 0 | -1
   /** The color of the tab's workspace, while it is in one. */
   groupColor?: string
   workerCaptureError?: string
-  /** The tab's name with its states, as its tooltip shows them. */
-  label: string
-  /** What the tab emulates, while it does. */
-  emulationDescription?: string
   formatNumber: (value: number) => string
 }>()
 
@@ -72,13 +73,21 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
+// Each of these is worked out again for each new browser state, and the row draws again only when one comes out
+// different: a tab that did not change is the same object, and its name the same text.
+const tab = computed(() => props.readTab(props.tabId))
+const label = computed(() => tab.value ? props.tabLabel(tab.value) : '')
+const emulationDescription = computed(() => tab.value?.emulation ? props.describeEmulation(tab.value) : undefined)
+const agentCommand = computed(() => props.readAgentCommand(props.tabId))
 /** Why an agent needs you, or that one is working, on this tab. */
-const agentNote = computed(() => props.attention ?? (props.agentCommand !== undefined ? t('tabSearch.meta.agent') : undefined))
-const tooltip = computed(() => agentNote.value !== undefined ? `${props.label}\n\n${agentNote.value}` : props.label)
-const networkUnconfirmed = computed(() => Boolean(props.tab.networkConditionState && props.tab.networkConditionState.application !== 'confirmed'))
+const agentNote = computed(() => props.attention ?? (agentCommand.value !== undefined ? t('tabSearch.meta.agent') : undefined))
+const tooltip = computed(() => agentNote.value !== undefined ? `${label.value}\n\n${agentNote.value}` : label.value)
+const networkUnconfirmed = computed(() => Boolean(tab.value?.networkConditionState && tab.value.networkConditionState.application !== 'confirmed'))
 </script>
 
 <template>
+  <!-- A closed tab's row goes in the same draw as the strip's, and reads no tab meanwhile. -->
+  <template v-if="tab">
   <UiButton appearance="application"
     class="tab"
     :class="{
@@ -161,6 +170,7 @@ const networkUnconfirmed = computed(() => Boolean(props.tab.networkConditionStat
     ><IconClose aria-hidden="true" /></span>
   </UiButton>
   <UiButton v-if="tab.pwaLifecycleActive" variant="ghost" size="small" class="tab-pwa-stop" :data-testid="`worker-capture-stop-${tab.id}`" :aria-label="t('pwaLifecycle.stop')" v-tooltip="workerCaptureError || t('pwaLifecycle.stop')" @click="emit('stopWorkerCapture', tab.id)"><IconStopCircle aria-hidden="true" /></UiButton>
+  </template>
 </template>
 
 <style scoped>

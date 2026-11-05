@@ -1,9 +1,9 @@
-import { createEvent, fireEvent, render, screen, within } from '@testing-library/vue'
+import { createEvent, fireEvent, screen, within } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { flushPromises } from '@vue/test-utils'
 import { nextTick, shallowRef } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import BrowserTabsBar from '../../src/renderer/src/features/tabs/BrowserTabsBar.vue'
+import { renderTabsBar } from './render-tabs-bar.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { AgentPresence, AgentPresenceSnapshot, HronautAgentPresenceApi } from '../../src/shared/agent-presence.js'
 import type { SupportedLocale } from '../../src/shared/locale.js'
@@ -100,7 +100,7 @@ function renderTabs(
   railPinned = true,
   locale: SupportedLocale = 'en-US'
 ) {
-  return render(BrowserTabsBar, {
+  return renderTabsBar({
     global: { plugins: [createHronautI18n(locale)] },
     props: {
       state,
@@ -125,7 +125,7 @@ describe('BrowserTabsBar', () => {
     const tabTooltip = (value: BrowserTabState): string => current.value.tabs.find(candidate => candidate.id === value.id)?.title ?? value.title
     // Only the first tab's row counts its 7 rules, so each call with 7 is that row drawing.
     const formatNumber = vi.fn((value: number) => String(value))
-    const view = render(BrowserTabsBar, {
+    const view = renderTabsBar({
       global: { plugins: [createHronautI18n('en-US')] },
       props: { state, hydrated: true, orientation: 'vertical', railPinned: true, mcpActivityByTab: {}, formatNumber, tabTooltip, describeEmulation: () => '' }
     })
@@ -138,6 +138,60 @@ describe('BrowserTabsBar', () => {
     expect(screen.getByRole('tab', { name: 'Loaded' })).toBeTruthy()
     expect(screen.getByRole('tab', { name: 'Page first' })).toBeTruthy()
     expect(formatNumber.mock.calls.filter(([value]) => value === 7)).toEqual([])
+  })
+
+  // While agents work, their pages load, the tools they run on tabs change, and their workspaces' counts and times move,
+  // many times a second. The strip around the rows, with its buttons and workspace headers, draws again only when what
+  // it shows changes; each row reads its own tab.
+  it('draws the strip again when what it shows changes, not for a tab\'s page, an agent\'s tool or a workspace\'s counts', async () => {
+    const first = tab('first')
+    const second = tab('second', { loading: true })
+    const state = browserState({ tabs: [first, second] })
+    // The rail's workspace header counts its tabs, and no row formats a number, so each call is the strip drawing.
+    const formatNumber = vi.fn((value: number) => String(value))
+    const view = renderTabsBar({
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: { state, hydrated: true, orientation: 'vertical', railPinned: true, formatNumber, tabTooltip: (value: BrowserTabState) => value.title, describeEmulation: () => '' }
+    })
+    await flushPromises()
+    expect(formatNumber).toHaveBeenCalledWith(2)
+    formatNumber.mockClear()
+
+    const loaded = {
+      ...state,
+      tabs: [first, { ...second, title: 'Loaded', loading: false }],
+      mcpTabGroups: [{ ...workspace(), tabCount: 2, activeTabId: second.id, lastUsedAt: '2026-08-22T10:00:00.000Z' }]
+    }
+    await view.rerender({
+      state: loaded,
+      mcpActivityByTab: { second: { activityId: 'click-1', tabId: second.id, toolName: 'browser_click', phase: 'started', occurredAt: 1 } }
+    })
+    await flushPromises()
+    expect(screen.getByRole('tab', { name: 'Loaded' }).dataset.mcpCommand).toBe('browser_click')
+    expect(formatNumber).not.toHaveBeenCalled()
+
+    await view.rerender({ state: { ...loaded, tabs: [...loaded.tabs, tab('third')] } })
+    await flushPromises()
+    expect(screen.getByRole('tab', { name: 'Page third' })).toBeTruthy()
+    expect(formatNumber).toHaveBeenCalledWith(3)
+  })
+
+  // A tab's name says when it is locked, which the lock on every tab decides as well as the tab itself.
+  it('names a tab again when the lock on every tab changes, though the tab itself did not', async () => {
+    const first = tab('first')
+    const state = browserState({ tabs: [first] })
+    // As in the shell, a tab's name reads the whole browser state.
+    const current = shallowRef(state)
+    const tabTooltip = (value: BrowserTabState): string => `${value.title}${current.value.allHumanInteractionLocked ? ', locked' : ''}`
+    const view = renderTabsBar({
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: { state, hydrated: true, orientation: 'horizontal', railPinned: true, formatNumber: (value: number) => String(value), tabTooltip, describeEmulation: () => '' }
+    })
+    expect(screen.getByRole('tab', { name: 'Page first' })).toBeTruthy()
+    const locked = { ...state, allHumanInteractionLocked: true }
+    current.value = locked
+    await view.rerender({ state: locked })
+    expect(screen.getByRole('tab', { name: 'Page first, locked' })).toBe(screen.getByRole('tab'))
   })
 
   it('measures the strip again when tabs come and go, not when a loading page changes its title', async () => {
@@ -495,7 +549,7 @@ describe('BrowserTabsBar', () => {
     }
     const publish = async (agents: AgentPresence[]) => { listener({ revision: ++revision, workspaces: { 'workspace-1': agents } }); await nextTick() }
     window.localStorage.setItem('hronaut:collapsed-tab-groups', JSON.stringify(['workspace-1']))
-    render(BrowserTabsBar, {
+    renderTabsBar({
       global: { plugins: [createHronautI18n('en-US')] },
       props: {
         state: browserState(),
@@ -554,7 +608,7 @@ describe('BrowserTabsBar', () => {
       onChanged: (next) => { listener = next; return () => undefined }
     }
     window.localStorage.setItem('hronaut:collapsed-tab-groups', JSON.stringify(['workspace-1']))
-    render(BrowserTabsBar, {
+    renderTabsBar({
       global: { plugins: [createHronautI18n('en-US')] },
       props: {
         state: browserState(),
@@ -2014,7 +2068,7 @@ describe('BrowserTabsBar drop marker while dragging a tab', () => {
 
 describe('BrowserTabsBar dropped links', () => {
   function renderWithLinkDrops(state: BrowserState, options: { linkDrops?: boolean; orientation?: 'horizontal' | 'vertical' } = {}) {
-    return render(BrowserTabsBar, {
+    return renderTabsBar({
       global: { plugins: [createHronautI18n('en-US')] },
       props: {
         state,
@@ -2305,7 +2359,7 @@ describe('BrowserTabsBar dropped links', () => {
 // drag then act on.
 describe('BrowserTabsBar selecting several tabs', () => {
   function renderWithSelection(state: BrowserState, options: { tabSelection?: boolean; platform?: 'darwin' | 'linux'; settingsActive?: boolean } = {}) {
-    return render(BrowserTabsBar, {
+    return renderTabsBar({
       global: { plugins: [createHronautI18n('en-US')] },
       props: {
         state,

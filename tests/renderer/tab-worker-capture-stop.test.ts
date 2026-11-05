@@ -1,7 +1,7 @@
-import { fireEvent, render, screen } from '@testing-library/vue'
+import { fireEvent, screen } from '@testing-library/vue'
 import { flushPromises } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import BrowserTabsBar from '../../src/renderer/src/features/tabs/BrowserTabsBar.vue'
+import { renderTabsBar } from './render-tabs-bar.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BrowserState, BrowserTabGroupState, BrowserTabState } from '../../src/shared/types.js'
 
@@ -58,7 +58,7 @@ function browserState(capturing: { a: boolean; b: boolean }): BrowserState {
 }
 
 function renderTabs(state: BrowserState) {
-  return render(BrowserTabsBar, {
+  return renderTabsBar({
     global: { plugins: [createHronautI18n('en-US')] },
     props: {
       state,

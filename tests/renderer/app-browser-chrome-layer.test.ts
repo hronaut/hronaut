@@ -48,14 +48,14 @@ const collapsedTabGroupIds = new Set(['workspace-2'])
 const BrowserTabsBarStub = defineComponent({
   name: 'BrowserTabsBar',
   props: {
-    state: Object,
+    readState: Function,
     workspaceSwitcherOpen: Boolean,
     hydrated: Boolean,
     orientation: String,
     railPinned: Boolean,
     railRevealed: Boolean,
     forceRailCollapsed: Boolean,
-    mcpActivityByTab: Object,
+    readMcpActivity: Function,
     formatNumber: Function,
     tabTooltip: Function,
     describeEmulation: Function,

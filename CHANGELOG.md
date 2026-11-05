@@ -6,7 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
-- Hronaut's window spends less time keeping its tabs up to date while several agents work, so it answers clicks a little sooner.
+- Hronaut's window spends less time keeping its tabs up to date while several agents work, so it answers clicks a little sooner: it draws again only the tabs whose pages changed, rather than the whole tab strip with every workspace in it.
 
 ## [3.14.17] - 2026-11-05
 
