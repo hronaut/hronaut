@@ -40,14 +40,12 @@ test('hides the page under a permission dialog and answers it from the keyboard 
     await expect(dialog).toHaveAttribute('data-armed', 'true')
     await appWindow.keyboard.press('Escape')
     await expect(dialog).toHaveCount(0)
-    // Escape closes it as in Chrome: the page's document is refused without asking again, and no Deny is kept that the
-    // person never chose, so the website may ask once it loads another document.
-    const askedAgain = await electronApp.evaluate(async ({ webContents }) => {
-      const page = webContents.getAllWebContents().find((contents) => contents.getTitle() === 'Keyboard prompt')
-      if (!page) throw new Error('Permission fixture web contents was not found')
-      return await page.executeJavaScript('navigator.storage.persist()', true) as boolean
-    })
-    expect(askedAgain).toBe(false)
+    // Escape closes it as in Chrome: the request is refused and no Deny is kept that the person never chose, so the
+    // website may ask again.
+    await ask('navigator.storage.persist()')
+    await expect(dialog).toHaveAttribute('data-armed', 'true')
+    expect(await trustedDialogHeadline(appWindow)).toContain(origin)
+    await appWindow.keyboard.press('Escape')
     await expect(dialog).toHaveCount(0)
     expect((await appWindow.evaluate('window.hronautPermissions.list()') as Array<{ permission: string, decision: string }>)
       .map((entry) => `${entry.permission}:${entry.decision}`)).toEqual(['geolocation:deny'])

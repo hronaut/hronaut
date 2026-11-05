@@ -191,7 +191,9 @@ describe('Hronaut’s permission dialog', () => {
   it('waits for the page to leave the screen when its own request covers the page', async () => {
     // The shell starts covering the page from the request itself, before the dialog could start its moment on screen.
     let publish: (request: TrustedDialogRequest | null, state: TrustedDialogShellState) => void = () => undefined
-    const api: HronautTrustedDialogsApi = { ready: vi.fn(), respond: vi.fn(), dismiss: vi.fn(), onChanged: (listener) => { publish = listener; return () => undefined } }
+    const api: HronautTrustedDialogsApi = {
+      ready: vi.fn(), respond: vi.fn(), dismiss: vi.fn(), onChanged: (listener) => { publish = listener; return () => undefined }
+    }
     const covered: Array<[boolean, number]> = []
     const shellApi = { setBrowserContentOccluded: (occluded: boolean, request: number) => { covered.push([occluded, request]) } }
     const Shell = defineComponent({

@@ -4,6 +4,7 @@ import { isAbsolute, join } from 'node:path'
 import { flushBrowserSessionStorage } from './browser/workspace-storage.js'
 import { isHronautHomeUrl } from '../shared/home-url.js'
 import { FRESH_CONSENT_PERMISSIONS, normalizeSitePermissionOrigin, SitePermissionStore, TOP_LEVEL_ONLY_PERMISSIONS } from './site-data/site-permission-store.js'
+import { createPermissionDismissals } from './site-data/permission-dismissals.js'
 import type { MessageKey, MessageParameters } from '../shared/i18n.js'
 import { sitePermissionName } from '../shared/site-permission-names.js'
 import type { SitePermissionDecision } from '../shared/types.js'
@@ -210,6 +211,8 @@ export function createBrowserSession(host: BrowserSessionHost): {
    * website asked to write that same empty file; and `held` for any other file, such as one you opened in the website.
    */
   const fileUses = new WeakMap<Session, Map<string, number | 'saved' | 'held'>>()
+  /** The prompts the person closed without an answer, which refuse a website without asking after three. */
+  const dismissals = createPermissionDismissals()
   let documentCount = 0
 
   function queuePermissionRequest(operation: () => Promise<void>): void {
@@ -430,6 +433,11 @@ export function createBrowserSession(host: BrowserSessionHost): {
         respond(remembered === 'allow')
         return
       }
+      const asked = { workspaceId, origin, permission, ...(embeddedIn ? { embeddedIn } : {}) }
+      if (!requiresFreshConsent && dismissals.embargoed(asked)) {
+        respond(false)
+        return
+      }
       const requestingFrame = requestingFrames.length === 1 ? requestingFrames[0]! : null
       if (!requestingFrame) {
         respond(false)
@@ -510,6 +518,8 @@ export function createBrowserSession(host: BrowserSessionHost): {
           ? undefined
           : host.state.sitePermissionStore?.decisionFor(origin, permission, workspaceId, embeddedIn)
         if (currentRemembered) return currentRemembered === 'allow'
+        // A website whose prompt was closed three times while this request waited is not asked either.
+        if (!requiresFreshConsent && dismissals.embargoed(asked)) return false
         // A camera-only or microphone-only request names just that device, not both.
         const permissionName = mediaTypes.length > 0 && mediaTypes.every((type) => type === 'video')
           ? host.text('runtime.permissions.camera')
@@ -597,12 +607,13 @@ export function createBrowserSession(host: BrowserSessionHost): {
           if (permission === 'fileSystem') fileAccessPages.add(webContents)
           return decision === 'allow'
         }
-        // Closed with Escape or its close button instead, as in Chrome, the prompt refuses the page's document and
-        // remembers nothing: the website may ask again once the page loads another document, and Settings keeps no Deny.
+        // Closed with Escape or its close button instead, the prompt refuses this request and keeps nothing, as in Chrome:
+        // the website may ask again, until it was closed three times, and Settings lists no Deny the person never chose.
         if (dismissed) {
-          page.denied.add(hold)
+          dismissals.dismissed(asked)
           return false
         }
+        dismissals.answered(asked)
         try {
           await host.state.sitePermissionStore?.set(origin, permission, decision, decisionScope)
           publishSitePermissions()
@@ -714,6 +725,7 @@ export function createBrowserSession(host: BrowserSessionHost): {
    * the shell windows.
    */
   async function forgetWorkspaceSitePermissions(workspaceId: string): Promise<void> {
+    dismissals.forgetWorkspace(workspaceId)
     const store = host.state.sitePermissionStore
     if (!store) return
     try {

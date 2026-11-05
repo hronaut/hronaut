@@ -568,7 +568,7 @@ describe('prompts closed with Escape or their close button', () => {
   const maps = { url: 'https://maps.example/route', origin: 'https://maps.example' }
   const fromMaps = { requestingUrl: maps.url, isMainFrame: true }
 
-  it('refuse the page’s document and keep no Deny, so the website may ask again once it loads another', async () => {
+  it('refuse the request and keep no Deny, so the website may ask again, until it was closed three times', async () => {
     // Closing a Location prompt with Escape saved a Deny for the website, as clicking Deny does, so it never asked
     // again and Settings listed a choice the person did not make.
     const harness = await createHarness()
@@ -577,16 +577,41 @@ describe('prompts closed with Escape or their close button', () => {
     expect(await ask(harness, page, 'geolocation', fromMaps)).toBe(false)
     expect(harness.shown).toHaveLength(1)
     expect(harness.store.list()).toEqual([])
-
-    // The page that asked is refused without a prompt while it keeps its document.
     expect(await ask(harness, page, 'geolocation', fromMaps)).toBe(false)
-    expect(harness.shown).toHaveLength(1)
+    expect(harness.shown).toHaveLength(2)
 
+    // As in Chrome, a website whose prompt was closed three times is refused without asking, on any of its pages.
     page.navigate(page.frames[0]!, maps.url)
+    expect(await ask(harness, page, 'geolocation', fromMaps)).toBe(false)
+    expect(harness.shown).toHaveLength(3)
+    expect(await ask(harness, createPage(maps), 'geolocation', fromMaps)).toBe(false)
+    expect(harness.shown).toHaveLength(3)
+    expect(harness.store.list()).toEqual([])
+    // Its other permissions, and other websites, still ask.
+    expect(await ask(harness, page, 'notifications', fromMaps)).toBe(false)
+    expect(harness.shown).toHaveLength(4)
+    // A decision saved in Site controls or Settings comes first.
+    await harness.store.set(maps.origin, 'geolocation', 'allow', { workspaceId: WORK })
+    expect(await ask(harness, page, 'geolocation', fromMaps)).toBe(true)
+    expect(harness.shown).toHaveLength(4)
+  })
+
+  it('count closed prompts from none again once the person answers one', async () => {
+    const harness = await createHarness()
+    const page = createPage(maps)
+    harness.decide = () => 'dismissed'
+    expect(await ask(harness, page, 'geolocation', fromMaps)).toBe(false)
+    expect(await ask(harness, page, 'geolocation', fromMaps)).toBe(false)
     harness.decide = () => 'allow'
     expect(await ask(harness, page, 'geolocation', fromMaps)).toBe(true)
-    expect(harness.shown).toHaveLength(2)
-    expect(harness.store.list()).toEqual([{ origin: maps.origin, permission: 'geolocation', decision: 'allow', workspaceId: WORK }])
+    await harness.store.remove(maps.origin, 'geolocation', { workspaceId: WORK })
+    harness.decide = () => 'dismissed'
+    expect(await ask(harness, page, 'geolocation', fromMaps)).toBe(false)
+    expect(await ask(harness, page, 'geolocation', fromMaps)).toBe(false)
+    expect(await ask(harness, page, 'geolocation', fromMaps)).toBe(false)
+    expect(harness.shown).toHaveLength(6)
+    expect(await ask(harness, page, 'geolocation', fromMaps)).toBe(false)
+    expect(harness.shown).toHaveLength(6)
   })
 
   it('refuse a camera request for the page’s document as Deny does', async () => {
