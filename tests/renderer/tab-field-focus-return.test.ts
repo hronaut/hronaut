@@ -56,6 +56,80 @@ describe('giving a tab\'s field the keyboard back', () => {
     } finally { stop() }
   })
 
+  // A tab's row took the keyboard on the press of the click that selected another tab, so main heard of no field before
+  // the tab was left, and the tab gave its page the keyboard when shown again. Chrome's tabs take no keyboard.
+  it('tells main the field that had the keyboard until a click on a tab\'s row is over', () => {
+    const { focusedField, shell, stop } = setup()
+    const row = document.createElement('button')
+    row.setAttribute('role', 'tab')
+    row.dataset.tabId = 'first'
+    row.append(document.createElement('span'))
+    const other = document.createElement('button')
+    document.body.append(row, other)
+    const pointer = (target: Element, type: string, button = 0) => target.dispatchEvent(new MouseEvent(type, { bubbles: true, button }))
+    try {
+      vi.useFakeTimers()
+      focusedField.value = 'address'
+      shell.setTabFieldFocused.mockClear()
+      // The press on the row, on its title, takes the keyboard from the field; the click then selects the tab.
+      pointer(row.firstElementChild!, 'pointerdown')
+      focusedField.value = null
+      pointer(row, 'pointerup')
+      expect(shell.setTabFieldFocused).not.toHaveBeenCalled()
+      vi.runAllTimers()
+      expect(shell.setTabFieldFocused.mock.calls).toEqual([[null]])
+
+      // A row dragged away is not clicked, nor one whose menu opens, as with Ctrl and the click on macOS: the menu
+      // takes the end of the press.
+      for (const end of ['pointercancel', 'contextmenu', 'blur']) {
+        focusedField.value = 'find'
+        shell.setTabFieldFocused.mockClear()
+        pointer(row, 'pointerdown')
+        focusedField.value = null
+        if (end === 'blur') window.dispatchEvent(new FocusEvent('blur'))
+        else pointer(row, end)
+        expect(shell.setTabFieldFocused.mock.calls, end).toEqual([[null]])
+      }
+
+      // A field the selected tab gives the keyboard back to is told at once.
+      focusedField.value = 'address'
+      shell.setTabFieldFocused.mockClear()
+      pointer(row, 'pointerdown')
+      focusedField.value = null
+      focusedField.value = 'find'
+      expect(shell.setTabFieldFocused.mock.calls).toEqual([['find']])
+      pointer(row, 'pointerup')
+      vi.runAllTimers()
+      expect(shell.setTabFieldFocused.mock.calls).toEqual([['find']])
+
+      // A press on a row with no field holding the keyboard tells main nothing.
+      focusedField.value = null
+      shell.setTabFieldFocused.mockClear()
+      pointer(row, 'pointerdown')
+      pointer(row, 'pointerup')
+      vi.runAllTimers()
+      expect(shell.setTabFieldFocused).not.toHaveBeenCalled()
+
+      // A press with another button, which opens the row's menu or closes its tab, and a press anywhere else, as on a
+      // button beside the tabs, take the field at once.
+      for (const [target, button] of [[row, 2], [row, 1], [other, 0]] as const) {
+        focusedField.value = 'address'
+        shell.setTabFieldFocused.mockClear()
+        pointer(target, 'pointerdown', button)
+        focusedField.value = null
+        expect(shell.setTabFieldFocused.mock.calls, `button ${button}`).toEqual([[null]])
+        pointer(target, 'pointerup', button)
+        vi.runAllTimers()
+        expect(shell.setTabFieldFocused.mock.calls, `button ${button}`).toEqual([[null]])
+      }
+    } finally {
+      stop()
+      row.remove()
+      other.remove()
+      vi.useRealTimers()
+    }
+  })
+
   it('gives the address field the keyboard back once the tab is shown, keeping its suggestions closed until then', async () => {
     const { show, address, focusPage, returned, stop } = setup()
     try {

@@ -18,6 +18,7 @@ vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOrigi
 }))
 import { Browser } from '../src/main/browser/browser.js'
 import type { BrowserTab } from '../src/main/browser/browser-tab.js'
+import { selectTabAndWait } from '../src/main/browser/tab-selection/tab-selection.js'
 import { registerShellIpc } from '../src/main/shell-ipc.js'
 
 type Listener = (event: IpcMainEvent, ...args: unknown[]) => void
@@ -132,12 +133,79 @@ describe('the keyboard on coming back to a tab', () => {
   it('leaves the page the keyboard of a tab left while the shell had it in no field of the tab', () => {
     const { manager, takeEvents, focusField, fieldFocused, tab } = fixture()
     focusField('address')
-    // Such as a click on a tab, which takes the keyboard to the tab in the tab strip first.
+    // Such as a press on a button beside the tabs, which takes the keyboard from the field first.
     fieldFocused(null)
     manager.selectTab('second')
     manager.selectTab('first')
     expect(takeEvents()).toEqual(['second page takes the keyboard', 'first page takes the keyboard'])
     expect(tab('first').fieldFocusOnReturn).toBeUndefined()
+  })
+
+  // A click on a sleeping tab's row gave the field up as soon as it was over, before the tab woke and was shown.
+  it('keeps the field that had the keyboard as a sleeping tab was picked, unless the person went on while it woke', async () => {
+    const cases = [
+      ['the row has the keyboard', 'address'],
+      ['the tab left gives its page the keyboard', undefined],
+      ['another field takes the keyboard', 'find'],
+      ['the person goes to another window', undefined]
+    ] as const
+    for (const [meanwhile, kept] of cases) {
+      const { manager, focusField, fieldFocused, tab, leaveWindow } = fixture()
+      const second = tab('second') as unknown as { sleeping: boolean }
+      second.sleeping = true
+      let woken = (): void => undefined
+      const wakeTab = vi.fn(() => new Promise<void>((resolve) => {
+        woken = () => { second.sleeping = false; resolve() }
+      }))
+      Object.assign(manager, { wakeTab })
+      focusField('address')
+      const selected = selectTabAndWait(manager, 'second')
+      expect(wakeTab).toHaveBeenCalledWith('second')
+      if (meanwhile === 'the row has the keyboard') fieldFocused(null)
+      if (meanwhile === 'the tab left gives its page the keyboard') {
+        tab('first').webContents.focus()
+        fieldFocused(null)
+      }
+      if (meanwhile === 'another field takes the keyboard') focusField('find')
+      if (meanwhile === 'the person goes to another window') {
+        fieldFocused(null)
+        leaveWindow()
+      }
+      woken()
+      await selected
+      expect(manager.activeTabId, meanwhile).toBe('second')
+      expect(tab('first').fieldFocusOnReturn, meanwhile).toBe(kept)
+      expect(manager.fieldAsPicked, meanwhile).toBeUndefined()
+    }
+  })
+
+  it('keeps the field through a second pick of a tab still waking, and forgets it when the pick comes to nothing', async () => {
+    const { manager, focusField, fieldFocused, tab } = fixture()
+    const second = tab('second') as unknown as { sleeping: boolean }
+    second.sleeping = true
+    const wakes: Array<{ resolve: () => void, reject: (error: Error) => void }> = []
+    Object.assign(manager, {
+      wakeTab: vi.fn(() => new Promise<void>((resolve, reject) => { wakes.push({ resolve, reject }) }))
+    })
+    focusField('address')
+    const first = selectTabAndWait(manager, 'second')
+    // The click is over, and a second one, such as a double click, comes while the tab wakes.
+    fieldFocused(null)
+    const again = selectTabAndWait(manager, 'second')
+    second.sleeping = false
+    for (const wake of wakes) wake.resolve()
+    await Promise.all([first, again])
+    expect(manager.activeTabId).toBe('second')
+    expect(tab('first').fieldFocusOnReturn).toBe('address')
+
+    // A pick of a tab whose page cannot wake leaves nothing behind for a later switch.
+    const failing = fixture()
+    const sleeper = failing.tab('second') as unknown as { sleeping: boolean }
+    sleeper.sleeping = true
+    Object.assign(failing.manager, { wakeTab: vi.fn(async () => { throw new Error('No page') }) })
+    failing.focusField('find')
+    await expect(selectTabAndWait(failing.manager, 'second')).rejects.toThrow('No page')
+    expect(failing.manager.fieldAsPicked).toBeUndefined()
   })
 
   it('gives no field back to a tab shown while trusted chrome covers the pages, the person is in another window, the tab is locked or an agent types in its page, and keeps none for later', () => {
