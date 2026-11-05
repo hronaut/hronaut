@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { loadNativeWindowWithRollback } from '../native-window-load.js'
 import { LocalizedError } from '../localized-error.js'
 import { restoreWindowBounds, type SavedWindowState, type WindowStateStore } from '../window-state.js'
+import { takeStateUntilShown } from './show-saved-window.js'
 import { attachShellEditContextMenu } from './shell-edit-context-menu.js'
 import type { BookmarkStore } from '../bookmarks-history/bookmark-store.js'
 import type { CredentialStore } from '../credentials/credential-store.js'
@@ -50,6 +51,11 @@ export interface PanelWindowRefs {
   stateStore: WindowStateStore | null
   /** The bounds the panel window last had, which before-quit records too. */
   lastState: SavedWindowState | null
+  /**
+   * The maximized and full screen state the panel window opens with, saved in place of the window's own until it is
+   * first shown, whichever path shows it first.
+   */
+  stateUntilShown?: Pick<SavedWindowState, 'maximized' | 'fullScreen'> | null
 }
 
 interface PanelWindowHost {
@@ -164,6 +170,7 @@ export function createPanelWindow(host: PanelWindowHost): {
         host.refs.window!.setTitle(detachedPanelTitle(requestedPanel))
         host.sendToPanelWindow(PANEL_WINDOW_IPC.showPanel, requestedPanel)
         if (host.refs.window!.isMinimized()) host.refs.window!.restore()
+        takeStateUntilShown(host.refs)
         host.refs.window!.show()
         host.refs.window!.focus()
       }
@@ -173,6 +180,7 @@ export function createPanelWindow(host: PanelWindowHost): {
       host.refs.window!.setTitle(detachedPanelTitle(panel))
       host.sendToPanelWindow(PANEL_WINDOW_IPC.showPanel, panel)
       if (host.refs.window!.isMinimized()) host.refs.window!.restore()
+      takeStateUntilShown(host.refs)
       host.refs.window!.show()
       host.refs.window!.focus()
       return
@@ -221,6 +229,9 @@ export function createPanelWindow(host: PanelWindowHost): {
       host.refs.window = created
       host.refs.url = expectedUrl
       host.refs.redocking = false
+      host.refs.stateUntilShown = savedPanelState?.maximized || savedPanelState?.fullScreen
+        ? { maximized: savedPanelState.maximized, fullScreen: savedPanelState.fullScreen }
+        : null
       created.setMenuBarVisibility(false)
       created.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
       attachShellEditContextMenu(created, host.text)
@@ -234,8 +245,12 @@ export function createPanelWindow(host: PanelWindowHost): {
         sendPanelWindowSnapshot(created)
         sendTo(created.webContents, PANEL_WINDOW_IPC.showPanel, requestedPanel)
       })
+      // It opens maximized or in full screen as it was saved, as the main window does, here or on whichever show comes
+      // first; Electron shows a hidden window to take either, so it opens that way at once.
       created.once('ready-to-show', () => {
-        if (!created.isDestroyed()) created.show()
+        if (created.isDestroyed() || host.refs.window !== created) return
+        takeStateUntilShown(host.refs)
+        created.show()
       })
       created.on('resize', host.schedulePanelWindowStateSave)
       created.on('move', host.schedulePanelWindowStateSave)
@@ -255,6 +270,7 @@ export function createPanelWindow(host: PanelWindowHost): {
         host.refs.url = null
         host.refs.panel = null
         host.refs.redocking = false
+        host.refs.stateUntilShown = null
         void host.flushPanelWindowState().catch((error) => console.error('[panel-window] Failed to flush state:', error))
         if (!redocking && host.mainWindow() && !host.mainWindow()!.isDestroyed() && !host.mainWindow()!.webContents.isDestroyed()) {
           sendTo(host.mainWindow()!.webContents, PANEL_WINDOW_IPC.closed)
@@ -270,6 +286,7 @@ export function createPanelWindow(host: PanelWindowHost): {
           host.refs.url = null
           host.refs.panel = null
           host.refs.redocking = false
+          host.refs.stateUntilShown = null
         })
       } catch (error) {
         if (!closing) throw error

@@ -325,7 +325,7 @@ const {
   flush: flushPanelWindowState
 } = createWindowStatePersistence({
   window: () => panelWindowRefs.window,
-  store: () => panelWindowRefs.stateStore,
+  store: () => panelWindowRefs.stateStore, stateUntilShown: () => panelWindowRefs.stateUntilShown,
   lastState: () => panelWindowRefs.lastState,
   setLastState: (state) => { panelWindowRefs.lastState = state },
   logPrefix: '[panel-window]'

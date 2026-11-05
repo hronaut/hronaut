@@ -9,6 +9,7 @@ All notable changes to Hronaut are documented in this file.
 - A window whose monitor came back with another display id, as after plugging it into another port or a driver update, opened centered on the primary monitor at the default size; Hronaut's window and a detached panel now open on the monitor their saved place lies on, at their saved size, as in Chrome, and a window no monitor holds any more keeps its size, centered on the primary monitor.
 - With Launch minimized on, a window last left maximized or in full screen opened on screen when Hronaut started at sign-in, since Electron shows a hidden window to maximize it; it now stays hidden in the tray and opens maximized or in full screen when the person first shows it.
 - A page that put an element in full screen inside another, such as a video inside a player already in full screen, kept the player in full screen when Hronaut asked it to leave, as on switching tabs, so the window stayed in full screen over the next tab; the page now leaves every level, as Chrome does.
+- A panel in its own window, such as Page tools, saved whether its window was maximized or in full screen but always opened at its normal size; it now opens maximized or in full screen as it was left.
 
 ## [3.14.14] - 2026-11-04
 
