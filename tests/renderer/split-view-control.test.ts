@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { flushPromises } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
+import { nextTick, shallowRef } from 'vue'
 import SplitViewControl from '../../src/renderer/src/features/split-view/SplitViewControl.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { SupportedLocale } from '../../src/shared/locale.js'
@@ -69,18 +70,20 @@ function renderControl(options: {
   }
   const acceptState = vi.fn(async (next: Promise<BrowserState> | BrowserState) => { await next })
   const closeOtherMenus = vi.fn()
+  const current = shallowRef(state)
+  const setState = async (next: BrowserState) => { current.value = next; await nextTick() }
   const view = render(SplitViewControl, {
     global: { plugins: [createHronautI18n(options.locale ?? 'en-US')] },
     props: {
       open: options.open ?? true,
-      state,
+      readState: () => current.value,
       activeTab: state.tabs.find((value) => value.id === state.activeTabId),
       browser,
       acceptState,
       closeOtherMenus
     }
   })
-  return { view, browser, acceptState, closeOtherMenus }
+  return { view, browser, acceptState, closeOtherMenus, setState }
 }
 
 describe('SplitViewControl', () => {
@@ -129,13 +132,11 @@ describe('SplitViewControl', () => {
 
   it('closes stale menu state when candidates disappear or the toolbar unmounts', async () => {
     const state = browserState()
-    const view = renderControl({ state }).view
+    const { view, setState } = renderControl({ state })
 
-    await view.rerender({
-      state: browserState({
-        tabs: state.tabs.filter((value) => value.id !== 'second')
-      })
-    })
+    await setState(browserState({
+      tabs: state.tabs.filter((value) => value.id !== 'second')
+    }))
 
     expect(screen.queryByRole('button', { name: 'Split view' })).not.toBeInTheDocument()
     expect(view.emitted()['update:open']).toEqual([[false]])
@@ -232,7 +233,7 @@ describe('SplitViewControl keyboard focus while a change is saved', () => {
     const pending = deferred<BrowserState>()
     const rendered = renderControl({ state: splitState(), browser: { updateSplitView: vi.fn(() => pending.promise) } })
     rendered.acceptState.mockImplementationOnce(async (next) => {
-      await rendered.view.rerender({ state: await next })
+      await rendered.setState(await next)
     })
     const swap = screen.getByRole('button', { name: 'Swap panes' })
     swap.focus()

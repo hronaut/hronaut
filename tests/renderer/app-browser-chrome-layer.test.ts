@@ -1,5 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
-import { defineComponent, effectScope, h, nextTick, ref, type EffectScope, type Ref } from 'vue'
+import { defineComponent, effectScope, h, nextTick, ref, shallowRef, type EffectScope, type Ref } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AppBrowserChromeLayer from '../../src/renderer/src/components/AppBrowserChromeLayer.vue'
 import { useFullPageView } from '../../src/renderer/src/composables/useFullPageView.js'
@@ -26,6 +26,11 @@ function tab(overrides: Partial<BrowserTabState> = {}): BrowserTabState {
     devToolsOpen: false,
     ...overrides
   }
+}
+
+/** The tabs as the agents' avatars, strip and take over offer read them. */
+function agentTabs(browserState: BrowserState) {
+  return browserState.tabs.map(({ id, agentPaused, takenOverAt }) => ({ id, agentPaused, takenOverAt }))
 }
 
 function state(activeTab = tab()): BrowserState {
@@ -224,7 +229,7 @@ const BrowserPageActionsStub = defineComponent({
   name: 'BrowserPageActions',
   props: {
     splitMenuOpen: Boolean,
-    state: Object,
+    readState: Function,
     activeTab: Object,
     browser: Object,
     acceptState: Function,
@@ -263,7 +268,7 @@ const ShellTitleBarSurfaceStub = defineComponent({
 
 const scopes: EffectScope[] = []
 
-function createHarness(home = false, options: { attach?: boolean } = {}) {
+function createHarness(home = false, options: { attach?: boolean; onUpdated?: () => void } = {}) {
   const fullPageAvailable = ref(!home)
   const fullPageAttention = ref(false)
   const scope = effectScope()
@@ -271,6 +276,7 @@ function createHarness(home = false, options: { attach?: boolean } = {}) {
   const fullPage = scope.run(() => useFullPageView({ available: fullPageAvailable, attention: fullPageAttention }))!
   const activeTab = tab({ mcpGroupId: 'workspace-1' })
   const browserState = state(activeTab)
+  const currentState = shallowRef(browserState)
   const customTitleBar = ref(false)
   const orientation = ref<'horizontal' | 'vertical'>('horizontal')
   const compact = ref(false)
@@ -369,7 +375,8 @@ function createHarness(home = false, options: { attach?: boolean } = {}) {
     removeSitePermission: vi.fn()
   }
   const props = {
-    state: browserState,
+    readState: () => currentState.value,
+    ...(options.onUpdated ? { onVnodeUpdated: options.onUpdated } : {}),
     fullPage,
     hydrated: true,
     locale: 'en-US' as const,
@@ -476,6 +483,8 @@ function createHarness(home = false, options: { attach?: boolean } = {}) {
   return {
     wrapper,
     props,
+    state: browserState,
+    setState: async (next: BrowserState) => { currentState.value = next; await nextTick() },
     licenseReminderShown,
     customTitleBar,
     orientation,
@@ -518,6 +527,34 @@ describe('AppBrowserChromeLayer', () => {
   afterEach(() => {
     vi.useRealTimers()
     for (const scope of scopes.splice(0)) scope.stop()
+  })
+
+  // Main sends a new state for every change, many a second while agents work. The layer drew again whole for each, with
+  // every bar, button and avatar in it; it now draws again only when what it shows changed.
+  it('draws again for what it shows, not for an agent\'s page loading in another workspace', async () => {
+    const updated = vi.fn()
+    const harness = createHarness(false, { onUpdated: updated })
+    const agentTab = (fields: Partial<BrowserTabState>) => tab({ id: 'agent-tab', mcpGroupId: 'workspace-2', url: 'https://shop.example/', ...fields })
+    const withAgent = (fields: Partial<BrowserTabState>, more: Partial<BrowserState> = {}): BrowserState => (
+      { ...harness.state, tabs: [harness.state.tabs[0], agentTab(fields)], ...more })
+    await harness.setState(withAgent({ loading: true }))
+    await flushPromises()
+    updated.mockClear()
+
+    await harness.setState(withAgent({ loading: false, title: 'Shop' }))
+    await harness.setState(withAgent({ title: 'Cart', navigationGeneration: 2 }))
+    expect(updated).not.toHaveBeenCalled()
+
+    // Locking every tab is shown here.
+    await harness.setState(withAgent({ title: 'Cart' }, { allHumanInteractionLocked: true }))
+    expect(updated).toHaveBeenCalledTimes(1)
+    expect(harness.wrapper.getComponent(AppTopbarActionsStub).props('allInteractionLocked')).toBe(true)
+    // An agent paused on a tab is shown by the take over offer, which the toolbar around it draws again alone.
+    await harness.setState(withAgent({ title: 'Cart', agentPaused: true }, { allHumanInteractionLocked: true }))
+    expect(harness.wrapper.getComponent(AgentTakeOverPromptStub).props('tabs')).toEqual([
+      { id: 'tab-1', agentPaused: undefined, takenOverAt: undefined },
+      { id: 'agent-tab', agentPaused: true, takenOverAt: undefined }
+    ])
   })
 
   it('gives a website the window in the full-page view and brings the chrome back at its edge', async () => {
@@ -663,7 +700,7 @@ describe('AppBrowserChromeLayer', () => {
     await nextTick()
     // Main paused the tab, though the shell's copy of the state still shows it running, as when a
     // page update lands first: the tab is still shown.
-    expect((harness.wrapper.props('state') as BrowserState).tabs[0].agentPaused).not.toBe(true)
+    expect(harness.state.tabs[0].agentPaused).not.toBe(true)
     finishPause()
     await flushPromises()
     // The pause records that you took the tab over, so the agent hears you have it until you hand it back.
@@ -703,7 +740,7 @@ describe('AppBrowserChromeLayer', () => {
     const harness = createHarness()
     const prompt = harness.wrapper.getComponent(AgentTakeOverPromptStub)
     expect(prompt.props()).toMatchObject({ workspaceId: 'workspace-1', activeTabId: 'tab-1', agentControlLocked: false })
-    expect(prompt.props('tabs')).toEqual(harness.props.state.tabs)
+    expect(prompt.props('tabs')).toEqual(agentTabs(harness.state))
     // The shortcut does nothing without an offer.
     const exposed = harness.wrapper.vm as unknown as { takeOverFromAgent: () => boolean }
     expect(exposed.takeOverFromAgent()).toBe(false)
@@ -753,7 +790,7 @@ describe('AppBrowserChromeLayer', () => {
       workspaceId: 'workspace-1', attentionReason: 'Log in.', attentionId: 'attention-1', attentionDecision: false,
       attentionWorkspaceId: 'workspace-1', attentionTabId: 'tab-1', agentControlLocked: false
     })
-    expect(strip.props('tabs')).toEqual(harness.props.state.tabs)
+    expect(strip.props('tabs')).toEqual(agentTabs(harness.state))
 
     strip.vm.$emit('handBack', 'attention-1')
     strip.vm.$emit('setPaused', 'tab-1', true)
@@ -898,7 +935,7 @@ describe('AppBrowserChromeLayer', () => {
     expect(address.props('siteControlsOpen')).toBe(true)
     expect(address.props('panelDock')).toBe('right')
     expect(address.props('keepsSeparatePanelOpen')).toBe(harness.keepsSeparatePanelOpen)
-    expect(address.props('activeTab')).toEqual(harness.props.state.tabs[0])
+    expect(address.props('activeTab')).toEqual(harness.state.tabs[0])
     expect(page.props()).toMatchObject({ splitMenuOpen: true, pageToolsOpen: true })
 
     await harness.wrapper.setProps({
@@ -934,9 +971,9 @@ describe('AppBrowserChromeLayer', () => {
       foldedWorkspaceIds: () => ReadonlySet<string> | undefined
     }
     surface.expandTabGroup('workspace-1')
-    surface.expandTabGroupForTab(harness.props.state.tabs[0])
+    surface.expandTabGroupForTab(harness.state.tabs[0])
     expect(expandTabGroup).toHaveBeenCalledWith('workspace-1')
-    expect(expandTabGroupForTab).toHaveBeenCalledWith(harness.props.state.tabs[0])
+    expect(expandTabGroupForTab).toHaveBeenCalledWith(harness.state.tabs[0])
     // The tabs selected in the strip, which the close-tab key closes together.
     expect(surface.selectedTabs()).toEqual(['first', 'second'])
     // The workspaces folded in the strip, whose tabs the tab keys pass over.
@@ -946,7 +983,7 @@ describe('AppBrowserChromeLayer', () => {
 
     harness.wrapper.unmount()
     surface.expandTabGroup('workspace-2')
-    surface.expandTabGroupForTab(harness.props.state.tabs[0])
+    surface.expandTabGroupForTab(harness.state.tabs[0])
     expect(expandTabGroup).toHaveBeenCalledTimes(1)
     expect(expandTabGroupForTab).toHaveBeenCalledTimes(1)
     expect(surface.selectedTabs()).toEqual([])
@@ -969,7 +1006,7 @@ describe('AppBrowserChromeLayer', () => {
   it('routes independent agent and lifecycle actions through the tab controller', async () => {
     const harness = createHarness()
     const page = harness.wrapper.getComponent(BrowserPageActionsStub)
-    const tab = harness.props.state.tabs[0]
+    const tab = harness.state.tabs[0]
     page.vm.$emit('toggleTabAgentPaused', tab)
     await nextTick()
     expect(harness.tabActions.toggleTabAgentPaused).toHaveBeenCalledWith(tab)
@@ -1006,7 +1043,7 @@ describe('AppBrowserChromeLayer', () => {
     tabs.vm.$emit('showTabContextMenu', 'tab-1')
     tabs.vm.$emit('showTabContextMenu', 'tab-1', ['tab-1', 'tab-2'])
     tabs.vm.$emit('reorderTab', reorder)
-    tabs.vm.$emit('toggleTabMuted', harness.props.state.tabs[0])
+    tabs.vm.$emit('toggleTabMuted', harness.state.tabs[0])
     tabs.vm.$emit('closeTab', 'tab-1')
     tabs.vm.$emit('toggleRailPinned')
     tabs.vm.$emit('switchWorkspace')
@@ -1043,7 +1080,7 @@ describe('AppBrowserChromeLayer', () => {
     expect(harness.browser.showTabContextMenu.mock.calls).toEqual([['tab-1', undefined], ['tab-1', ['tab-1', 'tab-2']]])
     expect(tabs.props('tabSelection')).toBe(true)
     expect(harness.tabActions.reorderTab).toHaveBeenCalledWith(reorder)
-    expect(harness.tabActions.toggleTabMuted).toHaveBeenCalledWith(harness.props.state.tabs[0])
+    expect(harness.tabActions.toggleTabMuted).toHaveBeenCalledWith(harness.state.tabs[0])
     expect(harness.tabActions.closeTab).toHaveBeenCalledWith('tab-1')
     expect(harness.shellActions.toggleVerticalTabRailPinned).toHaveBeenCalledOnce()
     expect(harness.actions.toggleCommandPalette).toHaveBeenCalledOnce()

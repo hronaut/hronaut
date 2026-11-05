@@ -11,7 +11,10 @@ afterEach(() => {
   document.querySelector('.shell')?.remove()
 })
 
-function setup(initial: Promise<PageCardGeometry[]>, props: { userAttention?: Pick<UserAttentionRequest, 'id' | 'tabId' | 'workspaceId'> | null; tabs?: Pick<BrowserTabState, 'id' | 'mcpGroupId'>[] } = {}) {
+function setup(initial: Promise<PageCardGeometry[]>, props: {
+  userAttention?: Pick<UserAttentionRequest, 'id' | 'tabId' | 'workspaceId'> | null
+  readTabs?: () => Pick<BrowserTabState, 'id' | 'mcpGroupId'>[]
+} = {}) {
   let changed!: (cards: PageCardGeometry[]) => void
   const unsubscribe = vi.fn()
   const api: HronautPageCardApi = { get: vi.fn(() => initial), onChanged: (listener) => { changed = listener; return unsubscribe } }
@@ -54,7 +57,8 @@ it('keeps a change that arrives before the first read instead of the older read'
 it('lights the page that needs you in the shell layer, or the pages of the workspace that does, until the request ends', async () => {
   const split = [{ x: 280, y: 60, width: 569, height: 830, tabId: 'tab-1' }, { x: 861, y: 60, width: 569, height: 830, tabId: 'tab-2' }]
   const tabs = [{ id: 'tab-1', mcpGroupId: 'checkout' }, { id: 'tab-2', mcpGroupId: 'admin' }]
-  const { view, changed } = setup(Promise.resolve(split), { userAttention: { id: 'request-1', tabId: 'tab-2', workspaceId: 'admin' }, tabs })
+  const readTabs = () => tabs
+  const { view, changed } = setup(Promise.resolve(split), { userAttention: { id: 'request-1', tabId: 'tab-2', workspaceId: 'admin' }, readTabs })
   const lights = () => [...document.querySelectorAll<HTMLElement>('.page-card-light')]
   const lit = () => lights().map((light) => [light.style.left, light.style.width])
   await vi.waitFor(() => expect(lit()).toEqual([['861px', '569px']]))
@@ -63,11 +67,11 @@ it('lights the page that needs you in the shell layer, or the pages of the works
   expect(lights()[0]?.getAttribute('aria-hidden')).toBe('true')
   expect(view.container.querySelector('.page-card-light')).toBeNull()
   // A request for a whole workspace lights each of its pages in view.
-  await view.rerender({ userAttention: { id: 'request-2', workspaceId: 'checkout' }, tabs })
+  await view.rerender({ userAttention: { id: 'request-2', workspaceId: 'checkout' }, readTabs })
   expect(lit()).toEqual([['280px', '569px']])
   // A new request on a lit page draws its light again, so it swells once more.
   const before = lights()[0]
-  await view.rerender({ userAttention: { id: 'request-3', workspaceId: 'checkout' }, tabs })
+  await view.rerender({ userAttention: { id: 'request-3', workspaceId: 'checkout' }, readTabs })
   expect(lit()).toEqual([['280px', '569px']])
   expect(lights()[0]).not.toBe(before)
   // A card that names no tab, such as one under a dialog's picture of the page, waits for the live page.
@@ -78,8 +82,8 @@ it('lights the page that needs you in the shell layer, or the pages of the works
   await nextTick()
   expect(lit()).toEqual([['280px', '569px']])
   // The light holds until the request ends, and a request elsewhere lights nothing here.
-  await view.rerender({ userAttention: { id: 'request-4', tabId: 'tab-9', workspaceId: 'admin' }, tabs })
+  await view.rerender({ userAttention: { id: 'request-4', tabId: 'tab-9', workspaceId: 'admin' }, readTabs })
   expect(lit()).toEqual([])
-  await view.rerender({ userAttention: null, tabs })
+  await view.rerender({ userAttention: null, readTabs })
   expect(lit()).toEqual([])
 })

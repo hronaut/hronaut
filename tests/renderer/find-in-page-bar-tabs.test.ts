@@ -1,5 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
+import { shallowRef } from 'vue'
 import FindInPageBar from '../../src/renderer/src/features/find/FindInPageBar.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BrowserFindResult, BrowserTabState } from '../../src/shared/types.js'
@@ -49,13 +50,14 @@ describe('Find in each tab', () => {
       findSelectionText: vi.fn(async (_tabId: string) => ''),
       focusActivePage: vi.fn(async () => undefined)
     }
+    const openTabs = shallowRef<readonly BrowserTabState[]>([first, second])
     const wrapper = mount(FindInPageBar, {
       attachTo: document.body,
       global: { plugins: [createHronautI18n('en-US')] },
       props: {
         open: false,
         activeTab: first,
-        tabs: [first, second],
+        readTabs: () => openTabs.value,
         browser,
         'onUpdate:open': (next: boolean) => wrapper.setProps({ open: next })
       }
@@ -64,7 +66,8 @@ describe('Find in each tab', () => {
     const field = () => wrapper.find<HTMLInputElement>('input[type="search"]')
     const count = () => wrapper.find('.find-count').text()
     const show = async (shown: BrowserTabState, tabs?: BrowserTabState[]) => {
-      await wrapper.setProps({ activeTab: shown, ...(tabs ? { tabs } : {}) })
+      if (tabs) openTabs.value = tabs
+      await wrapper.setProps({ activeTab: shown })
       await flushPromises()
     }
     const searchFor = async (query: string) => {

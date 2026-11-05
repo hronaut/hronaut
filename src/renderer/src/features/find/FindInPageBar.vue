@@ -23,7 +23,7 @@ type FindBrowserApi = Pick<HronautApi, 'findInPage' | 'stopFindInPage' | 'forwar
 const props = defineProps<{
   activeTab?: BrowserTabState
   // Every open tab, whose Find the bar keeps while another tab is shown.
-  tabs?: readonly BrowserTabState[]
+  readTabs?: () => readonly BrowserTabState[]
   // Whether another surface is open, which a tab's Find coming back would close: it comes back once that closes, or
   // when the person opens Find.
   returnHeld?: boolean
@@ -366,7 +366,7 @@ watch(() => props.returnHeld, (held) => {
 })
 
 // The tabs closed, gone to another page or put to sleep take their hidden Find with them.
-watch(() => props.tabs, (tabs) => {
+watch(() => props.readTabs?.(), (tabs) => {
   if (!tabs) return
   for (const [tabId, parked] of parkedFinds) {
     const tab = tabs.find((candidate) => candidate.id === tabId)

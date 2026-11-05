@@ -10,7 +10,7 @@ import UiInput from '../../ui/UiInput.vue'
 import UiSelect from '../../ui/UiSelect.vue'
 import UiTextarea from '../../ui/UiTextarea.vue'
 import UiOverlayTransition from '../../ui/UiOverlayTransition.vue'
-import { computed, nextTick, onBeforeUnmount, ref, toRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { formatDateTime } from '../../../../shared/format.js'
 import IconCheck from '~icons/material-symbols/check-rounded'
@@ -36,7 +36,8 @@ import { vTooltip } from '../../ui/tooltip.js'
 import { confirmAction } from '../../confirm-action.js'
 
 const props = defineProps<{
-  state: BrowserState
+  /** The latest browser state, read only while this dialog shows it, so it does not draw again while closed. */
+  readState: () => BrowserState
   syncState: (next: Promise<BrowserState> | BrowserState) => Promise<void>
   formatNumber: (value: number) => string
   canPresent: boolean
@@ -96,7 +97,7 @@ const {
   loadOrigins,
   dispose
 } = useWorkspaceEditorController({
-  state: toRef(props, 'state'),
+  state: computed(() => props.readState()),
   open,
   browser: window.hronaut,
   syncState: props.syncState,
@@ -106,7 +107,7 @@ const {
   canPresent: () => props.canPresent
 })
 
-const deletionBlocked = computed(() => deletionProtected.value || props.state.mcpTabGroups.some(group => group.id === workspaceId.value && group.deletionProtected))
+const deletionBlocked = computed(() => deletionProtected.value || props.readState().mcpTabGroups.some(group => group.id === workspaceId.value && group.deletionProtected))
 
 const pendingMessage = computed(() => {
   if (actionState.value === 'closing') return t('workspaceEditor.closing')
@@ -263,8 +264,10 @@ onBeforeUnmount(dispose)
           </div>
         </header>
         <div class="workspace-editor-breadcrumb"><UiButton variant="ghost" size="small" :disabled="dismissBlocked || templateBusy || importBusy" @click="openLibrary"><IconArrowBack aria-hidden="true" />{{ t('workspaceLibrary.back') }}</UiButton><UiButton v-if="!importTarget && !templateView && mode !== 'transfer'" size="small" variant="ghost" :disabled="dismissBlocked" @click="openTemplates">{{ t('workspaceTemplates.title') }}</UiButton></div>
-        <BrowserImportPanel v-if="importTarget" :key="importTarget" :workspace-id="importTarget" :state="state" :browser="templateBrowser" :sync-state="syncState" @busy="importBusy = $event" @close="close" />
-        <WorkspaceTemplatePanel v-else-if="templateView" :state="state" :browser="templateBrowser" :sync-state="syncState" @busy="templateBusy = $event" />
+        <BrowserImportPanel v-if="importTarget" :key="importTarget" :workspace-id="importTarget" :state="readState()" :browser="templateBrowser" :sync-state="syncState" @busy="importBusy = $event" @close="close" />
+        <WorkspaceTemplatePanel
+          v-else-if="templateView" :state="readState()" :browser="templateBrowser" :sync-state="syncState" @busy="templateBusy = $event"
+        />
         <div v-else class="workspace-editor-body">
           <p v-if="mode !== 'transfer'" class="workspace-editor-intro">{{ t(mode === 'create' ? 'workspaceLibrary.createHelp' : 'workspaceLibrary.basicsHelp') }}</p>
           <template v-if="mode !== 'transfer'">

@@ -44,7 +44,7 @@ async function openEditor(browser: Record<string, unknown>, mode: 'edit' | 'tran
   const wrapper = mount(WorkspaceEditor, {
     attachTo: document.body,
     global: { plugins: [createHronautI18n('en-US')], stubs: { WorkspaceContinuityPanel: true, HumanWaitingPanel: true } },
-    props: { open: false, state, canPresent: true, formatNumber: String,
+    props: { open: false, readState: () => state, canPresent: true, formatNumber: String,
       syncState: async (next: Promise<BrowserState> | BrowserState) => { await next },
       'onUpdate:open': (open: boolean) => { void wrapper.setProps({ open }) } }
   })

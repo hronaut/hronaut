@@ -115,7 +115,7 @@ function mountEditor(navigationPolicy: BrowserWorkspaceNavigationPolicy = { mode
   const wrapper = mount(WorkspaceEditor, {
     attachTo: document.body,
     global: { plugins: [createHronautI18n('en-US')] },
-    props: { open: false, state, canPresent: true, formatNumber: String, syncState: async () => undefined,
+    props: { open: false, readState: () => state, canPresent: true, formatNumber: String, syncState: async () => undefined,
       'onUpdate:open': (open: boolean) => { void wrapper.setProps({ open }) } }
   })
   const editor = wrapper.vm as unknown as { openNew: () => Promise<void>; openExisting: (id: string) => Promise<void> }

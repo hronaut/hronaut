@@ -62,9 +62,9 @@ const translate = (key: string, parameters?: Record<string, unknown>, plural?: n
   : t(key, parameters ?? {}, plural)
 const browserStore = useBrowserStore()
 const settingsStore = useSettingsStore()
-const { state, initialized: browserStateInitialized } = storeToRefs(browserStore)
+const { state, initialized: browserStateInitialized, allHumanInteractionLocked } = storeToRefs(browserStore)
 const { settings, systemTheme, windowMaterial, resolvedLocale, effectiveTheme } = storeToRefs(settingsStore)
-const syncState = browserStore.sync
+const { sync: syncState, readState, readTabs } = browserStore
 const {
   formatBytes,
   formatNumber: localNumber,
@@ -792,7 +792,7 @@ useAppLifecycleController({
 <template>
   <!-- With a material behind the rail, the window is clear: this paints the shell's surface beside the rail. -->
   <div v-if="!isDetachedPanelWindow" class="window-material-surface" :style="{ left: `${pageRailWidth}px` }" aria-hidden="true" />
-  <PageCard v-if="!isDetachedPanelWindow" :user-attention="userAttention" :tabs="state.tabs" />
+  <PageCard v-if="!isDetachedPanelWindow" :user-attention="userAttention" :read-tabs="readTabs" />
   <SplitViewDivider v-if="!isDetachedPanelWindow" />
   <EmulationFrame
     v-if="!isDetachedPanelWindow"
@@ -808,7 +808,7 @@ useAppLifecycleController({
     class="shell"
     :class="[
       {
-        'all-human-interaction-locked': state.allHumanInteractionLocked,
+        'all-human-interaction-locked': allHumanInteractionLocked,
         'home-shell': activeIsHome || settingsOpen,
         'detached-panel-window': isDetachedPanelWindow,
         'detached-panel-unavailable': detachedPanelUnavailable,
@@ -840,7 +840,7 @@ useAppLifecycleController({
       v-model:site-controls-open="siteControlsOpen"
       v-model:split-menu-open="splitMenuOpen"
       v-model:page-tools-open="pageToolsOpen"
-      :state="state"
+      :read-state="readState"
       :user-attention="userAttention"
       :workspace-switcher-open="commandPaletteOpen && commandPaletteView === 'workspaces'"
       :full-page="fullPageView"
@@ -917,7 +917,7 @@ useAppLifecycleController({
       v-model:command-palette-view="commandPaletteView"
       v-model:agent-steps-open="agentStepsOpen"
       :agent-steps-target="agentStepsTarget"
-      :state="state"
+      :read-state="readState"
       :active-tab="activeTab"
       :user-attention="userAttention"
       :credentials="credentials"
@@ -971,7 +971,7 @@ useAppLifecycleController({
     <TaskManagerDialog
       v-if="!isDetachedPanelWindow"
       :controller="taskManagerController"
-      :tabs="state.tabs"
+      :read-tabs="readTabs"
       :workspaces="walletWorkspaces"
       :format-bytes="formatBytes"
       :report-layout="reportShellHeight"

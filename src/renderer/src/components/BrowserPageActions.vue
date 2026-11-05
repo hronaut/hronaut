@@ -33,7 +33,8 @@ const props = defineProps<{
   audioPending?: boolean
   agentPending?: boolean
   lifecyclePending?: boolean
-  state: BrowserState
+  /** The latest browser state, read for whether agents are kept out and for the split view. */
+  readState: () => BrowserState
   activeTab?: BrowserTabState
   browser: SplitViewBrowserApi
   acceptState: (next: Promise<BrowserState> | BrowserState) => Promise<void>
@@ -62,6 +63,7 @@ const emit = defineEmits<{
 
 const splitMenuOpen = defineModel<boolean>('splitMenuOpen', { required: true })
 const { t } = useI18n({ useScope: 'global' })
+const agentControlLocked = computed(() => props.readState().agentControlLocked === true)
 const activeTabIsInternal = computed(() => !props.activeTab || isHronautHomeUrl(props.activeTab.url))
 const audioLabel = computed(() => t(props.activeTab?.muted ? 'runtime.tabs.unmute' : 'runtime.tabs.mute', {
   title: props.activeTab ? tabTitleForDisplay(props.activeTab, t('tabSearch.newTabTitle')) : t('runtime.tabs.unnamed')
@@ -98,10 +100,10 @@ function reportSplitError(cause: unknown, fallback: string): void {
       :class="{ locked: activeTab?.agentPaused }"
       :aria-busy="Boolean(agentPending)"
       type="button"
-      v-tooltip="agentPending ? t('runtime.locks.waiting') : t(state.agentControlLocked ? 'runtime.agentControl.protected' : activeTab?.agentPaused ? 'runtime.agentControl.resume' : 'runtime.agentControl.pause')"
+      v-tooltip="agentPending ? t('runtime.locks.waiting') : t(agentControlLocked ? 'runtime.agentControl.protected' : activeTab?.agentPaused ? 'runtime.agentControl.resume' : 'runtime.agentControl.pause')"
       :aria-label="agentPending ? t('runtime.locks.waiting') + ': ' + (t(activeTab?.agentPaused ? 'runtime.agentControl.resume' : 'runtime.agentControl.pause')) : t(activeTab?.agentPaused ? 'runtime.agentControl.resume' : 'runtime.agentControl.pause')"
       :aria-pressed="Boolean(activeTab?.agentPaused)"
-      :disabled="agentPending || activeTabIsInternal || state.agentControlLocked"
+      :disabled="agentPending || activeTabIsInternal || agentControlLocked"
       @click="activeTab && emit('toggleTabAgentPaused', activeTab)"
     >
       <IconProgress v-if="agentPending" class="state-spinner" aria-hidden="true" />
@@ -141,7 +143,7 @@ function reportSplitError(cause: unknown, fallback: string): void {
   </div>
   <SplitViewControl
     v-model:open="splitMenuOpen"
-    :state="state"
+    :read-state="readState"
     :active-tab="activeTab"
     :browser="browser"
     :accept-state="acceptState"

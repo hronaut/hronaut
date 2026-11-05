@@ -29,7 +29,7 @@ describe('workspace editor outside interaction', () => {
     const wrapper = mount(WorkspaceEditor, {
       attachTo: document.body,
       global: { plugins: [createHronautI18n('en-US')] },
-      props: { open: false, state, canPresent: true, formatNumber: String, syncState: async () => undefined,
+      props: { open: false, readState: () => state, canPresent: true, formatNumber: String, syncState: async () => undefined,
         'onUpdate:open': (open: boolean) => { void wrapper.setProps({ open }) } }
     })
     const editor = wrapper.vm as unknown as { openNew: () => Promise<void>; openExisting: (id: string) => Promise<void> }
@@ -76,7 +76,7 @@ describe('workspace data and agent access controls', () => {
       listWorkspaceNavigationAudit: vi.fn(async () => [])
     } })
     const wrapper = mount(WorkspaceEditor, { global: { plugins: [createHronautI18n('en-US')] },
-      props: { open: false, state, canPresent: true, formatNumber: String, syncState: async (next) => { await next },
+      props: { open: false, readState: () => state, canPresent: true, formatNumber: String, syncState: async (next) => { await next },
         'onUpdate:open': (open: boolean) => { void wrapper.setProps({ open }) } } })
     try {
       await (wrapper.vm as unknown as { openNew: () => Promise<void> }).openNew()
@@ -110,7 +110,7 @@ describe('workspace data and agent access controls', () => {
       listWorkspaceNavigationAudit: vi.fn(async () => [])
     } })
     const wrapper = mount(WorkspaceEditor, { global: { plugins: [createHronautI18n('en-US')] },
-      props: { open: false, state, canPresent: true, formatNumber: String, syncState: async () => undefined,
+      props: { open: false, readState: () => state, canPresent: true, formatNumber: String, syncState: async () => undefined,
         'onUpdate:open': (open: boolean) => { void wrapper.setProps({ open }) } } })
     try {
       await (wrapper.vm as unknown as { openExisting: (id: string) => Promise<void> }).openExisting('default')
@@ -147,7 +147,7 @@ it.each(['success', 'failure'] as const)('keeps the current browser import desti
     global: { plugins: [createHronautI18n('en-US')], stubs: {
       WorkspaceContinuityPanel: true, HumanWaitingPanel: true
     } },
-    props: { open: false, state, canPresent: true, formatNumber: String, syncState: async () => undefined,
+    props: { open: false, readState: () => state, canPresent: true, formatNumber: String, syncState: async () => undefined,
       'onUpdate:open': (open: boolean) => { void wrapper.setProps({ open }) } }
   })
   try {
@@ -179,7 +179,7 @@ it('keeps Home templates open when an older workspace editor read finishes', asy
   } })
   const wrapper = mount(WorkspaceEditor, {
     global: { plugins: [createHronautI18n('en-US')], stubs: { WorkspaceTemplatePanel: { template: '<div>Template content</div>' } } },
-    props: { open: false, state, canPresent: true, formatNumber: String, syncState: async () => undefined,
+    props: { open: false, readState: () => state, canPresent: true, formatNumber: String, syncState: async () => undefined,
       'onUpdate:open': (open: boolean) => { void wrapper.setProps({ open }) } }
   })
   try {
@@ -205,7 +205,7 @@ it('keeps a busy template operation open when the native menu requests browser i
       WorkspaceTemplatePanel: { name: 'WorkspaceTemplatePanel', template: '<div>Pending template</div>' },
       BrowserImportPanel: { template: '<div>Browser import</div>' }
     } },
-    props: { open: false, state, canPresent: true, formatNumber: String, syncState: async () => undefined,
+    props: { open: false, readState: () => state, canPresent: true, formatNumber: String, syncState: async () => undefined,
       'onUpdate:open': (open: boolean) => { void wrapper.setProps({ open }) } }
   })
   try {
@@ -242,7 +242,7 @@ it.each([
   const wrapper = mount(WorkspaceEditor, {
     attachTo: document.body,
     global: { plugins: [createHronautI18n('en-US')] },
-    props: { open: false, state, canPresent: true, formatNumber: String, syncState: async next => { await next },
+    props: { open: false, readState: () => state, canPresent: true, formatNumber: String, syncState: async next => { await next },
       'onUpdate:open': (open: boolean) => { void wrapper.setProps({ open }) } }
   })
   try {
@@ -280,7 +280,7 @@ it('keeps native arrow-key navigation within each workspace radio group', async 
   const wrapper = mount(WorkspaceEditor, {
     attachTo: document.body,
     global: { plugins: [createHronautI18n('en-US')] },
-    props: { open: false, state, canPresent: true, formatNumber: String, syncState: async next => { await next },
+    props: { open: false, readState: () => state, canPresent: true, formatNumber: String, syncState: async next => { await next },
       'onUpdate:open': (open: boolean) => { void wrapper.setProps({ open }) } }
   })
   try {
@@ -340,7 +340,7 @@ describe('workspace editor decisions', () => {
     const wrapper = mount(WorkspaceEditor, {
       attachTo: document.body,
       global: { plugins: [createHronautI18n('en-US')] },
-      props: { open: false, state, canPresent: true, formatNumber: String, syncState: async () => undefined,
+      props: { open: false, readState: () => state, canPresent: true, formatNumber: String, syncState: async () => undefined,
         'onUpdate:open': (open: boolean) => { void wrapper.setProps({ open }) } }
     })
     const editor = wrapper.vm as unknown as { openExisting: (id: string) => Promise<void>; openDecisions: (id: string) => Promise<void> }
@@ -375,7 +375,7 @@ describe('workspace editor decisions', () => {
     const wrapper = mount(WorkspaceEditor, {
       attachTo: document.body,
       global: { plugins: [createHronautI18n('en-US')] },
-      props: { open: false, state, canPresent: true, formatNumber: String, syncState: async () => undefined,
+      props: { open: false, readState: () => state, canPresent: true, formatNumber: String, syncState: async () => undefined,
         'onUpdate:open': (open: boolean) => { void wrapper.setProps({ open }) } }
     })
     const editor = wrapper.vm as unknown as { openDecisions: (id: string) => Promise<void> }
