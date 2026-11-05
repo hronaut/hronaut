@@ -67,6 +67,9 @@ try {
   if (image?.type !== 'image' || !image.data || image.mimeType !== 'image/png') {
     fail('browser_screenshot did not return a PNG image')
   }
+  // Hronaut encodes screenshots in a worker thread, which writes RGBA; main's fallback, Chromium's encoder, writes an opaque
+  // page as RGB. The colour type is the 26th byte of a PNG.
+  if (Buffer.from(image.data, 'base64')[25] !== 6) fail('browser_screenshot was encoded by main: the PNG encoder worker did not run')
 
   const debugReport = await client.callTool({
     name: 'browser_debug_report',
@@ -79,7 +82,7 @@ try {
   const closed = await client.callTool({ name: 'browser_close_tab', arguments: { tabId } }) as CallToolResult
   if (closed.isError) fail(text(closed))
 
-  console.log(`MCP smoke passed: ${tools.tools.length} tools, compact snapshot search, semantic snapshot, typing, debug report, and PNG screenshot.`)
+  console.log(`MCP smoke passed: ${tools.tools.length} tools, compact snapshot search, semantic snapshot, typing, debug report, and PNG screenshot encoded off the main process.`)
 } finally {
   try {
     await transport.terminateSession()

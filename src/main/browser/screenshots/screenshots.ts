@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { nativeImage } from 'electron'
+import { nativeImage, type NativeImage } from 'electron'
 import { annotateScreenshotBitmap, normalizeScreenshotRefs, screenshotAnnotationScript, type ScreenshotAnnotationReport } from '../../../shared/screenshot-annotations.js'
 import { boundedScreenshotSize, cssScreenshotBounds, fullPageScreenshotBounds, type ScreenshotLayoutMetrics } from '../../../shared/screenshot.js'
 import { snapshotDeltaInvalidationReason } from '../../../shared/snapshot-delta.js'
@@ -18,6 +18,7 @@ import { withRenderableTab } from '../renderable-tab/renderable-tab.js'
 import { dismissAgentPointer } from '../agent-pointer/agent-pointer.js'
 import { validateTarget } from '../input-targets/input-targets.js'
 import { screenshotPixelRatio } from './screenshot-scale.js'
+import { encodePng, type EncodedPng } from './png-encoder.js'
 import { screenshotClipInPage, screenshotTargetClipInPage } from './screenshots.page.js'
 
 const SCREENSHOT_ANNOTATION_WORLD_ID = ISOLATED_WORLDS.screenshotAnnotation
@@ -38,12 +39,23 @@ function screenshotTargetError(error: unknown): unknown {
 }
 
 /**
+ * A capture and its format; a viewport capture encoded as PNG also comes with its pixels' fingerprint, made as it was
+ * encoded, so that telling two captures apart need not decode it again.
+ */
+export interface Screenshot {
+  annotations?: ScreenshotAnnotationReport
+  data: Buffer
+  mimeType: 'image/png' | 'image/jpeg'
+  pixels?: EncodedPng['pixels']
+}
+
+/**
  * Captures the tab's page as PNG or JPEG: its viewport, its full page, one
  * element or a clip rectangle, or its viewport with snapshot refs annotated.
  * The agent's pointer is taken off the page first. A viewport capture of a
  * settled background tab also becomes its overview preview.
  */
-export async function screenshot(browser: Browser, options: BrowserScreenshotOptions = {}): Promise<{ annotations?: ScreenshotAnnotationReport; data: Buffer; mimeType: 'image/png' | 'image/jpeg' }> {
+export async function screenshot(browser: Browser, options: BrowserScreenshotOptions = {}): Promise<Screenshot> {
   const format = options.format ?? 'png'
   const refs = normalizeScreenshotRefs(options.annotateRefs)
   if (format === 'png' && options.quality !== undefined) throw new Error('Screenshot quality is supported only for JPEG images')
@@ -59,7 +71,7 @@ export async function screenshot(browser: Browser, options: BrowserScreenshotOpt
     if (options.fullPage || hasTarget || options.clip) throw new Error('annotateRefs supports viewport screenshots only; omit fullPage, ref, selector and clip')
     return annotatedScreenshot(browser, tab, options, refs)
   }
-  return withRenderableTab(browser, tab, async () => {
+  const result = await withRenderableTab(browser, tab, async (): Promise<Screenshot | { image: NativeImage }> => {
     const webContents = tab.webContents
     await dismissAgentPointer(webContents)
     if (hasTarget || options.clip) {
@@ -123,14 +135,16 @@ export async function screenshot(browser: Browser, options: BrowserScreenshotOpt
     const image = bounded.width === original.width && bounded.height === original.height
       ? captured
       : captured.resize({ width: bounded.width, height: bounded.height, quality: 'best' })
-    return {
-      data: format === 'jpeg' ? image.toJPEG(quality) : image.toPNG(),
-      mimeType: format === 'jpeg' ? 'image/jpeg' : 'image/png'
-    }
+    if (format === 'jpeg') return { data: image.toJPEG(quality), mimeType: 'image/jpeg' }
+    return { image }
   // Full-page capture uses the DevTools protocol, which presents and captures
   // the page itself. Waiting for a separate compositor subscription first can
   // strand an otherwise healthy capture when Chromium omits that notification.
   }, options.fullPage ? 'surface' : 'presented-frame')
+  if (!('image' in result)) return result
+  // Encoded once the tab is let go, so that its next capture need not wait for the encoder.
+  const png = await encodePng(result.image)
+  return { data: png.data, mimeType: 'image/png', pixels: png.pixels }
 }
 
 /**
@@ -174,12 +188,14 @@ async function annotatedScreenshot(browser: Browser, tab: BrowserTab, options: B
         { width: environment.viewportWidth, height: environment.viewportHeight }, refs, rows)
       const annotated = nativeImage.createFromBitmap(bitmap, { width: size.width, height: size.height, scaleFactor: 1 })
       const format = options.format ?? 'png'
-      return { data: format === 'jpeg' ? annotated.toJPEG(options.quality ?? 80) : annotated.toPNG(),
-        mimeType: format === 'jpeg' ? 'image/jpeg' as const : 'image/png' as const, annotations }
+      if (format === 'jpeg') return { data: annotated.toJPEG(options.quality ?? 80), mimeType: 'image/jpeg' as const, annotations }
+      return { image: annotated, annotations }
     } finally {
       if (!contents.isDestroyed()) await execute(screenshotAnnotationScript(id, undefined, true)).catch(() => undefined)
     }
   })
   assertCurrent()
+  // Encoded once the marks are off the page and the tab is let go.
+  if (result.image) return { data: (await encodePng(result.image)).data, mimeType: 'image/png', annotations: result.annotations }
   return result
 }

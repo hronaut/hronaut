@@ -35,7 +35,7 @@ export interface TrackedScreenshot {
   tabId: string
   data: Buffer
   mimeType: 'image/png' | 'image/jpeg'
-  /** The SHA-256 of the image's decoded pixels and its size. Compared within this session, never published. */
+  /** The SHA-256 of the image's pixels and its size. Compared within this session, never published. */
   pixels: { digest: string; width: number; height: number }
   /**
    * Everything two captures must share to be compared: the tab, its document, observation and human input
@@ -47,8 +47,8 @@ export interface TrackedScreenshot {
 }
 
 /**
- * Captures the tab's viewport as an ordinary screenshot and fingerprints the
- * decoded image, so the caller can tell whether a later capture shows the same
+ * Captures the tab's viewport as an ordinary screenshot and fingerprints its
+ * pixels, so the caller can tell whether a later capture shows the same
  * pixels. The page's geometry is read in the tracked screenshot's own isolated
  * world before and after the capture, each read bounded in time; nothing on
  * the page is changed. A page that does not answer still gets its screenshot,
@@ -63,11 +63,9 @@ export async function trackedViewportScreenshot(browser: Browser, options: Track
   const image = await screenshot(browser, { ...captureOptions, tabId: tab.id })
   // A page that did not answer before the capture is not asked again.
   const after = before === undefined ? undefined : await viewportGeometry(tab.webContents)
-  const decoded = nativeImage.createFromBuffer(image.data)
-  const empty = decoded.isEmpty()
-  const { width, height } = empty ? { width: 0, height: 0 } : decoded.getSize()
-  const digest = empty ? '' : createHash('sha256').update(`${width}x${height}:`).update(decoded.toBitmap()).digest('hex')
-  const capture = { tabId: tab.id, data: image.data, mimeType: image.mimeType, pixels: { digest, width, height } }
+  const pixels = image.pixels ?? decodedPixels(image.data)
+  const empty = pixels.width === 0
+  const capture = { tabId: tab.id, data: image.data, mimeType: image.mimeType, pixels }
   if (empty) return { ...capture, untracked: 'empty-capture' }
   if (before === undefined || after === undefined) return { ...capture, untracked: 'geometry-unavailable' }
   const stable = findTab(browser, tab.id) === tab && !tab.webContents.isDestroyed()
@@ -106,4 +104,12 @@ async function viewportGeometry(webContents: WebContents): Promise<string | unde
   } finally {
     clearTimeout(timer)
   }
+}
+
+/** The fingerprint of an image's decoded pixels and its size, for a capture that came without one, as a JPEG. */
+function decodedPixels(data: Buffer): TrackedScreenshot['pixels'] {
+  const decoded = nativeImage.createFromBuffer(data)
+  if (decoded.isEmpty()) return { digest: '', width: 0, height: 0 }
+  const { width, height } = decoded.getSize()
+  return { digest: createHash('sha256').update(`${width}x${height}:`).update(decoded.toBitmap()).digest('hex'), width, height }
 }

@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config'
+import { defineConfig, type Plugin } from 'vitest/config'
 import vue from '@vitejs/plugin-vue'
 import Icons from 'unplugin-icons/vite'
 
@@ -8,10 +8,33 @@ const ciMaxWorkers = Number.isInteger(configuredCiWorkers) && configuredCiWorker
   : 4
 const rendererMaxWorkers = Math.min(ciMaxWorkers, 2)
 
+/**
+ * Starts a worker thread of main as electron-vite's `?nodeWorker` import does in the app, from its TypeScript file,
+ * which Node runs as it is: such a worker imports only Node's built-in modules.
+ */
+function nodeWorkers(): Plugin {
+  const prefix = '\0node-worker:'
+  return {
+    name: 'hronaut-node-workers',
+    enforce: 'pre',
+    async resolveId(source, importer) {
+      if (!source.endsWith('?nodeWorker')) return null
+      const resolved = await this.resolve(source.slice(0, -'?nodeWorker'.length), importer, { skipSelf: true })
+      return resolved ? `${prefix}${resolved.id}` : null
+    },
+    load(id) {
+      if (!id.startsWith(prefix)) return null
+      const file = JSON.stringify(id.slice(prefix.length))
+      return `import { Worker } from 'node:worker_threads'\nexport default (options) => new Worker(${file}, options)\n`
+    }
+  }
+}
+
 export default defineConfig({
   test: {
     projects: [
       {
+        plugins: [nodeWorkers()],
         test: {
           name: 'node',
           environment: 'node',
