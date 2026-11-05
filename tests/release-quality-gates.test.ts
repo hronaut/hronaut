@@ -511,6 +511,7 @@ describe('release quality gates', () => {
     expect(releaseIntegration).toContain('shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]')
     expect(releaseIntegration).toContain('HRONAUT_INTEGRATION_SHARD: "${{ matrix.shard }}/12"')
     expect(releaseIntegration).toContain('HRONAUT_INTEGRATION_RUN_DIALOGS: "${{ matrix.shard == 1 }}"')
+    expect(releaseIntegration).toContain('HRONAUT_INTEGRATION_RUN_PERFORMANCE: "${{ matrix.shard == 2 }}"')
     expect(releaseIntegration).toContain('diagnostics-playwright-electron-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}')
     // The publish job downloads every release-* artifact into the assets it attests and publishes; only builds may match.
     const releaseArtifacts = [...releaseWorkflow.matchAll(/^ +name: (release-.*)$/gm)].map((match) => match[1])
@@ -528,6 +529,15 @@ describe('release quality gates', () => {
     expect(runner).toContain('docker cp "$container_name:/workspace/$source_directory" - | tar -xf - -C "$artifact_directory"')
     expect(runner).toContain('docker rm --force "$container_name"')
     expect(runner).not.toContain('run --build --rm integration')
+  })
+
+  // A retry or a recorded trace would let a run that missed a limit pass, or measure the recording with the app.
+  it('measures responsiveness once, alone and unrecorded', async () => {
+    const config = await readFile('playwright.performance.config.ts', 'utf8')
+    expect(config).toContain("testMatch: '**/*.perf.ts'")
+    expect(config).toContain('workers: 1')
+    expect(config).toContain('retries: 0')
+    expect(config).toContain("use: { trace: 'off' }")
   })
 
   it('keeps wallet documentation in the website public source before output cleanup', async () => {

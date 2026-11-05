@@ -75,7 +75,7 @@ describe('integration fixture teardown', () => {
   it('routes every HTTP fixture shutdown through the connection-draining helper', async () => {
     const integrationDirectory = 'tests/integration'
     const files = (await readdir(integrationDirectory))
-      .filter((file) => file.endsWith('.e2e.ts'))
+      .filter((file) => /\.(?:e2e|perf)\.ts$/u.test(file))
     const directCloseSites = (await Promise.all(files.map(async (file) => ({
       file,
       source: await readFile(`${integrationDirectory}/${file}`, 'utf8')
