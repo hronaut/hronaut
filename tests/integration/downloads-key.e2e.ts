@@ -32,15 +32,16 @@ test('Ctrl+J and View → Downloads open and close the downloads panel, as in Ch
       if (!contents) throw new Error('Page web contents was not found')
       return contents.executeJavaScript(script) as Promise<string[]>
     }, { origin, script })
-    // The person's key, sent to the page or to Hronaut's own window as the keyboard sends it.
-    const press = (where: 'page' | 'shell') => electronApp.evaluate(({ webContents }, { origin, shellUrl, where }) => {
+    // The person's key, sent to the page or to Hronaut's own window as the keyboard sends it, held down for its repeats.
+    const press = (where: 'page' | 'shell', repeats = 0) => electronApp.evaluate(({ webContents }, { origin, shellUrl, where, repeats }) => {
       const contents = webContents.getAllWebContents()
         .find(candidate => where === 'page' ? candidate.getURL().startsWith(origin) : candidate.getURL() === shellUrl)
       if (!contents) throw new Error(`No ${where} web contents`)
       if (where === 'page') contents.focus()
       contents.sendInputEvent({ type: 'keyDown', keyCode: 'J', modifiers: ['control'] })
+      for (let repeat = 0; repeat < repeats; repeat += 1) contents.sendInputEvent({ type: 'keyDown', keyCode: 'J', modifiers: ['control', 'isautorepeat'] })
       contents.sendInputEvent({ type: 'keyUp', keyCode: 'J', modifiers: ['control'] })
-    }, { origin, shellUrl: appWindow.url(), where })
+    }, { origin, shellUrl: appWindow.url(), where, repeats })
 
     await visit('/page')
     // From the website in focus, and again to close it.
@@ -49,9 +50,23 @@ test('Ctrl+J and View → Downloads open and close the downloads panel, as in Ch
     await press('page')
     await expect(panel).toBeHidden()
 
-    // From Hronaut's own window, as from the address bar.
+    // Held down, it opens the panel once, as in Chrome: it opened and closed it with every repeat.
+    await press('page', 3)
+    await expect(panel).toBeVisible()
+    await appWindow.waitForTimeout(500)
+    await expect(panel).toBeVisible()
+    await press('page')
+    await expect(panel).toBeHidden()
+
+    // From Hronaut's own window, as from the address bar, also held down.
     await appWindow.getByRole('combobox', { name: 'Address', exact: true }).focus()
     await press('shell')
+    await expect(panel).toBeVisible()
+    await press('shell')
+    await expect(panel).toBeHidden()
+    await press('shell', 3)
+    await expect(panel).toBeVisible()
+    await appWindow.waitForTimeout(500)
     await expect(panel).toBeVisible()
     await press('shell')
     await expect(panel).toBeHidden()

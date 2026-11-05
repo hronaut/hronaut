@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-vi.mock('electron', () => ({ Menu: { buildFromTemplate: (template: unknown) => template, setApplicationMenu: () => undefined } }))
+vi.mock('electron', () => ({ app: { on: () => undefined }, Menu: { buildFromTemplate: (template: unknown) => template, setApplicationMenu: () => undefined } }))
 import { createApplicationMenu } from '../src/main/windows/application-menu.js'
 
 // Spell check's Language settings open Settings as the menu's Settings item does, through the menu's help request.

@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 type Item = { label?: string; accelerator?: string; visible?: boolean; click?: (item: unknown, window: unknown, event: { triggeredByAccelerator?: boolean }) => void }
-const installed = vi.hoisted(() => ({ template: [] as Array<{ label?: string; submenu?: Item[] }> }))
-vi.mock('electron', () => ({ Menu: { buildFromTemplate: (template: typeof installed.template) => template, setApplicationMenu: (menu: typeof installed.template) => { installed.template = menu } } }))
+type Contents = { on: (name: string, listener: (event: unknown, input: Partial<Electron.Input>) => void) => void }
+const installed = vi.hoisted(() => ({ template: [] as Array<{ label?: string; submenu?: Item[] }>, created: [] as Array<(event: unknown, contents: Contents) => void> }))
+vi.mock('electron', () => ({ app: { on: (_name: string, listener: (event: unknown, contents: Contents) => void) => { installed.created.push(listener) } }, Menu: { buildFromTemplate: (template: typeof installed.template) => template, setApplicationMenu: (menu: typeof installed.template) => { installed.template = menu } } }))
 import { createApplicationMenu } from '../src/main/windows/application-menu.js'
 
 // The menu stops loading with the browser; that runs on the fake browser's stub.
@@ -21,8 +22,7 @@ function menu(on: NodeJS.Platform) {
   const runShortcut = vi.fn()
   const runPageNextPane = vi.fn()
   const stopFocusedPageLoading = vi.fn()
-  // The key the page got last, which the page left alone.
-  const browser = { stopFocusedPageLoading, pageKeyPresses: 0 }
+  const browser = { stopFocusedPageLoading }
   // A page in the main window has the keyboard, rather than Hronaut's own window.
   const shellFocused = { value: false }
   const mainWindow = { id: 1, webContents: { isFocused: () => shellFocused.value } }
@@ -33,7 +33,11 @@ function menu(on: NodeJS.Platform) {
   }).installApplicationMenu()
   const view = installed.template.find((candidate) => candidate.label === 'native.menu.view')!.submenu!
   const key = (accelerator: string) => view.find((item) => item.accelerator === accelerator)
-  return { runShortcut, runPageNextPane, stopFocusedPageLoading, shellFocused, mainWindow, view, key, browser }
+  // A page's web contents, whose keys the menu counts.
+  let pageInput: ((event: unknown, input: Partial<Electron.Input>) => void) | undefined
+  installed.created.at(-1)!({}, { on: (_name, listener) => { pageInput = listener } })
+  const pressKey = (repeat = false) => pageInput!({}, { type: 'keyDown', isAutoRepeat: repeat })
+  return { runShortcut, runPageNextPane, stopFocusedPageLoading, shellFocused, mainWindow, view, key, pressKey }
 }
 
 describe('Chrome\'s keys a website may keep', () => {
@@ -84,12 +88,12 @@ describe('Chrome\'s keys a website may keep', () => {
   // A held Ctrl+D on a page that left it alone added, removed and added the bookmark again, and a held Ctrl+H opened and
   // closed History, where Chrome acts on the first press only.
   it.each(['linux', 'darwin'] as const)('bookmark the page and open history once for a held key on %s', (system) => {
-    const { runShortcut, mainWindow, key, browser } = menu(system)
+    const { runShortcut, mainWindow, key, pressKey } = menu(system)
     for (const accelerator of ['CmdOrCtrl+D', system === 'darwin' ? 'Cmd+Y' : 'Ctrl+H']) {
       const item = key(accelerator)!
-      // A press and its repeats, then the next press.
-      for (const presses of [1, 1, 1, 2, 2]) {
-        browser.pageKeyPresses = presses
+      // A press and its repeats, then the next press and a repeat.
+      for (const repeat of [false, true, true, false, true]) {
+        pressKey(repeat)
         item.click!(item, mainWindow, { triggeredByAccelerator: true })
       }
     }

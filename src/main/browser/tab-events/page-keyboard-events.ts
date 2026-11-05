@@ -54,7 +54,6 @@ const TAB_OVERVIEW_INPUT_SETTLE_MS = 1_000
  */
 export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webContents: WebContents): void {
   webContents.on('before-input-event', (event, input) => {
-    if ((input.type === 'keyDown' || input.type === 'rawKeyDown') && !input.isAutoRepeat) browser.pageKeyPresses += 1
     // A key pressed or released here ends the keys held in the shell: the keyboard repeats only the newest key, and a
     // held key whose repeats were dropped is let go without its release reaching any page.
     if (!input.isAutoRepeat) {

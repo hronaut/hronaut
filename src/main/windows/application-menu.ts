@@ -1,4 +1,4 @@
-import { Menu, type BaseWindow, type BrowserWindow, type KeyboardEvent, type MenuItemConstructorOptions } from 'electron'
+import { Menu, app, type BaseWindow, type BrowserWindow, type KeyboardEvent, type MenuItemConstructorOptions } from 'electron'
 import type { Browser } from '../browser/browser.js'
 import type { BrowserShortcutAction } from '../../shared/browser-shortcuts.js'
 import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
@@ -13,6 +13,8 @@ import { newTab } from '../browser/new-tabs/open-new-tab.js'
 import { UPDATES_IPC } from '../../shared/ipc/updates.js'
 import { SHELL_IPC } from '../../shared/ipc/shell.js'
 import { sendTo } from '../typed-ipc.js'
+
+type MenuClick = NonNullable<MenuItemConstructorOptions['click']>
 
 /** The website tabs Ctrl with a digit goes to; Ctrl+9 goes to the last one. */
 const TAB_POSITIONS = [1, 2, 3, 4, 5, 6, 7, 8] as const
@@ -95,6 +97,42 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
     host.runShortcut(action)
   }
 
+  // The keys pressed in Hronaut's windows, views and pages, not counting a held key's repeats. A key the window or page
+  // in focus leaves alone reaches the menu only after it answered the key, so later keys may be counted by then.
+  let keyPresses = 0
+  app.on('web-contents-created', (_event, contents) => {
+    contents.on('before-input-event', (_inputEvent, input) => {
+      if ((input.type === 'keyDown' || input.type === 'rawKeyDown') && !input.isAutoRepeat) keyPresses += 1
+    })
+  })
+
+  /**
+   * Whether a key press reaches a menu item for the first time, as Chrome runs a command that is not repeatable, such
+   * as Downloads, once for a held key: the repeats the window or page in focus leaves alone reach the menu too. A
+   * repeat that reaches the menu after another key was counted acts again.
+   */
+  function newKeyPress(): () => boolean {
+    let press: number | undefined
+    return () => {
+      if (keyPresses === press) return false
+      press = keyPresses
+      return true
+    }
+  }
+
+  /**
+   * A menu item's click that acts once for each press of its key (newKeyPress), and always when chosen from the menu or
+   * when no window of Hronaut's has focus: a key typed in detached DevTools, or on macOS with every window closed,
+   * passes through no web contents that counts it.
+   */
+  function oncePerKeyPress(click: MenuClick): MenuClick {
+    const pressed = newKeyPress()
+    return (item, window, event) => {
+      if (event.triggeredByAccelerator && !pressed() && window !== undefined) return
+      click(item, window, event)
+    }
+  }
+
   // Chrome's keys a website may keep (websiteKeptShortcutAction). As keys of the menu they reach it only when the
   // website or field in focus leaves them alone, and never from an agent; typed in a panel in its own window, they
   // would act on a page out of view. Hronaut's window runs them itself, so one it leaves alone, as under one of its
@@ -114,15 +152,11 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
         else host.runShortcut(action)
       }
     })
-    // As in Chrome, a held key bookmarks the page or opens history once, and its repeats reach only the page. The page
-    // answers each key before the menu gets it, so a repeat can reach the menu after the next key is sent to the page.
+    // As in Chrome, a held key bookmarks the page or opens history once, and its repeats reach only the page.
     const once = (action: BrowserShortcutAction): (() => void) => {
-      let press: number | undefined
+      const pressed = newKeyPress()
       return () => {
-        const presses = host.tabs()?.pageKeyPresses
-        if (presses !== undefined && presses === press) return
-        press = presses
-        host.runShortcut(action)
+        if (pressed()) host.runShortcut(action)
       }
     }
     const everywhere = [
@@ -199,6 +233,10 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
 
   function installApplicationMenu(): void {
     const macItems = macApplicationItems()
+    // View Page Source, Save Page As and Print act once for a held key, as in Chrome, after their key passed its checks.
+    const sourcePress = newKeyPress()
+    const savePress = newKeyPress()
+    const printPress = newKeyPress()
     Menu.setApplicationMenu(
       Menu.buildFromTemplate([
         {
@@ -273,21 +311,22 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
               // Chrome's key, which a website may keep, as a web editor does to show its own panel: as the menu's key it
               // reaches the menu only when the website or field in focus leaves it alone, and never from an agent.
               // Like a page's browser keys, it takes a page out of full screen, which would cover the panel.
+              // A held key opens or closes the panel once, as in Chrome.
               accelerator: process.platform === 'darwin' ? 'Cmd+Alt+L' : 'Ctrl+J',
-              click: () => {
+              click: oncePerKeyPress(() => {
                 host.showWindow()
                 host.runShortcut('downloads')
-              }
+              })
             },
             {
               label: host.text('native.menu.taskManager'),
               // Chrome's key elsewhere than macOS, where Chrome gives it none. As the menu's key it reaches the menu only
               // when the website or field in focus leaves it alone, and never from an agent.
               ...(process.platform === 'darwin' ? {} : { accelerator: 'Shift+Escape' }),
-              click: () => {
+              click: oncePerKeyPress(() => {
                 host.showWindow()
                 host.runShortcut('task-manager')
-              }
+              })
             },
             {
               label: host.text('native.menu.bookmarkAllTabs'),
@@ -295,10 +334,10 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
               // menu's key it reaches the menu only when the website or field in focus leaves it alone, and never from
               // an agent. Hronaut's window then asks what to call the collection for the workspace in view.
               accelerator: process.platform === 'darwin' ? 'Cmd+Shift+D' : 'Ctrl+Shift+D',
-              click: () => {
+              click: oncePerKeyPress(() => {
                 host.showWindow()
                 host.runShortcut('bookmark-all-tabs')
-              }
+              })
             },
             { type: 'separator' },
             {
@@ -338,6 +377,7 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
               accelerator: process.platform === 'darwin' ? 'Cmd+Alt+U' : 'Ctrl+U',
               click: (_item, window, event) => {
                 if (event.triggeredByAccelerator && (window === undefined || window.id !== host.mainWindow()?.id)) return
+                if (event.triggeredByAccelerator && !sourcePress()) return
                 // Chosen from the menu, the main window may be hidden behind a panel in its own window or in the tray.
                 if (!event.triggeredByAccelerator) host.showWindow()
                 host.runNativeBrowserAction('view page source', () => withBrowser(viewShownPageSource))
@@ -361,6 +401,7 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
               accelerator: 'CmdOrCtrl+S',
               click: (_item, window, event) => {
                 if (event.triggeredByAccelerator && (window === undefined || window.id !== host.mainWindow()?.id)) return
+                if (event.triggeredByAccelerator && !savePress()) return
                 // Chosen from the menu, the main window may be hidden behind a panel in its own window or in the tray.
                 if (!event.triggeredByAccelerator) host.showWindow()
                 host.runNativeBrowserAction('save the page', () => withBrowser(saveShownPage))
@@ -374,6 +415,7 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
               accelerator: 'CmdOrCtrl+P',
               click: (_item, window, event) => {
                 if (event.triggeredByAccelerator && (window === undefined || window.id !== host.mainWindow()?.id)) return
+                if (event.triggeredByAccelerator && !printPress()) return
                 // Chosen from the menu, the main window may be hidden behind a panel in its own window or in the tray, as
                 // for Save Page As, and the print dialog would then be for a page out of view.
                 if (!event.triggeredByAccelerator) host.showWindow()
