@@ -1,5 +1,6 @@
 import type { WebContents } from 'electron'
 import { isHronautHomeUrl } from '../url.js'
+import { isSourceViewUrl } from '../source-view-guard.js'
 
 /**
  * How much larger than its normal scale a pinch can show a page: 3 times on macOS and 4 times elsewhere, Chromium's own
@@ -50,10 +51,14 @@ export function allowPinchZoom(webContents: WebContents, url: string, keepsOwnSc
  * Shows a pinched page at its normal scale again, as Chrome's Reset zoom does. Electron has no call for it, so the pinch
  * limits are narrowed to the normal scale, which brings the page back to it, and then widened again. A page that is not
  * pinched keeps its limits, since setting them applies all of the tab's preferences again, over the scale a phone
- * viewport emulated in Developer Tools sets for itself.
+ * viewport emulated in Developer Tools sets for itself. A page's source refuses page scripts (see source-view-guard.ts),
+ * so it is asked through its main frame, whose own call answers there.
  */
 export async function resetPinchZoom(webContents: WebContents): Promise<void> {
-  if (await webContents.executeJavaScript(PAGE_PINCHED, false) !== true) return
+  const pinched = isSourceViewUrl(webContents.getURL())
+    ? await webContents.mainFrame.executeJavaScript(PAGE_PINCHED, false)
+    : await webContents.executeJavaScript(PAGE_PINCHED, false)
+  if (pinched !== true) return
   try {
     await webContents.setVisualZoomLevelLimits(1, 1)
   } finally {
