@@ -55,7 +55,33 @@ subscribe(SHELL_IPC.bookmarkAllTabsRequested, (workspaceId: unknown) => {
 
 /** window.hronaut's requests from main's menus, shortcuts and Home for the shell to carry out. */
 export const shellRequestsApi: HronautShellRequestsApi = {
-  onShortcutRequested: (listener) => subscribe(SHELL_IPC.shortcutRequested, (action) => listener(action)),
+  onShortcutRequested: (listener) => subscribe(SHELL_IPC.shortcutRequested, (action, hold?) => {
+    if (typeof hold !== 'number') {
+      listener(action)
+      return
+    }
+    // Main holds back the keys typed meanwhile, so that they go where the shortcut puts the keyboard. It is told as soon
+    // as the shell is free again when the shortcut has given a text field the keyboard or selected its text by then, as
+    // focusing the address does; else once the shortcut is carried out, as one that waits for main first, which may
+    // give the keyboard to another field on the way, such as the field a tab had when it is shown again.
+    let told = false
+    const tell = (): void => {
+      if (told) return
+      told = true
+      send(SHELL_IPC.shortcutRan, hold)
+    }
+    const before = textFieldWithKeyboard()
+    setTimeout(() => {
+      const now = textFieldWithKeyboard()
+      if (now && (now.field !== before?.field || now.start !== before.start || now.end !== before.end)) tell()
+    }, 0)
+    let carriedOut: unknown
+    try {
+      carriedOut = listener(action)
+    } finally {
+      void Promise.resolve(carriedOut).catch(() => undefined).finally(tell)
+    }
+  }),
   onHomeWorkspaceEditorRequested: (listener) => subscribe(SHELL_IPC.homeWorkspaceEditorRequested, (request) => listener(request)),
   onTabGroupEditRequested: (listener) => subscribe(SHELL_IPC.tabGroupEditRequested, (groupId) => listener(groupId)),
   onNewTabRequested: (listener) => subscribe(SHELL_IPC.newTabRequested, (workspaceId: unknown) => {
@@ -66,4 +92,13 @@ export const shellRequestsApi: HronautShellRequestsApi = {
   onAddressPasteAndGo: (listener) => subscribe(SHELL_IPC.addressPasteAndGo, (text: unknown) => {
     if (typeof text === 'string') listener(text)
   })
+}
+
+/** The text field of the shell's page that has the keyboard, with its selection, if one has it. */
+function textFieldWithKeyboard(): { field: Element; start: number | null; end: number | null } | undefined {
+  const field = document.activeElement
+  if ((field instanceof HTMLInputElement && field.selectionStart !== null) || field instanceof HTMLTextAreaElement) {
+    return { field, start: field.selectionStart, end: field.selectionEnd }
+  }
+  return field instanceof HTMLElement && field.isContentEditable ? { field, start: null, end: null } : undefined
 }

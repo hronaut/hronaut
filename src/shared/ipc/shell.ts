@@ -44,7 +44,12 @@ export const SHELL_IPC = {
   /** Shell → main: copies the text to the clipboard. */
   copyText: 'browser:copy-text' as InvokeChannel<[text: string], void>,
   /** Main → main window: a menu item or shortcut that the shell carries out. */
-  shortcutRequested: 'browser:shortcut-requested' as EventChannel<[action: BrowserShortcutAction]>,
+  shortcutRequested: 'browser:shortcut-requested' as EventChannel<[action: BrowserShortcutAction, hold?: number]>,
+  /**
+   * Main window → main: the shortcut sent with this hold has put the keyboard where it goes, or was carried out, so
+   * the keys main held back meanwhile can go on.
+   */
+  shortcutRan: 'browser:shortcut-ran' as SendChannel<[hold: number]>,
   /** Main → main window: opens Home's workspace editor, as a workspace's menu or Home's page asks. */
   homeWorkspaceEditorRequested: 'browser:home-workspace-editor' as EventChannel<[request: HomeWorkspaceEditorRequest]>,
   /** Main → main window: a workspace's menu asked to edit its tab group. */

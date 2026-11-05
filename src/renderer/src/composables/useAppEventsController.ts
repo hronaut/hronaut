@@ -73,7 +73,16 @@ export function useAppEventsController(options: AppEventsControllerOptions) {
 
   const unsubscribers = registerDisposers([
     () => options.browserApi.onUserAttentionRequested(active(options.onUserAttention)),
-    () => options.browserApi.onShortcutRequested(active(options.onShortcut)),
+    // The bridge tells main once the shortcut is carried out, so it gets the shortcut's promise.
+    () => options.browserApi.onShortcutRequested((action) => {
+      if (disposed) return undefined
+      try {
+        return Promise.resolve(options.onShortcut(action)).catch(reportError)
+      } catch (error) {
+        reportError(error)
+        return undefined
+      }
+    }),
     () => options.browserApi.onTabGroupEditRequested(active(options.onTabGroupEdit)),
     () => options.browserApi.onNewTabRequested(active(options.onNewTab)),
     () => options.browserApi.onVisitHistoryRequested(active(options.onVisitHistory)),

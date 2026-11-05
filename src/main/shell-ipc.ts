@@ -12,6 +12,7 @@ import { setFollowAgentActivitySuspended, setBrowserContentOccluded } from './br
 import { SHELL_IPC } from '../shared/ipc/shell.js'
 import { TABS_IPC } from '../shared/ipc/tabs.js'
 import { isShellTabField } from '../shared/tab-field.js'
+import { shellRanShortcut } from './windows/shell-key-handoff.js'
 
 interface ShellIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
@@ -129,6 +130,10 @@ export function registerShellIpc(ipcMain: Pick<TypedIpcMain, 'handle' | 'on'>, h
     host.followSuspension.shellSuspended = suspended
     const browser = host.tabs()
     if (browser) setFollowAgentActivitySuspended(browser, host.followSuspension.shellSuspended || host.followSuspension.agentCardOpen)
+  })
+  ipcMain.on(SHELL_IPC.shortcutRan, (event, hold: unknown) => {
+    host.assertMainShellSender(event)
+    if (typeof hold === 'number') shellRanShortcut(event.sender, hold)
   })
   ipcMain.on(SHELL_IPC.tabFieldFocused, (event, field: unknown) => {
     if (host.workspaceStartupFailure()) return

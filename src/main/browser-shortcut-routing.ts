@@ -7,8 +7,7 @@ import type { BrowserShortcutAction } from '../shared/browser-shortcuts.js'
 import { exitPageFullscreen } from './browser/page-fullscreen/page-fullscreen.js'
 import { listMcpTabGroups } from './browser/mcp-tab-groups/mcp-tab-groups.js'
 import { isHomeTab, shownTabIsHome } from './browser/home-tabs/home-tabs.js'
-import { SHELL_IPC } from '../shared/ipc/shell.js'
-import { sendTo } from './typed-ipc.js'
+import { requestShellShortcut } from './windows/shell-key-handoff.js'
 
 interface BrowserShortcutRoutingHost {
   /** The take over offers, which a page's take over key asks and acts on. */
@@ -68,7 +67,7 @@ export function createBrowserShortcutRouting(host: BrowserShortcutRoutingHost): 
       if (action === 'find' || action === 'find-next' || action === 'find-previous' || action === 'focus-address' || action === 'bookmark-all-tabs') {
         host.mainWindowRefs.window.webContents.focus()
       }
-      sendTo(host.mainWindowRefs.window.webContents, SHELL_IPC.shortcutRequested, action)
+      requestShellShortcut(host.mainWindowRefs.window.webContents, action)
     }
   }
 

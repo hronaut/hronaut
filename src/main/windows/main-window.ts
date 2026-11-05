@@ -15,6 +15,7 @@ import {
 import { windowMaterialFor, windowMaterialOptions, type WindowMaterial } from '../../shared/window-material.js'
 import type { ResolvedThemeName } from '../../shared/theme.js'
 import type { AppSettings, ThemeName } from '../../shared/types.js'
+import { attachShellKeyHandoff } from './shell-key-handoff.js'
 
 /**
  * The main window and what it was opened with, created once by index.ts. The window opens after startup and closes
@@ -127,7 +128,7 @@ export function createMainWindow(host: MainWindowHost): {
       interfaceScale: host.settings().interfaceScale
     })
     host.refs.material = currentWindowMaterial()
-    return new BrowserWindow({
+    const window = new BrowserWindow({
       ...bounds,
       ...windowChromeOptions,
       minWidth: 760,
@@ -147,6 +148,8 @@ export function createMainWindow(host: MainWindowHost): {
         sandbox: true
       }
     })
+    attachShellKeyHandoff(window.webContents)
+    return window
   }
 
   /** Shows the menu bar, or pops the menu up under an overlaid title bar, when Alt is pressed and released alone. */

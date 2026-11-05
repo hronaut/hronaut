@@ -501,6 +501,127 @@ it.each(listeners)('%s.%s passes on only what the channel carries, without the e
   expect(electron.removeListener).toHaveBeenCalledExactlyOnceWith(channel, handler)
 })
 
+/** The shell's page: its elements, and which has the keyboard. */
+function shellDocument() {
+  class ShellElement { isContentEditable = false }
+  class TextField extends ShellElement { selectionStart: number | null = 0; selectionEnd: number | null = 0 }
+  class TextArea extends TextField {}
+  const document = { activeElement: new ShellElement() as ShellElement }
+  vi.stubGlobal('HTMLElement', ShellElement)
+  vi.stubGlobal('HTMLInputElement', TextField)
+  vi.stubGlobal('HTMLTextAreaElement', TextArea)
+  vi.stubGlobal('document', document)
+  /** A text field with its caret or selection; an input with no selection, as a checkbox, is none. */
+  const field = (start: number | null, end = start) => Object.assign(new TextField(), { selectionStart: start, selectionEnd: end })
+  const editable = () => Object.assign(new ShellElement(), { isContentEditable: true })
+  const focus = (element: ShellElement) => { document.activeElement = element }
+  return { field, editable, button: () => new ShellElement(), area: () => new TextArea(), focus }
+}
+
+it('hronaut.onShortcutRequested tells main as soon as the shell is free when the shortcut gave a text field the keyboard', async () => {
+  // Main holds back the keys typed into the shell meanwhile, and sends them on once told.
+  vi.useFakeTimers()
+  const page = shellDocument()
+  try {
+    const subscribe = await exposed('hronaut', 'onShortcutRequested')
+    const pending = () => new Promise<void>(() => undefined)
+    const listener = vi.fn(pending)
+    subscribe(listener)
+    const [, handler] = electron.on.mock.calls.find(([name]) => name === 'browser:shortcut-requested')!
+
+    // Focusing a field, as Find does.
+    listener.mockImplementationOnce(() => { page.focus(page.field(0, 5)); return pending() })
+    handler({ sender: 'event' }, 'find', 7)
+    expect(listener).toHaveBeenLastCalledWith('find')
+    expect(electron.send).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(electron.send).toHaveBeenCalledExactlyOnceWith('browser:shortcut-ran', 7)
+
+    // Selecting the text of the field that already had the keyboard, after a step of its own, as the address does.
+    const address = page.field(20)
+    page.focus(address)
+    listener.mockImplementationOnce(async () => {
+      await Promise.resolve()
+      Object.assign(address, { selectionStart: 0, selectionEnd: 20 })
+      await pending()
+    })
+    handler({ sender: 'event' }, 'focus-address', 8)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(electron.send).toHaveBeenLastCalledWith('browser:shortcut-ran', 8)
+
+    // A text field that is no input, as a contenteditable, and a text area.
+    listener.mockImplementationOnce(() => { page.focus(page.editable()); return pending() })
+    handler({ sender: 'event' }, 'command-palette', 9)
+    listener.mockImplementationOnce(() => { page.focus(page.area()); return pending() })
+    handler({ sender: 'event' }, 'bookmark-all-tabs', 10)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(electron.send.mock.calls.slice(2)).toEqual([['browser:shortcut-ran', 9], ['browser:shortcut-ran', 10]])
+  } finally {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  }
+})
+
+it('hronaut.onShortcutRequested waits for a shortcut that gives a field the keyboard only later to be carried out', async () => {
+  // Shown again, a tab gives its field the keyboard back while the shortcut still waits for main, as Ctrl+L from Home.
+  vi.useFakeTimers()
+  const page = shellDocument()
+  try {
+    const subscribe = await exposed('hronaut', 'onShortcutRequested')
+    let finish!: () => void
+    const listener = vi.fn(() => new Promise<void>((resolve) => { finish = resolve }))
+    subscribe(listener)
+    const [, handler] = electron.on.mock.calls.find(([name]) => name === 'browser:shortcut-requested')!
+    page.focus(page.field(3))
+    handler({ sender: 'event' }, 'focus-address', 4)
+    await vi.advanceTimersByTimeAsync(0)
+    page.focus(page.field(5))
+    await vi.advanceTimersByTimeAsync(10)
+    // Nor is a button, or an input with no text, as a checkbox, a text field.
+    listener.mockImplementationOnce(() => { page.focus(page.button()); return new Promise<void>(() => undefined) })
+    handler({ sender: 'event' }, 'command-palette', 5)
+    listener.mockImplementationOnce(() => { page.focus(page.field(null)); return new Promise<void>(() => undefined) })
+    handler({ sender: 'event' }, 'bookmark-all-tabs', 6)
+    await vi.advanceTimersByTimeAsync(10)
+    expect(electron.send).not.toHaveBeenCalled()
+    finish()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(electron.send).toHaveBeenCalledExactlyOnceWith('browser:shortcut-ran', 4)
+  } finally {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  }
+})
+
+it('hronaut.onShortcutRequested tells main once the shell carried a shortcut out, even when it failed, and only when main holds keys for it', async () => {
+  shellDocument()
+  try {
+    const subscribe = await exposed('hronaut', 'onShortcutRequested')
+    const failure = new Error('Find unavailable')
+    const listener = vi.fn()
+      .mockImplementationOnce(() => Promise.reject(failure))
+      .mockImplementationOnce(() => { throw failure })
+      .mockReturnValue(undefined)
+    subscribe(listener)
+    const [, handler] = electron.on.mock.calls.find(([name]) => name === 'browser:shortcut-requested')!
+    handler({ sender: 'event' }, 'find', 1)
+    // As before, the listener's own failure is the listener's.
+    expect(() => handler({ sender: 'event' }, 'command-palette', 2)).toThrow(failure)
+    handler({ sender: 'event' }, 'bookmark-all-tabs', 3)
+    await vi.waitFor(() => expect(electron.send).toHaveBeenCalledTimes(3))
+    expect(electron.send.mock.calls).toEqual(expect.arrayContaining([
+      ['browser:shortcut-ran', 1], ['browser:shortcut-ran', 2], ['browser:shortcut-ran', 3]
+    ]))
+    // A shortcut main holds no keys for is not answered.
+    handler({ sender: 'event' }, 'reload')
+    expect(listener).toHaveBeenLastCalledWith('reload')
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(electron.send).toHaveBeenCalledTimes(3)
+  } finally {
+    vi.unstubAllGlobals()
+  }
+})
+
 it('hronautShell.windowChrome describes the window the preload runs in', async () => {
   await import('../src/preload/index.js')
   const shell = electron.exposeInMainWorld.mock.calls.find(([name]) => name === 'hronautShell')?.[1] as { windowChrome: unknown }

@@ -206,7 +206,8 @@ export interface HronautAppApi {
 
 /** What main asks the shell for from its menus, shortcuts and Home. */
 export interface HronautShellRequestsApi {
-  onShortcutRequested(listener: (action: import('../browser-shortcuts.js').BrowserShortcutAction) => void): () => void
+  /** The listener's promise, when it returns one, settles once the shortcut is carried out. */
+  onShortcutRequested(listener: (action: import('../browser-shortcuts.js').BrowserShortcutAction) => unknown): () => void
   onHomeWorkspaceEditorRequested(listener: (request: import('../home-workspaces.js').HomeWorkspaceEditorRequest) => void): () => void
   onTabGroupEditRequested(listener: (groupId: string) => void): () => void
   /** A menu asked for a new tab in the workspace, or in the active tab's workspace when it names none. */
