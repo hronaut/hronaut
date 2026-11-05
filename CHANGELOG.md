@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [3.14.18] - 2026-11-06
+
 ### Changed
 
 - Hronaut's window spends less time keeping its tabs up to date while several agents work, so it answers clicks a little sooner: it draws again only the tabs and controls whose part of the browser changed, rather than the whole window with every tab, workspace and closed dialog in it.
