@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { translate } from '../../../shared/i18n.js'
+import { translate } from '../locale-messages.js'
 import { DEFAULT_INTERFACE_SCALE } from '../../../shared/interface-scale.js'
 import { DEFAULT_TAB_POSITION } from '../../../shared/tab-position.js'
 import type { WindowMaterial } from '../../../shared/window-material.js'

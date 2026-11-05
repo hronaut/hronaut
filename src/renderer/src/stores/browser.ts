@@ -1,6 +1,6 @@
 import { computed, nextTick, ref, shallowRef, watch } from 'vue'
 import { defineStore } from 'pinia'
-import { translate } from '../../../shared/i18n.js'
+import { translate } from '../locale-messages.js'
 import type {
   BrowserState,
   BrowserTabState,

@@ -1,31 +1,31 @@
-import { networkPriorityMessages } from './network-priority.js'
-import { networkLabelMessages } from './network-labels.js'
-import { reproStepMessages } from './repro-steps.js'
-import { viewportPresetMessages } from './viewport-presets.js'
-import { searchEngineMessages } from './search-engines.js'
-import { settingsSectionMessages } from './settings-sections.js'
-import { browserIssueTitleMessages } from './browser-issue-titles.js'
-import { qualityAuditTextMessages } from './quality-audit-text.js'
-import { networkAbortReasonMessages } from './network-abort-reasons.js'
-import { reportCaveatMessages } from './report-caveats.js'
-import { incidentPathMessages } from './incident-paths.js'
-import { reactInspectionMessages } from './react-inspection.js'
-import { pwaLifecycleMessages } from './pwa-lifecycle.js'
-import { softNavigationMessages } from './soft-navigation.js'
-import { lcpAttributionMessages } from './lcp-attribution.js'
-import { browserImportMessages } from './browser-import.js'
-import { videoRecorderMessages } from './video-recorder/index.js'
-import { capabilityProfileMessages } from './capability-profiles.js'
-import { remoteConnectionMessages } from './remote-connections.js'
-import { homeReadinessMessages } from './home-readiness.js'
-import { trustedDialogMessages } from './trusted-dialogs.js'
-import { walletMessages } from './wallets/index.js'
-import { appErrorMessages } from './app-errors/index.js'
+import { esESNetworkPriority } from './network-priority/es-ES.js'
+import { esESNetworkLabels } from './network-labels/es-ES.js'
+import { esESReproSteps } from './repro-steps/es-ES.js'
+import { esESViewportPresets } from './viewport-presets/es-ES.js'
+import { esESSearchEngines } from './search-engines/es-ES.js'
+import { esESSettingsSections } from './settings-sections/es-ES.js'
+import { esESBrowserIssueTitles } from './browser-issue-titles/es-ES.js'
+import { esESQualityAuditText } from './quality-audit-text/es-ES.js'
+import { esESNetworkAbortReasons } from './network-abort-reasons/es-ES.js'
+import { esESReportCaveats } from './report-caveats/es-ES.js'
+import { esESIncidentPaths } from './incident-paths/es-ES.js'
+import { esESReactInspection } from './react-inspection/es-ES.js'
+import { esESPwaLifecycle } from './pwa-lifecycle/es-ES.js'
+import { esESSoftNavigation } from './soft-navigation/es-ES.js'
+import { esESLcpAttribution } from './lcp-attribution/es-ES.js'
+import { esESBrowserImport } from './browser-import/es-ES.js'
+import { esESVideoRecorder } from './video-recorder/es-ES.js'
+import { esESCapabilityProfiles } from './capability-profiles/es-ES.js'
+import { esESRemoteConnections } from './remote-connections/es-ES.js'
+import { esESHomeReadiness } from './home-readiness/es-ES.js'
+import { esESTrustedDialogs } from './trusted-dialogs/es-ES.js'
+import { esESWallets } from './wallets/es-ES.js'
+import { esESAppErrors } from './app-errors/es-ES.js'
 import type { MessageSchema } from './en-US.js'
 
 export const esES: MessageSchema = {
-  trustedDialogs: trustedDialogMessages['es-ES'],
-  reactInspection: reactInspectionMessages['es-ES'],
+  trustedDialogs: esESTrustedDialogs,
+  reactInspection: esESReactInspection,
   agentStatus: {
     starting: 'Preparándose para agentes',
     ready: 'Listo para agentes',
@@ -39,7 +39,7 @@ export const esES: MessageSchema = {
     details: 'Detalles'
   },
   incident: {
-    ...incidentPathMessages['es-ES'],
+    ...esESIncidentPaths,
     omitField: 'Nombre exacto del campo JSON que se omitirá (opcional)',
     omitFieldHint: 'Elimina todos los campos coincidentes de los artefactos conservados antes de reemplazar texto. Distingue mayúsculas; no es una ruta ni un comodín. Pueden quedar otras copias: revise la vista previa.',
     hash: 'SHA-256: {hash}',
@@ -90,8 +90,8 @@ export const esES: MessageSchema = {
     reminder: 'Se necesita licencia',
     reminderTitle: 'La automatización de agentes está bloqueada. Abrir configuración de licencia'
   },
-  pwaLifecycle: pwaLifecycleMessages['es-ES'],
-  softNavigation: softNavigationMessages['es-ES'],
+  pwaLifecycle: esESPwaLifecycle,
+  softNavigation: esESSoftNavigation,
   emulationApplication: {
     pending: 'Aplicando emulación',
     unknown: 'Emulación sin confirmar',
@@ -99,19 +99,19 @@ export const esES: MessageSchema = {
     restore: 'Restaurar ajustes guardados',
     networkFirst: 'Primero recupere las condiciones de red en Condiciones de solicitud. La emulación seguirá sin confirmar hasta restaurarla por separado.'
   },
-  networkPriority: networkPriorityMessages['es-ES'],
-  networkLabels: networkLabelMessages['es-ES'],
-  reproSteps: reproStepMessages['es-ES'],
-  viewportPresets: viewportPresetMessages['es-ES'],
-  searchEngines: searchEngineMessages['es-ES'],
-  settingsSections: settingsSectionMessages['es-ES'],
-  browserIssueTitles: browserIssueTitleMessages['es-ES'],
-  qualityAuditText: qualityAuditTextMessages['es-ES'],
-  networkAbortReasons: networkAbortReasonMessages['es-ES'],
-  reportCaveats: reportCaveatMessages['es-ES'],
-  lcpAttribution: lcpAttributionMessages['es-ES'],
-  browserImport: browserImportMessages['es-ES'],
-  video: videoRecorderMessages['es-ES'],
+  networkPriority: esESNetworkPriority,
+  networkLabels: esESNetworkLabels,
+  reproSteps: esESReproSteps,
+  viewportPresets: esESViewportPresets,
+  searchEngines: esESSearchEngines,
+  settingsSections: esESSettingsSections,
+  browserIssueTitles: esESBrowserIssueTitles,
+  qualityAuditText: esESQualityAuditText,
+  networkAbortReasons: esESNetworkAbortReasons,
+  reportCaveats: esESReportCaveats,
+  lcpAttribution: esESLcpAttribution,
+  browserImport: esESBrowserImport,
+  video: esESVideoRecorder,
   workspaceLibrary: {
     hidden: 'Oculto en la barra lateral',
     protected: 'Protegido contra eliminación',
@@ -566,7 +566,7 @@ export const esES: MessageSchema = {
       help: 'Las pestañas visibles, fijadas, cargando, con audio, descargas, formularios modificados, DevTools o en uso por un agente permanecen despiertas.'
     },
     mcp: {
-      remote: remoteConnectionMessages['es-ES'],
+      remote: esESRemoteConnections,
       heading: 'Seguridad MCP',
       description: 'Controla qué aplicaciones pueden conectarse a este perfil.',
       require: 'Requerir autenticación MCP',
@@ -587,7 +587,7 @@ export const esES: MessageSchema = {
       applyPort: 'Aplicar puerto',
       tokenHelp: 'El token de compatibilidad concede acceso completo. Usa un perfil de capacidades para clientes restringidos.',
       warning: 'La autenticación está desactivada. Cualquiera que pueda llegar a este servidor puede controlar pestañas con sesión y adjuntar archivos locales, incluso desde otros equipos cuando el acceso remoto está activado.',
-      capabilities: capabilityProfileMessages['es-ES']
+      capabilities: esESCapabilityProfiles
     },
     permissions: {
       search: 'Buscar permisos de sitios guardados',
@@ -734,8 +734,8 @@ export const esES: MessageSchema = {
       issue: 'Informar de un problema ↗'
     }
   },
-  wallets: walletMessages['es-ES'],
-  appErrors: appErrorMessages['es-ES'],
+  wallets: esESWallets,
+  appErrors: esESAppErrors,
   workspaceNavigationAudit: {
     reasonCredentials: 'credenciales incrustadas',
     reasonMalformed: 'dirección no válida',
@@ -3966,7 +3966,7 @@ export const esES: MessageSchema = {
       active: 'Activo',
       recent: 'Reciente'
     },
-    readiness: homeReadinessMessages['es-ES'],
+    readiness: esESHomeReadiness,
     firstRun: {
       kicker: 'Primer éxito',
       heading: 'Prueba Hronaut con una tarea segura',

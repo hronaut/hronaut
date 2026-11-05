@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { AgentPresence, AgentPresenceSnapshot, HronautAgentPresenceApi } from '../../../shared/agent-presence.js'
+import type { SupportedLocale } from '../../../shared/locale.js'
 import { themeColorScheme } from '../../../shared/theme.js'
 import type {
   HronautSidebarOverlayViewApi,
@@ -21,6 +22,7 @@ import type {
   UserAttentionRequest
 } from '../../../shared/types.js'
 import { installShellTooltips } from '../composables/shell-tooltips.js'
+import { createLocaleSwitch } from '../i18n.js'
 import type { McpStatusControlsController } from '../features/mcp/useMcpStatusController.js'
 import { createShellViewportMedia } from '../shell-viewport-media.js'
 import AppTopbarActions from './AppTopbarActions.vue'
@@ -28,7 +30,8 @@ import BrowserTabsBar from '../features/tabs/BrowserTabsBar.vue'
 
 const props = defineProps<{ api: HronautSidebarOverlayViewApi }>()
 
-const { locale } = useI18n({ useScope: 'global' })
+const i18n = useI18n({ useScope: 'global' })
+const switchLocale = createLocaleSwitch(i18n)
 const state = shallowRef<SidebarOverlayState | null>(null)
 const model = computed((): SidebarOverlayModel | null => state.value?.model ?? null)
 
@@ -280,7 +283,6 @@ function applyDocument(next: SidebarOverlayModel): void {
   root.dataset.theme = next.theme
   root.style.colorScheme = themeColorScheme(next.theme)
   root.lang = next.locale
-  locale.value = next.locale
   if (next.tint) root.style.setProperty('--workspace-tint', next.tint)
   else root.style.removeProperty('--workspace-tint')
   root.style.setProperty('--sidebar-overlay-top', `${next.top}px`)
@@ -289,7 +291,17 @@ function applyDocument(next: SidebarOverlayModel): void {
   bindViewportMedia(next.viewport)
 }
 
+// The language the latest state asked for, and its switch, which settles once its messages are loaded.
+let language: { locale: SupportedLocale; switched: Promise<unknown> } | undefined
+let received: SidebarOverlayState | undefined
+
 async function receive(next: SidebarOverlayState): Promise<void> {
+  received = next
+  // The rail draws in the shell's language, never in English first: a language's messages load before it draws, and
+  // a state that came meanwhile replaces this one.
+  if (language?.locale !== next.model.locale) language = { locale: next.model.locale, switched: switchLocale(next.model.locale) }
+  await language.switched
+  if (received !== next) return
   const opening = next.session !== state.value?.session
   const root = document.documentElement
   if (opening) {

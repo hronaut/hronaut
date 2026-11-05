@@ -2,8 +2,8 @@ import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import NetworkRequestPriority from '../../src/renderer/src/features/network/NetworkRequestPriority.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
-import { networkPriorityMessages } from '../../src/shared/locales/network-priority.js'
-import type { SupportedLocale } from '../../src/shared/locale.js'
+import { localeMessages } from '../../src/shared/i18n.js'
+import { SUPPORTED_LOCALES } from '../../src/shared/locale.js'
 
 describe('selected request priority', () => {
   it('shows unavailable explicitly, then updates the selected snapshot', async () => {
@@ -18,8 +18,8 @@ describe('selected request priority', () => {
       expect(wrapper.text()).toContain('LCP cause')
     } finally { wrapper.unmount() }
   })
-  it.each(Object.keys(networkPriorityMessages) as SupportedLocale[])('localizes accessible observations in %s', locale => {
-    const messages = networkPriorityMessages[locale]
+  it.each(SUPPORTED_LOCALES)('localizes accessible observations in %s', locale => {
+    const messages = localeMessages[locale].networkPriority
     const wrapper = mount(NetworkRequestPriority, { props: { priority: { initial: 'VeryLow', latestObserved: 'VeryHigh' } }, global: { plugins: [createHronautI18n(locale)] } })
     try {
       expect(wrapper.get('section').attributes('aria-label')).toBe(messages.heading)

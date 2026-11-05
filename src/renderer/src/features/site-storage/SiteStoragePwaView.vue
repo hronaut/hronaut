@@ -15,7 +15,7 @@ import { formatNumber } from '../../../../shared/format'
 import type { SupportedLocale } from '../../../../shared/locale'
 import { PWA_CACHE_NOT_FOUND_PREFIX, PWA_INSPECTION_CAVEATS, PWA_INSTALLABILITY_UNAVAILABLE_PREFIX } from '../../../../shared/pwa'
 import type { BrowserPwaReport } from '../../../../shared/types'
-import { pwaLifecycleMessages } from '../../../../shared/locales/pwa-lifecycle.js'
+import { enUSPwaLifecycle } from '../../../../shared/locales/pwa-lifecycle/en-US.js'
 
 const props = defineProps<{
   state: 'idle' | 'loading' | 'ready' | 'error'
@@ -55,7 +55,7 @@ function cacheErrorText(error: string): string {
   return name ? t('siteStorage.pwa.cacheNotFound', { name }) : error
 }
 // The page reports worker states, so one Hronaut does not know still shows as the page sent it.
-const WORKER_STATES = new Set(Object.keys(pwaLifecycleMessages['en-US'].workerStates))
+const WORKER_STATES = new Set(Object.keys(enUSPwaLifecycle.workerStates))
 function registrationState(registration: BrowserPwaReport['registrations'][number]): string {
   const state = registration.active?.state ?? registration.waiting?.state ?? registration.installing?.state
   if (state === undefined) return t('siteStorage.pwa.inactive')

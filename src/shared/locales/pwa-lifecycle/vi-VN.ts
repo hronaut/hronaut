@@ -1,0 +1,60 @@
+export const viVNPwaLifecycle = {
+  title: 'Lịch sử service worker',
+  note: 'Chỉ gồm các thay đổi đã quan sát được; có thể thiếu các chuyển đổi trước đó hoặc diễn ra nhanh.',
+  start: 'Quan sát trong 2 phút',
+  stop: 'Ngừng quan sát worker',
+  refresh: 'Làm mới',
+  clear: 'Xóa lịch sử',
+  active: 'Đang quan sát worker',
+  stopped: 'Đã dừng ghi lại',
+  waiting: 'Đang chờ',
+  coverage: 'Phạm vi và quyền riêng tư',
+  caveats: {
+    observedTimes: 'Thời gian cho biết khi nào một thay đổi được quan sát, không phải khi nào thay đổi đó xảy ra, và một lượt ghi lại không bao giờ có toàn bộ lịch sử.',
+    polling: 'Các bản đăng ký được kiểm tra mỗi giây một lần, nên có thể bỏ lỡ các chuyển đổi sớm và các bản đăng ký tồn tại ngắn.',
+    scope: 'Các bản đăng ký thuộc về nguồn gốc cấp cao nhất và không gian làm việc này, không chỉ thuộc về thẻ này.',
+    identities: 'Danh tính worker chỉ có ý nghĩa trong lượt ghi lại này và dùng để phân biệt các phiên bản của cùng một tập lệnh.',
+    interruption: 'Việc điều hướng, tải lại hoặc đóng trang, hay mất trình gỡ lỗi hoặc quyền truy cập sẽ làm gián đoạn việc ghi lại. Việc dừng hoặc gián đoạn có thể làm mất các sự kiện chưa được đọc.',
+    limits: 'Mỗi lượt ghi lại giữ tối đa 100 sự kiện, 20 bản đăng ký và 100 worker trong tối đa hai phút; năm lượt ghi lại được giữ trong bộ nhớ, và việc bắt đầu một lượt khác sẽ xóa lượt đã dừng cũ nhất.',
+    longUrls: 'Các địa chỉ dài hơn 2.048 ký tự sẽ bị bỏ qua thay vì hiển thị một phần địa chỉ có thể chứa thông tin xác thực.',
+    metadataOnly: 'Chỉ siêu dữ liệu được quan sát. Hronaut không bao giờ cập nhật, gửi tin nhắn, kích hoạt hay chạy worker, xóa bộ nhớ đệm hoặc thay đổi quyền.',
+    sleeping: 'Các thẻ đang ngủ hoặc bị cố định sẽ không bị đánh thức. Chế độ ngủ hoặc cố định sẽ làm gián đoạn việc ghi lại thay vì giữ trang hoạt động.',
+    snapshot: 'Các lượt đọc hiển thị ảnh chụp nhanh gần nhất. Không đảm bảo có toàn bộ lịch sử hoặc toàn bộ vòng đời của mọi worker.'
+  },
+  kinds: {
+    initial: 'đã bắt đầu ghi lại',
+    'registration-initial': 'đã có bản đăng ký',
+    'registration-discovered': 'đã tìm thấy bản đăng ký',
+    'registration-removed': 'đã xóa bản đăng ký',
+    updatefound: 'đã tìm thấy bản cập nhật',
+    statechange: 'trạng thái đã thay đổi',
+    controllerchange: 'trình điều khiển đã thay đổi'
+  },
+  workerStates: {
+    parsed: 'đã phân tích cú pháp',
+    installing: 'đang cài đặt',
+    installed: 'đã cài đặt',
+    activating: 'đang kích hoạt',
+    activated: 'đã kích hoạt',
+    redundant: 'dư thừa'
+  },
+  reasons: {
+    stopped: 'đã dừng theo yêu cầu',
+    replaced: 'được thay bằng lượt ghi lại mới',
+    shutdown: 'Hronaut đã đóng',
+    navigation: 'trang đã điều hướng',
+    'renderer-unavailable': 'tiến trình của trang đã kết thúc',
+    'debugger-detached': 'trình gỡ lỗi đã tách ra',
+    'duration-limit': 'đã đạt giới hạn hai phút',
+    'initial-read-unavailable': 'lượt đọc đầu tiên không thành công',
+    'page-observer-unavailable': 'trình quan sát trang đã dừng',
+    'context-or-authority-lost': 'mất ngữ cảnh trang hoặc quyền truy cập',
+    'worker-limit': 'đã đạt giới hạn số worker',
+    'event-limit': 'đã đạt giới hạn số sự kiện',
+    'registration-limit': 'đã đạt giới hạn số bản đăng ký',
+    'discovery-unavailable': 'không phát hiện được bản đăng ký',
+    unsupported: 'không hỗ trợ service worker',
+    'workspace-control-changed': 'quyền điều khiển không gian làm việc đã thay đổi',
+    'ownership-released': 'không gian làm việc đã được giải phóng'
+  }
+}

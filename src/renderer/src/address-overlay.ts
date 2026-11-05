@@ -1,7 +1,7 @@
 import './address-overlay.css'
 import { hasSwitchToTabButton, type AddressSuggestion, type AddressSuggestionOverlayState, type AddressSuggestionSelection } from '../../shared/address-suggestions.js'
-import { translate } from '../../shared/i18n.js'
 import type { SupportedLocale } from '../../shared/locale.js'
+import { loadedLocaleMessages, loadLocaleMessages, translate } from './locale-messages.js'
 
 interface HronautAddressOverlayViewApi {
   onState(listener: (state: AddressSuggestionOverlayState) => void): () => void
@@ -139,4 +139,18 @@ function render(state: AddressSuggestionOverlayState): void {
   window.hronautAddressOverlayView.measured(Math.ceil(panel.scrollHeight + 2))
 }
 
-window.hronautAddressOverlayView.onState(render)
+let latestState: AddressSuggestionOverlayState | undefined
+
+/** Draws the newest suggestions in their language, once its messages are loaded; an older state never replaces it. */
+function show(state: AddressSuggestionOverlayState): void {
+  latestState = state
+  if (loadedLocaleMessages(state.locale)) {
+    render(state)
+    return
+  }
+  void loadLocaleMessages(state.locale).then(() => {
+    if (latestState === state) render(state)
+  })
+}
+
+window.hronautAddressOverlayView.onState(show)

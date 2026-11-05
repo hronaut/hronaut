@@ -1,31 +1,31 @@
-import { networkPriorityMessages } from './network-priority.js'
-import { networkLabelMessages } from './network-labels.js'
-import { reproStepMessages } from './repro-steps.js'
-import { viewportPresetMessages } from './viewport-presets.js'
-import { searchEngineMessages } from './search-engines.js'
-import { settingsSectionMessages } from './settings-sections.js'
-import { browserIssueTitleMessages } from './browser-issue-titles.js'
-import { qualityAuditTextMessages } from './quality-audit-text.js'
-import { networkAbortReasonMessages } from './network-abort-reasons.js'
-import { reportCaveatMessages } from './report-caveats.js'
-import { incidentPathMessages } from './incident-paths.js'
-import { reactInspectionMessages } from './react-inspection.js'
-import { pwaLifecycleMessages } from './pwa-lifecycle.js'
-import { softNavigationMessages } from './soft-navigation.js'
-import { lcpAttributionMessages } from './lcp-attribution.js'
-import { browserImportMessages } from './browser-import.js'
-import { videoRecorderMessages } from './video-recorder/index.js'
-import { capabilityProfileMessages } from './capability-profiles.js'
-import { remoteConnectionMessages } from './remote-connections.js'
-import { homeReadinessMessages } from './home-readiness.js'
-import { trustedDialogMessages } from './trusted-dialogs.js'
-import { walletMessages } from './wallets/index.js'
-import { appErrorMessages } from './app-errors/index.js'
+import { itITNetworkPriority } from './network-priority/it-IT.js'
+import { itITNetworkLabels } from './network-labels/it-IT.js'
+import { itITReproSteps } from './repro-steps/it-IT.js'
+import { itITViewportPresets } from './viewport-presets/it-IT.js'
+import { itITSearchEngines } from './search-engines/it-IT.js'
+import { itITSettingsSections } from './settings-sections/it-IT.js'
+import { itITBrowserIssueTitles } from './browser-issue-titles/it-IT.js'
+import { itITQualityAuditText } from './quality-audit-text/it-IT.js'
+import { itITNetworkAbortReasons } from './network-abort-reasons/it-IT.js'
+import { itITReportCaveats } from './report-caveats/it-IT.js'
+import { itITIncidentPaths } from './incident-paths/it-IT.js'
+import { itITReactInspection } from './react-inspection/it-IT.js'
+import { itITPwaLifecycle } from './pwa-lifecycle/it-IT.js'
+import { itITSoftNavigation } from './soft-navigation/it-IT.js'
+import { itITLcpAttribution } from './lcp-attribution/it-IT.js'
+import { itITBrowserImport } from './browser-import/it-IT.js'
+import { itITVideoRecorder } from './video-recorder/it-IT.js'
+import { itITCapabilityProfiles } from './capability-profiles/it-IT.js'
+import { itITRemoteConnections } from './remote-connections/it-IT.js'
+import { itITHomeReadiness } from './home-readiness/it-IT.js'
+import { itITTrustedDialogs } from './trusted-dialogs/it-IT.js'
+import { itITWallets } from './wallets/it-IT.js'
+import { itITAppErrors } from './app-errors/it-IT.js'
 import type { MessageSchema } from './en-US.js'
 
 export const itIT: MessageSchema = {
-  trustedDialogs: trustedDialogMessages['it-IT'],
-  reactInspection: reactInspectionMessages['it-IT'],
+  trustedDialogs: itITTrustedDialogs,
+  reactInspection: itITReactInspection,
   agentStatus: {
     starting: 'Preparazione per gli agenti in corso',
     ready: 'Pronto per gli agenti',
@@ -39,7 +39,7 @@ export const itIT: MessageSchema = {
     details: 'Dettagli'
   },
   incident: {
-    ...incidentPathMessages['it-IT'],
+    ...itITIncidentPaths,
     omitField: 'Nome esatto del campo JSON da omettere (facoltativo)',
     omitFieldHint: 'Rimuove dagli artefatti conservati ogni campo oggetto corrispondente, prima della sostituzione. Distingue tra maiuscole e minuscole; non è un percorso né un carattere jolly. Possono rimanere altre copie: controlla l’anteprima.',
     hash: 'SHA-256: {hash}',
@@ -90,8 +90,8 @@ export const itIT: MessageSchema = {
     reminder: 'Licenza necessaria',
     reminderTitle: 'L’automazione degli agenti è bloccata. Apri Impostazioni licenza'
   },
-  pwaLifecycle: pwaLifecycleMessages['it-IT'],
-  softNavigation: softNavigationMessages['it-IT'],
+  pwaLifecycle: itITPwaLifecycle,
+  softNavigation: itITSoftNavigation,
   emulationApplication: {
     pending: 'Applicazione dell’emulazione',
     unknown: 'Emulazione non confermata',
@@ -99,19 +99,19 @@ export const itIT: MessageSchema = {
     restore: 'Ripristina impostazioni conservate',
     networkFirst: 'Recupera prima le condizioni di rete in Condizioni delle richieste. L’emulazione resta non confermata finché non viene ripristinata separatamente.'
   },
-  networkPriority: networkPriorityMessages['it-IT'],
-  networkLabels: networkLabelMessages['it-IT'],
-  reproSteps: reproStepMessages['it-IT'],
-  viewportPresets: viewportPresetMessages['it-IT'],
-  searchEngines: searchEngineMessages['it-IT'],
-  settingsSections: settingsSectionMessages['it-IT'],
-  browserIssueTitles: browserIssueTitleMessages['it-IT'],
-  qualityAuditText: qualityAuditTextMessages['it-IT'],
-  networkAbortReasons: networkAbortReasonMessages['it-IT'],
-  reportCaveats: reportCaveatMessages['it-IT'],
-  lcpAttribution: lcpAttributionMessages['it-IT'],
-  browserImport: browserImportMessages['it-IT'],
-  video: videoRecorderMessages['it-IT'],
+  networkPriority: itITNetworkPriority,
+  networkLabels: itITNetworkLabels,
+  reproSteps: itITReproSteps,
+  viewportPresets: itITViewportPresets,
+  searchEngines: itITSearchEngines,
+  settingsSections: itITSettingsSections,
+  browserIssueTitles: itITBrowserIssueTitles,
+  qualityAuditText: itITQualityAuditText,
+  networkAbortReasons: itITNetworkAbortReasons,
+  reportCaveats: itITReportCaveats,
+  lcpAttribution: itITLcpAttribution,
+  browserImport: itITBrowserImport,
+  video: itITVideoRecorder,
   workspaceLibrary: {
     hidden: 'Nascosta nella barra laterale',
     protected: 'Protetta dall’eliminazione',
@@ -566,7 +566,7 @@ export const itIT: MessageSchema = {
       help: 'Restano attive le schede visibili, bloccate, in caricamento, che riproducono audio, che scaricano file, con modifiche non salvate nei moduli, aperte in DevTools o in uso da un agente. La sospensione scarica la pagina e ne ripristina la cronologia di navigazione quando si riattiva.'
     },
     mcp: {
-      remote: remoteConnectionMessages['it-IT'],
+      remote: itITRemoteConnections,
       heading: 'Sicurezza MCP',
       description: 'Controlla quali applicazioni possono connettersi a questo profilo del browser.',
       require: 'Richiedi l’autenticazione MCP',
@@ -587,7 +587,7 @@ export const itIT: MessageSchema = {
       applyPort: 'Applica porta',
       tokenHelp: 'Il token di compatibilità concede l’accesso completo. Usa un profilo di funzionalità per i client con restrizioni.',
       warning: 'L’autenticazione è disattivata. Chiunque possa raggiungere questo listener può controllare le schede con accesso effettuato e allegare file locali, inclusi altri computer quando l’accesso remoto è attivo.',
-      capabilities: capabilityProfileMessages['it-IT']
+      capabilities: itITCapabilityProfiles
     },
     permissions: {
       search: 'Cerca nelle autorizzazioni dei siti salvate',
@@ -734,8 +734,8 @@ export const itIT: MessageSchema = {
       issue: 'Segnala un problema ↗'
     }
   },
-  wallets: walletMessages['it-IT'],
-  appErrors: appErrorMessages['it-IT'],
+  wallets: itITWallets,
+  appErrors: itITAppErrors,
   workspaceNavigationAudit: {
     reasonCredentials: 'credenziali incorporate',
     reasonMalformed: 'indirizzo non valido',
@@ -3966,7 +3966,7 @@ export const itIT: MessageSchema = {
       active: 'Attivi',
       recent: 'Recenti'
     },
-    readiness: homeReadinessMessages['it-IT'],
+    readiness: itITHomeReadiness,
     firstRun: {
       kicker: 'Primo successo',
       heading: 'Prova Hronaut con un’attività sicura',

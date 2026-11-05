@@ -1,31 +1,31 @@
-import { networkPriorityMessages } from './network-priority.js'
-import { networkLabelMessages } from './network-labels.js'
-import { reproStepMessages } from './repro-steps.js'
-import { viewportPresetMessages } from './viewport-presets.js'
-import { searchEngineMessages } from './search-engines.js'
-import { settingsSectionMessages } from './settings-sections.js'
-import { browserIssueTitleMessages } from './browser-issue-titles.js'
-import { qualityAuditTextMessages } from './quality-audit-text.js'
-import { networkAbortReasonMessages } from './network-abort-reasons.js'
-import { reportCaveatMessages } from './report-caveats.js'
-import { incidentPathMessages } from './incident-paths.js'
-import { reactInspectionMessages } from './react-inspection.js'
-import { pwaLifecycleMessages } from './pwa-lifecycle.js'
-import { softNavigationMessages } from './soft-navigation.js'
-import { lcpAttributionMessages } from './lcp-attribution.js'
-import { browserImportMessages } from './browser-import.js'
-import { videoRecorderMessages } from './video-recorder/index.js'
-import { capabilityProfileMessages } from './capability-profiles.js'
-import { remoteConnectionMessages } from './remote-connections.js'
-import { homeReadinessMessages } from './home-readiness.js'
-import { trustedDialogMessages } from './trusted-dialogs.js'
-import { walletMessages } from './wallets/index.js'
-import { appErrorMessages } from './app-errors/index.js'
+import { plPLNetworkPriority } from './network-priority/pl-PL.js'
+import { plPLNetworkLabels } from './network-labels/pl-PL.js'
+import { plPLReproSteps } from './repro-steps/pl-PL.js'
+import { plPLViewportPresets } from './viewport-presets/pl-PL.js'
+import { plPLSearchEngines } from './search-engines/pl-PL.js'
+import { plPLSettingsSections } from './settings-sections/pl-PL.js'
+import { plPLBrowserIssueTitles } from './browser-issue-titles/pl-PL.js'
+import { plPLQualityAuditText } from './quality-audit-text/pl-PL.js'
+import { plPLNetworkAbortReasons } from './network-abort-reasons/pl-PL.js'
+import { plPLReportCaveats } from './report-caveats/pl-PL.js'
+import { plPLIncidentPaths } from './incident-paths/pl-PL.js'
+import { plPLReactInspection } from './react-inspection/pl-PL.js'
+import { plPLPwaLifecycle } from './pwa-lifecycle/pl-PL.js'
+import { plPLSoftNavigation } from './soft-navigation/pl-PL.js'
+import { plPLLcpAttribution } from './lcp-attribution/pl-PL.js'
+import { plPLBrowserImport } from './browser-import/pl-PL.js'
+import { plPLVideoRecorder } from './video-recorder/pl-PL.js'
+import { plPLCapabilityProfiles } from './capability-profiles/pl-PL.js'
+import { plPLRemoteConnections } from './remote-connections/pl-PL.js'
+import { plPLHomeReadiness } from './home-readiness/pl-PL.js'
+import { plPLTrustedDialogs } from './trusted-dialogs/pl-PL.js'
+import { plPLWallets } from './wallets/pl-PL.js'
+import { plPLAppErrors } from './app-errors/pl-PL.js'
 import type { MessageSchema } from './en-US.js'
 
 export const plPL: MessageSchema = {
-  trustedDialogs: trustedDialogMessages['pl-PL'],
-  reactInspection: reactInspectionMessages['pl-PL'],
+  trustedDialogs: plPLTrustedDialogs,
+  reactInspection: plPLReactInspection,
   agentStatus: {
     starting: 'Przygotowanie do pracy z agentami',
     ready: 'Gotowe do pracy z agentami',
@@ -39,7 +39,7 @@ export const plPL: MessageSchema = {
     details: 'Szczegóły'
   },
   incident: {
-    ...incidentPathMessages['pl-PL'],
+    ...plPLIncidentPaths,
     omitField: 'Dokładna nazwa pola JSON do pominięcia (opcjonalnie)',
     omitFieldHint: 'Usuwa wszystkie pasujące pola obiektów z zachowanych artefaktów przed zamianą tekstu. Rozróżnia wielkość liter; to nie ścieżka ani wzorzec. Inne kopie mogą pozostać: sprawdź podgląd.',
     hash: 'SHA-256: {hash}',
@@ -90,8 +90,8 @@ export const plPL: MessageSchema = {
     reminder: 'Potrzebna licencja',
     reminderTitle: 'Automatyzacja agentów jest zablokowana. Otwórz ustawienia licencji'
   },
-  pwaLifecycle: pwaLifecycleMessages['pl-PL'],
-  softNavigation: softNavigationMessages['pl-PL'],
+  pwaLifecycle: plPLPwaLifecycle,
+  softNavigation: plPLSoftNavigation,
   emulationApplication: {
     pending: 'Stosowanie emulacji',
     unknown: 'Emulacja niepotwierdzona',
@@ -99,19 +99,19 @@ export const plPL: MessageSchema = {
     restore: 'Przywróć zachowane ustawienia',
     networkFirst: 'Najpierw przywróć warunki sieciowe w Warunkach żądań. Emulacja pozostaje niepotwierdzona do czasu osobnego przywrócenia.'
   },
-  networkPriority: networkPriorityMessages['pl-PL'],
-  networkLabels: networkLabelMessages['pl-PL'],
-  reproSteps: reproStepMessages['pl-PL'],
-  viewportPresets: viewportPresetMessages['pl-PL'],
-  searchEngines: searchEngineMessages['pl-PL'],
-  settingsSections: settingsSectionMessages['pl-PL'],
-  browserIssueTitles: browserIssueTitleMessages['pl-PL'],
-  qualityAuditText: qualityAuditTextMessages['pl-PL'],
-  networkAbortReasons: networkAbortReasonMessages['pl-PL'],
-  reportCaveats: reportCaveatMessages['pl-PL'],
-  lcpAttribution: lcpAttributionMessages['pl-PL'],
-  browserImport: browserImportMessages['pl-PL'],
-  video: videoRecorderMessages['pl-PL'],
+  networkPriority: plPLNetworkPriority,
+  networkLabels: plPLNetworkLabels,
+  reproSteps: plPLReproSteps,
+  viewportPresets: plPLViewportPresets,
+  searchEngines: plPLSearchEngines,
+  settingsSections: plPLSettingsSections,
+  browserIssueTitles: plPLBrowserIssueTitles,
+  qualityAuditText: plPLQualityAuditText,
+  networkAbortReasons: plPLNetworkAbortReasons,
+  reportCaveats: plPLReportCaveats,
+  lcpAttribution: plPLLcpAttribution,
+  browserImport: plPLBrowserImport,
+  video: plPLVideoRecorder,
   workspaceLibrary: {
     hidden: 'Ukryty na pasku bocznym',
     protected: 'Chroniony przed usunięciem',
@@ -566,7 +566,7 @@ export const plPL: MessageSchema = {
       help: 'Widoczne, przypięte, ładowane, odtwarzające dźwięk, pobierające, ze zmienionym formularzem, DevTools i karty używane przez agenta pozostają aktywne.'
     },
     mcp: {
-      remote: remoteConnectionMessages['pl-PL'],
+      remote: plPLRemoteConnections,
       heading: 'Bezpieczeństwo MCP',
       description: 'Kontroluj, które aplikacje mogą łączyć się z tym profilem.',
       require: 'Wymagaj uwierzytelniania MCP',
@@ -587,7 +587,7 @@ export const plPL: MessageSchema = {
       applyPort: 'Zastosuj port',
       tokenHelp: 'Token zgodności daje pełny dostęp. Dla klientów z ograniczonym dostępem użyj profilu uprawnień.',
       warning: 'Uwierzytelnianie jest wyłączone. Każdy, kto może połączyć się z tym serwerem nasłuchującym, może sterować zalogowanymi kartami i dołączać lokalne pliki, także z innych komputerów, gdy dostęp zdalny jest włączony.',
-      capabilities: capabilityProfileMessages['pl-PL']
+      capabilities: plPLCapabilityProfiles
     },
     permissions: {
       search: 'Szukaj zapisanych uprawnień witryn',
@@ -734,8 +734,8 @@ export const plPL: MessageSchema = {
       issue: 'Zgłoś problem ↗'
     }
   },
-  wallets: walletMessages['pl-PL'],
-  appErrors: appErrorMessages['pl-PL'],
+  wallets: plPLWallets,
+  appErrors: plPLAppErrors,
   workspaceNavigationAudit: {
     reasonCredentials: 'osadzone dane logowania',
     reasonMalformed: 'nieprawidłowy adres',
@@ -3966,7 +3966,7 @@ export const plPL: MessageSchema = {
       active: 'Aktywne',
       recent: 'Ostatnie'
     },
-    readiness: homeReadinessMessages['pl-PL'],
+    readiness: plPLHomeReadiness,
     firstRun: {
       kicker: 'Pierwszy sukces',
       heading: 'Wypróbuj Hronaut w jednym bezpiecznym zadaniu',

@@ -1,31 +1,31 @@
-import { networkPriorityMessages } from './network-priority.js'
-import { networkLabelMessages } from './network-labels.js'
-import { reproStepMessages } from './repro-steps.js'
-import { viewportPresetMessages } from './viewport-presets.js'
-import { searchEngineMessages } from './search-engines.js'
-import { settingsSectionMessages } from './settings-sections.js'
-import { browserIssueTitleMessages } from './browser-issue-titles.js'
-import { qualityAuditTextMessages } from './quality-audit-text.js'
-import { networkAbortReasonMessages } from './network-abort-reasons.js'
-import { reportCaveatMessages } from './report-caveats.js'
-import { incidentPathMessages } from './incident-paths.js'
-import { reactInspectionMessages } from './react-inspection.js'
-import { pwaLifecycleMessages } from './pwa-lifecycle.js'
-import { softNavigationMessages } from './soft-navigation.js'
-import { lcpAttributionMessages } from './lcp-attribution.js'
-import { browserImportMessages } from './browser-import.js'
-import { videoRecorderMessages } from './video-recorder/index.js'
-import { capabilityProfileMessages } from './capability-profiles.js'
-import { remoteConnectionMessages } from './remote-connections.js'
-import { homeReadinessMessages } from './home-readiness.js'
-import { trustedDialogMessages } from './trusted-dialogs.js'
-import { walletMessages } from './wallets/index.js'
-import { appErrorMessages } from './app-errors/index.js'
+import { deDENetworkPriority } from './network-priority/de-DE.js'
+import { deDENetworkLabels } from './network-labels/de-DE.js'
+import { deDEReproSteps } from './repro-steps/de-DE.js'
+import { deDEViewportPresets } from './viewport-presets/de-DE.js'
+import { deDESearchEngines } from './search-engines/de-DE.js'
+import { deDESettingsSections } from './settings-sections/de-DE.js'
+import { deDEBrowserIssueTitles } from './browser-issue-titles/de-DE.js'
+import { deDEQualityAuditText } from './quality-audit-text/de-DE.js'
+import { deDENetworkAbortReasons } from './network-abort-reasons/de-DE.js'
+import { deDEReportCaveats } from './report-caveats/de-DE.js'
+import { deDEIncidentPaths } from './incident-paths/de-DE.js'
+import { deDEReactInspection } from './react-inspection/de-DE.js'
+import { deDEPwaLifecycle } from './pwa-lifecycle/de-DE.js'
+import { deDESoftNavigation } from './soft-navigation/de-DE.js'
+import { deDELcpAttribution } from './lcp-attribution/de-DE.js'
+import { deDEBrowserImport } from './browser-import/de-DE.js'
+import { deDEVideoRecorder } from './video-recorder/de-DE.js'
+import { deDECapabilityProfiles } from './capability-profiles/de-DE.js'
+import { deDERemoteConnections } from './remote-connections/de-DE.js'
+import { deDEHomeReadiness } from './home-readiness/de-DE.js'
+import { deDETrustedDialogs } from './trusted-dialogs/de-DE.js'
+import { deDEWallets } from './wallets/de-DE.js'
+import { deDEAppErrors } from './app-errors/de-DE.js'
 import type { MessageSchema } from './en-US.js'
 
 export const deDE: MessageSchema = {
-  trustedDialogs: trustedDialogMessages['de-DE'],
-  reactInspection: reactInspectionMessages['de-DE'],
+  trustedDialogs: deDETrustedDialogs,
+  reactInspection: deDEReactInspection,
   agentStatus: {
     starting: 'Wird für Agenten vorbereitet',
     ready: 'Bereit für Agenten',
@@ -39,7 +39,7 @@ export const deDE: MessageSchema = {
     details: 'Details'
   },
   incident: {
-    ...incidentPathMessages['de-DE'],
+    ...deDEIncidentPaths,
     omitField: 'Exakter auszulassender JSON-Feldname (optional)',
     omitFieldHint: 'Entfernt vor dem Ersetzen alle gleichnamigen Objektfelder aus behaltenen Artefakten. Groß-/Kleinschreibung beachten; kein Pfad oder Platzhalter. Andere Kopien können verbleiben: Vorschau prüfen.',
     hash: 'SHA-256: {hash}',
@@ -90,8 +90,8 @@ export const deDE: MessageSchema = {
     reminder: 'Lizenz erforderlich',
     reminderTitle: 'Die Agentenautomatisierung ist gesperrt. Lizenzeinstellungen öffnen'
   },
-  pwaLifecycle: pwaLifecycleMessages['de-DE'],
-  softNavigation: softNavigationMessages['de-DE'],
+  pwaLifecycle: deDEPwaLifecycle,
+  softNavigation: deDESoftNavigation,
   emulationApplication: {
     pending: 'Emulation wird angewendet',
     unknown: 'Emulation unbestätigt',
@@ -99,19 +99,19 @@ export const deDE: MessageSchema = {
     restore: 'Gespeicherte Einstellungen wiederherstellen',
     networkFirst: 'Stellen Sie zuerst die Netzwerkbedingungen unter Anfragebedingungen wieder her. Die Emulation bleibt bis zur separaten Wiederherstellung unbestätigt.'
   },
-  networkPriority: networkPriorityMessages['de-DE'],
-  networkLabels: networkLabelMessages['de-DE'],
-  reproSteps: reproStepMessages['de-DE'],
-  viewportPresets: viewportPresetMessages['de-DE'],
-  searchEngines: searchEngineMessages['de-DE'],
-  settingsSections: settingsSectionMessages['de-DE'],
-  browserIssueTitles: browserIssueTitleMessages['de-DE'],
-  qualityAuditText: qualityAuditTextMessages['de-DE'],
-  networkAbortReasons: networkAbortReasonMessages['de-DE'],
-  reportCaveats: reportCaveatMessages['de-DE'],
-  lcpAttribution: lcpAttributionMessages['de-DE'],
-  browserImport: browserImportMessages['de-DE'],
-  video: videoRecorderMessages['de-DE'],
+  networkPriority: deDENetworkPriority,
+  networkLabels: deDENetworkLabels,
+  reproSteps: deDEReproSteps,
+  viewportPresets: deDEViewportPresets,
+  searchEngines: deDESearchEngines,
+  settingsSections: deDESettingsSections,
+  browserIssueTitles: deDEBrowserIssueTitles,
+  qualityAuditText: deDEQualityAuditText,
+  networkAbortReasons: deDENetworkAbortReasons,
+  reportCaveats: deDEReportCaveats,
+  lcpAttribution: deDELcpAttribution,
+  browserImport: deDEBrowserImport,
+  video: deDEVideoRecorder,
   workspaceLibrary: {
     hidden: 'In der Seitenleiste ausgeblendet',
     protected: 'Vor Löschen geschützt',
@@ -566,7 +566,7 @@ export const deDE: MessageSchema = {
       help: 'Sichtbare, angeheftete, ladende, Audio- und Download-Tabs, geänderte Formulare, DevTools und Tabs, die ein Agent gerade nutzt, bleiben aktiv.'
     },
     mcp: {
-      remote: remoteConnectionMessages['de-DE'],
+      remote: deDERemoteConnections,
       heading: 'MCP-Sicherheit',
       description: 'Lege fest, welche Anwendungen auf dieses Browserprofil zugreifen dürfen.',
       require: 'MCP-Authentifizierung verlangen',
@@ -587,7 +587,7 @@ export const deDE: MessageSchema = {
       applyPort: 'Port anwenden',
       tokenHelp: 'Das Kompatibilitäts-Token gewährt vollen Zugriff. Verwende für eingeschränkte Clients ein Berechtigungsprofil.',
       warning: 'Die Authentifizierung ist deaktiviert. Jeder, der diesen Listener erreicht, kann angemeldete Tabs steuern und lokale Dateien anhängen, bei aktivem Fernzugriff auch von anderen Computern aus.',
-      capabilities: capabilityProfileMessages['de-DE']
+      capabilities: deDECapabilityProfiles
     },
     permissions: {
       search: 'Gespeicherte Website-Berechtigungen suchen',
@@ -734,8 +734,8 @@ export const deDE: MessageSchema = {
       issue: 'Problem melden ↗'
     }
   },
-  wallets: walletMessages['de-DE'],
-  appErrors: appErrorMessages['de-DE'],
+  wallets: deDEWallets,
+  appErrors: deDEAppErrors,
   workspaceNavigationAudit: {
     reasonCredentials: 'eingebettete Zugangsdaten',
     reasonMalformed: 'ungültige Adresse',
@@ -3966,7 +3966,7 @@ export const deDE: MessageSchema = {
       active: 'Aktiv',
       recent: 'Kürzlich'
     },
-    readiness: homeReadinessMessages['de-DE'],
+    readiness: deDEHomeReadiness,
     firstRun: {
       kicker: 'Erster Erfolg',
       heading: 'Hronaut mit einer sicheren Aufgabe ausprobieren',

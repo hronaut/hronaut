@@ -1,4 +1,4 @@
-import type { MessageKey } from './i18n.js'
+import type { MessageKey } from './translate.js'
 
 /**
  * Chrome's Sound site setting, which no website asks for: Mute Site saves it as a deny decision, so the website's pages

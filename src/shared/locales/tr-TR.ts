@@ -1,31 +1,31 @@
-import { networkPriorityMessages } from './network-priority.js'
-import { networkLabelMessages } from './network-labels.js'
-import { reproStepMessages } from './repro-steps.js'
-import { viewportPresetMessages } from './viewport-presets.js'
-import { searchEngineMessages } from './search-engines.js'
-import { settingsSectionMessages } from './settings-sections.js'
-import { browserIssueTitleMessages } from './browser-issue-titles.js'
-import { qualityAuditTextMessages } from './quality-audit-text.js'
-import { networkAbortReasonMessages } from './network-abort-reasons.js'
-import { reportCaveatMessages } from './report-caveats.js'
-import { incidentPathMessages } from './incident-paths.js'
-import { reactInspectionMessages } from './react-inspection.js'
-import { pwaLifecycleMessages } from './pwa-lifecycle.js'
-import { softNavigationMessages } from './soft-navigation.js'
-import { lcpAttributionMessages } from './lcp-attribution.js'
-import { browserImportMessages } from './browser-import.js'
-import { videoRecorderMessages } from './video-recorder/index.js'
-import { capabilityProfileMessages } from './capability-profiles.js'
-import { remoteConnectionMessages } from './remote-connections.js'
-import { homeReadinessMessages } from './home-readiness.js'
-import { trustedDialogMessages } from './trusted-dialogs.js'
-import { walletMessages } from './wallets/index.js'
-import { appErrorMessages } from './app-errors/index.js'
+import { trTRNetworkPriority } from './network-priority/tr-TR.js'
+import { trTRNetworkLabels } from './network-labels/tr-TR.js'
+import { trTRReproSteps } from './repro-steps/tr-TR.js'
+import { trTRViewportPresets } from './viewport-presets/tr-TR.js'
+import { trTRSearchEngines } from './search-engines/tr-TR.js'
+import { trTRSettingsSections } from './settings-sections/tr-TR.js'
+import { trTRBrowserIssueTitles } from './browser-issue-titles/tr-TR.js'
+import { trTRQualityAuditText } from './quality-audit-text/tr-TR.js'
+import { trTRNetworkAbortReasons } from './network-abort-reasons/tr-TR.js'
+import { trTRReportCaveats } from './report-caveats/tr-TR.js'
+import { trTRIncidentPaths } from './incident-paths/tr-TR.js'
+import { trTRReactInspection } from './react-inspection/tr-TR.js'
+import { trTRPwaLifecycle } from './pwa-lifecycle/tr-TR.js'
+import { trTRSoftNavigation } from './soft-navigation/tr-TR.js'
+import { trTRLcpAttribution } from './lcp-attribution/tr-TR.js'
+import { trTRBrowserImport } from './browser-import/tr-TR.js'
+import { trTRVideoRecorder } from './video-recorder/tr-TR.js'
+import { trTRCapabilityProfiles } from './capability-profiles/tr-TR.js'
+import { trTRRemoteConnections } from './remote-connections/tr-TR.js'
+import { trTRHomeReadiness } from './home-readiness/tr-TR.js'
+import { trTRTrustedDialogs } from './trusted-dialogs/tr-TR.js'
+import { trTRWallets } from './wallets/tr-TR.js'
+import { trTRAppErrors } from './app-errors/tr-TR.js'
 import type { MessageSchema } from './en-US.js'
 
 export const trTR: MessageSchema = {
-  trustedDialogs: trustedDialogMessages['tr-TR'],
-  reactInspection: reactInspectionMessages['tr-TR'],
+  trustedDialogs: trTRTrustedDialogs,
+  reactInspection: trTRReactInspection,
   agentStatus: {
     starting: 'Ajanlar için hazırlanıyor',
     ready: 'Ajanlara hazır',
@@ -39,7 +39,7 @@ export const trTR: MessageSchema = {
     details: 'Ayrıntılar'
   },
   incident: {
-    ...incidentPathMessages['tr-TR'],
+    ...trTRIncidentPaths,
     omitField: 'Çıkarılacak tam JSON alan adı (isteğe bağlı)',
     omitFieldHint: 'Değiştirme yapılmadan önce eşleşen tüm nesne alanlarını saklanan öğelerden kaldırır. Büyük/küçük harfe duyarlıdır; yol veya joker karakter değildir. Başka kopyalar kalabilir: önizlemeyi inceleyin.',
     hash: 'SHA-256: {hash}',
@@ -90,8 +90,8 @@ export const trTR: MessageSchema = {
     reminder: 'Lisans gerekli',
     reminderTitle: 'Ajan otomasyonu kilitli. Lisans ayarlarını açın'
   },
-  pwaLifecycle: pwaLifecycleMessages['tr-TR'],
-  softNavigation: softNavigationMessages['tr-TR'],
+  pwaLifecycle: trTRPwaLifecycle,
+  softNavigation: trTRSoftNavigation,
   emulationApplication: {
     pending: 'Emülasyon uygulanıyor',
     unknown: 'Emülasyon doğrulanmadı',
@@ -99,19 +99,19 @@ export const trTR: MessageSchema = {
     restore: 'Saklanan ayarları geri yükle',
     networkFirst: 'Önce İstek koşulları bölümünde Ağ koşullarını kurtarın. Emülasyon, ayrıca geri yüklenene kadar doğrulanmamış kalır.'
   },
-  networkPriority: networkPriorityMessages['tr-TR'],
-  networkLabels: networkLabelMessages['tr-TR'],
-  reproSteps: reproStepMessages['tr-TR'],
-  viewportPresets: viewportPresetMessages['tr-TR'],
-  searchEngines: searchEngineMessages['tr-TR'],
-  settingsSections: settingsSectionMessages['tr-TR'],
-  browserIssueTitles: browserIssueTitleMessages['tr-TR'],
-  qualityAuditText: qualityAuditTextMessages['tr-TR'],
-  networkAbortReasons: networkAbortReasonMessages['tr-TR'],
-  reportCaveats: reportCaveatMessages['tr-TR'],
-  lcpAttribution: lcpAttributionMessages['tr-TR'],
-  browserImport: browserImportMessages['tr-TR'],
-  video: videoRecorderMessages['tr-TR'],
+  networkPriority: trTRNetworkPriority,
+  networkLabels: trTRNetworkLabels,
+  reproSteps: trTRReproSteps,
+  viewportPresets: trTRViewportPresets,
+  searchEngines: trTRSearchEngines,
+  settingsSections: trTRSettingsSections,
+  browserIssueTitles: trTRBrowserIssueTitles,
+  qualityAuditText: trTRQualityAuditText,
+  networkAbortReasons: trTRNetworkAbortReasons,
+  reportCaveats: trTRReportCaveats,
+  lcpAttribution: trTRLcpAttribution,
+  browserImport: trTRBrowserImport,
+  video: trTRVideoRecorder,
   workspaceLibrary: {
     hidden: 'Kenar çubuğunda gizli',
     protected: 'Silinmeye karşı korumalı',
@@ -566,7 +566,7 @@ export const trTR: MessageSchema = {
       help: 'Görünür, sabitlenmiş, yüklenmekte olan, ses çalan, indirme yapan, kaydedilmemiş form değişiklikleri içeren, DevTools’ta açık olan veya bir ajanın kullandığı sekmeler uyanık kalır. Uyutma, sayfayı bellekten kaldırır ve sekme uyandığında gezinme geçmişini geri yükler.'
     },
     mcp: {
-      remote: remoteConnectionMessages['tr-TR'],
+      remote: trTRRemoteConnections,
       heading: 'MCP güvenliği',
       description: 'Bu tarayıcı profiline hangi uygulamaların bağlanabileceğini denetleyin.',
       require: 'MCP kimlik doğrulamasını zorunlu kıl',
@@ -587,7 +587,7 @@ export const trTR: MessageSchema = {
       applyPort: 'Bağlantı noktasını uygula',
       tokenHelp: 'Uyumluluk belirteci tam erişim verir. Kısıtlı istemciler için bir yetenek profili kullanın.',
       warning: 'Kimlik doğrulama kapalı. Bu dinleyiciye erişebilen herkes oturum açılmış sekmeleri denetleyebilir ve yerel dosya ekleyebilir; uzaktan erişim etkinse buna diğer bilgisayarlar da dahildir.',
-      capabilities: capabilityProfileMessages['tr-TR']
+      capabilities: trTRCapabilityProfiles
     },
     permissions: {
       search: 'Kayıtlı site izinlerinde ara',
@@ -734,8 +734,8 @@ export const trTR: MessageSchema = {
       issue: 'Sorun bildir ↗'
     }
   },
-  wallets: walletMessages['tr-TR'],
-  appErrors: appErrorMessages['tr-TR'],
+  wallets: trTRWallets,
+  appErrors: trTRAppErrors,
   workspaceNavigationAudit: {
     reasonCredentials: 'gömülü kimlik bilgileri',
     reasonMalformed: 'geçersiz adres',
@@ -3966,7 +3966,7 @@ export const trTR: MessageSchema = {
       active: 'Etkin',
       recent: 'Son'
     },
-    readiness: homeReadinessMessages['tr-TR'],
+    readiness: trTRHomeReadiness,
     firstRun: {
       kicker: 'İlk başarı',
       heading: 'Hronaut’u güvenli bir görevle deneyin',

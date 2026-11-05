@@ -1,5 +1,6 @@
-import { translate, type MessageKey } from '../../shared/i18n.js'
 import { resolveSupportedLocale, type SupportedLocale } from '../../shared/locale.js'
+import type { MessageKey } from '../../shared/translate.js'
+import { loadLocaleMessages, translate } from './locale-messages.js'
 
 function startupErrorMessage(error: unknown, fallback: string): string {
   const raw = error instanceof Error ? error.message : typeof error === 'string' ? error : ''
@@ -18,14 +19,15 @@ function element<Tag extends keyof HTMLElementTagNameMap>(tag: Tag, className?: 
 
 /**
  * The page shown when the shell cannot load its settings. Without them the chosen language is unknown, so it speaks
- * the operating system's language when Hronaut has it, and English otherwise.
+ * the operating system's language when Hronaut has it, and English otherwise, as when that language cannot be loaded.
  */
-export function renderStartupFailure(
+export async function renderStartupFailure(
   root: HTMLElement,
   error: unknown,
   retry: () => void = () => window.location.reload(),
-  locale: SupportedLocale = resolveSupportedLocale(navigator.language)
-): void {
+  system: SupportedLocale = resolveSupportedLocale(navigator.language)
+): Promise<void> {
+  const locale = (await loadLocaleMessages(system)) ? system : 'en-US'
   const text = (key: MessageKey): string => translate(locale, key)
   document.documentElement.lang = locale
   document.documentElement.dir = 'ltr'

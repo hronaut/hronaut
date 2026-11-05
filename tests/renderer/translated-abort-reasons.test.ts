@@ -2,8 +2,8 @@ import { render } from '@testing-library/vue'
 import { describe, expect, it } from 'vitest'
 import NetworkRequestConditions from '../../src/renderer/src/features/network/NetworkRequestConditions.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
+import { localeMessages } from '../../src/shared/i18n.js'
 import { SUPPORTED_LOCALES, type SupportedLocale } from '../../src/shared/locale.js'
-import { networkAbortReasonMessages } from '../../src/shared/locales/network-abort-reasons.js'
 import { BROWSER_NETWORK_ABORT_REASONS, type BrowserNetworkRouteSummary } from '../../src/shared/types.js'
 
 function shown(locale: SupportedLocale, routes: BrowserNetworkRouteSummary[]) {
@@ -45,7 +45,7 @@ describe('request condition failure reasons', () => {
   it('names every reason in every locale, and shows one it does not know as its code', () => {
     for (const locale of SUPPORTED_LOCALES) {
       // A code without a name here would show its message key path.
-      expect(Object.keys(networkAbortReasonMessages[locale]).sort()).toEqual([...BROWSER_NETWORK_ABORT_REASONS].sort())
+      expect(Object.keys(localeMessages[locale].networkAbortReasons).sort()).toEqual([...BROWSER_NETWORK_ABORT_REASONS].sort())
       const labels = shown(locale, []).options.map(([, label]) => label)
       expect(new Set(labels).size).toBe(BROWSER_NETWORK_ABORT_REASONS.length)
       // A code is a label only where it is already a word, as English Aborted.

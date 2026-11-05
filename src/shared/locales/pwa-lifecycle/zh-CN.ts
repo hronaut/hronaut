@@ -1,0 +1,60 @@
+export const zhCNPwaLifecycle = {
+  title: 'Service Worker 历史记录',
+  note: '仅显示观察到的变化；可能缺少较早或快速的状态转换。',
+  start: '观察 2 分钟',
+  stop: '停止观察 Worker',
+  refresh: '刷新',
+  clear: '清除历史记录',
+  active: '正在观察 Worker',
+  stopped: '捕获已停止',
+  waiting: '等待中',
+  coverage: '覆盖范围和隐私',
+  caveats: {
+    observedTimes: '时间显示的是观察到变化的时间，而不是变化发生的时间，而且一次捕获永远不会包含完整的历史记录。',
+    polling: '每秒检查一次注册情况，因此可能会遗漏早期的状态转换和短暂存在的注册。',
+    scope: '注册属于此顶层来源和工作区，而不只属于此标签页。',
+    identities: 'Worker 身份仅在本次捕获中有效，用于区分同一脚本的不同版本。',
+    interruption: '导航、重新加载或关闭页面，或者失去调试器连接或访问权限，都会中断捕获。停止或中断可能会丢弃尚未读取的事件。',
+    limits: '一次捕获最多保留 100 个事件、20 个注册和 100 个 Worker，最长两分钟；内存中最多保留五次捕获，开始新的捕获会移除最早停止的那一次。',
+    longUrls: '超过 2,048 个字符的地址会被省略，以免部分显示可能包含凭据的地址。',
+    metadataOnly: '仅观察元数据。Hronaut 绝不会更新 Worker、向其发送消息、激活或运行 Worker，也不会清除缓存或更改权限。',
+    sleeping: '不会唤醒已休眠或已冻结的标签页。休眠或冻结会中断捕获，而不会让页面保持活动状态。',
+    snapshot: '读取显示的是最后一次获取的快照。不保证提供完整的历史记录或每个 Worker 的完整生命周期。'
+  },
+  kinds: {
+    initial: '捕获已开始',
+    'registration-initial': '存在注册',
+    'registration-discovered': '发现注册',
+    'registration-removed': '注册已移除',
+    updatefound: '发现更新',
+    statechange: '状态已更改',
+    controllerchange: '控制器已更改'
+  },
+  workerStates: {
+    parsed: '已解析',
+    installing: '正在安装',
+    installed: '已安装',
+    activating: '正在激活',
+    activated: '已激活',
+    redundant: '已冗余'
+  },
+  reasons: {
+    stopped: '应请求停止',
+    replaced: '被新的捕获取代',
+    shutdown: 'Hronaut 已关闭',
+    navigation: '页面已导航',
+    'renderer-unavailable': '页面进程已结束',
+    'debugger-detached': '调试器已分离',
+    'duration-limit': '已达到两分钟的上限',
+    'initial-read-unavailable': '首次读取失败',
+    'page-observer-unavailable': '页面观察器已停止',
+    'context-or-authority-lost': '失去页面上下文或访问权限',
+    'worker-limit': '已达到 Worker 数量上限',
+    'event-limit': '已达到事件数量上限',
+    'registration-limit': '已达到注册数量上限',
+    'discovery-unavailable': '注册发现失败',
+    unsupported: '不支持 Service Worker',
+    'workspace-control-changed': '工作区控制权已更改',
+    'ownership-released': '工作区已释放'
+  }
+}

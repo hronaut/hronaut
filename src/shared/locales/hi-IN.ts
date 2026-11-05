@@ -1,31 +1,31 @@
-import { networkPriorityMessages } from './network-priority.js'
-import { networkLabelMessages } from './network-labels.js'
-import { reproStepMessages } from './repro-steps.js'
-import { viewportPresetMessages } from './viewport-presets.js'
-import { searchEngineMessages } from './search-engines.js'
-import { settingsSectionMessages } from './settings-sections.js'
-import { browserIssueTitleMessages } from './browser-issue-titles.js'
-import { qualityAuditTextMessages } from './quality-audit-text.js'
-import { networkAbortReasonMessages } from './network-abort-reasons.js'
-import { reportCaveatMessages } from './report-caveats.js'
-import { incidentPathMessages } from './incident-paths.js'
-import { reactInspectionMessages } from './react-inspection.js'
-import { pwaLifecycleMessages } from './pwa-lifecycle.js'
-import { softNavigationMessages } from './soft-navigation.js'
-import { lcpAttributionMessages } from './lcp-attribution.js'
-import { browserImportMessages } from './browser-import.js'
-import { videoRecorderMessages } from './video-recorder/index.js'
-import { capabilityProfileMessages } from './capability-profiles.js'
-import { remoteConnectionMessages } from './remote-connections.js'
-import { homeReadinessMessages } from './home-readiness.js'
-import { trustedDialogMessages } from './trusted-dialogs.js'
-import { walletMessages } from './wallets/index.js'
-import { appErrorMessages } from './app-errors/index.js'
+import { hiINNetworkPriority } from './network-priority/hi-IN.js'
+import { hiINNetworkLabels } from './network-labels/hi-IN.js'
+import { hiINReproSteps } from './repro-steps/hi-IN.js'
+import { hiINViewportPresets } from './viewport-presets/hi-IN.js'
+import { hiINSearchEngines } from './search-engines/hi-IN.js'
+import { hiINSettingsSections } from './settings-sections/hi-IN.js'
+import { hiINBrowserIssueTitles } from './browser-issue-titles/hi-IN.js'
+import { hiINQualityAuditText } from './quality-audit-text/hi-IN.js'
+import { hiINNetworkAbortReasons } from './network-abort-reasons/hi-IN.js'
+import { hiINReportCaveats } from './report-caveats/hi-IN.js'
+import { hiINIncidentPaths } from './incident-paths/hi-IN.js'
+import { hiINReactInspection } from './react-inspection/hi-IN.js'
+import { hiINPwaLifecycle } from './pwa-lifecycle/hi-IN.js'
+import { hiINSoftNavigation } from './soft-navigation/hi-IN.js'
+import { hiINLcpAttribution } from './lcp-attribution/hi-IN.js'
+import { hiINBrowserImport } from './browser-import/hi-IN.js'
+import { hiINVideoRecorder } from './video-recorder/hi-IN.js'
+import { hiINCapabilityProfiles } from './capability-profiles/hi-IN.js'
+import { hiINRemoteConnections } from './remote-connections/hi-IN.js'
+import { hiINHomeReadiness } from './home-readiness/hi-IN.js'
+import { hiINTrustedDialogs } from './trusted-dialogs/hi-IN.js'
+import { hiINWallets } from './wallets/hi-IN.js'
+import { hiINAppErrors } from './app-errors/hi-IN.js'
 import type { MessageSchema } from './en-US.js'
 
 export const hiIN: MessageSchema = {
-  trustedDialogs: trustedDialogMessages['hi-IN'],
-  reactInspection: reactInspectionMessages['hi-IN'],
+  trustedDialogs: hiINTrustedDialogs,
+  reactInspection: hiINReactInspection,
   agentStatus: {
     starting: 'एजेंट के लिए तैयारी हो रही है',
     ready: 'एजेंट के लिए तैयार',
@@ -39,7 +39,7 @@ export const hiIN: MessageSchema = {
     details: 'विवरण'
   },
   incident: {
-    ...incidentPathMessages['hi-IN'],
+    ...hiINIncidentPaths,
     omitField: 'छोड़ने के लिए JSON फ़ील्ड का सटीक नाम (वैकल्पिक)',
     omitFieldHint: 'टेक्स्ट बदलने से पहले, रखे गए आर्टफ़ैक्ट से हर मिलती-जुलती ऑब्जेक्ट फ़ील्ड हटाता है। अक्षरों का केस मायने रखता है; यह पाथ या वाइल्डकार्ड नहीं है। दूसरी कॉपी बची रह सकती हैं: झलक जांचें।',
     hash: 'SHA-256: {hash}',
@@ -90,8 +90,8 @@ export const hiIN: MessageSchema = {
     reminder: 'लाइसेंस ज़रूरी है',
     reminderTitle: 'एजेंट ऑटोमेशन लॉक है। लाइसेंस सेटिंग खोलें'
   },
-  pwaLifecycle: pwaLifecycleMessages['hi-IN'],
-  softNavigation: softNavigationMessages['hi-IN'],
+  pwaLifecycle: hiINPwaLifecycle,
+  softNavigation: hiINSoftNavigation,
   emulationApplication: {
     pending: 'एम्युलेशन लागू किया जा रहा है',
     unknown: 'एम्युलेशन की पुष्टि नहीं हुई',
@@ -99,19 +99,19 @@ export const hiIN: MessageSchema = {
     restore: 'रखी गई सेटिंग वापस लागू करें',
     networkFirst: 'पहले अनुरोध की स्थितियां में नेटवर्क की स्थितियां वापस लाएं। अलग से वापस लागू किए जाने तक एम्युलेशन की पुष्टि नहीं होगी।'
   },
-  networkPriority: networkPriorityMessages['hi-IN'],
-  networkLabels: networkLabelMessages['hi-IN'],
-  reproSteps: reproStepMessages['hi-IN'],
-  viewportPresets: viewportPresetMessages['hi-IN'],
-  searchEngines: searchEngineMessages['hi-IN'],
-  settingsSections: settingsSectionMessages['hi-IN'],
-  browserIssueTitles: browserIssueTitleMessages['hi-IN'],
-  qualityAuditText: qualityAuditTextMessages['hi-IN'],
-  networkAbortReasons: networkAbortReasonMessages['hi-IN'],
-  reportCaveats: reportCaveatMessages['hi-IN'],
-  lcpAttribution: lcpAttributionMessages['hi-IN'],
-  browserImport: browserImportMessages['hi-IN'],
-  video: videoRecorderMessages['hi-IN'],
+  networkPriority: hiINNetworkPriority,
+  networkLabels: hiINNetworkLabels,
+  reproSteps: hiINReproSteps,
+  viewportPresets: hiINViewportPresets,
+  searchEngines: hiINSearchEngines,
+  settingsSections: hiINSettingsSections,
+  browserIssueTitles: hiINBrowserIssueTitles,
+  qualityAuditText: hiINQualityAuditText,
+  networkAbortReasons: hiINNetworkAbortReasons,
+  reportCaveats: hiINReportCaveats,
+  lcpAttribution: hiINLcpAttribution,
+  browserImport: hiINBrowserImport,
+  video: hiINVideoRecorder,
   workspaceLibrary: {
     hidden: 'साइडबार से छिपाया गया',
     protected: 'मिटाने से सुरक्षित',
@@ -566,7 +566,7 @@ export const hiIN: MessageSchema = {
       help: 'जो टैब दिख रहे हैं, पिन किए गए हैं, लोड हो रहे हैं, ऑडियो चला रहे हैं, डाउनलोड कर रहे हैं, जिनमें फ़ॉर्म के बदलाव बाकी हैं, जो DevTools में खुले हैं या जिन्हें कोई एजेंट इस्तेमाल कर रहा है, वे जागते रहते हैं। स्लीप मोड पेज को अनलोड करता है और जागने पर उसका नेविगेशन इतिहास वापस लाता है।'
     },
     mcp: {
-      remote: remoteConnectionMessages['hi-IN'],
+      remote: hiINRemoteConnections,
       heading: 'MCP सुरक्षा',
       description: 'कंट्रोल करें कि कौनसे ऐप्लिकेशन इस ब्राउज़र प्रोफ़ाइल से कनेक्ट हो सकते हैं।',
       require: 'MCP ऑथेंटिकेशन ज़रूरी करें',
@@ -587,7 +587,7 @@ export const hiIN: MessageSchema = {
       applyPort: 'पोर्ट लागू करें',
       tokenHelp: 'कंपैटिबिलिटी टोकन पूरा ऐक्सेस देता है। सीमित क्लाइंट के लिए क्षमता प्रोफ़ाइल इस्तेमाल करें।',
       warning: 'ऑथेंटिकेशन बंद है। जो भी इस लिसनर तक पहुंच सकता है, वह साइन-इन किए गए टैब कंट्रोल कर सकता है और लोकल फ़ाइलें अटैच कर सकता है। रिमोट ऐक्सेस चालू होने पर इसमें दूसरे कंप्यूटर भी शामिल हैं।',
-      capabilities: capabilityProfileMessages['hi-IN']
+      capabilities: hiINCapabilityProfiles
     },
     permissions: {
       search: 'सेव की गई साइट अनुमतियां खोजें',
@@ -734,8 +734,8 @@ export const hiIN: MessageSchema = {
       issue: 'समस्या की शिकायत करें ↗'
     }
   },
-  wallets: walletMessages['hi-IN'],
-  appErrors: appErrorMessages['hi-IN'],
+  wallets: hiINWallets,
+  appErrors: hiINAppErrors,
   workspaceNavigationAudit: {
     reasonCredentials: 'एम्बेड किए गए क्रेडेंशियल',
     reasonMalformed: 'अमान्य पता',
@@ -3966,7 +3966,7 @@ export const hiIN: MessageSchema = {
       active: 'चालू',
       recent: 'हाल के'
     },
-    readiness: homeReadinessMessages['hi-IN'],
+    readiness: hiINHomeReadiness,
     firstRun: {
       kicker: 'पहली सफलता',
       heading: 'एक सुरक्षित टास्क के साथ Hronaut आज़माएं',

@@ -1,31 +1,31 @@
-import { networkPriorityMessages } from './network-priority.js'
-import { networkLabelMessages } from './network-labels.js'
-import { reproStepMessages } from './repro-steps.js'
-import { viewportPresetMessages } from './viewport-presets.js'
-import { searchEngineMessages } from './search-engines.js'
-import { settingsSectionMessages } from './settings-sections.js'
-import { browserIssueTitleMessages } from './browser-issue-titles.js'
-import { qualityAuditTextMessages } from './quality-audit-text.js'
-import { networkAbortReasonMessages } from './network-abort-reasons.js'
-import { reportCaveatMessages } from './report-caveats.js'
-import { incidentPathMessages } from './incident-paths.js'
-import { reactInspectionMessages } from './react-inspection.js'
-import { pwaLifecycleMessages } from './pwa-lifecycle.js'
-import { softNavigationMessages } from './soft-navigation.js'
-import { lcpAttributionMessages } from './lcp-attribution.js'
-import { browserImportMessages } from './browser-import.js'
-import { videoRecorderMessages } from './video-recorder/index.js'
-import { capabilityProfileMessages } from './capability-profiles.js'
-import { remoteConnectionMessages } from './remote-connections.js'
-import { homeReadinessMessages } from './home-readiness.js'
-import { trustedDialogMessages } from './trusted-dialogs.js'
-import { walletMessages } from './wallets/index.js'
-import { appErrorMessages } from './app-errors/index.js'
+import { ptBRNetworkPriority } from './network-priority/pt-BR.js'
+import { ptBRNetworkLabels } from './network-labels/pt-BR.js'
+import { ptBRReproSteps } from './repro-steps/pt-BR.js'
+import { ptBRViewportPresets } from './viewport-presets/pt-BR.js'
+import { ptBRSearchEngines } from './search-engines/pt-BR.js'
+import { ptBRSettingsSections } from './settings-sections/pt-BR.js'
+import { ptBRBrowserIssueTitles } from './browser-issue-titles/pt-BR.js'
+import { ptBRQualityAuditText } from './quality-audit-text/pt-BR.js'
+import { ptBRNetworkAbortReasons } from './network-abort-reasons/pt-BR.js'
+import { ptBRReportCaveats } from './report-caveats/pt-BR.js'
+import { ptBRIncidentPaths } from './incident-paths/pt-BR.js'
+import { ptBRReactInspection } from './react-inspection/pt-BR.js'
+import { ptBRPwaLifecycle } from './pwa-lifecycle/pt-BR.js'
+import { ptBRSoftNavigation } from './soft-navigation/pt-BR.js'
+import { ptBRLcpAttribution } from './lcp-attribution/pt-BR.js'
+import { ptBRBrowserImport } from './browser-import/pt-BR.js'
+import { ptBRVideoRecorder } from './video-recorder/pt-BR.js'
+import { ptBRCapabilityProfiles } from './capability-profiles/pt-BR.js'
+import { ptBRRemoteConnections } from './remote-connections/pt-BR.js'
+import { ptBRHomeReadiness } from './home-readiness/pt-BR.js'
+import { ptBRTrustedDialogs } from './trusted-dialogs/pt-BR.js'
+import { ptBRWallets } from './wallets/pt-BR.js'
+import { ptBRAppErrors } from './app-errors/pt-BR.js'
 import type { MessageSchema } from './en-US.js'
 
 export const ptBR: MessageSchema = {
-  trustedDialogs: trustedDialogMessages['pt-BR'],
-  reactInspection: reactInspectionMessages['pt-BR'],
+  trustedDialogs: ptBRTrustedDialogs,
+  reactInspection: ptBRReactInspection,
   agentStatus: {
     starting: 'Preparando para os agentes',
     ready: 'Pronto para os agentes',
@@ -39,7 +39,7 @@ export const ptBR: MessageSchema = {
     details: 'Detalhes'
   },
   incident: {
-    ...incidentPathMessages['pt-BR'],
+    ...ptBRIncidentPaths,
     omitField: 'Nome exato do campo JSON a omitir (opcional)',
     omitFieldHint: 'Remove todos os campos de objeto correspondentes dos artefatos mantidos, antes da substituição. Diferencia maiúsculas de minúsculas; não é um caminho nem um curinga. Outras cópias podem permanecer: confira a visualização.',
     hash: 'SHA-256: {hash}',
@@ -90,8 +90,8 @@ export const ptBR: MessageSchema = {
     reminder: 'Licença necessária',
     reminderTitle: 'A automação de agentes está bloqueada. Abrir as configurações de licença'
   },
-  pwaLifecycle: pwaLifecycleMessages['pt-BR'],
-  softNavigation: softNavigationMessages['pt-BR'],
+  pwaLifecycle: ptBRPwaLifecycle,
+  softNavigation: ptBRSoftNavigation,
   emulationApplication: {
     pending: 'Aplicando emulação',
     unknown: 'Emulação não confirmada',
@@ -99,19 +99,19 @@ export const ptBR: MessageSchema = {
     restore: 'Restaurar configurações retidas',
     networkFirst: 'Primeiro, recupere as condições de rede em Condições da solicitação. A emulação continua não confirmada até ser restaurada separadamente.'
   },
-  networkPriority: networkPriorityMessages['pt-BR'],
-  networkLabels: networkLabelMessages['pt-BR'],
-  reproSteps: reproStepMessages['pt-BR'],
-  viewportPresets: viewportPresetMessages['pt-BR'],
-  searchEngines: searchEngineMessages['pt-BR'],
-  settingsSections: settingsSectionMessages['pt-BR'],
-  browserIssueTitles: browserIssueTitleMessages['pt-BR'],
-  qualityAuditText: qualityAuditTextMessages['pt-BR'],
-  networkAbortReasons: networkAbortReasonMessages['pt-BR'],
-  reportCaveats: reportCaveatMessages['pt-BR'],
-  lcpAttribution: lcpAttributionMessages['pt-BR'],
-  browserImport: browserImportMessages['pt-BR'],
-  video: videoRecorderMessages['pt-BR'],
+  networkPriority: ptBRNetworkPriority,
+  networkLabels: ptBRNetworkLabels,
+  reproSteps: ptBRReproSteps,
+  viewportPresets: ptBRViewportPresets,
+  searchEngines: ptBRSearchEngines,
+  settingsSections: ptBRSettingsSections,
+  browserIssueTitles: ptBRBrowserIssueTitles,
+  qualityAuditText: ptBRQualityAuditText,
+  networkAbortReasons: ptBRNetworkAbortReasons,
+  reportCaveats: ptBRReportCaveats,
+  lcpAttribution: ptBRLcpAttribution,
+  browserImport: ptBRBrowserImport,
+  video: ptBRVideoRecorder,
   workspaceLibrary: {
     hidden: 'Oculto da barra lateral',
     protected: 'Protegido contra exclusão',
@@ -566,7 +566,7 @@ export const ptBR: MessageSchema = {
       help: 'Guias visíveis, fixadas, carregando, reproduzindo áudio, fazendo download, com alterações de formulário, abertas no DevTools ou em uso por um agente continuam ativas. A suspensão descarrega a página e restaura o histórico de navegação dela quando ela é reativada.'
     },
     mcp: {
-      remote: remoteConnectionMessages['pt-BR'],
+      remote: ptBRRemoteConnections,
       heading: 'Segurança do MCP',
       description: 'Controle quais aplicativos podem se conectar a este perfil do navegador.',
       require: 'Exigir autenticação MCP',
@@ -587,7 +587,7 @@ export const ptBR: MessageSchema = {
       applyPort: 'Aplicar porta',
       tokenHelp: 'O token de compatibilidade concede acesso total. Use um perfil de capacidades para clientes restritos.',
       warning: 'A autenticação está desativada. Qualquer pessoa que consiga alcançar este listener pode controlar guias com login e anexar arquivos locais, incluindo outros computadores quando o acesso remoto está ativo.',
-      capabilities: capabilityProfileMessages['pt-BR']
+      capabilities: ptBRCapabilityProfiles
     },
     permissions: {
       search: 'Pesquisar permissões de sites salvas',
@@ -734,8 +734,8 @@ export const ptBR: MessageSchema = {
       issue: 'Relatar um problema ↗'
     }
   },
-  wallets: walletMessages['pt-BR'],
-  appErrors: appErrorMessages['pt-BR'],
+  wallets: ptBRWallets,
+  appErrors: ptBRAppErrors,
   workspaceNavigationAudit: {
     reasonCredentials: 'credenciais incorporadas',
     reasonMalformed: 'endereço inválido',
@@ -3966,7 +3966,7 @@ export const ptBR: MessageSchema = {
       active: 'Ativo',
       recent: 'Recente'
     },
-    readiness: homeReadinessMessages['pt-BR'],
+    readiness: ptBRHomeReadiness,
     firstRun: {
       kicker: 'Primeiro sucesso',
       heading: 'Teste o Hronaut com uma tarefa segura',

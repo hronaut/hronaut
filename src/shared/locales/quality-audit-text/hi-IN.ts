@@ -1,0 +1,82 @@
+export const hiINQualityAuditText = {
+  categories: {
+    accessibility: 'सुलभता',
+    performance: 'परफ़ॉर्मेंस',
+    metadata: 'मेटाडेटा और SEO',
+    security: 'सुरक्षा',
+    pwa: 'PWA और ऑफ़लाइन',
+    'browser-issues': 'Chromium की समस्याएं'
+  },
+  statuses: {
+    pass: 'पास',
+    info: 'जानकारी',
+    warning: 'चेतावनी',
+    error: 'गड़बड़ी',
+    'not-applicable': 'लागू नहीं'
+  },
+  severities: {
+    error: 'गड़बड़ी',
+    warning: 'चेतावनी',
+    info: 'जानकारी'
+  },
+  fixed: {
+    accessibilityClear: 'अपने-आप होने वाली जांच में WCAG AA का कोई उल्लंघन नहीं मिला',
+    performanceNone: 'इस विज़िट में कोई Web Vitals नहीं देखा गया',
+    metadataClear: 'मेटाडेटा से जुड़ी कोई समस्या नहीं मिली',
+    securitySecure: 'मुख्य दस्तावेज़ का ट्रांसपोर्ट सुरक्षित है',
+    pwaNone: 'कोई PWA या ऑफ़लाइन ऐप सरफ़ेस नहीं मिला',
+    browserIssuesClear: 'Chromium की कोई रखी गई समस्या नहीं मिली',
+    webVitalsNotObserved: 'मौजूदा विज़िट में कोई Web Vitals नहीं देखा गया; ऑडिट फिर से चलाने से पहले पेज को फिर से लोड करें और उससे इंटरैक्ट करें।',
+    insecureTransport: 'मुख्य दस्तावेज़ ठीक तरह से काम करने वाले सुरक्षित ट्रांसपोर्ट का इस्तेमाल नहीं कर रहा है।',
+    certificateExpired: 'मुख्य दस्तावेज़ के सर्टिफ़िकेट की समय-सीमा खत्म हो गई है।',
+    certificateNotYetValid: 'मुख्य दस्तावेज़ का सर्टिफ़िकेट अभी मान्य नहीं है।',
+    certificateInvalid: 'मुख्य दस्तावेज़ का सर्टिफ़िकेट अभी मान्य नहीं है।',
+    pwaInspectionPartial: 'इस ऑडिट के लिए PWA की कुछ डायग्नोस्टिक जानकारी उपलब्ध नहीं थी।'
+  },
+  caveats: {
+    localDiagnostic: 'यह Hronaut के सबूतों से तैयार किया गया सीमित लोकल डायग्नोस्टिक है; यह Lighthouse स्कोर या सर्टिफ़िकेशन नहीं है।',
+    accessibilityAutomation: 'सुलभता की ऑटोमैटिक जांच, कीबोर्ड, स्क्रीन रीडर, ज़ूम, मोशन और इंसानों के साथ इस्तेमाल की जांच की जगह नहीं ले सकती।',
+    performanceVisit: 'परफ़ॉर्मेंस, मौजूदा लोकल विज़िट और एनवायरमेंट को दिखाती है; ज़रूरी मापों को असल जैसी स्थितियों में दोहराएं।',
+    pwaOptional: 'जो वेबसाइटें ऑफ़लाइन ऐप सरफ़ेस नहीं दिखातीं, उनके लिए PWA को ज़रूरी नहीं माना जाता।',
+    reloadIssues: 'सिर्फ़ स्टार्टअप पर होने वाली Chromium की समस्याएं दोहराने से पहले पेज फिर से लोड करें, फिर यह ऑडिट दोबारा चलाएं।'
+  },
+  text: {
+    violations: '{count} उल्लंघन | {count} उल्लंघन',
+    violationNodes: '{count} प्रभावित नोड | {count} प्रभावित नोड',
+    accessibilityViolations: '{nodes} में {violations}',
+    affectedNodes: '{count} प्रभावित नोड | {count} प्रभावित नोड',
+    accessibilityFinding: '{help} ({nodes})',
+    rulesPassed: '{count} नियम पास हुआ | {count} नियम पास हुए',
+    checksNeedReview: '{count} जांच की समीक्षा ज़रूरी है | {count} जांचों की समीक्षा ज़रूरी है',
+    needsHumanReview: 'सुलभता की {count} जांच की इंसानी समीक्षा ज़रूरी है। | सुलभता की {count} जांचों की इंसानी समीक्षा ज़रूरी है।',
+    performanceGood: 'देखे गए {total} में से {good} Web Vital अच्छा है | देखे गए {total} में से {good} Web Vitals अच्छे हैं',
+    metricEvidence: '{name}: {value} ({rating})',
+    metricFinding: '{value} पर {name} की रेटिंग {rating} है।',
+    resources: '{count} रिसॉर्स | {count} रिसॉर्स',
+    longTasks: '{count} लंबा टास्क | {count} लंबे टास्क',
+    metadataIssues: 'मेटाडेटा की {count} समस्या | मेटाडेटा की {count} समस्याएं',
+    language: 'भाषा: {language}',
+    languageMissing: 'भाषा: मौजूद नहीं है',
+    canonicalUrls: 'कैननिकल URL: {count}',
+    structuredData: 'स्ट्रक्चर्ड डेटा: {valid} मान्य · {invalid} अमान्य',
+    securityState: 'सुरक्षा की स्थिति: {state}',
+    securityStateFinding: 'Chromium ने मुख्य दस्तावेज़ की सुरक्षा स्थिति {state} बताई।',
+    transportSecure: 'ट्रांसपोर्ट: सुरक्षित',
+    transportInsecure: 'ट्रांसपोर्ट: सुरक्षित नहीं',
+    protocol: 'प्रोटोकॉल: {protocol}',
+    protocolUnavailable: 'प्रोटोकॉल: उपलब्ध नहीं है',
+    certificateValid: 'सर्टिफ़िकेट: मान्य',
+    certificateInvalid: 'सर्टिफ़िकेट: अमान्य',
+    certificateUnavailable: 'सर्टिफ़िकेट: उपलब्ध नहीं है',
+    registrations: '{count} सर्विस वर्कर रजिस्ट्रेशन | {count} सर्विस वर्कर रजिस्ट्रेशन',
+    caches: '{count} कैश | {count} कैश',
+    manifestPresent: 'मेनिफ़ेस्ट: मौजूद है',
+    manifestMissing: 'मेनिफ़ेस्ट: नहीं मिला',
+    controlledYes: 'सर्विस वर्कर से कंट्रोल होता है: हां',
+    controlledNo: 'सर्विस वर्कर से कंट्रोल होता है: नहीं',
+    installabilityIssues: 'इंस्टॉल करने से जुड़ी समस्याएं: {count}',
+    installabilityFinding: 'Chromium ने PWA इंस्टॉल करने से जुड़ी एक समस्या बताई: {issue}।',
+    installabilityUnknown: 'Chromium ने PWA इंस्टॉल करने से जुड़ी एक समस्या बताई: अनजान समस्या।',
+    browserIssues: 'ब्राउज़र की बताई गई {count} समस्या | ब्राउज़र की बताई गई {count} समस्याएं'
+  }
+}

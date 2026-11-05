@@ -196,6 +196,23 @@ describe('the architecture rules in AGENTS.md', { timeout: SCAN_TIMEOUT }, () =>
     expect(importCycles(graph)).toEqual([])
   })
 
+  it('keeps every language but English out of the renderer windows\' code, which loads the one a window shows', () => {
+    const graph = runtimeImports(files)
+    const reached = new Set<string>()
+    const visit = (file: string): void => {
+      if (reached.has(file)) return
+      reached.add(file)
+      for (const imported of graph.get(file) ?? []) visit(imported)
+    }
+    files.filter(file => file.startsWith('src/renderer/')).forEach(visit)
+    // A dynamic import, as src/renderer/src/locale-messages.ts makes of each other language, is not in the graph.
+    const languages = [...reached].filter(file => (
+      file === 'src/shared/i18n.ts' || (/^src\/shared\/locales\/(.+\/)?[a-z]{2}-[A-Z]{2}\.ts$/.test(file) && !file.endsWith('/en-US.ts'))
+    ))
+    expect(reached).toContain('src/shared/locales/en-US.ts')
+    expect(languages).toEqual([])
+  })
+
   it('counts the imports and re-exports that the built code keeps, and leaves out those of types only', () => {
     const code = [
       "import './side-effect.js'",

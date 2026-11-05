@@ -6,9 +6,8 @@ import SearchSettingsPanel from '../../src/renderer/src/features/settings/Search
 import { useSearchSettingsController } from '../../src/renderer/src/features/settings/useSearchSettingsController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import { DEFAULT_RENDERER_SETTINGS } from '../../src/renderer/src/stores/settings.js'
+import { localeMessages } from '../../src/shared/i18n.js'
 import { SUPPORTED_LOCALES } from '../../src/shared/locale.js'
-import { searchEngineMessages } from '../../src/shared/locales/search-engines.js'
-import { viewportPresetMessages } from '../../src/shared/locales/viewport-presets.js'
 import { SEARCH_ENGINE_OPTIONS } from '../../src/shared/search-engine.js'
 import type { AppSettings, BrowserState, BrowserTabState } from '../../src/shared/types.js'
 import { BROWSER_VIEWPORT_PRESETS } from '../../src/shared/viewport-presets.js'
@@ -16,14 +15,14 @@ import { BROWSER_VIEWPORT_PRESETS } from '../../src/shared/viewport-presets.js'
 describe('translated preset and search engine catalogs', () => {
   it('names every viewport preset and search engine in every language, with English matching the shared catalog', () => {
     for (const locale of SUPPORTED_LOCALES) {
-      expect(Object.keys(viewportPresetMessages[locale]).sort()).toEqual(BROWSER_VIEWPORT_PRESETS.map((preset) => preset.id).sort())
-      expect(Object.keys(searchEngineMessages[locale]).sort()).toEqual(SEARCH_ENGINE_OPTIONS.map((engine) => engine.id).sort())
+      expect(Object.keys(localeMessages[locale].viewportPresets).sort()).toEqual(BROWSER_VIEWPORT_PRESETS.map((preset) => preset.id).sort())
+      expect(Object.keys(localeMessages[locale].searchEngines).sort()).toEqual(SEARCH_ENGINE_OPTIONS.map((engine) => engine.id).sort())
     }
     for (const preset of BROWSER_VIEWPORT_PRESETS) {
-      expect(viewportPresetMessages['en-US'][preset.id]).toEqual({ label: preset.label, description: preset.description })
+      expect(localeMessages['en-US'].viewportPresets[preset.id]).toEqual({ label: preset.label, description: preset.description })
     }
     for (const engine of SEARCH_ENGINE_OPTIONS) {
-      expect(searchEngineMessages['en-US'][engine.id]).toBe(engine.description)
+      expect(localeMessages['en-US'].searchEngines[engine.id]).toBe(engine.description)
     }
   })
 

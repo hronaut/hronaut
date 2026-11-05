@@ -1,31 +1,31 @@
-import { networkPriorityMessages } from './network-priority.js'
-import { networkLabelMessages } from './network-labels.js'
-import { reproStepMessages } from './repro-steps.js'
-import { viewportPresetMessages } from './viewport-presets.js'
-import { searchEngineMessages } from './search-engines.js'
-import { settingsSectionMessages } from './settings-sections.js'
-import { browserIssueTitleMessages } from './browser-issue-titles.js'
-import { qualityAuditTextMessages } from './quality-audit-text.js'
-import { networkAbortReasonMessages } from './network-abort-reasons.js'
-import { reportCaveatMessages } from './report-caveats.js'
-import { incidentPathMessages } from './incident-paths.js'
-import { reactInspectionMessages } from './react-inspection.js'
-import { pwaLifecycleMessages } from './pwa-lifecycle.js'
-import { softNavigationMessages } from './soft-navigation.js'
-import { lcpAttributionMessages } from './lcp-attribution.js'
-import { browserImportMessages } from './browser-import.js'
-import { videoRecorderMessages } from './video-recorder/index.js'
-import { capabilityProfileMessages } from './capability-profiles.js'
-import { remoteConnectionMessages } from './remote-connections.js'
-import { homeReadinessMessages } from './home-readiness.js'
-import { trustedDialogMessages } from './trusted-dialogs.js'
-import { walletMessages } from './wallets/index.js'
-import { appErrorMessages } from './app-errors/index.js'
+import { idIDNetworkPriority } from './network-priority/id-ID.js'
+import { idIDNetworkLabels } from './network-labels/id-ID.js'
+import { idIDReproSteps } from './repro-steps/id-ID.js'
+import { idIDViewportPresets } from './viewport-presets/id-ID.js'
+import { idIDSearchEngines } from './search-engines/id-ID.js'
+import { idIDSettingsSections } from './settings-sections/id-ID.js'
+import { idIDBrowserIssueTitles } from './browser-issue-titles/id-ID.js'
+import { idIDQualityAuditText } from './quality-audit-text/id-ID.js'
+import { idIDNetworkAbortReasons } from './network-abort-reasons/id-ID.js'
+import { idIDReportCaveats } from './report-caveats/id-ID.js'
+import { idIDIncidentPaths } from './incident-paths/id-ID.js'
+import { idIDReactInspection } from './react-inspection/id-ID.js'
+import { idIDPwaLifecycle } from './pwa-lifecycle/id-ID.js'
+import { idIDSoftNavigation } from './soft-navigation/id-ID.js'
+import { idIDLcpAttribution } from './lcp-attribution/id-ID.js'
+import { idIDBrowserImport } from './browser-import/id-ID.js'
+import { idIDVideoRecorder } from './video-recorder/id-ID.js'
+import { idIDCapabilityProfiles } from './capability-profiles/id-ID.js'
+import { idIDRemoteConnections } from './remote-connections/id-ID.js'
+import { idIDHomeReadiness } from './home-readiness/id-ID.js'
+import { idIDTrustedDialogs } from './trusted-dialogs/id-ID.js'
+import { idIDWallets } from './wallets/id-ID.js'
+import { idIDAppErrors } from './app-errors/id-ID.js'
 import type { MessageSchema } from './en-US.js'
 
 export const idID: MessageSchema = {
-  trustedDialogs: trustedDialogMessages['id-ID'],
-  reactInspection: reactInspectionMessages['id-ID'],
+  trustedDialogs: idIDTrustedDialogs,
+  reactInspection: idIDReactInspection,
   agentStatus: {
     starting: 'Menyiapkan untuk agen',
     ready: 'Siap untuk agen',
@@ -39,7 +39,7 @@ export const idID: MessageSchema = {
     details: 'Detail'
   },
   incident: {
-    ...incidentPathMessages['id-ID'],
+    ...idIDIncidentPaths,
     omitField: 'Nama kolom JSON persis yang akan dihilangkan (opsional)',
     omitFieldHint: 'Menghapus setiap kolom objek yang cocok dari artefak yang dipertahankan, sebelum penggantian. Peka huruf besar/kecil; bukan jalur atau wildcard. Salinan lain mungkin masih ada: periksa pratinjau.',
     hash: 'SHA-256: {hash}',
@@ -90,8 +90,8 @@ export const idID: MessageSchema = {
     reminder: 'Lisensi diperlukan',
     reminderTitle: 'Otomatisasi agen terkunci. Buka Setelan lisensi'
   },
-  pwaLifecycle: pwaLifecycleMessages['id-ID'],
-  softNavigation: softNavigationMessages['id-ID'],
+  pwaLifecycle: idIDPwaLifecycle,
+  softNavigation: idIDSoftNavigation,
   emulationApplication: {
     pending: 'Menerapkan emulasi',
     unknown: 'Emulasi belum dikonfirmasi',
@@ -99,19 +99,19 @@ export const idID: MessageSchema = {
     restore: 'Pulihkan setelan yang dipertahankan',
     networkFirst: 'Pulihkan dulu Kondisi jaringan di Kondisi permintaan. Emulasi tetap belum dikonfirmasi hingga dipulihkan secara terpisah.'
   },
-  networkPriority: networkPriorityMessages['id-ID'],
-  networkLabels: networkLabelMessages['id-ID'],
-  reproSteps: reproStepMessages['id-ID'],
-  viewportPresets: viewportPresetMessages['id-ID'],
-  searchEngines: searchEngineMessages['id-ID'],
-  settingsSections: settingsSectionMessages['id-ID'],
-  browserIssueTitles: browserIssueTitleMessages['id-ID'],
-  qualityAuditText: qualityAuditTextMessages['id-ID'],
-  networkAbortReasons: networkAbortReasonMessages['id-ID'],
-  reportCaveats: reportCaveatMessages['id-ID'],
-  lcpAttribution: lcpAttributionMessages['id-ID'],
-  browserImport: browserImportMessages['id-ID'],
-  video: videoRecorderMessages['id-ID'],
+  networkPriority: idIDNetworkPriority,
+  networkLabels: idIDNetworkLabels,
+  reproSteps: idIDReproSteps,
+  viewportPresets: idIDViewportPresets,
+  searchEngines: idIDSearchEngines,
+  settingsSections: idIDSettingsSections,
+  browserIssueTitles: idIDBrowserIssueTitles,
+  qualityAuditText: idIDQualityAuditText,
+  networkAbortReasons: idIDNetworkAbortReasons,
+  reportCaveats: idIDReportCaveats,
+  lcpAttribution: idIDLcpAttribution,
+  browserImport: idIDBrowserImport,
+  video: idIDVideoRecorder,
   workspaceLibrary: {
     hidden: 'Disembunyikan dari panel samping',
     protected: 'Dilindungi dari penghapusan',
@@ -566,7 +566,7 @@ export const idID: MessageSchema = {
       help: 'Tab yang terlihat, disematkan, sedang dimuat, memutar audio, mendownload, menyimpan perubahan formulir, terbuka di DevTools, atau sedang digunakan agen akan tetap aktif. Menidurkan tab akan melepas halaman dan memulihkan riwayat navigasinya saat tab aktif kembali.'
     },
     mcp: {
-      remote: remoteConnectionMessages['id-ID'],
+      remote: idIDRemoteConnections,
       heading: 'Keamanan MCP',
       description: 'Kontrol aplikasi mana yang dapat terhubung ke profil browser ini.',
       require: 'Wajibkan autentikasi MCP',
@@ -587,7 +587,7 @@ export const idID: MessageSchema = {
       applyPort: 'Terapkan port',
       tokenHelp: 'Token kompatibilitas memberikan akses penuh. Gunakan profil kemampuan untuk klien yang dibatasi.',
       warning: 'Autentikasi nonaktif. Siapa pun yang dapat menjangkau listener ini dapat mengontrol tab yang sudah login dan melampirkan file lokal, termasuk dari komputer lain saat akses jarak jauh aktif.',
-      capabilities: capabilityProfileMessages['id-ID']
+      capabilities: idIDCapabilityProfiles
     },
     permissions: {
       search: 'Telusuri izin situs tersimpan',
@@ -734,8 +734,8 @@ export const idID: MessageSchema = {
       issue: 'Laporkan masalah ↗'
     }
   },
-  wallets: walletMessages['id-ID'],
-  appErrors: appErrorMessages['id-ID'],
+  wallets: idIDWallets,
+  appErrors: idIDAppErrors,
   workspaceNavigationAudit: {
     reasonCredentials: 'kredensial tersemat',
     reasonMalformed: 'alamat tidak valid',
@@ -3966,7 +3966,7 @@ export const idID: MessageSchema = {
       active: 'Aktif',
       recent: 'Terbaru'
     },
-    readiness: homeReadinessMessages['id-ID'],
+    readiness: idIDHomeReadiness,
     firstRun: {
       kicker: 'Keberhasilan pertama',
       heading: 'Coba Hronaut dengan satu tugas yang aman',

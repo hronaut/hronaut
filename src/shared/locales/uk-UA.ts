@@ -1,31 +1,31 @@
-import { networkPriorityMessages } from './network-priority.js'
-import { networkLabelMessages } from './network-labels.js'
-import { reproStepMessages } from './repro-steps.js'
-import { viewportPresetMessages } from './viewport-presets.js'
-import { searchEngineMessages } from './search-engines.js'
-import { settingsSectionMessages } from './settings-sections.js'
-import { browserIssueTitleMessages } from './browser-issue-titles.js'
-import { qualityAuditTextMessages } from './quality-audit-text.js'
-import { networkAbortReasonMessages } from './network-abort-reasons.js'
-import { reportCaveatMessages } from './report-caveats.js'
-import { incidentPathMessages } from './incident-paths.js'
-import { reactInspectionMessages } from './react-inspection.js'
-import { pwaLifecycleMessages } from './pwa-lifecycle.js'
-import { softNavigationMessages } from './soft-navigation.js'
-import { lcpAttributionMessages } from './lcp-attribution.js'
-import { browserImportMessages } from './browser-import.js'
-import { videoRecorderMessages } from './video-recorder/index.js'
-import { capabilityProfileMessages } from './capability-profiles.js'
-import { remoteConnectionMessages } from './remote-connections.js'
-import { homeReadinessMessages } from './home-readiness.js'
-import { trustedDialogMessages } from './trusted-dialogs.js'
-import { walletMessages } from './wallets/index.js'
-import { appErrorMessages } from './app-errors/index.js'
+import { ukUANetworkPriority } from './network-priority/uk-UA.js'
+import { ukUANetworkLabels } from './network-labels/uk-UA.js'
+import { ukUAReproSteps } from './repro-steps/uk-UA.js'
+import { ukUAViewportPresets } from './viewport-presets/uk-UA.js'
+import { ukUASearchEngines } from './search-engines/uk-UA.js'
+import { ukUASettingsSections } from './settings-sections/uk-UA.js'
+import { ukUABrowserIssueTitles } from './browser-issue-titles/uk-UA.js'
+import { ukUAQualityAuditText } from './quality-audit-text/uk-UA.js'
+import { ukUANetworkAbortReasons } from './network-abort-reasons/uk-UA.js'
+import { ukUAReportCaveats } from './report-caveats/uk-UA.js'
+import { ukUAIncidentPaths } from './incident-paths/uk-UA.js'
+import { ukUAReactInspection } from './react-inspection/uk-UA.js'
+import { ukUAPwaLifecycle } from './pwa-lifecycle/uk-UA.js'
+import { ukUASoftNavigation } from './soft-navigation/uk-UA.js'
+import { ukUALcpAttribution } from './lcp-attribution/uk-UA.js'
+import { ukUABrowserImport } from './browser-import/uk-UA.js'
+import { ukUAVideoRecorder } from './video-recorder/uk-UA.js'
+import { ukUACapabilityProfiles } from './capability-profiles/uk-UA.js'
+import { ukUARemoteConnections } from './remote-connections/uk-UA.js'
+import { ukUAHomeReadiness } from './home-readiness/uk-UA.js'
+import { ukUATrustedDialogs } from './trusted-dialogs/uk-UA.js'
+import { ukUAWallets } from './wallets/uk-UA.js'
+import { ukUAAppErrors } from './app-errors/uk-UA.js'
 import type { MessageSchema } from './en-US.js'
 
 export const ukUA: MessageSchema = {
-  trustedDialogs: trustedDialogMessages['uk-UA'],
-  reactInspection: reactInspectionMessages['uk-UA'],
+  trustedDialogs: ukUATrustedDialogs,
+  reactInspection: ukUAReactInspection,
   agentStatus: {
     starting: 'Підготовка до роботи з агентами',
     ready: 'Готово до роботи з агентами',
@@ -39,7 +39,7 @@ export const ukUA: MessageSchema = {
     details: 'Подробиці'
   },
   incident: {
-    ...incidentPathMessages['uk-UA'],
+    ...ukUAIncidentPaths,
     omitField: 'Точна назва поля JSON для вилучення (необов’язково)',
     omitFieldHint: 'Видаляє всі відповідні поля об’єктів зі збережених артефактів до заміни тексту. Регістр враховується; це не шлях і не шаблон. Інші копії можуть залишитися: перевірте попередній перегляд.',
     hash: 'SHA-256: {hash}',
@@ -90,8 +90,8 @@ export const ukUA: MessageSchema = {
     reminder: 'Потрібна ліцензія',
     reminderTitle: 'Автоматизацію агентів заблоковано. Відкрити налаштування ліцензії'
   },
-  pwaLifecycle: pwaLifecycleMessages['uk-UA'],
-  softNavigation: softNavigationMessages['uk-UA'],
+  pwaLifecycle: ukUAPwaLifecycle,
+  softNavigation: ukUASoftNavigation,
   emulationApplication: {
     pending: 'Застосування емуляції',
     unknown: 'Емуляцію не підтверджено',
@@ -99,19 +99,19 @@ export const ukUA: MessageSchema = {
     restore: 'Відновити збережені налаштування',
     networkFirst: 'Спочатку відновіть мережеві умови в Умовах запитів. Емуляція залишиться непідтвердженою до окремого відновлення.'
   },
-  networkPriority: networkPriorityMessages['uk-UA'],
-  networkLabels: networkLabelMessages['uk-UA'],
-  reproSteps: reproStepMessages['uk-UA'],
-  viewportPresets: viewportPresetMessages['uk-UA'],
-  searchEngines: searchEngineMessages['uk-UA'],
-  settingsSections: settingsSectionMessages['uk-UA'],
-  browserIssueTitles: browserIssueTitleMessages['uk-UA'],
-  qualityAuditText: qualityAuditTextMessages['uk-UA'],
-  networkAbortReasons: networkAbortReasonMessages['uk-UA'],
-  reportCaveats: reportCaveatMessages['uk-UA'],
-  lcpAttribution: lcpAttributionMessages['uk-UA'],
-  browserImport: browserImportMessages['uk-UA'],
-  video: videoRecorderMessages['uk-UA'],
+  networkPriority: ukUANetworkPriority,
+  networkLabels: ukUANetworkLabels,
+  reproSteps: ukUAReproSteps,
+  viewportPresets: ukUAViewportPresets,
+  searchEngines: ukUASearchEngines,
+  settingsSections: ukUASettingsSections,
+  browserIssueTitles: ukUABrowserIssueTitles,
+  qualityAuditText: ukUAQualityAuditText,
+  networkAbortReasons: ukUANetworkAbortReasons,
+  reportCaveats: ukUAReportCaveats,
+  lcpAttribution: ukUALcpAttribution,
+  browserImport: ukUABrowserImport,
+  video: ukUAVideoRecorder,
   workspaceLibrary: {
     hidden: 'Приховано з бічної панелі',
     protected: 'Захищено від видалення',
@@ -566,7 +566,7 @@ export const ukUA: MessageSchema = {
       help: 'Видимі, закріплені, завантажувані, звукові, такі, що завантажують файл, містять змінену форму, DevTools або вкладки, з якими працює агент, не засинають. Присипляння вивантажує сторінку й відновлює її історію навігації після пробудження.'
     },
     mcp: {
-      remote: remoteConnectionMessages['uk-UA'],
+      remote: ukUARemoteConnections,
       heading: 'Безпека MCP',
       description: 'Керуйте тим, які застосунки можуть підключатися до цього профілю браузера.',
       require: 'Вимагати автентифікацію MCP',
@@ -587,7 +587,7 @@ export const ukUA: MessageSchema = {
       applyPort: 'Застосувати порт',
       tokenHelp: 'Токен сумісності надає повний доступ. Для клієнтів з обмеженим доступом використовуйте профіль можливостей.',
       warning: 'Автентифікацію вимкнено. Будь-хто, хто може дістатися до цього слухача, зможе керувати авторизованими вкладками й долучати локальні файли, зокрема з інших комп’ютерів, коли ввімкнено віддалений доступ.',
-      capabilities: capabilityProfileMessages['uk-UA']
+      capabilities: ukUACapabilityProfiles
     },
     permissions: {
       search: 'Пошук збережених дозволів сайтів',
@@ -734,8 +734,8 @@ export const ukUA: MessageSchema = {
       issue: 'Повідомити про проблему ↗'
     }
   },
-  wallets: walletMessages['uk-UA'],
-  appErrors: appErrorMessages['uk-UA'],
+  wallets: ukUAWallets,
+  appErrors: ukUAAppErrors,
   workspaceNavigationAudit: {
     reasonCredentials: 'вбудовані облікові дані',
     reasonMalformed: 'некоректна адреса',
@@ -3966,7 +3966,7 @@ export const ukUA: MessageSchema = {
       active: 'Активний',
       recent: 'Нещодавній'
     },
-    readiness: homeReadinessMessages['uk-UA'],
+    readiness: ukUAHomeReadiness,
     firstRun: {
       kicker: 'Перший успіх',
       heading: 'Спробуйте Hronaut на одному безпечному завданні',

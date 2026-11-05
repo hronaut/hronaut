@@ -1,0 +1,60 @@
+export const jaJPPwaLifecycle = {
+  title: 'Service Worker の履歴',
+  note: '観測された変更のみです。それ以前の変化や速い変化は含まれない場合があります。',
+  start: '2 分間観測',
+  stop: 'ワーカーの観測を停止',
+  refresh: '更新',
+  clear: '履歴をクリア',
+  active: 'ワーカーを観測中',
+  stopped: 'キャプチャを停止しました',
+  waiting: '待機中',
+  coverage: '対象範囲とプライバシー',
+  caveats: {
+    observedTimes: '時刻は変更が観測された時点を示すもので、実際に発生した時点ではありません。また、キャプチャで完全な履歴が得られることはありません。',
+    polling: '登録は 1 秒に 1 回確認されるため、初期の変化や短時間の登録は見逃される可能性があります。',
+    scope: '登録はこのタブだけでなく、このトップレベルのオリジンとワークスペースに属します。',
+    identities: 'ワーカーの ID はこのキャプチャ内でのみ有効で、同じスクリプトのバージョンを区別するために使われます。',
+    interruption: 'ページの移動、再読み込み、終了、またはデバッガやアクセス権の喪失によって、キャプチャは中断されます。停止や中断によって、まだ読み取られていないイベントが失われる場合があります。',
+    limits: '1 回のキャプチャで保持されるのは、最大 2 分間で最大 100 件のイベント、20 件の登録、100 個のワーカーです。メモリには 5 件のキャプチャが保持され、新しく開始すると停止済みの最も古いキャプチャが削除されます。',
+    longUrls: '認証情報を含む可能性のあるアドレスを部分的に表示しないよう、2,048 文字を超えるアドレスは除外されます。',
+    metadataOnly: '観測されるのはメタデータのみです。Hronaut がワーカーを更新、メッセージ送信、有効化、実行したり、キャッシュを消去したり、権限を変更したりすることはありません。',
+    sleeping: 'スリープ中またはフリーズ中のタブは復帰されません。スリープやフリーズが発生すると、ページをアクティブに保つ代わりにキャプチャが中断されます。',
+    snapshot: '読み取りでは最後に取得したスナップショットが表示されます。完全な履歴や、すべてのワーカーの全期間は保証されません。'
+  },
+  kinds: {
+    initial: 'キャプチャ開始',
+    'registration-initial': '登録あり',
+    'registration-discovered': '登録を検出',
+    'registration-removed': '登録を削除',
+    updatefound: 'アップデートを検出',
+    statechange: '状態が変化',
+    controllerchange: 'コントローラが変化'
+  },
+  workerStates: {
+    parsed: '解析済み',
+    installing: 'インストール中',
+    installed: 'インストール済み',
+    activating: '有効化中',
+    activated: '有効化済み',
+    redundant: '冗長'
+  },
+  reasons: {
+    stopped: 'リクエストにより停止',
+    replaced: '新しいキャプチャで置き換え',
+    shutdown: 'Hronaut が終了',
+    navigation: 'ページが移動',
+    'renderer-unavailable': 'ページのプロセスが終了',
+    'debugger-detached': 'デバッガが切断',
+    'duration-limit': '2 分の上限に到達',
+    'initial-read-unavailable': '最初の読み取りに失敗',
+    'page-observer-unavailable': 'ページの監視が停止',
+    'context-or-authority-lost': 'ページのコンテキストまたはアクセス権を喪失',
+    'worker-limit': 'ワーカーの上限に到達',
+    'event-limit': 'イベントの上限に到達',
+    'registration-limit': '登録の上限に到達',
+    'discovery-unavailable': '登録の検出に失敗',
+    unsupported: 'Service Worker はサポートされていません',
+    'workspace-control-changed': 'ワークスペースの操作権が変更',
+    'ownership-released': 'ワークスペースが解放'
+  }
+}
