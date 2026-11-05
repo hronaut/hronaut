@@ -36,7 +36,8 @@ export function tabBelongsToMcpGroup(browser: Browser, groupId: string, tabId: s
  */
 export function getMcpGroupState(browser: Browser, groupId: string): BrowserState {
   requireMcpTabGroup(browser, groupId)
-  const state = browserState(browser)
+  // Only the workspace's tabs are built: every agent call reads its workspace's state.
+  const state = browserState(browser, groupId)
   const tabs = state.tabs.filter((tab) => tab.mcpGroupId === groupId)
   const group = browser.mcpTabGroups.get(groupId)!
   const { splitView, agentFollow, ...scopedState } = state

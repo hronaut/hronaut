@@ -19,7 +19,7 @@ export function createFrameObservation(browser: Browser): FrameObservationContro
       if (tab.webContents !== page || page.isDestroyed() || !page.debugger.isAttached() || !tab.networkDebuggerEnabled
         || browser.devToolsOpening.has(page.id) || page.isDevToolsOpened() || tab.codeCoverage?.recording
         || tab.cpuProfile?.recording || tab.memoryAllocation?.recording || tab.reproRecording?.active
-        || browser.videoRecorder.state(tab.id).status === 'recording') throw new Error('Frame observation debugger unavailable')
+        || browser.videoRecorder.status(tab.id) === 'recording') throw new Error('Frame observation debugger unavailable')
     }
   })
 }

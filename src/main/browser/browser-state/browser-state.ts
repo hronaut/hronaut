@@ -7,10 +7,14 @@ import { persistedState } from './persisted-state.js'
 import { publishedAgentFollow } from '../agent-follow/published-agent-follow.js'
 import { navigationButtons } from '../navigation-history.js'
 
-/** The browser state as it is now. A change still waiting to be published goes out first (see StatePublication). */
-export function browserState(browser: Browser): BrowserState {
+/**
+ * The browser state as it is now, with only the workspace's tabs when one is named: everything else, such as the
+ * closed tabs, the split view and the followed agent, is still every workspace's, so a workspace's own state is
+ * getMcpGroupState's. A change still waiting to be published goes out first (see StatePublication).
+ */
+export function browserState(browser: Browser, workspaceId?: string): BrowserState {
   browser.statePublication.beforeRead()
-  return buildBrowserState(browser)
+  return buildBrowserState(browser, workspaceId)
 }
 
 /**
@@ -36,10 +40,10 @@ export function publishChange(browser: Browser, persist = true): void {
  * mute, lock and pause, the MCP address and profile, the workspaces and the
  * followed agent. State publication sends what it builds.
  */
-export function buildBrowserState(browser: Browser): BrowserState {
+export function buildBrowserState(browser: Browser, workspaceId?: string): BrowserState {
   const agentFollow = publishedAgentFollow(browser)
   return {
-    tabs: orderedTabs(browser).map((tab) => toState(browser, tab)),
+    tabs: orderedTabs(browser).filter((tab) => workspaceId === undefined || tab.mcpGroupId === workspaceId).map((tab) => toState(browser, tab)),
     closedTabs: [...browser.closedTabs].reverse().map((tab) => ({ ...tab })),
     activeTabId: browser.activeTabId,
     ...(browser.splitView ? { splitView: { ...browser.splitView } } : {}),
@@ -83,7 +87,7 @@ function toState(browser: Browser, tab: BrowserTab): BrowserTabState {
     ...(browser.isTabTakenOver(tab.id) ? { takenOverAt: tab.takeOver!.at } : {}),
     ...(tab.handedBack ? { handedBack: { ...tab.handedBack } } : {}),
     preserveDiagnosticLogs: tab.preserveDiagnosticLogs,
-    videoRecording: browser.videoRecorder.state(tab.id).status,
+    videoRecording: browser.videoRecorder.status(tab.id),
     zoomPercent: webContentsDestroyed ? 100 : Math.round(tab.webContents.getZoomFactor() * 100),
     ...(tab.zoomIsolated ? { zoomIsolated: true } : {}),
     ...(tab.defaultFontSize ? { defaultFontSize: tab.defaultFontSize } : {}),
