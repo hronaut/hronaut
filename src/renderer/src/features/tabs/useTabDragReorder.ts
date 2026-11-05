@@ -13,7 +13,7 @@ interface TabDragReorderOptions {
 
 /** The type a tab's own drag carries, so a tab dragged from either copy of the rail is never read as a dropped link. */
 export const TAB_DRAG_TYPE = 'application/x-hronaut-tab'
-/** What a tab's drag carries in TAB_DRAG_TYPE: the same for every tab, since a page the drag passes over can read it. */
+/** What a tab's drag carries in TAB_DRAG_TYPE: the same for every tab, since a page it is dropped on can read it. */
 const TAB_DRAG_VALUE = 'tab'
 
 /** Dragging a tab to a new place: the tab being dragged, where it would land, and the move it asks for on drop. */
@@ -54,8 +54,8 @@ export function useTabDragReorder(options: TabDragReorderOptions) {
     tabDropPlacement.value = null
     if (event.dataTransfer) {
       event.dataTransfer.effectAllowed = 'move'
-      // What it is, not which tab: a tab released over a page, the address field or another app gives it nothing to read,
-      // as Chrome's tabs do. The rail keeps the tabs it drags.
+      // What it is, not which tab, and no text: a page it is dropped on reads only TAB_DRAG_VALUE, and a text field there,
+      // the address field or another app takes nothing. The rail keeps the tabs it drags.
       event.dataTransfer.setData(TAB_DRAG_TYPE, TAB_DRAG_VALUE)
     }
   }

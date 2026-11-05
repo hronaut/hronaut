@@ -2255,6 +2255,7 @@ describe('BrowserTabsBar dropped links', () => {
     ['a file from the computer', link('/home/me/notes.txt', ['Files'])],
     ['a file from the computer with its name as text', link('/home/me/notes.txt', ['Files', 'text/plain'])],
     ['a tab from the other copy of the rail', link('tab', ['application/x-hronaut-tab'])],
+    ['a tab that also carries text', link('tab', ['text/plain', 'application/x-hronaut-tab'])],
     ['nothing it can read as text', link('', ['text/html'])]
   ])('takes no drop of %s', async (_name, dataTransfer) => {
     const view = renderWithLinkDrops(browserState({ tabs: [tab('first')], activeTabId: 'first' }))

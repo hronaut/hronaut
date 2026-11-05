@@ -71,6 +71,7 @@ test('gives a page a tab is dropped on no tab id, and still moves a tab dragged 
     const data = JSON.parse((await dropped())!) as Array<[string, string]>
     expect(data.map(([type]) => type)).not.toContain('text/plain')
     expect(JSON.stringify(data)).not.toContain(otherTab!.id)
+    expect(data).toEqual([['application/x-hronaut-tab', 'tab']])
     expect(await websiteTabs()).toEqual([zoneTab, otherTab])
 
     // Near the right edge of the other tab: the dragged tab moves after it.
