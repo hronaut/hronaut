@@ -7,6 +7,7 @@ import type { BrowserState } from '../../src/shared/types.js'
 import { PAGE_CARD_GUTTER } from '../../src/shared/page-card.js'
 import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
 import { closeHronaut, expect, launchHronaut, test } from './fixtures.js'
+import { openTabsView } from './home-tabs-view.js'
 import { hronautWindowCount, launchRejected, quitNotice, type Scope } from './workspace-metadata-fixtures.js'
 import { evaluateInSidebarOverlay, sidebarOverlayShown, sidebarOverlayView } from './sidebar-overlay-view.js'
 
@@ -1211,8 +1212,8 @@ test('restores workspace identity and tabs after an application restart', async 
     await expect(instance.window.getByRole('tab', { name: /^Persistent grouped tab/ })).toBeVisible()
     await restoredGroupControl.press('Space')
     await expect(restoredGroupControl).toHaveAttribute('aria-expanded', 'false')
-    await instance.window.getByRole('button', { name: 'Search tabs' }).click()
-    await instance.window.getByRole('dialog', { name: 'Tabs' }).locator('.tab-overview-open', { hasText: 'Persistent grouped tab' }).click()
+    const { results } = await openTabsView(instance.window, instance.app)
+    await results.locator('.tab-card-open', { hasText: 'Persistent grouped tab' }).click()
     await expect(restoredGroupControl).toHaveAttribute('aria-expanded', 'true')
     await expect(instance.window.getByRole('tab', { name: /^Persistent grouped tab/ })).toBeVisible()
     const listed = await client.callTool({ name: 'browser_workspaces', arguments: { action: 'list' } }) as CallToolResult

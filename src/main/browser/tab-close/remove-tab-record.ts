@@ -20,7 +20,6 @@ export function removeTabRecord(browser: Browser, tab: BrowserTab): void {
   invalidateTabOverviewPreview(browser, tab)
   browser.tabOverviewSleepPreviews.delete(tab.id)
   browser.tabOverviewPreviewCaptures.cancelPending(tab.id)
-  browser.tabOverviewPreviewableTabs.delete(tab.id)
   runWalletLifecycleAction(browser, 'cancel wallet requests after closing a tab', () => (
     browser.options.onWalletTabClosed?.(tab.id)
   ))

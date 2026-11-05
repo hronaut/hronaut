@@ -9,7 +9,6 @@ import type {
   BrowserTabState,
   CredentialSummary,
   HronautApi,
-  McpTabActivity,
   PanelDock,
   UserAttentionRequest
 } from '../../../shared/types.js'
@@ -25,7 +24,6 @@ import AppBrowserCollectionsLayer from './AppBrowserCollectionsLayer.vue'
 import CommandPalette from '../features/command-palette/CommandPalette.vue'
 import CredentialPicker from '../features/credentials/CredentialPicker.vue'
 import FindInPageBar from '../features/find/FindInPageBar.vue'
-import TabSearchPanel from '../features/tabs/TabSearchPanel.vue'
 import WorkspaceEditor from '../features/workspaces/WorkspaceEditor.vue'
 import WorkspaceSwitcher from '../features/workspaces/WorkspaceSwitcher.vue'
 import ZoomBar from '../features/zoom/ZoomBar.vue'
@@ -36,7 +34,6 @@ const props = defineProps<{
   state: BrowserState
   activeTab?: BrowserTabState
   userAttention?: UserAttentionRequest | null
-  mcpActivityByTab: Record<string, McpTabActivity>
   credentials: CredentialSummary[]
   collectionsController: AppBrowserCollectionsFeatureController
   activeUrl: string | null
@@ -52,7 +49,6 @@ const props = defineProps<{
   syncState: (next: Promise<BrowserState> | BrowserState) => Promise<void>
   selectTab: (tabId: string) => Promise<unknown>
   expandTabGroup: (tab: BrowserTabState) => void
-  describeEmulation: (tab: BrowserTabState) => string
   formatNumber: (value: number) => string
   formatBytes: (value: number) => string
   formatDateTime: (value: Date | number | string) => string
@@ -70,8 +66,7 @@ const props = defineProps<{
   agentStepsTarget?: AgentStepHistoryTarget | null
 }>()
 
-const emit = defineEmits<{ newTab: []; searchTabs: []; createWorkspace: [] }>()
-const tabSearchOpen = defineModel<boolean>('tabSearchOpen', { required: true })
+const emit = defineEmits<{ searchTabs: []; createWorkspace: [] }>()
 const findOpen = defineModel<boolean>('findOpen', { required: true })
 const findFocused = defineModel<boolean>('findFocused', { default: false })
 const zoomOpen = defineModel<boolean>('zoomOpen', { required: true })
@@ -118,11 +113,6 @@ const paletteSearch = useCommandPaletteSearch({
 const workspaceSwitcherOpen = paletteList('workspaces')
 const dock = defineModel<PanelDock>('dock', { required: true })
 
-interface TabSearchSurface {
-  openPanel: () => Promise<void>
-  close: () => void
-}
-
 interface FindSurface {
   openForTab: (tab: BrowserTabState, again?: 'next' | 'previous') => Promise<void>
   close: (options?: { keepMatch?: boolean }) => Promise<void>
@@ -150,7 +140,6 @@ interface PickerSurface {
   close: () => void
 }
 
-const tabSearchPanel = ref<TabSearchSurface | null>(null)
 const findBar = ref<FindSurface | null>(null)
 const zoomBar = ref<ZoomSurface | null>(null)
 const workspaceEditor = ref<WorkspaceEditorSurface | null>(null)
@@ -183,17 +172,8 @@ async function showStepTab(tabId: string): Promise<unknown> {
   return props.selectTab(tabId)
 }
 
-async function openTabSearch(): Promise<void> {
-  await tabSearchPanel.value?.openPanel()
-}
-
 async function openWorkspaceTransfer(sourceWorkspaceId?: string): Promise<void> {
-  closeTabSearch()
   await workspaceEditor.value?.openTransfer(sourceWorkspaceId)
-}
-
-function closeTabSearch(): void {
-  tabSearchPanel.value?.close()
 }
 
 async function openFindForTab(tab: BrowserTabState, again?: 'next' | 'previous'): Promise<void> {
@@ -254,8 +234,6 @@ function closeCommandPalette(): void {
 }
 
 defineExpose({
-  openTabSearch,
-  closeTabSearch,
   openFindForTab,
   closeFind,
   returnFindFocus,
@@ -275,22 +253,6 @@ defineExpose({
 </script>
 
 <template>
-  <TabSearchPanel
-    ref="tabSearchPanel"
-    v-model:open="tabSearchOpen"
-    :state="state"
-    :mcp-activity-by-tab="mcpActivityByTab"
-    :sync-state="syncState"
-    :select-tab="selectTab"
-    :expand-tab-group="expandTabGroup"
-    :describe-emulation="describeEmulation"
-    :format-number="formatNumber"
-    :format-time="formatTime"
-    :format-error="formatError"
-    :show-error="showError"
-    @new-tab="emit('newTab')"
-    @transfer-workspace-data="openWorkspaceTransfer"
-  />
   <FindInPageBar
     ref="findBar"
     v-model:open="findOpen"

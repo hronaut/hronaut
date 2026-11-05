@@ -4,8 +4,9 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
-import type { Locator, Page, TestInfo } from '@playwright/test'
+import type { ElectronApplication, Locator, Page, TestInfo } from '@playwright/test'
 import { closeFixtureServer, expect, test } from './fixtures.js'
+import { openTabsView, storedPreviews } from './home-tabs-view.js'
 
 async function startDesignFixture(): Promise<{ url: string; close: () => Promise<void> }> {
   const server = createServer((request, response) => {
@@ -114,18 +115,25 @@ async function controlContrast(control: Locator): Promise<number> {
   })
 }
 
-async function openFixture(page: Page, url: string, title: string): Promise<string> {
+async function openFixture(page: Page, electronApp: ElectronApplication, url: string, title: string): Promise<string> {
   const tabId = await page.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true }).then(state => state.activeTabId)`) as string
   await expect.poll(() => page.evaluate(`window.hronaut.getState().then(state => state.tabs.find(tab => tab.id === ${JSON.stringify(tabId)})?.title)`)).toBe(title)
-  await expect.poll(() => page.evaluate(`window.hronaut.getTabOverviewPreviews([${JSON.stringify(tabId)}]).then(previews => previews.length)`)).toBe(1)
+  await expect.poll(() => storedPreviews(electronApp, [tabId])).toBe(1)
   return tabId
 }
 
-test('keeps sparse overview controls at the bottom and all viewport corners visible', async ({ appWindow, electronApp }, testInfo) => {
+/** Opens a card's menu in Home's Tabs view and chooses Full-page preview. */
+async function openFullPagePreview(results: Locator, title: string): Promise<void> {
+  const card = results.locator('.tab-card', { hasText: title })
+  await card.getByLabel(`More actions for ${title}`, { exact: true }).click()
+  await card.getByRole('button', { name: 'Full-page preview', exact: true }).click()
+}
+
+test('keeps sparse Tabs view results in view and all viewport corners visible', async ({ appWindow, electronApp }, testInfo) => {
   const fixture = await startDesignFixture()
   try {
     await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(1900, 1100))
-    const tabId = await openFixture(appWindow, fixture.url, 'Viewport corner markers')
+    const tabId = await openFixture(appWindow, electronApp, fixture.url, 'Viewport corner markers')
     const closedTabId = await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(`${fixture.url}/task-closed`)}, active: false }).then(state => state.tabs.find(tab => tab.url === ${JSON.stringify(`${fixture.url}/task-closed`)})?.id)`) as string
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then(state => state.tabs.find(tab => tab.id === ${JSON.stringify(closedTabId)})?.title)`)).toBe('Project task closed')
     // A title can arrive before the initial navigation settles. This visual
@@ -135,46 +143,37 @@ test('keeps sparse overview controls at the bottom and all viewport corners visi
       return tab ? { loading: tab.loading, failed: Boolean(tab.pageProblem) } : null;
     })`)).toEqual({ loading: false, failed: false })
     await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(closedTabId)})`)
-    await expect.poll(() => appWindow.evaluate(`window.hronaut.getTabOverviewPreviews([${JSON.stringify(tabId)}]).then(previews => previews.length)`)).toBe(1)
-    await appWindow.getByRole('button', { name: 'Search tabs', exact: true }).click()
-    const overview = appWindow.getByRole('dialog', { name: 'Tabs', exact: true })
-    const preview = overview.locator('.tab-overview-preview').first()
+    await expect.poll(() => storedPreviews(electronApp, [tabId])).toBe(1)
+    const { home, search, results } = await openTabsView(appWindow, electronApp)
+    const preview = results.locator('.tab-card-preview').first()
     await expect(preview.locator('img')).toHaveAttribute('src', /^data:image/)
-    await expect(overview.locator('.tab-search-count')).toContainText('1 open')
-    await expect(overview.locator('.tab-search-count')).toContainText('1 closed')
-    await expect(overview.locator('.recently-closed')).toContainText('Project task closed')
-    await appWindow.screenshot({ path: testInfo.outputPath('single-tab-wide.png') })
-    const list = overview.locator('.tab-search-list')
-    expect(await list.evaluate(element => element.scrollTop), 'Sparse overview starts without scrolling').toBe(0)
-    const listBounds = (await list.boundingBox())!
+    await expect(home.locator('#home-view-description')).toContainText('1 open')
+    await expect(home.locator('#home-view-description')).toContainText('1 closed')
+    await expect(results.locator('.tab-row.closed')).toContainText('Project task closed')
+    await home.screenshot({ path: testInfo.outputPath('single-tab-wide.png') })
+    expect(await home.evaluate(() => document.scrollingElement!.scrollTop), 'Sparse results start without scrolling').toBe(0)
     for (const [description, item] of [
-      ['Entire open-tab card', overview.locator('.tab-overview-card')],
-      ['Recently closed entry', overview.locator('.recently-closed')],
+      ['Entire open-tab card', results.locator('.tab-card')],
+      ['Recently closed entry', results.locator('.tab-row.closed')],
+      ['Keyboard hints', home.locator('.tabs-hints')],
     ] as const) {
-      const bounds = (await item.boundingBox())!
-      expect.soft(bounds.y, `${description} starts inside the results viewport without scrolling`).toBeGreaterThanOrEqual(listBounds.y)
-      expect.soft(bounds.y + bounds.height, `${description} ends inside the results viewport without scrolling`).toBeLessThanOrEqual(listBounds.y + listBounds.height)
+      await expect.soft(item, `${description} is in view without scrolling`).toBeInViewport({ ratio: 1 })
     }
-    const panel = await overview.boundingBox()
-    const footer = await overview.locator(':scope > footer').boundingBox()
-    expect(panel).not.toBeNull()
-    expect(footer).not.toBeNull()
-    expect.soft(Math.abs(panel!.y + panel!.height - footer!.y - footer!.height), 'Footer must remain at the panel bottom even with one tab').toBeLessThanOrEqual(3)
     const colors = await colorCounts(appWindow, preview)
     for (const color of ['red', 'green', 'blue', 'yellow']) {
       expect.soft(colors[color], `${color} viewport corner must remain visible without cropping`).toBeGreaterThan(20)
     }
-    await expect(overview.getByRole('searchbox', { name: 'Search tabs' })).toBeInViewport()
+    await expect(search).toBeInViewport()
   } finally {
     await fixture.close()
   }
 })
 
-test('shows the entire tall page and lets users inspect its bottom at readable width', async ({ appWindow, electronApp }, testInfo) => {
+test('shows the entire tall page of a tab out of view and lets users inspect its bottom at readable width', async ({ appWindow, electronApp }, testInfo) => {
   const fixture = await startDesignFixture()
   try {
     await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(1440, 1000))
-    const tabId = await openFixture(appWindow, `${fixture.url}/tall`, 'Complete project plan')
+    const tabId = await openFixture(appWindow, electronApp, `${fixture.url}/tall`, 'Complete project plan')
     await appWindow.evaluate(`window.hronaut.setTabViewport(${JSON.stringify(tabId)}, { width: 900, height: 640, deviceScaleFactor: 2, mobile: false, touch: false, orientation: 'landscape' })`)
     const before = await electronApp.evaluate(async ({ webContents }, url) => {
       const contents = webContents.getAllWebContents().find(candidate => candidate.getURL() === url)!
@@ -182,15 +181,15 @@ test('shows the entire tall page and lets users inspect its bottom at readable w
       return contents.executeJavaScript('({ width: innerWidth, height: innerHeight, scrollY, pixelRatio: devicePixelRatio })')
     }, `${fixture.url}/tall`)
     expect(before).toMatchObject({ width: 900, height: 640, scrollY: 240, pixelRatio: 2 })
-    await appWindow.getByRole('button', { name: 'Search tabs', exact: true }).click()
-    const overview = appWindow.getByRole('dialog', { name: 'Tabs', exact: true })
-    await overview.getByRole('button', { name: 'More actions for Complete project plan', exact: true }).click()
-    await overview.getByRole('menuitem', { name: 'Full-page preview' }).click()
-    const details = overview.getByRole('region', { name: 'Page preview', exact: true })
+    // Home is shown in place of the page, so the page is pictured while it is out of view.
+    const { home, search, results } = await openTabsView(appWindow, electronApp)
+    await openFullPagePreview(results, 'Complete project plan')
+    const details = home.getByRole('region', { name: 'Page preview', exact: true })
     const image = details.getByRole('img', { name: 'Full-page preview of Complete project plan', exact: true })
     await expect(image).toBeVisible()
-    const fitPage = details.getByRole('radio', { name: 'Fit page', exact: true })
+    const fitPage = details.getByRole('button', { name: 'Fit page', exact: true })
     await fitPage.click()
+    await expect(fitPage).toHaveAttribute('aria-pressed', 'true')
     await fitPage.hover()
     expect(await controlContrast(fitPage), 'Selected Fit page text remains readable while hovered').toBeGreaterThanOrEqual(4.5)
     await expect(image).toBeInViewport({ ratio: 0.99 })
@@ -199,67 +198,65 @@ test('shows the entire tall page and lets users inspect its bottom at readable w
     expect(colors.cyan, 'Full-page capture includes the bottom milestone').toBeGreaterThan(20)
     const dimensions = await image.evaluate((element: HTMLImageElement) => ({ width: element.naturalWidth, height: element.naturalHeight }))
     expect(dimensions.height / dimensions.width).toBeGreaterThan(1.8)
-    await appWindow.screenshot({ path: testInfo.outputPath('full-page-fit-page.png') })
-    await details.getByRole('radio', { name: 'Fit width', exact: true }).click()
+    await home.screenshot({ path: testInfo.outputPath('full-page-fit-page.png') })
+    await details.getByRole('button', { name: 'Fit width', exact: true }).click()
     const canvas = details.locator('.tab-page-preview-canvas')
     await expect.poll(() => canvas.evaluate(element => element.scrollHeight - element.clientHeight)).toBeGreaterThan(500)
     const display = await image.boundingBox()
     const canvasBounds = await canvas.boundingBox()
     expect(display).not.toBeNull()
     expect(canvasBounds).not.toBeNull()
-    expect(display!.width / canvasBounds!.width, 'Fit width makes the full capture readable at panel width').toBeGreaterThan(0.85)
+    expect(display!.width / canvasBounds!.width, 'Fit width makes the full capture readable at the view width').toBeGreaterThan(0.85)
     expect(display!.height / display!.width).toBeCloseTo(dimensions.height / dimensions.width, 1)
     await canvas.evaluate(element => { element.scrollTop = element.scrollHeight })
     const bottomColors = await colorCounts(appWindow, canvas)
     expect(bottomColors.cyan, 'Users can scroll to the final milestone').toBeGreaterThan(20)
-    await appWindow.screenshot({ path: testInfo.outputPath('full-page-fit-width-bottom.png') })
+    await home.screenshot({ path: testInfo.outputPath('full-page-fit-width-bottom.png') })
     const after = await electronApp.evaluate(({ webContents }, url) => webContents.getAllWebContents()
       .find(candidate => candidate.getURL() === url)!.executeJavaScript('({ width: innerWidth, height: innerHeight, scrollY, pixelRatio: devicePixelRatio })'), `${fixture.url}/tall`)
     expect(after, 'Capturing and inspecting the page must preserve the actual tab viewport and scroll').toEqual(before)
     await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(760, 520))
-    await details.getByRole('radio', { name: 'Fit page', exact: true }).click()
+    await details.getByRole('button', { name: 'Fit page', exact: true }).click()
     await expect(details.getByRole('button', { name: 'Back to tabs', exact: true })).toBeInViewport()
     await expect(details.getByRole('button', { name: 'Open tab', exact: true })).toBeInViewport()
-    await expect(details.getByRole('radio', { name: 'Fit width', exact: true })).toBeInViewport()
+    await expect(details.getByRole('button', { name: 'Fit width', exact: true })).toBeInViewport()
     await expect(image).toBeInViewport({ ratio: 0.99 })
-    await appWindow.screenshot({ path: testInfo.outputPath('full-page-narrow-fit-page.png') })
+    await home.screenshot({ path: testInfo.outputPath('full-page-narrow-fit-page.png') })
     await appWindow.evaluate("window.hronautSettings.setTheme('dark')")
-    const fitWidth = details.getByRole('radio', { name: 'Fit width', exact: true })
+    const fitWidth = details.getByRole('button', { name: 'Fit width', exact: true })
     await fitWidth.click()
     await fitWidth.hover()
     expect(await controlContrast(fitWidth), 'Selected Fit width text remains readable while hovered in dark theme').toBeGreaterThanOrEqual(4.5)
     await canvas.evaluate(element => { element.scrollTop = element.scrollHeight })
-    await appWindow.screenshot({ path: testInfo.outputPath('full-page-dark-fit-width-bottom.png') })
+    await home.screenshot({ path: testInfo.outputPath('full-page-dark-fit-width-bottom.png') })
     await appWindow.evaluate('window.hronautSettings.setInterfaceScale(1.25)')
-    await details.getByRole('radio', { name: 'Fit page', exact: true }).click()
+    await details.getByRole('button', { name: 'Fit page', exact: true }).click()
     await expect(details.getByRole('button', { name: 'Open tab', exact: true })).toBeInViewport()
     await expect(details.getByRole('button', { name: 'Refresh preview', exact: true })).toBeInViewport()
     await expect(image).toBeInViewport({ ratio: 0.99 })
-    const scaledWindow = await electronApp.evaluate(async ({ BrowserWindow }) => (await BrowserWindow.getAllWindows()[0]!.capturePage()).toPNG().toString('base64'))
-    await writeFile(testInfo.outputPath('full-page-dark-125-percent-scale.png'), Buffer.from(scaledWindow, 'base64'))
+    await home.screenshot({ path: testInfo.outputPath('full-page-dark-125-percent-scale.png') })
     await details.getByRole('button', { name: 'Back to tabs', exact: true }).click()
     await expect(details).toBeHidden()
-    await expect(overview.getByRole('searchbox', { name: 'Search tabs' })).toBeVisible()
-    // Review artifact only: a richer synthetic page makes the design easier to assess.
-    await overview.getByRole('searchbox', { name: 'Search tabs' }).press('Escape')
+    await expect(search).toBeVisible()
     await appWindow.evaluate('window.hronautSettings.setInterfaceScale(1)')
     await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(1440, 1000))
+    // Review artifact only: a richer synthetic page makes the design easier to assess.
     await appWindow.evaluate(`window.hronaut.setTabViewport(${JSON.stringify(tabId)}, null)`)
+    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
     await appWindow.evaluate(`window.hronaut.navigate({ tabId: ${JSON.stringify(tabId)}, url: ${JSON.stringify(`${fixture.url}/workflow`)} })`)
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then(state => state.tabs.find(tab => tab.id === ${JSON.stringify(tabId)})?.title)`)).toBe('Release readiness')
-    await expect.poll(() => appWindow.evaluate(`window.hronaut.getTabOverviewPreviews([${JSON.stringify(tabId)}]).then(previews => previews.length)`)).toBe(1)
-    await appWindow.getByRole('button', { name: 'Search tabs', exact: true }).click()
-    await expect(overview.locator('.tab-overview-preview > img')).toHaveAttribute('src', /^data:image/)
-    await appWindow.screenshot({ path: testInfo.outputPath('demo-release-readiness-overview-dark.png') })
-    await overview.getByRole('button', { name: 'More actions for Release readiness', exact: true }).click()
-    await overview.getByRole('menuitem', { name: 'Full-page preview' }).click()
-    const demoImage = overview.getByRole('img', { name: 'Full-page preview of Release readiness', exact: true })
+    await expect.poll(() => storedPreviews(electronApp, [tabId])).toBe(1)
+    await openTabsView(appWindow, electronApp)
+    await expect(results.locator('.tab-card-preview > img')).toHaveAttribute('src', /^data:image/)
+    await home.screenshot({ path: testInfo.outputPath('demo-release-readiness-overview-dark.png') })
+    await openFullPagePreview(results, 'Release readiness')
+    const demoImage = details.getByRole('img', { name: 'Full-page preview of Release readiness', exact: true })
     await expect(demoImage).toBeVisible()
-    await overview.getByRole('radio', { name: 'Fit width', exact: true }).click()
-    await appWindow.screenshot({ path: testInfo.outputPath('demo-release-readiness-detail-dark.png') })
-    await overview.getByRole('radio', { name: 'Fit page', exact: true }).click()
+    await details.getByRole('button', { name: 'Fit width', exact: true }).click()
+    await home.screenshot({ path: testInfo.outputPath('demo-release-readiness-detail-dark.png') })
+    await details.getByRole('button', { name: 'Fit page', exact: true }).click()
     await expect(demoImage).toBeInViewport({ ratio: 0.99 })
-    await appWindow.screenshot({ path: testInfo.outputPath('demo-release-readiness-full-page-dark.png') })
+    await home.screenshot({ path: testInfo.outputPath('demo-release-readiness-full-page-dark.png') })
   } finally {
     await fixture.close()
   }
@@ -272,33 +269,30 @@ test('keeps many-tab search and keyboard selection usable in narrow light and wi
       await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(`${fixture.url}/task-${index}`)}, active: ${index === 10} })`)
     }
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then(state => state.tabs.filter(tab => tab.title.startsWith("Project task ")).length)')).toBe(10)
-    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then(state => window.hronaut.getTabOverviewPreviews([state.activeTabId])).then(previews => previews.length)')).toBe(1)
+    const shownTab = () => appWindow.evaluate('window.hronaut.getState().then(state => state.tabs.find(tab => tab.active)?.title)') as Promise<string>
     for (const [theme, width, height] of [['light', 760, 520], ['dark', 1900, 1100]] as const) {
       await appWindow.evaluate(`window.hronautSettings.setTheme(${JSON.stringify(theme)})`)
       await electronApp.evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0]!.setSize(size.width, size.height), { width, height })
-      const trigger = appWindow.getByRole('button', { name: 'Search tabs', exact: true })
-      await trigger.click()
-      const overview = appWindow.getByRole('dialog', { name: 'Tabs', exact: true })
-      const search = overview.getByRole('searchbox', { name: 'Search tabs' })
-      await expect(search).toBeFocused()
-      await expect(overview.locator(':scope > footer')).toBeInViewport()
-      expect(await overview.evaluate(element => element.scrollWidth <= element.clientWidth), 'Overview does not overflow horizontally').toBe(true)
-      const activeTitle = await appWindow.evaluate('window.hronaut.getState().then(state => state.tabs.find(tab => tab.active)?.title)') as string
-      const activePreview = overview.locator('.tab-overview-card', { hasText: activeTitle }).locator('.tab-overview-preview')
+      const activeTitle = await shownTab()
+      // The shown page is pictured while it is in view, before Home takes its place.
+      const shownId = await appWindow.evaluate('window.hronaut.getState().then(state => state.activeTabId)') as string
+      await expect.poll(() => storedPreviews(electronApp, [shownId])).toBe(1)
+      const { home, search, results } = await openTabsView(appWindow, electronApp)
+      await expect(search).toBeInViewport()
+      expect(await home.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), 'Home does not overflow horizontally').toBe(true)
+      const activePreview = results.locator('.tab-card', { hasText: activeTitle }).locator('.tab-card-preview')
       await expect(activePreview.locator('img')).toHaveAttribute('src', /^data:image/)
       await activePreview.scrollIntoViewIfNeeded()
       const activeColors = await colorCounts(appWindow, activePreview)
       for (const color of ['red', 'green', 'blue', 'yellow']) expect(activeColors[color], `${color} active-tab corner paints before design capture`).toBeGreaterThan(10)
-      await appWindow.screenshot({ path: testInfo.outputPath(`many-tabs-${theme}-${width}.png`) })
+      await home.screenshot({ path: testInfo.outputPath(`many-tabs-${theme}-${width}.png`) })
       await search.fill('Project task-7')
-      await expect(overview.locator('.tab-overview-card')).toHaveCount(1)
+      await expect(results.locator('.tab-card')).toHaveCount(1)
       await search.press('Enter')
-      await expect(overview).toBeHidden()
-      await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then(state => state.tabs.find(tab => tab.active)?.title)')).toBe('Project task 7')
-      await trigger.click()
+      await expect.poll(shownTab).toBe('Project task 7')
+      await openTabsView(appWindow, electronApp)
       await search.press('Escape')
-      await expect(overview).toBeHidden()
-      await expect(trigger).toBeFocused()
+      await expect.poll(shownTab).toBe('Project task 7')
     }
   } finally {
     await fixture.close()
@@ -310,7 +304,7 @@ test('includes horizontal overflow and all document corners in a zoomed full-pag
   const fixture = await startDesignFixture()
   try {
     await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(1440, 1000))
-    const tabId = await openFixture(appWindow, `${fixture.url}/wide`, 'Wide project board')
+    const tabId = await openFixture(appWindow, electronApp, `${fixture.url}/wide`, 'Wide project board')
     await appWindow.evaluate(`window.hronaut.setZoom({ tabId: ${JSON.stringify(tabId)}, action: 'set', percent: 125 })`)
     const before = await electronApp.evaluate(async ({ webContents }, url) => {
       const contents = webContents.getAllWebContents().find(candidate => candidate.getURL() === url)!
@@ -318,15 +312,14 @@ test('includes horizontal overflow and all document corners in a zoomed full-pag
       return contents.executeJavaScript('({ width: innerWidth, height: innerHeight, scrollX, scrollY, pixelRatio: devicePixelRatio, documentWidth: document.documentElement.scrollWidth, documentHeight: document.documentElement.scrollHeight })')
     }, `${fixture.url}/wide`)
     expect(before).toMatchObject({ scrollX: 240, scrollY: 180, pixelRatio: 1.25, documentWidth: 2400, documentHeight: 1200 })
-    await appWindow.getByRole('button', { name: 'Search tabs', exact: true }).click()
-    const overview = appWindow.getByRole('dialog', { name: 'Tabs', exact: true })
-    await overview.getByRole('button', { name: 'More actions for Wide project board', exact: true }).click()
-    await overview.getByRole('menuitem', { name: 'Full-page preview' }).click()
-    const image = overview.getByRole('img', { name: 'Full-page preview of Wide project board', exact: true })
+    const { home, results } = await openTabsView(appWindow, electronApp)
+    await openFullPagePreview(results, 'Wide project board')
+    const details = home.getByRole('region', { name: 'Page preview', exact: true })
+    const image = details.getByRole('img', { name: 'Full-page preview of Wide project board', exact: true })
     await expect(image).toBeVisible()
-    await overview.getByRole('radio', { name: 'Fit page', exact: true }).click()
+    await details.getByRole('button', { name: 'Fit page', exact: true }).click()
     const colors = await colorCounts(appWindow, image)
-    await appWindow.screenshot({ path: testInfo.outputPath('full-page-horizontal-overflow-125-percent-zoom.png') })
+    await home.screenshot({ path: testInfo.outputPath('full-page-horizontal-overflow-125-percent-zoom.png') })
     console.log('Horizontal-overflow marker counts', colors)
     for (const color of ['red', 'green', 'blue', 'yellow']) {
       expect.soft(colors[color], `${color} document corner must survive capture beyond both viewport dimensions`).toBeGreaterThan(20)
@@ -336,7 +329,6 @@ test('includes horizontal overflow and all document corners in a zoomed full-pag
     const after = await electronApp.evaluate(({ webContents }, url) => webContents.getAllWebContents()
       .find(candidate => candidate.getURL() === url)!.executeJavaScript('({ width: innerWidth, height: innerHeight, scrollX, scrollY, pixelRatio: devicePixelRatio, documentWidth: document.documentElement.scrollWidth, documentHeight: document.documentElement.scrollHeight })'), `${fixture.url}/wide`)
     expect(after).toEqual(before)
-    await appWindow.screenshot({ path: testInfo.outputPath('full-page-horizontal-overflow-125-percent-zoom.png') })
   } finally {
     await fixture.close()
   }
@@ -410,7 +402,7 @@ async function connectScreenshotFixture(mcpPort: number, mcpToken: string): Prom
   return client
 }
 
-async function openMcpScreenshotFixture(client: Client, page: Page, url: string, title: string): Promise<string> {
+async function openMcpScreenshotFixture(client: Client, page: Page, electronApp: ElectronApplication, url: string, title: string): Promise<string> {
   const opened = await client.callTool({ name: 'browser_new_tab', arguments: { url, active: true } }) as CallToolResult
   expect(opened.isError).not.toBe(true)
   const content = opened.content.find(item => item.type === 'text')
@@ -418,7 +410,7 @@ async function openMcpScreenshotFixture(client: Client, page: Page, url: string,
   const tabId = (JSON.parse(content.text) as { activeTabId: string }).activeTabId
   await page.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
   await expect.poll(() => page.evaluate(`window.hronaut.getState().then(state => state.tabs.find(tab => tab.id === ${JSON.stringify(tabId)})?.title)`)).toBe(title)
-  await expect.poll(() => page.evaluate(`window.hronaut.getTabOverviewPreviews([${JSON.stringify(tabId)}]).then(previews => previews.length)`)).toBe(1)
+  await expect.poll(() => storedPreviews(electronApp, [tabId])).toBe(1)
   return tabId
 }
 
@@ -440,13 +432,13 @@ async function expectScreenshotCorners(page: Page, result: CallToolResult, testI
   }
 }
 
-test('captures every document corner immediately after alternating MCP zoom changes', async ({ appWindow, mcpPort, mcpToken }, testInfo) => {
+test('captures every document corner immediately after alternating MCP zoom changes', async ({ appWindow, electronApp, mcpPort, mcpToken }, testInfo) => {
   const fixture = await startDesignFixture()
   let client: Client | undefined
   try {
     client = await connectScreenshotFixture(mcpPort, mcpToken)
     for (const [path, title, aspectRatio] of [['wide', 'Wide project board', 2], ['responsive', 'Responsive project board', 0.5]] as const) {
-      const tabId = await openMcpScreenshotFixture(client, appWindow, `${fixture.url}/${path}`, title)
+      const tabId = await openMcpScreenshotFixture(client, appWindow, electronApp, `${fixture.url}/${path}`, title)
       for (const [index, percent] of [125, 100, 150, 75, 125, 100, 150, 75].entries()) {
         const zoomed = await client.callTool({ name: 'browser_zoom', arguments: { tabId, action: 'set', percent } }) as CallToolResult
         expect(zoomed.isError).not.toBe(true)
@@ -467,7 +459,7 @@ test('captures all selected element and rectangle corners at native page zoom', 
   try {
     client = await connectScreenshotFixture(mcpPort, mcpToken)
     await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(1900, 1100))
-    const tabId = await openMcpScreenshotFixture(client, appWindow, `${fixture.url}/region`, 'Screenshot target corners')
+    const tabId = await openMcpScreenshotFixture(client, appWindow, electronApp, `${fixture.url}/region`, 'Screenshot target corners')
     for (const scenario of [
       { name: '100', percent: 100, pixelRatio: 1, viewport: null },
       { name: '125', percent: 125, pixelRatio: 1.25, viewport: null },

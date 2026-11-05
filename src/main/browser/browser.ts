@@ -328,6 +328,8 @@ export class Browser {
   workspaceStorageOperation: BrowserWorkspaceOperation | null = null
   readonly store: TabStateStore
   activeTabId: string | null = null
+  /** The last website tab shown before another tab, which Home's Tabs view goes back to; Home's own tabs never. */
+  previousPageTabId: string | null = null
   tabSelectionGeneration = 0
   splitView: BrowserSplitViewState | null = null
   splitViewGeneration = 0
@@ -397,7 +399,7 @@ export class Browser {
   browserContentOccluded = false
   occludedEmulationFrames: EmulationFrameGeometry[] = []
   occludedPageCards: PageCardGeometry[] = []
-  /** A tab that should take keyboard focus once trusted chrome closes, such as one picked in the tab overview. */
+  /** A tab that should take keyboard focus once trusted chrome closes, such as one picked in the command palette. */
   focusAfterTrustedChrome: PendingTrustedChromeFocus | undefined
   followAgentActivitySuspended = false
   /** The shown tab's field that has the keyboard in the shell, as the shell last said; read only while the shell has it. */
@@ -434,12 +436,12 @@ export class Browser {
   readonly offscreenCaptureTabIds = new Set<string>()
   workspaceTemplateImporter?: WorkspaceTemplateImporter
   readonly tabOverviewPreviews = new Map<string, BrowserTabOverviewPreview>()
-  /** A sleeping tab's last frame from before it slept, shown in the overview until it wakes. */
+  /** A sleeping tab's last frame from before it slept, shown in Home's Tabs view until it wakes. */
   readonly tabOverviewSleepPreviews = new Map<string, BrowserTabOverviewPreview>()
   readonly tabOverviewPageCaptures = new Map<string, Promise<BrowserTabOverviewPreview>>()
   readonly tabOverviewPreviewTimers = new Map<string, NodeJS.Timeout>()
   readonly tabOverviewPreviewCaptures = new PreviewCaptureQueue<TabOverviewPreviewCaptureRequest<BrowserTab>>(
-    request => performTabOverviewPreviewCapture(this, request.tab, request.sequence, request.mode)
+    request => performTabOverviewPreviewCapture(this, request.tab, request.sequence)
   )
   readonly nativePreviewCapture = new NativePreviewCapture(TAB_OVERVIEW_CAPTURE_TIMEOUT_MS)
   readonly shellHeldKeys: Set<string>
@@ -449,8 +451,6 @@ export class Browser {
    */
   pageShortcutKey: { code: string; webContentsId: number | null } | null = null
   readonly occlusionSnapshot = createOcclusionSnapshot(this)
-  readonly tabOverviewPreviewableTabs = new Set<string>()
-  tabOverviewLiveCaptureCursor = 0
   readonly closedTabs: BrowserClosedTabState[] = []
   /**
    * Recently closed tabs held out of closedTabs while a tab reopens or a workspace closes, until that puts them back.

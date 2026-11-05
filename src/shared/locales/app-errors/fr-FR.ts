@@ -133,6 +133,7 @@ export const frFRAppErrors: AppErrorMessages = {
     archiveLimitUndo: 'Hronaut conserve au maximum {max} espaces de travail archivés, donc « {name} » ne peut pas être fermé avec possibilité d’annulation. Supprimez un espace de travail archivé dans l’accueil Hronaut, puis réessayez.',
     protectedClose: 'L’espace de travail « {name} » est protégé contre la suppression. Désactivez d’abord la protection contre la suppression dans les paramètres de l’espace de travail.',
     protectedDelete: 'L’espace de travail « {name} » est protégé contre la suppression. Désactivez d’abord la protection contre la suppression dans l’accueil Hronaut.',
+    deleteLocked: 'Déverrouillez tous les onglets avant de supprimer un espace de travail.',
     tabStillOpen: 'L’espace de travail « {name} » a encore un onglet ouvert ; il n’a donc pas été fermé. Réessayez.',
     closeRollbackFailed: 'L’espace de travail « {name} » n’a pas pu être fermé et certains de ses onglets n’ont pas pu être restaurés. Les onglets récupérables restent dans la recherche d’onglets.',
     restoreTabLimit: 'Restaurer « {name} » dépasserait la limite d’onglets ({max}).',

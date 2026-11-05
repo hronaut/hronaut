@@ -19,7 +19,6 @@ interface Harness {
     zoom: Ref<boolean>
     activePanel: Ref<DetachablePanelId | null>
     addressSuggestions: Ref<boolean>
-    tabSearch: Ref<boolean>
     downloads: Ref<boolean>
     history: Ref<boolean>
     splitMenu: Ref<boolean>
@@ -75,7 +74,6 @@ function createHarness(detachedWindow = false): Harness {
     zoom: ref(false),
     activePanel: ref<DetachablePanelId | null>(null),
     addressSuggestions: ref(false),
-    tabSearch: ref(false),
     downloads: ref(false),
     history: ref(false),
     splitMenu: ref(false),
@@ -146,7 +144,7 @@ describe('useAppShellLayoutFeatureController', () => {
 
     const surfaces = [
       ...Object.values(harness.modals),
-      ...(['zoom', 'addressSuggestions', 'tabSearch', 'downloads', 'history', 'splitMenu', 'siteControls', 'siteStorage', 'bookmarks'] as const)
+      ...(['zoom', 'addressSuggestions', 'downloads', 'history', 'splitMenu', 'siteControls', 'siteStorage', 'bookmarks'] as const)
         .map((name) => harness.overlays[name])
     ]
     for (const surface of surfaces) {
@@ -209,8 +207,8 @@ describe('useAppShellLayoutFeatureController', () => {
     const elementsFromPoint = vi.fn((): Element[] => [])
     Object.defineProperty(document, 'elementsFromPoint', { configurable: true, value: elementsFromPoint })
     try {
-      // Search tabs and Create workspace draw their backdrop under the native controls in the top-right corner.
-      for (const open of [harness.overlays.tabSearch, harness.modals.workspaceEditor]) {
+      // The command palette and Create workspace draw their backdrop under the native controls in the top-right corner.
+      for (const open of [harness.modals.commandPalette, harness.modals.workspaceEditor]) {
         document.body.append(backdrop)
         elementsFromPoint.mockReturnValue([backdrop])
         open.value = true
@@ -322,7 +320,7 @@ describe('useAppShellLayoutFeatureController', () => {
       await nextTick()
       await nextTick()
       expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(true, overlayEntranceEpoch())
-      // Picking a tab in Search tabs withdraws the snapshot; holding the page back would leave an empty window.
+      // Picking a tab in the command palette withdraws the snapshot; holding the page back would leave an empty window.
       setPageSnapshotOnScreen(false)
       await nextTick()
       await nextTick()
@@ -421,27 +419,5 @@ describe('useAppShellLayoutFeatureController', () => {
       bottom: 0,
       left: 0
     })
-  })
-
-  it('treats tab search as an immediately occluding full modal', async () => {
-    const harness = createHarness()
-
-    harness.overlays.addressSuggestions.value = true
-    harness.overlays.tabSearch.value = true
-
-    expect(harness.controller.fullModalOpen.value).toBe(true)
-    expect(harness.closeAddressSuggestions).toHaveBeenCalledOnce()
-
-    await nextTick()
-    await nextTick()
-
-    expect(harness.setToolbarHeight).toHaveBeenLastCalledWith(105)
-    expect(harness.setContentInsets).toHaveBeenLastCalledWith({
-      top: 0,
-      right: 0,
-      bottom: 0,
-      left: 0
-    })
-    expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(true, overlayEntranceEpoch())
   })
 })

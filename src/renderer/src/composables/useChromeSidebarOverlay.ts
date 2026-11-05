@@ -29,7 +29,6 @@ export interface SidebarOverlayCommands {
   toggleWorkspaceSwitcher: () => unknown
   stayHere: () => void
   toggleRailPinned: () => void
-  startTabDrag: () => void
   scrollTabList: (top: number) => void
   /** Folds the rail. */
   closeRail: () => void
@@ -64,7 +63,6 @@ export function runSidebarOverlayIntent(intent: SidebarOverlayIntent, commands: 
     case 'switch-workspace': run(commands.toggleWorkspaceSwitcher); return
     case 'stay-here': commands.stayHere(); return
     case 'toggle-rail-pinned': commands.toggleRailPinned(); return
-    case 'drag-start': commands.startTabDrag(); return
     case 'scroll': commands.scrollTabList(intent.top); return
     case 'dismiss': commands.closeRail(); return
     case 'tab-context-menu':

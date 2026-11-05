@@ -133,6 +133,7 @@ export const zhTWAppErrors: AppErrorMessages = {
     archiveLimitUndo: 'Hronaut 最多只能保留 {max} 個封存的工作區，因此無法以「復原」方式關閉「{name}」。請在首頁刪除一個封存的工作區，然後再試一次。',
     protectedClose: '工作區「{name}」受到刪除保護。請先在工作區設定中關閉刪除保護。',
     protectedDelete: '工作區「{name}」受到刪除保護。請先在首頁關閉刪除保護。',
+    deleteLocked: '刪除工作區前，請先解鎖所有分頁。',
     tabStillOpen: '工作區「{name}」仍有開啟中的分頁，因此未關閉。請再試一次。',
     closeRollbackFailed: '無法關閉工作區「{name}」，也無法還原其所有分頁。可復原的分頁仍可透過分頁搜尋找到。',
     restoreTabLimit: '還原「{name}」將超過 {max} 個分頁的上限。',

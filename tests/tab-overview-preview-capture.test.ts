@@ -4,7 +4,8 @@ import type { Browser } from '../src/main/browser/browser.js'
 vi.mock('electron', () => ({ nativeImage: {} }))
 
 const { NativePreviewCapture } = await import('../src/main/browser/native-preview-capture.js')
-const { performTabOverviewPreviewCapture } = await import('../src/main/browser/tab-overview-previews/tab-overview-previews.js')
+const { performTabOverviewPreviewCapture, scheduleTabOverviewPreview, storeTabOverviewPreview } =
+  await import('../src/main/browser/tab-overview-previews/tab-overview-previews.js')
 type Tab = Parameters<typeof performTabOverviewPreviewCapture>[1]
 
 function deferred() {
@@ -13,8 +14,8 @@ function deferred() {
   return { promise, resolve }
 }
 
-/** An active, loaded tab in a focused window, in view or behind the overview, whose page another capture is still reading. */
-function busyTab(overviewOpen = false) {
+/** An active, loaded tab in view in a focused window, whose page another capture is still reading. */
+function busyTab() {
   const capturePage = vi.fn(async () => ({ isEmpty: () => true }))
   const tab = {
     id: 'tab-1', url: 'https://example.test/', loading: false, sleeping: false, navigationGeneration: 1, overviewPreviewSequence: 1,
@@ -25,12 +26,11 @@ function busyTab(overviewOpen = false) {
     destroyed: false,
     window: { isDestroyed: () => false, isVisible: () => true, isFocused: () => true },
     tabs: new Map([[tab.id, tab]]),
-    browserContentOccluded: overviewOpen,
+    browserContentOccluded: false,
     activeTabId: tab.id,
     splitViewContains: () => false,
     nativePreviewCapture,
-    tabOverviewPreviewTimers: new Map<string, NodeJS.Timeout>(),
-    tabOverviewPreviewableTabs: new Set<string>([tab.id])
+    tabOverviewPreviewTimers: new Map<string, NodeJS.Timeout>()
   } as unknown as Browser
   // Such as the picture of an agent's step, which shares the page's capture.
   const other = deferred()
@@ -45,7 +45,7 @@ describe('tab overview preview capture', () => {
     // The tab's capture got nothing while an agent step's picture of the page was being taken, and nothing tried
     // again, so the tab had no overview preview.
     const { tab, browser, capturePage, scheduled, finishOther } = busyTab()
-    await performTabOverviewPreviewCapture(browser, tab, 1, 'visible')
+    await performTabOverviewPreviewCapture(browser, tab, 1)
     expect(capturePage).not.toHaveBeenCalled()
     expect(scheduled()).toBe(false)
     finishOther()
@@ -53,21 +53,39 @@ describe('tab overview preview capture', () => {
     clearTimeout(browser.tabOverviewPreviewTimers.get(tab.id))
   })
 
-  it('leaves the open overview to refresh its own frames', async () => {
-    const { tab, browser, capturePage, scheduled, finishOther } = busyTab(true)
-    await performTabOverviewPreviewCapture(browser, tab, 1, 'overview')
-    finishOther()
-    await new Promise(resolve => setImmediate(resolve))
-    expect(capturePage).not.toHaveBeenCalled()
-    expect(scheduled()).toBe(false)
-  })
-
   it('leaves it to a newer capture that took over meanwhile', async () => {
     const { tab, browser, scheduled, finishOther } = busyTab()
-    await performTabOverviewPreviewCapture(browser, tab, 1, 'visible')
+    await performTabOverviewPreviewCapture(browser, tab, 1)
     tab.overviewPreviewSequence = 2
     finishOther()
     await new Promise(resolve => setImmediate(resolve))
     expect(scheduled()).toBe(false)
+  })
+
+  it('never pictures Home, which lists the other tabs', () => {
+    const { tab, browser, scheduled } = busyTab()
+    tab.url = 'hronaut://home/'
+    scheduleTabOverviewPreview(browser, tab)
+    expect(scheduled()).toBe(false)
+    tab.url = 'https://example.test/'
+    scheduleTabOverviewPreview(browser, tab)
+    expect(scheduled()).toBe(true)
+    clearTimeout(browser.tabOverviewPreviewTimers.get(tab.id))
+  })
+
+  it('gives each stored frame a newer revision, so Home knows to read it again', () => {
+    const { tab, browser } = busyTab()
+    const previews = new Map<string, { revision?: number }>()
+    Object.assign(browser, { tabOverviewPreviews: previews })
+    const jpeg = Buffer.from('jpeg')
+    const image = {
+      isEmpty: () => false, getSize: () => ({ width: 480, height: 300 }), toJPEG: () => jpeg
+    } as unknown as Electron.NativeImage
+    storeTabOverviewPreview(browser, tab, image, 1)
+    const first = previews.get(tab.id)?.revision
+    storeTabOverviewPreview(browser, tab, image, 1)
+    const second = previews.get(tab.id)?.revision
+    expect(first).toEqual(expect.any(Number))
+    expect(second).toBeGreaterThan(first!)
   })
 })

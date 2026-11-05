@@ -24,7 +24,6 @@ export function destroyBrowser(browser: Browser): void {
   for (const timer of browser.tabOverviewPreviewTimers.values()) clearTimeout(timer)
   browser.tabOverviewPreviewTimers.clear()
   browser.tabOverviewPreviewCaptures.clear()
-  browser.tabOverviewPreviewableTabs.clear()
   browser.tabOverviewPreviews.clear()
   browser.tabOverviewSleepPreviews.clear()
   browser.networkWaitController.dispose()

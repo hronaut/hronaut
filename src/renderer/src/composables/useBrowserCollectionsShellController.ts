@@ -17,7 +17,6 @@ export interface BrowserCollectionsShellControllerOptions {
   downloadsOpen: Ref<boolean>
   bookmarksOpen: Ref<boolean>
   historyOpen: Ref<boolean>
-  tabSearchOpen: Ref<boolean>
   bookmarksPanel: Readonly<Ref<BookmarksShellPanel | null>>
   historyPanel: Readonly<Ref<HistoryShellPanel | null>>
   refreshDownloads: () => Promise<unknown>
@@ -42,7 +41,6 @@ export function useBrowserCollectionsShellController(
     options.settingsOpen.value = false
     options.bookmarksOpen.value = false
     options.historyOpen.value = false
-    options.tabSearchOpen.value = false
     if (options.downloadsOpen.value) {
       closeDownloads()
       return
@@ -63,14 +61,12 @@ export function useBrowserCollectionsShellController(
     options.settingsOpen.value = false
     closeDownloads()
     options.historyOpen.value = false
-    options.tabSearchOpen.value = false
     await options.bookmarksPanel.value?.toggle()
   }
 
   async function toggleCurrentBookmark(): Promise<void> {
     closeDownloads()
     options.historyOpen.value = false
-    options.tabSearchOpen.value = false
     await options.bookmarksPanel.value?.toggleCurrent()
   }
 
@@ -79,7 +75,6 @@ export function useBrowserCollectionsShellController(
     options.settingsOpen.value = false
     closeDownloads()
     options.historyOpen.value = false
-    options.tabSearchOpen.value = false
     await options.bookmarksPanel.value?.bookmarkAllTabs(workspaceId, suggestedName)
   }
 
@@ -87,7 +82,6 @@ export function useBrowserCollectionsShellController(
     options.settingsOpen.value = false
     closeDownloads()
     options.bookmarksOpen.value = false
-    options.tabSearchOpen.value = false
     await options.historyPanel.value?.toggle()
   }
 

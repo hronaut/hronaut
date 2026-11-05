@@ -145,8 +145,7 @@ export function createIpcGuards(host: IpcGuardsHost): {
    * runWorkspaceRead; it refuses every other channel until then.
    */
   const admittedDuringRestore: readonly string[] = [
-    TABS_IPC.getState, TABS_IPC.getTabOverviewPreviews, TABS_IPC.getTabOverviewPagePreview,
-    SPLIT_DIVIDER_IPC.get, EMULATION_FRAME_IPC.get, PAGE_CARD_IPC.get
+    TABS_IPC.getState, SPLIT_DIVIDER_IPC.get, EMULATION_FRAME_IPC.get, PAGE_CARD_IPC.get
   ]
 
   function handleBrowserIpc<Args extends unknown[], Result>(channel: InvokeChannel<Args, Result>, listener: NoInfer<IpcHandler<Result>>): void {

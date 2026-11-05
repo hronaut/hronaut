@@ -55,18 +55,23 @@ describe('Hronaut Home page preload', () => {
     expect(electron.invoke).toHaveBeenCalledWith('hronaut-home:workspace-action', { view: 'preferences', workspaceId: 'project', deletionProtected: true })
   })
 
-  it('passes change notices to Home without their arguments, and stops on unsubscribe', async () => {
+  it.each([
+    ['onChanged', 'hronaut-home:changed'],
+    ['onShowTabs', 'hronaut-home:show-tabs'],
+    ['onTabsChanged', 'hronaut-home:tabs-changed']
+  ] as const)('passes %s notices to Home without their arguments, and stops on unsubscribe', async (method, channel) => {
     vi.stubGlobal('location', { protocol: 'hronaut:', hostname: 'home' })
     vi.stubGlobal('addEventListener', vi.fn())
     await import('../src/preload/page.js')
-    const api = electron.exposeInMainWorld.mock.calls.find(([name]) => name === 'hronautHome')?.[1] as { onChanged: (listener: (...values: unknown[]) => void) => () => void }
+    const api = electron.exposeInMainWorld.mock.calls.find(([name]) => name === 'hronautHome')?.[1] as
+      Record<string, (listener: (...values: unknown[]) => void) => () => void>
     const listener = vi.fn()
-    const unsubscribe = api.onChanged(listener)
-    const registered = electron.on.mock.calls.find(([channel]) => channel === 'hronaut-home:changed')?.[1] as (...values: unknown[]) => void
+    const unsubscribe = api[method]!(listener)
+    const registered = electron.on.mock.calls.find(([registeredChannel]) => registeredChannel === channel)?.[1] as (...values: unknown[]) => void
     registered({ sender: 'event' }, 'unexpected payload')
     expect(listener).toHaveBeenCalledWith()
     unsubscribe()
-    expect(electron.removeListener).toHaveBeenCalledWith('hronaut-home:changed', registered)
+    expect(electron.removeListener).toHaveBeenCalledWith(channel, registered)
   })
 
   it('forwards only the selected client ID through its narrow guide bridge', async () => {
@@ -101,7 +106,11 @@ describe('Hronaut Home page preload', () => {
     ['getSetupState', [], 'hronaut-home:setup-state', []],
     ['prepareClaudeCodeSetup', [], 'hronaut-home:claude-code-prepare', []],
     ['applyClaudeCodeSetup', ['plan-1'], 'hronaut-home:claude-code-apply', ['plan-1']],
-    ['useMcpPort', [47322], 'hronaut-home:use-mcp-port', [47322]]
+    ['useMcpPort', [47322], 'hronaut-home:use-mcp-port', [47322]],
+    ['getTabs', [], 'hronaut-home:tabs', []],
+    ['getTabPreviews', [['news', 'docs']], 'hronaut-home:tab-previews', [['news', 'docs']]],
+    ['getTabPagePreview', ['news'], 'hronaut-home:tab-page-preview', ['news']],
+    ['tabAction', [{ kind: 'open', tabId: 'news' }], 'hronaut-home:tab-action', [{ kind: 'open', tabId: 'news' }]]
   ] as const)('Home\'s %s asks main on its channel with its arguments and returns main\'s answer', async (method, args, channel, sent) => {
     vi.stubGlobal('location', { protocol: 'hronaut:', hostname: 'home' })
     vi.stubGlobal('addEventListener', vi.fn())

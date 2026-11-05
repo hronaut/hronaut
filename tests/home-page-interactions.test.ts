@@ -287,8 +287,10 @@ describe('Home setup journey', () => {
     expect(button('[data-home-view="tools"]').getAttribute('aria-selected')).toBe('true')
     expect(document.querySelector<HTMLElement>('#home-tools')?.hidden).toBe(false)
     expect(button('[data-home-view="overview"]').tabIndex).toBe(-1)
+    // Home goes to the first section, Tabs; the default section is still Workspaces.
     button('[data-home-view="tools"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }))
-    expect(document.querySelector<HTMLElement>('#home-workspaces')?.hidden).toBe(false)
+    expect(document.querySelector<HTMLElement>('#home-tabs')?.hidden).toBe(false)
+    expect(document.querySelector<HTMLElement>('#home-workspaces')?.hidden).toBe(true)
     window.localStorage.setItem('hronaut.home.view.v2', '<invalid>')
     mount()
     expect(button('[data-home-view="workspaces"]').getAttribute('aria-selected')).toBe('true')

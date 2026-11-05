@@ -21,7 +21,6 @@ function createController() {
     downloadsOpen: ref(true),
     bookmarksOpen: ref(true),
     historyOpen: ref(true),
-    tabSearchOpen: ref(true),
     zoomOpen: ref(true),
     addressSuggestionsOpen: ref(true)
   }

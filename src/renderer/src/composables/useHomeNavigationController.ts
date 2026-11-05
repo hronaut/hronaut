@@ -10,9 +10,10 @@ export interface HomeNavigationControllerOptions {
   downloadsOpen: Ref<boolean>
   bookmarksOpen: Ref<boolean>
   historyOpen: Ref<boolean>
-  tabSearchOpen: Ref<boolean>
   zoomOpen: Ref<boolean>
   navigateHome: () => Promise<void>
+  /** Main shows Home's Tabs view, with its search field taking the keyboard. */
+  navigateHomeTabs: () => Promise<void>
 }
 
 export function useHomeNavigationController(options: HomeNavigationControllerOptions) {
@@ -27,23 +28,34 @@ export function useHomeNavigationController(options: HomeNavigationControllerOpt
     return tabs.find((tab) => tab.id === lastWebsiteTabId.value) ?? tabs.at(-1)
   }
 
-  async function openHome(): Promise<void> {
+  /** What the shell shows over the page goes, so Home is in view. */
+  function leaveForHome(): void {
     rememberWebsiteTab(options.activeTab.value)
     options.settingsOpen.value = false
     options.updateNoticeOpen.value = false
     options.downloadsOpen.value = false
     options.bookmarksOpen.value = false
     options.historyOpen.value = false
-    options.tabSearchOpen.value = false
     options.zoomOpen.value = false
     // Find stays with the website's tab, as with any other tab shown, and comes back with it.
+  }
+
+  async function openHome(): Promise<void> {
+    leaveForHome()
     await options.navigateHome()
+  }
+
+  /** Search tabs (Ctrl/Cmd+Shift+A): Home's Tabs view, with its search field focused. */
+  async function openHomeTabs(): Promise<void> {
+    leaveForHome()
+    await options.navigateHomeTabs()
   }
 
   return {
     rememberWebsiteTab,
     preferredWebsiteTab,
-    openHome
+    openHome,
+    openHomeTabs
   }
 }
 

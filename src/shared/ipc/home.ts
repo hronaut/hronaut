@@ -2,7 +2,8 @@ import type { AgentGuideId } from '../agent-guides.js'
 import type { ClaudeCodeSetupPreview, ClaudeCodeSetupResult, HomeSetupState } from '../claude-code-setup.js'
 import type { Confirmation } from '../confirmation.js'
 import type { HomeWorkspaceAction, HomeWorkspaceState } from '../home-workspaces.js'
-import type { McpPortMoveResult } from '../types.js'
+import type { BrowserTabOverviewPreview, McpPortMoveResult } from '../types.js'
+import type { HomeTabAction, HomeTabsState } from '../home-tabs.js'
 import type { EventChannel, InvokeChannel } from './channel.js'
 
 /** Home, Hronaut's own page in a tab: its workspaces, its setup of agents, and what it asks main to open or copy. */
@@ -11,6 +12,18 @@ export const HOME_IPC = {
   showWorkspaces: 'hronaut-home:show-workspaces' as EventChannel<[]>,
   /** Main → Home: something Home shows changed, so it reads its status again. Carries nothing. */
   changed: 'hronaut-home:changed' as EventChannel<[]>,
+  /** Main → Home: show the Tabs view with the search field focused, for Search tabs. */
+  showTabs: 'hronaut-home:show-tabs' as EventChannel<[]>,
+  /** Main → Home: tabs changed, so a Home showing them reads them again. Carries nothing. */
+  tabsChanged: 'hronaut-home:tabs-changed' as EventChannel<[]>,
+  /** Home → main: the open tabs, recently closed tabs and archived workspaces the Tabs view lists. */
+  tabs: 'hronaut-home:tabs' as InvokeChannel<[], HomeTabsState>,
+  /** Home → main: the last frames kept of the given tabs, a sleeping tab's from before it slept; never captured anew. */
+  tabPreviews: 'hronaut-home:tab-previews' as InvokeChannel<[tabIds: string[]], BrowserTabOverviewPreview[]>,
+  /** Home → main: a bounded full-page picture of an awake, loaded tab. */
+  tabPagePreview: 'hronaut-home:tab-page-preview' as InvokeChannel<[tabId: string], BrowserTabOverviewPreview>,
+  /** Home → main: opens, closes, pins, labels or reopens a tab, restores or deletes an archived workspace. */
+  tabAction: 'hronaut-home:tab-action' as InvokeChannel<[action: HomeTabAction], HomeTabsState>,
   /** Home → main: the workspaces Home lists. */
   workspaces: 'hronaut-home:workspaces' as InvokeChannel<[], HomeWorkspaceState>,
   /**

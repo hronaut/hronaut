@@ -93,7 +93,7 @@ const {
   reportActionError: reportShellActionError,
   reportStartupFailure: reportAppBootstrapFailure,
   reportStartupRecovered,
-  reportSearchError: showTabSearchError,
+  reportSearchError: showErrorToast,
   copyText: copyAppText,
   reportSettingError: handleExtractedSettingError,
   reportSplitViewError,
@@ -117,7 +117,6 @@ const {
   activeTab,
   diagnosticLogPreservationBusy,
   updateDiagnosticLogPreservation,
-  mcpActivityByTab,
   dispose: disposeAppTabRuntimeFeatureController
 } = appTabRuntimeFeatureController
 const appShellPresentationFeatureController = useAppShellPresentationFeatureController({
@@ -164,7 +163,6 @@ const {
   credentialPickerOpen,
   findOpen, findFocused,
   zoomOpen,
-  tabSearchOpen,
   commandPaletteOpen,
   commandPaletteView,
   agentStepsOpen,
@@ -321,7 +319,6 @@ const browserCollectionsFeatureController = useAppBrowserCollectionsFeatureContr
   bookmarksApi: window.hronautBookmarks,
   historyApi: window.hronautHistory,
   settingsOpen,
-  tabSearchOpen,
   syncState,
   browserState: () => state.value,
   // The startup tasks read the browser state once the shell has mounted, so its panels are there by then too.
@@ -357,7 +354,6 @@ const appSiteNavigationFeatureController = useAppSiteNavigationFeatureController
     settingsOpen,
     settingsSection,
     updateNoticeOpen,
-    tabSearchOpen,
     zoomOpen,
     findOpen,
     findFocused
@@ -460,7 +456,6 @@ const {
       zoomOpen,
       downloadsOpen,
       historyOpen,
-      tabSearchOpen,
       updateNoticeOpen,
       findOpen,
       closeFind
@@ -498,7 +493,7 @@ const {
   prepareSplitViewMenu,
   handleSplitViewError,
   openFind,
-  toggleTabSearch,
+  openHomeTabs,
   toggleZoom,
   runShellAction,
   openSupportSettings,
@@ -662,7 +657,6 @@ const {
     zoom: zoomOpen,
     activePanel: activePanelId,
     addressSuggestions: addressSuggestionsOpen,
-    tabSearch: tabSearchOpen,
     downloads: downloadsOpen,
     history: historyOpen,
     splitMenu: splitMenuOpen,
@@ -677,7 +671,7 @@ const {
 // What opens from the tabs and the toolbar keeps them in view while it is open, and so does a bar shown
 // under the toolbar (Find, Zoom, a page that failed or the license card), so it does not move under the pointer.
 fullPageView.holdWhile(() => [
-  mcpStatusController.summaryOpen, updateNoticeOpen, addressSuggestionsOpen, tabSearchOpen,
+  mcpStatusController.summaryOpen, updateNoticeOpen, addressSuggestionsOpen,
   downloadsOpen, historyOpen, splitMenuOpen, siteControlsOpen, findOpen, zoomOpen
 ].some((open) => open.value === true) || Boolean(activeTab.value?.pageProblem)
   || appSettingsFeatureController.licenseAskController.cardReason.value !== null)
@@ -726,7 +720,6 @@ const {
   fillSelectedCredential,
   detachedPanelUnavailable,
   detachedPanelLabelText,
-  describeTabEmulation,
   dispose: disposeAppActiveTabFeatureController
 } = appActiveTabFeatureController
 const appBrowserChromeFeatureController = useAppBrowserChromeFeatureController({
@@ -745,7 +738,7 @@ const appBrowserChromeFeatureController = useAppBrowserChromeFeatureController({
     showAgentSteps,
     toggleCommandPalette,
     toggleWorkspaceSwitcher,
-    toggleTabSearch,
+    openHomeTabs,
     openFind,
     toggleZoom,
     togglePageTools,
@@ -843,7 +836,6 @@ useAppLifecycleController({
     <AppBrowserChromeLayer
       ref="browserChromeLayer"
       v-model:command-palette-open="commandPaletteOpen"
-      v-model:tab-search-open="tabSearchOpen"
       v-model:zoom-open="zoomOpen"
       v-model:site-controls-open="siteControlsOpen"
       v-model:split-menu-open="splitMenuOpen"
@@ -916,7 +908,6 @@ useAppLifecycleController({
     <AppTransientShellLayer
       ref="transientShellLayer"
       v-model:dock="panelDock"
-      v-model:tab-search-open="tabSearchOpen"
       v-model:find-open="findOpen"
       v-model:find-focused="findFocused"
       v-model:zoom-open="zoomOpen"
@@ -929,7 +920,6 @@ useAppLifecycleController({
       :state="state"
       :active-tab="activeTab"
       :user-attention="userAttention"
-      :mcp-activity-by-tab="mcpActivityByTab"
       :credentials="credentials"
       :collections-controller="browserCollectionsFeatureController"
       :active-url="activeWebUrl"
@@ -944,20 +934,18 @@ useAppLifecycleController({
       :sync-state="syncState"
       :select-tab="selectBrowserTab"
       :expand-tab-group="expandTabGroupForTab"
-      :describe-emulation="describeTabEmulation"
       :format-bytes="formatBytes"
       :format-number="localNumber"
       :format-time="localTime"
       :format-percent="localPercent"
       :format-date-time="localDateTime"
       :format-error="friendlyUiError"
-      :show-error="showTabSearchError"
+      :show-error="showErrorToast"
       :fill-credential="fillSelectedCredential"
       :run-command="runCommandPaletteCommand"
       :report-command-error="reportShellActionError"
       :open-settings-section="openSettingsSection"
       :report-zoom-error="reportShellActionError"
-      @new-tab="runBrowserShortcut('new-tab')"
       @search-tabs="runBrowserShortcut('search-tabs')"
       @create-workspace="openNewWorkspaceEditor"
     />

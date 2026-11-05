@@ -7,7 +7,6 @@ export interface TransientPanelsControllerOptions {
   zoomOpen: Ref<boolean>
   downloadsOpen: Ref<boolean>
   historyOpen: Ref<boolean>
-  tabSearchOpen: Ref<boolean>
   updateNoticeOpen: Ref<boolean>
   findOpen: Ref<boolean>
   closeFind: () => Promise<void>
@@ -25,7 +24,6 @@ export function useTransientPanelsController(options: TransientPanelsControllerO
     options.zoomOpen.value = false
     options.downloadsOpen.value = false
     options.historyOpen.value = false
-    options.tabSearchOpen.value = false
     options.updateNoticeOpen.value = false
 
     if (!preserveFind) {

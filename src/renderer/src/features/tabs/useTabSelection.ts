@@ -95,7 +95,7 @@ export function useTabSelection(options: TabSelectionOptions) {
     if (tab.id === shown) show(remaining[0])
   }
 
-  // A tab the bar asked for keeps the selection; one shown another way, as from the keyboard, tab search, the rail
+  // A tab the bar asked for keeps the selection; one shown another way, as from the keyboard, Home's Tabs view, the rail
   // drawn over the page or an agent, leaves only that tab selected, even when it was one of them.
   watch(options.activeTabId, (tabId) => {
     const requested = tabId === null ? -1 : pendingTabIds.indexOf(tabId)

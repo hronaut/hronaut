@@ -50,6 +50,12 @@ if (pageLocation?.protocol === 'hronaut:' && pageLocation.hostname === 'home') {
   contextBridge.exposeInMainWorld('hronautHome', {
     onShowWorkspaces: (listener) => subscribe(HOME_IPC.showWorkspaces, () => listener()),
     onChanged: (listener) => subscribe(HOME_IPC.changed, () => listener()),
+    onShowTabs: (listener) => subscribe(HOME_IPC.showTabs, () => listener()),
+    onTabsChanged: (listener) => subscribe(HOME_IPC.tabsChanged, () => listener()),
+    getTabs: () => invoke(HOME_IPC.tabs),
+    getTabPreviews: (tabIds) => invoke(HOME_IPC.tabPreviews, tabIds),
+    getTabPagePreview: (tabId) => invoke(HOME_IPC.tabPagePreview, tabId),
+    tabAction: (action) => invoke(HOME_IPC.tabAction, action),
     getWorkspaces: () => invoke(HOME_IPC.workspaces),
     workspaceAction: (request) => invoke(HOME_IPC.workspaceAction, request),
     copyText: (text) => invoke(HOME_IPC.copyText, text),

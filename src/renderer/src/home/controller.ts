@@ -4,6 +4,7 @@ import type { HomeBootstrap, HomeDashboard, HronautHomeApi } from '../../../shar
 import { element, errorText, escapeText as h, interpolate, messageAt, pluralText, remember, renderStatus } from './dom.js'
 import { mountAgentList } from './agent-list.js'
 import { mountWorkspaces } from './workspaces.js'
+import { mountTabs } from './tabs.js'
 import { mountClaudeSetup } from './claude-setup.js'
 import { mcpPortProblem } from '../../../shared/mcp-port.js'
 
@@ -256,8 +257,8 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     return parts.length ? parts.join(' ') : library.description
   }
   function renderHeading(): void {
-    text('home-view-title', selectedView === 'workspaces' ? greeting() : selectedView === 'connect' ? messages.connect.heading : selectedView === 'overview' ? messages.activity.heading : messages.navigation.tools)
-    text('home-view-description', selectedView === 'workspaces' ? summary() : selectedView === 'connect' ? messages.connect.description : selectedView === 'overview' ? messages.activity.description : messages.tools.description)
+    text('home-view-title', selectedView === 'tabs' ? data.messages.tabSearch.heading : selectedView === 'workspaces' ? greeting() : selectedView === 'connect' ? messages.connect.heading : selectedView === 'overview' ? messages.activity.heading : messages.navigation.tools)
+    text('home-view-description', selectedView === 'tabs' ? tabs.summary() : selectedView === 'workspaces' ? summary() : selectedView === 'connect' ? messages.connect.description : selectedView === 'overview' ? messages.activity.description : messages.tools.description)
   }
   /** The connected agents, grouped by client, with the workspace each one is in. */
   const connectedAgentList = mountAgentList(data, signal)
@@ -424,12 +425,13 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     renderOnboarding()
     renderAgents()
   })
-  const views = ['workspaces', 'connect', 'overview', 'tools'] as const
+  const views = ['tabs', 'workspaces', 'connect', 'overview', 'tools'] as const
   type View = typeof views[number]
   const isView = (value: unknown): value is View => views.includes(value as View)
   let selectedView: View = 'workspaces'
   const savedView = remember('hronaut.home.view.v2')
   if (isView(savedView)) selectedView = savedView
+  const tabs = mountTabs(data, api, signal, () => { if (selectedView === 'tabs') renderHeading() })
   function selectView(view: View, focus = false): void {
     selectedView = view
     document.documentElement.dataset.homeSelectedView = view
@@ -438,6 +440,7 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
       button.setAttribute('aria-selected', String(id === view)); button.tabIndex = id === view ? 0 : -1
       element(`home-${id}`).hidden = id !== view
     })
+    tabs.setVisible(view === 'tabs')
     renderHeading()
     if (focus) element(`home-tab-${view}`).focus()
     remember('hronaut.home.view.v2', view)
@@ -478,6 +481,8 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     if (inside) statusDetails.querySelector('summary')?.focus()
   }, { signal })
   const unsubscribe = api?.onShowWorkspaces?.(() => selectView('workspaces'))
+  // Search tabs: the Tabs view with its search field focused.
+  const unsubscribeShowTabs = api?.onShowTabs?.(() => { selectView('tabs'); tabs.present() })
   element<HTMLInputElement>('agent-search').addEventListener('input', event => {
     const query = (event.target as HTMLInputElement).value.trim().toLocaleLowerCase(locale)
     let visible = 0
@@ -515,6 +520,8 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
   async function read(): Promise<void> {
     if (signal.aborted) return
     void workspaces.refresh()
+    // The Tabs view reads while it shows; a hidden Home reads its tabs once shown again.
+    if (!document.hidden) void tabs.refresh()
     const sequence = ++requestSequence
     const attempt = new AbortController()
     const abandon = (): void => attempt.abort()
@@ -554,7 +561,22 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     changedWhileHidden = false
     refreshSoon()
   }, { signal })
-  function dispose(): void { lifetime.abort(); requestSequence++; timers.forEach(clearTimeout); timers.clear(); unsubscribe?.(); unsubscribeChanges?.() }
+  // Tab changes come often while pages load; the Tabs view reads them at most every 250 ms, and only while it shows.
+  let tabsChangeQueued = false
+  const unsubscribeTabChanges = api?.onTabsChanged?.(() => {
+    if (tabsChangeQueued || signal.aborted || selectedView !== 'tabs' || document.hidden) return
+    tabsChangeQueued = true
+    later(() => { tabsChangeQueued = false; void tabs.refresh() }, 250)
+  })
+  // The change that brings Home into view, such as choosing its tab in the strip, comes while it is still hidden, so the
+  // Tabs view reads the tabs as soon as it shows.
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && selectedView === 'tabs') void tabs.refresh()
+  }, { signal })
+  function dispose(): void {
+    lifetime.abort(); requestSequence++; timers.forEach(clearTimeout); timers.clear()
+    unsubscribe?.(); unsubscribeShowTabs?.(); unsubscribeChanges?.(); unsubscribeTabChanges?.()
+  }
   window.addEventListener('pagehide', dispose, { once: true, signal })
   renderGuide(); selectView(selectedView); update(dashboard); void poll()
   return { update, refresh, dispose }

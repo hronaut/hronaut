@@ -20,7 +20,6 @@ export function useTabNavigationController(options: TabNavigationControllerOptio
     browser: options.browser,
     syncState: options.syncState,
     settingsOpen: options.settingsOpen,
-    tabSearchOpen: options.tabSearchOpen,
     beginAddressFocus,
     expandTabGroup: options.expandTabGroup,
     onWorkspaceError: options.onWorkspaceError

@@ -44,7 +44,6 @@ function renderActions(overrides: Record<string, unknown> = {}) {
     global: { plugins: [createHronautI18n('en-US')] },
     props: {
       commandPaletteOpen: false,
-      tabSearchOpen: false,
       downloadsOpen: false,
       historyOpen: false,
       settingsOpen: false,
@@ -75,6 +74,11 @@ describe('AppTopbarActions', () => {
     expect(downloads).toHaveAttribute('data-tooltip', '1 download in progress')
     expect(screen.getByRole('button', { name: 'Open command palette' })).toHaveAttribute('aria-keyshortcuts', 'Control+Shift+P Meta+Shift+P')
     expect(screen.getByText('99')).toBeVisible()
+    // Search tabs opens Home's Tabs view, a tab rather than a panel, so the button shows no open state.
+    const searchTabs = screen.getByRole('button', { name: 'Search tabs' })
+    expect(searchTabs).toHaveAttribute('data-tooltip', 'Search tabs (Ctrl/Cmd+Shift+A)')
+    expect(searchTabs).not.toHaveAttribute('aria-expanded')
+    expect(searchTabs).not.toHaveAttribute('aria-pressed')
 
     await user.click(screen.getByRole('button', { name: 'Open command palette' }))
     await user.click(screen.getByRole('button', { name: 'Search tabs' }))
@@ -88,7 +92,7 @@ describe('AppTopbarActions', () => {
 
     expect(rendered.emitted()).toMatchObject({
       toggleCommandPalette: [[]],
-      toggleTabSearch: [[]],
+      openHomeTabs: [[]],
       toggleDownloads: [[]],
       toggleHistory: [[]],
       toggleAllTabsMuted: [[]],
@@ -108,8 +112,8 @@ describe('AppTopbarActions', () => {
     button.dispatchEvent(press)
     button.dispatchEvent(repeat)
 
-    // Tab search and the palette give the focus back to their button when they close, and the held key's repeats
-    // pressed it, opening them again.
+    // The palette gives the focus back to its button when it closes, and the held key's repeats pressed it, opening it
+    // again. A held Enter on Search tabs would likewise ask for Home's Tabs view over and over.
     expect(press.defaultPrevented).toBe(false)
     expect(repeat.defaultPrevented).toBe(true)
     rendered.mcpStatusController.dispose()

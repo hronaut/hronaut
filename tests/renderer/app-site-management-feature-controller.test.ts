@@ -33,7 +33,6 @@ function createHarness() {
   const downloadsOpen = ref(false)
   const bookmarksOpen = ref(false)
   const historyOpen = ref(false)
-  const tabSearchOpen = ref(false)
   const zoomOpen = ref(false)
   const addressSuggestionsOpen = ref(false)
   const findOpen = ref(false)
@@ -66,7 +65,6 @@ function createHarness() {
     downloadsOpen,
     bookmarksOpen,
     historyOpen,
-    tabSearchOpen,
     zoomOpen,
     addressSuggestionsOpen,
     findOpen,
@@ -94,7 +92,6 @@ function createHarness() {
     downloadsOpen,
     bookmarksOpen,
     historyOpen,
-    tabSearchOpen,
     zoomOpen,
     addressSuggestionsOpen,
     findOpen,
@@ -115,7 +112,6 @@ function openCompetingSurfaces(harness: ReturnType<typeof createHarness>): void 
   harness.downloadsOpen.value = true
   harness.bookmarksOpen.value = true
   harness.historyOpen.value = true
-  harness.tabSearchOpen.value = true
   harness.zoomOpen.value = true
   harness.addressSuggestionsOpen.value = true
   harness.findOpen.value = true
@@ -134,7 +130,6 @@ describe('useAppSiteManagementFeatureController', () => {
     expect(harness.downloadsOpen.value).toBe(false)
     expect(harness.bookmarksOpen.value).toBe(false)
     expect(harness.historyOpen.value).toBe(false)
-    expect(harness.tabSearchOpen.value).toBe(false)
     expect(harness.zoomOpen.value).toBe(false)
     expect(harness.addressSuggestionsOpen.value).toBe(false)
     expect(harness.closeFind).toHaveBeenCalledOnce()
@@ -179,7 +174,6 @@ describe('useAppSiteManagementFeatureController', () => {
     harness.downloadsOpen.value = true
     harness.bookmarksOpen.value = true
     harness.historyOpen.value = true
-    harness.tabSearchOpen.value = true
     harness.controller.openUpdateSettings()
 
     expect(harness.closeHelp).toHaveBeenCalledOnce()
@@ -187,7 +181,6 @@ describe('useAppSiteManagementFeatureController', () => {
     expect(harness.downloadsOpen.value).toBe(false)
     expect(harness.bookmarksOpen.value).toBe(false)
     expect(harness.historyOpen.value).toBe(false)
-    expect(harness.tabSearchOpen.value).toBe(false)
 
     const refreshCount = harness.refreshPrivacySettings.mock.calls.length
     harness.controller.dispose()

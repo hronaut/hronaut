@@ -40,7 +40,6 @@ function harness(endedByPerson: boolean) {
     setEmulationViewSize: vi.fn(),
     invalidateTabOverviewPreview: vi.fn(),
     tabOverviewPreviewCaptures: { cancelPending: vi.fn() },
-    tabOverviewPreviewableTabs: new Set(),
     rendererRecovery: { expectsExit: () => false },
     endedByPerson: { take: (contents: WebContents) => { taken.push(contents); return endedByPerson } },
     networkWaitController: { reject: vi.fn() },

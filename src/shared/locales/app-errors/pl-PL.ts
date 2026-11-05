@@ -133,6 +133,7 @@ export const plPLAppErrors: AppErrorMessages = {
     archiveLimitUndo: 'Hronaut przechowuje najwyżej {max} zarchiwizowanych obszarów roboczych, więc obszaru „{name}” nie można zamknąć z możliwością cofnięcia. Usuń zarchiwizowany obszar roboczy na stronie głównej Hronaut i spróbuj ponownie.',
     protectedClose: 'Obszar roboczy „{name}” jest chroniony przed usunięciem. Najpierw wyłącz ochronę przed usunięciem w ustawieniach obszaru roboczego.',
     protectedDelete: 'Obszar roboczy „{name}” jest chroniony przed usunięciem. Najpierw wyłącz ochronę przed usunięciem na stronie głównej Hronaut.',
+    deleteLocked: 'Odblokuj wszystkie karty przed usunięciem obszaru roboczego.',
     tabStillOpen: 'W obszarze roboczym „{name}” wciąż jest otwarta karta, więc nie został zamknięty. Spróbuj ponownie.',
     closeRollbackFailed: 'Nie udało się zamknąć obszaru roboczego „{name}” ani przywrócić wszystkich jego kart. Karty, które można odzyskać, pozostają w wyszukiwaniu kart.',
     restoreTabLimit: 'Przywrócenie obszaru „{name}” przekroczyłoby limit kart ({max}).',

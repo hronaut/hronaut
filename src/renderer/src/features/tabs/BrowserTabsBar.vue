@@ -84,7 +84,6 @@ const emit = defineEmits<{
   dropLink: [details: { text: string; target: DroppedLinkTarget }]
   toggleTabMuted: [tab: BrowserTabState]
   closeTab: [tabId: string]
-  dragStart: []
   toggleRailPinned: []
   /** Open the workspace switcher, which finds a workspace by its name, agents or sites. */
   switchWorkspace: []
@@ -140,7 +139,6 @@ const { draggedTabId, draggedTabIds, tabDropTargetId, tabDropPlacement, clearTab
   tabs: regularTabs,
   vertical,
   selectionWith: (tabId) => selectionWith(tabId),
-  onDragStart: () => emit('dragStart'),
   onReorder: (details) => emit('reorderTab', details)
 })
 const {

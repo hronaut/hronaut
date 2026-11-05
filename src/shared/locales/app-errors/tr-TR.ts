@@ -133,6 +133,7 @@ export const trTRAppErrors: AppErrorMessages = {
     archiveLimitUndo: 'Hronaut en fazla {max} arşivlenmiş çalışma alanı tuttuğu için "{name}" Geri al seçeneğiyle kapatılamaz. Ana Sayfa’dan arşivlenmiş bir çalışma alanını silin, ardından tekrar deneyin.',
     protectedClose: '"{name}" çalışma alanı silinmeye karşı korumalı. Önce çalışma alanı ayarlarından silme korumasını kapatın.',
     protectedDelete: '"{name}" çalışma alanı silinmeye karşı korumalı. Önce Ana Sayfa’dan silme korumasını kapatın.',
+    deleteLocked: 'Bir çalışma alanını silmeden önce tüm sekmelerin kilidini açın.',
     tabStillOpen: '"{name}" çalışma alanında hâlâ açık bir sekme olduğu için kapatılmadı. Tekrar deneyin.',
     closeRollbackFailed: '"{name}" çalışma alanı kapatılamadı ve sekmelerinin tümü geri yüklenemedi. Kurtarılabilir sekmeler sekme aramasında duruyor.',
     restoreTabLimit: '"{name}" geri yüklenirse {max} sekme sınırı aşılır.',

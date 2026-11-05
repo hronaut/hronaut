@@ -7,7 +7,7 @@ function createHarness(canOpen = () => true) {
   const methods = {
     openHome: vi.fn(),
     runShortcut: vi.fn(),
-    toggleTabSearch: vi.fn(),
+    openHomeTabs: vi.fn(),
     openFind: vi.fn(),
     togglePageTools: vi.fn(),
     toggleDeveloperTools: vi.fn(),
@@ -59,7 +59,7 @@ function createHarness(canOpen = () => true) {
     browser: {
       openHome: methods.openHome,
       runShortcut: methods.runShortcut,
-      toggleTabSearch: methods.toggleTabSearch,
+      openHomeTabs: methods.openHomeTabs,
       openFind: methods.openFind,
       togglePageTools: methods.togglePageTools,
       toggleDeveloperTools: methods.toggleDeveloperTools
@@ -176,5 +176,16 @@ describe('useAppCommandPaletteFeatureController', () => {
       if (transformedMethods.has(name)) continue
       expect(method, `${name} should own one command`).toHaveBeenCalledOnce()
     }
+  })
+
+  it('opens Home\'s Tabs view for the Search tabs command', async () => {
+    const { controller, methods, open } = createHarness()
+    open.value = true
+
+    await controller.run('search-tabs')
+
+    expect(methods.openHomeTabs).toHaveBeenCalledOnce()
+    expect(methods.openHome).not.toHaveBeenCalled()
+    expect(open.value).toBe(false)
   })
 })

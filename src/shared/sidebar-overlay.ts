@@ -103,7 +103,6 @@ export interface SidebarOverlayRail {
 /** The rail's footer commands and what their buttons show. */
 export interface SidebarOverlayFooter {
   commandPaletteOpen: boolean
-  tabSearchOpen: boolean
   downloadsOpen: boolean
   historyOpen: boolean
   settingsOpen: boolean
@@ -199,7 +198,6 @@ export type SidebarOverlayIntent =
   | { kind: 'switch-workspace' }
   | { kind: 'stay-here' }
   | { kind: 'toggle-rail-pinned' }
-  | { kind: 'drag-start' }
   | { kind: 'scroll'; top: number }
   | { kind: 'dismiss' }
   | { kind: 'footer'; action: SidebarOverlayFooterAction }
@@ -479,7 +477,6 @@ function parseFooter(value: unknown): SidebarOverlayFooter {
   const mcp = record(footer.mcp) ?? invalid('MCP')
   return {
     commandPaletteOpen: flag(footer.commandPaletteOpen, 'footer'),
-    tabSearchOpen: flag(footer.tabSearchOpen, 'footer'),
     downloadsOpen: flag(footer.downloadsOpen, 'footer'),
     historyOpen: flag(footer.historyOpen, 'footer'),
     settingsOpen: flag(footer.settingsOpen, 'footer'),
@@ -555,7 +552,6 @@ export function parseSidebarOverlayIntent(value: unknown): SidebarOverlayIntent 
     case 'switch-workspace':
     case 'stay-here':
     case 'toggle-rail-pinned':
-    case 'drag-start':
     case 'dismiss':
       return { kind: source.kind }
     case 'select-tab':

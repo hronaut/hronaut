@@ -260,6 +260,8 @@ export interface BrowserTabOverviewPreview {
   height: number
   /** The page as it was before the tab went to sleep. */
   sleeping?: true
+  /** Which of the tab's stored frames this is; a newer one has a higher number. */
+  revision?: number
 }
 
 export function validateTabOverviewPreviewIds(value: unknown): string[] {

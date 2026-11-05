@@ -122,7 +122,7 @@ for (const theme of ['light', 'dark']) {
         await expect.poll(() => appWindow.evaluate(() => innerWidth)).toBe(width)
         for (const [trigger, surfaceName] of [
           ['.downloads-button', '.downloads-panel'], ['.history-button', '.history-panel'], ['.bookmarks-button', '.bookmarks-panel'],
-          ['.tab-search-button', '.tab-search-panel'], ['.command-palette-button', '.command-palette'],
+          ['.command-palette-button', '.command-palette'],
           ['.new-workspace', '.workspace-editor']
         ]) {
           await appWindow.locator(trigger!).click()

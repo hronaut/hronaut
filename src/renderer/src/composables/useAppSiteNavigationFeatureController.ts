@@ -70,7 +70,6 @@ export interface AppSiteNavigationFeatureControllerOptions {
     settingsOpen: Ref<boolean>
     settingsSection: Readonly<Ref<SettingsSection>>
     updateNoticeOpen: Ref<boolean>
-    tabSearchOpen: Ref<boolean>
     zoomOpen: Ref<boolean>
     findOpen: Ref<boolean>
     /** Whether the keyboard is in the Find bar. */
@@ -164,7 +163,6 @@ export function useAppSiteNavigationFeatureController(
       collections.downloadsOpen.value = false
       collections.bookmarksOpen.value = false
       collections.historyOpen.value = false
-      shell.tabSearchOpen.value = false
       shell.zoomOpen.value = false
       if (shell.findOpen.value) void actions.closeFind()
     },
@@ -204,7 +202,6 @@ export function useAppSiteNavigationFeatureController(
     downloadsOpen: collections.downloadsOpen,
     bookmarksOpen: collections.bookmarksOpen,
     historyOpen: collections.historyOpen,
-    tabSearchOpen: shell.tabSearchOpen,
     zoomOpen: shell.zoomOpen,
     addressSuggestionsOpen: addressBarController.open,
     findOpen: shell.findOpen,

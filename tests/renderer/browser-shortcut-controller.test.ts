@@ -88,7 +88,7 @@ function createController(
     toggleVisitHistory: vi.fn(async () => undefined),
     toggleDownloads: vi.fn(async () => undefined),
     toggleTaskManager: vi.fn(async () => undefined),
-    toggleTabSearch: vi.fn(async () => undefined),
+    openHomeTabs: vi.fn(async () => undefined),
     openPrivacySettings: vi.fn(async () => undefined),
     toggleCommandPalette: vi.fn(async () => undefined),
     toggleElementPicker: vi.fn(async () => undefined),
@@ -185,6 +185,15 @@ describe('browser shortcut controller', () => {
     expect(await controller.run('open-home')).toBe(true)
     expect(callbacks.openHome).toHaveBeenCalledTimes(2)
     expect(callbacks.focusAddress).not.toHaveBeenCalled()
+  })
+
+  it('opens Home\'s Tabs view from Search tabs (Ctrl/Cmd+Shift+A), also from Settings', async () => {
+    const { settingsOpen, callbacks, controller } = createController()
+    expect(await controller.run('search-tabs')).toBe(true)
+    settingsOpen.value = true
+    expect(await controller.run('search-tabs')).toBe(true)
+    expect(callbacks.openHomeTabs).toHaveBeenCalledTimes(2)
+    expect(callbacks.openHome).not.toHaveBeenCalled()
   })
 
   // Ctrl+Shift+J went to the website, where Chrome opens Developer Tools on its Console.

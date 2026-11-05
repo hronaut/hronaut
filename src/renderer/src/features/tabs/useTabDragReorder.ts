@@ -7,7 +7,6 @@ interface TabDragReorderOptions {
   vertical: Readonly<Ref<boolean>>
   /** The selected tabs a drag of this tab moves with it, as in Chrome: every one when it is selected, else none. */
   selectionWith?: (tabId: string) => readonly string[]
-  onDragStart: () => void
   /** The move asked for on drop, with every tab it moves in tabIds when it moves several. */
   onReorder: (details: { tabId: string; targetTabId: string; placement: 'before' | 'after'; tabIds?: string[] }) => void
 }
@@ -51,7 +50,6 @@ export function useTabDragReorder(options: TabDragReorderOptions) {
       : [tab.id]
     tabDropTargetId.value = null
     tabDropPlacement.value = null
-    options.onDragStart()
     if (event.dataTransfer) {
       event.dataTransfer.effectAllowed = 'move'
       event.dataTransfer.setData('text/plain', tab.id)

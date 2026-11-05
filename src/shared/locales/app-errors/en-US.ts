@@ -137,6 +137,7 @@ export const enUSAppErrors = {
     archiveLimitUndo: 'Hronaut keeps at most {max} archived workspaces, so "{name}" cannot be closed with Undo. Delete an archived workspace in Home, then try again.',
     protectedClose: 'Workspace "{name}" is protected from deletion. Turn off deletion protection in workspace settings first.',
     protectedDelete: 'Workspace "{name}" is protected from deletion. Turn off deletion protection in Home first.',
+    deleteLocked: 'Unlock all tabs before deleting a workspace.',
     tabStillOpen: 'Workspace "{name}" still has an open tab, so it was not closed. Try again.',
     closeRollbackFailed: 'Workspace "{name}" could not be closed and all of its tabs could not be restored. Recoverable tabs remain in tab search.',
     restoreTabLimit: 'Restoring "{name}" would exceed the {max}-tab limit.',

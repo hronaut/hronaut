@@ -334,7 +334,6 @@ test('dims the native window controls with the dialog backdrop and restores them
   await expect.poll(overlay).toMatchObject(undimmed)
 
   const dialogs = [
-    { open: appWindow.getByRole('button', { name: 'Search tabs' }), dialog: appWindow.locator('.tab-search-panel') },
     { open: appWindow.getByRole('button', { name: 'Create workspace' }), dialog: appWindow.getByRole('dialog', { name: 'Create workspace' }) }
   ]
   for (const { open, dialog } of dialogs) {

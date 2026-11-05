@@ -238,7 +238,7 @@ export class SidebarOverlay {
     }
     // The shell runs the command as it runs a click in its own rail, and keeps keyboard focus as that click would.
     // Escape only closes the rail, which gives focus back to whoever had it before.
-    if (intent.kind !== 'scroll' && intent.kind !== 'drag-start' && intent.kind !== 'dismiss' && this.current?.isFocused()) {
+    if (intent.kind !== 'scroll' && intent.kind !== 'dismiss' && this.current?.isFocused()) {
       this.ports.focusShell()
     }
     this.ports.emit({ id: reveal.id, kind: 'intent', intent })

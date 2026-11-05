@@ -133,6 +133,7 @@ export const zhCNAppErrors: AppErrorMessages = {
     archiveLimitUndo: 'Hronaut 最多保留 {max} 个已归档的工作区，因此无法通过撤消来关闭“{name}”。请在主页中删除一个已归档的工作区，然后重试。',
     protectedClose: '工作区“{name}”已启用删除保护。请先在工作区设置中关闭删除保护。',
     protectedDelete: '工作区“{name}”已启用删除保护。请先在主页中关闭删除保护。',
+    deleteLocked: '删除工作区前，请先解锁所有标签页。',
     tabStillOpen: '工作区“{name}”中仍有打开的标签页，因此未关闭。请重试。',
     closeRollbackFailed: '无法关闭工作区“{name}”，也无法恢复其所有标签页。可恢复的标签页仍保留在标签页搜索中。',
     restoreTabLimit: '恢复“{name}”将超出 {max} 个标签页的上限。',

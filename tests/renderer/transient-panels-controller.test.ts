@@ -8,7 +8,6 @@ function createController(shouldCloseDockedPanels = true) {
     zoomOpen: ref(true),
     downloadsOpen: ref(true),
     historyOpen: ref(true),
-    tabSearchOpen: ref(true),
     updateNoticeOpen: ref(true),
     findOpen: ref(true)
   }

@@ -8,7 +8,6 @@ export interface PrivacySettingsShellControllerOptions {
   downloadsOpen: Ref<boolean>
   bookmarksOpen: Ref<boolean>
   historyOpen: Ref<boolean>
-  tabSearchOpen: Ref<boolean>
   zoomOpen: Ref<boolean>
   addressSuggestionsOpen: Ref<boolean>
   findOpen: Ref<boolean>
@@ -57,7 +56,6 @@ export function usePrivacySettingsShellController(options: PrivacySettingsShellC
     options.downloadsOpen.value = false
     options.bookmarksOpen.value = false
     options.historyOpen.value = false
-    options.tabSearchOpen.value = false
     options.zoomOpen.value = false
     options.addressSuggestionsOpen.value = false
     options.search.value = origin ?? ''

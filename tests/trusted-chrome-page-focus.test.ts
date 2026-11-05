@@ -31,7 +31,6 @@ function fixture() {
     allHumanInteractionLocked: false,
     globallyUnlockedTabIds: new Set(),
     agentInputWebContents: new Set(),
-    tabOverviewPreviewableTabs: new Set(),
     occludedEmulationFrames: [],
     mcpActivityFollower: { setOccluded: vi.fn() },
     occlusionSnapshot: { begin: vi.fn(), end: vi.fn(), confirmPagesHidden: vi.fn() },
