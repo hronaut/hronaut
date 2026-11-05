@@ -79,6 +79,17 @@ describe('names waiting for their Save Link As download', () => {
     expect(names.take(2, 'https://files.example/19')).toBe('19.csv')
   })
 
+  it('waits as long as it is told to, as for the file Save Page As downloads', () => {
+    let now = 0
+    const paths = new SavedLinkNames(() => now, 60_000)
+    paths.expect(1, 'https://files.example/photo.png', '/saved/photo.png')
+    paths.expect(1, 'https://files.example/late.png', '/saved/late.png')
+    now = 60_000 - 1
+    expect(paths.take(1, 'https://files.example/photo.png')).toBe('/saved/photo.png')
+    now += 1
+    expect(paths.take(1, 'https://files.example/late.png')).toBeUndefined()
+  })
+
   it('times the five minutes on the monotonic clock, whatever the wall clock does', () => {
     vi.useFakeTimers({ toFake: ['Date', 'performance'] })
     try {

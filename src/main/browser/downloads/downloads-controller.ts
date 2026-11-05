@@ -122,8 +122,8 @@ export class BrowserDownloadsController {
   private readonly savedLinkNames = new SavedLinkNames()
   // Names Hronaut gives the files it makes itself, such as a QR code's image.
   private readonly generatedFileNames = new SavedLinkNames()
-  // The files the person chose to save a tab's document as with Save Page As.
-  private readonly savedFilePaths = new SavedLinkNames()
+  // The files the person chose to save a tab's document as with Save Page As, for a minute, as its download starts at once.
+  private readonly savedFilePaths = new SavedLinkNames(undefined, 60_000)
   private readonly dragIcons = new DownloadDragIcons()
   /** Where the download history is kept for the next start, once the history it kept is back, so no save loses it. */
   private history: DownloadHistoryStore | undefined
