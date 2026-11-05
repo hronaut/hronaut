@@ -487,6 +487,49 @@ describe('page full screen lifecycle', () => {
     expect(run).toHaveBeenCalledTimes(3)
   })
 
+  // Chromium gives a page out of view its full screen only once it is shown, which can be after the request running
+  // then gave up, and no layout follows to ask again.
+  it('asks a refused page the window started to show while it was asked to leave once more when it did not leave', async () => {
+    const { window, tabs, shown, enter, browser } = fullscreenFixture({ shown: ['other'] })
+    const run = tabs.get('video')!.webContents.executeJavaScriptInIsolatedWorld
+    let giveUp!: (left: boolean) => void
+    run.mockImplementationOnce(() => new Promise<boolean>((resolve) => { giveUp = resolve })).mockResolvedValueOnce(false)
+    enter('video')
+    shown.add('video')
+    // The layout for the shown tab finds the request still running.
+    exitHiddenPageFullscreen(browser)
+    expect(run).toHaveBeenCalledOnce()
+    giveUp(false)
+    await nextTurn()
+    expect(run).toHaveBeenCalledTimes(2)
+    // It is asked once more only, and the next layout asks again.
+    await nextTurn()
+    expect(run).toHaveBeenCalledTimes(2)
+    exitHiddenPageFullscreen(browser)
+    expect(run).toHaveBeenCalledTimes(3)
+    await nextTurn()
+    tabs.get('video')!.webContents.emit('leave-html-full-screen')
+    expect(window.setFullScreen).not.toHaveBeenCalled()
+  })
+
+  it('does not ask a refused page again by itself while the window does not show it on screen', async () => {
+    // Still out of view, or shown in a window that is minimized or hidden, which asks again once it shows.
+    for (const state of [null, { minimized: true }, { visible: false }]) {
+      const { window, tabs, shown, enter } = fullscreenFixture({ shown: ['other'] })
+      const run = tabs.get('video')!.webContents.executeJavaScriptInIsolatedWorld
+      let giveUp!: (left: boolean) => void
+      run.mockImplementationOnce(() => new Promise<boolean>((resolve) => { giveUp = resolve }))
+      enter('video')
+      if (state) {
+        shown.add('video')
+        Object.assign(window, state)
+      }
+      giveUp(false)
+      await nextTurn()
+      expect(run).toHaveBeenCalledOnce()
+    }
+  })
+
   it('asks the page to leave full screen when the person takes the window out of it', async () => {
     const { window, tabs, enter } = fullscreenFixture()
     enter('video')
