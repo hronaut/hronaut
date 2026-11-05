@@ -141,6 +141,7 @@ import { listMcpTabGroups, requireMcpTabGroup } from '../browser/mcp-tab-groups/
 import { suspendWorkspaceContinuity } from '../browser/workspace-continuity/workspace-continuity.js'
 import { getMcpGroupState } from '../browser/workspace-scope/workspace-scope.js'
 import { agentStepName } from '../browser/page-snapshots/page-snapshots.js'
+import { runAgentCall } from '../browser/browser-state/agent-calls.js'
 
 function matchesWorkspaceResumeKey(expected: string, supplied: string): boolean {
   const expectedBytes = Buffer.from(expected, 'utf8')
@@ -425,7 +426,7 @@ export function createBrowserMcpServer(
         requireAgentControl(name, input)
         const result = await actionTracker.run(() => agentControlContext.run(
           () => { if (!singleTabControlTools.has(name)) requireAgentControl(name, input) },
-          () => (handler as (...input: unknown[]) => Promise<CallToolResult>)(...args)
+          () => runAgentCall(() => (handler as (...input: unknown[]) => Promise<CallToolResult>)(...args))
         ))
         try {
           await authorizeCapability(name, settlement?.capabilityInput?.(input) ?? input, 'active-dispatch')

@@ -1,4 +1,5 @@
 import type { BrowserState } from '../../../shared/types.js'
+import { inAgentCall } from './agent-calls.js'
 
 /**
  * The shortest time between two publications of a burst of changes. Pages loading together change the browser state
@@ -45,8 +46,8 @@ export interface StatePublicationOptions {
  * loads, goes out at once. The shell learns a load began from the tab's loading flag, which a fast reload would
  * otherwise clear before the next publication, and detached panels act on it. It closes the panels it opened for a
  * page when the tab gets a new one, and tells a page's own load ending from a new page only by seeing the new page
- * while the tab still loads. A state equal to the last one sent is not sent again until the state is read, since the
- * reader may show the shell that state as an action's reply.
+ * while the tab still loads. A state equal to the last one sent is not sent again until the state is read outside an
+ * agent's tool call, since the reader may show the shell that state as an action's reply.
  */
 export class StatePublication {
   private timer: NodeJS.Timeout | null = null
@@ -62,6 +63,8 @@ export class StatePublication {
   private lastSent: string | undefined
   /** The pages the last state sent showed loading in the shown tabs. */
   private sentLoading = new Set<string>()
+  /** The tabs in the last state sent. */
+  private sentTabIds = new Set<string>()
 
   constructor(private readonly options: StatePublicationOptions) {}
 
@@ -87,11 +90,22 @@ export class StatePublication {
   /**
    * The state is about to be read, perhaps for an action's reply, which the shell drops for a publication that arrived
    * meanwhile. A change still waiting goes out first, so the publication the shell keeps is never older than the reply.
-   * A change waiting for the shell to draw goes out once it did.
+   * A change waiting for the shell to draw goes out once it did. An agent's tool call reads for the agent, so its reads
+   * change nothing here: four agents each reading after every navigation sent the shell about 18 states a second.
    */
   beforeRead(): void {
+    if (inAgentCall()) return
     if (this.timer) this.publishNow()
     this.lastSent = undefined
+  }
+
+  /**
+   * The shell is about to hear of an agent's activity in a tab, which it drops for a tab that no state it got lists,
+   * such as one the agent just opened while the state waits for its time. A tab the shell was not sent yet goes out
+   * first, without waiting for the pace or the shell's draw; activity in a tab it knows changes nothing here.
+   */
+  beforeTabActivity(tabId: string): void {
+    if (!this.sentTabIds.has(tabId)) this.publishNow()
   }
 
   /**
@@ -164,6 +178,7 @@ export class StatePublication {
     this.lastSent = serialized
     this.lastSentAt = this.lastPublishAt
     this.sentLoading = loading
+    this.sentTabIds = new Set(state.tabs.map((tab) => tab.id))
     this.waiting = false
     this.undrawn += 1
     // A shell that is reloading, or never draws, does not hold the browser's state back for long.

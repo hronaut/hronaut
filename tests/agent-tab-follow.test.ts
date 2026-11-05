@@ -87,6 +87,7 @@ interface ManagerInternals {
   browserContentOccluded: boolean
   followAgentActivitySuspended: boolean
   mcpActivityFollower: McpActivityFollowController
+  statePublication: { beforeTabActivity: ReturnType<typeof vi.fn> }
   focusTabOrTrustedChrome: ReturnType<typeof vi.fn>
   createTab: ReturnType<typeof vi.fn>
   wakeTab: (tabId: string) => Promise<unknown>
@@ -154,6 +155,7 @@ function fixture(options: { pageFullscreen?: boolean; followAgentActivitySuspend
     focusTabOrTrustedChrome: vi.fn(),
     wakeTab: vi.fn(async () => ({})),
     changed: vi.fn(),
+    statePublication: { beforeTabActivity: vi.fn() },
     getState: () => ({ activeTabId: internals.activeTabId })
   }) as Browser
   const internals = manager as unknown as ManagerInternals
@@ -228,6 +230,8 @@ describe('a tab an agent opens or selects while Follow agents is on', () => {
     handleMcpTabActivity(manager, { activityId: 'new-tab', tabId: opened, toolName: 'browser_new_tab', phase: 'started', occurredAt: Date.now() }, { id: 'agent', name: 'Agent' })
     expect(internals.activeTabId).toBe(opened)
     expect(internals.focusTabOrTrustedChrome).not.toHaveBeenCalled()
+    // The shell gets a state that lists the new tab before it hears of the agent's call on it.
+    expect(internals.statePublication.beforeTabActivity).toHaveBeenCalledWith(opened)
     follower.dispose()
   })
 

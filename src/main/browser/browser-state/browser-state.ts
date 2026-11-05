@@ -10,7 +10,8 @@ import { navigationButtons } from '../navigation-history.js'
 /**
  * The browser state as it is now, with only the workspace's tabs when one is named: everything else, such as the
  * closed tabs, the split view and the followed agent, is still every workspace's, so a workspace's own state is
- * getMcpGroupState's. A change still waiting to be published goes out first (see StatePublication).
+ * getMcpGroupState's. A change still waiting to be published goes out first, unless an agent's tool call reads it
+ * (see StatePublication.beforeRead).
  */
 export function browserState(browser: Browser, workspaceId?: string): BrowserState {
   browser.statePublication.beforeRead()
