@@ -4,18 +4,19 @@ vi.mock('electron', () => ({ dialog: {} }))
 
 const { createShellWindows } = await import('../src/main/windows/shell-windows.js')
 
-function shellWindows(window: unknown, workspaceStartupFailure?: Error) {
+function shellWindows(window: unknown, workspaceStartupFailure?: Error, panel: unknown = null) {
   const mainWindowRefs: { window: never; showRequested: boolean; stateUntilShown?: { maximized: boolean; fullScreen: boolean } | null } = {
     window: window as never,
     showRequested: false
   }
+  const panelWindowRefs: { window: never; stateUntilShown?: { maximized: boolean; fullScreen: boolean } | null } = { window: panel as never }
   const windows = createShellWindows({
     mainWindowRefs,
-    panelWindowRefs: { window: null },
+    panelWindowRefs,
     workspaceStartupFailure: () => workspaceStartupFailure,
     text: (key) => key
   })
-  return { windows, mainWindowRefs }
+  return { windows, mainWindowRefs, panelWindowRefs }
 }
 
 describe('showing the main window', () => {
@@ -64,6 +65,33 @@ describe('showing the main window', () => {
     expect(window.maximize).not.toHaveBeenCalled()
     expect(window.setFullScreen).not.toHaveBeenCalled()
     expect(mainWindowRefs.stateUntilShown).toBeNull()
+  })
+
+  // A detached panel window that has not painted yet opens with the main window, maximized or in full screen as saved.
+  it('shows a detached panel window not shown yet as saved along with it, and at its normal size for an agent', () => {
+    const calls: string[] = []
+    const fake = (name: string) => ({
+      isVisible: () => false,
+      isMinimized: () => false,
+      isDestroyed: () => false,
+      maximize: () => calls.push(`${name} maximize`),
+      setFullScreen: (value: boolean) => calls.push(`${name} fullScreen ${value}`),
+      show: () => calls.push(`${name} show`),
+      showInactive: () => calls.push(`${name} showInactive`),
+      focus: () => calls.push(`${name} focus`)
+    })
+    const shown = shellWindows(fake('main'), undefined, fake('panel'))
+    shown.panelWindowRefs.stateUntilShown = { maximized: true, fullScreen: true }
+    shown.windows.showWindow()
+    expect(calls).toEqual(['main show', 'main focus', 'panel maximize', 'panel fullScreen true', 'panel show'])
+    expect(shown.panelWindowRefs.stateUntilShown).toBeNull()
+
+    calls.length = 0
+    const forAgent = shellWindows(fake('main'), undefined, fake('panel'))
+    forAgent.panelWindowRefs.stateUntilShown = { maximized: true, fullScreen: true }
+    forAgent.windows.showWindowInactive()
+    expect(calls).toEqual(['main showInactive', 'panel showInactive'])
+    expect(forAgent.panelWindowRefs.stateUntilShown).toBeNull()
   })
 
   it('records nothing once saved workspaces failed, whose window stays hidden', () => {

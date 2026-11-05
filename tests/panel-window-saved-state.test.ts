@@ -26,6 +26,9 @@ class FakeWindow {
   isDestroyed() { return this.destroyed }
   isMinimized() { return false }
   isVisible() { return this.visible }
+  isMaximized() { return false }
+  isFullScreen() { return false }
+  getNormalBounds() { return { x: 100, y: 100, width: 640, height: 720 } }
   setMenuBarVisibility() {}
   setTitle() {}
   on(event: string, listener: (...args: unknown[]) => void) { this.listeners.set(event, [...(this.listeners.get(event) ?? []), listener]) }
@@ -47,13 +50,18 @@ class FakeWindow {
 
 vi.mock('electron', () => ({
   BrowserWindow: FakeWindow,
-  screen: { getAllDisplays: () => [{ id: 1, workArea: { x: 0, y: 0, width: 1920, height: 1080 } }], getPrimaryDisplay: () => ({ id: 1, workArea: { x: 0, y: 0, width: 1920, height: 1080 } }) },
+  screen: {
+    getAllDisplays: () => [{ id: 1, workArea: { x: 0, y: 0, width: 1920, height: 1080 } }],
+    getPrimaryDisplay: () => ({ id: 1, workArea: { x: 0, y: 0, width: 1920, height: 1080 } }),
+    getDisplayMatching: () => ({ id: 1 })
+  },
   app: { getPath: () => '/tmp' },
   session: {}
 }))
 vi.mock('../src/main/browser/browser-state/browser-state.js', () => ({ browserState: () => ({ tabs: [], activeTabId: null }) }))
 
 const { createPanelWindow } = await import('../src/main/windows/panel-window.js')
+const { createWindowStatePersistence } = await import('../src/main/windows/window-state-persistence.js')
 
 /** The panel window opened from a saved state that was maximized and in full screen. */
 function panelWindow() {
@@ -66,6 +74,15 @@ function panelWindow() {
     lastState: null,
     stateStore: { load: async () => ({ bounds: { x: 100, y: 100, width: 640, height: 720 }, displayId: 1, maximized: true, fullScreen: true }) }
   } as never as import('../src/main/windows/panel-window.js').PanelWindowRefs
+  // The panel window's state is saved as Hronaut saves it, keeping the state it opens with until it is shown.
+  const persistence = createWindowStatePersistence({
+    window: () => refs.window,
+    store: () => null,
+    stateUntilShown: () => refs.stateUntilShown,
+    lastState: () => refs.lastState,
+    setLastState: (state) => { refs.lastState = state },
+    logPrefix: '[panel-window]'
+  })
   const mainWindow = {
     isDestroyed: () => false,
     getBounds: () => ({ x: 0, y: 0, width: 1200, height: 800 }),
@@ -88,7 +105,7 @@ function panelWindow() {
     sitePermissionStore: () => null,
     bookmarkStore: () => null,
     historyStore: () => null,
-    currentPanelWindowState: () => null,
+    currentPanelWindowState: persistence.currentState,
     schedulePanelWindowStateSave: () => undefined,
     flushPanelWindowState: async () => undefined
   })
@@ -123,13 +140,15 @@ describe('a detached panel window saved maximized and in full screen', () => {
     }
   })
 
-  it('forgets the state it kept when it closes before it is shown', async () => {
+  it('saves the state it kept when it closes before it is shown, then forgets it', async () => {
     FakeWindow.paintsLater = true
     try {
       const panel = panelWindow()
       await panel.open('console')
       panel.window().close()
       expect(panel.refs.stateUntilShown).toBeNull()
+      // It was saved as it would have opened, not at the normal size of the window that never showed.
+      expect(panel.refs.lastState).toMatchObject({ maximized: true, fullScreen: true })
     } finally {
       FakeWindow.paintsLater = false
     }
