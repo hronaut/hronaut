@@ -731,6 +731,27 @@ describe('decisions that belong to a workspace and a page', () => {
     expect(harness.shown[2]!.message).toBe('https://widget.example requests “Location” permission.')
   })
 
+  it('refuses notifications to a website embedded in another’s page without asking, as Chrome does', async () => {
+    // Any embedded website, such as an ad, could ask to show notifications on every page that embeds it.
+    const harness = await createHarness()
+    harness.decide = () => 'allow'
+    const ownFrame = { url: 'about:blank', origin: firstSite.origin }
+    const page = createPage(firstSite, [widget, ownFrame])
+    expect(await ask(harness, page, 'notifications', fromWidget)).toBe(false)
+    expect(harness.shown).toEqual([])
+    expect(harness.store.list()).toEqual([])
+    await expect(harness.store.set(widget.origin, 'notifications', 'allow', { workspaceId: WORK, embeddedIn: firstSite.origin }))
+      .rejects.toThrow('Invalid site permission scope')
+
+    // The page's own website still asks, in its main frame or in a frame that runs as it.
+    expect(await ask(harness, page, 'notifications', { requestingUrl: ownFrame.url, isMainFrame: false })).toBe(true)
+    expect(harness.shown).toHaveLength(1)
+    expect(harness.store.list()).toEqual([{ origin: firstSite.origin, permission: 'notifications', decision: 'allow', workspaceId: WORK }])
+    // An embedded website's other permissions still ask.
+    expect(await ask(harness, page, 'geolocation', fromWidget)).toBe(true)
+    expect(harness.shown).toHaveLength(2)
+  })
+
   it('does not use a website’s own decision for it embedded in a page, and a same-site frame uses the page’s', async () => {
     const harness = await createHarness()
     await harness.store.set(widget.origin, 'geolocation', 'allow', { workspaceId: WORK })
@@ -841,7 +862,7 @@ describe('decisions that belong to a workspace and a page', () => {
     const harness = await createHarness()
     await harness.store.set(widget.origin, 'geolocation', 'allow', { workspaceId: WORK })
     await harness.store.set(widget.origin, 'geolocation', 'deny', { workspaceId: CLIENT })
-    await harness.store.set(widget.origin, 'notifications', 'allow', { workspaceId: CLIENT, embeddedIn: firstSite.origin })
+    await harness.store.set(widget.origin, 'clipboard-read', 'allow', { workspaceId: CLIENT, embeddedIn: firstSite.origin })
     await harness.forgetWorkspaceSitePermissions(CLIENT)
     const kept = [
       { origin: widget.origin, permission: 'geolocation', decision: 'allow', workspaceId: WORK }

@@ -3,7 +3,7 @@ import { statSync } from 'node:fs'
 import { isAbsolute, join } from 'node:path'
 import { flushBrowserSessionStorage } from './browser/workspace-storage.js'
 import { isHronautHomeUrl } from '../shared/home-url.js'
-import { FRESH_CONSENT_PERMISSIONS, normalizeSitePermissionOrigin, SitePermissionStore } from './site-data/site-permission-store.js'
+import { FRESH_CONSENT_PERMISSIONS, normalizeSitePermissionOrigin, SitePermissionStore, TOP_LEVEL_ONLY_PERMISSIONS } from './site-data/site-permission-store.js'
 import type { MessageKey, MessageParameters } from '../shared/i18n.js'
 import { sitePermissionName } from '../shared/site-permission-names.js'
 import type { SitePermissionDecision } from '../shared/types.js'
@@ -412,6 +412,12 @@ export function createBrowserSession(host: BrowserSessionHost): {
         }
       })()
       if (permission === 'openExternal' && !externalLink) {
+        respond(false)
+        return
+      }
+      // A website embedded in another's page may not ask to show notifications, as in Chrome: an ad or a widget could ask
+      // on every page that embeds it.
+      if (embeddedIn && TOP_LEVEL_ONLY_PERMISSIONS.has(permission)) {
         respond(false)
         return
       }
