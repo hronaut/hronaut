@@ -25,7 +25,8 @@ import UiButton from '../../ui/UiButton.vue'
 import UiOverlayTransition from '../../ui/UiOverlayTransition.vue'
 
 const props = defineProps<{
-  state: BrowserState
+  /** The latest browser state, read only while this dialog shows it, so it does not draw again while closed. */
+  readState: () => BrowserState
   userAttention?: Pick<UserAttentionRequest, 'tabId' | 'workspaceId'> | null
   browser: Pick<HronautApi, 'newTab' | 'restoreSavedTabGroup'>
   syncState: (next: Promise<BrowserState> | BrowserState) => Promise<void>
@@ -52,7 +53,7 @@ const input = ref<HTMLInputElement | null>(null)
 const query = ref('')
 const selection = ref(0)
 
-const entries = computed(() => workspaceSwitcherEntries(props.state, presence.snapshot.value.workspaces, props.userAttention, t('shell.agents.unnamed')))
+const entries = computed(() => workspaceSwitcherEntries(props.readState(), presence.snapshot.value.workspaces, props.userAttention, t('shell.agents.unnamed')))
 // The order is settled when the switcher opens, so a workspace does not move under the pointer or the
 // selection when an agent starts or stops there; its status still changes in place. A workspace that appears
 // meanwhile goes last in its own section, where it is drawn, so the arrow keys follow the list on screen.
@@ -173,7 +174,8 @@ async function choose(entry: WorkspaceSwitcherEntry): Promise<void> {
   close()
   const current = ++choice
   try {
-    const found = await goToWorkspace(entry, props)
+    const { browser, syncState, selectTab, expandTabGroup } = props
+    const found = await goToWorkspace(entry, { state: props.readState(), browser, syncState, selectTab, expandTabGroup })
     // Closed after the list was drawn, such as by an agent.
     if (!found) props.showError(t('workspaceSwitcher.switchFailed'), t('workspaceSwitcher.switchDescription', { name: entry.name }))
   } catch (cause) {

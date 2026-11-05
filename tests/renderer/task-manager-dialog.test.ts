@@ -39,7 +39,7 @@ function renderDialog(processes = PROCESSES, workspaces = [{ id: 'work', name: '
   const formatBytes = (bytes: number) => `${Math.round(bytes / 1024 / 1024)} MB`
   render(TaskManagerDialog, {
     global: { plugins: [createHronautI18n('en-US')] },
-    props: { controller, tabs: TABS, workspaces, formatBytes, reportLayout: vi.fn() }
+    props: { controller, readTabs: () => TABS, workspaces, formatBytes, reportLayout: vi.fn() }
   })
   return { api, controller }
 }

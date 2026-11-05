@@ -20,7 +20,8 @@ import UiOverlayTransition from '../../ui/UiOverlayTransition.vue'
 const props = defineProps<{
   /** The agent and workspace whose steps are shown. */
   target: AgentStepHistoryTarget | null
-  state: BrowserState
+  /** The latest browser state, read only while this dialog shows it, so it does not draw again while closed. */
+  readState: () => BrowserState
   selectTab: (tabId: string) => Promise<unknown>
   formatTime: (value: Date | number | string) => string
   formatNumber: (value: number) => string
@@ -52,7 +53,7 @@ watch([shownTarget, () => presence.snapshot.value], ([target, snapshot], [previo
 const name = computed(() => agent.value?.name || t('shell.agents.unnamed'))
 const workspaceName = computed(() => {
   const workspaceId = shownTarget.value?.workspaceId
-  return (workspaceId && props.state.mcpTabGroups.find((group) => group.id === workspaceId)?.name) || ''
+  return (workspaceId && props.readState().mcpTabGroups.find((group) => group.id === workspaceId)?.name) || ''
 })
 
 interface StepGroup {
@@ -75,7 +76,7 @@ const groups = computed<StepGroup[]>(() => {
 })
 
 function tabTitle(tabId: string): string {
-  const tab = props.state.tabs.find((candidate) => candidate.id === tabId)
+  const tab = props.readState().tabs.find((candidate) => candidate.id === tabId)
   if (!tab) return t('agentSteps.closedTab')
   const title = tab.label || tabTitleForDisplay(tab, '')
   if (title.trim()) return title
@@ -93,7 +94,7 @@ function groupHeading(group: StepGroup): string {
 }
 
 function canShow(group: StepGroup): boolean {
-  return group.kind === 'tab' && group.tabId !== undefined && props.state.tabs.some((tab) => tab.id === group.tabId)
+  return group.kind === 'tab' && group.tabId !== undefined && props.readState().tabs.some((tab) => tab.id === group.tabId)
 }
 
 function stepText(step: ShownAgentStep): string {

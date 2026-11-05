@@ -16,7 +16,8 @@ import { vTooltip } from '../../ui/tooltip.js'
 type SplitViewBrowserApi = Pick<HronautApi, 'openSplitView' | 'updateSplitView' | 'closeSplitView'>
 
 const props = defineProps<{
-  state: BrowserState
+  /** The latest browser state; this control draws again only when its tabs or the split view change. */
+  readState: () => BrowserState
   activeTab?: BrowserTabState
   browser: SplitViewBrowserApi
   acceptState: (next: Promise<BrowserState> | BrowserState) => Promise<void>
@@ -31,16 +32,20 @@ const open = defineModel<boolean>('open', { required: true })
 const { t } = useI18n({ useScope: 'global' })
 const busy = ref(false)
 const menu = ref<HTMLElement | null>(null)
-const regularTabs = computed(() => props.state.tabs.filter((tab) => !isHronautHomeUrl(tab.url)))
-const available = computed(() => regularTabs.value.length > 1 || props.state.splitView !== undefined)
-const splitViewTabs = computed(() => props.state.splitView
-  ? [
-      props.state.tabs.find((tab) => tab.id === props.state.splitView!.firstTabId),
-      props.state.tabs.find((tab) => tab.id === props.state.splitView!.secondTabId)
-    ].filter((tab): tab is BrowserTabState => Boolean(tab))
-  : [])
-const splitCandidates = computed(() => regularTabs.value.filter((tab) => tab.id !== props.state.activeTabId))
-const splitPartner = computed(() => splitViewTabs.value.find((tab) => tab.id !== props.state.activeTabId))
+const splitView = computed(() => props.readState().splitView)
+const activeTabId = computed(() => props.readState().activeTabId)
+const regularTabs = computed(() => props.readState().tabs.filter((tab) => !isHronautHomeUrl(tab.url)))
+const available = computed(() => regularTabs.value.length > 1 || splitView.value !== undefined)
+const splitViewTabs = computed(() => {
+  const split = splitView.value
+  const tabs = props.readState().tabs
+  return split
+    ? [tabs.find((tab) => tab.id === split.firstTabId), tabs.find((tab) => tab.id === split.secondTabId)]
+      .filter((tab): tab is BrowserTabState => Boolean(tab))
+    : []
+})
+const splitCandidates = computed(() => regularTabs.value.filter((tab) => tab.id !== activeTabId.value))
+const splitPartner = computed(() => splitViewTabs.value.find((tab) => tab.id !== activeTabId.value))
 
 function close(): void {
   open.value = false
@@ -97,7 +102,7 @@ async function openTabInSplitView(tabId: string): Promise<void> {
 }
 
 async function changeSplitLayout(orientation: BrowserSplitOrientation): Promise<void> {
-  if (props.state.splitView?.orientation === orientation) return
+  if (splitView.value?.orientation === orientation) return
   await runMutation(
     () => props.browser.updateSplitView({ orientation }),
     t('runtimeActions.workspace.splitLayout')
@@ -139,15 +144,15 @@ defineExpose({ close, toggleMenu })
   <div v-if="available" class="split-view-control">
     <UiButton appearance="application"
       class="icon-button split-view-button"
-      :class="{ active: Boolean(state.splitView) }"
+      :class="{ active: Boolean(splitView) }"
       type="button"
-      v-tooltip="state.splitView ? t('runtime.tabs.splitWith', { title: splitPartner ? tabTitleForDisplay(splitPartner, t('shell.split.newTab')) : t('runtime.tabs.splitOther') }) : t('runtime.tabs.splitOpen')"
+      v-tooltip="splitView ? t('runtime.tabs.splitWith', { title: splitPartner ? tabTitleForDisplay(splitPartner, t('shell.split.newTab')) : t('runtime.tabs.splitOther') }) : t('runtime.tabs.splitOpen')"
       :aria-label="t('shell.split.heading')"
       aria-haspopup="dialog"
       :aria-expanded="open"
       @click="toggleMenu"
     >
-      <IconHorizontalSplit v-if="state.splitView?.orientation === 'horizontal'" aria-hidden="true" />
+      <IconHorizontalSplit v-if="splitView?.orientation === 'horizontal'" aria-hidden="true" />
       <IconVerticalSplit v-else aria-hidden="true" />
     </UiButton>
     <section
@@ -167,20 +172,20 @@ defineExpose({ close, toggleMenu })
         </div>
         <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('shell.split.closeMenu')" @click="close"><IconClose aria-hidden="true" /></UiButton>
       </header>
-      <template v-if="state.splitView">
+      <template v-if="splitView">
         <p class="split-view-summary">{{ activeTab ? tabTitleForDisplay(activeTab, t('shell.split.newTab')) : t('shell.split.tab') }} {{ t('shell.split.with') }} {{ splitPartner ? tabTitleForDisplay(splitPartner, t('shell.split.newTab')) : t('shell.split.tab') }}</p>
         <div class="split-layout-options" role="group" :aria-label="t('shell.split.layout')">
           <UiButton appearance="application"
             type="button"
-            :class="{ selected: state.splitView.orientation === 'vertical' }"
-            :aria-pressed="state.splitView.orientation === 'vertical'"
+            :class="{ selected: splitView.orientation === 'vertical' }"
+            :aria-pressed="splitView.orientation === 'vertical'"
             :disabled="busy"
             @click="changeSplitLayout('vertical')"
           ><IconVerticalSplit aria-hidden="true" /><span>{{ t('shell.split.side') }}</span></UiButton>
           <UiButton appearance="application"
             type="button"
-            :class="{ selected: state.splitView.orientation === 'horizontal' }"
-            :aria-pressed="state.splitView.orientation === 'horizontal'"
+            :class="{ selected: splitView.orientation === 'horizontal' }"
+            :aria-pressed="splitView.orientation === 'horizontal'"
             :disabled="busy"
             @click="changeSplitLayout('horizontal')"
           ><IconHorizontalSplit aria-hidden="true" /><span>{{ t('shell.split.stacked') }}</span></UiButton>
@@ -192,11 +197,11 @@ defineExpose({ close, toggleMenu })
             min="25"
             max="75"
             step="5"
-            :value="Math.round(state.splitView.ratio * 100)"
+            :value="Math.round(splitView.ratio * 100)"
             :disabled="busy"
             @change="changeSplitRatio"
           />
-          <output>{{ Math.round(state.splitView.ratio * 100) }}%</output>
+          <output>{{ Math.round(splitView.ratio * 100) }}%</output>
         </label>
         <footer>
           <UiButton appearance="application" type="button" :disabled="busy" @click="swapSplitTabs"><IconSwapHoriz aria-hidden="true" /> {{ t('shell.split.swap') }}</UiButton>

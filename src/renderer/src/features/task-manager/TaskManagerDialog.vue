@@ -32,7 +32,8 @@ interface TaskRow {
 
 const props = defineProps<{
   controller: TaskManagerController
-  tabs: BrowserTabState[]
+  /** The open tabs, read only while the dialog shows its tasks, so it does not draw again while closed. */
+  readTabs: () => readonly BrowserTabState[]
   workspaces: Array<{ id: string; name: string }>
   formatBytes: (bytes: number) => string
   reportLayout: () => void
@@ -47,7 +48,7 @@ const descending = ref(false)
 const cpuFormat = computed(() => new Intl.NumberFormat(locale.value, { minimumFractionDigits: 1, maximumFractionDigits: 1 }))
 
 const rows = computed<TaskRow[]>(() => {
-  const tabs = new Map(props.tabs.map((tab) => [tab.id, tab]))
+  const tabs = new Map(props.readTabs().map((tab) => [tab.id, tab]))
   const workspaces = new Map(props.workspaces.map((workspace) => [workspace.id, workspace.name]))
   // Each tab's workspace, when there are several to tell its tabs apart by.
   const workspaceOf = (tab: BrowserTabState | undefined): string | undefined => (

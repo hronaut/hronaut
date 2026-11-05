@@ -31,7 +31,8 @@ import ZoomBar from '../features/zoom/ZoomBar.vue'
 type ZoomAction = 'in' | 'out' | 'reset'
 
 const props = defineProps<{
-  state: BrowserState
+  /** The latest browser state, which the dialogs here read only while they show it. */
+  readState: () => BrowserState
   activeTab?: BrowserTabState
   userAttention?: UserAttentionRequest | null
   credentials: CredentialSummary[]
@@ -95,7 +96,7 @@ const { t } = useI18n({ useScope: 'global' })
 const presenceApi = (window as { hronautAgentPresence?: HronautAgentPresenceApi }).hronautAgentPresence
 const paletteSearchPresence = presenceApi ? useAgentPresence(presenceApi) : undefined
 const paletteSearch = useCommandPaletteSearch({
-  state: toRef(props, 'state'),
+  state: computed(() => props.readState()),
   history: props.collectionsController.visitHistory,
   userAttention: toRef(props, 'userAttention'),
   ...(paletteSearchPresence ? { presence: paletteSearchPresence.snapshot } : {}),
@@ -111,6 +112,8 @@ const paletteSearch = useCommandPaletteSearch({
   openSettingsSection: props.openSettingsSection
 })
 const workspaceSwitcherOpen = paletteList('workspaces')
+const readTabs = () => props.readState().tabs
+const agentControlLocked = computed(() => props.readState().agentControlLocked === true)
 const dock = defineModel<PanelDock>('dock', { required: true })
 
 interface FindSurface {
@@ -167,7 +170,7 @@ onBeforeUnmount(() => {
 
 // A step's tab may sit in a folded workspace; its group opens around it, as from the switcher.
 async function showStepTab(tabId: string): Promise<unknown> {
-  const tab = props.state.tabs.find((candidate) => candidate.id === tabId)
+  const tab = props.readState().tabs.find((candidate) => candidate.id === tabId)
   if (tab) props.expandTabGroup(tab)
   return props.selectTab(tabId)
 }
@@ -258,7 +261,7 @@ defineExpose({
     v-model:open="findOpen"
     v-model:focused="findFocused"
     :active-tab="activeTab"
-    :tabs="state.tabs"
+    :read-tabs="readTabs"
     :return-held="findWaits"
     :browser="browser"
   />
@@ -285,7 +288,7 @@ defineExpose({
   <WorkspaceEditor
     ref="workspaceEditor"
     v-model:open="workspaceEditorOpen"
-    :state="state"
+    :read-state="readState"
     :sync-state="syncState"
     :format-number="formatNumber"
     :can-present="!commandPaletteOpen && !credentialPickerOpen && !helpDialogOpen && !settingsOpen"
@@ -302,7 +305,7 @@ defineExpose({
     v-model:open="commandsOpen"
     :website-available="websiteAvailable"
     :active-tab="activeTab"
-    :agent-control-locked="state.agentControlLocked === true"
+    :agent-control-locked="agentControlLocked"
     :format-number="formatNumber"
     :run-command="runCommand"
     :report-command-error="reportCommandError"
@@ -313,7 +316,7 @@ defineExpose({
   <WorkspaceSwitcher
     ref="workspaceSwitcher"
     v-model:open="workspaceSwitcherOpen"
-    :state="state"
+    :read-state="readState"
     :user-attention="userAttention"
     :browser="browser"
     :sync-state="syncState"
@@ -328,7 +331,7 @@ defineExpose({
   <AgentStepsDialog
     v-model:open="agentStepsOpen"
     :target="agentStepsTarget ?? null"
-    :state="state"
+    :read-state="readState"
     :select-tab="showStepTab"
     :format-time="formatTime"
     :format-number="formatNumber"

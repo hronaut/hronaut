@@ -6,7 +6,8 @@ import type { BrowserTabState, UserAttentionRequest } from '../../../../shared/t
 const props = defineProps<{
   /** The open request for you: its page gets the handoff edge light until the request ends. */
   userAttention?: Pick<UserAttentionRequest, 'id' | 'tabId' | 'workspaceId'> | null
-  tabs?: readonly Pick<BrowserTabState, 'id' | 'mcpGroupId'>[]
+  /** The open tabs, read only while a request for a whole workspace is open. */
+  readTabs?: () => readonly Pick<BrowserTabState, 'id' | 'mcpGroupId'>[]
 }>()
 
 // The main process places the pages, so it says where their cards go: one per pane, in shell pixels.
@@ -32,7 +33,7 @@ const lit = computed(() => {
   if (!request) return []
   return cards.value.filter((card) => card.tabId !== undefined && (request.tabId
     ? card.tabId === request.tabId
-    : Boolean(request.workspaceId) && props.tabs?.some((tab) => tab.id === card.tabId && tab.mcpGroupId === request.workspaceId) === true))
+    : Boolean(request.workspaceId) && props.readTabs?.().some((tab) => tab.id === card.tabId && tab.mcpGroupId === request.workspaceId) === true))
 })
 
 function px(value: number): string {

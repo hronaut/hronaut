@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import { translate } from '../../../shared/i18n.js'
 import type {
   BrowserState,
+  BrowserTabState,
   NavigateOptions,
   NewTabOptions
 } from '../../../shared/types.js'
@@ -35,6 +36,11 @@ export const useBrowserStore = defineStore('browser', () => {
     const activeWorkspaceId = activeTab.value?.mcpGroupId
     return state.value.mcpTabGroups.find((workspace) => workspace.id === activeWorkspaceId)
   })
+  const allHumanInteractionLocked = computed(() => state.value.allHumanInteractionLocked)
+  // Components take these instead of the state itself, which is new with every change: a component given a new state
+  // draws again whole, while one that reads it through these draws again only when what it shows of it changed.
+  const readState = (): BrowserState => state.value
+  const readTabs = (): readonly BrowserTabState[] => state.value.tabs
 
   let generation = 0
   let revision = 0
@@ -183,6 +189,9 @@ export const useBrowserStore = defineStore('browser', () => {
     state,
     activeTab,
     activeWorkspace,
+    allHumanInteractionLocked,
+    readState,
+    readTabs,
     initialized,
     initializing,
     initializationError,

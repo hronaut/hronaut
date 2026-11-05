@@ -31,17 +31,26 @@ function reuseItems<Item extends { id: string }>(previous: readonly Item[], next
   return unchanged ? previous as Item[] : items
 }
 
+/** The previous part when the next one is equal to it, else the next one. */
+function reusePart<Part extends object>(previous: Part | undefined, next: Part): Part {
+  return previous && serialized(previous) === serialized(next) ? previous : next
+}
+
 /**
  * The next browser state, keeping the shell's own object for each tab, closed tab and workspace that did not change,
- * and its own list where none did. Main sends every tab whenever anything changes, so many pages loading together
- * would otherwise draw every tab again for each change of one: a tab's row now draws again only when its tab changed.
+ * its own list where none did, and its own split view and followed agent while they stay equal. Main sends every tab
+ * whenever anything changes, so many pages loading together would otherwise draw every tab again for each change of
+ * one: a tab's row now draws again only when its tab changed.
  */
 export function reuseUnchangedBrowserState(previous: BrowserState, next: BrowserState): BrowserState {
-  return {
+  const reused: BrowserState = {
     ...next,
     tabs: reuseItems(previous.tabs, next.tabs),
     closedTabs: reuseItems(previous.closedTabs, next.closedTabs),
     mcpTabGroups: reuseItems(previous.mcpTabGroups, next.mcpTabGroups),
     savedTabGroups: reuseItems(previous.savedTabGroups, next.savedTabGroups)
   }
+  if (next.splitView) reused.splitView = reusePart(previous.splitView, next.splitView)
+  if (next.agentFollow) reused.agentFollow = reusePart(previous.agentFollow, next.agentFollow)
+  return reused
 }

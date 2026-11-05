@@ -1,5 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { nextTick, shallowRef } from 'vue'
 import WorkspaceEditor from '../../src/renderer/src/features/workspaces/WorkspaceEditor.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BrowserState } from '../../src/shared/types.js'
@@ -34,13 +35,14 @@ function setup(initial = stateWith(), refreshed = initial) {
     listWorkspaceNavigationAudit: vi.fn(async () => [])
   }
   Object.defineProperty(window, 'hronaut', { configurable: true, value: browser })
+  const current = shallowRef(initial)
   const wrapper = mount(WorkspaceEditor, {
     global: { plugins: [createHronautI18n('en-US')], stubs: {
       WorkspaceContinuityPanel: true, HumanWaitingPanel: true,
       BrowserImportPanel: { props: ['workspaceId'], template: '<div data-test="import-target">{{ workspaceId }}</div>' }
     } },
-    props: { open: false, state: initial, canPresent: true, formatNumber: String,
-      syncState: async (next: BrowserState | Promise<BrowserState>) => { await wrapper.setProps({ state: await next }) },
+    props: { open: false, readState: () => current.value, canPresent: true, formatNumber: String,
+      syncState: async (next: BrowserState | Promise<BrowserState>) => { current.value = await next; await nextTick() },
       'onUpdate:open': (open: boolean) => { void wrapper.setProps({ open }) } }
   })
   const editor = wrapper.vm as unknown as {

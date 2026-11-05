@@ -447,6 +447,33 @@ describe('browser Pinia store lifecycle', () => {
     store.dispose()
   })
 
+  it('keeps the split view and the followed agent while they stay equal, so what shows them does not draw again', async () => {
+    let listener: ((state: BrowserState) => void) | undefined
+    const split = (ratio: number): BrowserState => ({
+      ...browserState('first'),
+      splitView: { firstTabId: 'first', secondTabId: 'second', orientation: 'vertical', ratio },
+      agentFollow: { tabId: 'first', agentName: 'Claude' }
+    })
+    installBrowserApi({ getState: async () => split(0.5), onStateChanged: (next) => { listener = next; return vi.fn() } })
+    const store = useBrowserStore()
+    await store.initialize()
+    const { splitView, agentFollow } = store.state
+
+    listener?.(split(0.5))
+    expect(store.state.splitView).toBe(splitView)
+    expect(store.state.agentFollow).toBe(agentFollow)
+
+    listener?.(split(0.7))
+    expect(store.state.splitView).not.toBe(splitView)
+    expect(store.state.splitView?.ratio).toBe(0.7)
+    expect(store.state.agentFollow).toBe(agentFollow)
+
+    listener?.(browserState('first'))
+    expect('splitView' in store.state).toBe(false)
+    expect('agentFollow' in store.state).toBe(false)
+    store.dispose()
+  })
+
   // Under four agents the shell spent 8% of its time in Vue's proxies around the state's tabs, read on every draw of
   // the tab strip, though the shell never changes a state it got.
   it('keeps each state as it arrived, without Vue proxies around its tabs, and still updates what reads it', async () => {

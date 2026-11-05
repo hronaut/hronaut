@@ -33,7 +33,7 @@ describe('workspace colors in the interface language', () => {
     const wrapper = mount(WorkspaceEditor, {
       attachTo: document.body,
       global: { plugins: [createHronautI18n('de-DE')] },
-      props: { open: false, state, canPresent: true, formatNumber: String, syncState: async () => undefined,
+      props: { open: false, readState: () => state, canPresent: true, formatNumber: String, syncState: async () => undefined,
         'onUpdate:open': (open: boolean) => { void wrapper.setProps({ open }) } }
     })
     unmounts.push(() => wrapper.unmount())

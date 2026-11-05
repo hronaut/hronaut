@@ -1,5 +1,5 @@
-import { mount } from '@vue/test-utils'
-import { defineComponent, h } from 'vue'
+import { flushPromises, mount } from '@vue/test-utils'
+import { defineComponent, h, nextTick, shallowRef } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import AppTransientShellLayer from '../../src/renderer/src/components/AppTransientShellLayer.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
@@ -22,7 +22,7 @@ function exposedStub(name: string, props: string[], exposed: Record<string, unkn
   })
 }
 
-function createHarness(options: { browser?: object; locale?: 'en-US' | 'uk-UA' } = {}) {
+function createHarness(options: { browser?: object; locale?: 'en-US' | 'uk-UA'; onUpdated?: () => void } = {}) {
   const handles = {
     find: { openForTab: vi.fn(async () => undefined), close: vi.fn(async () => undefined) },
     zoom: { openForTab: vi.fn(async () => undefined), close: vi.fn(), setZoom: vi.fn(async () => undefined) },
@@ -37,6 +37,8 @@ function createHarness(options: { browser?: object; locale?: 'en-US' | 'uk-UA' }
     savedTabGroups: [],
     mcpTabGroups: []
   }
+  const current = shallowRef<typeof state & { agentControlLocked?: boolean }>(state)
+  const readState = () => current.value as never
   const syncState = vi.fn(async () => undefined)
   const selectTab = vi.fn(async () => undefined)
   const expandTabGroup = vi.fn()
@@ -54,13 +56,14 @@ function createHarness(options: { browser?: object; locale?: 'en-US' | 'uk-UA' }
   const userAttention = { id: 'attention-1', workspaceId: 'workspace-1', reason: 'Sign in', requestedAt: '2026-10-16T00:00:00.000Z' }
   const wrapper = mount(AppTransientShellLayer, {
     props: {
+      ...(options.onUpdated ? { onVnodeUpdated: options.onUpdated } : {}),
       findOpen: true,
       zoomOpen: true,
       workspaceEditorOpen: true,
       credentialPickerOpen: true,
       commandPaletteOpen: true,
       dock: 'right',
-      state: state as never,
+      readState,
       activeTab: undefined,
       userAttention: userAttention as never,
       credentials: [],
@@ -99,12 +102,12 @@ function createHarness(options: { browser?: object; locale?: 'en-US' | 'uk-UA' }
           'dock', 'controller', 'activeUrl', 'activeTitle', 'currentBookmark', 'formatBytes',
           'formatPercent', 'formatDateTime', 'formatNumber'
         ], {}),
-        WorkspaceEditor: exposedStub('WorkspaceEditor', ['open', 'state', 'syncState', 'formatNumber', 'canPresent'], handles.workspace),
+        WorkspaceEditor: exposedStub('WorkspaceEditor', ['open', 'readState', 'syncState', 'formatNumber', 'canPresent'], handles.workspace),
         CredentialPicker: exposedStub('CredentialPicker', ['open', 'credentials', 'origin', 'fillCredential'], handles.credential),
-        CommandPalette: exposedStub('CommandPalette', ['open', 'websiteAvailable', 'formatNumber', 'runCommand', 'reportCommandError'], handles.command),
+        CommandPalette: exposedStub('CommandPalette', ['open', 'websiteAvailable', 'agentControlLocked', 'formatNumber', 'runCommand', 'reportCommandError'], handles.command),
         WorkspaceSwitcher: defineComponent({
           name: 'WorkspaceSwitcher',
-          props: ['open', 'state', 'userAttention', 'browser', 'syncState', 'selectTab', 'expandTabGroup', 'formatNumber', 'formatError', 'showError'],
+          props: ['open', 'readState', 'userAttention', 'browser', 'syncState', 'selectTab', 'expandTabGroup', 'formatNumber', 'formatError', 'showError'],
           emits: ['update:open', 'search-tabs', 'create-workspace'],
           setup(_props, { expose }) {
             expose(handles.switcher)
@@ -113,7 +116,7 @@ function createHarness(options: { browser?: object; locale?: 'en-US' | 'uk-UA' }
         }),
         AgentStepsDialog: defineComponent({
           name: 'AgentStepsDialog',
-          props: ['open', 'target', 'state', 'selectTab', 'formatTime', 'formatNumber', 'formatError', 'showError'],
+          props: ['open', 'target', 'readState', 'selectTab', 'formatTime', 'formatNumber', 'formatError', 'showError'],
           emits: ['update:open'],
           setup: () => () => h('div', { 'data-testid': 'AgentStepsDialog' })
         })
@@ -123,8 +126,10 @@ function createHarness(options: { browser?: object; locale?: 'en-US' | 'uk-UA' }
   return {
     wrapper,
     handles,
+    setState: async (next: typeof current.value) => { current.value = next; await nextTick() },
     forwarded: {
       state,
+      readState,
       syncState,
       selectTab,
       expandTabGroup,
@@ -145,10 +150,24 @@ function createHarness(options: { browser?: object; locale?: 'en-US' | 'uk-UA' }
 }
 
 describe('AppTransientShellLayer', () => {
+  // The dialogs here read the browser state only while they show it, so a new state, many a second while agents work,
+  // no longer draws this layer and every closed dialog in it again.
+  it('draws again for what it shows, not for each new browser state', async () => {
+    const updated = vi.fn()
+    const { wrapper, forwarded, setState } = createHarness({ onUpdated: updated })
+    await flushPromises()
+    updated.mockClear()
+    await setState({ ...forwarded.state, tabs: [{ ...forwarded.state.tabs[0], title: 'Cart' }] })
+    expect(updated).not.toHaveBeenCalled()
+    await setState({ ...forwarded.state, agentControlLocked: true })
+    expect(updated).toHaveBeenCalledTimes(1)
+    expect(wrapper.findComponent({ name: 'CommandPalette' }).props('agentControlLocked')).toBe(true)
+  })
+
   it('shows an agent\'s All steps on its own open state, opening a step\'s workspace before its tab', async () => {
     const { wrapper, forwarded } = createHarness()
     const dialog = () => wrapper.findComponent({ name: 'AgentStepsDialog' })
-    expect(dialog().props()).toMatchObject({ open: false, target: null, state: forwarded.state, formatTime: forwarded.formatTime, showError: forwarded.showError })
+    expect(dialog().props()).toMatchObject({ open: false, target: null, readState: forwarded.readState, formatTime: forwarded.formatTime, showError: forwarded.showError })
     const target = { clientKey: 'AbCdEfGhIjKlMnOpQrSt-_', workspaceId: 'workspace-1' }
     await wrapper.setProps({ agentStepsOpen: true, agentStepsTarget: target })
     expect(dialog().props()).toMatchObject({ open: true, target })
@@ -169,7 +188,7 @@ describe('AppTransientShellLayer', () => {
 
     expect(wrapper.findComponent({ name: 'WorkspaceEditor' }).props()).toMatchObject({
       open: true,
-      state: forwarded.state,
+      readState: forwarded.readState,
       canPresent: false
     })
     expect(wrapper.findComponent({ name: 'CredentialPicker' }).props()).toMatchObject({
@@ -212,7 +231,7 @@ describe('AppTransientShellLayer', () => {
     expect(commands().props('open')).toBe(true)
     expect(switcher().props()).toMatchObject({
       open: false,
-      state: forwarded.state,
+      readState: forwarded.readState,
       userAttention: forwarded.userAttention,
       syncState: forwarded.syncState,
       selectTab: forwarded.selectTab,

@@ -82,7 +82,7 @@ function mountDialog(api: HronautAgentPresenceApi, props: Record<string, unknown
       open: true,
       'onUpdate:open': (open: boolean) => { void wrapper?.setProps({ open }) },
       target,
-      state: browserState(),
+      readState: browserState,
       selectTab,
       formatTime: (value: Date | number | string) => `at ${Number(value)}`,
       formatNumber: String,
