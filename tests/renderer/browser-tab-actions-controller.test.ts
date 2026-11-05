@@ -70,7 +70,7 @@ function createHarness() {
     toggleDevTools: vi.fn(async (_tabId?: string) => true),
     showDevToolsConsole: vi.fn(async (_tabId?: string) => true)
   }
-  const syncState = vi.fn(async (operation: Promise<BrowserState> | BrowserState) => {
+  const syncState = vi.fn(async (operation: Promise<BrowserState> | BrowserState, _guess?: (state: BrowserState) => BrowserState) => {
     state.value = await operation
   })
   const onSelectError = vi.fn()
@@ -289,6 +289,34 @@ describe('browser tab actions controller', () => {
     expect(harness.browser.setAllTabsMuted).toHaveBeenCalledWith(true)
     expect(harness.browser.setTabHumanInteractionLocked).toHaveBeenCalledWith('active', true)
     expect(harness.browser.setAllHumanInteractionLocked).toHaveBeenCalledWith(true)
+  })
+
+  // The shell shows these at once, before main answers; main's state replaces the guess once the action settles.
+  it('hands the store a guess of what selecting, moving and muting a tab will do', async () => {
+    const harness = createHarness()
+    const first = tab({ id: 'first' })
+    const second = tab({ id: 'second', active: false })
+    const third = tab({ id: 'third', active: false })
+    const before: BrowserState = { ...browserState(first), tabs: [first, second, third] }
+    harness.state.value = before
+    const guessed = () => {
+      const guess = harness.syncState.mock.lastCall?.[1]
+      expect(guess).toBeTypeOf('function')
+      return guess!(before)
+    }
+
+    await harness.controller.selectBrowserTab('second')
+    expect(guessed().activeTabId).toBe('second')
+    harness.state.value = before
+    await harness.controller.reorderTab({ tabId: 'first', targetTabId: 'third', placement: 'after' })
+    expect(guessed().tabs.map((candidate) => candidate.id)).toEqual(['second', 'third', 'first'])
+    harness.state.value = before
+    await harness.controller.reorderTab({ tabId: 'first', targetTabId: 'third', placement: 'after', tabIds: ['first', 'second'] })
+    expect(guessed().tabs.map((candidate) => candidate.id)).toEqual(['third', 'first', 'second'])
+    harness.state.value = before
+    await harness.controller.toggleTabMuted(second)
+    expect(harness.browser.setTabMuted).toHaveBeenCalledWith('second', true)
+    expect(guessed().tabs[1].muted).toBe(true)
   })
 
   it('serializes global audio toggles against mixed and then authoritative tab state', async () => {

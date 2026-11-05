@@ -498,6 +498,171 @@ describe('browser Pinia store lifecycle', () => {
       store.dispose()
     }
   })
+
+  // Under four agents main took 45 ms at the median to answer a tab click; the shell now shows the click at once.
+  describe('guesses of the person\'s tab actions', () => {
+    /** Tabs a and b, with the given one shown and an optional title for b, as a state main sends. */
+    function twoTabs(activeTabId: 'a' | 'b', titleOfB = 'B'): BrowserState {
+      const state = browserState('a')
+      const b = { ...state.tabs[0], id: 'b', title: titleOfB, url: 'https://example.org/' }
+      state.tabs = [{ ...state.tabs[0], active: activeTabId === 'a' }, { ...b, active: activeTabId === 'b' }]
+      state.activeTabId = activeTabId
+      return state
+    }
+
+    async function storeWith(initial: BrowserState, selectTab?: (tabId: string) => Promise<BrowserState>) {
+      let listener: ((state: BrowserState) => void) | undefined
+      installBrowserApi({ getState: async () => initial, onStateChanged: (next) => { listener = next; return vi.fn() }, selectTab })
+      const store = useBrowserStore()
+      await store.initialize()
+      return { store, publish: (next: BrowserState) => listener?.(next) }
+    }
+
+    it('shows a selected tab before main answers, and main\'s answer after', async () => {
+      const answer = deferred<BrowserState>()
+      const { store } = await storeWith(twoTabs('a'), () => answer.promise)
+      const selecting = store.selectTab('b')
+      expect(store.state.activeTabId).toBe('b')
+      expect(store.state.tabs.map((tab) => tab.active)).toEqual([false, true])
+      expect(store.activeTab?.id).toBe('b')
+      answer.resolve(twoTabs('b', 'B answered'))
+      await selecting
+      expect(store.state.activeTabId).toBe('b')
+      expect(store.state.tabs[1].title).toBe('B answered')
+      store.dispose()
+    })
+
+    it('keeps the guess over a state main published before it handled the action', async () => {
+      const answer = deferred<BrowserState>()
+      const { store, publish } = await storeWith(twoTabs('a'), () => answer.promise)
+      const selecting = store.selectTab('b')
+      publish(twoTabs('a', 'B loaded'))
+      // The published change shows, under the guess: the tab strip does not jump back to a.
+      expect(store.state.activeTabId).toBe('b')
+      expect(store.state.tabs[1].title).toBe('B loaded')
+      publish(twoTabs('b', 'B selected'))
+      answer.resolve(twoTabs('b', 'B selected'))
+      await selecting
+      expect(store.state.activeTabId).toBe('b')
+      expect(store.state.tabs[1].title).toBe('B selected')
+      store.dispose()
+    })
+
+    it('shows main\'s state again when the action fails or main does something else', async () => {
+      const refused = deferred<BrowserState>()
+      const { store, publish } = await storeWith(twoTabs('a'), () => refused.promise)
+      const selecting = store.selectTab('b')
+      expect(store.state.activeTabId).toBe('b')
+      refused.reject(new Error('refused'))
+      await expect(selecting).rejects.toThrow('refused')
+      expect(store.state.activeTabId).toBe('a')
+      expect(store.state.tabs.map((tab) => tab.active)).toEqual([true, false])
+
+      // A state that arrived meanwhile wins over the answer, and still replaces the guess once the action settles.
+      const answer = deferred<BrowserState>()
+      const other = store.syncOperation(answer.promise, (state) => ({ ...state, activeTabId: 'b' }))
+      publish(twoTabs('a', 'B after'))
+      expect(store.state.activeTabId).toBe('b')
+      answer.resolve(twoTabs('b'))
+      await other
+      expect(store.state.activeTabId).toBe('a')
+      expect(store.state.tabs[1].title).toBe('B after')
+      store.dispose()
+    })
+
+    it('shows the newest of several waiting guesses, and the newest answer once all settle', async () => {
+      const first = deferred<BrowserState>()
+      const second = deferred<BrowserState>()
+      const { store } = await storeWith(twoTabs('a'))
+      const toB = store.syncOperation(first.promise, (state) => ({ ...state, activeTabId: 'b' }))
+      const toA = store.syncOperation(second.promise, (state) => ({ ...state, activeTabId: 'a' }))
+      expect(store.state.activeTabId).toBe('a')
+      first.resolve(twoTabs('b'))
+      await toB
+      // The newer action still waits, so its guess still shows.
+      expect(store.state.activeTabId).toBe('a')
+      second.resolve(twoTabs('a', 'B after both'))
+      await toA
+      expect(store.state.activeTabId).toBe('a')
+      expect(store.state.tabs[1].title).toBe('B after both')
+      store.dispose()
+    })
+
+    it('keeps the objects of tabs a guess left alone, so their rows do not draw again', async () => {
+      const answer = deferred<BrowserState>()
+      const initial = twoTabs('a')
+      initial.tabs.push({ ...initial.tabs[1], id: 'c', active: false })
+      const { store } = await storeWith(initial, () => answer.promise)
+      const c = store.state.tabs[2]
+      const selecting = store.selectTab('b')
+      expect(store.state.tabs[2]).toBe(c)
+      const answered = structuredClone(initial)
+      answered.activeTabId = 'b'
+      answered.tabs[0].active = false
+      answered.tabs[1].active = true
+      answer.resolve(answered)
+      await selecting
+      expect(store.state.tabs[2]).toBe(c)
+      store.dispose()
+    })
+
+    it('shows main\'s answer, not the guess, when main answers without doing what was guessed', async () => {
+      const answer = deferred<BrowserState>()
+      const { store } = await storeWith(twoTabs('a'), () => answer.promise)
+      const selecting = store.selectTab('b')
+      expect(store.state.activeTabId).toBe('b')
+      answer.resolve(twoTabs('a', 'B answered'))
+      await selecting
+      expect(store.state.activeTabId).toBe('a')
+      expect(store.state.tabs.map((tab) => tab.active)).toEqual([true, false])
+      expect(store.state.tabs[1].title).toBe('B answered')
+      store.dispose()
+    })
+
+    it('drops the guess of an action sent earlier once a later one settles, as main had both by then', async () => {
+      const toB = deferred<BrowserState>()
+      const toA = deferred<BrowserState>()
+      const { store, publish } = await storeWith(twoTabs('a'))
+      const first = store.syncOperation(toB.promise, (state) => ({ ...state, activeTabId: 'b' }))
+      const second = store.syncOperation(toA.promise, (state) => ({ ...state, activeTabId: 'a', allTabsMuted: true }))
+      publish(twoTabs('a'))
+      toA.resolve({ ...twoTabs('a'), allTabsMuted: true })
+      await second
+      expect(store.state.activeTabId).toBe('a')
+      toB.resolve(twoTabs('b'))
+      await first
+      expect(store.state.activeTabId).toBe('a')
+      store.dispose()
+    })
+
+    it('shows an earlier answer without the guess of a later action that failed', async () => {
+      const earlier = deferred<BrowserState>()
+      const refused = deferred<BrowserState>()
+      const { store } = await storeWith(twoTabs('a'), () => refused.promise)
+      const pause = store.syncOperation(earlier.promise)
+      const selecting = store.selectTab('b')
+      earlier.resolve(twoTabs('a', 'B paused'))
+      await pause
+      refused.reject(new Error('refused'))
+      await expect(selecting).rejects.toThrow('refused')
+      expect(store.state.activeTabId).toBe('a')
+      expect(store.state.tabs[1].title).toBe('B paused')
+      store.dispose()
+    })
+
+    it('shows a sleeping or loading tab only once main does, since main shows it only after it wakes', async () => {
+      const answer = deferred<BrowserState>()
+      const initial = twoTabs('a')
+      initial.tabs[1] = { ...initial.tabs[1], sleeping: true }
+      const { store } = await storeWith(initial, () => answer.promise)
+      const selecting = store.selectTab('b')
+      expect(store.state.activeTabId).toBe('a')
+      answer.resolve(twoTabs('b'))
+      await selecting
+      expect(store.state.activeTabId).toBe('b')
+      store.dispose()
+    })
+  })
 })
 
 describe('settings Pinia store lifecycle', () => {

@@ -33,6 +33,10 @@ test('opens tabs from a page\'s links beside that page, in the order they were o
     const order = async () => (await appWindow.evaluate(`window.hronaut.getState()`) as { tabs: Array<{ url: string, active: boolean, mcpGroupId?: string }> })
       .tabs.filter(tab => tab.mcpGroupId === workspace && tab.url.startsWith(origin)).map(tab => `${new URL(tab.url).pathname}${tab.active ? '*' : ''}`)
     await expect.poll(order).toEqual(['/app*', '/mail'])
+    // A new tab carries its address from the start, before its page loads, so the order above can hold before the app
+    // page is there to click.
+    await expect.poll(() => electronApp.evaluate(({ webContents }, url) => webContents.getAllWebContents()
+      .some(contents => contents.getURL() === url && !contents.isLoading()), `${origin}/app`)).toBe(true)
 
     const press = (selector: string, input: Press) => electronApp.evaluate(async ({ webContents }, { url, selector, input }) => {
       const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)

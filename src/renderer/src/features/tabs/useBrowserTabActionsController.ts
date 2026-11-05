@@ -4,6 +4,7 @@ import type {
   BrowserTabState,
   HronautApi
 } from '../../../../shared/types.js'
+import { guessTabMuted, guessTabSelected, guessTabsMoved, type BrowserStateGuess } from '../../stores/browser-state-guesses.js'
 
 type BrowserTabActionsApi = Pick<
   HronautApi,
@@ -31,7 +32,8 @@ export interface BrowserTabActionsControllerOptions {
   activeTab: Readonly<Ref<BrowserTabState | undefined>>
   isHome: () => boolean
   browser: BrowserTabActionsApi
-  syncState: (operation: Promise<BrowserState> | BrowserState) => Promise<void>
+  /** Applies the state an action answers with; a guess of what it will do shows until it settles. */
+  syncState: (operation: Promise<BrowserState> | BrowserState, guess?: BrowserStateGuess) => Promise<void>
   beforeToggleDeveloperTools: () => void
   onSelectError: (error: unknown) => void
   onNavigateError: (error: unknown) => void
@@ -67,15 +69,17 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
     tabIds?: readonly string[]
   }): Promise<void> {
     if (disposed) return
-    await options.syncState(details.tabIds && details.tabIds.length > 1
-      ? options.browser.reorderTabs(details.tabIds, details.targetTabId, details.placement)
-      : options.browser.reorderTab(details.tabId, details.targetTabId, details.placement))
+    const several = details.tabIds !== undefined && details.tabIds.length > 1
+    await options.syncState(several
+      ? options.browser.reorderTabs(details.tabIds!, details.targetTabId, details.placement)
+      : options.browser.reorderTab(details.tabId, details.targetTabId, details.placement),
+    guessTabsMoved(several ? details.tabIds! : [details.tabId], details.targetTabId, details.placement))
   }
 
   async function selectBrowserTab(tabId: string): Promise<boolean> {
     if (disposed) return false
     try {
-      await options.syncState(options.browser.selectTab(tabId))
+      await options.syncState(options.browser.selectTab(tabId), guessTabSelected(tabId))
       return !disposed
     } catch (error) {
       if (!disposed) options.onSelectError(error)
@@ -151,7 +155,7 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
       if (disposed) return
       const currentTab = options.state.value.tabs.find((candidate) => candidate.id === tab.id)
       if (!currentTab) return
-      await options.syncState(options.browser.setTabMuted(tab.id, !currentTab.muted))
+      await options.syncState(options.browser.setTabMuted(tab.id, !currentTab.muted), guessTabMuted(tab.id, !currentTab.muted))
     })
   }
 
