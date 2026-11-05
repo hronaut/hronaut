@@ -17,7 +17,8 @@ const SITE_PERMISSION_NAMES: Readonly<Record<string, MessageKey>> = {
   'idle-detection': 'runtime.permissions.activity',
   keyboardLock: 'runtime.permissions.keyboardLock',
   'local-fonts': 'runtime.permissions.localFonts',
-  // Chromium's Local Network Access: a public website reaching a device on the local network, or an app on this device.
+  // Chromium's Local Network Access: a website reaching a device on the local network (local-network-access is its older,
+  // combined name), or an app on this device (loopback-network).
   'local-network': 'runtime.permissions.localNetwork',
   'local-network-access': 'runtime.permissions.localNetwork',
   'loopback-network': 'runtime.permissions.loopbackNetwork',

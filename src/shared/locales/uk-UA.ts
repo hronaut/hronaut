@@ -1465,7 +1465,7 @@ export const ukUA: MessageSchema = {
       midi: 'MIDI-пристрої',
       localFonts: 'Локальні шрифти',
       localNetwork: 'Пристрої в локальній мережі',
-      loopbackNetwork: 'Програми на цьому пристрої',
+      loopbackNetwork: 'Застосунки на цьому пристрої',
       persistentStorage: 'Постійне сховище',
       keyboardLock: 'Перехоплення клавіатури',
       pointerLock: 'Блокування вказівника миші',

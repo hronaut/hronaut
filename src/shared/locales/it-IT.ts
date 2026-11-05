@@ -1463,7 +1463,7 @@ export const itIT: MessageSchema = {
       windows: 'Gestione finestre',
       midiControl: 'Controllo dispositivi MIDI',
       midi: 'Dispositivi MIDI',
-      localFonts: 'Caratteri locali',
+      localFonts: 'Font locali',
       localNetwork: 'Dispositivi della rete locale',
       loopbackNetwork: 'App su questo dispositivo',
       persistentStorage: 'Archiviazione permanente',

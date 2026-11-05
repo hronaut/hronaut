@@ -131,7 +131,8 @@ describe('site permission prompt', () => {
     expect((await prompt('en-US', 'local-network')).message).toBe('https://files.example requests “Local network devices” permission.')
     expect((await prompt('en-US', 'loopback-network')).message).toBe('https://files.example requests “Apps on this device” permission.')
     expect((await prompt('en-US', 'local-fonts')).message).toBe('https://files.example requests “Local fonts” permission.')
-    expect((await prompt('de-DE', 'midi')).message).toContain('MIDI-Geräte')
+    expect((await prompt('en-US', 'local-network-access')).message).toBe('https://files.example requests “Local network devices” permission.')
+    expect((await prompt('de-DE', 'midi')).message).toBe('https://files.example fordert die Berechtigung „MIDI-Geräte“ an.')
   })
 
   it('names read and write file access in the interface language', async () => {
