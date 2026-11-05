@@ -24,7 +24,8 @@ class FakeWindow {
   constructor() { created.push(this) }
 
   isDestroyed() { return this.destroyed }
-  isMinimized() { return false }
+  minimized = false
+  isMinimized() { return this.minimized }
   isVisible() { return this.visible }
   isMaximized() { return false }
   isFullScreen() { return false }
@@ -143,7 +144,7 @@ describe('a detached panel window saved maximized and in full screen', () => {
   })
 
   // Showing it again on its first paint would take the focus the agent's show left with the window the person uses.
-  it('stays without focus when an agent showed it before it painted', async () => {
+  it('stays without focus when an agent showed it before it painted, also once minimized', async () => {
     FakeWindow.paintsLater = true
     try {
       const panel = panelWindow()
@@ -153,6 +154,15 @@ describe('a detached panel window saved maximized and in full screen', () => {
       panel.window().showInactive()
       panel.window().paint()
       expect(panel.window().calls).toEqual(['showInactive'])
+
+      // Nor once the person minimized it, which Windows and macOS report as not visible.
+      const minimized = panelWindow()
+      await minimized.open('console')
+      minimized.refs.stateUntilShown = null
+      minimized.window().showInactive()
+      Object.assign(minimized.window(), { visible: false, minimized: true })
+      minimized.window().paint()
+      expect(minimized.window().calls).toEqual(['showInactive'])
     } finally {
       FakeWindow.paintsLater = false
     }
