@@ -54,14 +54,21 @@ function endPageWindowFullScreen(browser: Browser): void {
 
 /**
  * Asks the page to leave full screen, and the window then leaves the full screen the page had. A request still running
- * is not repeated, and one that did not leave lets the next layout ask again.
+ * is not repeated, and one that did not leave lets the next layout ask again. A page refused the window's full screen
+ * that the window started to show while the request ran gets its full screen only then, after the request may have
+ * given up, and nothing lays the window out again, so it is asked once more. A page still kept from the window's full
+ * screen, such as the split view pane another pane's full screen hides, is asked by the layout that shows it instead.
  */
-function requestPageFullscreenExit(tab: BrowserTab): void {
+function requestPageFullscreenExit(browser: Browser, tab: BrowserTab, askAgain = true): void {
   if (tab.pageFullscreenExitRequested || tab.webContents.isDestroyed()) return
   tab.pageFullscreenExitRequested = true
+  const notLeft = (): void => {
+    tab.pageFullscreenExitRequested = false
+    if (askAgain && tab.pageFullscreenRefused && mayHaveWindowFullScreen(browser, tab)) requestPageFullscreenExit(browser, tab, false)
+  }
   tab.webContents.executeJavaScriptInIsolatedWorld(ISOLATED_WORLDS.pageFullscreen, [{ code: EXIT_FULLSCREEN_SCRIPT }])
-    .then((left) => { if (left !== true) tab.pageFullscreenExitRequested = false })
-    .catch(() => { tab.pageFullscreenExitRequested = false })
+    .then((left) => { if (left !== true) notLeft() })
+    .catch(notLeft)
 }
 
 /**
@@ -92,7 +99,7 @@ export function attachPageFullscreenEvents(
       takeWindowFullScreen(browser)
     } else {
       tab.pageFullscreenRefused = true
-      requestPageFullscreenExit(tab)
+      requestPageFullscreenExit(browser, tab)
     }
     browser.layout()
     browser.options.onPageFullscreenChanged?.()
@@ -140,7 +147,7 @@ export function watchWindowFullScreen(browser: Browser): void {
       if (!browser.window.isFullScreen()) {
         browser.personFullScreen = false
         browser.pageWindowFullScreen = false
-        if (holder) requestPageFullscreenExit(holder)
+        if (holder) requestPageFullscreenExit(browser, holder)
       } else if (!holder) {
         browser.personFullScreen = true
       }
@@ -158,7 +165,7 @@ export function watchWindowFullScreen(browser: Browser): void {
  * control the page would otherwise cover.
  */
 export function exitPageFullscreen(browser: Browser): void {
-  for (const tab of browser.tabs.values()) if (tab.pageFullscreen) requestPageFullscreenExit(tab)
+  for (const tab of browser.tabs.values()) if (tab.pageFullscreen) requestPageFullscreenExit(browser, tab)
 }
 
 /**
@@ -166,13 +173,13 @@ export function exitPageFullscreen(browser: Browser): void {
  * other pane in full screen hides, so the selected page shows instead of taking keyboard focus behind it.
  */
 export function exitPageFullscreenCovering(browser: Browser, tabId: string): void {
-  for (const tab of browser.tabs.values()) if (tab.pageFullscreen && tab.id !== tabId) requestPageFullscreenExit(tab)
+  for (const tab of browser.tabs.values()) if (tab.pageFullscreen && tab.id !== tabId) requestPageFullscreenExit(browser, tab)
 }
 
 /** Asks every page in full screen that the window no longer shows to leave it, and every one refused the window's. */
 export function exitHiddenPageFullscreen(browser: Browser): void {
   for (const tab of browser.tabs.values()) {
-    if ((tab.pageFullscreen && !isShown(browser, tab.id)) || tab.pageFullscreenRefused) requestPageFullscreenExit(tab)
+    if ((tab.pageFullscreen && !isShown(browser, tab.id)) || tab.pageFullscreenRefused) requestPageFullscreenExit(browser, tab)
   }
 }
 

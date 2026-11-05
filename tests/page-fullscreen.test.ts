@@ -487,6 +487,51 @@ describe('page full screen lifecycle', () => {
     expect(run).toHaveBeenCalledTimes(3)
   })
 
+  // Chromium gives a page out of view its full screen only once it is shown, which can be after the request running
+  // then gave up, and no layout follows to ask again.
+  it('asks a refused page the window started to show while it was asked to leave once more when it did not leave', async () => {
+    const { window, tabs, shown, enter, browser } = fullscreenFixture({ shown: ['other'] })
+    const run = tabs.get('video')!.webContents.executeJavaScriptInIsolatedWorld
+    let giveUp!: (left: boolean) => void
+    run.mockImplementationOnce(() => new Promise<boolean>((resolve) => { giveUp = resolve })).mockResolvedValueOnce(false)
+    enter('video')
+    shown.add('video')
+    // The layout for the shown tab finds the request still running.
+    exitHiddenPageFullscreen(browser)
+    expect(run).toHaveBeenCalledOnce()
+    giveUp(false)
+    await nextTurn()
+    expect(run).toHaveBeenCalledTimes(2)
+    // It is asked once more only, and the next layout asks again.
+    await nextTurn()
+    expect(run).toHaveBeenCalledTimes(2)
+    exitHiddenPageFullscreen(browser)
+    expect(run).toHaveBeenCalledTimes(3)
+    await nextTurn()
+    tabs.get('video')!.webContents.emit('leave-html-full-screen')
+    expect(window.setFullScreen).not.toHaveBeenCalled()
+  })
+
+  it('does not ask a refused page again by itself while the window does not show it on screen or another page holds it', async () => {
+    // Still out of view, shown in a window that is minimized or hidden, which asks again once it shows, or shown as the
+    // split view pane the other pane's full screen hides, which the layout asks again once the other pane leaves.
+    for (const state of [null, { minimized: true }, { visible: false }, 'other pane in full screen'] as const) {
+      const { window, tabs, shown, enter } = fullscreenFixture({ shown: ['other'] })
+      const run = tabs.get('video')!.webContents.executeJavaScriptInIsolatedWorld
+      let giveUp!: (left: boolean) => void
+      run.mockImplementationOnce(() => new Promise<boolean>((resolve) => { giveUp = resolve }))
+      if (state === 'other pane in full screen') enter('other')
+      enter('video')
+      if (state) {
+        shown.add('video')
+        if (typeof state === 'object') Object.assign(window, state)
+      }
+      giveUp(false)
+      await nextTurn()
+      expect(run).toHaveBeenCalledOnce()
+    }
+  })
+
   it('asks the page to leave full screen when the person takes the window out of it', async () => {
     const { window, tabs, enter } = fullscreenFixture()
     enter('video')
