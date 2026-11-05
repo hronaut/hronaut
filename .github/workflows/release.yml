@@ -359,6 +359,8 @@ jobs:
           npm run build:app
           npx electron-builder --mac dmg zip --x64 --arm64 --publish never
           node scripts/native-packages.ts check mac dist
+          # The upload below fails only when none of its files exist, so a missing dmg or zip fails here.
+          ls dist/*.dmg dist/*.zip
       - name: Upload macOS release assets
         uses: actions/upload-artifact@v7
         with:
