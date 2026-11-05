@@ -1,4 +1,4 @@
-import { computed, nextTick, ref, toRaw, watch } from 'vue'
+import { computed, nextTick, ref, shallowRef, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { translate } from '../../../shared/i18n.js'
 import type {
@@ -23,7 +23,9 @@ export function emptyBrowserState(): BrowserState {
 }
 
 export const useBrowserStore = defineStore('browser', () => {
-  const state = ref<BrowserState>(emptyBrowserState())
+  // Each state replaces the last as a whole, and the shell never changes one, so the state is not made deeply reactive:
+  // reading a tab's fields through Vue's proxies cost the shell more than drawing them while several agents worked.
+  const state = shallowRef<BrowserState>(emptyBrowserState())
   const settings = useSettingsStore()
   const initialized = ref(false)
   const initializing = ref(false)
@@ -48,7 +50,7 @@ export const useBrowserStore = defineStore('browser', () => {
 
   function acceptAuthoritativeState(next: BrowserState): void {
     revision += 1
-    state.value = reuseUnchangedBrowserState(toRaw(state.value), next)
+    state.value = reuseUnchangedBrowserState(state.value, next)
   }
 
   function detachListener(): void {

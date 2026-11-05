@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Hronaut's window spends less time keeping its tabs up to date while several agents work, so it answers clicks a little sooner.
+
 ## [3.14.17] - 2026-11-05
 
 ### Changed

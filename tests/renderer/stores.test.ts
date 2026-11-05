@@ -1,4 +1,4 @@
-import { nextTick, watch } from 'vue'
+import { isReactive, nextTick, watch } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import type { BrowserState, RendererSettingsState } from '../../src/shared/types.js'
 import { useBrowserStore } from '../../src/renderer/src/stores/browser.js'
@@ -445,6 +445,31 @@ describe('browser Pinia store lifecycle', () => {
     expect(store.state.tabs.map(tab => tab.id)).toEqual(['second', 'first'])
     expect(store.state.tabs[1]).toBe(first)
     store.dispose()
+  })
+
+  // Under four agents the shell spent 8% of its time in Vue's proxies around the state's tabs, read on every draw of
+  // the tab strip, though the shell never changes a state it got.
+  it('keeps each state as it arrived, without Vue proxies around its tabs, and still updates what reads it', async () => {
+    let listener: ((state: BrowserState) => void) | undefined
+    installBrowserApi({ getState: async () => browserState('first'), onStateChanged: (next) => { listener = next; return vi.fn() } })
+    const store = useBrowserStore()
+    const titles: string[] = []
+    const unwatch = watch(() => store.state.tabs[0]?.title, (title) => { if (title) titles.push(title) })
+    try {
+      await store.initialize()
+      expect(isReactive(store.state)).toBe(false)
+      expect(isReactive(store.state.tabs[0])).toBe(false)
+      titles.length = 0
+      const next = browserState('first')
+      next.tabs[0].title = 'Loaded'
+      listener?.(next)
+      await nextTick()
+      expect(titles).toEqual(['Loaded'])
+      expect(store.state.tabs[0]).toBe(next.tabs[0])
+    } finally {
+      unwatch()
+      store.dispose()
+    }
   })
 })
 
