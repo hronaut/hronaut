@@ -1,6 +1,7 @@
 import type { AgentGuide, ClientConfigurationOptions } from './client-configuration.js'
 import type { HomeWorkspaceAction, HomeWorkspaceState } from './home-workspaces.js'
-import type { McpActivityOutcome, McpActivityResult, McpListenErrorCode, McpPortMoveResult, McpServerStatus } from './types.js'
+import type { BrowserTabOverviewPreview, McpActivityOutcome, McpActivityResult, McpListenErrorCode, McpPortMoveResult, McpServerStatus } from './types.js'
+import type { HomeTabAction, HomeTabsState } from './home-tabs.js'
 import type { ResolvedThemeName } from './theme.js'
 import type { ConnectedAgent } from './agent-status.js'
 import type { AgentPresenceState, AgentRecentStep } from './agent-presence.js'
@@ -78,11 +79,23 @@ export interface HomeBootstrap {
   messages: MessageSchema
   dashboard: HomeDashboard
   workspaces: HomeWorkspaceState
+  /** The operating system, for the keys Home names: Cmd on macOS, Ctrl elsewhere. */
+  platform: string
 }
 export interface HronautHomeApi {
   onShowWorkspaces(listener: () => void): () => void
   /** Something Home shows changed; read /api/status again. Carries nothing. */
   onChanged?(listener: () => void): () => void
+  /** Search tabs asks Home to show its Tabs view with the search field focused. */
+  onShowTabs?(listener: () => void): () => void
+  /** Tabs changed; read them again while the Tabs view shows. Carries nothing. */
+  onTabsChanged?(listener: () => void): () => void
+  getTabs?(): Promise<HomeTabsState>
+  /** The last frames kept of the tabs; tabs without one are left out. */
+  getTabPreviews?(tabIds: string[]): Promise<BrowserTabOverviewPreview[]>
+  /** A bounded full-page picture of an awake, loaded tab. */
+  getTabPagePreview?(tabId: string): Promise<BrowserTabOverviewPreview>
+  tabAction?(action: HomeTabAction): Promise<HomeTabsState>
   getWorkspaces(): Promise<HomeWorkspaceState>
   workspaceAction(request: HomeWorkspaceAction): Promise<HomeWorkspaceState>
   copyText(text: string): Promise<void>

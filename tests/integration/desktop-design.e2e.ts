@@ -47,7 +47,7 @@ test('fresh profiles provide a workspace rail with reachable named actions acros
       await home.emulateMedia({ colorScheme: null })
       await expect.poll(() => home.evaluate(() => matchMedia('(prefers-color-scheme: dark)').matches)).toBe(theme === 'dark')
       await expect(home.locator('#guide-name')).not.toBeEmpty()
-      for (const view of ['overview', 'tools', 'connect']) {
+      for (const view of ['tabs', 'overview', 'tools', 'connect']) {
         await home.locator('[data-home-view="' + view + '"]').click()
         await expect(home.locator('#home-' + view)).toBeVisible()
         const capture = await captureWindow(app)
@@ -75,7 +75,6 @@ test('fresh profiles provide a workspace rail with reachable named actions acros
       await window.evaluate("window.hronautSettings.setTabPosition('left')")
       for (const [trigger, panel, name] of [
         ['.page-tools-button', '.page-tools-panel', 'page-tools'],
-        ['.tab-search-button', '.tab-search-panel', 'tab-overview'],
         ['.command-palette-button', '.command-palette', 'commands'],
         ['.new-workspace', '.workspace-editor', 'workspace-editor'],
         ['.settings-button', '.settings-dialog', 'settings']
@@ -174,13 +173,23 @@ test('every Home view remains accessible in light and dark', async ({ appWindow,
   await expect.poll(() => electronApp.context().pages().some(page => page.url().startsWith('hronaut://home'))).toBe(true)
   const home = electronApp.context().pages().find(page => page.url().startsWith('hronaut://home'))!
   await home.emulateMedia({ colorScheme: null })
+  // The Tabs view lists an open tab and a recently closed one.
+  await appWindow.evaluate(async () => {
+    const api = (window as unknown as { hronaut: HronautApi }).hronaut
+    // In the background, so Home stays the tab shown.
+    await api.newTab({ url: 'data:text/html,<title>Accessible open tab</title><main>Open</main>', active: false })
+    const before = await api.getState()
+    const state = await api.newTab({ url: 'data:text/html,<title>Accessible closed tab</title><main>Closed</main>', active: false })
+    await api.closeTab(state.tabs.find(tab => !before.tabs.some(known => known.id === tab.id))!.id)
+  })
   for (const theme of ['light', 'dark']) {
     await appWindow.evaluate(`window.hronautSettings.setTheme('${theme}')`)
     await expect.poll(() => home.evaluate(() => matchMedia('(prefers-color-scheme: dark)').matches)).toBe(theme === 'dark')
     await home.evaluate(axe.source)
-    for (const view of ['connect', 'overview', 'tools']) {
+    for (const view of ['tabs', 'connect', 'overview', 'tools']) {
       await home.locator('[data-home-view="' + view + '"]').click()
       if (view === 'tools') await home.locator('#tool-grid summary').first().click()
+      if (view === 'tabs') await expect(home.locator('#tab-results .tab-row.closed')).toHaveCount(1)
       const violations = await home.evaluate(async () => {
         const results = await (window as unknown as { axe: typeof axe }).axe.run(document, {
           runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] }

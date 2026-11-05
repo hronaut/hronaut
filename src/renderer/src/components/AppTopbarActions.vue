@@ -26,7 +26,6 @@ const props = defineProps<{
   interactionPending?: boolean
   audioPending?: boolean
   commandPaletteOpen: boolean
-  tabSearchOpen: boolean
   downloadsOpen: boolean
   historyOpen: boolean
   settingsOpen: boolean
@@ -47,7 +46,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   toggleCommandPalette: []
-  toggleTabSearch: []
+  /** Search tabs: Home's Tabs view, a tab rather than a panel, so the button has no open state. */
+  openHomeTabs: []
   toggleDownloads: []
   toggleHistory: []
   toggleAllTabsMuted: []
@@ -88,9 +88,8 @@ watch(() => props.licenseReminderShown, (shown) => {
       v-tooltip="t('shell.actions.searchTabsTitle')"
       :aria-label="t('shell.actions.searchTabs')"
       aria-keyshortcuts="Control+Shift+A Meta+Shift+A"
-      :aria-expanded="tabSearchOpen"
       @keydown="ignoreHeldEnter"
-      @click="emit('toggleTabSearch')"
+      @click="emit('openHomeTabs')"
     >
       <IconTabSearch aria-hidden="true" />
     </UiButton>

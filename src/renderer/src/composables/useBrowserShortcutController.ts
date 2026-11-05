@@ -47,7 +47,8 @@ export interface BrowserShortcutControllerOptions {
   toggleDownloads: ShortcutCallback
   /** The Task manager, as Chrome's Shift+Esc opens and closes it. */
   toggleTaskManager?: ShortcutCallback
-  toggleTabSearch: ShortcutCallback
+  /** Search tabs: Home's Tabs view, with its search field focused. */
+  openHomeTabs: ShortcutCallback
   openPrivacySettings: ShortcutCallback
   toggleCommandPalette: ShortcutCallback
   toggleElementPicker: ShortcutCallback
@@ -311,7 +312,7 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
         await options.toggleTaskManager?.()
         return
       case 'search-tabs':
-        await options.toggleTabSearch()
+        await options.openHomeTabs()
         return
       case 'clear-browsing-data':
         await options.openPrivacySettings()

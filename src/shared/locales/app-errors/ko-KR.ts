@@ -133,6 +133,7 @@ export const koKRAppErrors: AppErrorMessages = {
     archiveLimitUndo: 'Hronaut에는 보관처리된 작업 공간을 최대 {max}개까지만 유지할 수 있으므로 실행취소로 ‘{name}’을(를) 닫을 수 없습니다. 홈에서 보관처리된 작업 공간을 삭제한 후 다시 시도하세요.',
     protectedClose: '작업 공간 ‘{name}’은(는) 삭제 방지가 설정되어 있습니다. 먼저 작업 공간 설정에서 삭제 방지를 사용 중지하세요.',
     protectedDelete: '작업 공간 ‘{name}’은(는) 삭제 방지가 설정되어 있습니다. 먼저 홈에서 삭제 방지를 사용 중지하세요.',
+    deleteLocked: '작업 공간을 삭제하기 전에 모든 탭의 잠금을 해제하세요.',
     tabStillOpen: '작업 공간 ‘{name}’에 아직 열린 탭이 있어 닫지 않았습니다. 다시 시도하세요.',
     closeRollbackFailed: '작업 공간 ‘{name}’을(를) 닫을 수 없었고 모든 탭을 복원하지도 못했습니다. 복구할 수 있는 탭은 탭 검색에 남아 있습니다.',
     restoreTabLimit: '‘{name}’을(를) 복원하면 탭 한도 {max}개를 초과합니다.',

@@ -13,7 +13,6 @@ export interface NewTabShellControllerOptions {
   browser: NewTabBrowserApi
   syncState: (operation: Promise<BrowserState> | BrowserState) => Promise<void>
   settingsOpen: Ref<boolean>
-  tabSearchOpen: Ref<boolean>
   /** Starts asking for the address; the focus it returns gives way to an overlay the person opens meanwhile. */
   beginAddressFocus: () => (expectedActiveTabId: string) => Promise<unknown>
   expandTabGroup: (groupId: string) => void
@@ -23,7 +22,6 @@ export interface NewTabShellControllerOptions {
 export function useNewTabShellController(options: NewTabShellControllerOptions) {
   async function open(optionsForTab?: NewTabOptions, groupIdToExpand?: string): Promise<boolean> {
     options.settingsOpen.value = false
-    options.tabSearchOpen.value = false
     const focusAddress = options.beginAddressFocus()
 
     const operation = options.browser.newTab(optionsForTab)

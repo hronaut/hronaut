@@ -133,6 +133,7 @@ export const ptBRAppErrors: AppErrorMessages = {
     archiveLimitUndo: 'O Hronaut mantém no máximo {max} espaços de trabalho arquivados, então “{name}” não pode ser fechado com Desfazer. Exclua um espaço de trabalho arquivado no Início e tente novamente.',
     protectedClose: 'O espaço de trabalho “{name}” está protegido contra exclusão. Desative primeiro a proteção contra exclusão nas configurações do espaço de trabalho.',
     protectedDelete: 'O espaço de trabalho “{name}” está protegido contra exclusão. Desative primeiro a proteção contra exclusão no Início.',
+    deleteLocked: 'Desbloqueie todas as guias antes de excluir um espaço de trabalho.',
     tabStillOpen: 'O espaço de trabalho “{name}” ainda tem uma guia aberta, então não foi fechado. Tente novamente.',
     closeRollbackFailed: 'Não foi possível fechar o espaço de trabalho “{name}” nem restaurar todas as guias dele. As guias recuperáveis continuam na pesquisa de guias.',
     restoreTabLimit: 'Restaurar “{name}” excederia o limite de {max} guias.',

@@ -33,7 +33,7 @@ export const pageViewsHidden = readonly(pageViewsLeftScreen)
  * A closing overlay keeps the page views hidden while it plays its exit over
  * the page snapshot. An exit only keeps the page hidden behind a snapshot that
  * is already on screen, and once main withdraws that snapshot, such as for a
- * tab picked in Search tabs, the page returns at once instead of leaving an
+ * tab picked in the command palette, the page returns at once instead of leaving an
  * empty window under the fading overlay.
  */
 export const overlayExitHoldsPage = computed(() => holdingExits.size > 0)

@@ -37,7 +37,6 @@ export interface AppPanelFeatureControllerOptions {
     zoomOpen: Ref<boolean>
     downloadsOpen: Ref<boolean>
     historyOpen: Ref<boolean>
-    tabSearchOpen: Ref<boolean>
     updateNoticeOpen: Ref<boolean>
     findOpen: Ref<boolean>
     closeFind: () => Promise<void>
@@ -123,7 +122,6 @@ export function useAppPanelFeatureController(options: AppPanelFeatureControllerO
     zoomOpen: options.transient.zoomOpen,
     downloadsOpen: options.transient.downloadsOpen,
     historyOpen: options.transient.historyOpen,
-    tabSearchOpen: options.transient.tabSearchOpen,
     updateNoticeOpen: options.transient.updateNoticeOpen,
     findOpen: options.transient.findOpen,
     closeFind: options.transient.closeFind,

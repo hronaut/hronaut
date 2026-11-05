@@ -133,6 +133,7 @@ export const esESAppErrors: AppErrorMessages = {
     archiveLimitUndo: 'Hronaut conserva como máximo {max} espacios de trabajo archivados, así que «{name}» no se puede cerrar con opción de deshacer. Elimina un espacio de trabajo archivado en el inicio de Hronaut y vuelve a intentarlo.',
     protectedClose: 'El espacio de trabajo «{name}» está protegido contra eliminación. Primero desactiva la protección contra eliminación en la configuración del espacio de trabajo.',
     protectedDelete: 'El espacio de trabajo «{name}» está protegido contra eliminación. Primero desactiva la protección contra eliminación en el inicio de Hronaut.',
+    deleteLocked: 'Desbloquea todas las pestañas antes de eliminar un espacio de trabajo.',
     tabStillOpen: 'El espacio de trabajo «{name}» aún tiene una pestaña abierta, así que no se cerró. Vuelve a intentarlo.',
     closeRollbackFailed: 'No se pudo cerrar el espacio de trabajo «{name}» ni restaurar todas sus pestañas. Las pestañas recuperables siguen en la búsqueda de pestañas.',
     restoreTabLimit: 'Restaurar «{name}» superaría el límite de pestañas ({max}).',

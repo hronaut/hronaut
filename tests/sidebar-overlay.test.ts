@@ -67,7 +67,6 @@ function model(overrides: Partial<SidebarOverlayModel> = {}): SidebarOverlayMode
     },
     footer: {
       commandPaletteOpen: false,
-      tabSearchOpen: false,
       downloadsOpen: false,
       historyOpen: false,
       settingsOpen: false,
@@ -148,7 +147,6 @@ describe('sidebar overlay contracts', () => {
       { kind: 'switch-workspace' },
       { kind: 'stay-here' },
       { kind: 'toggle-rail-pinned' },
-      { kind: 'drag-start' },
       { kind: 'scroll', top: 120 },
       { kind: 'dismiss' },
       { kind: 'footer', action: 'command-palette' },

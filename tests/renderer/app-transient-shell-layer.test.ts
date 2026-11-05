@@ -8,14 +8,13 @@ function exposedStub(name: string, props: string[], exposed: Record<string, unkn
   return defineComponent({
     name,
     props,
-    emits: ['update:open', 'update:focused', 'new-tab', 'error'],
+    emits: ['update:open', 'update:focused', 'error'],
     setup(componentProps, { emit, expose }) {
       expose(exposed)
       return () => h('button', {
         'data-testid': name,
         onClick: () => {
           emit('update:open', false)
-          if (name === 'TabSearchPanel') emit('new-tab')
           if (name === 'ZoomBar') emit('error', new Error('zoom failed'))
         }
       }, JSON.stringify(componentProps))
@@ -25,7 +24,6 @@ function exposedStub(name: string, props: string[], exposed: Record<string, unkn
 
 function createHarness(options: { browser?: object; locale?: 'en-US' | 'uk-UA' } = {}) {
   const handles = {
-    tabSearch: { openPanel: vi.fn(async () => undefined), close: vi.fn() },
     find: { openForTab: vi.fn(async () => undefined), close: vi.fn(async () => undefined) },
     zoom: { openForTab: vi.fn(async () => undefined), close: vi.fn(), setZoom: vi.fn(async () => undefined) },
     workspace: { openExisting: vi.fn(async () => undefined), openNew: vi.fn(async () => undefined), close: vi.fn() },
@@ -42,7 +40,6 @@ function createHarness(options: { browser?: object; locale?: 'en-US' | 'uk-UA' }
   const syncState = vi.fn(async () => undefined)
   const selectTab = vi.fn(async () => undefined)
   const expandTabGroup = vi.fn()
-  const describeEmulation = vi.fn(() => 'Desktop')
   const formatNumber = vi.fn(String)
   const formatTime = vi.fn(String)
   const formatPercent = vi.fn(String)
@@ -52,13 +49,11 @@ function createHarness(options: { browser?: object; locale?: 'en-US' | 'uk-UA' }
   const runCommand = vi.fn()
   const reportCommandError = vi.fn()
   const reportZoomError = vi.fn()
-  const newTab = vi.fn()
   const searchTabs = vi.fn()
   const createWorkspace = vi.fn()
   const userAttention = { id: 'attention-1', workspaceId: 'workspace-1', reason: 'Sign in', requestedAt: '2026-10-16T00:00:00.000Z' }
   const wrapper = mount(AppTransientShellLayer, {
     props: {
-      tabSearchOpen: true,
       findOpen: true,
       zoomOpen: true,
       workspaceEditorOpen: true,
@@ -68,7 +63,6 @@ function createHarness(options: { browser?: object; locale?: 'en-US' | 'uk-UA' }
       state: state as never,
       activeTab: undefined,
       userAttention: userAttention as never,
-      mcpActivityByTab: {},
       credentials: [],
       collectionsController: { id: 'collections' } as never,
       activeUrl: null,
@@ -81,7 +75,6 @@ function createHarness(options: { browser?: object; locale?: 'en-US' | 'uk-UA' }
       syncState,
       selectTab,
       expandTabGroup,
-      describeEmulation,
       formatNumber,
       formatBytes: formatNumber,
       formatDateTime: formatTime,
@@ -94,17 +87,12 @@ function createHarness(options: { browser?: object; locale?: 'en-US' | 'uk-UA' }
       reportCommandError,
       openSettingsSection: vi.fn(),
       reportZoomError,
-      onNewTab: newTab,
       onSearchTabs: searchTabs,
       onCreateWorkspace: createWorkspace
     },
     global: {
       plugins: [createHronautI18n(options.locale ?? 'en-US')],
       stubs: {
-        TabSearchPanel: exposedStub('TabSearchPanel', [
-          'open', 'state', 'mcpActivityByTab', 'syncState', 'selectTab', 'expandTabGroup',
-          'describeEmulation', 'formatNumber', 'formatTime', 'formatError', 'showError'
-        ], handles.tabSearch),
         FindInPageBar: exposedStub('FindInPageBar', ['open', 'focused', 'activeTab', 'browser'], handles.find),
         ZoomBar: exposedStub('ZoomBar', ['open', 'activeTab', 'browser', 'acceptState', 'formatPercent'], handles.zoom),
         AppBrowserCollectionsLayer: exposedStub('AppBrowserCollectionsLayer', [
@@ -140,7 +128,6 @@ function createHarness(options: { browser?: object; locale?: 'en-US' | 'uk-UA' }
       syncState,
       selectTab,
       expandTabGroup,
-      describeEmulation,
       formatNumber,
       formatTime,
       formatPercent,
@@ -150,7 +137,6 @@ function createHarness(options: { browser?: object; locale?: 'en-US' | 'uk-UA' }
       runCommand,
       reportCommandError,
       reportZoomError,
-      newTab,
       searchTabs,
       createWorkspace,
       userAttention
@@ -181,14 +167,6 @@ describe('AppTransientShellLayer', () => {
     const harness = createHarness()
     const { wrapper, forwarded } = harness
 
-    expect(wrapper.findComponent({ name: 'TabSearchPanel' }).props()).toMatchObject({
-      open: true,
-      state: forwarded.state,
-      syncState: forwarded.syncState,
-      selectTab: forwarded.selectTab,
-      expandTabGroup: forwarded.expandTabGroup,
-      describeEmulation: forwarded.describeEmulation
-    })
     expect(wrapper.findComponent({ name: 'WorkspaceEditor' }).props()).toMatchObject({
       open: true,
       state: forwarded.state,
@@ -206,10 +184,7 @@ describe('AppTransientShellLayer', () => {
       reportCommandError: forwarded.reportCommandError
     })
 
-    await wrapper.find('[data-testid="TabSearchPanel"]').trigger('click')
     await wrapper.find('[data-testid="ZoomBar"]').trigger('click')
-    expect(wrapper.emitted('update:tabSearchOpen')?.at(-1)).toEqual([false])
-    expect(forwarded.newTab).toHaveBeenCalledOnce()
     expect(forwarded.reportZoomError).toHaveBeenCalledOnce()
   })
 
@@ -292,8 +267,6 @@ describe('AppTransientShellLayer', () => {
   it('exposes one stable imperative surface for all child handles', async () => {
     const { wrapper, handles } = createHarness()
     const surface = wrapper.vm as unknown as {
-      openTabSearch: () => Promise<void>
-      closeTabSearch: () => void
       openFindForTab: (tab: unknown, again?: 'next' | 'previous') => Promise<void>
       closeFind: () => Promise<void>
       openZoomForTab: (tab: unknown) => Promise<void>
@@ -309,8 +282,6 @@ describe('AppTransientShellLayer', () => {
     }
     const tab = { id: 'tab-1' }
 
-    await surface.openTabSearch()
-    surface.closeTabSearch()
     await surface.openFindForTab(tab)
     await surface.openFindForTab(tab, 'previous')
     await surface.closeFind()
@@ -325,8 +296,6 @@ describe('AppTransientShellLayer', () => {
     await surface.openCommandPalette()
     surface.closeCommandPalette()
 
-    expect(handles.tabSearch.openPanel).toHaveBeenCalledOnce()
-    expect(handles.tabSearch.close).toHaveBeenCalledOnce()
     // Find itself, then Find Previous.
     expect(handles.find.openForTab).toHaveBeenNthCalledWith(1, tab, undefined)
     expect(handles.find.openForTab).toHaveBeenNthCalledWith(2, tab, 'previous')

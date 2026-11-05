@@ -49,7 +49,6 @@ function createController() {
   const settingsOpen = ref(false)
   const updateNoticeOpen = ref(false)
   const zoomOpen = ref(true)
-  const tabSearchOpen = ref(true)
   const downloadsOpen = ref(false)
   const commandPaletteOpen = ref(false)
   const focusInput = vi.fn()
@@ -63,14 +62,13 @@ function createController() {
     settingsOpen,
     updateNoticeOpen,
     zoomOpen,
-    tabSearchOpen,
     otherSurfacesOpen: [downloadsOpen, commandPaletteOpen],
     runFindTransition: async (action) => { await action() },
     focusInput,
     expandTabGroup: vi.fn(),
     onWorkspaceError: vi.fn()
   })
-  return { created, settingsOpen, zoomOpen, tabSearchOpen, downloadsOpen, commandPaletteOpen, focusInput, controller }
+  return { created, settingsOpen, zoomOpen, downloadsOpen, commandPaletteOpen, focusInput, controller }
 }
 
 describe('useTabNavigationController', () => {
@@ -81,7 +79,6 @@ describe('useTabNavigationController', () => {
     harness.created.resolve(browserState('created', ['current', 'created']))
 
     await expect(opening).resolves.toBe(true)
-    expect(harness.tabSearchOpen.value).toBe(false)
     expect(harness.zoomOpen.value).toBe(false)
     expect(harness.focusInput).toHaveBeenCalledOnce()
   })

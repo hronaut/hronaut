@@ -1,7 +1,6 @@
 import type { BrowserSplitOrientation } from '../split-view.js'
 import type {
   BrowserState,
-  BrowserTabOverviewPreview,
   DroppedLinkTarget,
   McpTabActivity,
   NewTabOptions
@@ -18,12 +17,10 @@ export const TABS_IPC = {
   stateDrawn: 'browser:state-drawn' as SendChannel<[]>,
   /** Main → main window: what an agent is doing in a tab, for its activity in the tab strip. */
   mcpTabActivity: 'browser:mcp-tab-activity' as EventChannel<[activity: McpTabActivity]>,
-  /** Shell → main: small pictures of these tabs' pages, for the tab overview. */
-  getTabOverviewPreviews: 'browser:get-tab-overview-previews' as InvokeChannel<[tabIds: string[]], BrowserTabOverviewPreview[]>,
-  /** Shell → main: a larger picture of the tab's page, for the tab overview. */
-  getTabOverviewPagePreview: 'browser:get-tab-overview-page-preview' as InvokeChannel<[tabId: string], BrowserTabOverviewPreview>,
   /** Shell → main: opens Home. */
   openHome: 'browser:open-home' as InvokeChannel<[], BrowserState>,
+  /** Shell → main: opens Home's Tabs view with its search field focused, for Search tabs. */
+  openHomeTabs: 'browser:open-home-tabs' as InvokeChannel<[], BrowserState>,
   /** Shell → main: opens a new tab. */
   newTab: 'browser:new-tab' as InvokeChannel<[options: NewTabOptions], BrowserState>,
   /** Shell → main: reopens this closed tab, or the one closed last. */

@@ -4,7 +4,7 @@
     "src/main/index.ts": 1650,
     "src/main/mcp/http-server.ts": 854,
     "src/main/wallet/broker.ts": 884,
-    "src/renderer/src/App.vue": 1017
+    "src/renderer/src/App.vue": 1005
   },
   "accessFiles": [],
   "longLines": {
@@ -297,7 +297,6 @@
     "src/renderer/src/features/emulation/EmulationFrame.vue": 2,
     "src/renderer/src/features/emulation/EnvironmentPanel.vue": 25,
     "src/renderer/src/features/emulation/ResponsivePreviewPanel.vue": 10,
-    "src/renderer/src/features/emulation/useEmulationController.ts": 19,
     "src/renderer/src/features/emulation/useEnvironmentPanelController.ts": 2,
     "src/renderer/src/features/find/FindInPageBar.vue": 1,
     "src/renderer/src/features/help/HelpDialog.vue": 1,
@@ -330,11 +329,8 @@
     "src/renderer/src/features/split-view/useSplitViewResizeController.ts": 2,
     "src/renderer/src/features/tabs/BrowserTabRow.vue": 3,
     "src/renderer/src/features/tabs/BrowserTabsBar.vue": 9,
-    "src/renderer/src/features/tabs/TabLabelEditor.vue": 2,
-    "src/renderer/src/features/tabs/TabSearchPanel.vue": 21,
     "src/renderer/src/features/tabs/useTabLinkDrop.ts": 1,
     "src/renderer/src/features/tabs/useTabRailCollapseMotion.ts": 1,
-    "src/renderer/src/features/tabs/useTabSearchController.ts": 2,
     "src/renderer/src/features/task-manager/TaskManagerDialog.vue": 2,
     "src/renderer/src/features/video/VideoAudioEditor.vue": 8,
     "src/renderer/src/features/video/VideoMotionEditor.vue": 2,

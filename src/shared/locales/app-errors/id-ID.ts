@@ -133,6 +133,7 @@ export const idIDAppErrors: AppErrorMessages = {
     archiveLimitUndo: 'Hronaut menyimpan maksimal {max} ruang kerja yang diarsipkan, jadi "{name}" tidak dapat ditutup dengan opsi Urungkan. Hapus ruang kerja yang diarsipkan di Beranda, lalu coba lagi.',
     protectedClose: 'Ruang kerja "{name}" dilindungi dari penghapusan. Nonaktifkan perlindungan penghapusan di setelan ruang kerja terlebih dahulu.',
     protectedDelete: 'Ruang kerja "{name}" dilindungi dari penghapusan. Nonaktifkan perlindungan penghapusan di Beranda terlebih dahulu.',
+    deleteLocked: 'Buka kunci semua tab sebelum menghapus ruang kerja.',
     tabStillOpen: 'Ruang kerja "{name}" masih memiliki tab yang terbuka, jadi tidak ditutup. Coba lagi.',
     closeRollbackFailed: 'Ruang kerja "{name}" tidak dapat ditutup dan tidak semua tab-nya dapat dipulihkan. Tab yang dapat dipulihkan tetap ada di penelusuran tab.',
     restoreTabLimit: 'Memulihkan "{name}" akan melebihi batas {max} tab.',

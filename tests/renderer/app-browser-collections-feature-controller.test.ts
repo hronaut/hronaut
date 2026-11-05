@@ -96,7 +96,6 @@ function createHarness(bookmarkAllTabsOptions: Pick<AppBrowserCollectionsFeature
     onUpdated: vi.fn(() => () => undefined)
   }
   const settingsOpen = ref(true)
-  const tabSearchOpen = ref(true)
   const browserState = {} as BrowserState
   const newTabResult = Promise.resolve(browserState)
   const newTab = vi.fn(() => newTabResult)
@@ -110,7 +109,6 @@ function createHarness(bookmarkAllTabsOptions: Pick<AppBrowserCollectionsFeature
     bookmarksApi,
     historyApi,
     settingsOpen,
-    tabSearchOpen,
     syncState,
     ...bookmarkAllTabsOptions
   })
@@ -118,7 +116,6 @@ function createHarness(bookmarkAllTabsOptions: Pick<AppBrowserCollectionsFeature
   return {
     controller,
     settingsOpen,
-    tabSearchOpen,
     listDownloads,
     newTab,
     newTabResult,
@@ -202,7 +199,6 @@ describe('useAppBrowserCollectionsFeatureController', () => {
     expect(bookmarksToggle).toHaveBeenCalledOnce()
     expect(harness.controller.downloadsOpen.value).toBe(false)
     expect(harness.controller.historyOpen.value).toBe(false)
-    expect(harness.tabSearchOpen.value).toBe(false)
 
     const entry = bookmark('docs')
     await harness.controller.openBookmark(entry)
@@ -234,7 +230,6 @@ describe('useAppBrowserCollectionsFeatureController', () => {
     expect(bookmarkAllTabs).toHaveBeenLastCalledWith('client', 'Client A')
     expect(harness.settingsOpen.value).toBe(false)
     expect(harness.controller.historyOpen.value).toBe(false)
-    expect(harness.tabSearchOpen.value).toBe(false)
     // A tab's menu names its workspace, or none.
     await harness.controller.bookmarkAllTabs('client')
     expect(bookmarkAllTabs).toHaveBeenLastCalledWith('client', 'Client A')

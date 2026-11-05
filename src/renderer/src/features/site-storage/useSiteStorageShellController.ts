@@ -14,7 +14,6 @@ export interface SiteStorageShellControllerOptions {
   downloadsOpen: Ref<boolean>
   bookmarksOpen: Ref<boolean>
   historyOpen: Ref<boolean>
-  tabSearchOpen: Ref<boolean>
   zoomOpen: Ref<boolean>
   addressSuggestionsOpen: Ref<boolean>
 }
@@ -52,7 +51,6 @@ export function useSiteStorageShellController(options: SiteStorageShellControlle
     options.downloadsOpen.value = false
     options.bookmarksOpen.value = false
     options.historyOpen.value = false
-    options.tabSearchOpen.value = false
     options.zoomOpen.value = false
     options.addressSuggestionsOpen.value = false
 

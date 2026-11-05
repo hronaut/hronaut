@@ -3,6 +3,7 @@ import type { AddressInfo } from 'node:net'
 import type { ElectronApplication, Page } from '@playwright/test'
 import type { BrowserState } from '../../src/shared/types.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
+import { activeTabUrl, homePage, tabsViewOf } from './home-tabs-view.js'
 
 const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control'
 
@@ -108,13 +109,15 @@ test('switches, finds and restores workspaces from the rail, Ctrl/Cmd+K and the 
     await expect(switcher).toBeVisible()
     await expect(palette).toHaveCount(0)
 
-    // Its footer hands off to tab search.
+    // Its footer hands off to Home's Tabs view, and Escape there goes back to the page.
+    const shownBefore = await activeTabUrl(appWindow)
     await switcher.getByRole('button', { name: 'Search tabs', exact: true }).click()
     await expect(switcher).toHaveCount(0)
-    const tabs = appWindow.getByRole('dialog', { name: 'Tabs', exact: true })
-    await expect(tabs).toBeVisible()
-    await appWindow.keyboard.press('Escape')
-    await expect(tabs).toHaveCount(0)
+    const tabsView = tabsViewOf(await homePage(electronApp))
+    await expect(tabsView.view).toBeVisible()
+    await expect(tabsView.search).toBeFocused()
+    await tabsView.home.keyboard.press('Escape')
+    await expect.poll(() => activeTabUrl(appWindow)).toBe(shownBefore)
 
     // On Hronaut's Home page, Ctrl/Cmd+K is the switcher's.
     await appWindow.evaluate("window.hronaut.newTab({ url: 'hronaut://home/', active: true })")

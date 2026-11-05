@@ -44,7 +44,6 @@ export interface SidebarOverlayModelInputs {
   describeEmulation: (tab: BrowserTabState) => string
   footer: {
     commandPaletteOpen: boolean
-    tabSearchOpen: boolean
     downloadsOpen: boolean
     historyOpen: boolean
     settingsOpen: boolean
@@ -165,7 +164,6 @@ export function sidebarOverlayModel(inputs: SidebarOverlayModelInputs): SidebarO
     },
     footer: {
       commandPaletteOpen: footer.commandPaletteOpen,
-      tabSearchOpen: footer.tabSearchOpen,
       downloadsOpen: footer.downloadsOpen,
       historyOpen: footer.historyOpen,
       settingsOpen: footer.settingsOpen,

@@ -165,7 +165,7 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
       browser.pageShortcutKey = { code: input.code, webContentsId: webContents.id }
     }
     browser.reproRecorder.observeReproKeyboard(tab, input)
-    // The overview shows the page as it was last seen, after the latest typing settles.
+    // Home's Tabs view shows the page as it was last seen, after the latest typing settles.
     if (input.type === 'keyUp') scheduleTabOverviewPreview(browser, tab, TAB_OVERVIEW_INPUT_SETTLE_MS)
     if ((input.type === 'keyDown' || input.type === 'rawKeyDown') && !expectedAgentInput) {
       tab.humanInteractionGeneration += 1

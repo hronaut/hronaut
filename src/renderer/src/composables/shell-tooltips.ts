@@ -56,7 +56,7 @@ export function installShellTooltips(port: ShellTooltipPort, root: Document = do
   // Where the pointer is in this document; null while it is elsewhere, such as over the page, or not known yet.
   let pointerAt: { x: number; y: number } | null = null
   // After a click, a key press or a shortcut, no control shows its tooltip until the pointer moves: a panel that opens
-  // under the resting pointer, such as Search tabs, would otherwise show the tooltip of whatever lands beneath it.
+  // under the resting pointer, such as the command palette, would otherwise show the tooltip of whatever lands beneath it.
   // `at` is where the pointer rests, or null until it first shows up here when it rested elsewhere.
   let held: { at: { x: number; y: number } | null } | null = null
   let shownId = 0

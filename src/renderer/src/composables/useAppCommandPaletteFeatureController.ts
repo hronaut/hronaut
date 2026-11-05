@@ -57,7 +57,7 @@ type SiteCommands = Pick<
 export interface AppCommandPaletteBrowserCommands {
   openHome: () => unknown
   runShortcut: (action: BrowserShortcutAction) => unknown
-  toggleTabSearch: () => unknown
+  openHomeTabs: () => unknown
   openFind: () => unknown
   togglePageTools: () => unknown
   toggleDeveloperTools: () => unknown
@@ -99,7 +99,7 @@ export function useAppCommandPaletteFeatureController<
     actions: {
       home: options.browser.openHome,
       'new-tab': () => options.browser.runShortcut('new-tab'),
-      'search-tabs': options.browser.toggleTabSearch,
+      'search-tabs': options.browser.openHomeTabs,
       'switch-workspace': () => options.browser.runShortcut('switch-workspace'),
       downloads: options.collections.toggleDownloads,
       bookmarks: options.collections.toggleBookmarks,

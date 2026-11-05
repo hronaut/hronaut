@@ -17,7 +17,6 @@ function createController() {
   const downloadsOpen = ref(false)
   const bookmarksOpen = ref(false)
   const historyOpen = ref(false)
-  const tabSearchOpen = ref(true)
   const bookmarksPanel = ref({
     toggle: vi.fn(async () => { bookmarksOpen.value = !bookmarksOpen.value }),
     toggleCurrent: vi.fn(async () => { bookmarksOpen.value = true }),
@@ -33,7 +32,6 @@ function createController() {
     downloadsOpen,
     bookmarksOpen,
     historyOpen,
-    tabSearchOpen,
     bookmarksPanel,
     historyPanel,
     refreshDownloads,
@@ -44,7 +42,6 @@ function createController() {
     downloadsOpen,
     bookmarksOpen,
     historyOpen,
-    tabSearchOpen,
     bookmarksPanel,
     historyPanel,
     refreshDownloads,
@@ -141,19 +138,16 @@ describe('useBrowserCollectionsShellController', () => {
     expect(harness.settingsOpen.value).toBe(false)
     expect(harness.downloadsOpen.value).toBe(false)
     expect(harness.historyOpen.value).toBe(false)
-    expect(harness.tabSearchOpen.value).toBe(false)
     expect(harness.bookmarksPanel.value.toggle).toHaveBeenCalledOnce()
 
     harness.settingsOpen.value = true
     harness.downloadsOpen.value = true
     harness.bookmarksOpen.value = true
-    harness.tabSearchOpen.value = true
     await harness.controller.toggleVisitHistory()
 
     expect(harness.settingsOpen.value).toBe(false)
     expect(harness.downloadsOpen.value).toBe(false)
     expect(harness.bookmarksOpen.value).toBe(false)
-    expect(harness.tabSearchOpen.value).toBe(false)
     expect(harness.historyPanel.value.toggle).toHaveBeenCalledOnce()
   })
 
@@ -180,7 +174,6 @@ describe('useBrowserCollectionsShellController', () => {
     expect(harness.settingsOpen.value).toBe(false)
     expect(harness.downloadsOpen.value).toBe(false)
     expect(harness.historyOpen.value).toBe(false)
-    expect(harness.tabSearchOpen.value).toBe(false)
     expect(harness.bookmarksPanel.value.bookmarkAllTabs).toHaveBeenCalledExactlyOnceWith('client', 'Client A')
   })
 
@@ -194,7 +187,6 @@ describe('useBrowserCollectionsShellController', () => {
     expect(harness.settingsOpen.value).toBe(true)
     expect(harness.downloadsOpen.value).toBe(false)
     expect(harness.historyOpen.value).toBe(false)
-    expect(harness.tabSearchOpen.value).toBe(false)
     expect(harness.bookmarksPanel.value.toggleCurrent).toHaveBeenCalledOnce()
   })
 

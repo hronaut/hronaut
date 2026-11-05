@@ -22,7 +22,6 @@ export interface AppSiteManagementFeatureControllerOptions {
   downloadsOpen: Ref<boolean>
   bookmarksOpen: Ref<boolean>
   historyOpen: Ref<boolean>
-  tabSearchOpen: Ref<boolean>
   zoomOpen: Ref<boolean>
   addressSuggestionsOpen: Ref<boolean>
   findOpen: Ref<boolean>
@@ -49,7 +48,6 @@ export function useAppSiteManagementFeatureController(
     downloadsOpen: options.downloadsOpen,
     bookmarksOpen: options.bookmarksOpen,
     historyOpen: options.historyOpen,
-    tabSearchOpen: options.tabSearchOpen,
     zoomOpen: options.zoomOpen,
     addressSuggestionsOpen: options.addressSuggestionsOpen
   })
@@ -60,7 +58,6 @@ export function useAppSiteManagementFeatureController(
     downloadsOpen: options.downloadsOpen,
     bookmarksOpen: options.bookmarksOpen,
     historyOpen: options.historyOpen,
-    tabSearchOpen: options.tabSearchOpen,
     zoomOpen: options.zoomOpen,
     addressSuggestionsOpen: options.addressSuggestionsOpen,
     findOpen: options.findOpen,
@@ -79,7 +76,6 @@ export function useAppSiteManagementFeatureController(
     downloadsOpen: options.downloadsOpen,
     bookmarksOpen: options.bookmarksOpen,
     historyOpen: options.historyOpen,
-    tabSearchOpen: options.tabSearchOpen,
     zoomOpen: options.zoomOpen,
     addressSuggestionsOpen: options.addressSuggestionsOpen,
     findOpen: options.findOpen,
@@ -95,7 +91,6 @@ export function useAppSiteManagementFeatureController(
     settingsEntryBlocked: options.settingsEntryBlocked,
     closeHelp: options.closeHelp,
     closeTransientCollections: () => {
-      options.tabSearchOpen.value = false
       options.downloadsOpen.value = false
       options.bookmarksOpen.value = false
       options.historyOpen.value = false

@@ -3,7 +3,8 @@ import { localeMessages } from '../../shared/i18n.js'
 import type { HomeBootstrap, HomePageOptions } from '../../shared/home.js'
 
 export function homeBootstrap(options: HomePageOptions): HomeBootstrap {
-  return { locale: options.locale, guides: clientConfigurations({ ...options, platform: options.platform ?? process.platform }),
+  const platform = options.platform ?? process.platform
+  return { locale: options.locale, platform, guides: clientConfigurations({ ...options, platform }),
     messages: localeMessages[options.locale], dashboard: options.initialState,
     workspaces: options.workspaces ?? { mcpTabGroups: [], savedTabGroups: [], tabs: [], activeTabId: null, allHumanInteractionLocked: false } }
 }
@@ -14,6 +15,7 @@ export function renderHomePage(options: HomePageOptions, assets = { script: '/ho
   const data = homeBootstrap(options)
   const home = data.messages.home
   const library = data.messages.workspaceLibrary
+  const tabs = data.messages.tabSearch
   const h = escapeHtml
   const copy = (target: string, label = home.connect.copy): string => `<button class="copy-button" type="button" data-copy-target="${target}">${h(label)}</button>`
   const securityNote = options.authenticationDisabled ? home.security.disabled : options.tokenPath ? home.security.tokenFile.replace('{path}', options.tokenPath) : home.security.tokenEnvironment
@@ -30,7 +32,22 @@ export function renderHomePage(options: HomePageOptions, assets = { script: '/ho
 <p id="onboarding-claude" class="onboarding-claude" hidden><span>${h(home.connect.claudeSetup.firstRun)}</span><button type="button" id="onboarding-claude-setup">${h(home.connect.claudeSetup.action)}</button></p><ol><li id="onboarding-client">${h(home.journey.setup)}</li><li id="onboarding-connection">${h(home.connect.verify)}</li><li id="onboarding-probe">${h(home.firstRun.heading)}</li><li>${h(data.messages.workspaceEditor.create)}</li></ol>
 <button class="workspace-primary" type="button" data-open-view="connect">${h(home.connect.heading)}</button></section>
 <nav class="home-navigation" role="tablist" aria-label="${h(home.navigation.label)}">
-${(['workspaces', 'connect', 'overview', 'tools'] as const).map((view, index) => `<button id="home-tab-${view}" type="button" role="tab" data-home-view="${view}" ${view === 'connect' ? 'data-open-setup' : ''} aria-selected="${index === 0}" tabindex="${index === 0 ? 0 : -1}" aria-controls="home-${view}">${h(view === 'workspaces' ? library.title : home.navigation[view])}</button>`).join('')}</nav>
+${(['tabs', 'workspaces', 'connect', 'overview', 'tools'] as const).map(view => `<button id="home-tab-${view}" type="button" role="tab" data-home-view="${view}" ${view === 'connect' ? 'data-open-setup' : ''} aria-selected="${view === 'workspaces'}" tabindex="${view === 'workspaces' ? 0 : -1}" aria-controls="home-${view}">${h(view === 'tabs' ? tabs.heading : view === 'workspaces' ? library.title : home.navigation[view])}</button>`).join('')}</nav>
+<section id="home-tabs" class="home-view" role="tabpanel" aria-labelledby="home-tab-tabs" hidden><div id="tabs-browse">
+<div class="tabs-toolbar"><div class="tabs-search"><label class="visually-hidden"
+for="tab-search">${h(tabs.search)}</label><input id="tab-search" type="search" role="searchbox" autocomplete="off" spellcheck="false"
+placeholder="${h(tabs.placeholder)}" aria-controls="tab-results"
+aria-describedby="tab-search-status"><kbd id="tab-search-keys"></kbd></div><button type="button"
+id="tabs-new-tab" class="workspace-primary">${h(tabs.newTab)}</button></div>
+<div class="workspace-collections tab-kinds" role="tablist" aria-label="${h(tabs.resultType)}">${([['all', tabs.allResults], ['open', tabs.openTabs],
+['closed', tabs.recentlyClosed], ['saved', tabs.archived]] as const)
+.map(([kind, label]) => `<button id="tab-kind-${kind}" type="button" role="tab" aria-selected="${kind === 'all'}"
+tabindex="${kind === 'all' ? 0 : -1}" aria-controls="tab-results">${h(label)}</button>`).join('')}</div>
+<p id="tab-search-status" class="visually-hidden" role="status" aria-live="polite"></p><p id="tabs-error" class="tabs-error" role="alert" hidden></p>
+<div id="tab-results" class="tab-results" role="tabpanel" aria-labelledby="tab-kind-all"></div>
+<footer class="tabs-hints"><span><kbd>↑</kbd><kbd>↓</kbd> ${h(tabs.navigate)}</span><span><kbd>Enter</kbd> ${h(tabs.open)}</span><span id="tabs-hint-back"
+hidden><kbd>Esc</kbd> <span id="tabs-hint-back-text"></span></span></footer></div>
+<section id="tab-page-preview" class="tab-page-preview" aria-label="${h(tabs.pagePreview)}" hidden></section></section>
 <section id="home-workspaces" class="home-view" role="tabpanel" aria-labelledby="home-tab-workspaces">
 <div class="workspace-toolbar"><label class="search-field"><span class="visually-hidden">${h(library.search)}</span><input id="workspace-search" type="search" autocomplete="off" placeholder="${h(library.search)}" aria-controls="workspace-grid"></label><button type="button" class="workspace-primary" data-workspace-action="create">${h(data.messages.workspaceEditor.create)}</button><button type="button" data-workspace-action="templates">${h(data.messages.workspaceTemplates.title)}</button></div>
 <div class="workspace-feedback"><p id="workspace-notice" role="status"></p><button id="workspace-undo" type="button" hidden>${h(data.messages.undo.action)}</button></div><p id="workspace-error" role="alert" hidden></p>

@@ -20,7 +20,6 @@ function createHarness() {
     siteControls: ref(false),
     addressSuggestions: ref(false),
     find: ref(false),
-    tabSearch: ref(false),
     splitMenu: ref(false),
     zoom: ref(false),
     updateNotice: ref(false),
@@ -86,7 +85,6 @@ function createHarness() {
       siteControls: surfaces.siteControls,
       addressSuggestions: surfaces.addressSuggestions,
       find: { open: surfaces.find, close: actions.closeFind },
-      tabSearch: surfaces.tabSearch,
       splitMenu: surfaces.splitMenu,
       zoom: surfaces.zoom,
       updateNotice: surfaces.updateNotice
@@ -399,34 +397,19 @@ describe('useAppShellKeyboardFeatureController', () => {
     expect(surfaces.agentSteps.value).toBe(false)
   })
 
-  it('keeps browser shortcuts behind the modal tab overview and closes it with Escape', () => {
+  // Search tabs opens Home's Tabs view, a tab rather than a modal, so its key runs as any browser shortcut does.
+  it('runs Search tabs from Ctrl/Cmd+Shift+A, and keeps it behind a modal as other shortcuts', () => {
     const { controller, surfaces, actions } = createHarness()
-    surfaces.tabSearch.value = true
-    const shortcut = new KeyboardEvent('keydown', {
-      key: 'l', ctrlKey: true, cancelable: true
-    })
-    const escape = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true })
+    const shortcut = () => new KeyboardEvent('keydown', { key: 'a', ctrlKey: true, shiftKey: true, cancelable: true })
 
-    controller.handleKeyDown(shortcut)
-    expect(actions.runShortcut).not.toHaveBeenCalled()
-    expect(surfaces.tabSearch.value).toBe(true)
+    const pressed = shortcut()
+    controller.handleKeyDown(pressed)
+    expect(pressed.defaultPrevented).toBe(true)
+    expect(actions.runShortcut).toHaveBeenCalledExactlyOnceWith('search-tabs')
 
-    controller.handleKeyDown(escape)
-    expect(escape.defaultPrevented).toBe(true)
-    expect(surfaces.tabSearch.value).toBe(false)
-  })
-
-  it('lets the Search tabs shortcut toggle its own modal closed', () => {
-    const { controller, surfaces, actions } = createHarness()
-    surfaces.tabSearch.value = true
-    const shortcut = new KeyboardEvent('keydown', {
-      key: 'a', ctrlKey: true, shiftKey: true, cancelable: true
-    })
-
-    controller.handleKeyDown(shortcut)
-
-    expect(shortcut.defaultPrevented).toBe(true)
-    expect(surfaces.tabSearch.value).toBe(false)
-    expect(actions.runShortcut).not.toHaveBeenCalled()
+    surfaces.commandPalette.value = true
+    controller.handleKeyDown(shortcut())
+    expect(actions.runShortcut).toHaveBeenCalledOnce()
+    expect(surfaces.commandPalette.value).toBe(true)
   })
 })

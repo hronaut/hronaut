@@ -51,7 +51,8 @@ export interface AppBrowserChromeLayerActions {
   showAgentSteps?: (clientKey: string, workspaceId: string) => unknown
   toggleCommandPalette: () => unknown
   toggleWorkspaceSwitcher: () => unknown
-  toggleTabSearch: () => unknown
+  /** Search tabs: Home's Tabs view, with its search field focused. */
+  openHomeTabs: () => unknown
   openFind: () => unknown
   toggleZoom: () => unknown
   togglePageTools: () => unknown
@@ -93,7 +94,6 @@ const props = defineProps<{
 }>()
 
 const commandPaletteOpen = defineModel<boolean>('commandPaletteOpen', { required: true })
-const tabSearchOpen = defineModel<boolean>('tabSearchOpen', { required: true })
 const zoomOpen = defineModel<boolean>('zoomOpen', { required: true })
 const siteControlsOpen = defineModel<boolean>('siteControlsOpen', { required: true })
 const splitMenuOpen = defineModel<boolean>('splitMenuOpen', { required: true })
@@ -244,16 +244,12 @@ function expandTabGroupForTab(tab: BrowserTabState): void {
 
 function selectTab(tabId: string): void {
   settingsDialogController.close()
-  tabSearchOpen.value = false
   void props.runAction(() => selectBrowserTab(tabId))
 }
 
 function dropLink(details: { text: string; target: DroppedLinkTarget }): void {
-  // A link that opens in a new tab shows that tab, as selecting one does, so Settings and tab search close for it.
-  if (!('tabId' in details.target) || details.target.placement !== 'onto') {
-    settingsDialogController.close()
-    tabSearchOpen.value = false
-  }
+  // A link that opens in a new tab shows that tab, as selecting one does, so Settings closes for it.
+  if (!('tabId' in details.target) || details.target.placement !== 'onto') settingsDialogController.close()
   void props.runAction(() => props.syncState(props.browser.dropLink(details.text, details.target)))
 }
 
@@ -269,17 +265,16 @@ function setAgentPaused(tabId: string, paused: boolean): void {
 
 // Taking over pauses agents on the tab first, so none of their steps lands after you start, and tells
 // them you have control until you hand the tab back.
-// Whatever you chose meanwhile wins: another take over, another tab, tab search or Settings.
+// Whatever you chose meanwhile wins: another take over, another tab, Home included, or Settings.
 let takeOverGeneration = 0
 function takeOverTab(tabId: string): void {
   const generation = ++takeOverGeneration
-  const before = { tabId: activeTab.value?.id, tabSearch: tabSearchOpen.value, settings: settingsOpen.value }
+  const before = { tabId: activeTab.value?.id, settings: settingsOpen.value }
   void props.runAction(async () => {
     const paused = await setTabAgentPaused(tabId, true, { takeOver: true })
     if (!paused || generation !== takeOverGeneration || activeTab.value?.id !== before.tabId
-      || (tabSearchOpen.value && !before.tabSearch) || (settingsOpen.value && !before.settings)) return
+      || (settingsOpen.value && !before.settings)) return
     settingsDialogController.close()
-    tabSearchOpen.value = false
     await selectBrowserTab(tabId)
   })
 }
@@ -355,10 +350,6 @@ watch(props.fullPage.enabled, (enabled) => {
   })
 })
 
-function startTabDrag(): void {
-  tabSearchOpen.value = false
-}
-
 // With the rail collapsed when not in use, the pointer opens it over the page in main's own view; this rail stays
 // folded, so the page keeps its place. What the person does there runs here, as a click in this rail would.
 const topbar = ref<HTMLElement | null>(null)
@@ -383,7 +374,6 @@ useChromeSidebarOverlay({
     describeEmulation: describeTabEmulation,
     footer: {
       commandPaletteOpen: commandPaletteOpen.value && !props.workspaceSwitcherOpen,
-      tabSearchOpen: tabSearchOpen.value,
       downloadsOpen: downloadsOpen.value,
       historyOpen: historyOpen.value,
       settingsOpen: settingsOpen.value,
@@ -420,12 +410,11 @@ useChromeSidebarOverlay({
     toggleWorkspaceSwitcher: () => props.actions.toggleWorkspaceSwitcher(),
     stayHere: () => setFollowAgentActivity(false),
     toggleRailPinned: toggleVerticalTabRailPinned,
-    startTabDrag,
     scrollTabList: (top) => browserTabsBar.value?.scrollTabListTo?.(top),
     closeRail: () => setVerticalTabRailRevealed(false),
     footer: {
       'command-palette': () => props.actions.toggleCommandPalette(),
-      'tab-search': () => props.actions.toggleTabSearch(),
+      'tab-search': () => props.actions.openHomeTabs(),
       downloads: toggleDownloads,
       history: toggleVisitHistory,
       'all-tabs-muted': toggleAllTabsMuted,
@@ -532,14 +521,12 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFrom
         @drop-link="dropLink"
         @toggle-tab-muted="runAction(() => toggleTabMuted($event))"
         @close-tab="runAction(() => closeTab($event))"
-        @drag-start="startTabDrag"
         @toggle-rail-pinned="toggleVerticalTabRailPinned"
         @switch-workspace="runAction(actions.toggleWorkspaceSwitcher)"
       />
       <AppTopbarActions
         :inert="verticalTabRailCollapsing"
         :command-palette-open="commandPaletteOpen && !workspaceSwitcherOpen"
-        :tab-search-open="tabSearchOpen"
         :downloads-open="downloadsOpen"
         :history-open="historyOpen"
         :settings-open="settingsOpen"
@@ -558,7 +545,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFrom
         :update-state="updateState"
         :mcp-status-controller="mcpStatusController"
         @toggle-command-palette="runAction(actions.toggleCommandPalette)"
-        @toggle-tab-search="runAction(actions.toggleTabSearch)"
+        @open-home-tabs="runAction(actions.openHomeTabs)"
         @toggle-downloads="runAction(toggleDownloads)"
         @toggle-history="runAction(toggleVisitHistory)"
         @toggle-all-tabs-muted="runAction(toggleAllTabsMuted)"

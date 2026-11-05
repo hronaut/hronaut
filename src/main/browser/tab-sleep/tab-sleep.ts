@@ -551,7 +551,7 @@ export async function putTabToSleep(browser: Browser, tab: BrowserTab, reportBlo
     return false
   }
   tab.sleepNavigationHistory = browser.navigationHistorySnapshot(tab)
-  // The overview keeps showing the page as it was; the frame is dropped when the tab wakes or closes.
+  // Home's Tabs view keeps showing the page as it was; the frame is dropped when the tab wakes or closes.
   const lastFrame = browser.tabOverviewPreviews.get(tab.id)
   if (lastFrame?.navigationGeneration === tab.navigationGeneration) browser.tabOverviewSleepPreviews.set(tab.id, lastFrame)
   else browser.tabOverviewSleepPreviews.delete(tab.id)

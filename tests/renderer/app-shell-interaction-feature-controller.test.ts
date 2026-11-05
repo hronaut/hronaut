@@ -77,7 +77,6 @@ function createHarness(extraNavigation: {
     workspaceEditor: ref(false),
     find: ref(false),
     zoom: ref(false),
-    tabSearch: ref(false),
     commandPalette: ref(false)
   }
   const closeSettings = vi.fn(() => { refs.settings.value = false })
@@ -91,6 +90,7 @@ function createHarness(extraNavigation: {
   const reportShortcutError = vi.fn()
   const browser = {
     openHome: vi.fn(async () => state.value),
+    openHomeTabs: vi.fn(async () => state.value),
     newTab: vi.fn(async () => state.value),
     closeTab: vi.fn(async () => state.value),
     closeTabs: vi.fn(async () => state.value),
@@ -165,10 +165,8 @@ function createHarness(extraNavigation: {
       workspaceEditorOpen: refs.workspaceEditor,
       findOpen: refs.find,
       zoomOpen: refs.zoom,
-      tabSearchOpen: refs.tabSearch,
       commandPaletteOpen: refs.commandPalette,
       commandPaletteView: ref<'commands' | 'workspaces'>('commands'),
-      tabSearchPanel: computed(() => null),
       zoomBar: computed(() => null),
       commandPalettePanel: computed(() => null),
       agentStepsOpen: refs.agentSteps,
@@ -266,6 +264,29 @@ describe('app shell interaction feature controller', () => {
     harness.controller.dispose()
   })
 
+  it('opens Home\'s Tabs view from the Search tabs shortcut and command, closing what covers Home', async () => {
+    const harness = createHarness()
+    harness.refs.settings.value = true
+    harness.refs.updateNotice.value = true
+    harness.refs.zoom.value = true
+
+    await expect(harness.controller.runBrowserShortcut('search-tabs')).resolves.toBe(true)
+
+    expect(harness.browser.openHomeTabs).toHaveBeenCalledOnce()
+    expect(harness.syncState).toHaveBeenCalledOnce()
+    expect(harness.refs.settings.value).toBe(false)
+    expect(harness.refs.updateNotice.value).toBe(false)
+    expect(harness.refs.zoom.value).toBe(false)
+
+    harness.refs.commandPalette.value = true
+    await harness.controller.runCommandPaletteCommand('search-tabs')
+
+    expect(harness.browser.openHomeTabs).toHaveBeenCalledTimes(2)
+    expect(harness.syncState).toHaveBeenCalledTimes(2)
+    expect(harness.browser.openHome).not.toHaveBeenCalled()
+    harness.controller.dispose()
+  })
+
   it('routes command-palette browser commands through the shared shortcut controller', async () => {
     const harness = createHarness()
 
@@ -344,12 +365,12 @@ describe('app shell interaction feature controller', () => {
   })
 
   it('goes to the next or previous match of Find by shortcut, but not over an open dialog', async () => {
-    // Ctrl/Cmd+G reaches the menu from a dialog, which leaves it alone; with Tab search or a wallet approval open, it
+    // Ctrl/Cmd+G reaches the menu from a dialog, which leaves it alone; with the palette or a wallet approval open, it
     // opened Find behind the dialog where Ctrl/Cmd+F does nothing.
     const harness = createHarness()
     await expect(harness.controller.runBrowserShortcut('find-next')).resolves.toBe(true)
     await expect(harness.controller.runBrowserShortcut('find-previous')).resolves.toBe(true)
-    for (const dialog of ['commandPalette', 'workspaceEditor', 'credentialPicker', 'tabSearch', 'help', 'releaseHistory', 'taskManager', 'qrCode', 'agentSteps', 'walletApproval', 'settings'] as const) {
+    for (const dialog of ['commandPalette', 'workspaceEditor', 'credentialPicker', 'help', 'releaseHistory', 'taskManager', 'qrCode', 'agentSteps', 'walletApproval', 'settings'] as const) {
       harness.refs[dialog].value = true
       await expect(harness.controller.runBrowserShortcut('find-next'), dialog).resolves.toBe(false)
       await expect(harness.controller.runBrowserShortcut('find-previous'), dialog).resolves.toBe(false)
@@ -363,7 +384,7 @@ describe('app shell interaction feature controller', () => {
     const harness = createHarness()
     await expect(harness.controller.runBrowserShortcut('task-manager')).resolves.toBe(true)
     expect(harness.toggleTaskManager).toHaveBeenCalledOnce()
-    for (const dialog of ['commandPalette', 'workspaceEditor', 'credentialPicker', 'tabSearch', 'help', 'releaseHistory', 'qrCode', 'agentSteps', 'walletApproval', 'trustedDialog', 'settings'] as const) {
+    for (const dialog of ['commandPalette', 'workspaceEditor', 'credentialPicker', 'help', 'releaseHistory', 'qrCode', 'agentSteps', 'walletApproval', 'trustedDialog', 'settings'] as const) {
       harness.refs[dialog].value = true
       await expect(harness.controller.runBrowserShortcut('task-manager'), dialog).resolves.toBe(false)
       harness.refs[dialog].value = false

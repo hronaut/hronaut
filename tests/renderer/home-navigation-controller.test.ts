@@ -16,9 +16,9 @@ function harness() {
   const downloadsOpen = ref(true)
   const bookmarksOpen = ref(true)
   const historyOpen = ref(true)
-  const tabSearchOpen = ref(true)
   const zoomOpen = ref(true)
   const navigateHome = vi.fn(async () => undefined)
+  const navigateHomeTabs = vi.fn(async () => undefined)
   const controller = useHomeNavigationController({
     activeTab,
     websiteTabs: () => [first, second],
@@ -27,9 +27,9 @@ function harness() {
     downloadsOpen,
     bookmarksOpen,
     historyOpen,
-    tabSearchOpen,
     zoomOpen,
-    navigateHome
+    navigateHome,
+    navigateHomeTabs
   })
   return {
     first,
@@ -41,10 +41,10 @@ function harness() {
       downloadsOpen,
       bookmarksOpen,
       historyOpen,
-      tabSearchOpen,
       zoomOpen
     ],
     navigateHome,
+    navigateHomeTabs,
     controller
   }
 }
@@ -69,5 +69,18 @@ describe('useHomeNavigationController', () => {
     expect(view.surfaces.every((surface) => surface.value === false)).toBe(true)
     expect(view.controller.preferredWebsiteTab()).toBe(view.first)
     expect(view.navigateHome).toHaveBeenCalledOnce()
+    expect(view.navigateHomeTabs).not.toHaveBeenCalled()
+  })
+
+  // Search tabs is Home's Tabs view, a tab like Home itself: what covers the page closes for it as it does for Home.
+  it('closes competing surfaces and opens Home\'s Tabs view for Search tabs', async () => {
+    const view = harness()
+
+    await view.controller.openHomeTabs()
+
+    expect(view.surfaces.every((surface) => surface.value === false)).toBe(true)
+    expect(view.controller.preferredWebsiteTab()).toBe(view.first)
+    expect(view.navigateHomeTabs).toHaveBeenCalledOnce()
+    expect(view.navigateHome).not.toHaveBeenCalled()
   })
 })

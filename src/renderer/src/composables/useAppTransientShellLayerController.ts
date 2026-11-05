@@ -7,8 +7,6 @@ import { useWorkspaceEditorShellController } from '../features/workspaces/useWor
 type ZoomAction = 'in' | 'out' | 'reset'
 
 export interface AppTransientShellSurface {
-  openTabSearch: () => Promise<void>
-  closeTabSearch: () => void
   openFindForTab: (tab: BrowserTabState, again?: 'next' | 'previous') => Promise<void>
   /** keepMatch: the person closed Find, which leaves its match selected in the page, as in Chrome. */
   closeFind: (options?: { keepMatch?: boolean }) => Promise<void>
@@ -34,17 +32,12 @@ export function useAppTransientShellLayerController() {
   const findOpen = ref(false)
   const findFocused = ref(false)
   const zoomOpen = ref(false)
-  const tabSearchOpen = ref(false)
   const commandPaletteOpen = ref(false)
   const commandPaletteView = ref<CommandPaletteView>('commands')
   // An agent's "All steps", opened from its card; the agent stays named while the dialog closes.
   const agentStepsOpen = ref(false)
   const agentStepsTarget = shallowRef<AgentStepHistoryTarget | null>(null)
 
-  const tabSearchPanel = computed(() => {
-    const surface = layer.value
-    return surface ? { openPanel: surface.openTabSearch, close: surface.closeTabSearch } : null
-  })
   const zoomBar = computed(() => {
     const surface = layer.value
     return surface ? {
@@ -98,14 +91,12 @@ export function useAppTransientShellLayerController() {
     findOpen,
     findFocused,
     zoomOpen,
-    tabSearchOpen,
     commandPaletteOpen,
     commandPaletteView,
     agentStepsOpen,
     agentStepsTarget,
     showAgentSteps,
     closeAgentSteps,
-    tabSearchPanel,
     zoomBar,
     commandPalettePanel,
     workspaceEditorOpen: workspaceEditorController.open,

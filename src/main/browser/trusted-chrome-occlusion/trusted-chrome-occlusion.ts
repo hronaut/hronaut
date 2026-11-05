@@ -24,22 +24,6 @@ export function setBrowserContentOccluded(
   }
   const enteringTrustedChrome = occluded && !browser.browserContentOccluded
   const leavingTrustedChrome = !occluded && browser.browserContentOccluded
-  if (enteringTrustedChrome) {
-    for (const tab of browser.tabs.values()) {
-      if (
-        !tab.sleeping
-        && !tab.webContents.isDestroyed()
-        && tab.view.getVisible()
-        && (tab.id === browser.activeTabId || browser.splitViewContains(tab.id))
-      ) {
-        // The trusted renderer must hide native page views to paint above
-        // them. Remember only views that were actually visible immediately
-        // before that transition so their first in-flight capture can be
-        // retried with stayHidden after the overview opens.
-        browser.tabOverviewPreviewableTabs.add(tab.id)
-      }
-    }
-  }
   // The frames around emulated pages, and the cards under all pages, stay where the snapshot shows those pages.
   if (enteringTrustedChrome) {
     browser.occludedEmulationFrames = getEmulationFrames(browser)

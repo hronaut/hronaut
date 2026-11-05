@@ -133,6 +133,7 @@ export const jaJPAppErrors: AppErrorMessages = {
     archiveLimitUndo: 'Hronaut で保持できるアーカイブしたワークスペースは最大 {max} 個のため、[元に戻す] で「{name}」を閉じることはできません。ホームでアーカイブしたワークスペースを削除してから、もう一度お試しください。',
     protectedClose: 'ワークスペース「{name}」は削除から保護されています。先にワークスペースの設定で削除保護をオフにしてください。',
     protectedDelete: 'ワークスペース「{name}」は削除から保護されています。先にホームで削除保護をオフにしてください。',
+    deleteLocked: 'ワークスペースを削除する前に、すべてのタブのロックを解除してください。',
     tabStillOpen: 'ワークスペース「{name}」にはまだ開いているタブがあるため、閉じられませんでした。もう一度お試しください。',
     closeRollbackFailed: 'ワークスペース「{name}」を閉じられず、すべてのタブを復元することもできませんでした。復旧可能なタブはタブ検索に残っています。',
     restoreTabLimit: '「{name}」を復元すると、タブの上限 {max} 個を超えます。',

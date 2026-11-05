@@ -55,7 +55,6 @@ export function attachRendererHealthEvents(browser: Browser, tab: BrowserTab, we
     setEmulationViewSize(browser, tab, undefined)
     invalidateTabOverviewPreview(browser, tab)
     browser.tabOverviewPreviewCaptures.cancelPending(tab.id)
-    browser.tabOverviewPreviewableTabs.delete(tab.id)
     if (browser.rendererRecovery.expectsExit(webContents)) return
     browser.networkWaitController.reject(tab.id, 'The tab renderer became unavailable while waiting for network activity.')
     cancelNativeSelectionSessions(browser, tab)

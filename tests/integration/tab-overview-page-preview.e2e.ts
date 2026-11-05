@@ -3,6 +3,7 @@ import type { ElectronApplication, Page } from '@playwright/test'
 import type { BrowserState } from '../../src/shared/types.js'
 import { PAGE_CARD_GUTTER } from '../../src/shared/page-card.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
+import { homePage, storedPreviews } from './home-tabs-view.js'
 
 const fixtureUrl = (name: string) => `data:text/html,${encodeURIComponent(`<!doctype html><title>${name}</title><style>body{margin:0}main{height:2400px;background:linear-gradient(#15803d,#4338ca)}</style><main>${name}</main>`)}`
 
@@ -39,8 +40,13 @@ async function releaseCapture(app: ElectronApplication) {
   })
 }
 
-async function startCapture(window: Page, id: string) {
-  await window.evaluate(`void (globalThis.__pagePreviewResult = window.hronaut.getTabOverviewPagePreview(${JSON.stringify(id)}).then(preview => ({ preview }), error => ({ error: error.message })))`)
+/** Runs a script in Home, whose Tabs view asks main for full-page previews. */
+async function homeEvaluate(app: ElectronApplication, script: string): Promise<unknown> {
+  return (await homePage(app)).evaluate(script)
+}
+
+async function startCapture(app: ElectronApplication, id: string) {
+  await homeEvaluate(app, `void (globalThis.__pagePreviewResult = window.hronautHome.getTabPagePreview(${JSON.stringify(id)}).then(preview => ({ preview }), error => ({ error: error.message })))`)
 }
 
 async function waitForCapture(app: ElectronApplication) {
@@ -75,7 +81,7 @@ for (const change of ['navigation', 'close'] as const) {
     const target = change === 'close' ? await openColdTarget(appWindow) : initial
     await holdCapture(electronApp, target.url)
     try {
-      await startCapture(appWindow, target.id)
+      await startCapture(electronApp, target.id)
       await waitForCapture(electronApp)
       if (change === 'close') await expectCaptureOutsideViewport(electronApp, target.url)
       if (change === 'navigation') {
@@ -85,7 +91,7 @@ for (const change of ['navigation', 'close'] as const) {
         await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(target.id)})`)
       }
       await releaseCapture(electronApp)
-      const result = await appWindow.evaluate('globalThis.__pagePreviewResult') as { error?: string }
+      const result = await homeEvaluate(electronApp, 'globalThis.__pagePreviewResult') as { error?: string }
       expect(result.error).toMatch(change === 'navigation' ? /page changed/i : /tab closed/i)
       if (change === 'close') expect(await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1)
     } finally { await releaseCapture(electronApp) }
@@ -96,11 +102,11 @@ test('times out full-page preview without piling up retries or detaching the tab
   const target = await openFixture(appWindow)
   await holdCapture(electronApp, target.url)
   try {
-    await startCapture(appWindow, target.id)
+    await startCapture(electronApp, target.id)
     await waitForCapture(electronApp)
-    const result = await appWindow.evaluate('globalThis.__pagePreviewResult') as { error?: string }
+    const result = await homeEvaluate(electronApp, 'globalThis.__pagePreviewResult') as { error?: string }
     expect(result.error).toMatch(/timed out/i)
-    await expect(appWindow.evaluate(`window.hronaut.getTabOverviewPagePreview(${JSON.stringify(target.id)})`)).rejects.toThrow(/timed out/i)
+    await expect(homeEvaluate(electronApp, `window.hronautHome.getTabPagePreview(${JSON.stringify(target.id)})`)).rejects.toThrow(/timed out/i)
     expect(await electronApp.evaluate(() => (
       globalThis as typeof globalThis & { __pagePreviewGate?: { calls: number } }
     ).__pagePreviewGate?.calls)).toBe(1)
@@ -108,11 +114,11 @@ test('times out full-page preview without piling up retries or detaching the tab
       webContents.getAllWebContents().find(contents => contents.getURL() === url)?.debugger.isAttached()
     ), target.url)).toBe(true)
     await releaseCapture(electronApp)
-    await expect.poll(() => appWindow.evaluate(`window.hronaut.getTabOverviewPagePreview(${JSON.stringify(target.id)}).then(preview => preview.height, () => 0)`)).toBeGreaterThan(1000)
+    await expect.poll(() => homeEvaluate(electronApp, `window.hronautHome.getTabPagePreview(${JSON.stringify(target.id)}).then(preview => preview.height, () => 0)`)).toBeGreaterThan(1000)
   } finally { await releaseCapture(electronApp) }
 })
 
-test('rejects sleeping and closed full-page preview targets without waking or selecting them', async ({ appWindow }) => {
+test('rejects sleeping and closed full-page preview targets without waking or selecting them', async ({ appWindow, electronApp }) => {
   const server = createServer((_request, response) => response.end('<!doctype html><title>Sleep preview target</title><p>Page preview</p>'))
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()
@@ -121,11 +127,11 @@ test('rejects sleeping and closed full-page preview targets without waking or se
     const target = await openFixture(appWindow, 'Sleep preview target', `http://127.0.0.1:${address.port}/sleep`)
     const selected = await openFixture(appWindow, 'Keep selected')
     await appWindow.evaluate(`window.hronaut.setTabSleeping(${JSON.stringify(target.id)}, true)`)
-    await expect(appWindow.evaluate(`window.hronaut.getTabOverviewPagePreview(${JSON.stringify(target.id)})`)).rejects.toThrow(/wake this tab/i)
+    await expect(homeEvaluate(electronApp, `window.hronautHome.getTabPagePreview(${JSON.stringify(target.id)})`)).rejects.toThrow(/wake this tab/i)
     expect(await appWindow.evaluate(`window.hronaut.getState().then(state => ({ active: state.activeTabId, sleeping: state.tabs.find(tab => tab.id === ${JSON.stringify(target.id)})?.sleeping }))`)).toEqual({ active: selected.id, sleeping: true })
     await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(target.id)})`)
-    // The shell reads that the closed tab is gone; agents keep "Tab not found: <id>".
-    await expect(appWindow.evaluate(`window.hronaut.getTabOverviewPagePreview(${JSON.stringify(target.id)})`)).rejects.toThrow(/tab is no longer available/i)
+    // Home reads that the closed tab is gone; agents keep "Tab not found: <id>".
+    await expect(homeEvaluate(electronApp, `window.hronautHome.getTabPagePreview(${JSON.stringify(target.id)})`)).rejects.toThrow(/tab is no longer available/i)
   } finally { await closeFixtureServer(server) }
 })
 
@@ -137,15 +143,15 @@ test('leaves Developer Tools ownership intact when full-page preview is unavaila
   await expect.poll(() => electronApp.evaluate(({ webContents }, url) => (
     webContents.getAllWebContents().find(contents => contents.getURL() === url)?.isDevToolsOpened()
   ), target.url)).toBe(true)
-  await expect(appWindow.evaluate(`window.hronaut.getTabOverviewPagePreview(${JSON.stringify(target.id)})`)).rejects.toThrow(/close developer tools/i)
+  await expect(homeEvaluate(electronApp, `window.hronautHome.getTabPagePreview(${JSON.stringify(target.id)})`)).rejects.toThrow(/close developer tools/i)
   expect(await electronApp.evaluate(({ webContents }, url) => (
     webContents.getAllWebContents().find(contents => contents.getURL() === url)?.isDevToolsOpened()
   ), target.url)).toBe(true)
 })
 
-test('validates full-page preview IDs before touching a tab', async ({ appWindow }) => {
+test('validates full-page preview IDs before touching a tab', async ({ electronApp }) => {
   for (const invalid of [null, '', ' tab-1', 1, ['tab-1'], 'x'.repeat(129)]) {
-    await expect(appWindow.evaluate(`window.hronaut.getTabOverviewPagePreview(${JSON.stringify(invalid)})`)).rejects.toThrow(/invalid tab overview preview id/i)
+    await expect(homeEvaluate(electronApp, `window.hronautHome.getTabPagePreview(${JSON.stringify(invalid)})`)).rejects.toThrow(/invalid tab (overview preview )?id/i)
   }
 })
 
@@ -164,7 +170,7 @@ test('bounds full-page allocation before capture even when a page forges a tiny 
       return original(...args)
     }
   }, target.url)
-  await expect(appWindow.evaluate(`window.hronaut.getTabOverviewPagePreview(${JSON.stringify(target.id)})`)).rejects.toThrow(/bounded capture inspected/i)
+  await expect(homeEvaluate(electronApp, `window.hronautHome.getTabPagePreview(${JSON.stringify(target.id)})`)).rejects.toThrow(/bounded capture inspected/i)
   const clip = await electronApp.evaluate(() => (
     globalThis as typeof globalThis & { __boundedPagePreviewClip?: { width: number; height: number; scale: number } }
   ).__boundedPagePreviewClip)
@@ -186,7 +192,7 @@ test('rejects unsupported document sizes before allocating a full-page image', a
       return original(...args)
     }
   }, target.url)
-  await expect(appWindow.evaluate(`window.hronaut.getTabOverviewPagePreview(${JSON.stringify(target.id)})`)).rejects.toThrow(/supported full-page preview size/i)
+  await expect(homeEvaluate(electronApp, `window.hronautHome.getTabPagePreview(${JSON.stringify(target.id)})`)).rejects.toThrow(/supported full-page preview size/i)
 })
 
 test('captures a complete awake background page that was never selected without changing visible views', async ({ appWindow, electronApp }) => {
@@ -212,7 +218,7 @@ test('captures a complete awake background page that was never selected without 
     }, url)
   })
   const before = await readState()
-  const preview = await appWindow.evaluate(`window.hronaut.getTabOverviewPagePreview(${JSON.stringify(target.id)})`) as {
+  const preview = await homeEvaluate(electronApp, `window.hronautHome.getTabPagePreview(${JSON.stringify(target.id)})`) as {
     width: number; height: number; dataUrl: string; navigationGeneration: number
   }
   expect(before.native.page.width).toBeGreaterThan(0)
@@ -254,7 +260,7 @@ for (const resize of [false, true]) {
     const target = await openColdTarget(appWindow)
     await holdCapture(electronApp, target.url)
     try {
-      await startCapture(appWindow, target.id)
+      await startCapture(electronApp, target.id)
       await waitForCapture(electronApp)
       await expectCaptureOutsideViewport(electronApp, target.url)
       await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(target.id)})`)
@@ -276,7 +282,7 @@ for (const resize of [false, true]) {
       }
       const selectedState = await targetState()
       await releaseCapture(electronApp)
-      const result = await appWindow.evaluate('globalThis.__pagePreviewResult') as { error?: string }
+      const result = await homeEvaluate(electronApp, 'globalThis.__pagePreviewResult') as { error?: string }
       if (resize) expect(result.error).toMatch(/viewport changed.*try again/i)
       else expect(result.error).toBeUndefined()
       await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1)
@@ -294,15 +300,15 @@ test('detaches the cold capture view at the response deadline while retaining th
   const target = await openColdTarget(appWindow)
   await holdCapture(electronApp, target.url)
   try {
-    await startCapture(appWindow, target.id)
+    await startCapture(electronApp, target.id)
     await waitForCapture(electronApp)
     await expectCaptureOutsideViewport(electronApp, target.url)
-    const result = await appWindow.evaluate('globalThis.__pagePreviewResult') as { error?: string }
+    const result = await homeEvaluate(electronApp, 'globalThis.__pagePreviewResult') as { error?: string }
     expect(result.error).toMatch(/timed out/i)
     await expect.poll(() => captureIsAttached(electronApp, target.url)).toBe(false)
     await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1)
     expect(await appWindow.evaluate('window.hronaut.getState().then(state => state.activeTabId)')).toBe(selected.id)
-    await expect(appWindow.evaluate(`window.hronaut.getTabOverviewPagePreview(${JSON.stringify(target.id)})`)).rejects.toThrow(/timed out/i)
+    await expect(homeEvaluate(electronApp, `window.hronautHome.getTabPagePreview(${JSON.stringify(target.id)})`)).rejects.toThrow(/timed out/i)
     expect(await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1)
   } finally { await releaseCapture(electronApp) }
 })
@@ -324,7 +330,7 @@ test('captures every edge of a real document at the twelve megapixel bound', asy
       return result
     }
   }, url)
-  const outcome = await appWindow.evaluate(`window.hronaut.getTabOverviewPagePreview(${JSON.stringify(target.id)}).then(preview => ({preview}), error => ({error: error.message}))`) as { preview?: { width: number; height: number; dataUrl: string }; error?: string }
+  const outcome = await homeEvaluate(electronApp, `window.hronautHome.getTabPagePreview(${JSON.stringify(target.id)}).then(preview => ({preview}), error => ({error: error.message}))`) as { preview?: { width: number; height: number; dataUrl: string }; error?: string }
   const dimensions = await electronApp.evaluate(() => (globalThis as typeof globalThis & { __captureDimensions?: {width:number;height:number} }).__captureDimensions)
   expect(outcome.error, JSON.stringify(dimensions)).toBeUndefined()
   const preview = outcome.preview!
@@ -357,7 +363,7 @@ test('captures all corners of a previously selected warm background tab without 
     const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)!
     await page.executeJavaScript('scrollTo(250, 450)')
   }, url)
-  await expect.poll(() => appWindow.evaluate(`window.hronaut.getTabOverviewPreviews([${JSON.stringify(target.id)}]).then(previews => previews.length)`)).toBe(1)
+  await expect.poll(() => storedPreviews(electronApp, [target.id])).toBe(1)
   await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(selected.id)})`)
   const readState = async () => ({
     active: await appWindow.evaluate('window.hronaut.getState().then(state => state.activeTabId)'),
@@ -374,7 +380,7 @@ test('captures all corners of a previously selected warm background tab without 
     }, url)
   })
   const before = await readState()
-  const preview = await appWindow.evaluate(`window.hronaut.getTabOverviewPagePreview(${JSON.stringify(target.id)})`) as {
+  const preview = await homeEvaluate(electronApp, `window.hronautHome.getTabPagePreview(${JSON.stringify(target.id)})`) as {
     width: number; height: number; dataUrl: string; navigationGeneration: number
   }
   expect(before.native.page.width).toBeGreaterThan(0)

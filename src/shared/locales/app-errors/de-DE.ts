@@ -133,6 +133,7 @@ export const deDEAppErrors: AppErrorMessages = {
     archiveLimitUndo: 'Hronaut behält höchstens {max} archivierte Arbeitsbereiche, daher kann „{name}“ nicht mit Rückgängig-Option geschlossen werden. Löschen Sie einen archivierten Arbeitsbereich auf der Hronaut-Startseite und versuchen Sie es dann erneut.',
     protectedClose: 'Der Arbeitsbereich „{name}“ ist vor dem Löschen geschützt. Deaktivieren Sie zuerst den Löschschutz in den Einstellungen des Arbeitsbereichs.',
     protectedDelete: 'Der Arbeitsbereich „{name}“ ist vor dem Löschen geschützt. Deaktivieren Sie zuerst den Löschschutz auf der Hronaut-Startseite.',
+    deleteLocked: 'Entsperren Sie alle Tabs, bevor Sie einen Arbeitsbereich löschen.',
     tabStillOpen: 'Im Arbeitsbereich „{name}“ ist noch ein Tab geöffnet, daher wurde der Arbeitsbereich nicht geschlossen. Versuchen Sie es erneut.',
     closeRollbackFailed: 'Der Arbeitsbereich „{name}“ konnte nicht geschlossen werden, und nicht alle seine Tabs konnten wiederhergestellt werden. Wiederherstellbare Tabs bleiben in der Tab-Suche.',
     restoreTabLimit: 'Das Wiederherstellen von „{name}“ würde das Tab-Limit ({max}) überschreiten.',

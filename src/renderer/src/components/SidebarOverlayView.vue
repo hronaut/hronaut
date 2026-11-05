@@ -246,7 +246,6 @@ function onPointerUp(event: PointerEvent): void {
 function onDragStart(): void {
   dragging = true
   reportPointer()
-  send({ kind: 'drag-start' })
 }
 
 function onDragEnd(): void {
@@ -401,7 +400,6 @@ onBeforeUnmount(() => {
         />
         <AppTopbarActions
           :command-palette-open="model.footer.commandPaletteOpen"
-          :tab-search-open="model.footer.tabSearchOpen"
           :downloads-open="model.footer.downloadsOpen"
           :history-open="model.footer.historyOpen"
           :settings-open="model.footer.settingsOpen"
@@ -420,7 +418,7 @@ onBeforeUnmount(() => {
           :update-state="updateState"
           :mcp-status-controller="mcpController"
           @toggle-command-palette="footer('command-palette')"
-          @toggle-tab-search="footer('tab-search')"
+          @open-home-tabs="footer('tab-search')"
           @toggle-downloads="footer('downloads')"
           @toggle-history="footer('history')"
           @toggle-all-tabs-muted="footer('all-tabs-muted')"

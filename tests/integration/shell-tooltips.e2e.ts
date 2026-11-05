@@ -70,7 +70,6 @@ test('shows a themed tooltip over the page for a toolbar button instead of a nat
   // A click hides it and keeps it away while the pointer stays on the control.
   await appWindow.getByRole('button', { name: 'Search tabs', exact: true }).click()
   await expect.poll(() => tooltipView(electronApp)).toBeNull()
-  await appWindow.keyboard.press('Escape')
 })
 
 /** Share of the real screen's pixels in a box, in window coordinates, that show the fixture page's color. */

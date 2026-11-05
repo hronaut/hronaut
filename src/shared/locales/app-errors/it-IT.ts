@@ -133,6 +133,7 @@ export const itITAppErrors: AppErrorMessages = {
     archiveLimitUndo: 'Hronaut mantiene al massimo {max} aree di lavoro archiviate, quindi “{name}” non può essere chiusa con possibilità di annullamento. Elimina un’area di lavoro archiviata nella Home, poi riprova.',
     protectedClose: 'L’area di lavoro “{name}” è protetta dall’eliminazione. Disattiva prima la protezione dall’eliminazione nelle impostazioni dell’area di lavoro.',
     protectedDelete: 'L’area di lavoro “{name}” è protetta dall’eliminazione. Disattiva prima la protezione dall’eliminazione nella Home.',
+    deleteLocked: 'Sblocca tutte le schede prima di eliminare un’area di lavoro.',
     tabStillOpen: 'L’area di lavoro “{name}” ha ancora una scheda aperta, quindi non è stata chiusa. Riprova.',
     closeRollbackFailed: 'Impossibile chiudere l’area di lavoro “{name}” e ripristinare tutte le sue schede. Le schede recuperabili restano nella ricerca schede.',
     restoreTabLimit: 'Il ripristino di “{name}” supererebbe il limite di {max} schede.',

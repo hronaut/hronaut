@@ -1,6 +1,9 @@
 import type { BrowserWindow, IpcMainInvokeEvent } from 'electron'
 import { sendTo, type TypedIpcMain } from '../typed-ipc.js'
 import { homeWorkspaceState, runHomeWorkspaceAction } from './home-workspace-actions.js'
+import { homeTabsState, runHomeTabAction } from './home-tabs.js'
+import { getTabOverviewPagePreview, getTabOverviewPreviews } from '../browser/tab-overview-previews/tab-overview-previews.js'
+import { isHronautHomeUrl } from '../browser/url.js'
 import { openVsCodeMcpInstall } from '../agents/vscode-mcp-install.js'
 import { ClaudeCodeSetup, claudeCodeConfigPath } from '../agents/claude-code-setup.js'
 import { detectAgentClients } from '../agents/agent-client-detection.js'
@@ -10,7 +13,7 @@ import type { McpTokenConfiguration } from '../mcp-runtime/mcp-token-store.js'
 import type { TrustedDialogOptions } from '../trusted-dialogs/trusted-dialogs.js'
 import type { HomeSetupState } from '../../shared/claude-code-setup.js'
 import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
-import type { AppSettings, McpPortMoveResult } from '../../shared/types.js'
+import { validateTabOverviewPreviewIds, type AppSettings, type McpPortMoveResult } from '../../shared/types.js'
 import { SHELL_IPC } from '../../shared/ipc/shell.js'
 import { HOME_IPC } from '../../shared/ipc/home.js'
 
@@ -138,6 +141,28 @@ export function registerHomeIpc(host: HomeIpcHost): void {
       const mainWindow = host.mainWindow()
       if (mainWindow) sendTo(mainWindow.webContents, SHELL_IPC.homeWorkspaceEditorRequested, request)
     })
+  })
+  host.handleBrowserIpc(HOME_IPC.tabs, (event) => {
+    assertHomePageSender(event)
+    return homeTabsState(host.tabs()!)
+  })
+  host.handleBrowserIpc(HOME_IPC.tabPreviews, (event, value: unknown) => {
+    assertHomePageSender(event)
+    const browser = host.tabs()!
+    // Home's own tab has no preview; the frames are of website tabs only.
+    const tabIds = validateTabOverviewPreviewIds(value).filter(tabId => !isHronautHomeUrl(browser.tabs.get(tabId)?.url))
+    return getTabOverviewPreviews(browser, tabIds)
+  })
+  host.handleBrowserIpc(HOME_IPC.tabPagePreview, async (event, tabId: unknown) => {
+    assertHomePageSender(event)
+    const browser = host.tabs()!
+    const [valid] = validateTabOverviewPreviewIds([tabId])
+    if (isHronautHomeUrl(browser.tabs.get(valid!)?.url)) throw new TypeError('Invalid tab ID')
+    return getTabOverviewPagePreview(browser, valid!)
+  })
+  host.handleBrowserIpc(HOME_IPC.tabAction, async (event, action: unknown) => {
+    assertHomePageSender(event)
+    return runHomeTabAction(host.tabs()!, action)
   })
   host.handleBrowserIpc(HOME_IPC.copyText, async (event, value: unknown) => {
     assertHomePageSender(event)

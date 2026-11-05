@@ -4,13 +4,12 @@ import type { Browser } from './browser/browser.js'
 import type { McpHttpServer } from './mcp/server.js'
 import { LocalizedError } from './localized-error.js'
 import { tabAgentPauseOptions, type TakeOverOffers } from './agents/take-over-offers.js'
-import { validateTabOverviewPreviewIds, type BrowserState, type DroppedLinkTarget, type NewTabOptions } from '../shared/types.js'
+import type { BrowserState, DroppedLinkTarget, NewTabOptions } from '../shared/types.js'
 import { showTabContextMenu } from './browser/context-menus/tab-context-menu.js'
 import { openDroppedLink } from './browser/dropped-links/dropped-links.js'
 import { setAllHumanInteractionLocked, setTabHumanInteractionLocked } from './browser/interaction-lock/interaction-lock.js'
 import { reorderTab, reorderTabs, setTabPinned } from './browser/tab-arrangement/tab-arrangement.js'
 import { setAllTabsMuted, setTabMuted } from './browser/tab-muting/tab-muting.js'
-import { getTabOverviewPagePreview, getTabOverviewPreviews } from './browser/tab-overview-previews/tab-overview-previews.js'
 import { sleepInactiveTabs } from './browser/tab-sleep/memory-saver.js'
 import { setTabSleeping } from './browser/tab-sleep/tab-sleep.js'
 import { setTabPageLifecycle } from './browser/page-lifecycle/page-lifecycle.js'
@@ -18,7 +17,7 @@ import { openSplitViewAndWait, updateSplitView, closeSplitView } from './browser
 import { browserState } from './browser/browser-state/browser-state.js'
 import { closeTabsForPerson } from './browser/tab-close/close-tabs-for-person.js'
 import { saveTabLabel } from './browser/tab-labels/tab-labels.js'
-import { openHome } from './browser/home-tabs/home-tabs.js'
+import { openHome, openHomeTabs } from './browser/home-tabs/home-tabs.js'
 import { newTab } from './browser/new-tabs/open-new-tab.js'
 import { reopenClosedTab } from './browser/tab-reopening/tab-reopening.js'
 import { selectTabForPerson } from './browser/tab-selection/person-tab-switch.js'
@@ -31,7 +30,7 @@ interface TabsIpcHost {
   assertMainShellSender(event: IpcMainInvokeEvent): void
   /**
    * Registers a handler that is refused while saved workspaces are still initializing or failed to start;
-   * the state and tab overview reads are admitted and wait in `runWorkspaceRead` instead.
+   * the state read is admitted and waits in `runWorkspaceRead` instead.
    */
   handleBrowserIpc: TypedIpcMain['handle']
   /** Checks the sender, then reads once saved workspaces are initialized, dropping the read if its sender navigates away. */
@@ -99,17 +98,8 @@ export function registerTabsIpc(host: TabsIpcHost): void {
   host.handleBrowserIpc(TABS_IPC.getState, async (event) => {
     return stateReply(host, host.runWorkspaceRead(event, host.assertTrustedSender, () => browserState(host.tabs()!)))
   })
-  host.handleBrowserIpc(TABS_IPC.getTabOverviewPreviews, async (event, value: unknown) => {
-    host.assertTrustedSender(event)
-    const tabIds = validateTabOverviewPreviewIds(value)
-    return host.runWorkspaceRead(event, host.assertTrustedSender, () => getTabOverviewPreviews(host.tabs()!, tabIds))
-  })
-  host.handleBrowserIpc(TABS_IPC.getTabOverviewPagePreview, async (event, value: unknown) => {
-    host.assertTrustedSender(event)
-    const [tabId] = validateTabOverviewPreviewIds([value])
-    return host.runWorkspaceRead(event, host.assertTrustedSender, () => getTabOverviewPagePreview(host.tabs()!, tabId!))
-  })
   host.handleBrowserIpc(TABS_IPC.openHome, (event) => { host.assertTrustedSender(event); return stateReply(host, openHome(host.tabs()!)) })
+  host.handleBrowserIpc(TABS_IPC.openHomeTabs, (event) => { host.assertTrustedSender(event); return stateReply(host, openHomeTabs(host.tabs()!)) })
   host.handleBrowserIpc(TABS_IPC.newTab, (event, options) => { host.assertTrustedSender(event); return stateReply(host, newTab(host.tabs()!, newTabOptions(options))) })
   host.handleBrowserIpc(TABS_IPC.reopenClosedTab, (event, closedTabId: unknown) => {
     host.assertTrustedSender(event)

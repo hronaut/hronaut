@@ -60,7 +60,6 @@ export interface AppShellKeyboardFeatureControllerOptions {
     siteControls: Ref<boolean>
     addressSuggestions: Ref<boolean>
     find: AppShellKeyboardSurface
-    tabSearch: Ref<boolean>
     splitMenu: Ref<boolean>
     zoom: Ref<boolean>
     updateNotice: Ref<boolean>
@@ -78,11 +77,10 @@ export interface AppShellKeyboardFeatureControllerOptions {
   runShortcut: (action: BrowserShortcutAction) => void
 }
 
-function refSurface(open: Ref<boolean>, toggleShortcut?: BrowserShortcutAction): ShellKeyboardSurface {
+function refSurface(open: Ref<boolean>): ShellKeyboardSurface {
   return {
     isOpen: () => open.value,
-    close: () => { open.value = false },
-    toggleShortcut
+    close: () => { open.value = false }
   }
 }
 
@@ -113,8 +111,7 @@ export function useAppShellKeyboardFeatureController(
       customSurface(modals.releaseHistory),
       customSurface(modals.helpDialog),
       customSurface(modals.taskManager),
-      customSurface(modals.qrCode),
-      refSurface(overlays.tabSearch, 'search-tabs')
+      customSurface(modals.qrCode)
     ],
     escapeSurfaces: [
       panel(refSurface(overlays.siteStorage)),

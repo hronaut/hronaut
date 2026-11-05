@@ -10,7 +10,6 @@ import { isImeCompositionEvent } from '../keyboard-composition.js'
 export interface ShellKeyboardSurface {
   isOpen: () => boolean
   close: () => void
-  toggleShortcut?: BrowserShortcutAction
   /** True while the surface is shown in a window of its own, beside the one that has the keyboard. */
   inOwnWindow?: () => boolean
 }
@@ -81,12 +80,7 @@ export function useShellKeyboardController(options: ShellKeyboardControllerOptio
     }
     const activeModal = options.modalSurfaces.find((surface) => surface.isOpen())
     if (activeModal) {
-      if (shortcut && shortcut === activeModal.toggleShortcut) {
-        event.preventDefault()
-        activeModal.close()
-        return
-      }
-      // The open modal takes every Escape, so a repeat cannot reach a field under it, such as Tab search's query.
+      // The open modal takes every Escape, so a repeat cannot reach a field under it, such as Find's.
       if (event.key === 'Escape') {
         event.preventDefault()
         if (escape) closeFirst(options.modalSurfaces)

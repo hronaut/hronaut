@@ -29,7 +29,6 @@ export interface AppBrowserCollectionsFeatureControllerOptions {
   bookmarksApi: HronautBookmarksApi
   historyApi: HronautHistoryApi
   settingsOpen: Ref<boolean>
-  tabSearchOpen: Ref<boolean>
   syncState: (operation: Promise<BrowserState>) => Promise<void>
   /** The browser state, whose tab in view and workspaces Bookmark all tabs reads. */
   browserState?: () => Pick<BrowserState, 'tabs' | 'activeTabId' | 'mcpTabGroups'>
@@ -64,7 +63,6 @@ export function useAppBrowserCollectionsFeatureController(
     downloadsOpen,
     bookmarksOpen,
     historyOpen,
-    tabSearchOpen: options.tabSearchOpen,
     bookmarksPanel,
     historyPanel,
     refreshDownloads: browserCollectionsController.refreshDownloads,

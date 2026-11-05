@@ -16,7 +16,7 @@ const HRONAUT_HOME_URL = 'hronaut://home/'
 
 /**
  * Handles the page being destroyed. It always closes the box of a website
- * dialog the page showed and stops the favicon load, the overview preview,
+ * dialog the page showed and stops the favicon load, the tab's preview capture,
  * network waits and selection sessions; a closure the
  * browser expected only forgets dialog monitoring and execution contexts.
  * Otherwise it shows that the page is gone and keeps the browser usable.
@@ -28,7 +28,6 @@ export function attachPageDestroyedEvents(browser: Browser, tab: BrowserTab, web
     tab.faviconAbortController = undefined
     invalidateTabOverviewPreview(browser, tab)
     browser.tabOverviewPreviewCaptures.cancelPending(tab.id)
-    browser.tabOverviewPreviewableTabs.delete(tab.id)
     browser.networkWaitController.reject(tab.id, 'The tab renderer became unavailable while waiting for network activity.')
     cancelNativeSelectionSessions(browser, tab)
     if (browser.expectedTabClosures.has(webContents)) {

@@ -8,7 +8,6 @@ import type { BrowserEnvironmentSettings, BrowserViewportEmulation } from './emu
 import type {
   BrowserState,
   BrowserTabGroupUpdate,
-  BrowserTabOverviewPreview,
   BrowserWorkspaceCreateOptions,
   BrowserWorkspaceNavigationAuditEntry,
   BrowserWorkspaceNavigationPolicy,
@@ -92,9 +91,9 @@ export interface HronautTabsApi {
   /** Tells main the shell drew the last state it was sent, so it can send the next. */
   stateDrawn(): void
   onMcpTabActivity(listener: (activity: McpTabActivity) => void): () => void
-  getTabOverviewPreviews(tabIds: string[]): Promise<BrowserTabOverviewPreview[]>
-  getTabOverviewPagePreview(tabId: string): Promise<BrowserTabOverviewPreview>
   openHome(): Promise<BrowserState>
+  /** Home's Tabs view, with its search field focused: Search tabs. */
+  openHomeTabs(): Promise<BrowserState>
   newTab(options?: NewTabOptions): Promise<BrowserState>
   reopenClosedTab(closedTabId?: string): Promise<BrowserState>
   selectTab(tabId: string): Promise<BrowserState>

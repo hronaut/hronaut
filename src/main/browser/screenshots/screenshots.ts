@@ -110,13 +110,13 @@ export async function screenshot(browser: Browser, options: BrowserScreenshotOpt
       return { data: Buffer.from(data, 'base64'), mimeType: format === 'jpeg' ? 'image/jpeg' : 'image/png' }
     }
     const navigationGeneration = tab.navigationGeneration
-    // A screenshot of a tab in the background is also the overview's picture of it, once its page has settled in its
+    // A screenshot of a tab in the background is also its picture in Home's Tabs view, once its page has settled in its
     // natural state: not mid-navigation, which would still show the previous page, and not under a forced CSS state.
     const settledForOverview = () => !tab.loading && !webContents.isLoadingMainFrame() && !browser.cssStatePreview.active(tab)
     const overviewEligible = settledForOverview()
     const captured = await webContents.capturePage()
     if (overviewEligible && settledForOverview() && tab.id !== browser.activeTabId && !browser.splitViewContains(tab.id)) {
-      storeTabOverviewPreview(browser, tab, captured, navigationGeneration, false)
+      storeTabOverviewPreview(browser, tab, captured, navigationGeneration)
     }
     const original = captured.getSize()
     const bounded = boundedScreenshotSize(original.width, original.height, options.maxWidth, options.maxHeight)

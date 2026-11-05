@@ -13,8 +13,8 @@ function deferred() {
   return { promise, resolve }
 }
 
-/** An active, loaded tab in a focused window, in view or behind the overview, whose page another capture is still reading. */
-function busyTab(overviewOpen = false) {
+/** An active, loaded tab in view in a focused window, whose page another capture is still reading. */
+function busyTab() {
   const capturePage = vi.fn(async () => ({ isEmpty: () => true }))
   const tab = {
     id: 'tab-1', url: 'https://example.test/', loading: false, sleeping: false, navigationGeneration: 1, overviewPreviewSequence: 1,
@@ -25,12 +25,11 @@ function busyTab(overviewOpen = false) {
     destroyed: false,
     window: { isDestroyed: () => false, isVisible: () => true, isFocused: () => true },
     tabs: new Map([[tab.id, tab]]),
-    browserContentOccluded: overviewOpen,
+    browserContentOccluded: false,
     activeTabId: tab.id,
     splitViewContains: () => false,
     nativePreviewCapture,
-    tabOverviewPreviewTimers: new Map<string, NodeJS.Timeout>(),
-    tabOverviewPreviewableTabs: new Set<string>([tab.id])
+    tabOverviewPreviewTimers: new Map<string, NodeJS.Timeout>()
   } as unknown as Browser
   // Such as the picture of an agent's step, which shares the page's capture.
   const other = deferred()
@@ -45,7 +44,7 @@ describe('tab overview preview capture', () => {
     // The tab's capture got nothing while an agent step's picture of the page was being taken, and nothing tried
     // again, so the tab had no overview preview.
     const { tab, browser, capturePage, scheduled, finishOther } = busyTab()
-    await performTabOverviewPreviewCapture(browser, tab, 1, 'visible')
+    await performTabOverviewPreviewCapture(browser, tab, 1)
     expect(capturePage).not.toHaveBeenCalled()
     expect(scheduled()).toBe(false)
     finishOther()
@@ -53,18 +52,9 @@ describe('tab overview preview capture', () => {
     clearTimeout(browser.tabOverviewPreviewTimers.get(tab.id))
   })
 
-  it('leaves the open overview to refresh its own frames', async () => {
-    const { tab, browser, capturePage, scheduled, finishOther } = busyTab(true)
-    await performTabOverviewPreviewCapture(browser, tab, 1, 'overview')
-    finishOther()
-    await new Promise(resolve => setImmediate(resolve))
-    expect(capturePage).not.toHaveBeenCalled()
-    expect(scheduled()).toBe(false)
-  })
-
   it('leaves it to a newer capture that took over meanwhile', async () => {
     const { tab, browser, scheduled, finishOther } = busyTab()
-    await performTabOverviewPreviewCapture(browser, tab, 1, 'visible')
+    await performTabOverviewPreviewCapture(browser, tab, 1)
     tab.overviewPreviewSequence = 2
     finishOther()
     await new Promise(resolve => setImmediate(resolve))

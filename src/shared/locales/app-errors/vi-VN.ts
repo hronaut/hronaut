@@ -133,6 +133,7 @@ export const viVNAppErrors: AppErrorMessages = {
     archiveLimitUndo: 'Hronaut giữ tối đa {max} không gian làm việc đã lưu trữ, nên không thể đóng “{name}” với tùy chọn Hoàn tác. Hãy xóa một không gian làm việc đã lưu trữ trong Trang chủ, rồi thử lại.',
     protectedClose: 'Không gian làm việc “{name}” được bảo vệ khỏi bị xóa. Trước tiên, hãy tắt tính năng bảo vệ khỏi bị xóa trong cài đặt không gian làm việc.',
     protectedDelete: 'Không gian làm việc “{name}” được bảo vệ khỏi bị xóa. Trước tiên, hãy tắt tính năng bảo vệ khỏi bị xóa trong Trang chủ.',
+    deleteLocked: 'Hãy mở khóa tất cả thẻ trước khi xóa không gian làm việc.',
     tabStillOpen: 'Không gian làm việc “{name}” vẫn còn một thẻ đang mở nên chưa được đóng. Hãy thử lại.',
     closeRollbackFailed: 'Không thể đóng không gian làm việc “{name}” và không thể khôi phục tất cả các thẻ của không gian này. Các thẻ có thể khôi phục vẫn còn trong mục tìm kiếm thẻ.',
     restoreTabLimit: 'Khôi phục “{name}” sẽ vượt quá giới hạn {max} thẻ.',

@@ -38,7 +38,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  /** Look for a tab instead, in tab search. */
+  /** Look for a tab instead, in Home's Tabs view. */
   searchTabs: []
   createWorkspace: []
 }>()

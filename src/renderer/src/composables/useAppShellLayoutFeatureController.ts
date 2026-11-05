@@ -45,7 +45,6 @@ export interface AppShellLayoutFeatureControllerOptions {
     zoom: BooleanState
     activePanel: Readonly<Ref<DetachablePanelId | null>>
     addressSuggestions: BooleanState
-    tabSearch: BooleanState
     downloads: BooleanState
     history: BooleanState
     splitMenu: Ref<boolean>
@@ -92,7 +91,6 @@ export function useAppShellLayoutFeatureController(
     modals.walletApproval,
     modals.trustedDialog,
     modals.agentSteps,
-    overlays.tabSearch,
     ...(overlays.mcpReadiness ? [overlays.mcpReadiness] : [])
   ]
   const fullModalOpen = computed(() => fullModalStates.some((open) => open.value))
@@ -116,7 +114,6 @@ export function useAppShellLayoutFeatureController(
       modals.releaseHistory,
       modals.taskManager,
       modals.qrCode,
-      overlays.tabSearch,
       overlays.downloads,
       overlays.history,
       overlays.splitMenu,
@@ -143,7 +140,6 @@ export function useAppShellLayoutFeatureController(
       overlays.find,
       overlays.zoom,
       overlays.splitMenu,
-      overlays.tabSearch,
       overlays.downloads,
       overlays.bookmarks,
       overlays.history
@@ -175,7 +171,7 @@ export function useAppShellLayoutFeatureController(
   const dockedPanelOpen = (): boolean => overlays.activePanel.value !== null && !options.keepsSeparatePanelOpen()
   const surfaceBesideFindOpen = computed(() => fullModalOpen.value || dockedPanelOpen() || [
     overlays.siteControls, overlays.siteStorage, overlays.addressSuggestions, overlays.zoom, overlays.splitMenu,
-    overlays.tabSearch, overlays.downloads, overlays.bookmarks, overlays.history
+    overlays.downloads, overlays.bookmarks, overlays.history
   ].some((open) => open.value))
   let disposed = false
 

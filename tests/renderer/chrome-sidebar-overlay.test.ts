@@ -37,7 +37,6 @@ function commands(): SidebarOverlayCommands & { ran: Array<() => unknown> } {
     toggleWorkspaceSwitcher: vi.fn(),
     stayHere: vi.fn(),
     toggleRailPinned: vi.fn(),
-    startTabDrag: vi.fn(),
     scrollTabList: vi.fn(),
     closeRail: vi.fn(),
     footer,
@@ -84,7 +83,6 @@ describe('what the person does in the rail over the page', () => {
     runSidebarOverlayIntent({ kind: 'toggle-workspace', workspaceId: 'research' }, c)
     runSidebarOverlayIntent({ kind: 'stay-here' }, c)
     runSidebarOverlayIntent({ kind: 'toggle-rail-pinned' }, c)
-    runSidebarOverlayIntent({ kind: 'drag-start' }, c)
     runSidebarOverlayIntent({ kind: 'scroll', top: 120 }, c)
     runSidebarOverlayIntent({ kind: 'dismiss' }, c)
     runSidebarOverlayIntent({ kind: 'tab-context-menu', tabId: 'alpha' }, c)
@@ -94,7 +92,6 @@ describe('what the person does in the rail over the page', () => {
     expect(c.toggleWorkspace).toHaveBeenCalledWith('research')
     expect(c.stayHere).toHaveBeenCalledOnce()
     expect(c.toggleRailPinned).toHaveBeenCalledOnce()
-    expect(c.startTabDrag).toHaveBeenCalledOnce()
     expect(c.scrollTabList).toHaveBeenCalledWith(120)
     expect(c.closeRail).toHaveBeenCalledOnce()
     expect(c.runAction).not.toHaveBeenCalled()
@@ -154,7 +151,6 @@ describe('the rail over the page in the browser chrome', () => {
         describeEmulation: () => '',
         footer: {
           commandPaletteOpen: false,
-          tabSearchOpen: false,
           downloadsOpen: false,
           historyOpen: false,
           settingsOpen: false,

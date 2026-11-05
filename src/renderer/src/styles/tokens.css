@@ -197,8 +197,6 @@
   --panel-dock-size: 0px;
   --shell-content-top: 0px;
   --tab-group-color: var(--accent);
-  --tab-overview-basis: 0px;
-  --tab-overview-max-width: 100%;
   --tab-rail-width: 0px;
 }
 

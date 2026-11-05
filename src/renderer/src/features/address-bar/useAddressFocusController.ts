@@ -13,7 +13,6 @@ export interface AddressFocusControllerOptions {
   settingsOpen: Ref<boolean>
   updateNoticeOpen: Ref<boolean>
   zoomOpen: Ref<boolean>
-  tabSearchOpen: Ref<boolean>
   /**
    * Find and the panels and dialogs that focusing the address does not close itself but would take the keyboard focus
    * from. One the person opens while the focus waits keeps its place and the focus.
@@ -43,7 +42,7 @@ export function useAddressFocusController(options: AddressFocusControllerOptions
 
   /** The overlays the person opens that focusing the address closes. */
   function overlays(): Ref<boolean>[] {
-    return [options.settingsOpen, options.zoomOpen, options.tabSearchOpen]
+    return [options.settingsOpen, options.zoomOpen]
   }
 
   function openSurfaces(): Readonly<Ref<boolean>>[] {

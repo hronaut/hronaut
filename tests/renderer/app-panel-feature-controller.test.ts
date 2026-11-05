@@ -141,7 +141,6 @@ function createHarness(
       zoomOpen: ref(false),
       downloadsOpen: ref(false),
       historyOpen: ref(false),
-      tabSearchOpen: ref(false),
       updateNoticeOpen: ref(false),
       findOpen: ref(false),
       closeFind: vi.fn(async () => undefined)

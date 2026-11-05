@@ -56,7 +56,6 @@ function createHarness() {
   const downloadsOpen = ref(true)
   const bookmarksOpen = ref(true)
   const historyOpen = ref(true)
-  const tabSearchOpen = ref(true)
   const zoomOpen = ref(true)
   const findOpen = ref(true)
   const findFocused = ref(false)
@@ -111,7 +110,6 @@ function createHarness() {
           settingsOpen,
           settingsSection: ref('appearance'),
           updateNoticeOpen,
-          tabSearchOpen,
           zoomOpen,
           findOpen,
           findFocused
@@ -158,7 +156,6 @@ function createHarness() {
     downloadsOpen,
     bookmarksOpen,
     historyOpen,
-    tabSearchOpen,
     zoomOpen,
     findOpen,
     findFocused,
@@ -183,7 +180,6 @@ describe('app site navigation feature controller', () => {
     expect(harness.downloadsOpen.value).toBe(false)
     expect(harness.bookmarksOpen.value).toBe(false)
     expect(harness.historyOpen.value).toBe(false)
-    expect(harness.tabSearchOpen.value).toBe(false)
     expect(harness.zoomOpen.value).toBe(false)
     expect(harness.closeFind).toHaveBeenCalledOnce()
     expect(harness.setFollowAgentActivitySuspended).toHaveBeenLastCalledWith(true)

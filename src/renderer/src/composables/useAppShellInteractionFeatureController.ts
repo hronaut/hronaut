@@ -25,7 +25,6 @@ import { useHomeNavigationController } from './useHomeNavigationController.js'
 import type { SettingsSection } from '../features/settings/useSettingsDialogController.js'
 import { useSplitViewShellController } from '../features/split-view/useSplitViewShellController.js'
 import { useTabNavigationController } from '../features/tabs/useTabNavigationController.js'
-import { useTabSearchShellController } from '../features/tabs/useTabSearchShellController.js'
 import type { TransientPanelsCloseOptions } from './useTransientPanelsController.js'
 import { useUiActionController } from './useUiActionController.js'
 import { useZoomShellController } from '../features/zoom/useZoomShellController.js'
@@ -33,6 +32,7 @@ import { useZoomShellController } from '../features/zoom/useZoomShellController.
 type InteractionBrowserApi = Pick<
   HronautApi,
   | 'openHome'
+  | 'openHomeTabs'
   | 'newTab'
   | 'closeTab'
   | 'closeTabs'
@@ -50,10 +50,8 @@ type TransientShell = Pick<
   | 'workspaceEditorOpen'
   | 'findOpen'
   | 'zoomOpen'
-  | 'tabSearchOpen'
   | 'commandPaletteOpen'
   | 'commandPaletteView'
-  | 'tabSearchPanel'
   | 'zoomBar'
   | 'commandPalettePanel'
   | 'agentStepsOpen'
@@ -246,14 +244,6 @@ export function useAppShellInteractionFeatureController(
     closeTransientPanels: actions.closeTransientPanels,
     openForTab: transient.openFindForTab
   })
-  const tabSearch = useTabSearchShellController({
-    open: transient.tabSearchOpen,
-    panel: transient.tabSearchPanel,
-    settingsOpen: surfaces.settings.open,
-    bookmarksOpen: features.collections.bookmarksOpen,
-    splitMenuOpen: splitView.open,
-    closeTransientPanels: actions.closeTransientPanels
-  })
   const zoom = useZoomShellController({
     activeTab: options.activeTab,
     open: transient.zoomOpen,
@@ -284,9 +274,9 @@ export function useAppShellInteractionFeatureController(
     downloadsOpen: features.collections.downloadsOpen,
     bookmarksOpen: features.collections.bookmarksOpen,
     historyOpen: features.collections.historyOpen,
-    tabSearchOpen: transient.tabSearchOpen,
     zoomOpen: transient.zoomOpen,
-    navigateHome: () => options.syncState(options.browser.openHome())
+    navigateHome: () => options.syncState(options.browser.openHome()),
+    navigateHomeTabs: () => options.syncState(options.browser.openHomeTabs())
   })
   const tabNavigation = useTabNavigationController({
     state: options.state,
@@ -298,7 +288,6 @@ export function useAppShellInteractionFeatureController(
     settingsOpen: surfaces.settings.open,
     updateNoticeOpen: surfaces.updateNotice,
     zoomOpen: transient.zoomOpen,
-    tabSearchOpen: transient.tabSearchOpen,
     otherSurfacesOpen: [
       transient.findOpen,
       transient.commandPaletteOpen,
@@ -336,7 +325,7 @@ export function useAppShellInteractionFeatureController(
     browser: {
       openHome: home.openHome,
       runShortcut: (action) => runShortcutFromPalette(action),
-      toggleTabSearch: tabSearch.toggle,
+      openHomeTabs: home.openHomeTabs,
       openFind: find.open,
       togglePageTools: navigation.togglePageTools,
       toggleDeveloperTools: navigation.toggleDeveloperTools
@@ -367,14 +356,13 @@ export function useAppShellInteractionFeatureController(
     canRunAction: (action) => {
       // Find Next and Find Previous do nothing over a dialog, as Ctrl/Cmd+F does: Find would search the page the dialog
       // covers and fight it for focus. Hronaut's window keeps their keys from the menu there, but the menu's items can
-      // still be chosen with the pointer. So can the View menu's Downloads: the panel would open behind the dialog, or
-      // close Tab search, where Ctrl/Cmd+H does nothing. Over Settings it opens and closes Settings, as Ctrl/Cmd+H does.
+      // still be chosen with the pointer. So can the View menu's Downloads: the panel would open behind the dialog, where
+      // Ctrl/Cmd+H does nothing. Over Settings it opens and closes Settings, as Ctrl/Cmd+H does.
       if (action === 'find-next' || action === 'find-previous' || action === 'downloads') {
         return !(
           transient.commandPaletteOpen.value
           || transient.workspaceEditorOpen.value
           || transient.credentialPickerOpen.value
-          || transient.tabSearchOpen.value
           || surfaces.help.open.value
           || surfaces.releaseHistory.open.value
           || surfaces.taskManager.open.value
@@ -393,7 +381,6 @@ export function useAppShellInteractionFeatureController(
         return surfaces.taskManager.open.value || !(
           transient.commandPaletteOpen.value
           || transient.workspaceEditorOpen.value
-          || transient.tabSearchOpen.value
           || surfaces.help.open.value
           || surfaces.releaseHistory.open.value
           || agentSteps.open.value
@@ -424,7 +411,7 @@ export function useAppShellInteractionFeatureController(
     toggleVisitHistory: features.collections.toggleVisitHistory,
     toggleDownloads: features.collections.toggleDownloads,
     toggleTaskManager: surfaces.taskManager.toggle,
-    toggleTabSearch: tabSearch.toggle,
+    openHomeTabs: home.openHomeTabs,
     openPrivacySettings: features.site.openPrivacySettings,
     toggleCommandPalette: () => commandPalette.toggle('commands'),
     toggleWorkspaceSwitcher: () => commandPalette.toggle('workspaces'),
@@ -458,7 +445,6 @@ export function useAppShellInteractionFeatureController(
       addressSuggestions: surfaces.addressSuggestions,
       // The person's Escape closing Find from elsewhere in Hronaut's window keeps its match, as Escape in the bar does.
       find: { open: transient.findOpen, close: () => { void transient.closeFind({ keepMatch: true }) } },
-      tabSearch: transient.tabSearchOpen,
       splitMenu: splitView.open,
       zoom: transient.zoomOpen,
       updateNotice: surfaces.updateNotice
@@ -485,7 +471,7 @@ export function useAppShellInteractionFeatureController(
     prepareSplitViewMenu: splitView.prepareOpen,
     handleSplitViewError: splitView.handleError,
     openFind: find.open,
-    toggleTabSearch: tabSearch.toggle,
+    openHomeTabs: home.openHomeTabs,
     toggleZoom: zoom.toggle,
     runShellAction: uiActions.run,
     openSupportSettings: help.openSupportSettings,

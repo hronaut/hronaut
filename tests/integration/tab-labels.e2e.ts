@@ -1,8 +1,9 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { ElectronApplication, Page } from '@playwright/test'
+import type { ElectronApplication, Locator, Page } from '@playwright/test'
 import type { HronautApi } from '../../src/shared/types.js'
 import { closeHronaut, expect, launchHronaut, test } from './fixtures.js'
+import { openTabsView, pressShortcutInHome } from './home-tabs-view.js'
 
 const fixtureUrl = 'data:text/html,<title>Shared application</title><main>Synthetic task fixture</main>'
 const api = (page: Page) => ({
@@ -59,56 +60,67 @@ async function restoreFault(app: ElectronApplication): Promise<void> {
   await app.evaluate(() => (globalThis as unknown as { labelFault?: { restore: () => void } }).labelFault?.restore())
 }
 
-test('edits, searches and clears task labels without replacing document titles through navigation', async ({ appWindow }, testInfo) => {
+/** Opens a card's menu in Home's Tabs view and chooses Edit label. */
+async function editLabel(card: Locator): Promise<void> {
+  await card.locator('summary').click()
+  await card.getByRole('button', { name: 'Edit label', exact: true }).click()
+}
+
+test('edits, searches and clears task labels without replacing document titles through navigation', async ({ appWindow, electronApp }, testInfo) => {
   const first = await newTab(appWindow)
   await newTab(appWindow)
-  await appWindow.getByRole('button', { name: 'Search tabs', exact: true }).click()
-  const panel = appWindow.getByRole('dialog', { name: 'Tabs', exact: true })
-  const cards = panel.locator('.tab-overview-card')
+  const { home, view, search, results } = await openTabsView(appWindow, electronApp)
+  const cards = results.locator('.tab-card')
   await expect(cards).toHaveCount(2)
-  await cards.first().getByRole('button', { name: 'Edit label for Shared application', exact: true }).click()
-  const input = panel.getByRole('textbox', { name: 'Tab label', exact: true })
+  await editLabel(cards.first())
+  const input = view.getByRole('textbox', { name: 'Tab label', exact: true })
   await expect(input).toBeFocused()
   await input.fill('  Customer checkout  ')
-  await panel.getByRole('button', { name: 'Save', exact: true }).click()
+  await view.getByRole('button', { name: 'Save', exact: true }).click()
   await expect.poll(async () => (await api(appWindow).state()).tabs.find(tab => tab.id === first)?.label).toBe('Customer checkout')
-  await panel.getByRole('searchbox').fill('customer checkout')
+  await search.fill('customer checkout')
   await expect(cards).toHaveCount(1)
   await expect(cards.first()).toContainText('Shared application')
   await appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.navigate({ url: 'data:text/html,<title>Changed document</title><main>Another synthetic document</main>', tabId: id }), first)
   await expect.poll(async () => (await api(appWindow).state()).tabs.find(tab => tab.id === first)?.title).toBe('Changed document')
   await expect(cards).toHaveCount(1)
   await expect(cards.first()).toContainText('Changed document')
-  await cards.first().getByRole('button', { name: 'Edit label for Customer checkout', exact: true }).click()
-  await testInfo.attach('tab-label-editor', { body: await panel.screenshot(), contentType: 'image/png' })
+  await expect(cards.first().locator('summary')).toHaveAttribute('aria-label', 'More actions for Customer checkout')
+  await editLabel(cards.first())
+  await testInfo.attach('tab-label-editor', { body: await home.screenshot(), contentType: 'image/png' })
   await input.fill('Canceled draft')
-  await panel.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await view.getByRole('button', { name: 'Cancel', exact: true }).click()
   expect((await api(appWindow).state()).tabs.find(tab => tab.id === first)?.label).toBe('Customer checkout')
-  await cards.first().getByRole('button', { name: 'Edit label for Customer checkout', exact: true }).click()
-  await panel.getByRole('button', { name: 'Clear label', exact: true }).click()
+  await editLabel(cards.first())
+  await view.getByRole('button', { name: 'Clear label', exact: true }).click()
   await expect(cards).toHaveCount(0)
   expect((await api(appWindow).state()).tabs.find(tab => tab.id === first)?.label).toBeUndefined()
 })
 
-test('closes Search tabs with Escape after saving or canceling a label', async ({ appWindow }) => {
-  // Focus goes back to Edit label, whose keys never left the editor, so Escape and Ctrl/Cmd+Shift+A did nothing there.
-  await newTab(appWindow)
-  const panel = appWindow.getByRole('dialog', { name: 'Tabs', exact: true })
-  const searchTabs = appWindow.getByRole('button', { name: 'Search tabs', exact: true })
+test('goes back from the Tabs view with Escape after saving or canceling a label, and opens it again with its key', async ({ appWindow, electronApp }) => {
+  // Saving or canceling gives the focus back to the card's menu button, where Escape and Ctrl/Cmd+Shift+A still work.
+  const page = await newTab(appWindow)
   for (const end of ['save', 'cancel', 'search-tabs key'] as const) {
-    await searchTabs.click()
-    await expect(panel).toBeVisible()
-    const card = panel.locator('.tab-overview-card').first()
-    await card.getByRole('button', { name: /^Edit label for / }).click()
-    const input = panel.getByRole('textbox', { name: 'Tab label', exact: true })
+    const { home, view, search, results } = await openTabsView(appWindow, electronApp)
+    const card = results.locator('.tab-card').first()
+    await editLabel(card)
+    const input = view.getByRole('textbox', { name: 'Tab label', exact: true })
     await expect(input).toBeFocused()
     await input.fill(`Label ${end}`)
     await input.press(end === 'cancel' ? 'Escape' : 'Enter')
-    const trigger = card.getByRole('button', { name: /^Edit label for / })
-    await expect(trigger).toBeFocused()
-    await expect(panel).toBeVisible()
-    await appWindow.keyboard.press(end === 'search-tabs key' ? 'ControlOrMeta+Shift+A' : 'Escape')
-    await expect(panel).toBeHidden()
+    await expect(card.locator('summary')).toBeFocused()
+    await expect(view).toBeVisible()
+    if (end === 'search-tabs key') {
+      await search.fill('label')
+      await card.locator('summary').focus()
+      await pressShortcutInHome(electronApp, 'A', [process.platform === 'darwin' ? 'meta' : 'control', 'shift'])
+      await expect(search).toBeFocused()
+      await expect(search).toHaveValue('')
+      await expect(view).toBeVisible()
+    } else {
+      await home.keyboard.press('Escape')
+      await expect.poll(async () => (await api(appWindow).state()).activeTabId).toBe(page)
+    }
   }
 })
 
@@ -116,24 +128,23 @@ for (const owner of ['original editor', 'search', 'other editor'] as const) {
   test(`delayed label save preserves focus owned by ${owner}`, async ({ appWindow, electronApp, profileDirectory }) => {
     await newTab(appWindow)
     await newTab(appWindow)
-    await appWindow.getByRole('button', { name: 'Search tabs', exact: true }).click()
-    const panel = appWindow.getByRole('dialog', { name: 'Tabs', exact: true })
-    const cards = panel.locator('.tab-overview-card')
+    const { search, results } = await openTabsView(appWindow, electronApp)
+    const cards = results.locator('.tab-card')
     const first = cards.first()
     const second = cards.nth(1)
-    await first.getByRole('button', { name: 'Edit label for Shared application', exact: true }).click()
+    await editLabel(first)
     await first.getByRole('textbox', { name: 'Tab label', exact: true }).fill('Delayed focus role')
     await installSaveFault(electronApp, 'hold', 'Delayed focus role', profileDirectory)
     try {
       await first.getByRole('button', { name: 'Save', exact: true }).click()
       await faultEntered(electronApp)
-      if (owner === 'search') await panel.getByRole('searchbox').focus()
-      if (owner === 'other editor') await second.getByRole('button', { name: 'Edit label for Shared application', exact: true }).click()
+      if (owner === 'search') await search.focus()
+      if (owner === 'other editor') await editLabel(second)
       await releaseFault(electronApp)
-      const trigger = first.getByRole('button', { name: 'Edit label for Delayed focus role', exact: true })
-      await expect(trigger).toBeEnabled()
+      const trigger = first.locator('summary')
+      await expect(trigger).toHaveAttribute('aria-label', 'More actions for Delayed focus role')
       if (owner === 'original editor') await expect(trigger).toBeFocused()
-      if (owner === 'search') await expect(panel.getByRole('searchbox')).toBeFocused()
+      if (owner === 'search') await expect(search).toBeFocused()
       if (owner === 'other editor') await expect(second.getByRole('textbox', { name: 'Tab label', exact: true })).toBeFocused()
     } finally { await restoreFault(electronApp) }
   })
