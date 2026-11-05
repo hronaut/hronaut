@@ -140,7 +140,6 @@ export const koKR: MessageSchema = {
     delete: '삭제…',
     undo: '보관처리 실행취소',
     archiveHelp: '보관처리된 작업 공간은 탭과 로그인 정보를 유지합니다. 필요할 때 언제든지 복원하세요.',
-    openHelp: '완료된 작업을 보관처리하여 목록을 깔끔하게 유지하세요. 탭과 로그인 정보는 유지됩니다.',
     empty: '첫 번째 작업 공간을 여기에서 시작하세요',
     emptyHelp: '프로젝트, 계정, 에이전트 작업을 위한 공간을 만드세요. 작업 공간마다 자체 웹사이트 데이터가 있습니다.',
     noArchived: '보관처리된 작업 공간이 없습니다',
@@ -3835,7 +3834,6 @@ export const koKR: MessageSchema = {
       lastUsed: '마지막 사용: {time}',
       open: '{name} 열기',
       moreActions: '{name}의 추가 작업',
-      newWorkspaceHelp: '자체 탭과 로그인 정보',
       checks: {
         ok: '준비됨',
         failed: '확인 필요',

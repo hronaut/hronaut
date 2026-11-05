@@ -140,7 +140,6 @@ export const viVN: MessageSchema = {
     delete: 'Xóa…',
     undo: 'Hoàn tác lưu trữ',
     archiveHelp: 'Không gian làm việc đã lưu trữ vẫn giữ thẻ và thông tin đăng nhập. Bạn có thể khôi phục bất cứ khi nào cần.',
-    openHelp: 'Lưu trữ những việc đã xong để danh sách này gọn gàng. Thẻ và thông tin đăng nhập của bạn vẫn được giữ lại.',
     empty: 'Không gian làm việc đầu tiên của bạn bắt đầu từ đây',
     emptyHelp: 'Tạo một không gian cho dự án, tài khoản hoặc nhiệm vụ của tác nhân. Mỗi không gian làm việc có dữ liệu trang web riêng.',
     noArchived: 'Không có không gian làm việc nào đã lưu trữ',
@@ -3835,7 +3834,6 @@ export const viVN: MessageSchema = {
       lastUsed: 'Dùng lần cuối {time}',
       open: 'Mở {name}',
       moreActions: 'Thao tác khác cho {name}',
-      newWorkspaceHelp: 'Có thẻ và thông tin đăng nhập riêng',
       checks: {
         ok: 'Sẵn sàng',
         failed: 'Cần chú ý',

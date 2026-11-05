@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // Redesign QA for #872 and HRO-65: each workspace card's live status and its in-place update, the card menu, the tab
-// tiles, the header, the Agents view, the needs-you line, and Undo after archive and clear. The connected agents list
-// has its own file.
+// tiles, the card's header, the list itself, Home's header, the Agents view, the needs-you line, and Undo after archive
+// and clear. The connected agents list has its own file.
 import { describe, expect, it, vi } from 'vitest'
 import type { HomeDashboard, HomeWorkspaceActivity } from '../src/shared/home.js'
 import type { HomeWorkspaceState } from '../src/shared/home-workspaces.js'
@@ -243,7 +243,7 @@ describe('Workspace card tab tiles (#872)', () => {
     expect(tiles().filter(tile => tile.matches('.card-tab:not(.card-tab-more)')).map(tile => words(tile.querySelector('.card-tab-title'))))
       .toEqual(tabs(shown).map(tab => tab.title))
     expect(card('Acme Store').querySelector('.card-tab-more')?.textContent ?? null).toBe(more)
-    expect(words(query('.card-meta', card('Acme Store')))).toBe(`${count === 1 ? '1 tab' : `${count} tabs`} · 0 known websites`)
+    expect(words(query('.card-count', card('Acme Store')))).toBe(count === 1 ? '1 tab' : `${count} tabs`)
   })
 
   it('says a workspace has no open pages yet', async () => {
@@ -308,6 +308,59 @@ describe('Workspace card tab tiles (#872)', () => {
     expect(query('.card-tab-initial', blank!).textContent).toBe(initial)
     expect(words(untitled!.querySelector('.card-tab-title'))).toBe(name)
     expect(words(site!.querySelector('.card-tab-title'))).toBe('New tab')
+  })
+})
+
+describe('Workspace card header and list (HRO-65)', () => {
+  const badges = (name: string) => [...card(name).querySelectorAll<HTMLElement>('.card-badge')]
+    .map(badge => ({ role: badge.getAttribute('role'), label: badge.getAttribute('aria-label'), tooltip: badge.title, icon: Boolean(badge.querySelector('svg')) }))
+
+  it('puts the tab count beside the name and each setting as a named icon, not a row of words', async () => {
+    const guarded = openWorkspace('guarded', {
+      name: 'Guarded', agentAccess: false, hiddenFromSidebar: true, deletionProtected: true, navigationPolicy: { mode: 'restricted', rules: [] }
+    })
+    mountTestHome({ workspaces: inventory({ mcpTabGroups: [shop, guarded], tabs: [{ id: 'a', mcpGroupId: 'guarded', title: 'Cart', url: 'https://shop.example/' }] }) })
+    await flush()
+    const header = query('header', card('Guarded'))
+    expect([...header.children].map(child => child.className || child.tagName.toLowerCase()))
+      .toEqual(['workspace-dot', 'h2', 'card-count', 'card-badge', 'card-badge', 'card-badge', 'card-badge', 'card-menu'])
+    expect(words(query('.card-count', header))).toBe('1 tab')
+    expect(badges('Guarded')).toEqual([
+      'Direct agent access off · Sign-in copying allowed', 'Hidden from sidebar', 'Deletion protected', 'Selected sites only'
+    ].map(label => ({ role: 'img', label, tooltip: label, icon: true })))
+    expect(badges('Acme Store')).toEqual([])
+    expect(card('Guarded').querySelector('.card-meta, .home-workspace-badges')).toBeNull()
+  })
+
+  it('shows an archived workspace\'s settings the same way', async () => {
+    mountTestHome({ workspaces: inventory({ mcpTabGroups: [docs], savedTabGroups: [archivedWorkspace({ ...shop, deletionProtected: true })] }) })
+    await flush()
+    byId<HTMLButtonElement>('workspaces-archived').click()
+    expect(badges('Acme Store').map(badge => badge.label)).toEqual(['Deletion protected'])
+  })
+
+  it.each([[0, '0 known websites'], [1, '1 known website'], [3, '3 known websites']])(
+    'counts %i websites with kept data on Copy or move data, not on the card', async (sites, text) => {
+      mountTestHome({ workspaces: inventory({ mcpTabGroups: [{ ...shop, storageOriginCount: sites }] }) })
+      await flush()
+      const transfer = query<HTMLButtonElement>('[data-workspace-action="transfer"]', card('Acme Store'))
+      expect(words(query('.card-menu-note', transfer))).toBe(text)
+      expect(words(transfer)).toBe(`Copy or move data${text}`)
+      // The item keeps its name; the count is its description.
+      expect(transfer.getAttribute('aria-label')).toBe('Copy or move data')
+      expect(byId(transfer.getAttribute('aria-describedby')!)).toBe(query('.card-menu-note', transfer))
+      const outsideMenu = [...card('Acme Store').children].filter(child => !child.contains(transfer)).map(child => words(child)).join(' ')
+      expect(outsideMenu).not.toContain('known website')
+    })
+
+  it('lists only workspaces: no tile for a new one and no standing hint, while Create workspace stays in the toolbar', async () => {
+    mountTestHome({ workspaces: inventory() })
+    await flush()
+    expect([...byId('workspace-grid').children].map(child => child.className)).toEqual(['home-workspace-card', 'home-workspace-card'])
+    expect(document.querySelector('#workspace-hint, .new-workspace-tile')).toBeNull()
+    expect(query('.workspace-toolbar [data-workspace-action="create"]').textContent).toBe('Create workspace')
+    byId<HTMLButtonElement>('workspaces-archived').click()
+    expect(words(byId('workspace-grid'))).toBe('No archived workspacesArchived workspaces keep their tabs and sign-ins. Restore one whenever you need it.')
   })
 })
 

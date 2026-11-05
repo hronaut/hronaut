@@ -39,7 +39,9 @@ test('Home manages workspaces across themes and narrow windows', async ({ appWin
   const home = await homePage(electronApp)
   const library = home.locator('#home-workspaces')
   await expect(library.getByRole('article')).toHaveCount(3)
-  await expect(library.getByText('Direct agent access off · Sign-in copying allowed', { exact: true })).toBeVisible()
+  // A card shows its workspace's settings as named icons.
+  await expect(library.getByRole('img', { name: 'Direct agent access off · Sign-in copying allowed', exact: true })).toBeVisible()
+  await expect(library.getByRole('img', { name: 'Selected sites only', exact: true })).toBeVisible()
   const search = library.getByRole('searchbox', { name: 'Search workspaces or tabs' })
   await search.fill('personal')
   await expect(library.getByRole('article')).toHaveCount(1)
@@ -133,7 +135,8 @@ test('creates a hidden protected workspace from Home at enlarged scale and keeps
   await appWindow.evaluate('window.hronaut.openHome()')
   const card = home.getByRole('article', { name: 'Private research', exact: true })
   await expect(card).toBeVisible()
-  await expect(card.getByText('Deletion protected', { exact: true })).toBeVisible()
+  await expect(card.getByRole('img', { name: 'Deletion protected', exact: true })).toBeVisible()
+  await expect(card.getByRole('img', { name: 'Hidden from sidebar', exact: true })).toBeVisible()
   await openCardMenu(card, 'Private research')
   await expect(card.getByRole('button', { name: 'Clear…', exact: true })).toBeDisabled()
   // Escape closes the menu and returns focus to its button; the whole card then opens the workspace.

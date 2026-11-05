@@ -140,7 +140,6 @@ export const zhCN: MessageSchema = {
     delete: '删除…',
     undo: '撤消归档',
     archiveHelp: '已归档的工作区会保留其标签页和登录信息。需要时随时可以恢复。',
-    openHelp: '将已完成的工作归档，让此列表保持整洁。您的标签页和登录信息都会保留。',
     empty: '从这里开始创建您的第一个工作区',
     emptyHelp: '为项目、账号或智能体任务创建一个空间。每个工作区都有自己的网站数据。',
     noArchived: '没有已归档的工作区',
@@ -3835,7 +3834,6 @@ export const zhCN: MessageSchema = {
       lastUsed: '上次使用：{time}',
       open: '打开 {name}',
       moreActions: '{name} 的更多操作',
-      newWorkspaceHelp: '拥有独立的标签页和登录信息',
       checks: {
         ok: '就绪',
         failed: '需要您注意',

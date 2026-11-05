@@ -140,7 +140,6 @@ export const zhTW: MessageSchema = {
     delete: '刪除…',
     undo: '復原封存',
     archiveHelp: '封存的工作區會保留其分頁和登入資訊，需要時隨時都能還原。',
-    openHelp: '封存已完成的工作，讓這份清單保持整齊。你的分頁和登入資訊都會保留。',
     empty: '從這裡開始建立你的第一個工作區',
     emptyHelp: '為專案、帳戶或代理程式任務建立一個空間。每個工作區都有自己的網站資料。',
     noArchived: '沒有封存的工作區',
@@ -3835,7 +3834,6 @@ export const zhTW: MessageSchema = {
       lastUsed: '上次使用時間：{time}',
       open: '開啟 {name}',
       moreActions: '{name} 的更多動作',
-      newWorkspaceHelp: '擁有自己的分頁和登入資訊',
       checks: {
         ok: '就緒',
         failed: '需要注意',

@@ -140,7 +140,6 @@ export const frFR: MessageSchema = {
     delete: 'Supprimer…',
     undo: 'Annuler l’archivage',
     archiveHelp: 'Les espaces archivés conservent leurs onglets et connexions. Restaurez-les au besoin.',
-    openHelp: 'Archivez le travail terminé pour organiser cette liste. Les onglets et connexions sont conservés.',
     empty: 'Créez votre premier espace de travail',
     emptyHelp: 'Créez un espace pour un projet, un compte ou une tâche d’agent. Chaque espace possède ses propres données de sites.',
     noArchived: 'Aucun espace archivé',
@@ -3835,7 +3834,6 @@ export const frFR: MessageSchema = {
       lastUsed: 'Dernière utilisation {time}',
       open: 'Ouvrir {name}',
       moreActions: 'Plus d’actions pour {name}',
-      newWorkspaceHelp: 'Ses propres onglets et connexions',
       checks: {
         ok: 'Prêt',
         failed: 'À vérifier',

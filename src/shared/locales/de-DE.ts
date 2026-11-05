@@ -140,7 +140,6 @@ export const deDE: MessageSchema = {
     delete: 'Löschen…',
     undo: 'Archivierung rückgängig',
     archiveHelp: 'Archivierte Arbeitsbereiche behalten Tabs und Anmeldungen. Stellen Sie sie bei Bedarf wieder her.',
-    openHelp: 'Archivieren Sie abgeschlossene Arbeit für mehr Übersicht. Tabs und Anmeldungen bleiben erhalten.',
     empty: 'Ihr erster Arbeitsbereich beginnt hier',
     emptyHelp: 'Erstellen Sie einen Bereich für ein Projekt, Konto oder eine Agentenaufgabe. Jeder Bereich hat eigene Website-Daten.',
     noArchived: 'Keine archivierten Arbeitsbereiche',
@@ -3835,7 +3834,6 @@ export const deDE: MessageSchema = {
       lastUsed: 'Zuletzt verwendet {time}',
       open: '{name} öffnen',
       moreActions: 'Weitere Aktionen für {name}',
-      newWorkspaceHelp: 'Eigene Tabs und Anmeldungen',
       checks: {
         ok: 'Bereit',
         failed: 'Braucht Aufmerksamkeit',
