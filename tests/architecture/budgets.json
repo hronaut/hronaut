@@ -140,7 +140,7 @@
     "src/main/file-source-acquisition.ts": 4,
     "src/main/home/home-dashboard.ts": 1,
     "src/main/home/home-ipc.ts": 1,
-    "src/main/home/home-page.ts": 34,
+    "src/main/home/home-page.ts": 33,
     "src/main/home/home-workspace-actions.ts": 3,
     "src/main/incident/incident-package.ts": 5,
     "src/main/index.ts": 1,

@@ -78,12 +78,11 @@ function renderTabs(group: WorkspaceCard, context: CardContext): HTMLElement {
   return tiles
 }
 
-/** A workspace setting the card shows as a small icon; its name is the icon's label and tooltip. */
+/** A workspace setting the card shows as a small icon; its tooltip is its name, to screen readers too. */
 function badge(name: HomeIcon, label: string): HTMLElement {
   const node = document.createElement('span')
   node.className = 'card-badge'
   node.setAttribute('role', 'img')
-  node.setAttribute('aria-label', label)
   node.title = label
   node.append(icon(name))
   return node
@@ -113,14 +112,14 @@ export function renderWorkspaceCard(card: HTMLElement, group: WorkspaceCard, con
   const list = document.createElement('div')
   list.className = 'card-menu-list'
   if (!group.archived) list.append(button('edit', labels.manageWorkspace))
-  // The websites whose data the workspace keeps are what Copy or move data copies, so their count sits on that item,
+  // The websites whose data the workspace keeps are what Copy or move data copies, so their count sits under that item,
   // as its description: the item keeps its name.
-  const transfer = button('transfer', labels.transferData)
+  const transfer = button('transfer', '')
   const sites = text('small', count(labels.workspaceSites, group.storageOriginCount || 0), 'card-menu-note')
   sites.id = `workspace-sites-${group.id}`
   transfer.setAttribute('aria-label', labels.transferData)
   transfer.setAttribute('aria-describedby', sites.id)
-  transfer.append(sites)
+  transfer.append(text('span', labels.transferData), sites)
   list.append(transfer)
   for (const preference of ['hiddenFromSidebar', 'deletionProtected'] as const) {
     const label = document.createElement('label')
@@ -131,6 +130,15 @@ export function renderWorkspaceCard(card: HTMLElement, group: WorkspaceCard, con
     input.checked = Boolean(group[preference])
     label.append(input, document.createTextNode(messages[preference === 'hiddenFromSidebar' ? 'hideFromSidebar' : 'protectDeletion']))
     list.append(label)
+  }
+  // The settings the card shows only as icons also read here in words, where the keyboard reaches them.
+  for (const [name, label] of [
+    ...(group.agentAccess === false ? [['person', messages.personal] as const] : []),
+    ...(group.navigationPolicy.mode === 'restricted' ? [['shield', messages.restricted] as const] : [])
+  ]) {
+    const fact = text('p', label, 'card-menu-fact')
+    fact.prepend(icon(name))
+    list.append(fact)
   }
   list.append(document.createElement('hr'))
   if (group.archived) list.append(button('delete', messages.delete, archiveLocked || group.deletionProtected, 'danger'))
@@ -143,14 +151,20 @@ export function renderWorkspaceCard(card: HTMLElement, group: WorkspaceCard, con
   if (group.deletionProtected) badges.push(['lock', messages.protected])
   if (group.navigationPolicy.mode === 'restricted') badges.push(['shield', messages.restricted])
 
-  // The name, how many tabs, then the workspace's settings as icons, so the card spends its lines on what agents do.
   const header = document.createElement('header')
   const dot = document.createElement('span')
   dot.className = 'workspace-dot'
   dot.style.setProperty('--workspace-color', BROWSER_TAB_GROUP_COLOR_HEX[group.color])
   dot.setAttribute('aria-hidden', 'true')
-  header.append(dot, text('h2', group.name), text('span', count(labels.workspaceTabs, group.tabs.length), 'card-count'),
-    ...badges.map(([name, label]) => badge(name, label)), menu)
+  header.append(dot, text('h2', group.name), menu)
+  // One short line under the name: how many tabs, then the workspace's settings as icons, so the name keeps its room and
+  // the card spends its lines on what agents do.
+  const facts = document.createElement('p')
+  facts.className = 'card-facts'
+  facts.append(
+    text('span', count(labels.workspaceTabs, group.tabs.length), 'card-count'),
+    ...badges.map(([name, label]) => badge(name, label))
+  )
 
   const statusLine = document.createElement('p')
   statusLine.className = 'card-status'
@@ -169,7 +183,7 @@ export function renderWorkspaceCard(card: HTMLElement, group: WorkspaceCard, con
 
   card.className = `home-workspace-card${group.archived ? ' archived' : ''}`
   card.setAttribute('aria-label', group.name)
-  card.replaceChildren(renderTabs(group, context), header, statusLine,
+  card.replaceChildren(renderTabs(group, context), header, facts, statusLine,
     ...(group.description ? [text('p', group.description, 'home-workspace-description')] : []),
     footer)
   updateCardStatus(card, status)

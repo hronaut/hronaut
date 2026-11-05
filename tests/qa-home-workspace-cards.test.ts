@@ -312,22 +312,25 @@ describe('Workspace card tab tiles (#872)', () => {
 })
 
 describe('Workspace card header and list (HRO-65)', () => {
+  // A badge is named by its tooltip alone, so a screen reader reads its name once.
   const badges = (name: string) => [...card(name).querySelectorAll<HTMLElement>('.card-badge')]
     .map(badge => ({ role: badge.getAttribute('role'), label: badge.getAttribute('aria-label'), tooltip: badge.title, icon: Boolean(badge.querySelector('svg')) }))
 
-  it('puts the tab count beside the name and each setting as a named icon, not a row of words', async () => {
+  it('keeps the name\'s row for the name and its menu, with the tab count and each setting as a named icon on a line under it', async () => {
     const guarded = openWorkspace('guarded', {
       name: 'Guarded', agentAccess: false, hiddenFromSidebar: true, deletionProtected: true, navigationPolicy: { mode: 'restricted', rules: [] }
     })
     mountTestHome({ workspaces: inventory({ mcpTabGroups: [shop, guarded], tabs: [{ id: 'a', mcpGroupId: 'guarded', title: 'Cart', url: 'https://shop.example/' }] }) })
     await flush()
     const header = query('header', card('Guarded'))
-    expect([...header.children].map(child => child.className || child.tagName.toLowerCase()))
-      .toEqual(['workspace-dot', 'h2', 'card-count', 'card-badge', 'card-badge', 'card-badge', 'card-badge', 'card-menu'])
-    expect(words(query('.card-count', header))).toBe('1 tab')
+    expect([...header.children].map(child => child.className || child.tagName.toLowerCase())).toEqual(['workspace-dot', 'h2', 'card-menu'])
+    const facts = query('.card-facts', card('Guarded'))
+    expect(facts.previousElementSibling).toBe(header)
+    expect([...facts.children].map(child => child.className)).toEqual(['card-count', 'card-badge', 'card-badge', 'card-badge', 'card-badge'])
+    expect(words(query('.card-count', facts))).toBe('1 tab')
     expect(badges('Guarded')).toEqual([
       'Direct agent access off · Sign-in copying allowed', 'Hidden from sidebar', 'Deletion protected', 'Selected sites only'
-    ].map(label => ({ role: 'img', label, tooltip: label, icon: true })))
+    ].map(tooltip => ({ role: 'img', label: null, tooltip, icon: true })))
     expect(badges('Acme Store')).toEqual([])
     expect(card('Guarded').querySelector('.card-meta, .home-workspace-badges')).toBeNull()
   })
@@ -336,7 +339,23 @@ describe('Workspace card header and list (HRO-65)', () => {
     mountTestHome({ workspaces: inventory({ mcpTabGroups: [docs], savedTabGroups: [archivedWorkspace({ ...shop, deletionProtected: true })] }) })
     await flush()
     byId<HTMLButtonElement>('workspaces-archived').click()
-    expect(badges('Acme Store').map(badge => badge.label)).toEqual(['Deletion protected'])
+    expect(badges('Acme Store').map(badge => badge.tooltip)).toEqual(['Deletion protected'])
+  })
+
+  it('names the settings only its icons show in its menu too, where the keyboard reaches them', async () => {
+    const guarded = openWorkspace('guarded', {
+      name: 'Guarded', agentAccess: false, hiddenFromSidebar: true, navigationPolicy: { mode: 'restricted', rules: [] }
+    })
+    mountTestHome({ workspaces: inventory({ mcpTabGroups: [shop, guarded] }) })
+    await flush()
+    const facts = (name: string) => [...card(name).querySelectorAll<HTMLElement>('.card-menu .card-menu-fact')]
+      .map(fact => ({ text: words(fact), icon: Boolean(fact.querySelector('svg')) }))
+    expect(facts('Guarded')).toEqual([
+      { text: 'Direct agent access off · Sign-in copying allowed', icon: true }, { text: 'Selected sites only', icon: true }
+    ])
+    // Hidden and protected already read in the menu as checked boxes.
+    expect(query<HTMLInputElement>('[data-workspace-preference="hiddenFromSidebar"]', card('Guarded')).checked).toBe(true)
+    expect(facts('Acme Store')).toEqual([])
   })
 
   it.each([[0, '0 known websites'], [1, '1 known website'], [3, '3 known websites']])(
@@ -349,8 +368,9 @@ describe('Workspace card header and list (HRO-65)', () => {
       // The item keeps its name; the count is its description.
       expect(transfer.getAttribute('aria-label')).toBe('Copy or move data')
       expect(byId(transfer.getAttribute('aria-describedby')!)).toBe(query('.card-menu-note', transfer))
-      const outsideMenu = [...card('Acme Store').children].filter(child => !child.contains(transfer)).map(child => words(child)).join(' ')
-      expect(outsideMenu).not.toContain('known website')
+      const outsideMenu = card('Acme Store').cloneNode(true) as HTMLElement
+      outsideMenu.querySelector('.card-menu')!.remove()
+      expect(words(outsideMenu)).not.toContain('known website')
     })
 
   it('lists only workspaces: no tile for a new one and no standing hint, while Create workspace stays in the toolbar', async () => {
