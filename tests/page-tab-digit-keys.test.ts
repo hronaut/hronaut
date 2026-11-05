@@ -31,7 +31,6 @@ function pageWith(state: { locked?: boolean, occluded?: boolean, offered?: boole
     isHumanInteractionLocked: () => state.locked === true,
     shellHeldKeys: new Set<string>(),
     pageShortcutKey: null as { code: string; webContentsId: number | null } | null,
-    pageKeyPresses: 0,
     tabs: new Map(),
     reproRecorder: { observeReproKeyboard: vi.fn() },
     mcpActivityFollower: { noteHumanInput: vi.fn() },
@@ -157,17 +156,5 @@ describe('the bookmark and history keys in a page', () => {
       for (const pressed of keys[system]) expect(press(contents, pressed), pressed.key).toBe(true)
       expect(onShortcutRequested.mock.calls.map(([action]) => action), JSON.stringify(state)).toEqual(['bookmark', 'visit-history'])
     }
-  })
-
-  it('count the presses of a held key once, which the menu then acts on once', () => {
-    const { contents, browser } = pageWith()
-    const held = { key: 'd', code: 'KeyD', control: true }
-    press(contents, held)
-    expect(browser.pageKeyPresses).toBe(1)
-    expect(press(contents, { ...held, isAutoRepeat: true })).toBe(false)
-    contents.emit('before-input-event', { preventDefault: vi.fn() }, { ...held, type: 'keyUp', isAutoRepeat: false, modifiers: [] })
-    expect(browser.pageKeyPresses).toBe(1)
-    press(contents, held)
-    expect(browser.pageKeyPresses).toBe(2)
   })
 })

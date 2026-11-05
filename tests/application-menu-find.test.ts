@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 type Item = { label?: string; type?: string; role?: string; accelerator?: string; visible?: boolean; click?: (item: unknown, window: unknown, event: { triggeredByAccelerator?: boolean }) => void }
 const installed = vi.hoisted(() => ({ template: [] as Array<{ label?: string; submenu?: Item[] }> }))
-vi.mock('electron', () => ({ Menu: { buildFromTemplate: (template: typeof installed.template) => template, setApplicationMenu: (menu: typeof installed.template) => { installed.template = menu } } }))
+vi.mock('electron', () => ({ app: { on: () => undefined }, Menu: { buildFromTemplate: (template: typeof installed.template) => template, setApplicationMenu: (menu: typeof installed.template) => { installed.template = menu } } }))
 import { createApplicationMenu } from '../src/main/windows/application-menu.js'
 
 // Ctrl/Cmd+G, Ctrl/Cmd+Shift+G, F3 and Shift+F3 did nothing, where Chrome goes to the next or previous match of Find.

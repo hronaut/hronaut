@@ -450,11 +450,6 @@ export class Browser {
    * repeats stay out of pages, except the page with this id, which a held Ctrl+= goes on zooming.
    */
   pageShortcutKey: { code: string; webContentsId: number | null } | null = null
-  /**
-   * How many keys were pressed in pages, not counting a held key's repeats. A key the page leaves alone reaches the
-   * application menu, which bookmarks the page or opens history once for each press, as Chrome does.
-   */
-  pageKeyPresses = 0
   readonly occlusionSnapshot = createOcclusionSnapshot(this)
   readonly closedTabs: BrowserClosedTabState[] = []
   /**

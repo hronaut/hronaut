@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 type Item = { label?: string; type?: string; role?: string; accelerator?: string; submenu?: Item[]; click?: () => void }
 const installed = vi.hoisted(() => ({ template: [] as Item[] }))
-vi.mock('electron', () => ({ Menu: { buildFromTemplate: (template: Item[]) => template, setApplicationMenu: (menu: Item[]) => { installed.template = menu } } }))
+vi.mock('electron', () => ({ app: { on: () => undefined }, Menu: { buildFromTemplate: (template: Item[]) => template, setApplicationMenu: (menu: Item[]) => { installed.template = menu } } }))
 import { createApplicationMenu } from '../src/main/windows/application-menu.js'
 
 // On macOS Hronaut's menu had none of an application's own items there: Cmd+H, Cmd+Option+H, Cmd+M and Cmd+, did

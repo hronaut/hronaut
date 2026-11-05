@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { isBrowserKey, type BrowserShortcutInput } from '../src/shared/browser-shortcuts.js'
 type Item = { label?: string; accelerator?: string; submenu?: Item[] }
 const installed = vi.hoisted(() => ({ template: [] as Item[] }))
-vi.mock('electron', () => ({ Menu: { buildFromTemplate: (template: Item[]) => template, setApplicationMenu: (menu: Item[]) => { installed.template = menu } } }))
+vi.mock('electron', () => ({ app: { on: () => undefined }, Menu: { buildFromTemplate: (template: Item[]) => template, setApplicationMenu: (menu: Item[]) => { installed.template = menu } } }))
 import { createApplicationMenu } from '../src/main/windows/application-menu.js'
 
 // Under a Hronaut dialog or the command palette, Hronaut's window leaves its keys alone, and a key it leaves alone
