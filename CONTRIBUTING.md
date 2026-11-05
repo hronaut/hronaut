@@ -57,11 +57,12 @@ The Docker suite ends with the responsiveness gate,
 test is done; hosted CI and the release run it after shard 2. Four agents open
 pages, read them and take screenshots in their own workspaces while the person
 clicks tabs. The gate fails when a measurement passes its limit: the shell's
-first paint and heap, how long a click takes to show its tab, main's thread
+heap, how long a click takes to show its tab, main's thread
 time per agent call, how late main's event loop runs its timers, how busy the
 shell is, the agents' screenshot and snapshot times, and the bytes their work
 sends Hronaut's windows per call. The test prints each measurement with its
-limit. A missed limit is a regression to find before releasing, even when a
+limit, and the shell's first paint, which depends too much on the machine to
+have one. A missed limit is a regression to find before releasing, even when a
 re-run passes; change a limit only with measurements that show why. To run it
 alone after `npm run build`, or in the pinned Docker image:
 
