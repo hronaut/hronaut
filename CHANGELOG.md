@@ -15,8 +15,8 @@ All notable changes to Hronaut are documented in this file.
 - A website that keeps F11 (Control+Command+F on macOS) to itself no longer holds you in full screen: as in Chrome, the key is the browser's while the window is in full screen, and on a locked page or under Hronaut's dialogs it always toggles full screen.
 - A tab you drag no longer carries its internal id: released over a website, the website could read the id from the drop, as text and as the tab's own type. The tab strip still moves the tabs you drag.
 - View → Print… chosen from the menu now brings the main window forward first, as Save Page As does, so its print dialog is no longer for a page out of view behind a panel in its own window or in the tray.
-- A link, image or text dropped on the address field now takes the place of the address shown, selected, as in Chrome, so Enter opens it; it landed where the pointer was in that address, such as right after the current page's address.
 - A link, image or text dropped on the address field now takes the place of the address shown, selected, as in Chrome, so Enter opens it and Ctrl+Z brings the address back; it landed where the pointer was in that address, such as right after the current page's address.
+- Save Page As on a tab showing an image, a PDF, text or JSON now downloads that file to the name you choose, as Chrome does, suggesting the name its address ends in. It suggested a name ending in .html, wrote a web page showing the file under a name ending in .html instead of the one chosen, and then said it could not save the page.
 
 ## [3.14.15] - 2026-11-05
 

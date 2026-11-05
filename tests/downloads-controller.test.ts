@@ -519,6 +519,25 @@ it('names a file Hronaut makes itself, such as a QR code image, though its addre
   expect(savedAs(download(1, false, image, 'download.png'))).toBe('download (1).png')
 })
 
+it('saves the file of a document Save Page As downloads to the file the person chose there, without asking again', async () => {
+  for (const asking of [false, true]) {
+    const { controller, download, ready } = await fixture(asking)
+    const url = 'https://cdn.example/photos/sunset.png'
+    const chosen = join(tmpdir(), 'chosen', 'Sunset at the lake.png')
+    controller.expectSavedFile(1, `${url}#view`, chosen)
+    // Another page's download of that address is its own.
+    expect((download(2, false, url, 'sunset.png').item as DownloadItem).getSavePath()).not.toBe(chosen)
+    const saved = download(1, false, url, 'sunset.png')
+    expect((saved.item as DownloadItem).getSavePath()).toBe(chosen)
+    expect((saved.item as DownloadItem).getSaveDialogOptions()).toEqual({})
+    expect(ready.at(-1)).toBe(1)
+    expect(controller.listDownloads().filter(({ savePath }) => savePath === chosen).map(({ filename }) => filename)).toEqual(['Sunset at the lake.png'])
+    saved.complete()
+    // It is used once, by the download it was chosen for.
+    expect((download(1, false, url, 'sunset.png').item as DownloadItem).getSavePath()).not.toBe(chosen)
+  }
+})
+
 it('proposes a saved link\'s name when Hronaut asks where to save it', async () => {
   const { controller, download } = await fixture(true)
   controller.expectSavedLinkName(1, 'https://download.example/export?id=5', 'report.csv')
