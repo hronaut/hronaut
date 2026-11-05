@@ -51,6 +51,9 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
   }
   const mission = data.messages.home.mission
   const root = element('home-workspaces')
+  const needsYou = element('home-needs-you')
+  // A workspace opens from its card, from an agent or step in the Agents view, and from the needs-you line.
+  const places = [root, element('home-connected'), needsYou]
   const search = element<HTMLInputElement>('workspace-search')
   const grid = element('workspace-grid')
   const error = element('workspace-error')
@@ -91,7 +94,37 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
     }
     return entry => waiting.has(entry.id)
   }
+  /** One amber line for each open workspace where an agent waits for the person, with the way there. */
+  function renderNeedsYou(): void {
+    const waiting = state.mcpTabGroups.flatMap(group => {
+      const activity = live.workspaceActivity?.[group.id]
+      if (activity?.state !== 'needs-you') return []
+      const name = live.agents?.find(agent => agent.key === activity.agentKeys[0])?.name || data.messages.shell.agents.unnamed
+      return [{ id: group.id, workspace: group.name, name }]
+    })
+    const signature = JSON.stringify(waiting)
+    // Rebuilt only when it changes, so the button the person is on stays under the keyboard.
+    if (needsYou.dataset.signature === signature) return
+    needsYou.dataset.signature = signature
+    const focused = needsYou.contains(document.activeElement) ? (document.activeElement as HTMLElement).dataset.workspaceId : undefined
+    needsYou.replaceChildren(...waiting.map(item => {
+      const line = document.createElement('p')
+      line.className = 'needs-you-line'
+      const dot = document.createElement('span')
+      dot.className = 'dot needs-you'; dot.setAttribute('aria-hidden', 'true')
+      const words = document.createElement('span')
+      words.className = 'needs-you-words'; words.textContent = interpolate(mission.needsYouIn, { name: item.name, workspace: item.workspace })
+      const open = document.createElement('button')
+      open.type = 'button'; open.dataset.workspaceAction = 'open'; open.dataset.workspaceId = item.id; open.textContent = messages.openWorkspace
+      line.append(dot, words, open)
+      return line
+    }))
+    needsYou.hidden = !waiting.length
+    const again = [...needsYou.querySelectorAll<HTMLElement>('[data-workspace-id]')].find(button => button.dataset.workspaceId === focused)
+    if (focused) again?.focus({ preventScroll: true })
+  }
   function render(): void {
+    renderNeedsYou()
     const groups = [
       ...state.mcpTabGroups.map(group => ({ ...group, archived: false, timestamp: group.lastUsedAt, tabs: state.tabs.filter(tab => tab.mcpGroupId === group.id) })),
       ...state.savedTabGroups.map(group => ({ ...group, archived: true, timestamp: group.savedAt }))
@@ -146,7 +179,8 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
       initial: entry => live.agents?.find(agent => agent.key === entry.agentKey)?.initial
     })
     root.setAttribute('aria-busy', String(pending))
-    root.querySelectorAll<HTMLButtonElement | HTMLInputElement>('button[data-workspace-action],input[data-workspace-preference]').forEach(control => {
+    const selector = 'button[data-workspace-action],input[data-workspace-preference]'
+    places.flatMap(place => [...place.querySelectorAll<HTMLButtonElement | HTMLInputElement>(selector)]).forEach(control => {
       if (pending) {
         // The control the person is on stays enabled: Chromium drops focus from a disabled control, which would close
         // its menu and send focus to the search field. Pressing it again meanwhile does nothing, as `action` ignores it.
@@ -188,7 +222,8 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
         pending = false
         render()
         // A card that went away took focus with it: keep the person in the list, on Undo when it is offered.
-        if (!root.contains(document.activeElement) && 'workspaceId' in request) (undo.hidden ? search : undo).focus({ preventScroll: true })
+        const stayed = places.some(place => place.contains(document.activeElement))
+        if (!stayed && 'workspaceId' in request) (undo.hidden ? search : undo).focus({ preventScroll: true })
       }
     }
   }
@@ -201,7 +236,7 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
       state = next; onStateChange?.(state); render()
     } catch { /* Actions surface errors; polling retains the last usable view. */ }
   }
-  root.addEventListener('click', event => {
+  for (const place of places) place.addEventListener('click', event => {
     const control = (event.target as Element).closest<HTMLButtonElement>('[data-workspace-action]')
     if (!control || control.disabled) return
     // A menu closes once one of its actions is chosen, and gives focus back to its button.
@@ -225,7 +260,7 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
   // Enter repeats while it is held. A menu's action gives the focus back to the menu's button and an archive or clear
   // gives it to Undo, so the repeats opened the menu again and restored the workspace just archived. A button here
   // takes a new press.
-  root.addEventListener('keydown', event => {
+  for (const place of places) place.addEventListener('keydown', event => {
     if (event.repeat && event.key === 'Enter' && (event.target as Element).closest('button, summary')) event.preventDefault()
   }, { signal })
   root.addEventListener('keydown', event => {

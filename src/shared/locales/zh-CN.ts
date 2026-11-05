@@ -121,10 +121,11 @@ export const zhCN: MessageSchema = {
     protectDeletion: '防止删除',
     protectionDescription: '防止用户和智能体永久删除。仍可归档。',
     title: '工作区',
-    heading: '每个项目都有自己的空间',
     description: '将项目和登录信息放在彼此独立的浏览器空间中。随时从上次离开的地方继续。',
     open: '已打开',
     archived: '已归档',
+    openCount: '{count} 个已打开',
+    archivedCount: '{count} 个已归档',
     search: '搜索工作区或标签页',
     views: '工作区视图',
     current: '当前',
@@ -3813,7 +3814,8 @@ export const zhCN: MessageSchema = {
       label: '主页版块',
       overview: '概览',
       connect: '连接智能体',
-      tools: '工具库'
+      tools: '工具库',
+      agents: '智能体'
     },
     agentList: {
       connect: '连接',
@@ -3824,15 +3826,10 @@ export const zhCN: MessageSchema = {
       connected: '连接于 {time}'
     },
     mission: {
-      greeting: {
-        morning: '早上好',
-        afternoon: '下午好',
-        evening: '晚上好'
-      },
       agentsConnected: '已连接 {count} 个智能体。',
-      workspacesNeedYou: '有 {count} 个工作区需要您处理。',
       agents: '已连接的智能体',
       needsYou: '{name} 需要您处理',
+      needsYouIn: '{name} 在 {workspace} 中需要您处理',
       step: '{name} · {step}',
       lastStep: '{name} · {step} · {time}',
       lastUsed: '上次使用：{time}',
@@ -3980,7 +3977,6 @@ export const zhCN: MessageSchema = {
       copy: '复制提示'
     },
     activity: {
-      heading: '智能体活动',
       description: '以本地、不含内容的方式查看 Hronaut 在本次启动期间处理的操作。',
       tabActionsCompleted: '已完成的标签页操作',
       toolsUsed: '使用的工具',

@@ -121,10 +121,11 @@ export const koKR: MessageSchema = {
     protectDeletion: '삭제 방지',
     protectionDescription: '사람과 에이전트가 영구적으로 삭제하지 못하게 합니다. 보관처리는 계속 사용할 수 있습니다.',
     title: '작업 공간',
-    heading: '프로젝트마다 하나의 공간',
     description: '프로젝트와 로그인 정보를 별도의 브라우저 공간에 보관하세요. 중단한 곳에서 바로 이어서 작업할 수 있습니다.',
     open: '열림',
     archived: '보관처리됨',
+    openCount: '{count}개 열림',
+    archivedCount: '{count}개 보관됨',
     search: '작업 공간 또는 탭 검색',
     views: '작업 공간 보기',
     current: '현재',
@@ -3813,7 +3814,8 @@ export const koKR: MessageSchema = {
       label: '홈 섹션',
       overview: '개요',
       connect: '에이전트 연결',
-      tools: '도구 라이브러리'
+      tools: '도구 라이브러리',
+      agents: '에이전트'
     },
     agentList: {
       connect: '연결',
@@ -3824,15 +3826,10 @@ export const koKR: MessageSchema = {
       connected: '{time}에 연결됨'
     },
     mission: {
-      greeting: {
-        morning: '좋은 아침입니다',
-        afternoon: '좋은 오후입니다',
-        evening: '좋은 저녁입니다'
-      },
       agentsConnected: '에이전트 {count}개가 연결되었습니다.',
-      workspacesNeedYou: '작업 공간 {count}개에 확인이 필요합니다.',
       agents: '연결된 에이전트',
       needsYou: '{name}에 확인이 필요합니다',
+      needsYouIn: '{name}이(가) {workspace}에서 기다리고 있습니다',
       step: '{name} · {step}',
       lastStep: '{name} · {step} · {time}',
       lastUsed: '마지막 사용: {time}',
@@ -3980,7 +3977,6 @@ export const koKR: MessageSchema = {
       copy: '프롬프트 복사'
     },
     activity: {
-      heading: '에이전트 활동',
       description: '이번 실행 중 Hronaut에서 처리한 작업을 콘텐츠 없이 로컬에서 보여 줍니다.',
       tabActionsCompleted: '완료된 탭 작업',
       toolsUsed: '사용된 도구',

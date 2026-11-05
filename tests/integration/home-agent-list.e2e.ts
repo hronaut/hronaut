@@ -37,6 +37,9 @@ test('Home lists connected agents by client, with their sessions, and opens the 
     await appWindow.evaluate('window.hronaut.openHome()')
     await expect.poll(() => electronApp.context().pages().some(page => page.url().startsWith('hronaut://home'))).toBe(true)
     const home = electronApp.context().pages().find(page => page.url().startsWith('hronaut://home'))!
+    // The connected agents are a section of the Agents view.
+    await home.getByRole('tab', { name: 'Agents', exact: true }).click()
+    await home.getByRole('tab', { name: 'Connected agents', exact: true }).click()
     const panel = home.getByRole('region', { name: 'Connected agents', exact: true })
     const list = panel.getByRole('list', { name: 'Connected agents', exact: true })
     const clientRows = list.locator(':scope > li')

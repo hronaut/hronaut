@@ -121,10 +121,11 @@ export const hiIN: MessageSchema = {
     protectDeletion: 'मिटाने से सुरक्षित रखें',
     protectionDescription: 'लोग और एजेंट इसे हमेशा के लिए नहीं मिटा पाएंगे। संग्रहित करना अब भी उपलब्ध है।',
     title: 'वर्कस्पेस',
-    heading: 'हर प्रोजेक्ट के लिए एक जगह',
     description: 'प्रोजेक्ट और साइन-इन को अलग-अलग ब्राउज़र स्पेस में रखें। जहां छोड़ा था, वहीं से काम जारी रखें।',
     open: 'खुले हुए',
     archived: 'संग्रहित',
+    openCount: '{count} खुले',
+    archivedCount: '{count} संग्रहित',
     search: 'वर्कस्पेस या टैब खोजें',
     views: 'वर्कस्पेस व्यू',
     current: 'मौजूदा',
@@ -3813,7 +3814,8 @@ export const hiIN: MessageSchema = {
       label: 'होम के सेक्शन',
       overview: 'खास जानकारी',
       connect: 'एजेंट कनेक्ट करें',
-      tools: 'टूल लाइब्रेरी'
+      tools: 'टूल लाइब्रेरी',
+      agents: 'एजेंट'
     },
     agentList: {
       connect: 'कनेक्ट करें',
@@ -3824,15 +3826,10 @@ export const hiIN: MessageSchema = {
       connected: 'कनेक्ट हुआ: {time}'
     },
     mission: {
-      greeting: {
-        morning: 'सुप्रभात',
-        afternoon: 'नमस्कार',
-        evening: 'शुभ संध्या'
-      },
       agentsConnected: '{count} एजेंट कनेक्ट है। | {count} एजेंट कनेक्ट हैं।',
-      workspacesNeedYou: '{count} वर्कस्पेस को आपकी ज़रूरत है। | {count} वर्कस्पेस को आपकी ज़रूरत है।',
       agents: 'कनेक्ट किए गए एजेंट',
       needsYou: '{name} को आपकी ज़रूरत है',
+      needsYouIn: '{name} को {workspace} में आपकी ज़रूरत है',
       step: '{name} · {step}',
       lastStep: '{name} · {step} · {time}',
       lastUsed: 'आखिरी इस्तेमाल: {time}',
@@ -3980,7 +3977,6 @@ export const hiIN: MessageSchema = {
       copy: 'प्रॉम्प्ट कॉपी करें'
     },
     activity: {
-      heading: 'एजेंट की गतिविधि',
       description: 'इस लॉन्च के दौरान Hronaut ने क्या-क्या किया, इसका लोकल और बिना कॉन्टेंट वाला व्यू।',
       tabActionsCompleted: 'पूरी हुई टैब कार्रवाइयां',
       toolsUsed: 'इस्तेमाल हुए टूल',

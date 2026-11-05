@@ -119,10 +119,11 @@ export const enUS = {
     protectDeletion: 'Protect from deletion',
     protectionDescription: 'Prevent permanent deletion by people and agents. Archiving is still available.',
     title: 'Workspaces',
-    heading: 'A place for every project',
     description: 'Keep projects and sign-ins in separate browser spaces. Pick up where you left off.',
     open: 'Open',
     archived: 'Archived',
+    openCount: '{count} open',
+    archivedCount: '{count} archived',
     search: 'Search workspaces or tabs',
     views: 'Workspace views',
     current: 'Current',
@@ -3811,7 +3812,8 @@ export const enUS = {
       label: 'Home sections',
       overview: 'Overview',
       connect: 'Connect an agent',
-      tools: 'Tool library'
+      tools: 'Tool library',
+      agents: 'Agents'
     },
     agentList: {
       connect: 'Connect',
@@ -3822,15 +3824,10 @@ export const enUS = {
       connected: 'connected {time}'
     },
     mission: {
-      greeting: {
-        morning: 'Good morning',
-        afternoon: 'Good afternoon',
-        evening: 'Good evening'
-      },
       agentsConnected: '{count} agent connected. | {count} agents connected.',
-      workspacesNeedYou: '{count} workspace needs you. | {count} workspaces need you.',
       agents: 'Connected agents',
       needsYou: '{name} needs you',
+      needsYouIn: '{name} needs you in {workspace}',
       step: '{name} · {step}',
       lastStep: '{name} · {step} · {time}',
       lastUsed: 'Last used {time}',
@@ -3978,7 +3975,6 @@ export const enUS = {
       copy: 'Copy prompt'
     },
     activity: {
-      heading: 'Agent activity',
       description: 'A local, content-free view of what Hronaut handled during this launch.',
       tabActionsCompleted: 'Tab actions completed',
       toolsUsed: 'Tools used',

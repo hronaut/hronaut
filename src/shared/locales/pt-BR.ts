@@ -121,10 +121,11 @@ export const ptBR: MessageSchema = {
     protectDeletion: 'Proteger contra exclusão',
     protectionDescription: 'Impede a exclusão permanente por pessoas e agentes. Arquivar continua disponível.',
     title: 'Espaços de trabalho',
-    heading: 'Um lugar para cada projeto',
     description: 'Mantenha projetos e logins em espaços de navegador separados. Continue de onde parou.',
     open: 'Abertos',
     archived: 'Arquivados',
+    openCount: '{count} abertos',
+    archivedCount: '{count} arquivados',
     search: 'Pesquisar espaços de trabalho ou guias',
     views: 'Visualizações de espaços de trabalho',
     current: 'Atual',
@@ -3813,7 +3814,8 @@ export const ptBR: MessageSchema = {
       label: 'Seções do Início',
       overview: 'Visão geral',
       connect: 'Conectar um agente',
-      tools: 'Biblioteca de ferramentas'
+      tools: 'Biblioteca de ferramentas',
+      agents: 'Agentes'
     },
     agentList: {
       connect: 'Conectar',
@@ -3824,15 +3826,10 @@ export const ptBR: MessageSchema = {
       connected: 'conectado {time}'
     },
     mission: {
-      greeting: {
-        morning: 'Bom dia',
-        afternoon: 'Boa tarde',
-        evening: 'Boa noite'
-      },
       agentsConnected: '{count} agente conectado. | {count} agentes conectados.',
-      workspacesNeedYou: '{count} espaço de trabalho precisa de você. | {count} espaços de trabalho precisam de você.',
       agents: 'Agentes conectados',
       needsYou: '{name} precisa de você',
+      needsYouIn: '{name} precisa de você em {workspace}',
       step: '{name} · {step}',
       lastStep: '{name} · {step} · {time}',
       lastUsed: 'Último uso: {time}',
@@ -3980,7 +3977,6 @@ export const ptBR: MessageSchema = {
       copy: 'Copiar prompt'
     },
     activity: {
-      heading: 'Atividade dos agentes',
       description: 'Uma visão local e sem conteúdo do que o Hronaut processou durante esta execução.',
       tabActionsCompleted: 'Ações de guia concluídas',
       toolsUsed: 'Ferramentas usadas',

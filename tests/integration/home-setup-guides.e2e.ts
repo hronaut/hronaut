@@ -81,7 +81,7 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
     const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
     if (!home) throw new Error('Hronaut Home web contents was not found')
     return home.executeJavaScript(`(() => {
-      document.querySelector('[data-home-view="connect"]').click();
+      document.querySelector('#agents-section-connect').click();
       document.querySelector('[data-guide="opencode"]')?.click();
       const result = {
         heading: document.querySelector('h1')?.textContent,
@@ -227,7 +227,8 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
     }
     zooVerifyCommand: string
   }
-  expect(homeContent.heading).toBe('Connect your coding agent')
+  // Setup is a section of the Agents view, which names the view.
+  expect(homeContent.heading).toBe('Agents')
   expect(homeContent.agents).toEqual(['Codex', 'Claude Code', 'Cursor', 'VS Code / Copilot', 'OpenCode', 'Gemini CLI', 'Goose', 'Cline', 'Zoo Code', 'Kiro', 'Kilo Code', 'JetBrains Junie', 'Devin Local', 'Zed', 'Mistral Vibe', 'Warp', 'Windsurf', 'Grok Build', 'Qwen Code', 'Generic MCP client'])
   expect(homeContent.tools).toBe(BROWSER_TOOL_CATALOG.length)
   expect(homeContent.activeCount).toBe('0 active')

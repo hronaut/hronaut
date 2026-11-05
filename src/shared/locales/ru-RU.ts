@@ -121,10 +121,11 @@ export const ruRU: MessageSchema = {
     protectDeletion: 'Защитить от удаления',
     protectionDescription: 'Запретить окончательное удаление людьми и агентами. Архивирование остаётся доступным.',
     title: 'Рабочие пространства',
-    heading: 'Место для каждого проекта',
     description: 'Разделяйте проекты и учётные записи в отдельных пространствах браузера. Продолжайте с того места, где остановились.',
     open: 'Открытые',
     archived: 'Архив',
+    openCount: 'Открыто: {count}',
+    archivedCount: 'В архиве: {count}',
     search: 'Поиск пространств или вкладок',
     views: 'Виды рабочих пространств',
     current: 'Текущее',
@@ -3813,7 +3814,8 @@ export const ruRU: MessageSchema = {
       label: 'Разделы главной',
       overview: 'Обзор',
       connect: 'Подключить агента',
-      tools: 'Библиотека инструментов'
+      tools: 'Библиотека инструментов',
+      agents: 'Агенты'
     },
     agentList: {
       connect: 'Подключить',
@@ -3824,15 +3826,10 @@ export const ruRU: MessageSchema = {
       connected: 'подключено {time}'
     },
     mission: {
-      greeting: {
-        morning: 'Доброе утро',
-        afternoon: 'Добрый день',
-        evening: 'Добрый вечер'
-      },
       agentsConnected: '{count} агент подключён. | {count} агента подключены. | {count} агентов подключено.',
-      workspacesNeedYou: '{count} пространство ждёт вас. | {count} пространства ждут вас. | {count} пространств ждут вас.',
       agents: 'Подключённые агенты',
       needsYou: '{name} ждёт вас',
+      needsYouIn: '{name} ждёт вас в «{workspace}»',
       step: '{name} · {step}',
       lastStep: '{name} · {step} · {time}',
       lastUsed: 'Последний раз: {time}',
@@ -3980,7 +3977,6 @@ export const ruRU: MessageSchema = {
       copy: 'Копировать запрос'
     },
     activity: {
-      heading: 'Активность агентов',
       description: 'Локальный обзор действий Hronaut при этом запуске без содержимого.',
       tabActionsCompleted: 'Выполненные действия с вкладками',
       toolsUsed: 'Использовано инструментов',

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-// Redesign QA for #872: Home as mission control. Each workspace card's live status and its in-place update, the card
-// menu, the tab tiles, the greeting, and Undo after archive and clear. The connected agents list has its own file.
+// Redesign QA for #872 and HRO-65: each workspace card's live status and its in-place update, the card menu, the tab
+// tiles, the header, the Agents view, the needs-you line, and Undo after archive and clear. The connected agents list
+// has its own file.
 import { describe, expect, it, vi } from 'vitest'
 import type { HomeDashboard, HomeWorkspaceActivity } from '../src/shared/home.js'
 import type { HomeWorkspaceState } from '../src/shared/home-workspaces.js'
@@ -310,44 +311,171 @@ describe('Workspace card tab tiles (#872)', () => {
   })
 })
 
-describe('Home greeting and agent chips (#872)', () => {
-  it.each([
-    [0, 0, 'Good evening'], [4, 59, 'Good evening'], [5, 0, 'Good morning'], [11, 59, 'Good morning'],
-    [12, 0, 'Good afternoon'], [17, 59, 'Good afternoon'], [18, 0, 'Good evening'], [23, 30, 'Good evening']
-  ])('greets at %i:%i local time with "%s"', async (hour, minute, greeting) => {
+describe('One header for every view (HRO-65)', () => {
+  it.each([[0, 0], [9, 30], [14, 5], [21, 45]])('names the Workspaces view, never a greeting, at %i:%i local time', async (hour, minute) => {
     vi.setSystemTime(new Date(2026, 8, 13, hour, minute, 0))
-    mountTestHome()
+    mountTestHome({ workspaces: inventory() })
     await flush()
-    expect(words(byId('home-view-title'))).toBe(greeting)
+    expect(words(byId('home-view-title'))).toBe('Workspaces')
   })
 
-  it('greets only on the Workspaces view', async () => {
-    const home = mountTestHome()
+  it('names each of the three views', async () => {
+    mountTestHome({ workspaces: inventory() })
     await flush()
-    byId<HTMLButtonElement>('home-tab-connect').click()
-    expect(words(byId('home-view-title'))).toBe(home.data.messages.home.connect.heading)
+    expect([...document.querySelectorAll('.home-navigation [role=tab]')].map(words)).toEqual(['Tabs', 'Workspaces', 'Agents'])
+    byId<HTMLButtonElement>('home-tab-agents').click()
+    expect(words(byId('home-view-title'))).toBe('Agents')
+    byId<HTMLButtonElement>('home-tab-tabs').click()
+    expect(words(byId('home-view-title'))).toBe('Tabs')
     byId<HTMLButtonElement>('home-tab-workspaces').click()
-    expect(words(byId('home-view-title'))).toBe('Good morning')
+    expect(words(byId('home-view-title'))).toBe('Workspaces')
+  })
+
+  it.each<{ name: string; workspaces: HomeWorkspaceState; summary: string }>([
+    { name: 'no workspace', workspaces: emptyWorkspaces, summary: 'Keep projects and sign-ins in separate browser spaces. Pick up where you left off.' },
+    { name: 'open workspaces', workspaces: inventory(), summary: '2 open' },
+    { name: 'open and archived workspaces', workspaces: inventory({ mcpTabGroups: [docs], savedTabGroups: [archivedWorkspace(shop)] }), summary: '1 open · 1 archived' },
+    { name: 'archived workspaces only', workspaces: inventory({ mcpTabGroups: [], savedTabGroups: [archivedWorkspace(shop)] }), summary: '0 open · 1 archived' }
+  ])('counts $name under the Workspaces name', async ({ workspaces, summary }) => {
+    mountTestHome({ workspaces, dashboard: { ...baseDashboard, agents, workspaceActivity: { shop: activity('needs-you', 'claude', 'askYou') } } })
+    await flush()
+    expect(words(byId('home-view-description'))).toBe(summary)
+  })
+
+  it('counts again when a workspace is archived', async () => {
+    const home = mountTestHome({ workspaces: inventory() })
+    await flush()
+    home.setWorkspaces(inventory({ mcpTabGroups: [docs], savedTabGroups: [archivedWorkspace(shop)] }))
+    await home.page.refresh()
+    await flush()
+    expect(words(byId('home-view-description'))).toBe('1 open · 1 archived')
   })
 
   it.each<{ name: string; live: Partial<HomeDashboard>; summary: string }>([
-    { name: 'no agent', live: {}, summary: 'Keep projects and sign-ins in separate browser spaces. Pick up where you left off.' },
+    { name: 'no agent', live: {}, summary: 'Choose a client, copy the setup, then create a named workspace before browsing.' },
     { name: 'one agent', live: { agents: [agent('a', 'Codex', 'idle')] }, summary: '1 agent connected.' },
-    {
-      name: 'two agents and one workspace that needs you',
-      live: { agents: [agent('a', 'Codex', 'idle'), agent('b', 'Claude Code', 'needs-you')], workspaceActivity: { shop: activity('needs-you', 'b', 'askYou'), docs: activity('working', 'a') } },
-      summary: '2 agents connected. 1 workspace needs you.'
-    },
-    {
-      name: 'two workspaces that need you',
-      live: { agents: [agent('b', 'Claude Code', 'needs-you')], workspaceActivity: { shop: activity('needs-you', 'b', 'askYou'), docs: activity('needs-you', 'b', 'askYou') } },
-      summary: '1 agent connected. 2 workspaces need you.'
-    },
-    { name: 'agents while the server is paused', live: { status: 'paused', paused: true, agents: [agent('a', 'Codex', 'idle')] }, summary: 'Keep projects and sign-ins in separate browser spaces. Pick up where you left off.' }
-  ])('sums up $name under the greeting', async ({ live, summary }) => {
+    { name: 'three agents', live: { agents }, summary: '3 agents connected.' },
+    { name: 'agents while the server is paused', live: { status: 'paused', paused: true, agents: [agent('a', 'Codex', 'idle')] }, summary: 'Choose a client, copy the setup, then create a named workspace before browsing.' }
+  ])('sums up $name under the Agents name', async ({ live, summary }) => {
     mountTestHome({ workspaces: inventory(), dashboard: { ...baseDashboard, ...live } })
     await flush()
+    byId<HTMLButtonElement>('agents-section-connected').click()
+    expect(words(byId('home-view-title'))).toBe('Agents')
     expect(words(byId('home-view-description'))).toBe(summary)
+  })
+})
+
+describe('Agents view (HRO-65)', () => {
+  const sections = () => [...document.querySelectorAll<HTMLElement>('.agent-sections [role=tab]')]
+  const shown = () => ['home-tabs', 'home-workspaces', 'home-agents-view', 'home-connected', 'home-connect', 'home-overview', 'home-tools'].filter(id => !byId(id).hidden)
+
+  it('holds the connected agents with their live activity, connecting one, the overview and the tool library', async () => {
+    mountTestHome({ workspaces: inventory(), dashboard: { ...baseDashboard, agents } })
+    await flush()
+    expect(sections().map(words)).toEqual(['Connected agents', 'Connect an agent', 'Overview', 'Tool library'])
+    expect(byId('home-connected').contains(byId('home-agents'))).toBe(true)
+    expect(byId('home-connected').contains(byId('live-activity'))).toBe(true)
+    expect(byId('home-workspaces').querySelector('#home-agents, #live-activity')).toBeNull()
+  })
+
+  it.each<{ name: string; live: Partial<HomeDashboard>; section: string }>([
+    { name: 'the connected agents once one is connected', live: { agents }, section: 'home-connected' },
+    { name: 'connecting one while none is', live: {}, section: 'home-connect' }
+  ])('opens on $name', async ({ live, section }) => {
+    mountTestHome({ workspaces: inventory(), dashboard: { ...baseDashboard, ...live } })
+    await flush()
+    byId<HTMLButtonElement>('home-tab-agents').click()
+    expect(shown()).toEqual(['home-agents-view', section])
+    expect(byId('home-tab-agents').getAttribute('aria-selected')).toBe('true')
+    expect(byId(section.replace('home-', 'agents-section-')).getAttribute('aria-selected')).toBe('true')
+  })
+
+  it('opens on the section last shown there, after another view and after a reload', async () => {
+    mountTestHome({ workspaces: inventory(), dashboard: { ...baseDashboard, agents } })
+    await flush()
+    byId<HTMLButtonElement>('agents-section-tools').click()
+    byId<HTMLButtonElement>('home-tab-workspaces').click()
+    byId<HTMLButtonElement>('home-tab-agents').click()
+    expect(shown()).toEqual(['home-agents-view', 'home-tools'])
+    byId<HTMLButtonElement>('home-tab-workspaces').click()
+    mountTestHome({ workspaces: inventory(), dashboard: { ...baseDashboard, agents } })
+    await flush()
+    expect(shown()).toEqual(['home-workspaces'])
+    byId<HTMLButtonElement>('home-tab-agents').click()
+    expect(shown()).toEqual(['home-agents-view', 'home-tools'])
+  })
+
+  it('moves along its sections with the arrow keys, Home and End', async () => {
+    mountTestHome({ workspaces: inventory(), dashboard: { ...baseDashboard, agents } })
+    await flush()
+    byId<HTMLButtonElement>('agents-section-connected').click()
+    const press = (key: string) => (document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }))
+    byId('agents-section-connected').focus()
+    press('ArrowRight')
+    expect(document.activeElement).toBe(byId('agents-section-connect'))
+    expect(shown()).toEqual(['home-agents-view', 'home-connect'])
+    press('End')
+    expect(document.activeElement).toBe(byId('agents-section-tools'))
+    press('ArrowRight')
+    expect(document.activeElement).toBe(byId('agents-section-connected'))
+    press('ArrowLeft')
+    expect(document.activeElement).toBe(byId('agents-section-tools'))
+    expect(sections().map(tab => tab.tabIndex)).toEqual([-1, -1, -1, 0])
+  })
+
+  it('opens from the status, on the agents it counts', async () => {
+    mountTestHome({ workspaces: inventory(), dashboard: { ...baseDashboard, agents } })
+    await flush()
+    byId<HTMLButtonElement>('server-state').click()
+    expect(shown()).toEqual(['home-agents-view', 'home-connected'])
+    expect(document.activeElement).toBe(byId('home-tab-agents'))
+  })
+})
+
+describe('Needs-you line (HRO-65)', () => {
+  const lines = () => [...document.querySelectorAll<HTMLElement>('#home-needs-you .needs-you-line')]
+
+  it('names the agent and workspace waiting for the person over every view, and opens that workspace', async () => {
+    const workspaceAction = vi.fn().mockResolvedValue(inventory())
+    mountTestHome({ workspaces: inventory(), api: { workspaceAction }, dashboard: { ...baseDashboard, agents, workspaceActivity: { shop: activity('needs-you', 'claude', 'askYou'), docs: activity('working', 'codex') } } })
+    await flush()
+    expect(byId('home-needs-you').hidden).toBe(false)
+    expect(lines().map(line => [words(query('.needs-you-words', line)), words(query('button', line))])).toEqual([['Claude Code needs you in Acme Store', 'Open workspace']])
+    for (const view of ['tabs', 'agents', 'workspaces']) {
+      byId<HTMLButtonElement>(`home-tab-${view}`).click()
+      expect(byId('home-needs-you').hidden).toBe(false)
+    }
+    query<HTMLButtonElement>('button', lines()[0]).click()
+    await flush()
+    expect(workspaceAction).toHaveBeenCalledWith({ view: 'open', workspaceId: 'shop' })
+  })
+
+  it('shows one line for each workspace that needs the person, and none once they are answered', async () => {
+    const home = mountTestHome({ workspaces: inventory(), dashboard: { ...baseDashboard, agents, workspaceActivity: { shop: activity('needs-you', 'claude', 'askYou'), docs: activity('needs-you', 'gone', 'askYou') } } })
+    await flush()
+    expect(lines().map(line => words(query('.needs-you-words', line)))).toEqual(['Claude Code needs you in Acme Store', 'Agent needs you in Docs'])
+    home.show({ ...baseDashboard, agents, workspaceActivity: { shop: activity('working', 'claude') } })
+    await flush()
+    expect(lines()).toEqual([])
+    expect(byId('home-needs-you').hidden).toBe(true)
+  })
+
+  it('keeps its button and the focus on it while Home refreshes', async () => {
+    const live = { ...baseDashboard, agents, workspaceActivity: { shop: activity('needs-you', 'claude', 'askYou') } }
+    const home = mountTestHome({ workspaces: inventory(), dashboard: live })
+    await flush()
+    const button = query<HTMLButtonElement>('#home-needs-you button')
+    button.focus()
+    home.show({ ...live, workspaceActivity: { ...live.workspaceActivity, docs: activity('working', 'codex') } })
+    await flush()
+    expect(query('#home-needs-you button')).toBe(button)
+    expect(document.activeElement).toBe(button)
+  })
+
+  it('says nothing about an archived workspace', async () => {
+    mountTestHome({ workspaces: inventory({ mcpTabGroups: [docs], savedTabGroups: [archivedWorkspace(shop)] }), dashboard: { ...baseDashboard, agents, workspaceActivity: { shop: activity('needs-you', 'claude', 'askYou') } } })
+    await flush()
+    expect(byId('home-needs-you').hidden).toBe(true)
   })
 })
 

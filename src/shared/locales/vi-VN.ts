@@ -121,10 +121,11 @@ export const viVN: MessageSchema = {
     protectDeletion: 'Bảo vệ khỏi bị xóa',
     protectionDescription: 'Ngăn người dùng và tác nhân xóa vĩnh viễn. Bạn vẫn có thể lưu trữ không gian làm việc.',
     title: 'Không gian làm việc',
-    heading: 'Mỗi dự án một không gian',
     description: 'Tách riêng dự án và thông tin đăng nhập trong các không gian trình duyệt riêng biệt. Tiếp tục từ chỗ bạn đã dừng lại.',
     open: 'Đang mở',
     archived: 'Đã lưu trữ',
+    openCount: '{count} đang mở',
+    archivedCount: '{count} đã lưu trữ',
     search: 'Tìm không gian làm việc hoặc thẻ',
     views: 'Chế độ xem không gian làm việc',
     current: 'Hiện tại',
@@ -3813,7 +3814,8 @@ export const viVN: MessageSchema = {
       label: 'Các mục trên Trang chủ',
       overview: 'Tổng quan',
       connect: 'Kết nối tác nhân',
-      tools: 'Thư viện công cụ'
+      tools: 'Thư viện công cụ',
+      agents: 'Tác nhân'
     },
     agentList: {
       connect: 'Kết nối',
@@ -3824,15 +3826,10 @@ export const viVN: MessageSchema = {
       connected: 'đã kết nối {time}'
     },
     mission: {
-      greeting: {
-        morning: 'Chào buổi sáng',
-        afternoon: 'Chào buổi chiều',
-        evening: 'Chào buổi tối'
-      },
       agentsConnected: '{count} tác nhân đã kết nối.',
-      workspacesNeedYou: '{count} không gian làm việc cần bạn.',
       agents: 'Tác nhân đã kết nối',
       needsYou: '{name} cần bạn',
+      needsYouIn: '{name} cần bạn trong {workspace}',
       step: '{name} · {step}',
       lastStep: '{name} · {step} · {time}',
       lastUsed: 'Dùng lần cuối {time}',
@@ -3980,7 +3977,6 @@ export const viVN: MessageSchema = {
       copy: 'Sao chép lời nhắc'
     },
     activity: {
-      heading: 'Hoạt động của tác nhân',
       description: 'Góc nhìn cục bộ, không kèm nội dung, về những gì Hronaut đã xử lý trong lần khởi chạy này.',
       tabActionsCompleted: 'Thao tác trên thẻ đã hoàn tất',
       toolsUsed: 'Công cụ đã dùng',

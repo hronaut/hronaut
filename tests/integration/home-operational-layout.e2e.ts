@@ -64,8 +64,8 @@ test('Home keeps its content width and position when switching between short and
   await expect.poll(() => homeScript(electronApp, 'Boolean(document.getElementById("home-tab-workspaces")?.offsetParent)')).toBe(true)
   // Exercise the returning-profile short view as well as long diagnostics.
   await homeScript(electronApp, `localStorage.setItem('hronaut.home.onboarded', 'true'); import(document.querySelector('script[type="module"]').src).then(module => module.homeController.refresh())`)
-  // In narrow windows the live activity moves under the workspace cards, so Workspaces scrolls there too; a tool search
-  // that matches nothing keeps one view short at every width, whatever the fonts.
+  // Workspaces and setup scroll at both widths; a tool search that matches nothing keeps one view short at every width,
+  // whatever the fonts.
   await homeScript(electronApp, `(() => {
     const search = document.getElementById('tool-search');
     search.value = 'no-such-hronaut-tool';
@@ -83,7 +83,7 @@ test('Home keeps its content width and position when switching between short and
     const initial = await measure()
     const scrollStates = new Set([initial.scrollable])
     for (const tab of ['connect', 'tools', 'overview', 'workspaces']) {
-      await homeScript(electronApp, `document.getElementById(${JSON.stringify(`home-tab-${tab}`)}).click()`)
+      await homeScript(electronApp, `document.getElementById(${JSON.stringify(tab === 'workspaces' ? 'home-tab-workspaces' : `agents-section-${tab}`)}).click()`)
       const current = await measure()
       scrollStates.add(current.scrollable)
       expect.soft(current.width, `${width}/${tab}: content width`).toBe(initial.width)
@@ -93,7 +93,7 @@ test('Home keeps its content width and position when switching between short and
   }
 })
 
-test('Home scrolls live activity inside its own column in a short window and keeps the workspace cards usable', async ({ electronApp, appWindow, mcpPort, mcpToken }) => {
+test('Home lists many live steps in the Agents view beside the agents and keeps the workspace cards usable', async ({ electronApp, appWindow, mcpPort, mcpToken }) => {
   const site = createServer((request, response) => {
     response.writeHead(200, { 'content-type': 'text/html', 'cache-control': 'no-store' })
     response.end(`<!doctype html><title>Page ${request.url}</title><h1>${request.url}</h1>`)
@@ -123,33 +123,15 @@ test('Home scrolls live activity inside its own column in a short window and kee
     const activity = home.getByRole('complementary', { name: 'Live activity', exact: true })
     const list = activity.getByRole('list', { name: 'Live activity', exact: true })
     const rows = list.getByRole('listitem')
-    // Each page is its own row, newest first.
-    await expect.poll(() => rows.count()).toBeGreaterThan(pages)
-    await expect(rows.first()).toContainText(`/page-${pages}`)
     const card = home.getByRole('article', { name: 'Busy research', exact: true })
     const openCard = card.getByRole('button', { name: 'Open Busy research', exact: true })
 
     for (const width of [1200, 760]) {
       await resizeHome(electronApp, width, 640)
-      await home.evaluate(() => { scrollTo(0, 0); document.getElementById('live-activity-list')!.scrollTop = 0 })
-      const layout = await home.evaluate(() => {
-        const bounds = (selector: string) => document.querySelector(selector)!.getBoundingClientRect().toJSON() as DOMRect
-        const list = document.getElementById('live-activity-list')!
-        return {
-          innerHeight, feed: bounds('#live-activity'), card: bounds('.home-workspace-card'),
-          listHeight: list.clientHeight, listContent: list.scrollHeight, overflow: document.documentElement.scrollWidth - innerWidth
-        }
-      })
-      expect.soft(layout.overflow, `${width}: no sideways scrolling`).toBeLessThanOrEqual(1)
-      // The column keeps to its own height and its steps scroll inside it.
-      expect(layout.feed.height, `${width}: activity column height`).toBeLessThanOrEqual(width > 860 ? layout.innerHeight - 32 + 1 : 421)
-      expect(layout.listContent, `${width}: steps overflow their list`).toBeGreaterThan(layout.listHeight + 100)
-      // Wide, the column sits beside the cards; narrow, under them. It never covers a card.
-      if (width > 860) expect(layout.card.right).toBeLessThanOrEqual(layout.feed.left)
-      else expect(layout.card.bottom).toBeLessThanOrEqual(layout.feed.top)
-
-      // The cards stay usable: in view and not covered by the column, and the last action of their ⋯ menu can be
-      // scrolled to and takes the pointer. Trial clicks check this without acting.
+      // The cards take the whole width and stay usable: in view, and the last action of their ⋯ menu can be scrolled
+      // to and takes the pointer. Trial clicks check this without acting.
+      await home.getByRole('tab', { name: 'Workspaces', exact: true }).click()
+      await home.evaluate(() => scrollTo(0, 0))
       await expect(openCard).toBeInViewport()
       await openCard.click({ trial: true })
       await card.getByLabel('More actions for Busy research', { exact: true }).click()
@@ -160,24 +142,29 @@ test('Home scrolls live activity inside its own column in a short window and kee
       await home.keyboard.press('Escape')
       await expect(clear).toBeHidden()
 
-      // A wheel over the steps scrolls them, not the page, and the oldest step is reached inside the column.
-      await list.scrollIntoViewIfNeeded()
-      const pageScroll = await home.evaluate(() => scrollY)
-      const scrolled = list.evaluate(node => new Promise<void>(resolve => node.addEventListener('scrollend', () => resolve(), { once: true })))
-      await list.hover()
-      await home.mouse.wheel(0, 240)
-      await scrolled
-      expect(await list.evaluate(node => node.scrollTop), `${width}: steps scrolled`).toBeGreaterThan(0)
-      expect(await home.evaluate(() => scrollY), `${width}: page stayed put`).toBe(pageScroll)
+      // The steps are in the Agents view, newest first, one row per page.
+      await home.getByRole('tab', { name: 'Agents', exact: true }).click()
+      await expect(activity).toBeVisible()
+      await expect.poll(() => rows.count()).toBeGreaterThan(pages)
+      await expect(rows.first()).toContainText(`/page-${pages}`)
+      const layout = await home.evaluate(() => {
+        const bounds = (selector: string) => document.querySelector(selector)!.getBoundingClientRect().toJSON() as DOMRect
+        return { agents: bounds('#home-agents'), feed: bounds('#live-activity'), overflow: document.documentElement.scrollWidth - innerWidth }
+      })
+      expect.soft(layout.overflow, `${width}: no sideways scrolling`).toBeLessThanOrEqual(1)
+      // Wide, the steps sit beside the agents; narrow, under them. They never cover the agents.
+      if (width > 860) expect(layout.agents.right).toBeLessThanOrEqual(layout.feed.left)
+      else expect(layout.agents.bottom).toBeLessThanOrEqual(layout.feed.top)
+      // The oldest step is reached by scrolling the page.
       await rows.last().scrollIntoViewIfNeeded()
       await expect(rows.last()).toBeInViewport()
-      expect(await home.evaluate(() => scrollY), `${width}: oldest step reached inside the column`).toBe(pageScroll)
     }
 
     // The oldest step opens its workspace, and so does the card.
     await rows.last().getByRole('button').click()
     await expect.poll(async () => (await appWindow.evaluate('window.hronaut.getState()') as BrowserState).activeTabId).toBe(tabId)
     await appWindow.evaluate('window.hronaut.openHome()')
+    await home.getByRole('tab', { name: 'Workspaces', exact: true }).click()
     await home.evaluate(() => scrollTo(0, 0))
     await openCard.click()
     await expect.poll(async () => (await appWindow.evaluate('window.hronaut.getState()') as BrowserState).activeTabId).toBe(tabId)
@@ -203,7 +190,7 @@ test('Home keeps client setup accessible in a compact layout across themes and l
       const page = electronApp.context().pages().find(page => page.url().startsWith('hronaut://home'))
       if (!page) throw new Error('Home page unavailable')
       await page.emulateMedia({ colorScheme: null })
-      await home("document.querySelector('[data-home-view=connect]').click()")
+      await home("document.getElementById('agents-section-connect').click()")
       await expect.poll(() => home('matchMedia("(prefers-color-scheme: dark)").matches')).toBe(theme === 'dark')
       for (const width of [1200, 760]) {
         await resizeHome(electronApp, width)
@@ -219,7 +206,8 @@ test('Home keeps client setup accessible in a compact layout across themes and l
           statusOverflow: document.getElementById('server-state').scrollWidth - document.getElementById('server-state').clientWidth,
           statusGap: document.querySelector('.status-details > summary').getBoundingClientRect().left - document.getElementById('server-state').getBoundingClientRect().right
         }))()`)
-        expect.soft(layout.setupTop, `${locale}/${theme}/${width}: setup starts near the navigation`).toBeLessThan(300)
+        // Under the header, the three views and the Agents view's own sections.
+        expect.soft(layout.setupTop, `${locale}/${theme}/${width}: setup starts near the navigation`).toBeLessThan(340)
         expect.soft(layout.copyTop, `${locale}/${theme}/${width}: primary setup action is immediately reachable`).toBeLessThan(600)
         expect.soft(layout.guideBottom, `${locale}/${theme}/${width}: setup guide is above the fold`).toBeLessThan(740)
         expect.soft(layout.titleSize).toBeLessThanOrEqual(28)
@@ -241,7 +229,7 @@ test('Home keeps client setup accessible in a compact layout across themes and l
 
 test('Home keeps MCP readiness diagnostics readable at desktop and compact widths', async ({ electronApp }, testInfo) => {
   await readyHome(electronApp)
-  await homeScript(electronApp, 'document.getElementById("home-tab-overview").click()')
+  await homeScript(electronApp, 'document.getElementById("agents-section-overview").click()')
 
   for (const width of [1200, 760]) {
     await resizeHome(electronApp, width)

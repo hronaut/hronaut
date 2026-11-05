@@ -121,10 +121,11 @@ export const jaJP: MessageSchema = {
     protectDeletion: '削除から保護する',
     protectionDescription: 'ユーザーやエージェントによる完全な削除を防ぎます。アーカイブは引き続き可能です。',
     title: 'ワークスペース',
-    heading: 'プロジェクトごとの作業場所',
     description: 'プロジェクトとログイン情報を別々のブラウザ空間に分けて管理できます。中断したところから再開できます。',
     open: '開いている',
     archived: 'アーカイブ済み',
+    openCount: '開いている {count} 個',
+    archivedCount: 'アーカイブ済み {count} 個',
     search: 'ワークスペースまたはタブを検索',
     views: 'ワークスペースの表示',
     current: '現在',
@@ -3813,7 +3814,8 @@ export const jaJP: MessageSchema = {
       label: 'ホームのセクション',
       overview: '概要',
       connect: 'エージェントを接続',
-      tools: 'ツール ライブラリ'
+      tools: 'ツール ライブラリ',
+      agents: 'エージェント'
     },
     agentList: {
       connect: '接続',
@@ -3824,15 +3826,10 @@ export const jaJP: MessageSchema = {
       connected: '{time} に接続'
     },
     mission: {
-      greeting: {
-        morning: 'おはようございます',
-        afternoon: 'こんにちは',
-        evening: 'こんばんは'
-      },
       agentsConnected: '{count} 個のエージェントが接続中です。',
-      workspacesNeedYou: '{count} 個のワークスペースで対応が必要です。',
       agents: '接続済みのエージェント',
       needsYou: '{name} で対応が必要です',
+      needsYouIn: '{name} が {workspace} であなたを待っています',
       step: '{name} · {step}',
       lastStep: '{name} · {step} · {time}',
       lastUsed: '最終使用：{time}',
@@ -3980,7 +3977,6 @@ export const jaJP: MessageSchema = {
       copy: 'プロンプトをコピー'
     },
     activity: {
-      heading: 'エージェントのアクティビティ',
       description: '今回の起動中に Hronaut が処理した内容を、コンテンツを含まずにローカルで表示します。',
       tabActionsCompleted: '完了したタブ操作',
       toolsUsed: '使用したツール',

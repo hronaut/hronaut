@@ -121,10 +121,11 @@ export const trTR: MessageSchema = {
     protectDeletion: 'Silinmeye karşı koru',
     protectionDescription: 'Kişilerin ve ajanların kalıcı olarak silmesini engeller. Arşivleme yine kullanılabilir.',
     title: 'Çalışma alanları',
-    heading: 'Her proje için bir alan',
     description: 'Projeleri ve oturumları ayrı tarayıcı alanlarında tutun. Kaldığınız yerden devam edin.',
     open: 'Açık',
     archived: 'Arşivlenen',
+    openCount: '{count} açık',
+    archivedCount: '{count} arşivlenmiş',
     search: 'Çalışma alanlarında veya sekmelerde ara',
     views: 'Çalışma alanı görünümleri',
     current: 'Geçerli',
@@ -3813,7 +3814,8 @@ export const trTR: MessageSchema = {
       label: 'Ana Sayfa bölümleri',
       overview: 'Genel bakış',
       connect: 'Ajan bağla',
-      tools: 'Araç kitaplığı'
+      tools: 'Araç kitaplığı',
+      agents: 'Ajanlar'
     },
     agentList: {
       connect: 'Bağla',
@@ -3824,15 +3826,10 @@ export const trTR: MessageSchema = {
       connected: 'bağlantı: {time}'
     },
     mission: {
-      greeting: {
-        morning: 'Günaydın',
-        afternoon: 'İyi günler',
-        evening: 'İyi akşamlar'
-      },
       agentsConnected: '{count} ajan bağlı. | {count} ajan bağlı.',
-      workspacesNeedYou: '{count} çalışma alanı sizi bekliyor. | {count} çalışma alanı sizi bekliyor.',
       agents: 'Bağlı ajanlar',
       needsYou: '{name} sizi bekliyor',
+      needsYouIn: '{name} sizi {workspace} içinde bekliyor',
       step: '{name} · {step}',
       lastStep: '{name} · {step} · {time}',
       lastUsed: 'Son kullanım: {time}',
@@ -3980,7 +3977,6 @@ export const trTR: MessageSchema = {
       copy: 'İstemi kopyala'
     },
     activity: {
-      heading: 'Ajan etkinliği',
       description: 'Hronaut’un bu başlatmada işlediklerinin yerel ve içeriksiz bir görünümü.',
       tabActionsCompleted: 'Tamamlanan sekme eylemleri',
       toolsUsed: 'Kullanılan araçlar',

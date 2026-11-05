@@ -121,10 +121,11 @@ export const esES: MessageSchema = {
     protectDeletion: 'Proteger contra eliminación',
     protectionDescription: 'Impide la eliminación permanente por personas y agentes. Se puede seguir archivando.',
     title: 'Espacios de trabajo',
-    heading: 'Un lugar para cada proyecto',
     description: 'Separa proyectos e inicios de sesión en espacios de navegador independientes. Continúa donde lo dejaste.',
     open: 'Abiertos',
     archived: 'Archivados',
+    openCount: '{count} abiertos',
+    archivedCount: '{count} archivados',
     search: 'Buscar espacios o pestañas',
     views: 'Vistas de espacios de trabajo',
     current: 'Actual',
@@ -3813,7 +3814,8 @@ export const esES: MessageSchema = {
       label: 'Secciones de inicio',
       overview: 'Resumen',
       connect: 'Conectar un agente',
-      tools: 'Biblioteca de herramientas'
+      tools: 'Biblioteca de herramientas',
+      agents: 'Agentes'
     },
     agentList: {
       connect: 'Conectar',
@@ -3824,15 +3826,10 @@ export const esES: MessageSchema = {
       connected: 'conexión {time}'
     },
     mission: {
-      greeting: {
-        morning: 'Buenos días',
-        afternoon: 'Buenas tardes',
-        evening: 'Buenas noches'
-      },
       agentsConnected: '{count} agente conectado. | {count} agentes conectados.',
-      workspacesNeedYou: '{count} espacio te necesita. | {count} espacios te necesitan.',
       agents: 'Agentes conectados',
       needsYou: '{name} te necesita',
+      needsYouIn: '{name} te necesita en {workspace}',
       step: '{name} · {step}',
       lastStep: '{name} · {step} · {time}',
       lastUsed: 'Usado por última vez {time}',
@@ -3980,7 +3977,6 @@ export const esES: MessageSchema = {
       copy: 'Copiar mensaje'
     },
     activity: {
-      heading: 'Actividad de los agentes',
       description: 'Una vista local y sin contenido de lo que Hronaut gestionó durante este inicio.',
       tabActionsCompleted: 'Acciones de pestaña completadas',
       toolsUsed: 'Herramientas usadas',
