@@ -15,7 +15,7 @@ import { evaluateWithAttachedDebugger, mainWorldContextId } from '../debugger-ev
 import { coordinatePointOrValidateTarget } from '../input-targets/input-targets.js'
 import {
   assertClickTargetEnabled, assertPageAtNormalScale, assertPageAtNormalScaleBeforeInput, assertPointInsideVisibleViewport,
-  assertRightClickViewport, refusesPinchedPage
+  assertRightClickViewport, pagePinchedBeforeInput, refusesPinchedPage
 } from '../input-targets/target-checks.js'
 import { dispatchNativeClick } from '../native-click/native-click.js'
 import { rightClickEnvironment } from '../native-click/right-click-environment.js'
@@ -158,6 +158,9 @@ async function dispatchClick(browser: Browser, target: BrowserClickTarget, valid
               retainClickAuthority({ validate: assertClickCurrent, dispose: () => { environment?.dispose(); authority.dispose() } })
               retained = true
             }
+            // A page still reading its document is not asked before the click, and its press is refused only after the
+            // pointer moved, to the part of the page the pinch shows.
+            if (refusePinch && await pagePinchedBeforeInput(webContents)) throw new NativeClickAdmissionError('PAGE_PINCHED', { ...progress })
             await dispatchNativeClick(browser, webContents, point, target.doubleClick === true, assertClickCurrent, rightClick ? async (x, y) => {
               await assertRightClickViewport(webContents, x, y, assertClickCurrent)
               await admission.sample(x, y)
