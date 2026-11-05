@@ -128,6 +128,9 @@ const {
   keepsSeparatePanelOpen
 } = props.shellController
 const { activeTab, mcpActivityByTab } = props.runtimeController
+// The tab bar reads the state and the agents' tools through these, so a new state draws again only what changed in it.
+const readState = (): BrowserState => props.state
+const readMcpActivity = () => mcpActivityByTab.value
 const {
   activeTabPresentationController,
   activeIsHome,
@@ -494,7 +497,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFrom
     >
       <BrowserTabsBar
         ref="browserTabsBar"
-        :state="state"
+        :read-state="readState"
         :settings-active="settingsOpen"
         :user-attention="userAttention"
         :workspace-switcher-open="workspaceSwitcherOpen"
@@ -504,7 +507,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFrom
         :rail-revealed="verticalTabRailRevealed || verticalTabRailCollapsing"
         :inert="verticalTabRailCollapsing"
         :force-rail-collapsed="tabOrientation === 'vertical' && verticalTabRailCollapsed"
-        :mcp-activity-by-tab="mcpActivityByTab"
+        :read-mcp-activity="readMcpActivity"
         :format-number="formatNumber"
         :tab-tooltip="tabTooltip"
         :describe-emulation="describeTabEmulation"

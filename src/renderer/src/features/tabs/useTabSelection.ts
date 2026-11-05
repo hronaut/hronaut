@@ -1,11 +1,14 @@
 import { ref, watch, type Ref } from 'vue'
 import type { BrowserTabState } from '../../../../shared/types.js'
 
+/** What the selection reads of a tab: it never spans workspaces. */
+type SelectableTab = Pick<BrowserTabState, 'id' | 'mcpGroupId'>
+
 interface TabSelectionOptions {
   /** Whether the bar selects several tabs; the copy of the rail drawn over the page does not. */
   enabled: () => boolean
   /** The tabs the bar lists, in its order. */
-  tabs: Readonly<Ref<readonly BrowserTabState[]>>
+  tabs: Readonly<Ref<readonly SelectableTab[]>>
   activeTabId: () => string | null
   /** Whether Settings is drawn over the page, so that no tab is shown. */
   covered: () => boolean
@@ -59,7 +62,7 @@ export function useTabSelection(options: TabSelectionOptions) {
   }
 
   /** Shows the clicked tab, or with Ctrl, Cmd or Shift changes the selection. */
-  function clickTab(event: MouseEvent, tab: BrowserTabState): void {
+  function clickTab(event: MouseEvent, tab: SelectableTab): void {
     const toggle = options.platform() === 'darwin' ? event.metaKey : event.ctrlKey
     const tabs = options.tabs.value
     const shown = shownTabId()

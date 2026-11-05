@@ -1,9 +1,12 @@
 import { ref, type Ref } from 'vue'
 import type { BrowserTabState } from '../../../../shared/types.js'
 
+/** What a drag reads of a tab: a tab moves only among tabs with its own pin state and workspace. */
+type MovableTab = Pick<BrowserTabState, 'id' | 'mcpGroupId' | 'pinned'>
+
 interface TabDragReorderOptions {
   /** The tabs that can move. A tab moves only among tabs with its own pin state and workspace. */
-  tabs: Readonly<Ref<readonly BrowserTabState[]>>
+  tabs: Readonly<Ref<readonly MovableTab[]>>
   vertical: Readonly<Ref<boolean>>
   /** The selected tabs a drag of this tab moves with it, as in Chrome: every one when it is selected, else none. */
   selectionWith?: (tabId: string) => readonly string[]
@@ -32,7 +35,7 @@ export function useTabDragReorder(options: TabDragReorderOptions) {
     tabDropPlacement.value = null
   }
 
-  function canDropTab(target: BrowserTabState): boolean {
+  function canDropTab(target: MovableTab): boolean {
     const dragged = regularTabs.value.find((tab) => tab.id === draggedTabId.value)
     return Boolean(
       dragged
@@ -42,7 +45,7 @@ export function useTabDragReorder(options: TabDragReorderOptions) {
     )
   }
 
-  function beginTabDrag(event: DragEvent, tab: BrowserTabState): void {
+  function beginTabDrag(event: DragEvent, tab: MovableTab): void {
     const selected = new Set(options.selectionWith?.(tab.id))
     draggedTabId.value = tab.id
     draggedTabIds.value = selected.size
@@ -60,7 +63,7 @@ export function useTabDragReorder(options: TabDragReorderOptions) {
     }
   }
 
-  function updateTabDrop(event: DragEvent, tab: BrowserTabState): void {
+  function updateTabDrop(event: DragEvent, tab: MovableTab): void {
     if (!canDropTab(tab)) {
       // Over a tab it cannot land beside, such as itself, the marker beside the last tab it could leaves too.
       tabDropTargetId.value = null
@@ -76,7 +79,7 @@ export function useTabDragReorder(options: TabDragReorderOptions) {
       : event.clientX < bounds.left + bounds.width / 2 ? 'before' : 'after'
   }
 
-  function finishTabDrop(event: DragEvent, tab: BrowserTabState): void {
+  function finishTabDrop(event: DragEvent, tab: MovableTab): void {
     if (!canDropTab(tab) || !draggedTabId.value || !tabDropPlacement.value) {
       clearTabDrag()
       return

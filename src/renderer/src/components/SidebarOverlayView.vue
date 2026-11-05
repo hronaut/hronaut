@@ -159,6 +159,9 @@ function stopWorkerCapture(tabId: string): Promise<void> {
   return Promise.resolve()
 }
 
+// The rail reads the state and the agents' tools through these, as the shell's own does.
+const readState = (): BrowserState => browserState.value
+const readMcpActivity = (): Record<string, McpTabActivity> => mcpActivityByTab.value
 const tabTooltip = (tab: BrowserTabState): string => railTabs.value.get(tab.id)?.tooltip ?? tab.title
 const describeEmulation = (tab: BrowserTabState): string => railTabs.value.get(tab.id)?.emulationDescription ?? ''
 
@@ -366,7 +369,7 @@ onBeforeUnmount(() => {
       <div class="topbar">
         <BrowserTabsBar
           :key="state.session"
-          :state="browserState"
+          :read-state="readState"
           :settings-active="model.rail.settingsActive"
           :user-attention="userAttention"
           :workspace-switcher-open="model.rail.workspaceSwitcherOpen"
@@ -375,7 +378,7 @@ onBeforeUnmount(() => {
           :rail-pinned="false"
           :rail-revealed="true"
           :force-rail-collapsed="false"
-          :mcp-activity-by-tab="mcpActivityByTab"
+          :read-mcp-activity="readMcpActivity"
           :presence-api="presenceApi"
           :format-number="formatNumber"
           :tab-tooltip="tabTooltip"
