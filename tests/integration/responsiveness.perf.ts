@@ -14,9 +14,10 @@ const TABS_PER_AGENT = 4
 const CLICKS = 40
 
 // Measured under Xvfb on a 4-core machine before HRO-64 (008faba29) and now, and now on a hosted CI runner. Each limit
-// sits well above what the CI runner measured; the shell's heap fails the tree from before HRO-64.
+// sits well above what the CI runner measured; the shell's heap fails the tree from before HRO-64. The shell's first
+// paint is printed with no limit: 272-432 ms before HRO-64 and now, but 2,792 ms on a start right after a build, so it
+// tells more about the machine's disk cache than about Hronaut.
 const LIMITS = {
-  shellFirstPaintMs: 1_000, // before 352-432, now 272-336, CI 372
   shellHeapMB: 12, // before 15.1, now 8.3, CI 8.3
   clickToActiveTabP90Ms: 150, // before 63-117, now 41-59, CI 54
   mainThreadMsPerAgentCall: 60, // before 42.5-44.4, now 24.5-26.0, CI not measured yet (about 40 at its 1.5x tool times)
@@ -296,7 +297,6 @@ test('stays responsive to the person while four agents work', async ({ appWindow
     const screenshots = percentiles(toolTimes.browser_screenshot ?? [])
     const snapshots = percentiles(toolTimes.browser_snapshot ?? [])
     const measured = {
-      shellFirstPaintMs: start.firstPaintMs,
       shellHeapMB: start.heapMB,
       clickToActiveTabP90Ms: clicks.p90,
       mainThreadMsPerAgentCall: Math.round(10 * main.busyMs / Math.max(1, callsWhileClicking)) / 10,
@@ -309,6 +309,7 @@ test('stays responsive to the person while four agents work', async ({ appWindow
     const report = {
       measured,
       limits: LIMITS,
+      shellFirstPaintMs: start.firstPaintMs,
       clicks,
       screenshots,
       snapshots,
