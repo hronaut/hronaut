@@ -1,5 +1,5 @@
 import type { Browser } from '../browser/browser.js'
-import { browserState } from '../browser/browser-state/browser-state.js'
+import { buildBrowserState } from '../browser/browser-state/browser-state.js'
 import { isHronautHomeUrl } from '../browser/url.js'
 import { closeTabsForPerson } from '../browser/tab-close/close-tabs-for-person.js'
 import { selectTabForPerson } from '../browser/tab-selection/person-tab-switch.js'
@@ -43,10 +43,11 @@ function previewRevision(browser: Browser, tab: BrowserTabState): number | undef
 
 /**
  * The open website tabs, recently closed tabs and archived workspaces Home's Tabs view lists: page labels and the
- * conditions its cards name, without diagnostics, page contents or form values.
+ * conditions its cards name, without diagnostics, page contents or form values. It goes to Home, never to the shell as
+ * an action's reply, so a change waiting to be published waits on (see StatePublication.beforeRead).
  */
 export function homeTabsState(browser: Browser): HomeTabsState {
-  const state = browserState(browser)
+  const state = buildBrowserState(browser)
   const tabs = state.tabs.filter(tab => !isHronautHomeUrl(tab.url))
   const previous = browser.previousPageTabId
   return {
@@ -112,7 +113,7 @@ export async function runHomeTabAction(browser: Browser, input: unknown): Promis
     case 'restore': await restoreSavedTabGroup(browser, action.workspaceId); break
     case 'delete':
       // Deleting checks that the workspace is still archived and unprotected; a locked browser keeps it as well.
-      if (browserState(browser).allHumanInteractionLocked) throw new LocalizedError('appErrors.workspace.deleteLocked')
+      if (buildBrowserState(browser).allHumanInteractionLocked) throw new LocalizedError('appErrors.workspace.deleteLocked')
       await deleteSavedTabGroup(browser, action.workspaceId)
       break
     case 'back': {

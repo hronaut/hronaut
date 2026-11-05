@@ -9,7 +9,7 @@ import type { BrowserState, BrowserTabState } from '../src/shared/types.js'
 const { reach } = vi.hoisted(() => ({
   reach: (name: string) => (browser: Record<string, (...args: unknown[]) => unknown>, ...args: unknown[]) => browser[name]!(...args)
 }))
-vi.mock('../src/main/browser/browser-state/browser-state.js', () => ({ browserState: reach('getState') }))
+vi.mock('../src/main/browser/browser-state/browser-state.js', () => ({ browserState: reach('getState'), buildBrowserState: reach('getState') }))
 vi.mock('../src/main/browser/tab-close/close-tabs-for-person.js', () => ({ closeTabsForPerson: reach('closeTabsForPerson') }))
 vi.mock('../src/main/browser/tab-selection/person-tab-switch.js', () => ({ selectTabForPerson: reach('selectTabForPerson') }))
 vi.mock('../src/main/browser/tab-arrangement/tab-arrangement.js', () => ({ setTabPinned: reach('setTabPinned') }))

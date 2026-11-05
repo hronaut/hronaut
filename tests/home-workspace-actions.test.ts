@@ -18,7 +18,9 @@ vi.mock('../src/main/browser/mcp-tab-groups/mcp-tab-groups.js', async (importOri
 }))
 vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
-  browserState: (browser: { getState: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.getState(...args)
+  browserState: (browser: { getState: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.getState(...args),
+  // Home reads the state without sending a waiting change to the shell early.
+  buildBrowserState: (browser: { getState: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.getState(...args)
 }))
 // The browser's workspace, Home and tab actions are functions now; these reach the fake's stubs.
 vi.mock('../src/main/browser/mcp-tab-groups/close-mcp-tab-group.js', async (importOriginal) => ({
