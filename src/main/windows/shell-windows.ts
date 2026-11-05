@@ -16,7 +16,7 @@ interface ShellWindowsHost {
    */
   mainWindowRefs: Pick<MainWindowRefs, 'window' | 'showRequested' | 'stateUntilShown'>
   /** The detached panel window, shown and told alongside the main window while it is open. */
-  panelWindowRefs: Pick<PanelWindowRefs, 'window'>
+  panelWindowRefs: Pick<PanelWindowRefs, 'window' | 'stateUntilShown'>
   /** Why saved workspaces could not start, if they could not; the main window then stays hidden. */
   workspaceStartupFailure(): Error | undefined
   /** Translates into the current interface language; read on every use because the language can change. */
@@ -65,7 +65,11 @@ export function createShellWindows(host: ShellWindowsHost): {
     takeStateUntilShown(host.mainWindowRefs)
     host.mainWindowRefs.window.show()
     host.mainWindowRefs.window.focus()
-    if (host.panelWindowRefs.window && !host.panelWindowRefs.window.isDestroyed() && !host.panelWindowRefs.window.isVisible()) host.panelWindowRefs.window.show()
+    const panel = host.panelWindowRefs.window
+    if (panel && !panel.isDestroyed() && !panel.isVisible()) {
+      takeStateUntilShown(host.panelWindowRefs)
+      panel.show()
+    }
   }
 
   /**
@@ -81,7 +85,11 @@ export function createShellWindows(host: ShellWindowsHost): {
       host.mainWindowRefs.stateUntilShown = null
       host.mainWindowRefs.window.showInactive()
     }
-    if (host.panelWindowRefs.window && !host.panelWindowRefs.window.isDestroyed() && !host.panelWindowRefs.window.isVisible()) host.panelWindowRefs.window.showInactive()
+    const panel = host.panelWindowRefs.window
+    if (panel && !panel.isDestroyed() && !panel.isVisible()) {
+      host.panelWindowRefs.stateUntilShown = null
+      panel.showInactive()
+    }
   }
 
   function sendToShellWindows(channel: string, ...args: unknown[]): void {

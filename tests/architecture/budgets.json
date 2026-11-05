@@ -239,7 +239,6 @@
     "src/main/windows/main-window.ts": 1,
     "src/main/windows/shell-edit-context-menu.ts": 1,
     "src/main/windows/shell-overlays.ts": 8,
-    "src/main/windows/shell-windows.ts": 2,
     "src/main/workspaces-ipc.ts": 7,
     "src/preload/react-inspection-bootstrap.ts": 2,
     "src/preload/wallet-provider-bootstrap.ts": 1,

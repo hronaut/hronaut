@@ -30,10 +30,11 @@ export function showSavedWindow(refs: ShownWindowRefs, saved: WindowShowState | 
 }
 
 /**
- * Gives the main window the maximized or full screen state it kept from a hidden start, as the person shows it. Taken
- * before the window is shown, it opens that way at once, since Electron shows a hidden window to take it.
+ * Gives a window the maximized or full screen state it kept until it is shown: the main window from a hidden start, as
+ * the person shows it, or a detached panel window when it first appears. Taken before the window is shown, it opens
+ * that way at once, since Electron shows a hidden window to take it.
  */
-export function takeStateUntilShown(refs: ShownWindowRefs): void {
+export function takeStateUntilShown(refs: Pick<ShownWindowRefs, 'window' | 'stateUntilShown'>): void {
   const state = refs.stateUntilShown
   if (!state) return
   refs.stateUntilShown = null
