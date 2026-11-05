@@ -135,3 +135,26 @@ describe('Control with Page Down in a page on macOS', () => {
     expect(onShortcutRequested).toHaveBeenCalledOnce()
   })
 })
+
+// A web editor's Ctrl+D (add the next match) and Ctrl+H (Replace), a design tool's Cmd+D (duplicate) and a document's
+// Cmd+Y (redo) never reached their page: Hronaut took them for Bookmark and History, which Chrome lets a page keep.
+describe('the bookmark and history keys in a page', () => {
+  const keys = { linux: [{ key: 'd', code: 'KeyD', control: true }, { key: 'h', code: 'KeyH', control: true }],
+    darwin: [{ key: 'd', code: 'KeyD', meta: true }, { key: 'y', code: 'KeyY', meta: true }] }
+
+  it.each(['linux', 'darwin'] as const)('reach the page first on %s, so the menu acts only when the page leaves them alone', (system) => {
+    Object.defineProperty(process, 'platform', { value: system })
+    const { contents, onShortcutRequested } = pageWith()
+    for (const pressed of keys[system]) expect(press(contents, pressed), pressed.key).toBe(false)
+    expect(onShortcutRequested).not.toHaveBeenCalled()
+  })
+
+  it.each(['linux', 'darwin'] as const)('still bookmark and open history on %s from a page the person cannot use', (system) => {
+    Object.defineProperty(process, 'platform', { value: system })
+    for (const state of [{ locked: true }, { occluded: true }]) {
+      const { contents, onShortcutRequested } = pageWith(state)
+      for (const pressed of keys[system]) expect(press(contents, pressed), pressed.key).toBe(true)
+      expect(onShortcutRequested.mock.calls.map(([action]) => action), JSON.stringify(state)).toEqual(['bookmark', 'visit-history'])
+    }
+  })
+})

@@ -42,6 +42,7 @@ describe('Chrome\'s keys a website may keep', () => {
       ['Ctrl+E', 'focus-address'], ['Alt+Home', 'open-home'],
       ['F3', 'find-next'], ['Shift+F3', 'find-previous'],
       ['Ctrl+Shift+PageDown', 'move-tab-next'], ['Ctrl+Shift+PageUp', 'move-tab-previous'],
+      ['CmdOrCtrl+D', 'bookmark'], ['Ctrl+H', 'visit-history'],
       ['Ctrl+1', 'select-tab-1'], ['Ctrl+8', 'select-tab-8'], ['Ctrl+9', 'select-last-tab'],
       ['Ctrl+num1', 'select-tab-1'], ['Ctrl+num8', 'select-tab-8'], ['Ctrl+num9', 'select-last-tab'],
       ['Ctrl+Shift+-', 'zoom-out']
@@ -62,16 +63,20 @@ describe('Chrome\'s keys a website may keep', () => {
     expect(menu('darwin').key('Ctrl+Shift+-')).toBeUndefined()
   })
 
-  it('are only the keys that move the tab on macOS, as Chrome has there', () => {
-    // Ctrl+Shift+Page Down did nothing on macOS, where Chrome moves the tab with it once the website leaves it alone.
+  // Ctrl+Shift+Page Down did nothing on macOS, where Chrome moves the tab with it once the website leaves it alone. A
+  // design tool's Cmd+D and a document's Cmd+Y never reached their page, which Chrome lets keep them.
+  it('are only the keys that move the tab, bookmark the page and open history on macOS, as Chrome has there', () => {
     const { runShortcut, mainWindow, key, view } = menu('darwin')
-    for (const [accelerator, action] of [['Ctrl+Shift+PageDown', 'move-tab-next'], ['Ctrl+Shift+PageUp', 'move-tab-previous']] as const) {
+    const keys = [
+      ['Ctrl+Shift+PageDown', 'move-tab-next'], ['Ctrl+Shift+PageUp', 'move-tab-previous'], ['CmdOrCtrl+D', 'bookmark'], ['Cmd+Y', 'visit-history']
+    ] as const
+    for (const [accelerator, action] of keys) {
       const item = key(accelerator)!
       expect(item.visible, accelerator).toBe(false)
       item.click!(item, mainWindow, { triggeredByAccelerator: true })
       expect(runShortcut).toHaveBeenLastCalledWith(action)
     }
-    expect(view.filter((item) => item.visible === false).map((item) => item.accelerator)).toEqual(['Ctrl+Shift+PageDown', 'Ctrl+Shift+PageUp'])
+    expect(view.filter((item) => item.visible === false).map((item) => item.accelerator)).toEqual(keys.map(([accelerator]) => accelerator))
   })
 
   it('go to the pane after the page with F6 and Shift+F6', () => {

@@ -114,20 +114,36 @@ function chromeTabShortcut(input: BrowserShortcutInput, key: string): BrowserSho
 }
 
 /**
- * Chrome's keys a website may keep: Ctrl+Shift+Page Down and Ctrl+Shift+Page Up move the tab, on macOS too, and
- * elsewhere F5 reloads, Shift+F5 or Ctrl+F5 reloads without the cache, Alt+D and Ctrl+E go to the address bar, Alt+Home
- * opens Home, F3 or Ctrl+G finds the next match, with Shift the previous one, Ctrl+1 to Ctrl+8 go to that website tab and
- * Ctrl+9 to the last one, F6 or Shift+F6 goes to the next pane: from a page to the address bar, and from Hronaut's
- * window back to the page, and Ctrl+Shift with the minus key zooms out. A website's own keys come first there, as in
- * Chrome, where a web editor runs F5 as its debugger, Ctrl+G to go to a line, Ctrl+Shift+Page Down to move its own editor
- * tab and Ctrl+1 to go to its first editor group, a web terminal reads Alt+D, and JupyterLab splits a cell with
- * Ctrl+Shift+Minus, so they act only when the page in focus leaves them alone, and in Hronaut's own window as the
- * browser's keys at once. On macOS, Cmd+G and Cmd+Shift+G reach the Edit menu's Find Next
- * and Find Previous.
+ * Chrome's keys for bookmarking the page and for history, which a website may keep on every system, as a web editor adds
+ * the next match with Ctrl+D and opens Replace with Ctrl+H, a design tool duplicates with Cmd+D and a document redoes
+ * with Cmd+Y: Ctrl/Cmd+D, and Ctrl+H elsewhere than macOS or Cmd+Y there.
+ */
+function bookmarkOrHistoryKey(input: BrowserShortcutInput, key: string): BrowserShortcutAction | null {
+  if (input.alt || input.shift) return null
+  const primary = input.mac ? input.meta && !input.control : input.control && !input.meta
+  if (!primary) return null
+  if (key === 'd') return 'bookmark'
+  return key === (input.mac ? 'y' : 'h') ? 'visit-history' : null
+}
+
+/**
+ * Chrome's keys a website may keep: Ctrl/Cmd+D and Ctrl+H or Cmd+Y (bookmarkOrHistoryKey), Ctrl+Shift+Page Down and
+ * Ctrl+Shift+Page Up move the tab, on macOS too, and elsewhere F5 reloads, Shift+F5 or Ctrl+F5 reloads without the
+ * cache, Alt+D and Ctrl+E go to the address bar, Alt+Home opens Home, F3 or Ctrl+G finds the next match, with Shift the
+ * previous one, Ctrl+1 to Ctrl+8 go to that website tab and Ctrl+9 to the last one, F6 or Shift+F6 goes to the next
+ * pane: from a page to the address bar, and from Hronaut's window back to the page, and Ctrl+Shift with the minus key
+ * zooms out. A website's own keys come first there, as in Chrome, where a web editor runs F5 as its debugger, Ctrl+G to
+ * go to a line, Ctrl+Shift+Page Down to move its own editor tab and Ctrl+1 to go to its first editor group, a web
+ * terminal reads Alt+D, and JupyterLab splits a cell with Ctrl+Shift+Minus, so they act only when the page in focus
+ * leaves them alone, and in Hronaut's own window as the browser's keys at once. On macOS, Cmd+G and Cmd+Shift+G reach
+ * the Edit menu's Find Next and Find Previous.
  */
 export function websiteKeptShortcutAction(input: BrowserShortcutInput): BrowserShortcutAction | null {
-  if (input.meta || input.repeat || input.composing) return null
+  if (input.repeat || input.composing) return null
   const key = shortcutKey(input)
+  const bookmarkOrHistory = bookmarkOrHistoryKey(input, key)
+  if (bookmarkOrHistory) return bookmarkOrHistory
+  if (input.meta) return null
   if (input.control && input.shift && !input.alt) {
     if (key === 'pagedown') return 'move-tab-next'
     if (key === 'pageup') return 'move-tab-previous'
@@ -220,7 +236,6 @@ export function browserShortcutAction(input: BrowserShortcutInput): BrowserShort
   // above. Control with a key belongs to the focused field or web app there: Control+F moves the caret, Control+D
   // deletes forward and Control+H backward, and a web terminal reads Control+W or Control+R itself.
   const primary = input.mac ? input.meta && !input.control : input.control || input.meta
-  if (!input.shift && ((!input.mac && input.control && key === 'h') || (input.meta && key === 'y' && !(input.mac && input.control)))) return 'visit-history'
   if (!primary) return null
   // Elsewhere than macOS, Ctrl with a digit is a key a website may keep (websiteKeptShortcutAction).
   if (!input.shift && (input.mac || !input.control) && /^[1-8]$/.test(key)) return `select-tab-${key}` as BrowserShortcutAction
@@ -241,7 +256,6 @@ export function browserShortcutAction(input: BrowserShortcutInput): BrowserShort
   if (key === 'l') return 'focus-address'
   if (key === 'w') return 'close-tab'
   if (key === 'f') return 'find'
-  if (key === 'd') return 'bookmark'
   if (key === '.') return 'agent-card'
   if (key === 'k') return 'switch-workspace'
   return null

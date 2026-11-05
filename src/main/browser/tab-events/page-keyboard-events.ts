@@ -74,14 +74,14 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
         composing: input.isComposing,
         mac: process.platform === 'darwin'
       }
-      // The page cannot have Ctrl with a digit, a key a website may keep, which went to the tabs from here before it
-      // was one; the other such keys, such as F5, stay dead here, as they are in Hronaut's window under its dialogs. The
-      // full screen key toggles full screen there, as it does here.
+      // The page cannot have Ctrl with a digit or the bookmark and history keys, keys a website may keep, which went to
+      // the browser from here before they were; the other such keys, such as F5, stay dead here, as they are in
+      // Hronaut's window under its dialogs. The full screen key toggles full screen there, as it does here.
       if (input.type === 'keyDown' && fullScreenKey(input)) {
         toggleFullScreenFromPage(browser, input)
         return
       }
-      const shortcut = input.type === 'keyDown' ? browserShortcutAction(keys) ?? tabNumberKey(keys) : null
+      const shortcut = input.type === 'keyDown' ? browserShortcutAction(keys) ?? coveredPageKey(keys) : null
       if (shortcut) {
         notePageShortcutKey(browser, webContents, input, shortcut)
         browser.options.onShortcutRequested?.(shortcut)
@@ -213,10 +213,13 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
   })
 }
 
-/** Ctrl with a digit elsewhere than macOS, which goes to that tab once the page leaves it alone. */
-function tabNumberKey(keys: BrowserShortcutInput): BrowserShortcutAction | null {
+/**
+ * The keys a website may keep that went to the browser from a page Hronaut's dialogs cover before they were: Ctrl with a
+ * digit elsewhere than macOS, which goes to that tab once the page leaves it alone, and the bookmark and history keys.
+ */
+function coveredPageKey(keys: BrowserShortcutInput): BrowserShortcutAction | null {
   const kept = websiteKeptShortcutAction(keys)
-  return kept?.startsWith('select-tab-') || kept === 'select-last-tab' ? kept : null
+  return kept?.startsWith('select-tab-') || kept === 'select-last-tab' || kept === 'bookmark' || kept === 'visit-history' ? kept : null
 }
 
 /**
