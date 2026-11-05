@@ -10,7 +10,8 @@ import type { BrowserState } from '../../src/shared/types.js'
 const exec = promisify(execFile)
 
 const PAGES: Record<string, string> = {
-  '/source': '<!doctype html><title>Link source</title><p style="margin:80px"><a id="link" href="/dropped" style="font-size:30px">Drag me</a></p>',
+  '/source': `<!doctype html><title>Link source</title><p style="margin:80px"><a id="link" href="/dropped" style="font-size:30px">Drag me</a></p>
+    <p style="margin:80px"><a id="script" href="javascript:document.title='Ran'" style="font-size:30px">Script</a></p>`,
   '/target': '<!doctype html><title>Drop target</title><p id="spot" style="margin:200px">Target</p>',
   // A drop zone takes the link itself.
   '/zone': `<!doctype html><title>Drop zone</title><div id="spot" style="margin:100px;width:300px;height:300px">Zone</div><script>
@@ -76,10 +77,23 @@ test('opens a link dropped on a page that does not take it in a new tab beside t
       .find((contents) => contents.getURL() === url)!.executeJavaScript('window.drops'), `${origin}/zone`)).toEqual([`${origin}/dropped`])
     expect(await websiteTabs()).toEqual(['/source (shown)', '/zone', '/target', '/other'])
 
-    // On a page that does not take it, from the other side of the split, it opens beside that page's tab, shown.
     await appWindow.evaluate(`window.hronaut.openSplitView(${JSON.stringify(await tabId('/target'))})`)
     await expect.poll(async () => (await state()).splitView?.secondTabId).toBe(await tabId('/target'))
     await expect.poll(() => loaded(electronApp, `${origin}/target`)).toBe(true)
+    const targetTitle = () => electronApp.evaluate(({ webContents }, url) => webContents.getAllWebContents()
+      .find((contents) => contents.getURL() === url)!.getTitle(), `${origin}/target`)
+
+    // A page whose input is locked takes no drop, and a javascript: link neither runs nor opens anything, as in Chrome.
+    const targetId = await tabId('/target')
+    await appWindow.evaluate(`window.hronaut.setTabHumanInteractionLocked(${JSON.stringify(targetId)}, true)`)
+    await dragAndDrop(await onPage(electronApp, `${origin}/source`, '#link'), await onPage(electronApp, `${origin}/target`, '#spot'))
+    await appWindow.evaluate(`window.hronaut.setTabHumanInteractionLocked(${JSON.stringify(targetId)}, false)`)
+    await dragAndDrop(await onPage(electronApp, `${origin}/source`, '#script'), await onPage(electronApp, `${origin}/target`, '#spot'))
+    // A tab either opened would still show in the list after the next drop's.
+    expect(await websiteTabs()).toEqual(['/source (shown)', '/zone', '/target', '/other'])
+    expect(await targetTitle()).toBe('Drop target')
+
+    // On a page that does not take it, from the other side of the split, it opens beside that page's tab, shown.
     await dragAndDrop(await onPage(electronApp, `${origin}/source`, '#link'), await onPage(electronApp, `${origin}/target`, '#spot'))
     await expect.poll(websiteTabs).toEqual(['/source', '/zone', '/target', '/dropped (shown)', '/other'])
     await expect.poll(() => loaded(electronApp, `${origin}/dropped`)).toBe(true)
@@ -90,9 +104,15 @@ test('opens a link dropped on a page that does not take it in a new tab beside t
     await writeFile(file, 'notes', 'utf8')
     await electronApp.evaluate(async ({ webContents }, { url, file }) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === url)!
-      if (!page.debugger.isAttached()) page.debugger.attach('1.3')
-      const data = { items: [], files: [file], dragOperationsMask: 1 | 2 | 16 }
-      for (const type of ['dragEnter', 'dragOver', 'drop']) await page.debugger.sendCommand('Input.dispatchDragEvent', { type, x: 100, y: 100, data })
+      // Hronaut attaches it to every tab; one this test attaches is detached again.
+      const attached = page.debugger.isAttached()
+      if (!attached) page.debugger.attach('1.3')
+      try {
+        const data = { items: [], files: [file], dragOperationsMask: 1 | 2 | 16 }
+        for (const type of ['dragEnter', 'dragOver', 'drop']) await page.debugger.sendCommand('Input.dispatchDragEvent', { type, x: 100, y: 100, data })
+      } finally {
+        if (!attached) page.debugger.detach()
+      }
     }, { url: `${origin}/dropped`, file })
     await expect(appWindow.getByRole('alert', { name: 'Browser action failed' })).toContainText('cannot open local')
     expect(await websiteTabs()).toEqual(['/source', '/zone', '/target', '/dropped (shown)', '/other'])

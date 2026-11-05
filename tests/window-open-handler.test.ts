@@ -10,6 +10,7 @@ vi.mock('../src/main/browser/dropped-links/dropped-links.js', () => ({
   openLinkDroppedOnPage: (browser: { openLinkDroppedOnPage: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.openLinkDroppedOnPage(...args)
 }))
 import { OpenedTabObservation } from '../src/main/browser/click-opened-tabs.js'
+import { markAgentFileDrop } from '../src/main/browser/file-drop/agent-file-drops.js'
 import { attachWindowOpenHandler } from '../src/main/browser/tab-events/window-open-handler.js'
 import { pageWebPreferences } from '../src/main/browser/new-tabs/tab-admission.js'
 
@@ -22,7 +23,9 @@ vi.mock('../src/main/browser/new-tabs/tab-admission.js', async (importOriginal) 
 // A website's sign-in popup got no window: Hronaut denied every new window and loaded its address in a new tab, so
 // window.open() returned null and the new page had no window.opener to send the result back to.
 
-interface Details { url: string; disposition: string; referrer: { url: string; policy: string }; postBody?: unknown }
+interface Details {
+  url: string; disposition: string; referrer: { url: string; policy: string }; postBody?: unknown; frameName?: string; features?: string
+}
 interface Response {
   action: 'allow' | 'deny'
   outlivesOpener?: boolean
@@ -79,9 +82,10 @@ function fixture(options: {
     splitViewContains: (tabId: string) => tabId === options.splitTabId
   }
   let handler!: (details: Details) => Response
-  attachWindowOpenHandler(browser as never, tab as never, { id: 7, setWindowOpenHandler: (registered: typeof handler) => { handler = registered } } as unknown as WebContents)
+  const page = { id: 7, setWindowOpenHandler: (registered: typeof handler) => { handler = registered } } as unknown as WebContents
+  attachWindowOpenHandler(browser as never, tab as never, page)
   return {
-    tab, browser, open: (details: Details) => handler(details), createTab, observation, onActionFailed, agentInput,
+    tab, browser, page, open: (details: Details) => handler(details), createTab, observation, onActionFailed, agentInput,
     assertCanCreateTab: browser.assertCanCreateTab
   }
 }
@@ -338,16 +342,33 @@ describe('the window Chromium opens for a link dropped on a page that does not t
     expect(observation.stop(() => true)).toBeUndefined()
   })
 
-  // Chrome opens the first file of a drop whose page does not take it; workspaces open no file from the computer.
-  it('opens nothing for an agent\'s file drop', () => {
-    const { open, browser, agentInput, createTab } = fixture()
+  // Chrome opens the first file of a drop whose page does not take it; workspaces open no file from the computer, and
+  // the person is not told of the agent's.
+  it('opens nothing for an agent\'s file drop, also when Chromium answers it after the drop stopped waiting', () => {
+    const during = fixture()
+    during.agentInput.set(7, 1)
+    expect(during.open({ ...dropped, url: 'file:///home/agent/invoice.pdf' })).toEqual({ action: 'deny' })
+
+    const late = fixture()
+    markAgentFileDrop(late.page, new Promise(() => undefined))
+    expect(late.open({ ...dropped, url: 'file:///home/agent/invoice.pdf' })).toEqual({ action: 'deny' })
+
+    for (const { browser, createTab } of [during, late]) {
+      expect(browser.openLinkDroppedOnPage).not.toHaveBeenCalled()
+      expect(createTab).not.toHaveBeenCalled()
+      expect(browser.workspaceNavigationAllowed).not.toHaveBeenCalled()
+    }
+  })
+
+  it('opens a link the person drops while an agent sends the page input, and tells them about a file they drop', () => {
+    const { open, browser, agentInput, tab } = fixture()
     agentInput.set(7, 1)
 
-    expect(open({ ...dropped, url: 'file:///home/agent/invoice.pdf' })).toEqual({ action: 'deny' })
+    expect(open(dropped)).toEqual({ action: 'deny' })
+    agentInput.clear()
+    expect(open({ ...dropped, url: 'file:///home/person/notes.txt' })).toEqual({ action: 'deny' })
 
-    expect(browser.openLinkDroppedOnPage).not.toHaveBeenCalled()
-    expect(createTab).not.toHaveBeenCalled()
-    expect(browser.workspaceNavigationAllowed).not.toHaveBeenCalled()
+    expect(browser.openLinkDroppedOnPage.mock.calls).toEqual([[tab, 'https://example.com/dropped'], [tab, 'file:///home/person/notes.txt']])
   })
 
   it('leaves a window a page opens with its own referrer, or none, to the page\'s rules', () => {
@@ -356,9 +377,13 @@ describe('the window Chromium opens for a link dropped on a page that does not t
     for (const referrer of [{ url: 'https://app.example/', policy: 'default' }, { url: '', policy: 'no-referrer' }]) {
       expect(open({ ...dropped, referrer }).action).toBe('allow')
     }
+    // Nor is a named, sized, background or posted window one, whatever its referrer.
+    for (const window of [{ frameName: 'sign-in' }, { features: 'width=400' }, { disposition: 'background-tab' }, { postBody: { data: [] } }]) {
+      expect(open({ ...dropped, ...window }).action).toBe('allow')
+    }
 
     expect(browser.openLinkDroppedOnPage).not.toHaveBeenCalled()
-    expect(browser.workspaceNavigationAllowed).toHaveBeenCalledTimes(2)
+    expect(browser.workspaceNavigationAllowed).toHaveBeenCalledTimes(6)
   })
 })
 

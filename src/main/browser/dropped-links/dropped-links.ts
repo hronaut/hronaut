@@ -8,6 +8,9 @@ import { getTab, orderedTabs } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { browserState } from '../browser-state/browser-state.js'
 
+/** The address Chromium gives a dropped link the page's process may not open (content::kBlockedURL). */
+const BLOCKED_DROP_URL = 'about:blank#blocked'
+
 /** The longest address Chrome loads (url::kMaxURLChars); longer text opens nothing. */
 const MAX_DROPPED_TEXT_LENGTH = 2 * 1024 * 1024
 
@@ -40,6 +43,8 @@ export async function openDroppedLink(browser: Browser, text: string,
  * why nothing opened, as when the person types it.
  */
 export function openLinkDroppedOnPage(browser: Browser, tab: BrowserTab, url: string): void {
+  // Chromium's address for a dropped link its page may not open, such as a javascript: link, which opens nothing.
+  if (url === BLOCKED_DROP_URL) return
   void openDroppedLink(browser, url, { tabId: tab.id, placement: 'after' })
     .catch((error: unknown) => browser.options.onActionFailed?.('open dropped link', error))
 }

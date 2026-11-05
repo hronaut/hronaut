@@ -10,6 +10,7 @@ import { showAgentPointer } from '../agent-pointer/agent-pointer.js'
 import type { Browser } from '../browser.js'
 import { getTab } from '../browser-core.js'
 import { withDebugger } from '../debugger-lease/debugger-lease.js'
+import { markAgentFileDrop } from './agent-file-drops.js'
 import { validateTarget } from '../input-targets/input-targets.js'
 import { nativeInputAuthority } from '../native-input-authority/native-input-authority.js'
 import type { PointerDebugger } from '../native-pointer.js'
@@ -33,6 +34,8 @@ const MAX_DRAG_UPDATES = 4
 
 /** How long one page script or drag event may take before the drop gives up on an unresponsive page. */
 const PAGE_RESPONSE_TIMEOUT_MS = 5_000
+
+const DRAG_EVENT_TIMEOUT_MESSAGE = 'Chromium did not take the drag event in time, so nothing was dropped'
 
 /** How a file drop ended. Neither status proves that the page read or uploaded the files. */
 export type FileDropStatus = 'DROPPED' | 'NOT_ACCEPTED' | 'DROP_UNCONFIRMED'
@@ -126,7 +129,10 @@ export async function dropFiles(
           dropChecked = true
         })
         try {
-          await sendDragEvent(dropInput, { type: 'drop', ...point, data })
+          const drop = dropInput.sendCommand('Input.dispatchDragEvent', { type: 'drop', ...point, data })
+          // A file the page does not take is the agent's until Chromium answers, even after this wait gives up.
+          markAgentFileDrop(webContents, drop)
+          await withTimeout(drop, DRAG_EVENT_TIMEOUT_MESSAGE)
         } catch (error) {
           if (!dropChecked) throw error
           return {
@@ -182,7 +188,7 @@ async function leavePage(debuggerApi: PointerDebugger): Promise<void> {
 
 /** Sends one drag event, giving up when Chromium does not answer in time, as for a page that blocks in its drag handler. */
 function sendDragEvent(debuggerApi: PointerDebugger, params: Record<string, unknown>): Promise<unknown> {
-  return withTimeout(debuggerApi.sendCommand('Input.dispatchDragEvent', params), 'Chromium did not take the drag event in time, so nothing was dropped')
+  return withTimeout(debuggerApi.sendCommand('Input.dispatchDragEvent', params), DRAG_EVENT_TIMEOUT_MESSAGE)
 }
 
 /** Throws before anything reaches the page unless there are 1 to 20 distinct absolute paths to readable files; messages name a path by its position only. */

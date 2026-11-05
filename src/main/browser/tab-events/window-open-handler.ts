@@ -8,6 +8,7 @@ import { workspaceNavigationAllowed } from '../workspace-navigation/workspace-na
 import { assertCanCreateTab, pageWebPreferences } from '../new-tabs/tab-admission.js'
 import { shownPageFullscreenTab } from '../window-layout/content-area.js'
 import { openLinkDroppedOnPage } from '../dropped-links/dropped-links.js'
+import { agentFileDropUnanswered } from '../file-drop/agent-file-drops.js'
 
 /** How long after the person's click or key press Chromium lets a page open a window, its transient user activation. */
 const PERSON_ACTIVATION_MS = 5_000
@@ -66,16 +67,18 @@ function interceptedWindowLoadOptions(postBody: PostBody | undefined, referrer: 
  * take it as such a window; it opens as the person's drop instead.
  */
 export function attachWindowOpenHandler(browser: Browser, tab: BrowserTab, webContents: WebContents): void {
-  webContents.setWindowOpenHandler(({ url, disposition, postBody, referrer }) => {
+  webContents.setWindowOpenHandler(({ url, disposition, postBody, referrer, frameName, features }) => {
     const observations = [...(browser.openedTabObservations.get(tab) ?? [])]
     const blocked = (): { action: 'deny' } => {
       for (const observation of observations) observation.blockedRequest()
       return { action: 'deny' }
     }
-    // A link dropped on the page by the person opens as one dropped beside its tab on the tab strip. An agent's drop
-    // can only carry files, and workspaces open no file from the computer.
-    if (referrer.url === DROPPED_ON_PAGE_REFERRER) {
-      if (!browser.agentInputWebContents.has(webContents.id)) openLinkDroppedOnPage(browser, tab, url)
+    // A link the person dropped on the page opens as one dropped beside its tab on the tab strip. An agent's drop can
+    // only carry files, which workspaces never open, and it opens nothing, without telling the person.
+    if (referrer.url === DROPPED_ON_PAGE_REFERRER && disposition === 'foreground-tab' && !postBody && !frameName && !features) {
+      const agentsFile = url.startsWith('file:')
+        && (browser.agentInputWebContents.has(webContents.id) || agentFileDropUnanswered(webContents))
+      if (!agentsFile) openLinkDroppedOnPage(browser, tab, url)
       return { action: 'deny' }
     }
     if (tab.mcpGroupId && isHronautHomeUrl(url)) return blocked()

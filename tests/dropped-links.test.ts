@@ -163,6 +163,17 @@ describe('a link dropped on a page that does not take it', () => {
     expect(view.browser.options.onActionFailed).not.toHaveBeenCalled()
   })
 
+  // Chromium gives a dropped link the page may not open, such as a javascript: link, this address.
+  it('opens nothing for the address Chromium gives a link the page may not open', async () => {
+    const view = fakeBrowser([tab('first')])
+
+    openLinkDroppedOnPage(view.browser as never, view.browser.tabs.get('first') as never, 'about:blank#blocked')
+    await Promise.resolve()
+
+    expect(view.browser.createNewTab).not.toHaveBeenCalled()
+    expect(view.browser.options.onActionFailed).not.toHaveBeenCalled()
+  })
+
   // As when the person types the address: a workspace opens no file from the computer, and a dropped file is one.
   it('says why nothing opened when the workspace refuses the address', async () => {
     const refusal = new LocalizedError('appErrors.navigation.agentSchemes')
