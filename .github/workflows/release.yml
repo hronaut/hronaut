@@ -330,26 +330,15 @@ jobs:
           compression-level: 0
           retention-days: 1
 
+  # One job packages the dmg and the zip: GitHub's macOS arm64 runners are scarce, and each macOS job can wait for one
+  # until it is cancelled, which held back 3.14.12 and 3.14.17.
   build-macos:
-    name: build-macos (${{ matrix.target }})
+    name: build-macos
     needs:
       - prepare-release
       - test-integration
       - validate
       - test-mcpb
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target: dmg
-            files: |
-              dist/*.dmg
-              dist/*.dmg.blockmap
-          - target: zip
-            files: |
-              dist/*.zip
-              dist/latest-mac*.yml
-              dist/*.blockmap
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7
@@ -359,24 +348,29 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-      - name: Build unsigned macOS ${{ matrix.target }} packages
+      - name: Build unsigned macOS dmg and zip packages
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-          PACKAGE_TARGET: ${{ matrix.target }}
         run: |
           set -euo pipefail
           npm ci
           # One Apple silicon runner packages both apps; npm installed only its own CPU's native packages.
           node scripts/native-packages.ts install mac
           npm run build:app
-          npx electron-builder --mac "$PACKAGE_TARGET" --x64 --arm64 --publish never
+          npx electron-builder --mac dmg zip --x64 --arm64 --publish never
           node scripts/native-packages.ts check mac dist
-      - name: Upload macOS ${{ matrix.target }} release assets
+          # The upload below fails only when none of its files exist, so a missing dmg or zip fails here.
+          ls dist/*.dmg dist/*.zip
+      - name: Upload macOS release assets
         uses: actions/upload-artifact@v7
         with:
-          name: release-macos-${{ matrix.target }}
+          name: release-macos
           if-no-files-found: error
-          path: ${{ matrix.files }}
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/latest-mac*.yml
+            dist/*.blockmap
           compression-level: 0
           retention-days: 1
 
