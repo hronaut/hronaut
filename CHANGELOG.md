@@ -19,6 +19,7 @@ All notable changes to Hronaut are documented in this file.
 - Save Page As on a tab showing an image, a PDF, text or JSON now downloads that file to the name you choose, as Chrome does, suggesting the name its address ends in. It suggested a name ending in .html, wrote a web page showing the file under a name ending in .html instead of the one chosen, and then said it could not save the page.
 - A link dropped on a page that does not take it, from another app or the other side of a split view, now opens in a new tab beside the page, as Chrome does. It opened nothing. A file dropped there is still not opened, and Hronaut now says why.
 - A website that handles Ctrl/Cmd+D, or Ctrl+H (Cmd+Y on macOS), itself now keeps the key, as in Chrome, such as a web editor adding the next match with Ctrl+D or opening Replace with Ctrl+H, or a design tool duplicating with Cmd+D; Hronaut bookmarked the page or opened history instead. Pressed where the website leaves them alone, they still do.
+- An agent's `browser_zoom` `reset` on a page the person pinched larger now answers once the page shows its normal scale. On a busy machine the page could still report its pinched scale right after the answer.
 
 ## [3.14.15] - 2026-11-05
 

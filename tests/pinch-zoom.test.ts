@@ -8,12 +8,29 @@ const { allowPinchZoom, PINCH_ZOOM_MAXIMUM } = await import('../src/main/browser
 const HOME = 'hronaut://home/'
 
 /**
- * A tab whose page records the pinch limits it is given and can be sent to another address; `fails` makes giving them
- * fail, as for a page that is gone, `held` keeps each from settling until `settle` is called, and `pinched` is whether
- * its page reports a pinch.
+ * A tab whose page records the pinch limits it is given, and each time it is asked whether it is pinched, in `events`,
+ * and can be sent to another address; `fails` makes giving limits fail, as for a page that is gone, `held` keeps each
+ * from settling until `settle` is called, and `pinched` is whether its page reports a pinch. Narrowed limits show the
+ * page at its normal scale at its next layout: by the next time it is asked, or, for a busy page, after `lateLooks`
+ * more. Once its limits are narrowed, `silent` keeps the page from answering, `lookFails` makes asking it fail, and
+ * `loads` has it open another document.
  */
-function tab(options: { fails?: boolean; held?: boolean; url?: string; mobile?: boolean; pinched?: boolean; sleeping?: boolean } = {}) {
+function tab(options: {
+  fails?: boolean; held?: boolean; url?: string; mobile?: boolean; pinched?: boolean; sleeping?: boolean
+  lateLooks?: number; silent?: boolean; lookFails?: boolean; loads?: boolean
+} = {}) {
   const limits: Array<[number, number]> = []
+  const events: string[] = []
+  let pinched = options.pinched ?? true
+  let narrowed = false
+  let lateLooks = options.lateLooks ?? 0
+  const look = async (): Promise<boolean> => {
+    if (narrowed && options.silent) return await new Promise<boolean>(() => undefined)
+    if (narrowed && options.lookFails) throw new Error('Render frame was disposed')
+    if (narrowed && pinched && lateLooks-- <= 0) pinched = false
+    events.push(`look ${pinched}`)
+    return pinched
+  }
   const waiting: Array<() => void> = []
   const navigated: Array<(event: unknown, url: string) => void> = []
   let url = options.url ?? 'https://example.com/'
@@ -21,11 +38,12 @@ function tab(options: { fails?: boolean; held?: boolean; url?: string; mobile?: 
     getZoomFactor: () => 1.25,
     getURL: () => url,
     // A page's source refuses page scripts, as Hronaut's source view guard does; its main frame's own call answers.
+    isLoadingMainFrame: () => narrowed && options.loads === true,
     executeJavaScript: vi.fn(async () => {
       if (url.startsWith('view-source:')) throw new Error('SourceViewError')
-      return options.pinched ?? true
+      return await look()
     }),
-    mainFrame: { executeJavaScript: vi.fn(async () => options.pinched ?? true) },
+    mainFrame: { executeJavaScript: vi.fn(look) },
     setZoomFactor: vi.fn(),
     on: vi.fn((name: string, listener: (event: unknown, url: string) => void) => {
       if (name === 'did-navigate') navigated.push(listener)
@@ -33,8 +51,10 @@ function tab(options: { fails?: boolean; held?: boolean; url?: string; mobile?: 
     }),
     setVisualZoomLevelLimits: vi.fn(async (minimum: number, maximum: number) => {
       limits.push([minimum, maximum])
+      events.push(`limits ${minimum}-${maximum}`)
       if (options.held) await new Promise<void>(resolve => waiting.push(resolve))
       if (options.fails) throw new Error('Render frame was disposed')
+      if (maximum === 1) narrowed = true
     })
   }
   const emulation = options.mobile ? { viewport: { width: 390, height: 844, deviceScaleFactor: 3, mobile: true, touch: true } } : {}
@@ -46,7 +66,7 @@ function tab(options: { fails?: boolean; held?: boolean; url?: string; mobile?: 
   }
   const settle = (): void => { for (const resolve of waiting.splice(0)) resolve() }
   const keepsOwnScale = (): boolean => site.emulation.viewport?.mobile === true
-  return { browser: browser as never, webContents, limits, navigate, settle, keepsOwnScale }
+  return { browser: browser as never, webContents, limits, events, navigate, settle, keepsOwnScale }
 }
 
 describe('pinch zoom', () => {
@@ -119,7 +139,8 @@ describe('pinch zoom', () => {
     const source = tab({ url: 'view-source:https://example.com/' })
     await setZoomForAgent(source.browser, { action: 'reset' })
     expect(source.webContents.executeJavaScript).not.toHaveBeenCalled()
-    expect(source.webContents.mainFrame.executeJavaScript).toHaveBeenCalledOnce()
+    // Once to see the pinch, and once to see it undone.
+    expect(source.webContents.mainFrame.executeJavaScript).toHaveBeenCalledTimes(2)
     expect(source.limits).toEqual([[1, 1], [1, PINCH_ZOOM_MAXIMUM]])
     const unpinched = tab({ url: 'view-source:https://example.com/', pinched: false })
     await setZoomForAgent(unpinched.browser, { action: 'reset' })
@@ -141,6 +162,43 @@ describe('pinch zoom', () => {
     // A step needs no pinch undone, so it is answered at once.
     await setZoomForAgent(page.browser, { action: 'in' })
     expect(page.limits).toHaveLength(2)
+  })
+
+  // A busy page took the narrowed limits only at a later layout and until then still reported its pinch, which the
+  // agent's next read of the page found right after its reset answered (seen in the 3.14.16 release rehearsal).
+  it('shows the page at its normal scale by the time a reset answers, and only then widens the limits again', async () => {
+    const page = tab({ lateLooks: 3 })
+    await setZoomForAgent(page.browser, { action: 'reset' })
+    expect(page.events).toEqual(['look true', 'limits 1-1', 'look true', 'look true', 'look true', 'look false', 'limits 1-4'])
+    expect(await page.webContents.executeJavaScript()).toBe(false)
+  })
+
+  it('widens the limits again after about a second when the page keeps showing its pinch, or stops answering', async () => {
+    vi.useFakeTimers()
+    try {
+      const busy = tab({ lateLooks: Number.POSITIVE_INFINITY })
+      const silent = tab({ silent: true })
+      setZoom(busy.browser, { action: 'reset' })
+      setZoom(silent.browser, { action: 'reset' })
+      await vi.advanceTimersByTimeAsync(999)
+      expect(busy.limits).toEqual([[1, 1]])
+      expect(silent.limits).toEqual([[1, 1]])
+      await vi.advanceTimersByTimeAsync(1)
+      expect(silent.limits).toEqual([[1, 1], [1, PINCH_ZOOM_MAXIMUM]])
+      await vi.advanceTimersByTimeAsync(16)
+      expect(busy.limits).toEqual([[1, 1], [1, PINCH_ZOOM_MAXIMUM]])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('widens the limits again at once when asking the page fails or it opens another document', async () => {
+    const failing = tab({ lookFails: true })
+    await setZoomForAgent(failing.browser, { action: 'reset' })
+    expect(failing.limits).toEqual([[1, 1], [1, PINCH_ZOOM_MAXIMUM]])
+    const loading = tab({ loads: true })
+    await setZoomForAgent(loading.browser, { action: 'reset' })
+    expect(loading.events).toEqual(['look true', 'limits 1-1', 'limits 1-4'])
   })
 
   it('answers an agent\'s reset after 2 seconds when the page never does', async () => {
