@@ -114,11 +114,22 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
         else host.runShortcut(action)
       }
     })
+    // As in Chrome, a held key bookmarks the page or opens history once, and its repeats reach only the page. The page
+    // answers each key before the menu gets it, so a repeat can reach the menu after the next key is sent to the page.
+    const once = (action: BrowserShortcutAction): (() => void) => {
+      let press: number | undefined
+      return () => {
+        const presses = host.tabs()?.pageKeyPresses
+        if (presses !== undefined && presses === press) return
+        press = presses
+        host.runShortcut(action)
+      }
+    }
     const everywhere = [
       item(host.text('runtime.shortcuts.moveTabNext'), 'Ctrl+Shift+PageDown', 'move-tab-next'),
       item(host.text('runtime.shortcuts.moveTabPrevious'), 'Ctrl+Shift+PageUp', 'move-tab-previous'),
-      item(host.text('runtime.shortcuts.bookmark'), 'CmdOrCtrl+D', 'bookmark'),
-      item(host.text('runtime.shortcuts.history'), process.platform === 'darwin' ? 'Cmd+Y' : 'Ctrl+H', 'visit-history')
+      item(host.text('runtime.shortcuts.bookmark'), 'CmdOrCtrl+D', once('bookmark')),
+      item(host.text('runtime.shortcuts.history'), process.platform === 'darwin' ? 'Cmd+Y' : 'Ctrl+H', once('visit-history'))
     ]
     if (process.platform === 'darwin') return everywhere
     return [

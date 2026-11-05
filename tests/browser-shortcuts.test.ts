@@ -55,8 +55,10 @@ describe('browserShortcutAction', () => {
     'leaves Control+%s to the page on macOS, where Command is the browser key', key => {
       // Control+F opened Find instead of moving the caret, and Control+W in a web terminal closed the tab.
       for (const shift of [false, true]) {
-        expect(browserShortcutAction(input({ key, control: true, shift, mac: true }))).toBeNull()
-        expect(browserShortcutAction(input({ key, control: true, meta: true, shift, mac: true }))).toBeNull()
+        for (const pressed of [input({ key, control: true, shift, mac: true }), input({ key, control: true, meta: true, shift, mac: true })]) {
+          expect(browserShortcutAction(pressed)).toBeNull()
+          expect(websiteKeptShortcutAction(pressed)).toBeNull()
+        }
       }
     }
   )

@@ -21,17 +21,19 @@ function menu(on: NodeJS.Platform) {
   const runShortcut = vi.fn()
   const runPageNextPane = vi.fn()
   const stopFocusedPageLoading = vi.fn()
+  // The key the page got last, which the page left alone.
+  const browser = { stopFocusedPageLoading, pageKeyPresses: 0 }
   // A page in the main window has the keyboard, rather than Hronaut's own window.
   const shellFocused = { value: false }
   const mainWindow = { id: 1, webContents: { isFocused: () => shellFocused.value } }
   createApplicationMenu({
     text: (key) => key, showWindow: vi.fn(), mainWindow: () => mainWindow as never, checkForUpdates: vi.fn(), requestQuit: vi.fn(),
     runNativeBrowserAction: (_action, callback) => { callback() }, runShortcut, runPageNextPane,
-    tabs: () => ({ stopFocusedPageLoading }) as never
+    tabs: () => browser as never
   }).installApplicationMenu()
   const view = installed.template.find((candidate) => candidate.label === 'native.menu.view')!.submenu!
   const key = (accelerator: string) => view.find((item) => item.accelerator === accelerator)
-  return { runShortcut, runPageNextPane, stopFocusedPageLoading, shellFocused, mainWindow, view, key }
+  return { runShortcut, runPageNextPane, stopFocusedPageLoading, shellFocused, mainWindow, view, key, browser }
 }
 
 describe('Chrome\'s keys a website may keep', () => {
@@ -77,6 +79,21 @@ describe('Chrome\'s keys a website may keep', () => {
       expect(runShortcut).toHaveBeenLastCalledWith(action)
     }
     expect(view.filter((item) => item.visible === false).map((item) => item.accelerator)).toEqual(keys.map(([accelerator]) => accelerator))
+  })
+
+  // A held Ctrl+D on a page that left it alone added, removed and added the bookmark again, and a held Ctrl+H opened and
+  // closed History, where Chrome acts on the first press only.
+  it.each(['linux', 'darwin'] as const)('bookmark the page and open history once for a held key on %s', (system) => {
+    const { runShortcut, mainWindow, key, browser } = menu(system)
+    for (const accelerator of ['CmdOrCtrl+D', system === 'darwin' ? 'Cmd+Y' : 'Ctrl+H']) {
+      const item = key(accelerator)!
+      // A press and its repeats, then the next press.
+      for (const presses of [1, 1, 1, 2, 2]) {
+        browser.pageKeyPresses = presses
+        item.click!(item, mainWindow, { triggeredByAccelerator: true })
+      }
+    }
+    expect(runShortcut.mock.calls).toEqual([['bookmark'], ['bookmark'], ['visit-history'], ['visit-history']])
   })
 
   it('go to the pane after the page with F6 and Shift+F6', () => {

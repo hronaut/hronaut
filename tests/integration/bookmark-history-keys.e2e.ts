@@ -43,14 +43,15 @@ test('a website that handles Ctrl/Cmd+D or the history key keeps it, as in Chrom
       if (!contents) throw new Error('Page web contents was not found')
       return contents.executeJavaScript(script) as Promise<string[]>
     }, { origin, script })
-    // The person's key, sent to the page in focus as the keyboard sends it.
-    const press = (keyCode: string) => electronApp.evaluate(({ webContents }, { origin, keyCode, modifier }) => {
+    // The person's key, sent to the page in focus as the keyboard sends it, held down for its repeats.
+    const press = (keyCode: string, repeats = 0) => electronApp.evaluate(({ webContents }, { origin, keyCode, modifier, repeats }) => {
       const contents = webContents.getAllWebContents().find(candidate => candidate.getURL().startsWith(origin))
       if (!contents) throw new Error('Page web contents was not found')
       contents.focus()
       contents.sendInputEvent({ type: 'keyDown', keyCode, modifiers: [modifier] })
+      for (let repeat = 0; repeat < repeats; repeat += 1) contents.sendInputEvent({ type: 'keyDown', keyCode, modifiers: [modifier, 'isautorepeat'] })
       contents.sendInputEvent({ type: 'keyUp', keyCode, modifiers: [modifier] })
-    }, { origin, keyCode, modifier: mac ? 'meta' as const : 'control' as const })
+    }, { origin, keyCode, modifier: mac ? 'meta' as const : 'control' as const, repeats })
     const bookmarks = () => appWindow.evaluate(async () => (await (window as unknown as TestWindow).hronautBookmarks.list())
       .map(bookmark => bookmark.title))
 
@@ -77,10 +78,16 @@ test('a website that handles Ctrl/Cmd+D or the history key keeps it, as in Chrom
     expect(await bookmarks()).toEqual([])
     await expect(historyPanel).toHaveCount(0)
 
-    // The person's keys there bookmark the page and open history, as before.
-    await press('D')
+    // The person's keys there bookmark the page and open history, as before. Held down, they do so once, as in Chrome:
+    // the repeats reach the page alone.
+    await keys('window.keys = []')
+    await press('D', 3)
     await expect.poll(bookmarks).toEqual(['Page plain'])
-    await press(historyKey)
+    await press(historyKey, 3)
+    await expect(historyPanel).toBeVisible()
+    await expect.poll(() => keys()).toEqual([...Array(4).fill('d'), ...Array(4).fill(historyKey.toLowerCase())])
+    await appWindow.waitForTimeout(500)
+    expect(await bookmarks()).toEqual(['Page plain'])
     await expect(historyPanel).toBeVisible()
   } finally {
     await closeFixtureServer(server)
