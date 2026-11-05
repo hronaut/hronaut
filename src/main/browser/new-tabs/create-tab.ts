@@ -142,6 +142,8 @@ export async function createTab(browser: Browser, options: {
         // write its level into the origin zoom map. Home keeps its own zoom too,
         // at 100% since nothing zooms it, even where an older Hronaut stored one.
         ...(options.zoomIsolated === true || isHronautHomeUrl(url) ? { zoomMode: 'isolated' } : {}),
+        // Home opens nothing dropped on it: it belongs to no workspace.
+        ...(isHronautHomeUrl(url) ? { navigateOnDragDrop: false } : {}),
         // Also construction-time only: Electron has no API to change it on a live view.
         ...(defaultFontSize ? { defaultFontSize } : {})
       }

@@ -33,6 +33,18 @@ export async function openDroppedLink(browser: Browser, text: string,
 }
 
 /**
+ * Opens a link dropped on a tab's page that did not take it, as Chrome does: in a new tab beside that tab, shown, as a
+ * link dropped beside the tab on the tab strip opens. Chromium hands such a drop over as a window the page opens, but
+ * the person dropped it, so it opens even while an agent works on the page, under the workspace's navigation policy
+ * for an address the person opens. An address the workspace refuses, such as a dropped file's `file:` address, says
+ * why nothing opened, as when the person types it.
+ */
+export function openLinkDroppedOnPage(browser: Browser, tab: BrowserTab, url: string): void {
+  void openDroppedLink(browser, url, { tabId: tab.id, placement: 'after' })
+    .catch((error: unknown) => browser.options.onActionFailed?.('open dropped link', error))
+}
+
+/**
  * Puts the new tab before or after the tab it was dropped beside. Beside a pinned tab, it goes first among the
  * workspace's other tabs, as Chrome keeps a tab that is not pinned after the pinned ones.
  */

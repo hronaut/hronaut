@@ -5,6 +5,10 @@ vi.mock('../src/main/browser/workspace-navigation/workspace-navigation.js', asyn
   ...await importOriginal<typeof import('../src/main/browser/workspace-navigation/workspace-navigation.js')>(),
   workspaceNavigationAllowed: (browser: { workspaceNavigationAllowed: (...args: unknown[]) => boolean }, ...args: unknown[]) => browser.workspaceNavigationAllowed(...args)
 }))
+// A link dropped on a page opens as one dropped beside its tab on the tab strip; the browser below records it.
+vi.mock('../src/main/browser/dropped-links/dropped-links.js', () => ({
+  openLinkDroppedOnPage: (browser: { openLinkDroppedOnPage: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.openLinkDroppedOnPage(...args)
+}))
 import { OpenedTabObservation } from '../src/main/browser/click-opened-tabs.js'
 import { attachWindowOpenHandler } from '../src/main/browser/tab-events/window-open-handler.js'
 import { pageWebPreferences } from '../src/main/browser/new-tabs/tab-admission.js'
@@ -61,7 +65,8 @@ function fixture(options: {
   }))
   const browser = {
     openedTabObservations: new Map([[tab, new Set([observation])]]),
-    workspaceNavigationAllowed: () => options.allowed ?? true,
+    workspaceNavigationAllowed: vi.fn(() => options.allowed ?? true),
+    openLinkDroppedOnPage: vi.fn(),
     options: { onActionFailed },
     assertCanCreateTab: vi.fn(options.canOpenTab ?? (() => undefined)),
     createTab,
@@ -314,6 +319,46 @@ describe('a window a workspace page opens', () => {
     const denied = fixture({ allowed: false })
     expect(denied.open(details)).toEqual({ action: 'deny' })
     expect(denied.createTab).not.toHaveBeenCalled()
+  })
+})
+
+// A link dropped on a page that did not take it, from another app or the other side of a split view, opened nothing.
+describe('the window Chromium opens for a link dropped on a page that does not take it', () => {
+  const dropped: Details = { url: 'https://example.com/dropped', disposition: 'foreground-tab', referrer: { url: 'about:client', policy: 'default' } }
+
+  it('opens the link as the person\'s drop beside the tab, not as a window the page opens', () => {
+    const { open, browser, tab, createTab, observation } = fixture()
+
+    expect(open(dropped)).toEqual({ action: 'deny' })
+
+    expect(browser.openLinkDroppedOnPage).toHaveBeenCalledExactlyOnceWith(tab, 'https://example.com/dropped')
+    expect(createTab).not.toHaveBeenCalled()
+    // Not a page's pop-up: the drop is checked as an address the person opens, and an agent's click learns nothing of it.
+    expect(browser.workspaceNavigationAllowed).not.toHaveBeenCalled()
+    expect(observation.stop(() => true)).toBeUndefined()
+  })
+
+  // Chrome opens the first file of a drop whose page does not take it; workspaces open no file from the computer.
+  it('opens nothing for an agent\'s file drop', () => {
+    const { open, browser, agentInput, createTab } = fixture()
+    agentInput.set(7, 1)
+
+    expect(open({ ...dropped, url: 'file:///home/agent/invoice.pdf' })).toEqual({ action: 'deny' })
+
+    expect(browser.openLinkDroppedOnPage).not.toHaveBeenCalled()
+    expect(createTab).not.toHaveBeenCalled()
+    expect(browser.workspaceNavigationAllowed).not.toHaveBeenCalled()
+  })
+
+  it('leaves a window a page opens with its own referrer, or none, to the page\'s rules', () => {
+    const { open, browser } = fixture()
+
+    for (const referrer of [{ url: 'https://app.example/', policy: 'default' }, { url: '', policy: 'no-referrer' }]) {
+      expect(open({ ...dropped, referrer }).action).toBe('allow')
+    }
+
+    expect(browser.openLinkDroppedOnPage).not.toHaveBeenCalled()
+    expect(browser.workspaceNavigationAllowed).toHaveBeenCalledTimes(2)
   })
 })
 

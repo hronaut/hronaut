@@ -7,9 +7,17 @@ import type { BrowserTab } from '../browser-tab.js'
 import { workspaceNavigationAllowed } from '../workspace-navigation/workspace-navigation.js'
 import { assertCanCreateTab, pageWebPreferences } from '../new-tabs/tab-admission.js'
 import { shownPageFullscreenTab } from '../window-layout/content-area.js'
+import { openLinkDroppedOnPage } from '../dropped-links/dropped-links.js'
 
 /** How long after the person's click or key press Chromium lets a page open a window, its transient user activation. */
 const PERSON_ACTIVATION_MS = 5_000
+
+/**
+ * The referrer of the window Chromium opens for a link or file dropped on a page that does not take it
+ * (DragController::PerformDrag): no page started it, so its referrer stays the request's unresolved placeholder,
+ * which every window or link a page opens has replaced with the page's referrer or none.
+ */
+const DROPPED_ON_PAGE_REFERRER = 'about:client'
 
 /**
  * The load options that carry a page's requested referrer and form post into
@@ -54,13 +62,20 @@ function interceptedWindowLoadOptions(postBody: PostBody | undefined, referrer: 
  * Chrome's pop-up blocker refuses a window opened without such a click or key
  * press. Another page's window opens behind it when the person sees its
  * workspace, and otherwise becomes its workspace's tab without being shown,
- * as an agent's does.
+ * as an agent's does. Chromium opens a link dropped on a page that does not
+ * take it as such a window; it opens as the person's drop instead.
  */
 export function attachWindowOpenHandler(browser: Browser, tab: BrowserTab, webContents: WebContents): void {
   webContents.setWindowOpenHandler(({ url, disposition, postBody, referrer }) => {
     const observations = [...(browser.openedTabObservations.get(tab) ?? [])]
     const blocked = (): { action: 'deny' } => {
       for (const observation of observations) observation.blockedRequest()
+      return { action: 'deny' }
+    }
+    // A link dropped on the page by the person opens as one dropped beside its tab on the tab strip. An agent's drop
+    // can only carry files, and workspaces open no file from the computer.
+    if (referrer.url === DROPPED_ON_PAGE_REFERRER) {
+      if (!browser.agentInputWebContents.has(webContents.id)) openLinkDroppedOnPage(browser, tab, url)
       return { action: 'deny' }
     }
     if (tab.mcpGroupId && isHronautHomeUrl(url)) return blocked()
