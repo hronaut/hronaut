@@ -24,6 +24,17 @@ describe('closed permission prompts', () => {
     expect(dismissals.embargoed(maps)).toBe(false)
   })
 
+  it('end the week at once when the clock is set back before it began', () => {
+    let now = 50_000
+    const dismissals = createPermissionDismissals(() => now)
+    for (let index = 0; index < 3; index += 1) dismissals.dismissed(maps)
+    expect(dismissals.embargoed(maps)).toBe(true)
+    now -= 1
+    expect(dismissals.embargoed(maps)).toBe(false)
+    now += 1
+    expect(dismissals.embargoed(maps)).toBe(false)
+  })
+
   it('keep each workspace, website, permission and embedding page apart', () => {
     const dismissals = createPermissionDismissals(() => 0)
     for (let index = 0; index < 3; index += 1) dismissals.dismissed(maps)
@@ -32,6 +43,22 @@ describe('closed permission prompts', () => {
     expect(dismissals.embargoed({ ...maps, origin: 'https://other.example' })).toBe(false)
     expect(dismissals.embargoed({ ...maps, permission: 'notifications' })).toBe(false)
     expect(dismissals.embargoed({ ...maps, embeddedIn: 'https://news.example' })).toBe(false)
+  })
+
+  it('end for each request a saved decision answers, with or without an embedding page', () => {
+    const dismissals = createPermissionDismissals(() => 0)
+    const embedded = { ...maps, embeddedIn: 'https://news.example' }
+    for (let index = 0; index < 3; index += 1) {
+      dismissals.dismissed(maps)
+      dismissals.dismissed(embedded)
+    }
+    const allowedEmbedded = [{ ...embedded, decision: 'allow' }]
+    dismissals.forgetDecided(allowedEmbedded)
+    expect(dismissals.embargoed(embedded)).toBe(false)
+    expect(dismissals.embargoed(maps)).toBe(true)
+    const denied = [{ ...maps, decision: 'deny' }]
+    dismissals.forgetDecided(denied)
+    expect(dismissals.embargoed(maps)).toBe(false)
   })
 
   it('count from none again after an answer, and forget a removed workspace’s', () => {

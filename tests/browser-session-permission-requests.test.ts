@@ -614,7 +614,65 @@ describe('prompts closed with Escape or their close button', () => {
     expect(harness.shown).toHaveLength(6)
   })
 
-  it('refuse a camera request for the page’s document as Deny does', async () => {
+  it('refuse the requests that waited meanwhile, as several frames asking at once, but not a later one', async () => {
+    const harness = await createHarness()
+    const frames = Array.from({ length: 5 }, (_, index) => ({ url: `about:blank#${index}`, origin: maps.origin }))
+    const page = createPage(maps, frames)
+    const answers = answerLater(harness)
+    const asking = Promise.all(frames.map((frame) => ask(harness, page, 'geolocation', { requestingUrl: frame.url, isMainFrame: false })))
+    await vi.waitFor(() => expect(answers).toHaveLength(1))
+    answers[0]!('dismissed')
+    expect(await asking).not.toContain(true)
+    expect(harness.shown).toHaveLength(1)
+
+    const later = ask(harness, page, 'geolocation', fromMaps)
+    await vi.waitFor(() => expect(answers).toHaveLength(2))
+    answers[1]!('allow')
+    expect(await later).toBe(true)
+  })
+
+  it('refuse a request that waited while its website’s third prompt was closed, on another of its pages', async () => {
+    const harness = await createHarness()
+    harness.decide = () => 'dismissed'
+    const page = createPage(maps)
+    expect(await ask(harness, page, 'geolocation', fromMaps)).toBe(false)
+    expect(await ask(harness, page, 'geolocation', fromMaps)).toBe(false)
+    const answers = answerLater(harness)
+    const third = ask(harness, page, 'geolocation', fromMaps)
+    await vi.waitFor(() => expect(answers).toHaveLength(1))
+    const waiting = ask(harness, createPage(maps), 'geolocation', fromMaps)
+    answers[0]!('dismissed')
+    expect([await third, await waiting]).toEqual([false, false])
+    expect(harness.shown).toHaveLength(3)
+  })
+
+  it('ask again once the person decides in Settings and forgets that decision, or the workspace is removed', async () => {
+    const harness = await createHarness()
+    harness.decide = () => 'dismissed'
+    const page = createPage(maps)
+    const closeThrice = async () => {
+      for (let index = 0; index < 3; index += 1) expect(await ask(harness, page, 'geolocation', fromMaps)).toBe(false)
+    }
+    await closeThrice()
+    expect(harness.shown).toHaveLength(3)
+    expect(await ask(harness, page, 'geolocation', fromMaps)).toBe(false)
+    expect(harness.shown).toHaveLength(3)
+    // Settings saves the decision and tells the shell windows, then forgets it.
+    await harness.store.set(maps.origin, 'geolocation', 'allow', { workspaceId: WORK })
+    harness.publishSitePermissions()
+    await harness.store.remove(maps.origin, 'geolocation', { workspaceId: WORK })
+    harness.publishSitePermissions()
+    expect(await ask(harness, page, 'geolocation', fromMaps)).toBe(false)
+    expect(harness.shown).toHaveLength(4)
+
+    await closeThrice()
+    expect(harness.shown).toHaveLength(6)
+    await harness.forgetWorkspaceSitePermissions(WORK)
+    expect(await ask(harness, page, 'geolocation', fromMaps)).toBe(false)
+    expect(harness.shown).toHaveLength(7)
+  })
+
+  it('refuse a camera request for the page’s document as Deny does, and never stop asking', async () => {
     const harness = await createHarness()
     harness.decide = () => 'dismissed'
     const call = { url: 'https://call.example/room', origin: 'https://call.example' }
@@ -623,9 +681,11 @@ describe('prompts closed with Escape or their close button', () => {
     expect(await ask(harness, page, 'media', camera)).toBe(false)
     expect(await ask(harness, page, 'media', camera)).toBe(false)
     expect(harness.shown).toHaveLength(1)
-    page.navigate(page.frames[0]!, call.url)
-    expect(await ask(harness, page, 'media', camera)).toBe(false)
-    expect(harness.shown).toHaveLength(2)
+    for (let load = 2; load <= 4; load += 1) {
+      page.navigate(page.frames[0]!, call.url)
+      expect(await ask(harness, page, 'media', camera)).toBe(false)
+      expect(harness.shown).toHaveLength(load)
+    }
   })
 })
 

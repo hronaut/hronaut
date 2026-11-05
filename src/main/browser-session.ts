@@ -142,6 +142,11 @@ interface PagePermissionRequests {
   /** What the person allowed for the page's document, by page document, website, permission and scope. */
   allowed: Set<string>
   /**
+   * The prompts the person closed without an answer for the page's document, by the same key, with when: the requests
+   * that waited meanwhile are refused too, as several frames asking at once are, but a later one asks again.
+   */
+  dismissed: Map<string, number>
+  /**
    * Whether the page asked to open a link in another app since the person last clicked, pressed a key or touched it,
    * in any of its frames. As in Chrome, a page then asks no more until they do, so it cannot ask over and over, a new
    * scheme each time.
@@ -214,6 +219,8 @@ export function createBrowserSession(host: BrowserSessionHost): {
   /** The prompts the person closed without an answer, which refuse a website without asking after three. */
   const dismissals = createPermissionDismissals()
   let documentCount = 0
+  /** Orders the requests and the prompts closed without an answer. */
+  let promptSequence = 0
 
   function queuePermissionRequest(operation: () => Promise<void>): void {
     const pending = permissionRequestQueue.then(operation)
@@ -225,7 +232,8 @@ export function createBrowserSession(host: BrowserSessionHost): {
     const known = pagePermissionRequests.get(webContents)
     if (known) return known
     const page: PagePermissionRequests = {
-      pageDocument: ++documentCount, frameDocuments: new Map(), prompts: new Map(), denied: new Set(), allowed: new Set(), appLinkAsked: false
+      pageDocument: ++documentCount, frameDocuments: new Map(), prompts: new Map(), denied: new Set(), allowed: new Set(), dismissed: new Map(),
+      appLinkAsked: false
     }
     pagePermissionRequests.set(webContents, page)
     // Electron reports a click or key in any of the page's frames before the page gets it, and a touch only on the page
@@ -251,6 +259,7 @@ export function createBrowserSession(host: BrowserSessionHost): {
         page.frameDocuments.clear()
         page.denied.clear()
         page.allowed.clear()
+        page.dismissed.clear()
         return
       }
       // Electron also reports the main frame of a page that is not the one shown, such as one loading in the background.
@@ -511,9 +520,10 @@ export function createBrowserSession(host: BrowserSessionHost): {
         }
         return null
       })()
+      const queuedAt = ++promptSequence
       const askPerson = async (): Promise<boolean> => {
-        // A Deny the person chose while this request waited holds for it too.
-        if (!requestIsCurrent() || page.denied.has(hold)) return false
+        // A Deny the person chose, or a prompt they closed, while this request waited holds for it too.
+        if (!requestIsCurrent() || page.denied.has(hold) || (page.dismissed.get(hold) ?? 0) > queuedAt) return false
         const currentRemembered = requiresFreshConsent
           ? undefined
           : host.state.sitePermissionStore?.decisionFor(origin, permission, workspaceId, embeddedIn)
@@ -610,6 +620,7 @@ export function createBrowserSession(host: BrowserSessionHost): {
         // Closed with Escape or its close button instead, the prompt refuses this request and keeps nothing, as in Chrome:
         // the website may ask again, until it was closed three times, and Settings lists no Deny the person never chose.
         if (dismissed) {
+          page.dismissed.set(hold, ++promptSequence)
           dismissals.dismissed(asked)
           return false
         }
@@ -717,7 +728,11 @@ export function createBrowserSession(host: BrowserSessionHost): {
 
   /** Tells both shell windows the site permissions the person chose. */
   function publishSitePermissions(): void {
-    host.sendToShellWindows(PERMISSIONS_IPC.changed, host.state.sitePermissionStore?.list() ?? [])
+    const permissions = host.state.sitePermissionStore?.list() ?? []
+    // A decision the person saved, as in Site controls or Settings, ends the website's prompts closed before it, as in
+    // Chrome: forgetting it later asks again.
+    dismissals.forgetDecided(permissions)
+    host.sendToShellWindows(PERMISSIONS_IPC.changed, permissions)
   }
 
   /**
