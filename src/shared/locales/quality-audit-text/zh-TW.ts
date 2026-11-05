@@ -1,0 +1,82 @@
+export const zhTWQualityAuditText = {
+  categories: {
+    accessibility: '無障礙',
+    performance: '效能',
+    metadata: '中繼資料與 SEO',
+    security: '安全性',
+    pwa: 'PWA 與離線',
+    'browser-issues': 'Chromium 問題'
+  },
+  statuses: {
+    pass: '通過',
+    info: '資訊',
+    warning: '警告',
+    error: '錯誤',
+    'not-applicable': '不適用'
+  },
+  severities: {
+    error: '錯誤',
+    warning: '警告',
+    info: '資訊'
+  },
+  fixed: {
+    accessibilityClear: '未發現自動檢測到的 WCAG AA 違規項目',
+    performanceNone: '這次造訪未觀察到 Web Vitals',
+    metadataClear: '未發現中繼資料問題',
+    securitySecure: '主要文件的傳輸安全',
+    pwaNone: '未偵測到 PWA 或離線應用程式功能',
+    browserIssuesClear: '未發現保留的 Chromium 問題',
+    webVitalsNotObserved: '目前的造訪未觀察到任何 Web Vitals；請重新載入網頁並與網頁互動，然後再重新執行稽核。',
+    insecureTransport: '主要文件未使用正常的安全傳輸。',
+    certificateExpired: '主要文件的憑證已過期。',
+    certificateNotYetValid: '主要文件的憑證尚未生效。',
+    certificateInvalid: '主要文件的憑證目前無效。',
+    pwaInspectionPartial: '這次稽核無法取得部分 PWA 診斷資訊。'
+  },
+  caveats: {
+    localDiagnostic: '這是根據 Hronaut 證據彙整而成、範圍有限的本機診斷，並非 Lighthouse 分數或認證。',
+    accessibilityAutomation: '自動化無障礙檢查無法取代鍵盤、螢幕閱讀器、縮放、動態效果及真人易用性測試。',
+    performanceVisit: '效能反映的是目前的本機造訪與環境；重要的測量請在具代表性的條件下重複進行。',
+    pwaOptional: '對於沒有提供離線應用程式功能的網站，PWA 不會被視為必要條件。',
+    reloadIssues: '如要重現只在啟動時出現的 Chromium 問題，請先重新載入，再重新執行這項稽核。'
+  },
+  text: {
+    violations: '{count} 個違規項目',
+    violationNodes: '{count} 個受影響的節點',
+    accessibilityViolations: '{violations}，涉及 {nodes}',
+    affectedNodes: '{count} 個受影響的節點',
+    accessibilityFinding: '{help}（{nodes}）',
+    rulesPassed: '{count} 項規則通過',
+    checksNeedReview: '{count} 項檢查需要審查',
+    needsHumanReview: '{count} 項無障礙檢查需要人工審查。',
+    performanceGood: '觀察到的 {total} 項 Web Vitals 中有 {good} 項良好',
+    metricEvidence: '{name}：{value}（{rating}）',
+    metricFinding: '{name} 為 {value}，評等為「{rating}」。',
+    resources: '{count} 項資源',
+    longTasks: '{count} 個長時間工作',
+    metadataIssues: '{count} 個中繼資料問題',
+    language: '語言：{language}',
+    languageMissing: '語言：未設定',
+    canonicalUrls: '標準網址：{count}',
+    structuredData: '結構化資料：{valid} 個有效 · {invalid} 個無效',
+    securityState: '安全性狀態：{state}',
+    securityStateFinding: 'Chromium 回報主要文件的安全性狀態為 {state}。',
+    transportSecure: '傳輸：安全',
+    transportInsecure: '傳輸：不安全',
+    protocol: '通訊協定：{protocol}',
+    protocolUnavailable: '通訊協定：無法取得',
+    certificateValid: '憑證：有效',
+    certificateInvalid: '憑證：無效',
+    certificateUnavailable: '憑證：無法取得',
+    registrations: '{count} 個 Service Worker 註冊項目',
+    caches: '{count} 個快取',
+    manifestPresent: '資訊清單：有',
+    manifestMissing: '資訊清單：未偵測到',
+    controlledYes: '由 Service Worker 控制：是',
+    controlledNo: '由 Service Worker 控制：否',
+    installabilityIssues: '可安裝性問題：{count}',
+    installabilityFinding: 'Chromium 回報了 PWA 可安裝性問題：{issue}。',
+    installabilityUnknown: 'Chromium 回報了 PWA 可安裝性問題：不明問題。',
+    browserIssues: '{count} 個瀏覽器產生的問題'
+  }
+}

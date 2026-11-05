@@ -1,31 +1,31 @@
-import { networkPriorityMessages } from './network-priority.js'
-import { networkLabelMessages } from './network-labels.js'
-import { reproStepMessages } from './repro-steps.js'
-import { viewportPresetMessages } from './viewport-presets.js'
-import { searchEngineMessages } from './search-engines.js'
-import { settingsSectionMessages } from './settings-sections.js'
-import { browserIssueTitleMessages } from './browser-issue-titles.js'
-import { qualityAuditTextMessages } from './quality-audit-text.js'
-import { networkAbortReasonMessages } from './network-abort-reasons.js'
-import { reportCaveatMessages } from './report-caveats.js'
-import { incidentPathMessages } from './incident-paths.js'
-import { reactInspectionMessages } from './react-inspection.js'
-import { pwaLifecycleMessages } from './pwa-lifecycle.js'
-import { softNavigationMessages } from './soft-navigation.js'
-import { lcpAttributionMessages } from './lcp-attribution.js'
-import { browserImportMessages } from './browser-import.js'
-import { videoRecorderMessages } from './video-recorder/index.js'
-import { capabilityProfileMessages } from './capability-profiles.js'
-import { remoteConnectionMessages } from './remote-connections.js'
-import { homeReadinessMessages } from './home-readiness.js'
-import { trustedDialogMessages } from './trusted-dialogs.js'
-import { walletMessages } from './wallets/index.js'
-import { appErrorMessages } from './app-errors/index.js'
+import { zhTWNetworkPriority } from './network-priority/zh-TW.js'
+import { zhTWNetworkLabels } from './network-labels/zh-TW.js'
+import { zhTWReproSteps } from './repro-steps/zh-TW.js'
+import { zhTWViewportPresets } from './viewport-presets/zh-TW.js'
+import { zhTWSearchEngines } from './search-engines/zh-TW.js'
+import { zhTWSettingsSections } from './settings-sections/zh-TW.js'
+import { zhTWBrowserIssueTitles } from './browser-issue-titles/zh-TW.js'
+import { zhTWQualityAuditText } from './quality-audit-text/zh-TW.js'
+import { zhTWNetworkAbortReasons } from './network-abort-reasons/zh-TW.js'
+import { zhTWReportCaveats } from './report-caveats/zh-TW.js'
+import { zhTWIncidentPaths } from './incident-paths/zh-TW.js'
+import { zhTWReactInspection } from './react-inspection/zh-TW.js'
+import { zhTWPwaLifecycle } from './pwa-lifecycle/zh-TW.js'
+import { zhTWSoftNavigation } from './soft-navigation/zh-TW.js'
+import { zhTWLcpAttribution } from './lcp-attribution/zh-TW.js'
+import { zhTWBrowserImport } from './browser-import/zh-TW.js'
+import { zhTWVideoRecorder } from './video-recorder/zh-TW.js'
+import { zhTWCapabilityProfiles } from './capability-profiles/zh-TW.js'
+import { zhTWRemoteConnections } from './remote-connections/zh-TW.js'
+import { zhTWHomeReadiness } from './home-readiness/zh-TW.js'
+import { zhTWTrustedDialogs } from './trusted-dialogs/zh-TW.js'
+import { zhTWWallets } from './wallets/zh-TW.js'
+import { zhTWAppErrors } from './app-errors/zh-TW.js'
 import type { MessageSchema } from './en-US.js'
 
 export const zhTW: MessageSchema = {
-  trustedDialogs: trustedDialogMessages['zh-TW'],
-  reactInspection: reactInspectionMessages['zh-TW'],
+  trustedDialogs: zhTWTrustedDialogs,
+  reactInspection: zhTWReactInspection,
   agentStatus: {
     starting: '正在為代理程式做準備',
     ready: '代理程式已就緒',
@@ -39,7 +39,7 @@ export const zhTW: MessageSchema = {
     details: '詳細資料'
   },
   incident: {
-    ...incidentPathMessages['zh-TW'],
+    ...zhTWIncidentPaths,
     omitField: '要省略的確切 JSON 欄位名稱（選用）',
     omitFieldHint: '在取代之前，從保留的擷取項目中移除所有相符的物件欄位。區分大小寫；不是路徑或萬用字元。其他複本可能仍然存在：請檢查預覽。',
     hash: 'SHA-256：{hash}',
@@ -90,8 +90,8 @@ export const zhTW: MessageSchema = {
     reminder: '需要授權',
     reminderTitle: '代理程式自動化已鎖定。開啟授權設定'
   },
-  pwaLifecycle: pwaLifecycleMessages['zh-TW'],
-  softNavigation: softNavigationMessages['zh-TW'],
+  pwaLifecycle: zhTWPwaLifecycle,
+  softNavigation: zhTWSoftNavigation,
   emulationApplication: {
     pending: '正在套用模擬',
     unknown: '模擬狀態未確認',
@@ -99,19 +99,19 @@ export const zhTW: MessageSchema = {
     restore: '還原保留的設定',
     networkFirst: '請先在「要求條件」中復原「網路狀況」。在另外還原之前，模擬狀態會維持未確認。'
   },
-  networkPriority: networkPriorityMessages['zh-TW'],
-  networkLabels: networkLabelMessages['zh-TW'],
-  reproSteps: reproStepMessages['zh-TW'],
-  viewportPresets: viewportPresetMessages['zh-TW'],
-  searchEngines: searchEngineMessages['zh-TW'],
-  settingsSections: settingsSectionMessages['zh-TW'],
-  browserIssueTitles: browserIssueTitleMessages['zh-TW'],
-  qualityAuditText: qualityAuditTextMessages['zh-TW'],
-  networkAbortReasons: networkAbortReasonMessages['zh-TW'],
-  reportCaveats: reportCaveatMessages['zh-TW'],
-  lcpAttribution: lcpAttributionMessages['zh-TW'],
-  browserImport: browserImportMessages['zh-TW'],
-  video: videoRecorderMessages['zh-TW'],
+  networkPriority: zhTWNetworkPriority,
+  networkLabels: zhTWNetworkLabels,
+  reproSteps: zhTWReproSteps,
+  viewportPresets: zhTWViewportPresets,
+  searchEngines: zhTWSearchEngines,
+  settingsSections: zhTWSettingsSections,
+  browserIssueTitles: zhTWBrowserIssueTitles,
+  qualityAuditText: zhTWQualityAuditText,
+  networkAbortReasons: zhTWNetworkAbortReasons,
+  reportCaveats: zhTWReportCaveats,
+  lcpAttribution: zhTWLcpAttribution,
+  browserImport: zhTWBrowserImport,
+  video: zhTWVideoRecorder,
   workspaceLibrary: {
     hidden: '已從側邊欄隱藏',
     protected: '受刪除保護',
@@ -566,7 +566,7 @@ export const zhTW: MessageSchema = {
       help: '顯示中、已固定、載入中、正在播放音訊、正在下載、有表單變更、已在 DevTools 中開啟或正由代理程式使用的分頁會保持喚醒。休眠會卸載網頁，並在喚醒時還原其導覽記錄。'
     },
     mcp: {
-      remote: remoteConnectionMessages['zh-TW'],
+      remote: zhTWRemoteConnections,
       heading: 'MCP 安全性',
       description: '控制哪些應用程式可以連線至這個瀏覽器設定檔。',
       require: '要求 MCP 驗證',
@@ -587,7 +587,7 @@ export const zhTW: MessageSchema = {
       applyPort: '套用連接埠',
       tokenHelp: '相容性權杖會授予完整存取權。如為受限的用戶端，請使用能力設定檔。',
       warning: '驗證已關閉。任何能連上此監聽程式的人都能控制已登入的分頁並附加本機檔案；啟用遠端存取時，也包括其他電腦。',
-      capabilities: capabilityProfileMessages['zh-TW']
+      capabilities: zhTWCapabilityProfiles
     },
     permissions: {
       search: '搜尋已儲存的網站權限',
@@ -734,8 +734,8 @@ export const zhTW: MessageSchema = {
       issue: '回報問題 ↗'
     }
   },
-  wallets: walletMessages['zh-TW'],
-  appErrors: appErrorMessages['zh-TW'],
+  wallets: zhTWWallets,
+  appErrors: zhTWAppErrors,
   workspaceNavigationAudit: {
     reasonCredentials: '內嵌憑證',
     reasonMalformed: '無效的地址',
@@ -3966,7 +3966,7 @@ export const zhTW: MessageSchema = {
       active: '使用中',
       recent: '最近'
     },
-    readiness: homeReadinessMessages['zh-TW'],
+    readiness: zhTWHomeReadiness,
     firstRun: {
       kicker: '首次成功',
       heading: '用一項安全的任務試用 Hronaut',

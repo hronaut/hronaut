@@ -165,3 +165,66 @@ describe('Switch to this tab in the address suggestions view', () => {
     expect(select).toHaveBeenCalledTimes(4)
   })
 })
+
+describe('the address overlay in the shell\'s language', () => {
+  async function freshOverlay() {
+    // A window that has loaded no language but English yet, unlike the component tests' setup.
+    vi.resetModules()
+    document.body.innerHTML = '<div id="address-overlay-root"></div>'
+    const measured = vi.fn()
+    let receiveState!: (state: AddressSuggestionOverlayState) => void
+    vi.stubGlobal('hronautAddressOverlayView', {
+      onState: (listener: typeof receiveState) => { receiveState = listener; return () => undefined },
+      select: vi.fn(),
+      measured
+    })
+    await import('../../src/renderer/src/address-overlay.js')
+    return { measured, receive: (state: AddressSuggestionOverlayState) => receiveState(state) }
+  }
+  const state = (locale: AddressSuggestionOverlayState['locale'], title: string): AddressSuggestionOverlayState => ({
+    sessionId: 1,
+    suggestions: [{ id: `history:${title}`, kind: 'history', title, url: 'https://example.com/' }],
+    selectedIndex: -1,
+    theme: 'light',
+    locale
+  })
+
+  it('draws in the language once its messages are loaded, never in English first', async () => {
+    const { measured, receive } = await freshOverlay()
+    receive(state('de-DE', 'Startseite'))
+    expect(document.querySelector('[role=listbox]')).toBeNull()
+    expect(measured).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(document.querySelector('[role=listbox]')).toHaveAccessibleName('Lokale Adressvorschläge'))
+    expect(document.querySelector('footer')!.textContent).toContain('Nur lokal')
+    expect(measured).toHaveBeenCalledOnce()
+    // Once loaded, the language draws at once.
+    receive(state('de-DE', 'Weiter'))
+    expect(document.querySelector('[role=option]')!.textContent).toContain('Weiter')
+  })
+
+  it('does not draw older suggestions over newer ones when their language arrives later', async () => {
+    const { measured, receive } = await freshOverlay()
+    receive(state('fr-FR', 'Ancienne'))
+    receive(state('en-US', 'Newer'))
+    expect(document.querySelector('[role=option]')!.textContent).toContain('Newer')
+    const { loadLocaleMessages } = await import('../../src/renderer/src/locale-messages.js')
+    await loadLocaleMessages('fr-FR')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(document.querySelector('[role=option]')!.textContent).toContain('Newer')
+    expect(document.querySelector('[role=listbox]')).toHaveAccessibleName('Local address suggestions')
+    expect(measured).toHaveBeenCalledOnce()
+  })
+
+  it('says it is English when the language cannot be loaded, as its text is', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    vi.doMock('../../src/shared/locales/de-DE.js', () => { throw new Error('missing') })
+    try {
+      const { receive } = await freshOverlay()
+      receive(state('de-DE', 'Startseite'))
+      await vi.waitFor(() => expect(document.querySelector('[role=listbox]')).toHaveAccessibleName('Local address suggestions'))
+      expect(document.documentElement.lang).toBe('en-US')
+    } finally {
+      vi.doUnmock('../../src/shared/locales/de-DE.js')
+    }
+  })
+})

@@ -5,8 +5,8 @@ import SiteStorageChangesView from '../../src/renderer/src/features/site-storage
 import SiteStoragePwaView from '../../src/renderer/src/features/site-storage/SiteStoragePwaView.vue'
 import SiteStorageUsageView from '../../src/renderer/src/features/site-storage/SiteStorageUsageView.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
-import { pwaLifecycleMessages } from '../../src/shared/locales/pwa-lifecycle.js'
-import { reportCaveatMessages } from '../../src/shared/locales/report-caveats.js'
+import { localeMessages } from '../../src/shared/i18n.js'
+import { SUPPORTED_LOCALES } from '../../src/shared/locale.js'
 import { PWA_CACHE_NOT_FOUND_PREFIX, PWA_INSPECTION_CAVEATS, PWA_INSTALLABILITY_UNAVAILABLE_PREFIX } from '../../src/shared/pwa.js'
 import { PWA_LIFECYCLE_CAVEATS, type PwaLifecycleReport } from '../../src/shared/pwa-lifecycle.js'
 import { STORAGE_CHANGES_CAVEATS } from '../../src/shared/storage-changes.js'
@@ -79,11 +79,11 @@ async function lifecycleView(locale: SupportedLocale, caveats: string[]): Promis
     global: { plugins: [createHronautI18n(locale)] },
     props: { tab: { id: 'tab-1', pwaLifecycleActive: false } as BrowserTabState }
   })
-  await screen.findByText(pwaLifecycleMessages[locale].coverage)
+  await screen.findByText(localeMessages[locale].pwaLifecycle.coverage)
   return listed(view.container, 'details li')
 }
 
-const german = reportCaveatMessages['de-DE']
+const german = localeMessages['de-DE'].reportCaveats
 
 describe('storage and service-worker caveats in the interface language', () => {
   it('lists the storage usage caveats in German, keeping Chromium’s fallback reason as it wrote it', () => {
@@ -141,17 +141,17 @@ describe('storage and service-worker caveats in the interface language', () => {
   it('lists the service-worker history caveats in German and keeps an unknown one as recorded', async () => {
     const recorded = [...Object.values(PWA_LIFECYCLE_CAVEATS), 'A future caveat.']
     expect(await lifecycleView('de-DE', recorded)).toEqual([
-      ...Object.keys(PWA_LIFECYCLE_CAVEATS).map((key) => pwaLifecycleMessages['de-DE'].caveats[key as keyof typeof PWA_LIFECYCLE_CAVEATS]),
+      ...Object.keys(PWA_LIFECYCLE_CAVEATS).map((key) => localeMessages['de-DE'].pwaLifecycle.caveats[key as keyof typeof PWA_LIFECYCLE_CAVEATS]),
       'A future caveat.'
     ])
   })
 
   it('has a message for every caveat in every locale', () => {
-    for (const locale of Object.keys(reportCaveatMessages) as SupportedLocale[]) {
-      expect(Object.keys(reportCaveatMessages[locale].storageUsage)).toEqual([...Object.keys(STORAGE_USAGE_CAVEATS), 'fallback'])
-      expect(Object.keys(reportCaveatMessages[locale].storageChanges)).toEqual(Object.keys(STORAGE_CHANGES_CAVEATS))
-      expect(Object.keys(reportCaveatMessages[locale].pwa)).toEqual([...Object.keys(PWA_INSPECTION_CAVEATS), 'installabilityUnavailable'])
-      expect(Object.keys(pwaLifecycleMessages[locale].caveats)).toEqual(Object.keys(PWA_LIFECYCLE_CAVEATS))
+    for (const locale of SUPPORTED_LOCALES) {
+      expect(Object.keys(localeMessages[locale].reportCaveats.storageUsage)).toEqual([...Object.keys(STORAGE_USAGE_CAVEATS), 'fallback'])
+      expect(Object.keys(localeMessages[locale].reportCaveats.storageChanges)).toEqual(Object.keys(STORAGE_CHANGES_CAVEATS))
+      expect(Object.keys(localeMessages[locale].reportCaveats.pwa)).toEqual([...Object.keys(PWA_INSPECTION_CAVEATS), 'installabilityUnavailable'])
+      expect(Object.keys(localeMessages[locale].pwaLifecycle.caveats)).toEqual(Object.keys(PWA_LIFECYCLE_CAVEATS))
     }
   })
 

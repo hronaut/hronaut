@@ -1,0 +1,60 @@
+export const idIDPwaLifecycle = {
+  title: 'Riwayat service worker',
+  note: 'Hanya perubahan yang teramati; transisi sebelumnya atau yang cepat mungkin tidak tercatat.',
+  start: 'Amati selama 2 menit',
+  stop: 'Berhenti mengamati worker',
+  refresh: 'Muat ulang',
+  clear: 'Hapus riwayat',
+  active: 'Mengamati worker',
+  stopped: 'Pengambilan dihentikan',
+  waiting: 'Menunggu',
+  coverage: 'Cakupan dan privasi',
+  caveats: {
+    observedTimes: 'Waktu menunjukkan kapan perubahan diamati, bukan kapan terjadi, dan pengambilan tidak pernah memiliki riwayat lengkap.',
+    polling: 'Pendaftaran diperiksa sekali per detik, sehingga transisi awal dan pendaftaran berumur pendek bisa terlewat.',
+    scope: 'Pendaftaran milik origin tingkat atas dan ruang kerja ini, bukan hanya milik tab ini.',
+    identities: 'Identitas worker bersifat lokal untuk pengambilan ini dan membedakan versi dari skrip yang sama.',
+    interruption: 'Membuka halaman lain, memuat ulang atau menutup halaman, atau kehilangan debugger atau akses akan menghentikan pengambilan. Menghentikan atau gangguan dapat menghilangkan event yang belum dibaca.',
+    limits: 'Satu pengambilan menyimpan paling banyak 100 event, 20 pendaftaran, dan 100 worker hingga dua menit; lima pengambilan tetap di memori, dan memulai yang lain akan menghapus pengambilan terhenti yang paling lama.',
+    longUrls: 'Alamat yang lebih panjang dari 2.048 karakter dihilangkan, alih-alih menampilkan sebagian alamat yang mungkin memuat kredensial.',
+    metadataOnly: 'Hanya metadata yang diamati. Hronaut tidak pernah memperbarui, mengirim pesan ke, mengaktifkan, atau menjalankan worker, menghapus cache, atau mengubah izin.',
+    sleeping: 'Tab yang tidur atau dibekukan tidak dibangunkan. Tidur atau pembekuan akan menghentikan pengambilan, bukan membuat halaman tetap aktif.',
+    snapshot: 'Pembacaan menampilkan snapshot terakhir yang diambil. Riwayat lengkap, atau seluruh masa hidup setiap worker, tidak dijamin.'
+  },
+  kinds: {
+    initial: 'pengambilan dimulai',
+    'registration-initial': 'pendaftaran ada',
+    'registration-discovered': 'pendaftaran ditemukan',
+    'registration-removed': 'pendaftaran dihapus',
+    updatefound: 'pembaruan ditemukan',
+    statechange: 'status berubah',
+    controllerchange: 'controller berubah'
+  },
+  workerStates: {
+    parsed: 'diurai',
+    installing: 'menginstal',
+    installed: 'terinstal',
+    activating: 'mengaktifkan',
+    activated: 'diaktifkan',
+    redundant: 'redundan'
+  },
+  reasons: {
+    stopped: 'dihentikan atas permintaan',
+    replaced: 'diganti dengan pengambilan baru',
+    shutdown: 'Hronaut ditutup',
+    navigation: 'halaman berpindah',
+    'renderer-unavailable': 'proses halaman berakhir',
+    'debugger-detached': 'debugger terlepas',
+    'duration-limit': 'batas dua menit tercapai',
+    'initial-read-unavailable': 'pembacaan pertama gagal',
+    'page-observer-unavailable': 'pengamat halaman berhenti',
+    'context-or-authority-lost': 'konteks halaman atau akses hilang',
+    'worker-limit': 'batas worker tercapai',
+    'event-limit': 'batas event tercapai',
+    'registration-limit': 'batas pendaftaran tercapai',
+    'discovery-unavailable': 'penemuan pendaftaran gagal',
+    unsupported: 'service worker tidak didukung',
+    'workspace-control-changed': 'kontrol ruang kerja berubah',
+    'ownership-released': 'ruang kerja dilepaskan'
+  }
+}

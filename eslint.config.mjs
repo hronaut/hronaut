@@ -10,10 +10,10 @@ const sourceFiles = [
   'src/**/*.{ts,vue}', 'tests/**/*.ts', 'scripts/**/*.ts', 'website/**/*.ts', '*.config.ts'
 ]
 const newBoundaryFiles = [
-  'src/shared/{locale,i18n}.ts',
+  'src/shared/{locale,i18n,translate}.ts',
   'src/shared/locales/**/*.ts',
   'src/main/settings/settings-store.ts',
-  'src/renderer/src/i18n.ts',
+  'src/renderer/src/{i18n,locale-messages}.ts',
   'src/renderer/src/stores/**/*.ts',
   'src/renderer/src/composables/**/*.ts',
   'src/renderer/src/components/**/*.vue',

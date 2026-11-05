@@ -1,0 +1,60 @@
+export const esESPwaLifecycle = {
+  title: 'Historial de service workers',
+  note: 'Solo cambios observados; pueden faltar transiciones anteriores o rápidas.',
+  start: 'Observar durante 2 minutos',
+  stop: 'Detener observación',
+  refresh: 'Actualizar',
+  clear: 'Borrar historial',
+  active: 'Observando workers',
+  stopped: 'Captura detenida',
+  waiting: 'En espera',
+  coverage: 'Cobertura y privacidad',
+  caveats: {
+    observedTimes: 'Las horas indican cuándo se observó un cambio, no cuándo ocurrió, y una captura nunca tiene el historial completo.',
+    polling: 'Los registros se comprueban una vez por segundo, así que pueden faltar transiciones tempranas y registros de corta duración.',
+    scope: 'Los registros pertenecen a este origen de nivel superior y a este espacio de trabajo, no solo a esta pestaña.',
+    identities: 'Los identificadores de los workers son propios de esta captura y distinguen versiones del mismo script.',
+    interruption: 'Navegar, recargar o cerrar la página, o perder el depurador o el acceso, interrumpe la captura. Al detenerla o interrumpirse pueden faltar eventos aún no leídos.',
+    limits: 'Una captura guarda como máximo 100 eventos, 20 registros y 100 workers durante un máximo de dos minutos; se conservan cinco capturas en memoria y al iniciar otra se elimina la detenida más antigua.',
+    longUrls: 'Las direcciones de más de 2048 caracteres se omiten en lugar de mostrar parte de una que podría contener credenciales.',
+    metadataOnly: 'Solo se observan metadatos. Hronaut nunca actualiza, envía mensajes, activa ni ejecuta workers, no vacía cachés ni cambia permisos.',
+    sleeping: 'Las pestañas en reposo o congeladas no se despiertan. El reposo o la congelación interrumpe la captura en lugar de mantener activa la página.',
+    snapshot: 'Las lecturas muestran la última instantánea tomada. No se garantiza un historial completo ni la vida completa de cada worker.'
+  },
+  kinds: {
+    initial: 'captura iniciada',
+    'registration-initial': 'registro presente',
+    'registration-discovered': 'registro encontrado',
+    'registration-removed': 'registro eliminado',
+    updatefound: 'actualización encontrada',
+    statechange: 'estado cambiado',
+    controllerchange: 'controlador cambiado'
+  },
+  workerStates: {
+    parsed: 'analizado',
+    installing: 'instalando',
+    installed: 'instalado',
+    activating: 'activando',
+    activated: 'activado',
+    redundant: 'redundante'
+  },
+  reasons: {
+    stopped: 'detenida a petición',
+    replaced: 'sustituida por una nueva captura',
+    shutdown: 'Hronaut cerrado',
+    navigation: 'la página navegó a otra dirección',
+    'renderer-unavailable': 'proceso de la página finalizado',
+    'debugger-detached': 'depurador desconectado',
+    'duration-limit': 'límite de dos minutos alcanzado',
+    'initial-read-unavailable': 'falló la primera lectura',
+    'page-observer-unavailable': 'observador de página detenido',
+    'context-or-authority-lost': 'contexto de página perdido',
+    'worker-limit': 'límite de workers alcanzado',
+    'event-limit': 'límite de eventos alcanzado',
+    'registration-limit': 'límite de registros alcanzado',
+    'discovery-unavailable': 'falló la búsqueda de registros',
+    unsupported: 'service workers no compatibles',
+    'workspace-control-changed': 'control del espacio de trabajo cambiado',
+    'ownership-released': 'espacio de trabajo liberado'
+  }
+}

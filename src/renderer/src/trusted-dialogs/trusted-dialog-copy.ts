@@ -36,7 +36,7 @@ import IconAccountBalanceWalletOutlineRounded from '~icons/material-symbols/acco
 import IconTerminalRounded from '~icons/material-symbols/terminal-rounded'
 import IconLoginRounded from '~icons/material-symbols/login-rounded'
 import { sitePermissionName } from '../../../shared/site-permission-names.js'
-import type { MessageKey, MessageParameters } from '../../../shared/i18n.js'
+import type { MessageKey, MessageParameters } from '../../../shared/translate.js'
 import type {
   ClaudeSetupDialogVariant,
   HttpAuthDialogVariant,

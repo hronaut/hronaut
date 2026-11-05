@@ -1,0 +1,60 @@
+export const itITPwaLifecycle = {
+  title: 'Cronologia dei service worker',
+  note: 'Solo modifiche osservate; le transizioni precedenti o rapide potrebbero mancare.',
+  start: 'Osserva per 2 minuti',
+  stop: 'Interrompi osservazione dei worker',
+  refresh: 'Aggiorna',
+  clear: 'Cancella cronologia',
+  active: 'Osservazione dei worker in corso',
+  stopped: 'Acquisizione interrotta',
+  waiting: 'In attesa',
+  coverage: 'Copertura e privacy',
+  caveats: {
+    observedTimes: 'Gli orari indicano quando una modifica è stata osservata, non quando è avvenuta, e un’acquisizione non contiene mai la cronologia completa.',
+    polling: 'Le registrazioni vengono controllate una volta al secondo, quindi le prime transizioni e le registrazioni di breve durata possono sfuggire.',
+    scope: 'Le registrazioni appartengono a questa origine di primo livello e a quest’area di lavoro, non solo a questa scheda.',
+    identities: 'Le identità dei worker sono locali a questa acquisizione e distinguono le versioni dello stesso script.',
+    interruption: 'Navigare, ricaricare o chiudere la pagina, oppure perdere il debugger o l’accesso, interrompe l’acquisizione. L’interruzione manuale o imprevista può far perdere eventi non ancora letti.',
+    limits: 'Un’acquisizione conserva al massimo 100 eventi, 20 registrazioni e 100 worker per un massimo di due minuti; in memoria restano cinque acquisizioni e avviarne un’altra rimuove la più vecchia tra quelle interrotte.',
+    longUrls: 'Gli indirizzi più lunghi di 2.048 caratteri vengono esclusi, anziché mostrarne solo una parte che potrebbe contenere una credenziale.',
+    metadataOnly: 'Vengono osservati solo i metadati. Hronaut non aggiorna, non invia messaggi, non attiva e non esegue mai i worker, non svuota le cache e non modifica le autorizzazioni.',
+    sleeping: 'Le schede sospese o congelate non vengono riattivate. La sospensione o il congelamento interrompe l’acquisizione invece di mantenere attiva la pagina.',
+    snapshot: 'Le letture mostrano l’ultimo snapshot acquisito. Non è garantita una cronologia completa né l’intero ciclo di vita di ogni worker.'
+  },
+  kinds: {
+    initial: 'acquisizione avviata',
+    'registration-initial': 'registrazione presente',
+    'registration-discovered': 'registrazione trovata',
+    'registration-removed': 'registrazione rimossa',
+    updatefound: 'aggiornamento trovato',
+    statechange: 'stato cambiato',
+    controllerchange: 'controller cambiato'
+  },
+  workerStates: {
+    parsed: 'analizzato',
+    installing: 'installazione in corso',
+    installed: 'installato',
+    activating: 'attivazione in corso',
+    activated: 'attivato',
+    redundant: 'ridondante'
+  },
+  reasons: {
+    stopped: 'interrotta su richiesta',
+    replaced: 'sostituita da una nuova acquisizione',
+    shutdown: 'Hronaut chiuso',
+    navigation: 'navigazione della pagina',
+    'renderer-unavailable': 'processo della pagina terminato',
+    'debugger-detached': 'debugger scollegato',
+    'duration-limit': 'limite di due minuti raggiunto',
+    'initial-read-unavailable': 'prima lettura non riuscita',
+    'page-observer-unavailable': 'osservatore della pagina interrotto',
+    'context-or-authority-lost': 'contesto della pagina o accesso perso',
+    'worker-limit': 'limite di worker raggiunto',
+    'event-limit': 'limite di eventi raggiunto',
+    'registration-limit': 'limite di registrazioni raggiunto',
+    'discovery-unavailable': 'individuazione delle registrazioni non riuscita',
+    unsupported: 'i service worker non sono supportati',
+    'workspace-control-changed': 'controllo dell’area di lavoro cambiato',
+    'ownership-released': 'area di lavoro rilasciata'
+  }
+}

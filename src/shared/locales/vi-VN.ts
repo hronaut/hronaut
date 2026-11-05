@@ -1,31 +1,31 @@
-import { networkPriorityMessages } from './network-priority.js'
-import { networkLabelMessages } from './network-labels.js'
-import { reproStepMessages } from './repro-steps.js'
-import { viewportPresetMessages } from './viewport-presets.js'
-import { searchEngineMessages } from './search-engines.js'
-import { settingsSectionMessages } from './settings-sections.js'
-import { browserIssueTitleMessages } from './browser-issue-titles.js'
-import { qualityAuditTextMessages } from './quality-audit-text.js'
-import { networkAbortReasonMessages } from './network-abort-reasons.js'
-import { reportCaveatMessages } from './report-caveats.js'
-import { incidentPathMessages } from './incident-paths.js'
-import { reactInspectionMessages } from './react-inspection.js'
-import { pwaLifecycleMessages } from './pwa-lifecycle.js'
-import { softNavigationMessages } from './soft-navigation.js'
-import { lcpAttributionMessages } from './lcp-attribution.js'
-import { browserImportMessages } from './browser-import.js'
-import { videoRecorderMessages } from './video-recorder/index.js'
-import { capabilityProfileMessages } from './capability-profiles.js'
-import { remoteConnectionMessages } from './remote-connections.js'
-import { homeReadinessMessages } from './home-readiness.js'
-import { trustedDialogMessages } from './trusted-dialogs.js'
-import { walletMessages } from './wallets/index.js'
-import { appErrorMessages } from './app-errors/index.js'
+import { viVNNetworkPriority } from './network-priority/vi-VN.js'
+import { viVNNetworkLabels } from './network-labels/vi-VN.js'
+import { viVNReproSteps } from './repro-steps/vi-VN.js'
+import { viVNViewportPresets } from './viewport-presets/vi-VN.js'
+import { viVNSearchEngines } from './search-engines/vi-VN.js'
+import { viVNSettingsSections } from './settings-sections/vi-VN.js'
+import { viVNBrowserIssueTitles } from './browser-issue-titles/vi-VN.js'
+import { viVNQualityAuditText } from './quality-audit-text/vi-VN.js'
+import { viVNNetworkAbortReasons } from './network-abort-reasons/vi-VN.js'
+import { viVNReportCaveats } from './report-caveats/vi-VN.js'
+import { viVNIncidentPaths } from './incident-paths/vi-VN.js'
+import { viVNReactInspection } from './react-inspection/vi-VN.js'
+import { viVNPwaLifecycle } from './pwa-lifecycle/vi-VN.js'
+import { viVNSoftNavigation } from './soft-navigation/vi-VN.js'
+import { viVNLcpAttribution } from './lcp-attribution/vi-VN.js'
+import { viVNBrowserImport } from './browser-import/vi-VN.js'
+import { viVNVideoRecorder } from './video-recorder/vi-VN.js'
+import { viVNCapabilityProfiles } from './capability-profiles/vi-VN.js'
+import { viVNRemoteConnections } from './remote-connections/vi-VN.js'
+import { viVNHomeReadiness } from './home-readiness/vi-VN.js'
+import { viVNTrustedDialogs } from './trusted-dialogs/vi-VN.js'
+import { viVNWallets } from './wallets/vi-VN.js'
+import { viVNAppErrors } from './app-errors/vi-VN.js'
 import type { MessageSchema } from './en-US.js'
 
 export const viVN: MessageSchema = {
-  trustedDialogs: trustedDialogMessages['vi-VN'],
-  reactInspection: reactInspectionMessages['vi-VN'],
+  trustedDialogs: viVNTrustedDialogs,
+  reactInspection: viVNReactInspection,
   agentStatus: {
     starting: 'Đang chuẩn bị cho tác nhân',
     ready: 'Sẵn sàng cho tác nhân',
@@ -39,7 +39,7 @@ export const viVN: MessageSchema = {
     details: 'Chi tiết'
   },
   incident: {
-    ...incidentPathMessages['vi-VN'],
+    ...viVNIncidentPaths,
     omitField: 'Tên trường JSON chính xác cần loại bỏ (không bắt buộc)',
     omitFieldHint: 'Xóa mọi trường đối tượng trùng tên khỏi các tạo phẩm được giữ lại, trước khi thay thế. Phân biệt chữ hoa chữ thường; không phải đường dẫn hay ký tự đại diện. Các bản sao khác có thể vẫn còn: hãy kiểm tra bản xem trước.',
     hash: 'SHA-256: {hash}',
@@ -90,8 +90,8 @@ export const viVN: MessageSchema = {
     reminder: 'Cần giấy phép',
     reminderTitle: 'Tính năng tự động hóa bằng tác nhân đang bị khóa. Mở Cài đặt giấy phép'
   },
-  pwaLifecycle: pwaLifecycleMessages['vi-VN'],
-  softNavigation: softNavigationMessages['vi-VN'],
+  pwaLifecycle: viVNPwaLifecycle,
+  softNavigation: viVNSoftNavigation,
   emulationApplication: {
     pending: 'Đang áp dụng mô phỏng',
     unknown: 'Chưa xác nhận mô phỏng',
@@ -99,19 +99,19 @@ export const viVN: MessageSchema = {
     restore: 'Khôi phục cài đặt được giữ lại',
     networkFirst: 'Trước tiên, hãy khôi phục Điều kiện mạng trong Điều kiện yêu cầu. Mô phỏng vẫn chưa được xác nhận cho đến khi được khôi phục riêng.'
   },
-  networkPriority: networkPriorityMessages['vi-VN'],
-  networkLabels: networkLabelMessages['vi-VN'],
-  reproSteps: reproStepMessages['vi-VN'],
-  viewportPresets: viewportPresetMessages['vi-VN'],
-  searchEngines: searchEngineMessages['vi-VN'],
-  settingsSections: settingsSectionMessages['vi-VN'],
-  browserIssueTitles: browserIssueTitleMessages['vi-VN'],
-  qualityAuditText: qualityAuditTextMessages['vi-VN'],
-  networkAbortReasons: networkAbortReasonMessages['vi-VN'],
-  reportCaveats: reportCaveatMessages['vi-VN'],
-  lcpAttribution: lcpAttributionMessages['vi-VN'],
-  browserImport: browserImportMessages['vi-VN'],
-  video: videoRecorderMessages['vi-VN'],
+  networkPriority: viVNNetworkPriority,
+  networkLabels: viVNNetworkLabels,
+  reproSteps: viVNReproSteps,
+  viewportPresets: viVNViewportPresets,
+  searchEngines: viVNSearchEngines,
+  settingsSections: viVNSettingsSections,
+  browserIssueTitles: viVNBrowserIssueTitles,
+  qualityAuditText: viVNQualityAuditText,
+  networkAbortReasons: viVNNetworkAbortReasons,
+  reportCaveats: viVNReportCaveats,
+  lcpAttribution: viVNLcpAttribution,
+  browserImport: viVNBrowserImport,
+  video: viVNVideoRecorder,
   workspaceLibrary: {
     hidden: 'Ẩn khỏi thanh bên',
     protected: 'Được bảo vệ khỏi bị xóa',
@@ -566,7 +566,7 @@ export const viVN: MessageSchema = {
       help: 'Các thẻ đang hiển thị, đã ghim, đang tải, đang phát âm thanh, đang tải xuống, có thay đổi chưa lưu trong biểu mẫu, đang mở trong DevTools hoặc đang được tác nhân sử dụng sẽ luôn thức. Khi ngủ, trang sẽ được giải phóng và lịch sử điều hướng được khôi phục khi thẻ thức dậy.'
     },
     mcp: {
-      remote: remoteConnectionMessages['vi-VN'],
+      remote: viVNRemoteConnections,
       heading: 'Bảo mật MCP',
       description: 'Kiểm soát những ứng dụng có thể kết nối với hồ sơ trình duyệt này.',
       require: 'Yêu cầu xác thực MCP',
@@ -587,7 +587,7 @@ export const viVN: MessageSchema = {
       applyPort: 'Áp dụng cổng',
       tokenHelp: 'Mã thông báo tương thích cấp toàn quyền truy cập. Hãy dùng hồ sơ khả năng cho các ứng dụng khách bị hạn chế.',
       warning: 'Tính năng xác thực đang tắt. Bất kỳ ai truy cập được trình nghe này đều có thể điều khiển các thẻ đã đăng nhập và đính kèm tệp cục bộ, kể cả từ máy tính khác khi quyền truy cập từ xa đang bật.',
-      capabilities: capabilityProfileMessages['vi-VN']
+      capabilities: viVNCapabilityProfiles
     },
     permissions: {
       search: 'Tìm quyền đã lưu của trang web',
@@ -734,8 +734,8 @@ export const viVN: MessageSchema = {
       issue: 'Báo cáo sự cố ↗'
     }
   },
-  wallets: walletMessages['vi-VN'],
-  appErrors: appErrorMessages['vi-VN'],
+  wallets: viVNWallets,
+  appErrors: viVNAppErrors,
   workspaceNavigationAudit: {
     reasonCredentials: 'thông tin xác thực được nhúng',
     reasonMalformed: 'địa chỉ không hợp lệ',
@@ -3966,7 +3966,7 @@ export const viVN: MessageSchema = {
       active: 'Đang hoạt động',
       recent: 'Gần đây'
     },
-    readiness: homeReadinessMessages['vi-VN'],
+    readiness: viVNHomeReadiness,
     firstRun: {
       kicker: 'Thành công đầu tiên',
       heading: 'Thử Hronaut với một nhiệm vụ an toàn',

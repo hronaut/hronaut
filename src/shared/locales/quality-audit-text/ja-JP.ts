@@ -1,0 +1,82 @@
+export const jaJPQualityAuditText = {
+  categories: {
+    accessibility: 'ユーザー補助',
+    performance: 'パフォーマンス',
+    metadata: 'メタデータと SEO',
+    security: 'セキュリティ',
+    pwa: 'PWA とオフライン',
+    'browser-issues': 'Chromium の問題'
+  },
+  statuses: {
+    pass: '合格',
+    info: '情報',
+    warning: '警告',
+    error: 'エラー',
+    'not-applicable': '該当なし'
+  },
+  severities: {
+    error: 'エラー',
+    warning: '警告',
+    info: '情報'
+  },
+  fixed: {
+    accessibilityClear: '自動チェックで WCAG AA の違反は見つかりませんでした',
+    performanceNone: 'このアクセスでは Web Vitals は観測されませんでした',
+    metadataClear: 'メタデータの問題は見つかりませんでした',
+    securitySecure: 'メイン ドキュメントの通信は安全です',
+    pwaNone: 'PWA またはオフライン アプリの機能は検出されませんでした',
+    browserIssuesClear: '保持されている Chromium の問題は見つかりませんでした',
+    webVitalsNotObserved: '現在のアクセスでは Web Vitals は観測されませんでした。監査を再実行する前に、ページを再読み込みして操作してください。',
+    insecureTransport: 'メイン ドキュメントは正常な安全な通信を使用していません。',
+    certificateExpired: 'メイン ドキュメントの証明書の有効期限が切れています。',
+    certificateNotYetValid: 'メイン ドキュメントの証明書はまだ有効ではありません。',
+    certificateInvalid: 'メイン ドキュメントの証明書は現在有効ではありません。',
+    pwaInspectionPartial: 'この監査では、一部の PWA の診断を利用できませんでした。'
+  },
+  caveats: {
+    localDiagnostic: 'これは Hronaut の証拠から作成した範囲限定のローカル診断であり、Lighthouse のスコアや認定ではありません。',
+    accessibilityAutomation: 'ユーザー補助の自動チェックは、キーボード、スクリーン リーダー、ズーム、モーション、人によるユーザビリティ テストの代わりにはなりません。',
+    performanceVisit: 'パフォーマンスは現在のローカルでのアクセスと環境を反映したものです。重要な測定は、代表的な条件で繰り返してください。',
+    pwaOptional: 'オフライン アプリの機能を提供しないウェブサイトでは、PWA は要件として扱われません。',
+    reloadIssues: '起動時にのみ発生する Chromium の問題を再現する前に再読み込みし、この監査を再実行してください。'
+  },
+  text: {
+    violations: '違反 {count} 件',
+    violationNodes: '影響を受けたノード {count} 個',
+    accessibilityViolations: '{nodes}で{violations}',
+    affectedNodes: '影響を受けたノード {count} 個',
+    accessibilityFinding: '{help}（{nodes}）',
+    rulesPassed: '{count} 件のルールに合格',
+    checksNeedReview: '{count} 件のチェックで確認が必要',
+    needsHumanReview: '{count} 件のユーザー補助チェックで人による確認が必要です。',
+    performanceGood: '観測された Web Vitals {total} 件中 {good} 件が良好',
+    metricEvidence: '{name}：{value}（{rating}）',
+    metricFinding: '{name} は {value} で「{rating}」と評価されています。',
+    resources: '{count} 個のリソース',
+    longTasks: '{count} 件の長いタスク',
+    metadataIssues: '{count} 件のメタデータの問題',
+    language: '言語：{language}',
+    languageMissing: '言語：なし',
+    canonicalUrls: '正規 URL：{count}',
+    structuredData: '構造化データ：有効 {valid} · 無効 {invalid}',
+    securityState: 'セキュリティの状態：{state}',
+    securityStateFinding: 'Chromium は、メイン ドキュメントのセキュリティの状態を {state} と報告しました。',
+    transportSecure: '通信：安全',
+    transportInsecure: '通信：保護されていません',
+    protocol: 'プロトコル：{protocol}',
+    protocolUnavailable: 'プロトコル：利用不可',
+    certificateValid: '証明書：有効',
+    certificateInvalid: '証明書：無効',
+    certificateUnavailable: '証明書：利用不可',
+    registrations: '{count} 件の Service Worker の登録',
+    caches: '{count} 個のキャッシュ',
+    manifestPresent: 'マニフェスト：あり',
+    manifestMissing: 'マニフェスト：検出されず',
+    controlledYes: 'Service Worker による制御：はい',
+    controlledNo: 'Service Worker による制御：いいえ',
+    installabilityIssues: 'インストール可能性の問題：{count}',
+    installabilityFinding: 'Chromium が PWA のインストール可能性の問題を報告しました：{issue}。',
+    installabilityUnknown: 'Chromium が PWA のインストール可能性の問題を報告しました：不明な問題。',
+    browserIssues: 'ブラウザが生成した問題 {count} 件'
+  }
+}

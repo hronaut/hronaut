@@ -1,0 +1,82 @@
+export const itITQualityAuditText = {
+  categories: {
+    accessibility: 'Accessibilità',
+    performance: 'Prestazioni',
+    metadata: 'Metadati e SEO',
+    security: 'Sicurezza',
+    pwa: 'PWA e offline',
+    'browser-issues': 'Problemi di Chromium'
+  },
+  statuses: {
+    pass: 'superato',
+    info: 'info',
+    warning: 'avviso',
+    error: 'errore',
+    'not-applicable': 'non applicabile'
+  },
+  severities: {
+    error: 'errore',
+    warning: 'avviso',
+    info: 'info'
+  },
+  fixed: {
+    accessibilityClear: 'Nessuna violazione WCAG AA rilevata automaticamente',
+    performanceNone: 'Nessun Web Vital osservato in questa visita',
+    metadataClear: 'Nessun problema nei metadati',
+    securitySecure: 'Trasporto sicuro del documento principale',
+    pwaNone: 'Nessuna funzionalità PWA o di app offline rilevata',
+    browserIssuesClear: 'Nessun problema di Chromium conservato',
+    webVitalsNotObserved: 'Nella visita attuale non è stato osservato alcun Web Vital; ricarica la pagina e interagisci con essa prima di ripetere il controllo.',
+    insecureTransport: 'Il documento principale non usa un trasporto sicuro integro.',
+    certificateExpired: 'Il certificato del documento principale è scaduto.',
+    certificateNotYetValid: 'Il certificato del documento principale non è ancora valido.',
+    certificateInvalid: 'Il certificato del documento principale non è valido al momento.',
+    pwaInspectionPartial: 'Alcune diagnostiche PWA non erano disponibili per questo controllo.'
+  },
+  caveats: {
+    localDiagnostic: 'Questa è una diagnostica locale limitata, composta a partire dalle prove raccolte da Hronaut; non è un punteggio Lighthouse né una certificazione.',
+    accessibilityAutomation: 'I controlli automatici di accessibilità non possono sostituire i test con tastiera, screen reader, zoom e movimento né i test di usabilità con persone reali.',
+    performanceVisit: 'Le prestazioni riflettono la visita e l’ambiente locali attuali; ripeti le misurazioni importanti in condizioni rappresentative.',
+    pwaOptional: 'Le PWA non sono considerate un requisito per i siti web che non offrono funzionalità di app offline.',
+    reloadIssues: 'Ricarica la pagina prima di riprodurre i problemi di Chromium che si verificano solo all’avvio, quindi ripeti questo controllo.'
+  },
+  text: {
+    violations: '{count} violazione | {count} violazioni',
+    violationNodes: '{count} nodo interessato | {count} nodi interessati',
+    accessibilityViolations: '{violations} in {nodes}',
+    affectedNodes: '{count} nodo interessato | {count} nodi interessati',
+    accessibilityFinding: '{help} ({nodes})',
+    rulesPassed: '{count} regola superata | {count} regole superate',
+    checksNeedReview: '{count} controllo da esaminare | {count} controlli da esaminare',
+    needsHumanReview: '{count} controllo di accessibilità richiede una revisione umana. | {count} controlli di accessibilità richiedono una revisione umana.',
+    performanceGood: '{good} Web Vital osservato su {total} è buono | {good} Web Vital osservati su {total} sono buoni',
+    metricEvidence: '{name}: {value} ({rating})',
+    metricFinding: '{name} ha valutazione {rating} con {value}.',
+    resources: '{count} risorsa | {count} risorse',
+    longTasks: '{count} attività lunga | {count} attività lunghe',
+    metadataIssues: '{count} problema nei metadati | {count} problemi nei metadati',
+    language: 'Lingua: {language}',
+    languageMissing: 'Lingua: mancante',
+    canonicalUrls: 'URL canonici: {count}',
+    structuredData: 'Dati strutturati: {valid} validi · {invalid} non validi',
+    securityState: 'Stato di sicurezza: {state}',
+    securityStateFinding: 'Chromium ha segnalato come stato di sicurezza del documento principale {state}.',
+    transportSecure: 'Trasporto: sicuro',
+    transportInsecure: 'Trasporto: non sicuro',
+    protocol: 'Protocollo: {protocol}',
+    protocolUnavailable: 'Protocollo: non disponibile',
+    certificateValid: 'Certificato: valido',
+    certificateInvalid: 'Certificato: non valido',
+    certificateUnavailable: 'Certificato: non disponibile',
+    registrations: '{count} registrazione di service worker | {count} registrazioni di service worker',
+    caches: '{count} cache | {count} cache',
+    manifestPresent: 'Manifest: presente',
+    manifestMissing: 'Manifest: non rilevato',
+    controlledYes: 'Controllata da un service worker: sì',
+    controlledNo: 'Controllata da un service worker: no',
+    installabilityIssues: 'Problemi di installabilità: {count}',
+    installabilityFinding: 'Chromium ha segnalato un problema di installabilità della PWA: {issue}.',
+    installabilityUnknown: 'Chromium ha segnalato un problema di installabilità della PWA: problema sconosciuto.',
+    browserIssues: '{count} problema generato dal browser | {count} problemi generati dal browser'
+  }
+}

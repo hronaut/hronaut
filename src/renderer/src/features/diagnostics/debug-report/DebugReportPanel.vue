@@ -23,7 +23,7 @@ import type { DiagnosticsController } from '../useDiagnosticsController'
 import PanelDockPicker from '../../panels/PanelDockPicker.vue'
 import IncidentPackageReview from './IncidentPackageReview.vue'
 import { vTooltip } from '../../../ui/tooltip.js'
-import { networkLabelMessages } from '../../../../../shared/locales/network-labels.js'
+import { enUSNetworkLabels } from '../../../../../shared/locales/network-labels/en-US.js'
 import { browserConsoleLevel } from '../../../../../shared/console-messages.js'
 
 const props = defineProps<{
@@ -54,7 +54,7 @@ watch(dock, (next, previous) => {
 })
 
 // Names Chromium resource types as the Network panel does; a type it does not know shows as Chromium names it.
-const RESOURCE_TYPES = new Set(Object.keys(networkLabelMessages['en-US'].resourceTypes))
+const RESOURCE_TYPES = new Set(Object.keys(enUSNetworkLabels.resourceTypes))
 
 function requestTypeLabel(type: string): string {
   const normalized = type.toLowerCase()

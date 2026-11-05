@@ -1,7 +1,7 @@
 import type { BrowserNetworkRequestDetails } from './types.js'
 import { redactNetworkUrl } from './network-details.js'
 import { NETWORK_BODY_PLACEHOLDERS } from './network-body-notes.js'
-import type { MessageKey } from './i18n.js'
+import type { MessageKey } from './translate.js'
 
 export type BrowserNetworkRequestCopyFormat = 'curl' | 'fetch' | 'powershell'
 

@@ -4,9 +4,10 @@ import { describe, expect, it, vi } from 'vitest'
 import DiagnosticsPanels from '../../src/renderer/src/features/diagnostics/DiagnosticsPanels.vue'
 import { useDiagnosticsController } from '../../src/renderer/src/features/diagnostics/useDiagnosticsController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
+import { localeMessages } from '../../src/shared/i18n.js'
 import { INSPECTOR_ISSUE_METADATA, normalizeInspectorIssue } from '../../src/shared/browser-issues.js'
 import { SUPPORTED_LOCALES } from '../../src/shared/locale.js'
-import { browserIssueTitleMessages } from '../../src/shared/locales/browser-issue-titles.js'
+import type { MessageSchema } from '../../src/shared/locales/en-US.js'
 import type { BrowserInspectorIssue, BrowserInspectorIssuesReport, BrowserTabState } from '../../src/shared/types.js'
 
 type DiagnosticsBrowser = Parameters<typeof useDiagnosticsController>[0]['browser']
@@ -32,9 +33,9 @@ function report(issues: BrowserInspectorIssue[]): BrowserInspectorIssuesReport {
 describe('browser issue titles in the interface language', () => {
   it('names every known issue code in every language, with English matching the MCP title', () => {
     const codes = Object.keys(INSPECTOR_ISSUE_METADATA).sort()
-    for (const locale of SUPPORTED_LOCALES) expect(Object.keys(browserIssueTitleMessages[locale]).sort()).toEqual(codes)
+    for (const locale of SUPPORTED_LOCALES) expect(Object.keys(localeMessages[locale].browserIssueTitles).sort()).toEqual(codes)
     for (const code of codes) {
-      expect(browserIssueTitleMessages['en-US'][code as keyof (typeof browserIssueTitleMessages)['en-US']]).toBe(INSPECTOR_ISSUE_METADATA[code].title)
+      expect(localeMessages['en-US'].browserIssueTitles[code as keyof MessageSchema['browserIssueTitles']]).toBe(INSPECTOR_ISSUE_METADATA[code].title)
     }
   })
 

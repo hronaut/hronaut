@@ -1,31 +1,31 @@
-import { networkPriorityMessages } from './network-priority.js'
-import { networkLabelMessages } from './network-labels.js'
-import { reproStepMessages } from './repro-steps.js'
-import { viewportPresetMessages } from './viewport-presets.js'
-import { searchEngineMessages } from './search-engines.js'
-import { settingsSectionMessages } from './settings-sections.js'
-import { browserIssueTitleMessages } from './browser-issue-titles.js'
-import { qualityAuditTextMessages } from './quality-audit-text.js'
-import { networkAbortReasonMessages } from './network-abort-reasons.js'
-import { reportCaveatMessages } from './report-caveats.js'
-import { incidentPathMessages } from './incident-paths.js'
-import { reactInspectionMessages } from './react-inspection.js'
-import { pwaLifecycleMessages } from './pwa-lifecycle.js'
-import { softNavigationMessages } from './soft-navigation.js'
-import { lcpAttributionMessages } from './lcp-attribution.js'
-import { browserImportMessages } from './browser-import.js'
-import { videoRecorderMessages } from './video-recorder/index.js'
-import { capabilityProfileMessages } from './capability-profiles.js'
-import { remoteConnectionMessages } from './remote-connections.js'
-import { homeReadinessMessages } from './home-readiness.js'
-import { trustedDialogMessages } from './trusted-dialogs.js'
-import { walletMessages } from './wallets/index.js'
-import { appErrorMessages } from './app-errors/index.js'
+import { zhCNNetworkPriority } from './network-priority/zh-CN.js'
+import { zhCNNetworkLabels } from './network-labels/zh-CN.js'
+import { zhCNReproSteps } from './repro-steps/zh-CN.js'
+import { zhCNViewportPresets } from './viewport-presets/zh-CN.js'
+import { zhCNSearchEngines } from './search-engines/zh-CN.js'
+import { zhCNSettingsSections } from './settings-sections/zh-CN.js'
+import { zhCNBrowserIssueTitles } from './browser-issue-titles/zh-CN.js'
+import { zhCNQualityAuditText } from './quality-audit-text/zh-CN.js'
+import { zhCNNetworkAbortReasons } from './network-abort-reasons/zh-CN.js'
+import { zhCNReportCaveats } from './report-caveats/zh-CN.js'
+import { zhCNIncidentPaths } from './incident-paths/zh-CN.js'
+import { zhCNReactInspection } from './react-inspection/zh-CN.js'
+import { zhCNPwaLifecycle } from './pwa-lifecycle/zh-CN.js'
+import { zhCNSoftNavigation } from './soft-navigation/zh-CN.js'
+import { zhCNLcpAttribution } from './lcp-attribution/zh-CN.js'
+import { zhCNBrowserImport } from './browser-import/zh-CN.js'
+import { zhCNVideoRecorder } from './video-recorder/zh-CN.js'
+import { zhCNCapabilityProfiles } from './capability-profiles/zh-CN.js'
+import { zhCNRemoteConnections } from './remote-connections/zh-CN.js'
+import { zhCNHomeReadiness } from './home-readiness/zh-CN.js'
+import { zhCNTrustedDialogs } from './trusted-dialogs/zh-CN.js'
+import { zhCNWallets } from './wallets/zh-CN.js'
+import { zhCNAppErrors } from './app-errors/zh-CN.js'
 import type { MessageSchema } from './en-US.js'
 
 export const zhCN: MessageSchema = {
-  trustedDialogs: trustedDialogMessages['zh-CN'],
-  reactInspection: reactInspectionMessages['zh-CN'],
+  trustedDialogs: zhCNTrustedDialogs,
+  reactInspection: zhCNReactInspection,
   agentStatus: {
     starting: '正在为智能体做准备',
     ready: '已可供智能体使用',
@@ -39,7 +39,7 @@ export const zhCN: MessageSchema = {
     details: '详细信息'
   },
   incident: {
-    ...incidentPathMessages['zh-CN'],
+    ...zhCNIncidentPaths,
     omitField: '要省略的确切 JSON 字段名（可选）',
     omitFieldHint: '在替换之前，从保留的工件中移除所有同名对象字段。区分大小写；不支持路径或通配符。其他副本可能仍然存在：请检查预览。',
     hash: 'SHA-256：{hash}',
@@ -90,8 +90,8 @@ export const zhCN: MessageSchema = {
     reminder: '需要许可证',
     reminderTitle: '智能体自动化已锁定。打开许可证设置'
   },
-  pwaLifecycle: pwaLifecycleMessages['zh-CN'],
-  softNavigation: softNavigationMessages['zh-CN'],
+  pwaLifecycle: zhCNPwaLifecycle,
+  softNavigation: zhCNSoftNavigation,
   emulationApplication: {
     pending: '正在应用模拟',
     unknown: '模拟未确认',
@@ -99,19 +99,19 @@ export const zhCN: MessageSchema = {
     restore: '恢复保留的设置',
     networkFirst: '请先在“请求条件”中恢复网络状况。在单独恢复之前，模拟状态将保持未确认。'
   },
-  networkPriority: networkPriorityMessages['zh-CN'],
-  networkLabels: networkLabelMessages['zh-CN'],
-  reproSteps: reproStepMessages['zh-CN'],
-  viewportPresets: viewportPresetMessages['zh-CN'],
-  searchEngines: searchEngineMessages['zh-CN'],
-  settingsSections: settingsSectionMessages['zh-CN'],
-  browserIssueTitles: browserIssueTitleMessages['zh-CN'],
-  qualityAuditText: qualityAuditTextMessages['zh-CN'],
-  networkAbortReasons: networkAbortReasonMessages['zh-CN'],
-  reportCaveats: reportCaveatMessages['zh-CN'],
-  lcpAttribution: lcpAttributionMessages['zh-CN'],
-  browserImport: browserImportMessages['zh-CN'],
-  video: videoRecorderMessages['zh-CN'],
+  networkPriority: zhCNNetworkPriority,
+  networkLabels: zhCNNetworkLabels,
+  reproSteps: zhCNReproSteps,
+  viewportPresets: zhCNViewportPresets,
+  searchEngines: zhCNSearchEngines,
+  settingsSections: zhCNSettingsSections,
+  browserIssueTitles: zhCNBrowserIssueTitles,
+  qualityAuditText: zhCNQualityAuditText,
+  networkAbortReasons: zhCNNetworkAbortReasons,
+  reportCaveats: zhCNReportCaveats,
+  lcpAttribution: zhCNLcpAttribution,
+  browserImport: zhCNBrowserImport,
+  video: zhCNVideoRecorder,
   workspaceLibrary: {
     hidden: '已从侧边栏隐藏',
     protected: '已启用删除保护',
@@ -566,7 +566,7 @@ export const zhCN: MessageSchema = {
       help: '处于可见、已固定、正在加载、正在播放音频、正在下载、有未提交的表单更改、在 DevTools 中打开或正被智能体使用的标签页会保持唤醒。休眠会卸载页面，唤醒时会恢复其导航历史记录。'
     },
     mcp: {
-      remote: remoteConnectionMessages['zh-CN'],
+      remote: zhCNRemoteConnections,
       heading: 'MCP 安全',
       description: '控制哪些应用可以连接到此浏览器配置文件。',
       require: '要求 MCP 身份验证',
@@ -587,7 +587,7 @@ export const zhCN: MessageSchema = {
       applyPort: '应用端口',
       tokenHelp: '兼容性令牌拥有完全访问权限。对于受限客户端，请使用能力配置。',
       warning: '身份验证已关闭。任何能访问此监听器的人都可以控制已登录的标签页并附加本地文件；启用远程访问时，其他计算机也可以。',
-      capabilities: capabilityProfileMessages['zh-CN']
+      capabilities: zhCNCapabilityProfiles
     },
     permissions: {
       search: '搜索已保存的网站权限',
@@ -734,8 +734,8 @@ export const zhCN: MessageSchema = {
       issue: '报告问题 ↗'
     }
   },
-  wallets: walletMessages['zh-CN'],
-  appErrors: appErrorMessages['zh-CN'],
+  wallets: zhCNWallets,
+  appErrors: zhCNAppErrors,
   workspaceNavigationAudit: {
     reasonCredentials: '嵌入了凭据',
     reasonMalformed: '地址无效',
@@ -3966,7 +3966,7 @@ export const zhCN: MessageSchema = {
       active: '活动',
       recent: '最近'
     },
-    readiness: homeReadinessMessages['zh-CN'],
+    readiness: zhCNHomeReadiness,
     firstRun: {
       kicker: '首次成功',
       heading: '用一个安全的任务试用 Hronaut',

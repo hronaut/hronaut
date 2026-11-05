@@ -1,4 +1,5 @@
-import { effectScope, nextTick, ref } from 'vue'
+import { render } from '@testing-library/vue'
+import { effectScope, nextTick, ref, type Component } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   runSidebarOverlayIntent,
@@ -6,7 +7,7 @@ import {
   type ChromeSidebarOverlayOptions,
   type SidebarOverlayCommands
 } from '../../src/renderer/src/composables/useChromeSidebarOverlay.js'
-import type { HronautSidebarOverlayApi, SidebarOverlayIntent } from '../../src/shared/sidebar-overlay.js'
+import type { HronautSidebarOverlayApi, HronautSidebarOverlayViewApi, SidebarOverlayIntent, SidebarOverlayState } from '../../src/shared/sidebar-overlay.js'
 import type { BrowserState, BrowserTabState } from '../../src/shared/types.js'
 
 afterEach(() => { vi.unstubAllGlobals() })
@@ -177,7 +178,7 @@ describe('the rail over the page in the browser chrome', () => {
     const scope = effectScope()
     scope.run(() => useChromeSidebarOverlay(options))
     const tops = () => show.mock.calls.map(([request]) => request.model.top)
-    return { topbar, overlaid, available, observers, tops, dispose: () => { scope.stop(); topbar.remove() } }
+    return { topbar, overlaid, available, observers, tops, show, dispose: () => { scope.stop(); topbar.remove() } }
   }
 
   it('starts the rail over the page below the title bar, which can grow while the rail is open', async () => {
@@ -193,5 +194,64 @@ describe('the rail over the page in the browser chrome', () => {
       await nextTick()
       expect(h.tops()).toEqual([44, 60])
     } finally { h.dispose() }
+  })
+
+  it('draws the rail over the page only once its language is loaded, and in the language of the latest state', async () => {
+    const h = chrome()
+    Object.defineProperty(document, 'fonts', { value: { status: 'loaded', ready: Promise.resolve() }, configurable: true })
+    let releaseFrench!: () => void
+    const french = new Promise<void>((resolve) => { releaseFrench = resolve })
+    // A window that has loaded no language but English, unlike the setup's, where French loads when the test says.
+    vi.resetModules()
+    vi.doMock('../../src/shared/locales/fr-FR.js', async () => {
+      await french
+      return vi.importActual('../../src/shared/locales/fr-FR.js')
+    })
+    let view: ReturnType<typeof render> | undefined
+    try {
+      const SidebarOverlayView = ((await import('../../src/renderer/src/components/SidebarOverlayView.vue')) as { default: Component }).default
+      const { createHronautI18n } = await import('../../src/renderer/src/i18n.js')
+      const { loadLocaleMessages } = await import('../../src/renderer/src/locale-messages.js')
+      h.overlaid.value = true
+      await nextTick()
+      const model = h.show.mock.calls[0][0].model
+      let receive!: (state: SidebarOverlayState) => void
+      const rendered = vi.fn()
+      const api: HronautSidebarOverlayViewApi = {
+        onState: (listener) => { receive = listener; return () => undefined },
+        rendered,
+        pointer: vi.fn(),
+        intent: vi.fn(),
+        showTooltip: vi.fn(),
+        hideTooltip: vi.fn()
+      }
+      const i18n = createHronautI18n('en-US')
+      view = render(SidebarOverlayView, { props: { api }, global: { plugins: [i18n] } })
+      receive({ revision: 1, session: 1, model: { ...model, locale: 'fr-FR' } })
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      // Nothing is drawn, in English or otherwise, before French arrives.
+      expect(document.querySelector('.app-home-label')).toBeNull()
+      expect(rendered).not.toHaveBeenCalled()
+      releaseFrench()
+      await vi.waitFor(() => expect(rendered).toHaveBeenCalledWith({ revision: 1 }))
+      expect(document.querySelector('.app-home-label')).toHaveTextContent('Accueil')
+      expect(document.documentElement.lang).toBe('fr-FR')
+
+      // German is asked for, then French again while German loads: French, the latest, stays once German arrives.
+      receive({ revision: 2, session: 1, model: { ...model, locale: 'de-DE' } })
+      receive({ revision: 3, session: 1, model: { ...model, locale: 'fr-FR' } })
+      await vi.waitFor(() => expect(rendered).toHaveBeenCalledWith({ revision: 3 }))
+      await loadLocaleMessages('de-DE')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(i18n.global.locale.value).toBe('fr-FR')
+      expect(document.querySelector('.app-home-label')).toHaveTextContent('Accueil')
+      expect(rendered).not.toHaveBeenCalledWith({ revision: 2 })
+    } finally {
+      releaseFrench()
+      view?.unmount()
+      vi.doUnmock('../../src/shared/locales/fr-FR.js')
+      Reflect.deleteProperty(document, 'fonts')
+      h.dispose()
+    }
   })
 })

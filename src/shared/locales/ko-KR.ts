@@ -1,31 +1,31 @@
-import { networkPriorityMessages } from './network-priority.js'
-import { networkLabelMessages } from './network-labels.js'
-import { reproStepMessages } from './repro-steps.js'
-import { viewportPresetMessages } from './viewport-presets.js'
-import { searchEngineMessages } from './search-engines.js'
-import { settingsSectionMessages } from './settings-sections.js'
-import { browserIssueTitleMessages } from './browser-issue-titles.js'
-import { qualityAuditTextMessages } from './quality-audit-text.js'
-import { networkAbortReasonMessages } from './network-abort-reasons.js'
-import { reportCaveatMessages } from './report-caveats.js'
-import { incidentPathMessages } from './incident-paths.js'
-import { reactInspectionMessages } from './react-inspection.js'
-import { pwaLifecycleMessages } from './pwa-lifecycle.js'
-import { softNavigationMessages } from './soft-navigation.js'
-import { lcpAttributionMessages } from './lcp-attribution.js'
-import { browserImportMessages } from './browser-import.js'
-import { videoRecorderMessages } from './video-recorder/index.js'
-import { capabilityProfileMessages } from './capability-profiles.js'
-import { remoteConnectionMessages } from './remote-connections.js'
-import { homeReadinessMessages } from './home-readiness.js'
-import { trustedDialogMessages } from './trusted-dialogs.js'
-import { walletMessages } from './wallets/index.js'
-import { appErrorMessages } from './app-errors/index.js'
+import { koKRNetworkPriority } from './network-priority/ko-KR.js'
+import { koKRNetworkLabels } from './network-labels/ko-KR.js'
+import { koKRReproSteps } from './repro-steps/ko-KR.js'
+import { koKRViewportPresets } from './viewport-presets/ko-KR.js'
+import { koKRSearchEngines } from './search-engines/ko-KR.js'
+import { koKRSettingsSections } from './settings-sections/ko-KR.js'
+import { koKRBrowserIssueTitles } from './browser-issue-titles/ko-KR.js'
+import { koKRQualityAuditText } from './quality-audit-text/ko-KR.js'
+import { koKRNetworkAbortReasons } from './network-abort-reasons/ko-KR.js'
+import { koKRReportCaveats } from './report-caveats/ko-KR.js'
+import { koKRIncidentPaths } from './incident-paths/ko-KR.js'
+import { koKRReactInspection } from './react-inspection/ko-KR.js'
+import { koKRPwaLifecycle } from './pwa-lifecycle/ko-KR.js'
+import { koKRSoftNavigation } from './soft-navigation/ko-KR.js'
+import { koKRLcpAttribution } from './lcp-attribution/ko-KR.js'
+import { koKRBrowserImport } from './browser-import/ko-KR.js'
+import { koKRVideoRecorder } from './video-recorder/ko-KR.js'
+import { koKRCapabilityProfiles } from './capability-profiles/ko-KR.js'
+import { koKRRemoteConnections } from './remote-connections/ko-KR.js'
+import { koKRHomeReadiness } from './home-readiness/ko-KR.js'
+import { koKRTrustedDialogs } from './trusted-dialogs/ko-KR.js'
+import { koKRWallets } from './wallets/ko-KR.js'
+import { koKRAppErrors } from './app-errors/ko-KR.js'
 import type { MessageSchema } from './en-US.js'
 
 export const koKR: MessageSchema = {
-  trustedDialogs: trustedDialogMessages['ko-KR'],
-  reactInspection: reactInspectionMessages['ko-KR'],
+  trustedDialogs: koKRTrustedDialogs,
+  reactInspection: koKRReactInspection,
   agentStatus: {
     starting: '에이전트 준비 중',
     ready: '에이전트 준비 완료',
@@ -39,7 +39,7 @@ export const koKR: MessageSchema = {
     details: '세부정보'
   },
   incident: {
-    ...incidentPathMessages['ko-KR'],
+    ...koKRIncidentPaths,
     omitField: '생략할 정확한 JSON 필드 이름(선택사항)',
     omitFieldHint: '바꾸기 전에 보관된 아티팩트에서 일치하는 모든 객체 필드를 삭제합니다. 대소문자를 구분하며 경로나 와일드카드는 사용할 수 없습니다. 다른 사본이 남아 있을 수 있으니 미리보기를 검사하세요.',
     hash: 'SHA-256: {hash}',
@@ -90,8 +90,8 @@ export const koKR: MessageSchema = {
     reminder: '라이선스 필요',
     reminderTitle: '에이전트 자동화가 잠겨 있습니다. 라이선스 설정 열기'
   },
-  pwaLifecycle: pwaLifecycleMessages['ko-KR'],
-  softNavigation: softNavigationMessages['ko-KR'],
+  pwaLifecycle: koKRPwaLifecycle,
+  softNavigation: koKRSoftNavigation,
   emulationApplication: {
     pending: '에뮬레이션 적용 중',
     unknown: '에뮬레이션 확인 안 됨',
@@ -99,19 +99,19 @@ export const koKR: MessageSchema = {
     restore: '보관된 설정 복원',
     networkFirst: '먼저 요청 조건에서 네트워크 조건을 복구하세요. 에뮬레이션은 따로 복원할 때까지 확인되지 않은 상태로 유지됩니다.'
   },
-  networkPriority: networkPriorityMessages['ko-KR'],
-  networkLabels: networkLabelMessages['ko-KR'],
-  reproSteps: reproStepMessages['ko-KR'],
-  viewportPresets: viewportPresetMessages['ko-KR'],
-  searchEngines: searchEngineMessages['ko-KR'],
-  settingsSections: settingsSectionMessages['ko-KR'],
-  browserIssueTitles: browserIssueTitleMessages['ko-KR'],
-  qualityAuditText: qualityAuditTextMessages['ko-KR'],
-  networkAbortReasons: networkAbortReasonMessages['ko-KR'],
-  reportCaveats: reportCaveatMessages['ko-KR'],
-  lcpAttribution: lcpAttributionMessages['ko-KR'],
-  browserImport: browserImportMessages['ko-KR'],
-  video: videoRecorderMessages['ko-KR'],
+  networkPriority: koKRNetworkPriority,
+  networkLabels: koKRNetworkLabels,
+  reproSteps: koKRReproSteps,
+  viewportPresets: koKRViewportPresets,
+  searchEngines: koKRSearchEngines,
+  settingsSections: koKRSettingsSections,
+  browserIssueTitles: koKRBrowserIssueTitles,
+  qualityAuditText: koKRQualityAuditText,
+  networkAbortReasons: koKRNetworkAbortReasons,
+  reportCaveats: koKRReportCaveats,
+  lcpAttribution: koKRLcpAttribution,
+  browserImport: koKRBrowserImport,
+  video: koKRVideoRecorder,
   workspaceLibrary: {
     hidden: '사이드바에서 숨김',
     protected: '삭제 방지됨',
@@ -566,7 +566,7 @@ export const koKR: MessageSchema = {
       help: '표시 중이거나, 고정되었거나, 로드 중이거나, 오디오를 재생 중이거나, 다운로드 중이거나, 양식 변경 사항이 있거나, DevTools에서 열려 있거나, 에이전트가 사용 중인 탭은 절전 상태가 되지 않습니다. 절전하면 페이지가 언로드되며, 깨어날 때 탐색 기록이 복원됩니다.'
     },
     mcp: {
-      remote: remoteConnectionMessages['ko-KR'],
+      remote: koKRRemoteConnections,
       heading: 'MCP 보안',
       description: '이 브라우저 프로필에 연결할 수 있는 애플리케이션을 제어합니다.',
       require: 'MCP 인증 필요',
@@ -587,7 +587,7 @@ export const koKR: MessageSchema = {
       applyPort: '포트 적용',
       tokenHelp: '호환성 토큰은 전체 액세스 권한을 부여합니다. 제한된 클라이언트에는 권한 프로필을 사용하세요.',
       warning: '인증이 사용 중지되어 있습니다. 이 리스너에 접근할 수 있는 누구나 로그인된 탭을 제어하고 로컬 파일을 첨부할 수 있으며, 원격 액세스가 활성화되어 있으면 다른 컴퓨터에서도 가능합니다.',
-      capabilities: capabilityProfileMessages['ko-KR']
+      capabilities: koKRCapabilityProfiles
     },
     permissions: {
       search: '저장된 사이트 권한 검색',
@@ -734,8 +734,8 @@ export const koKR: MessageSchema = {
       issue: '문제 신고 ↗'
     }
   },
-  wallets: walletMessages['ko-KR'],
-  appErrors: appErrorMessages['ko-KR'],
+  wallets: koKRWallets,
+  appErrors: koKRAppErrors,
   workspaceNavigationAudit: {
     reasonCredentials: '삽입된 사용자 인증 정보',
     reasonMalformed: '유효하지 않은 주소',
@@ -3966,7 +3966,7 @@ export const koKR: MessageSchema = {
       active: '활성',
       recent: '최근'
     },
-    readiness: homeReadinessMessages['ko-KR'],
+    readiness: koKRHomeReadiness,
     firstRun: {
       kicker: '첫 성공',
       heading: '안전한 작업 하나로 Hronaut 사용해 보기',

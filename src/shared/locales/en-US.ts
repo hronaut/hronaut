@@ -1,29 +1,29 @@
-import { networkPriorityMessages } from './network-priority.js'
-import { networkLabelMessages } from './network-labels.js'
-import { reproStepMessages } from './repro-steps.js'
-import { viewportPresetMessages } from './viewport-presets.js'
-import { searchEngineMessages } from './search-engines.js'
-import { settingsSectionMessages } from './settings-sections.js'
-import { browserIssueTitleMessages } from './browser-issue-titles.js'
-import { qualityAuditTextMessages } from './quality-audit-text.js'
-import { networkAbortReasonMessages } from './network-abort-reasons.js'
-import { reportCaveatMessages } from './report-caveats.js'
-import { incidentPathMessages } from './incident-paths.js'
-import { reactInspectionMessages } from './react-inspection.js'
-import { pwaLifecycleMessages } from './pwa-lifecycle.js'
-import { softNavigationMessages } from './soft-navigation.js'
-import { lcpAttributionMessages } from './lcp-attribution.js'
-import { browserImportMessages } from './browser-import.js'
-import { videoRecorderMessages } from './video-recorder/index.js'
-import { capabilityProfileMessages } from './capability-profiles.js'
-import { remoteConnectionMessages } from './remote-connections.js'
-import { homeReadinessMessages } from './home-readiness.js'
-import { trustedDialogMessages } from './trusted-dialogs.js'
-import { walletMessages } from './wallets/index.js'
-import { appErrorMessages } from './app-errors/index.js'
+import { enUSNetworkPriority } from './network-priority/en-US.js'
+import { enUSNetworkLabels } from './network-labels/en-US.js'
+import { enUSReproSteps } from './repro-steps/en-US.js'
+import { enUSViewportPresets } from './viewport-presets/en-US.js'
+import { enUSSearchEngines } from './search-engines/en-US.js'
+import { enUSSettingsSections } from './settings-sections/en-US.js'
+import { enUSBrowserIssueTitles } from './browser-issue-titles/en-US.js'
+import { enUSQualityAuditText } from './quality-audit-text/en-US.js'
+import { enUSNetworkAbortReasons } from './network-abort-reasons/en-US.js'
+import { enUSReportCaveats } from './report-caveats/en-US.js'
+import { enUSIncidentPaths } from './incident-paths/en-US.js'
+import { enUSReactInspection } from './react-inspection/en-US.js'
+import { enUSPwaLifecycle } from './pwa-lifecycle/en-US.js'
+import { enUSSoftNavigation } from './soft-navigation/en-US.js'
+import { enUSLcpAttribution } from './lcp-attribution/en-US.js'
+import { enUSBrowserImport } from './browser-import/en-US.js'
+import { enUSVideoRecorder } from './video-recorder/en-US.js'
+import { enUSCapabilityProfiles } from './capability-profiles/en-US.js'
+import { enUSRemoteConnections } from './remote-connections/en-US.js'
+import { enUSHomeReadiness } from './home-readiness/en-US.js'
+import { enUSTrustedDialogs } from './trusted-dialogs/en-US.js'
+import { enUSWallets } from './wallets/en-US.js'
+import { enUSAppErrors } from './app-errors/en-US.js'
 export const enUS = {
-  trustedDialogs: trustedDialogMessages['en-US'],
-  reactInspection: reactInspectionMessages['en-US'],
+  trustedDialogs: enUSTrustedDialogs,
+  reactInspection: enUSReactInspection,
   agentStatus: {
     starting: 'Getting ready for agents',
     ready: 'Ready for agents',
@@ -37,7 +37,7 @@ export const enUS = {
     details: 'Details'
   },
   incident: {
-    ...incidentPathMessages['en-US'],
+    ...enUSIncidentPaths,
     omitField: 'Exact JSON field name to omit (optional)',
     omitFieldHint: 'Removes every matching object field from kept artifacts, before replacement. Case-sensitive; not a path or wildcard. Other copies may remain: inspect the preview.',
     hash: 'SHA-256: {hash}',
@@ -88,8 +88,8 @@ export const enUS = {
     reminder: 'License needed',
     reminderTitle: 'Agent automation is locked. Open License settings'
   },
-  pwaLifecycle: pwaLifecycleMessages['en-US'],
-  softNavigation: softNavigationMessages['en-US'],
+  pwaLifecycle: enUSPwaLifecycle,
+  softNavigation: enUSSoftNavigation,
   emulationApplication: {
     pending: 'Applying emulation',
     unknown: 'Emulation unconfirmed',
@@ -97,19 +97,19 @@ export const enUS = {
     restore: 'Restore retained settings',
     networkFirst: 'First recover Network conditions in Request conditions. Emulation remains unconfirmed until separately restored.'
   },
-  networkPriority: networkPriorityMessages['en-US'],
-  networkLabels: networkLabelMessages['en-US'],
-  reproSteps: reproStepMessages['en-US'],
-  viewportPresets: viewportPresetMessages['en-US'],
-  searchEngines: searchEngineMessages['en-US'],
-  settingsSections: settingsSectionMessages['en-US'],
-  browserIssueTitles: browserIssueTitleMessages['en-US'],
-  qualityAuditText: qualityAuditTextMessages['en-US'],
-  networkAbortReasons: networkAbortReasonMessages['en-US'],
-  reportCaveats: reportCaveatMessages['en-US'],
-  lcpAttribution: lcpAttributionMessages['en-US'],
-  browserImport: browserImportMessages['en-US'],
-  video: videoRecorderMessages['en-US'],
+  networkPriority: enUSNetworkPriority,
+  networkLabels: enUSNetworkLabels,
+  reproSteps: enUSReproSteps,
+  viewportPresets: enUSViewportPresets,
+  searchEngines: enUSSearchEngines,
+  settingsSections: enUSSettingsSections,
+  browserIssueTitles: enUSBrowserIssueTitles,
+  qualityAuditText: enUSQualityAuditText,
+  networkAbortReasons: enUSNetworkAbortReasons,
+  reportCaveats: enUSReportCaveats,
+  lcpAttribution: enUSLcpAttribution,
+  browserImport: enUSBrowserImport,
+  video: enUSVideoRecorder,
   workspaceLibrary: {
     hidden: 'Hidden from sidebar',
     protected: 'Deletion protected',
@@ -564,7 +564,7 @@ export const enUS = {
       help: 'Tabs that are visible, pinned, loading, playing audio, downloading, holding form changes, open in DevTools or in use by an agent stay awake. Sleeping unloads the page and restores its navigation history when it wakes.'
     },
     mcp: {
-      remote: remoteConnectionMessages['en-US'],
+      remote: enUSRemoteConnections,
       heading: 'MCP security',
       description: 'Control which applications can connect to this browser profile.',
       require: 'Require MCP authentication',
@@ -585,7 +585,7 @@ export const enUS = {
       applyPort: 'Apply port',
       tokenHelp: 'The compatibility token grants full access. Use a capability profile for restricted clients.',
       warning: 'Authentication is off. Anyone who can reach this listener can control logged-in tabs and attach local files, including other computers when remote access is active.',
-      capabilities: capabilityProfileMessages['en-US']
+      capabilities: enUSCapabilityProfiles
     },
     permissions: {
       search: 'Search saved site permissions',
@@ -732,8 +732,8 @@ export const enUS = {
       issue: 'Report an issue ↗'
     }
   },
-  wallets: walletMessages['en-US'],
-  appErrors: appErrorMessages['en-US'],
+  wallets: enUSWallets,
+  appErrors: enUSAppErrors,
   workspaceNavigationAudit: {
     reasonCredentials: 'embedded credentials',
     reasonMalformed: 'invalid address',
@@ -3964,7 +3964,7 @@ export const enUS = {
       active: 'Active',
       recent: 'Recent'
     },
-    readiness: homeReadinessMessages['en-US'],
+    readiness: enUSHomeReadiness,
     firstRun: {
       kicker: 'First success',
       heading: 'Try Hronaut with one safe task',

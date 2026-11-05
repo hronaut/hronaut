@@ -6,8 +6,8 @@ import DiagnosticsPanels from '../../src/renderer/src/features/diagnostics/Diagn
 import { useDiagnosticsController } from '../../src/renderer/src/features/diagnostics/useDiagnosticsController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import { ACCESSIBILITY_COMPARISON_CAVEATS } from '../../src/shared/accessibility-comparison.js'
+import { localeMessages } from '../../src/shared/i18n.js'
 import { INDEXEDDB_CAVEATS } from '../../src/shared/indexeddb.js'
-import { reportCaveatMessages } from '../../src/shared/locales/report-caveats.js'
 import { PERFORMANCE_COMPARISON_CAVEATS, PERFORMANCE_REPORT_CAVEATS } from '../../src/shared/performance-audit.js'
 import type {
   BrowserAccessibilityAudit,
@@ -198,15 +198,15 @@ describe('report caveats in the interface language', () => {
     expect(english.join(' ')).not.toMatch(/browser_site_data|includeValues|the task/)
     expect(english.at(-1)).toBe('A future caveat.')
     expect(indexedDbView('de-DE', recorded)).toEqual([
-      ...['origin', 'snapshot', 'names', 'longNames', 'valuesIncluded', 'readOnly'].map((key) => reportCaveatMessages['de-DE'].indexedDb[key as keyof typeof INDEXEDDB_CAVEATS]),
+      ...['origin', 'snapshot', 'names', 'longNames', 'valuesIncluded', 'readOnly'].map((key) => localeMessages['de-DE'].reportCaveats.indexedDb[key as keyof typeof INDEXEDDB_CAVEATS]),
       'A future caveat.'
     ])
   })
 
   it('keeps the English performance and comparison caveats as the reports record them', () => {
-    expect(reportCaveatMessages['en-US'].performance).toEqual({ ...PERFORMANCE_REPORT_CAVEATS, ...PERFORMANCE_COMPARISON_CAVEATS })
-    expect(reportCaveatMessages['en-US'].accessibilityComparison).toEqual(ACCESSIBILITY_COMPARISON_CAVEATS)
-    expect(Object.keys(reportCaveatMessages['en-US'].indexedDb)).toEqual(Object.keys(INDEXEDDB_CAVEATS))
+    expect(localeMessages['en-US'].reportCaveats.performance).toEqual({ ...PERFORMANCE_REPORT_CAVEATS, ...PERFORMANCE_COMPARISON_CAVEATS })
+    expect(localeMessages['en-US'].reportCaveats.accessibilityComparison).toEqual(ACCESSIBILITY_COMPARISON_CAVEATS)
+    expect(Object.keys(localeMessages['en-US'].reportCaveats.indexedDb)).toEqual(Object.keys(INDEXEDDB_CAVEATS))
   })
 
   it('keeps the English caveats MCP results return, word for word and in order', () => {

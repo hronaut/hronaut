@@ -1,31 +1,31 @@
-import { networkPriorityMessages } from './network-priority.js'
-import { networkLabelMessages } from './network-labels.js'
-import { reproStepMessages } from './repro-steps.js'
-import { viewportPresetMessages } from './viewport-presets.js'
-import { searchEngineMessages } from './search-engines.js'
-import { settingsSectionMessages } from './settings-sections.js'
-import { browserIssueTitleMessages } from './browser-issue-titles.js'
-import { qualityAuditTextMessages } from './quality-audit-text.js'
-import { networkAbortReasonMessages } from './network-abort-reasons.js'
-import { reportCaveatMessages } from './report-caveats.js'
-import { incidentPathMessages } from './incident-paths.js'
-import { reactInspectionMessages } from './react-inspection.js'
-import { pwaLifecycleMessages } from './pwa-lifecycle.js'
-import { softNavigationMessages } from './soft-navigation.js'
-import { lcpAttributionMessages } from './lcp-attribution.js'
-import { browserImportMessages } from './browser-import.js'
-import { videoRecorderMessages } from './video-recorder/index.js'
-import { capabilityProfileMessages } from './capability-profiles.js'
-import { remoteConnectionMessages } from './remote-connections.js'
-import { homeReadinessMessages } from './home-readiness.js'
-import { trustedDialogMessages } from './trusted-dialogs.js'
-import { walletMessages } from './wallets/index.js'
-import { appErrorMessages } from './app-errors/index.js'
+import { jaJPNetworkPriority } from './network-priority/ja-JP.js'
+import { jaJPNetworkLabels } from './network-labels/ja-JP.js'
+import { jaJPReproSteps } from './repro-steps/ja-JP.js'
+import { jaJPViewportPresets } from './viewport-presets/ja-JP.js'
+import { jaJPSearchEngines } from './search-engines/ja-JP.js'
+import { jaJPSettingsSections } from './settings-sections/ja-JP.js'
+import { jaJPBrowserIssueTitles } from './browser-issue-titles/ja-JP.js'
+import { jaJPQualityAuditText } from './quality-audit-text/ja-JP.js'
+import { jaJPNetworkAbortReasons } from './network-abort-reasons/ja-JP.js'
+import { jaJPReportCaveats } from './report-caveats/ja-JP.js'
+import { jaJPIncidentPaths } from './incident-paths/ja-JP.js'
+import { jaJPReactInspection } from './react-inspection/ja-JP.js'
+import { jaJPPwaLifecycle } from './pwa-lifecycle/ja-JP.js'
+import { jaJPSoftNavigation } from './soft-navigation/ja-JP.js'
+import { jaJPLcpAttribution } from './lcp-attribution/ja-JP.js'
+import { jaJPBrowserImport } from './browser-import/ja-JP.js'
+import { jaJPVideoRecorder } from './video-recorder/ja-JP.js'
+import { jaJPCapabilityProfiles } from './capability-profiles/ja-JP.js'
+import { jaJPRemoteConnections } from './remote-connections/ja-JP.js'
+import { jaJPHomeReadiness } from './home-readiness/ja-JP.js'
+import { jaJPTrustedDialogs } from './trusted-dialogs/ja-JP.js'
+import { jaJPWallets } from './wallets/ja-JP.js'
+import { jaJPAppErrors } from './app-errors/ja-JP.js'
 import type { MessageSchema } from './en-US.js'
 
 export const jaJP: MessageSchema = {
-  trustedDialogs: trustedDialogMessages['ja-JP'],
-  reactInspection: reactInspectionMessages['ja-JP'],
+  trustedDialogs: jaJPTrustedDialogs,
+  reactInspection: jaJPReactInspection,
   agentStatus: {
     starting: 'エージェントの準備をしています',
     ready: 'エージェントの準備完了',
@@ -39,7 +39,7 @@ export const jaJP: MessageSchema = {
     details: '詳細'
   },
   incident: {
-    ...incidentPathMessages['ja-JP'],
+    ...jaJPIncidentPaths,
     omitField: '除外する JSON フィールドの正確な名前（省略可）',
     omitFieldHint: '置換の前に、保持するアーティファクトから一致するオブジェクト フィールドをすべて削除します。大文字と小文字を区別します。パスやワイルドカードは使えません。他のコピーが残る場合があるため、プレビューを確認してください。',
     hash: 'SHA-256: {hash}',
@@ -90,8 +90,8 @@ export const jaJP: MessageSchema = {
     reminder: 'ライセンスが必要です',
     reminderTitle: 'エージェントの自動操作はロックされています。ライセンス設定を開く'
   },
-  pwaLifecycle: pwaLifecycleMessages['ja-JP'],
-  softNavigation: softNavigationMessages['ja-JP'],
+  pwaLifecycle: jaJPPwaLifecycle,
+  softNavigation: jaJPSoftNavigation,
   emulationApplication: {
     pending: 'エミュレーションを適用しています',
     unknown: 'エミュレーション未確認',
@@ -99,19 +99,19 @@ export const jaJP: MessageSchema = {
     restore: '保持された設定を復元',
     networkFirst: 'まず [リクエスト条件] でネットワーク条件を復旧してください。エミュレーションは個別に復元するまで未確認のままです。'
   },
-  networkPriority: networkPriorityMessages['ja-JP'],
-  networkLabels: networkLabelMessages['ja-JP'],
-  reproSteps: reproStepMessages['ja-JP'],
-  viewportPresets: viewportPresetMessages['ja-JP'],
-  searchEngines: searchEngineMessages['ja-JP'],
-  settingsSections: settingsSectionMessages['ja-JP'],
-  browserIssueTitles: browserIssueTitleMessages['ja-JP'],
-  qualityAuditText: qualityAuditTextMessages['ja-JP'],
-  networkAbortReasons: networkAbortReasonMessages['ja-JP'],
-  reportCaveats: reportCaveatMessages['ja-JP'],
-  lcpAttribution: lcpAttributionMessages['ja-JP'],
-  browserImport: browserImportMessages['ja-JP'],
-  video: videoRecorderMessages['ja-JP'],
+  networkPriority: jaJPNetworkPriority,
+  networkLabels: jaJPNetworkLabels,
+  reproSteps: jaJPReproSteps,
+  viewportPresets: jaJPViewportPresets,
+  searchEngines: jaJPSearchEngines,
+  settingsSections: jaJPSettingsSections,
+  browserIssueTitles: jaJPBrowserIssueTitles,
+  qualityAuditText: jaJPQualityAuditText,
+  networkAbortReasons: jaJPNetworkAbortReasons,
+  reportCaveats: jaJPReportCaveats,
+  lcpAttribution: jaJPLcpAttribution,
+  browserImport: jaJPBrowserImport,
+  video: jaJPVideoRecorder,
   workspaceLibrary: {
     hidden: 'サイドバーに非表示',
     protected: '削除から保護',
@@ -566,7 +566,7 @@ export const jaJP: MessageSchema = {
       help: '表示中、固定、読み込み中、音声再生中、ダウンロード中、フォームの変更を保持中、DevTools で開いている、またはエージェントが使用中のタブはスリープしません。スリープするとページは解放され、復帰時にナビゲーション履歴が復元されます。'
     },
     mcp: {
-      remote: remoteConnectionMessages['ja-JP'],
+      remote: jaJPRemoteConnections,
       heading: 'MCP セキュリティ',
       description: 'このブラウザ プロファイルに接続できるアプリケーションを管理します。',
       require: 'MCP 認証を必須にする',
@@ -587,7 +587,7 @@ export const jaJP: MessageSchema = {
       applyPort: 'ポートを適用',
       tokenHelp: '互換性トークンはフル アクセスを付与します。制限付きのクライアントには機能プロファイルを使用してください。',
       warning: '認証がオフになっています。このリスナーにアクセスできるすべてのユーザーが、ログイン済みのタブを操作したりローカル ファイルを添付したりできます。リモート アクセスが有効な場合は、他のパソコンからも可能です。',
-      capabilities: capabilityProfileMessages['ja-JP']
+      capabilities: jaJPCapabilityProfiles
     },
     permissions: {
       search: '保存したサイトの権限を検索',
@@ -734,8 +734,8 @@ export const jaJP: MessageSchema = {
       issue: '問題を報告 ↗'
     }
   },
-  wallets: walletMessages['ja-JP'],
-  appErrors: appErrorMessages['ja-JP'],
+  wallets: jaJPWallets,
+  appErrors: jaJPAppErrors,
   workspaceNavigationAudit: {
     reasonCredentials: '埋め込まれた認証情報',
     reasonMalformed: '無効なアドレス',
@@ -3966,7 +3966,7 @@ export const jaJP: MessageSchema = {
       active: 'アクティブ',
       recent: '最近'
     },
-    readiness: homeReadinessMessages['ja-JP'],
+    readiness: jaJPHomeReadiness,
     firstRun: {
       kicker: '最初の成功',
       heading: '安全なタスクで Hronaut を試す',

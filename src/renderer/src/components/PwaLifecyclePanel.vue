@@ -6,7 +6,7 @@ import type { SupportedLocale } from '../../../shared/types'
 import UiButton from '../ui/UiButton.vue'
 import type { BrowserTabState } from '../../../shared/types'
 import { PWA_LIFECYCLE_CAVEATS, type PwaLifecycleAction, type PwaLifecycleReport } from '../../../shared/pwa-lifecycle'
-import { pwaLifecycleMessages } from '../../../shared/locales/pwa-lifecycle.js'
+import { enUSPwaLifecycle } from '../../../shared/locales/pwa-lifecycle/en-US.js'
 import { friendlyUiError } from '../composables/useAppToastController.js'
 
 const props = defineProps<{ tab?: BrowserTabState }>()
@@ -14,9 +14,9 @@ const { t, locale } = useI18n({ useScope: 'global' })
 // Times follow Hronaut's interface language, not the system's.
 const localTime = (value: number): string => formatDateTime(locale.value as SupportedLocale, value, { timeStyle: 'medium' })
 // The page reports these words, so one Hronaut does not know still shows as the page sent it.
-const EVENT_KINDS = new Set(Object.keys(pwaLifecycleMessages['en-US'].kinds))
-const WORKER_STATES = new Set(Object.keys(pwaLifecycleMessages['en-US'].workerStates))
-const STOP_REASONS = new Set(Object.keys(pwaLifecycleMessages['en-US'].reasons))
+const EVENT_KINDS = new Set(Object.keys(enUSPwaLifecycle.kinds))
+const WORKER_STATES = new Set(Object.keys(enUSPwaLifecycle.workerStates))
+const STOP_REASONS = new Set(Object.keys(enUSPwaLifecycle.reasons))
 const eventKind = (kind: string): string => EVENT_KINDS.has(kind) ? t(`pwaLifecycle.kinds.${kind}`) : kind
 const workerState = (state: string): string => WORKER_STATES.has(state) ? t(`pwaLifecycle.workerStates.${state}`) : state
 const stopReason = (reason: string): string => STOP_REASONS.has(reason) ? t(`pwaLifecycle.reasons.${reason}`) : reason

@@ -1,31 +1,31 @@
-import { networkPriorityMessages } from './network-priority.js'
-import { networkLabelMessages } from './network-labels.js'
-import { reproStepMessages } from './repro-steps.js'
-import { viewportPresetMessages } from './viewport-presets.js'
-import { searchEngineMessages } from './search-engines.js'
-import { settingsSectionMessages } from './settings-sections.js'
-import { browserIssueTitleMessages } from './browser-issue-titles.js'
-import { qualityAuditTextMessages } from './quality-audit-text.js'
-import { networkAbortReasonMessages } from './network-abort-reasons.js'
-import { reportCaveatMessages } from './report-caveats.js'
-import { incidentPathMessages } from './incident-paths.js'
-import { reactInspectionMessages } from './react-inspection.js'
-import { pwaLifecycleMessages } from './pwa-lifecycle.js'
-import { softNavigationMessages } from './soft-navigation.js'
-import { lcpAttributionMessages } from './lcp-attribution.js'
-import { browserImportMessages } from './browser-import.js'
-import { videoRecorderMessages } from './video-recorder/index.js'
-import { capabilityProfileMessages } from './capability-profiles.js'
-import { remoteConnectionMessages } from './remote-connections.js'
-import { homeReadinessMessages } from './home-readiness.js'
-import { trustedDialogMessages } from './trusted-dialogs.js'
-import { walletMessages } from './wallets/index.js'
-import { appErrorMessages } from './app-errors/index.js'
+import { ruRUNetworkPriority } from './network-priority/ru-RU.js'
+import { ruRUNetworkLabels } from './network-labels/ru-RU.js'
+import { ruRUReproSteps } from './repro-steps/ru-RU.js'
+import { ruRUViewportPresets } from './viewport-presets/ru-RU.js'
+import { ruRUSearchEngines } from './search-engines/ru-RU.js'
+import { ruRUSettingsSections } from './settings-sections/ru-RU.js'
+import { ruRUBrowserIssueTitles } from './browser-issue-titles/ru-RU.js'
+import { ruRUQualityAuditText } from './quality-audit-text/ru-RU.js'
+import { ruRUNetworkAbortReasons } from './network-abort-reasons/ru-RU.js'
+import { ruRUReportCaveats } from './report-caveats/ru-RU.js'
+import { ruRUIncidentPaths } from './incident-paths/ru-RU.js'
+import { ruRUReactInspection } from './react-inspection/ru-RU.js'
+import { ruRUPwaLifecycle } from './pwa-lifecycle/ru-RU.js'
+import { ruRUSoftNavigation } from './soft-navigation/ru-RU.js'
+import { ruRULcpAttribution } from './lcp-attribution/ru-RU.js'
+import { ruRUBrowserImport } from './browser-import/ru-RU.js'
+import { ruRUVideoRecorder } from './video-recorder/ru-RU.js'
+import { ruRUCapabilityProfiles } from './capability-profiles/ru-RU.js'
+import { ruRURemoteConnections } from './remote-connections/ru-RU.js'
+import { ruRUHomeReadiness } from './home-readiness/ru-RU.js'
+import { ruRUTrustedDialogs } from './trusted-dialogs/ru-RU.js'
+import { ruRUWallets } from './wallets/ru-RU.js'
+import { ruRUAppErrors } from './app-errors/ru-RU.js'
 import type { MessageSchema } from './en-US.js'
 
 export const ruRU: MessageSchema = {
-  trustedDialogs: trustedDialogMessages['ru-RU'],
-  reactInspection: reactInspectionMessages['ru-RU'],
+  trustedDialogs: ruRUTrustedDialogs,
+  reactInspection: ruRUReactInspection,
   agentStatus: {
     starting: 'Подготовка к работе с агентами',
     ready: 'Готово к работе с агентами',
@@ -39,7 +39,7 @@ export const ruRU: MessageSchema = {
     details: 'Подробности'
   },
   incident: {
-    ...incidentPathMessages['ru-RU'],
+    ...ruRUIncidentPaths,
     omitField: 'Точное имя исключаемого поля JSON (необязательно)',
     omitFieldHint: 'Удаляет все совпадающие поля объектов из выбранных артефактов до замены текста. Регистр учитывается; это не путь и не шаблон. Другие копии могут остаться: проверьте предпросмотр.',
     hash: 'SHA-256: {hash}',
@@ -90,8 +90,8 @@ export const ruRU: MessageSchema = {
     reminder: 'Нужна лицензия',
     reminderTitle: 'Автоматизация агентов заблокирована. Открыть настройки лицензии'
   },
-  pwaLifecycle: pwaLifecycleMessages['ru-RU'],
-  softNavigation: softNavigationMessages['ru-RU'],
+  pwaLifecycle: ruRUPwaLifecycle,
+  softNavigation: ruRUSoftNavigation,
   emulationApplication: {
     pending: 'Применение эмуляции',
     unknown: 'Эмуляция не подтверждена',
@@ -99,19 +99,19 @@ export const ruRU: MessageSchema = {
     restore: 'Восстановить сохранённые настройки',
     networkFirst: 'Сначала восстановите сетевые условия в Условиях запросов. Эмуляция останется неподтверждённой до отдельного восстановления.'
   },
-  networkPriority: networkPriorityMessages['ru-RU'],
-  networkLabels: networkLabelMessages['ru-RU'],
-  reproSteps: reproStepMessages['ru-RU'],
-  viewportPresets: viewportPresetMessages['ru-RU'],
-  searchEngines: searchEngineMessages['ru-RU'],
-  settingsSections: settingsSectionMessages['ru-RU'],
-  browserIssueTitles: browserIssueTitleMessages['ru-RU'],
-  qualityAuditText: qualityAuditTextMessages['ru-RU'],
-  networkAbortReasons: networkAbortReasonMessages['ru-RU'],
-  reportCaveats: reportCaveatMessages['ru-RU'],
-  lcpAttribution: lcpAttributionMessages['ru-RU'],
-  browserImport: browserImportMessages['ru-RU'],
-  video: videoRecorderMessages['ru-RU'],
+  networkPriority: ruRUNetworkPriority,
+  networkLabels: ruRUNetworkLabels,
+  reproSteps: ruRUReproSteps,
+  viewportPresets: ruRUViewportPresets,
+  searchEngines: ruRUSearchEngines,
+  settingsSections: ruRUSettingsSections,
+  browserIssueTitles: ruRUBrowserIssueTitles,
+  qualityAuditText: ruRUQualityAuditText,
+  networkAbortReasons: ruRUNetworkAbortReasons,
+  reportCaveats: ruRUReportCaveats,
+  lcpAttribution: ruRULcpAttribution,
+  browserImport: ruRUBrowserImport,
+  video: ruRUVideoRecorder,
   workspaceLibrary: {
     hidden: 'Скрыто из боковой панели',
     protected: 'Защищено от удаления',
@@ -566,7 +566,7 @@ export const ruRU: MessageSchema = {
       help: 'Видимые, закреплённые, загружающиеся, воспроизводящие звук, скачивающие файлы, изменённые формы, DevTools и вкладки, с которыми работает агент, не засыпают.'
     },
     mcp: {
-      remote: remoteConnectionMessages['ru-RU'],
+      remote: ruRURemoteConnections,
       heading: 'Безопасность MCP',
       description: 'Управляйте приложениями, которые могут подключаться к этому профилю.',
       require: 'Требовать аутентификацию MCP',
@@ -587,7 +587,7 @@ export const ruRU: MessageSchema = {
       applyPort: 'Применить порт',
       tokenHelp: 'Токен совместимости даёт полный доступ. Для клиентов с ограниченным доступом используйте профиль полномочий.',
       warning: 'Аутентификация отключена. Любой, у кого есть сетевой доступ к этому прослушивателю, может управлять авторизованными вкладками и прикреплять локальные файлы, в том числе с других компьютеров, если включён удалённый доступ.',
-      capabilities: capabilityProfileMessages['ru-RU']
+      capabilities: ruRUCapabilityProfiles
     },
     permissions: {
       search: 'Поиск сохранённых разрешений сайтов',
@@ -734,8 +734,8 @@ export const ruRU: MessageSchema = {
       issue: 'Сообщить о проблеме ↗'
     }
   },
-  wallets: walletMessages['ru-RU'],
-  appErrors: appErrorMessages['ru-RU'],
+  wallets: ruRUWallets,
+  appErrors: ruRUAppErrors,
   workspaceNavigationAudit: {
     reasonCredentials: 'встроенные учётные данные',
     reasonMalformed: 'некорректный адрес',
@@ -3966,7 +3966,7 @@ export const ruRU: MessageSchema = {
       active: 'Активные',
       recent: 'Недавние'
     },
-    readiness: homeReadinessMessages['ru-RU'],
+    readiness: ruRUHomeReadiness,
     firstRun: {
       kicker: 'Первый успех',
       heading: 'Попробуйте Hronaut на одной безопасной задаче',

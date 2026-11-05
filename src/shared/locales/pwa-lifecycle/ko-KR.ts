@@ -1,0 +1,60 @@
+export const koKRPwaLifecycle = {
+  title: '서비스 워커 기록',
+  note: '관찰된 변경 사항만 표시됩니다. 이전 전환이나 빠른 전환은 누락될 수 있습니다.',
+  start: '2분 동안 관찰',
+  stop: '워커 관찰 중지',
+  refresh: '새로고침',
+  clear: '기록 삭제',
+  active: '워커 관찰 중',
+  stopped: '캡처 중지됨',
+  waiting: '대기 중',
+  coverage: '범위 및 개인정보 보호',
+  caveats: {
+    observedTimes: '시간은 변경이 발생한 시점이 아니라 관찰된 시점을 나타내며, 캡처에 전체 기록이 담기지는 않습니다.',
+    polling: '등록은 1초에 한 번 확인되므로 초기 전환과 짧게 유지된 등록은 누락될 수 있습니다.',
+    scope: '등록은 이 탭뿐 아니라 이 최상위 출처와 작업 공간에 속합니다.',
+    identities: '워커 ID는 이 캡처에서만 유효하며 같은 스크립트의 버전을 구분합니다.',
+    interruption: '페이지를 이동하거나 새로고침하거나 닫으면, 또는 디버거나 액세스 권한을 잃으면 캡처가 중단됩니다. 중지하거나 중단되면 아직 읽지 않은 이벤트가 손실될 수 있습니다.',
+    limits: '캡처 하나에는 최대 2분 동안 이벤트 100개, 등록 20개, 워커 100개까지 보관됩니다. 캡처는 메모리에 5개까지 유지되며, 새 캡처를 시작하면 가장 오래된 중지된 캡처가 삭제됩니다.',
+    longUrls: '2,048자보다 긴 주소는 사용자 인증 정보가 포함될 수 있으므로 일부만 표시하지 않고 제외합니다.',
+    metadataOnly: '메타데이터만 관찰합니다. Hronaut은 워커를 업데이트하거나, 메시지를 보내거나, 활성화하거나, 실행하지 않으며 캐시를 삭제하거나 권한을 변경하지 않습니다.',
+    sleeping: '절전 또는 정지 상태의 탭은 깨우지 않습니다. 절전이나 정지가 발생하면 페이지를 활성 상태로 유지하지 않고 캡처를 중단합니다.',
+    snapshot: '읽기에는 마지막으로 찍은 스냅샷이 표시됩니다. 전체 기록이나 모든 워커의 전체 수명 주기는 보장되지 않습니다.'
+  },
+  kinds: {
+    initial: '캡처 시작됨',
+    'registration-initial': '등록 있음',
+    'registration-discovered': '등록 발견됨',
+    'registration-removed': '등록 삭제됨',
+    updatefound: '업데이트 발견됨',
+    statechange: '상태 변경됨',
+    controllerchange: '컨트롤러 변경됨'
+  },
+  workerStates: {
+    parsed: '파싱됨',
+    installing: '설치 중',
+    installed: '설치됨',
+    activating: '활성화 중',
+    activated: '활성화됨',
+    redundant: '중복됨'
+  },
+  reasons: {
+    stopped: '요청에 따라 중지됨',
+    replaced: '새 캡처로 대체됨',
+    shutdown: 'Hronaut 종료됨',
+    navigation: '페이지 이동됨',
+    'renderer-unavailable': '페이지 프로세스 종료됨',
+    'debugger-detached': '디버거 분리됨',
+    'duration-limit': '2분 제한에 도달함',
+    'initial-read-unavailable': '첫 읽기 실패',
+    'page-observer-unavailable': '페이지 관찰자 중지됨',
+    'context-or-authority-lost': '페이지 컨텍스트 또는 액세스 권한 손실',
+    'worker-limit': '워커 한도에 도달함',
+    'event-limit': '이벤트 한도에 도달함',
+    'registration-limit': '등록 한도에 도달함',
+    'discovery-unavailable': '등록 검색 실패',
+    unsupported: '서비스 워커가 지원되지 않음',
+    'workspace-control-changed': '작업 공간 제어가 변경됨',
+    'ownership-released': '작업 공간 해제됨'
+  }
+}
