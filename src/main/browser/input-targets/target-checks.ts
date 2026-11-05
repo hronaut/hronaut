@@ -5,14 +5,19 @@ import { PAGE_PINCHED } from '../page-zoom/pinch-zoom.js'
 
 /**
  * Requires the point inside the page's visual viewport at default scale and
- * without an offset, checking validate once the layout metrics arrive.
+ * without an offset, checking validate once the layout metrics arrive. A page
+ * a person pinched larger meanwhile is refused with `pinched`'s error, when
+ * given, which says how to go on.
  */
-export async function assertRightClickViewport(webContents: WebContents, x: number, y: number, validate: () => void): Promise<void> {
+export async function assertRightClickViewport(
+  webContents: WebContents, x: number, y: number, validate: () => void, pinched?: () => Error
+): Promise<void> {
   const metrics = await webContents.debugger.sendCommand('Page.getLayoutMetrics') as {
     cssVisualViewport?: { clientWidth: number; clientHeight: number; scale: number; offsetX: number; offsetY: number }
   }
   validate()
   const viewport = metrics.cssVisualViewport
+  if (viewport && pinched && visualViewportPinched(viewport)) throw pinched()
   if (!viewport || viewport.scale !== 1 || viewport.offsetX !== 0 || viewport.offsetY !== 0
     || !Number.isFinite(viewport.clientWidth) || !Number.isFinite(viewport.clientHeight)
     || x < 0 || y < 0 || x >= viewport.clientWidth || y >= viewport.clientHeight) {
@@ -92,7 +97,8 @@ export function refusesPinchedPage(tab: Pick<BrowserTab, 'emulation'>): boolean 
   return tab.emulation.viewport?.mobile !== true
 }
 
-function pinchedPageError(action: 'click' | 'hover' | 'drag'): Error {
+/** The refusal of native input on a page a person pinched larger, saying how to go on. */
+export function pinchedPageError(action: 'click' | 'hover' | 'drag' | 'wheel' | 'touch'): Error {
   return new Error(`${action[0]!.toUpperCase()}${action.slice(1)} with native input needs the page at its normal scale, and it is pinched larger. `
     + 'Reset it with browser_zoom (action reset), then try again.')
 }
@@ -136,7 +142,16 @@ export async function pagePinchedBeforeInput(webContents: WebContents): Promise<
     cssVisualViewport?: { scale: number; offsetX: number; offsetY: number }
   } | undefined
   const visual = metrics?.cssVisualViewport
-  return visual !== undefined && (visual.scale > 1.001 || Math.abs(visual.offsetX) > 0.01 || Math.abs(visual.offsetY) > 0.01)
+  return visual !== undefined && visualViewportPinched(visual)
+}
+
+/**
+ * Whether Chromium's visual viewport, as Page.getLayoutMetrics gives it, shows the page pinched larger or panned. A phone
+ * viewport an agent emulates can show a page wider than the phone panned at its own scale, which this also reports, so
+ * callers leave phone viewports out (see refusesPinchedPage) or refuse emulation before asking.
+ */
+export function visualViewportPinched(visual: { scale: number; offsetX: number; offsetY: number }): boolean {
+  return visual.scale > 1.001 || Math.abs(visual.offsetX) > 0.01 || Math.abs(visual.offsetY) > 0.01
 }
 
 /**

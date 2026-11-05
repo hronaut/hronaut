@@ -162,7 +162,9 @@ async function dispatchClick(browser: Browser, target: BrowserClickTarget, valid
               retained = true
             }
             await dispatchNativeClick(browser, webContents, point, target.doubleClick === true, assertClickCurrent, rightClick ? async (x, y) => {
-              await assertRightClickViewport(webContents, x, y, assertClickCurrent)
+              // A pinch made while the pointer moved there is refused as before the move, saying how to go on.
+              await assertRightClickViewport(webContents, x, y, assertClickCurrent,
+                refusePinch ? () => new NativeClickAdmissionError('PAGE_PINCHED', { ...progress }) : undefined)
               await admission.sample(x, y)
             } : admission.sample, observer, rightClick, modifierBits)
             return { ok: true, tag: point.tag, ...(target.doubleClick ? { doubleClick: true } : {}),

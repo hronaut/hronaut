@@ -2,6 +2,7 @@ import { createServer } from 'node:http'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { expect, test, text } from './capability-fixtures.js'
 import { closeFixtureServer } from './fixtures.js'
+import { waitForSettledPageBounds } from './settled-page-bounds.js'
 
 // Chromium sends native input to the part of a page a pinch shows, from its offset, so an agent's native click on a
 // page the person pinched landed away from the point it measured. It is refused, saying how to go on, until the agent
@@ -47,6 +48,12 @@ test('refuses an agent\'s native pointer input on a pinched page until browser_z
   const hover = await call('browser_hover', { selector: '#button' })
   expect(hover.isError).toBe(true)
   expect(text(hover)).toContain('Hover with native input needs the page at its normal scale')
+  // A wheel said only that its point must be inside a default viewport. It refuses a page whose bounds move meanwhile.
+  await waitForSettledPageBounds(electronApp, fixtureUrl)
+  const wheel = await call('browser_wheel', { x: 100, y: 100, deltaX: 0, deltaY: 20 })
+  expect(wheel.isError).toBe(true)
+  expect(text(wheel)).toContain('Wheel with native input needs the page at its normal scale, and it is pinched larger. '
+    + 'Reset it with browser_zoom (action reset), then try again.')
   expect(await evaluate('window.seen.clicks')).toBe(0)
 
   const reset = await call('browser_zoom', { action: 'reset' })
