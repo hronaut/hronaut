@@ -7,6 +7,7 @@ import type {
   BrowserState,
   BrowserTabState
 } from '../../../shared/types.js'
+import { guessTabSelected, guessTabsMoved, type BrowserStateGuess } from '../stores/browser-state-guesses.js'
 
 type ShortcutBrowserApi = Pick<
   HronautApi,
@@ -26,7 +27,8 @@ export interface BrowserShortcutControllerOptions {
    */
   foldedWorkspaceIds?: () => ReadonlySet<string> | undefined
   browser: ShortcutBrowserApi
-  syncState: (operation: Promise<BrowserState> | BrowserState) => Promise<void>
+  /** Applies the state an action answers with; a guess of what it will do shows until it settles. */
+  syncState: (operation: Promise<BrowserState> | BrowserState, guess?: BrowserStateGuess) => Promise<void>
   settingsOpen: Ref<boolean>
   settingsTabOpen?: Ref<boolean>
   openSettings?: ShortcutCallback
@@ -104,7 +106,7 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
     if (next?.id === settingsId) await options.openSettings?.()
     else if (next) {
       options.settingsOpen.value = false
-      await options.syncState(options.browser.selectTab(next.id))
+      await options.syncState(options.browser.selectTab(next.id), guessTabSelected(next.id))
     }
   }
 
@@ -127,7 +129,8 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
     const index = peers.findIndex((candidate) => candidate.id === tab.id)
     const target = index < 0 ? undefined : peers[index + offset]
     if (!target) return
-    await options.syncState(options.browser.reorderTab(tab.id, target.id, offset > 0 ? 'after' : 'before'))
+    const placement = offset > 0 ? 'after' : 'before'
+    await options.syncState(options.browser.reorderTab(tab.id, target.id, placement), guessTabsMoved([tab.id], target.id, placement))
   }
 
   function moveTab(offset: -1 | 1): Promise<void> {
@@ -150,7 +153,7 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
     if (!target) return
     options.settingsOpen.value = false
     if (target.id === options.state.value.activeTabId) return
-    await options.syncState(options.browser.selectTab(target.id))
+    await options.syncState(options.browser.selectTab(target.id), guessTabSelected(target.id))
   }
 
   function selectDirectTab(index: number): Promise<void> {
@@ -168,7 +171,7 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
     options.settingsOpen.value = false
     const tabId = group.activeTabId ?? state.tabs.find((tab) => tab.mcpGroupId === group.id)?.id
     if (!tabId) await options.syncState(options.browser.newTab({ mcpGroupId: group.id, active: true }))
-    else if (tabId !== state.activeTabId) await options.syncState(options.browser.selectTab(tabId))
+    else if (tabId !== state.activeTabId) await options.syncState(options.browser.selectTab(tabId), guessTabSelected(tabId))
   }
 
   function selectWorkspace(groupId: string): Promise<void> {

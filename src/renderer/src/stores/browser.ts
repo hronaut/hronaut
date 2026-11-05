@@ -7,6 +7,7 @@ import type {
   NavigateOptions,
   NewTabOptions
 } from '../../../shared/types.js'
+import { guessTabSelected, type BrowserStateGuess } from './browser-state-guesses.js'
 import { reuseUnchangedBrowserState } from './browser-state-reuse.js'
 import { useSettingsStore } from './settings.js'
 
@@ -53,10 +54,21 @@ export const useBrowserStore = defineStore('browser', () => {
   }>()
   let initializePromise: Promise<void> | null = null
   let unsubscribe: (() => void) | null = null
+  // The last state main sent or answered, and the guesses of the person's actions still waiting for main, which the
+  // shell shows over it in the order they were made.
+  let authoritative = state.value
+  const guesses = new Map<number, BrowserStateGuess>()
+
+  function show(): void {
+    let next = authoritative
+    for (const guess of guesses.values()) next = guess(next)
+    state.value = reuseUnchangedBrowserState(state.value, next)
+  }
 
   function acceptAuthoritativeState(next: BrowserState): void {
     revision += 1
-    state.value = reuseUnchangedBrowserState(state.value, next)
+    authoritative = next
+    show()
   }
 
   function detachListener(): void {
@@ -128,6 +140,7 @@ export const useBrowserStore = defineStore('browser', () => {
     generation += 1
     pendingOperations.clear()
     completedOperations.clear()
+    guesses.clear()
     initializePromise = null
     initialized.value = false
     initializing.value = false
@@ -149,11 +162,19 @@ export const useBrowserStore = defineStore('browser', () => {
     acceptAuthoritativeState(result.state)
   }
 
-  async function syncOperation(operation: Promise<BrowserState>): Promise<BrowserState> {
+  /**
+   * Applies the state an action answers with, unless a newer state arrived meanwhile. With a guess of what the action
+   * will do, the shell shows that at once, over every state that arrives, until the action settles.
+   */
+  async function syncOperation(operation: Promise<BrowserState>, guess?: BrowserStateGuess): Promise<BrowserState> {
     const currentGeneration = generation
     const startingRevision = revision
     const sequence = ++operationSequence
     pendingOperations.add(sequence)
+    if (guess) {
+      guesses.set(sequence, guess)
+      show()
+    }
     try {
       const next = await operation
       if (generation === currentGeneration && revision === startingRevision) {
@@ -166,19 +187,29 @@ export const useBrowserStore = defineStore('browser', () => {
       return next
     } finally {
       pendingOperations.delete(sequence)
+      // Main's state replaces the guess, and the guesses of actions sent before this one, which main has had since:
+      // the answer when it is applied, else the newest state that arrived.
+      let guessed = false
+      for (const guessSequence of [...guesses.keys()]) {
+        if (guessSequence > sequence) continue
+        guesses.delete(guessSequence)
+        guessed = true
+      }
+      const settledRevision = revision
       reconcileOperations()
+      if (guessed && revision === settledRevision) show()
     }
   }
 
   /** Applies a state an operation returns, or one already in hand, unless a newer one arrived meanwhile. */
-  async function sync(next: Promise<BrowserState> | BrowserState): Promise<void> {
-    await syncOperation(Promise.resolve(next))
+  async function sync(next: Promise<BrowserState> | BrowserState, guess?: BrowserStateGuess): Promise<void> {
+    await syncOperation(Promise.resolve(next), guess)
   }
 
   const refresh = (): Promise<BrowserState> => syncOperation(window.hronaut.getState())
   const openHome = (): Promise<BrowserState> => syncOperation(window.hronaut.openHome())
   const newTab = (options?: NewTabOptions): Promise<BrowserState> => syncOperation(window.hronaut.newTab(options))
-  const selectTab = (tabId: string): Promise<BrowserState> => syncOperation(window.hronaut.selectTab(tabId))
+  const selectTab = (tabId: string): Promise<BrowserState> => syncOperation(window.hronaut.selectTab(tabId), guessTabSelected(tabId))
   const closeTab = (tabId: string): Promise<BrowserState> => syncOperation(window.hronaut.closeTab(tabId))
   const navigate = (options: NavigateOptions): Promise<BrowserState> => syncOperation(window.hronaut.navigate(options))
   const back = (tabId?: string): Promise<BrowserState> => syncOperation(window.hronaut.back(tabId))

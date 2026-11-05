@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Changed
 
 - Hronaut's window spends less time keeping its tabs up to date while several agents work, so it answers clicks a little sooner: it draws again only the tabs and controls whose part of the browser changed, rather than the whole window with every tab, workspace and closed dialog in it.
+- A tab you click, move or mute in the tab strip, or reach with Ctrl+Tab, Ctrl+1 to Ctrl+9 or Ctrl+Shift+Page Up/Down, now shows the change at once, before Hronaut finishes it, so the strip keeps up while several agents work. A sleeping or loading tab still shows once it has woken, and the strip shows Hronaut's own result if it differs.
 
 ## [3.14.17] - 2026-11-05
 

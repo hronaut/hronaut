@@ -23,6 +23,7 @@ import { friendlyUiError, type AppToastTone } from './useAppToastController.js'
 import type { SettingsSection } from '../features/settings/useSettingsDialogController.js'
 import { useSiteDataSummaryController } from '../features/site-controls/useSiteDataSummaryController.js'
 import type { SiteStorageShellPanel } from '../features/site-storage/useSiteStorageShellController.js'
+import type { BrowserStateGuess } from '../stores/browser-state-guesses.js'
 
 type SiteNavigationBrowserApi = Pick<
   HronautApi,
@@ -54,7 +55,7 @@ export interface AppSiteNavigationFeatureControllerOptions {
   state: Readonly<Ref<BrowserState>>
   activeTab: ComputedRef<BrowserTabState | undefined>
   browser: SiteNavigationBrowserApi
-  syncState: (operation: Promise<BrowserState> | BrowserState) => Promise<void>
+  syncState: (operation: Promise<BrowserState> | BrowserState, guess?: BrowserStateGuess) => Promise<void>
   collections: {
     bookmarks: Ref<BrowserBookmark[]>
     history: Ref<BrowserHistoryEntry[]>

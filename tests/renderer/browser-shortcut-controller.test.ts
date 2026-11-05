@@ -72,7 +72,7 @@ function createController(
       return state.value
     })
   }
-  const syncState = vi.fn(async (operation: Promise<BrowserState> | BrowserState) => { await operation })
+  const syncState = vi.fn(async (operation: Promise<BrowserState> | BrowserState, _guess?: (state: BrowserState) => BrowserState) => { await operation })
   const settingsOpen = ref(false)
   const settingsTabOpen = ref(false)
   const callbacks = {
@@ -380,6 +380,24 @@ describe('browser shortcut controller', () => {
     harness.state.value = browserState('missing')
     await harness.controller.selectRelativeTab(1)
     expect(harness.browser.selectTab).toHaveBeenCalledTimes(2)
+    harness.controller.dispose()
+  })
+
+  // The shell shows these at once, before main answers; main's state replaces the guess once the action settles.
+  it('hands the store a guess of the tab a tab key selects or of the move it makes', async () => {
+    const harness = createController()
+    const before = harness.state.value
+    const guessed = () => {
+      const guess = harness.syncState.mock.lastCall?.[1]
+      expect(guess).toBeTypeOf('function')
+      return guess!(before)
+    }
+    await harness.controller.selectRelativeTab(1)
+    expect(guessed().activeTabId).toBe('third')
+    await harness.controller.run('select-tab-1')
+    expect(guessed().activeTabId).toBe('first')
+    await harness.controller.run('move-tab-next')
+    expect(guessed().tabs.map((candidate) => candidate.id)).toEqual(['first', 'third', 'second'])
     harness.controller.dispose()
   })
 

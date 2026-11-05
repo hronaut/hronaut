@@ -28,6 +28,7 @@ import { useTabNavigationController } from '../features/tabs/useTabNavigationCon
 import type { TransientPanelsCloseOptions } from './useTransientPanelsController.js'
 import { useUiActionController } from './useUiActionController.js'
 import { useZoomShellController } from '../features/zoom/useZoomShellController.js'
+import type { BrowserStateGuess } from '../stores/browser-state-guesses.js'
 
 type InteractionBrowserApi = Pick<
   HronautApi,
@@ -162,7 +163,7 @@ export interface AppShellInteractionFeatureControllerOptions {
   state: Readonly<Ref<BrowserState>>
   activeTab: Readonly<Ref<BrowserTabState | undefined>>
   browser: InteractionBrowserApi
-  syncState: (operation: Promise<BrowserState> | BrowserState) => Promise<void>
+  syncState: (operation: Promise<BrowserState> | BrowserState, guess?: BrowserStateGuess) => Promise<void>
   transient: TransientShell
   surfaces: {
     settings: SettingsSurface
