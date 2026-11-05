@@ -520,7 +520,8 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
   async function read(): Promise<void> {
     if (signal.aborted) return
     void workspaces.refresh()
-    void tabs.refresh()
+    // The Tabs view reads while it shows; a hidden Home reads its tabs once shown again.
+    if (!document.hidden) void tabs.refresh()
     const sequence = ++requestSequence
     const attempt = new AbortController()
     const abandon = (): void => attempt.abort()
@@ -567,6 +568,11 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     tabsChangeQueued = true
     later(() => { tabsChangeQueued = false; void tabs.refresh() }, 250)
   })
+  // The change that brings Home into view, such as choosing its tab in the strip, comes while it is still hidden, so the
+  // Tabs view reads the tabs as soon as it shows.
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && selectedView === 'tabs') void tabs.refresh()
+  }, { signal })
   function dispose(): void {
     lifetime.abort(); requestSequence++; timers.forEach(clearTimeout); timers.clear()
     unsubscribe?.(); unsubscribeShowTabs?.(); unsubscribeChanges?.(); unsubscribeTabChanges?.()

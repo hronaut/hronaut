@@ -10,11 +10,35 @@ import { deleteSavedTabGroup, restoreSavedTabGroup } from '../browser/workspace-
 import { newTab } from '../browser/new-tabs/open-new-tab.js'
 import { LocalizedError } from '../localized-error.js'
 import { HOME_CARD_ICON_MAX_LENGTH } from '../../shared/home-workspaces.js'
+import { emulationSummary } from '../../shared/emulation-description.js'
+import { shownTabIsHome } from '../browser/home-tabs/home-tabs.js'
+import type { BrowserTabState } from '../../shared/types.js'
 import { validHomeTabAction, type HomeTabsState } from '../../shared/home-tabs.js'
 
 /** A site icon small enough for Home, as Home's workspace cards take it; larger ones show the generic icon instead. */
 function homeIcon(value: string | undefined): string | undefined {
   return value && value.length <= HOME_CARD_ICON_MAX_LENGTH && value.startsWith('data:image/') ? value : undefined
+}
+
+/** An address as Home shows it: a web address keeps no user name or password written into it. */
+function shownUrl(value: string): string {
+  if (!/^https?:/iu.test(value)) return value
+  try {
+    const url = new URL(value)
+    if (!url.username && !url.password) return value
+    url.username = ''
+    url.password = ''
+    return url.href
+  } catch {
+    return value
+  }
+}
+
+/** The revision of the frame main would answer for the tab, which Home compares with the one it holds. */
+function previewRevision(browser: Browser, tab: BrowserTabState): number | undefined {
+  if (tab.sleeping) return browser.tabOverviewSleepPreviews.get(tab.id)?.revision
+  const frame = browser.tabOverviewPreviews.get(tab.id)
+  return frame?.navigationGeneration === tab.navigationGeneration ? frame.revision : undefined
 }
 
 /**
@@ -29,12 +53,13 @@ export function homeTabsState(browser: Browser): HomeTabsState {
     workspaces: state.mcpTabGroups.map(({ id, name, color }) => ({ id, name, color })),
     tabs: tabs.map(tab => {
       const faviconDataUrl = homeIcon(tab.faviconDataUrl)
+      const revision = previewRevision(browser, tab)
       return {
         id: tab.id,
         ...(tab.mcpGroupId ? { workspaceId: tab.mcpGroupId } : {}),
         title: tab.title,
         ...(tab.label ? { label: tab.label } : {}),
-        url: tab.url,
+        url: shownUrl(tab.url),
         ...(faviconDataUrl ? { faviconDataUrl } : {}),
         loading: tab.loading,
         sleeping: tab.sleeping,
@@ -44,9 +69,10 @@ export function homeTabsState(browser: Browser): HomeTabsState {
         audible: tab.audible,
         locked: tab.humanInteractionInputLocked ?? (state.allHumanInteractionLocked || tab.humanInteractionLocked),
         agentActive: browser.mcpActivitiesByTab.has(tab.id),
-        ...(tab.emulation ? { emulation: tab.emulation } : {}),
+        ...(tab.emulation ? { emulation: emulationSummary(tab.emulation) } : {}),
         ...(tab.networkRouteCount ? { networkRouteCount: tab.networkRouteCount } : {}),
-        navigationGeneration: tab.navigationGeneration
+        navigationGeneration: tab.navigationGeneration,
+        ...(revision !== undefined ? { previewRevision: revision } : {})
       }
     }),
     previousTabId: previous && tabs.some(tab => tab.id === previous) ? previous : null,
@@ -54,7 +80,7 @@ export function homeTabsState(browser: Browser): HomeTabsState {
       id: tab.id,
       title: tab.title,
       ...(tab.label ? { label: tab.label } : {}),
-      url: tab.url,
+      url: shownUrl(tab.url),
       pinned: tab.pinned,
       closedAt: tab.closedAt
     })),
@@ -63,7 +89,7 @@ export function homeTabsState(browser: Browser): HomeTabsState {
       name: group.name,
       color: group.color,
       deletionProtected: group.deletionProtected === true,
-      tabs: group.tabs.map(tab => ({ title: tab.title, ...(tab.label ? { label: tab.label } : {}), url: tab.url }))
+      tabs: group.tabs.map(tab => ({ title: tab.title, ...(tab.label ? { label: tab.label } : {}), url: shownUrl(tab.url) }))
     })),
     locked: state.allHumanInteractionLocked
   }
@@ -90,8 +116,9 @@ export async function runHomeTabAction(browser: Browser, input: unknown): Promis
       await deleteSavedTabGroup(browser, action.workspaceId)
       break
     case 'back': {
+      // Only from Home: a tab chosen meanwhile, by the person or an agent, is not undone by a late Escape.
       const previous = browser.previousPageTabId ? browser.tabs.get(browser.previousPageTabId) : undefined
-      if (previous && !isHronautHomeUrl(previous.url)) await selectTabForPerson(browser, previous.id)
+      if (previous && !isHronautHomeUrl(previous.url) && shownTabIsHome(browser)) await selectTabForPerson(browser, previous.id)
       break
     }
     case 'new-tab': await newTab(browser, { active: true }); break

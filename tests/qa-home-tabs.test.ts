@@ -291,12 +291,18 @@ describe('Home Tabs view', () => {
     expect(words(byId('tabs-error'))).toBe('Open tab failed The tab is no longer available.')
   })
 
-  it('shows the frame main kept of a tab, and drops it once the tab navigates', async () => {
-    const tabs = mountTabs()
+  it('shows the frame main kept of a tab, takes a newer one of the same page, and drops it once the tab navigates', async () => {
+    const pictured = (revisions: Record<string, number>, changes: Partial<HomeTab> = {}): HomeTabsState => tabsState({
+      tabs: tabsState().tabs.map(candidate => {
+        const previewRevision = revisions[candidate.id]
+        return { ...candidate, ...(candidate.id === 'docs' ? changes : {}), ...(previewRevision === undefined ? {} : { previewRevision }) }
+      })
+    })
+    const tabs = mountTabs(pictured({ cart: 1, docs: 2, news: 3 }))
     tabs.getTabPreviews.mockResolvedValueOnce([
-      { tabId: 'docs', navigationGeneration: 1, dataUrl: FRAME, width: 320, height: 200 },
-      { tabId: 'news', navigationGeneration: 9, dataUrl: FRAME, width: 320, height: 200 },
-      { tabId: 'cart', navigationGeneration: 1, dataUrl: 'javascript:alert(1)', width: 320, height: 200 }
+      { tabId: 'docs', navigationGeneration: 1, revision: 2, dataUrl: FRAME, width: 320, height: 200 },
+      { tabId: 'news', navigationGeneration: 9, revision: 3, dataUrl: FRAME, width: 320, height: 200 },
+      { tabId: 'cart', navigationGeneration: 1, revision: 1, dataUrl: 'javascript:alert(1)', width: 320, height: 200 }
     ])
     await tabs.showTabs()
     expect(tabs.getTabPreviews).toHaveBeenCalledWith(['cart', 'docs', 'news'])
@@ -304,10 +310,44 @@ describe('Home Tabs view', () => {
     expect(card('news').querySelector('.tab-card-preview img')).toBeNull()
     expect(card('cart').querySelector('.tab-card-preview img')).toBeNull()
     expect([...query('.tab-card-placeholder', card('news')).children].slice(1).map(words)).toEqual(['news.example.org', 'No preview yet'])
-    tabs.set(tabsState({ tabs: tabsState().tabs.map(candidate => candidate.id === 'docs' ? { ...candidate, navigationGeneration: 2 } : candidate) }))
+    // The person typed or scrolled in Docs since: main pictured the same page again, and the next visit shows that.
+    const newer = 'data:image/jpeg;base64,BBBB'
+    tabs.getTabPreviews.mockResolvedValueOnce([{ tabId: 'docs', navigationGeneration: 1, revision: 4, dataUrl: newer, width: 320, height: 200 }])
+    tabs.set(pictured({ cart: 1, docs: 4, news: 3 }))
+    await tabs.showTabs()
+    expect(tabs.getTabPreviews).toHaveBeenLastCalledWith(['cart', 'docs', 'news'])
+    expect(query<HTMLImageElement>('.tab-card-preview img', card('docs')).src).toBe(newer)
+    // Docs navigated, and main keeps no frame of the new page: its picture goes, and Home asks only for frames main has.
+    tabs.set(pictured({ cart: 1, news: 3 }, { navigationGeneration: 2 }))
     await tabs.showTabs()
     expect(card('docs').querySelector('.tab-card-preview img')).toBeNull()
-    expect(tabs.getTabPreviews).toHaveBeenLastCalledWith(['cart', 'docs', 'news'])
+    expect(tabs.getTabPreviews).toHaveBeenLastCalledWith(['cart', 'news'])
+  })
+
+  it('reads the tabs again when Home comes into view, and not while it is hidden', async () => {
+    let tabsChanged: (() => void) | undefined
+    const tabs = mountTabs(tabsState(), { onTabsChanged: listener => { tabsChanged = listener; return () => { tabsChanged = undefined } } })
+    await tabs.showTabs()
+    let hidden = false
+    const visibility = vi.spyOn(document, 'hidden', 'get').mockImplementation(() => hidden)
+    try {
+      // Tab X closes in the strip while Home is out of view; the notice is not read then.
+      hidden = true
+      document.dispatchEvent(new Event('visibilitychange'))
+      tabs.set(tabsState({ tabs: tabsState().tabs.filter(candidate => candidate.id !== 'news') }))
+      const reads = tabs.getTabs.mock.calls.length
+      tabsChanged!()
+      await vi.advanceTimersByTimeAsync(300)
+      expect(tabs.getTabs.mock.calls.length).toBe(reads)
+      // Choosing Home's tab in the strip shows it: the Tabs view reads at once, without a stale card for X.
+      hidden = false
+      document.dispatchEvent(new Event('visibilitychange'))
+      await flush()
+      expect(tabs.getTabs.mock.calls.length).toBe(reads + 1)
+      expect(document.querySelector('[data-result-key="open:news"]')).toBeNull()
+    } finally {
+      visibility.mockRestore()
+    }
   })
 
   it('drops a read that began before an action, so the action’s answer stands', async () => {

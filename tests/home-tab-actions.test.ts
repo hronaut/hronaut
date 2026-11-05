@@ -19,6 +19,12 @@ vi.mock('../src/main/browser/workspace-archive/workspace-archive.js', () => ({ d
 vi.mock('../src/main/browser/new-tabs/open-new-tab.js', () => ({ newTab: reach('newTab') }))
 
 const ICON = 'data:image/png;base64,AAAA'
+const EMULATION = {
+  network: 'none', cacheDisabled: false, bypassServiceWorker: false, dataSaver: 'auto', cpuThrottlingRate: 1, animationPlaybackRate: 1,
+  colorScheme: 'auto', reducedMotion: 'auto', mediaType: 'auto', forcedColors: 'auto', contrast: 'auto', reducedTransparency: 'auto',
+  visionDeficiency: 'none'
+} as const
+const frame = (tabId: string, navigationGeneration: number, revision: number) => ({ tabId, navigationGeneration, revision, dataUrl: ICON, width: 4, height: 4 })
 
 function tabState(id: string, overrides: Partial<BrowserTabState> = {}): BrowserTabState {
   return {
@@ -32,18 +38,28 @@ function harness(overrides: Partial<BrowserState> = {}) {
     activeTabId: 'home', allHumanInteractionLocked: false,
     mcpTabGroups: [{ id: 'shop', name: 'Shop', color: 'blue', activeTabId: null, description: 'not for Home' }],
     savedTabGroups: [{ id: 'old', name: 'Old', color: 'green', deletionProtected: true, storageOriginCount: 4, tabs: [{ title: 'Board', url: 'https://board.example.com/', label: 'B', faviconDataUrl: ICON }] }],
-    closedTabs: [{ id: 'closed', title: 'Gone', url: 'https://gone.example.com/', pinned: true, closedAt: '2026-11-05T01:00:00.000Z', mcpGroupId: 'shop' }],
+    closedTabs: [{ id: 'closed', title: 'Gone', url: 'https://ann:secret@gone.example.com/', pinned: true, closedAt: '2026-11-05T01:00:00.000Z', mcpGroupId: 'shop' }],
     tabs: [
       tabState('home', { url: 'hronaut://home/', title: 'Hronaut' }),
       tabState('docs', { mcpGroupId: 'shop', label: 'QA', labelDurabilityUnconfirmed: true }),
       tabState('news', { faviconDataUrl: `data:image/png;base64,${'A'.repeat(HOME_CARD_ICON_MAX_LENGTH)}`, humanInteractionLocked: true, humanInteractionInputLocked: false }),
-      tabState('icon', { faviconDataUrl: 'https://icon.example.com/favicon.ico' })
+      tabState('icon', {
+        faviconDataUrl: 'https://icon.example.com/favicon.ico',
+        emulation: {
+          ...EMULATION, userAgent: 'Secret UA/1.0', geolocation: { latitude: 50.45, longitude: 30.52, accuracy: 10 },
+          safeAreaInsets: { top: 44 }, extraHttpHeaderNames: ['X-Api-Key', 'X-Tenant'], locale: 'uk-UA'
+        }
+      })
     ],
     ...overrides
   } as unknown as BrowserState
   const urls = new Map(state.tabs.map(tab => [tab.id, tab.url]))
   const browser = {
     getState: () => state,
+    activeTabId: 'home' as string | null,
+    // Docs has a frame of its page; the frame of News is from an earlier page.
+    tabOverviewPreviews: new Map([['docs', frame('docs', 3, 7)], ['news', frame('news', 2, 8)]]),
+    tabOverviewSleepPreviews: new Map(),
     previousPageTabId: 'docs' as string | null,
     mcpActivitiesByTab: new Map([['docs', {}]]),
     tabs: { get: (id: string) => urls.has(id) ? { id, url: urls.get(id) } : undefined },
@@ -60,13 +76,23 @@ describe("Home's Tabs view state", () => {
     expect(result.tabs.map(tab => tab.id)).toEqual(['docs', 'news', 'icon'])
     expect(result.tabs[0]).toEqual({
       id: 'docs', workspaceId: 'shop', title: 'Page docs', label: 'QA', url: 'https://docs.example.com/', faviconDataUrl: ICON, loading: false,
-      sleeping: false, labelDurabilityUnconfirmed: true, pinned: false, muted: false, audible: false, locked: false, agentActive: true, navigationGeneration: 3
+      sleeping: false, labelDurabilityUnconfirmed: true, pinned: false, muted: false, audible: false, locked: false, agentActive: true, navigationGeneration: 3,
+      previewRevision: 7
     })
+    expect(result.tabs[1]).not.toHaveProperty('previewRevision')
     expect(result.workspaces).toEqual([{ id: 'shop', name: 'Shop', color: 'blue' }])
+    // An address keeps no user name or password written into it.
     expect(result.closedTabs).toEqual([{ id: 'closed', title: 'Gone', url: 'https://gone.example.com/', pinned: true, closedAt: '2026-11-05T01:00:00.000Z' }])
     expect(result.archivedWorkspaces).toEqual([{ id: 'old', name: 'Old', color: 'green', deletionProtected: true, tabs: [{ title: 'Board', label: 'B', url: 'https://board.example.com/' }] }])
     expect(result.previousTabId).toBe('docs')
     expect(result.locked).toBe(false)
+  })
+
+  it('names emulated conditions without their values, such as the user agent, location or header names', () => {
+    const { browser } = harness()
+    const icon = homeTabsState(browser as never).tabs[2]!
+    expect(icon.emulation).toEqual({ ...EMULATION, locale: 'uk-UA', userAgent: true, geolocation: true, safeAreaInsets: true, extraHttpHeaderCount: 2 })
+    expect(JSON.stringify(homeTabsState(browser as never))).not.toMatch(/Secret UA|50\.45|X-Api-Key|ann|secret/u)
   })
 
   it('leaves out site icons Home could not show and takes a page input lock over the tab lock', () => {
@@ -138,13 +164,20 @@ describe("Home's Tabs view actions", () => {
     expect(h.browser.deleteSavedTabGroup).not.toHaveBeenCalled()
   })
 
-  it('goes back only to a page that is still open and is not Home', async () => {
+  it('goes back only to a page that is still open and is not Home, and only while Home is shown', async () => {
     const h = harness()
     h.browser.previousPageTabId = 'home'
     await h.run({ kind: 'back' })
     h.browser.previousPageTabId = null
     await h.run({ kind: 'back' })
+    // A tab chosen meanwhile, by the person or an agent, is not undone by a late Escape.
+    h.browser.previousPageTabId = 'news'
+    h.browser.activeTabId = 'docs'
+    await h.run({ kind: 'back' })
     expect(h.browser.selectTabForPerson).not.toHaveBeenCalled()
+    h.browser.activeTabId = 'home'
+    await h.run({ kind: 'back' })
+    expect(h.browser.selectTabForPerson).toHaveBeenCalledWith('news')
   })
 
   it('carries only the fields of each action', () => {

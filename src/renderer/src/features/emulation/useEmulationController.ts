@@ -4,7 +4,7 @@ import type {
   BrowserState,
   BrowserTabState
 } from '../../../../shared/types.js'
-import { describeEmulation, emulationLabel } from '../../../../shared/emulation-description.js'
+import { describeEmulation, emulationLabel, emulationSummary } from '../../../../shared/emulation-description.js'
 
 type Translate = (key: string, parameters?: Record<string, unknown>, plural?: number) => string
 
@@ -29,8 +29,8 @@ export function useEmulationController(options: EmulationControllerOptions) {
   let resetOperation = 0
   let disposed = false
 
-  const label = (emulation: BrowserEmulationState): string => emulationLabel(emulation, options)
-  const describe = (emulation: BrowserEmulationState): string => describeEmulation(emulation, options)
+  const label = (emulation: BrowserEmulationState): string => emulationLabel(emulationSummary(emulation), options)
+  const describe = (emulation: BrowserEmulationState): string => describeEmulation(emulationSummary(emulation), options)
 
   function beginMutation(): number {
     return ++mutationSequence

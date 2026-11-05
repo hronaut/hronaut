@@ -1,7 +1,8 @@
 import type { HomeArchivedWorkspace, HomeClosedTab, HomeTab } from '../../../shared/home-tabs.js'
 import { BROWSER_TAB_GROUP_COLOR_HEX } from '../../../shared/tab-groups.js'
 import { tabTitleForDisplay } from '../../../shared/tab-title.js'
-import type { BrowserEmulationState, BrowserTabOverviewPreview } from '../../../shared/types.js'
+import type { EmulationSummary } from '../../../shared/emulation-description.js'
+import type { BrowserTabOverviewPreview } from '../../../shared/types.js'
 import { icon, type HomeIcon } from './icons.js'
 
 /** The words and number formats the Tabs view's cards use, in the interface language. */
@@ -10,7 +11,7 @@ export interface TabWords {
   /** A `one | other` message for the count. */
   count: (key: string, value: number) => string
   formatTime: (value: string) => string
-  describeEmulation: (emulation: BrowserEmulationState) => string
+  describeEmulation: (emulation: EmulationSummary) => string
 }
 
 export type TabResultKind = 'open' | 'closed' | 'saved'

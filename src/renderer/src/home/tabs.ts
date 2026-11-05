@@ -30,8 +30,10 @@ const keyOf = (kind: TabResultKind, id: string): string => `${kind}:${id}`
 const VALID_FRAME = /^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/u
 
 /** A kept frame still shows the tab: its page has not changed, and it is the frame from before sleep exactly while it sleeps. */
+/** Whether the frame is the one main holds for the tab now: of its page, asleep or not as the tab is, and as new. */
 function frameMatches(frame: BrowserTabOverviewPreview, tab: HomeTab): boolean {
   return frame.navigationGeneration === tab.navigationGeneration && tab.sleeping === (frame.sleeping === true)
+    && tab.previewRevision !== undefined && frame.revision === tab.previewRevision
 }
 
 /** Puts `children` into `container` in order, moving only the nodes out of place, and drops the rest. */
@@ -100,8 +102,10 @@ export function mountTabs(data: HomeBootstrap, api: HronautHomeApi, signal: Abor
   let visible = false
   let pending = false
   let revision = 0
-  let readSequence = 0
+  let reading: Promise<void> | null = null
+  let readAgain = false
   let readingFrames = false
+  let readFramesAgain = false
   let order: Result[] = []
   const frames = new Map<string, BrowserTabOverviewPreview>()
   const edits = new Map<string, LabelEdit>()
@@ -152,13 +156,27 @@ export function mountTabs(data: HomeBootstrap, api: HronautHomeApi, signal: Abor
     }
   }
 
-  async function read(): Promise<void> {
+  /**
+   * Reads the tabs, one read at a time: a read asked for meanwhile runs once that one ends, so under constant tab
+   * changes a slow read is never dropped for a newer one that is dropped in turn.
+   */
+  function read(): Promise<void> {
+    if (reading) { readAgain = true; return reading }
+    const current = readOnce().finally(() => {
+      reading = null
+      if (readAgain && visible && !signal.aborted) { readAgain = false; void read() }
+    })
+    reading = current
+    return current
+  }
+
+  async function readOnce(): Promise<void> {
     if (!api.getTabs || signal.aborted) return
-    const sequence = ++readSequence
     const startedAt = revision
     try {
       const next = await api.getTabs()
-      if (signal.aborted || sequence !== readSequence || startedAt !== revision) return
+      // An action that ran meanwhile answered with newer tabs.
+      if (signal.aborted || startedAt !== revision) return
       apply(next)
     } catch { /* The view keeps the tabs it last read; the next read tries again. */ }
   }
@@ -176,10 +194,14 @@ export function mountTabs(data: HomeBootstrap, api: HronautHomeApi, signal: Abor
     void readFrames()
   }
 
-  /** Main keeps a frame of each tab from when it was last in view; Home asks only for the ones it does not have. */
+  /**
+   * Main keeps a frame of each tab from when it was last in view; Home asks only for the ones it does not have yet, or
+   * has an older one of.
+   */
   async function readFrames(): Promise<void> {
-    if (!state || !api.getTabPreviews || readingFrames || signal.aborted) return
-    const wanted = state.tabs.filter(tab => !frames.has(tab.id)).map(tab => tab.id)
+    if (!state || !api.getTabPreviews || signal.aborted) return
+    if (readingFrames) { readFramesAgain = true; return }
+    const wanted = state.tabs.filter(tab => tab.previewRevision !== undefined && !frames.has(tab.id)).map(tab => tab.id)
     if (!wanted.length) return
     readingFrames = true
     try {
@@ -196,6 +218,8 @@ export function mountTabs(data: HomeBootstrap, api: HronautHomeApi, signal: Abor
       if (changed) render()
     } catch { /* Pictures are optional: the cards keep their placeholders. */ } finally {
       readingFrames = false
+      // Tabs read meanwhile may want frames this answer did not cover.
+      if (readFramesAgain && !signal.aborted) { readFramesAgain = false; void readFrames() }
     }
   }
 
@@ -642,8 +666,10 @@ export function mountTabs(data: HomeBootstrap, api: HronautHomeApi, signal: Abor
       error.hidden = true
       if (preview.isOpen()) { preview.hide(); browse.hidden = false }
       setKind('all')
-      // Selected once the tabs are read: the ones shown until then may be from an earlier visit.
+      // Selected once the tabs are read: the ones shown until then may be from an earlier visit, and a read already
+      // under way may be too, so it gives way to a new one.
       preferCurrent = true
+      ++revision
       // The view starts at its top, so the search field taking the keyboard is in sight, wherever Home was scrolled.
       document.scrollingElement?.scrollTo?.({ top: 0 })
       search.focus({ preventScroll: true })

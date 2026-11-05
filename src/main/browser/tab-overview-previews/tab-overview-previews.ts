@@ -7,6 +7,7 @@ import { PrintDialogOpenError } from '../print-dialog-guard.js'
 import { WebsiteDialogOpenError } from '../website-dialog-guard.js'
 import type { Browser } from '../browser.js'
 import { findTab, getTab } from '../browser-core.js'
+import { isHronautHomeUrl } from '../url.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { withDebugger } from '../debugger-lease/debugger-lease.js'
 import { withRenderableTab } from '../renderable-tab/renderable-tab.js'
@@ -30,6 +31,8 @@ const TAB_OVERVIEW_PAGE_TIMEOUT_MS = 5_000
 const MAX_TAB_OVERVIEW_PAGE_CAPTURES = 2
 /** How long a tab's overview preview waits for its page to settle, unless the caller says otherwise. */
 const TAB_OVERVIEW_PREVIEW_SETTLE_MS = 250
+/** The revision of the latest stored frame, of any tab; each new frame takes the next one. */
+let lastPreviewRevision = 0
 
 /**
  * The last-good frames of the given tabs for Home's Tabs view, each from when its tab was last in view, a sleeping
@@ -189,6 +192,8 @@ export function scheduleTabOverviewPreview(browser: Browser, tab: BrowserTab, se
     || findTab(browser, tab.id) !== tab
     || tab.webContents.isDestroyed()
     || tab.sleeping
+    // Home lists the other tabs and is never pictured itself.
+    || isHronautHomeUrl(tab.url)
     || (tab.id !== browser.activeTabId && !browser.splitViewContains(tab.id))
   ) return
   const sequence = ++tab.overviewPreviewSequence
@@ -282,7 +287,8 @@ export function storeTabOverviewPreview(
     navigationGeneration,
     dataUrl: `data:image/jpeg;base64,${jpeg.toString('base64')}`,
     width: size.width,
-    height: size.height
+    height: size.height,
+    revision: ++lastPreviewRevision
   })
 }
 

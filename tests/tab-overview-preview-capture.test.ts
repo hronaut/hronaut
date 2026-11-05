@@ -4,7 +4,8 @@ import type { Browser } from '../src/main/browser/browser.js'
 vi.mock('electron', () => ({ nativeImage: {} }))
 
 const { NativePreviewCapture } = await import('../src/main/browser/native-preview-capture.js')
-const { performTabOverviewPreviewCapture } = await import('../src/main/browser/tab-overview-previews/tab-overview-previews.js')
+const { performTabOverviewPreviewCapture, scheduleTabOverviewPreview, storeTabOverviewPreview } =
+  await import('../src/main/browser/tab-overview-previews/tab-overview-previews.js')
 type Tab = Parameters<typeof performTabOverviewPreviewCapture>[1]
 
 function deferred() {
@@ -59,5 +60,32 @@ describe('tab overview preview capture', () => {
     finishOther()
     await new Promise(resolve => setImmediate(resolve))
     expect(scheduled()).toBe(false)
+  })
+
+  it('never pictures Home, which lists the other tabs', () => {
+    const { tab, browser, scheduled } = busyTab()
+    tab.url = 'hronaut://home/'
+    scheduleTabOverviewPreview(browser, tab)
+    expect(scheduled()).toBe(false)
+    tab.url = 'https://example.test/'
+    scheduleTabOverviewPreview(browser, tab)
+    expect(scheduled()).toBe(true)
+    clearTimeout(browser.tabOverviewPreviewTimers.get(tab.id))
+  })
+
+  it('gives each stored frame a newer revision, so Home knows to read it again', () => {
+    const { tab, browser } = busyTab()
+    const previews = new Map<string, { revision?: number }>()
+    Object.assign(browser, { tabOverviewPreviews: previews })
+    const jpeg = Buffer.from('jpeg')
+    const image = {
+      isEmpty: () => false, getSize: () => ({ width: 480, height: 300 }), toJPEG: () => jpeg
+    } as unknown as Electron.NativeImage
+    storeTabOverviewPreview(browser, tab, image, 1)
+    const first = previews.get(tab.id)?.revision
+    storeTabOverviewPreview(browser, tab, image, 1)
+    const second = previews.get(tab.id)?.revision
+    expect(first).toEqual(expect.any(Number))
+    expect(second).toBeGreaterThan(first!)
   })
 })

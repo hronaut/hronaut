@@ -7,6 +7,29 @@ export interface EmulationWording {
   formatPercent: (value: number) => string
 }
 
+/**
+ * The emulated conditions as a description names them: whether a user agent, location or safe area is set and how many
+ * extra headers, without their values.
+ */
+export type EmulationSummary = Omit<BrowserEmulationState, 'userAgent' | 'geolocation' | 'safeAreaInsets' | 'extraHttpHeaderNames'> & {
+  userAgent?: true
+  geolocation?: true
+  safeAreaInsets?: true
+  extraHttpHeaderCount?: number
+}
+
+/** The conditions a description names, and nothing a description leaves out, such as the location's coordinates. */
+export function emulationSummary(emulation: BrowserEmulationState): EmulationSummary {
+  const { userAgent, geolocation, safeAreaInsets, extraHttpHeaderNames, ...shown } = emulation
+  return {
+    ...shown,
+    ...(userAgent ? { userAgent: true } : {}),
+    ...(geolocation ? { geolocation: true } : {}),
+    ...(safeAreaInsets ? { safeAreaInsets: true } : {}),
+    ...(extraHttpHeaderNames?.length ? { extraHttpHeaderCount: extraHttpHeaderNames.length } : {})
+  }
+}
+
 function networkLabel(network: BrowserEmulationState['network'], format: EmulationWording): string {
   if (network === 'slow-3g') return format.translate('environment.network.slow3g')
   if (network === 'slow-4g') return format.translate('environment.network.slow4g')
@@ -26,7 +49,7 @@ function visionDeficiencyLabel(value: BrowserEmulationState['visionDeficiency'],
 }
 
 /** The one condition a short label names, such as the emulated network or viewport. */
-export function emulationLabel(emulation: BrowserEmulationState, format: EmulationWording): string {
+export function emulationLabel(emulation: EmulationSummary, format: EmulationWording): string {
   const animationPlaybackRate = emulation.animationPlaybackRate ?? 1
   if (emulation.network !== 'none') return networkLabel(emulation.network, format)
   if (emulation.cacheDisabled) return format.translate('runtime.emulation.cacheDisabled')
@@ -77,15 +100,15 @@ export function emulationLabel(emulation: BrowserEmulationState, format: Emulati
   if (emulation.renderingDebug?.layerBorders) return format.translate('runtime.emulation.layers')
   if (emulation.renderingDebug?.fpsCounter) return format.translate('runtime.emulation.frames')
   if (emulation.renderingDebug?.scrollBottlenecks) return format.translate('runtime.emulation.scroll')
-  if (emulation.extraHttpHeaderNames?.length) {
-    const count = emulation.extraHttpHeaderNames.length
+  if (emulation.extraHttpHeaderCount) {
+    const count = emulation.extraHttpHeaderCount
     return format.translate('runtimeDetails.headers', { count: format.formatNumber(count) }, count)
   }
   return format.translate('runtime.emulation.custom')
 }
 
 /** Every emulated condition, comma-separated, as the tab's details and its card in Home's Tabs view list them. */
-export function describeEmulation(emulation: BrowserEmulationState, format: EmulationWording): string {
+export function describeEmulation(emulation: EmulationSummary, format: EmulationWording): string {
   const conditions: string[] = []
   const animationPlaybackRate = emulation.animationPlaybackRate ?? 1
   if (emulation.network !== 'none') conditions.push(networkLabel(emulation.network, format))
@@ -144,8 +167,8 @@ export function describeEmulation(emulation: BrowserEmulationState, format: Emul
   if (emulation.renderingDebug?.fpsCounter) conditions.push(format.translate('runtimeDetails.emulation.frames'))
   if (emulation.renderingDebug?.scrollBottlenecks) conditions.push(format.translate('runtimeDetails.emulation.scroll'))
   if (emulation.userAgent) conditions.push(format.translate('runtimeDetails.emulation.userAgent'))
-  if (emulation.extraHttpHeaderNames?.length) {
-    const count = emulation.extraHttpHeaderNames.length
+  if (emulation.extraHttpHeaderCount) {
+    const count = emulation.extraHttpHeaderCount
     conditions.push(format.translate('runtimeDetails.emulation.customHeaders', { count: format.formatNumber(count) }, count))
   }
   return conditions.join(', ') || format.translate('runtimeDetails.emulation.custom')
