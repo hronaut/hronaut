@@ -238,7 +238,7 @@ pre { min-height: 88px; margin: 0; padding: 16px 74px 16px 16px; overflow: auto;
 .workspace-primary { background: var(--accent) !important; color: var(--button-text) !important; border-color: transparent !important; }
 /* A view's own filters are small pills under Home's tabs, so they read as part of the view rather than a second row of tabs. */
 .workspace-collections { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
-.workspace-collections button { min-height: 32px; padding: 5px 12px; border: 1px solid transparent; border-radius: 999px; color: var(--muted); background: transparent; font-size: var(--type-small-size); font-weight: 500; }
+.workspace-collections button { min-height: 32px; padding: 5px 12px; border: 1px solid transparent; border-radius: var(--corner-pill); color: var(--muted); background: transparent; font-size: var(--type-small-size); font-weight: 500; }
 .workspace-collections button:hover { color: var(--text); background: var(--soft); }
 .workspace-collections button[aria-selected=true] { border-color: var(--border); color: var(--text); background: var(--panel); box-shadow: var(--elevation-1); font-weight: 600; }
 #workspace-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px; }
