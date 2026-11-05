@@ -13,6 +13,7 @@ import { newTab } from '../browser/new-tabs/open-new-tab.js'
 import { UPDATES_IPC } from '../../shared/ipc/updates.js'
 import { SHELL_IPC } from '../../shared/ipc/shell.js'
 import { sendTo } from '../typed-ipc.js'
+import { requestShellShortcut } from './shell-key-handoff.js'
 
 type MenuClick = NonNullable<MenuItemConstructorOptions['click']>
 
@@ -355,7 +356,7 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
               click: () => {
                 host.showWindow()
                 const mainWindow = host.mainWindow()
-                if (mainWindow) sendTo(mainWindow.webContents, SHELL_IPC.shortcutRequested, 'command-palette')
+                if (mainWindow) requestShellShortcut(mainWindow.webContents, 'command-palette')
               }
             },
             {

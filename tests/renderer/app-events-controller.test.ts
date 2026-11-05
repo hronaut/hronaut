@@ -11,7 +11,7 @@ import type {
 
 type EventListeners = {
   attention?: () => void
-  shortcut?: (action: BrowserShortcutAction) => void
+  shortcut?: (action: BrowserShortcutAction) => unknown
   tabGroupEdit?: (groupId: string) => void
   newTab?: (workspaceId: string | undefined) => void
   visitHistory?: () => void
@@ -162,6 +162,30 @@ describe('app events controller', () => {
     await vi.waitFor(() => expect(harness.callbacks.onError).toHaveBeenCalledWith(failure))
 
     harness.controller.dispose()
+  })
+
+  it('hands back when a shortcut is carried out, so main sends on the keys typed meanwhile, even when it failed', async () => {
+    const harness = createHarness()
+    let finish!: () => void
+    harness.callbacks.onShortcut.mockReturnValueOnce(new Promise<void>((resolve) => { finish = resolve }))
+    let carriedOut = false
+    void Promise.resolve(harness.listeners.shortcut?.('focus-address')).then(() => { carriedOut = true })
+    await Promise.resolve()
+    expect(carriedOut).toBe(false)
+    finish()
+    await vi.waitFor(() => expect(carriedOut).toBe(true))
+
+    const failure = new Error('find unavailable')
+    harness.callbacks.onShortcut.mockRejectedValueOnce(failure)
+    await expect(harness.listeners.shortcut?.('find')).resolves.toBeUndefined()
+    expect(harness.callbacks.onError).toHaveBeenCalledWith(failure)
+    harness.callbacks.onShortcut.mockImplementationOnce(() => { throw failure })
+    expect(harness.listeners.shortcut?.('find')).toBeUndefined()
+    expect(harness.callbacks.onError).toHaveBeenCalledTimes(2)
+
+    harness.controller.dispose()
+    expect(harness.listeners.shortcut?.('find')).toBeUndefined()
+    expect(harness.callbacks.onShortcut).toHaveBeenCalledTimes(3)
   })
 
   it('contains synchronous native-event callback failures through the same boundary', () => {
