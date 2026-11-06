@@ -141,6 +141,11 @@ export interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordi
   mutedBySite: boolean
   /** Whether its website was muted when that setting was last applied to the tab; runtime only. */
   siteMuteApplied: boolean
+  /**
+   * The document shown when the person changed a permission of its website, which applies once it loads again, so Site
+   * controls offer to reload it while it shows; runtime only.
+   */
+  permissionReloadOffered?: number
   view: WebContentsView
   // Keep the WebContents handle independently from WebContentsView. Electron
   // can invalidate the view's webContents getter during native-view teardown,

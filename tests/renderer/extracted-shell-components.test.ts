@@ -149,11 +149,14 @@ describe('extracted shell components', () => {
     expect(screen.getByRole('button', { name: 'Site controls for example.test' })).toHaveFocus()
     expect(view.emitted()['update:siteControlsOpen']).toBeUndefined()
 
-    // The page goes on with what it was allowed until it loads again, which the panel offers.
+    // The page goes on with what it was allowed until it loads again, which the panel offers while the tab says so.
     const offer = 'To apply your updated settings to this site, reload this page'
+    expect(screen.queryByText(offer)).toBeNull()
+    await view.rerender({ activeTab: { ...tab(), permissionReloadOffered: true } })
     expect(screen.getByText(offer)).toBeVisible()
     await user.click(within(screen.getByRole('dialog', { name: 'example.test' })).getByRole('button', { name: 'Reload' }))
     expect(reloadTab).toHaveBeenCalledExactlyOnceWith('tab-1')
+    await view.rerender({ activeTab: tab() })
     expect(screen.queryByText(offer)).toBeNull()
   })
 

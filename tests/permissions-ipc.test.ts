@@ -84,6 +84,23 @@ describe('permissions bridge', () => {
     expect(store.list()).toEqual(before)
   })
 
+  it('names the decisions a change, a Forget or clearing them all changed, so their open pages can offer to reload', async () => {
+    const { invoke, publishSitePermissions } = await createBridge()
+    await invoke('permissions:set', origin, 'geolocation', 'deny', { workspaceId: WORK, embeddedIn: `${page}/room` })
+    expect(publishSitePermissions).toHaveBeenLastCalledWith([
+      { origin, permission: 'geolocation', decision: 'deny', workspaceId: WORK, embeddedIn: page }
+    ])
+    await invoke('permissions:remove', `${origin}/path`, 'geolocation', { workspaceId: WORK })
+    expect(publishSitePermissions).toHaveBeenLastCalledWith([{ origin, permission: 'geolocation', workspaceId: WORK }])
+    // Forgetting a decision that is not there changes none.
+    await invoke('permissions:remove', origin, 'geolocation', { workspaceId: WORK })
+    expect(publishSitePermissions).toHaveBeenLastCalledWith([])
+    await invoke('permissions:clear')
+    expect(publishSitePermissions).toHaveBeenLastCalledWith([
+      { origin, permission: 'geolocation', decision: 'deny', workspaceId: WORK, embeddedIn: page }
+    ])
+  })
+
   it('creates a decision for the workspace a change names', async () => {
     const { invoke, publishSitePermissions } = await createBridge()
     await expect(invoke('permissions:set', origin, 'notifications', 'allow', { workspaceId: WORK }))

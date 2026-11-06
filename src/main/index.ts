@@ -119,7 +119,7 @@ import { browserState } from './browser/browser-state/browser-state.js'
 import { browserImportDestination, importBrowserCookies } from './browser/workspace-data/browser-cookie-import.js'
 import { withholdFocusAfterTrustedChrome, keyboardPage, focusPageAfterQuestion } from './browser/trusted-chrome-focus/trusted-chrome-focus.js'
 import { windowFullScreenToSave } from './browser/page-fullscreen/page-fullscreen.js'
-import { applySiteMutingToTabs } from './browser/site-muting/site-muting.js'
+import { applySitePermissionChanges } from './browser/site-permission-changes/site-permission-changes.js'
 import { handleMcpTabActivity } from './browser/agent-follow/agent-follow.js'
 import { noteShellKey } from './browser/tab-events/shell-held-keys.js'
 
@@ -1139,10 +1139,10 @@ function registerIpc(): void {
   registerPermissionsIpc(hronautIpcMain, {
     assertTrustedSender: assertTrustedShellSender,
     sitePermissionStore: () => browserSessionState.sitePermissionStore,
-    publishSitePermissions: () => {
+    publishSitePermissions: (changed) => {
       publishSitePermissions()
-      // A website's Sound setting changed or forgotten in Settings mutes or unmutes its open tabs at once, as in Chrome.
-      if (tabRuntime.tabs) applySiteMutingToTabs(tabRuntime.tabs)
+      // Decisions changed or forgotten in Settings or Site controls reach the open tabs as in Chrome: Sound at once.
+      if (tabRuntime.tabs) applySitePermissionChanges(tabRuntime.tabs, changed)
     }
   })
   registerCredentialsIpc(hronautIpcMain, {
