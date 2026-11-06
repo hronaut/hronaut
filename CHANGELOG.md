@@ -14,6 +14,7 @@ All notable changes to Hronaut are documented in this file.
 - A tab you close after its page crashed or could not load is now listed in Recently closed by its page's title, or by its address, rather than as Page unavailable or Site unavailable, and it reopens with that title, as in Chrome.
 - Undo after closing several tabs at once, the one you were on among them, such as selected tabs or with Close other tabs, now shows that tab again, with the others back behind it, rather than leaving you on the tab that replaced them.
 - Clicking or touching a page of a split view whose input you locked now makes it the active pane, so Unlock input beside the address bar acts on it, as after any other click on either page. The page still gets none of it.
+- A tab whose page had crashed or could not load now comes back after a restart, or with its archived workspace, by its page's title or its address, as in Chrome, rather than as Page unavailable or Site unavailable.
 
 ## [3.14.18] - 2026-11-06
 

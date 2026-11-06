@@ -1,11 +1,16 @@
+import type { BrowserPageProblem } from '../../../shared/types.js'
 import type { Browser } from '../browser.js'
 import { orderedTabs } from '../browser-core.js'
+import type { BrowserTab } from '../browser-tab.js'
+import type { NavigationHistorySnapshot } from '../navigation-history.js'
+import { pageOwnTitle } from '../tab-events/page-own-title.js'
 import { MAX_TABS, TAB_STATE_VERSION, type PersistedBrowserState, type PersistedTab } from '../tab-store.js'
 
 /** The tab fields the saved browser state keeps: what the tab shows, its pin, mute, locks, zoom, font, favicon and workspace. */
 export interface PersistedStateTab {
   id: string
   title: string
+  pageProblem?: BrowserPageProblem
   label?: string
   url: string
   pinned: boolean
@@ -26,11 +31,15 @@ export interface WorkspaceBeingDeleted {
   tabs: PersistedTab[]
 }
 
-/** What the saved session keeps of a tab: what it shows, its pin, mute, locks, zoom, font, favicon and workspace. */
-export function persistedTab(tab: PersistedStateTab): PersistedTab {
+/**
+ * What the saved session keeps of a tab: what it shows, its pin, mute, locks, zoom, font, favicon and workspace. A tab
+ * titled for its crash or failed load, such as Page unavailable, is kept by its page's title in its history, so it comes
+ * back by its page, as in Chrome.
+ */
+export function persistedTab(tab: PersistedStateTab, history: () => NavigationHistorySnapshot): PersistedTab {
   return {
     id: tab.id,
-    title: tab.title,
+    title: pageOwnTitle(tab, history),
     ...(tab.label ? { label: tab.label } : {}),
     url: tab.url,
     pinned: tab.pinned,
@@ -49,16 +58,16 @@ export function persistedTab(tab: PersistedStateTab): PersistedTab {
  * open as it is now. The closed ones fit in only beside the open tabs, so the saved session never holds more tabs than
  * the next start takes; those that do not fit are left out.
  */
-function tabsBeingDeleted(openTabs: readonly PersistedStateTab[], workspaces: ReadonlyMap<string, WorkspaceBeingDeleted>): Map<string, PersistedTab[]> {
+function tabsBeingDeleted(browser: Browser, openTabs: readonly BrowserTab[]): Map<string, PersistedTab[]> {
   const open = new Map(openTabs.map((tab) => [tab.id, tab]))
   let room = MAX_TABS - openTabs.length
   const saved = new Map<string, PersistedTab[]>()
-  for (const [workspaceId, workspace] of workspaces) {
+  for (const [workspaceId, workspace] of browser.workspacesBeingDeleted) {
     const tabs: PersistedTab[] = []
     for (const tab of workspace.tabs) {
       const stillOpen = open.get(tab.id)
       if (stillOpen) {
-        tabs.push(persistedTab(stillOpen))
+        tabs.push(persistedTab(stillOpen, () => browser.navigationHistorySnapshot(stillOpen)))
       } else if (room > 0) {
         tabs.push({ ...tab })
         room -= 1
@@ -80,10 +89,13 @@ function tabsBeingDeleted(openTabs: readonly PersistedStateTab[], workspaces: Re
 export function persistedState(browser: Browser): PersistedBrowserState {
   if (browser.destroyed) throw new Error('Browser is closing; session save canceled.')
   const openTabs = orderedTabs(browser)
-  const deleting = tabsBeingDeleted(openTabs, browser.workspacesBeingDeleted)
+  const deleting = tabsBeingDeleted(browser, openTabs)
   // A tab the close has not reached yet, or a failed deletion has reopened, is saved once, in its place.
   const deletingTabIds = new Set([...deleting.values()].flatMap((tabs) => tabs.map((tab) => tab.id)))
-  const tabs = [...openTabs.filter((tab) => !deletingTabIds.has(tab.id)).map(persistedTab), ...[...deleting.values()].flat()]
+  const tabs = [
+    ...openTabs.filter((tab) => !deletingTabIds.has(tab.id)).map((tab) => persistedTab(tab, () => browser.navigationHistorySnapshot(tab))),
+    ...[...deleting.values()].flat()
+  ]
   const savedTabIds = new Set(tabs.map((tab) => tab.id))
   return {
     version: TAB_STATE_VERSION,
