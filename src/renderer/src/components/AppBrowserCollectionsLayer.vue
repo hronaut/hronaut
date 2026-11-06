@@ -36,7 +36,8 @@ const {
   openHistoryEntryInBackground,
   copyHistoryAddress,
   copyDownloadPath,
-  copyBookmarkAddress
+  copyBookmarkAddress,
+  returnKeyboardToPage
 } = props.controller
 </script>
 
@@ -91,5 +92,6 @@ const {
     :open-history-entry="openHistoryEntry"
     :open-history-entry-in-background="openHistoryEntryInBackground"
     :copy-history-address="copyHistoryAddress"
+    :return-keyboard="returnKeyboardToPage"
   />
 </template>

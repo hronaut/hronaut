@@ -60,14 +60,19 @@ export function createBrowserShortcutRouting(host: BrowserShortcutRoutingHost): 
     const browser = host.tabs()
     if (browser && !action.startsWith('zoom-')) exitPageFullscreen(browser)
     if (host.mainWindowRefs.window && !host.mainWindowRefs.window.webContents.isDestroyed()) {
+      // History's key closes History while it is open, and the page keeps the keyboard and the keys typed next.
+      const closesHistory = action === 'visit-history' && browser?.shellHistoryShown === true
       // The page WebContentsView owns native focus when a website shortcut is
       // pressed. Move it to trusted chrome before the renderer focuses a
       // field, otherwise the DOM selection is visible while typed keys keep
-      // going to the website. Bookmark all tabs asks for a collection's name.
-      if (action === 'find' || action === 'find-next' || action === 'find-previous' || action === 'focus-address' || action === 'bookmark-all-tabs') {
+      // going to the website. Bookmark all tabs asks for a collection's name, and History puts the keyboard in its
+      // search, as Chrome's History page does.
+      if (action === 'find' || action === 'find-next' || action === 'find-previous' || action === 'focus-address'
+        || action === 'bookmark-all-tabs' || (action === 'visit-history' && !closesHistory)) {
         host.mainWindowRefs.window.webContents.focus()
       }
-      requestShellShortcut(host.mainWindowRefs.window.webContents, action)
+      if (closesHistory) requestShellShortcut(host.mainWindowRefs.window.webContents, action, false)
+      else requestShellShortcut(host.mainWindowRefs.window.webContents, action)
     }
   }
 

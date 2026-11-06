@@ -60,6 +60,7 @@ function createHarness() {
     closeSettings: vi.fn(() => { surfaces.settings.value = false }),
     closeFind: vi.fn(() => { surfaces.find.value = false }),
     closeBookmarks: vi.fn(() => { surfaces.bookmarks.value = false }),
+    closeHistory: vi.fn(() => { surfaces.history.value = false }),
     closeResponsivePreview: vi.fn(() => { surfaces.responsivePreview.value = false }),
     toggleAreaCapture: vi.fn(async () => { surfaces.areaCaptureState.value = 'idle' }),
     cancelElementPicker: vi.fn(async () => { surfaces.elementPickerState.value = 'idle' }),
@@ -98,7 +99,8 @@ function createHarness() {
         toggleCurrent: vi.fn(async () => undefined),
         bookmarkAllTabs: vi.fn(async () => undefined)
       }),
-      historyOpen: surfaces.history
+      historyOpen: surfaces.history,
+      historyPanel: ref({ toggle: vi.fn(async () => undefined), close: actions.closeHistory })
     },
     pageTools: {
       panelOpen: surfaces.pageTools,
@@ -152,7 +154,9 @@ describe('useAppShellKeyboardFeatureController', () => {
     expect(actions.closeBookmarks).toHaveBeenCalledOnce()
     expect(surfaces.history.value).toBe(true)
 
+    // Through History's own close, which gives the page back the keyboard that was in History.
     controller.handleKeyDown(new KeyboardEvent('keydown', { key: 'Escape' }))
+    expect(actions.closeHistory).toHaveBeenCalledOnce()
     expect(surfaces.history.value).toBe(false)
   })
 

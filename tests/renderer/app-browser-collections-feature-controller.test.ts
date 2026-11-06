@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import type {
   BrowserBookmark,
@@ -100,16 +100,19 @@ function createHarness(bookmarkAllTabsOptions: Pick<AppBrowserCollectionsFeature
   const newTabResult = Promise.resolve(browserState)
   const newTab = vi.fn(() => newTabResult)
   const copyText = vi.fn(async () => undefined)
+  const focusActivePage = vi.fn(async () => undefined)
+  const setHistoryShown = vi.fn()
   const syncState = vi.fn(async (operation: Promise<BrowserState>) => {
     await operation
   })
   const controller = useAppBrowserCollectionsFeatureController({
-    browser: { newTab, copyText },
+    browser: { newTab, copyText, focusActivePage },
     downloadsApi,
     bookmarksApi,
     historyApi,
     settingsOpen,
     syncState,
+    historyShown: { setHistoryShown },
     ...bookmarkAllTabsOptions
   })
 
@@ -120,6 +123,8 @@ function createHarness(bookmarkAllTabsOptions: Pick<AppBrowserCollectionsFeature
     newTab,
     newTabResult,
     copyText,
+    focusActivePage,
+    setHistoryShown,
     syncState,
     emitDownloads: (downloads: BrowserDownloadState[]) => downloadsChanged(downloads),
     unsubscribeDownloads,
@@ -146,6 +151,28 @@ describe('useAppBrowserCollectionsFeatureController', () => {
     expect(h.copyText).toHaveBeenCalledExactlyOnceWith(row.url)
     expect(h.newTab).not.toHaveBeenCalled()
     expect(h.syncState).not.toHaveBeenCalled()
+    h.controller.dispose()
+  })
+
+  it('gives the keyboard to the page in view when History hands it back, even when the page cannot take it', async () => {
+    const h = createHarness()
+    h.controller.returnKeyboardToPage()
+    expect(h.focusActivePage).toHaveBeenCalledOnce()
+    h.focusActivePage.mockRejectedValueOnce(new Error('The window is gone.'))
+    h.controller.returnKeyboardToPage()
+    await Promise.resolve()
+    expect(h.focusActivePage).toHaveBeenCalledTimes(2)
+    h.controller.dispose()
+  })
+
+  it('tells main whether History is open, from the start, so that its key in a page closes it there', async () => {
+    const h = createHarness()
+    expect(h.setHistoryShown.mock.calls).toEqual([[false]])
+    h.controller.historyOpen.value = true
+    await nextTick()
+    h.controller.historyOpen.value = false
+    await nextTick()
+    expect(h.setHistoryShown.mock.calls).toEqual([[false], [true], [false]])
     h.controller.dispose()
   })
 
@@ -180,7 +207,7 @@ describe('useAppBrowserCollectionsFeatureController', () => {
       bookmarkAllTabs: vi.fn(async () => undefined),
       handleEscape: vi.fn()
     }
-    harness.controller.historyPanel.value = { toggle: historyToggle }
+    harness.controller.historyPanel.value = { toggle: historyToggle, close: vi.fn() }
 
     expect(harness.controller.downloads).toBe(harness.controller.browserCollectionsController.downloads)
     expect(harness.controller.bookmarks).toBe(harness.controller.browserCollectionsController.bookmarks)

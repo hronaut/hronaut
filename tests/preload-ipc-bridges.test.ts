@@ -416,6 +416,7 @@ const sends: Array<[api: string, method: string, args: unknown[], channel: strin
   ['hronautShell', 'setWindowControlsScrim', ['rgba(0, 0, 0, 0.5)'], 'shell:window-controls-scrim', ['rgba(0, 0, 0, 0.5)']],
   ['hronautShell', 'setWindowControlsScrim', [null], 'shell:window-controls-scrim', [null]],
   ['hronautShell', 'setFollowAgentActivitySuspended', [true], 'browser:follow-agent-activity-suspended', [true]],
+  ['hronautShell', 'setHistoryShown', [true], 'shell:history-shown', [true]],
   ['hronautTrustedDialogs', 'ready', [], 'trusted-dialogs:ready', []],
   ['hronautTrustedDialogs', 'respond', ['dialog-1', 0], 'trusted-dialogs:respond', ['dialog-1', 0]],
   ['hronautTrustedDialogs', 'dismiss', ['dialog-1'], 'trusted-dialogs:dismiss', ['dialog-1']],

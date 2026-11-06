@@ -142,4 +142,11 @@ export function registerShellIpc(ipcMain: Pick<TypedIpcMain, 'handle' | 'on'>, h
     const browser = host.tabs()
     if (browser) browser.shellTabField = field
   })
+  ipcMain.on(SHELL_IPC.historyShown, (event, shown: unknown) => {
+    if (host.workspaceStartupFailure()) return
+    host.assertMainShellSender(event)
+    if (typeof shown !== 'boolean') throw new TypeError('Invalid History state')
+    const browser = host.tabs()
+    if (browser) browser.shellHistoryShown = shown
+  })
 }

@@ -29,6 +29,8 @@ export const SHELL_IPC = {
   followAgentActivitySuspended: 'browser:follow-agent-activity-suspended' as SendChannel<[suspended: boolean]>,
   /** Main window → main: the shown tab's field that has the keyboard in the shell, or null, kept for when the person leaves the tab. */
   tabFieldFocused: 'shell:tab-field-focused' as SendChannel<[field: ShellTabField | null]>,
+  /** Main window → main: whether History is open, which its key pressed in a page then closes, leaving the page the keyboard. */
+  historyShown: 'shell:history-shown' as SendChannel<[shown: boolean]>,
   /** Main → main window: the tab shown again had this field with the keyboard when it was left, and gets it back. */
   tabFieldFocusReturned: 'shell:tab-field-focus-returned' as EventChannel<[tabId: string, field: ShellTabField]>,
   /** Main → main window: a Help dialog or a part of Settings to show, as a menu item asks. */

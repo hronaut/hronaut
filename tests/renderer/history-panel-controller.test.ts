@@ -210,11 +210,12 @@ describe('history panel controller', () => {
     open.value = true
     openHistoryEntry.mockRejectedValueOnce(new Error('Could not open the page'))
 
-    await controller.openEntry(entry('alpha'))
+    // It says whether it closed History, which then gives the keyboard back to the page.
+    await expect(controller.openEntry(entry('alpha'))).resolves.toBe(false)
     expect(open.value).toBe(true)
     expect(controller.error.value).toBe('Could not open the page')
 
-    await controller.openEntry(entry('alpha'))
+    await expect(controller.openEntry(entry('alpha'))).resolves.toBe(true)
     expect(open.value).toBe(false)
   })
 
@@ -233,7 +234,7 @@ describe('history panel controller', () => {
     expect(open.value).toBe(true)
 
     finishNavigation()
-    await openingEntry
+    await expect(openingEntry).resolves.toBe(false)
 
     expect(open.value).toBe(true)
     controller.dispose()

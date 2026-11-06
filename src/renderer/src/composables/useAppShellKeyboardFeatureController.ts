@@ -14,7 +14,7 @@ export interface AppShellKeyboardSurface {
 
 type CollectionSurfaces = Pick<
   AppBrowserCollectionsFeatureController,
-  'downloadsOpen' | 'bookmarksOpen' | 'bookmarksPanel' | 'historyOpen'
+  'downloadsOpen' | 'bookmarksOpen' | 'bookmarksPanel' | 'historyOpen' | 'historyPanel'
 >
 
 type PageToolsSurfaces = Pick<
@@ -125,7 +125,13 @@ export function useAppShellKeyboardFeatureController(
         open: collections.bookmarksOpen,
         close: () => collections.bookmarksPanel.value?.handleEscape()
       })),
-      refSurface(collections.historyOpen),
+      customSurface({
+        open: collections.historyOpen,
+        close: () => {
+          if (collections.historyPanel.value) collections.historyPanel.value.close()
+          else collections.historyOpen.value = false
+        }
+      }),
       panel(refSurface(pageTools.panelOpen)),
       panel(refSurface(pageTools.accessibilityPanelOpen)),
       panel(refSurface(pageTools.qualityAuditPanelOpen)),

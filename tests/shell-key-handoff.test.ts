@@ -124,8 +124,10 @@ describe('the keys typed while Hronaut\'s window runs a shortcut', () => {
       expect(contents.send).toHaveBeenLastCalledWith('browser:shortcut-requested', action)
       expect(type()).toBe(false)
     }
-    const holds = (['focus-address', 'find', 'find-next', 'find-previous', 'bookmark-all-tabs', 'command-palette'] as const).map(request)
-    expect(new Set(holds).size).toBe(6)
+    // History puts the keyboard in its search.
+    const holds = (['focus-address', 'find', 'find-next', 'find-previous', 'bookmark-all-tabs', 'command-palette', 'visit-history'] as const)
+      .map(request)
+    expect(new Set(holds).size).toBe(7)
     expect(holds.every((hold) => typeof hold === 'number')).toBe(true)
     for (const hold of holds) shellRanShortcut(contents as never, hold!)
   })
@@ -357,6 +359,53 @@ describe('the keys held for a shortcut', () => {
     ran(hold)
   })
 
+  // Ctrl+H (Cmd+Y) in a page while History was open moved the keyboard to Hronaut's window and held the keys typed
+  // next there, and History, closing, gave the keyboard back to the page: those keys were lost.
+  it('are not held, and the page keeps the keyboard, when History\'s key closes History', () => {
+    const { contents, type, ran } = shell()
+    const tabs = {
+      activeTabId: 'shown', mcpTabGroups: new Map(), tabs: new Map([['shown', { url: 'https://site.example/' }]]), shellHistoryShown: false
+    }
+    const { runPageShortcut } = createBrowserShortcutRouting({
+      takeOvers: { available: () => undefined, takeOverFromPage: vi.fn() },
+      tabs: () => tabs as never,
+      agentPresenceSnapshot: () => ({ workspaces: {} }) as never,
+      mainWindowRefs: { window: { webContents: contents } as never }
+    })
+    // Closed, History opens with the keyboard in its search.
+    runPageShortcut('visit-history', { tabId: 'shown', workspaceId: undefined })
+    expect(contents.focus).toHaveBeenCalledOnce()
+    const [, , hold] = contents.send.mock.calls.at(-1)!
+    expect(typeof hold).toBe('number')
+    ran(hold as number)
+    tabs.shellHistoryShown = true
+    runPageShortcut('visit-history', { tabId: 'shown', workspaceId: undefined })
+    expect(contents.focus).toHaveBeenCalledOnce()
+    expect(contents.send).toHaveBeenLastCalledWith('browser:shortcut-requested', 'visit-history')
+    expect(type()).toBe(false)
+    // The page that leaves the key to the menu, as most do, the same.
+    runPageShortcut('visit-history')
+    expect(contents.focus).toHaveBeenCalledOnce()
+    expect(contents.send).toHaveBeenLastCalledWith('browser:shortcut-requested', 'visit-history')
+    expect(type()).toBe(false)
+  })
+
+  it('are held, and Hronaut\'s window takes the keyboard, for History\'s key before there are tabs to tell History\'s state to', () => {
+    const { contents, type, ran } = shell()
+    const { runPageShortcut } = createBrowserShortcutRouting({
+      takeOvers: { available: () => undefined, takeOverFromPage: vi.fn() },
+      tabs: () => null,
+      agentPresenceSnapshot: () => ({ workspaces: {} }) as never,
+      mainWindowRefs: { window: { webContents: contents } as never }
+    })
+    runPageShortcut('visit-history')
+    expect(contents.focus).toHaveBeenCalledOnce()
+    const [channel, action, hold] = contents.send.mock.calls.at(-1)!
+    expect([channel, action, typeof hold]).toEqual(['browser:shortcut-requested', 'visit-history', 'number'])
+    expect(type()).toBe(true)
+    ran(hold as number)
+  })
+
   it('wait when Command Palette is chosen from the menu', () => {
     const { contents, type, ran } = shell()
     createApplicationMenu({
@@ -392,5 +441,33 @@ describe('the keys held for a shortcut', () => {
     expect(() => answer(next)).toThrow('Untrusted sender')
     expect(typed()).toBe('z')
     shellRanShortcut(contents as never, next!)
+  })
+
+  it('know from the main window only whether History is open', () => {
+    const listeners = new Map<string, (event: IpcMainEvent, ...args: unknown[]) => void>()
+    const browser = { shellHistoryShown: false }
+    let current: typeof browser | null = browser
+    const startup: { failure?: { message: string } } = {}
+    const assertMainShellSender = vi.fn()
+    registerShellIpc({ on: (channel: string, listener: never) => { listeners.set(channel, listener) }, handle: vi.fn() } as never,
+      { assertMainShellSender, handleBrowserIpc: vi.fn(), workspaceStartupFailure: () => startup.failure, tabs: () => current } as never)
+    const say = (shown: unknown) => listeners.get('shell:history-shown')!({ sender: {} } as never, shown)
+    say(true)
+    expect(browser.shellHistoryShown).toBe(true)
+    say(false)
+    expect(browser.shellHistoryShown).toBe(false)
+    expect(() => say('open')).toThrow('Invalid History state')
+    assertMainShellSender.mockImplementation(() => { throw new Error('Untrusted sender') })
+    expect(() => say(true)).toThrow('Untrusted sender')
+    expect(browser.shellHistoryShown).toBe(false)
+    // Before there are tabs there is nothing to tell, and once startup has stopped the window is not heard.
+    assertMainShellSender.mockReset()
+    current = null
+    expect(() => say(true)).not.toThrow()
+    current = browser
+    startup.failure = { message: 'Workspace startup failed' }
+    say(true)
+    expect(browser.shellHistoryShown).toBe(false)
+    expect(assertMainShellSender).toHaveBeenCalledOnce()
   })
 })

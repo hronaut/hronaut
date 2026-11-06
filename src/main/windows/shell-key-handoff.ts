@@ -24,7 +24,7 @@ let lastHold = 0
 
 /** The shortcuts that put the shell's keyboard somewhere the keys typed next go: a field, or a dialog's. */
 const SHORTCUTS_THAT_TAKE_KEYS: ReadonlySet<BrowserShortcutAction> = new Set<BrowserShortcutAction>([
-  'focus-address', 'find', 'find-next', 'find-previous', 'bookmark-all-tabs', 'command-palette'
+  'focus-address', 'find', 'find-next', 'find-previous', 'bookmark-all-tabs', 'command-palette', 'visit-history'
 ])
 
 /** Lets the main window's shell hold back the keys typed while it runs a shortcut main sent it. */
@@ -60,10 +60,11 @@ export function attachShellKeyHandoff(shell: WebContents): void {
  * Main gives the shell the keyboard before it sends the shortcut, and a busy shell handles keys before messages: typed
  * right after Ctrl/Cmd+L, they went to where the shell had the keyboard before, such as after the address's text,
  * which the address field then selected. Chrome runs its keys in order. A key the shell passes on at once, such as a
- * modifier alone or a Cmd shortcut that macOS's menu takes first, is not held.
+ * modifier alone or a Cmd shortcut that macOS's menu takes first, is not held. A shortcut that leaves the keyboard
+ * where it is this time, such as History's key closing History, holds none.
  */
-export function requestShellShortcut(shell: WebContents, action: BrowserShortcutAction): void {
-  const hold = SHORTCUTS_THAT_TAKE_KEYS.has(action) ? holdShellKeys(shell) : undefined
+export function requestShellShortcut(shell: WebContents, action: BrowserShortcutAction, takesKeys = SHORTCUTS_THAT_TAKE_KEYS.has(action)): void {
+  const hold = takesKeys ? holdShellKeys(shell) : undefined
   if (hold === undefined) sendTo(shell, SHELL_IPC.shortcutRequested, action)
   else sendTo(shell, SHELL_IPC.shortcutRequested, action, hold)
 }

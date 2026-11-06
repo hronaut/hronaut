@@ -319,6 +319,10 @@ describe('HistoryPanel', () => {
     await user.click(screen.getByRole('button', { name: 'Remove Alpha docs from history' }))
     await view.rerender({ open: false })
     await view.rerender({ open: true, entries: [entry('beta', 'Beta page')] })
+    // The reopened panel puts the keyboard in its search; the person then moves it off, and the old removal leaves it there.
+    const search = screen.getByRole('searchbox', { name: 'Search browsing history' })
+    expect(search).toHaveFocus()
+    search.blur()
     finish([entry('beta', 'Beta page')])
     await flushPromises()
     expect(document.body).toHaveFocus()
@@ -797,7 +801,14 @@ describe('History keyboard focus while an action disables its control', () => {
       await userEvent.setup().keyboard('{Enter}')
       dropFocusLikeChromium(clear)
       if (change === 'moved') external.focus()
-      else { await view.rerender({ open: false }); await view.rerender({ open: true }) }
+      else {
+        await view.rerender({ open: false })
+        await view.rerender({ open: true })
+        // The reopened panel puts the keyboard in its search; the person then moves it off, and the old Clear all leaves it there.
+        const search = screen.getByRole('searchbox', { name: 'Search browsing history' })
+        expect(search).toHaveFocus()
+        search.blur()
+      }
 
       finish([])
       await flushPromises()
@@ -852,5 +863,142 @@ describe('opening a visit behind with a middle-click or Ctrl+click, as in Chrome
     await flushPromises()
     expect(openHistoryEntry).toHaveBeenCalledExactlyOnceWith(alpha)
     expect(openHistoryEntryInBackground).toHaveBeenCalledTimes(2)
+  })
+})
+
+// History opened from a page left the keyboard in the website, so typed text went to the page while the panel waited;
+// Chrome's History page takes the keyboard in its search, and closing it gives the keyboard back to the page.
+describe('the keyboard as History opens and closes', () => {
+  type Exposed = { toggle(): Promise<void>; close(): void }
+  function mountClosed(overrides: Record<string, unknown> = {}) {
+    const returnKeyboard = vi.fn()
+    // The panel's owner updates it after it asks to open or close, as v-model:open does.
+    const owner = { update: (_open: boolean): Promise<void> => Promise.resolve() }
+    const wrapper = mount(HistoryPanel, {
+      attachTo: document.body,
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: panelProps({ open: false, returnKeyboard, 'onUpdate:open': (open: boolean) => owner.update(open), ...overrides })
+    })
+    owner.update = open => wrapper.setProps({ open })
+    const external = document.createElement('button')
+    document.body.append(external)
+    const exposed = wrapper.vm as unknown as Exposed
+    const search = () => screen.getByRole('searchbox', { name: 'Search browsing history' })
+    const reopen = async () => { await exposed.toggle(); await flushPromises() }
+    return { wrapper, returnKeyboard, external, exposed, search, reopen, unmount: () => { external.remove(); wrapper.unmount() } }
+  }
+
+  it('is in its search as it opens, or in the panel until it has visits to search', async () => {
+    const { wrapper, search, unmount } = mountClosed()
+    try {
+      await wrapper.setProps({ open: true })
+      await flushPromises()
+      expect(search()).toHaveFocus()
+      await wrapper.setProps({ open: false })
+      await wrapper.setProps({ entries: [] })
+      await wrapper.setProps({ open: true })
+      await flushPromises()
+      expect(screen.getByRole('dialog')).toHaveFocus()
+      await wrapper.setProps({ entries: [entry('alpha', 'Alpha docs')] })
+      await flushPromises()
+      expect(search()).toHaveFocus()
+    } finally { unmount() }
+  })
+
+  it('selects the last search as it opens again, so that what the person types replaces it', async () => {
+    const { exposed, search, reopen, unmount } = mountClosed()
+    try {
+      await reopen()
+      await userEvent.setup().keyboard('beta')
+      exposed.close()
+      await flushPromises()
+      await reopen()
+      expect(search()).toHaveFocus()
+      expect(search()).toHaveValue('beta')
+      expect([(search() as HTMLInputElement).selectionStart, (search() as HTMLInputElement).selectionEnd]).toEqual([0, 4])
+    } finally { unmount() }
+  })
+
+  it.each(['Close', 'Escape', 'its key', 'a visit opened from it'])('goes back to the page when %s closes History with the keyboard in it', async way => {
+    const { exposed, returnKeyboard, reopen, unmount } = mountClosed()
+    try {
+      await reopen()
+      if (way === 'Close') await fireEvent.click(screen.getByRole('button', { name: 'Close browsing history' }))
+      else if (way === 'Escape') exposed.close()
+      else if (way === 'its key') void exposed.toggle()
+      else await fireEvent.click(getByTooltip('https://example.test/alpha'))
+      await flushPromises()
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(returnKeyboard).toHaveBeenCalledOnce()
+    } finally { unmount() }
+  })
+
+  it('stays where the person moved it', async () => {
+    const { exposed, returnKeyboard, external, reopen, unmount } = mountClosed()
+    try {
+      await reopen()
+      external.focus()
+      void exposed.toggle()
+      await flushPromises()
+      expect(external).toHaveFocus()
+      expect(returnKeyboard).not.toHaveBeenCalled()
+    } finally { unmount() }
+  })
+
+  it('stays in the page when its key pressed there closes History, Hronaut\'s window not having the keyboard', async () => {
+    const { exposed, returnKeyboard, search, reopen, unmount } = mountClosed()
+    const hasFocus = vi.spyOn(document, 'hasFocus')
+    try {
+      await reopen()
+      expect(search()).toHaveFocus()
+      hasFocus.mockReturnValue(false)
+      void exposed.toggle()
+      await flushPromises()
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(returnKeyboard).not.toHaveBeenCalled()
+    } finally { hasFocus.mockRestore(); unmount() }
+  })
+
+  it('stays in History when it opens again before the close has gone through', async () => {
+    const { wrapper, exposed, returnKeyboard, search, reopen, unmount } = mountClosed()
+    try {
+      // Closed once with the keyboard in it, which went back to the page.
+      await reopen()
+      exposed.close()
+      await flushPromises()
+      expect(returnKeyboard).toHaveBeenCalledOnce()
+      await reopen()
+      exposed.close()
+      void wrapper.setProps({ open: true })
+      await flushPromises()
+      expect(search()).toHaveFocus()
+      expect(returnKeyboard).toHaveBeenCalledOnce()
+    } finally { unmount() }
+  })
+
+  it('gives nothing back once History is gone before the close has gone through, as when the window closes', async () => {
+    const { wrapper, exposed, returnKeyboard, external, reopen } = mountClosed()
+    try {
+      await reopen()
+      exposed.close()
+      await flushPromises()
+      expect(returnKeyboard).toHaveBeenCalledOnce()
+      await reopen()
+      exposed.close()
+      wrapper.unmount()
+      await flushPromises()
+      expect(returnKeyboard).toHaveBeenCalledOnce()
+    } finally { external.remove() }
+  })
+
+  it('stays with another surface that closes History, such as Bookmarks asking for a name', async () => {
+    const { wrapper, returnKeyboard, search, reopen, unmount } = mountClosed()
+    try {
+      await reopen()
+      expect(search()).toHaveFocus()
+      await wrapper.setProps({ open: false })
+      await flushPromises()
+      expect(returnKeyboard).not.toHaveBeenCalled()
+    } finally { unmount() }
   })
 })

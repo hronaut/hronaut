@@ -23,7 +23,8 @@ function createController() {
     bookmarkAllTabs: vi.fn(async (_workspaceId: string | null, _suggestedName?: string) => { bookmarksOpen.value = true })
   })
   const historyPanel = ref({
-    toggle: vi.fn(async () => { historyOpen.value = !historyOpen.value })
+    toggle: vi.fn(async () => { historyOpen.value = !historyOpen.value }),
+    close: vi.fn(() => { historyOpen.value = false })
   })
   const refreshDownloads = vi.fn<() => Promise<unknown>>(async () => undefined)
   const openUrl = vi.fn<(_url: string) => Promise<void>>(async () => undefined)

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import UiButton from "../../ui/UiButton.vue"
-import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { nextTick, onBeforeUnmount, onUpdated, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ignoreHeldEnter } from '../../held-enter.js'
 import IconBookmark from '~icons/material-symbols/bookmark-add-outline-rounded'
@@ -31,6 +31,8 @@ const props = defineProps<{
   openHistoryEntry: (entry: BrowserHistoryEntry) => Promise<void>
   openHistoryEntryInBackground: (entry: BrowserHistoryEntry) => Promise<void>
   copyHistoryAddress: (entry: BrowserHistoryEntry) => Promise<void>
+  /** Gives the keyboard to the page in view. */
+  returnKeyboard?: () => void
 }>()
 
 const open = defineModel<boolean>('open', { required: true })
@@ -79,7 +81,66 @@ const {
   confirmClear: () => confirmAction(splitConfirmation(() => t('privacyActions.clearHistory')))
 })
 
-defineExpose({ toggle })
+// History puts the keyboard in its search as it opens, as Chrome's History page does, with the last search selected so
+// that typing replaces it, and in the panel itself until it has visits to search.
+function takeKeyboard(panel: HTMLElement): void {
+  const search = panel.querySelector<HTMLInputElement>('.history-search-field input')
+  if (!search) {
+    panel.focus()
+    return
+  }
+  search.focus()
+  search.select()
+}
+// It takes the keyboard once Vue has rendered it, after the search has been given its text, which would otherwise drop
+// the selection.
+let keyboardWanted = false
+const stopOpenFocus = watch(open, (isOpen) => { keyboardWanted = isOpen })
+const stopSearchFocus = watch(() => open.value && entries.value.length > 0, (searchable) => {
+  if (searchable && panelRoot.value && document.activeElement === panelRoot.value) keyboardWanted = true
+})
+onUpdated(() => {
+  if (!keyboardWanted || !open.value || !panelRoot.value) return
+  keyboardWanted = false
+  takeKeyboard(panelRoot.value)
+})
+// Whether the keyboard was in History as it last closed, read before the panel goes.
+let keyboardInPanelAtClose = false
+const stopCloseTracking = watch(open, (isOpen) => {
+  const focused = document.activeElement
+  if (!isOpen) keyboardInPanelAtClose = !focused || focused === document.body || panelRoot.value?.contains(focused) === true
+}, { flush: 'sync' })
+
+/**
+ * When History closes itself, with Escape, Close, its key or a visit opened from it, the page in view gets back the
+ * keyboard that was in History, as when Chrome's History tab closes. Another surface that closes History, such as
+ * Bookmarks, keeps the keyboard. Its key pressed in a page leaves the keyboard in the page, where main kept it, and a
+ * window that no longer has the keyboard has none to give: given late, it would take the keyboard from where a
+ * shortcut pressed next, such as Ctrl+L, put it.
+ */
+function giveKeyboardBack(generationBeforeClose: number): void {
+  // The close reaches the panel once its owner has updated it; anything after it, such as opening History again, wins.
+  void nextTick(() => {
+    if (focusGeneration !== generationBeforeClose + 1 || open.value) return
+    const focused = document.activeElement
+    if (keyboardInPanelAtClose && (!focused || focused === document.body) && document.hasFocus()) props.returnKeyboard?.()
+  })
+}
+function close(): void {
+  if (!open.value) return
+  const generation = focusGeneration
+  open.value = false
+  giveKeyboardBack(generation)
+}
+function toggleHistory(): Promise<void> {
+  const closing = open.value
+  const generation = focusGeneration
+  const toggled = toggle()
+  if (closing) giveKeyboardBack(generation)
+  return toggled
+}
+
+defineExpose({ toggle: toggleHistory, close })
 
 // Calendar refreshes and authoritative history updates can move or remove a row without
 // a panel action. Capture its focused control before Vue patches the live list.
@@ -117,6 +178,9 @@ const stopVisibleTracking = watch(() => filteredEntries.value.map(entry => entry
 
 onBeforeUnmount(() => {
   focusGeneration += 1
+  stopOpenFocus()
+  stopSearchFocus()
+  stopCloseTracking()
   stopVisibleTracking()
   stopFocusSessionTracking()
   dispose()
@@ -162,8 +226,13 @@ const mac = window.hronautShell?.windowChrome?.platform === 'darwin'
  * A middle-click or Ctrl+click (⌘-click on a Mac) on a visit opens it in a new tab behind and keeps History open, as in
  * Chrome; with Shift it opens in front, as a click does.
  */
-function openVisit(event: MouseEvent, entry: BrowserHistoryEntry): Promise<void> {
-  return openClickTab(event, mac) === 'new-background-tab' ? openInBackground(entry) : openEntry(entry)
+async function openVisit(event: MouseEvent, entry: BrowserHistoryEntry): Promise<void> {
+  if (openClickTab(event, mac) === 'new-background-tab') {
+    await openInBackground(entry)
+    return
+  }
+  const generation = focusGeneration
+  if (await openEntry(entry)) giveKeyboardBack(generation)
 }
 
 // Opening an entry and Clear all disable the control you used until they finish, and Chromium then drops its focus.
@@ -207,6 +276,7 @@ async function clearOrigin(event: Event): Promise<void> {
     v-if="open"
     ref="panelRoot"
     class="history-panel"
+    tabindex="-1"
     data-shell-side-panel
     role="dialog"
     aria-modal="false"
@@ -221,7 +291,7 @@ async function clearOrigin(event: Event): Promise<void> {
       <div class="history-header-actions">
         <UiButton appearance="application" type="button" :disabled="!entries.length || pendingAction !== null"
           @keydown="ignoreHeldEnter" @click="keepFocusThrough($event, clear)">{{ t('history.clearAll') }}</UiButton>
-        <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('history.close')" @keydown="ignoreHeldEnter" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('history.close')" @keydown="ignoreHeldEnter" @click="close"><IconClose aria-hidden="true" /></UiButton>
       </div>
     </header>
     <div v-if="entries.length" class="history-search-field">

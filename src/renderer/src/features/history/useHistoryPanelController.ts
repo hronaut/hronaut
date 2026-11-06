@@ -146,9 +146,12 @@ export function useHistoryPanelController(options: HistoryPanelControllerOptions
     await runAction('load', options.listHistory)
   }
 
-  async function openEntry(entry: BrowserHistoryEntry): Promise<void> {
+  /** Opens the visit and closes History; true once it has closed History, false when the visit did not open. */
+  async function openEntry(entry: BrowserHistoryEntry): Promise<boolean> {
     const opened = await runAction(`open:${entry.id}`, () => options.openHistoryEntry(entry))
-    if (opened) options.open.value = false
+    if (!opened) return false
+    options.open.value = false
+    return true
   }
 
   async function openInBackground(entry: BrowserHistoryEntry): Promise<void> {
