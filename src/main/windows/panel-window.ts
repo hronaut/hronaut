@@ -4,7 +4,7 @@ import { loadNativeWindowWithRollback } from '../native-window-load.js'
 import { LocalizedError } from '../localized-error.js'
 import { restoreWindowBounds, type SavedWindowState, type WindowStateStore } from '../window-state.js'
 import { takeStateUntilShown } from './show-saved-window.js'
-import { attachShellEditContextMenu } from './shell-edit-context-menu.js'
+import { attachShellEditContextMenu, type ShellSpelling } from './shell-edit-context-menu.js'
 import type { BookmarkStore } from '../bookmarks-history/bookmark-store.js'
 import type { CredentialStore } from '../credentials/credential-store.js'
 import type { HistoryStore } from '../bookmarks-history/history-store.js'
@@ -61,6 +61,8 @@ export interface PanelWindowRefs {
 interface PanelWindowHost {
   /** Translates into the current interface language; read on every use because the language can change. */
   text(key: MessageKey, parameters?: MessageParameters): string
+  /** The spell checking the panel's fields follow, as the main window's do. */
+  spelling: ShellSpelling
   /** The trusted shell document; the panel window loads it with the panel in its query. */
   trustedShellUrl(): string
   /** The main window the panel window opens beside; read on every use because it can close meanwhile. */
@@ -234,7 +236,7 @@ export function createPanelWindow(host: PanelWindowHost): {
         : null
       created.setMenuBarVisibility(false)
       created.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
-      attachShellEditContextMenu(created, host.text)
+      attachShellEditContextMenu(created, host.text, { spelling: host.spelling })
       created.webContents.on('will-navigate', (event, url) => {
         if (url !== expectedUrl) event.preventDefault()
       })

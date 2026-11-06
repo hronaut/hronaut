@@ -93,7 +93,8 @@ function setup() {
     trustedStatusBubbleUrl: () => 'file:///app/status-bubble.html',
     ensureStatusBubbleSurface: async () => surface,
     theme: () => 'dark',
-    text: (key: string) => key
+    text: (key: string) => key,
+    spelling: () => ({ track: () => undefined, addWord: () => undefined })
   })
   return { overlays, window, children, sent, fullscreen, tabs, surface }
 }

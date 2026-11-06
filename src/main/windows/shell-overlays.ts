@@ -24,6 +24,7 @@ import { AGENT_CARD_IPC } from '../../shared/ipc/agent-card.js'
 import { SIDEBAR_OVERLAY_IPC } from '../../shared/ipc/sidebar-overlay.js'
 import { TOAST_OVERLAY_IPC } from '../../shared/ipc/toast-overlay.js'
 import { sendTo } from '../typed-ipc.js'
+import type { ShellSpelling } from './shell-edit-context-menu.js'
 
 interface ShellOverlaysHost {
   /** Whether a frame's address is the expected trusted page, with or without a fragment; each view admits only its own. */
@@ -51,6 +52,8 @@ interface ShellOverlaysHost {
   theme(): ResolvedThemeName
   /** The interface's text, for the editing menu of the agent card and the toast. */
   text(key: MessageKey, parameters?: MessageParameters): string
+  /** The spell checking the agent card's and the toast's fields follow, as the main window's do. */
+  spelling(): ShellSpelling
 }
 
 /**
@@ -86,7 +89,8 @@ export function createShellOverlays(host: ShellOverlaysHost): {
     window: () => host.mainWindowRefs.window,
     urlMatches: (actual, expected) => host.trustedUrlMatches(actual, expected),
     onLost: () => agentCards.surfaceLost(),
-    text: (key, parameters) => host.text(key, parameters)
+    text: (key, parameters) => host.text(key, parameters),
+    spelling: () => host.spelling()
   })
   const agentCards = new AgentCardOverlay({
     surface: () => host.ensureAgentCardSurface(),
@@ -116,6 +120,7 @@ export function createShellOverlays(host: ShellOverlaysHost): {
     urlMatches: (actual, expected) => host.trustedUrlMatches(actual, expected),
     onLost: () => toastOverlay.surfaceLost(),
     text: (key, parameters) => host.text(key, parameters),
+    spelling: () => host.spelling(),
     // A toast is about something the person did; the agent card, a tooltip or address suggestions they open go above it.
     keepAbove: () => [agentCardView.currentView(), tooltipView.currentView(), host.addressSuggestionOverlay.currentView()].filter((view) => !!view)
   })

@@ -1,6 +1,6 @@
 import { WebContentsView, type BrowserWindow, type WebContents } from 'electron'
 import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
-import { attachOverlayEditContextMenu } from '../windows/shell-edit-context-menu.js'
+import { attachOverlayEditContextMenu, type ShellSpelling } from '../windows/shell-edit-context-menu.js'
 
 export interface ShellOverlayViewOptions {
   /** Names the view in errors and logs. */
@@ -17,6 +17,8 @@ export interface ShellOverlayViewOptions {
   keepAbove?: () => readonly unknown[]
   /** The interface's text, for the editing menu the view's fields and selected text open; a view without it has none. */
   text?: (key: MessageKey, parameters?: MessageParameters) => string
+  /** The spell checking its fields follow, with the editing menu; read when the view opens. */
+  spelling?: () => ShellSpelling
 }
 
 export interface LoadedShellOverlayView {
@@ -119,7 +121,7 @@ export class ShellOverlayView {
       view.setBackgroundColor('#00000000')
       view.setVisible(false)
       webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
-      if (this.options.text) attachOverlayEditContextMenu(webContents, this.options.window, this.options.text)
+      if (this.options.text) attachOverlayEditContextMenu(webContents, this.options.window, this.options.text, this.options.spelling?.())
       webContents.on('will-navigate', (event, url) => {
         if (!this.options.urlMatches(url, expectedUrl)) event.preventDefault()
       })

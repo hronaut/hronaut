@@ -240,7 +240,7 @@ const {
   trustedStatusBubbleUrl: () => trustedStatusBubbleUrl(),
   ensureStatusBubbleSurface: () => ensureStatusBubbleSurface(),
   theme: () => resolvedTheme(settingsState.current.theme),
-  text: (key, parameters) => text(key, parameters)
+  text: (key, parameters) => text(key, parameters), spelling: () => spellCheck
 })
 const workspaceStartupReads = new WorkspaceStartupReads()
 let requireExistingWorkspaceMetadata = false
@@ -693,7 +693,7 @@ const {
 })
 
 const { detachedPanelTitle, openPanelWindow, closePanelWindow } = createPanelWindow({
-  text,
+  text, spelling: spellCheck,
   trustedShellUrl,
   mainWindow: () => mainWindowRefs.window,
   refs: panelWindowRefs,
@@ -1206,7 +1206,7 @@ async function createWindow(startMinimized = false): Promise<void> {
   panelWindowRefs.stateStore = new WindowStateStore(join(app.getPath('userData'), 'panel-window-state.json'))
   const savedWindowState = await mainWindowRefs.stateStore.load()
   mainWindowRefs.window = openMainWindow(savedWindowState)
-  attachShellEditContextMenu(mainWindowRefs.window, text, { addressBar: true })
+  attachShellEditContextMenu(mainWindowRefs.window, text, { addressBar: true, spelling: spellCheck })
   mainWindowRefs.window.webContents.setZoomFactor(settingsState.current.interfaceScale)
 
   const walletLifecycleCallbacks = createWalletLifecycleCallbacks(() => walletRuntime.broker)

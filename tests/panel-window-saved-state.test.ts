@@ -92,6 +92,7 @@ function panelWindow() {
   }
   const panels = createPanelWindow({
     text: (key: string) => key,
+    spelling: { track: () => undefined, addWord: () => undefined },
     trustedShellUrl: () => 'file:///shell/index.html',
     mainWindow: () => mainWindow as never,
     refs,
