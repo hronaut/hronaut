@@ -103,7 +103,7 @@ for (const theme of ['light', 'dark', 'cyberpunk']) {
 }
 
 for (const theme of ['light', 'dark']) {
-  for (const width of [1200, 760]) {
+  for (const width of [1200, 600]) {
     test(`application panels keep deliberate control styling in ${theme} at ${width}px`, async ({ appWindow, electronApp }, testInfo) => {
       test.slow()
       const server = createServer((_request, response) => {

@@ -87,12 +87,13 @@ for (const sourceBrowser of ['chromium', 'firefox'] as const) {
       if (sourceBrowser === 'chromium') {
         await expect(panel.getByText('0 of 777 sites selected', { exact: true })).toBeVisible()
         for (const [width, height, scale] of [[1860, 1030, 1], [1200, 800, 1], [600, 600, 1.25]] as const) {
+          // The scale first: a larger one widens a window narrower than it needs.
+          await appWindow.evaluate(scale => (window as unknown as { hronautSettings: HronautSettingsApi }).hronautSettings.setInterfaceScale(scale), scale)
           await electronApp.evaluate(({ BrowserWindow }, { width, height }) => {
             const window = BrowserWindow.getAllWindows()[0]!
             window.setMinimumSize(600, 600)
             window.setSize(width, height)
           }, { width, height })
-          await appWindow.evaluate(scale => (window as unknown as { hronautSettings: HronautSettingsApi }).hronautSettings.setInterfaceScale(scale), scale)
           const list = panel.locator('.browser-import-sites')
           await expect.poll(() => list.evaluate(element => element.clientHeight)).toBeGreaterThanOrEqual(220)
           await list.scrollIntoViewIfNeeded()

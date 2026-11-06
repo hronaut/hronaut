@@ -83,41 +83,43 @@ function issueTitle(issue: BrowserInspectorIssue): string {
       <UiButton appearance="application" type="button" @click="refreshInspectorIssues()">{{ t('issues.tryAgain') }}</UiButton>
     </div>
     <template v-else-if="inspectorIssuesReport">
-      <div class="inspector-issues-summary">
-        <article class="error"><strong>{{ localNumber(inspectorIssuesReport.errorCount) }}</strong><span>{{ t('issues.pageErrors') }}</span></article>
-        <article class="warning"><strong>{{ localNumber(inspectorIssuesReport.warningCount) }}</strong><span>{{ t('issues.warnings') }}</span></article>
-        <article><strong>{{ localNumber(inspectorIssuesReport.infoCount) }}</strong><span>{{ t('issues.improvements') }}</span></article>
-      </div>
-      <div v-if="!inspectorIssuesReport.issues.length" class="accessibility-audit-empty inspector-issues-empty">
-        <IconCheck aria-hidden="true" />
-        <strong>{{ t('issues.empty') }}</strong>
-        <span>{{ t('issues.emptyDescription') }}</span>
-      </div>
-      <div v-else class="inspector-issues-list">
-        <article v-for="issue in inspectorIssuesReport.issues" :key="issue.id" class="inspector-issue" :class="issue.severity">
-          <header>
-            <span class="inspector-issue-icon" aria-hidden="true"><IconError v-if="issue.severity === 'error'" /><IconWarning v-else-if="issue.severity === 'warning'" /><IconInfo v-else /></span>
-            <span><strong>{{ issueTitle(issue) }}</strong><small>{{ issue.code }}</small></span>
-          </header>
-          <small v-if="issue.cspDisposition">{{ t(`issues.cspDisposition.${issue.cspDisposition}`) }}</small>
-          <ul v-if="issue.reasons.length" class="inspector-issue-reasons">
-            <li v-for="reason in issue.reasons" :key="reason"><code>{{ reason }}</code></li>
-          </ul>
-          <div v-if="issue.affectedUrls.length" class="inspector-issue-urls">
-            <span>{{ t('issues.affected') }}</span>
-            <code v-for="url in issue.affectedUrls" :key="url">{{ url }}</code>
-          </div>
-          <small v-if="issue.source" class="inspector-issue-source">{{ issue.source.url }}<template v-if="issue.source.lineNumber">:{{ issue.source.lineNumber }}<template v-if="issue.source.columnNumber">:{{ issue.source.columnNumber }}</template></template></small>
-        </article>
-        <p v-if="inspectorIssuesReport.truncated" class="inspector-issues-truncated"><IconInfo aria-hidden="true" /> {{ t('issues.truncated') }}</p>
-        <details class="debug-report-caveats">
-          <summary>{{ t('issues.sharing') }}</summary>
-          <ul>
-            <li>{{ t('issues.caveats.scope') }}</li>
-            <li>{{ t('issues.caveats.privacy') }}</li>
-            <li>{{ inspectorIssuesReport.devToolsOpen ? t('issues.caveats.devtools') : t('issues.caveats.reload') }}</li>
-          </ul>
-        </details>
+      <div class="panel-scroll-body">
+        <div class="inspector-issues-summary">
+          <article class="error"><strong>{{ localNumber(inspectorIssuesReport.errorCount) }}</strong><span>{{ t('issues.pageErrors') }}</span></article>
+          <article class="warning"><strong>{{ localNumber(inspectorIssuesReport.warningCount) }}</strong><span>{{ t('issues.warnings') }}</span></article>
+          <article><strong>{{ localNumber(inspectorIssuesReport.infoCount) }}</strong><span>{{ t('issues.improvements') }}</span></article>
+        </div>
+        <div v-if="!inspectorIssuesReport.issues.length" class="accessibility-audit-empty inspector-issues-empty">
+          <IconCheck aria-hidden="true" />
+          <strong>{{ t('issues.empty') }}</strong>
+          <span>{{ t('issues.emptyDescription') }}</span>
+        </div>
+        <div v-else class="inspector-issues-list">
+          <article v-for="issue in inspectorIssuesReport.issues" :key="issue.id" class="inspector-issue" :class="issue.severity">
+            <header>
+              <span class="inspector-issue-icon" aria-hidden="true"><IconError v-if="issue.severity === 'error'" /><IconWarning v-else-if="issue.severity === 'warning'" /><IconInfo v-else /></span>
+              <span><strong>{{ issueTitle(issue) }}</strong><small>{{ issue.code }}</small></span>
+            </header>
+            <small v-if="issue.cspDisposition">{{ t(`issues.cspDisposition.${issue.cspDisposition}`) }}</small>
+            <ul v-if="issue.reasons.length" class="inspector-issue-reasons">
+              <li v-for="reason in issue.reasons" :key="reason"><code>{{ reason }}</code></li>
+            </ul>
+            <div v-if="issue.affectedUrls.length" class="inspector-issue-urls">
+              <span>{{ t('issues.affected') }}</span>
+              <code v-for="url in issue.affectedUrls" :key="url">{{ url }}</code>
+            </div>
+            <small v-if="issue.source" class="inspector-issue-source">{{ issue.source.url }}<template v-if="issue.source.lineNumber">:{{ issue.source.lineNumber }}<template v-if="issue.source.columnNumber">:{{ issue.source.columnNumber }}</template></template></small>
+          </article>
+          <p v-if="inspectorIssuesReport.truncated" class="inspector-issues-truncated"><IconInfo aria-hidden="true" /> {{ t('issues.truncated') }}</p>
+          <details class="debug-report-caveats">
+            <summary>{{ t('issues.sharing') }}</summary>
+            <ul>
+              <li>{{ t('issues.caveats.scope') }}</li>
+              <li>{{ t('issues.caveats.privacy') }}</li>
+              <li>{{ inspectorIssuesReport.devToolsOpen ? t('issues.caveats.devtools') : t('issues.caveats.reload') }}</li>
+            </ul>
+          </details>
+        </div>
       </div>
       <footer>
         <span>{{ t('issues.count', { count: localNumber(inspectorIssuesReport.issueCount) }, inspectorIssuesReport.issueCount) }} {{ t('issues.review') }}</span>
