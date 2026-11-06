@@ -124,8 +124,10 @@ describe('the keys typed while Hronaut\'s window runs a shortcut', () => {
       expect(contents.send).toHaveBeenLastCalledWith('browser:shortcut-requested', action)
       expect(type()).toBe(false)
     }
-    const holds = (['focus-address', 'find', 'find-next', 'find-previous', 'bookmark-all-tabs', 'command-palette'] as const).map(request)
-    expect(new Set(holds).size).toBe(6)
+    // History puts the keyboard in its search.
+    const holds = (['focus-address', 'find', 'find-next', 'find-previous', 'bookmark-all-tabs', 'command-palette', 'visit-history'] as const)
+      .map(request)
+    expect(new Set(holds).size).toBe(7)
     expect(holds.every((hold) => typeof hold === 'number')).toBe(true)
     for (const hold of holds) shellRanShortcut(contents as never, hold!)
   })

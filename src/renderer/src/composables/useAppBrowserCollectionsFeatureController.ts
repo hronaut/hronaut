@@ -17,7 +17,7 @@ import {
   type HistoryShellPanel
 } from './useBrowserCollectionsShellController.js'
 
-type CollectionsBrowserApi = Pick<HronautApi, 'newTab' | 'copyText'>
+type CollectionsBrowserApi = Pick<HronautApi, 'newTab' | 'copyText' | 'focusActivePage'>
 
 export interface AppBookmarksPanelSurface extends BookmarksShellPanel {
   handleEscape: () => void
@@ -111,6 +111,11 @@ export function useAppBrowserCollectionsFeatureController(
     return options.browser.copyText(entry.url)
   }
 
+  /** Gives the keyboard to the page in view, as when History closes with the keyboard in it. */
+  function returnKeyboardToPage(): void {
+    void options.browser.focusActivePage().catch(() => undefined)
+  }
+
   function dispose(): void {
     if (disposed) return
     disposed = true
@@ -143,6 +148,7 @@ export function useAppBrowserCollectionsFeatureController(
     copyHistoryAddress,
     copyBookmarkAddress,
     copyDownloadPath,
+    returnKeyboardToPage,
     dispose
   }
 }

@@ -31,6 +31,8 @@ const props = defineProps<{
   openHistoryEntry: (entry: BrowserHistoryEntry) => Promise<void>
   openHistoryEntryInBackground: (entry: BrowserHistoryEntry) => Promise<void>
   copyHistoryAddress: (entry: BrowserHistoryEntry) => Promise<void>
+  /** Gives the keyboard to the page in view. */
+  returnKeyboard?: () => void
 }>()
 
 const open = defineModel<boolean>('open', { required: true })
@@ -81,6 +83,28 @@ const {
 
 defineExpose({ toggle })
 
+// History puts the keyboard in its search as it opens, as Chrome's History page does, and in the panel itself until it
+// has visits to search.
+const stopOpenFocus = watch(open, (isOpen) => {
+  const panel = panelRoot.value
+  if (isOpen && panel) (panel.querySelector<HTMLInputElement>('.history-search-field input') ?? panel).focus()
+}, { flush: 'post' })
+const stopSearchFocus = watch(() => open.value && entries.value.length > 0, (searchable) => {
+  const panel = panelRoot.value
+  if (searchable && panel && document.activeElement === panel) panel.querySelector<HTMLInputElement>('.history-search-field input')?.focus()
+}, { flush: 'post' })
+// Closing it with the keyboard in it, as with Escape, Close or Ctrl+H, gives the keyboard back to the page, as closing
+// Chrome's History tab does.
+const stopCloseFocus = watch(open, (isOpen, wasOpen) => {
+  const focused = document.activeElement
+  if (isOpen || !wasOpen || (focused && focused !== document.body && !panelRoot.value?.contains(focused))) return
+  const generation = focusGeneration
+  void nextTick(() => {
+    if (generation !== focusGeneration || open.value) return
+    if (!document.activeElement || document.activeElement === document.body) props.returnKeyboard?.()
+  })
+}, { flush: 'pre' })
+
 // Calendar refreshes and authoritative history updates can move or remove a row without
 // a panel action. Capture its focused control before Vue patches the live list.
 const stopVisibleTracking = watch(() => filteredEntries.value.map(entry => entry.id), async (_ids, _previous, onCleanup) => {
@@ -117,6 +141,9 @@ const stopVisibleTracking = watch(() => filteredEntries.value.map(entry => entry
 
 onBeforeUnmount(() => {
   focusGeneration += 1
+  stopOpenFocus()
+  stopSearchFocus()
+  stopCloseFocus()
   stopVisibleTracking()
   stopFocusSessionTracking()
   dispose()
@@ -207,6 +234,7 @@ async function clearOrigin(event: Event): Promise<void> {
     v-if="open"
     ref="panelRoot"
     class="history-panel"
+    tabindex="-1"
     data-shell-side-panel
     role="dialog"
     aria-modal="false"

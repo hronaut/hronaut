@@ -100,11 +100,12 @@ function createHarness(bookmarkAllTabsOptions: Pick<AppBrowserCollectionsFeature
   const newTabResult = Promise.resolve(browserState)
   const newTab = vi.fn(() => newTabResult)
   const copyText = vi.fn(async () => undefined)
+  const focusActivePage = vi.fn(async () => undefined)
   const syncState = vi.fn(async (operation: Promise<BrowserState>) => {
     await operation
   })
   const controller = useAppBrowserCollectionsFeatureController({
-    browser: { newTab, copyText },
+    browser: { newTab, copyText, focusActivePage },
     downloadsApi,
     bookmarksApi,
     historyApi,
@@ -120,6 +121,7 @@ function createHarness(bookmarkAllTabsOptions: Pick<AppBrowserCollectionsFeature
     newTab,
     newTabResult,
     copyText,
+    focusActivePage,
     syncState,
     emitDownloads: (downloads: BrowserDownloadState[]) => downloadsChanged(downloads),
     unsubscribeDownloads,
@@ -146,6 +148,17 @@ describe('useAppBrowserCollectionsFeatureController', () => {
     expect(h.copyText).toHaveBeenCalledExactlyOnceWith(row.url)
     expect(h.newTab).not.toHaveBeenCalled()
     expect(h.syncState).not.toHaveBeenCalled()
+    h.controller.dispose()
+  })
+
+  it('gives the keyboard to the page in view when History hands it back, even when the page cannot take it', async () => {
+    const h = createHarness()
+    h.controller.returnKeyboardToPage()
+    expect(h.focusActivePage).toHaveBeenCalledOnce()
+    h.focusActivePage.mockRejectedValueOnce(new Error('The window is gone.'))
+    h.controller.returnKeyboardToPage()
+    await Promise.resolve()
+    expect(h.focusActivePage).toHaveBeenCalledTimes(2)
     h.controller.dispose()
   })
 

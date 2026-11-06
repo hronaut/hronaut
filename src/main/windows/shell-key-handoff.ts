@@ -24,7 +24,7 @@ let lastHold = 0
 
 /** The shortcuts that put the shell's keyboard somewhere the keys typed next go: a field, or a dialog's. */
 const SHORTCUTS_THAT_TAKE_KEYS: ReadonlySet<BrowserShortcutAction> = new Set<BrowserShortcutAction>([
-  'focus-address', 'find', 'find-next', 'find-previous', 'bookmark-all-tabs', 'command-palette'
+  'focus-address', 'find', 'find-next', 'find-previous', 'bookmark-all-tabs', 'command-palette', 'visit-history'
 ])
 
 /** Lets the main window's shell hold back the keys typed while it runs a shortcut main sent it. */

@@ -63,8 +63,10 @@ export function createBrowserShortcutRouting(host: BrowserShortcutRoutingHost): 
       // The page WebContentsView owns native focus when a website shortcut is
       // pressed. Move it to trusted chrome before the renderer focuses a
       // field, otherwise the DOM selection is visible while typed keys keep
-      // going to the website. Bookmark all tabs asks for a collection's name.
-      if (action === 'find' || action === 'find-next' || action === 'find-previous' || action === 'focus-address' || action === 'bookmark-all-tabs') {
+      // going to the website. Bookmark all tabs asks for a collection's name, and History puts the keyboard in its
+      // search, as Chrome's History page does.
+      if (action === 'find' || action === 'find-next' || action === 'find-previous' || action === 'focus-address'
+        || action === 'bookmark-all-tabs' || action === 'visit-history') {
         host.mainWindowRefs.window.webContents.focus()
       }
       requestShellShortcut(host.mainWindowRefs.window.webContents, action)

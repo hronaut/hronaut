@@ -122,6 +122,8 @@
 .history-panel {
   @apply absolute [z-index:30] [top:calc(100%_+_8px)] [right:12px] flex [width:min(500px,_calc(100vw_-_24px))] [max-height:min(560px,_calc(100vh_-_130px))] overflow-hidden flex-col [border:1px_solid_var(--overlay-border)] [border-radius:var(--corner-3)] bg-surface-raised [box-shadow:var(--overlay-ring),_var(--elevation-3)] [user-select:text];
 }
+/* The panel holds the keyboard itself until it has visits to search, without a ring around all of it. */
+.history-panel:focus { @apply [outline:0]; }
 .history-panel > header {
   @apply flex [min-height:68px] flex-none items-center justify-between [gap:16px] [padding:13px_14px_12px_16px] [border-bottom:1px_solid_var(--border-soft)] bg-surface;
 }
