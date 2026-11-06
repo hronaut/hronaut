@@ -152,4 +152,26 @@ describe('the keyboard while a pane beside the page loads its first document', (
     expect(focusTabOrTrustedChrome).toHaveBeenCalledTimes(3)
     expect(link.webContents.eventNames()).toEqual([])
   })
+
+  // A tab closed from a split view goes back with the split's layout. Setting the layout after opening counted as a
+  // change of the split, which ended the watch at once, so the reopened page still loading took the keyboard.
+  it('is kept for a pane put back with the split\'s layout, which it opens with in one step', async () => {
+    const { manager, state, link, guide, focusTabOrTrustedChrome } = browser()
+    openSplitView(manager, 'link', { openedBeside: true, layout: { orientation: 'horizontal', ratio: 0.3, chosenFirst: true } })
+
+    expect(state.splitView).toEqual({ firstTabId: 'link', secondTabId: 'guide', orientation: 'horizontal', ratio: 0.3 })
+    expect(state.layout).toHaveBeenCalledOnce()
+    expect(state.changed).toHaveBeenCalledOnce()
+    await takesKeyboard(link.webContents)
+    expect(focusTabOrTrustedChrome).toHaveBeenCalledTimes(2)
+    expect(focusTabOrTrustedChrome).toHaveBeenLastCalledWith(guide)
+    link.webContents.loading = false
+    link.webContents.emit('did-navigate')
+    expect(link.webContents.eventNames()).toEqual([])
+
+    // A ratio out of bounds is brought within them, as a ratio the person sets is.
+    const wide = browser()
+    openSplitView(wide.manager, 'link', { layout: { orientation: 'vertical', ratio: 0.9, chosenFirst: false } })
+    expect(wide.state.splitView).toEqual({ firstTabId: 'guide', secondTabId: 'link', orientation: 'vertical', ratio: 0.75 })
+  })
 })

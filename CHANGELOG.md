@@ -18,6 +18,7 @@ All notable changes to Hronaut are documented in this file.
 - History now opens with the keyboard in its search, with the last search selected, as Chrome's History page does, also from Ctrl+H (Cmd+Y on macOS) pressed in a page, which left the keyboard in the website behind the panel. Closing History with the keyboard in it gives the keyboard back to the page, and the key pressed in the page closes History and leaves the keyboard there.
 - A drag or a double-click on the split view divider now leaves the keyboard with the page, as in Chrome, so the arrow keys, Home, End and Enter typed next go to the page rather than resizing the split.
 - A page that cannot open or stops working in the split view's other pane now says so, in a row named for that pane with its own Try again, as Chrome shows an error page in each pane; the pane showed a blank page.
+- Reopening a tab you closed from a split view, with Ctrl/Cmd+Shift+T, Undo or the tab menu's Reopen closed tab, now puts it back beside the page it was shown with, on its side, with the split's layout and proportion and the same pane active, while that page is still the one shown; only the reopened tab was shown, and the page beside it went out of view.
 
 ## [3.14.18] - 2026-11-06
 

@@ -52,8 +52,13 @@ export async function openSplitViewAndWait(browser: Browser, tabId: string, opti
 }
 
 export interface OpenSplitViewOptions {
-  /** The chosen tab was just opened for a link beside the page, which the person keeps reading. */
+  /** The chosen tab was just opened beside the page, such as for a link, and the person keeps reading the page. */
   openedBeside?: boolean
+  /**
+   * The split's layout, as when a tab closed from it is put back: its orientation, its ratio, and whether the chosen tab
+   * is the first pane. Without it the active tab is first, side by side, at half the width.
+   */
+  layout?: { orientation: BrowserSplitOrientation; ratio: number; chosenFirst: boolean }
 }
 
 /**
@@ -91,11 +96,12 @@ export function openSplitView(browser: Browser, tabId: string, options: OpenSpli
       }
     }
   }
+  const layout = options.layout
   browser.splitView = {
-    firstTabId: current.id,
-    secondTabId: target.id,
-    orientation: 'vertical',
-    ratio: 0.5
+    firstTabId: layout?.chosenFirst ? target.id : current.id,
+    secondTabId: layout?.chosenFirst ? current.id : target.id,
+    orientation: layout?.orientation ?? 'vertical',
+    ratio: layout ? normalizeSplitViewRatio(layout.ratio) : 0.5
   }
   browser.window.contentView.addChildView(target.view)
   browser.layout()
