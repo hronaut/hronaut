@@ -12,6 +12,7 @@ import { focusTabOrTrustedChrome, focusPageAfterQuestion, keyboardPage, returnTa
 import { detachDialogMonitoring, ensureDialogMonitoring } from '../website-dialogs/website-dialogs.js'
 import { attemptBeforeUnloadClose } from './before-unload-close.js'
 import { stageBeforeUnloadClose } from './before-unload-staging.js'
+import { forgetRestingSplitViews, showRestingPair, takeRestingPair } from '../split-view/resting-split-views.js'
 import { closeTabTransition } from './close-transition.js'
 import { removeTabRecord } from './remove-tab-record.js'
 import { markTabActiveInGroup } from '../tab-selection/active-tab.js'
@@ -122,8 +123,8 @@ interface ShownBeforeQuestion {
 
 /**
  * Shows a tab closed from behind for its page's question, as Chrome shows the page that asks, and returns the tab
- * the person was on. An open split view stays, since showing another tab would end it, and the question then asks
- * over it. The page gets no keyboard yet: a key the person holds from the close would reach it before the question.
+ * the person was on. An open split view stays in view, rather than being put aside for it, and the question then
+ * asks over it. The page gets no keyboard yet: a key the person holds from the close would reach it before the question.
  */
 async function showTabForQuestion(browser: Browser, tab: BrowserTab): Promise<ShownBeforeQuestion | undefined> {
   const shown = browser.activeTabId ? findTab(browser, browser.activeTabId) : undefined
@@ -271,6 +272,8 @@ async function performCloseTab(
   cancelNativeSelectionSessions(browser, tab)
   const { splitPartnerId, nextId } = closeTabTransition(browser, tab)
   rememberClosedTab(browser, tab, closingHistory)
+  // Its split view put aside ends now, so the tab shown in its place never brings the closing page back beside it.
+  forgetRestingSplitViews(browser, tab.id)
 
   if (splitPartnerId) {
     const splitPartner = browser.tabs.get(splitPartnerId)
@@ -290,6 +293,9 @@ async function performCloseTab(
         // active tab. Attach the current successor, even if staging picked
         // a different view before the asynchronous close probe.
         browser.window.contentView.addChildView(replacement.view)
+        // As selecting it does, a tab of a split view put aside shows with its pair again.
+        const pair = takeRestingPair(browser, replacement)
+        if (pair) showRestingPair(browser, pair)
         browser.tabSelectionGeneration += 1
         replacement.lastActiveAt = performance.now()
         browser.activeTabId = replacement.id

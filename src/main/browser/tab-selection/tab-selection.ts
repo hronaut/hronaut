@@ -1,4 +1,3 @@
-import type { BrowserSplitViewState } from '../../../shared/split-view.js'
 import type { BrowserState } from '../../../shared/types.js'
 import { LocalizedError } from '../../localized-error.js'
 import type { Browser } from '../browser.js'
@@ -7,8 +6,7 @@ import { focusTabOrTrustedChrome, returnTabFieldFocus, shellHasKeyboard, shellTa
 import { findTab, getTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { browserState, publishChange } from '../browser-state/browser-state.js'
-import { restSplitView, takeRestingSplitView } from '../split-view/resting-split-views.js'
-import { isHronautHomeUrl } from '../url.js'
+import { restingPartner, restSplitView, showRestingPair, takeRestingPair } from '../split-view/resting-split-views.js'
 import { markTabActiveInGroup, writeActiveTabId } from './active-tab.js'
 
 /** How a tab is selected. */
@@ -28,6 +26,9 @@ export async function selectTabAndWait(browser: Browser, tabId: string, options:
   }
   browser.tabSelectionGeneration += 1
   const selectionGeneration = browser.tabSelectionGeneration
+  // The tab paired with it in a split view put aside shows beside it, so it starts waking too.
+  const partner = restingPartner(browser, next)
+  if (partner?.sleeping) void browser.wakeTab(partner.id).catch((error) => console.error('[browser] Could not wake split tab:', error))
   if (next.sleeping || next.wakePromise) {
     notePickedField(browser)
     try {
@@ -120,7 +121,7 @@ export function selectTab(browser: Browser, tabId: string, options: BrowserTabSe
     return browserState(browser)
   }
   const current = browser.activeTabId ? findTab(browser, browser.activeTabId) : undefined
-  const pair = restingPair(browser, next)
+  const pair = takeRestingPair(browser, next)
   // The tab left keeps its field that has the keyboard, for when it is shown again, or the field that had it as the
   // person picked a tab that woke first, while the shell still has the keyboard.
   if (current && current.id !== next.id) {
@@ -143,14 +144,7 @@ export function selectTab(browser: Browser, tabId: string, options: BrowserTabSe
     browser.window.contentView.removeChildView(current.view)
   }
   if (current?.id !== next.id) browser.window.contentView.addChildView(next.view)
-  if (pair) {
-    const { partner, split } = pair
-    partner.lastActiveAt = performance.now()
-    if (partner.sleeping) void browser.wakeTab(partner.id).catch((error) => console.error('[browser] Could not wake split tab:', error))
-    if (partner !== current) browser.window.contentView.addChildView(partner.view)
-    browser.splitViewGeneration += 1
-    browser.splitView = split
-  }
+  if (pair) showRestingPair(browser, pair, current)
   writeActiveTabId(browser, next.id)
   markTabActiveInGroup(browser, next)
   browser.layout()
@@ -160,17 +154,4 @@ export function selectTab(browser: Browser, tabId: string, options: BrowserTabSe
   next.fieldFocusOnReturn = undefined
   publishChange(browser)
   return browserState(browser)
-}
-
-/**
- * The split view put aside that holds this tab, and the tab paired with it, to show both again. A pair whose other tab
- * can no longer show beside it, such as one whose page is gone, ends.
- */
-function restingPair(browser: Browser, tab: BrowserTab): { split: BrowserSplitViewState; partner: BrowserTab } | undefined {
-  const split = takeRestingSplitView(browser, tab.id)
-  if (!split) return undefined
-  const partner = findTab(browser, split.firstTabId === tab.id ? split.secondTabId : split.firstTabId)
-  if (!partner || partner.webContents.isDestroyed() || partner.mcpGroupId !== tab.mcpGroupId
-    || isHronautHomeUrl(partner.url) || isHronautHomeUrl(tab.url)) return undefined
-  return { split, partner }
 }

@@ -385,6 +385,31 @@ describe('closing a whole workspace', () => {
     const saved = persistedState(internals as never).tabs.map((tab) => tab.id)
     expect(saved.toSorted()).toEqual([...internals.tabs.keys()].toSorted())
   })
+
+  it('ends the split views put aside of its tabs, and the tab that follows shows with its own pair', async () => {
+    const { manager, release } = await browser()
+    release()
+    const theirs = { firstTabId: SHOWN, secondTabId: ASLEEP, orientation: 'vertical' as const, ratio: 0.5 }
+    const kept = { firstTabId: OTHER_ASLEEP, secondTabId: OTHER_AWAKE, orientation: 'horizontal' as const, ratio: 0.3 }
+    manager.restingSplitViews = [theirs, kept]
+
+    await closeMcpTabGroup(manager, CLOSING, true)
+    expect(manager.activeTabId).toBe(OTHER_ASLEEP)
+    expect(manager.splitView).toEqual(kept)
+    expect(manager.restingSplitViews).toEqual([])
+  })
+
+  it('saves the split views put aside whose two tabs it saves, which come back paired', async () => {
+    const { manager, internals, store, directory } = await browser()
+    const kept = { firstTabId: OTHER_ASLEEP, secondTabId: OTHER_AWAKE, orientation: 'horizontal' as const, ratio: 0.3 }
+    // A pair holding a tab that is no longer open is not saved.
+    manager.restingSplitViews = [kept, { firstTabId: SHOWN, secondTabId: CLOSING, orientation: 'vertical', ratio: 0.5 }]
+
+    const saved = persistedState(internals as never)
+    expect(saved.restingSplitViews).toEqual([kept])
+    await store.save(saved)
+    await expect(new TabStateStore(join(directory, 'tabs.json')).load()).resolves.toMatchObject({ restingSplitViews: [kept] })
+  })
 })
 
 describe('closing the shown tab while the sleeping tab that follows it wakes', () => {

@@ -137,7 +137,7 @@ export async function initializeBrowser(browser: Browser): Promise<void> {
       browser.restingSplitViews = (saved?.restingSplitViews ?? []).filter((split) => {
         const first = browser.tabs.get(split.firstTabId)
         const second = browser.tabs.get(split.secondTabId)
-        return first && second && first.mcpGroupId === second.mcpGroupId && !isHronautHomeUrl(first.url) && !isHronautHomeUrl(second.url)
+        return first && second && !isHronautHomeUrl(first.url) && !isHronautHomeUrl(second.url)
           && !browser.splitViewContains(first.id) && !browser.splitViewContains(second.id)
       })
     }

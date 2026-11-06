@@ -15,7 +15,7 @@ Project home: https://github.com/hronaut/hronaut
 - Cookies, local storage, IndexedDB, service workers, cache, and login sessions use Electron's persistent `persist:hronaut` partition.
 - Open tabs and the active tab are restored from `tabs.json` in Electron's user-data directory.
 - Each workspace tab's **Back** and **Forward** pages, with their scroll and form state, are restored from `tab-history.json` in the same directory.
-- A two-tab split view, its side-by-side or stacked layout, pane order, and proportion are restored from the same file, and so are the pairs of split tabs not in view.
+- A two-tab split view, its side-by-side or stacked layout, pane order, and proportion are restored from `tabs.json` too, and so are the pairs of split tabs not in view.
 - Per-tab and all-tab human-interaction locks are restored from `tabs.json` as well.
 - Appearance, search-engine, and other application settings are restored from `settings.json` in the same profile.
 - Allowed and blocked website permissions are restored from `site-permissions.json` in the same profile.

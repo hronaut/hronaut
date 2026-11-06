@@ -670,6 +670,9 @@ describe('TabStateStore', () => {
     const loaded = await store.load()
     expect(loaded?.splitView).toEqual(state.splitView)
     expect(loaded?.restingSplitViews).toEqual([{ ...pair, ratio: 0.25 }])
+    // The entries left out leave the file too.
+    const repaired = JSON.parse(await readFile(path, 'utf8')) as PersistedBrowserState
+    expect(repaired.restingSplitViews).toEqual([{ ...pair, ratio: 0.25 }])
   })
 
   it('rejects current state when active and archived workspaces share a profile partition', async () => {

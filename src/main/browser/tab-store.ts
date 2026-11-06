@@ -637,6 +637,9 @@ export class TabStateStore {
         : undefined
       if (data.splitView !== undefined && !splitView) throw this.reject('invalid-schema')
       const restingSplitViews = savedRestingSplitViews(data.restingSplitViews, usedTabIds, splitView)
+      // A split view put aside that is left out, or a list that is not one, leaves the file too.
+      if (data.restingSplitViews !== undefined
+        && (!Array.isArray(data.restingSplitViews) || restingSplitViews.length !== data.restingSplitViews.length)) repairedPersistedState = true
 
       const workspaceIds = new Set([...mcpTabGroups, ...savedTabGroups].map(group => group.id))
       const continuityWorkspaceIds = data.continuityWorkspaceIds === undefined ? undefined
