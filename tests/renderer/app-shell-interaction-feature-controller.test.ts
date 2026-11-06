@@ -111,6 +111,7 @@ function createHarness(extraNavigation: {
     bookmarksOpen: ref(false),
     bookmarksPanel: ref(null),
     historyOpen: ref(false),
+    historyPanel: ref(null),
     toggleCurrentBookmark: asyncNoop,
     bookmarkAllTabs: asyncNoop,
     toggleVisitHistory: asyncNoop,

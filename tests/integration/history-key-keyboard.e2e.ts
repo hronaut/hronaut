@@ -58,6 +58,18 @@ test('the history key from a page puts the keyboard in History\'s search, and cl
     await pressInPage()
     await expect(history).toBeHidden()
     await expect.poll(focusedContents).toBe(`${origin}/notes`)
+
+    // It goes back to the page, where the key was pressed, also when Hronaut's window last had it somewhere else, such
+    // as on the page's tab.
+    await pressInPage()
+    await expect(search).toBeFocused()
+    const tab = appWindow.getByRole('tab', { name: /^Notes/, selected: true })
+    await tab.focus()
+    await expect(tab).toBeFocused()
+    await expect(history).toBeVisible()
+    await pressInPage()
+    await expect(history).toBeHidden()
+    await expect.poll(focusedContents).toBe(`${origin}/notes`)
   } finally {
     await closeFixtureServer(server)
   }

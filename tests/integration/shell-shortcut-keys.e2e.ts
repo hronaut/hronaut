@@ -3,10 +3,10 @@ import type { AddressInfo } from 'node:net'
 import type { ElectronApplication } from '@playwright/test'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
-// Keys typed right after Ctrl/Cmd+L or Ctrl/Cmd+F in a page, while Hronaut's window was busy, reached the window
-// before the shortcut did: they went where the window had the keyboard before, such as after the address's text, which
-// the address field then selected. Chrome runs its keys in order, so they go to the field the shortcut gives the
-// keyboard to.
+// Keys typed right after Ctrl/Cmd+L, Ctrl/Cmd+F or the history key in a page, while Hronaut's window was busy, reached
+// the window before the shortcut did: they went where the window had the keyboard before, such as after the address's
+// text, which the address field then selected. Chrome runs its keys in order, so they go to the field the shortcut gives
+// the keyboard to.
 
 /**
  * Presses the shortcut in the page as Hronaut's window starts a long task, such as drawing many tabs, then types into
@@ -36,7 +36,7 @@ async function pressThenType(electronApp: ElectronApplication, request: { pageUr
   }, request)
 }
 
-test('keys typed right after Ctrl/Cmd+L or Ctrl/Cmd+F in a page go to the field it gives the keyboard to', async ({ appWindow, electronApp }) => {
+test('keys typed right after Ctrl/Cmd+L, Ctrl/Cmd+F or the history key in a page go to the field it gives the keyboard to', async ({ appWindow, electronApp }) => {
   const server = createServer((request, response) => {
     response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
     response.end(request.url === '/next' ? '<!doctype html><title>Keys next</title><p>next</p>' : '<!doctype html><title>Keys first</title><p>first</p>')
@@ -77,6 +77,16 @@ test('keys typed right after Ctrl/Cmd+L or Ctrl/Cmd+F in a page go to the field 
     await expect(address).toHaveValue(pageUrl)
     await appWindow.keyboard.press('Escape')
     await expect(findField).toBeHidden()
+
+    // Ctrl+H (Cmd+Y on macOS) gives the keyboard to History's search.
+    const historySearch = appWindow.getByRole('searchbox', { name: 'Search browsing history' })
+    await leaveCaretInAddress()
+    await pressThenType(electronApp, { pageUrl, shellUrl, key: process.platform === 'darwin' ? 'Y' : 'H', text: 'first' })
+    await expect(historySearch).toBeFocused()
+    await expect(historySearch).toHaveValue('first')
+    await expect(address).toHaveValue(pageUrl)
+    await appWindow.keyboard.press('Escape')
+    await expect(historySearch).toBeHidden()
 
     // Enter typed on goes to the address typed.
     await leaveCaretInAddress()

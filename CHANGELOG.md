@@ -15,7 +15,7 @@ All notable changes to Hronaut are documented in this file.
 - Undo after closing several tabs at once, the one you were on among them, such as selected tabs or with Close other tabs, now shows that tab again, with the others back behind it, rather than leaving you on the tab that replaced them.
 - Clicking or touching a page of a split view whose input you locked now makes it the active pane, so Unlock input beside the address bar acts on it, as after any other click on either page. The page still gets none of it.
 - A tab whose page had crashed or could not load now comes back after a restart, or with its archived workspace, by its page's title or its address, as in Chrome, rather than as Page unavailable or Site unavailable.
-- Ctrl+H (Cmd+Y on macOS) pressed in a page now puts the keyboard in History's search, as Chrome's History page does, rather than leaving it in the website behind the panel, and closing History gives the keyboard back to the page.
+- History now opens with the keyboard in its search, with the last search selected, as Chrome's History page does, also from Ctrl+H (Cmd+Y on macOS) pressed in a page, which left the keyboard in the website behind the panel. Closing History with the keyboard in it, or with the key pressed in the page, gives the keyboard back to the page.
 
 ## [3.14.18] - 2026-11-06
 

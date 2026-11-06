@@ -11,6 +11,7 @@ import type {
   SitePermissionEntry
 } from '../../../shared/types.js'
 import { disposeAll, registerDisposers } from './dispose-all.js'
+import { runShortcutPressedOutside } from '../shortcut-origin.js'
 
 interface ShellEventsApi {
   onHelpRequested(listener: (action: HelpMenuAction) => void): () => void
@@ -77,7 +78,7 @@ export function useAppEventsController(options: AppEventsControllerOptions) {
     () => options.browserApi.onShortcutRequested((action) => {
       if (disposed) return undefined
       try {
-        return Promise.resolve(options.onShortcut(action)).catch(reportError)
+        return Promise.resolve(runShortcutPressedOutside(() => options.onShortcut(action))).catch(reportError)
       } catch (error) {
         reportError(error)
         return undefined

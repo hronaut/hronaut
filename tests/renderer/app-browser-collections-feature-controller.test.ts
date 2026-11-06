@@ -193,7 +193,7 @@ describe('useAppBrowserCollectionsFeatureController', () => {
       bookmarkAllTabs: vi.fn(async () => undefined),
       handleEscape: vi.fn()
     }
-    harness.controller.historyPanel.value = { toggle: historyToggle }
+    harness.controller.historyPanel.value = { toggle: historyToggle, close: vi.fn() }
 
     expect(harness.controller.downloads).toBe(harness.controller.browserCollectionsController.downloads)
     expect(harness.controller.bookmarks).toBe(harness.controller.browserCollectionsController.bookmarks)

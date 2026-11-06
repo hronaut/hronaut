@@ -69,6 +69,7 @@ type CollectionsFeature = Pick<
   | 'bookmarksOpen'
   | 'bookmarksPanel'
   | 'historyOpen'
+  | 'historyPanel'
   | 'toggleCurrentBookmark'
   | 'bookmarkAllTabs'
   | 'toggleVisitHistory'

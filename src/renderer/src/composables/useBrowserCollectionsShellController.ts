@@ -10,6 +10,8 @@ export interface BookmarksShellPanel {
 
 export interface HistoryShellPanel {
   toggle: () => Promise<void>
+  /** Closes History as its Close does, giving the page back the keyboard that was in it. */
+  close: () => void
 }
 
 export interface BrowserCollectionsShellControllerOptions {
