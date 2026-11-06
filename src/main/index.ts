@@ -1307,10 +1307,7 @@ async function createWindow(startMinimized = false): Promise<void> {
         message: text('native.dialog.closeTabMessage'),
         detail: text('native.dialog.closeTabDetail'),
         buttons: [text('native.dialog.keepEditing'), text('native.dialog.discardChanges')],
-        defaultId: 0,
-        cancelId: 0,
-        primaryId: 1,
-        noLink: true,
+        defaultId: 0, cancelId: 0, primaryId: 1, noLink: true,
         variant: { kind: 'message', topic: 'unsaved-changes' }
       })
       return response === 1
@@ -1322,14 +1319,17 @@ async function createWindow(startMinimized = false): Promise<void> {
         message: text(`native.dialog.${question}PageMessage`),
         detail: text(`native.dialog.${question}PageDetail`),
         buttons: [text('native.dialog.keepEditing'), text(`native.dialog.${question}Page`)],
-        defaultId: 0,
-        cancelId: 0,
-        primaryId: 1,
-        noLink: true,
+        defaultId: 0, cancelId: 0, primaryId: 1, noLink: true,
         variant: { kind: 'message', topic: 'unsaved-changes' }
       })
       return response === 1
     },
+    // Cancel takes the focus and Enter, so a key held from the address bar opens no app.
+    confirmOpenAppLink: async (scheme) => (await trustedDialogs.show({
+      type: 'question', title: text('native.dialog.openAppTitle'), message: text('native.dialog.openAppMessage', { scheme }),
+      detail: text('native.dialog.openAppDetail'), buttons: [text('native.dialog.cancel'), text('native.dialog.openApp')],
+      defaultId: 0, cancelId: 0, primaryId: 1, noLink: true, variant: { kind: 'message' }
+    })).response === 1,
     askToSignIn: async ({ origin, secure, workspaceId, signal }) => {
       // The sign-in holds for the tab's workspace, which may not be the one shown, such as one an agent works in.
       const workspaceName = workspaceId && tabRuntime.tabs
