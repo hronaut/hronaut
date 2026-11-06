@@ -43,11 +43,9 @@ test('reopening a tab closed from a split view puts it back beside the tab it wa
   await hronaut(`openSplitView(${JSON.stringify(await tabId(betaUrl))})`)
   await hronaut(`updateSplitView({ orientation: 'horizontal', ratio: 0.35 })`)
   await expect.poll(shown).toEqual({ panes: [alphaUrl, betaUrl], layout: ['horizontal', 0.35], active: alphaUrl })
-  await electronApp.evaluate(({ BrowserWindow }, alpha) => BrowserWindow.getAllWindows()
-    .find((window) => window.contentView.children.some((child) => 'webContents' in child
-      && (child as Electron.WebContentsView).webContents.getURL() === alpha))!
-    .focus(), alphaUrl)
-  await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow() !== null)).toBe(true)
+  const hronautWindow = await electronApp.browserWindow(appWindow)
+  await hronautWindow.evaluate((window) => window.focus())
+  await expect.poll(() => hronautWindow.evaluate((window) => window.isFocused())).toBe(true)
 
   // The bottom pane closes, and Ctrl/Cmd+Shift+T puts it back at the bottom, beside the page it was shown with, which
   // stays the active pane.
