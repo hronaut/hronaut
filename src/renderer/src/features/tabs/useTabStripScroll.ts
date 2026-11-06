@@ -21,6 +21,8 @@ export function useTabStripScroll(options: TabStripScrollOptions) {
   let activeVisibleBeforeResize = true
   let tabStripWidth = 0
   let tabStripHeight = 0
+  // The strip whose tabs keep their widths while tabs close under the pointer.
+  let widthsHeldOn: HTMLElement | undefined
 
   function updateTabOverflow(): void {
     const strip = tabsStrip.value
@@ -180,6 +182,36 @@ export function useTabStripScroll(options: TabStripScrollOptions) {
 
   function stopObservingStrip(): void {
     tabsStripResizeObserver?.disconnect()
+    releaseTabWidths()
+  }
+
+  /**
+   * Keeps the tabs of the strip above the page as wide as they are while the person closes tabs with the mouse, until
+   * the pointer leaves the strip, as Chrome does: the next tab's close button then comes under the pointer, rather than
+   * the tabs widening to fill the space and sliding it away. The rail lists tabs in rows, which closing does not widen.
+   */
+  function holdTabWidths(): void {
+    const strip = tabsStrip.value
+    if (!strip || vertical.value) return
+    for (const tab of strip.querySelectorAll<HTMLElement>('.tab[data-tab-id]')) {
+      const width = `${tab.getBoundingClientRect().width}px`
+      tab.style.flex = `0 0 ${width}`
+      tab.style.width = width
+    }
+    if (widthsHeldOn === strip) return
+    widthsHeldOn = strip
+    strip.addEventListener('pointerleave', releaseTabWidths, { once: true })
+  }
+
+  function releaseTabWidths(): void {
+    const strip = widthsHeldOn
+    widthsHeldOn = undefined
+    if (!strip) return
+    strip.removeEventListener('pointerleave', releaseTabWidths)
+    for (const tab of strip.querySelectorAll<HTMLElement>('.tab[data-tab-id]')) {
+      tab.style.removeProperty('flex')
+      tab.style.removeProperty('width')
+    }
   }
 
   return {
@@ -197,6 +229,7 @@ export function useTabStripScroll(options: TabStripScrollOptions) {
     handleTabStripScroll,
     markActiveTabVisible,
     observeStrip,
-    stopObservingStrip
+    stopObservingStrip,
+    holdTabWidths
   }
 }

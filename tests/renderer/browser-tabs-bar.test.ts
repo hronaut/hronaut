@@ -681,6 +681,23 @@ describe('BrowserTabsBar', () => {
     expect(first).toHaveAttribute('data-tooltip', 'Page first')
   })
 
+  it('keeps the tabs above the page as wide as they are while tabs close with the mouse, until the pointer leaves', async () => {
+    // As Chrome does, so the next tab's close button comes under the pointer rather than sliding away from it.
+    const measure = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ width: 150 } as DOMRect)
+    const view = renderTabs(browserState({ tabs: [tab('first'), tab('second'), tab('third', { active: true })], activeTabId: 'third' }))
+    const row = (name: string) => screen.getByRole('tab', { name })
+    await fireEvent.click(row('Page first').querySelector('.tab-close')!)
+    expect(view.emitted('closeTab')).toEqual([['first']])
+    for (const name of ['Page second', 'Page third']) expect(row(name).style.width).toBe('150px')
+    await fireEvent.pointerLeave(document.querySelector('.tabs-strip')!)
+    for (const name of ['Page second', 'Page third']) expect(row(name).style.width).toBe('')
+    // The rail lists tabs in rows, which closing one does not widen.
+    await view.rerender({ orientation: 'vertical' })
+    await fireEvent.click(row('Page second').querySelector('.tab-close')!)
+    expect(row('Page third').style.width).toBe('')
+    measure.mockRestore()
+  })
+
   it('names a tab\'s close button Close tab, without the key that closes the shown tab', () => {
     // As in Chrome: on a tab in the background, Ctrl/Cmd+W would close the shown tab, not this one.
     renderTabs(browserState({ tabs: [tab('first'), tab('second', { active: true })], activeTabId: 'second' }))
