@@ -2,6 +2,9 @@ import { onScopeDispose, ref, watch, type Ref } from 'vue'
 
 const REVEAL_DELAY = 180
 const CONCEAL_DELAY = 260
+// A press on a tab shows it, and its page takes the keyboard, while the button is still down. A blur this soon after
+// the press is that; a later one is the window's own, as when a menu took the release and the person clicked the page.
+const TAB_PRESS_BLUR_MS = 1000
 
 /** What opened the rail: the pointer resting on it, keyboard focus moving into it, or the shell itself. */
 export type TabRailRevealSource = 'pointer' | 'focus' | 'shell'
@@ -20,15 +23,15 @@ export function useTabRailInteractionController(options: {
   /** Focus came with a press of the pointer on the folded rail, not from the keyboard. */
   let focusedByPointer = false
   let pointerId: number | undefined
-  /** The held press is of the main button on a tab, which shows the tab while the button is down. */
-  let tabPressHeld = false
+  /** When the held press of the main button on a tab began; undefined while the held press is another. */
+  let tabPressAt: number | undefined
   let dragging = false
   let rail: HTMLElement | undefined
   let revealTimer: number | undefined
   let concealTimer: number | undefined
   let releaseTimer: number | undefined
-  /** The window lost focus while a press in the shell held, as when the press showed a tab whose page took the keyboard. */
-  let blurredWhileHeld = false
+  /** The page of the tab the held press showed took the keyboard; the window acts on that once the press ends. */
+  let blurredByTabPress = false
   let disposed = false
   /**
    * While the open rail shows in main's view over the page, the pointer is there rather than in the shell: what the
@@ -167,12 +170,16 @@ export function useTabRailInteractionController(options: {
     reconcile()
   }
 
+  // Heard while off too, so that a press on a tab that turns the surface on keeps it shown until the press ends.
   function pointerDown(event: PointerEvent): void {
-    if (!options.enabled.value || !event.isPrimary || event.button < 0
-      || !(event.target instanceof Element) || !event.target.closest('.shell')) return
+    if (!event.isPrimary || event.button < 0 || !(event.target instanceof Element) || !event.target.closest('.shell')) return
     cancelTimers()
     pointerId = event.pointerId
-    tabPressHeld = event.button === 0 && event.target.closest('[role="tab"]') !== null
+    tabPressAt = event.button === 0 && event.target.closest('[role="tab"][data-tab-id]') ? performance.now() : undefined
+  }
+
+  function tabPressJustBegan(): boolean {
+    return pointerId !== undefined && tabPressAt !== undefined && performance.now() - tabPressAt < TAB_PRESS_BLUR_MS
   }
 
   function pointerUp(event: PointerEvent): void {
@@ -183,7 +190,7 @@ export function useTabRailInteractionController(options: {
     releaseTimer = window.setTimeout(() => {
       releaseTimer = undefined
       reconcile()
-      afterHold()
+      afterTabPress()
     }, 0)
   }
 
@@ -191,11 +198,10 @@ export function useTabRailInteractionController(options: {
     if (event.pointerId !== pointerId) return
     pointerId = undefined
     reconcile()
-    // A drag cancels the press as it starts, and its start cancels this timer, so a blur during the press waits for
-    // the drag's end.
+    // A drag cancels the press as it starts, in the same turn, and its start cancels this timer.
     releaseTimer = window.setTimeout(() => {
       releaseTimer = undefined
-      afterHold()
+      afterTabPress()
     }, 0)
   }
 
@@ -205,12 +211,13 @@ export function useTabRailInteractionController(options: {
     cancelTimers()
   }
 
-  function dragEnd(): void { dragging = false; pointerId = undefined; reconcile(); afterHold() }
+  // A tab dragged and dropped is not a click on the page: what the pointer and focus hold decides, as before the drag.
+  function dragEnd(): void { dragging = blurredByTabPress = false; pointerId = undefined; reconcile() }
 
   function reset(): void {
     cancelTimers()
-    hovered = focused = focusedByPointer = dragging = blurredWhileHeld = false
-    pointerId = undefined
+    hovered = focused = focusedByPointer = dragging = blurredByTabPress = false
+    pointerId = tabPressAt = undefined
     rail = undefined
     hide()
   }
@@ -219,10 +226,9 @@ export function useTabRailInteractionController(options: {
     // Focus moves to main's view or the page under it while the rail shows there; main closes it when the window
     // itself loses focus.
     if (overlay) return
-    // A press on a tab shows it, and its page takes the keyboard, while the button is still down, as in Chrome: what
-    // the press or the drag it starts holds stays in place until it ends.
-    if ((pointerId !== undefined && tabPressHeld) || dragging) {
-      blurredWhileHeld = true
+    // What the press on a tab, or the drag it starts, holds stays in place until it ends.
+    if (tabPressJustBegan()) {
+      blurredByTabPress = true
       return
     }
     loseFocus()
@@ -235,12 +241,15 @@ export function useTabRailInteractionController(options: {
     options.onNativeBlur(wasRevealed)
   }
 
-  /** Once the press or its drag is over, a window that lost focus during it and has not got it back loses it now. */
-  function afterHold(): void {
-    if (!blurredWhileHeld || pointerId !== undefined || dragging) return
-    blurredWhileHeld = false
+  /** A press on a tab that ends in a click leaves the window as a click on the page does, unless focus came back. */
+  function afterTabPress(): void {
+    if (!blurredByTabPress || pointerId !== undefined || dragging) return
+    blurredByTabPress = false
     if (!document.hasFocus()) loseFocus()
   }
+
+  // A press that opens the tab's menu, as Control does on macOS, shows no tab.
+  function contextMenu(): void { tabPressAt = undefined }
 
   window.addEventListener('blur', windowBlur)
   window.addEventListener('pointerdown', pointerDown, true)
@@ -249,7 +258,12 @@ export function useTabRailInteractionController(options: {
   window.addEventListener('dragstart', dragStart, true)
   window.addEventListener('dragend', dragEnd, true)
   window.addEventListener('drop', dragEnd, true)
-  const stopEnabled = watch(options.enabled, enabled => { if (!enabled) reset() }, { flush: 'sync' })
+  window.addEventListener('contextmenu', contextMenu, true)
+  const stopEnabled = watch(options.enabled, enabled => {
+    if (!enabled) reset()
+    // As a press on a website tab over Home with the full-page view on: the surface stays while the press holds.
+    else if (tabPressJustBegan()) show('shell')
+  }, { flush: 'sync' })
   onScopeDispose(() => {
     disposed = true
     cancelTimers()
@@ -260,6 +274,7 @@ export function useTabRailInteractionController(options: {
     window.removeEventListener('pointercancel', pointerCancel, true)
     window.removeEventListener('dragstart', dragStart, true)
     window.removeEventListener('dragend', dragEnd, true)
+    window.removeEventListener('contextmenu', contextMenu, true)
     window.removeEventListener('drop', dragEnd, true)
   })
 
