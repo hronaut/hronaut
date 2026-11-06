@@ -6,6 +6,7 @@ import { localizedLoadFailure } from '../load-failure-error.js'
 import { PAGE_LOAD_WAIT_MS, settledWithin } from '../page-waits/page-load-limit.js'
 import { RendererExitedError } from '../renderer-exit-guard.js'
 import { keepSessionCookies } from '../session-cookies/saved-session-cookies.js'
+import { appLinkScheme, openAppLinkForPerson } from '../app-links/typed-app-link.js'
 import { isHronautHomeUrl, normalizeAddress } from '../url.js'
 import type { Browser } from '../browser.js'
 import { assertWorkspaceNavigationAllowed, workspaceMayOpen, workspaceNavigationAllowed } from '../workspace-navigation/workspace-navigation.js'
@@ -111,6 +112,13 @@ export async function navigate(browser: Browser, url: string, tabId?: string,
   options: { byPerson?: boolean; typed?: boolean } = {}): Promise<BrowserState> {
   const tab = tabWithPage(browser, tabId)
   const normalized = normalizeAddress(url, browser.options.getSearchEngine?.())
+  // A link to another app the person typed or chose, such as mailto:, goes to that app, as in Chrome; an agent's stays
+  // refused below.
+  const appScheme = options.byPerson ? appLinkScheme(normalized) : undefined
+  if (appScheme) {
+    await openAppLinkForPerson(browser, normalized, appScheme)
+    return browserState(browser)
+  }
   if (tab.mcpGroupId && isHronautHomeUrl(normalized)) {
     throw new LocalizedError('appErrors.navigation.homeInAgentWorkspace')
   }

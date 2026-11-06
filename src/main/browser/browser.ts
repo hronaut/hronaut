@@ -258,6 +258,8 @@ export interface BrowserOptions {
    * started, or whether to reload it for a Reload.
    */
   confirmBeforeUnloadLeave?: (question: 'leave' | 'reload') => Promise<boolean>
+  /** Asks the person whether to open a link they typed or chose in the app their system uses for its scheme. */
+  confirmOpenAppLink?: (scheme: string) => Promise<boolean>
   /**
    * Asks the person to sign in to a website that asks for a username and password, in Hronaut's own dialog; resolves
    * with what they typed, 'cancelled' when they cancel, or null when nobody answered. Without it, Hronaut cancels the
