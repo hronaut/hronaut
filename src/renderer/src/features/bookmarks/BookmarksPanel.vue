@@ -10,10 +10,10 @@ import IconClose from '~icons/material-symbols/close-rounded'
 import IconDelete from '~icons/material-symbols/delete-outline-rounded'
 import IconEdit from '~icons/material-symbols/edit-rounded'
 import IconLink from '~icons/material-symbols/link-rounded'
-import IconLanguage from '~icons/material-symbols/language-rounded'
 import IconSearch from '~icons/material-symbols/search-rounded'
 import IconStarOutline from '~icons/material-symbols/star-outline-rounded'
 import type { BookmarkImportResult, BrowserBookmark, HronautBookmarkCollectionsApi, PanelDock } from '../../../../shared/types.js'
+import type { SiteIconIndex } from '../../../../shared/site-icons.js'
 import { useBookmarksPanelController } from './useBookmarksPanelController.js'
 import { isImeCompositionEvent } from '../../keyboard-composition.js'
 import { asMiddleClick, openClickTab } from '../../open-click.js'
@@ -24,6 +24,7 @@ import { useBookmarkCollectionsController } from './useBookmarkCollectionsContro
 import { useBookmarksOpenAll } from './useBookmarksOpenAll.js'
 import PanelDockPicker from '../panels/PanelDockPicker.vue'
 import { vTooltip } from '../../ui/tooltip.js'
+import SiteIcon from '../../components/SiteIcon.vue'
 
 const props = defineProps<{
   collectionsApi?: HronautBookmarkCollectionsApi
@@ -42,6 +43,8 @@ const props = defineProps<{
   exportBookmarks: () => Promise<number | null>
   importBookmarks: () => Promise<BookmarkImportResult | null>
   formatNumber: (value: number) => string
+  /** The icons tabs showed for the pages. */
+  siteIcons?: SiteIconIndex
 }>()
 
 const open = defineModel<boolean>('open', { required: true })
@@ -386,7 +389,7 @@ function handleRenameKeydown(event: KeyboardEvent, bookmarkId: string): void {
     <div v-else class="bookmarks-list">
       <article v-for="bookmark in visibleBookmarks" :key="bookmark.id" class="bookmark-item" :class="{ current: bookmark.id === currentBookmark?.id, editing: editingBookmarkId === bookmark.id }">
         <div v-if="editingBookmarkId === bookmark.id" class="bookmark-open bookmark-editor">
-          <span class="bookmark-site-icon" aria-hidden="true"><IconLanguage /></span>
+          <span class="bookmark-site-icon" aria-hidden="true"><SiteIcon :url="bookmark.url" :icons="siteIcons" /></span>
           <span class="bookmark-copy">
             <input
               v-if="editingDestination"
@@ -414,7 +417,7 @@ function handleRenameKeydown(event: KeyboardEvent, bookmarkId: string): void {
         </div>
         <UiButton appearance="application" v-else class="bookmark-open" type="button" v-tooltip="bookmark.url" :disabled="anyPending"
           @keydown="ignoreHeldEnter" @click="clickBookmark($event, bookmark)" @auxclick="asMiddleClick($event, (click) => clickBookmark(click, bookmark))">
-          <span class="bookmark-site-icon" aria-hidden="true"><IconLanguage /></span>
+          <span class="bookmark-site-icon" aria-hidden="true"><SiteIcon :url="bookmark.url" :icons="siteIcons" /></span>
           <span class="bookmark-copy">
             <strong>{{ bookmark.title }}</strong>
             <span>{{ bookmark.url }}</span>

@@ -39,6 +39,7 @@ const {
   copyBookmarkAddress,
   returnKeyboardToPage
 } = props.controller
+const { siteIcons } = browserCollectionsController
 </script>
 
 <template>
@@ -77,6 +78,7 @@ const {
     :open-bookmark="openBookmark"
     :copy-bookmark-address="copyBookmarkAddress"
     :open-bookmark-in-background="openBookmarkInBackground"
+    :site-icons="siteIcons"
   />
   <HistoryPanel
     ref="historyPanel"
@@ -93,5 +95,6 @@ const {
     :open-history-entry-in-background="openHistoryEntryInBackground"
     :copy-history-address="copyHistoryAddress"
     :return-keyboard="returnKeyboardToPage"
+    :site-icons="siteIcons"
   />
 </template>

@@ -1,13 +1,14 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import { expect, it, vi } from 'vitest'
 import { registerCollectionIpc } from '../src/main/collection-ipc.js'
+import type { SiteIcons } from '../src/shared/site-icons.js'
 
 type Listener = Parameters<IpcMain['handle']>[1]
 const channels = [
   'downloads:list', 'downloads:cancel', 'downloads:pause', 'downloads:resume', 'downloads:retry', 'downloads:remove-finished', 'downloads:clear-finished', 'downloads:show-in-folder', 'downloads:start-drag',
   'bookmarks:list', 'bookmarks:add', 'bookmarks:add-if-missing', 'bookmarks:rename', 'bookmarks:update-destination', 'bookmarks:remove',
   'bookmark-collections:list', 'bookmark-collections:create', 'bookmark-collections:rename', 'bookmark-collections:remove', 'bookmark-collections:assign', 'bookmark-collections:bookmark-tabs',
-  'visit-history:list', 'visit-history:remove', 'visit-history:clear'
+  'visit-history:list', 'visit-history:site-icons', 'visit-history:remove', 'visit-history:clear'
 ]
 
 function fixture() {
@@ -20,6 +21,7 @@ function fixture() {
     async runRead<T>(event: IpcMainInvokeEvent, read: () => T): Promise<T> { host.assertTrustedSender(event); return read() },
     bookmarks: vi.fn(() => bookmarks),
     history: vi.fn(() => history),
+    siteIcons: vi.fn((): SiteIcons => ({ pages: {}, icons: {} })),
     downloads: vi.fn(() => ({ downloadController: downloads })),
     tabs: vi.fn(() => [] as { url: string; title: string; mcpGroupId?: string }[]),
     publishBookmarks: vi.fn(() => []),
@@ -218,4 +220,12 @@ it('starts dragging a download out of the window it is dragged in, by its ID onl
   expect(downloads.startDownloadDrag).toHaveBeenCalledExactlyOnceWith('finished', event.sender)
   await expect(invoke('downloads:start-drag', { id: 'finished' })).rejects.toThrow('Invalid download ID')
   expect(downloads.startDownloadDrag).toHaveBeenCalledOnce()
+})
+
+it('gives a trusted window the pages\' icons main keeps', async () => {
+  const { host, invoke, event } = fixture()
+  const icons = { pages: { 'https://docs.example/guide': 'a' }, icons: { a: 'data:image/png;base64,AAAA' } }
+  host.siteIcons.mockReturnValue(icons)
+  await expect(invoke('visit-history:site-icons')).resolves.toEqual(icons)
+  expect(host.assertTrustedSender).toHaveBeenCalledWith(event)
 })

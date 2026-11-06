@@ -229,6 +229,8 @@ export interface BrowserOptions {
   /** A tab opened a web page, or opened the one it showed again: samePage. */
   onPageVisited?: (visit: { url: string; title: string; samePage: boolean }) => void
   onPageTitleUpdated?: (page: { url: string; title: string }) => void
+  /** A tab showed this icon for its web page, as a 32 pixel PNG data URL, from the first icon list its document gave. */
+  onSiteIcon?: (page: { url: string; icon: string }) => void
   /** The browser state as it was published: the changes of a burst together (see StatePublication). */
   onStateChanged?: (state: BrowserState) => void
   /** Something changed, called at once rather than with the publication: a page view may have been attached. */

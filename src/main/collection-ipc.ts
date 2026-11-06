@@ -8,6 +8,7 @@ import { isHronautHomeUrl } from '../shared/home-url.js'
 import { BOOKMARKS_IPC, BOOKMARK_COLLECTIONS_IPC } from '../shared/ipc/bookmarks.js'
 import { DOWNLOADS_IPC } from '../shared/ipc/downloads.js'
 import { HISTORY_IPC } from '../shared/ipc/history.js'
+import type { SiteIcons } from '../shared/site-icons.js'
 
 interface CollectionIpcHost {
   runRead<T>(event: IpcMainInvokeEvent, read: () => T): Promise<T>
@@ -20,6 +21,8 @@ interface CollectionIpcHost {
   /** The person removed a collection; Undo can put it back. */
   collectionRemoved?(removed: RemovedCollection): void
   history(): Pick<HistoryStore, 'list' | 'remove' | 'clear'>
+  /** The icons tabs showed for the pages in the history and bookmarks. */
+  siteIcons(): SiteIcons
   /** The person cleared their history, so anything else that names visited pages goes too. */
   historyCleared?(): void
   /** The person removed one page from their history, so anything else that names it goes too. */
@@ -132,6 +135,7 @@ export function registerCollectionIpc(ipcMain: Pick<TypedIpcMain, 'handle'>, hos
     return { snapshot: store.collectionSnapshot(), result }
   })
   ipcMain.handle(HISTORY_IPC.list, (event) => host.runRead(event, () => host.history().list()))
+  ipcMain.handle(HISTORY_IPC.siteIcons, (event) => host.runRead(event, () => host.siteIcons()))
   ipcMain.handle(HISTORY_IPC.remove, async (event, id: unknown) => {
     host.assertTrustedSender(event)
     if (typeof id !== 'string') throw new TypeError('Invalid history entry ID')

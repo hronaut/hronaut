@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { loadFavicon } from '../src/main/browser/tab-favicon/tab-favicon.js'
+import { giveRouteSiteIcon, loadFavicon } from '../src/main/browser/tab-favicon/tab-favicon.js'
 import type { Browser } from '../src/main/browser/browser.js'
 import type { BrowserTab } from '../src/main/browser/browser-tab.js'
 
@@ -24,6 +24,8 @@ vi.mock('../src/main/browser/browser-state/browser-state.js', () => ({ publishCh
 function page(icons: Record<string, { size: number | string; after: number }>) {
   const fetches: { url: string; signal: AbortSignal }[] = []
   const tab = {
+    url: 'https://site.example/page',
+    documentGeneration: 0,
     faviconRequestId: 0,
     webContents: {
       isDestroyed: () => false,
@@ -44,7 +46,9 @@ function page(icons: Record<string, { size: number | string; after: number }>) {
   } as unknown as BrowserTab
   const urls = Object.keys(icons).map((name) => `https://site.example/${name}`)
   const shown = () => tab.faviconDataUrl ? Buffer.from(tab.faviconDataUrl.split(',')[1]!, 'base64').toString() : undefined
-  return { tab, urls, fetches, shown, load: () => loadFavicon({ destroyed: false } as Browser, tab, urls) }
+  const onSiteIcon = vi.fn<(page: { url: string; icon: string }) => void>()
+  const browser = { destroyed: false, options: { onSiteIcon } } as unknown as Browser
+  return { tab, urls, fetches, shown, onSiteIcon, browser, load: () => loadFavicon(browser, tab, urls) }
 }
 
 afterEach(() => {
@@ -68,6 +72,72 @@ describe('the icon a tab shows', () => {
 
     expect(icons.shown()).toBe('icon 64')
     expect(icons.fetches.map(({ signal }) => signal.aborted)).toEqual([true, true, true, true])
+    // History and Bookmarks hear of each icon the tab showed, for its page.
+    expect(icons.onSiteIcon.mock.calls.map(([{ icon }]) => Buffer.from(icon.split(',')[1]!, 'base64').toString())).toEqual(['icon 16', 'icon 24', 'icon 64'])
+    expect(icons.onSiteIcon).toHaveBeenCalledWith(expect.objectContaining({ url: icons.tab.url }))
+  })
+
+  // Each icon list a page gave replaced its icon in History and Bookmarks, so a mail page's unread count, a build's status
+  // or an animated icon's frames took the page's place there, and were saved again and again.
+  it('gives History and Bookmarks only the first icon list a document gives for its page', async () => {
+    vi.useFakeTimers()
+    const icons = page({ small: { size: 16, after: 0 }, large: { size: 64, after: 5 }, badge: { size: 48, after: 0 }, route: { size: 40, after: 0 } })
+    const given = () => icons.onSiteIcon.mock.calls.map(([{ url, icon }]) => `${url} ${Buffer.from(icon.split(',')[1]!, 'base64').toString()}`)
+    const load = async (names: string[]) => {
+      const loading = loadFavicon(icons.browser, icons.tab, names.map((name) => `https://site.example/${name}`))
+      await vi.advanceTimersByTimeAsync(5)
+      await loading
+    }
+
+    await load(['small', 'large'])
+    // The page's own icon list, as each larger icon of it arrives.
+    expect(given()).toEqual(['https://site.example/page icon 16', 'https://site.example/page icon 64'])
+
+    // The tab shows the badge the page gives later, but History and Bookmarks keep the page's icon.
+    await load(['badge'])
+    expect(icons.shown()).toBe('icon 48')
+    // A link to a section of the page is still the page.
+    icons.tab.url = 'https://site.example/page#comments'
+    await load(['badge'])
+    expect(given()).toHaveLength(2)
+
+    // A route the page's document goes to is a page of its own, with the document's first icon, whatever the page
+    // gives after; the same page loaded again is a new document.
+    icons.tab.url = 'https://site.example/route'
+    giveRouteSiteIcon(icons.browser, icons.tab)
+    await load(['route'])
+    icons.tab.url = 'https://site.example/page'
+    icons.tab.documentGeneration += 1
+    await load(['badge'])
+    expect(given().slice(2)).toEqual(['https://site.example/route icon 64', 'https://site.example/page icon 48'])
+  })
+
+  // A navigation aborts the icons loading, but the page it replaces runs until the new one commits, and an icon list it
+  // gave meanwhile, such as an unread count, showed in the tab of the new page and became the new page's in History.
+  it('shows nothing of an icon list the page gave before another replaced it', async () => {
+    vi.useFakeTimers()
+    const icons = page({ leaving: { size: 16, after: 10 }, leavingLarger: { size: 48, after: 50 }, arriving: { size: 64, after: 10 } })
+
+    const leaving = loadFavicon(icons.browser, icons.tab, [icons.urls[0]!, icons.urls[1]!])
+    // The new page commits.
+    icons.tab.url = 'https://site.example/next'
+    icons.tab.documentGeneration += 1
+    await vi.advanceTimersByTimeAsync(10)
+    // The rest of the list stops loading.
+    expect(icons.fetches[1]!.signal.aborted).toBe(true)
+    await vi.advanceTimersByTimeAsync(40)
+    await leaving
+    expect(icons.shown()).toBeUndefined()
+    expect(icons.onSiteIcon).not.toHaveBeenCalled()
+
+    // A route the new page goes to while its icon still loads gets the icon too.
+    const arriving = loadFavicon(icons.browser, icons.tab, [icons.urls[2]!])
+    icons.tab.url = 'https://site.example/next/inbox'
+    giveRouteSiteIcon(icons.browser, icons.tab)
+    await vi.advanceTimersByTimeAsync(10)
+    await arriving
+    expect(icons.shown()).toBe('icon 64')
+    expect(icons.onSiteIcon.mock.calls.map(([{ url }]) => url)).toEqual(['https://site.example/next', 'https://site.example/next/inbox'])
   })
 
   it('does not wait for an icon listed before the one it shows', async () => {
@@ -105,8 +175,8 @@ describe('the icon a tab shows', () => {
     vi.useFakeTimers()
     const icons = page({ old: { size: 48, after: 10 }, current: { size: 64, after: 20 } })
 
-    const superseded = loadFavicon({ destroyed: false } as Browser, icons.tab, [icons.urls[0]!])
-    const current = loadFavicon({ destroyed: false } as Browser, icons.tab, [icons.urls[1]!])
+    const superseded = loadFavicon(icons.browser, icons.tab, [icons.urls[0]!])
+    const current = loadFavicon(icons.browser, icons.tab, [icons.urls[1]!])
     await vi.advanceTimersByTimeAsync(20)
     await Promise.all([superseded, current])
 

@@ -415,17 +415,13 @@ const {
   sendToShellWindows,
   state: commercialLicenseRuntime
 })
-const bookmarksAndHistory: BookmarksAndHistoryState = {
-  bookmarks: null,
-  history: null
-}
+const bookmarksAndHistory: BookmarksAndHistoryState = { bookmarks: null, history: null, siteIcons: null }
 const {
   publishBookmarks,
   publishVisitHistory,
   openBookmarks,
   openVisitHistory,
-  recordPageVisit,
-  updatePageTitle,
+  pageHistoryCallbacks,
   undoHooks,
   historyCleared,
   historyEntryRemoved,
@@ -982,6 +978,7 @@ function registerIpc(): void {
     assertTrustedSender: assertInitializedTrustedShellSender,
     bookmarks: () => bookmarksAndHistory.bookmarks!,
     history: () => bookmarksAndHistory.history!,
+    siteIcons: () => bookmarksAndHistory.siteIcons?.snapshot() ?? { pages: {}, icons: {} },
     downloads: () => tabRuntime.tabs!,
     tabs: () => tabRuntime.tabs ? browserState(tabRuntime.tabs).tabs : [],
     publishBookmarks,
@@ -1375,8 +1372,7 @@ async function createWindow(startMinimized = false): Promise<void> {
       if (mainWindowRefs.window) trustedDialogs.noteKeyboardPage(mainWindowRefs.window, page)
     },
     ...walletLifecycleCallbacks,
-    onPageVisited: recordPageVisit,
-    onPageTitleUpdated: updatePageTitle,
+    ...pageHistoryCallbacks,
     onCredentialSubmitted: offerToSaveCredential,
     suggestedPasswords: {
       available: () => credentialRuntime.storageStatus.available && credentialRuntime.store !== null,

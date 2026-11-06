@@ -38,6 +38,21 @@ interface RuntimeShutdownHost {
 }
 
 /**
+ * Saves the bookmarks and the history, and then the pages' icons, so a clear of the history or a bookmark removal that
+ * ends meanwhile takes its pages' icons too. Each save's failure is its own.
+ */
+function flushBookmarksAndHistory(state: BookmarksAndHistoryState): (Promise<void> | undefined)[] {
+  const bookmarksSaved = state.bookmarks?.flush()
+  const historySaved = state.history?.flush()
+  // A removal lets go of its pages' icons only once its bookmarks or history are saved, a few steps later, so the icons
+  // are saved a turn after both.
+  const iconsSaved = Promise.allSettled([bookmarksSaved, historySaved])
+    .then(() => new Promise<void>((resolve) => setImmediate(resolve)))
+    .then(() => state.siteIcons?.flush())
+  return [bookmarksSaved, historySaved, iconsSaved]
+}
+
+/**
  * The runtime's orderly shutdown: the MCP listener stops, agents' receipts stop, the Undo offers close, the tab
  * runtime's workspace operations drain and the wallet broker shuts down, one after another; then every store, both
  * windows' state and the browser profile are flushed together, and the tab runtime and wallets are destroyed. A failed
@@ -60,6 +75,8 @@ export function createRuntimeShutdown(host: RuntimeShutdownHost): { releaseRunti
       const history = host.bookmarksAndHistory.history
       const recentVisitsSaved = Promise.allSettled([history?.flush()])
       history?.dispose()
+      // Tabs closing no longer change the pages' icons; the icons changed before are saved with the other stores.
+      host.bookmarksAndHistory.siteIcons?.dispose()
       const results = [
         ...await Promise.allSettled([server?.stop()]),
         ...await Promise.allSettled([host.agentServices.auditReceipts?.stopAll()]),
@@ -70,9 +87,8 @@ export function createRuntimeShutdown(host: RuntimeShutdownHost): { releaseRunti
         ...await Promise.allSettled([
           manager ? flushBrowserForQuit(manager) : undefined,
           manager ? flushWorkspaceProfiles(manager) : undefined,
-          host.bookmarksAndHistory.bookmarks?.flush(),
+          ...flushBookmarksAndHistory(host.bookmarksAndHistory),
           host.credentialRuntime.store?.flush(),
-          host.bookmarksAndHistory.history?.flush(),
           host.browserSessionState.sitePermissionStore?.flush(),
           host.commercialLicenseRuntime.store?.flush(),
           host.settingsState.mutationQueue,

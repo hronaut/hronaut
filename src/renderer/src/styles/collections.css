@@ -152,6 +152,7 @@
 }
 .history-site-icon { @apply grid [width:34px] [height:34px] place-items-center [border-radius:var(--corner-2)] text-accent-copy bg-surface-muted; }
 .history-site-icon svg { @apply [width:18px] [height:18px]; }
+.site-icon-image { @apply [width:18px] [height:18px] [object-fit:contain]; }
 .history-copy { @apply min-w-0; }
 .history-copy strong,
 .history-copy > span,

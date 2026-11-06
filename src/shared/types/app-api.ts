@@ -6,6 +6,7 @@ import type { MemorySaverTimeoutMinutes } from '../memory-saver.js'
 import type { InterfaceScale } from '../interface-scale.js'
 import type { LanguagePreference } from '../locale.js'
 import type { TabPosition } from '../tab-position.js'
+import type { SiteIconChanges, SiteIcons } from '../site-icons.js'
 import type { DesktopWindowPlatform, WindowChromeMode } from '../title-bar.js'
 import type {
   WalletCreateInput,
@@ -137,6 +138,10 @@ export interface HronautHistoryApi {
   onChanged(listener: (entries: BrowserHistoryEntry[]) => void): () => void
   /** Pages visited or retitled, sent together a few times a second while pages load rather than the whole history. */
   onUpdated(listener: (changes: BrowserHistoryChanges) => void): () => void
+  /** The icons tabs showed for the pages in the history and bookmarks. */
+  siteIcons(): Promise<SiteIcons>
+  /** Pages' icons that changed, or null for those let go with the history and bookmarks. */
+  onSiteIconsChanged(listener: (changes: SiteIconChanges) => void): () => void
 }
 
 export interface HronautBrowsingDataApi {

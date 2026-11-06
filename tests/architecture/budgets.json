@@ -1,7 +1,7 @@
 {
   "oversizedFiles": {
     "src/main/browser/downloads/downloads-controller.ts": 807,
-    "src/main/index.ts": 1650,
+    "src/main/index.ts": 1646,
     "src/main/mcp/http-server.ts": 854,
     "src/main/wallet/broker.ts": 884,
     "src/renderer/src/App.vue": 1005
