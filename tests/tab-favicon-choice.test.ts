@@ -4,26 +4,24 @@ import type { Browser } from '../src/main/browser/browser.js'
 import type { BrowserTab } from '../src/main/browser/browser-tab.js'
 
 /** A decoded icon of this size, which says its size in the PNG it gives once scaled to the tab's 32 pixels. */
-function decoded(size: number) {
+function decoded(size: string) {
+  const [width, height = width] = size.split('x').map(Number)
   return {
     isEmpty: () => false,
-    getSize: () => ({ width: size, height: size }),
+    getSize: () => ({ width, height }),
     resize: () => ({ toPNG: () => Buffer.from(`icon ${size}`) })
   }
 }
 
 vi.mock('electron', () => ({ nativeImage: { createEmpty: () => ({ isEmpty: () => true }) } }))
-// Each icon's bytes are its size; one of 0 cannot be decoded.
+// Each icon's bytes are its size, such as 16 or 64x16; one of 0 cannot be decoded.
 vi.mock('../src/main/browser/favicon.js', () => ({
-  decodeWebsiteFavicon: async (bytes: Buffer) => {
-    const size = Number(bytes.toString())
-    return size ? decoded(size) : { isEmpty: () => true }
-  }
+  decodeWebsiteFavicon: async (bytes: Buffer) => bytes.toString() === '0' ? { isEmpty: () => true } : decoded(bytes.toString())
 }))
 vi.mock('../src/main/browser/browser-state/browser-state.js', () => ({ publishChange: vi.fn() }))
 
 /** A page whose icons, by their addresses, are this many pixels and arrive after this many milliseconds. */
-function page(icons: Record<string, { size: number; after: number }>) {
+function page(icons: Record<string, { size: number | string; after: number }>) {
   const fetches: { url: string; signal: AbortSignal }[] = []
   const tab = {
     faviconRequestId: 0,
@@ -85,9 +83,13 @@ describe('the icon a tab shows', () => {
 
   it('ends with the largest when none is that large, and stays as it was when none can be decoded', async () => {
     vi.useFakeTimers()
-    const small = page({ tiny: { size: 16, after: 0 }, broken: { size: 0, after: 0 }, larger: { size: 24, after: 5 }, smaller: { size: 20, after: 8 } })
+    const small = page({
+      tiny: { size: 16, after: 0 }, broken: { size: 0, after: 0 }, larger: { size: 24, after: 5 }, smaller: { size: 20, after: 8 },
+      // An icon counts by its shorter side.
+      wide: { size: '64x16', after: 9 }
+    })
     const loading = small.load()
-    await vi.advanceTimersByTimeAsync(8)
+    await vi.advanceTimersByTimeAsync(9)
     await loading
     expect(small.shown()).toBe('icon 24')
 

@@ -23,10 +23,13 @@ for (const format of ['png', 'ico'] as const) {
   test(`a tab ends with the page's large icon, not a small ${format} icon that arrives first`, async ({ appWindow, electronApp }) => {
     const smallPng = await readFile(new URL('../../build/icons/16x16.png', import.meta.url))
     const largePng = await readFile(new URL('../../build/icons/64x64.png', import.meta.url))
-    // Electron lists a page's icons by their addresses, so the small one comes first.
-    const icons: Record<string, { bytes: Buffer; type: string; after: number }> = {
-      [`/a-small.${format}`]: { bytes: format === 'ico' ? ico(smallPng, 16) : smallPng, type: `image/${format === 'ico' ? 'x-icon' : 'png'}`, after: 0 },
-      '/b-large.png': { bytes: largePng, type: 'image/png', after: 500 }
+    // The large icon is held back until the tab shows the small one. Electron lists a page's icons by their addresses,
+    // so the small one also comes first.
+    let releaseLarge = () => {}
+    const largeReleased = new Promise<void>((resolve) => { releaseLarge = resolve })
+    const icons: Record<string, { bytes: Buffer; type: string; ready: Promise<void> }> = {
+      [`/a-small.${format}`]: { bytes: format === 'ico' ? ico(smallPng, 16) : smallPng, type: `image/${format === 'ico' ? 'x-icon' : 'png'}`, ready: Promise.resolve() },
+      '/b-large.png': { bytes: largePng, type: 'image/png', ready: largeReleased }
     }
     const server = createServer((request, response) => {
       const icon = icons[request.url ?? '']
@@ -36,10 +39,10 @@ for (const format of ['png', 'ico'] as const) {
         response.end(`<!doctype html><title>Icons</title>${links}<main>Icons</main>`)
         return
       }
-      setTimeout(() => {
+      void icon.ready.then(() => {
         response.writeHead(200, { 'content-length': String(icon.bytes.length), 'content-type': icon.type, 'cache-control': 'no-store' })
         response.end(icon.bytes)
-      }, icon.after)
+      })
     })
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
     const address = server.address()
@@ -53,9 +56,13 @@ for (const format of ['png', 'ico'] as const) {
         return `data:image/png;base64,${image.resize({ width: 32, height: 32, quality: 'best' }).toPNG().toString('base64')}`
       }, largePng.toString('base64'))
       const shown = () => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.faviconDataUrl)`)
+      await expect.poll(shown).toMatch(/^data:image\/png;base64,/)
+      expect(await shown()).not.toBe(large)
+      releaseLarge()
       await expect.poll(shown).toBe(large)
       await expect(appWindow.locator('.tab.active .favicon-image')).toHaveAttribute('src', large)
     } finally {
+      releaseLarge()
       await closeFixtureServer(server)
     }
   })
