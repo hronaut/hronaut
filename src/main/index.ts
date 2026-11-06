@@ -1473,7 +1473,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     mainWindowRefs.window = null
   })
   attachMenuBarGesture()
-  attachHistoryMouseButtons(mainWindowRefs.window, { runNativeBrowserAction, tabs: () => tabRuntime.tabs })
+  attachHistoryMouseButtons(mainWindowRefs.window, { runNativeBrowserAction, runShortcut: runPageShortcut, tabs: () => tabRuntime.tabs })
   mainWindowRefs.window.webContents.on('did-finish-load', () => {
     applyInterfaceScale(settingsState.current.interfaceScale)
     sendPageLoadedSnapshot(mainWindowRefs.window)
