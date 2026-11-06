@@ -11,6 +11,8 @@ import { browserState } from '../browser-state/browser-state.js'
 import { reorderTab } from '../tab-arrangement/tab-arrangement.js'
 import { withTabLabelLifecycle } from '../tab-labels/tab-labels.js'
 import { pageOwnTitle } from '../tab-events/page-own-title.js'
+import { openSplitView, updateSplitView } from '../split-view/split-view.js'
+import type { BrowserSplitOrientation } from '../../../shared/split-view.js'
 
 const MAX_TABS = MAX_BROWSER_TABS
 const MAX_CLOSED_TABS = MAX_TABS
@@ -32,6 +34,20 @@ export interface ClosedTabHistory {
  * with the closed tab wherever the tab is held, such as an archived workspace's.
  */
 const closedTabHistories = new WeakMap<BrowserClosedTabState, ClosedTabHistory>()
+
+/** The split view a remembered closed tab was a pane of: the tab beside it, its side, and the split's layout. */
+interface ClosedTabSplit {
+  partnerTabId: string
+  first: boolean
+  orientation: BrowserSplitOrientation
+  ratio: number
+}
+
+/**
+ * The split view of each remembered closed tab that was a pane of one, which reopening the tab while the tab beside it
+ * is still the one shown puts back, so Undo and Reopen closed tab bring back what the person closed.
+ */
+const closedTabSplits = new WeakMap<BrowserClosedTabState, ClosedTabSplit>()
 
 /**
  * Reopens the most recently closed tab, or the one with this id, in its place among its workspace's tabs, and shows it,
@@ -61,6 +77,7 @@ export async function reopenClosedTabEntry(browser: Browser, closedTabId: string
   if (!closed) return undefined
   browser.detachedClosedTabs.add(held)
   const history = closedTabHistories.get(closed)
+  const shownBefore = browser.activeTabId
   let tab: BrowserTab
   try {
     // With its back and forward history, as Chrome reopens a tab; loading the page it showed again is not another
@@ -88,7 +105,27 @@ export async function reopenClosedTabEntry(browser: Browser, closedTabId: string
     browser.detachedClosedTabs.delete(held)
   }
   if (closed.place !== undefined && tab.pinned === closed.pinned) moveToPlace(browser, tab, closed.place)
+  if (active) reopenIntoSplit(browser, tab, closedTabSplits.get(closed), shownBefore)
   return tab
+}
+
+/**
+ * Puts a reopened tab back into the split view it was a pane of, on its side and with the split's layout, when the tab
+ * that was beside it is still the one that was shown, and the person opened no other split and chose no other tab
+ * meanwhile. Closing a pane left only the other in view, and reopening the tab then hid that one too.
+ */
+function reopenIntoSplit(browser: Browser, tab: BrowserTab, split: ClosedTabSplit | undefined, shownBefore: string | null): void {
+  if (!split || browser.splitView || shownBefore !== split.partnerTabId || browser.activeTabId !== tab.id) return
+  const partner = findTab(browser, split.partnerTabId)
+  // A split shows in a workspace only with both its tabs there, as when it was closed.
+  if (!partner || partner.webContents.isDestroyed() || partner.mcpGroupId !== tab.mcpGroupId) return
+  try {
+    openSplitView(browser, partner.id)
+    updateSplitView(browser, { orientation: split.orientation, ratio: split.ratio, swap: !split.first })
+  } catch (error) {
+    // The tab is open again either way, alone as before.
+    console.error('[browser] Could not put a reopened tab back into its split view:', error)
+  }
 }
 
 /** The website tabs a tab moves among: its workspace's, pinned or not as it is. */
@@ -215,6 +252,13 @@ export function rememberClosedTab(
   // A page closed before it was ready had no visit yet, which it gets when it reopens.
   const visited = tab.suppressInitialHistory === true || tab.pendingHistoryUrl !== tab.url
   if (pages) closedTabHistories.set(closed, { pages, visited })
+  const split = browser.splitView
+  if (split && (split.firstTabId === tab.id || split.secondTabId === tab.id)) {
+    const first = split.firstTabId === tab.id
+    closedTabSplits.set(closed, {
+      partnerTabId: first ? split.secondTabId : split.firstTabId, first, orientation: split.orientation, ratio: split.ratio
+    })
+  }
   browser.closedTabs.push(closed)
   if (browser.closedTabs.length > MAX_CLOSED_TABS) browser.closedTabs.shift()
 }
