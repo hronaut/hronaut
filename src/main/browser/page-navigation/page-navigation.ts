@@ -489,10 +489,9 @@ export async function reloadIgnoringCache(browser: Browser, tabId?: string,
 }
 
 /**
- * Reloads the tab's page: retries a failed load or a gone renderer at its
- * address, replaces an unresponsive renderer, or reloads the page, then waits
- * for it to load. A page that asks before it is left is handled as `navigate`
- * handles it.
+ * Reloads the tab's page: retries a failed load at its address, reloads a crashed page's entry in a new renderer as
+ * Chrome's sad tab does, replaces an unresponsive renderer, or reloads the page, then waits for it to load. A page
+ * that asks before it is left is handled as `navigate` handles it.
  */
 async function reloadPage(browser: Browser, tabId: string | undefined, ignoreCache: boolean,
   options: { byPerson?: boolean }): Promise<BrowserState> {
@@ -504,7 +503,12 @@ async function reloadPage(browser: Browser, tabId: string | undefined, ignoreCac
   const pageProblem = tab.pageProblem
   tab.pageProblem = undefined
   publishChange(browser, false)
-  if (pageProblem?.kind === 'load-error' || pageProblem?.kind === 'renderer-gone') {
+  if (pageProblem?.kind === 'renderer-gone') {
+    // The page's own history entry, with the page it was opened from as its referrer, as Chrome reloads a crashed tab;
+    // loading its address anew sent no referrer.
+    if (ignoreCache) tab.webContents.reloadIgnoringCache()
+    else tab.webContents.reload()
+  } else if (pageProblem?.kind === 'load-error') {
     // A page whose load never ends is left loading, and the caller is told.
     const loaded = await settledWithin(tab.webContents.loadURL(pageProblem.url, ignoreCache
       ? { extraHeaders: 'Cache-Control: no-cache\r\nPragma: no-cache\r\n' }

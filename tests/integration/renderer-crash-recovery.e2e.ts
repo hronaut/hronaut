@@ -7,7 +7,9 @@ import { closeFixtureServer, expect, test, pageAt } from './fixtures.js'
 test.use({ trace: { mode: process.env.CI ? 'retain-on-failure' : 'off', screenshots: false } })
 
 test('recovers a crashed website renderer in a fresh process', async ({ appWindow, electronApp }) => {
-  const server = createServer((_request, response) => {
+  const referrers: Array<string | null> = []
+  const server = createServer((request, response) => {
+    if (request.url === '/crash-recovery') referrers.push(request.headers.referer ?? null)
     response.writeHead(200, { 'content-type': 'text/html' })
     response.end('<!doctype html><title>Crash recovery fixture</title><style>@keyframes pulse { to { opacity: .2 } } main { animation: pulse .1s infinite alternate }</style><main>Renderer recovered</main>')
   })
@@ -19,7 +21,15 @@ test('recovers a crashed website renderer in a fresh process', async ({ appWindo
     const address = server.address()
     if (!address || typeof address === 'string') throw new Error('Crash recovery fixture did not expose a port')
     const url = `http://127.0.0.1:${address.port}/crash-recovery`
-    await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true })`)
+    // The page is opened from another, as by a link, so its request names that page as its referrer.
+    const from = `http://127.0.0.1:${address.port}/from`
+    await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(from)}, active: true })`)
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.url)')).toBe(from)
+    await electronApp.evaluate(({ webContents }, { from, url }) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === from)
+      if (!page) throw new Error('Crash recovery referrer page was not found')
+      void page.loadURL(url, { httpReferrer: from })
+    }, { from, url })
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)')).toBe('Crash recovery fixture')
     // Shell title publication can precede Playwright's page initialization.
     // Complete a read through that target before deliberately terminating it,
@@ -62,6 +72,9 @@ test('recovers a crashed website renderer in a fresh process', async ({ appWindo
     }, url)
     expect(recoveredProcessId).toBeTruthy()
     expect(recoveredProcessId).not.toBe(firstProcessId)
+    // Try again reloads the page's own history entry, as Chrome's crashed tab does, so the request names the page it
+    // was opened from again; loading its address anew named none.
+    expect(referrers).toEqual([from, from])
   } finally {
     await closeFixtureServer(server)
   }
