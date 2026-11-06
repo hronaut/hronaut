@@ -17,8 +17,10 @@ function harness(geometry = initial) {
     onChanged: vi.fn<HronautSplitDividerApi['onChanged']>(listener => { notify = listener; return vi.fn() })
   }
   const scope = effectScope()
-  const controller = scope.run(() => useSplitViewResizeController(api))!
+  const returnKeyboard = vi.fn()
+  const controller = scope.run(() => useSplitViewResizeController(api, returnKeyboard))!
   const handle = document.createElement('div')
+  handle.tabIndex = 0
   document.body.append(handle)
   let capture = false
   const releasePointerCapture = vi.fn(() => { capture = false })
@@ -26,8 +28,62 @@ function harness(geometry = initial) {
   function pointer(type: string, x: number, y = 300, id = 1) { const event = new Event(type); Object.assign(event, { clientX: x, clientY: y, pointerId: id }); window.dispatchEvent(event) }
   const start = (x = 503, y = 300) => controller.startResize({ button: 0, pointerId: 1, clientX: x, clientY: y, currentTarget: handle, preventDefault: vi.fn() } as unknown as PointerEvent)
   cleanup.push(() => { scope.stop(); handle.remove() })
-  return { controller, api, start, pointer, handle, releasePointerCapture, notify: (next: SplitDividerGeometry | null) => notify(next), scope }
+  return {
+    controller, api, start, pointer, handle, releasePointerCapture, returnKeyboard, notify: (next: SplitDividerGeometry | null) => notify(next), scope
+  }
 }
+
+// Pressing the divider took the keyboard from the page, so the arrow keys, Home, End and Enter typed next resized the
+// split instead of reaching the page. In Chrome the page keeps the keyboard.
+describe('the keyboard around a drag or click on the split divider', () => {
+  it.each(['a drag', 'a click', 'Escape during a drag'])('goes back to the page after %s on the divider', async gesture => {
+    const h = harness(); await flush(); h.start(); await flush()
+    expect(h.handle).toHaveFocus()
+    if (gesture === 'a drag') { h.pointer('pointermove', 553); h.pointer('pointerup', 553) }
+    else if (gesture === 'a click') h.pointer('pointerup', 503)
+    else window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await flush()
+    expect(h.returnKeyboard).toHaveBeenCalledOnce()
+    expect(h.handle).not.toHaveFocus()
+  })
+  it('stays on the divider when the person had moved the keyboard there before pressing it', async () => {
+    const hasFocus = vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    cleanup.push(() => hasFocus.mockRestore())
+    const h = harness(); await flush()
+    h.handle.focus()
+    h.start(); await flush(); h.pointer('pointerup', 553); await flush()
+    expect(h.returnKeyboard).not.toHaveBeenCalled()
+    expect(h.handle).toHaveFocus()
+  })
+  it('lets a double-click put the split back halfway although the page then takes the keyboard from the window', async () => {
+    const h = harness(); await flush()
+    const settled = deferred<SplitDividerGeometry | null>(); vi.mocked(h.api.finish).mockReturnValueOnce(settled.promise)
+    h.start(); await flush(); h.pointer('pointerup', 503)
+    expect(h.returnKeyboard).toHaveBeenCalledOnce()
+    h.controller.resetSize()
+    window.dispatchEvent(new Event('blur'))
+    settled.resolve(initial); await flush()
+    expect(h.api.setRatio).toHaveBeenCalledWith(1, .5)
+    // Keys still queued when the window loses the keyboard are dropped, as before.
+    vi.mocked(h.api.setRatio).mockClear()
+    const pending = deferred<SplitDividerGeometry | null>(); vi.mocked(h.api.setRatio).mockReturnValueOnce(pending.promise)
+    h.controller.resizeWithKeyboard(new KeyboardEvent('keydown', { key: 'ArrowRight' }))
+    h.controller.resizeWithKeyboard(new KeyboardEvent('keydown', { key: 'ArrowRight' }))
+    window.dispatchEvent(new Event('blur'))
+    pending.resolve({ ...initial, revision: 2, ratio: .51 }); await flush()
+    expect(h.api.setRatio).toHaveBeenCalledOnce()
+  })
+  it('stays where the person moved it during the drag', async () => {
+    const h = harness(); await flush(); h.start(); await flush()
+    const field = document.createElement('input')
+    document.body.append(field)
+    cleanup.push(() => field.remove())
+    field.focus()
+    h.pointer('pointerup', 553); await flush()
+    expect(h.returnKeyboard).not.toHaveBeenCalled()
+    expect(field).toHaveFocus()
+  })
+})
 
 describe('direct split divider resizing', () => {
   it('preserves grab offset, clamps movement and commits the final pointer position', async () => {
@@ -161,7 +217,9 @@ describe('direct split divider resizing', () => {
     expect(h.controller.geometry.value?.ratio).toBe(.5)
   })
 
-  it.each(['replacement', 'blur', 'dispose', 'invalidated'])('discards a queued reset after %s while the pointer commit is pending', async change => {
+  // A blur no longer discards it: the double-click gives the page the keyboard, which takes it from the window (see the
+  // double-click test above).
+  it.each(['replacement', 'dispose', 'invalidated'])('discards a queued reset after %s while the pointer commit is pending', async change => {
     const h = harness({ ...initial, ratio: .65 })
     const finish = deferred<SplitDividerGeometry | null>()
     h.api.finish.mockReturnValueOnce(finish.promise)
@@ -172,7 +230,6 @@ describe('direct split divider resizing', () => {
     h.controller.resetSize()
     const newer = { ...initial, revision: 3, ratio: .7 }
     if (change === 'replacement') h.notify(newer)
-    else if (change === 'blur') window.dispatchEvent(new Event('blur'))
     else if (change === 'dispose') h.scope.stop()
     finish.resolve(change === 'invalidated' ? null : { ...initial, revision: 2, ratio: .65 })
     await flush()

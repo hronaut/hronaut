@@ -4,6 +4,8 @@ import { normalizeSplitViewRatio, type SplitDividerGeometry, type SplitDividerSe
 interface Gesture {
   pointerId: number
   handle: HTMLElement
+  /** Whether the person had moved the keyboard to the divider before pressing it, so it stays there after the drag. */
+  keepsKeyboard: boolean
   initial: SplitDividerGeometry
   coordinate: number
   latestCoordinate: number
@@ -33,9 +35,12 @@ interface KeyboardResize {
   layout: SplitDividerGeometry
   target: number
   pending: boolean
+  /** Asked for with a double-click, which gives the keyboard back to the page and so takes it from the window. */
+  doubleClick: boolean
 }
 
-export function useSplitViewResizeController(api?: HronautSplitDividerApi) {
+/** returnKeyboard gives the keyboard to the page in view. */
+export function useSplitViewResizeController(api?: HronautSplitDividerApi, returnKeyboard?: () => void) {
   const geometry = shallowRef<SplitDividerGeometry | null>(null)
   const gesture = shallowRef<Gesture | null>(null)
   let disposed = false
@@ -43,7 +48,9 @@ export function useSplitViewResizeController(api?: HronautSplitDividerApi) {
   let keyboard: KeyboardResize | null = null
   let settling: Gesture | null = null
   function cancelKeyboard(): void { keyboard = null }
-  window.addEventListener('blur', cancelKeyboard)
+  // Keys still queued when the window loses the keyboard are dropped; a double-click's reset is not a key held down.
+  function cancelKeysOnBlur(): void { if (!keyboard?.doubleClick) cancelKeyboard() }
+  window.addEventListener('blur', cancelKeysOnBlur)
 
   function accept(next: SplitDividerGeometry | null): void {
     if (!disposed && next && geometry.value && sameStructure(geometry.value, next)) geometry.value = next
@@ -56,6 +63,14 @@ export function useSplitViewResizeController(api?: HronautSplitDividerApi) {
     window.removeEventListener('blur', cancel)
     current.handle.removeEventListener('lostpointercapture', cancel)
     if (current.handle.hasPointerCapture(current.pointerId)) current.handle.releasePointerCapture(current.pointerId)
+  }
+  // Pressing the divider takes the keyboard from the page, which its arrow keys, Home, End and Enter then resized the
+  // split with. As in Chrome, the page has the keyboard again once the drag or click ends, unless the person had moved
+  // the keyboard to the divider before pressing it, or has moved it on since.
+  function giveKeyboardBack(current: Gesture): void {
+    if (current.keepsKeyboard || document.activeElement !== current.handle) return
+    current.handle.blur()
+    returnKeyboard?.()
   }
   async function pump(current: Gesture): Promise<void> {
     if (!api || !current.session || current.running) return
@@ -93,6 +108,7 @@ export function useSplitViewResizeController(api?: HronautSplitDividerApi) {
       settling = current
       void current.completed.then(() => { if (settling === current) settling = null })
       detach(current)
+      giveKeyboardBack(current)
     }
     void pump(current)
   }
@@ -128,12 +144,13 @@ export function useSplitViewResizeController(api?: HronautSplitDividerApi) {
     if (!api || disposed || !initial || gesture.value || event.button !== 0) return
     cancelKeyboard()
     const handle = event.currentTarget as HTMLElement
+    const keepsKeyboard = document.activeElement === handle && document.hasFocus()
     event.preventDefault()
     handle.focus({ preventScroll: true })
     try { handle.setPointerCapture(event.pointerId) } catch { return }
     let resolveCompleted!: Gesture['resolveCompleted']
     const completed = new Promise<SplitDividerGeometry | null>(resolve => { resolveCompleted = resolve })
-    const current: Gesture = { completed, resolveCompleted, pointerId: event.pointerId, handle, initial, afterGesture: settling, latestCoordinate: initial.orientation === 'vertical' ? event.clientX : event.clientY, coordinate: initial.orientation === 'vertical' ? event.clientX : event.clientY, ratio: initial.ratio, pending: null, session: null, running: false, ended: false, commit: false }
+    const current: Gesture = { completed, resolveCompleted, pointerId: event.pointerId, handle, keepsKeyboard, initial, afterGesture: settling, latestCoordinate: initial.orientation === 'vertical' ? event.clientX : event.clientY, coordinate: initial.orientation === 'vertical' ? event.clientX : event.clientY, ratio: initial.ratio, pending: null, session: null, running: false, ended: false, commit: false }
     gesture.value = current
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
@@ -207,15 +224,16 @@ export function useSplitViewResizeController(api?: HronautSplitDividerApi) {
     } catch { /* A stale or failed request discards queued intent. */ }
     finally { if (keyboard === current) keyboard = null }
   }
-  function setRatio(ratio: number): void {
+  function setRatio(ratio: number, doubleClick = false): void {
     const current = geometry.value
     if (!api || disposed || !current || gesture.value) return
     if (keyboard) {
       keyboard.target = normalizeSplitViewRatio(ratio)
       keyboard.pending = true
+      keyboard.doubleClick = doubleClick
       return
     }
-    keyboard = { afterGesture: settling, layout: current, target: normalizeSplitViewRatio(ratio), pending: true }
+    keyboard = { afterGesture: settling, layout: current, target: normalizeSplitViewRatio(ratio), pending: true, doubleClick }
     void pumpKeyboard(keyboard)
   }
   function resizeWithKeyboard(event: KeyboardEvent): void {
@@ -239,7 +257,7 @@ export function useSplitViewResizeController(api?: HronautSplitDividerApi) {
   })
   const initialNotification = notification
   void api?.get().then(next => { if (!disposed && notification === initialNotification) geometry.value = next }).catch(() => {})
-  function dispose(): void { disposed = true; cancel(); cancelKeyboard(); window.removeEventListener('blur', cancelKeyboard); unsubscribe?.() }
+  function dispose(): void { disposed = true; cancel(); cancelKeyboard(); window.removeEventListener('blur', cancelKeysOnBlur); unsubscribe?.() }
   onScopeDispose(dispose)
-  return { geometry, resizing: computed(() => gesture.value !== null), startResize, resizeWithKeyboard, resetSize: () => setRatio(0.5), dispose }
+  return { geometry, resizing: computed(() => gesture.value !== null), startResize, resizeWithKeyboard, resetSize: () => setRatio(0.5, true), dispose }
 }
