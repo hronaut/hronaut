@@ -49,7 +49,7 @@ interface ShellOverlaysHost {
   ensureStatusBubbleSurface(): Promise<StatusBubbleSurface>
   /** The theme the shell shows now. */
   theme(): ResolvedThemeName
-  /** The interface's text, for the editing menu of the agent card, the toast and the open tab rail. */
+  /** The interface's text, for the editing menu of the agent card and the toast. */
   text(key: MessageKey, parameters?: MessageParameters): string
 }
 
@@ -170,7 +170,6 @@ export function createShellOverlays(host: ShellOverlaysHost): {
     window: () => host.mainWindowRefs.window,
     urlMatches: (actual, expected) => host.trustedUrlMatches(actual, expected),
     onLost: () => sidebarOverlay.surfaceLost(),
-    text: (key, parameters) => host.text(key, parameters),
     // The rail opens over the page; a toast, the agent card, a tooltip and address suggestions open over the rail.
     keepAbove: () => [
       toastOverlayView.currentView(),
