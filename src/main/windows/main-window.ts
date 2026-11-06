@@ -17,6 +17,7 @@ import type { ResolvedThemeName } from '../../shared/theme.js'
 import type { AppSettings, ThemeName } from '../../shared/types.js'
 import { attachShellKeyHandoff } from './shell-key-handoff.js'
 import { holdMainWindowMinimumSize, mainWindowMinimumSize } from './main-window-minimum-size.js'
+import { reloadShellAfterRendererExit } from './shell-crash-recovery.js'
 
 /**
  * The main window and what it was opened with, created once by index.ts. The window opens after startup and closes
@@ -57,6 +58,8 @@ interface MainWindowHost {
   themeBackground: Record<ResolvedThemeName, string>
   /** Quiets an open request for the person's attention once they press a key or click in the shell. */
   acknowledgeUserAttention(): void
+  /** Whether Hronaut is quitting, when its window's page is not loaded again. */
+  quitting(): boolean
 }
 
 /**
@@ -154,6 +157,7 @@ export function createMainWindow(host: MainWindowHost): {
     // Once the window has its own size again, it keeps its minimum: one a scale chosen meanwhile set, and once
     // restored, one the system did not hold it to.
     holdMainWindowMinimumSize(window, () => host.settings().interfaceScale)
+    reloadShellAfterRendererExit(window, host.quitting)
     return window
   }
 
