@@ -37,6 +37,10 @@ export async function withAgentInput<T>(
   browser.pageFind.noteAgentInput(webContents)
   let nativeCleanupFailure: NativeInputCleanupError | undefined
   try {
+    // A file field the agent's input opens gets no system file chooser, which would hold the person's window for a page
+    // they may not see: Chromium cancels it, as the field's cancel event tells the page, and the agent uploads with
+    // browser_file_upload instead. The person's own clicks open it as usual.
+    if (depth === 1) await interceptFileChoosers(webContents, true)
     if (depth === 1 && !options.deferRendererFlag && !webContents.isDestroyed()) {
       // Without a user gesture: marking the page must not give it a person's activation, which a hover or a scroll
       // never gives in Chrome. A click, a key or typing gives the page its own activation.
@@ -57,6 +61,7 @@ export async function withAgentInput<T>(
         browser.agentInputFocusSnapshots.delete(webContents.id)
         try {
           if (!webContents.isDestroyed()) {
+            await interceptFileChoosers(webContents, false)
             await clearRendererAgentInputFlag(webContents, options.onCleanupFailure)
             if (printDialogHolds(webContents)) {
               // The page's print dialog kept the flag from being cleared. Without it, the person's own pointer input
@@ -99,4 +104,15 @@ export async function withAgentInput<T>(
       throw error
     }
   }
+}
+
+/** Has Chromium cancel the file choosers the page opens, or show them again; a page without its debugger is left as it is. */
+async function interceptFileChoosers(webContents: WebContents, enabled: boolean): Promise<void> {
+  if (webContents.isDestroyed()) return
+  try {
+    if (!webContents.debugger.isAttached()) return
+  } catch {
+    return
+  }
+  await webContents.debugger.sendCommand('Page.setInterceptFileChooserDialog', { enabled, cancel: true }).catch(() => undefined)
 }
