@@ -199,6 +199,8 @@ export async function wakeTab(browser: Browser, tabId: string): Promise<BrowserS
   // Its callers went on with the page it showed, which an agent may already use.
   const handedOver = (): boolean => shownWakes.has(wake)
   const wake = (async () => {
+    // A page Electron destroyed cannot load again, and its tab already says it is gone, so no wake starts or goes on.
+    if (tab.webContents.isDestroyed()) return
     // A tab restored asleep wakes once its workspace's session cookies are back, from the tab as it is then.
     if (tab.pageReady) {
       await tab.pageReady
@@ -229,9 +231,7 @@ export async function wakeTab(browser: Browser, tabId: string): Promise<BrowserS
         await returnFromSleepingPage(tab.webContents, restoreUrl)
       }
     } catch (error) {
-      if (handedOver()) return
-      // A page Electron destroyed as it woke cannot load again, and its tab already says it is gone, so the wake ends.
-      if (tab.webContents.isDestroyed()) return
+      if (tab.webContents.isDestroyed() || handedOver()) return
       const wakeWasSuperseded = () => findTab(browser, tab.id) !== tab
         || tab.webContents.isDestroyed()
         || (tab.navigationGeneration !== navigationGeneration
@@ -248,7 +248,7 @@ export async function wakeTab(browser: Browser, tabId: string): Promise<BrowserS
       try {
         await tab.webContents.loadURL(restoreUrl)
       } catch (fallbackError) {
-        if (handedOver()) return
+        if (tab.webContents.isDestroyed() || handedOver()) return
         // A newer navigation can also interrupt the fallback. Preserve its
         // live document instead of restoring the obsolete sleeping state.
         if (isAbortedLoad(fallbackError) && wakeWasSuperseded()) {

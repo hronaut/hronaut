@@ -98,4 +98,22 @@ describe('waking a sleeping tab whose page Electron destroys meanwhile', () => {
     expect(tab.webContents.loadURL).not.toHaveBeenCalled()
     expect(tab.sleeping).toBe(false)
   })
+
+  it('ends the wake when the page is destroyed as the address loads again, and when it was destroyed already', async () => {
+    const failing = sleepingTab(null)
+    let destroyed = false
+    failing.tab.webContents.isDestroyed = () => destroyed
+    failing.tab.webContents.loadURL.mockImplementation(async () => {
+      destroyed = true
+      throw Object.assign(new Error('ERR_FAILED (-2)'), { errno: -2, code: 'ERR_FAILED' })
+    })
+    await expect(failing.wake()).resolves.toBeDefined()
+    expect(failing.tab.sleeping).toBe(false)
+
+    const gone = sleepingTab(null)
+    gone.tab.webContents.isDestroyed = () => true
+    await expect(gone.wake()).resolves.toBeDefined()
+    expect(gone.tab.sleeping).toBe(true)
+    expect(gone.tab.loading).toBe(false)
+  })
 })
