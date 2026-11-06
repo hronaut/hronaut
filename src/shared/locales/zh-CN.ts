@@ -4139,7 +4139,8 @@ export const zhCN: MessageSchema = {
       window: '窗口',
       minimize: '最小化',
       zoom: '缩放',
-      bringAllToFront: '前置全部窗口'
+      bringAllToFront: '前置全部窗口',
+      toggleFullScreen: '切换全屏'
     },
     tray: {
       show: '显示 Hronaut',

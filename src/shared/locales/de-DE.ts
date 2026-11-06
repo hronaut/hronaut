@@ -4139,7 +4139,8 @@ export const deDE: MessageSchema = {
       window: 'Fenster',
       minimize: 'Im Dock ablegen',
       zoom: 'Zoomen',
-      bringAllToFront: 'Alle nach vorne bringen'
+      bringAllToFront: 'Alle nach vorne bringen',
+      toggleFullScreen: 'Vollbildmodus ein/aus'
     },
     tray: {
       show: 'Hronaut anzeigen',

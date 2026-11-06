@@ -4139,7 +4139,8 @@ export const hiIN: MessageSchema = {
       window: 'विंडो',
       minimize: 'छोटा करें',
       zoom: 'ज़ूम करें',
-      bringAllToFront: 'सभी को सामने लाएं'
+      bringAllToFront: 'सभी को सामने लाएं',
+      toggleFullScreen: 'फ़ुल स्क्रीन चालू/बंद करें'
     },
     tray: {
       show: 'Hronaut दिखाएं',

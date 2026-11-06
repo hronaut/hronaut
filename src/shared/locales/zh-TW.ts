@@ -4139,7 +4139,8 @@ export const zhTW: MessageSchema = {
       window: '視窗',
       minimize: '縮到最小',
       zoom: '縮放',
-      bringAllToFront: '將全部移至最前'
+      bringAllToFront: '將全部移至最前',
+      toggleFullScreen: '切換全螢幕'
     },
     tray: {
       show: '顯示 Hronaut',

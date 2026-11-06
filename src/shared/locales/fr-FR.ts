@@ -4139,7 +4139,8 @@ export const frFR: MessageSchema = {
       window: 'Fenêtre',
       minimize: 'Placer dans le Dock',
       zoom: 'Zoom',
-      bringAllToFront: 'Tout ramener au premier plan'
+      bringAllToFront: 'Tout ramener au premier plan',
+      toggleFullScreen: 'Activer ou désactiver le plein écran'
     },
     tray: {
       show: 'Afficher Hronaut',

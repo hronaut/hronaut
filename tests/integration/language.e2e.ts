@@ -20,6 +20,11 @@ test('switches language live through Settings and persists it across restart', a
   await expect(appWindow.getByRole('heading', { name: 'Загальні' })).toBeVisible()
   await expect(appWindow.getByRole('button', { name: 'Налаштування', exact: true })).toHaveAttribute('aria-pressed', 'true')
   expect(await electronApp.evaluate(({ Menu }) => Menu.getApplicationMenu()?.items.map((item) => item.label))).toContain('Редагування')
+  // The Edit menu's own items too, which Electron names only in English; macOS's also pastes as plain text and deletes.
+  const macEditItems = process.platform === 'darwin' ? ['Вставити у стилі призначення', 'Видалити'] : []
+  const editItems = await electronApp.evaluate(({ Menu }) => Menu.getApplicationMenu()?.items.find((item) => item.label === 'Редагування')?.submenu?.items
+    .filter((item) => item.role).map((item) => item.label))
+  expect(editItems).toEqual(['Скасувати', 'Повторити', 'Вирізати', 'Копіювати', 'Вставити', ...macEditItems, 'Вибрати все'])
 
   const detachedPromise = electronApp.waitForEvent('window')
   await appWindow.evaluate("window.hronautPanelWindow.open('console')")

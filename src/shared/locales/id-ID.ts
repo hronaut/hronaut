@@ -4139,7 +4139,8 @@ export const idID: MessageSchema = {
       window: 'Jendela',
       minimize: 'Minimalkan',
       zoom: 'Zoom',
-      bringAllToFront: 'Bawa semua ke depan'
+      bringAllToFront: 'Bawa semua ke depan',
+      toggleFullScreen: 'Aktifkan/nonaktifkan layar penuh'
     },
     tray: {
       show: 'Tampilkan Hronaut',

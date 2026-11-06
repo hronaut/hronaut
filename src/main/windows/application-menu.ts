@@ -327,13 +327,20 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
         {
           label: host.text('native.menu.edit'),
           submenu: [
-            { role: 'undo' },
-            { role: 'redo' },
+            // Labeled, as Electron names a role in English only. macOS's Edit menu also pastes as plain text and deletes.
+            { role: 'undo', label: host.text('native.context.undo') },
+            { role: 'redo', label: host.text('native.context.redo') },
             { type: 'separator' },
-            { role: 'cut' },
-            { role: 'copy' },
-            { role: 'paste' },
-            { role: 'selectAll' },
+            { role: 'cut', label: host.text('native.context.cut') },
+            { role: 'copy', label: host.text('native.context.copy') },
+            { role: 'paste', label: host.text('native.context.paste') },
+            ...(process.platform === 'darwin'
+              ? [
+                  { role: 'pasteAndMatchStyle' as const, label: host.text('native.context.pasteMatchStyle') },
+                  { role: 'delete' as const, label: host.text('native.context.delete') }
+                ]
+              : []),
+            { role: 'selectAll', label: host.text('native.context.selectAll') },
             { type: 'separator' },
             {
               label: host.text('native.menu.findNext'),
@@ -506,7 +513,7 @@ export function createApplicationMenu(host: ApplicationMenuHost): {
               accelerator: 'CmdOrCtrl+-',
               click: zoomShownPage('zoom-out')
             },
-            { role: 'togglefullscreen' }
+            { role: 'togglefullscreen', label: host.text('native.menu.toggleFullScreen') }
           ]
         },
         ...macWindowMenu(),

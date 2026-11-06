@@ -4139,7 +4139,8 @@ export const koKR: MessageSchema = {
       window: '윈도우',
       minimize: '최소화',
       zoom: '확대/축소',
-      bringAllToFront: '모두 앞으로 가져오기'
+      bringAllToFront: '모두 앞으로 가져오기',
+      toggleFullScreen: '전체 화면 전환'
     },
     tray: {
       show: 'Hronaut 표시',

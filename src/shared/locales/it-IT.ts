@@ -4139,7 +4139,8 @@ export const itIT: MessageSchema = {
       window: 'Finestra',
       minimize: 'Contrai',
       zoom: 'Zoom',
-      bringAllToFront: 'Porta tutto in primo piano'
+      bringAllToFront: 'Porta tutto in primo piano',
+      toggleFullScreen: 'Attiva/disattiva schermo intero'
     },
     tray: {
       show: 'Mostra Hronaut',
