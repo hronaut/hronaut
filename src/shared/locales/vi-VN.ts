@@ -1286,7 +1286,6 @@ export const viVN: MessageSchema = {
       lockTab: 'Khóa thao tác nhập trên trang trong thẻ này',
       unlockAll: 'Cho phép con người nhập trên trang trong mọi thẻ trang web. Tính năng bảo vệ tiêu điểm vẫn tự động.',
       lockAll: 'Chặn thao tác nhập của con người trên trang trong mọi thẻ trang web; các nút điều khiển đáng tin cậy của Hronaut và tác nhân vẫn hoạt động. Tính năng bảo vệ tiêu điểm vẫn tự động.',
-      closeShortcut: 'Đóng thẻ (Ctrl/Cmd+W)',
       inputLocked: 'Thao tác nhập trên trang đang bị khóa',
       inputLock: 'Khóa thao tác nhập trên trang'
     },

@@ -681,6 +681,14 @@ describe('BrowserTabsBar', () => {
     expect(first).toHaveAttribute('data-tooltip', 'Page first')
   })
 
+  it('names a tab\'s close button Close tab, without the key that closes the shown tab', () => {
+    // As in Chrome: on a tab in the background, Ctrl/Cmd+W would close the shown tab, not this one.
+    renderTabs(browserState({ tabs: [tab('first'), tab('second', { active: true })], activeTabId: 'second' }))
+    for (const name of ['Page first', 'Page second']) {
+      expect(screen.getByRole('tab', { name }).querySelector('.tab-close')).toHaveAttribute('data-tooltip', 'Close tab')
+    }
+  })
+
   it('keeps live workspace descriptions in workspace-header hover text without rendering a preview', async () => {
     const description = 'Compare checkout flows.\nKeep the signed-in QA session.'
     const state = browserState({ mcpTabGroups: [{ ...workspace(), description }] })

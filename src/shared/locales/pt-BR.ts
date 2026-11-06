@@ -1286,7 +1286,6 @@ export const ptBR: MessageSchema = {
       lockTab: 'Bloquear a entrada na página desta guia',
       unlockAll: 'Permitir entrada humana na página em todas as guias de sites. A proteção de foco continua automática.',
       lockAll: 'Bloquear a entrada humana na página em todas as guias de sites; os controles confiáveis do Hronaut e os agentes continuam funcionando. A proteção de foco continua automática.',
-      closeShortcut: 'Fechar guia (Ctrl/Cmd+W)',
       inputLocked: 'A entrada na página está bloqueada',
       inputLock: 'Bloqueio de entrada na página'
     },

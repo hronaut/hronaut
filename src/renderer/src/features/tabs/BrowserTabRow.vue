@@ -182,7 +182,7 @@ function press(event: PointerEvent): void {
     </span>
     <span
       class="tab-close"
-      v-tooltip="t('runtime.locks.closeShortcut')"
+      v-tooltip="t('tabSearch.closeTab')"
       aria-hidden="true"
       @click.stop="emit('close', tab.id)"
     ><IconClose aria-hidden="true" /></span>

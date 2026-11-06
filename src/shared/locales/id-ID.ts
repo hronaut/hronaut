@@ -1286,7 +1286,6 @@ export const idID: MessageSchema = {
       lockTab: 'Kunci input halaman di tab ini',
       unlockAll: 'Izinkan input halaman oleh manusia di semua tab situs. Perlindungan fokus tetap otomatis.',
       lockAll: 'Blokir input halaman oleh manusia di semua tab situs; kontrol tepercaya Hronaut dan agen tetap bekerja. Perlindungan fokus tetap otomatis.',
-      closeShortcut: 'Tutup tab (Ctrl/Cmd+W)',
       inputLocked: 'Input halaman terkunci',
       inputLock: 'Kunci input halaman'
     },

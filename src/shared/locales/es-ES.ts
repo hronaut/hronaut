@@ -1286,7 +1286,6 @@ export const esES: MessageSchema = {
       lockTab: 'Bloquear la entrada en esta pestaña',
       unlockAll: 'Permitir la entrada humana en todas las pestañas de sitios web. La protección del foco sigue siendo automática.',
       lockAll: 'Bloquear la entrada humana en todas las pestañas de sitios web; los controles de confianza de Hronaut y los agentes siguen funcionando. La protección del foco sigue siendo automática.',
-      closeShortcut: 'Cerrar pestaña (Ctrl/Cmd+W)',
       inputLocked: 'La entrada en la página está bloqueada',
       inputLock: 'Bloqueo de entrada en la página'
     },

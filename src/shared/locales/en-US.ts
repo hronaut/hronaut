@@ -1284,7 +1284,6 @@ export const enUS = {
       lockTab: 'Lock page input in this tab',
       unlockAll: 'Allow human page input in all website tabs. Focus protection stays automatic.',
       lockAll: 'Block human page input in all website tabs; trusted Hronaut controls and agents keep working. Focus protection stays automatic.',
-      closeShortcut: 'Close tab (Ctrl/Cmd+W)',
       inputLocked: 'Page input is locked',
       inputLock: 'Page input lock'
     },

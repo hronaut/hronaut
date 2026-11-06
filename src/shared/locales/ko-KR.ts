@@ -1286,7 +1286,6 @@ export const koKR: MessageSchema = {
       lockTab: '이 탭에서 페이지 입력 잠금',
       unlockAll: '모든 웹사이트 탭에서 사람의 페이지 입력을 허용합니다. 포커스 보호는 자동으로 유지됩니다.',
       lockAll: '모든 웹사이트 탭에서 사람의 페이지 입력을 차단합니다. 신뢰할 수 있는 Hronaut 컨트롤과 에이전트는 계속 작동합니다. 포커스 보호는 자동으로 유지됩니다.',
-      closeShortcut: '탭 닫기(Ctrl/Cmd+W)',
       inputLocked: '페이지 입력이 잠겨 있습니다',
       inputLock: '페이지 입력 잠금'
     },

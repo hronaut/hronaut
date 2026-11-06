@@ -1286,7 +1286,6 @@ export const trTR: MessageSchema = {
       lockTab: 'Bu sekmede sayfa girişini kilitle',
       unlockAll: 'Tüm web sitesi sekmelerinde insan sayfa girişine izin ver. Odak koruması otomatik kalır.',
       lockAll: 'Tüm web sitesi sekmelerinde insan sayfa girişini engelle; güvenilir Hronaut denetimleri ve ajanlar çalışmaya devam eder. Odak koruması otomatik kalır.',
-      closeShortcut: 'Sekmeyi kapat (Ctrl/Cmd+W)',
       inputLocked: 'Sayfa girişi kilitli',
       inputLock: 'Sayfa girişi kilidi'
     },

@@ -1286,7 +1286,6 @@ export const frFR: MessageSchema = {
       lockTab: 'Verrouiller la saisie dans cet onglet',
       unlockAll: 'Autoriser la saisie humaine dans tous les onglets de sites web. La protection du focus reste automatique.',
       lockAll: 'Bloquer la saisie humaine dans tous les onglets de sites web ; les contrôles Hronaut fiables et les agents continuent de fonctionner. La protection du focus reste automatique.',
-      closeShortcut: 'Fermer l’onglet (Ctrl/Cmd+W)',
       inputLocked: 'La saisie dans la page est verrouillée',
       inputLock: 'Verrouillage de la saisie dans la page'
     },
