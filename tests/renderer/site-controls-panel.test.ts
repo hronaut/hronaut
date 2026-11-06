@@ -27,6 +27,8 @@ function renderPanel(options: {
   keepsSeparatePanelOpen?: () => boolean
   security?: AddressSecurity | null
   reloadOffered?: boolean
+  clearData?: () => unknown
+  origin?: string
 } = {}) {
   const setPermission = options.setPermission ?? vi.fn(() => true)
   const resetPermission = vi.fn(() => true)
@@ -41,7 +43,7 @@ function renderPanel(options: {
       hostname: 'example.test',
       addressKind: 'Secure',
       security: options.security === undefined ? 'secure' : options.security,
-      origin: 'https://example.test',
+      origin: options.origin ?? 'https://example.test',
       summary: options.summary === null ? null : { origin: 'https://example.test', ...(options.summary ?? { cookieCount: 2, historyEntries: 3, historyVisits: 5 }) },
       state: options.state ?? 'idle',
       message: '',
@@ -56,6 +58,7 @@ function renderPanel(options: {
       openPermissionSettings,
       openPrivacySettings,
       refresh: options.refresh ?? vi.fn(),
+      clearData: options.clearData ?? vi.fn(),
       keepsSeparatePanelOpen: options.keepsSeparatePanelOpen ?? (() => false)
     }
   })
@@ -239,5 +242,30 @@ describe('Site controls docked back from its window', () => {
     const { view } = renderPanel({ dock: 'window', summary: null, refresh, keepsSeparatePanelOpen: () => true })
     await view.rerender({ dock: 'right' })
     expect(refresh).not.toHaveBeenCalled()
+  })
+  it('asks before clearing the website\'s data, with the keyboard on Cancel', async () => {
+    const user = userEvent.setup()
+    const clearData = vi.fn()
+    const { view } = renderPanel({ clearData })
+    const clear = screen.getByRole('button', { name: 'Clear data for this website' })
+    await user.click(clear)
+    expect(screen.getByText('Delete cookies and site data for https://example.test? You may be signed out of this website.')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus()
+    expect(clearData).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.getByText(/Delete cookies and site data/)).not.toBeVisible()
+    expect(screen.getByRole('button', { name: 'Clear data for this website' })).toHaveFocus()
+
+    await user.click(screen.getByRole('button', { name: 'Clear data for this website' }))
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+    expect(clearData).toHaveBeenCalledOnce()
+    expect(screen.getByRole('button', { name: 'Clear data for this website' })).toHaveFocus()
+
+    // A question left open goes with the website it named.
+    await user.click(screen.getByRole('button', { name: 'Clear data for this website' }))
+    await view.rerender({ origin: 'https://other.test' })
+    expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull()
+    expect(clearData).toHaveBeenCalledOnce()
   })
 })

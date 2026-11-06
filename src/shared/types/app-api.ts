@@ -147,6 +147,7 @@ export interface HronautHistoryApi {
 export interface HronautBrowsingDataApi {
   summary(): Promise<BrowsingDataSummary>
   siteSummary(url: string, tabId: string): Promise<BrowsingDataSiteSummary>
+  clearSite(url: string, tabId: string): Promise<BrowsingDataSiteSummary>
   websites(): Promise<BrowsingDataWebsiteSummary[]>
   clear(options: BrowsingDataClearOptions): Promise<BrowsingDataSummary>
 }

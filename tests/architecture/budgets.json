@@ -4,7 +4,7 @@
     "src/main/index.ts": 1645,
     "src/main/mcp/http-server.ts": 854,
     "src/main/wallet/broker.ts": 884,
-    "src/renderer/src/App.vue": 1005
+    "src/renderer/src/App.vue": 1003
   },
   "accessFiles": [],
   "longLines": {

@@ -1952,6 +1952,9 @@ export const plPL: MessageSchema = {
       empty: 'Brak niestandardowych decyzji dla tej witryny. Hronaut zapyta, gdy uprawnienie będzie potrzebne.',
       allSettings: 'Wszystkie ustawienia witryny',
       clearData: 'Wyczyść dane tej witryny',
+      clearDataConfirm: 'Usunąć pliki cookie i dane witryny dla {origin}? Możesz zostać wylogowany z tej witryny.',
+      clearDataDelete: 'Usuń',
+      clearDataCancel: 'Anuluj',
       reloadToApply: 'Aby zastosować zaktualizowane ustawienia w tej witrynie, odśwież tę stronę',
       reload: 'Odśwież'
     },

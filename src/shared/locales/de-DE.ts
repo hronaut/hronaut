@@ -1952,6 +1952,9 @@ export const deDE: MessageSchema = {
       empty: 'Keine benutzerdefinierten Entscheidungen für diese Website. Hronaut fragt, wenn eine Berechtigung benötigt wird.',
       allSettings: 'Alle Website-Einstellungen',
       clearData: 'Daten dieser Website löschen',
+      clearDataConfirm: 'Cookies und Websitedaten für {origin} löschen? Sie werden auf dieser Website möglicherweise abgemeldet.',
+      clearDataDelete: 'Löschen',
+      clearDataCancel: 'Abbrechen',
       reloadToApply: 'Laden Sie diese Seite neu, um die aktualisierten Einstellungen auf diese Website anzuwenden',
       reload: 'Neu laden'
     },

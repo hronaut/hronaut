@@ -44,6 +44,8 @@ interface BrowsingDataIpcHost {
   mcpServer(): Pick<McpHttpServer, 'forgetAgentStepsSince'> | null
   publishVisitHistory(): void
   currentBrowsingDataSiteSummary(value: string, browserSession: Session | undefined): Promise<BrowsingDataSiteSummary>
+  /** Clears a website's cookies, storage and cache in one workspace, answering with what it keeps after. */
+  clearWebsiteData(workspaceId: string, value: string): Promise<BrowsingDataSiteSummary>
 }
 
 function closedTabOrigin(url: string): string | undefined {
@@ -142,16 +144,27 @@ export function registerBrowsingDataIpc(host: BrowsingDataIpcHost): void {
     host.assertTrustedSender(event)
     return currentBrowsingDataSummary()
   })
-  host.handleBrowserIpc(BROWSING_DATA_IPC.siteSummary, (event, url: unknown, tabId: unknown) => {
-    host.assertTrustedSender(event)
+  /** The workspace of the tab a site's data request is for. */
+  function siteTabWorkspace(url: unknown, tabId: unknown): string {
     if (typeof url !== 'string') throw new TypeError('Invalid website')
     if (typeof tabId !== 'string') throw new TypeError('Tab ID is required')
     const browser = host.tabs()
     const tab = browser ? browserState(browser).tabs.find((candidate) => candidate.id === tabId) : undefined
     if (!tab) throw new LocalizedError('native.errors.tabUnavailable', undefined, { message: `Tab not found: ${tabId}` })
     if (!tab.mcpGroupId) throw new Error('Website workspace is required')
-    const browserSession = browser ? workspaceSession(browser, tab.mcpGroupId) : undefined
-    return host.currentBrowsingDataSiteSummary(url, browserSession)
+    return tab.mcpGroupId
+  }
+
+  host.handleBrowserIpc(BROWSING_DATA_IPC.siteSummary, (event, url: unknown, tabId: unknown) => {
+    host.assertTrustedSender(event)
+    const workspaceId = siteTabWorkspace(url, tabId)
+    const browser = host.tabs()
+    const browserSession = browser ? workspaceSession(browser, workspaceId) : undefined
+    return host.currentBrowsingDataSiteSummary(url as string, browserSession)
+  })
+  host.handleBrowserIpc(BROWSING_DATA_IPC.clearSite, (event, url: unknown, tabId: unknown) => {
+    host.assertTrustedSender(event)
+    return host.clearWebsiteData(siteTabWorkspace(url, tabId), url as string)
   })
   host.handleBrowserIpc(BROWSING_DATA_IPC.websites, (event) => {
     host.assertTrustedSender(event)

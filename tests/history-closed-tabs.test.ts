@@ -182,7 +182,8 @@ describe('recently closed tabs and the history', () => {
       sitePermissionStore: () => null,
       mcpServer: () => null,
       publishVisitHistory: () => undefined,
-      currentBrowsingDataSiteSummary: async () => { throw new Error('Not used') }
+      currentBrowsingDataSiteSummary: async () => { throw new Error('Not used') },
+      clearWebsiteData: async () => { throw new Error('Not used') }
     })
     forgetTrustedCertificates.mockClear()
     await handlers.get('browsing-data:clear')!({}, { history: true, origin: 'https://shop.example' })
@@ -225,7 +226,8 @@ describe('recently closed tabs and the history', () => {
       sitePermissionStore: () => null,
       mcpServer: () => ({ forgetAgentStepsSince }),
       publishVisitHistory: () => undefined,
-      currentBrowsingDataSiteSummary: async () => { throw new Error('Not used') }
+      currentBrowsingDataSiteSummary: async () => { throw new Error('Not used') },
+      clearWebsiteData: async () => { throw new Error('Not used') }
     })
     const clear = async (options: unknown) => handlers.get('browsing-data:clear')!({}, options)
     const before = Date.now()

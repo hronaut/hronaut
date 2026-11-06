@@ -346,6 +346,7 @@ async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean>
       :open-permission-settings="actions.openSitePermissionSettings"
       :open-privacy-settings="actions.openSitePrivacySettings"
       :refresh="siteDataController.refresh"
+      :clear-data="siteDataController.clearData"
       :keeps-separate-panel-open="keepsSeparatePanelOpen"
     />
     <section

@@ -1952,6 +1952,9 @@ export const ruRU: MessageSchema = {
       empty: 'Для этого сайта нет особых решений. Hronaut спросит, когда потребуется разрешение.',
       allSettings: 'Все настройки сайта',
       clearData: 'Очистить данные этого сайта',
+      clearDataConfirm: 'Удалить файлы cookie и данные сайта {origin}? Возможно, вы выйдете из аккаунта на этом сайте.',
+      clearDataDelete: 'Удалить',
+      clearDataCancel: 'Отмена',
       reloadToApply: 'Чтобы применить новые настройки к этому сайту, перезагрузите страницу',
       reload: 'Перезагрузить'
     },

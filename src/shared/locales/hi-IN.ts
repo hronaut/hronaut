@@ -1952,6 +1952,9 @@ export const hiIN: MessageSchema = {
       empty: 'इस वेबसाइट के लिए कोई कस्टम फ़ैसला नहीं है। किसी अनुमति की ज़रूरत होने पर Hronaut पूछेगा।',
       allSettings: 'सभी साइट सेटिंग',
       clearData: 'इस वेबसाइट का डेटा साफ़ करें',
+      clearDataConfirm: '{origin} के लिए कुकी और साइट डेटा मिटाएं? आप इस वेबसाइट से साइन आउट हो सकते हैं.',
+      clearDataDelete: 'मिटाएं',
+      clearDataCancel: 'रद्द करें',
       reloadToApply: 'इस साइट पर अपडेट की गई सेटिंग लागू करने के लिए, यह पेज फिर से लोड करें',
       reload: 'फिर से लोड करें'
     },

@@ -577,7 +577,7 @@ const {
   refreshHomeAfterCommittedChange
 })
 
-const { currentBrowsingDataSiteSummary, agentSiteData } = createSiteData({
+const { currentBrowsingDataSiteSummary, clearWebsiteData, agentSiteData } = createSiteData({
   tabs: () => tabRuntime.tabs,
   historyStore: () => bookmarksAndHistory.history,
   publishVisitHistory
@@ -1026,7 +1026,7 @@ function registerIpc(): void {
     sitePermissionStore: () => browserSessionState.sitePermissionStore,
     mcpServer: () => mcpRuntime.server,
     publishVisitHistory,
-    currentBrowsingDataSiteSummary
+    currentBrowsingDataSiteSummary, clearWebsiteData
   })
   registerIncidentPackageIpc(hronautIpcMain, {
     assertTrustedSender: assertInitializedTrustedShellSender,

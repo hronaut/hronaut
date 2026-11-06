@@ -17,6 +17,7 @@ function createHarness() {
   const siteDataController = useSiteDataSummaryController({
     current: () => activeContext.value,
     load: loadSiteSummary,
+    clear: loadSiteSummary,
     translate: (key) => key
   })
   const siteControlsOpen = ref(false)

@@ -8,6 +8,7 @@ import type { BrowsingDataSiteSummary } from '../../shared/types.js'
 import { withWorkspaceSiteDataCleanup, workspaceSession } from '../browser/workspace-data/workspace-data.js'
 import { forgetHistoryPages } from '../browser/tab-history-pages/forget-history-pages.js'
 import { forgetTrustedCertificates } from '../browser/certificate-errors/certificate-errors.js'
+import { publishChange } from '../browser/browser-state/browser-state.js'
 
 function closedTabOrigin(url: string): string | undefined {
   try {
@@ -27,10 +28,12 @@ interface SiteDataHost {
 
 /**
  * One website's stored data in a browser session: what it holds, as the shell's site summary and agents read it, and
- * clearing chosen kinds of it from one workspace for an agent. `agentSiteData` is what the MCP server offers agents.
+ * clearing chosen kinds of it from one workspace for an agent or the person. `agentSiteData` is what the MCP server
+ * offers agents; `clearWebsiteData` is Site controls' Clear data for this website.
  */
 export function createSiteData(host: SiteDataHost): {
   currentBrowsingDataSiteSummary(value: string, browserSession: Session | undefined): Promise<BrowsingDataSiteSummary>
+  clearWebsiteData(workspaceId: string, value: string): Promise<BrowsingDataSiteSummary>
   agentSiteData: SiteDataOperations
 } {
   async function currentBrowsingDataSiteSummary(
@@ -112,6 +115,26 @@ export function createSiteData(host: SiteDataHost): {
     })
   }
 
+  /**
+   * The person's Clear data for this website in Site controls, as Chrome's: the website's cookies, storage, service
+   * workers and cache in the tab's workspace, leaving its history and permissions. Its pages open in the workspace
+   * still hold what they read, so each offers to reload, as after a permission change.
+   */
+  async function clearWebsiteData(workspaceId: string, value: string): Promise<BrowsingDataSiteSummary> {
+    const { origin, remaining } = await clearWorkspaceSiteData(workspaceId, value, ['cookies-and-storage', 'cache'])
+    const browser = host.tabs()
+    if (!browser) return remaining
+    let offered = false
+    for (const tab of browser.tabs.values()) {
+      if (tab.mcpGroupId !== workspaceId || tab.sleeping || tab.webContents.isDestroyed()) continue
+      if (closedTabOrigin(tab.url) !== origin || tab.permissionReloadOffered === tab.documentGeneration) continue
+      tab.permissionReloadOffered = tab.documentGeneration
+      offered = true
+    }
+    if (offered) publishChange(browser, false)
+    return remaining
+  }
+
   /** Agents' site data operations, each in the session of the workspace they name. */
   const agentSiteData: SiteDataOperations = {
     inspect: async (workspaceId, origin) => {
@@ -124,5 +147,5 @@ export function createSiteData(host: SiteDataHost): {
     clear: (workspaceId, origin, dataTypes: SiteDataType[]) => clearWorkspaceSiteData(workspaceId, origin, dataTypes)
   }
 
-  return { currentBrowsingDataSiteSummary, agentSiteData }
+  return { currentBrowsingDataSiteSummary, clearWebsiteData, agentSiteData }
 }

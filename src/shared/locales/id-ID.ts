@@ -1952,6 +1952,9 @@ export const idID: MessageSchema = {
       empty: 'Tidak ada keputusan kustom untuk situs ini. Hronaut akan bertanya saat izin diperlukan.',
       allSettings: 'Semua setelan situs',
       clearData: 'Hapus data untuk situs ini',
+      clearDataConfirm: 'Hapus cookie dan data situs untuk {origin}? Anda mungkin akan keluar dari situs ini.',
+      clearDataDelete: 'Hapus',
+      clearDataCancel: 'Batal',
       reloadToApply: 'Untuk menerapkan setelan yang diperbarui ke situs ini, muat ulang halaman ini',
       reload: 'Muat ulang'
     },

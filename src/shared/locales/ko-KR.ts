@@ -1952,6 +1952,9 @@ export const koKR: MessageSchema = {
       empty: '이 웹사이트에 대한 맞춤 결정이 없습니다. 권한이 필요하면 Hronaut에서 묻습니다.',
       allSettings: '모든 사이트 설정',
       clearData: '이 웹사이트의 데이터 삭제',
+      clearDataConfirm: '{origin}의 쿠키 및 사이트 데이터를 삭제하시겠습니까? 이 웹사이트에서 로그아웃될 수 있습니다.',
+      clearDataDelete: '삭제',
+      clearDataCancel: '취소',
       reloadToApply: '이 사이트에 업데이트된 설정을 적용하려면 이 페이지를 새로고침하세요',
       reload: '새로고침'
     },

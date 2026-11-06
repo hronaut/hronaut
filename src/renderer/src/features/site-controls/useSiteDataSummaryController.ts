@@ -10,6 +10,8 @@ export interface SiteDataSummaryContext {
 export function useSiteDataSummaryController(options: {
   current: () => SiteDataSummaryContext | null
   load: (context: SiteDataSummaryContext) => Promise<BrowsingDataSiteSummary>
+  /** Clears the website's cookies, storage and cache for the tab, answering with what it keeps after. */
+  clear: (context: SiteDataSummaryContext) => Promise<BrowsingDataSiteSummary>
   /** Words for a failure that carries none of its own. */
   translate: (key: string) => string
 }) {
@@ -33,6 +35,15 @@ export function useSiteDataSummaryController(options: {
   }
 
   async function refresh(): Promise<void> {
+    await read(options.load)
+  }
+
+  /** Site controls' Clear data for this website, once the person confirmed it: the counts show what is left. */
+  async function clearData(): Promise<void> {
+    await read(options.clear)
+  }
+
+  async function read(operation: (context: SiteDataSummaryContext) => Promise<BrowsingDataSiteSummary>): Promise<void> {
     const context = options.current()
     if (!context) {
       reset()
@@ -42,7 +53,7 @@ export function useSiteDataSummaryController(options: {
     state.value = 'loading'
     message.value = ''
     try {
-      const result = await options.load(context)
+      const result = await operation(context)
       if (!isCurrent(expectedGeneration, context)) return
       summary.value = result
       state.value = 'idle'
@@ -54,7 +65,7 @@ export function useSiteDataSummaryController(options: {
     }
   }
 
-  return { summary, state, message, refresh, reset }
+  return { summary, state, message, refresh, clearData, reset }
 }
 
 export type SiteDataSummaryController = ReturnType<typeof useSiteDataSummaryController>

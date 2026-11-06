@@ -7,6 +7,8 @@ export const BROWSING_DATA_IPC = {
   summary: 'browsing-data:summary' as InvokeChannel<[], BrowsingDataSummary>,
   /** Shell → main: what one website keeps, for the tab showing it. */
   siteSummary: 'browsing-data:site-summary' as InvokeChannel<[url: string, tabId: string], BrowsingDataSiteSummary>,
+  /** Shell → main: clears one website's cookies, storage and cache for the tab showing it, answering with what it keeps after. */
+  clearSite: 'browsing-data:clear-site' as InvokeChannel<[url: string, tabId: string], BrowsingDataSiteSummary>,
   /** Shell → main: every website that keeps data. */
   websites: 'browsing-data:websites' as InvokeChannel<[], BrowsingDataWebsiteSummary[]>,
   /** Shell → main: clears the chosen kinds of data, answering with what is kept after. */

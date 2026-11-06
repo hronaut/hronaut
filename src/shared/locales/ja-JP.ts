@@ -1952,6 +1952,9 @@ export const jaJP: MessageSchema = {
       empty: 'このウェブサイトにカスタムの判断はありません。権限が必要になると Hronaut が確認します。',
       allSettings: 'すべてのサイト設定',
       clearData: 'このウェブサイトのデータを消去',
+      clearDataConfirm: '{origin} の Cookie とサイトデータを削除しますか？このウェブサイトからログアウトされる場合があります。',
+      clearDataDelete: '削除',
+      clearDataCancel: 'キャンセル',
       reloadToApply: 'このサイトに更新後の設定を適用するには、このページを再読み込みしてください',
       reload: '再読み込み'
     },

@@ -86,6 +86,7 @@ function createHarness() {
     historyVisits: 5
   }
   const loadSiteSummary = vi.fn(async () => siteSummary)
+  const clearSiteData = vi.fn(async () => siteSummary)
   const closeFind = vi.fn(async () => { findOpen.value = false })
   const showToast = vi.fn()
   const setFollowAgentActivitySuspended = vi.fn()
@@ -138,6 +139,7 @@ function createHarness() {
           returnFindFocus: vi.fn(() => false),
           openSettingsSection: vi.fn(),
           loadSiteSummary,
+          clearSiteData,
           onActionError: vi.fn(),
           showToast
         }
