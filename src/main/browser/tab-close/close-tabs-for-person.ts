@@ -13,10 +13,10 @@ import { closeTab } from './close-tab.js'
 /**
  * Closes tabs for the person, in order, stopping at one whose page asks to stay. The shown tab closes last, so it
  * hands over to a tab that stays open rather than waking a sleeping one only to close it next. Undo reopens those that
- * closed, each in its place among its workspace's tabs.
+ * closed, each in its place among its workspace's tabs, and shows the one that was shown again.
  */
 export async function closeTabsForPerson(browser: Browser, tabIds: readonly string[]): Promise<BrowserState> {
-  const closed: { closedTabId: string; index: number; title: string }[] = []
+  const closed: ClosedForPerson[] = []
   const pending = [...tabIds]
   try {
     while (pending.length) {
@@ -25,12 +25,13 @@ export async function closeTabsForPerson(browser: Browser, tabIds: readonly stri
       const tab = tabIds.length === 1 ? getTab(browser, tabId) : findTab(browser, tabId)
       if (!tab) continue
       const index = tabPeers(browser, tab).indexOf(tab)
+      const shown = tabId === browser.activeTabId
       const remembered = new Set(browser.closedTabs.map((entry) => entry.id))
       // The person's own close yields to a tab they select while the one that replaces it wakes.
       await closeTab(browser, tabId, true, true, true)
       if (findTab(browser, tabId) === tab) break
       const entry = browser.closedTabs.findLast((candidate) => !remembered.has(candidate.id) && candidate.url === tab.url && candidate.mcpGroupId === tab.mcpGroupId)
-      if (entry) closed.push({ closedTabId: entry.id, index, title: entry.label || tabTitleForDisplay(entry, browser.text('tabSearch.newTabTitle')) })
+      if (entry) closed.push({ closedTabId: entry.id, index, shown, title: entry.label || tabTitleForDisplay(entry, browser.text('tabSearch.newTabTitle')) })
     }
   } finally {
     if (closed.length) {
@@ -52,13 +53,25 @@ function tabPeers(browser: Browser, tab: BrowserTab): BrowserTab[] {
   ))
 }
 
-/** Reopens tabs closed together, the last closed first, so each goes back where it was; one tab is shown again. */
-/** False when none of them could be reopened, such as after Reopen closed tab took them. */
-function reopenClosedTabsInPlace(browser: Browser, closed: readonly { closedTabId: string; index: number }[]): Promise<boolean> {
+/** A tab closed for the person: its Recently closed entry, its place among its workspace's tabs, and its name. */
+interface ClosedForPerson {
+  closedTabId: string
+  index: number
+  /** Whether it was the tab shown when it closed. */
+  shown: boolean
+  title: string
+}
+
+/**
+ * Reopens tabs closed together, the last closed first, so each goes back where it was. A tab closed alone is shown
+ * again, and of several the one that was shown, so the person is back where they were; the others reopen behind it.
+ * False when none of them could be reopened, such as after Reopen closed tab took them.
+ */
+function reopenClosedTabsInPlace(browser: Browser, closed: readonly ClosedForPerson[]): Promise<boolean> {
   return withTabLabelLifecycle(browser, async () => {
     let reopened = 0
-    for (const { closedTabId, index } of [...closed].reverse()) {
-      const tab = await reopenClosedTabEntry(browser, closedTabId, closed.length === 1)
+    for (const { closedTabId, index, shown } of [...closed].reverse()) {
+      const tab = await reopenClosedTabEntry(browser, closedTabId, closed.length === 1 || shown)
       if (!tab) continue
       reopened += 1
       const peers = tabPeers(browser, tab).filter((candidate) => candidate !== tab)

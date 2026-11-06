@@ -53,12 +53,14 @@ function openBrowser(tabs: Tab[], options: { active?: string; staying?: string[]
       }
       return state
     }),
-    reopenClosedTabEntry: async (closedTabId: string) => {
+    // A reopened tab is shown when asked; otherwise it opens behind the shown one.
+    reopenClosedTabEntry: async (closedTabId: string, show: boolean) => {
       const index = closed.findIndex(entry => entry.id === closedTabId)
       if (index === -1) return undefined
       const [entry] = closed.splice(index, 1)
       const tab: Tab = { id: entry!.id.replace(/^closed-/, ''), title: entry!.title, url: entry!.url, pinned: entry!.pinned }
       open.push(tab)
+      if (show) active = tab.id
       return tab
     },
     tabLabelLifecycleHolds: 0,
@@ -138,6 +140,31 @@ describe('closing tabs for the person', () => {
     await tabs.offers[0]!.undo()
 
     expect(tabs.openIds()).toEqual(['x1', 'shown', 'x2', 'kept'])
+  })
+
+  // Undo reopened several tabs behind the tab that had replaced them, so the person was not back on the tab they closed
+  // them from.
+  it('shows the tab that was shown again on Undo, with the others behind it', async () => {
+    const tabs = openBrowser(sites('x1', 'shown', 'x2', 'kept'), { active: 'shown' })
+
+    await closeTabsForPerson(tabs.browser as never, ['x1', 'shown', 'x2'])
+    expect(tabs.active()).toBe('kept')
+    await tabs.offers[0]!.undo()
+
+    expect(tabs.active()).toBe('shown')
+    expect(tabs.openIds()).toEqual(['x1', 'shown', 'x2', 'kept'])
+  })
+
+  it('leaves the shown tab shown on Undo when it was not among those closed, and shows a tab closed alone', async () => {
+    const tabs = openBrowser(sites('a', 'b', 'shown'), { active: 'shown' })
+
+    await closeTabsForPerson(tabs.browser as never, ['a', 'b'])
+    await tabs.offers[0]!.undo()
+    expect(tabs.active()).toBe('shown')
+
+    await closeTabsForPerson(tabs.browser as never, ['a'])
+    await tabs.offers[1]!.undo()
+    expect(tabs.active()).toBe('a')
   })
 
   it('names a closed tab by its label first', async () => {
