@@ -8,6 +8,7 @@ All notable changes to Hronaut are documented in this file.
 
 - Browsing history and Bookmarks now show each page with the icon a tab showed for it, as Chrome does, rather than a globe beside every page; a page no tab has shown since shows its website's icon. The icons are kept only while the history or the bookmarks hold the page, so clearing the history takes them too.
 - The two tabs of a split view now stay paired when you select another tab, open Home or switch workspace, as in Chrome: selecting either of them shows both again, in the same layout, and the tab strip still marks both. The split view used to end for good, and had to be opened again.
+- The main window can now be made narrower, down to 600 pixels at the Compact interface size, so it fits half of a 1280, 1366 or 1440-pixel screen beside another app, as Chrome's does; the Comfortable and Large sizes keep room for their larger toolbar. The Issues panel, docked beside the page in a narrow window, now keeps its counts and its Copy button in view.
 
 ### Fixed
 

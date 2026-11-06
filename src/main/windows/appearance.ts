@@ -4,6 +4,7 @@ import type { SidebarOverlay } from '../overlays/sidebar-overlay.js'
 import type { StatusBubbleOverlay } from '../overlays/status-bubble-overlay.js'
 import type { AddressSuggestionOverlay } from './address-suggestion-overlay.js'
 import type { MainWindowRefs } from './main-window.js'
+import { applyMainWindowMinimumSize } from './main-window-minimum-size.js'
 import type { PanelWindowRefs } from './panel-window.js'
 import { CYBERPUNK_TURBO_COLORS, themeColorScheme, type ResolvedThemeName } from '../../shared/theme.js'
 import type { AppSettings, RendererSettingsState, ThemeName } from '../../shared/types.js'
@@ -74,6 +75,8 @@ export function createWindowAppearance(host: WindowAppearanceHost): {
         window.webContents.setZoomFactor(scale)
       }
     }
+    const mainWindow = host.mainWindowRefs.window
+    if (mainWindow && !mainWindow.isDestroyed()) applyMainWindowMinimumSize(mainWindow, scale)
     host.addressSuggestionOverlay.setZoomFactor(scale)
     host.applyMainWindowTitleBarOverlay()
     host.toastOverlay.relayout()
