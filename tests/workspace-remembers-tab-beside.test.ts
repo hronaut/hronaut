@@ -19,7 +19,7 @@ vi.mock('../src/main/browser/background-action.js', async (importOriginal) => ({
 // a tab ID used it, where closing the same tab on screen shows, and remembers, the popup's opener or the tab beside it.
 
 interface Tab {
-  id: string; url: string; pinned: boolean; mcpGroupId: string; openerTabId?: string
+  id: string; url: string; pinned: boolean; mcpGroupId: string; openerTabId?: string; closedItself?: boolean
   webContents: { id: number; isDestroyed: () => boolean }
 }
 interface Internals {
@@ -29,12 +29,13 @@ interface Internals {
 
 const forgets = () => ({ forget: vi.fn() })
 
-function fixture(tabs: Array<{ id: string; pinned?: boolean; destroyed?: boolean; openerTabId?: string }>, remembered: string) {
+function fixture(tabs: Array<{ id: string; pinned?: boolean; destroyed?: boolean; openerTabId?: string; closedItself?: boolean }>, remembered: string) {
   return Object.assign(Object.create(Browser.prototype), {
     mcpTabGroups: new Map([['work', { id: 'work', name: 'work', activeTabId: remembered, lastUsedAt: '2026-10-21T09:00:00.000Z' }]]),
     tabs: new Map(tabs.map((tab, index) => [tab.id, {
       id: tab.id, url: `https://${tab.id}.example/`, pinned: tab.pinned === true, mcpGroupId: 'work',
       ...(tab.openerTabId ? { openerTabId: tab.openerTabId } : {}),
+      ...(tab.closedItself ? { closedItself: true } : {}),
       webContents: { id: index + 1, isDestroyed: () => tab.destroyed === true }
     }])),
     cssStatePreview: forgets(), virtualPasskeys: forgets(), domMutationSource: forgets(), logpoints: forgets(), workerEvaluations: forgets(),
@@ -80,12 +81,15 @@ describe('a workspace whose remembered tab closes', () => {
 
   it('remembers the tab that opened a popup when the popup closes, as on screen', () => {
     // A sign-in popup opens at the end of its workspace and closes itself, often while another workspace is shown.
-    const manager = fixture([{ id: 'app' }, { id: 'docs' }, { id: 'popup', openerTabId: 'app' }], 'popup')
+    const manager = fixture([{ id: 'app' }, { id: 'docs' }, { id: 'popup', openerTabId: 'app', closedItself: true }], 'popup')
     expect(close(manager, 'popup')).toBe('app')
+    // A tab a page opened with window.open, closed by the person, is a tab like any other.
+    const closedByPerson = fixture([{ id: 'app' }, { id: 'docs' }, { id: 'popup', openerTabId: 'app' }], 'popup')
+    expect(close(closedByPerson, 'popup')).toBe('docs')
   })
 
   it('remembers the tab beside a popup whose opener closed', () => {
-    const manager = fixture([{ id: 'app' }, { id: 'docs' }, { id: 'popup', openerTabId: 'closed' }], 'popup')
+    const manager = fixture([{ id: 'app' }, { id: 'docs' }, { id: 'popup', openerTabId: 'closed', closedItself: true }], 'popup')
     expect(close(manager, 'popup')).toBe('docs')
   })
 

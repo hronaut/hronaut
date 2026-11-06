@@ -25,7 +25,7 @@ vi.mock('../src/main/browser/background-action.js', async (importOriginal) => ({
 // page itself; a workspace whose remembered tab closed off screen remembered that tab too.
 
 interface Tab {
-  id: string; url: string; pinned: boolean; mcpGroupId: string; openedFromTabId?: string; openerTabId?: string
+  id: string; url: string; pinned: boolean; mcpGroupId: string; openedFromTabId?: string; openerTabId?: string; closedItself?: boolean
   webContents: { id: number; isDestroyed: () => boolean }
 }
 interface Internals {
@@ -84,10 +84,13 @@ describe('closing the shown tab opened from a page', () => {
     expect(closeShown(manager, 'one')).toBe('mail')
   })
 
-  it('still shows a popup\'s opener first', () => {
+  it('shows the next tab its page opened when the person closes a window.open tab, and the page when it closes itself', () => {
     const manager = fixture([{ id: 'app' }, { id: 'popup', from: 'app' }, { id: 'one', from: 'app' }])
     manager.tabs.get('popup')!.openerTabId = 'app'
-    expect(closeShown(manager, 'popup')).toBe('app')
+    expect(closeShown(manager, 'popup')).toBe('one')
+    const closing = fixture([{ id: 'app' }, { id: 'popup', from: 'app' }, { id: 'one', from: 'app' }])
+    Object.assign(closing.tabs.get('popup')!, { openerTabId: 'app', closedItself: true })
+    expect(closeShown(closing, 'popup')).toBe('app')
   })
 })
 

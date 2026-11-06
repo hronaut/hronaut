@@ -232,6 +232,7 @@ export async function createTab(browser: Browser, options: {
     ...(options.mcpGroupId ? { mcpGroupId: options.mcpGroupId } : {}),
     ...(opener ? { openerTabId: opener.id } : {}),
     ...(options.openedFrom ? { openedFromTabId: options.openedFrom.tabId } : {}),
+    ...(options.openedFrom?.window ? { openedAsWindow: true } : {}),
     ...(opensFromPage(options) ? { openedFromPage: true } : {})
   }
   // A tab restored or reopened asleep shows its website's sound setting before its page loads.

@@ -5,7 +5,7 @@ import { closeTabTransition } from '../src/main/browser/tab-close/close-transiti
 
 // A sign-in popup that closed itself showed the first tab of the next workspace, rather than the tab that opened it.
 
-interface Tab { id: string; url: string; pinned: boolean; mcpGroupId: string; openerTabId?: string; webContents: { isDestroyed: () => boolean } }
+interface Tab { id: string; url: string; pinned: boolean; mcpGroupId: string; openerTabId?: string; openedAsWindow?: boolean; closedItself?: boolean; webContents: { isDestroyed: () => boolean } }
 interface Internals {
   activeTabId: string | null
   tabs: Map<string, Tab>
@@ -22,7 +22,36 @@ function fixture(tabs: Array<Omit<Tab, 'webContents' | 'pinned' | 'url'>>) {
   return manager
 }
 
-it('shows the tab that opened a popup when the popup closes', () => {
+it('shows the tab that opened a popup when the popup closes itself', () => {
+  const manager = fixture([
+    { id: 'app', mcpGroupId: 'alpha' },
+    { id: 'docs', mcpGroupId: 'alpha' },
+    { id: 'popup', mcpGroupId: 'alpha', openerTabId: 'app', closedItself: true },
+    { id: 'other', mcpGroupId: 'beta' }
+  ])
+  manager.activeTabId = 'popup'
+  expect(closeTabTransition(manager as never, manager.tabs.get('popup')! as never).nextId).toBe('app')
+  // Once its opener is closed, the popup's tab closes as any other, showing the tab beside it in its workspace.
+  manager.tabs.delete('app')
+  expect(closeTabTransition(manager as never, manager.tabs.get('popup')! as never).nextId).toBe('docs')
+})
+
+// Closing Chrome's popup window shows the page that opened it again.
+it('shows the tab that opened a popup window the person closes', () => {
+  const manager = fixture([
+    { id: 'app', mcpGroupId: 'alpha' },
+    { id: 'docs', mcpGroupId: 'alpha' },
+    { id: 'popup', mcpGroupId: 'alpha', openerTabId: 'app', openedAsWindow: true },
+    { id: 'other', mcpGroupId: 'beta' }
+  ])
+  manager.activeTabId = 'popup'
+  expect(closeTabTransition(manager as never, manager.tabs.get('popup')! as never).nextId).toBe('app')
+})
+
+// A page's window.open without window features opens a tab in Chrome, which its tab strip treats as any tab a page
+// opened: it returns to the opener only through the tabs that page opened, and forgets them once the person turns to
+// another task.
+it('shows the tab beside a tab a page opened with window.open when the person closes it', () => {
   const manager = fixture([
     { id: 'app', mcpGroupId: 'alpha' },
     { id: 'docs', mcpGroupId: 'alpha' },
@@ -30,8 +59,5 @@ it('shows the tab that opened a popup when the popup closes', () => {
     { id: 'other', mcpGroupId: 'beta' }
   ])
   manager.activeTabId = 'popup'
-  expect(closeTabTransition(manager as never, manager.tabs.get('popup')! as never).nextId).toBe('app')
-  // Once its opener is closed, the popup's tab closes as any other, showing the tab beside it in its workspace.
-  manager.tabs.delete('app')
   expect(closeTabTransition(manager as never, manager.tabs.get('popup')! as never).nextId).toBe('docs')
 })
