@@ -111,6 +111,7 @@ function panelWindowHandlers(tabRuntime: { tabs: unknown; initialization: Promis
   }
   const panelWindow = createPanelWindow({
     text: (key: string, parameters?: Record<string, unknown>) => parameters?.panel ? `${key}:${String(parameters.panel)}` : key,
+    spelling: { track: () => undefined, addWord: () => undefined },
     trustedShellUrl: () => 'file:///shell/index.html',
     mainWindow: () => mainWindow as never,
     refs,

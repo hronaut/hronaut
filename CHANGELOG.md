@@ -10,6 +10,7 @@ All notable changes to Hronaut are documented in this file.
 - When Hronaut's own window page crashes, Hronaut now loads it again with the same tabs, rather than leaving the window blank until you quit.
 - Try again on a page that crashed now reloads it as Chrome does, with the page it was opened from as its referrer, rather than opening its address anew.
 - **Copy Image** now keeps the image's markup beside the picture, as Chrome does, so a rich text editor pastes the image with its address.
+- A misspelled word in Hronaut's own fields, such as the agent card's answer, now offers spelling suggestions and **Add to Dictionary** in its menu, as in a website's field, and those fields follow the **Spell check** setting and languages.
 
 ## [3.14.20] - 2026-11-06
 
