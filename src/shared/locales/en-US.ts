@@ -4137,7 +4137,8 @@ export const enUS = {
       window: 'Window',
       minimize: 'Minimize',
       zoom: 'Zoom',
-      bringAllToFront: 'Bring All to Front'
+      bringAllToFront: 'Bring All to Front',
+      toggleFullScreen: 'Toggle Full Screen'
     },
     tray: {
       show: 'Show Hronaut',

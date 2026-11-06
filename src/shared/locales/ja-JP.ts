@@ -4139,7 +4139,8 @@ export const jaJP: MessageSchema = {
       window: 'ウインドウ',
       minimize: 'しまう',
       zoom: '拡大／縮小',
-      bringAllToFront: 'すべてを手前に移動'
+      bringAllToFront: 'すべてを手前に移動',
+      toggleFullScreen: 'フルスクリーンの切り替え'
     },
     tray: {
       show: 'Hronaut を表示',

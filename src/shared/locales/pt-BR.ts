@@ -4139,7 +4139,8 @@ export const ptBR: MessageSchema = {
       window: 'Janela',
       minimize: 'Minimizar',
       zoom: 'Zoom',
-      bringAllToFront: 'Trazer tudo para a frente'
+      bringAllToFront: 'Trazer tudo para a frente',
+      toggleFullScreen: 'Ativar/desativar tela cheia'
     },
     tray: {
       show: 'Mostrar o Hronaut',

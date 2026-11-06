@@ -4139,7 +4139,8 @@ export const plPL: MessageSchema = {
       window: 'Okno',
       minimize: 'Minimalizuj',
       zoom: 'Zmień rozmiar',
-      bringAllToFront: 'Umieść wszystko na wierzchu'
+      bringAllToFront: 'Umieść wszystko na wierzchu',
+      toggleFullScreen: 'Przełącz pełny ekran'
     },
     tray: {
       show: 'Pokaż Hronaut',

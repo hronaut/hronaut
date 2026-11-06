@@ -4139,7 +4139,8 @@ export const viVN: MessageSchema = {
       window: 'Cửa sổ',
       minimize: 'Thu nhỏ',
       zoom: 'Thu phóng',
-      bringAllToFront: 'Đưa tất cả ra trước'
+      bringAllToFront: 'Đưa tất cả ra trước',
+      toggleFullScreen: 'Bật/tắt toàn màn hình'
     },
     tray: {
       show: 'Hiển thị Hronaut',

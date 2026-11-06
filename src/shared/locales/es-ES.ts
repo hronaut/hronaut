@@ -4139,7 +4139,8 @@ export const esES: MessageSchema = {
       window: 'Ventana',
       minimize: 'Minimizar',
       zoom: 'Zoom',
-      bringAllToFront: 'Traer todo al frente'
+      bringAllToFront: 'Traer todo al frente',
+      toggleFullScreen: 'Activar o desactivar pantalla completa'
     },
     tray: {
       show: 'Mostrar Hronaut',

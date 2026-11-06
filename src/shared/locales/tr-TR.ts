@@ -4139,7 +4139,8 @@ export const trTR: MessageSchema = {
       window: 'Pencere',
       minimize: 'Simge durumuna küçült',
       zoom: 'Büyüt',
-      bringAllToFront: 'Tümünü öne getir'
+      bringAllToFront: 'Tümünü öne getir',
+      toggleFullScreen: 'Tam ekranı aç/kapat'
     },
     tray: {
       show: 'Hronaut’u göster',
