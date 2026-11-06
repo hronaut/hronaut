@@ -19,6 +19,7 @@ export function attachPageCloseEvents(browser: Browser, tab: BrowserTab, webCont
     if (browser.destroyed || findTab(browser, tab.id) !== tab || browser.expectedTabClosures.has(webContents)) return
     // The tab closes with its page, so the page's destruction is not shown as a problem.
     browser.expectedTabClosures.add(webContents)
+    tab.closedItself = true
     void browser.closeTab(tab.id).catch((error: unknown) => {
       // Another close, such as the person's, may have closed it meanwhile.
       if (findTab(browser, tab.id) !== tab) return

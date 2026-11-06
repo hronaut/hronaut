@@ -12,8 +12,11 @@ export function closeTabTransition(browser: Browser, tab: BrowserTab): { splitPa
   const ordered = orderedTabs(browser)
   const ids = ordered.map((candidate) => candidate.id)
   const index = ids.indexOf(tab.id)
-  // A website popup returns to the tab that opened it, as in Chrome, rather than to a tab of the next workspace.
-  const openerId = tab.openerTabId && browser.tabs.has(tab.openerTabId) ? [tab.openerTabId] : []
+  // A popup window, or a page that closes itself as a sign-in window does once it has answered, returns to the page that
+  // opened it, as closing Chrome's popup window does. A tab a page opened with window.open follows the tabs that page
+  // opened, as any tab opened from a page does, which Chrome forgets once the person turns to another task.
+  const returnsToOpener = tab.openedAsWindow === true || tab.closedItself === true
+  const openerId = returnsToOpener && tab.openerTabId && browser.tabs.has(tab.openerTabId) ? [tab.openerTabId] : []
   // So does a new tab closed right away, to the tab the person was on.
   const returnId = tab.returnsToTabId && browser.tabs.get(tab.returnsToTabId)?.mcpGroupId === tab.mcpGroupId ? [tab.returnsToTabId] : []
   // A tab opened from a page shows that page's next tab, or the page, as in Chrome.

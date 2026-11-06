@@ -30,6 +30,10 @@ import type { TakeOverMark } from './take-over.js'
 export interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState {
   /** The tab whose page opened this one's as a window and can reach it, as this page can reach it through window.opener. */
   openerTabId?: string
+  /** Set for a page opened as a window of its own, such as a sign-in popup, which Chrome shows in a window apart. */
+  openedAsWindow?: boolean
+  /** Set as the page closes itself with window.close(), as a sign-in popup does, so the page that opened it shows again. */
+  closedItself?: boolean
   /**
    * The tab whose page opened this one, from a link or a window it asked for, which places it beside that tab and
    * shows that tab again when it closes, until Hronaut forgets it as Chrome does.

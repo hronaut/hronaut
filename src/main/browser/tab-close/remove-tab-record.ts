@@ -51,12 +51,13 @@ export function removeTabRecord(browser: Browser, tab: BrowserTab): void {
 
 /**
  * The workspace's tab that follows this one when it closes, as the close hand-over picks it: the tab that opened it as
- * a popup, otherwise the tab a new tab returns to, otherwise the next tab of the page that opened it or that page,
+ * a popup window or one that closed itself, otherwise the tab a new tab returns to, otherwise the next tab of the page that opened it or that page,
  * otherwise the open tab beside it as the tab strip shows them, to its right and otherwise to its left; null when it
  * is the workspace's only tab.
  */
 function workspaceTabAfterClose(browser: Browser, tab: BrowserTab): string | null {
-  const opener = tab.openerTabId ? browser.tabs.get(tab.openerTabId) : undefined
+  const returnsToOpener = tab.openedAsWindow === true || tab.closedItself === true
+  const opener = returnsToOpener && tab.openerTabId ? browser.tabs.get(tab.openerTabId) : undefined
   if (opener && opener.mcpGroupId === tab.mcpGroupId && !opener.webContents.isDestroyed()) return opener.id
   const returnTo = tab.returnsToTabId ? browser.tabs.get(tab.returnsToTabId) : undefined
   if (returnTo && returnTo.mcpGroupId === tab.mcpGroupId && !returnTo.webContents.isDestroyed()) return returnTo.id
