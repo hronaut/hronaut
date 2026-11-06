@@ -76,3 +76,37 @@ test('selects tabs with Ctrl and a click, moves them together by drag, pins them
     await closeFixtureServer(server)
   }
 })
+
+// The tab strip chose a tab when the mouse button came up, so a tab showed only after the whole click, unlike Chrome.
+test('shows a tab while the mouse button is still down on it, as Chrome does', async ({ appWindow }) => {
+  const server = createServer((request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end(`<!doctype html><title>Press ${(request.url ?? '/').slice(1).toUpperCase()}</title><p>Page</p>`)
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('The fixture server has no port.')
+  const origin = `http://127.0.0.1:${address.port}`
+  const control = (name: string) => appWindow.getByRole('tab', { name: new RegExp(`^Press ${name}`) })
+  try {
+    for (const [index, name] of ['a', 'b'].entries()) {
+      await appWindow.evaluate(`window.hronaut.newTab({ url: '${origin}/${name}', active: ${index === 0} })`)
+    }
+    await expect(control('A')).toHaveAttribute('data-active-tab', 'true')
+    const box = (await control('B').boundingBox())!
+    await appWindow.mouse.move(box.x + box.width / 3, box.y + box.height / 2)
+    await appWindow.mouse.down()
+    try {
+      await expect(control('B')).toHaveAttribute('data-active-tab', 'true')
+      await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.activeTabId)`))
+        .toBe(await control('B').getAttribute('data-tab-id'))
+    } finally {
+      await appWindow.mouse.up()
+    }
+    // The click that ends the press changes nothing more.
+    await expect(control('B')).toHaveAttribute('data-active-tab', 'true')
+    await expect(control('A')).toHaveAttribute('aria-selected', 'false')
+  } finally {
+    await closeFixtureServer(server)
+  }
+})

@@ -2535,6 +2535,88 @@ describe('BrowserTabsBar selecting several tabs', () => {
     expect(view.emitted().selectTab).toEqual([['b'], ['c']])
   })
 
+  // The tab strip chose a tab when the mouse button came up, so a tab showed only after the whole click, unlike Chrome.
+  const press = (target: Element, options: PointerEventInit = {}) => target.dispatchEvent(new PointerEvent('pointerdown', {
+    bubbles: true, cancelable: true, pointerId: 1, isPrimary: true, pointerType: 'mouse', button: 0, ...options
+  }))
+
+  it('shows a tab when the mouse button goes down on it, as Chrome does, and the click that ends the press adds nothing', async () => {
+    const view = renderWithSelection(stateShowing('a'))
+    press(control('b'))
+    expect(view.emitted().selectTab).toEqual([['b']])
+    await fireEvent.click(control('b'), { detail: 1 })
+    expect(view.emitted().selectTab).toEqual([['b']])
+
+    // Another button, a touch or a pen leaves it to the click; so does a click from the keyboard, which has no press.
+    press(control('c'), { button: 1 })
+    press(control('c'), { pointerType: 'touch' })
+    press(control('c'), { pointerType: 'pen' })
+    expect(view.emitted().selectTab).toEqual([['b']])
+    await fireEvent.click(control('c'), { detail: 1 })
+    await fireEvent.click(control('d'), { detail: 0 })
+    expect(view.emitted().selectTab).toEqual([['b'], ['c'], ['d']])
+  })
+
+  it('forgets a press that had no click, as a drag, once the keyboard clicks or another press comes, on a control too', async () => {
+    const view = renderWithSelection(stateShowing('a'))
+    // The press became a drag, so no click ended it; Enter or Space on the tab still shows it.
+    press(control('b'))
+    await fireEvent.click(control('b'), { detail: 0 })
+    expect(view.emitted().selectTab).toEqual([['b'], ['b']])
+    // A press on the tab's close control, released on the tab, makes a click on the tab that shows it.
+    press(control('c'))
+    press(control('c').querySelector('.tab-close')!)
+    await fireEvent.click(control('c'), { detail: 1 })
+    expect(view.emitted().selectTab).toEqual([['b'], ['b'], ['c'], ['c']])
+  })
+
+  it('shows a tab on the press in the rail drawn over the page, which selects no several tabs', async () => {
+    const view = renderWithSelection(stateShowing('a'), { tabSelection: false })
+    press(control('b'), { ctrlKey: true })
+    await fireEvent.click(control('b'), { detail: 1, ctrlKey: true })
+    expect(view.emitted().selectTab).toEqual([['b']])
+  })
+
+  it('changes the selection with Ctrl or Shift on the press, and keeps several selected tabs for a drag until the click', async () => {
+    const view = renderWithSelection(stateShowing('a'))
+    press(control('b'), { ctrlKey: true })
+    await nextTick()
+    expect(selected()).toEqual(['a', 'b'])
+    // The click that ends the press does not take the tab out again.
+    await fireEvent.click(control('b'), { ctrlKey: true, detail: 1 })
+    expect(selected()).toEqual(['a', 'b'])
+    await view.rerender({ state: stateShowing('b') })
+    press(control('d'), { shiftKey: true })
+    await nextTick()
+    expect(selected()).toEqual(['b', 'c', 'd'])
+    await fireEvent.click(control('d'), { shiftKey: true, detail: 1 })
+    expect(selected()).toEqual(['b', 'c', 'd'])
+    expect(view.emitted().selectTab).toEqual([['b'], ['d']])
+    await view.rerender({ state: stateShowing('d') })
+
+    // A plain press on a selected tab keeps them all, so a drag would carry them; the click leaves that tab alone.
+    press(control('c'))
+    expect(selected()).toEqual(['b', 'c', 'd'])
+    expect(view.emitted().selectTab).toHaveLength(2)
+    await fireEvent.click(control('c'), { detail: 1 })
+    expect(highlighted(view)).toEqual([])
+    expect(view.emitted().selectTab?.at(-1)).toEqual(['c'])
+  })
+
+  it('leaves a tab to its close and mute controls when the press is on them, and Control on macOS to the menu', async () => {
+    const view = renderWithSelection(stateShowing('a', ['a', 'b'], [tab('m', { audible: true })]))
+    press(control('b').querySelector('.tab-close')!)
+    press(screen.getByRole('tab', { name: /Page m/ }).querySelector('.tab-audio')!)
+    expect(view.emitted().selectTab).toBeUndefined()
+    await fireEvent.click(control('b').querySelector('.tab-close')!, { detail: 1 })
+    expect(view.emitted().closeTab).toEqual([['b']])
+    expect(view.emitted().selectTab).toBeUndefined()
+
+    const mac = renderWithSelection(stateShowing('a'), { platform: 'darwin' })
+    press(within(mac.container as HTMLElement).getByRole('tab', { name: 'Page c' }), { ctrlKey: true })
+    expect(mac.emitted().selectTab).toBeUndefined()
+  })
+
   it('leaves one tab selected after a plain click, a tab shown another way, or a click in another workspace', async () => {
     const other = { ...workspace('workspace-2'), name: 'QA' }
     const elsewhere = tab('x', { mcpGroupId: other.id, mcpGroupName: other.name })

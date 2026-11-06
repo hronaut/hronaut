@@ -83,6 +83,11 @@ const agentCommand = computed(() => props.readAgentCommand(props.tabId))
 const agentNote = computed(() => props.attention ?? (agentCommand.value !== undefined ? t('tabSearch.meta.agent') : undefined))
 const tooltip = computed(() => agentNote.value !== undefined ? `${label.value}\n\n${agentNote.value}` : label.value)
 const networkUnconfirmed = computed(() => Boolean(tab.value?.networkConditionState && tab.value.networkConditionState.application !== 'confirmed'))
+
+/** A press on the tab chooses it, but not one on its mute or close control, which act on their click alone. */
+function press(event: PointerEvent): void {
+  if (!(event.target instanceof Element && event.target.closest('.tab-audio, .tab-close'))) emit('select', props.tabId, event)
+}
 </script>
 
 <template>
@@ -122,6 +127,7 @@ const networkUnconfirmed = computed(() => Boolean(tab.value?.networkConditionSta
     :data-active-tab="active ? 'true' : undefined"
     @focus="emit('focused', tab.id)"
     @keydown="emit('tabKeydown', $event, tab)"
+    @pointerdown="press"
     @click="emit('select', tab.id, $event)"
     @auxclick="emit('tabAuxclick', $event, tab)"
     @contextmenu.prevent="emit('contextMenu', tab.id)"
