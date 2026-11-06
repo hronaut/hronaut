@@ -16,6 +16,7 @@ All notable changes to Hronaut are documented in this file.
 - Clicking or touching a page of a split view whose input you locked now makes it the active pane, so Unlock input beside the address bar acts on it, as after any other click on either page. The page still gets none of it.
 - A tab whose page had crashed or could not load now comes back after a restart, or with its archived workspace, by its page's title or its address, as in Chrome, rather than as Page unavailable or Site unavailable.
 - History now opens with the keyboard in its search, with the last search selected, as Chrome's History page does, also from Ctrl+H (Cmd+Y on macOS) pressed in a page, which left the keyboard in the website behind the panel. Closing History with the keyboard in it gives the keyboard back to the page, and the key pressed in the page closes History and leaves the keyboard there.
+- A drag or a double-click on the split view divider now leaves the keyboard with the page, as in Chrome, so the arrow keys, Home, End and Enter typed next go to the page rather than resizing the split.
 
 ## [3.14.18] - 2026-11-06
 
