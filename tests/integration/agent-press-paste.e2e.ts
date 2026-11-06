@@ -28,6 +28,8 @@ test('browser_press cannot paste the person\'s clipboard, and still copies as be
     if (pastes(key)) {
       expect(result.isError, key).toBe(true)
       expect(text(result)).toContain('use browser_insert_text')
+    } else {
+      expect(result.isError, key).not.toBe(true)
     }
   }
   expect(await page('document.querySelector("#field").value')).toBe('')

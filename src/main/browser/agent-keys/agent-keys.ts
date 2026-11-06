@@ -124,11 +124,12 @@ function opensContextMenu(input: BrowserKeyPress): boolean {
 }
 
 /**
- * Chromium's paste keys, by key code and exactly these modifiers, as Chromium matches them. They paste the system
- * clipboard, which is the person's: an agent's paste gave its page what they had copied, such as a password, for the page
- * and the agent to read. Control+V and Control+Shift+V paste on Windows and Linux only; on macOS the app's menu pastes,
- * which an agent's key never reaches. Copy and cut keys stay, as a web terminal's Control+C does: a page can write the
- * clipboard on any click of the agent's anyway.
+ * Chromium's paste keys, by key code and exactly these modifiers, as Chromium matches them; the Paste key itself is
+ * refused with any modifiers, more widely than Chromium pastes with it. They paste the system clipboard, which is the
+ * person's: an agent's paste gave its page what they had copied, such as a password, for the page and the agent to
+ * read. Control+V and Control+Shift+V paste on Windows and Linux only; on macOS the app's menu pastes, which an agent's
+ * key never reaches. Copy and cut keys stay, as a web terminal's Control+C does: a page can write the clipboard on any
+ * click of the agent's anyway.
  */
 const PASTE_KEYS: readonly { virtualKeyCode: number; modifiers: string; platforms?: 'not-darwin' }[] = [
   { virtualKeyCode: 45, modifiers: 'shift' }, // Shift+Insert

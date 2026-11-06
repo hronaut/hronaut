@@ -18,7 +18,7 @@ it('knows the paste keys Chromium has on macOS, where the app menu pastes with C
 
 it('leaves every other key alone, copy and cut keys included, as a web terminal\'s Control+C', () => {
   for (const key of ['v', 'V', 'Insert', 'Control+A', 'Control+C', 'Control+X', 'Control+Insert', 'Shift+Delete', 'Copy', 'Cut', 'Control+Alt+V',
-    'Control+Meta+V', 'Meta+V', 'Control+KeyV', 'Control+Insert', 'Shift+Control+Insert', 'Alt+Shift+Insert', 'Shift+F10']) {
+    'Control+Meta+V', 'Meta+V', 'Control+KeyV', 'Shift+Control+Insert', 'Alt+Shift+Insert', 'Shift+F10']) {
     expect(pastesClipboard(parseBrowserKeyPress(key), 'linux'), key).toBe(false)
   }
 })
