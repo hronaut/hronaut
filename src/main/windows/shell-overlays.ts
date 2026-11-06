@@ -7,6 +7,7 @@ import { ShellTooltipOverlay, type ShellTooltipSurface } from '../overlays/shell
 import { SidebarOverlay, type SidebarOverlaySurface } from '../overlays/sidebar-overlay.js'
 import { StatusBubbleOverlay, type StatusBubblePane, type StatusBubbleSurface } from '../overlays/status-bubble-overlay.js'
 import type { ResolvedThemeName } from '../../shared/theme.js'
+import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
 import type { TabRuntimeState } from '../tab-runtime-startup.js'
 import type { AddressSuggestionOverlay } from './address-suggestion-overlay.js'
 import type { MainWindowRefs } from './main-window.js'
@@ -48,6 +49,8 @@ interface ShellOverlaysHost {
   ensureStatusBubbleSurface(): Promise<StatusBubbleSurface>
   /** The theme the shell shows now. */
   theme(): ResolvedThemeName
+  /** The interface's text, for the editing menu of the agent card, the toast and the open tab rail. */
+  text(key: MessageKey, parameters?: MessageParameters): string
 }
 
 /**
@@ -82,7 +85,8 @@ export function createShellOverlays(host: ShellOverlaysHost): {
     url: () => host.trustedAgentCardUrl(),
     window: () => host.mainWindowRefs.window,
     urlMatches: (actual, expected) => host.trustedUrlMatches(actual, expected),
-    onLost: () => agentCards.surfaceLost()
+    onLost: () => agentCards.surfaceLost(),
+    text: (key, parameters) => host.text(key, parameters)
   })
   const agentCards = new AgentCardOverlay({
     surface: () => host.ensureAgentCardSurface(),
@@ -111,6 +115,7 @@ export function createShellOverlays(host: ShellOverlaysHost): {
     window: () => host.mainWindowRefs.window,
     urlMatches: (actual, expected) => host.trustedUrlMatches(actual, expected),
     onLost: () => toastOverlay.surfaceLost(),
+    text: (key, parameters) => host.text(key, parameters),
     // A toast is about something the person did; the agent card, a tooltip or address suggestions they open go above it.
     keepAbove: () => [agentCardView.currentView(), tooltipView.currentView(), host.addressSuggestionOverlay.currentView()].filter((view) => !!view)
   })
@@ -165,6 +170,7 @@ export function createShellOverlays(host: ShellOverlaysHost): {
     window: () => host.mainWindowRefs.window,
     urlMatches: (actual, expected) => host.trustedUrlMatches(actual, expected),
     onLost: () => sidebarOverlay.surfaceLost(),
+    text: (key, parameters) => host.text(key, parameters),
     // The rail opens over the page; a toast, the agent card, a tooltip and address suggestions open over the rail.
     keepAbove: () => [
       toastOverlayView.currentView(),

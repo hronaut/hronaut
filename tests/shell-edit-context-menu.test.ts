@@ -247,3 +247,26 @@ describe('the editing menu in Hronaut\'s own window', () => {
     expect(target.paste).not.toHaveBeenCalled()
   })
 })
+
+describe('the editing menu in a view Hronaut draws above the pages', () => {
+  // The agent card's answer field, drawn in its own view above the page, opened no menu on a right-click.
+  it('opens a field\'s editing menu over the main window, Copy for selected text, and nothing once the window closed', async () => {
+    const { EventEmitter } = await import('node:events')
+    const { attachOverlayEditContextMenu } = await import('../src/main/windows/shell-edit-context-menu.js')
+    const view = Object.assign(new EventEmitter(), contents())
+    let window: { isDestroyed: () => boolean } | null = { isDestroyed: () => false }
+    attachOverlayEditContextMenu(view as never, () => window as never, (key) => key)
+    shown.templates.length = 0
+
+    view.emit('context-menu', {}, params({ isEditable: true }))
+    expect(shown.templates.at(-1)?.map((item) => item.id)).toContain('paste')
+    view.emit('context-menu', {}, params({ selectionText: 'words' }))
+    expect(shown.templates.at(-1)?.map((item) => item.id)).toEqual(['copy-selection'])
+    view.emit('context-menu', {}, params({}))
+    expect(shown.templates).toHaveLength(2)
+
+    window = null
+    view.emit('context-menu', {}, params({ isEditable: true }))
+    expect(shown.templates).toHaveLength(2)
+  })
+})
