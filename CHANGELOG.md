@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- A tab in the tab strip now shows as soon as you press the mouse button on it, as in Chrome, rather than when you let go. Pressing one of several selected tabs keeps them selected so you can drag them together.
+
 ## [3.14.18] - 2026-11-06
 
 ### Changed
@@ -13,7 +17,6 @@ All notable changes to Hronaut are documented in this file.
 - The pictures of your tabs in Home's **Tabs** view are now made in the background, as agents' screenshots already were, rather than by the part of Hronaut that runs its window, so the window answers a little sooner while several agents take screenshots. The pictures look as they did.
 - Hronaut's window and the panels it opens over the page, such as address suggestions and the tab rail, now load only English and the language you use rather than all seventeen. The window starts drawing sooner, address suggestions appear in about half the time the first time you type, and the three use about 60 MB less memory between them.
 - Agents working in tabs you are not looking at no longer make Hronaut's window update its tabs more than ten times a second, so the window spends about a sixth less of its time keeping up while several agents work.
-- A tab in the tab strip now shows as soon as you press the mouse button on it, as in Chrome, rather than when you let go. Pressing one of several selected tabs keeps them selected so you can drag them together.
 
 ## [3.14.17] - 2026-11-05
 
