@@ -265,8 +265,10 @@ describe('a text field\'s menu as it opens', () => {
     shell.browserContentOccluded = true
     await settle()
     expect(built.templates).toHaveLength(0)
-    // Nor does one that reaches Hronaut after the cover came up, or one with no paste.
+    // Nor does one that reaches Hronaut after the cover came up, waited or opening at once with no paste.
     open(webContents)
+    await settle()
+    expect(built.templates).toHaveLength(0)
     open(webContents, { isEditable: false })
     await settle()
     expect(built.templates).toHaveLength(0)

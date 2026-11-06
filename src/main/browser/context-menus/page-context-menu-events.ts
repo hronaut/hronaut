@@ -37,8 +37,8 @@ export function pageMenuPoint(view: Rectangle, params: Pick<ContextMenuParams, '
  * person's input to the tab is locked, or trusted chrome covers the page, no menu opens. Following an agent waits
  * while the menu is open, so the page its items act on stays in view. As in Chrome, a field that takes a paste first
  * learns whether the clipboard holds text, for its Paste as plain text, briefly; a newer right-click takes over from
- * one still waiting, and none opens once its tab was locked, closed or left view, trusted chrome covered it, or its
- * frame was replaced or removed, meanwhile. On macOS it does not ask: Electron's answer there also reads the
+ * one still waiting, and none opens once its tab was locked, closed or left view, or its frame was replaced or
+ * removed, meanwhile. On macOS it does not ask: Electron's answer there also reads the
  * pasteboard's link and the find pasteboard, which macOS can ask the person to allow, so Paste and Match Style follows
  * the field, and a misspelled word's menu, which has none, does not ask.
  */
