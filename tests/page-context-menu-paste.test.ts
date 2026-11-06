@@ -4,16 +4,16 @@ import type { ContextMenuParams, MenuItemConstructorOptions, WebContents } from 
 
 const built = vi.hoisted(() => ({
   templates: [] as MenuItemConstructorOptions[][],
-  read: (async () => []) as () => Promise<{ types: string[] }[]>,
-  reads: 0
+  has: (async () => true) as (type: string) => Promise<boolean>,
+  asked: [] as string[]
 }))
 
 vi.mock('electron', () => ({
   app: { isEmojiPanelSupported: () => false, showEmojiPanel: () => undefined },
   clipboard: {
-    read: () => {
-      built.reads++
-      return built.read()
+    has: (type: string) => {
+      built.asked.push(type)
+      return built.has(type)
     }
   },
   Menu: {
@@ -28,7 +28,6 @@ const { showContextMenu } = await import('../src/main/browser/context-menus/page
 const { attachPageContextMenuEvents } = await import('../src/main/browser/context-menus/page-context-menu-events.js')
 type MenuBrowser = Parameters<typeof showContextMenu>[0]
 type MenuTab = Parameters<typeof showContextMenu>[1]
-type Held = Parameters<typeof showContextMenu>[4]
 
 const PAGE = 'https://mail.example/compose'
 const editable = { canUndo: true, canRedo: true, canCut: true, canCopy: true, canPaste: true, canDelete: true, canSelectAll: true, canEditRichly: true }
@@ -38,8 +37,9 @@ const fieldParams = {
   pageURL: PAGE, frameURL: PAGE, referrerPolicy: 'strict-origin-when-cross-origin'
 }
 
-// A text field's Paste and Paste and Match Style were offered with nothing on the clipboard, where they do nothing, and
-// Paste and Match Style kept macOS's name on Windows and Linux; Chrome greys them out and names it Paste as plain text.
+// A text field's Paste and Match Style was offered with an image on the clipboard, which has no text to paste, and kept
+// macOS's name on Windows and Linux; Chrome greys it out without text there and names it Paste as plain text. Electron
+// already greys out Paste, as Chrome does, while the clipboard holds nothing: its editFlags.canPaste says so.
 
 function page(options: { locked?: () => boolean } = {}) {
   const webContents = Object.assign(new EventEmitter(), {
@@ -64,9 +64,9 @@ function page(options: { locked?: () => boolean } = {}) {
   return { browser: browser as unknown as MenuBrowser, tab: tab as unknown as MenuTab, webContents }
 }
 
-function menu(held: Held, params: Partial<ContextMenuParams> = {}) {
+function menu(holdsText: boolean | undefined, params: Partial<ContextMenuParams> = {}) {
   const { browser, tab, webContents } = page()
-  showContextMenu(browser, tab, { ...fieldParams, ...params } as unknown as ContextMenuParams, {}, held)
+  showContextMenu(browser, tab, { ...fieldParams, ...params } as unknown as ContextMenuParams, {}, holdsText)
   const items = built.templates.at(-1)!
   return { items, item: (id: string) => items.find((entry) => entry.id === id), webContents }
 }
@@ -80,23 +80,17 @@ afterEach(() => {
   vi.useRealTimers()
   onPlatform(platform)
   built.templates.length = 0
-  built.read = async () => []
-  built.reads = 0
+  built.has = async () => true
+  built.asked.length = 0
 })
 
 describe('Paste in a text field\'s page menu', () => {
-  it('is greyed out, as Paste and Match Style is, while the clipboard holds nothing', () => {
-    const { item } = menu({ holdsAnything: false, holdsText: false })
-    expect(item('paste')?.enabled).toBe(false)
-    expect(item('paste-and-match-style')?.enabled).toBe(false)
-  })
-
   it('pastes whatever the clipboard holds, and pastes as plain text only text', () => {
-    const image = menu({ holdsAnything: true, holdsText: false })
+    const image = menu(false)
     expect(image.item('paste')?.enabled).toBe(true)
     expect(image.item('paste-and-match-style')?.enabled).toBe(false)
 
-    const text = menu({ holdsAnything: true, holdsText: true })
+    const text = menu(true)
     expect(text.item('paste-and-match-style')?.enabled).toBe(true)
     ;(text.item('paste')!.click as () => void)()
     ;(text.item('paste-and-match-style')!.click as () => void)()
@@ -104,10 +98,11 @@ describe('Paste in a text field\'s page menu', () => {
     expect(text.webContents.pasteAndMatchStyle).toHaveBeenCalledOnce()
   })
 
-  it('follows the field alone without word of the clipboard, and never offers a paste the field does not take', () => {
+  it('follows the field alone without word of the clipboard, and offers no paste where Electron says there is none', () => {
     expect(menu(undefined).item('paste')?.enabled).toBe(true)
     expect(menu(undefined).item('paste-and-match-style')?.enabled).toBe(true)
-    const refusing = menu({ holdsAnything: true, holdsText: true }, { editFlags: { ...editable, canPaste: false } })
+    // A field that takes no paste, or a clipboard that holds nothing.
+    const refusing = menu(true, { editFlags: { ...editable, canPaste: false } })
     expect(refusing.item('paste')?.enabled).toBe(false)
     expect(refusing.item('paste-and-match-style')?.enabled).toBe(false)
   })
@@ -122,7 +117,7 @@ describe('Paste in a text field\'s page menu', () => {
   })
 
   it('leaves Paste as plain text out of a misspelled word\'s menu, as Chrome does, and keeps Paste', () => {
-    const { item, items } = menu({ holdsAnything: true, holdsText: true }, { misspelledWord: 'helo', dictionarySuggestions: ['hello'] })
+    const { item, items } = menu(true, { misspelledWord: 'helo', dictionarySuggestions: ['hello'] })
     expect(item('paste-and-match-style')).toBeUndefined()
     const ids = items.map((entry) => entry.id)
     expect(ids.indexOf('paste') + 1).toBe(ids.indexOf('delete'))
@@ -136,23 +131,21 @@ describe('a text field\'s menu as it opens', () => {
   const settle = () => new Promise((resolve) => setImmediate(resolve))
   const pasteItems = () => built.templates.map((template) => template.filter((entry) => entry.id?.startsWith('paste')).map((entry) => entry.enabled))
 
-  it('learns what the clipboard holds first, by the types it offers', async () => {
+  it('learns whether the clipboard holds text first, by the types it offers', async () => {
     const { browser, tab, webContents } = page()
     attachPageContextMenuEvents(browser, tab, webContents as unknown as WebContents)
-    built.read = async () => [{ types: [] }]
+    built.has = async () => false
     open(webContents)
     expect(built.templates).toHaveLength(0)
     await settle()
-    built.read = async () => [{ types: ['image/png'] }]
+    built.has = async () => true
     open(webContents)
     await settle()
-    built.read = async () => [{ types: ['text/html', 'text/plain'] }]
+    built.has = async () => { throw new Error('The clipboard is busy') }
     open(webContents)
     await settle()
-    built.read = async () => { throw new Error('The clipboard is busy') }
-    open(webContents)
-    await settle()
-    expect(pasteItems()).toEqual([[false, false], [true, false], [true, true], [false, false]])
+    expect(pasteItems()).toEqual([[true, false], [true, true], [true, true]])
+    expect(built.asked).toEqual(['text/plain', 'text/plain', 'text/plain'])
   })
 
   it('reads nothing for a menu with no paste, which opens at once', () => {
@@ -161,21 +154,21 @@ describe('a text field\'s menu as it opens', () => {
     open(webContents, { editFlags: { ...editable, canPaste: false } })
     open(webContents, { isEditable: false, editFlags: { ...editable, canPaste: false, canCut: false } })
     expect(built.templates).toHaveLength(2)
-    expect(built.reads).toBe(0)
+    expect(built.asked).toEqual([])
   })
 
   it('opens without knowing once the clipboard is slow to say, and only once', async () => {
     vi.useFakeTimers()
     const { browser, tab, webContents } = page()
     attachPageContextMenuEvents(browser, tab, webContents as unknown as WebContents)
-    let answer: (items: { types: string[] }[]) => void = () => undefined
-    built.read = () => new Promise((resolve) => { answer = resolve })
+    let answer: (holdsText: boolean) => void = () => undefined
+    built.has = () => new Promise((resolve) => { answer = resolve })
     open(webContents)
     await vi.advanceTimersByTimeAsync(499)
     expect(built.templates).toHaveLength(0)
     await vi.advanceTimersByTimeAsync(1)
     expect(pasteItems()).toEqual([[true, true]])
-    answer([{ types: [] }])
+    answer(false)
     await vi.advanceTimersByTimeAsync(0)
     expect(built.templates).toHaveLength(1)
   })
@@ -184,20 +177,58 @@ describe('a text field\'s menu as it opens', () => {
     let locked = false
     const { browser, tab, webContents } = page({ locked: () => locked })
     attachPageContextMenuEvents(browser, tab, webContents as unknown as WebContents)
-    let first: (items: { types: string[] }[]) => void = () => undefined
-    built.read = () => new Promise((resolve) => { first = resolve })
+    let first: (holdsText: boolean) => void = () => undefined
+    built.has = () => new Promise((resolve) => { first = resolve })
     open(webContents)
-    built.read = async () => [{ types: ['text/plain'] }]
+    built.has = async () => true
     open(webContents)
     await settle()
-    first([{ types: [] }])
+    first(false)
     await settle()
     expect(pasteItems()).toEqual([[true, true]])
 
-    built.read = async () => [{ types: ['text/plain'] }]
     open(webContents)
     locked = true
     await settle()
     expect(built.templates).toHaveLength(1)
+  })
+
+  it('opens none once another tab took its place in view, the tab closed or its frame loaded another page meanwhile', async () => {
+    const { browser, tab, webContents } = page()
+    type Shell = { activeTabId: string, tabSelectionGeneration: number, tabs: Map<string, unknown>, splitViewContains: (id: string) => boolean }
+    const shell = browser as unknown as Shell
+    attachPageContextMenuEvents(browser, tab, webContents as unknown as WebContents)
+
+    // Selected again, it is still in view.
+    open(webContents)
+    shell.tabSelectionGeneration++
+    await settle()
+    expect(built.templates).toHaveLength(1)
+
+    // An agent's tool or a tray click brought another tab into view.
+    open(webContents)
+    shell.tabSelectionGeneration++
+    shell.activeTabId = 'other'
+    await settle()
+    expect(built.templates).toHaveLength(1)
+
+    // Its split view partner became the active pane: it is still in view beside it.
+    shell.splitViewContains = (id) => id === 'tab'
+    open(webContents)
+    shell.tabSelectionGeneration++
+    await settle()
+    expect(built.templates).toHaveLength(2)
+    shell.splitViewContains = () => false
+    shell.activeTabId = 'tab'
+
+    open(webContents, { frame: { isDestroyed: () => false, detached: true } } as unknown as Partial<ContextMenuParams>)
+    open(webContents, { frame: { isDestroyed: () => true, detached: false } } as unknown as Partial<ContextMenuParams>)
+    await settle()
+    expect(built.templates).toHaveLength(2)
+
+    open(webContents)
+    shell.tabs.delete('tab')
+    await settle()
+    expect(built.templates).toHaveLength(2)
   })
 })

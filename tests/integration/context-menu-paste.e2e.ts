@@ -6,7 +6,7 @@ type MenuGlobal = typeof globalThis & { __hronautContextMenu?: Electron.Menu }
 // A red pixel, for an image on the clipboard.
 const PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=='
 
-test('greys out a text field\'s Paste while the clipboard holds nothing, and pastes as plain text only text', async ({ electronApp, appWindow }) => {
+test('pastes as plain text only text from a text field\'s menu, as Chrome does, and names it so', async ({ electronApp, appWindow }) => {
   const server = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' }).end(`<!doctype html><title>Paste menu fixture</title><body style="margin:0">
       <textarea id="field" style="position:absolute;left:20px;top:20px;width:300px;height:100px"></textarea>`)
@@ -43,12 +43,12 @@ test('greys out a text field\'s Paste while the clipboard holds nothing, and pas
     }, url)
     const plainLabel = process.platform === 'darwin' ? 'Paste and Match Style' : 'Paste as Plain Text'
 
-    // Paste and Paste and Match Style were offered with nothing to paste.
+    // Electron greys out both while the clipboard holds nothing, as Chrome does.
     await electronApp.evaluate(({ clipboard }) => clipboard.clear())
     await rightClick()
     await expect.poll(items).toEqual({ paste: { label: 'Paste', enabled: false }, plain: { label: plainLabel, enabled: false } })
 
-    // An image pastes, but not as plain text.
+    // An image pastes, but not as plain text: Paste and Match Style was offered for it, with no text to paste.
     await electronApp.evaluate(({ clipboard, ClipboardItem }, pixel) => clipboard.write([
       new ClipboardItem({ 'image/png': new Blob([Buffer.from(pixel, 'base64')], { type: 'image/png' }) })
     ]), PIXEL)
