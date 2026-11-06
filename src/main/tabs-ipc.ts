@@ -78,10 +78,11 @@ function selectedTabIds(value: unknown): string[] {
 /** The shell's options for a new tab, each of the type newTab reads; newTab checks the address, workspace and font size itself. */
 function newTabOptions(value: unknown): NewTabOptions {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError('Invalid new tab options')
-  const { url, active, mcpGroupId, focus, zoomIsolated, defaultFontSize, loadsInTurn } = value as Record<string, unknown>
+  const { url, active, mcpGroupId, besideTabId, focus, zoomIsolated, defaultFontSize, loadsInTurn } = value as Record<string, unknown>
   if (
     (url !== undefined && typeof url !== 'string')
     || (mcpGroupId !== undefined && typeof mcpGroupId !== 'string')
+    || (besideTabId !== undefined && typeof besideTabId !== 'string')
     || (defaultFontSize !== undefined && typeof defaultFontSize !== 'number')
     || (active !== undefined && typeof active !== 'boolean')
     || (focus !== undefined && typeof focus !== 'boolean')

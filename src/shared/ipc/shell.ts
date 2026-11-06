@@ -59,7 +59,7 @@ export const SHELL_IPC = {
   /** Main → main window: a workspace's menu asked to edit its tab group. */
   tabGroupEditRequested: 'browser:edit-tab-group' as EventChannel<[groupId: string]>,
   /** Main → main window: a menu asked for a new tab in the workspace, or in the active tab's workspace when it names none. */
-  newTabRequested: 'browser:new-tab-requested' as EventChannel<[workspaceId: string | undefined]>,
+  newTabRequested: 'browser:new-tab-requested' as EventChannel<[workspaceId: string | undefined, besideTabId?: string]>,
   /** Main → main window: Show Full History in Back's or Forward's list asked for the history panel. */
   visitHistoryRequested: 'browser:visit-history-requested' as EventChannel<[]>,
   /** Main → shell: a tab's menu asked to bookmark the open tabs of its workspace, or of no workspace for null. */

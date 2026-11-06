@@ -310,6 +310,8 @@ export interface NewTabOptions {
   url?: string
   active?: boolean
   mcpGroupId?: string
+  /** Open the tab right after this tab of its workspace, or after its pinned tabs for a pinned one, as Chrome's New tab to the right. */
+  besideTabId?: string
   /** Select the new tab without claiming keyboard or native window focus. */
   focus?: boolean
   /** Give this tab its own page zoom instead of sharing the origin's zoom level. */

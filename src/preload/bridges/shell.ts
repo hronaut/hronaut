@@ -86,8 +86,8 @@ export const shellRequestsApi: HronautShellRequestsApi = {
   }),
   onHomeWorkspaceEditorRequested: (listener) => subscribe(SHELL_IPC.homeWorkspaceEditorRequested, (request) => listener(request)),
   onTabGroupEditRequested: (listener) => subscribe(SHELL_IPC.tabGroupEditRequested, (groupId) => listener(groupId)),
-  onNewTabRequested: (listener) => subscribe(SHELL_IPC.newTabRequested, (workspaceId: unknown) => {
-    listener(typeof workspaceId === 'string' ? workspaceId : undefined)
+  onNewTabRequested: (listener) => subscribe(SHELL_IPC.newTabRequested, (workspaceId: unknown, besideTabId?: unknown) => {
+    listener(typeof workspaceId === 'string' ? workspaceId : undefined, typeof besideTabId === 'string' ? besideTabId : undefined)
   }),
   onVisitHistoryRequested: (listener) => subscribe(SHELL_IPC.visitHistoryRequested, () => listener()),
   onBookmarkAllTabsRequested: bookmarkAllTabsRequests.subscribe,

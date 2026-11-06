@@ -12,6 +12,7 @@ import { browserState } from '../browser-state/browser-state.js'
 import { requireMcpTabGroup } from '../mcp-tab-groups/mcp-tab-groups.js'
 import { closeMcpTabGroup } from '../mcp-tab-groups/close-mcp-tab-group.js'
 import { openHome } from '../home-tabs/home-tabs.js'
+import { placeNewTabBeside } from '../tab-arrangement/tab-arrangement.js'
 
 /** The browser's tab limit. */
 const MAX_TABS = MAX_BROWSER_TABS
@@ -68,6 +69,7 @@ export async function createNewTab(browser: Browser, options: NewTabOptions, sel
   const groupId = options.mcpGroupId ?? ensureHumanWorkspace(browser)
   requireMcpTabGroup(browser, groupId)
   assertWorkspaceNavigationAllowed(browser, groupId, url, 'direct')
+  let created: BrowserTab | undefined
   try {
     await browser.createTab({
       url,
@@ -78,7 +80,7 @@ export async function createNewTab(browser: Browser, options: NewTabOptions, sel
       zoomIsolated: options.zoomIsolated === true,
       defaultFontSize: options.defaultFontSize,
       loadsInTurn: options.loadsInTurn === true && options.active === false,
-      onCreated,
+      onCreated: (tab) => { created = tab; onCreated?.(tab) },
       onCreationAttempt
     })
   } catch (error) {
@@ -89,5 +91,6 @@ export async function createNewTab(browser: Browser, options: NewTabOptions, sel
     }
     throw error
   }
+  if (created && options.besideTabId) placeNewTabBeside(browser, created.id, options.besideTabId)
   return browserState(browser)
 }

@@ -95,3 +95,20 @@ export function reorderTabs(browser: Browser, tabIds: readonly string[], targetT
   publishChange(browser)
   return browserState(browser)
 }
+
+/**
+ * Moves a tab just opened right after the tab given, as Chrome's New tab to the right: after the pinned tabs when that
+ * tab is pinned, since the new tab is not. Nothing moves when the tab given has gone or is in another workspace.
+ */
+export function placeNewTabBeside(browser: Browser, tabId: string, besideTabId: string): void {
+  const tab = browser.tabs.get(tabId)
+  const beside = browser.tabs.get(besideTabId)
+  if (!tab || !beside || beside === tab || beside.mcpGroupId !== tab.mcpGroupId || tab.pinned) return
+  const ordered = orderedTabs(browser).filter((candidate) => candidate !== tab)
+  const anchor = beside.pinned
+    ? ordered.filter((candidate) => candidate.mcpGroupId === tab.mcpGroupId && candidate.pinned).at(-1) ?? beside
+    : beside
+  ordered.splice(ordered.indexOf(anchor) + 1, 0, tab)
+  setOrder(browser, ordered)
+  publishChange(browser)
+}
