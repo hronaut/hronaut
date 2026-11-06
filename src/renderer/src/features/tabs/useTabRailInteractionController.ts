@@ -20,11 +20,15 @@ export function useTabRailInteractionController(options: {
   /** Focus came with a press of the pointer on the folded rail, not from the keyboard. */
   let focusedByPointer = false
   let pointerId: number | undefined
+  /** The held press is of the main button, the one that chooses a tab. */
+  let mainButtonHeld = false
   let dragging = false
   let rail: HTMLElement | undefined
   let revealTimer: number | undefined
   let concealTimer: number | undefined
   let releaseTimer: number | undefined
+  /** The window lost focus while a press in the shell held, as when the press showed a tab whose page took the keyboard. */
+  let blurredWhileHeld = false
   let disposed = false
   /**
    * While the open rail shows in main's view over the page, the pointer is there rather than in the shell: what the
@@ -168,6 +172,7 @@ export function useTabRailInteractionController(options: {
       || !(event.target instanceof Element) || !event.target.closest('.shell')) return
     cancelTimers()
     pointerId = event.pointerId
+    mainButtonHeld = event.button === 0
   }
 
   function pointerUp(event: PointerEvent): void {
@@ -178,6 +183,7 @@ export function useTabRailInteractionController(options: {
     releaseTimer = window.setTimeout(() => {
       releaseTimer = undefined
       reconcile()
+      afterHold()
     }, 0)
   }
 
@@ -185,6 +191,12 @@ export function useTabRailInteractionController(options: {
     if (event.pointerId !== pointerId) return
     pointerId = undefined
     reconcile()
+    // A drag cancels the press as it starts, and its start cancels this timer, so a blur during the press waits for
+    // the drag's end.
+    releaseTimer = window.setTimeout(() => {
+      releaseTimer = undefined
+      afterHold()
+    }, 0)
   }
 
   function dragStart(event: DragEvent): void {
@@ -193,11 +205,11 @@ export function useTabRailInteractionController(options: {
     cancelTimers()
   }
 
-  function dragEnd(): void { dragging = false; pointerId = undefined; reconcile() }
+  function dragEnd(): void { dragging = false; pointerId = undefined; reconcile(); afterHold() }
 
   function reset(): void {
     cancelTimers()
-    hovered = focused = focusedByPointer = dragging = false
+    hovered = focused = focusedByPointer = dragging = blurredWhileHeld = false
     pointerId = undefined
     rail = undefined
     hide()
@@ -207,10 +219,27 @@ export function useTabRailInteractionController(options: {
     // Focus moves to main's view or the page under it while the rail shows there; main closes it when the window
     // itself loses focus.
     if (overlay) return
+    // A press on a tab shows it, and its page takes the keyboard, while the button is still down, as in Chrome: what
+    // the press or the drag it starts holds stays in place until it ends.
+    if ((pointerId !== undefined && mainButtonHeld) || dragging) {
+      blurredWhileHeld = true
+      return
+    }
+    loseFocus()
+  }
+
+  function loseFocus(): void {
     const wasRevealed = revealed.value
     reset()
     // A native page click must finish against stable native view bounds.
     options.onNativeBlur(wasRevealed)
+  }
+
+  /** Once the press or its drag is over, a window that lost focus during it and has not got it back loses it now. */
+  function afterHold(): void {
+    if (!blurredWhileHeld || pointerId !== undefined || dragging) return
+    blurredWhileHeld = false
+    if (!document.hasFocus()) loseFocus()
   }
 
   window.addEventListener('blur', windowBlur)

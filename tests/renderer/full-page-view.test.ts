@@ -112,6 +112,32 @@ describe('full-page view', () => {
     } finally { h.dispose() }
   })
 
+  // A press on a tab shows it while the button is down, and its page takes the keyboard then: the chrome went 400 ms
+  // after the press, in the middle of a drag of that tab.
+  it('keeps the chrome through a press on it that gives the page the keyboard, and through its drag', () => {
+    const h = harness()
+    h.chrome.classList.add('shell')
+    const pointer = (type: string) => h.field.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 7, isPrimary: true, button: 0 }))
+    try {
+      h.view.toggle()
+      h.chrome.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))
+      vi.advanceTimersByTime(180)
+      pointer('pointerdown')
+      vi.spyOn(document, 'hasFocus').mockReturnValue(false)
+      window.dispatchEvent(new Event('blur'))
+      pointer('pointercancel')
+      h.field.dispatchEvent(new Event('dragstart', { bubbles: true }))
+      vi.advanceTimersByTime(1000)
+      expect(h.view.concealed.value).toBe(false)
+      h.field.dispatchEvent(new Event('dragend', { bubbles: true }))
+      // Then it goes as after a click on the page.
+      vi.advanceTimersByTime(399)
+      expect(h.view.concealed.value).toBe(false)
+      vi.advanceTimersByTime(1)
+      expect(h.view.concealed.value).toBe(true)
+    } finally { h.dispose() }
+  })
+
   it('stays in view when it starts while you work in the chrome', () => {
     const h = harness()
     try {

@@ -2557,6 +2557,26 @@ describe('BrowserTabsBar selecting several tabs', () => {
     expect(view.emitted().selectTab).toEqual([['b'], ['c'], ['d']])
   })
 
+  it('forgets a press that had no click, as a drag, once the keyboard clicks or another press comes, on a control too', async () => {
+    const view = renderWithSelection(stateShowing('a'))
+    // The press became a drag, so no click ended it; Enter or Space on the tab still shows it.
+    press(control('b'))
+    await fireEvent.click(control('b'), { detail: 0 })
+    expect(view.emitted().selectTab).toEqual([['b'], ['b']])
+    // A press on the tab's close control, released on the tab, makes a click on the tab that shows it.
+    press(control('c'))
+    press(control('c').querySelector('.tab-close')!)
+    await fireEvent.click(control('c'), { detail: 1 })
+    expect(view.emitted().selectTab).toEqual([['b'], ['b'], ['c'], ['c']])
+  })
+
+  it('shows a tab on the press in the rail drawn over the page, which selects no several tabs', async () => {
+    const view = renderWithSelection(stateShowing('a'), { tabSelection: false })
+    press(control('b'), { ctrlKey: true })
+    await fireEvent.click(control('b'), { detail: 1, ctrlKey: true })
+    expect(view.emitted().selectTab).toEqual([['b']])
+  })
+
   it('changes the selection with Ctrl or Shift on the press, and keeps several selected tabs for a drag until the click', async () => {
     const view = renderWithSelection(stateShowing('a'))
     press(control('b'), { ctrlKey: true })

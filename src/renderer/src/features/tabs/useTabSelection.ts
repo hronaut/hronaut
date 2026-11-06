@@ -1,4 +1,4 @@
-import { ref, watch, type Ref } from 'vue'
+import { onScopeDispose, ref, watch, type Ref } from 'vue'
 import type { BrowserTabState } from '../../../../shared/types.js'
 
 /** What the selection reads of a tab: it never spans workspaces. */
@@ -34,8 +34,12 @@ export function useTabSelection(options: TabSelectionOptions) {
   const selectedTabIds = ref<string[]>([])
   // Where a Shift+click selects from: the tab last clicked, or the one shown.
   let anchorTabId: string | null = options.covered() ? null : options.activeTabId()
-  // The tab a press of the mouse already chose, so the click that ends the press changes nothing more.
+  // The tab a press of the mouse already chose, so the click that ends the press changes nothing more. Any later
+  // press forgets it, one on a tab's mute or close control too, as a press that became a drag ends with no click.
   let pressedTabId: string | null = null
+  const forgetPress = (): void => { pressedTabId = null }
+  window.addEventListener('pointerdown', forgetPress, true)
+  onScopeDispose(() => window.removeEventListener('pointerdown', forgetPress, true))
   // The tabs this bar asked to show that the state does not show yet, oldest first. A tab shown at the bar's request
   // keeps the selection, and the next click counts from the tab it asked for, however soon it comes.
   let pendingTabIds: string[] = []
@@ -72,7 +76,6 @@ export function useTabSelection(options: TabSelectionOptions) {
   function clickTab(event: MouseEvent, tab: SelectableTab): void {
     const toggle = options.platform() === 'darwin' ? event.metaKey : event.ctrlKey
     if (event.type === 'pointerdown') {
-      pressedTabId = null
       const mouse = (event as PointerEvent).pointerType === 'mouse' && event.button === 0
       if (!mouse || (options.platform() === 'darwin' && event.ctrlKey)) return
       if (!toggle && !event.shiftKey && selectedTabIds.value.includes(tab.id)) return

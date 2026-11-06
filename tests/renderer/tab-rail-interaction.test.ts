@@ -124,6 +124,60 @@ describe('tab rail interaction', () => {
     } finally { h.dispose() }
   })
 
+  // A press on a tab shows it while the button is down, and its page takes the keyboard then: the rail folded at once,
+  // under the pointer, and a drag that the press started ran over the folded rail.
+  it('keeps the rail open through a press that gives the page the keyboard, and through its drag, and folds it after', () => {
+    const h = harness()
+    const pointer = (type: string, button = 0) => h.control.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 5, isPrimary: true, button }))
+    try {
+      h.rail.dispatchEvent(new MouseEvent('mouseenter'))
+      vi.advanceTimersByTime(200)
+      pointer('pointerdown')
+      vi.spyOn(document, 'hasFocus').mockReturnValue(false)
+      window.dispatchEvent(new Event('blur'))
+      vi.advanceTimersByTime(500)
+      expect(h.controller.verticalTabRailRevealed.value).toBe(true)
+      pointer('pointerup')
+      vi.advanceTimersByTime(1)
+      expect(h.controller.verticalTabRailRevealed.value).toBe(false)
+
+      vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+      h.rail.dispatchEvent(new MouseEvent('mouseenter'))
+      vi.advanceTimersByTime(200)
+      pointer('pointerdown')
+      vi.spyOn(document, 'hasFocus').mockReturnValue(false)
+      window.dispatchEvent(new Event('blur'))
+      pointer('pointercancel')
+      h.control.dispatchEvent(new Event('dragstart', { bubbles: true }))
+      vi.advanceTimersByTime(500)
+      expect(h.controller.verticalTabRailRevealed.value).toBe(true)
+      h.control.dispatchEvent(new Event('dragend', { bubbles: true }))
+      expect(h.controller.verticalTabRailRevealed.value).toBe(false)
+
+      // A press of another button, as for the tab's menu, leaves the rail at once, as before.
+      vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+      h.rail.dispatchEvent(new MouseEvent('mouseenter'))
+      vi.advanceTimersByTime(200)
+      pointer('pointerdown', 2)
+      window.dispatchEvent(new Event('blur'))
+      expect(h.controller.verticalTabRailRevealed.value).toBe(false)
+    } finally { h.dispose() }
+  })
+
+  it('keeps the rail open after a press during which the window lost focus and got it back', () => {
+    const h = harness()
+    const pointer = (type: string) => h.control.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 6, isPrimary: true, button: 0 }))
+    try {
+      h.rail.dispatchEvent(new MouseEvent('mouseenter'))
+      vi.advanceTimersByTime(200)
+      pointer('pointerdown')
+      window.dispatchEvent(new Event('blur'))
+      pointer('pointerup')
+      vi.advanceTimersByTime(500)
+      expect(h.controller.verticalTabRailRevealed.value).toBe(true)
+    } finally { h.dispose() }
+  })
+
   it.each(['blur', 'orientation', 'dispose'])('cancels a pending reveal on %s', reason => {
     const h = harness()
     try {
