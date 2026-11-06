@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { BrowserClosedTabState } from '../src/shared/types.js'
 import type { BrowserSplitViewState } from '../src/shared/split-view.js'
 import { rememberClosedTab, reopenClosedTabEntry } from '../src/main/browser/tab-reopening/tab-reopening.js'
-import { openSplitView, updateSplitView } from '../src/main/browser/split-view/split-view.js'
+import { closeSplitView, openSplitView } from '../src/main/browser/split-view/split-view.js'
 import type { Browser } from '../src/main/browser/browser.js'
 import type { BrowserTab } from '../src/main/browser/browser-tab.js'
 
@@ -14,7 +14,7 @@ vi.mock('../src/main/browser/browser-core.js', () => ({
 vi.mock('../src/main/browser/tab-arrangement/tab-arrangement.js', () => ({ reorderTab: () => undefined }))
 vi.mock('../src/main/browser/split-view/split-view.js', () => ({
   openSplitView: vi.fn(),
-  updateSplitView: vi.fn()
+  closeSplitView: vi.fn((browser: { splitView: unknown }) => { browser.splitView = null })
 }))
 
 type PaneTab = Pick<BrowserTab, 'id' | 'url' | 'title' | 'pinned' | 'mcpGroupId' | 'zoomIsolated' | 'tabMuted' | 'tabAgentPaused' | 'humanInteractionLocked'>
@@ -48,6 +48,8 @@ function window(titles: string[], split?: Omit<BrowserSplitViewState, 'firstTabI
     splitView: split
       ? { firstTabId: byTitle(split.first).id, secondTabId: byTitle(split.second).id, orientation: split.orientation, ratio: split.ratio }
       : null as BrowserSplitViewState | null,
+    tabSelectionGeneration: 0,
+    splitViewContains: (tabId: string) => manager.splitView?.firstTabId === tabId || manager.splitView?.secondTabId === tabId,
     orderedTabs: () => [...open],
     findTab: (tabId: string) => open.find((candidate) => candidate.id === tabId),
     navigationHistorySnapshot: () => ({ entries: [], index: 0 }),
@@ -85,7 +87,7 @@ function window(titles: string[], split?: Omit<BrowserSplitViewState, 'firstTabI
 
 afterEach(() => {
   vi.mocked(openSplitView).mockReset()
-  vi.mocked(updateSplitView).mockReset()
+  vi.mocked(closeSplitView).mockClear()
   vi.restoreAllMocks()
 })
 
@@ -100,21 +102,25 @@ describe('reopening a tab closed from a split view', () => {
 
     const b = await bottom.reopen()
 
-    // It opens behind, so the page shown is never hidden, and goes beside it at the bottom; a stays the active pane, and
-    // keeps the keyboard while b's page loads.
+    // It opens behind, so the page shown is never hidden, and goes beside it at the bottom in one step; a stays the active
+    // pane, and keeps the keyboard while b's page loads. Putting the split back is a selection.
     expect(bottom.manager.createTab).toHaveBeenCalledWith(expect.objectContaining({ active: false }))
-    expect(openSplitView).toHaveBeenCalledExactlyOnceWith(bottom.manager, b!.id, { openedBeside: true })
-    expect(updateSplitView).toHaveBeenCalledExactlyOnceWith(bottom.manager, { orientation: 'horizontal', ratio: 0.3, swap: false })
+    expect(openSplitView).toHaveBeenCalledExactlyOnceWith(bottom.manager, b!.id, {
+      openedBeside: true, layout: { orientation: 'horizontal', ratio: 0.3, chosenFirst: false }
+    })
     expect(bottom.manager.selectTab).not.toHaveBeenCalled()
     expect(bottom.manager.activeTabId).toBe(a.id)
+    expect(bottom.manager.tabSelectionGeneration).toBe(1)
 
     // The left pane, the active one, goes back on the left and is the active pane again.
     const left = window(['a', 'b'], { first: 'a', second: 'b', orientation: 'vertical', ratio: 0.7 })
     left.close('a')
     const reopenedA = await left.reopen()
-    expect(openSplitView).toHaveBeenLastCalledWith(left.manager, reopenedA!.id, { openedBeside: false })
-    expect(updateSplitView).toHaveBeenLastCalledWith(left.manager, { orientation: 'vertical', ratio: 0.7, swap: true })
+    expect(openSplitView).toHaveBeenLastCalledWith(left.manager, reopenedA!.id, {
+      openedBeside: false, layout: { orientation: 'vertical', ratio: 0.7, chosenFirst: true }
+    })
     expect(left.manager.selectTab).toHaveBeenCalledExactlyOnceWith(reopenedA!.id)
+    expect(vi.mocked(openSplitView).mock.invocationCallOrder.at(-1)).toBeLessThan(left.manager.selectTab.mock.invocationCallOrder[0]!)
   })
 
   it('shows it alone when the tab beside it is not the one shown, another split is open, or that tab goes away', async () => {
@@ -143,7 +149,6 @@ describe('reopening a tab closed from a split view', () => {
     })
 
     expect(openSplitView).not.toHaveBeenCalled()
-    expect(updateSplitView).not.toHaveBeenCalled()
   })
 
   it('opens it behind, outside a split view, when it reopens behind', async () => {
@@ -158,16 +163,25 @@ describe('reopening a tab closed from a split view', () => {
     expect(split.manager.activeTabId).toBe(a.id)
   })
 
-  it('shows it alone when the split view cannot be put back', async () => {
-    const split = window(['a', 'b'], { first: 'a', second: 'b', orientation: 'vertical', ratio: 0.5 })
-    split.close('b')
-    vi.mocked(openSplitView).mockImplementation(() => { throw new Error('The view is gone') })
+  it('shows it alone when the split view cannot be put back, ending a split left half open', async () => {
     const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    for (const halfOpen of [false, true]) {
+      const split = window(['a', 'b'], { first: 'a', second: 'b', orientation: 'vertical', ratio: 0.5 })
+      const a = split.tab('a')
+      split.close('b')
+      vi.mocked(openSplitView).mockImplementationOnce((_browser, tabId) => {
+        // A native view change can fail after the split view was set.
+        if (halfOpen) split.manager.splitView = { firstTabId: a.id, secondTabId: tabId, orientation: 'vertical', ratio: 0.5 }
+        throw new Error('The view is gone')
+      })
 
-    const b = await split.reopen()
+      const b = await split.reopen()
 
-    expect(logged).toHaveBeenCalledWith('[browser] Could not put a reopened tab back into its split view:', expect.any(Error))
-    expect(updateSplitView).not.toHaveBeenCalled()
-    expect(split.manager.selectTab).toHaveBeenCalledExactlyOnceWith(b!.id)
+      expect(logged).toHaveBeenLastCalledWith('[browser] Could not put a reopened tab back into its split view:', expect.any(Error))
+      expect(closeSplitView).toHaveBeenCalledTimes(halfOpen ? 1 : 0)
+      expect(split.manager.selectTab).toHaveBeenCalledExactlyOnceWith(b!.id)
+      expect(split.manager.splitView).toBeNull()
+      expect(split.manager.activeTabId).toBe(b!.id)
+    }
   })
 })

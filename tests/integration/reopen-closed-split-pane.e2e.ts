@@ -30,6 +30,12 @@ test('reopening a tab closed from a split view puts it back beside the tab it wa
     .filter((url) => urls.includes(url))
     .sort(), [alphaUrl, betaUrl, gammaUrl])
   const close = async (url: string) => { await hronaut(`closeTab(${JSON.stringify(await tabId(url))})`) }
+  // The reopened page's title once it loaded, and which page has the keyboard.
+  const keyboard = () => electronApp.evaluate(({ webContents }, [alpha, beta]) => {
+    const contents = webContents.getAllWebContents()
+    const page = (url: string) => contents.find((candidate) => candidate.getURL() === url)
+    return { betaTitle: page(beta!)?.getTitle(), alphaFocused: page(alpha!)?.isFocused(), betaFocused: page(beta!)?.isFocused() }
+  }, [alphaUrl, betaUrl])
 
   await hronaut(`newTab({ url: ${JSON.stringify(alphaUrl)}, active: true })`)
   for (const url of [betaUrl, gammaUrl]) await hronaut(`newTab({ url: ${JSON.stringify(url)}, active: false })`)
@@ -46,6 +52,8 @@ test('reopening a tab closed from a split view puts it back beside the tab it wa
   await expect.poll(shown).toEqual({ panes: [alphaUrl, betaUrl], layout: ['horizontal', 0.35], active: alphaUrl })
   await expect.poll(inView).toEqual([alphaUrl, betaUrl].sort())
   await expect(appWindow.locator('.tab.split-visible')).toHaveCount(2)
+  // Its page loaded, and the page the person was on still has the keyboard.
+  await expect.poll(keyboard).toEqual({ betaTitle: 'Split beta', alphaFocused: true, betaFocused: false })
 
   // The active pane, closed, comes back with Undo as the active pane.
   await hronaut(`selectTab(${JSON.stringify(await tabId(betaUrl))})`)
@@ -55,6 +63,7 @@ test('reopening a tab closed from a split view puts it back beside the tab it wa
   await appWindow.getByRole('status', { name: 'Tab closed' }).getByRole('button', { name: 'Undo: Tab closed' }).press('Enter')
   await expect.poll(shown).toEqual({ panes: [alphaUrl, betaUrl], layout: ['horizontal', 0.35], active: betaUrl })
   await expect.poll(inView).toEqual([alphaUrl, betaUrl].sort())
+  await expect.poll(keyboard).toEqual({ betaTitle: 'Split beta', alphaFocused: false, betaFocused: true })
 
   // The top pane goes back at the top, as the tab menu's Reopen closed tab does.
   await close(alphaUrl)

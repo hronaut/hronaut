@@ -11,7 +11,7 @@ import { browserState } from '../browser-state/browser-state.js'
 import { reorderTab } from '../tab-arrangement/tab-arrangement.js'
 import { withTabLabelLifecycle } from '../tab-labels/tab-labels.js'
 import { pageOwnTitle } from '../tab-events/page-own-title.js'
-import { openSplitView, updateSplitView } from '../split-view/split-view.js'
+import { closeSplitView, openSplitView } from '../split-view/split-view.js'
 import type { BrowserSplitOrientation } from '../../../shared/split-view.js'
 
 const MAX_TABS = MAX_BROWSER_TABS
@@ -126,15 +126,19 @@ export async function reopenClosedTabEntry(browser: Browser, closedTabId: string
 function showBeside(browser: Browser, tab: BrowserTab, split: ClosedTabSplit): void {
   const partner = findTab(browser, split.partnerTabId)
   if (partner && !partner.webContents.isDestroyed() && !browser.splitView && browser.activeTabId === partner.id) {
+    // Putting the split back is the person's selection, as asking for a split view is.
+    browser.tabSelectionGeneration += 1
     try {
-      // The page shown stays the first pane, so the reopened tab swaps to the first when it was there. Its page, still
-      // loading, leaves the keyboard with the page shown unless it was the active pane.
-      openSplitView(browser, tab.id, { openedBeside: !split.active })
-      updateSplitView(browser, { orientation: split.orientation, ratio: split.ratio, swap: split.first })
+      // In one step, so its page, still loading, leaves the keyboard with the page shown unless it was the active pane.
+      openSplitView(browser, tab.id, {
+        openedBeside: !split.active,
+        layout: { orientation: split.orientation, ratio: split.ratio, chosenFirst: split.first }
+      })
       if (split.active) browser.selectTab(tab.id)
       return
     } catch (error) {
       console.error('[browser] Could not put a reopened tab back into its split view:', error)
+      if (browser.splitViewContains(tab.id)) closeSplitView(browser)
     }
   }
   browser.selectTab(tab.id)
