@@ -20,7 +20,7 @@ async function agentBookmarks() {
   await store.load()
   const sendToShellWindows = vi.fn()
   const runtime = createBookmarksAndHistory({
-    state: { bookmarks: store, history: null },
+    state: { bookmarks: store, history: null, siteIcons: null },
     sendToShellWindows,
     mcpServer: () => null,
     tabs: () => null,

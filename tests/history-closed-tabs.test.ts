@@ -98,7 +98,7 @@ describe('recently closed tabs and the history', () => {
     const { closedTabs, tabs } = recentlyClosed(['https://bank.example/statement?id=7', 'https://news.example/'])
     const history = await historyWith(['https://bank.example/statement?id=7'])
     const runtime = createBookmarksAndHistory({
-      state: { bookmarks: null, history },
+      state: { bookmarks: null, history, siteIcons: null },
       sendToShellWindows: vi.fn(),
       mcpServer: () => null,
       tabs: () => tabs as never,
@@ -124,7 +124,7 @@ describe('recently closed tabs and the history', () => {
     ])
     const history = await historyWith(['https://docs.example/guide', 'https://docs.example/other'])
     const runtime = createBookmarksAndHistory({
-      state: { bookmarks: null, history },
+      state: { bookmarks: null, history, siteIcons: null },
       sendToShellWindows: vi.fn(),
       mcpServer: () => null,
       tabs: () => tabs as never,
@@ -149,7 +149,7 @@ describe('recently closed tabs and the history', () => {
       assertTrustedSender: () => undefined,
       bookmarks: () => { throw new Error('Not used') },
       history: () => history,
-      siteIcons: () => ({}),
+      siteIcons: () => ({ pages: {}, icons: {} }),
       downloads: () => { throw new Error('Not used') },
       tabs: () => { throw new Error('Not used') },
       publishBookmarks: () => [],

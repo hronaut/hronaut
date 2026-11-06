@@ -13,6 +13,7 @@ import IconLink from '~icons/material-symbols/link-rounded'
 import IconSearch from '~icons/material-symbols/search-rounded'
 import IconStarOutline from '~icons/material-symbols/star-outline-rounded'
 import type { BookmarkImportResult, BrowserBookmark, HronautBookmarkCollectionsApi, PanelDock } from '../../../../shared/types.js'
+import type { SiteIconIndex } from '../../../../shared/site-icons.js'
 import { useBookmarksPanelController } from './useBookmarksPanelController.js'
 import { isImeCompositionEvent } from '../../keyboard-composition.js'
 import { asMiddleClick, openClickTab } from '../../open-click.js'
@@ -42,8 +43,8 @@ const props = defineProps<{
   exportBookmarks: () => Promise<number | null>
   importBookmarks: () => Promise<BookmarkImportResult | null>
   formatNumber: (value: number) => string
-  /** The websites' icons by origin. */
-  siteIcons?: Record<string, string>
+  /** The icons tabs showed for the pages. */
+  siteIcons?: SiteIconIndex
 }>()
 
 const open = defineModel<boolean>('open', { required: true })

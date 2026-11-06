@@ -206,6 +206,11 @@ export class BookmarkStore {
     return sortedBookmarks(this.entries.values())
   }
 
+  /** The address of each bookmark, in no particular order, without the sorting and copying list does. */
+  urls(): string[] {
+    return [...this.entries.values()].map((entry) => entry.url)
+  }
+
   get(id: string): BrowserBookmark | undefined {
     const entry = this.entries.get(id)
     return entry ? { ...entry } : undefined

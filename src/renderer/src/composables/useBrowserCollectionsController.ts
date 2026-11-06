@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { computed, ref, shallowRef } from 'vue'
 import type {
   HronautBookmarksApi,
   HronautDownloadsApi,
@@ -10,6 +10,7 @@ import type {
   BrowserHistoryEntry
 } from '../../../shared/types.js'
 import { withHistoryChanges } from '../../../shared/visit-history.js'
+import { SiteIconIndex, withSiteIconChanges, type SiteIconChanges, type SiteIcons } from '../../../shared/site-icons.js'
 import { disposeAll, registerDisposers } from './dispose-all.js'
 
 interface BrowserCollectionsControllerOptions {
@@ -24,8 +25,9 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
   const downloads = ref<BrowserDownloadState[]>([])
   const bookmarks = ref<BrowserBookmark[]>([])
   const history = ref<BrowserHistoryEntry[]>([])
-  /** The icons of the websites in the history and bookmarks, by origin, once History or Bookmarks first opens. */
-  const siteIcons = ref<Record<string, string>>({})
+  /** The icons tabs showed for the pages in the history and bookmarks, once History or Bookmarks first opens. */
+  const siteIconList = shallowRef<SiteIcons>({ pages: {}, icons: {} })
+  const siteIcons = computed(() => new SiteIconIndex(siteIconList.value))
   const knownDownloadIds = new Set<string>()
   let downloadsRevision = 0
   let bookmarksRevision = 0
@@ -76,23 +78,21 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
     acceptHistory(withHistoryChanges(history.value, changes))
   }
 
-  /** Puts in the websites' icons that changed. One that changes before the first list is already in that list. */
-  function acceptSiteIconChanges(changes: Record<string, string | null>): void {
+  /** Puts in the pages' icons that changed. One that changes before the first list is already in that list. */
+  function acceptSiteIconChanges(changes: SiteIconChanges): void {
     if (disposed || !siteIconsListed) return
-    const next = { ...siteIcons.value }
-    for (const [origin, icon] of Object.entries(changes)) {
-      if (icon === null) Reflect.deleteProperty(next, origin)
-      else next[origin] = icon
-    }
-    siteIcons.value = next
+    siteIconList.value = withSiteIconChanges(siteIconList.value, changes)
   }
 
-  /** Lists the websites' icons once, when History or Bookmarks first opens; the changes keep them up to date after. */
+  /**
+   * Lists the pages' icons once, when History or Bookmarks first opens; the changes keep them up to date after. A list
+   * that fails is asked for again when either opens next.
+   */
   function listSiteIcons(): void {
     if (disposed || siteIconsListed || siteIconsListing) return
     siteIconsListing = options.historyApi.siteIcons().then((icons) => {
       if (disposed) return
-      siteIcons.value = icons
+      siteIconList.value = icons
       siteIconsListed = true
     }).catch((error: unknown) => {
       console.error('[history] Could not list site icons:', error)

@@ -25,6 +25,7 @@ function page(icons: Record<string, { size: number | string; after: number }>) {
   const fetches: { url: string; signal: AbortSignal }[] = []
   const tab = {
     url: 'https://site.example/page',
+    documentGeneration: 0,
     faviconRequestId: 0,
     webContents: {
       isDestroyed: () => false,
@@ -74,6 +75,39 @@ describe('the icon a tab shows', () => {
     // History and Bookmarks hear of each icon the tab showed, for its page.
     expect(icons.onSiteIcon.mock.calls.map(([{ icon }]) => Buffer.from(icon.split(',')[1]!, 'base64').toString())).toEqual(['icon 16', 'icon 24', 'icon 64'])
     expect(icons.onSiteIcon).toHaveBeenCalledWith(expect.objectContaining({ url: icons.tab.url }))
+  })
+
+  // Each icon list a page gave replaced its icon in History and Bookmarks, so a mail page's unread count, a build's status
+  // or an animated icon's frames took the page's place there, and were saved again and again.
+  it('gives History and Bookmarks only the first icon list a document gives for its page', async () => {
+    vi.useFakeTimers()
+    const icons = page({ small: { size: 16, after: 0 }, large: { size: 64, after: 5 }, badge: { size: 48, after: 0 }, route: { size: 40, after: 0 } })
+    const given = () => icons.onSiteIcon.mock.calls.map(([{ url, icon }]) => `${url} ${Buffer.from(icon.split(',')[1]!, 'base64').toString()}`)
+    const load = async (names: string[]) => {
+      const loading = loadFavicon(icons.browser, icons.tab, names.map((name) => `https://site.example/${name}`))
+      await vi.advanceTimersByTimeAsync(5)
+      await loading
+    }
+
+    await load(['small', 'large'])
+    // The page's own icon list, as each larger icon of it arrives.
+    expect(given()).toEqual(['https://site.example/page icon 16', 'https://site.example/page icon 64'])
+
+    // The tab shows the badge the page gives later, but History and Bookmarks keep the page's icon.
+    await load(['badge'])
+    expect(icons.shown()).toBe('icon 48')
+    // A link to a section of the page is still the page.
+    icons.tab.url = 'https://site.example/page#comments'
+    await load(['badge'])
+    expect(given()).toHaveLength(2)
+
+    // A route the page's document goes to is a page of its own, and the same page loaded again is a new document.
+    icons.tab.url = 'https://site.example/route'
+    await load(['route'])
+    icons.tab.url = 'https://site.example/page'
+    icons.tab.documentGeneration += 1
+    await load(['badge'])
+    expect(given().slice(2)).toEqual(['https://site.example/route icon 40', 'https://site.example/page icon 48'])
   })
 
   it('does not wait for an icon listed before the one it shows', async () => {

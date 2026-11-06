@@ -9,6 +9,7 @@ import type {
   BrowserHistoryEntry
 } from '../../src/shared/types.js'
 import { useBrowserCollectionsController } from '../../src/renderer/src/composables/useBrowserCollectionsController.js'
+import type { SiteIconChanges, SiteIcons } from '../../src/shared/site-icons.js'
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -57,13 +58,13 @@ function createHarness() {
   let bookmarksListener: (bookmarks: BrowserBookmark[]) => void = () => undefined
   let historyListener: (history: BrowserHistoryEntry[]) => void = () => undefined
   let historyChangesListener: (changes: BrowserHistoryChanges) => void = () => undefined
-  let siteIconsListener: (icons: Record<string, string | null>) => void = () => undefined
+  let siteIconsListener: (changes: SiteIconChanges) => void = () => undefined
   const unsubscribeDownloads = vi.fn()
   const unsubscribeBookmarks = vi.fn()
   const unsubscribeHistory = vi.fn()
   const unsubscribeHistoryChanges = vi.fn()
   const unsubscribeSiteIcons = vi.fn()
-  const listSiteIcons = vi.fn(async (): Promise<Record<string, string>> => ({}))
+  const listSiteIcons = vi.fn(async (): Promise<SiteIcons> => ({ pages: {}, icons: {} }))
   const listDownloads = vi.fn(async (): Promise<BrowserDownloadState[]> => [])
   const cancelDownload = vi.fn(async (): Promise<BrowserDownloadState[]> => [])
   const clearFinishedDownloads = vi.fn(async (): Promise<BrowserDownloadState[]> => [])
@@ -120,7 +121,7 @@ function createHarness() {
       return unsubscribeHistoryChanges
     }),
     siteIcons: listSiteIcons,
-    onSiteIconsChanged: vi.fn((listener: (icons: Record<string, string | null>) => void): (() => void) => {
+    onSiteIconsChanged: vi.fn((listener: (changes: SiteIconChanges) => void): (() => void) => {
       siteIconsListener = listener
       return unsubscribeSiteIcons
     })
@@ -153,7 +154,7 @@ function createHarness() {
     emitBookmarks: (next: BrowserBookmark[]) => bookmarksListener(next),
     emitHistory: (next: BrowserHistoryEntry[]) => historyListener(next),
     emitHistoryChanges: (changes: BrowserHistoryChanges) => historyChangesListener(changes),
-    emitSiteIcons: (icons: Record<string, string | null>) => siteIconsListener(icons),
+    emitSiteIcons: (changes: SiteIconChanges) => siteIconsListener(changes),
     listSiteIcons,
     unsubscribeSiteIcons,
     unsubscribeDownloads,
@@ -382,32 +383,41 @@ describe('useBrowserCollectionsController', () => {
     harness.controller.dispose()
   })
 
-  it('lists the websites\' icons once History or Bookmarks opens, and keeps them up to date after', async () => {
+  it('lists the pages\' icons once History or Bookmarks opens, keeps them up to date after, and asks again after a failure', async () => {
     const harness = createHarness()
     await harness.controller.initialize()
+    const shown = (url: string) => harness.controller.siteIcons.value.iconFor(url, new URL(url).origin)
     // Startup lists none: they wait for a panel that shows them.
-    harness.emitSiteIcons({ 'https://early.example': 'data:image/png;base64,AAAA' })
+    harness.emitSiteIcons({ pages: { 'https://early.example/': 'a' }, icons: { a: 'data:image/png;base64,AAAA' } })
     expect(harness.listSiteIcons).not.toHaveBeenCalled()
-    expect(harness.controller.siteIcons.value).toEqual({})
+    expect(shown('https://early.example/')).toBeUndefined()
 
-    const listed = deferred<Record<string, string>>()
+    // A list that fails is asked for again when a panel opens next.
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    harness.listSiteIcons.mockRejectedValueOnce(new Error('Not now'))
+    await harness.controller.refreshHistory()
+    await vi.waitFor(() => expect(error).toHaveBeenCalledWith('[history] Could not list site icons:', expect.any(Error)))
+    error.mockRestore()
+
+    const listed = deferred<SiteIcons>()
     harness.listSiteIcons.mockReturnValueOnce(listed.promise)
     void harness.controller.refreshHistory()
     void harness.controller.refreshBookmarks()
-    listed.resolve({ 'https://early.example': 'data:image/png;base64,AAAA', 'https://docs.example': 'data:image/png;base64,BBBB' })
-    await vi.waitFor(() => expect(harness.controller.siteIcons.value).toEqual({
-      'https://early.example': 'data:image/png;base64,AAAA',
-      'https://docs.example': 'data:image/png;base64,BBBB'
-    }))
-    expect(harness.listSiteIcons).toHaveBeenCalledOnce()
-
-    harness.emitSiteIcons({ 'https://early.example': null, 'https://new.example': 'data:image/png;base64,CCCC' })
-    expect(harness.controller.siteIcons.value).toEqual({
-      'https://docs.example': 'data:image/png;base64,BBBB',
-      'https://new.example': 'data:image/png;base64,CCCC'
+    listed.resolve({
+      pages: { 'https://early.example/': 'a', 'https://docs.example/guide': 'b' },
+      icons: { a: 'data:image/png;base64,AAAA', b: 'data:image/png;base64,BBBB' }
     })
+    await vi.waitFor(() => expect(shown('https://docs.example/guide')).toBe('data:image/png;base64,BBBB'))
+    expect(shown('https://early.example/')).toBe('data:image/png;base64,AAAA')
+    // A page no tab showed an icon for shows its website's.
+    expect(shown('https://docs.example/other')).toBe('data:image/png;base64,BBBB')
+    expect(harness.listSiteIcons).toHaveBeenCalledTimes(2)
+
+    harness.emitSiteIcons({ pages: { 'https://early.example/': null, 'https://new.example/': 'c' }, icons: { a: null, c: 'data:image/png;base64,CCCC' } })
+    expect(shown('https://early.example/')).toBeUndefined()
+    expect(shown('https://new.example/')).toBe('data:image/png;base64,CCCC')
     await harness.controller.refreshHistory()
-    expect(harness.listSiteIcons).toHaveBeenCalledOnce()
+    expect(harness.listSiteIcons).toHaveBeenCalledTimes(2)
     harness.controller.dispose()
   })
 })

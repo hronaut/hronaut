@@ -10,60 +10,83 @@ interface ShellApis {
   hronautHistory: HronautHistoryApi
 }
 
-// History and Bookmarks showed a globe beside every page. As in Chrome, each page now shows its website's icon, as a tab
-// last showed it, also after a restart, and the icon goes once neither of them holds a page of the website.
-test('History and Bookmarks show each page by its website\'s icon, kept as long as they hold a page of it', async ({ profileDirectory, mcpPort }) => {
-  const png = await readFile(new URL('../../build/icons/64x64.png', import.meta.url))
+// History and Bookmarks showed a globe beside every page. As in Chrome, each page now shows the icon a tab showed for
+// it, also after a restart, and the icon goes once neither of them holds the page.
+test('History and Bookmarks show each page by its icon, kept as long as they hold the page', async ({ profileDirectory, mcpPort }) => {
+  const icons: Record<string, Buffer> = {
+    '/document.png': await readFile(new URL('../../build/icons/64x64.png', import.meta.url)),
+    '/sheet.png': await readFile(new URL('../../build/icons/tray-attention.png', import.meta.url))
+  }
   const server = createServer((request, response) => {
-    if (request.url === '/icon.png') {
-      response.writeHead(200, { 'content-type': 'image/png', 'content-length': String(png.length) })
-      response.end(png)
+    const icon = icons[request.url ?? '']
+    if (icon) {
+      response.writeHead(200, { 'content-type': 'image/png', 'content-length': String(icon.length) })
+      response.end(icon)
       return
     }
+    // Two pages of one website, each with an icon of its own, as a website's documents and spreadsheets have.
+    const name = request.url === '/sheet' ? 'Sheet' : 'Document'
     response.writeHead(200, { 'content-type': 'text/html' })
-    response.end('<!doctype html><title>Icon page</title><link rel="icon" href="/icon.png"><main>Icon page</main>')
+    response.end(`<!doctype html><title>${name} page</title><link rel="icon" href="/${name.toLowerCase()}.png"><main>${name}</main>`)
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`
-  const url = `${origin}/page`
-  const historyIcon = (page: Page) => page.getByRole('dialog', { name: 'Browsing history' })
-    .locator('.history-item', { hasText: 'Icon page' }).locator('.history-site-icon img')
-  const bookmarkIcon = (page: Page) => page.getByRole('dialog', { name: 'Bookmarks' })
-    .locator('.bookmark-item', { hasText: 'Icon page' }).locator('.bookmark-site-icon img')
-  let instance = await launchHronaut(profileDirectory, mcpPort)
+  const historyIcon = (page: Page, title: string) => page.getByRole('dialog', { name: 'Browsing history' })
+    .locator('.history-item', { hasText: title }).locator('.history-site-icon img')
+  const bookmarkIcon = (page: Page, title: string) => page.getByRole('dialog', { name: 'Bookmarks' })
+    .locator('.bookmark-item', { hasText: title }).locator('.bookmark-site-icon img')
   try {
-    const page = instance.window
-    await page.evaluate((address) => (window as unknown as ShellApis).hronaut.newTab({ url: address, active: true }), url)
-    const shown = () => page.evaluate(() => (window as unknown as ShellApis).hronaut.getState()
-      .then((state) => state.tabs.find((tab) => tab.active)?.faviconDataUrl))
-    await expect.poll(shown).toMatch(/^data:image\/png;base64,/)
-    const icon = (await shown())!
+    let instance = await launchHronaut(profileDirectory, mcpPort)
+    try {
+      const page = instance.window
+      const open = async (path: string): Promise<string> => {
+        const tab = await page.evaluate((address) => (window as unknown as ShellApis).hronaut.newTab({ url: address, active: true }), `${origin}${path}`)
+        const shown = () => page.evaluate((id) => (window as unknown as ShellApis).hronaut.getState()
+          .then((state) => state.tabs.find((candidate) => candidate.id === id)?.faviconDataUrl), tab.activeTabId)
+        await expect.poll(shown).toMatch(/^data:image\/png;base64,/)
+        return (await shown())!
+      }
+      const documentIcon = await open('/document')
+      const sheetIcon = await open('/sheet')
+      expect(sheetIcon).not.toBe(documentIcon)
 
-    await page.getByRole('button', { name: 'Browsing history', exact: true }).click()
-    await expect(historyIcon(page)).toHaveAttribute('src', icon)
-    await page.getByRole('dialog', { name: 'Browsing history' }).getByRole('button', { name: 'Close browsing history' }).click()
-    await page.evaluate((address) => (window as unknown as ShellApis).hronautBookmarks.add(address, 'Icon page'), url)
-    await page.getByRole('button', { name: 'Bookmarks', exact: true }).click()
-    await expect(bookmarkIcon(page)).toHaveAttribute('src', icon)
+      await page.getByRole('button', { name: 'Browsing history', exact: true }).click()
+      await expect(historyIcon(page, 'Document page')).toHaveAttribute('src', documentIcon)
+      await expect(historyIcon(page, 'Sheet page')).toHaveAttribute('src', sheetIcon)
+      await page.getByRole('dialog', { name: 'Browsing history' }).getByRole('button', { name: 'Close browsing history' }).click()
+      // A page no tab has shown shows the icon its website showed last.
+      await page.evaluate((address) => (window as unknown as ShellApis).hronautBookmarks.add(`${address}/document`, 'Document page'), origin)
+      await page.evaluate((address) => (window as unknown as ShellApis).hronautBookmarks.add(`${address}/unvisited`, 'Unvisited page'), origin)
+      await page.getByRole('button', { name: 'Bookmarks', exact: true }).click()
+      await expect(bookmarkIcon(page, 'Document page')).toHaveAttribute('src', documentIcon)
+      await expect(bookmarkIcon(page, 'Unvisited page')).toHaveAttribute('src', sheetIcon)
 
-    // After a restart, with no tab of the website left to show its icon again.
-    const tabId = await page.evaluate(() => (window as unknown as ShellApis).hronaut.getState().then((state) => state.activeTabId))
-    await page.evaluate((id) => (window as unknown as ShellApis).hronaut.closeTab(id!), tabId)
-    await closeHronaut(instance.app)
-    instance = await launchHronaut(profileDirectory, mcpPort)
-    const restarted = instance.window
-    await restarted.getByRole('button', { name: 'Browsing history', exact: true }).click()
-    await expect(historyIcon(restarted)).toHaveAttribute('src', icon)
+      // After a restart, with no tab of the website left to show its icons again.
+      const state = await page.evaluate(() => (window as unknown as ShellApis).hronaut.getState())
+      for (const tab of state.tabs.filter((candidate) => candidate.url.startsWith(origin))) {
+        await page.evaluate((id) => (window as unknown as ShellApis).hronaut.closeTab(id), tab.id)
+      }
+      await closeHronaut(instance.app)
+      instance = await launchHronaut(profileDirectory, mcpPort)
+      const restarted = instance.window
+      await restarted.getByRole('button', { name: 'Browsing history', exact: true }).click()
+      await expect(historyIcon(restarted, 'Document page')).toHaveAttribute('src', documentIcon)
+      await expect(historyIcon(restarted, 'Sheet page')).toHaveAttribute('src', sheetIcon)
 
-    // Clearing the history keeps the icon of a website bookmarked; removing the bookmark then lets it go.
-    await restarted.evaluate(() => (window as unknown as ShellApis).hronautHistory.clear())
-    expect(await restarted.evaluate(() => (window as unknown as ShellApis).hronautHistory.siteIcons())).toEqual({ [origin]: icon })
-    const [bookmark] = await restarted.evaluate(() => (window as unknown as ShellApis).hronautBookmarks.list())
-    await restarted.evaluate((id) => (window as unknown as ShellApis).hronautBookmarks.remove(id), bookmark!.id)
-    expect(await restarted.evaluate(() => (window as unknown as ShellApis).hronautHistory.siteIcons())).toEqual({})
-    await expect.poll(async () => (await readFile(`${profileDirectory}/site-icons.json`, 'utf8')).includes(icon.split(',')[1]!)).toBe(false)
+      // Clearing the history keeps the icon of the page bookmarked; removing the bookmark then lets it go.
+      const kept = () => restarted.evaluate(() => (window as unknown as ShellApis).hronautHistory.siteIcons()).then(({ pages, icons: byId }) => (
+        Object.fromEntries(Object.entries(pages).map(([url, id]) => [url, byId[id]]))
+      ))
+      await restarted.evaluate(() => (window as unknown as ShellApis).hronautHistory.clear())
+      expect(await kept()).toEqual({ [`${origin}/document`]: documentIcon })
+      const bookmarks = await restarted.evaluate(() => (window as unknown as ShellApis).hronautBookmarks.list())
+      for (const bookmark of bookmarks) await restarted.evaluate((id) => (window as unknown as ShellApis).hronautBookmarks.remove(id), bookmark.id)
+      expect(await kept()).toEqual({})
+      await expect.poll(async () => (await readFile(`${profileDirectory}/site-icons.json`, 'utf8')).includes(documentIcon.split(',')[1]!)).toBe(false)
+    } finally {
+      await closeHronaut(instance.app)
+    }
   } finally {
-    await closeHronaut(instance.app)
     await closeFixtureServer(server)
   }
 })

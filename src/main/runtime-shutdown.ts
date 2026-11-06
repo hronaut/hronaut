@@ -60,6 +60,8 @@ export function createRuntimeShutdown(host: RuntimeShutdownHost): { releaseRunti
       const history = host.bookmarksAndHistory.history
       const recentVisitsSaved = Promise.allSettled([history?.flush()])
       history?.dispose()
+      // Tabs closing no longer change the pages' icons; the icons changed before are saved with the other stores.
+      host.bookmarksAndHistory.siteIcons?.dispose()
       const results = [
         ...await Promise.allSettled([server?.stop()]),
         ...await Promise.allSettled([host.agentServices.auditReceipts?.stopAll()]),

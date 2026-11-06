@@ -3,6 +3,7 @@ import type { Browser } from '../browser.js'
 import { publishChange } from '../browser-state/browser-state.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { decodeWebsiteFavicon } from '../favicon.js'
+import { normalizeHistoryUrl } from '../../../shared/visit-history.js'
 
 const MAX_FAVICON_BYTES = 512 * 1024
 /** The size, in pixels, of the icon a tab shows. */
@@ -37,8 +38,7 @@ export async function loadFavicon(browser: Browser, tab: BrowserTab, favicons: s
     // Persist this update explicitly so a later crash or forced restart
     // does not replace the restored tab icon with the generic globe.
     publishChange(browser)
-    // History and Bookmarks show the page's website by it.
-    browser.options.onSiteIcon?.({ url: tab.url, icon: icon.dataUrl })
+    giveSiteIcon(browser, tab, requestId, icon.dataUrl)
     if (icon.size >= FAVICON_SIZE) controller.abort()
   }
   try {
@@ -50,6 +50,20 @@ export async function loadFavicon(browser: Browser, tab: BrowserTab, favicons: s
     controller.abort()
     if (tab.faviconAbortController === controller) tab.faviconAbortController = undefined
   }
+}
+
+/**
+ * Gives History and Bookmarks the page's icon from the first icon list its document gave for its address, and each
+ * larger icon of that list as it arrives, but not from a list the page gives later, such as for an unread count, a
+ * build's status or an animation's frames, which would replace the page's icon there time after time.
+ */
+function giveSiteIcon(browser: Browser, tab: BrowserTab, requestId: number, icon: string): void {
+  const page = normalizeHistoryUrl(tab.url)
+  if (!page || !browser.options.onSiteIcon) return
+  const source = tab.siteIconSource
+  if (source?.documentGeneration === tab.documentGeneration && source.page === page && source.requestId !== requestId) return
+  tab.siteIconSource = { documentGeneration: tab.documentGeneration, page, requestId }
+  browser.options.onSiteIcon({ url: tab.url, icon })
 }
 
 /**

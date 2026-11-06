@@ -94,7 +94,7 @@ function createHarness(bookmarkAllTabsOptions: Pick<AppBrowserCollectionsFeature
     clear: vi.fn(async () => []),
     onChanged: vi.fn(() => unsubscribeHistory),
     onUpdated: vi.fn(() => () => undefined),
-    siteIcons: vi.fn(async () => ({})),
+    siteIcons: vi.fn(async () => ({ pages: {}, icons: {} })),
     onSiteIconsChanged: vi.fn(() => () => undefined)
   }
   const settingsOpen = ref(true)

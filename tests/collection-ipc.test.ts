@@ -1,6 +1,7 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import { expect, it, vi } from 'vitest'
 import { registerCollectionIpc } from '../src/main/collection-ipc.js'
+import type { SiteIcons } from '../src/shared/site-icons.js'
 
 type Listener = Parameters<IpcMain['handle']>[1]
 const channels = [
@@ -20,7 +21,7 @@ function fixture() {
     async runRead<T>(event: IpcMainInvokeEvent, read: () => T): Promise<T> { host.assertTrustedSender(event); return read() },
     bookmarks: vi.fn(() => bookmarks),
     history: vi.fn(() => history),
-    siteIcons: vi.fn(() => ({})),
+    siteIcons: vi.fn((): SiteIcons => ({ pages: {}, icons: {} })),
     downloads: vi.fn(() => ({ downloadController: downloads })),
     tabs: vi.fn(() => [] as { url: string; title: string; mcpGroupId?: string }[]),
     publishBookmarks: vi.fn(() => []),
@@ -221,9 +222,10 @@ it('starts dragging a download out of the window it is dragged in, by its ID onl
   expect(downloads.startDownloadDrag).toHaveBeenCalledOnce()
 })
 
-it('gives a trusted window the websites\' icons main keeps', async () => {
+it('gives a trusted window the pages\' icons main keeps', async () => {
   const { host, invoke, event } = fixture()
-  host.siteIcons.mockReturnValue({ 'https://docs.example': 'data:image/png;base64,AAAA' })
-  await expect(invoke('visit-history:site-icons')).resolves.toEqual({ 'https://docs.example': 'data:image/png;base64,AAAA' })
+  const icons = { pages: { 'https://docs.example/guide': 'a' }, icons: { a: 'data:image/png;base64,AAAA' } }
+  host.siteIcons.mockReturnValue(icons)
+  await expect(invoke('visit-history:site-icons')).resolves.toEqual(icons)
   expect(host.assertTrustedSender).toHaveBeenCalledWith(event)
 })

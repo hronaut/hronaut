@@ -415,10 +415,7 @@ const {
   sendToShellWindows,
   state: commercialLicenseRuntime
 })
-const bookmarksAndHistory: BookmarksAndHistoryState = {
-  bookmarks: null,
-  history: null
-}
+const bookmarksAndHistory: BookmarksAndHistoryState = { bookmarks: null, history: null, siteIcons: null }
 const {
   publishBookmarks,
   publishVisitHistory,
@@ -981,7 +978,7 @@ function registerIpc(): void {
     assertTrustedSender: assertInitializedTrustedShellSender,
     bookmarks: () => bookmarksAndHistory.bookmarks!,
     history: () => bookmarksAndHistory.history!,
-    siteIcons: () => bookmarksAndHistory.siteIcons?.all() ?? {},
+    siteIcons: () => bookmarksAndHistory.siteIcons?.snapshot() ?? { pages: {}, icons: {} },
     downloads: () => tabRuntime.tabs!,
     tabs: () => tabRuntime.tabs ? browserState(tabRuntime.tabs).tabs : [],
     publishBookmarks,

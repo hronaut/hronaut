@@ -129,6 +129,11 @@ export interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordi
   faviconDataUrl?: string
   faviconRequestId: number
   faviconAbortController?: AbortController
+  /**
+   * Runtime only: the icon list History and Bookmarks took the page's icon from, the first its document gave for the
+   * page's address, as faviconRequestId numbered it.
+   */
+  siteIconSource?: { documentGeneration: number; page: string; requestId: number }
   audible: boolean
   tabMuted: boolean
   muted: boolean

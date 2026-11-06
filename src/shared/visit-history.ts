@@ -1,5 +1,27 @@
 import type { BrowserHistoryEntry, BrowserHistoryChanges } from './types.js'
 
+const MAX_HISTORY_URL = 4_096
+const MAX_HISTORY_INPUT_URL = 32_768
+
+/**
+ * A page's address as the history keeps it, without its fragment or sign-in details, or null for an address the history
+ * leaves out: one that is not a web page's, or is too long.
+ */
+export function normalizeHistoryUrl(value: string): string | null {
+  const fragmentStart = value.indexOf('#')
+  const address = fragmentStart < 0 ? value : value.slice(0, fragmentStart)
+  if (!address || address.length > MAX_HISTORY_INPUT_URL) return null
+  try {
+    const url = new URL(address)
+    if ((url.protocol !== 'http:' && url.protocol !== 'https:') || !url.hostname) return null
+    url.username = ''
+    url.password = ''
+    return url.href.length <= MAX_HISTORY_URL ? url.href : null
+  } catch {
+    return null
+  }
+}
+
 /** The order the history lists its pages in: the last visited first, and pages visited at the same time by title. */
 export function compareHistoryEntries(left: BrowserHistoryEntry, right: BrowserHistoryEntry): number {
   return right.visitedAt.localeCompare(left.visitedAt) || left.title.localeCompare(right.title)

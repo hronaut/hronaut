@@ -19,6 +19,7 @@ import { asMiddleClick, openClickTab } from '../../open-click.js'
 import { vTooltip } from '../../ui/tooltip.js'
 import { confirmAction } from '../../confirm-action.js'
 import { splitConfirmation } from '../../../../shared/confirmation.js'
+import type { SiteIconIndex } from '../../../../shared/site-icons.js'
 import SiteIcon from '../../components/SiteIcon.vue'
 
 const props = defineProps<{
@@ -34,8 +35,8 @@ const props = defineProps<{
   copyHistoryAddress: (entry: BrowserHistoryEntry) => Promise<void>
   /** Gives the keyboard to the page in view. */
   returnKeyboard?: () => void
-  /** The websites' icons by origin. */
-  siteIcons?: Record<string, string>
+  /** The icons tabs showed for the pages. */
+  siteIcons?: SiteIconIndex
 }>()
 
 const open = defineModel<boolean>('open', { required: true })

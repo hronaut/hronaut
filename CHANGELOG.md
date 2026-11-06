@@ -6,7 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
-- Browsing history and Bookmarks now show each page with its website's icon, as Chrome does, rather than a globe beside every page. The icons are kept only while the history or the bookmarks hold a page of the website, so clearing the history takes them too.
+- Browsing history and Bookmarks now show each page with the icon a tab showed for it, as Chrome does, rather than a globe beside every page; a page no tab has shown since shows its website's icon. The icons are kept only while the history or the bookmarks hold the page, so clearing the history takes them too.
 
 ### Fixed
 

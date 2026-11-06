@@ -2,15 +2,13 @@ import { randomUUID } from 'node:crypto'
 import { chmod, readdir, readFile, rename, stat, unlink } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import type { BrowserHistoryChanges, BrowserHistoryEntry } from '../../shared/types.js'
-import { compareHistoryEntries } from '../../shared/visit-history.js'
+import { compareHistoryEntries, normalizeHistoryUrl } from '../../shared/visit-history.js'
 import { normalizeCollectionTitle } from './collection-title.js'
 import { writeTextFileAtomically } from '../atomic-file.js'
 
 const HISTORY_VERSION = 1
 const MAX_HISTORY_ENTRIES = 2_000
 const MAX_HISTORY_TITLE = 200
-const MAX_HISTORY_URL = 4_096
-const MAX_HISTORY_INPUT_URL = 32_768
 const HISTORY_RETENTION_MS = 90 * 24 * 60 * 60 * 1_000
 // Last 4 weeks is the longest time range Settings clears but All time, so a page keeps the times of its visits from then.
 const RECENT_VISITS_MS = 28 * 24 * 60 * 60 * 1_000
@@ -63,21 +61,6 @@ function storedVisits(entry: StoredHistoryEntry, now: number): Pick<StoredHistor
   // With no visit listed, the visit the list leaves out is the page's last one.
   const earlier = time(entry.earlierVisitAt) ? entry.earlierVisitAt : visits.length ? undefined : visitedAt
   return keptVisits(visits, earlier, now)
-}
-
-export function normalizeHistoryUrl(value: string): string | null {
-  const fragmentStart = value.indexOf('#')
-  const address = fragmentStart < 0 ? value : value.slice(0, fragmentStart)
-  if (!address || address.length > MAX_HISTORY_INPUT_URL) return null
-  try {
-    const url = new URL(address)
-    if ((url.protocol !== 'http:' && url.protocol !== 'https:') || !url.hostname) return null
-    url.username = ''
-    url.password = ''
-    return url.href.length <= MAX_HISTORY_URL ? url.href : null
-  } catch {
-    return null
-  }
 }
 
 // Chromium names an untitled page by its address as it shows it, with the fragment the history leaves out:
@@ -308,6 +291,14 @@ export class HistoryStore {
   list(): BrowserHistoryEntry[] {
     const oldestAllowed = this.now() - HISTORY_RETENTION_MS
     return sortedHistory([...this.entries.values()].filter((entry) => Date.parse(entry.visitedAt) >= oldestAllowed)).map(listedEntry)
+  }
+
+  /** The address of each page the history holds, in no particular order, without the sorting list does. */
+  pageUrls(): string[] {
+    const oldestAllowed = this.now() - HISTORY_RETENTION_MS
+    const urls: string[] = []
+    for (const entry of this.entries.values()) if (Date.parse(entry.visitedAt) >= oldestAllowed) urls.push(entry.url)
+    return urls
   }
 
   /** Resolves once the changes made so far are saved, saving now the visits that wait for their save. */
