@@ -35,17 +35,22 @@ export interface ClosedTabHistory {
  */
 const closedTabHistories = new WeakMap<BrowserClosedTabState, ClosedTabHistory>()
 
-/** The split view a remembered closed tab was a pane of: the tab beside it, its side, and the split's layout. */
+/**
+ * The split view a remembered closed tab was a pane of: the tab beside it, its side, whether it was the active pane, and
+ * the split's layout.
+ */
 interface ClosedTabSplit {
   partnerTabId: string
   first: boolean
+  active: boolean
   orientation: BrowserSplitOrientation
   ratio: number
 }
 
 /**
  * The split view of each remembered closed tab that was a pane of one, which reopening the tab while the tab beside it
- * is still the one shown puts back, so Undo and Reopen closed tab bring back what the person closed.
+ * is still the one shown, with no other split open, puts back, so Undo and Reopen closed tab bring back what the person
+ * closed.
  */
 const closedTabSplits = new WeakMap<BrowserClosedTabState, ClosedTabSplit>()
 
@@ -77,7 +82,9 @@ export async function reopenClosedTabEntry(browser: Browser, closedTabId: string
   if (!closed) return undefined
   browser.detachedClosedTabs.add(held)
   const history = closedTabHistories.get(closed)
-  const shownBefore = browser.activeTabId
+  // Read before the tab opens, as showing it ends a split view it is not in.
+  const split = closedTabSplits.get(closed)
+  const beside = active && split && !browser.splitView && browser.activeTabId === split.partnerTabId ? split : undefined
   let tab: BrowserTab
   try {
     // With its back and forward history, as Chrome reopens a tab; loading the page it showed again is not another
@@ -90,7 +97,8 @@ export async function reopenClosedTabEntry(browser: Browser, closedTabId: string
       pinned: closed.pinned,
       ...(history?.pages ? { navigationHistory: copyHistory(history.pages) } : {}),
       ...(history ? { suppressInitialHistory: history.visited } : {}),
-      active,
+      // A pane going back beside the page shown is shown with the split, which hides nothing; another is shown at once.
+      active: active && !beside,
       mcpGroupId: closed.mcpGroupId,
       zoomIsolated: closed.zoomIsolated === true,
       defaultFontSize: closed.defaultFontSize,
@@ -105,27 +113,31 @@ export async function reopenClosedTabEntry(browser: Browser, closedTabId: string
     browser.detachedClosedTabs.delete(held)
   }
   if (closed.place !== undefined && tab.pinned === closed.pinned) moveToPlace(browser, tab, closed.place)
-  if (active) reopenIntoSplit(browser, tab, closedTabSplits.get(closed), shownBefore)
+  if (beside) showBeside(browser, tab, beside)
   return tab
 }
 
 /**
- * Puts a reopened tab back into the split view it was a pane of, on its side and with the split's layout, when the tab
- * that was beside it is still the one that was shown, and the person opened no other split and chose no other tab
- * meanwhile. Closing a pane left only the other in view, and reopening the tab then hid that one too.
+ * Shows a reopened tab in the split view it was a pane of, beside the page shown, on its side and with the split's
+ * layout, and makes it the active pane again when it was; closing a pane left only the other in view, and reopening the
+ * tab then hid that one too. When that page is no longer shown alone, or the split cannot open, the tab is shown alone,
+ * as any reopened tab is.
  */
-function reopenIntoSplit(browser: Browser, tab: BrowserTab, split: ClosedTabSplit | undefined, shownBefore: string | null): void {
-  if (!split || browser.splitView || shownBefore !== split.partnerTabId || browser.activeTabId !== tab.id) return
+function showBeside(browser: Browser, tab: BrowserTab, split: ClosedTabSplit): void {
   const partner = findTab(browser, split.partnerTabId)
-  // A split shows in a workspace only with both its tabs there, as when it was closed.
-  if (!partner || partner.webContents.isDestroyed() || partner.mcpGroupId !== tab.mcpGroupId) return
-  try {
-    openSplitView(browser, partner.id)
-    updateSplitView(browser, { orientation: split.orientation, ratio: split.ratio, swap: !split.first })
-  } catch (error) {
-    // The tab is open again either way, alone as before.
-    console.error('[browser] Could not put a reopened tab back into its split view:', error)
+  if (partner && !partner.webContents.isDestroyed() && !browser.splitView && browser.activeTabId === partner.id) {
+    try {
+      // The page shown stays the first pane, so the reopened tab swaps to the first when it was there. Its page, still
+      // loading, leaves the keyboard with the page shown unless it was the active pane.
+      openSplitView(browser, tab.id, { openedBeside: !split.active })
+      updateSplitView(browser, { orientation: split.orientation, ratio: split.ratio, swap: split.first })
+      if (split.active) browser.selectTab(tab.id)
+      return
+    } catch (error) {
+      console.error('[browser] Could not put a reopened tab back into its split view:', error)
+    }
   }
+  browser.selectTab(tab.id)
 }
 
 /** The website tabs a tab moves among: its workspace's, pinned or not as it is. */
@@ -256,7 +268,11 @@ export function rememberClosedTab(
   if (split && (split.firstTabId === tab.id || split.secondTabId === tab.id)) {
     const first = split.firstTabId === tab.id
     closedTabSplits.set(closed, {
-      partnerTabId: first ? split.secondTabId : split.firstTabId, first, orientation: split.orientation, ratio: split.ratio
+      partnerTabId: first ? split.secondTabId : split.firstTabId,
+      first,
+      active: browser.activeTabId === tab.id,
+      orientation: split.orientation,
+      ratio: split.ratio
     })
   }
   browser.closedTabs.push(closed)

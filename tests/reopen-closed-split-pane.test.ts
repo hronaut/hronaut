@@ -21,19 +21,19 @@ type PaneTab = Pick<BrowserTab, 'id' | 'url' | 'title' | 'pinned' | 'mcpGroupId'
   & { webContents: { isDestroyed(): boolean } }
 
 /**
- * Open tabs and the split view, as the tab manager keeps them: closing a pane remembers it while it is still open, ends
- * the split and leaves the tab beside it shown, as closing a tab does, and a tab reopened to be shown becomes the one shown.
+ * Open tabs and the split view, as the tab manager keeps them: selecting a tab outside the split view ends it, closing a
+ * pane remembers it while it is still open, ends the split and leaves the tab beside it shown, as closing a tab does, and
+ * a tab created to be shown is selected.
  */
-function window(titles: string[], split?: Omit<BrowserSplitViewState, 'firstTabId' | 'secondTabId'> & { first: string; second: string }) {
+function window(titles: string[], split?: Omit<BrowserSplitViewState, 'firstTabId' | 'secondTabId'> & { first: string; second: string; active?: string }) {
   let created = 0
   const open: PaneTab[] = []
   const closedTabs: BrowserClosedTabState[] = []
-  function tab(title: string, workspace?: string): PaneTab {
+  function tab(title: string): PaneTab {
     created += 1
     const opened: PaneTab = {
       id: `tab-${created}`, url: `https://example.test/${title}`, title, pinned: false, zoomIsolated: false, tabMuted: false,
-      tabAgentPaused: false, humanInteractionLocked: false, webContents: { isDestroyed: () => false },
-      ...(workspace ? { mcpGroupId: workspace } : {})
+      tabAgentPaused: false, humanInteractionLocked: false, webContents: { isDestroyed: () => false }
     }
     open.push(opened)
     return opened
@@ -44,35 +44,41 @@ function window(titles: string[], split?: Omit<BrowserSplitViewState, 'firstTabI
     closedTabs,
     detachedClosedTabs: new Set<BrowserClosedTabState[]>(),
     tabs: { get size() { return open.length } },
-    activeTabId: split ? byTitle(split.first).id : open[0]?.id ?? null as string | null,
+    activeTabId: split ? byTitle(split.active ?? split.first).id : open[0]?.id ?? null as string | null,
     splitView: split
       ? { firstTabId: byTitle(split.first).id, secondTabId: byTitle(split.second).id, orientation: split.orientation, ratio: split.ratio }
       : null as BrowserSplitViewState | null,
     orderedTabs: () => [...open],
     findTab: (tabId: string) => open.find((candidate) => candidate.id === tabId),
     navigationHistorySnapshot: () => ({ entries: [], index: 0 }),
-    createTab: async (options: Parameters<Browser['createTab']>[0]): Promise<PaneTab> => {
-      const reopened = tab(options.url.split('/').at(-1)!, options.mcpGroupId)
-      if (options.active) manager.activeTabId = reopened.id
+    selectTab: vi.fn((tabId: string) => {
+      if (manager.splitView?.firstTabId !== tabId && manager.splitView?.secondTabId !== tabId) manager.splitView = null
+      manager.activeTabId = tabId
+    }),
+    opening: undefined as (() => void) | undefined,
+    createTab: vi.fn(async (options: Parameters<Browser['createTab']>[0]): Promise<PaneTab> => {
+      const reopened = tab(options.url.split('/').at(-1)!)
+      manager.opening?.()
+      if (options.active) manager.selectTab(reopened.id)
       return reopened
+    })
+  }
+  const close = (title: string) => {
+    const closing = byTitle(title)
+    rememberClosedTab(manager as unknown as Browser, closing as unknown as BrowserTab)
+    const shown = manager.splitView
+    if (shown && (shown.firstTabId === closing.id || shown.secondTabId === closing.id)) {
+      manager.activeTabId = shown.firstTabId === closing.id ? shown.secondTabId : shown.firstTabId
+      manager.splitView = null
+    } else if (manager.activeTabId === closing.id) {
+      manager.activeTabId = open.find((candidate) => candidate !== closing)?.id ?? null
     }
+    open.splice(open.indexOf(closing), 1)
   }
   return {
     manager,
     tab: byTitle,
-    show: (title: string) => { manager.activeTabId = byTitle(title).id },
-    close: (title: string) => {
-      const closing = byTitle(title)
-      rememberClosedTab(manager as unknown as Browser, closing as unknown as BrowserTab)
-      const split = manager.splitView
-      if (split && (split.firstTabId === closing.id || split.secondTabId === closing.id)) {
-        manager.activeTabId = split.firstTabId === closing.id ? split.secondTabId : split.firstTabId
-        manager.splitView = null
-      } else if (manager.activeTabId === closing.id) {
-        manager.activeTabId = open.find((candidate) => candidate !== closing)?.id ?? null
-      }
-      open.splice(open.indexOf(closing), 1)
-    },
+    close,
     reopen: (active = true) => reopenClosedTabEntry(manager as unknown as Browser, undefined, active)
   }
 }
@@ -86,78 +92,82 @@ afterEach(() => {
 describe('reopening a tab closed from a split view', () => {
   // Closing a pane left the tab beside it shown alone, and Undo or Reopen closed tab then showed only the reopened tab,
   // hiding that one too: the split, its side and its proportion were gone.
-  it('puts it back beside the tab it was shown with, on its side and with the split\'s layout', async () => {
-    const right = window(['a', 'b'], { first: 'a', second: 'b', orientation: 'horizontal', ratio: 0.3 })
-    const a = right.tab('a')
-    right.close('b')
-    expect(right.manager.splitView).toBeNull()
+  it('puts it back beside the tab it was shown with, on its side, with the split\'s layout, and the same pane active', async () => {
+    const bottom = window(['a', 'b'], { first: 'a', second: 'b', orientation: 'horizontal', ratio: 0.3 })
+    const a = bottom.tab('a')
+    bottom.close('b')
+    expect(bottom.manager.splitView).toBeNull()
 
-    const reopened = await right.reopen()
+    const b = await bottom.reopen()
 
-    expect(reopened).toMatchObject({ title: 'b' })
-    // Shown beside a, the reopened tab comes first, so it swaps to the second pane, where it was.
-    expect(openSplitView).toHaveBeenCalledExactlyOnceWith(right.manager, a.id)
-    expect(updateSplitView).toHaveBeenCalledExactlyOnceWith(right.manager, { orientation: 'horizontal', ratio: 0.3, swap: true })
+    // It opens behind, so the page shown is never hidden, and goes beside it at the bottom; a stays the active pane, and
+    // keeps the keyboard while b's page loads.
+    expect(bottom.manager.createTab).toHaveBeenCalledWith(expect.objectContaining({ active: false }))
+    expect(openSplitView).toHaveBeenCalledExactlyOnceWith(bottom.manager, b!.id, { openedBeside: true })
+    expect(updateSplitView).toHaveBeenCalledExactlyOnceWith(bottom.manager, { orientation: 'horizontal', ratio: 0.3, swap: false })
+    expect(bottom.manager.selectTab).not.toHaveBeenCalled()
+    expect(bottom.manager.activeTabId).toBe(a.id)
 
+    // The left pane, the active one, goes back on the left and is the active pane again.
     const left = window(['a', 'b'], { first: 'a', second: 'b', orientation: 'vertical', ratio: 0.7 })
-    const b = left.tab('b')
     left.close('a')
-    await left.reopen()
-    expect(openSplitView).toHaveBeenLastCalledWith(left.manager, b.id)
-    expect(updateSplitView).toHaveBeenLastCalledWith(left.manager, { orientation: 'vertical', ratio: 0.7, swap: false })
+    const reopenedA = await left.reopen()
+    expect(openSplitView).toHaveBeenLastCalledWith(left.manager, reopenedA!.id, { openedBeside: false })
+    expect(updateSplitView).toHaveBeenLastCalledWith(left.manager, { orientation: 'vertical', ratio: 0.7, swap: true })
+    expect(left.manager.selectTab).toHaveBeenCalledExactlyOnceWith(reopenedA!.id)
   })
 
-  it('opens it alone when the tab beside it is not the one shown, another split is open, or that tab is gone', async () => {
-    const otherTab = window(['a', 'b', 'c'], { first: 'a', second: 'b', orientation: 'vertical', ratio: 0.5 })
-    otherTab.close('b')
-    otherTab.show('c')
-    await otherTab.reopen()
-
-    const otherSplit = window(['a', 'b', 'c'], { first: 'a', second: 'b', orientation: 'vertical', ratio: 0.5 })
-    otherSplit.close('b')
-    otherSplit.manager.splitView = {
-      firstTabId: otherSplit.tab('a').id, secondTabId: otherSplit.tab('c').id, orientation: 'vertical', ratio: 0.5
+  it('shows it alone when the tab beside it is not the one shown, another split is open, or that tab goes away', async () => {
+    const shownAlone = async (setUp: (split: ReturnType<typeof window>) => void) => {
+      const split = window(['a', 'b', 'c'], { first: 'a', second: 'b', orientation: 'vertical', ratio: 0.5 })
+      split.close('b')
+      setUp(split)
+      const b = await split.reopen()
+      expect(split.manager.activeTabId).toBe(b!.id)
+      expect(split.manager.splitView).toBeNull()
     }
-    await otherSplit.reopen()
 
-    const gone = window(['a', 'b', 'c'], { first: 'a', second: 'b', orientation: 'vertical', ratio: 0.5 })
-    gone.close('b')
-    gone.close('a')
-    // a reopens first and is not in a split; b then finds the tab it was beside gone, as a reopened a is another tab.
-    await gone.reopen()
-    await gone.reopen()
-
-    const crashed = window(['a', 'b'], { first: 'a', second: 'b', orientation: 'vertical', ratio: 0.5 })
-    crashed.close('b')
-    crashed.tab('a').webContents = { isDestroyed: () => true }
-    await crashed.reopen()
+    await shownAlone((split) => { split.manager.activeTabId = split.tab('c').id })
+    // Showing b ends the person's split of a and c, as showing any tab outside a split view does.
+    await shownAlone((split) => {
+      split.manager.splitView = { firstTabId: split.tab('a').id, secondTabId: split.tab('c').id, orientation: 'vertical', ratio: 0.5 }
+    })
+    await shownAlone((split) => {
+      split.manager.opening = () => { split.close('a') }
+    })
+    await shownAlone((split) => {
+      split.manager.opening = () => { split.tab('a').webContents = { isDestroyed: () => true } }
+    })
+    await shownAlone((split) => {
+      split.manager.opening = () => { split.manager.activeTabId = split.tab('c').id }
+    })
 
     expect(openSplitView).not.toHaveBeenCalled()
     expect(updateSplitView).not.toHaveBeenCalled()
   })
 
-  it('opens it alone when it reopens behind or in another workspace than the tab it was beside', async () => {
-    const behind = window(['a', 'b'], { first: 'a', second: 'b', orientation: 'vertical', ratio: 0.5 })
-    behind.close('b')
-    await behind.reopen(false)
+  it('opens it behind, outside a split view, when it reopens behind', async () => {
+    const split = window(['a', 'b'], { first: 'a', second: 'b', orientation: 'vertical', ratio: 0.5 })
+    const a = split.tab('a')
+    split.close('b')
 
-    const moved = window(['a', 'b'], { first: 'a', second: 'b', orientation: 'vertical', ratio: 0.5 })
-    moved.close('b')
-    moved.tab('a').mcpGroupId = 'client'
-    await moved.reopen()
+    await split.reopen(false)
 
     expect(openSplitView).not.toHaveBeenCalled()
+    expect(split.manager.selectTab).not.toHaveBeenCalled()
+    expect(split.manager.activeTabId).toBe(a.id)
   })
 
-  it('still opens it when the split view cannot be put back', async () => {
+  it('shows it alone when the split view cannot be put back', async () => {
     const split = window(['a', 'b'], { first: 'a', second: 'b', orientation: 'vertical', ratio: 0.5 })
     split.close('b')
     vi.mocked(openSplitView).mockImplementation(() => { throw new Error('The view is gone') })
     const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
-    await expect(split.reopen()).resolves.toMatchObject({ title: 'b' })
+    const b = await split.reopen()
 
     expect(logged).toHaveBeenCalledWith('[browser] Could not put a reopened tab back into its split view:', expect.any(Error))
     expect(updateSplitView).not.toHaveBeenCalled()
+    expect(split.manager.selectTab).toHaveBeenCalledExactlyOnceWith(b!.id)
   })
 })
