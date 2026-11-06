@@ -4232,6 +4232,7 @@ export const ptBR: MessageSchema = {
       copy: 'Copiar',
       paste: 'Colar',
       pasteMatchStyle: 'Colar e combinar estilo',
+      pasteAsPlainText: 'Colar como texto simples',
       pasteAndGo: 'Colar e acessar',
       pasteAndGoTo: 'Colar e acessar {text}',
       pasteAndSearchFor: 'Colar e pesquisar “{text}”',

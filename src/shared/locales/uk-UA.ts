@@ -4232,6 +4232,7 @@ export const ukUA: MessageSchema = {
       copy: 'Копіювати',
       paste: 'Вставити',
       pasteMatchStyle: 'Вставити у стилі призначення',
+      pasteAsPlainText: 'Вставити як звичайний текст',
       pasteAndGo: 'Вставити й перейти',
       pasteAndGoTo: 'Вставити й перейти на {text}',
       pasteAndSearchFor: 'Вставити й шукати «{text}»',

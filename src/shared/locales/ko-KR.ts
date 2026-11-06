@@ -4232,6 +4232,7 @@ export const koKR: MessageSchema = {
       copy: '복사',
       paste: '붙여넣기',
       pasteMatchStyle: '붙여넣고 스타일 일치',
+      pasteAsPlainText: '일반 텍스트로 붙여넣기',
       pasteAndGo: '붙여넣은 후 이동',
       pasteAndGoTo: '붙여넣은 후 {text}(으)로 이동',
       pasteAndSearchFor: '붙여넣은 후 ‘{text}’ 검색',

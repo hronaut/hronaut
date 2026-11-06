@@ -1,7 +1,25 @@
-import type { ContextMenuParams, Rectangle, WebContents } from 'electron'
+import { clipboard, type ContextMenuParams, type Rectangle, type WebContents } from 'electron'
 import type { Browser } from '../browser.js'
+import { findTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
+import { shownPageFullscreenTab } from '../window-layout/content-area.js'
 import { showContextMenu } from './page-context-menu.js'
+
+/** How long a text field's menu waits to learn whether the clipboard holds text before it opens without knowing. */
+const CLIPBOARD_WAIT_MS = 500
+
+/**
+ * Whether the clipboard holds text, by the types it offers, as Chrome reads it for a field's Paste as plain text. To
+ * answer, Electron also reads a bookmark on Windows and the formats a website wrote under its own names; nothing it
+ * reads reaches Hronaut's code. A clipboard that cannot say leaves it to the field.
+ */
+async function clipboardHoldsText(): Promise<boolean | undefined> {
+  try {
+    return await clipboard.has('text/plain')
+  } catch {
+    return undefined
+  }
+}
 
 /**
  * Where the page's menu opens in the window, as in Chrome: at the point the page reports, in the page's view. That is
@@ -16,16 +34,46 @@ export function pageMenuPoint(view: Rectangle, params: Pick<ContextMenuParams, '
 
 /**
  * Replaces the page's own context menu with Hronaut's on every right-click, Menu key or Shift+F10; while the
- * person's input to the tab is locked, no menu opens. Following an agent waits while the menu is open, so the page
- * its items act on stays in view.
+ * person's input to the tab is locked, or trusted chrome covers the page, no menu opens. Following an agent waits
+ * while the menu is open, so the page its items act on stays in view. As in Chrome, a field that takes a paste first
+ * learns whether the clipboard holds text, for its Paste as plain text, briefly; a newer right-click takes over from
+ * one still waiting, and none opens once its tab was locked, closed or left view, or its frame was replaced or
+ * removed, meanwhile. On macOS it does not ask: Electron's answer there also reads the
+ * pasteboard's link and the find pasteboard, which macOS can ask the person to allow, so Paste and Match Style follows
+ * the field, and a misspelled word's menu, which has none, does not ask.
  */
 export function attachPageContextMenuEvents(browser: Browser, tab: BrowserTab, webContents: WebContents): void {
+  let latestRequest = 0
   webContents.on('context-menu', (event, params) => {
     event.preventDefault()
+    const request = ++latestRequest
     if (browser.isHumanInteractionLocked(tab)) return
-    showContextMenu(browser, tab, params, {
-      at: pageMenuPoint(tab.view.getBounds(), params),
-      whileOpen: () => browser.mcpActivityFollower.pageMenuOpened()
-    })
+    // Electron reads the frame again on each read, and gives none once it is gone, as after a navigation to another
+    // site or an iframe's removal; a navigation that keeps it keeps the menu, as in Chrome.
+    const frame = params.frame
+    const show = (holdsText?: boolean): void => {
+      if (request !== latestRequest || webContents.isDestroyed() || findTab(browser, tab.id) !== tab || browser.isHumanInteractionLocked(tab)) return
+      // An agent's tool or a tray click can bring another tab into view, or the other pane's page fill the window, and
+      // trusted chrome, such as an agent's approval, can cover the page, meanwhile; no menu opens over trusted chrome.
+      const fullscreenTab = shownPageFullscreenTab(browser)
+      const inView = fullscreenTab ? fullscreenTab === tab : browser.activeTabId === tab.id || browser.splitViewContains(tab.id)
+      if (!inView || browser.browserContentOccluded) return
+      if (frame && (frame.isDestroyed() || frame.detached || params.frame !== frame)) return
+      const at = pageMenuPoint(tab.view.getBounds(), params)
+      showContextMenu(browser, tab, params, { at, whileOpen: () => browser.mcpActivityFollower.pageMenuOpened() }, holdsText)
+    }
+    if (!params.isEditable || !params.editFlags.canPaste || params.misspelledWord || process.platform === 'darwin') {
+      show()
+      return
+    }
+    let settled = false
+    const showOnce = (holdsText?: boolean): void => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      show(holdsText)
+    }
+    const timer = setTimeout(() => showOnce(), CLIPBOARD_WAIT_MS)
+    void clipboardHoldsText().then(showOnce)
   })
 }
