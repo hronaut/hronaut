@@ -138,7 +138,7 @@ const {
   handleTabStripScroll,
   markActiveTabVisible,
   observeStrip,
-  stopObservingStrip
+  stopObservingStrip, holdTabWidths
 } = useTabStripScroll({ vertical, focusedTabId })
 const { draggedTabId, draggedTabIds, tabDropTargetId, tabDropPlacement, clearTabDrag, beginTabDrag, updateTabDrop, finishTabDrop } = useTabDragReorder({
   tabs: regularTabs,
@@ -384,12 +384,12 @@ const showTabContextMenu = (tabId: string): void => {
   emit('showTabContextMenu', tabId, selected.length ? selected : undefined)
 }
 const toggleTabMuted = (tab: BrowserTabState): void => emit('toggleTabMuted', tab)
-const closeTab = (tabId: string): void => emit('closeTab', tabId)
+const closeTab = (tabId: string): void => { holdTabWidths(); emit('closeTab', tabId) }
 
 function handleTabAuxClick(event: MouseEvent, tab: BrowserTabState): void {
   if (event.button !== 1) return
   event.preventDefault()
-  emit('closeTab', tab.id)
+  closeTab(tab.id)
 }
 
 // Closing the focused tab, as with Delete, takes its control out of the strip, and moving it, as with Move left or Pin,
