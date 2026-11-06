@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [3.14.19] - 2026-11-06
+
 ### Changed
 
 - A tab in the tab strip now shows as soon as you press the mouse button on it, as in Chrome, rather than when you let go. Pressing one of several selected tabs keeps them selected so you can drag them together.
