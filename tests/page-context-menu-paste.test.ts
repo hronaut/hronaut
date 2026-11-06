@@ -44,7 +44,7 @@ const fieldParams = {
 function page(options: { locked?: () => boolean } = {}) {
   const webContents = Object.assign(new EventEmitter(), {
     id: 7,
-    isDestroyed: () => false,
+    isDestroyed: (): boolean => false,
     navigationHistory: { canGoBack: () => false, canGoForward: () => false },
     paste: vi.fn(),
     pasteAndMatchStyle: vi.fn()
@@ -253,6 +253,28 @@ describe('a text field\'s menu as it opens', () => {
     shell.tabs.delete('tab')
     await settle()
     expect(built.templates).toHaveLength(3)
+  })
+
+  it('opens none once trusted chrome covered the page, or the page was destroyed, meanwhile', async () => {
+    const { browser, tab, webContents } = page()
+    const shell = browser as unknown as { browserContentOccluded: boolean }
+    attachPageContextMenuEvents(browser, tab, webContents as unknown as WebContents)
+
+    // An agent's approval came up over the page while the clipboard answered.
+    open(webContents)
+    shell.browserContentOccluded = true
+    await settle()
+    expect(built.templates).toHaveLength(0)
+    // One asked for while the page was already covered opens, as a menu with no paste does.
+    open(webContents)
+    await settle()
+    expect(built.templates).toHaveLength(1)
+    shell.browserContentOccluded = false
+
+    open(webContents)
+    webContents.isDestroyed = () => true
+    await settle()
+    expect(built.templates).toHaveLength(1)
   })
 
   it('opens none once its frame was replaced or removed meanwhile, and one for a frame that stayed', async () => {
