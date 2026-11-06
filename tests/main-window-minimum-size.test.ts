@@ -173,6 +173,8 @@ it('keeps a restore\'s one growth for a resize below the minimum within a second
     // The window manager resizes through a size that needs nothing before the one it ends at.
     window.move({ x: 0, y: 0, width: 1270, height: 730 })
     keepMainWindowMinimumSize(window as never, 1.25, resized)
+    // A whole second after the restore.
+    now.mockReturnValue(2000)
     window.move({ x: 0, y: 0, width: 640, height: 700 })
     keepMainWindowMinimumSize(window as never, 1.25, resized)
     expect(window.setBounds).toHaveBeenCalledOnce()
@@ -180,7 +182,7 @@ it('keeps a restore\'s one growth for a resize below the minimum within a second
 
     // A restore that needed nothing leaves a tiling window manager's later tile to it.
     keepMainWindowMinimumSize(window as never, 1.25, restored)
-    now.mockReturnValue(2001)
+    now.mockReturnValue(3001)
     window.move({ x: 0, y: 0, width: 640, height: 700 })
     keepMainWindowMinimumSize(window as never, 1.25, resized)
     expect(window.setBounds).toHaveBeenCalledOnce()
@@ -197,6 +199,18 @@ it('grows a window a window manager gives its size back after saying it left max
   keepMainWindowMinimumSize(window as never, 1.25, restored)
   expect(window.setMinimumSize).toHaveBeenCalledWith(750, 520)
   expect(window.setBounds).not.toHaveBeenCalled()
+  window.move({ x: 0, y: 0, width: 640, height: 700 })
+  keepMainWindowMinimumSize(window as never, 1.25, resized)
+  expect(window.setBounds).toHaveBeenCalledWith({ x: 0, y: 0, width: 750, height: 700 })
+})
+
+it('keeps a restore\'s growth while the window still fills its screen, for the size the system gives back after', () => {
+  const window = fakeWindow({ x: 0, y: 0, width: 800, height: 700 })
+  applyMainWindowMinimumSize(window as never, 1.25)
+  // The system can say the window left full screen while its bounds still fill the screen.
+  window.move({ ...displayBounds })
+  keepMainWindowMinimumSize(window as never, 1.25, restored)
+  expect(window.setMinimumSize).toHaveBeenCalledOnce()
   window.move({ x: 0, y: 0, width: 640, height: 700 })
   keepMainWindowMinimumSize(window as never, 1.25, resized)
   expect(window.setBounds).toHaveBeenCalledWith({ x: 0, y: 0, width: 750, height: 700 })
