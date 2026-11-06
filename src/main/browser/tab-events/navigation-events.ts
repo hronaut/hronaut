@@ -38,6 +38,8 @@ const HISTORY_TITLE_WINDOW_MS = 5_000
 const HISTORY_TITLE_CHANGES = 10
 /** Chromium's limit of history entries for a tab, at which a new last entry takes the last index again. */
 const MAX_TAB_HISTORY_ENTRIES = 50
+/** How long a tab still shows its sound after the sound stops, as Chrome's RecentlyAudibleHelper keeps it. */
+export const RECENTLY_AUDIBLE_MS = 2_000
 
 /**
  * Follows the page's title, loading and navigation: title updates, loading
@@ -214,11 +216,26 @@ export function attachNavigationEvents(browser: Browser, tab: BrowserTab, webCon
   webContents.on('certificate-error', (event, url, error, certificate, callback, isMainFrame) => {
     answerTabCertificateError(browser, tab, event, url, error, certificate, callback, isMainFrame)
   })
+  // As Chrome's recently audible tabs, a tab keeps showing its sound until 2 s after the sound stops, so its speaker and
+  // mute button stay put through the short pauses of a video, a game or a call rather than flicker, and the tab stays
+  // awake through them.
+  let quietTimer: NodeJS.Timeout | undefined
   webContents.on('audio-state-changed', (event) => {
-    tab.audible = event.audible
+    clearTimeout(quietTimer)
+    quietTimer = undefined
     tab.muted = webContents.isAudioMuted()
+    if (event.audible) tab.audible = true
+    else if (tab.audible) {
+      quietTimer = setTimeout(() => {
+        quietTimer = undefined
+        if (browser.destroyed || webContents.isDestroyed()) return
+        tab.audible = false
+        publishChange(browser, false)
+      }, RECENTLY_AUDIBLE_MS)
+    }
     publishChange(browser, false)
   })
+  webContents.once('destroyed', () => clearTimeout(quietTimer))
   webContents.on('did-stop-loading', () => {
     // An aborted provisional load still stops loading without a commit.
     if (!webContents.isLoadingMainFrame()) {
