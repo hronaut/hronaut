@@ -1,3 +1,4 @@
+import type { WebContents } from 'electron'
 import type { BrowserDialogHandlingOptions } from '../../../shared/types.js'
 import { acquireNativeClickAdmission, NativeClickAdmissionError, nativeClickObserver, nativeClickProgress, type NativeClickProgress } from '../native-click-admission.js'
 import { NativeInputCleanupError } from '../native-input-cleanup.js'
@@ -28,6 +29,7 @@ import { withDebugger } from '../debugger-lease/debugger-lease.js'
 import { withAgentInput } from '../agent-input-scope/agent-input-scope.js'
 import { nativeInputAuthority } from '../native-input-authority/native-input-authority.js'
 import { observeOpenedTabs, stopObservingOpenedTabs } from '../click-opened-tabs.js'
+import { agentLeaveRefusals } from '../tab-events/leave-site-question.js'
 
 /** A key held for one native click; ControlOrMeta is Meta on macOS and Control elsewhere. */
 export type BrowserClickModifier = 'Shift' | 'Control' | 'Meta' | 'ControlOrMeta'
@@ -45,20 +47,35 @@ export type BrowserClickTarget = {
   modifiers?: readonly BrowserClickModifier[]
 } & BrowserDialogHandlingOptions
 
+/** What a click reports when the navigation it started was cancelled because the page asked before it is left. */
+const PAGE_ASKED_TO_STAY_AFTER_CLICK = 'The page asked to confirm before it is left (a beforeunload prompt, as a page with '
+  + 'unsaved changes shows), so the navigation this click started was cancelled and the page stayed open. To open the '
+  + 'link anyway, use browser_new_tab with its address. Otherwise finish or save what the page holds first. '
+  + 'browser_close_tab closes the tab and discards its unsaved changes.'
+
 /**
  * An agent's click on a control or at a point in the tab's page, reporting the
- * tabs the page opened meanwhile that are still open in its workspace.
+ * tabs the page opened meanwhile that are still open in its workspace, and when
+ * the page kept itself open against the navigation the click started.
  */
 export async function click(browser: Browser, target: BrowserClickTarget, validateClick?: (validateContext: () => void) => void, recordClickProgress?: (progress: NativeClickProgress) => void, retainClickAuthority?: (authority: { validate(): void; dispose(): void }) => void, agent?: AgentPointerIdentity): Promise<unknown> {
   let observed: { tab: BrowserTab; observation: OpenedTabObservation } | undefined
+  let refusalsBefore: { webContents: WebContents; count: number } | undefined
   try {
     const result = await dispatchClick(browser, target, validateClick, recordClickProgress, retainClickAuthority, (tab) => {
       observed = { tab, observation: observeOpenedTabs(browser, tab) }
+      refusalsBefore = { webContents: tab.webContents, count: agentLeaveRefusals(tab.webContents) }
     }, agent)
     const current = observed
     observed = undefined
     const opened = current && stopObservingOpenedTabs(browser, current.tab, current.observation)
-    return opened && result && typeof result === 'object' ? { ...result, tabsOpenedDuringClick: opened } : result
+    const stayed = refusalsBefore && agentLeaveRefusals(refusalsBefore.webContents) > refusalsBefore.count
+    if (!result || typeof result !== 'object') return result
+    return {
+      ...result,
+      ...(opened ? { tabsOpenedDuringClick: opened } : {}),
+      ...(stayed ? { pageAskedToStay: PAGE_ASKED_TO_STAY_AFTER_CLICK } : {})
+    }
   } finally {
     if (observed) stopObservingOpenedTabs(browser, observed.tab, observed.observation)
   }

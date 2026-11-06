@@ -9,13 +9,17 @@ import type { BrowserTab } from '../browser-tab.js'
  * question with this listener alone, synchronously, so the question is the system's own message box. Without it
  * Electron keeps the page and silently cancels the navigation. Hronaut's own navigations and closes add their own
  * listener and answer the question themselves, and a navigation an agent's input starts keeps the page without
- * asking, so the agent learns the page stayed and the person is not asked about work they did not start.
+ * asking, which agentLeaveRefusals counts so the agent's action can say the page stayed, and the person is not asked
+ * about work they did not start.
  */
 export function attachLeaveSiteQuestion(browser: Browser, tab: BrowserTab, webContents: WebContents): void {
   webContents.on('will-prevent-unload', (event) => {
     if (webContents.listenerCount('will-prevent-unload') > 1) return
     if (browser.destroyed || findTab(browser, tab.id) !== tab) return
-    if (browser.agentInputWebContents.has(webContents.id)) return
+    if (browser.agentInputWebContents.has(webContents.id)) {
+      refusals.set(webContents, agentLeaveRefusals(webContents) + 1)
+      return
+    }
     const response = dialog.showMessageBoxSync(browser.window, {
       type: 'warning',
       title: browser.text('native.dialog.leavePageTitle'),
@@ -28,4 +32,11 @@ export function attachLeaveSiteQuestion(browser: Browser, tab: BrowserTab, webCo
     })
     if (response === 1) event.preventDefault()
   })
+}
+
+const refusals = new WeakMap<WebContents, number>()
+
+/** How many times a page kept itself open, without asking the person, against a navigation an agent's input started. */
+export function agentLeaveRefusals(webContents: WebContents): number {
+  return refusals.get(webContents) ?? 0
 }
