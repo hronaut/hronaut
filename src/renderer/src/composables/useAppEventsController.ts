@@ -33,7 +33,7 @@ export interface AppEventsControllerOptions {
   onUserAttention: () => unknown
   onShortcut: (action: BrowserShortcutAction) => unknown
   onTabGroupEdit: (groupId: string) => unknown
-  onNewTab: (workspaceId: string | undefined) => unknown
+  onNewTab: (workspaceId: string | undefined, besideTabId?: string) => unknown
   /** Opens the history panel, unless it is open. */
   onVisitHistory: () => unknown
   /** A tab's menu asked to bookmark the tabs of its workspace, or of no workspace for null. */

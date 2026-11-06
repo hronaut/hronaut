@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Changed
 
 - A tab's close button is now named **Close tab**, as in Chrome, without Ctrl/Cmd+W, which on a tab in the background closes the shown tab instead.
+- A tab's menu now offers **New Tab to the Right** (**New Tab Below** with tabs on the left), which opens the new tab right after that tab, as Chrome does, rather than **New Tab** at the end of the workspace.
 
 ## [3.14.21] - 2026-11-06
 

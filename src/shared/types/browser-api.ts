@@ -211,7 +211,7 @@ export interface HronautShellRequestsApi {
   onHomeWorkspaceEditorRequested(listener: (request: import('../home-workspaces.js').HomeWorkspaceEditorRequest) => void): () => void
   onTabGroupEditRequested(listener: (groupId: string) => void): () => void
   /** A menu asked for a new tab in the workspace, or in the active tab's workspace when it names none. */
-  onNewTabRequested(listener: (workspaceId: string | undefined) => void): () => void
+  onNewTabRequested(listener: (workspaceId: string | undefined, besideTabId?: string) => void): () => void
   /** Show Full History in Back's or Forward's list asked for the history panel. */
   onVisitHistoryRequested(listener: () => void): () => void
   /** A tab's menu asked to bookmark the open tabs of its workspace, or of no workspace for null. */

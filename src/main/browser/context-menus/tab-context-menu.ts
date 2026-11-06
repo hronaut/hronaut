@@ -144,10 +144,11 @@ export function showTabContextMenu(browser: Browser, tabId: string, onClosed?: (
     }, { type: 'separator' as const }] : []),
     {
       id: 'new-tab',
-      label: browser.text('native.context.newTab'),
-      // In the workspace of the tab whose menu this is, which the rail can show while another workspace's tab is
-      // active. The window opens it as its + button does, so the cursor goes to the address field.
-      click: () => runAction('open a new tab', () => sendTo(browser.window.webContents, SHELL_IPC.newTabRequested, tab.mcpGroupId))
+      label: browser.text(verticalTabs ? 'native.context.newTabBelow' : 'native.context.newTabRight'),
+      // Right after the tab whose menu this is, in its workspace, as Chrome's New tab to the right; the rail can show
+      // that workspace while another workspace's tab is active. The window opens it as its + button does, so the
+      // cursor goes to the address field.
+      click: () => runAction('open a new tab', () => sendTo(browser.window.webContents, SHELL_IPC.newTabRequested, tab.mcpGroupId, tab.id))
     },
     // A page Electron destroyed while its tab stayed open cannot load again in it; its tab says to reopen it instead.
     {

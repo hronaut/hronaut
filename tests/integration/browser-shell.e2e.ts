@@ -4404,7 +4404,7 @@ test('pins tabs from the native menu and the Tabs view while preserving closed-t
     return menu?.items.filter((item) => item.type !== 'separator').map(({ id, label, enabled }) => ({ id, label, enabled })) ?? []
   })
   await expect.poll(tabMenuItems).toEqual([
-    { id: 'new-tab', label: 'New Tab', enabled: true },
+    { id: 'new-tab', label: 'New Tab to the Right', enabled: true },
     { id: 'reload-tab', label: 'Reload Tab', enabled: true },
     { id: 'reload-tab-ignoring-cache', label: 'Reload Tab Without Cache', enabled: true },
     { id: 'duplicate-tab', label: 'Duplicate Tab', enabled: true },

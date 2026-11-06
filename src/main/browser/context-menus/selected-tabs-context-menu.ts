@@ -69,8 +69,8 @@ export function showSelectedTabsContextMenu(browser: Browser, tab: BrowserTab, s
   const menu = Menu.buildFromTemplate([
     {
       id: 'new-tab',
-      label: browser.text('native.context.newTab'),
-      click: () => runAction('open a new tab', () => sendTo(browser.window.webContents, SHELL_IPC.newTabRequested, tab.mcpGroupId))
+      label: browser.text(browser.options.getTabPosition() === 'left' ? 'native.context.newTabBelow' : 'native.context.newTabRight'),
+      click: () => runAction('open a new tab', () => sendTo(browser.window.webContents, SHELL_IPC.newTabRequested, tab.mcpGroupId, tab.id))
     },
     // Only the tabs whose page is still there: one Electron destroyed while its tab stayed open cannot load again.
     {

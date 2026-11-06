@@ -41,12 +41,13 @@ export function useNewTabShellController(options: NewTabShellControllerOptions) 
     return open()
   }
 
-  async function openInWorkspace(groupId?: string): Promise<boolean> {
+  /** Opens a new tab in the workspace, right after the tab given, as Chrome's New tab to the right, or else at its end. */
+  async function openInWorkspace(groupId?: string, besideTabId?: string): Promise<boolean> {
     if (groupId === undefined) return openDefault()
     const workspace = options.state.value.mcpTabGroups.find((candidate) => candidate.id === groupId)
     if (!workspace) return false
     try {
-      return await open({ active: true, mcpGroupId: groupId }, groupId)
+      return await open({ active: true, mcpGroupId: groupId, ...(besideTabId ? { besideTabId } : {}) }, groupId)
     } catch (error) {
       options.onWorkspaceError(workspace, error)
       return false
