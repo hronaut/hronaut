@@ -88,6 +88,8 @@ interface Manager {
   allHumanInteractionLocked: boolean
   agentInputWebContents: Map<number, number>
   mcpActivityFollower: { noteHumanInput: ReturnType<typeof vi.fn> }
+  reproRecorder: { observeReproMouse: ReturnType<typeof vi.fn> }
+  options: { onUserInteraction?: ReturnType<typeof vi.fn> }
 }
 
 function browser() {
@@ -103,6 +105,7 @@ function browser() {
     webContentsToTab: new Map(), openedTabObservations: new Map(), activeTabId: null, splitView: null, splitViewGeneration: 0,
     tabSelectionGeneration: 0, toolbarHeight: 60, contentInsets: { top: 0, right: 10, bottom: 10, left: 280 }, allTabsMuted: false,
     allHumanInteractionLocked: false, globallyUnlockedTabIds: new Set(), agentInputWebContents: new Map(), agentWheel: new Map(),
+    authorizedAgentMouseInput: new Map(),
     screenshotAreaSessions: new Map(), elementPickerSessions: new Map(), browserContentOccluded: false, pageFullscreenTabs: new Set(),
     reproRecorder: { observeReproMouse: vi.fn() }, mcpActivityFollower: { noteHumanInput: vi.fn() },
     scheduleTabOverviewPreview: vi.fn(),
@@ -172,14 +175,15 @@ describe('a touch on the other pane of the split view', () => {
     expect(manager.activeTabId).toBe(left.id)
   })
 
-  it('leaves the active pane while the human input lock holds the page', async () => {
+  // The lock keeps the person's input from the page, not from choosing it: its Unlock is on the active pane's address bar.
+  it('makes it the active pane while the human input lock holds the page too', async () => {
     const { manager } = browser()
-    const { left, right } = await personInSplitView(manager)
+    const { right } = await personInSplitView(manager)
     manager.allHumanInteractionLocked = true
 
     touch(right)
 
-    expect(manager.activeTabId).toBe(left.id)
+    expect(manager.activeTabId).toBe(right.id)
   })
 
   it('leaves the active pane for an agent\'s touch', async () => {
@@ -191,5 +195,74 @@ describe('a touch on the other pane of the split view', () => {
 
     expect(manager.activeTabId).toBe(left.id)
     expect(manager.mcpActivityFollower.noteHumanInput).not.toHaveBeenCalled()
+  })
+})
+
+// A press on a pane the human input lock held never reached the code that chooses the active pane, so the address bar
+// and its Unlock stayed on the other pane, though clicking either page makes it the active one.
+describe('a press on the other pane of the split view while the human input lock holds it', () => {
+  function press(tab: Tab, type: 'mouseDown' | 'contextMenu' | 'mouseUp' | 'mouseMove') {
+    const event = { preventDefault: vi.fn() }
+    tab.webContents.emit('before-mouse-event', event, { type, button: type === 'contextMenu' ? 'right' : 'left', x: 40, y: 40 })
+    return event
+  }
+
+  it('makes it the active pane, and the page gets none of it', async () => {
+    const { manager } = browser()
+    const { left, right, split } = await personInSplitView(manager)
+    manager.allHumanInteractionLocked = true
+    manager.options.onUserInteraction = vi.fn()
+    const generation = manager.tabSelectionGeneration
+    const clicks = (right as Tab & { humanInteractionGeneration: number }).humanInteractionGeneration
+
+    const moved = press(right, 'mouseMove')
+    expect(manager.activeTabId).toBe(left.id)
+    expect(manager.mcpActivityFollower.noteHumanInput).not.toHaveBeenCalled()
+    const pressed = press(right, 'mouseDown')
+
+    expect({ splitView: manager.splitView, activeTabId: manager.activeTabId }).toEqual({ splitView: split, activeTabId: right.id })
+    expect(pressed.preventDefault).toHaveBeenCalledOnce()
+    expect(moved.preventDefault).toHaveBeenCalledOnce()
+    // A choice of the pane, which a sleeping tab still waking yields to and following waits for, but no click: the page,
+    // its take-over offers and the repro recording hear nothing of it.
+    expect(manager.tabSelectionGeneration).toBeGreaterThan(generation)
+    expect(manager.mcpActivityFollower.noteHumanInput).toHaveBeenCalledOnce()
+    expect((right as Tab & { humanInteractionGeneration: number }).humanInteractionGeneration).toBe(clicks)
+    expect(manager.options.onUserInteraction).not.toHaveBeenCalled()
+    expect(manager.reproRecorder.observeReproMouse).not.toHaveBeenCalled()
+  })
+
+  it('makes it the active pane on a right-click too', async () => {
+    const { manager } = browser()
+    const { right } = await personInSplitView(manager)
+    manager.allHumanInteractionLocked = true
+
+    const opened = press(right, 'contextMenu')
+
+    expect(manager.activeTabId).toBe(right.id)
+    expect(opened.preventDefault).toHaveBeenCalledOnce()
+  })
+
+  it('leaves the active pane while trusted chrome covers the pages', async () => {
+    const { manager } = browser()
+    const { left, right } = await personInSplitView(manager)
+    manager.allHumanInteractionLocked = true
+    manager.browserContentOccluded = true
+
+    press(right, 'mouseDown')
+
+    expect(manager.activeTabId).toBe(left.id)
+  })
+
+  it('leaves the active pane for an agent\'s press the lock holds back', async () => {
+    const { manager } = browser()
+    const { left, right } = await personInSplitView(manager)
+    manager.allHumanInteractionLocked = true
+    manager.agentInputWebContents.set(right.webContents.id, 1)
+
+    const pressed = press(right, 'mouseDown')
+
+    expect(manager.activeTabId).toBe(left.id)
+    expect(pressed.preventDefault).toHaveBeenCalledOnce()
   })
 })

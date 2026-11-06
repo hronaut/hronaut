@@ -13,6 +13,7 @@ All notable changes to Hronaut are documented in this file.
 - A tab's speaker in the tab strip, and its Playing audio note on Home, no longer flicker off and on through the short pauses in a video, a game or a call: as in Chrome, they stay until 2 seconds after the sound stops, and the tab is not put to sleep in those pauses.
 - A tab you close after its page crashed or could not load is now listed in Recently closed by its page's title, or by its address, rather than as Page unavailable or Site unavailable, and it reopens with that title, as in Chrome.
 - Undo after closing several tabs at once, the one you were on among them, such as selected tabs or with Close other tabs, now shows that tab again, with the others back behind it, rather than leaving you on the tab that replaced them.
+- Clicking or touching a page of a split view whose input you locked now makes it the active pane, so Unlock input beside the address bar acts on it, as after any other click on either page. The page still gets none of it.
 
 ## [3.14.18] - 2026-11-06
 

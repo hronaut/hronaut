@@ -19,7 +19,8 @@ const TAB_OVERVIEW_INPUT_SETTLE_MS = 1_000
  * the human input lock may hold it back. Otherwise the input is recorded,
  * refreshes the tab's overview preview, makes following wait, and a press or
  * touch on the other split pane makes it the active tab; a touch counts as no
- * click, since it may start a scroll.
+ * click, since it may start a scroll. Choosing the active pane is the
+ * browser's, not input to the page, so a pane the lock holds is chosen too.
  */
 export function attachPagePointerEvents(browser: Browser, tab: BrowserTab, webContents: WebContents): void {
   // Wheel and touch input never reach before-mouse-event; while the person scrolls or touches
@@ -31,10 +32,8 @@ export function attachPagePointerEvents(browser: Browser, tab: BrowserTab, webCo
     if (browser.agentInputWebContents.has(webContentsId) || agentWheelUnderWay(browser, webContentsId)) return
     browser.mcpActivityFollower.noteHumanInput()
     // A touch may start a scroll, so it is no click, but a touch on the other split pane makes it the active pane as a
-    // click does, unless trusted chrome covers the pages or the human input lock holds the page.
-    if (input.type === 'touchStart' && !browser.browserContentOccluded && !browser.isHumanInteractionLocked(tab)) {
-      selectOtherPane(browser, tab)
-    }
+    // click does, unless trusted chrome covers the pages; under the human input lock too, which only keeps it from the page.
+    if (input.type === 'touchStart' && !browser.browserContentOccluded) selectOtherPane(browser, tab)
   })
   webContents.once('destroyed', () => browser.agentWheel.delete(webContentsId))
   webContents.on('before-mouse-event', (event, mouse) => {
@@ -69,6 +68,12 @@ export function attachPagePointerEvents(browser: Browser, tab: BrowserTab, webCo
     }
     if (shouldBlockHumanMouseInput(browser, tab, mouse)) {
       event.preventDefault()
+      // The page gets none of the person's press, but it still makes it the active pane, which Unlock input beside the
+      // address bar then acts on, and makes following wait, as a touch does.
+      if ((mouse.type === 'mouseDown' || mouse.type === 'contextMenu') && !browser.agentInputWebContents.has(webContents.id)) {
+        browser.mcpActivityFollower.noteHumanInput()
+        selectOtherPane(browser, tab)
+      }
       return
     }
     browser.reproRecorder.observeReproMouse(tab, mouse)
