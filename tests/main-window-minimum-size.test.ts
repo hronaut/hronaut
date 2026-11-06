@@ -157,10 +157,36 @@ it('grows a window below its minimum once as it is restored, and leaves one a ti
   window.move({ x: 0, y: 0, width: 640, height: 510 })
   keepMainWindowMinimumSize(window as never, 1.25, restored)
   expect(window.setBounds).toHaveBeenCalledOnce()
-  // The resize right after a restore may grow it once more; the ones after leave it to the window manager.
+  // The resizes after leave it to the window manager.
   for (let resize = 0; resize < 3; resize++) keepMainWindowMinimumSize(window as never, 1.25, resized)
-  expect(window.setBounds).toHaveBeenCalledTimes(2)
-  expect(window.setMinimumSize).toHaveBeenCalledTimes(3)
+  expect(window.setBounds).toHaveBeenCalledOnce()
+  expect(window.setMinimumSize).toHaveBeenCalledTimes(2)
+})
+
+it('keeps a restore\'s one growth for a resize below the minimum within a second, past sizes that need none', () => {
+  const now = vi.spyOn(performance, 'now').mockReturnValue(1000)
+  try {
+    const window = fakeWindow({ x: 0, y: 0, width: 1280, height: 740 }, { maximized: true })
+    applyMainWindowMinimumSize(window as never, 1.25)
+    window.state.maximized = false
+    keepMainWindowMinimumSize(window as never, 1.25, restored)
+    // The window manager resizes through a size that needs nothing before the one it ends at.
+    window.move({ x: 0, y: 0, width: 1270, height: 730 })
+    keepMainWindowMinimumSize(window as never, 1.25, resized)
+    window.move({ x: 0, y: 0, width: 640, height: 700 })
+    keepMainWindowMinimumSize(window as never, 1.25, resized)
+    expect(window.setBounds).toHaveBeenCalledOnce()
+    expect(window.setBounds).toHaveBeenCalledWith({ x: 0, y: 0, width: 750, height: 700 })
+
+    // A restore that needed nothing leaves a tiling window manager's later tile to it.
+    keepMainWindowMinimumSize(window as never, 1.25, restored)
+    now.mockReturnValue(2001)
+    window.move({ x: 0, y: 0, width: 640, height: 700 })
+    keepMainWindowMinimumSize(window as never, 1.25, resized)
+    expect(window.setBounds).toHaveBeenCalledOnce()
+  } finally {
+    now.mockRestore()
+  }
 })
 
 it('grows a window a window manager gives its size back after saying it left maximized, on that resize', () => {
@@ -207,12 +233,19 @@ it('holds the main window to its minimum as it is resized, and on the next turn 
     await new Promise((resolve) => setImmediate(resolve))
     expect(window.setBounds).toHaveBeenCalledWith({ x: 0, y: 0, width: 750, height: 700 })
     // The next restore reads the scale chosen meanwhile.
-    scale = 1
-    window.move({ x: 0, y: 0, width: 700, height: 700 })
+    scale = 1.1
+    window.move({ x: 0, y: 0, width: 640, height: 700 })
     window.emit(event)
     await new Promise((resolve) => setImmediate(resolve))
-    expect(window.setMinimumSize).toHaveBeenLastCalledWith(600, 520)
-    expect(window.setBounds).toHaveBeenCalledOnce()
+    expect(window.setMinimumSize).toHaveBeenLastCalledWith(660, 520)
+    expect(window.setBounds).toHaveBeenLastCalledWith({ x: 0, y: 0, width: 660, height: 700 })
+    // A restore that needed nothing leaves its growth to the resize the system sends after it.
+    window.emit(event)
+    await new Promise((resolve) => setImmediate(resolve))
+    window.move({ x: 0, y: 0, width: 560, height: 700 })
+    window.emit('resize')
+    expect(window.setBounds).toHaveBeenLastCalledWith({ x: 0, y: 0, width: 660, height: 700 })
+    expect(window.setBounds).toHaveBeenCalledTimes(3)
   }
 })
 

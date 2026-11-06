@@ -18,8 +18,13 @@ const waiting = new WeakSet<BrowserWindow>()
 /** The minimum last given to each window: the shell's width and the frame measured with it. */
 const applied = new WeakMap<BrowserWindow, { shellWidth: number; frame: number }>()
 
-/** Windows just restored, whose next resize may grow them too: the system can give the size back after saying so. */
-const restoring = new WeakSet<BrowserWindow>()
+/**
+ * Windows just restored, with the time until which one resize below their minimum may grow them: the system can give
+ * the size back after saying so, as some window managers do.
+ */
+const restoring = new WeakMap<BrowserWindow, number>()
+/** How long, in milliseconds, after a restore the system may still be giving the window its size. */
+const RESTORE_SETTLE_MS = 1000
 
 /** How far, in pixels, bounds may be from a work area or screen and still fill it, as Windows rounds them. */
 const FILL_TOLERANCE = 2
@@ -80,17 +85,15 @@ export function applyMainWindowMinimumSize(window: BrowserWindow, scale: number)
 
 /**
  * Keeps the window at its minimum once it has its own size again, after it is restored or as it is resized: a minimum
- * that waited is applied. Once restored, a window the system left narrower than its minimum also grows, as a macOS
- * window does that ends its unzoom at its old width after resizing through larger ones, and so does the first resize
- * after, as a window manager can say the window left maximized before giving it its size back. Other resizes leave
- * that to the system, so a tiling window manager that keeps the window smaller is not answered with another resize
- * each time. While the window still fills its screen's work area or its whole screen, it waits on.
+ * that waited is applied. A window the system leaves narrower than its minimum as it is restored also grows, once per
+ * restore, as a macOS window does that ends its unzoom at its old width after resizing through larger ones, or one a
+ * window manager gives its size back to within a second of saying it left maximized. Other resizes leave that to the
+ * system, so a tiling window manager that keeps the window smaller is not answered with another resize each time.
+ * While the window still fills its screen's work area or its whole screen, it waits on.
  */
 export function keepMainWindowMinimumSize(window: BrowserWindow, scale: number, options: { restored: boolean }): void {
   if (window.isDestroyed()) return
-  let grows = options.restored
-  if (grows) restoring.add(window)
-  else grows = restoring.delete(window)
+  if (options.restored) restoring.set(window, performance.now() + RESTORE_SETTLE_MS)
   if (!hasNormalSize(window)) return
   const bounds = window.getBounds()
   const display = screen.getDisplayMatching(bounds)
@@ -98,14 +101,16 @@ export function keepMainWindowMinimumSize(window: BrowserWindow, scale: number, 
   const fills = (area: Rectangle): boolean => near(bounds.x, area.x) && near(bounds.y, area.y)
     && near(bounds.width, area.width) && near(bounds.height, area.height)
   if (fills(display.workArea) || fills(display.bounds)) return
-  const last = applied.get(window)
-  const belowMinimum = grows && (!last || bounds.width < last.shellWidth + last.frame || bounds.height < MIN_WINDOW_HEIGHT)
-  if (waiting.has(window) || belowMinimum) applyMainWindowMinimumSize(window, scale)
+  const minimum = mainWindowMinimumSize(scale)
+  const belowMinimum = bounds.width < minimum.width + frameWidth(window) || bounds.height < minimum.height
+  const grows = belowMinimum && (restoring.get(window) ?? -Infinity) >= performance.now()
+  if (grows) restoring.delete(window)
+  if (waiting.has(window) || grows) applyMainWindowMinimumSize(window, scale)
 }
 
 /**
  * Keeps the main window at its minimum from now on: as it is resized, and once it is restored from maximized, full
- * screen or minimized, on the next turn, after the system's last size for it.
+ * screen or minimized, on the next turn, after the size the system gave it with the restore.
  */
 export function holdMainWindowMinimumSize(window: BrowserWindow, scale: () => number): void {
   const keep = (restored: boolean): void => { keepMainWindowMinimumSize(window, scale(), { restored }) }
