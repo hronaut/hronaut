@@ -1952,6 +1952,9 @@ export const ptBR: MessageSchema = {
       empty: 'Nenhuma decisão personalizada para este site. O Hronaut perguntará quando uma permissão for necessária.',
       allSettings: 'Todas as configurações do site',
       clearData: 'Limpar dados deste site',
+      clearDataConfirm: 'Excluir cookies e dados do site de {origin}? Talvez você precise fazer login novamente neste site.',
+      clearDataDelete: 'Excluir',
+      clearDataCancel: 'Cancelar',
       reloadToApply: 'Para aplicar as configurações atualizadas a este site, recarregue esta página',
       reload: 'Recarregar'
     },

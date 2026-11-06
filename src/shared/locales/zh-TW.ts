@@ -1952,6 +1952,9 @@ export const zhTW: MessageSchema = {
       empty: '這個網站沒有自訂的決定。需要權限時，Hronaut 會詢問你。',
       allSettings: '所有網站設定',
       clearData: '清除這個網站的資料',
+      clearDataConfirm: '要刪除 {origin} 的 Cookie 和網站資料嗎？你可能會登出這個網站。',
+      clearDataDelete: '刪除',
+      clearDataCancel: '取消',
       reloadToApply: '如要將更新後的設定套用至這個網站，請重新載入這個網頁',
       reload: '重新載入'
     },

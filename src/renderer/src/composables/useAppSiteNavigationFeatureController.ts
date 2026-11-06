@@ -102,6 +102,7 @@ export interface AppSiteNavigationFeatureControllerOptions {
     returnFindFocus: (tabId: string) => boolean
     openSettingsSection: (section: SettingsSection) => void
     loadSiteSummary: (context: { tabId: string; url: string }) => Promise<BrowsingDataSiteSummary>
+    clearSiteData: (context: { tabId: string; url: string }) => Promise<BrowsingDataSiteSummary>
     onActionError: (error: unknown) => void
     showToast: (tone: AppToastTone, title: string, message: string) => void
   }
@@ -122,6 +123,7 @@ export function useAppSiteNavigationFeatureController(
       return tab && url ? { tabId: tab.id, url } : null
     },
     load: actions.loadSiteSummary,
+    clear: actions.clearSiteData,
     translate: (key) => options.address.translate(key)
   })
   const browserTabActionsController = useBrowserTabActionsController({

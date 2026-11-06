@@ -372,10 +372,7 @@ const appSiteNavigationFeatureController = useAppSiteNavigationFeatureController
     translate,
     formatNumber: localNumber
   },
-  privacy: {
-    janitorSearch,
-    refresh: refreshPrivacySettings
-  },
+  privacy: { janitorSearch, refresh: refreshPrivacySettings },
   actions: {
     closeTransientPanels,
     closeHelp: closeHelpDialog,
@@ -383,6 +380,7 @@ const appSiteNavigationFeatureController = useAppSiteNavigationFeatureController
     returnFindFocus,
     openSettingsSection,
     loadSiteSummary: ({ url, tabId }) => window.hronautBrowsingData.siteSummary(url, tabId),
+    clearSiteData: ({ url, tabId }) => window.hronautBrowsingData.clearSite(url, tabId),
     onActionError: reportShellActionError,
     showToast: showAppToast
   }

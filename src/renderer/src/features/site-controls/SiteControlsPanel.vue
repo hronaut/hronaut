@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import UiButton from "../../ui/UiButton.vue"
-import { computed, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconHistory from '~icons/material-symbols/history-rounded'
@@ -41,6 +41,8 @@ const props = defineProps<{
   openPermissionSettings: () => void
   openPrivacySettings: () => void | Promise<void>
   refresh: () => unknown
+  /** Clears the website's cookies, storage and cache in the tab's workspace. */
+  clearData: () => unknown
   keepsSeparatePanelOpen: () => boolean
 }>()
 
@@ -55,6 +57,35 @@ const localNumber = (value: number): string => formatNumber(props.locale, value)
 watch(dock, (next, previous) => {
   if (open.value && previous === 'window' && next !== 'window' && !props.keepsSeparatePanelOpen() && !props.summary && props.state === 'idle') void props.refresh()
 })
+
+/**
+ * Clear data for this website signs the person out of the website, so it asks first, in the panel. The question goes
+ * with the website it named or with the panel.
+ */
+const confirmingClear = ref(false)
+const clearButton = ref<{ focus: () => void } | null>(null)
+const cancelClearButton = ref<{ focus: () => void } | null>(null)
+watch([open, () => props.origin], () => { confirmingClear.value = false })
+
+/** Asks before clearing, with the keyboard on Cancel, which a held Enter cannot turn into clearing. */
+async function askToClear(): Promise<void> {
+  confirmingClear.value = true
+  await nextTick()
+  cancelClearButton.value?.focus()
+}
+
+async function cancelClear(): Promise<void> {
+  confirmingClear.value = false
+  await nextTick()
+  clearButton.value?.focus()
+}
+
+async function confirmClear(): Promise<void> {
+  confirmingClear.value = false
+  await nextTick()
+  clearButton.value?.focus()
+  await props.clearData()
+}
 
 /**
  * The page's connection as Chrome's site information says it: secure over HTTPS, and otherwise not secure, with what that
@@ -135,6 +166,29 @@ async function changePermission(entry: SitePermissionEntry, event: Event): Promi
         <IconHistory aria-hidden="true" />
         <span><strong>{{ summary?.historyEntries ?? '…' }}</strong><small>{{ t('shell.siteControls.historyPages', summary?.historyEntries ?? 0) }}<template v-if="summary"> · {{ summary.historyVisits }} {{ t('shell.siteControls.visits', summary.historyVisits) }}</template></small></span>
       </article>
+    </div>
+    <!-- Shown and hidden rather than added and removed: a button removed while its click is handled would read to the
+         shell as a click outside the panel, which closes it. -->
+    <div class="site-data-clear">
+      <div v-show="confirmingClear" class="site-data-clear-question">
+        <span id="site-data-clear-question">{{ t('shell.siteControls.clearDataConfirm', { origin }) }}</span>
+        <UiButton ref="cancelClearButton" appearance="application" class="site-controls-secondary" type="button" @click="cancelClear">
+          {{ t('shell.siteControls.clearDataCancel') }}
+        </UiButton>
+        <UiButton
+          appearance="application"
+          variant="danger"
+          class="site-controls-danger"
+          type="button"
+          aria-describedby="site-data-clear-question"
+          @click="confirmClear"
+        >
+          {{ t('shell.siteControls.clearDataDelete') }}
+        </UiButton>
+      </div>
+      <UiButton v-show="!confirmingClear" ref="clearButton" appearance="application" class="site-controls-secondary" type="button" @click="askToClear">
+        {{ t('shell.siteControls.clearData') }}
+      </UiButton>
     </div>
     <output v-if="state === 'error'" class="site-controls-error" aria-live="polite">{{ message }}</output>
     <section class="site-permission-controls" aria-labelledby="site-permission-controls-title">

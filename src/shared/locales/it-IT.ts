@@ -1952,6 +1952,9 @@ export const itIT: MessageSchema = {
       empty: 'Nessuna decisione personalizzata per questo sito web. Hronaut chiederà quando servirà un’autorizzazione.',
       allSettings: 'Tutte le impostazioni dei siti',
       clearData: 'Cancella i dati di questo sito web',
+      clearDataConfirm: "Eliminare i cookie e i dati dei siti per {origin}? Potresti dover eseguire di nuovo l'accesso a questo sito.",
+      clearDataDelete: 'Elimina',
+      clearDataCancel: 'Annulla',
       reloadToApply: 'Per applicare le impostazioni aggiornate a questo sito, ricarica questa pagina',
       reload: 'Ricarica'
     },

@@ -1952,6 +1952,9 @@ export const viVN: MessageSchema = {
       empty: 'Không có quyết định tùy chỉnh nào cho trang web này. Hronaut sẽ hỏi khi cần quyền.',
       allSettings: 'Tất cả cài đặt trang web',
       clearData: 'Xóa dữ liệu của trang web này',
+      clearDataConfirm: 'Xóa cookie và dữ liệu trang web của {origin}? Bạn có thể bị đăng xuất khỏi trang web này.',
+      clearDataDelete: 'Xóa',
+      clearDataCancel: 'Hủy',
       reloadToApply: 'Để áp dụng các tùy chọn cài đặt đã cập nhật cho trang web này, hãy tải lại trang này',
       reload: 'Tải lại'
     },

@@ -6,6 +6,7 @@ import { invoke } from './ipc.js'
 export const browsingDataApi: HronautBrowsingDataApi = {
   summary: () => invoke(BROWSING_DATA_IPC.summary),
   siteSummary: (url: string, tabId: string) => invoke(BROWSING_DATA_IPC.siteSummary, url, tabId),
+  clearSite: (url: string, tabId: string) => invoke(BROWSING_DATA_IPC.clearSite, url, tabId),
   websites: () => invoke(BROWSING_DATA_IPC.websites),
   clear: (options: BrowsingDataClearOptions) => invoke(BROWSING_DATA_IPC.clear, options)
 }

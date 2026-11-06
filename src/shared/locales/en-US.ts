@@ -1950,6 +1950,9 @@ export const enUS = {
       empty: 'No custom decisions for this website. Hronaut will ask when a permission is needed.',
       allSettings: 'All site settings',
       clearData: 'Clear data for this website',
+      clearDataConfirm: 'Delete cookies and site data for {origin}? You may be signed out of this website.',
+      clearDataDelete: 'Delete',
+      clearDataCancel: 'Cancel',
       reloadToApply: 'To apply your updated settings to this site, reload this page',
       reload: 'Reload'
     },

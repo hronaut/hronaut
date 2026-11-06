@@ -347,7 +347,8 @@ describe('saved decisions Hronaut never uses', () => {
       sitePermissionStore: () => harness.store,
       mcpServer: () => null,
       publishVisitHistory: () => undefined,
-      currentBrowsingDataSiteSummary: async () => { throw new Error('Not used') }
+      currentBrowsingDataSiteSummary: async () => { throw new Error('Not used') },
+      clearWebsiteData: async () => { throw new Error('Not used') }
     })
     expect(await handlers.get('browsing-data:summary')!({})).toMatchObject({ permissionDecisionCount: 1 })
     expect(await handlers.get('browsing-data:websites')!({})).toEqual([
