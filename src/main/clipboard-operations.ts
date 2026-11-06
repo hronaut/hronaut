@@ -47,15 +47,25 @@ export function createClipboardOperations(host: ClipboardOperationsHost): {
   }
 
   async function readClipboardImage(): Promise<NativeImage> {
-    const items = await clipboard.read()
-    const item = items.find((entry) => entry.types.includes('image/png'))
-    if (!item) return nativeImage.createEmpty()
-    const blob = await item.getType('image/png')
-    if (!(blob instanceof Blob)) throw new Error('The clipboard PNG payload was not an image')
-    return nativeImage.createFromBuffer(Buffer.from(await blob.arrayBuffer()))
+    return (await readClipboardImageAndMarkup()).image
   }
 
-  async function writePngToClipboard(data: Buffer): Promise<{ width: number; height: number }> {
+  /** The PNG on the clipboard, and the `<img>` markup a page wrote beside it, as Chromium does for Copy Image. */
+  async function readClipboardImageAndMarkup(): Promise<{ image: NativeImage; html?: string }> {
+    const items = await clipboard.read()
+    const item = items.find((entry) => entry.types.includes('image/png'))
+    if (!item) return { image: nativeImage.createEmpty() }
+    const blob = await item.getType('image/png')
+    if (!(blob instanceof Blob)) throw new Error('The clipboard PNG payload was not an image')
+    const image = nativeImage.createFromBuffer(Buffer.from(await blob.arrayBuffer()))
+    if (!item.types.includes('text/html')) return { image }
+    const markup = await item.getType('text/html')
+    const html = markup instanceof Blob ? await markup.text() : ''
+    return html ? { image, html } : { image }
+  }
+
+  /** Writes a PNG, with the page's `<img>` markup beside it when it gave one, and reads the PNG back to confirm it. */
+  async function writePngToClipboard(data: Buffer, html?: string): Promise<{ width: number; height: number }> {
     const image = nativeImage.createFromBuffer(data)
     if (image.isEmpty()) throw new Error(host.text('native.errors.screenshotCreate'))
     const expectedSize = image.getSize()
@@ -65,7 +75,9 @@ export function createClipboardOperations(host: ClipboardOperationsHost): {
       // successful write when the platform clipboard silently rejects this one.
       clipboard.clear()
       await clipboard.write([new ClipboardItem({
-        'image/png': new Blob([new Uint8Array(data)], { type: 'image/png' })
+        'image/png': new Blob([new Uint8Array(data)], { type: 'image/png' }),
+        // Rich text editors paste the image from its address, as they do after Chrome's Copy Image.
+        ...(html ? { 'text/html': new Blob([html], { type: 'text/html' }) } : {})
       })])
       await new Promise<void>((resolve) => setTimeout(resolve, 40 * (attempt + 1)))
       const copied = await readClipboardImage()
@@ -108,8 +120,9 @@ export function createClipboardOperations(host: ClipboardOperationsHost): {
   }
 
   /**
-   * Has the page copy an image itself, then reads it back and writes it again as a verified PNG. Each try clears the
-   * clipboard first, so a copy that fails puts back what the person had copied before.
+   * Has the page copy an image itself, then reads it back and writes it again as a verified PNG, keeping the `<img>`
+   * markup the page wrote beside it. Each try clears the clipboard first, so a copy that fails puts back what the
+   * person had copied before.
    */
   async function copyImageThePageGives(
     pageGone: () => boolean,
@@ -127,12 +140,12 @@ export function createClipboardOperations(host: ClipboardOperationsHost): {
         clipboard.clear()
         copy()
         await new Promise<void>((resolve) => setTimeout(resolve, 40 * (attempt + 1)))
-        const image = await readClipboardImage()
+        const { image, html } = await readClipboardImageAndMarkup()
         if (!image.isEmpty()) {
           const png = image.toPNG()
           if (png.byteLength > 0) {
             try {
-              await writePngToClipboard(png)
+              await writePngToClipboard(png, html)
               return
             } catch (error) {
               await restoreClipboard(before)
