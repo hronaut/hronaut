@@ -65,12 +65,13 @@ test('gives a page a tab is dropped on no tab id, and still moves a tab dragged 
     const [zoneTab, otherTab] = await websiteTabs()
     expect(zoneTab!.url).toBe('/zone')
 
-    // A tab released over the page: the page learns that something was dropped, not which tab.
-    await dragAndDrop(await onScreen(electronApp, other), await pageOnScreen(electronApp, `${origin}/zone`))
+    // The shown tab released over its own page, as a press shows the tab it drags: the page learns that something
+    // was dropped, not which tab.
+    await dragAndDrop(await onScreen(electronApp, zone), await pageOnScreen(electronApp, `${origin}/zone`))
     await expect.poll(dropped).not.toBeNull()
     const data = JSON.parse((await dropped())!) as Array<[string, string]>
     expect(data.map(([type]) => type)).not.toContain('text/plain')
-    expect(JSON.stringify(data)).not.toContain(otherTab!.id)
+    expect(JSON.stringify(data)).not.toContain(zoneTab!.id)
     expect(data).toEqual([['application/x-hronaut-tab', 'tab']])
     expect(await websiteTabs()).toEqual([zoneTab, otherTab])
 

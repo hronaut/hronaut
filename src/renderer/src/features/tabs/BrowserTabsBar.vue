@@ -336,7 +336,7 @@ function activateTab(tabId: string): void {
 function clickTab(tabId: string, event: MouseEvent): void {
   const tab = visibleTabs.value.find((candidate) => candidate.id === tabId)
   if (tab) clickTabWithSelection(event, tab)
-  else activateTab(tabId)
+  else if (event.type === 'click') activateTab(tabId)
 }
 
 function handleTabKeyDown(event: KeyboardEvent, tab: BrowserTabState): void {

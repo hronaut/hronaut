@@ -23,12 +23,19 @@ interface TabSelectionOptions {
  * selection and shows it, or takes a selected tab out; Shift+click selects the tabs from the last one clicked to it
  * and shows it. A plain click, a tab shown any other way, or Settings leaves only the shown tab selected again, and
  * the selection never spans workspaces. The tab menu and a drag act on every selected tab.
+ *
+ * As in Chrome, the mouse chooses when its main button goes down on a tab, not when it comes up, so the tab shows
+ * sooner and a drag carries the tab just chosen. A plain press on one of several selected tabs keeps them, so a drag
+ * carries them all, and its click leaves that tab alone selected. Touch, a pen, the keyboard and Control on macOS,
+ * where it opens the menu, choose with the click.
  */
 export function useTabSelection(options: TabSelectionOptions) {
   /** The selected tabs in the bar's order while there are several, else none. */
   const selectedTabIds = ref<string[]>([])
   // Where a Shift+click selects from: the tab last clicked, or the one shown.
   let anchorTabId: string | null = options.covered() ? null : options.activeTabId()
+  // The tab a press of the mouse already chose, so the click that ends the press changes nothing more.
+  let pressedTabId: string | null = null
   // The tabs this bar asked to show that the state does not show yet, oldest first. A tab shown at the bar's request
   // keeps the selection, and the next click counts from the tab it asked for, however soon it comes.
   let pendingTabIds: string[] = []
@@ -61,9 +68,26 @@ export function useTabSelection(options: TabSelectionOptions) {
     options.activate(tabId)
   }
 
-  /** Shows the clicked tab, or with Ctrl, Cmd or Shift changes the selection. */
+  /** Chooses with a press of the mouse's main button or the click after any other press, as the bar's doc says. */
   function clickTab(event: MouseEvent, tab: SelectableTab): void {
     const toggle = options.platform() === 'darwin' ? event.metaKey : event.ctrlKey
+    if (event.type === 'pointerdown') {
+      pressedTabId = null
+      const mouse = (event as PointerEvent).pointerType === 'mouse' && event.button === 0
+      if (!mouse || (options.platform() === 'darwin' && event.ctrlKey)) return
+      if (!toggle && !event.shiftKey && selectedTabIds.value.includes(tab.id)) return
+      pressedTabId = tab.id
+    } else {
+      // A click the keyboard makes has no press before it.
+      const pressed = pressedTabId === tab.id && event.detail > 0
+      pressedTabId = null
+      if (pressed) return
+    }
+    chooseTab(event, tab, toggle)
+  }
+
+  /** Shows the tab, or with Ctrl, Cmd or Shift changes the selection. */
+  function chooseTab(event: MouseEvent, tab: SelectableTab, toggle: boolean): void {
     const tabs = options.tabs.value
     const shown = shownTabId()
     const current = selectedTabIds.value.length ? selectedTabIds.value : shown !== null && listed(shown) ? [shown] : []
