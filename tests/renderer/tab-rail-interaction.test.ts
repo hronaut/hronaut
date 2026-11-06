@@ -128,6 +128,7 @@ describe('tab rail interaction', () => {
   // under the pointer, and a drag that the press started ran over the folded rail.
   it('keeps the rail open through a press that gives the page the keyboard, and through its drag, and folds it after', () => {
     const h = harness()
+    h.control.setAttribute('role', 'tab')
     const pointer = (type: string, button = 0) => h.control.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 5, isPrimary: true, button }))
     try {
       h.rail.dispatchEvent(new MouseEvent('mouseenter'))
@@ -154,11 +155,19 @@ describe('tab rail interaction', () => {
       h.control.dispatchEvent(new Event('dragend', { bubbles: true }))
       expect(h.controller.verticalTabRailRevealed.value).toBe(false)
 
-      // A press of another button, as for the tab's menu, leaves the rail at once, as before.
+      // A press of another button, as for the tab's menu, or one on anything but a tab leaves the rail at once, as before.
       vi.spyOn(document, 'hasFocus').mockReturnValue(true)
       h.rail.dispatchEvent(new MouseEvent('mouseenter'))
       vi.advanceTimersByTime(200)
       pointer('pointerdown', 2)
+      expect(h.controller.verticalTabRailRevealed.value).toBe(true)
+      window.dispatchEvent(new Event('blur'))
+      expect(h.controller.verticalTabRailRevealed.value).toBe(false)
+      h.control.removeAttribute('role')
+      h.rail.dispatchEvent(new MouseEvent('mouseenter'))
+      vi.advanceTimersByTime(200)
+      pointer('pointerdown')
+      expect(h.controller.verticalTabRailRevealed.value).toBe(true)
       window.dispatchEvent(new Event('blur'))
       expect(h.controller.verticalTabRailRevealed.value).toBe(false)
     } finally { h.dispose() }
@@ -166,6 +175,7 @@ describe('tab rail interaction', () => {
 
   it('keeps the rail open after a press during which the window lost focus and got it back', () => {
     const h = harness()
+    h.control.setAttribute('role', 'tab')
     const pointer = (type: string) => h.control.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 6, isPrimary: true, button: 0 }))
     try {
       h.rail.dispatchEvent(new MouseEvent('mouseenter'))

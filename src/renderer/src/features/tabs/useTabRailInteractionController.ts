@@ -20,8 +20,8 @@ export function useTabRailInteractionController(options: {
   /** Focus came with a press of the pointer on the folded rail, not from the keyboard. */
   let focusedByPointer = false
   let pointerId: number | undefined
-  /** The held press is of the main button, the one that chooses a tab. */
-  let mainButtonHeld = false
+  /** The held press is of the main button on a tab, which shows the tab while the button is down. */
+  let tabPressHeld = false
   let dragging = false
   let rail: HTMLElement | undefined
   let revealTimer: number | undefined
@@ -172,7 +172,7 @@ export function useTabRailInteractionController(options: {
       || !(event.target instanceof Element) || !event.target.closest('.shell')) return
     cancelTimers()
     pointerId = event.pointerId
-    mainButtonHeld = event.button === 0
+    tabPressHeld = event.button === 0 && event.target.closest('[role="tab"]') !== null
   }
 
   function pointerUp(event: PointerEvent): void {
@@ -221,7 +221,7 @@ export function useTabRailInteractionController(options: {
     if (overlay) return
     // A press on a tab shows it, and its page takes the keyboard, while the button is still down, as in Chrome: what
     // the press or the drag it starts holds stays in place until it ends.
-    if ((pointerId !== undefined && mainButtonHeld) || dragging) {
+    if ((pointerId !== undefined && tabPressHeld) || dragging) {
       blurredWhileHeld = true
       return
     }

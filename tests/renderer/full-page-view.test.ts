@@ -117,6 +117,7 @@ describe('full-page view', () => {
   it('keeps the chrome through a press on it that gives the page the keyboard, and through its drag', () => {
     const h = harness()
     h.chrome.classList.add('shell')
+    h.field.setAttribute('role', 'tab')
     const pointer = (type: string) => h.field.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 7, isPrimary: true, button: 0 }))
     try {
       h.view.toggle()
