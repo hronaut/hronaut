@@ -250,6 +250,17 @@ describe('giving a tab\'s field the keyboard back', () => {
       windowTakesKeyboard()
       vi.runAllTimers()
       expect(address.cancelFocusReturn).toHaveBeenCalledTimes(2)
+
+      // The pane takes the keyboard again and main gives it back before the window's task has ended: the wait is the
+      // new one's, which the window taking the keyboard the first time does not end.
+      givenBack()
+      windowTakesKeyboard()
+      givenBack()
+      vi.runAllTimers()
+      expect(address.cancelFocusReturn).toHaveBeenCalledTimes(2)
+      windowTakesKeyboard()
+      vi.runAllTimers()
+      expect(address.cancelFocusReturn).toHaveBeenCalledTimes(3)
     } finally {
       stop()
       vi.useRealTimers()
