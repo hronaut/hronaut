@@ -20,19 +20,7 @@ export function createWorkspaceRegistry(browser: Browser): WorkspaceRegistry {
     maxTabs: MAX_BROWSER_TABS,
     maxArchived: MAX_ARCHIVED_WORKSPACES,
     // A tab titled for its crash or failed load, such as Page unavailable, is archived by its page, as the session keeps it.
-    tabs: () => orderedTabs(browser).map(tab => ({
-      id: tab.id,
-      ...(tab.label ? { label: tab.label } : {}),
-      ...(tab.mcpGroupId ? { mcpGroupId: tab.mcpGroupId } : {}),
-      title: pageOwnTitle(tab, () => browser.navigationHistorySnapshot(tab)),
-      url: tab.url,
-      pinned: tab.pinned,
-      zoomIsolated: tab.zoomIsolated,
-      ...(tab.defaultFontSize ? { defaultFontSize: tab.defaultFontSize } : {}),
-      tabMuted: tab.tabMuted,
-      tabAgentPaused: tab.tabAgentPaused,
-      humanInteractionLocked: tab.humanInteractionLocked
-    })),
+    tabs: () => orderedTabs(browser).map(tab => ({ ...tab, title: pageOwnTitle(tab, () => browser.navigationHistorySnapshot(tab)) })),
     requireActive: id => requireMcpTabGroup(browser, id),
     assertRestoreCapacity: (name, id) => {
       assertWorkspaceNameAvailable(browser, name, undefined, id, true)

@@ -289,6 +289,24 @@ describe('closing a whole workspace', () => {
     expect(deleted?.tabs.some((tab) => tab.mcpGroupId === CLOSING)).toBe(false)
   })
 
+  it('keeps a tab whose page crashed saved by its page\'s title until deleting its storage is done', async () => {
+    const { manager, internals, release } = await browser()
+    release()
+    Object.assign(internals, { options: { partition: 'persist:hronaut' } })
+    const shown = internals.tabs.get(SHOWN)!
+    const pageProblem = { kind: 'renderer-gone', title: 'Page unavailable', message: 'The page stopped.', url: '', reason: 'crashed' }
+    Object.assign(shown, { title: 'Page unavailable', pageProblem })
+    Object.assign(manager, { navigationHistorySnapshot: () => ({ entries: [{ url: shown.url, title: 'Inbox (3)' }], index: 0 }) })
+    let finish!: () => void
+    vi.mocked(destroyWorkspaceStorage).mockReturnValueOnce(new Promise<void>((resolve) => { finish = resolve }))
+    const deleting = closeMcpTabGroup(manager, CLOSING)
+    await vi.waitFor(() => expect(destroyWorkspaceStorage).toHaveBeenCalled())
+    // Chrome brings a crashed tab back by its page's title, not as Page unavailable.
+    expect(persistedState(internals as never).tabs.find((tab) => tab.id === SHOWN)?.title).toBe('Inbox (3)')
+    finish()
+    await deleting
+  })
+
   it('is saved whole, each tab once, while a failed deletion reopens its tabs', async () => {
     const { manager, internals, release } = await browser()
     release()
