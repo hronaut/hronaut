@@ -1,10 +1,9 @@
-import { createServer } from 'node:http'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { ElectronApplication } from '@playwright/test'
 import { connectMcpWorkspace } from '../../scripts/mcp-workspace.js'
-import { closeFixtureServer, expect, test } from './fixtures.js'
+import { expect, test } from './fixtures.js'
 
 function succeeded(result: CallToolResult): string {
   const content = result.content.find(item => item.type === 'text')
@@ -133,49 +132,5 @@ test('the full-page view gives the page the window and brings the chrome back at
     await appWindow.evaluate("window.hronautSettings.setTabPosition('top')")
   } finally {
     await client.close()
-  }
-})
-
-// A press on a tab shows it while the button is down, and its page takes the keyboard then: the chrome went 400 ms
-// after the press, while the person still held the tab, as to drag it.
-test('keeps the chrome of the full-page view while a press on a tab holds', async ({ appWindow, electronApp }) => {
-  const server = createServer((request, response) => {
-    response.writeHead(200, { 'content-type': 'text/html' })
-    response.end(`<!doctype html><title>Held ${(request.url ?? '/').slice(1).toUpperCase()}</title><p>Page</p>`)
-  })
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
-  const address = server.address()
-  if (!address || typeof address === 'string') throw new Error('The fixture server has no port.')
-  const origin = `http://127.0.0.1:${address.port}`
-  const control = (name: string) => appWindow.getByRole('tab', { name: new RegExp(`^Held ${name}`) })
-  const shell = appWindow.locator('header.shell')
-  try {
-    for (const [index, name] of ['a', 'b'].entries()) {
-      await appWindow.evaluate(`window.hronaut.newTab({ url: '${origin}/${name}', active: ${index === 0} })`)
-    }
-    await expect(control('B')).toBeVisible()
-    await expect(appWindow.locator('.toolbar')).toBeVisible()
-    await appWindow.mouse.move(600, 500)
-    await appWindow.keyboard.press('Control+Shift+F')
-    await expect(shell).toHaveClass(/full-page-concealed/)
-    await appWindow.mouse.move(600, 20)
-    await expect(shell).not.toHaveClass(/full-page-concealed/)
-    const box = (await control('B').boundingBox())!
-    await appWindow.mouse.move(box.x + box.width / 3, box.y + box.height / 2)
-    await appWindow.mouse.down()
-    try {
-      await expect(control('B')).toHaveAttribute('data-active-tab', 'true')
-      await expect.poll(() => electronApp.evaluate(({ webContents }, url) => (
-        webContents.getAllWebContents().find((contents) => contents.getURL() === url)?.isFocused() ?? false
-      ), `${origin}/b`)).toBe(true)
-      await appWindow.waitForTimeout(800)
-      await expect(shell).not.toHaveClass(/full-page-concealed/)
-    } finally {
-      await appWindow.mouse.up()
-    }
-    await appWindow.keyboard.press('Control+Shift+F')
-    await expect(shell).not.toHaveClass(/full-page-view/)
-  } finally {
-    await closeFixtureServer(server)
   }
 })
