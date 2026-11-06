@@ -175,7 +175,7 @@ describe('the icons kept for pages', () => {
     vi.useRealTimers()
   })
 
-  it('stops keeping icons once disposed, but still lets go of those a clear that ends meanwhile takes', async () => {
+  it('stops keeping icons once disposed, but still lets go at once of those a clear that ends meanwhile takes', async () => {
     const path = join(await directory(), 'site-icons.json')
     const icons = await openStore(path)
     icons.remember('https://docs.example/guide', icon('docs'))
@@ -184,11 +184,25 @@ describe('the icons kept for pages', () => {
 
     icons.dispose()
     expect(icons.remember('https://docs.example/guide', icon('later'))).toBeNull()
+    // No timed save is left once disposed, so the icons let go are saved at once.
     icons.sync(new Set(['https://docs.example/guide']))
+    await vi.waitFor(async () => expect(await readFile(path, 'utf8')).not.toContain(icon('news').split(',')[1]))
+    expect(await readFile(path, 'utf8')).toContain(icon('docs').split(',')[1])
+  })
+
+  it('waits, when flushed, for a save a change made meanwhile started', async () => {
+    const path = join(await directory(), 'site-icons.json')
+    const icons = await openStore(path)
+    icons.remember('https://docs.example/guide', icon('docs'))
+    icons.remember('https://news.example/today', icon('news'))
+    icons.listPages(['https://docs.example/guide', 'https://news.example/today'])
     await icons.flush()
-    const saved = await readFile(path, 'utf8')
-    expect(saved).toContain(icon('docs').split(',')[1])
-    expect(saved).not.toContain(icon('news').split(',')[1])
+
+    // As a clear that ends while Hronaut quits, after its last flush began.
+    const flushing = icons.flush()
+    icons.sync(new Set(['https://docs.example/guide']), { saveAtOnce: true })
+    await flushing
+    expect(await readFile(path, 'utf8')).not.toContain(icon('news').split(',')[1])
   })
 })
 
@@ -239,6 +253,12 @@ describe('the icons the history and bookmarks keep', () => {
     expect(kept()).toEqual(expected)
     await state.siteIcons!.flush()
     expect(await readFile(join(paths.userData, 'site-icons.json'), 'utf8')).not.toContain(icon('private').split(',')[1])
+
+    // An icon that waits for its visit stays waiting while the history changes otherwise.
+    runtime.pageHistoryCallbacks.onSiteIcon({ url: 'https://later.example/', icon: icon('later') })
+    await runtime.agentHistory.remove(state.history!.list().find((entry) => entry.url === 'https://docs.example/guide')!.id)
+    runtime.pageHistoryCallbacks.onPageVisited({ url: 'https://later.example/', title: 'Later', samePage: false })
+    await vi.waitFor(() => expect(kept()).toEqual({ 'https://news.example/today': 'news', 'https://later.example/': 'later' }))
   })
 
   it('lets go of a page\'s icon, at once on disk, when the history and bookmarks no longer hold the page', async () => {
@@ -298,15 +318,33 @@ describe('the icons the history and bookmarks keep', () => {
       ]
     }))
 
+    const saves = vi.spyOn(SiteIconStore.prototype as unknown as { saveNow(): void }, 'saveNow')
     const second = await openRuntime(folder)
     expect(second.kept()).toEqual({ 'https://kept.example/': 'https://kept.example/' })
     // A page that grew too old is no removal, so it leaves the file with the next timed save.
+    expect(saves).not.toHaveBeenCalled()
     await second.state.siteIcons!.flush()
     expect(await readFile(join(folder, 'site-icons.json'), 'utf8')).not.toContain(icon('https://old.example/').split(',')[1])
 
-    // One more page leaves the oldest out.
+    // One more page leaves the oldest out, also with the next timed save rather than a rewrite for each visit.
+    saves.mockClear()
     second.runtime.pageHistoryCallbacks.onPageVisited({ url: 'https://new.example/', title: 'New', samePage: false })
     await vi.waitFor(() => expect(second.kept()).toEqual({}))
+    expect(saves).not.toHaveBeenCalled()
+  })
+
+  it('lets the icons of pages too old for the history go with the next timed save', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    const { runtime, state, kept } = await openRuntime(await directory())
+    runtime.pageHistoryCallbacks.onPageVisited({ url: 'https://old.example/', title: 'Old', samePage: false })
+    runtime.pageHistoryCallbacks.onSiteIcon({ url: 'https://old.example/', icon: icon('old') })
+    await vi.waitFor(() => expect(kept()).toEqual({ 'https://old.example/': 'old' }))
+    const saves = vi.spyOn(SiteIconStore.prototype as unknown as { saveNow(): void }, 'saveNow')
+
+    vi.setSystemTime(Date.now() + 91 * 24 * 60 * 60 * 1000)
+    await state.history!.pruneExpired()
+    expect(kept()).toEqual({})
+    expect(saves).not.toHaveBeenCalled()
   })
 
   it('wait for both the history and the bookmarks before letting any icon go', async () => {

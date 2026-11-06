@@ -127,11 +127,14 @@ describe('the icon a tab shows', () => {
     expect(icons.shown()).toBeUndefined()
     expect(icons.onSiteIcon).not.toHaveBeenCalled()
 
+    // A route the new page goes to while its icon still loads gets the icon too.
     const arriving = loadFavicon(icons.browser, icons.tab, [icons.urls[1]!])
+    icons.tab.url = 'https://site.example/next/inbox'
+    giveRouteSiteIcon(icons.browser, icons.tab)
     await vi.advanceTimersByTimeAsync(10)
     await arriving
     expect(icons.shown()).toBe('icon 64')
-    expect(icons.onSiteIcon).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://site.example/next' }))
+    expect(icons.onSiteIcon.mock.calls.map(([{ url }]) => url)).toEqual(['https://site.example/next', 'https://site.example/next/inbox'])
   })
 
   it('does not wait for an icon listed before the one it shows', async () => {

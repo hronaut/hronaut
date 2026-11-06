@@ -74,8 +74,8 @@ export function createRuntimeShutdown(host: RuntimeShutdownHost): { releaseRunti
           manager ? flushWorkspaceProfiles(manager) : undefined,
           host.bookmarksAndHistory.bookmarks?.flush(),
           host.credentialRuntime.store?.flush(),
-          host.bookmarksAndHistory.history?.flush(),
-          host.bookmarksAndHistory.siteIcons?.flush(),
+          // A clear of the history that ends meanwhile takes its pages' icons too, after the history saved it.
+          host.bookmarksAndHistory.history?.flush().finally(() => host.bookmarksAndHistory.siteIcons?.flush()),
           host.browserSessionState.sitePermissionStore?.flush(),
           host.commercialLicenseRuntime.store?.flush(),
           host.settingsState.mutationQueue,

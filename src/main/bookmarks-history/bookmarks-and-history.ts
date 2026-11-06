@@ -66,7 +66,10 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
   historyEntryRemoved(url: string): void
   agentBookmarks: BookmarkOperations
   agentHistory: HistoryOperations
-  /** Stops the timers that send the windows visits and icons that changed. */
+  /**
+   * Stops the timers that send the windows visits and icons that changed, and starts none after, as a test ends. Hronaut
+   * does not need it to quit, as the timers do not keep it running.
+   */
   dispose(): void
 } {
   function publishBookmarks(): BrowserBookmark[] {
@@ -97,12 +100,13 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
   }
 
   let visitChangesTimer: NodeJS.Timeout | undefined
+  let disposed = false
   /**
    * Sends the windows the pages visited or retitled lately, together, rather than the whole history for each: dozens of
    * pages loading sent thousands of entries to both windows for each visit and title.
    */
   function publishVisitChanges(): void {
-    if (visitChangesTimer) return
+    if (visitChangesTimer || disposed) return
     visitChangesTimer = setTimeout(() => {
       visitChangesTimer = undefined
       const changes = host.state.history?.takeChanges()
@@ -186,7 +190,7 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
   /** Adds pages' icons that changed, null for those let go, to those the windows hear of together a few times a second. */
   function queueSiteIconChanges(changes: SiteIconChanges | null): void {
     addSiteIconChanges(siteIconChanges, changes)
-    if (siteIconChangesTimer || (!lookForListedSiteIcons && !hasSiteIconChanges(siteIconChanges))) return
+    if (siteIconChangesTimer || disposed || (!lookForListedSiteIcons && !hasSiteIconChanges(siteIconChanges))) return
     siteIconChangesTimer = setTimeout(sendSiteIconChanges, VISIT_CHANGES_DELAY_MS)
     siteIconChangesTimer.unref()
   }
@@ -320,6 +324,7 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
     agentBookmarks,
     agentHistory,
     dispose: () => {
+      disposed = true
       clearTimeout(visitChangesTimer)
       clearTimeout(siteIconChangesTimer)
       visitChangesTimer = undefined

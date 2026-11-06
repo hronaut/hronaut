@@ -35,7 +35,10 @@ export async function loadFavicon(browser: Browser, tab: BrowserTab, favicons: s
   const show = (icon: LoadedFavicon): void => {
     if (icon.size <= shownSize || controller.signal.aborted) return
     if (browser.destroyed || tab.webContents.isDestroyed() || tab.faviconRequestId !== requestId) return
-    if (tab.documentGeneration !== list.documentGeneration) return
+    if (tab.documentGeneration !== list.documentGeneration) {
+      controller.abort()
+      return
+    }
     shownSize = icon.size
     tab.faviconDataUrl = icon.dataUrl
     // A favicon can finish well after navigation's debounced state save.
@@ -63,11 +66,16 @@ export async function loadFavicon(browser: Browser, tab: BrowserTab, favicons: s
  */
 function giveSiteIcon(browser: Browser, tab: BrowserTab, list: { requestId: number; documentGeneration: number; url: string },
   icon: string): void {
-  if (!browser.options.onSiteIcon || !normalizeHistoryUrl(list.url)) return
+  const onSiteIcon = browser.options.onSiteIcon
+  const page = normalizeHistoryUrl(list.url)
+  if (!onSiteIcon || !page) return
   const source = tab.siteIconSource
   if (source?.documentGeneration === list.documentGeneration && source.requestId !== list.requestId) return
   tab.siteIconSource = { documentGeneration: list.documentGeneration, requestId: list.requestId, icon }
-  browser.options.onSiteIcon({ url: list.url, icon })
+  onSiteIcon({ url: list.url, icon })
+  // A route the document went to while the icon loaded, before it had one to give the route, gets it too.
+  const route = normalizeHistoryUrl(tab.url)
+  if (route && route !== page) onSiteIcon({ url: tab.url, icon })
 }
 
 /**

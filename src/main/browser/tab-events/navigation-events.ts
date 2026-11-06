@@ -346,7 +346,7 @@ export function attachNavigationEvents(browser: Browser, tab: BrowserTab, webCon
       }
       if (!tab.suppressInitialHistory) recordVisit(browser, tab, samePage)
       tab.pendingHistoryUrl = null
-      giveRouteSiteIcon(browser, tab)
+      if (withoutFragment(url) !== withoutFragment(previousUrl)) giveRouteSiteIcon(browser, tab)
       // A route of a single-page app is a page of its own, whose title the app sets once it has shown it, such as after
       // a slow request. As in Chrome, its titles count as set while it loads, until a document finishes loading.
       historyTitleChanges = 0

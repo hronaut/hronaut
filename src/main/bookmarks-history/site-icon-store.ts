@@ -12,7 +12,7 @@ export const MAX_UNLISTED_SITE_ICONS = 200
 // Icons change far less often than visits, and losing the last few to a crash costs only a globe until the next visit.
 const SAVE_DELAY_MS = 5_000
 // A save that keeps failing, such as on a full disk, is tried again less and less often, up to every five minutes.
-const MAX_SAVE_RETRY_DELAY_MS = 320_000
+const MAX_SAVE_RETRY_DELAY_MS = 300_000
 
 interface PersistedSiteIcons {
   version: typeof SITE_ICONS_VERSION
@@ -175,10 +175,17 @@ export class SiteIconStore {
     return changes
   }
 
-  /** Saves the changes not saved yet, including any whose save failed. */
+  /**
+   * Saves the changes not saved yet, including any whose save failed, and resolves once no save is left, also one a
+   * change made meanwhile started, such as a clear that ends as Hronaut quits.
+   */
   async flush(): Promise<void> {
-    if (this.unsaved) this.saveNow()
-    await this.saveQueue
+    let saving: Promise<void>
+    do {
+      if (this.unsaved) this.saveNow()
+      saving = this.saveQueue
+      await saving
+    } while (saving !== this.saveQueue || (this.unsaved && this.failedSaves === 0))
   }
 
   /** Stops keeping new icons and the timed save; flush still saves what changed before. */
