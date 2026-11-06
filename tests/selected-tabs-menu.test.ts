@@ -142,7 +142,7 @@ describe('the tab menu of several selected tabs', () => {
     ])
   })
 
-  it('unmutes and unpins when every selected tab is muted or pinned, and new tab opens in their workspace', async () => {
+  it('unmutes and unpins when every selected tab is muted or pinned, and new tab opens in their workspace beside the tab whose menu it is', async () => {
     const fake = menuBrowser([tab('a', 'work', { muted: true, pinned: true }), tab('b', 'work', { muted: true, pinned: true }), tab('c')])
     showTabContextMenu(fake.browser, 'a', undefined, ['a', 'b'])
     expect(ids()).toContain('unmute-tabs')
@@ -153,7 +153,7 @@ describe('the tab menu of several selected tabs', () => {
     await click('unmute-tabs')
     await click('new-tab')
     expect(fake.calls).toEqual(['mute a false', 'mute b false'])
-    expect(fake.send).toHaveBeenCalledExactlyOnceWith('browser:new-tab-requested', 'work')
+    expect(fake.send).toHaveBeenCalledExactlyOnceWith('browser:new-tab-requested', 'work', 'a')
   })
 
   it('acts only on the selected tabs still open when an item is chosen', async () => {

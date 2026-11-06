@@ -59,12 +59,12 @@ function menuBrowser(tabs: ReturnType<typeof tab>[], activeTabId: string) {
 
 describe('New Tab in a tab\'s menu', () => {
   // It opened the tab in the workspace of the active tab, which differs when the rail shows another workspace's tab.
-  it('asks the window for a new tab in the workspace of the tab whose menu it is', () => {
+  it('asks the window for a new tab in the workspace of the tab whose menu it is, beside that tab', () => {
     const { browser: menuBrowserFake, send } = menuBrowser([tab('home', undefined, 'hronaut://home/'), tab('own', 'own'), tab('client', 'client')], 'own')
     showTabContextMenu(menuBrowserFake, 'client')
     const item = built.templates.at(-1)!.find((candidate) => candidate.id === 'new-tab')!
     ;(item.click as () => void)()
-    expect(send).toHaveBeenCalledExactlyOnceWith('browser:new-tab-requested', 'client')
+    expect(send).toHaveBeenCalledExactlyOnceWith('browser:new-tab-requested', 'client', 'client')
   })
 })
 
