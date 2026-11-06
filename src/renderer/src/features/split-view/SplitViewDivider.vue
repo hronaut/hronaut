@@ -7,7 +7,7 @@ import { vTooltip } from '../../ui/tooltip.js'
 const { t } = useI18n({ useScope: 'global' })
 const { geometry, resizing, startResize, resizeWithKeyboard, resetSize, releaseKeyboard } = useSplitViewResizeController(window.hronautSplitDivider, () => {
   void window.hronaut.focusActivePage().catch(() => undefined)
-})
+}, () => window.hronautShell.isWindowFocused())
 const style = computed(() => geometry.value ? {
   left: `${geometry.value.bounds.x}px`, top: `${geometry.value.bounds.y}px`,
   width: `${geometry.value.bounds.width}px`, height: `${geometry.value.bounds.height}px`

@@ -40,6 +40,17 @@ test('the page in view has the keyboard again after a drag or a double-click on 
 
   const divider = appWindow.getByRole('separator', { name: 'Resize split view', exact: true })
   await expect(divider).toBeVisible()
+  // The ratio a drag leaves once it has landed: the split shows the ratio it is dragged to on the way.
+  const settledRatio = async () => {
+    let last: number | undefined
+    await expect.poll(async () => {
+      const now = await ratio()
+      const settled = now === last && !(await divider.evaluate(element => element.classList.contains('resizing')))
+      last = now
+      return settled
+    }, { intervals: [100] }).toBe(true)
+    return last
+  }
   const origin = await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.getContentBounds())
   const point = async () => {
     const rect = (await divider.boundingBox())!
@@ -50,7 +61,7 @@ test('the page in view has the keyboard again after a drag or a double-click on 
   const start = await point()
   await physical(`--drag-to=${start.x + 120},${start.y}`, start)
   await expect.poll(ratio).not.toBe(0.5)
-  const dragged = await ratio()
+  const dragged = await settledRatio()
   await expect.poll(focusedTitle).toBe(title)
   await physical('--shortcut=Right', start)
   await expect.poll(pageKeys).toBe('ArrowRight ')
@@ -66,18 +77,35 @@ test('the page in view has the keyboard again after a drag or a double-click on 
   await expect.poll(pageKeys).toBe('ArrowRight End ')
   expect(await ratio()).toBe(0.5)
 
-  // The divider given the keyboard, as with Tab, takes the arrow keys; once the person clicks into the page, it lets the
-  // keyboard go, so a later drag leaves the keyboard with the page again.
+  // The divider given the keyboard, as with Tab, takes the arrow keys, also after another app had the keyboard; once the
+  // person clicks into the page, it lets the keyboard go, so a later drag leaves the keyboard with the page again.
   await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.webContents.focus())
   await divider.focus()
   await physical('--shortcut=Right', middle)
   await expect.poll(ratio).toBe(0.51)
+  // Another app takes the keyboard and gives it back: the divider still has it, as in Chrome.
+  await electronApp.evaluate(async ({ BrowserWindow }) => {
+    const main = BrowserWindow.getAllWindows()[0]!
+    const other = new BrowserWindow({ width: 200, height: 200, show: false })
+    other.show()
+    other.focus()
+    const start = Date.now()
+    while (main.isFocused() && Date.now() - start < 5000) await new Promise(resolve => setTimeout(resolve, 20))
+    if (main.isFocused()) throw new Error('The other window did not take the keyboard')
+    await new Promise(resolve => setTimeout(resolve, 200))
+    other.destroy()
+    main.focus()
+  })
+  await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.isFocused())).toBe(true)
+  await expect(divider).toBeFocused()
+  await physical('--shortcut=Right', middle)
+  await expect.poll(ratio).toBe(0.52)
   await electronApp.evaluate(({ webContents }, title) => webContents.getAllWebContents().find(candidate => candidate.getTitle() === title)!.focus(), title)
   await expect.poll(focusedTitle).toBe(title)
   const last = await point()
   await physical(`--drag-to=${last.x - 120},${last.y}`, last)
-  await expect.poll(ratio).not.toBe(0.51)
-  const draggedBack = await ratio()
+  await expect.poll(ratio).not.toBe(0.52)
+  const draggedBack = await settledRatio()
   await expect.poll(focusedTitle).toBe(title)
   await physical('--shortcut=Home', last)
   await expect.poll(pageKeys).toBe('ArrowRight End Home ')

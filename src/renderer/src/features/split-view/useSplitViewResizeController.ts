@@ -40,7 +40,9 @@ interface KeyboardResize {
 }
 
 /** returnKeyboard gives the keyboard to the page in view. */
-export function useSplitViewResizeController(api?: HronautSplitDividerApi, returnKeyboard?: () => void) {
+export function useSplitViewResizeController(
+  api?: HronautSplitDividerApi, returnKeyboard?: () => void, windowFocused?: () => Promise<boolean>
+) {
   const geometry = shallowRef<SplitDividerGeometry | null>(null)
   const gesture = shallowRef<Gesture | null>(null)
   let disposed = false
@@ -76,15 +78,18 @@ export function useSplitViewResizeController(api?: HronautSplitDividerApi, retur
   }
   let releaseTimer: ReturnType<typeof setTimeout> | undefined
   /**
-   * The divider lets the keyboard go once Hronaut's window has lost it, as to the page clicked. A press on the divider
-   * focuses the window first, which gave the divider the keyboard back, and the divider then kept it after the drag.
+   * The divider lets the keyboard go once a page of Hronaut's window has taken it, as the page clicked. A press on the
+   * divider focuses the window first, which gave the divider the keyboard back, and the divider then kept it after the
+   * drag. Another app taking the keyboard leaves it with the divider, for when the person comes back, as in Chrome.
    */
   function releaseKeyboard(event: FocusEvent): void {
     const handle = event.currentTarget as HTMLElement
+    const stillAway = () => !disposed && document.activeElement === handle && !document.hasFocus()
     clearTimeout(releaseTimer)
     releaseTimer = setTimeout(() => {
       releaseTimer = undefined
-      if (document.activeElement === handle && !document.hasFocus()) handle.blur()
+      if (!stillAway()) return
+      void (windowFocused?.() ?? Promise.resolve(true)).then((focused) => { if (focused && stillAway()) handle.blur() }).catch(() => {})
     }, 0)
   }
   async function pump(current: Gesture): Promise<void> {

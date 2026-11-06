@@ -18,7 +18,8 @@ function harness(geometry = initial) {
   }
   const scope = effectScope()
   const returnKeyboard = vi.fn()
-  const controller = scope.run(() => useSplitViewResizeController(api, returnKeyboard))!
+  const windowFocused = vi.fn(async () => true)
+  const controller = scope.run(() => useSplitViewResizeController(api, returnKeyboard, windowFocused))!
   const handle = document.createElement('div')
   handle.tabIndex = 0
   // As SplitViewDivider wires it.
@@ -31,7 +32,7 @@ function harness(geometry = initial) {
   const start = (x = 503, y = 300) => controller.startResize({ button: 0, pointerId: 1, clientX: x, clientY: y, currentTarget: handle, preventDefault: vi.fn() } as unknown as PointerEvent)
   cleanup.push(() => { scope.stop(); handle.remove() })
   return {
-    controller, api, start, pointer, handle, releasePointerCapture, returnKeyboard, notify: (next: SplitDividerGeometry | null) => notify(next), scope
+    controller, api, start, pointer, handle, releasePointerCapture, returnKeyboard, windowFocused, notify: (next: SplitDividerGeometry | null) => notify(next), scope
   }
 }
 
@@ -91,7 +92,8 @@ describe('the keyboard around a drag or click on the split divider', () => {
     const hasFocus = vi.spyOn(document, 'hasFocus').mockReturnValue(false)
     cleanup.push(() => hasFocus.mockRestore())
     h.handle.dispatchEvent(new FocusEvent('blur'))
-    await new Promise(resolve => setTimeout(resolve, 0))
+    await new Promise(resolve => setTimeout(resolve, 0)); await flush()
+    expect(h.windowFocused).toHaveBeenCalledOnce()
     expect(h.handle).not.toHaveFocus()
     // Pressing the divider then focuses the window first, which no longer gives the divider the keyboard.
     hasFocus.mockReturnValue(true)
@@ -106,6 +108,28 @@ describe('the keyboard around a drag or click on the split divider', () => {
     await new Promise(resolve => setTimeout(resolve, 0))
     expect(field).toHaveFocus()
   })
+  // Tab to the divider, another app, back: the arrow keys reached neither the divider nor the page.
+  it('stays with the divider when another app takes it, for when the person comes back', async () => {
+    const h = harness(); await flush()
+    h.handle.focus()
+    const hasFocus = vi.spyOn(document, 'hasFocus').mockReturnValue(false)
+    cleanup.push(() => hasFocus.mockRestore())
+    h.windowFocused.mockResolvedValueOnce(false)
+    h.handle.dispatchEvent(new FocusEvent('blur'))
+    await new Promise(resolve => setTimeout(resolve, 0)); await flush()
+    expect(h.handle).toHaveFocus()
+    // The window's answer comes after the person is back: the divider keeps the keyboard then too.
+    const answer = deferred<boolean>()
+    h.windowFocused.mockReturnValueOnce(answer.promise)
+    h.handle.dispatchEvent(new FocusEvent('blur'))
+    await new Promise(resolve => setTimeout(resolve, 0))
+    hasFocus.mockReturnValue(true)
+    answer.resolve(true); await flush()
+    expect(h.handle).toHaveFocus()
+    h.controller.resizeWithKeyboard(new KeyboardEvent('keydown', { key: 'ArrowRight' }))
+    await flush()
+    expect(h.api.setRatio).toHaveBeenCalledOnce()
+  })
   it('is not given to the page once the window has lost it during the drag, or the divider is gone', async () => {
     const h = harness(); await flush(); h.start(); await flush()
     const hasFocus = vi.spyOn(document, 'hasFocus').mockReturnValue(false)
@@ -116,6 +140,7 @@ describe('the keyboard around a drag or click on the split divider', () => {
     expect(h.handle).not.toHaveFocus()
     hasFocus.mockReturnValue(true)
     h.start(); await flush()
+    expect(h.controller.resizing.value).toBe(true)
     h.scope.stop(); await flush()
     expect(h.returnKeyboard).not.toHaveBeenCalled()
   })
