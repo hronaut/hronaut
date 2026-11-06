@@ -80,12 +80,13 @@ test('the history key from a page puts the keyboard in History\'s search, and cl
       if (!page || !shell) throw new Error('The page or Hronaut\'s window was not found')
       page.focus()
       await new Promise(resolve => setTimeout(resolve, 100))
-      void shell.executeJavaScript('setTimeout(() => { const start = performance.now(); while (performance.now() - start < 150); }, 0)')
+      void shell.executeJavaScript('setTimeout(() => { const start = performance.now(); while (performance.now() - start < 400); }, 0)')
       page.sendInputEvent({ type: 'keyDown', keyCode, modifiers: [modifier] })
       page.sendInputEvent({ type: 'keyUp', keyCode, modifiers: [modifier] })
-      // The person types on at once, where the keyboard is, as soon as Hronaut's window has it, if it takes it.
+      // The person types on at once, while Hronaut's window is still busy, where the keyboard is: in Hronaut's window
+      // as soon as it has it, if it takes it.
       const start = Date.now()
-      while (webContents.getFocusedWebContents()?.id !== shell.id && Date.now() - start < 300) {
+      while (webContents.getFocusedWebContents()?.id !== shell.id && Date.now() - start < 100) {
         await new Promise(resolve => setImmediate(resolve))
       }
       for (const character of 'abc') {

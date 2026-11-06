@@ -383,6 +383,27 @@ describe('the keys held for a shortcut', () => {
     expect(contents.focus).toHaveBeenCalledOnce()
     expect(contents.send).toHaveBeenLastCalledWith('browser:shortcut-requested', 'visit-history')
     expect(type()).toBe(false)
+    // The page that leaves the key to the menu, as most do, the same.
+    runPageShortcut('visit-history')
+    expect(contents.focus).toHaveBeenCalledOnce()
+    expect(contents.send).toHaveBeenLastCalledWith('browser:shortcut-requested', 'visit-history')
+    expect(type()).toBe(false)
+  })
+
+  it('are held, and Hronaut\'s window takes the keyboard, for History\'s key before there are tabs to tell History\'s state to', () => {
+    const { contents, type, ran } = shell()
+    const { runPageShortcut } = createBrowserShortcutRouting({
+      takeOvers: { available: () => undefined, takeOverFromPage: vi.fn() },
+      tabs: () => null,
+      agentPresenceSnapshot: () => ({ workspaces: {} }) as never,
+      mainWindowRefs: { window: { webContents: contents } as never }
+    })
+    runPageShortcut('visit-history')
+    expect(contents.focus).toHaveBeenCalledOnce()
+    const [channel, action, hold] = contents.send.mock.calls.at(-1)!
+    expect([channel, action, typeof hold]).toEqual(['browser:shortcut-requested', 'visit-history', 'number'])
+    expect(type()).toBe(true)
+    ran(hold as number)
   })
 
   it('wait when Command Palette is chosen from the menu', () => {
@@ -425,9 +446,11 @@ describe('the keys held for a shortcut', () => {
   it('know from the main window only whether History is open', () => {
     const listeners = new Map<string, (event: IpcMainEvent, ...args: unknown[]) => void>()
     const browser = { shellHistoryShown: false }
+    let current: typeof browser | null = browser
+    const startup: { failure?: { message: string } } = {}
     const assertMainShellSender = vi.fn()
     registerShellIpc({ on: (channel: string, listener: never) => { listeners.set(channel, listener) }, handle: vi.fn() } as never,
-      { assertMainShellSender, handleBrowserIpc: vi.fn(), workspaceStartupFailure: () => undefined, tabs: () => browser } as never)
+      { assertMainShellSender, handleBrowserIpc: vi.fn(), workspaceStartupFailure: () => startup.failure, tabs: () => current } as never)
     const say = (shown: unknown) => listeners.get('shell:history-shown')!({ sender: {} } as never, shown)
     say(true)
     expect(browser.shellHistoryShown).toBe(true)
@@ -437,5 +460,14 @@ describe('the keys held for a shortcut', () => {
     assertMainShellSender.mockImplementation(() => { throw new Error('Untrusted sender') })
     expect(() => say(true)).toThrow('Untrusted sender')
     expect(browser.shellHistoryShown).toBe(false)
+    // Before there are tabs there is nothing to tell, and once startup has stopped the window is not heard.
+    assertMainShellSender.mockReset()
+    current = null
+    expect(() => say(true)).not.toThrow()
+    current = browser
+    startup.failure = { message: 'Workspace startup failed' }
+    say(true)
+    expect(browser.shellHistoryShown).toBe(false)
+    expect(assertMainShellSender).toHaveBeenCalledOnce()
   })
 })

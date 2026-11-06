@@ -945,6 +945,20 @@ describe('the keyboard as History opens and closes', () => {
     } finally { unmount() }
   })
 
+  it('stays in the page when its key pressed there closes History, Hronaut\'s window not having the keyboard', async () => {
+    const { exposed, returnKeyboard, search, reopen, unmount } = mountClosed()
+    const hasFocus = vi.spyOn(document, 'hasFocus')
+    try {
+      await reopen()
+      expect(search()).toHaveFocus()
+      hasFocus.mockReturnValue(false)
+      void exposed.toggle()
+      await flushPromises()
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(returnKeyboard).not.toHaveBeenCalled()
+    } finally { hasFocus.mockRestore(); unmount() }
+  })
+
   it('stays in History when it opens again before the close has gone through', async () => {
     const { wrapper, exposed, returnKeyboard, search, reopen, unmount } = mountClosed()
     try {

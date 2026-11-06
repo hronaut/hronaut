@@ -114,14 +114,16 @@ const stopCloseTracking = watch(open, (isOpen) => {
 /**
  * When History closes itself, with Escape, Close, its key or a visit opened from it, the page in view gets back the
  * keyboard that was in History, as when Chrome's History tab closes. Another surface that closes History, such as
- * Bookmarks, keeps the keyboard. (Its key pressed in a page leaves the keyboard in the page: main sees History open.)
+ * Bookmarks, keeps the keyboard. Its key pressed in a page leaves the keyboard in the page, where main kept it, and a
+ * window that no longer has the keyboard has none to give: given late, it would take the keyboard from where a
+ * shortcut pressed next, such as Ctrl+L, put it.
  */
 function giveKeyboardBack(generationBeforeClose: number): void {
   // The close reaches the panel once its owner has updated it; anything after it, such as opening History again, wins.
   void nextTick(() => {
     if (focusGeneration !== generationBeforeClose + 1 || open.value) return
     const focused = document.activeElement
-    if (keyboardInPanelAtClose && (!focused || focused === document.body)) props.returnKeyboard?.()
+    if (keyboardInPanelAtClose && (!focused || focused === document.body) && document.hasFocus()) props.returnKeyboard?.()
   })
 }
 function close(): void {
