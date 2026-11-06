@@ -13,6 +13,7 @@ All notable changes to Hronaut are documented in this file.
 
 - A website tab's icon is now sharp when the website offers a large icon beside a small one: as in Chrome, the tab prefers an icon it does not have to scale up, rather than whichever arrived first, often the small one, scaled up and blurred. A small icon that arrives first shows until the larger one does.
 - Changing a website's permission in Site controls or Settings now makes Site controls offer to reload its open pages, as Chrome does: a page already using a permission, such as its camera or location, can go on using it until it loads again, and nothing said that a reload applies the change.
+- An agent's `browser_press` with `Shift+Insert` or the `Paste` key, or with `Control+V` or `Control+Shift+V` on Windows and Linux, pasted what the person had copied, such as a password, into the agent's page, where the page and the agent could read it; these paste keys are now refused, and agents enter text with `browser_insert_text`.
 
 ## [3.14.19] - 2026-11-06
 
