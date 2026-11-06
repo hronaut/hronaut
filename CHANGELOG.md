@@ -15,6 +15,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - Closing a tab a page opened with `window.open()` and no window features now shows the next tab that page opened, or the tab beside it once you have moved on to other tabs, as Chrome does, rather than always going back to the page that opened it; popup windows and pages that close themselves still return to it.
+- An agent's click on a website's file field no longer opens the system's file chooser over your window, which held Hronaut until you closed it, even for a page you could not see; the agent uploads files with its upload tool instead.
 
 ## [3.14.21] - 2026-11-06
 
