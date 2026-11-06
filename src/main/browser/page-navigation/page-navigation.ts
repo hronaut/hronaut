@@ -75,8 +75,13 @@ function isUntouchedNewTabAtEnd(browser: Browser, tab: BrowserTab): boolean {
  */
 function tabWithPage(browser: Browser, tabId?: string): BrowserTab {
   const tab = getTab(browser, tabId)
-  if (tab.webContents.isDestroyed()) throw new LocalizedError('appErrors.navigation.pageDestroyed')
+  assertPageKept(tab)
   return tab
+}
+
+/** Says, as `tabWithPage` does, that the tab's page is gone, as one Electron destroyed while the tab woke. */
+function assertPageKept(tab: BrowserTab): void {
+  if (tab.webContents.isDestroyed()) throw new LocalizedError('appErrors.navigation.pageDestroyed')
 }
 
 /**
@@ -115,6 +120,7 @@ export async function navigate(browser: Browser, url: string, tabId?: string,
   // replaces the one before it in Chrome.
   if (tab.pageReady) await tab.pageReady
   if (tab.sleeping && !tab.wakePromise) await browser.wakeTab(tab.id)
+  assertPageKept(tab)
   // A workspace's sites get the session cookies it saved at the last quit, as its first page does, which this load
   // then replaces.
   if (!isHronautHomeUrl(normalized)) await keepSessionCookies(tab.webContents.session)
@@ -365,6 +371,7 @@ export async function back(browser: Browser, tabId?: string, options: { byPerson
   const tab = tabWithPage(browser, tabId)
   // A sleeping tab wakes first, so Back goes from the page it wakes to, not from its sleeping page.
   if (tab.sleeping || tab.wakePromise) await browser.wakeTab(tab.id)
+  assertPageKept(tab)
   if (tab.webContents.navigationHistory.canGoBack()) {
     const history = tab.webContents.navigationHistory
     const activeIndex = history.getActiveIndex()
@@ -387,6 +394,7 @@ export async function forward(browser: Browser, tabId?: string, options: { byPer
   const tab = tabWithPage(browser, tabId)
   // A sleeping tab wakes first, so Forward goes from the page it wakes to, not from its sleeping page.
   if (tab.sleeping || tab.wakePromise) await browser.wakeTab(tab.id)
+  assertPageKept(tab)
   if (tab.webContents.navigationHistory.canGoForward()) {
     const history = tab.webContents.navigationHistory
     const activeIndex = history.getActiveIndex()
@@ -481,6 +489,7 @@ async function reloadPage(browser: Browser, tabId: string | undefined, ignoreCac
   browser.prepareDiagnosticNavigation(tab)
   // Waking can show the page from the cache, as Back does, so the woken page is reloaded too.
   if (tab.sleeping || tab.wakePromise) await browser.wakeTab(tab.id)
+  assertPageKept(tab)
   const pageProblem = tab.pageProblem
   tab.pageProblem = undefined
   publishChange(browser, false)
