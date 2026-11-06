@@ -8,6 +8,7 @@ All notable changes to Hronaut are documented in this file.
 
 - A tab whose page crashed now keeps its page's title, as in Chrome, rather than turning into Page unavailable, so pinned crashed tabs, Bookmark all tabs and the tab list agents read still name each page; its icon and the row under the address bar still say the page stopped working.
 - When Hronaut's own window page crashes, Hronaut now loads it again with the same tabs, rather than leaving the window blank until you quit.
+- Try again on a page that crashed now reloads it as Chrome does, with the page it was opened from as its referrer, rather than opening its address anew.
 
 ## [3.14.20] - 2026-11-06
 
