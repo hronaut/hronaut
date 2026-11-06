@@ -2015,7 +2015,11 @@ export const idID: MessageSchema = {
   pageProblem: {
     reload: 'Muat ulang',
     tryAgain: 'Coba lagi',
-    proceed: 'Lanjutkan ke {host}…'
+    proceed: 'Lanjutkan ke {host}…',
+    leftPage: 'Halaman kiri',
+    rightPage: 'Halaman kanan',
+    topPage: 'Halaman atas',
+    bottomPage: 'Halaman bawah'
   },
   responsive: {
     kicker: 'Pengujian responsif',

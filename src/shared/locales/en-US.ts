@@ -2013,7 +2013,11 @@ export const enUS = {
   pageProblem: {
     reload: 'Reload',
     tryAgain: 'Try again',
-    proceed: 'Proceed to {host}…'
+    proceed: 'Proceed to {host}…',
+    leftPage: 'Left page',
+    rightPage: 'Right page',
+    topPage: 'Top page',
+    bottomPage: 'Bottom page'
   },
   responsive: {
     kicker: 'Responsive testing',

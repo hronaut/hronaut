@@ -5,21 +5,32 @@ import { useI18n } from 'vue-i18n'
 import IconError from '~icons/material-symbols/error-outline-rounded'
 import IconRefresh from '~icons/material-symbols/refresh-rounded'
 import type { BrowserTabState } from '../../../shared/types.js'
+import type { ShownPagePane } from '../composables/useActiveTabPresentationController.js'
 
 const props = defineProps<{
   tab: BrowserTabState
+  /** The split view's pane the page is shown in, which the bar names so that the person knows which page it is about. */
+  pane?: ShownPagePane
   details: (tab: BrowserTabState) => string
 }>()
 
 const emit = defineEmits<{ retry: []; proceed: [] }>()
 const { t } = useI18n({ useScope: 'global' })
 const detail = computed(() => props.details(props.tab))
+const PANE_KEYS: Record<ShownPagePane, string> = {
+  left: 'pageProblem.leftPage',
+  right: 'pageProblem.rightPage',
+  top: 'pageProblem.topPage',
+  bottom: 'pageProblem.bottomPage'
+}
+const paneName = computed(() => props.pane ? t(PANE_KEYS[props.pane]) : '')
 </script>
 
 <template>
   <div v-if="tab.pageProblem" class="page-problem-bar" role="alert" aria-live="assertive">
     <span class="page-problem-mark" aria-hidden="true"><IconError /></span>
     <span class="page-problem-copy">
+      <span v-if="paneName" class="page-problem-pane">{{ paneName }}</span>
       <strong>{{ tab.pageProblem.title }}</strong>
       <span>{{ tab.pageProblem.message }}</span>
       <code v-if="detail">{{ detail }}</code>

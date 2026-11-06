@@ -2015,7 +2015,11 @@ export const zhTW: MessageSchema = {
   pageProblem: {
     reload: '重新載入',
     tryAgain: '再試一次',
-    proceed: '繼續前往 {host}…'
+    proceed: '繼續前往 {host}…',
+    leftPage: '左側頁面',
+    rightPage: '右側頁面',
+    topPage: '上方頁面',
+    bottomPage: '下方頁面'
   },
   responsive: {
     kicker: '回應式測試',

@@ -2015,7 +2015,11 @@ export const jaJP: MessageSchema = {
   pageProblem: {
     reload: '再読み込み',
     tryAgain: '再試行',
-    proceed: '{host} にアクセスする…'
+    proceed: '{host} にアクセスする…',
+    leftPage: '左のページ',
+    rightPage: '右のページ',
+    topPage: '上のページ',
+    bottomPage: '下のページ'
   },
   responsive: {
     kicker: 'レスポンシブ テスト',

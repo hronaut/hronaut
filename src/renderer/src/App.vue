@@ -399,8 +399,8 @@ const {
 } = appSiteNavigationFeatureController
 const {
   selectBrowserTab,
-  retryActivePageProblem,
-  proceedPastActiveCertificateError,
+  retryPageProblem,
+  proceedPastPageCertificateError,
   toggleDeveloperTools,
   showDeveloperToolsConsole
 } = browserTabActionsController
@@ -716,7 +716,7 @@ const {
   activeWebUrl,
   activeOrigin,
   currentBookmark,
-  pageProblemDetails,
+  pageProblemDetails, shownPageProblems,
   fillSelectedCredential,
   detachedPanelUnavailable,
   detachedPanelLabelText,
@@ -899,11 +899,11 @@ useAppLifecycleController({
       :keeps-separate-panel-open="keepsSeparatePanelOpen"
     />
     <PageProblemBar
-      v-if="activeTab?.pageProblem"
-      :tab="activeTab"
+      v-for="problem in shownPageProblems" :key="problem.tab.id"
+      :tab="problem.tab" :pane="problem.pane"
       :details="pageProblemDetails"
-      @retry="runShellAction(retryActivePageProblem)"
-      @proceed="runShellAction(proceedPastActiveCertificateError)"
+      @retry="runShellAction(() => retryPageProblem(problem.tab.id))"
+      @proceed="runShellAction(() => proceedPastPageCertificateError(problem.tab.id))"
     />
     <AppTransientShellLayer
       ref="transientShellLayer"

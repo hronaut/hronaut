@@ -2015,7 +2015,11 @@ export const koKR: MessageSchema = {
   pageProblem: {
     reload: '새로고침',
     tryAgain: '다시 시도',
-    proceed: '{host}(으)로 이동…'
+    proceed: '{host}(으)로 이동…',
+    leftPage: '왼쪽 페이지',
+    rightPage: '오른쪽 페이지',
+    topPage: '위쪽 페이지',
+    bottomPage: '아래쪽 페이지'
   },
   responsive: {
     kicker: '반응형 테스트',

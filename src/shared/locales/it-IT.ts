@@ -2015,7 +2015,11 @@ export const itIT: MessageSchema = {
   pageProblem: {
     reload: 'Ricarica',
     tryAgain: 'Riprova',
-    proceed: 'Procedi su {host}…'
+    proceed: 'Procedi su {host}…',
+    leftPage: 'Pagina a sinistra',
+    rightPage: 'Pagina a destra',
+    topPage: 'Pagina in alto',
+    bottomPage: 'Pagina in basso'
   },
   responsive: {
     kicker: 'Test responsive',

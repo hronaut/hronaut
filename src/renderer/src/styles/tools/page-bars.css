@@ -9,6 +9,8 @@
 .page-problem-mark svg { @apply [width:20px] [height:20px]; }
 .page-problem-copy { @apply flex min-w-0 [align-items:baseline] [gap:8px]; }
 .page-problem-copy strong { @apply flex-none [font-size:var(--type-body-size)]; }
+/* Which pane of a split view the problem is in, before what went wrong there. */
+.page-problem-pane { @apply flex-none text-muted [font-size:var(--type-micro-size)] [font-weight:var(--weight-strong)] [letter-spacing:.04em] uppercase; }
 .page-problem-copy > span { @apply overflow-hidden text-muted [font-size:var(--type-body-size)] text-ellipsis whitespace-nowrap; }
 .page-problem-copy code { @apply flex-none text-subtle [font:var(--weight-strong)_var(--type-small-size)/1.2_var(--font-code)]; }
 .page-problem-bar > button {

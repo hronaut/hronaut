@@ -2015,7 +2015,11 @@ export const ukUA: MessageSchema = {
   pageProblem: {
     reload: 'Перезавантажити',
     tryAgain: 'Спробувати ще раз',
-    proceed: 'Перейти на {host}…'
+    proceed: 'Перейти на {host}…',
+    leftPage: 'Ліва сторінка',
+    rightPage: 'Права сторінка',
+    topPage: 'Верхня сторінка',
+    bottomPage: 'Нижня сторінка'
   },
   responsive: {
     kicker: 'Адаптивне тестування',

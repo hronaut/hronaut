@@ -461,6 +461,16 @@ describe('extracted shell components', () => {
     expect(view.emitted().retry).toHaveLength(1)
   })
 
+  it('names the split view\'s pane its page is shown in', async () => {
+    const problem = tab({ kind: 'load-error', title: 'Site unavailable', message: 'Hronaut could not load this page.', url: 'https://example.test/app' })
+    const view = render(PageProblemBar, { global, props: { tab: problem, details: () => '' } })
+    expect(screen.getByRole('alert')).not.toHaveTextContent(/page$|Right page|Left page/)
+    for (const [pane, name] of [['left', 'Left page'], ['right', 'Right page'], ['top', 'Top page'], ['bottom', 'Bottom page']] as const) {
+      await view.rerender({ tab: problem, pane, details: () => '' })
+      expect(screen.getByRole('alert')).toHaveTextContent(`${name}Site unavailable`)
+    }
+  })
+
   it('offers to open a page anyway only when the certificate the tab refused allows it', async () => {
     const problem = (canProceed: boolean) => tab({
       kind: 'load-error',

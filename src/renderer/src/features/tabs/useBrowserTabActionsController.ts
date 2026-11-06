@@ -121,17 +121,24 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
     }
   }
 
-  async function retryActivePageProblem(): Promise<void> {
+  /** A tab as the shell shows it, such as the active one or the split view's other pane. */
+  function tabById(tabId: string): BrowserTabState | undefined {
+    const active = options.activeTab.value
+    return active?.id === tabId ? active : options.state.value.tabs.find((tab) => tab.id === tabId)
+  }
+
+  /** Tries the page of a shown tab that could not open again, as its Try again or Reload says. */
+  async function retryPageProblem(tabId: string): Promise<void> {
     if (disposed) return
-    const tab = options.activeTab.value
+    const tab = tabById(tabId)
     if (!tab?.pageProblem) return
     await options.syncState(options.browser.reload(tab.id))
   }
 
-  /** Lets the person open the page the shown tab refused for its website's certificate; main asks them to confirm. */
-  async function proceedPastActiveCertificateError(): Promise<void> {
+  /** Lets the person open the page a shown tab refused for its website's certificate; main asks them to confirm. */
+  async function proceedPastPageCertificateError(tabId: string): Promise<void> {
     if (disposed) return
-    const tab = options.activeTab.value
+    const tab = tabById(tabId)
     if (!tab?.pageProblem?.certificate?.canProceed) return
     try {
       await options.syncState(options.browser.proceedPastCertificateError(tab.id))
@@ -270,8 +277,8 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
     selectBrowserTab,
     navigateAddress,
     openAddressInNewTab,
-    retryActivePageProblem,
-    proceedPastActiveCertificateError,
+    retryPageProblem,
+    proceedPastPageCertificateError,
     showWorkspaceContextMenu,
     closeTab,
     toggleTabMuted,

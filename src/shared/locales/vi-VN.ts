@@ -2015,7 +2015,11 @@ export const viVN: MessageSchema = {
   pageProblem: {
     reload: 'Tải lại',
     tryAgain: 'Thử lại',
-    proceed: 'Tiếp tục truy cập {host}…'
+    proceed: 'Tiếp tục truy cập {host}…',
+    leftPage: 'Trang bên trái',
+    rightPage: 'Trang bên phải',
+    topPage: 'Trang phía trên',
+    bottomPage: 'Trang phía dưới'
   },
   responsive: {
     kicker: 'Kiểm thử thích ứng',
