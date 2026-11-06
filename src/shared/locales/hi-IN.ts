@@ -2015,7 +2015,11 @@ export const hiIN: MessageSchema = {
   pageProblem: {
     reload: 'फिर से लोड करें',
     tryAgain: 'फिर से कोशिश करें',
-    proceed: '{host} पर जाएं…'
+    proceed: '{host} पर जाएं…',
+    leftPage: 'बायाँ पेज',
+    rightPage: 'दायाँ पेज',
+    topPage: 'ऊपर का पेज',
+    bottomPage: 'नीचे का पेज'
   },
   responsive: {
     kicker: 'रिस्पॉन्सिव टेस्टिंग',

@@ -2015,7 +2015,11 @@ export const ptBR: MessageSchema = {
   pageProblem: {
     reload: 'Recarregar',
     tryAgain: 'Tentar novamente',
-    proceed: 'Ir para {host}…'
+    proceed: 'Ir para {host}…',
+    leftPage: 'Página à esquerda',
+    rightPage: 'Página à direita',
+    topPage: 'Página de cima',
+    bottomPage: 'Página de baixo'
   },
   responsive: {
     kicker: 'Teste responsivo',

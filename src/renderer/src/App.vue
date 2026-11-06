@@ -399,8 +399,8 @@ const {
 } = appSiteNavigationFeatureController
 const {
   selectBrowserTab,
-  retryActivePageProblem,
-  proceedPastActiveCertificateError,
+  retryPageProblem,
+  proceedPastPageCertificateError,
   toggleDeveloperTools,
   showDeveloperToolsConsole
 } = browserTabActionsController
@@ -669,11 +669,11 @@ const {
   closeAddressSuggestions
 })
 // What opens from the tabs and the toolbar keeps them in view while it is open, and so does a bar shown
-// under the toolbar (Find, Zoom, a page that failed or the license card), so it does not move under the pointer.
+// under the toolbar (Find, Zoom, a shown page that failed, in either pane, or the license card), so it does not move.
 fullPageView.holdWhile(() => [
   mcpStatusController.summaryOpen, updateNoticeOpen, addressSuggestionsOpen,
   downloadsOpen, historyOpen, splitMenuOpen, siteControlsOpen, findOpen, zoomOpen
-].some((open) => open.value === true) || Boolean(activeTab.value?.pageProblem)
+].some((open) => open.value === true) || shownPageProblems.value.length > 0
   || appSettingsFeatureController.licenseAskController.cardReason.value !== null)
 const appActiveTabFeatureController = useAppActiveTabFeatureController({
   presentation: {
@@ -716,7 +716,7 @@ const {
   activeWebUrl,
   activeOrigin,
   currentBookmark,
-  pageProblemDetails,
+  pageProblemDetails, shownPageProblems,
   fillSelectedCredential,
   detachedPanelUnavailable,
   detachedPanelLabelText,
@@ -899,11 +899,11 @@ useAppLifecycleController({
       :keeps-separate-panel-open="keepsSeparatePanelOpen"
     />
     <PageProblemBar
-      v-if="activeTab?.pageProblem"
-      :tab="activeTab"
+      v-for="problem in shownPageProblems" :key="problem.tab.id"
+      :tab="problem.tab" :pane="problem.pane"
       :details="pageProblemDetails"
-      @retry="runShellAction(retryActivePageProblem)"
-      @proceed="runShellAction(proceedPastActiveCertificateError)"
+      @retry="runShellAction(() => retryPageProblem(problem.tab.id))"
+      @proceed="runShellAction(() => proceedPastPageCertificateError(problem.tab.id))"
     />
     <AppTransientShellLayer
       ref="transientShellLayer"

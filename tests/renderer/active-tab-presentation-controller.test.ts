@@ -288,4 +288,32 @@ describe('active tab presentation controller', () => {
     expect(controller.tabTooltip(active)).toContain('[runtimeDetails.tab.workspace:Research]')
     expect(controller.pageProblemDetails(active)).toBe('[runtimeDetails.tab.exit:crashed,#9]')
   })
+
+  // The split view's pane that was not active showed a blank page when its page could not open: only the active tab's
+  // problem was shown.
+  it('shows the problem of each shown page, naming its pane in a split view', () => {
+    const problem = (title: string) => ({ kind: 'load-error' as const, title, message: 'Try again later.', url: 'https://example.test/' })
+    const active = tab({ id: 'active' })
+    const { controller, browserState, activeTab } = create(active)
+    const other = tab({ id: 'other', active: false, pageProblem: problem('Other failed') })
+    const view = (tabs: BrowserTabState[], splitView?: BrowserState['splitView']) => {
+      browserState.value = { ...browserState.value, tabs, ...(splitView ? { splitView } : {}) }
+    }
+    const shown = () => controller.shownPageProblems.value.map(({ tab, pane }) => [tab.id, pane])
+    expect(shown()).toEqual([])
+    activeTab.value = tab({ id: 'active', pageProblem: problem('Active failed') })
+    expect(shown()).toEqual([['active', undefined]])
+
+    view([activeTab.value, other], { firstTabId: 'active', secondTabId: 'other', orientation: 'vertical', ratio: 0.5 })
+    expect(shown()).toEqual([['active', 'left'], ['other', 'right']])
+    activeTab.value = active
+    expect(shown()).toEqual([['other', 'right']])
+    view([other, active], { firstTabId: 'other', secondTabId: 'active', orientation: 'horizontal', ratio: 0.5 })
+    expect(shown()).toEqual([['other', 'top']])
+    expect(controller.shownPageProblems.value[0]?.tab.pageProblem?.title).toBe('Other failed')
+
+    // A split view the shown tab is not in, as while Home or another tab is shown, shows only that tab's.
+    activeTab.value = tab({ id: 'third' })
+    expect(shown()).toEqual([])
+  })
 })

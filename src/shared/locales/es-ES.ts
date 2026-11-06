@@ -2015,7 +2015,11 @@ export const esES: MessageSchema = {
   pageProblem: {
     reload: 'Recargar',
     tryAgain: 'Intentar de nuevo',
-    proceed: 'Acceder a {host}…'
+    proceed: 'Acceder a {host}…',
+    leftPage: 'Página izquierda',
+    rightPage: 'Página derecha',
+    topPage: 'Página superior',
+    bottomPage: 'Página inferior'
   },
   responsive: {
     kicker: 'Pruebas adaptativas',

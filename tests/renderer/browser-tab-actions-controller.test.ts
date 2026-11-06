@@ -216,7 +216,7 @@ describe('browser tab actions controller', () => {
   it('targets the current tab for navigation and page-problem retry', async () => {
     const harness = createHarness()
     await harness.controller.navigateAddress('https://next.test/')
-    await harness.controller.retryActivePageProblem()
+    await harness.controller.retryPageProblem('active')
     expect(harness.browser.navigate).toHaveBeenCalledWith({ url: 'https://next.test/', tabId: 'active' })
     expect(harness.browser.reload).not.toHaveBeenCalled()
 
@@ -226,8 +226,31 @@ describe('browser tab actions controller', () => {
       message: 'Try again',
       url: 'https://example.test/'
     } })
-    await harness.controller.retryActivePageProblem()
+    await harness.controller.retryPageProblem('active')
     expect(harness.browser.reload).toHaveBeenCalledWith('active')
+  })
+
+  // The split view's pane that is not active showed no problem and had no Try again of its own.
+  it('tries again, or opens anyway, the page of the split view\'s other pane, and only one with that problem', async () => {
+    const harness = createHarness()
+    const other = tab({ id: 'other', active: false, pageProblem: {
+      kind: 'load-error',
+      title: 'Your connection is not private',
+      message: 'Someone might be trying to steal your information from staging.example.',
+      url: 'https://staging.example/',
+      certificate: { host: 'staging.example', canProceed: true }
+    } })
+    harness.state.value = { ...harness.state.value, tabs: [harness.activeTab.value!, other] }
+    await harness.controller.retryPageProblem('other')
+    expect(harness.browser.reload).toHaveBeenCalledExactlyOnceWith('other')
+    await harness.controller.proceedPastPageCertificateError('other')
+    expect(harness.browser.proceedPastCertificateError).toHaveBeenCalledExactlyOnceWith('other')
+    // The active tab has no problem, and a tab that is gone has nothing to try again.
+    await harness.controller.retryPageProblem('active')
+    await harness.controller.retryPageProblem('gone')
+    await harness.controller.proceedPastPageCertificateError('active')
+    expect(harness.browser.reload).toHaveBeenCalledOnce()
+    expect(harness.browser.proceedPastCertificateError).toHaveBeenCalledOnce()
   })
 
   it('asks main to open the shown page anyway only when the certificate its tab refused allows it', async () => {
@@ -239,18 +262,18 @@ describe('browser tab actions controller', () => {
       url: 'https://staging.example/',
       certificate: { host: 'staging.example', canProceed }
     } })
-    await harness.controller.proceedPastActiveCertificateError()
+    await harness.controller.proceedPastPageCertificateError('active')
     harness.activeTab.value = refused(false)
-    await harness.controller.proceedPastActiveCertificateError()
+    await harness.controller.proceedPastPageCertificateError('active')
     expect(harness.browser.proceedPastCertificateError).not.toHaveBeenCalled()
     harness.activeTab.value = refused(true)
-    await harness.controller.proceedPastActiveCertificateError()
+    await harness.controller.proceedPastPageCertificateError('active')
     expect(harness.browser.proceedPastCertificateError).toHaveBeenCalledExactlyOnceWith('active')
     expect(harness.syncState).toHaveBeenCalled()
     // A failure is reported as a navigation's.
     const failure = new Error('Tab not found')
     harness.browser.proceedPastCertificateError.mockRejectedValueOnce(failure)
-    await harness.controller.proceedPastActiveCertificateError()
+    await harness.controller.proceedPastPageCertificateError('active')
     expect(harness.onNavigateError).toHaveBeenCalledExactlyOnceWith(failure)
   })
 

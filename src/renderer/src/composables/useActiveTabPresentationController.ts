@@ -15,6 +15,15 @@ import type {
 
 type Translate = (key: string, parameters?: Record<string, unknown>, plural?: number) => string
 
+/** Which pane of a split view a page is shown in. */
+export type ShownPagePane = 'left' | 'right' | 'top' | 'bottom'
+
+/** A shown page that could not open or stopped working, and the split view's pane it is shown in, if any. */
+export interface ShownPageProblem {
+  tab: BrowserTabState
+  pane?: ShownPagePane
+}
+
 export interface ActiveTabPresentationControllerOptions {
   state: Readonly<Ref<BrowserState>>
   activeTab: Readonly<Ref<BrowserTabState | undefined>>
@@ -169,6 +178,24 @@ export function useActiveTabPresentationController(options: ActiveTabPresentatio
     return `${tab.label ? `${tab.label}\n${title}\n${tab.url}` : title}${tab.labelDurabilityUnconfirmed ? `\n${words.uncertainLabel}` : ''}${problem}${tab.pinned ? words.pinned : ''}${tab.sleeping ? words.sleeping : ''}${pageLifecycle}${audio}${locked ? words.locked : ''}${emulation}${networkRoutes}${split ? words.split : ''}${workspace}`
   }
 
+  /**
+   * The shown pages that could not open or stopped working, in the order they are shown. In a split view each pane
+   * says what went wrong in it and which pane it is, as Chrome shows its error page in that pane: the pane that was
+   * not active showed a blank page, with no message and no Try again.
+   */
+  const shownPageProblems = computed<ShownPageProblem[]>(() => {
+    const active = options.activeTab.value
+    const split = options.state.value.splitView
+    if (!split || !active || (split.firstTabId !== active.id && split.secondTabId !== active.id)) {
+      return active?.pageProblem ? [{ tab: active }] : []
+    }
+    const panes: [ShownPagePane, ShownPagePane] = split.orientation === 'vertical' ? ['left', 'right'] : ['top', 'bottom']
+    return [split.firstTabId, split.secondTabId].flatMap((tabId, index) => {
+      const tab = tabId === active.id ? active : options.state.value.tabs.find((candidate) => candidate.id === tabId)
+      return tab?.pageProblem ? [{ tab, pane: panes[index] }] : []
+    })
+  })
+
   function pageProblemDetails(tab: BrowserTabState): string {
     const problem = tab.pageProblem
     if (!problem) return ''
@@ -205,6 +232,7 @@ export function useActiveTabPresentationController(options: ActiveTabPresentatio
     tabInteractionLockLabel,
     allInteractionLockLabel,
     tabTooltip,
+    shownPageProblems,
     pageProblemDetails
   }
 }

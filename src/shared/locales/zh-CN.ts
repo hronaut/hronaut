@@ -2015,7 +2015,11 @@ export const zhCN: MessageSchema = {
   pageProblem: {
     reload: '重新加载',
     tryAgain: '重试',
-    proceed: '继续前往 {host}…'
+    proceed: '继续前往 {host}…',
+    leftPage: '左侧页面',
+    rightPage: '右侧页面',
+    topPage: '上方页面',
+    bottomPage: '下方页面'
   },
   responsive: {
     kicker: '响应式测试',

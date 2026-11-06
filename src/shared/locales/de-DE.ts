@@ -2015,7 +2015,11 @@ export const deDE: MessageSchema = {
   pageProblem: {
     reload: 'Neu laden',
     tryAgain: 'Erneut versuchen',
-    proceed: 'Weiter zu {host}…'
+    proceed: 'Weiter zu {host}…',
+    leftPage: 'Linke Seite',
+    rightPage: 'Rechte Seite',
+    topPage: 'Obere Seite',
+    bottomPage: 'Untere Seite'
   },
   responsive: {
     kicker: 'Responsives Testen',

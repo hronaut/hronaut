@@ -2015,7 +2015,11 @@ export const ruRU: MessageSchema = {
   pageProblem: {
     reload: 'Перезагрузить',
     tryAgain: 'Повторить',
-    proceed: 'Перейти на {host}…'
+    proceed: 'Перейти на {host}…',
+    leftPage: 'Левая страница',
+    rightPage: 'Правая страница',
+    topPage: 'Верхняя страница',
+    bottomPage: 'Нижняя страница'
   },
   responsive: {
     kicker: 'Адаптивное тестирование',

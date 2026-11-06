@@ -2015,7 +2015,11 @@ export const trTR: MessageSchema = {
   pageProblem: {
     reload: 'Yeniden yükle',
     tryAgain: 'Tekrar dene',
-    proceed: '{host} sitesine ilerle…'
+    proceed: '{host} sitesine ilerle…',
+    leftPage: 'Soldaki sayfa',
+    rightPage: 'Sağdaki sayfa',
+    topPage: 'Üstteki sayfa',
+    bottomPage: 'Alttaki sayfa'
   },
   responsive: {
     kicker: 'Duyarlı test',
