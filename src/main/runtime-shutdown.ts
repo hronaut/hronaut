@@ -44,7 +44,12 @@ interface RuntimeShutdownHost {
 function flushBookmarksAndHistory(state: BookmarksAndHistoryState): (Promise<void> | undefined)[] {
   const bookmarksSaved = state.bookmarks?.flush()
   const historySaved = state.history?.flush()
-  return [bookmarksSaved, historySaved, Promise.allSettled([bookmarksSaved, historySaved]).then(() => state.siteIcons?.flush())]
+  // A removal lets go of its pages' icons only once its bookmarks or history are saved, a few steps later, so the icons
+  // are saved a turn after both.
+  const iconsSaved = Promise.allSettled([bookmarksSaved, historySaved])
+    .then(() => new Promise<void>((resolve) => setImmediate(resolve)))
+    .then(() => state.siteIcons?.flush())
+  return [bookmarksSaved, historySaved, iconsSaved]
 }
 
 /**

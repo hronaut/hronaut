@@ -40,18 +40,32 @@ it('saves the visits of the last second as soon as shutdown starts, and those re
   expect(calls).toEqual(['history saved', 'history timers stopped', 'site icons timers stopped', 'MCP stopped', 'history saved', 'site icons saved'])
 })
 
-// A clear of the history or a bookmark removal that ends as Hronaut quits lets go of its pages' icons, so the icons are
-// saved only after both files, and a failed save of either is still logged.
-it('saves the pages\' icons after the bookmarks and the history, whether or not their saves fail', async () => {
+// A clear of the history or a bookmark removal that ends as Hronaut quits lets go of its pages' icons once its file is
+// saved, so the icons are saved only after both files, and a failed save of either is still logged.
+it.each(['bookmarks', 'history'] as const)('saves the pages\' icons after the bookmarks and the history, the %s saved last', async (last) => {
   const saving: { bookmarks?: () => void; history?: (error: Error) => void } = {}
-  const bookmarks = { flush: vi.fn(() => new Promise<void>((resolve) => { saving.bookmarks = resolve })) }
+  // A bookmark removal lets go of its page's icon a few steps after its bookmarks are saved.
+  let removalPublished = false
+  const bookmarks = {
+    flush: vi.fn(() => {
+      const saved = new Promise<void>((resolve) => { saving.bookmarks = resolve })
+      void (async () => {
+        await saved
+        await Promise.resolve()
+        await Promise.resolve()
+        removalPublished = true
+      })()
+      return saved
+    })
+  }
   const history = {
     flush: vi.fn<() => Promise<void>>()
       .mockImplementationOnce(async () => undefined)
       .mockImplementationOnce(() => new Promise<void>((_resolve, reject) => { saving.history = reject })),
     dispose: vi.fn()
   }
-  const siteIcons = { flush: vi.fn(async () => undefined), dispose: vi.fn() }
+  const savedAfterRemoval: boolean[] = []
+  const siteIcons = { flush: vi.fn(async () => { savedAfterRemoval.push(removalPublished) }), dispose: vi.fn() }
   const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined)
   try {
     const done = createRuntimeShutdown({
@@ -69,13 +83,15 @@ it('saves the pages\' icons after the bookmarks and the history, whether or not 
       flushPanelWindowState: async () => undefined,
       flushBrowserProfile: async () => undefined
     }).releaseRuntimeResources()
-    await vi.waitFor(() => expect(saving.history).toBeDefined())
-    saving.history!(new Error('disk full'))
-    await new Promise((resolve) => setImmediate(resolve))
+    await vi.waitFor(() => expect(saving.history && saving.bookmarks).toBeDefined())
+    const saves = { bookmarks: () => saving.bookmarks!(), history: () => saving.history!(new Error('disk full')) }
+    saves[last === 'bookmarks' ? 'history' : 'bookmarks']()
+    // Long enough for the icons' save to start, had it waited for one file only.
+    await new Promise((resolve) => setTimeout(resolve, 20))
     expect(siteIcons.flush).not.toHaveBeenCalled()
-    saving.bookmarks!()
+    saves[last]()
     await done
-    expect(siteIcons.flush).toHaveBeenCalledTimes(1)
+    expect(savedAfterRemoval).toEqual([true])
     expect(logged).toHaveBeenCalledWith('[shutdown] Runtime cleanup failed:', new Error('disk full'))
   } finally {
     logged.mockRestore()
