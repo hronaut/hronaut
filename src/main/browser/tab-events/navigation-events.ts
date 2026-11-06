@@ -267,7 +267,11 @@ export function attachNavigationEvents(browser: Browser, tab: BrowserTab, webCon
     tab.pendingMainFrameUrl = undefined
     // A navigation may already have started before emulation admission.
     tab.emulationContextGeneration++
-    if (tab.sleeping) return
+    if (tab.sleeping) {
+      // The sleeping page replaced the page, which loads again as the tab wakes, with its website's permissions then.
+      tab.permissionReloadOffered = undefined
+      return
+    }
     // Reset only when a new main-frame document commits, never on a failed load.
     tab.performanceDocumentRouted = false
     tab.documentGeneration += 1

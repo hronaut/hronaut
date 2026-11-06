@@ -210,14 +210,17 @@ export function urlDetailOmitted(manager: { omitAgentUrlDetail?: () => boolean }
   return manager.omitAgentUrlDetail?.() === true
 }
 
-/** A tab as agents read it. With `omitUrlDetail`, the person's setting, its addresses carry no query or fragment. */
-export function mcpWorkspaceTab<T extends AddressedTab & { mcpGroupId?: string; mcpGroupName?: string; networkConditionState?: import('../../shared/types.js').BrowserNetworkConditionState }>(tab: T, omitUrlDetail = false): Omit<T, 'mcpGroupId' | 'mcpGroupName' | 'networkConditionState'> & {
+/**
+ * A tab as agents read it. With `omitUrlDetail`, the person's setting, its addresses carry no query or fragment. Whether
+ * the person changed a permission of its website since it loaded stays the person's.
+ */
+export function mcpWorkspaceTab<T extends AddressedTab & { mcpGroupId?: string; mcpGroupName?: string; networkConditionState?: import('../../shared/types.js').BrowserNetworkConditionState; permissionReloadOffered?: true }>(tab: T, omitUrlDetail = false): Omit<T, 'mcpGroupId' | 'mcpGroupName' | 'networkConditionState' | 'permissionReloadOffered'> & {
   networkConditionState?: { application: import('../../shared/types.js').BrowserNetworkConditionState['application']; retainedRuleCount: number }
   workspaceId?: string
   workspaceName?: string
   urlDetail?: 'omitted'
 } {
-  const { mcpGroupId, mcpGroupName, networkConditionState, ...rest } = tab
+  const { mcpGroupId, mcpGroupName, networkConditionState, permissionReloadOffered: _personal, ...rest } = tab
   return {
     ...(omitUrlDetail ? tabWithoutUrlDetail(rest) : withoutOmittedNote(rest)),
     ...(networkConditionState ? { networkConditionState: { application: networkConditionState.application, retainedRuleCount: networkConditionState.retainedRules.length } } : {}),

@@ -24,6 +24,9 @@ test('Site controls offer to reload the page after a permission changed, until t
       return { page, other }
     }, site)
     await expect.poll(() => loads).toBe(1)
+    // Both pages shown before the change, which a page loading after it does not need to apply.
+    await expect.poll(() => appWindow.evaluate(() => (window as unknown as { hronaut: HronautApi }).hronaut.getState()
+      .then(state => state.tabs.filter(tab => !tab.loading).map(tab => tab.title).sort()))).toEqual(expect.arrayContaining(['Other', 'Reload offer']))
     const selectTab = (tabId: string) => appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.selectTab(tabId), tabId)
 
     const siteControls = appWindow.getByRole('button', { name: 'Site controls for 127.0.0.1', exact: true })

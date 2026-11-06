@@ -17,16 +17,17 @@ export type SitePermissionChange = Omit<SitePermissionEntry, 'decision'>
  */
 export function applySitePermissionChanges(browser: Browser, changes: readonly SitePermissionChange[]): void {
   applySiteMutingToTabs(browser)
+  // Each workspace and website a change reaches, so clearing every decision reads each tab's address once.
+  const reached = new Set(changes.filter((change) => change.permission !== SITE_SOUND_PERMISSION)
+    .map((change) => [change.workspaceId, change.embeddedIn ?? change.origin].join('\u0000')))
+  if (reached.size === 0) return
   let offered = false
-  for (const change of changes) {
-    if (change.permission === SITE_SOUND_PERMISSION) continue
-    const site = change.embeddedIn ?? change.origin
-    for (const tab of browser.tabs.values()) {
-      if (tab.mcpGroupId !== change.workspaceId || tab.sleeping || tab.webContents.isDestroyed()) continue
-      if (normalizeSitePermissionOrigin(tab.url) !== site || tab.permissionReloadOffered === tab.documentGeneration) continue
-      tab.permissionReloadOffered = tab.documentGeneration
-      offered = true
-    }
+  for (const tab of browser.tabs.values()) {
+    if (!tab.mcpGroupId || tab.sleeping || tab.webContents.isDestroyed() || tab.permissionReloadOffered === tab.documentGeneration) continue
+    const site = normalizeSitePermissionOrigin(tab.url)
+    if (!site || !reached.has([tab.mcpGroupId, site].join('\u0000'))) continue
+    tab.permissionReloadOffered = tab.documentGeneration
+    offered = true
   }
   if (offered) publishChange(browser, false)
 }

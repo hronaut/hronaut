@@ -66,6 +66,17 @@ function page() {
   return { contents, tab, walletNavigations, cancelSelections }
 }
 
+// A tab offering to reload its page for a permission changed meanwhile showed the offer again as it woke, while the page
+// it woke to, which already has the new permissions, was still loading.
+describe('the offer to reload for a permission changed', () => {
+  it('ends when the sleeping page replaces the page, which loads again as the tab wakes', () => {
+    const { contents, tab } = page()
+    Object.assign(tab, { permissionReloadOffered: 0, sleeping: true })
+    contents.emit('did-navigate', {}, 'about:blank')
+    expect(tab).toMatchObject({ documentGeneration: 0, permissionReloadOffered: undefined })
+  })
+})
+
 describe('the document generation Find in page closes on', () => {
   it('advances when another page replaces the page, not while it only loads', () => {
     const { contents, tab } = page()
