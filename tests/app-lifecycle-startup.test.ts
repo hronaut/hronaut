@@ -55,3 +55,29 @@ describe('starting once Electron is ready', () => {
     expect(startupFailed).not.toHaveBeenCalled()
   })
 })
+
+describe('a helper process that ends', () => {
+  type GoneListener = (event: unknown, details: Partial<Electron.Details>) => void
+  const gone = (app: { on: ReturnType<typeof vi.fn> }): GoneListener =>
+    app.on.mock.calls.find(([event]) => event === 'child-process-gone')![1] as GoneListener
+
+  it('logs a GPU or network service process that crashed, which left no trace before', () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const { app } = lifecycle(async () => undefined)
+    gone(app)({}, { type: 'GPU', reason: 'crashed', exitCode: 139 })
+    gone(app)({}, { type: 'Utility', name: 'Network Service', reason: 'killed', exitCode: 9 })
+    expect(logged.mock.calls).toEqual([
+      ['[process] GPU process ended: crashed (exit code 139)'],
+      ['[process] Utility (Network Service) process ended: killed (exit code 9)']
+    ])
+    logged.mockRestore()
+  })
+
+  it('says nothing for a process that exited cleanly or while Hronaut quits', () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    gone(lifecycle(async () => undefined).app)({}, { type: 'Utility', name: 'Audio Service', reason: 'clean-exit', exitCode: 0 })
+    gone(lifecycle(async () => undefined, true).app)({}, { type: 'GPU', reason: 'killed', exitCode: 15 })
+    expect(logged).not.toHaveBeenCalled()
+    logged.mockRestore()
+  })
+})
