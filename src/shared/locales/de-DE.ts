@@ -1286,7 +1286,6 @@ export const deDE: MessageSchema = {
       lockTab: 'Seiteneingabe in diesem Tab sperren',
       unlockAll: 'Menschliche Seiteneingabe in allen Website-Tabs zulassen. Der Fokusschutz bleibt automatisch aktiv.',
       lockAll: 'Menschliche Seiteneingabe in allen Website-Tabs blockieren; vertrauenswürdige Hronaut-Bedienelemente und Agenten arbeiten weiter. Der Fokusschutz bleibt automatisch aktiv.',
-      closeShortcut: 'Tab schließen (Ctrl/Cmd+W)',
       inputLocked: 'Seiteneingabe ist gesperrt',
       inputLock: 'Seiteneingabesicherung'
     },

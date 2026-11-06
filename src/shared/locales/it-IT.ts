@@ -1286,7 +1286,6 @@ export const itIT: MessageSchema = {
       lockTab: 'Blocca l’input della pagina in questa scheda',
       unlockAll: 'Consenti l’input umano nelle pagine in tutte le schede di siti web. La protezione dello stato attivo resta automatica.',
       lockAll: 'Blocca l’input umano nelle pagine in tutte le schede di siti web; i controlli attendibili di Hronaut e gli agenti continuano a funzionare. La protezione dello stato attivo resta automatica.',
-      closeShortcut: 'Chiudi scheda (Ctrl/Cmd+W)',
       inputLocked: 'L’input della pagina è bloccato',
       inputLock: 'Blocco dell’input della pagina'
     },

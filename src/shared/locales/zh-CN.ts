@@ -1286,7 +1286,6 @@ export const zhCN: MessageSchema = {
       lockTab: '锁定此标签页中的页面输入',
       unlockAll: '允许在所有网站标签页中进行人工页面输入。焦点保护仍会自动启用。',
       lockAll: '阻止在所有网站标签页中进行人工页面输入；受信任的 Hronaut 控件和智能体仍可继续工作。焦点保护仍会自动启用。',
-      closeShortcut: '关闭标签页 (Ctrl/Cmd+W)',
       inputLocked: '页面输入已锁定',
       inputLock: '页面输入锁定'
     },

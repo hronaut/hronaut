@@ -1286,7 +1286,6 @@ export const plPL: MessageSchema = {
       lockTab: 'Zablokuj wprowadzanie danych na tej karcie',
       unlockAll: 'Zezwól na wprowadzanie danych przez człowieka we wszystkich kartach witryn. Ochrona fokusu pozostaje automatyczna.',
       lockAll: 'Zablokuj wprowadzanie danych przez człowieka we wszystkich kartach witryn; zaufane elementy sterujące Hronaut i agenci nadal działają. Ochrona fokusu pozostaje automatyczna.',
-      closeShortcut: 'Zamknij kartę (Ctrl/Cmd+W)',
       inputLocked: 'Wprowadzanie danych na stronie jest zablokowane',
       inputLock: 'Blokada wprowadzania danych na stronie'
     },

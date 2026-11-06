@@ -1286,7 +1286,6 @@ export const zhTW: MessageSchema = {
       lockTab: '鎖定這個分頁的網頁輸入',
       unlockAll: '允許所有網站分頁接受真人網頁輸入。焦點保護仍會自動啟用。',
       lockAll: '封鎖所有網站分頁的真人網頁輸入；受信任的 Hronaut 控制項和代理程式仍可正常運作。焦點保護仍會自動啟用。',
-      closeShortcut: '關閉分頁（Ctrl/Cmd+W）',
       inputLocked: '網頁輸入已鎖定',
       inputLock: '網頁輸入鎖定'
     },
