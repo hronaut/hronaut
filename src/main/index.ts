@@ -601,9 +601,9 @@ const {
 } = createMainWindow({
   refs: mainWindowRefs,
   settings: () => settingsState.current,
-  resolvedTheme,
-  themeBackground: THEME_BACKGROUND,
-  acknowledgeUserAttention
+  resolvedTheme, themeBackground: THEME_BACKGROUND,
+  acknowledgeUserAttention,
+  quitting: () => appQuitState.quitting
 })
 
 const { applyTheme, applyInterfaceScale, followSystemTheme } = createWindowAppearance({
