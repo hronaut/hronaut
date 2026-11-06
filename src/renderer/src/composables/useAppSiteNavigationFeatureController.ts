@@ -67,7 +67,7 @@ export interface AppSiteNavigationFeatureControllerOptions {
   shell: {
     setFollowAgentActivitySuspended: (suspended: boolean) => void
     /** Main, which gives the address field or Find's the keyboard back on coming back to a tab; none in a panel window. */
-    tabFieldFocus?: Pick<HronautShellApi, 'setTabFieldFocused' | 'onTabFieldFocusReturned'>
+    tabFieldFocus?: Pick<HronautShellApi, 'setTabFieldFocused' | 'onTabFieldFocusReturned' | 'onKeyboardGivenBack'>
     settingsOpen: Ref<boolean>
     settingsSection: Readonly<Ref<SettingsSection>>
     updateNoticeOpen: Ref<boolean>

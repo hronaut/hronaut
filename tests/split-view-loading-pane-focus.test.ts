@@ -42,7 +42,7 @@ function browser() {
   const tabs = new Map([['guide', guide], ['link', link], ['other', tab('other')]])
   const focusTabOrTrustedChrome = vi.fn()
   // Hronaut's own controls, which the person can give the keyboard while the link loads.
-  const shell = Object.assign(new EventEmitter(), { isDestroyed: () => false, focus: vi.fn() })
+  const shell = Object.assign(new EventEmitter(), { isDestroyed: () => false, focus: vi.fn(), send: vi.fn() })
   const state = {
     tabs,
     activeTabId: 'guide' as string | null,
@@ -98,8 +98,26 @@ describe('the keyboard while a pane beside the page loads its first document', (
     await takesKeyboard(link.webContents)
     expect(shell.focus).toHaveBeenCalledOnce()
     expect(focusTabOrTrustedChrome).not.toHaveBeenCalled()
+    // Told before it takes the keyboard, so the address field takes it back without opening its suggestions.
+    expect(shell.send).toHaveBeenCalledExactlyOnceWith('shell:keyboard-given-back')
+    expect(shell.send.mock.invocationCallOrder[0]).toBeLessThan(shell.focus.mock.invocationCallOrder[0]!)
     link.webContents.emit('did-stop-loading')
     expect(shell.listenerCount('focus')).toBe(0)
+  })
+
+  // A guard the split left behind went on hearing where the keyboard went until its pane finished loading, which a
+  // pane that never does would not.
+  it('stops following where the keyboard goes once the split changed', () => {
+    for (const goes of ['page', 'shell'] as const) {
+      const { manager, state, guide, link, shell } = browser()
+      openSplitView(manager, 'link', beside)
+      state.splitViewGeneration += 1
+      if (goes === 'page') guide.webContents.emit('focus')
+      else shell.emit('focus')
+      expect(shell.listenerCount('focus'), goes).toBe(0)
+      expect(guide.webContents.listenerCount('focus'), goes).toBe(0)
+      expect(link.webContents.eventNames(), goes).toEqual([])
+    }
   })
 
   it('stays with the loading pane once the person or an agent made it active, or the split changed', async () => {

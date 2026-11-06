@@ -106,7 +106,7 @@ function browser() {
     window: {
       isDestroyed: () => false,
       isFocused: () => true,
-      webContents: Object.assign(new EventEmitter(), { focus: vi.fn(), isDestroyed: () => false }),
+      webContents: Object.assign(new EventEmitter(), { focus: vi.fn(), send: vi.fn(), isDestroyed: () => false }),
       contentView: {
         addChildView: (view: { id: string }) => { shown.add(view.id) },
         removeChildView: (view: { id: string }) => { shown.delete(view.id) }
@@ -337,6 +337,28 @@ describe('a split view put aside', () => {
     tabs.get('gamma')!.webContents.emit('focus')
     await new Promise((resolve) => setImmediate(resolve))
     expect(focusTab(manager)).toHaveBeenCalledWith(tabs.get('beta'))
+  })
+
+  it('gives the keyboard back to the field the tab shown in place of a closed tab was left with', async () => {
+    const { manager, tabs } = browser()
+    manager.selectTab('beta')
+    openSplitView(manager, 'gamma')
+    manager.selectTab('alpha')
+    tabs.get('gamma')!.webContents.url = ''
+    // The person left beta with its address field focused, which gets the keyboard back as beta shows in alpha's place.
+    Object.assign(tabs.get('beta')!, { fieldFocusOnReturn: 'address' })
+    await closeTab(manager, 'alpha', true, true)
+    expect(manager.activeTabId).toBe('beta')
+    expect(manager.splitView).toMatchObject({ firstTabId: 'beta', secondTabId: 'gamma' })
+    focusTab(manager).mockClear()
+
+    const gamma = tabs.get('gamma')!
+    gamma.webContents.focused = true
+    gamma.webContents.emit('focus')
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(manager.window.webContents.focus).toHaveBeenCalledOnce()
+    expect(manager.window.webContents.send).toHaveBeenCalledExactlyOnceWith('shell:keyboard-given-back')
+    expect(focusTab(manager)).not.toHaveBeenCalled()
   })
 
   it('keeps the keyboard from the tab paired with the tab selected while that tab loads its first document', async () => {

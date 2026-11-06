@@ -35,6 +35,7 @@ export const shellApi: HronautShellApi = {
   onTabFieldFocusReturned: (listener) => subscribe(SHELL_IPC.tabFieldFocusReturned, (tabId: unknown, field: unknown) => {
     if (typeof tabId === 'string' && isShellTabField(field)) listener(tabId, field)
   }),
+  onKeyboardGivenBack: (listener) => subscribe(SHELL_IPC.keyboardGivenBack, () => listener()),
   onHelpRequested: (listener) => subscribe(SHELL_IPC.helpRequested, (action) => listener(action)),
   onClipboardFailed: (listener) => subscribe(SHELL_IPC.clipboardFailed, (message) => listener(message)),
   onActionFailed: (listener) => subscribe(SHELL_IPC.actionFailed, (failure) => listener(failure))

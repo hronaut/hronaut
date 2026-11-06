@@ -33,6 +33,8 @@ export const SHELL_IPC = {
   historyShown: 'shell:history-shown' as SendChannel<[shown: boolean]>,
   /** Main → main window: the tab shown again had this field with the keyboard when it was left, and gets it back. */
   tabFieldFocusReturned: 'shell:tab-field-focus-returned' as EventChannel<[tabId: string, field: ShellTabField]>,
+  /** Main → main window: main gives the shell back the keyboard a page took, which a field takes back as it had it. */
+  keyboardGivenBack: 'shell:keyboard-given-back' as EventChannel<[]>,
   /** Main → main window: a Help dialog or a part of Settings to show, as a menu item asks. */
   helpRequested: 'help:open' as EventChannel<[action: HelpMenuAction]>,
   /** Main → main window: copying to the clipboard failed, with the message to show. */

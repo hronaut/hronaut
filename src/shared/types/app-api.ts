@@ -260,6 +260,8 @@ export interface HronautShellApi {
   setHistoryShown(shown: boolean): void
   /** Main showed the tab again whose field had the keyboard when it was left; the shell gives it back, or the page. */
   onTabFieldFocusReturned(listener: (tabId: string, field: ShellTabField) => void): () => void
+  /** Main gives the shell back the keyboard a page took; the field that had it takes it back without its suggestions. */
+  onKeyboardGivenBack(listener: () => void): () => void
   onHelpRequested(listener: (action: HelpMenuAction) => void): () => void
   onClipboardFailed(listener: (message: string) => void): () => void
   onActionFailed(listener: (failure: BrowserActionFailure) => void): () => void

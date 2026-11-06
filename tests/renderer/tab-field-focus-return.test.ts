@@ -12,12 +12,18 @@ describe('giving a tab\'s field the keyboard back', () => {
     const show = (tabId: string) => { state.value = { activeTabId: tabId } }
     const focusedField = ref<ShellTabField | null>(null)
     let returned: ((tabId: string, field: ShellTabField) => void) | undefined
+    let givenBack: (() => void) | undefined
     const stopListening = vi.fn()
+    const stopKeyboardListening = vi.fn()
     const shell = {
       setTabFieldFocused: vi.fn(),
       onTabFieldFocusReturned: vi.fn((listener: (tabId: string, field: ShellTabField) => void) => {
         returned = listener
         return stopListening
+      }),
+      onKeyboardGivenBack: vi.fn((listener: () => void) => {
+        givenBack = listener
+        return stopKeyboardListening
       })
     }
     const address = {
@@ -37,8 +43,9 @@ describe('giving a tab\'s field the keyboard back', () => {
       focusPage
     }))!
     return {
-      show, focusedField, shell, address, returnFindFocus, focusPage, stopListening,
+      show, focusedField, shell, address, returnFindFocus, focusPage, stopListening, stopKeyboardListening,
       returned: (tabId: string, field: ShellTabField) => returned!(tabId, field),
+      givenBack: () => givenBack!(),
       stop: () => { stop(); scope.stop() }
     }
   }
@@ -217,6 +224,56 @@ describe('giving a tab\'s field the keyboard back', () => {
     } finally { stop() }
   })
 
+  // A pane beside the page took the keyboard as its first document loaded, and main gave it back to the shell: the
+  // address field that had it took it back with its suggestions open, as if the person had just clicked into it.
+  it('takes the keyboard main gives the shell back without opening the address suggestions', () => {
+    const { address, givenBack, stop } = setup()
+    const windowTakesKeyboard = () => window.dispatchEvent(new FocusEvent('focus'))
+    vi.useFakeTimers()
+    try {
+      givenBack()
+      expect(address.expectFocusReturn).toHaveBeenCalledOnce()
+      // The window takes the keyboard, and the field in the same task, which is the one main gave it back to.
+      windowTakesKeyboard()
+      expect(address.cancelFocusReturn).not.toHaveBeenCalled()
+      vi.runAllTimers()
+      expect(address.cancelFocusReturn).toHaveBeenCalledOnce()
+      // Only the window taking the keyboard main gave back.
+      windowTakesKeyboard()
+      vi.runAllTimers()
+      expect(address.cancelFocusReturn).toHaveBeenCalledOnce()
+
+      // The person going on before the window takes it ends the wait, which the window then does not end again.
+      givenBack()
+      document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }))
+      expect(address.cancelFocusReturn).toHaveBeenCalledTimes(2)
+      windowTakesKeyboard()
+      vi.runAllTimers()
+      expect(address.cancelFocusReturn).toHaveBeenCalledTimes(2)
+    } finally {
+      stop()
+      vi.useRealTimers()
+    }
+  })
+
+  it('leaves a field waiting for its tab expecting the keyboard when main gives the shell the keyboard back meanwhile', () => {
+    const { address, givenBack, returned, stop } = setup()
+    vi.useFakeTimers()
+    try {
+      returned('first', 'address')
+      givenBack()
+      window.dispatchEvent(new FocusEvent('focus'))
+      vi.runAllTimers()
+      expect(address.cancelFocusReturn).not.toHaveBeenCalled()
+      // A key the person presses ends both.
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }))
+      expect(address.cancelFocusReturn).toHaveBeenCalledOnce()
+    } finally {
+      stop()
+      vi.useRealTimers()
+    }
+  })
+
   it('lets a key held since before the field takes the keyboard back repeat into it only as a shortcut', () => {
     const { returned, stop } = setup()
     const reached = vi.fn()
@@ -248,9 +305,10 @@ describe('giving a tab\'s field the keyboard back', () => {
   })
 
   it('stops listening and expecting when it stops, and does nothing in a panel window', async () => {
-    const { address, stopListening, stop } = setup()
+    const { address, stopListening, stopKeyboardListening, stop } = setup()
     stop()
     expect(stopListening).toHaveBeenCalledOnce()
+    expect(stopKeyboardListening).toHaveBeenCalledOnce()
     expect(address.cancelFocusReturn).toHaveBeenCalledOnce()
 
     const scope = effectScope()

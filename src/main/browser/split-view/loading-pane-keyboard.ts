@@ -1,4 +1,6 @@
 import type { WebContents } from 'electron'
+import { SHELL_IPC } from '../../../shared/ipc/shell.js'
+import { sendTo } from '../../typed-ipc.js'
 import type { Browser } from '../browser.js'
 import { findTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
@@ -24,11 +26,16 @@ export function keepKeyboardFromLoadingPane(browser: Browser, active: BrowserTab
   if (contents.getURL() !== '' && !contents.isLoadingMainFrame()) return
   const shell = browser.window.webContents
   let keyboard = keyboardNow
-  const toPage = (): void => { keyboard = 'page' }
-  const toShell = (): void => { keyboard = 'shell' }
   const generation = browser.splitViewGeneration
   const superseded = (): boolean => browser.splitViewGeneration !== generation || browser.activeTabId !== active.id
     || findTab(browser, active.id) !== active || active.webContents.isDestroyed() || contents.isDestroyed()
+  // A guard the split left behind stops as the keyboard next moves, not only once its pane is done loading.
+  const keyboardTo = (where: PaneKeyboard) => (): void => {
+    if (superseded()) stop()
+    else keyboard = where
+  }
+  const toPage = keyboardTo('page')
+  const toShell = keyboardTo('shell')
   // Chromium can ignore a focus change made from the focus event itself, so it is given back on the next turn.
   const giveBack = (): void => {
     setImmediate(() => {
@@ -38,7 +45,11 @@ export function keepKeyboardFromLoadingPane(browser: Browser, active: BrowserTab
       }
       if (!contents.isFocused()) return
       if (keyboard === 'page') focusTabOrTrustedChrome(browser, active)
-      else if (!browser.window.isDestroyed() && browser.window.isFocused() && !shell.isDestroyed()) shell.focus()
+      else if (!browser.window.isDestroyed() && browser.window.isFocused() && !shell.isDestroyed()) {
+        // Told first, as when a tab's field gets the keyboard back, so the address field opens no suggestions.
+        sendTo(shell, SHELL_IPC.keyboardGivenBack)
+        shell.focus()
+      }
     })
   }
   const stop = (): void => {
