@@ -230,6 +230,8 @@ export async function performTabOverviewPreviewCapture(browser: Browser, tab: Br
     && !tab.webContents.isDestroyed()
     && browser.window.isVisible()
     && browser.window.isFocused()
+    // A minimized window shows its page only while another capture holds it in view, as an agent's screenshot does.
+    && !browser.window.isMinimized()
     && !tab.sleeping
     && !browser.browserContentOccluded
     && tab.view.getVisible()

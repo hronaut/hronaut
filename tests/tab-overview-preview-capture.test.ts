@@ -27,7 +27,7 @@ function busyTab() {
   const nativePreviewCapture = new NativePreviewCapture(2_000)
   const browser = {
     destroyed: false,
-    window: { isDestroyed: () => false, isVisible: () => true, isFocused: () => true },
+    window: { isDestroyed: () => false, isVisible: () => true, isFocused: () => true, isMinimized: () => false },
     tabs: new Map([[tab.id, tab]]),
     browserContentOccluded: false,
     activeTabId: tab.id,
@@ -181,6 +181,18 @@ describe('tab overview preview capture', () => {
       encode()
       await capture
       expect(previews.get(tab.id)).toMatchObject({ dataUrl: `data:image/jpeg;base64,${Buffer.from('jpeg').toString('base64')}` })
+    })
+
+    it('is not taken while the window is minimized, though another capture holds its page in view', async () => {
+      // An agent's screenshot of a minimized window on Windows shows the page in its capture host meanwhile; the
+      // preview captured it then, a frame the window never showed, and its capture got in the screenshot's way.
+      const { tab, browser, previews } = shownTab()
+      const capturePage = vi.fn(async () => ({ isEmpty: () => false }))
+      Object.assign(tab.webContents, { capturePage })
+      Object.assign(browser.window, { isMinimized: () => true })
+      await performTabOverviewPreviewCapture(browser, tab, 1)
+      expect(capturePage).not.toHaveBeenCalled()
+      expect(previews.size).toBe(0)
     })
 
     it('is dropped when a newer capture of the tab took over while its frame was encoded', async () => {
