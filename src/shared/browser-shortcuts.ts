@@ -113,6 +113,12 @@ function chromeTabShortcut(input: BrowserShortcutInput, key: string): BrowserSho
   return null
 }
 
+/** The tab a held key for the next or previous tab moves to, as Chrome repeats it; null for any other held key. */
+function heldTabKeyAction(input: BrowserShortcutInput, key: string): BrowserShortcutAction | null {
+  if (input.control && !input.alt && key === 'tab') return input.shift ? 'previous-tab' : 'next-tab'
+  return chromeTabShortcut(input, key)
+}
+
 /**
  * Chrome's keys with Ctrl, or Cmd on macOS, that a website may keep on every system, since Chrome reserves only those that
  * close, open or change tabs and windows: Ctrl/Cmd+D bookmarks the page, Ctrl+H or Cmd+Y opens history, Ctrl/Cmd+F
@@ -225,7 +231,9 @@ export function isBrowserKey(input: BrowserShortcutInput): boolean {
 
 export function browserShortcutAction(input: BrowserShortcutInput): BrowserShortcutAction | null {
   const key = shortcutKey(input)
-  if (input.repeat || input.composing) return null
+  if (input.composing) return null
+  // Held down, the keys that change tabs go on changing them, as in Chrome; every other key acts once.
+  if (input.repeat) return heldTabKeyAction(input, key)
   if (
     (key === 'f12' && !input.control && !input.meta && !input.alt && !input.shift)
     || (key === 'i' && !input.mac && input.control && input.shift && !input.meta && !input.alt)

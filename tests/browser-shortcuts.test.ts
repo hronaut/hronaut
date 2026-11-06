@@ -448,7 +448,8 @@ describe('Chrome\'s other keys for changing tabs', () => {
     expect(keys({ key: 'PageDown', control: true, shift: true })).toBeNull()
     expect(keys({ key: 'PageDown' })).toBeNull()
     expect(keys({ key: 'PageDown', meta: true })).toBeNull()
-    expect(keys({ key: 'PageDown', control: true, repeat: true })).toBeNull()
+    // Held down, it goes on through the tabs, as in Chrome.
+    expect(keys({ key: 'PageDown', control: true, repeat: true })).toBe('next-tab')
     expect(keys({ key: 'PageDown', control: true, mac: true })).toBe('next-tab')
     expect(keys({ key: 'PageUp', control: true, mac: true })).toBe('previous-tab')
     expect(keys({ key: 'PageDown', control: true, meta: true, mac: true })).toBeNull()
@@ -659,5 +660,19 @@ describe('the application menu\'s other keys', () => {
       expect(browserShortcutAction(input(key))).toBeNull()
       expect(websiteKeptShortcutAction(input(key))).toBeNull()
     }
+  })
+})
+
+describe('held keys that change tabs', () => {
+  // Holding Ctrl+Tab moved one tab and stopped, where Chrome goes on through the tabs.
+  it('go on changing tabs while held, as in Chrome, and nothing else does', () => {
+    expect(browserShortcutAction(input({ key: 'Tab', code: 'Tab', control: true, repeat: true }))).toBe('next-tab')
+    expect(browserShortcutAction(input({ key: 'Tab', code: 'Tab', control: true, shift: true, repeat: true }))).toBe('previous-tab')
+    expect(browserShortcutAction(input({ key: 'PageDown', code: 'PageDown', control: true, repeat: true }))).toBe('next-tab')
+    expect(browserShortcutAction(input({ key: 'PageUp', code: 'PageUp', control: true, repeat: true }))).toBe('previous-tab')
+    expect(browserShortcutAction(input({ key: 'ArrowRight', code: 'ArrowRight', meta: true, alt: true, mac: true, repeat: true }))).toBe('next-tab')
+    expect(browserShortcutAction(input({ key: 'w', code: 'KeyW', control: true, repeat: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: '1', code: 'Digit1', control: true, repeat: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: 'Tab', code: 'Tab', control: true, composing: true }))).toBeNull()
   })
 })
