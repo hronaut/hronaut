@@ -101,3 +101,21 @@ describe('copying a video frame to the clipboard', () => {
     expect(board.items).toEqual([{ 'text/plain': 'order 7' }])
   })
 })
+
+describe('copying a page image to the clipboard', () => {
+  it('keeps the image markup the page wrote beside the picture, as Chrome does', async () => {
+    const markup = '<img src="https://shop.example/dot.png" alt="Green dot"/>'
+    const webContents = {
+      isDestroyed: () => false,
+      copyImageAt: vi.fn(() => {
+        board.items = [{ 'image/png': new Blob([new Uint8Array([6, 4, 1])], { type: 'image/png' }), 'text/html': new Blob([markup], { type: 'text/html' }) }]
+      })
+    }
+    await operations().copyPageImageToClipboard(webContents as unknown as Electron.WebContents, 30, 40)
+    expect(webContents.copyImageAt).toHaveBeenCalledExactlyOnceWith(30, 40)
+    expect(await clipboardPng()).toEqual(Buffer.from([6, 4, 1]))
+    // Only the PNG was written back, so pasting into a rich text editor lost the image's address.
+    const html = board.items[0]?.['text/html']
+    expect(html instanceof Blob ? await html.text() : html).toBe(markup)
+  })
+})
