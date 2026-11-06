@@ -255,7 +255,7 @@ describe('a text field\'s menu as it opens', () => {
     expect(built.templates).toHaveLength(3)
   })
 
-  it('opens none once trusted chrome covered the page, or the page was destroyed, meanwhile', async () => {
+  it('opens none over trusted chrome, or once the page was destroyed meanwhile', async () => {
     const { browser, tab, webContents } = page()
     const shell = browser as unknown as { browserContentOccluded: boolean }
     attachPageContextMenuEvents(browser, tab, webContents as unknown as WebContents)
@@ -265,11 +265,15 @@ describe('a text field\'s menu as it opens', () => {
     shell.browserContentOccluded = true
     await settle()
     expect(built.templates).toHaveLength(0)
-    // One asked for while the page was already covered opens, as a menu with no paste does.
+    // Nor does one that reaches Hronaut after the cover came up, or one with no paste.
+    open(webContents)
+    open(webContents, { isEditable: false })
+    await settle()
+    expect(built.templates).toHaveLength(0)
+    shell.browserContentOccluded = false
     open(webContents)
     await settle()
     expect(built.templates).toHaveLength(1)
-    shell.browserContentOccluded = false
 
     open(webContents)
     webContents.isDestroyed = () => true
