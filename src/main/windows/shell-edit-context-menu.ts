@@ -51,6 +51,12 @@ export function shellEditContextMenuItems(
   return undefined
 }
 
+/** The system's emoji picker, for a text field's menu: Windows and macOS have one; Linux has none. */
+function systemEmojiPicker(): { label: MessageKey; open: () => void } | undefined {
+  if (!app.isEmojiPanelSupported()) return undefined
+  return { label: process.platform === 'darwin' ? 'native.context.emojiSymbols' : 'native.context.emoji', open: () => app.showEmojiPanel() }
+}
+
 /** How long a field's menu waits to learn about Paste and Go before it opens without it. */
 const PASTE_AND_GO_WAIT_MS = 500
 
@@ -64,10 +70,7 @@ export function attachShellEditContextMenu(window: BrowserWindow, text: (key: Me
   let latestRequest = 0
   window.webContents.on('context-menu', (_event, params) => {
     const request = ++latestRequest
-    // Windows and macOS have an emoji picker; Linux has none.
-    const emojiPicker = app.isEmojiPanelSupported()
-      ? { label: process.platform === 'darwin' ? 'native.context.emojiSymbols' as const : 'native.context.emoji' as const, open: () => app.showEmojiPanel() }
-      : undefined
+    const emojiPicker = systemEmojiPicker()
     const show = (pasteAndGo?: AddressPasteAndGo): void => {
       if (window.isDestroyed()) return
       const items = shellEditContextMenuItems(params, window.webContents, text, emojiPicker, pasteAndGo)
@@ -86,5 +89,19 @@ export function attachShellEditContextMenu(window: BrowserWindow, text: (key: Me
     }
     const timer = setTimeout(() => showOnce(), PASTE_AND_GO_WAIT_MS)
     void addressPasteAndGo(window).then(showOnce, () => showOnce())
+  })
+}
+
+/**
+ * Opens the same editing menu on right-clicks in a view Hronaut draws above the pages, such as the agent card, whose
+ * answer field had no menu: a field's editing actions, or Copy for selected text. It opens over the main window.
+ */
+export function attachOverlayEditContextMenu(contents: WebContents, window: () => BrowserWindow | null,
+  text: (key: MessageKey, parameters?: MessageParameters) => string): void {
+  contents.on('context-menu', (_event, params) => {
+    const shown = window()
+    if (!shown || shown.isDestroyed() || contents.isDestroyed()) return
+    const items = shellEditContextMenuItems(params, contents, text, systemEmojiPicker())
+    if (items) Menu.buildFromTemplate(items).popup({ window: shown })
   })
 }

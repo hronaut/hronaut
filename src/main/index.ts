@@ -239,7 +239,8 @@ const {
   ensureSidebarOverlaySurface: () => ensureSidebarOverlaySurface(),
   trustedStatusBubbleUrl: () => trustedStatusBubbleUrl(),
   ensureStatusBubbleSurface: () => ensureStatusBubbleSurface(),
-  theme: () => resolvedTheme(settingsState.current.theme)
+  theme: () => resolvedTheme(settingsState.current.theme),
+  text: (key, parameters) => text(key, parameters)
 })
 const workspaceStartupReads = new WorkspaceStartupReads()
 let requireExistingWorkspaceMetadata = false
@@ -1483,9 +1484,7 @@ async function createWindow(startMinimized = false): Promise<void> {
   mainWindowRefs.window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
 
   let releaseTabsInitialization = (): void => undefined
-  const currentTabsInitialization = new Promise<void>((resolve) => {
-    releaseTabsInitialization = resolve
-  })
+  const currentTabsInitialization = new Promise<void>((resolve) => { releaseTabsInitialization = resolve })
   tabRuntime.initializedTabs = null
   tabRuntime.initialization = currentTabsInitialization
   try {

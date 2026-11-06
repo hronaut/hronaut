@@ -1,4 +1,6 @@
 import { WebContentsView, type BrowserWindow, type WebContents } from 'electron'
+import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
+import { attachOverlayEditContextMenu } from '../windows/shell-edit-context-menu.js'
 
 export interface ShellOverlayViewOptions {
   /** Names the view in errors and logs. */
@@ -13,6 +15,8 @@ export interface ShellOverlayViewOptions {
   onLost: () => void
   /** Other overlay views that stay above this one when both show, such as the agent card above a toast. */
   keepAbove?: () => readonly unknown[]
+  /** The interface's text, for the editing menu the view's fields and selected text open; a view without it has none. */
+  text?: (key: MessageKey, parameters?: MessageParameters) => string
 }
 
 export interface LoadedShellOverlayView {
@@ -115,6 +119,7 @@ export class ShellOverlayView {
       view.setBackgroundColor('#00000000')
       view.setVisible(false)
       webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+      if (this.options.text) attachOverlayEditContextMenu(webContents, this.options.window, this.options.text)
       webContents.on('will-navigate', (event, url) => {
         if (!this.options.urlMatches(url, expectedUrl)) event.preventDefault()
       })

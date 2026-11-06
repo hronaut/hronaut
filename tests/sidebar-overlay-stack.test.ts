@@ -92,7 +92,8 @@ function setup() {
     ensureSidebarOverlaySurface: async () => surface,
     trustedStatusBubbleUrl: () => 'file:///app/status-bubble.html',
     ensureStatusBubbleSurface: async () => surface,
-    theme: () => 'dark'
+    theme: () => 'dark',
+    text: (key: string) => key
   })
   return { overlays, window, children, sent, fullscreen, tabs, surface }
 }
