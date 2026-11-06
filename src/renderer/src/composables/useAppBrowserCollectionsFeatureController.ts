@@ -1,4 +1,4 @@
-import { ref, type Ref } from 'vue'
+import { ref, watch, type Ref } from 'vue'
 import type {
   BrowserBookmark,
   BrowserHistoryEntry,
@@ -7,7 +7,8 @@ import type {
   HronautBookmarksApi,
   HronautDownloadsApi,
   HronautHistoryApi,
-  HronautPanelWindowApi
+  HronautPanelWindowApi,
+  HronautShellApi
 } from '../../../shared/types.js'
 import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import { useBrowserCollectionsController } from './useBrowserCollectionsController.js'
@@ -41,6 +42,8 @@ export interface AppBrowserCollectionsFeatureControllerOptions {
   /** Whether Bookmarks shows in its own window, which then asks for Bookmark all tabs' name; never in that window. */
   bookmarksInOwnWindow?: () => boolean
   panelWindow?: Pick<HronautPanelWindowApi, 'bookmarkAllTabs'>
+  /** Tells main whether History is open, so that its key pressed in a page closes it without taking the keyboard. */
+  historyShown?: Pick<HronautShellApi, 'setHistoryShown'>
 }
 
 export function useAppBrowserCollectionsFeatureController(
@@ -69,6 +72,8 @@ export function useAppBrowserCollectionsFeatureController(
     openUrl: (url) => options.syncState(options.browser.newTab({ url, active: true }))
   })
   let disposed = false
+  // Said from the start too, as after the window reloads.
+  const stopHistoryShown = watch(historyOpen, (shown) => options.historyShown?.setHistoryShown(shown), { immediate: true })
 
   // Pages opened behind the one shown load a few at a time, so Open all does not load every bookmark together.
   async function openBookmarkInBackground(bookmark: BrowserBookmark): Promise<void> {
@@ -119,6 +124,7 @@ export function useAppBrowserCollectionsFeatureController(
   function dispose(): void {
     if (disposed) return
     disposed = true
+    stopHistoryShown()
     shellController.dispose()
     browserCollectionsController.dispose()
   }

@@ -251,6 +251,8 @@ export interface HronautShellApi {
   setFollowAgentActivitySuspended(suspended: boolean): void
   /** The shown tab's field that has the keyboard in the shell, or null; main gives it back on coming back to the tab. */
   setTabFieldFocused(field: ShellTabField | null): void
+  /** Whether History is open; its key pressed in a page then closes it and leaves the page the keyboard. */
+  setHistoryShown(shown: boolean): void
   /** Main showed the tab again whose field had the keyboard when it was left; the shell gives it back, or the page. */
   onTabFieldFocusReturned(listener: (tabId: string, field: ShellTabField) => void): () => void
   onHelpRequested(listener: (action: HelpMenuAction) => void): () => void

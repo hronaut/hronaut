@@ -404,6 +404,8 @@ export class Browser {
   followAgentActivitySuspended = false
   /** The shown tab's field that has the keyboard in the shell, as the shell last said; read only while the shell has it. */
   shellTabField: ShellTabField | null = null
+  /** Whether History is open in the shell, as the shell last said: its key pressed in a page then closes it. */
+  shellHistoryShown = false
   /**
    * The field that had the keyboard as the person picked a tab that wakes before it is shown, which the tab shown then
    * keeps when it is left: the click on the picked tab's row gives the field up as soon as it is over.

@@ -59,8 +59,8 @@ test('the history key from a page puts the keyboard in History\'s search, and cl
     await expect(history).toBeHidden()
     await expect.poll(focusedContents).toBe(`${origin}/notes`)
 
-    // It goes back to the page, where the key was pressed, also when Hronaut's window last had it somewhere else, such
-    // as on the page's tab.
+    // The page keeps it, where the key was pressed, also when Hronaut's window last had it somewhere else, such as on the
+    // page's tab.
     await pressInPage()
     await expect(search).toBeFocused()
     const tab = appWindow.getByRole('tab', { name: /^Notes/, selected: true })
@@ -69,6 +69,36 @@ test('the history key from a page puts the keyboard in History\'s search, and cl
     await expect(history).toBeVisible()
     await pressInPage()
     await expect(history).toBeHidden()
+    await expect.poll(focusedContents).toBe(`${origin}/notes`)
+
+    // The keys typed right after the key closes History from the page, while Hronaut's window is busy, reach the page.
+    await pressInPage()
+    await expect(search).toBeFocused()
+    await electronApp.evaluate(async ({ webContents }, { origin, shellUrl, modifier, keyCode }) => {
+      const page = webContents.getAllWebContents().find(candidate => candidate.getURL().startsWith(origin))
+      const shell = webContents.getAllWebContents().find(candidate => candidate.getURL() === shellUrl)
+      if (!page || !shell) throw new Error('The page or Hronaut\'s window was not found')
+      page.focus()
+      await new Promise(resolve => setTimeout(resolve, 100))
+      void shell.executeJavaScript('setTimeout(() => { const start = performance.now(); while (performance.now() - start < 150); }, 0)')
+      page.sendInputEvent({ type: 'keyDown', keyCode, modifiers: [modifier] })
+      page.sendInputEvent({ type: 'keyUp', keyCode, modifiers: [modifier] })
+      // The person types on at once, where the keyboard is, as soon as Hronaut's window has it, if it takes it.
+      const start = Date.now()
+      while (webContents.getFocusedWebContents()?.id !== shell.id && Date.now() - start < 300) {
+        await new Promise(resolve => setImmediate(resolve))
+      }
+      for (const character of 'abc') {
+        const focused = webContents.getFocusedWebContents()
+        if (!focused) throw new Error('Nothing has the keyboard')
+        focused.sendInputEvent({ type: 'keyDown', keyCode: character })
+        focused.sendInputEvent({ type: 'char', keyCode: character })
+        focused.sendInputEvent({ type: 'keyUp', keyCode: character })
+      }
+    }, { origin, shellUrl: appWindow.url(), modifier: mac ? 'meta' as const : 'control' as const, keyCode: mac ? 'Y' : 'H' })
+    await expect(history).toBeHidden()
+    await expect.poll(() => electronApp.evaluate(({ webContents }, origin) => webContents.getAllWebContents()
+      .find(candidate => candidate.getURL().startsWith(origin))!.executeJavaScript('document.querySelector("input").value'), origin)).toBe('abc')
     await expect.poll(focusedContents).toBe(`${origin}/notes`)
   } finally {
     await closeFixtureServer(server)

@@ -324,7 +324,7 @@ const browserCollectionsFeatureController = useAppBrowserCollectionsFeatureContr
   // The startup tasks read the browser state once the shell has mounted, so its panels are there by then too.
   browserStateReady: isDetachedPanelWindow ? browserStore.whenInitialized : undefined,
   bookmarksInOwnWindow: panelsInOwnWindow,
-  panelWindow: window.hronautPanelWindow
+  panelWindow: window.hronautPanelWindow, historyShown: isDetachedPanelWindow ? undefined : window.hronautShell
 })
 const {
   downloads,

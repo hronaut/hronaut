@@ -31,6 +31,7 @@ export const shellApi: HronautShellApi = {
   hideTooltip: (id) => send(SHELL_TOOLTIP_IPC.hide, id),
   setFollowAgentActivitySuspended: (suspended) => send(SHELL_IPC.followAgentActivitySuspended, suspended),
   setTabFieldFocused: (field) => send(SHELL_IPC.tabFieldFocused, field),
+  setHistoryShown: (shown) => send(SHELL_IPC.historyShown, shown),
   onTabFieldFocusReturned: (listener) => subscribe(SHELL_IPC.tabFieldFocusReturned, (tabId: unknown, field: unknown) => {
     if (typeof tabId === 'string' && isShellTabField(field)) listener(tabId, field)
   }),

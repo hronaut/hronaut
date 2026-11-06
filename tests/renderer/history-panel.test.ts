@@ -4,7 +4,6 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import HistoryPanel from '../../src/renderer/src/features/history/HistoryPanel.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
-import { runShortcutPressedOutside } from '../../src/renderer/src/shortcut-origin.js'
 import type { BrowserBookmark, BrowserHistoryEntry } from '../../src/shared/types.js'
 import { getByTooltip } from './helpers/tooltip.js'
 
@@ -934,7 +933,7 @@ describe('the keyboard as History opens and closes', () => {
     } finally { unmount() }
   })
 
-  it('stays where the person moved it, unless its key closing History was pressed in the page', async () => {
+  it('stays where the person moved it', async () => {
     const { exposed, returnKeyboard, external, reopen, unmount } = mountClosed()
     try {
       await reopen()
@@ -943,14 +942,39 @@ describe('the keyboard as History opens and closes', () => {
       await flushPromises()
       expect(external).toHaveFocus()
       expect(returnKeyboard).not.toHaveBeenCalled()
-      // Main gives Hronaut's window the keyboard before it runs the key, and the window's focus goes back to where it
-      // was in the window, such as a tab; the page had the keyboard.
+    } finally { unmount() }
+  })
+
+  it('stays in History when it opens again before the close has gone through', async () => {
+    const { wrapper, exposed, returnKeyboard, search, reopen, unmount } = mountClosed()
+    try {
+      // Closed once with the keyboard in it, which went back to the page.
       await reopen()
-      external.focus()
-      void runShortcutPressedOutside(() => exposed.toggle())
+      exposed.close()
       await flushPromises()
       expect(returnKeyboard).toHaveBeenCalledOnce()
+      await reopen()
+      exposed.close()
+      void wrapper.setProps({ open: true })
+      await flushPromises()
+      expect(search()).toHaveFocus()
+      expect(returnKeyboard).toHaveBeenCalledOnce()
     } finally { unmount() }
+  })
+
+  it('gives nothing back once History is gone before the close has gone through, as when the window closes', async () => {
+    const { wrapper, exposed, returnKeyboard, external, reopen } = mountClosed()
+    try {
+      await reopen()
+      exposed.close()
+      await flushPromises()
+      expect(returnKeyboard).toHaveBeenCalledOnce()
+      await reopen()
+      exposed.close()
+      wrapper.unmount()
+      await flushPromises()
+      expect(returnKeyboard).toHaveBeenCalledOnce()
+    } finally { external.remove() }
   })
 
   it('stays with another surface that closes History, such as Bookmarks asking for a name', async () => {

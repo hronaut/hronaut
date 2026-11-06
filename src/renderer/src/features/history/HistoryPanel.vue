@@ -19,7 +19,6 @@ import { asMiddleClick, openClickTab } from '../../open-click.js'
 import { vTooltip } from '../../ui/tooltip.js'
 import { confirmAction } from '../../confirm-action.js'
 import { splitConfirmation } from '../../../../shared/confirmation.js'
-import { shortcutPressedOutside } from '../../shortcut-origin.js'
 
 const props = defineProps<{
   formatDateTime: (value: Date | number | string) => string
@@ -114,15 +113,15 @@ const stopCloseTracking = watch(open, (isOpen) => {
 
 /**
  * When History closes itself, with Escape, Close, its key or a visit opened from it, the page in view gets back the
- * keyboard that was in History, as when Chrome's History tab closes; always for the key pressed outside Hronaut's
- * window, as in the page, where it was. Another surface that closes History, such as Bookmarks, keeps the keyboard.
+ * keyboard that was in History, as when Chrome's History tab closes. Another surface that closes History, such as
+ * Bookmarks, keeps the keyboard. (Its key pressed in a page leaves the keyboard in the page: main sees History open.)
  */
-function giveKeyboardBack(generationBeforeClose: number, pressedOutside = false): void {
+function giveKeyboardBack(generationBeforeClose: number): void {
   // The close reaches the panel once its owner has updated it; anything after it, such as opening History again, wins.
   void nextTick(() => {
     if (focusGeneration !== generationBeforeClose + 1 || open.value) return
     const focused = document.activeElement
-    if (pressedOutside || (keyboardInPanelAtClose && (!focused || focused === document.body))) props.returnKeyboard?.()
+    if (keyboardInPanelAtClose && (!focused || focused === document.body)) props.returnKeyboard?.()
   })
 }
 function close(): void {
@@ -134,9 +133,8 @@ function close(): void {
 function toggleHistory(): Promise<void> {
   const closing = open.value
   const generation = focusGeneration
-  const pressedOutside = shortcutPressedOutside()
   const toggled = toggle()
-  if (closing) giveKeyboardBack(generation, pressedOutside)
+  if (closing) giveKeyboardBack(generation)
   return toggled
 }
 

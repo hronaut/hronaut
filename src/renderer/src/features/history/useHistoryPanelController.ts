@@ -146,10 +146,10 @@ export function useHistoryPanelController(options: HistoryPanelControllerOptions
     await runAction('load', options.listHistory)
   }
 
-  /** Opens the visit and closes History; true when it closed History, which another surface may have done meanwhile. */
+  /** Opens the visit and closes History; true once it has closed History, false when the visit did not open. */
   async function openEntry(entry: BrowserHistoryEntry): Promise<boolean> {
     const opened = await runAction(`open:${entry.id}`, () => options.openHistoryEntry(entry))
-    if (!opened || !options.open.value) return false
+    if (!opened) return false
     options.open.value = false
     return true
   }
