@@ -28,17 +28,21 @@ export async function loadFavicon(browser: Browser, tab: BrowserTab, favicons: s
   const controller = new AbortController()
   tab.faviconAbortController = controller
   const requestId = ++tab.faviconRequestId
+  // The document that gave the list, and its page: a list the page a navigation replaces gave as it was leaving is not
+  // the new page's, though nothing aborts it when the new page commits.
+  const list = { requestId, documentGeneration: tab.documentGeneration, url: tab.url }
   let shownSize = 0
   const show = (icon: LoadedFavicon): void => {
     if (icon.size <= shownSize || controller.signal.aborted) return
     if (browser.destroyed || tab.webContents.isDestroyed() || tab.faviconRequestId !== requestId) return
+    if (tab.documentGeneration !== list.documentGeneration) return
     shownSize = icon.size
     tab.faviconDataUrl = icon.dataUrl
     // A favicon can finish well after navigation's debounced state save.
     // Persist this update explicitly so a later crash or forced restart
     // does not replace the restored tab icon with the generic globe.
     publishChange(browser)
-    giveSiteIcon(browser, tab, requestId, icon.dataUrl)
+    giveSiteIcon(browser, tab, list, icon.dataUrl)
     if (icon.size >= FAVICON_SIZE) controller.abort()
   }
   try {
@@ -53,17 +57,27 @@ export async function loadFavicon(browser: Browser, tab: BrowserTab, favicons: s
 }
 
 /**
- * Gives History and Bookmarks the page's icon from the first icon list its document gave for its address, and each
- * larger icon of that list as it arrives, but not from a list the page gives later, such as for an unread count, a
- * build's status or an animation's frames, which would replace the page's icon there time after time.
+ * Gives History and Bookmarks the page's icon from the first icon list its document gave, and each larger icon of that
+ * list as it arrives, but not from a list the document gives later, such as for an unread count, a build's status or
+ * an animation's frames, which would replace the page's icon there time after time.
  */
-function giveSiteIcon(browser: Browser, tab: BrowserTab, requestId: number, icon: string): void {
-  const page = normalizeHistoryUrl(tab.url)
-  if (!page || !browser.options.onSiteIcon) return
+function giveSiteIcon(browser: Browser, tab: BrowserTab, list: { requestId: number; documentGeneration: number; url: string },
+  icon: string): void {
+  if (!browser.options.onSiteIcon || !normalizeHistoryUrl(list.url)) return
   const source = tab.siteIconSource
-  if (source?.documentGeneration === tab.documentGeneration && source.page === page && source.requestId !== requestId) return
-  tab.siteIconSource = { documentGeneration: tab.documentGeneration, page, requestId }
-  browser.options.onSiteIcon({ url: tab.url, icon })
+  if (source?.documentGeneration === list.documentGeneration && source.requestId !== list.requestId) return
+  tab.siteIconSource = { documentGeneration: list.documentGeneration, requestId: list.requestId, icon }
+  browser.options.onSiteIcon({ url: list.url, icon })
+}
+
+/**
+ * A route the tab's document went to, such as through `history.pushState`, is a page of its own in the history, and
+ * gets the icon the document gave first: the icons a single-page app gives later are its unread counts and statuses.
+ */
+export function giveRouteSiteIcon(browser: Browser, tab: BrowserTab): void {
+  const source = tab.siteIconSource
+  if (!source || source.documentGeneration !== tab.documentGeneration || !normalizeHistoryUrl(tab.url)) return
+  browser.options.onSiteIcon?.({ url: tab.url, icon: source.icon })
 }
 
 /**

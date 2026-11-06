@@ -41,6 +41,18 @@ export function setChange<T>(record: Record<string, T>, key: string, value: T): 
   record[key] = value
 }
 
+/** Whether any page's icon or any icon changed. */
+export function hasSiteIconChanges(changes: SiteIconChanges): boolean {
+  return Object.keys(changes.pages).length > 0 || Object.keys(changes.icons).length > 0
+}
+
+/** Puts later changes into these, each page or icon that changed again moving last. */
+export function addSiteIconChanges(changes: SiteIconChanges, later: SiteIconChanges | null): void {
+  if (!later) return
+  for (const [page, id] of Object.entries(later.pages)) setChange(changes.pages, page, id)
+  for (const [id, icon] of Object.entries(later.icons)) setChange(changes.icons, id, icon)
+}
+
 /** The icons with these changes made to them, in a new record; each page that changed moves last. */
 export function withSiteIconChanges(icons: SiteIcons, changes: SiteIconChanges): SiteIcons {
   const pages = { ...icons.pages }

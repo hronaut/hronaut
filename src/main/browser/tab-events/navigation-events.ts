@@ -12,7 +12,7 @@ import { watchCredentialSubmission } from '../credential-capture/credential-capt
 import { recordAuthChallenge } from '../inspector-issues/inspector-issues.js'
 import { cancelNativeSelectionSessions } from '../native-selections/native-selections.js'
 import { applySiteMuting } from '../site-muting/site-muting.js'
-import { loadFavicon } from '../tab-favicon/tab-favicon.js'
+import { giveRouteSiteIcon, loadFavicon } from '../tab-favicon/tab-favicon.js'
 import { invalidateTabOverviewPreview, scheduleTabOverviewPreview } from '../tab-overview-previews/tab-overview-previews.js'
 import { watchUnsavedFormEdits } from '../tab-sleep/unsaved-form-edits.js'
 import { workspaceNavigationAllowed } from '../workspace-navigation/workspace-navigation.js'
@@ -346,6 +346,7 @@ export function attachNavigationEvents(browser: Browser, tab: BrowserTab, webCon
       }
       if (!tab.suppressInitialHistory) recordVisit(browser, tab, samePage)
       tab.pendingHistoryUrl = null
+      giveRouteSiteIcon(browser, tab)
       // A route of a single-page app is a page of its own, whose title the app sets once it has shown it, such as after
       // a slow request. As in Chrome, its titles count as set while it loads, until a document finishes loading.
       historyTitleChanges = 0

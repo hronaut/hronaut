@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { writeTextFileAtomically } from '../atomic-file.js'
-import { isSiteIcon, setChange, type SiteIconChanges, type SiteIcons } from '../../shared/site-icons.js'
+import { hasSiteIconChanges, isSiteIcon, setChange, type SiteIconChanges, type SiteIcons } from '../../shared/site-icons.js'
 import { normalizeHistoryUrl } from '../../shared/visit-history.js'
 
 const SITE_ICONS_VERSION = 1
@@ -11,6 +11,8 @@ export const MAX_SITE_ICON_PAGES = 5_000
 export const MAX_UNLISTED_SITE_ICONS = 200
 // Icons change far less often than visits, and losing the last few to a crash costs only a globe until the next visit.
 const SAVE_DELAY_MS = 5_000
+// A save that keeps failing, such as on a full disk, is tried again less and less often, up to every five minutes.
+const MAX_SAVE_RETRY_DELAY_MS = 320_000
 
 interface PersistedSiteIcons {
   version: typeof SITE_ICONS_VERSION
@@ -24,8 +26,11 @@ interface PersistedSiteIcons {
 export interface SiteIconSyncOptions {
   /** Keep them in memory a while, so Undo of a bookmark removed brings its icon back too; otherwise they go. */
   keepLetGo?: boolean
-  /** Let go too of the icons of pages that wait to be listed, such as after the history was cleared. */
-  forgetUnlisted?: boolean
+  /**
+   * The person or an agent removed the pages, so their icons leave the file at once, leaving no trace of them in it; a
+   * page that grew too old for the history or past its 2,000 leaves with the next timed save.
+   */
+  saveAtOnce?: boolean
 }
 
 /** An icon's id: a hash of it, so the pages of a website, which mostly show the same icon, keep it once. */
@@ -35,10 +40,6 @@ function siteIconId(icon: string): string {
 
 function noChanges(): SiteIconChanges {
   return { pages: {}, icons: {} }
-}
-
-function hasChanges(changes: SiteIconChanges): boolean {
-  return Object.keys(changes.pages).length > 0 || Object.keys(changes.icons).length > 0
 }
 
 /**
@@ -62,6 +63,8 @@ export class SiteIconStore {
   private saveTimer: NodeJS.Timeout | undefined
   /** Changes are not saved yet, or their save failed. */
   private unsaved = false
+  /** The saves that failed in a row. */
+  private failedSaves = 0
   private disposed = false
 
   constructor(private readonly path: string) {}
@@ -124,7 +127,7 @@ export class SiteIconStore {
     }
     const changes = noChanges()
     this.setPage(page, icon, changes)
-    if (!hasChanges(changes)) return null
+    if (!hasSiteIconChanges(changes)) return null
     this.scheduleSave()
     return changes
   }
@@ -139,20 +142,20 @@ export class SiteIconStore {
       this.unlisted.delete(page)
       this.setPage(page, icon, changes)
     }
-    if (!hasChanges(changes)) return null
+    if (!hasSiteIconChanges(changes)) return null
     this.scheduleSave()
     return changes
   }
 
   /**
    * Keeps the icons of only the pages the history and bookmarks hold, by their addresses as the history keeps them:
-   * icons that waited for their page to be listed join the pages, and those of pages no longer held go, saved at once.
-   * Answers what changed, or null for nothing.
+   * icons that waited for their page to be listed join the pages, and those of pages no longer held go. Once disposed,
+   * as Hronaut quits, icons still go, so a clear that ends meanwhile takes them, but none joins. Answers what changed,
+   * or null for nothing.
    */
   sync(listed: ReadonlySet<string>, options: SiteIconSyncOptions = {}): SiteIconChanges | null {
-    if (this.disposed) return null
     const changes = noChanges()
-    for (const [page, icon] of this.unlisted) {
+    for (const [page, icon] of this.disposed ? [] : this.unlisted) {
       if (!listed.has(page)) continue
       this.unlisted.delete(page)
       this.setPage(page, icon, changes)
@@ -162,14 +165,12 @@ export class SiteIconStore {
       const icon = this.removePage(page, changes)
       if (options.keepLetGo && icon) this.unlisted.set(page, icon)
     }
-    if (options.forgetUnlisted) this.unlisted.clear()
     for (const oldest of this.unlisted.keys()) {
       if (this.unlisted.size <= MAX_UNLISTED_SITE_ICONS) break
       this.unlisted.delete(oldest)
     }
-    if (!hasChanges(changes)) return null
-    // An icon let go leaves the file at once, so clearing the history leaves no trace of a page in it.
-    if (letGo.length) this.saveNow()
+    if (!hasSiteIconChanges(changes)) return null
+    if (letGo.length && (options.saveAtOnce || this.disposed)) this.saveNow()
     else this.scheduleSave()
     return changes
   }
@@ -229,15 +230,15 @@ export class SiteIconStore {
     setChange(changes.icons, id, null)
   }
 
-  private scheduleSave(): void {
+  private scheduleSave(delay = SAVE_DELAY_MS): void {
     if (this.saveTimer || this.disposed) return
-    this.saveTimer = setTimeout(() => this.saveNow(), SAVE_DELAY_MS)
+    this.saveTimer = setTimeout(() => this.saveNow(), delay)
     this.saveTimer.unref()
   }
 
   /**
-   * Saves the icons as they are now, after any save under way. A save that fails leaves them unsaved, for the next
-   * change's save or flush to try again.
+   * Saves the icons as they are now, after any save under way. A save that fails is tried again later, and by flush,
+   * so icons let go do not stay in the file until the next change.
    */
   private saveNow(): void {
     if (this.saveTimer) clearTimeout(this.saveTimer)
@@ -252,9 +253,11 @@ export class SiteIconStore {
     }
     this.saveQueue = this.saveQueue
       .then(() => writeTextFileAtomically(this.path, `${JSON.stringify(value)}\n`, 0o600))
-      .catch((error: unknown) => {
+      .then(() => { this.failedSaves = 0 }, (error: unknown) => {
         this.unsaved = true
+        this.failedSaves += 1
         console.error('[site icons] Failed to save site icons:', error)
+        this.scheduleSave(Math.min(SAVE_DELAY_MS * 2 ** (this.failedSaves - 1), MAX_SAVE_RETRY_DELAY_MS))
       })
   }
 }

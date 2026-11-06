@@ -12,11 +12,15 @@ it('saves the visits of the last second as soon as shutdown starts, and those re
     flush: vi.fn(async () => { calls.push('history saved') }),
     dispose: vi.fn(() => { calls.push('history timers stopped') })
   }
+  const siteIcons = {
+    flush: vi.fn(async () => { calls.push('site icons saved') }),
+    dispose: vi.fn(() => { calls.push('site icons timers stopped') })
+  }
   const shutdown = createRuntimeShutdown({
     tabRuntime: { tabs: null },
     mcpRuntime: { server: { stop: () => new Promise<void>((resolve) => { stopServer = () => { calls.push('MCP stopped'); resolve() } }) } as never },
     walletRuntime: { service: null, broker: null } as never,
-    bookmarksAndHistory: { bookmarks: null, history } as never,
+    bookmarksAndHistory: { bookmarks: null, history, siteIcons } as never,
     agentServices: { auditReceipts: null } as never,
     undoOffers: { close: async () => undefined },
     credentialRuntime: { store: null } as never,
@@ -29,8 +33,9 @@ it('saves the visits of the last second as soon as shutdown starts, and those re
   })
   const done = shutdown.releaseRuntimeResources()
   await new Promise((resolve) => setImmediate(resolve))
-  expect(calls).toEqual(['history saved', 'history timers stopped'])
+  expect(calls).toEqual(['history saved', 'history timers stopped', 'site icons timers stopped'])
   stopServer()
   await done
-  expect(calls).toEqual(['history saved', 'history timers stopped', 'MCP stopped', 'history saved'])
+  // The pages' icons are saved with the other stores.
+  expect(calls).toEqual(['history saved', 'history timers stopped', 'site icons timers stopped', 'MCP stopped', 'history saved', 'site icons saved'])
 })

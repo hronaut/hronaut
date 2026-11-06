@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { loadFavicon } from '../src/main/browser/tab-favicon/tab-favicon.js'
+import { giveRouteSiteIcon, loadFavicon } from '../src/main/browser/tab-favicon/tab-favicon.js'
 import type { Browser } from '../src/main/browser/browser.js'
 import type { BrowserTab } from '../src/main/browser/browser-tab.js'
 
@@ -101,13 +101,37 @@ describe('the icon a tab shows', () => {
     await load(['badge'])
     expect(given()).toHaveLength(2)
 
-    // A route the page's document goes to is a page of its own, and the same page loaded again is a new document.
+    // A route the page's document goes to is a page of its own, with the document's first icon, whatever the page
+    // gives after; the same page loaded again is a new document.
     icons.tab.url = 'https://site.example/route'
+    giveRouteSiteIcon(icons.browser, icons.tab)
     await load(['route'])
     icons.tab.url = 'https://site.example/page'
     icons.tab.documentGeneration += 1
     await load(['badge'])
-    expect(given().slice(2)).toEqual(['https://site.example/route icon 40', 'https://site.example/page icon 48'])
+    expect(given().slice(2)).toEqual(['https://site.example/route icon 64', 'https://site.example/page icon 48'])
+  })
+
+  // A navigation aborts the icons loading, but the page it replaces runs until the new one commits, and an icon list it
+  // gave meanwhile, such as an unread count, showed in the tab of the new page and became the new page's in History.
+  it('shows nothing of an icon list the page gave before another replaced it', async () => {
+    vi.useFakeTimers()
+    const icons = page({ leaving: { size: 48, after: 10 }, arriving: { size: 64, after: 10 } })
+
+    const leaving = loadFavicon(icons.browser, icons.tab, [icons.urls[0]!])
+    // The new page commits.
+    icons.tab.url = 'https://site.example/next'
+    icons.tab.documentGeneration += 1
+    await vi.advanceTimersByTimeAsync(10)
+    await leaving
+    expect(icons.shown()).toBeUndefined()
+    expect(icons.onSiteIcon).not.toHaveBeenCalled()
+
+    const arriving = loadFavicon(icons.browser, icons.tab, [icons.urls[1]!])
+    await vi.advanceTimersByTimeAsync(10)
+    await arriving
+    expect(icons.shown()).toBe('icon 64')
+    expect(icons.onSiteIcon).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://site.example/next' }))
   })
 
   it('does not wait for an icon listed before the one it shows', async () => {

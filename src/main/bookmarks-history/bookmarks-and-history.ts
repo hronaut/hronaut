@@ -13,7 +13,7 @@ import { forgetTrustedCertificates } from '../browser/certificate-errors/certifi
 import type { EventSender } from '../../shared/ipc/channel.js'
 import { BOOKMARKS_IPC, BOOKMARK_COLLECTIONS_IPC } from '../../shared/ipc/bookmarks.js'
 import { HISTORY_IPC } from '../../shared/ipc/history.js'
-import { setChange, type SiteIconChanges } from '../../shared/site-icons.js'
+import { addSiteIconChanges, hasSiteIconChanges, type SiteIconChanges } from '../../shared/site-icons.js'
 import { normalizeHistoryUrl } from '../../shared/visit-history.js'
 
 /** How long visits and new titles gather before the windows hear of them together. */
@@ -66,20 +66,31 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
   historyEntryRemoved(url: string): void
   agentBookmarks: BookmarkOperations
   agentHistory: HistoryOperations
+  /** Stops the timers that send the windows visits and icons that changed. */
+  dispose(): void
 } {
   function publishBookmarks(): BrowserBookmark[] {
-    // A bookmark removed keeps its page's icon a while, for Undo.
-    syncSiteIcons({ keepLetGo: true })
+    // A bookmark removed keeps its page's icon a while, in memory, for Undo.
+    queueSiteIconChanges(syncSiteIcons({ keepLetGo: true, saveAtOnce: true }))
     const bookmarks = host.state.bookmarks?.list() ?? []
     host.sendToShellWindows(BOOKMARKS_IPC.changed, bookmarks)
     host.sendToShellWindows(BOOKMARK_COLLECTIONS_IPC.changed, host.state.bookmarks?.collectionSnapshot() ?? { revision: 0, collections: [] })
     return bookmarks
   }
 
+  /** Sends the windows the whole history after the person or an agent removed pages from it, which take their icons. */
   function publishVisitHistory(): BrowserHistoryEntry[] {
-    // The history only shrinks without a visit, so pages it let go take their icons, and a page cleared from the history
-    // does not get its icon back from a tab showing it.
-    syncSiteIcons({ forgetUnlisted: true })
+    queueSiteIconChanges(syncSiteIcons({ saveAtOnce: true }))
+    return sendVisitHistory()
+  }
+
+  /** The history let go of pages too old for it; their icons go with the next timed save. */
+  function visitHistoryExpired(): void {
+    queueSiteIconChanges(syncSiteIcons())
+    sendVisitHistory()
+  }
+
+  function sendVisitHistory(): BrowserHistoryEntry[] {
     const entries = host.state.history?.list() ?? []
     host.sendToShellWindows(HISTORY_IPC.changed, entries)
     return entries
@@ -98,11 +109,12 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
       if (changes && (changes.entries.length || changes.removedIds.length)) host.sendToShellWindows(HISTORY_IPC.updated, changes)
       // A visit past the history's 2,000 pages lets the oldest go, and their icons with them; a visit lists a page whose
       // icon may wait for it.
-      if (changes?.removedIds.length) syncSiteIcons()
+      if (changes?.removedIds.length) queueSiteIconChanges(syncSiteIcons())
       else if (changes?.entries.length && host.state.siteIcons?.hasUnlisted()) {
-        publishSiteIconChanges(host.state.siteIcons.listPages(changes.entries.map((entry) => entry.url)))
+        queueSiteIconChanges(host.state.siteIcons.listPages(changes.entries.map((entry) => entry.url)))
       }
     }, VISIT_CHANGES_DELAY_MS)
+    visitChangesTimer.unref()
   }
 
   // The pages' icons follow the history and bookmarks only once both are read: until then, either one's pages are unknown.
@@ -124,7 +136,7 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
    * waits for.
    */
   async function openVisitHistory(): Promise<BrowserHistoryEntry[]> {
-    const history = new HistoryStore(join(app.getPath('userData'), 'history.json'), Date.now, publishVisitHistory)
+    const history = new HistoryStore(join(app.getPath('userData'), 'history.json'), Date.now, visitHistoryExpired)
     const siteIcons = new SiteIconStore(join(app.getPath('userData'), 'site-icons.json'))
     host.state.history = history
     host.state.siteIcons = siteIcons
@@ -140,58 +152,55 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
     siteIconsFollow = true
     // Loading the history leaves out pages too old or past its 2,000, and a window's Back and Forward pages from before
     // a restart are no visits, so neither told the icons.
-    syncSiteIcons()
+    queueSiteIconChanges(syncSiteIcons())
   }
 
   let siteIconChanges: SiteIconChanges = { pages: {}, icons: {} }
   let siteIconChangesTimer: NodeJS.Timeout | undefined
-  /** Icons wait for the history or bookmarks to list their pages. */
-  let siteIconsUnlisted = false
-  /**
-   * Sends the windows the pages' icons that changed, null for those let go, together a few times a second, first
-   * finding the pages listed meanwhile for icons that waited for them.
-   */
-  function publishSiteIconChanges(changes: SiteIconChanges | null): void {
-    if (changes) {
-      for (const [page, id] of Object.entries(changes.pages)) setChange(siteIconChanges.pages, page, id)
-      for (const [id, icon] of Object.entries(changes.icons)) setChange(siteIconChanges.icons, id, icon)
-    }
-    if (siteIconChangesTimer) return
-    if (!siteIconsUnlisted && !Object.keys(siteIconChanges.pages).length && !Object.keys(siteIconChanges.icons).length) return
-    siteIconChangesTimer = setTimeout(() => {
-      // The sync's changes join these, as the timer is still set.
-      if (siteIconsUnlisted) syncSiteIcons()
-      siteIconsUnlisted = false
-      siteIconChangesTimer = undefined
-      const pending = siteIconChanges
-      siteIconChanges = { pages: {}, icons: {} }
-      if (Object.keys(pending.pages).length || Object.keys(pending.icons).length) host.sendToShellWindows(HISTORY_IPC.siteIconsChanged, pending)
-    }, VISIT_CHANGES_DELAY_MS)
-  }
+  /** Icons wait for the history or bookmarks to list their pages, which the next send looks for first. */
+  let lookForListedSiteIcons = false
 
   /** Keeps the icon a tab showed for its page, and sends the windows a change. */
   function rememberSiteIcon({ url, icon }: { url: string; icon: string }): void {
-    const siteIcons = host.state.siteIcons
-    if (!siteIcons) return
-    const changes = siteIcons.remember(url, icon)
+    const changes = host.state.siteIcons?.remember(url, icon) ?? null
     // A page the icons do not list yet, often because its visit is still being recorded, is looked for shortly.
-    if (changes === 'unlisted') siteIconsUnlisted = true
-    publishSiteIconChanges(changes === 'unlisted' ? null : changes)
+    if (changes === 'unlisted') lookForListedSiteIcons = true
+    queueSiteIconChanges(changes === 'unlisted' ? null : changes)
   }
 
   /**
    * Keeps the icons of only the pages the history and bookmarks hold, as Chrome forgets a page's icon with the page, so
-   * clearing the history leaves no trace of a page in its icon, and sends the windows what changed.
+   * clearing the history leaves no trace of a page in its icon. Answers what changed, for the windows.
    */
-  function syncSiteIcons(options: SiteIconSyncOptions = {}): void {
+  function syncSiteIcons(options: SiteIconSyncOptions = {}): SiteIconChanges | null {
     const { history, bookmarks, siteIcons } = host.state
-    if (!siteIconsFollow || !history || !bookmarks || !siteIcons) return
+    if (!siteIconsFollow || !history || !bookmarks || !siteIcons) return null
     const listed = new Set(history.pageUrls())
     for (const url of bookmarks.urls()) {
       const page = normalizeHistoryUrl(url)
       if (page) listed.add(page)
     }
-    publishSiteIconChanges(siteIcons.sync(listed, options))
+    return siteIcons.sync(listed, options)
+  }
+
+  /** Adds pages' icons that changed, null for those let go, to those the windows hear of together a few times a second. */
+  function queueSiteIconChanges(changes: SiteIconChanges | null): void {
+    addSiteIconChanges(siteIconChanges, changes)
+    if (siteIconChangesTimer || (!lookForListedSiteIcons && !hasSiteIconChanges(siteIconChanges))) return
+    siteIconChangesTimer = setTimeout(sendSiteIconChanges, VISIT_CHANGES_DELAY_MS)
+    siteIconChangesTimer.unref()
+  }
+
+  /** Sends the windows the pages' icons that changed, after finding the pages listed meanwhile for icons that waited. */
+  function sendSiteIconChanges(): void {
+    siteIconChangesTimer = undefined
+    const changes = siteIconChanges
+    siteIconChanges = { pages: {}, icons: {} }
+    if (lookForListedSiteIcons) {
+      lookForListedSiteIcons = false
+      addSiteIconChanges(changes, syncSiteIcons())
+    }
+    if (hasSiteIconChanges(changes)) host.sendToShellWindows(HISTORY_IPC.siteIconsChanged, changes)
   }
 
   /** Records a page a tab visited, or opened again, and sends the windows the change. */
@@ -309,6 +318,12 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
     historyCleared,
     historyEntryRemoved,
     agentBookmarks,
-    agentHistory
+    agentHistory,
+    dispose: () => {
+      clearTimeout(visitChangesTimer)
+      clearTimeout(siteIconChangesTimer)
+      visitChangesTimer = undefined
+      siteIconChangesTimer = undefined
+    }
   }
 }

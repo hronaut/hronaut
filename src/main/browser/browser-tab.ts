@@ -130,10 +130,10 @@ export interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordi
   faviconRequestId: number
   faviconAbortController?: AbortController
   /**
-   * Runtime only: the icon list History and Bookmarks took the page's icon from, the first its document gave for the
-   * page's address, as faviconRequestId numbered it.
+   * Runtime only: the icon list History and Bookmarks took the page's icon from, the first its document gave, as
+   * faviconRequestId numbered it, and the largest icon of it so far, which the document's routes get too.
    */
-  siteIconSource?: { documentGeneration: number; page: string; requestId: number }
+  siteIconSource?: { documentGeneration: number; requestId: number; icon: string }
   audible: boolean
   tabMuted: boolean
   muted: boolean

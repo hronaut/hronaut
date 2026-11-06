@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, rmdir, writeFile } from 'node:fs/promises
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { BookmarkStore } from '../src/main/bookmarks-history/bookmark-store.js'
 import { createBookmarksAndHistory, type BookmarksAndHistoryState } from '../src/main/bookmarks-history/bookmarks-and-history.js'
 import { MAX_SITE_ICON_PAGES, MAX_UNLISTED_SITE_ICONS, SiteIconStore } from '../src/main/bookmarks-history/site-icon-store.js'
 import { HISTORY_IPC } from '../src/shared/ipc/history.js'
@@ -16,6 +17,7 @@ const temporaryDirectories: string[] = []
 const closing: (() => Promise<void>)[] = []
 
 afterEach(async () => {
+  vi.useRealTimers()
   for (const close of closing.splice(0)) await close()
   vi.restoreAllMocks()
   await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })))
@@ -61,6 +63,7 @@ async function openRuntime(folder: string) {
   await runtime.openBookmarks()
   await runtime.openVisitHistory()
   closing.push(async () => {
+    runtime.dispose()
     state.history?.dispose()
     state.siteIcons?.dispose()
     await Promise.all([state.history?.flush(), state.siteIcons?.flush(), state.bookmarks?.flush()])
@@ -152,7 +155,8 @@ describe('the icons kept for pages', () => {
     expect(joined).toEqual(waiting.slice(1))
   })
 
-  it('tries a save that failed again, and stops keeping icons once disposed', async () => {
+  it('tries a save that failed again a while later', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     const path = join(await directory(), 'site-icons.json')
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     // The file's place is taken, so saving it fails.
@@ -163,11 +167,28 @@ describe('the icons kept for pages', () => {
     await icons.flush()
     expect(error).toHaveBeenCalledWith('[site icons] Failed to save site icons:', expect.anything())
 
+    // With no change after it, the save is tried again a while later.
     await rmdir(path)
+    await vi.advanceTimersByTimeAsync(5_000)
+    await vi.waitFor(async () => expect(JSON.parse(await readFile(path, 'utf8'))).toMatchObject({ icons: [icon('docs')] }))
+    expect(error).toHaveBeenCalledOnce()
+    vi.useRealTimers()
+  })
+
+  it('stops keeping icons once disposed, but still lets go of those a clear that ends meanwhile takes', async () => {
+    const path = join(await directory(), 'site-icons.json')
+    const icons = await openStore(path)
+    icons.remember('https://docs.example/guide', icon('docs'))
+    icons.remember('https://news.example/today', icon('news'))
+    icons.listPages(['https://docs.example/guide', 'https://news.example/today'])
+
     icons.dispose()
     expect(icons.remember('https://docs.example/guide', icon('later'))).toBeNull()
+    icons.sync(new Set(['https://docs.example/guide']))
     await icons.flush()
-    expect(JSON.parse(await readFile(path, 'utf8'))).toMatchObject({ icons: [icon('docs')] })
+    const saved = await readFile(path, 'utf8')
+    expect(saved).toContain(icon('docs').split(',')[1])
+    expect(saved).not.toContain(icon('news').split(',')[1])
   })
 })
 
@@ -279,7 +300,9 @@ describe('the icons the history and bookmarks keep', () => {
 
     const second = await openRuntime(folder)
     expect(second.kept()).toEqual({ 'https://kept.example/': 'https://kept.example/' })
-    await vi.waitFor(async () => expect(await readFile(join(folder, 'site-icons.json'), 'utf8')).not.toContain(icon('https://old.example/').split(',')[1]))
+    // A page that grew too old is no removal, so it leaves the file with the next timed save.
+    await second.state.siteIcons!.flush()
+    expect(await readFile(join(folder, 'site-icons.json'), 'utf8')).not.toContain(icon('https://old.example/').split(',')[1])
 
     // One more page leaves the oldest out.
     second.runtime.pageHistoryCallbacks.onPageVisited({ url: 'https://new.example/', title: 'New', samePage: false })
@@ -299,15 +322,26 @@ describe('the icons the history and bookmarks keep', () => {
     const state: BookmarksAndHistoryState = { bookmarks: null, history: null, siteIcons: null }
     const runtime = createBookmarksAndHistory({ state, sendToShellWindows: vi.fn(), mcpServer: () => null, tabs: () => null, offerUndo: vi.fn() })
     closing.push(async () => {
+      runtime.dispose()
       state.history?.dispose()
       state.siteIcons?.dispose()
       await Promise.all([state.history?.flush(), state.siteIcons?.flush()])
     })
+    // The bookmarks file is still being read while the history is open.
+    const load = BookmarkStore.prototype.load
+    let readBookmarks!: () => void
+    const bookmarksRead = new Promise<void>((resolve) => { readBookmarks = resolve })
+    vi.spyOn(BookmarkStore.prototype, 'load').mockImplementationOnce(async function (this: BookmarkStore) {
+      await bookmarksRead
+      return load.call(this)
+    })
+    const bookmarksOpen = runtime.openBookmarks()
     await runtime.openVisitHistory()
-    // The history holds no page of the bookmarks not read yet.
+    // The history holds no page of the bookmarks, which are not read yet.
     runtime.publishVisitHistory()
     expect(pageIcons(state.siteIcons!.snapshot())).toEqual({ 'https://docs.example/start': 'docs' })
-    await runtime.openBookmarks()
+    readBookmarks()
+    await bookmarksOpen
     expect(pageIcons(state.siteIcons!.snapshot())).toEqual({ 'https://docs.example/start': 'docs' })
   })
 })
