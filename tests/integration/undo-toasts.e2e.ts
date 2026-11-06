@@ -16,6 +16,7 @@ interface UndoApi {
   createWorkspace: (options: { name: string; storage: string }) => Promise<UndoState>
   newTab: (options: { url: string; active: boolean; mcpGroupId: string }) => Promise<UndoState>
   closeTab: (tabId: string) => Promise<UndoState>
+  closeTabs: (tabIds: readonly string[]) => Promise<UndoState>
   closeWorkspace: (workspaceId: string, options?: { undoable?: boolean }) => Promise<UndoState>
   selectTab: (tabId: string) => Promise<UndoState>
 }
@@ -251,6 +252,29 @@ for (const width of [1320, 960, 760]) {
     await expect.poll(async () => (await state(appWindow)).tabs.some((tab) => tab.url.includes('third'))).toBe(true)
   })
 }
+
+// Undo reopened several closed tabs behind the tab that had replaced them, so the person was not back on their tab.
+test('Undo after closing several tabs shows again the one that was shown, with the others behind it', async ({ appWindow, electronApp }) => {
+  const created = await appWindow.evaluate(() => (window as unknown as { hronaut: UndoApi }).hronaut.createWorkspace({ name: 'Undo several', storage: 'scratch' }))
+  const workspace = created.mcpTabGroups.find((group) => group.name === 'Undo several')!
+  for (const page of ['one', 'two', 'three', 'kept']) {
+    await appWindow.evaluate(({ id, url }) => (window as unknown as { hronaut: UndoApi }).hronaut.newTab({ url, active: true, mcpGroupId: id }), { id: workspace.id, url: `data:text/html,<title>${page}</title>${page}` })
+  }
+  const urls = await workspaceTabUrls(appWindow, workspace.id)
+  const tab = async (page: string) => (await state(appWindow)).tabs.find((candidate) => candidate.url.endsWith(`</title>${page}`))!
+  const shown = await tab('two')
+  await appWindow.evaluate((tabId) => (window as unknown as { hronaut: UndoApi }).hronaut.selectTab(tabId), shown.id)
+  await expect.poll(async () => (await state(appWindow)).activeTabId).toBe(shown.id)
+
+  const closing = [await tab('one'), shown, await tab('three')]
+  await appWindow.evaluate((tabIds) => (window as unknown as { hronaut: UndoApi }).hronaut.closeTabs(tabIds), closing.map((closed) => closed.id))
+  await expect.poll(() => toastText(electronApp)).toContain('two')
+  await expect.poll(() => workspaceTabUrls(appWindow, workspace.id)).toEqual(urls.filter((url) => !closing.some((closed) => closed.url === url)))
+  expect((await state(appWindow)).tabs.find((candidate) => candidate.active)?.url).not.toBe(shown.url)
+  await clickInToast(electronApp, '.toast-overlay-action')
+  await expect.poll(() => workspaceTabUrls(appWindow, workspace.id)).toEqual(urls)
+  await expect.poll(async () => (await state(appWindow)).tabs.find((candidate) => candidate.active)?.url).toBe(shown.url)
+})
 
 test('shows the toast beside the tab rail, scaled with the interface, and in the shell while its view is gone', async ({ profileDirectory, mcpPort }) => {
   await writeFile(join(profileDirectory, 'settings.json'), JSON.stringify({ tabPosition: 'left', interfaceScale: 1.25, mcpToolSet: 'complete' }))
