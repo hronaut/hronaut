@@ -35,6 +35,9 @@ const props = defineProps<{
   permissionPending: (entry: SitePermissionEntry) => boolean
   setPermission: (entry: SitePermissionEntry, decision: SitePermissionDecision) => boolean | Promise<boolean>
   resetPermission: (entry: SitePermissionEntry) => boolean | Promise<boolean>
+  /** A permission changed for the page shown, which applies once it reloads. */
+  reloadOffered: boolean
+  reloadPage: () => void
   openPermissionSettings: () => void
   openPrivacySettings: () => void | Promise<void>
   refresh: () => unknown
@@ -159,6 +162,12 @@ async function changePermission(entry: SitePermissionEntry, event: Event): Promi
         </div>
       </div>
       <p v-else>{{ t('shell.siteControls.empty') }}</p>
+      <div class="site-permission-reload" role="status">
+        <template v-if="reloadOffered">
+          <span>{{ t('shell.siteControls.reloadToApply') }}</span>
+          <UiButton appearance="application" type="button" @click="reloadPage">{{ t('shell.siteControls.reload') }}</UiButton>
+        </template>
+      </div>
     </section>
     <footer>
       <UiButton appearance="application" class="site-controls-secondary" type="button" @click="openPermissionSettings">{{ t('shell.siteControls.allSettings') }}</UiButton>

@@ -1950,7 +1950,9 @@ export const enUS = {
       reset: 'Reset to default',
       empty: 'No custom decisions for this website. Hronaut will ask when a permission is needed.',
       allSettings: 'All site settings',
-      clearData: 'Clear data for this website'
+      clearData: 'Clear data for this website',
+      reloadToApply: 'To apply your updated settings to this site, reload this page',
+      reload: 'Reload'
     },
     suggestions: 'Local address suggestions',
     split: {

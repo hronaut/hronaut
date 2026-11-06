@@ -1952,7 +1952,9 @@ export const zhTW: MessageSchema = {
       reset: '重設為預設值',
       empty: '這個網站沒有自訂的決定。需要權限時，Hronaut 會詢問你。',
       allSettings: '所有網站設定',
-      clearData: '清除這個網站的資料'
+      clearData: '清除這個網站的資料',
+      reloadToApply: '如要將更新後的設定套用至這個網站，請重新載入這個網頁',
+      reload: '重新載入'
     },
     suggestions: '本機網址建議',
     split: {

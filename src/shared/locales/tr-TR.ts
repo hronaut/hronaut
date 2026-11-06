@@ -1952,7 +1952,9 @@ export const trTR: MessageSchema = {
       reset: 'Varsayılana sıfırla',
       empty: 'Bu web sitesi için özel karar yok. Bir izin gerektiğinde Hronaut size sorar.',
       allSettings: 'Tüm site ayarları',
-      clearData: 'Bu web sitesinin verilerini temizle'
+      clearData: 'Bu web sitesinin verilerini temizle',
+      reloadToApply: 'Güncellenen ayarları bu siteye uygulamak için bu sayfayı yeniden yükleyin',
+      reload: 'Yeniden yükle'
     },
     suggestions: 'Yerel adres önerileri',
     split: {

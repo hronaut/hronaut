@@ -1952,7 +1952,9 @@ export const itIT: MessageSchema = {
       reset: 'Ripristina predefinito',
       empty: 'Nessuna decisione personalizzata per questo sito web. Hronaut chiederà quando servirà un’autorizzazione.',
       allSettings: 'Tutte le impostazioni dei siti',
-      clearData: 'Cancella i dati di questo sito web'
+      clearData: 'Cancella i dati di questo sito web',
+      reloadToApply: 'Per applicare le impostazioni aggiornate a questo sito, ricarica questa pagina',
+      reload: 'Ricarica'
     },
     suggestions: 'Suggerimenti di indirizzi locali',
     split: {

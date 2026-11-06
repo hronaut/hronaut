@@ -500,7 +500,8 @@ describe('the address bar\'s keyword chip and hint', () => {
             setSitePermission: vi.fn(async () => true),
             resetSitePermission: vi.fn(async () => true),
             openSitePermissionSettings: vi.fn(),
-            openSitePrivacySettings: vi.fn()
+            openSitePrivacySettings: vi.fn(),
+            reloadTab: vi.fn()
           }
         })
       }

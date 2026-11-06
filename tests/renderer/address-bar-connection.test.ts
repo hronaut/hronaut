@@ -116,7 +116,8 @@ function renderAddressBar(url: string, locale: SupportedLocale = 'en-US', dirty 
         setSitePermission: vi.fn(async () => true),
         resetSitePermission: vi.fn(async () => true),
         openSitePermissionSettings: vi.fn(),
-        openSitePrivacySettings: vi.fn()
+        openSitePrivacySettings: vi.fn(),
+        reloadTab: vi.fn()
       }
     }
   })

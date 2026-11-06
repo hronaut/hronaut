@@ -29,6 +29,7 @@ import type { PageToolsPresentationController } from '../page-tools/usePageTools
 import type { SiteDataSummaryController } from '../site-controls/useSiteDataSummaryController.js'
 import type { SitePermissionsController } from '../site-controls/useSitePermissionsController.js'
 import SiteControlsPanel from '../site-controls/SiteControlsPanel.vue'
+import { usePermissionReloadOffer } from '../site-controls/usePermissionReloadOffer.js'
 import { vTooltip } from '../../ui/tooltip.js'
 
 export interface BrowserAddressBarActions {
@@ -42,6 +43,7 @@ export interface BrowserAddressBarActions {
   resetSitePermission: (entry: SitePermissionEntry) => boolean | Promise<boolean>
   openSitePermissionSettings: () => void
   openSitePrivacySettings: () => void | Promise<void>
+  reloadTab: (tabId: string) => unknown
 }
 
 const props = defineProps<{
@@ -165,8 +167,15 @@ function run(action: () => unknown): void {
   void props.runAction(action)
 }
 
-function setSitePermission(entry: SitePermissionEntry, decision: SitePermissionDecision): boolean | Promise<boolean> {
-  return props.actions.setSitePermission(entry, decision)
+const permissionReload = usePermissionReloadOffer(() => props.activeTab)
+
+function setSitePermission(entry: SitePermissionEntry, decision: SitePermissionDecision): Promise<boolean> {
+  return permissionReload.change(entry.permission, () => props.actions.setSitePermission(entry, decision))
+}
+
+function reloadForPermissions(): void {
+  const tabId = permissionReload.accept()
+  if (tabId) run(() => props.actions.reloadTab(tabId))
 }
 
 async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean> {
@@ -174,7 +183,7 @@ async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean>
   const context = tab
     ? { id: tab.id, url: tab.url, navigationGeneration: tab.navigationGeneration }
     : null
-  const removed = await props.actions.resetSitePermission(entry)
+  const removed = await permissionReload.change(entry.permission, () => props.actions.resetSitePermission(entry))
   const activeTab = props.activeTab
   if (
     !removed
@@ -334,6 +343,8 @@ async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean>
       :permission-pending="isSitePermissionPending"
       :set-permission="setSitePermission"
       :reset-permission="resetSitePermission"
+      :reload-offered="permissionReload.offered.value"
+      :reload-page="reloadForPermissions"
       :open-permission-settings="actions.openSitePermissionSettings"
       :open-privacy-settings="actions.openSitePrivacySettings"
       :refresh="siteDataController.refresh"

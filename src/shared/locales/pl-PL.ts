@@ -1952,7 +1952,9 @@ export const plPL: MessageSchema = {
       reset: 'Przywróć domyślne',
       empty: 'Brak niestandardowych decyzji dla tej witryny. Hronaut zapyta, gdy uprawnienie będzie potrzebne.',
       allSettings: 'Wszystkie ustawienia witryny',
-      clearData: 'Wyczyść dane tej witryny'
+      clearData: 'Wyczyść dane tej witryny',
+      reloadToApply: 'Aby zastosować zaktualizowane ustawienia w tej witrynie, odśwież tę stronę',
+      reload: 'Odśwież'
     },
     suggestions: 'Lokalne sugestie adresów',
     split: {
