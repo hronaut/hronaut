@@ -10,6 +10,7 @@ import type { BrowserTab } from '../browser-tab.js'
 import { browserState } from '../browser-state/browser-state.js'
 import { reorderTab } from '../tab-arrangement/tab-arrangement.js'
 import { withTabLabelLifecycle } from '../tab-labels/tab-labels.js'
+import { isAddressTitle, untitledPageTitle } from '../tab-events/untitled-page-title.js'
 
 const MAX_TABS = MAX_BROWSER_TABS
 const MAX_CLOSED_TABS = MAX_TABS
@@ -196,7 +197,7 @@ export function rememberClosedTab(
   const place = tabPeers(browser, tab).indexOf(tab)
   const closed: BrowserClosedTabState = {
     id: uuidV7(),
-    title: tab.title || tab.url,
+    title: closedTabTitle(tab, navigationHistory),
     ...(tab.label ? { label: tab.label } : {}),
     url: tab.url,
     pinned: tab.pinned,
@@ -215,6 +216,17 @@ export function rememberClosedTab(
   if (pages) closedTabHistories.set(closed, { pages, visited })
   browser.closedTabs.push(closed)
   if (browser.closedTabs.length > MAX_CLOSED_TABS) browser.closedTabs.shift()
+}
+
+/**
+ * The name a closed tab is remembered by, its title. A tab whose page crashed or could not load is titled for that, such
+ * as Page unavailable, so it is remembered by its page's title in its history, as Chrome's Recently closed names it, and
+ * an untitled or failed page by its address as Chromium shows it.
+ */
+function closedTabTitle(tab: BrowserTab, history: NavigationHistorySnapshot): string {
+  if (!tab.pageProblem) return tab.title || tab.url
+  const title = history.entries[history.index]?.url === tab.url ? history.entries[history.index]!.title.trim() : ''
+  return title && !isAddressTitle(title, tab.url) ? title : untitledPageTitle(tab.url)
 }
 
 /**
