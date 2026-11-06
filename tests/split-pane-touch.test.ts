@@ -88,6 +88,8 @@ interface Manager {
   allHumanInteractionLocked: boolean
   agentInputWebContents: Map<number, number>
   mcpActivityFollower: { noteHumanInput: ReturnType<typeof vi.fn> }
+  reproRecorder: { observeReproMouse: ReturnType<typeof vi.fn> }
+  options: { onUserInteraction?: ReturnType<typeof vi.fn> }
 }
 
 function browser() {
@@ -209,14 +211,25 @@ describe('a press on the other pane of the split view while the human input lock
     const { manager } = browser()
     const { left, right, split } = await personInSplitView(manager)
     manager.allHumanInteractionLocked = true
+    manager.options.onUserInteraction = vi.fn()
+    const generation = manager.tabSelectionGeneration
+    const clicks = (right as Tab & { humanInteractionGeneration: number }).humanInteractionGeneration
 
     const moved = press(right, 'mouseMove')
     expect(manager.activeTabId).toBe(left.id)
+    expect(manager.mcpActivityFollower.noteHumanInput).not.toHaveBeenCalled()
     const pressed = press(right, 'mouseDown')
 
     expect({ splitView: manager.splitView, activeTabId: manager.activeTabId }).toEqual({ splitView: split, activeTabId: right.id })
     expect(pressed.preventDefault).toHaveBeenCalledOnce()
     expect(moved.preventDefault).toHaveBeenCalledOnce()
+    // A choice of the pane, which a sleeping tab still waking yields to and following waits for, but no click: the page,
+    // its take-over offers and the repro recording hear nothing of it.
+    expect(manager.tabSelectionGeneration).toBeGreaterThan(generation)
+    expect(manager.mcpActivityFollower.noteHumanInput).toHaveBeenCalledOnce()
+    expect((right as Tab & { humanInteractionGeneration: number }).humanInteractionGeneration).toBe(clicks)
+    expect(manager.options.onUserInteraction).not.toHaveBeenCalled()
+    expect(manager.reproRecorder.observeReproMouse).not.toHaveBeenCalled()
   })
 
   it('makes it the active pane on a right-click too', async () => {

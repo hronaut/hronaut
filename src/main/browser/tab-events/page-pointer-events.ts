@@ -68,9 +68,10 @@ export function attachPagePointerEvents(browser: Browser, tab: BrowserTab, webCo
     }
     if (shouldBlockHumanMouseInput(browser, tab, mouse)) {
       event.preventDefault()
-      // The page gets none of the person's press, but it still makes it the active pane, whose Unlock the address bar
-      // then shows.
+      // The page gets none of the person's press, but it still makes it the active pane, which Unlock input beside the
+      // address bar then acts on, and makes following wait, as a touch does.
       if ((mouse.type === 'mouseDown' || mouse.type === 'contextMenu') && !browser.agentInputWebContents.has(webContents.id)) {
+        browser.mcpActivityFollower.noteHumanInput()
         selectOtherPane(browser, tab)
       }
       return
