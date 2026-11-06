@@ -165,6 +165,9 @@ describe('the keyboard while a pane beside the page loads its first document', (
     await takesKeyboard(link.webContents)
     expect(focusTabOrTrustedChrome).toHaveBeenCalledTimes(2)
     expect(focusTabOrTrustedChrome).toHaveBeenLastCalledWith(guide)
+    link.webContents.loading = false
+    link.webContents.emit('did-navigate')
+    expect(link.webContents.eventNames()).toEqual([])
 
     // A ratio out of bounds is brought within them, as a ratio the person sets is.
     const wide = browser()

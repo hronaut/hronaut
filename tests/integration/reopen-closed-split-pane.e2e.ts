@@ -30,7 +30,8 @@ test('reopening a tab closed from a split view puts it back beside the tab it wa
     .filter((url) => urls.includes(url))
     .sort(), [alphaUrl, betaUrl, gammaUrl])
   const close = async (url: string) => { await hronaut(`closeTab(${JSON.stringify(await tabId(url))})`) }
-  // The reopened page's title once it loaded, and which page has the keyboard.
+  // The reopened page's title once it loaded, and which page has the keyboard, which a page has only in the window that
+  // has the system's.
   const keyboard = () => electronApp.evaluate(({ webContents }, [alpha, beta]) => {
     const contents = webContents.getAllWebContents()
     const page = (url: string) => contents.find((candidate) => candidate.getURL() === url)
@@ -42,6 +43,11 @@ test('reopening a tab closed from a split view puts it back beside the tab it wa
   await hronaut(`openSplitView(${JSON.stringify(await tabId(betaUrl))})`)
   await hronaut(`updateSplitView({ orientation: 'horizontal', ratio: 0.35 })`)
   await expect.poll(shown).toEqual({ panes: [alphaUrl, betaUrl], layout: ['horizontal', 0.35], active: alphaUrl })
+  await electronApp.evaluate(({ BrowserWindow }, alpha) => BrowserWindow.getAllWindows()
+    .find((window) => window.contentView.children.some((child) => 'webContents' in child
+      && (child as Electron.WebContentsView).webContents.getURL() === alpha))!
+    .focus(), alphaUrl)
+  await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow() !== null)).toBe(true)
 
   // The bottom pane closes, and Ctrl/Cmd+Shift+T puts it back at the bottom, beside the page it was shown with, which
   // stays the active pane.
@@ -70,6 +76,7 @@ test('reopening a tab closed from a split view puts it back beside the tab it wa
   await expect.poll(shown).toEqual({ panes: null, layout: null, active: betaUrl })
   await hronaut('reopenClosedTab()')
   await expect.poll(shown).toEqual({ panes: [alphaUrl, betaUrl], layout: ['horizontal', 0.35], active: betaUrl })
+  await expect.poll(keyboard).toEqual({ betaTitle: 'Split beta', alphaFocused: false, betaFocused: true })
 
   // After the person went on to another tab, the closed pane opens alone, as any closed tab does.
   await close(betaUrl)

@@ -134,12 +134,14 @@ function showBeside(browser: Browser, tab: BrowserTab, split: ClosedTabSplit): v
         openedBeside: !split.active,
         layout: { orientation: split.orientation, ratio: split.ratio, chosenFirst: split.first }
       })
-      if (split.active) browser.selectTab(tab.id)
-      return
     } catch (error) {
       console.error('[browser] Could not put a reopened tab back into its split view:', error)
       if (browser.splitViewContains(tab.id)) closeSplitView(browser)
+      browser.selectTab(tab.id)
+      return
     }
+    if (split.active) browser.selectTab(tab.id)
+    return
   }
   browser.selectTab(tab.id)
 }
