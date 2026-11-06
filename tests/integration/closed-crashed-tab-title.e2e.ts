@@ -3,10 +3,10 @@ import type { HronautApi } from '../../src/shared/types.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
 type TestWindow = { hronaut: HronautApi }
-type Tabs = { tabs: Array<{ id: string, url: string, title: string }>, closedTabs: Array<{ title: string, url: string }> }
+type Tabs = { tabs: Array<{ id: string, url: string, title: string, pageProblem?: { kind: string } }>, closedTabs: Array<{ title: string, url: string }> }
 
-// A tab whose page crashed is titled Page unavailable. It was remembered so in Recently closed, and reopened so until
-// its page loaded; Chrome's Recently closed names it by its page.
+// A tab whose page crashed was retitled Page unavailable. It was remembered so in Recently closed, and reopened so
+// until its page loaded; Chrome's crashed tab keeps its page's title, and Recently closed names it by its page.
 test('a closed tab whose page crashed is remembered and reopened by its page\'s title', async ({ appWindow, electronApp }) => {
   const server = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' })
@@ -24,7 +24,8 @@ test('a closed tab whose page crashed is remembered and reopened by its page\'s 
       page.once('render-process-gone', () => resolve())
       page.forcefullyCrashRenderer()
     }), url)
-    await expect.poll(async () => (await state()).tabs.find(tab => tab.url === url)?.title).toBe('Page unavailable')
+    await expect.poll(async () => (await state()).tabs.find(tab => tab.url === url)?.pageProblem?.kind).toBe('renderer-gone')
+    expect((await state()).tabs.find(tab => tab.url === url)?.title).toBe('Quarterly report')
 
     const tabId = (await state()).tabs.find(tab => tab.url === url)!.id
     await appWindow.evaluate(id => (window as unknown as TestWindow).hronaut.closeTab(id), tabId)

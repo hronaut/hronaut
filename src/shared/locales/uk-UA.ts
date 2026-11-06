@@ -4336,7 +4336,6 @@ export const ukUA: MessageSchema = {
       preventMoreDialogs: 'Заборонити цій сторінці показувати додаткові діалогові вікна',
       pageDestroyedTitle: 'Сторінка більше недоступна',
       pageDestroyedMessage: 'Закрийте цю вкладку й відкрийте її знову з розділу нещодавно закритих.',
-      pageUnavailable: 'Сторінка недоступна',
       unresponsiveTitle: 'Сторінка не відповідає',
       unresponsiveMessage: 'Можна зачекати на відновлення або перезавантажити її зараз.',
       saveDownload: 'Зберегти завантаження',

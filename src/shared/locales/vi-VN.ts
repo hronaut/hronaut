@@ -4336,7 +4336,6 @@ export const viVN: MessageSchema = {
       preventMoreDialogs: 'Ngăn trang này hiển thị thêm hộp thoại',
       pageDestroyedTitle: 'Trang này không còn khả dụng',
       pageDestroyedMessage: 'Hãy đóng thẻ này và mở lại từ mục Đã đóng gần đây.',
-      pageUnavailable: 'Trang không khả dụng',
       unresponsiveTitle: 'Trang này không phản hồi',
       unresponsiveMessage: 'Bạn có thể đợi trang hoạt động lại hoặc tải lại ngay.',
       saveDownload: 'Lưu tệp tải xuống',

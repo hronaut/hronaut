@@ -5,11 +5,11 @@ import type { BrowserTab } from '../src/main/browser/browser-tab.js'
 import { rememberClosedTab } from '../src/main/browser/tab-reopening/tab-reopening.js'
 import type { BrowserClosedTabState, BrowserPageProblem } from '../src/shared/types.js'
 
-// A tab whose page crashed or could not load is titled for that, such as Page unavailable or Site unavailable. It was
-// remembered by that title, so Home's Recently closed listed such tabs as identical rows, also after a restart, and the
-// reopened tab was titled so while its page loaded. Chrome's Recently closed names them by their page.
+// A tab whose page could not load is titled Site unavailable. It was remembered by that title, so Home's Recently closed
+// listed such tabs as identical rows, also after a restart, and the reopened tab was titled so while its page loaded.
+// Chrome's Recently closed names them by their page. A tab whose page crashed keeps its page's title, as Chrome's does.
 
-const CRASHED: BrowserPageProblem = { kind: 'renderer-gone', title: 'Page unavailable', message: 'The page stopped.', url: '', reason: 'crashed' }
+const CRASHED: BrowserPageProblem = { kind: 'renderer-gone', title: 'This page stopped working', message: 'The page stopped.', url: '', reason: 'crashed' }
 const FAILED: BrowserPageProblem = { kind: 'load-error', title: 'Site unavailable', message: 'The site could not be reached.', url: '' }
 
 /** The title Recently closed holds once this tab, which showed these pages, closes. */
@@ -25,11 +25,16 @@ function closedTitle(changes: Partial<BrowserTab>, entries: NavigationEntry[], i
 }
 
 describe('the title a closed tab is remembered by', () => {
-  it('is the page\'s title in its history when the page crashed', () => {
+  it('is the page\'s title in its history when the page could not load', () => {
     expect(closedTitle(
-      { title: 'Page unavailable', pageProblem: CRASHED },
+      { title: 'Site unavailable', pageProblem: FAILED },
       [{ url: 'https://news.example/', title: 'News' }, { url: 'https://mail.example/inbox', title: 'Inbox (3)' }]
     )).toBe('Inbox (3)')
+  })
+
+  it('is the tab\'s own title, its page\'s, when the page crashed', () => {
+    // The tab kept its page's title through the crash, as Chrome's does.
+    expect(closedTitle({ title: 'Inbox (3)', pageProblem: CRASHED }, [])).toBe('Inbox (3)')
   })
 
   it('is the address as Chromium shows it when the page could not load, or has no title of its own', () => {
@@ -38,18 +43,18 @@ describe('the title a closed tab is remembered by', () => {
       { url: 'http://intranet.example/reports?week=44', title: 'Site unavailable', pageProblem: FAILED },
       [{ url: 'http://intranet.example/reports?week=44', title: 'intranet.example/reports?week=44' }]
     )).toBe('intranet.example/reports?week=44')
-    expect(closedTitle({ title: 'Page unavailable', pageProblem: CRASHED }, [{ url: 'https://mail.example/inbox', title: '' }]))
+    expect(closedTitle({ title: 'Site unavailable', pageProblem: FAILED }, [{ url: 'https://mail.example/inbox', title: '' }]))
       .toBe('https://mail.example/inbox')
     // A page gone with its history, or showing another page in it, is named by its address too.
-    expect(closedTitle({ title: 'Page unavailable', pageProblem: CRASHED }, [])).toBe('https://mail.example/inbox')
-    expect(closedTitle({ title: 'Page unavailable', pageProblem: CRASHED }, [{ url: 'https://news.example/', title: 'News' }]))
+    expect(closedTitle({ title: 'Site unavailable', pageProblem: FAILED }, [])).toBe('https://mail.example/inbox')
+    expect(closedTitle({ title: 'Site unavailable', pageProblem: FAILED }, [{ url: 'https://news.example/', title: 'News' }]))
       .toBe('https://mail.example/inbox')
   })
 
   it('keeps no address Chromium kept as an untitled page\'s title after the page changed its address', () => {
     // The callback's fragment held a sign-in token; the tab had dropped that title, its history still has it.
     expect(closedTitle(
-      { url: 'https://app.example/dashboard', title: 'Page unavailable', pageProblem: CRASHED },
+      { url: 'https://app.example/dashboard', title: 'Site unavailable', pageProblem: FAILED },
       [{ url: 'https://app.example/dashboard', title: 'app.example/oauth/callback#access_token=secret' }]
     )).toBe('https://app.example/dashboard')
   })

@@ -4336,7 +4336,6 @@ export const idID: MessageSchema = {
       preventMoreDialogs: 'Cegah halaman ini menampilkan dialog lainnya',
       pageDestroyedTitle: 'Halaman ini sudah tidak tersedia',
       pageDestroyedMessage: 'Tutup tab ini dan buka kembali dari Baru saja ditutup.',
-      pageUnavailable: 'Halaman tidak tersedia',
       unresponsiveTitle: 'Halaman ini tidak merespons',
       unresponsiveMessage: 'Anda dapat menunggu hingga halaman pulih atau memuat ulang sekarang.',
       saveDownload: 'Simpan download',

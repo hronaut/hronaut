@@ -4336,7 +4336,6 @@ export const trTR: MessageSchema = {
       preventMoreDialogs: 'Bu sayfanın başka iletişim kutuları göstermesini engelle',
       pageDestroyedTitle: 'Bu sayfa artık kullanılamıyor',
       pageDestroyedMessage: 'Bu sekmeyi kapatın ve Son kapatılanlar’dan yeniden açın.',
-      pageUnavailable: 'Sayfa kullanılamıyor',
       unresponsiveTitle: 'Bu sayfa yanıt vermiyor',
       unresponsiveMessage: 'Sayfanın düzelmesini bekleyebilir veya sayfayı şimdi yeniden yükleyebilirsiniz.',
       saveDownload: 'İndirmeyi kaydet',

@@ -4336,7 +4336,6 @@ export const deDE: MessageSchema = {
       preventMoreDialogs: 'Weitere Dialogfelder auf dieser Seite verhindern',
       pageDestroyedTitle: 'Diese Seite ist nicht mehr verfügbar',
       pageDestroyedMessage: 'Schließen Sie diesen Tab und öffnen Sie ihn über „Kürzlich geschlossen“ erneut.',
-      pageUnavailable: 'Seite nicht verfügbar',
       unresponsiveTitle: 'Diese Seite reagiert nicht',
       unresponsiveMessage: 'Sie können auf die Wiederherstellung warten oder die Seite jetzt neu laden.',
       saveDownload: 'Download speichern',

@@ -252,7 +252,7 @@ export function rememberClosedTab(
   const place = tabPeers(browser, tab).indexOf(tab)
   const closed: BrowserClosedTabState = {
     id: uuidV7(),
-    // A tab titled for its crash or failed load, such as Page unavailable, is remembered by its page, as in Chrome.
+    // A tab titled for its failed load, Site unavailable, is remembered by its page, as in Chrome.
     title: pageOwnTitle(tab, () => navigationHistory) || tab.url,
     ...(tab.label ? { label: tab.label } : {}),
     url: tab.url,

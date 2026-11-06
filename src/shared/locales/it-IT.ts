@@ -4336,7 +4336,6 @@ export const itIT: MessageSchema = {
       preventMoreDialogs: 'Impedisci a questa pagina di mostrare altre finestre di dialogo',
       pageDestroyedTitle: 'Questa pagina non è più disponibile',
       pageDestroyedMessage: 'Chiudi questa scheda e riaprila da Chiuse di recente.',
-      pageUnavailable: 'Pagina non disponibile',
       unresponsiveTitle: 'Questa pagina non risponde',
       unresponsiveMessage: 'Puoi attendere che si riprenda o ricaricarla ora.',
       saveDownload: 'Salva download',

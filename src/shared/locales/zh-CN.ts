@@ -4336,7 +4336,6 @@ export const zhCN: MessageSchema = {
       preventMoreDialogs: '禁止此页面显示更多对话框',
       pageDestroyedTitle: '此页面已不可用',
       pageDestroyedMessage: '请关闭此标签页，然后从“最近关闭”中重新打开它。',
-      pageUnavailable: '页面不可用',
       unresponsiveTitle: '此页面无响应',
       unresponsiveMessage: '您可以等待它恢复，也可以立即重新加载。',
       saveDownload: '保存下载内容',

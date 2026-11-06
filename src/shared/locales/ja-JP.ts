@@ -4336,7 +4336,6 @@ export const jaJP: MessageSchema = {
       preventMoreDialogs: 'このページでこれ以上ダイアログを表示しない',
       pageDestroyedTitle: 'このページは利用できなくなりました',
       pageDestroyedMessage: 'このタブを閉じて、[最近閉じたタブ] から開き直してください。',
-      pageUnavailable: 'ページを利用できません',
       unresponsiveTitle: 'このページは応答していません',
       unresponsiveMessage: '回復するまで待つか、今すぐ再読み込みしてください。',
       saveDownload: 'ダウンロードを保存',

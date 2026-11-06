@@ -33,7 +33,7 @@ export interface WorkspaceBeingDeleted {
 
 /**
  * What the saved session keeps of a tab: what it shows, its pin, mute, locks, zoom, font, favicon and workspace. A tab
- * titled for its crash or failed load, such as Page unavailable, is kept by its page's title in its history, so it comes
+ * titled for its failed load, Site unavailable, is kept by its page's title in its history, so it comes
  * back by its page, as in Chrome.
  */
 export function persistedTab(tab: PersistedStateTab, history: () => NavigationHistorySnapshot): PersistedTab {

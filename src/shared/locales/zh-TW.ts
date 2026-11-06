@@ -4336,7 +4336,6 @@ export const zhTW: MessageSchema = {
       preventMoreDialogs: '禁止這個網頁顯示更多對話方塊',
       pageDestroyedTitle: '這個網頁已無法使用',
       pageDestroyedMessage: '請關閉這個分頁，然後從「最近關閉」重新開啟。',
-      pageUnavailable: '網頁無法使用',
       unresponsiveTitle: '網頁沒有回應',
       unresponsiveMessage: '你可以等待網頁恢復，或立即重新載入。',
       saveDownload: '儲存下載項目',

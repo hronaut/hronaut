@@ -65,4 +65,12 @@ describe('a tab whose page process exits', () => {
     ;(page as unknown as EventEmitter).emit('render-process-gone', {}, { reason: 'crashed', exitCode: 5 })
     expect(tab.pageProblem).toMatchObject({ reason: 'crashed', message: 'The page process crashed.' })
   })
+
+  it('keeps its page\'s title, as Chrome\'s crashed tab does', () => {
+    // It was retitled Page unavailable, so pinned crashed tabs looked alike and agents read no page in browser_tabs.
+    const { page, tab } = harness(false)
+    ;(page as unknown as EventEmitter).emit('render-process-gone', {}, { reason: 'crashed', exitCode: 5 })
+    expect(tab.title).toBe('Fixture')
+    expect(tab.loading).toBe(false)
+  })
 })
