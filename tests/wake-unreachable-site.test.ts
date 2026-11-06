@@ -22,7 +22,7 @@ function sleepingTab(commits: string | null) {
   const entries = [ADDRESS, SLEEPING_PAGE_URL]
   let index = 1
   const webContents = {
-    isDestroyed: () => false,
+    isDestroyed: (): boolean => false,
     isLoading: () => false,
     getURL: () => entries[index],
     loadURL: vi.fn(async (url: string) => {
@@ -80,5 +80,22 @@ describe('waking a sleeping tab whose website cannot be reached', () => {
     expect(tab.sleeping).toBe(true)
     expect(tab.sleepNavigationHistory).toEqual({ entries: [], index: 0 })
     expect(entries).toEqual([ADDRESS, SLEEPING_PAGE_URL])
+  })
+})
+
+describe('waking a sleeping tab whose page Electron destroys meanwhile', () => {
+  // The fallback load then called the destroyed page and threw Electron's English "Object has been destroyed", and the
+  // tab went back to sleep over the row that says its page is gone.
+  it('ends the wake, loading nothing more, and leaves the tab awake to say its page is gone', async () => {
+    const { tab, wake } = sleepingTab(null)
+    let destroyed = false
+    tab.webContents.isDestroyed = () => destroyed
+    tab.webContents.navigationHistory.goToIndex = () => {
+      destroyed = true
+      throw Object.assign(new Error('ERR_FAILED (-2)'), { errno: -2, code: 'ERR_FAILED' })
+    }
+    await expect(wake()).resolves.toBeDefined()
+    expect(tab.webContents.loadURL).not.toHaveBeenCalled()
+    expect(tab.sleeping).toBe(false)
   })
 })

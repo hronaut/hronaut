@@ -230,6 +230,8 @@ export async function wakeTab(browser: Browser, tabId: string): Promise<BrowserS
       }
     } catch (error) {
       if (handedOver()) return
+      // A page Electron destroyed as it woke cannot load again, and its tab already says it is gone, so the wake ends.
+      if (tab.webContents.isDestroyed()) return
       const wakeWasSuperseded = () => findTab(browser, tab.id) !== tab
         || tab.webContents.isDestroyed()
         || (tab.navigationGeneration !== navigationGeneration
