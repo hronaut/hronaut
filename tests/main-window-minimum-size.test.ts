@@ -9,7 +9,7 @@ vi.mock('electron', async () => {
     screen: { getDisplayMatching: () => ({ workArea, bounds: displayBounds }) }
   }
 })
-const { applyMainWindowMinimumSize, keepMainWindowMinimumSize, mainWindowMinimumSize } = await import('../src/main/windows/main-window-minimum-size.js')
+const { applyMainWindowMinimumSize, holdMainWindowMinimumSize, keepMainWindowMinimumSize, mainWindowMinimumSize } = await import('../src/main/windows/main-window-minimum-size.js')
 const { createWindowAppearance } = await import('../src/main/windows/appearance.js')
 
 // The main window could not be narrower than 760 pixels, so it did not fit half of a 1280, 1366 or 1440-pixel screen
@@ -100,11 +100,11 @@ it('waits for a maximized, full screen or minimized window to have its own size,
 })
 
 it('waits on while a window that left maximized or full screen still fills its screen, as a window manager can say first', () => {
-  for (const area of [workArea, displayBounds]) {
+  for (const [area, said] of [[workArea, resized], [displayBounds, resized], [workArea, restored], [displayBounds, restored]] as const) {
     const window = fakeWindow({ ...area }, { maximized: true })
     applyMainWindowMinimumSize(window as never, 1.25)
     window.state.maximized = false
-    keepMainWindowMinimumSize(window as never, 1.25, resized)
+    keepMainWindowMinimumSize(window as never, 1.25, said)
     expect(window.setMinimumSize).not.toHaveBeenCalled()
     // The resize that gives it its size back applies it, keeping it on its screen.
     window.move({ x: 600, y: 0, width: 660, height: 700 })
@@ -157,9 +157,63 @@ it('grows a window below its minimum once as it is restored, and leaves one a ti
   window.move({ x: 0, y: 0, width: 640, height: 510 })
   keepMainWindowMinimumSize(window as never, 1.25, restored)
   expect(window.setBounds).toHaveBeenCalledOnce()
+  // The resize right after a restore may grow it once more; the ones after leave it to the window manager.
   for (let resize = 0; resize < 3; resize++) keepMainWindowMinimumSize(window as never, 1.25, resized)
-  expect(window.setBounds).toHaveBeenCalledOnce()
-  expect(window.setMinimumSize).toHaveBeenCalledTimes(2)
+  expect(window.setBounds).toHaveBeenCalledTimes(2)
+  expect(window.setMinimumSize).toHaveBeenCalledTimes(3)
+})
+
+it('grows a window a window manager gives its size back after saying it left maximized, on that resize', () => {
+  // A system title bar's frame keeps a maximized window's bounds from filling the work area on Linux.
+  const window = fakeWindow({ x: 0, y: 0, width: 1280, height: 740 }, { maximized: true })
+  applyMainWindowMinimumSize(window as never, 1.25)
+  window.state.maximized = false
+  keepMainWindowMinimumSize(window as never, 1.25, restored)
+  expect(window.setMinimumSize).toHaveBeenCalledWith(750, 520)
+  expect(window.setBounds).not.toHaveBeenCalled()
+  window.move({ x: 0, y: 0, width: 640, height: 700 })
+  keepMainWindowMinimumSize(window as never, 1.25, resized)
+  expect(window.setBounds).toHaveBeenCalledWith({ x: 0, y: 0, width: 750, height: 700 })
+})
+
+it('grows a restored window short of its minimum by height alone, or by its frame alone', () => {
+  const short = fakeWindow({ x: 0, y: 0, width: 800, height: 700 })
+  applyMainWindowMinimumSize(short as never, 1)
+  short.move({ x: 0, y: 0, width: 800, height: 500 })
+  keepMainWindowMinimumSize(short as never, 1, restored)
+  expect(short.setBounds).toHaveBeenCalledWith({ x: 0, y: 0, width: 800, height: 520 })
+
+  // 760 pixels holds 750 of shell, but not with a 16-pixel frame around it.
+  const framed = fakeWindow({ x: 0, y: 0, width: 800, height: 700 }, { frameWidth: 16 })
+  applyMainWindowMinimumSize(framed as never, 1.25)
+  framed.move({ x: 0, y: 0, width: 760, height: 700 })
+  keepMainWindowMinimumSize(framed as never, 1.25, restored)
+  expect(framed.setBounds).toHaveBeenCalledWith({ x: 0, y: 0, width: 766, height: 700 })
+})
+
+it('holds the main window to its minimum as it is resized, and on the next turn once it is restored', async () => {
+  const { EventEmitter } = await import('node:events')
+  for (const event of ['unmaximize', 'leave-full-screen', 'restore']) {
+    const window = Object.assign(new EventEmitter(), fakeWindow({ x: 0, y: 0, width: 800, height: 700 }))
+    applyMainWindowMinimumSize(window as never, 1.25)
+    let scale = 1.25
+    holdMainWindowMinimumSize(window as never, () => scale)
+    // A resize below the minimum leaves it to the system.
+    window.move({ x: 0, y: 0, width: 640, height: 700 })
+    window.emit('resize')
+    expect(window.setBounds).not.toHaveBeenCalled()
+    window.emit(event)
+    expect(window.setBounds).not.toHaveBeenCalled()
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(window.setBounds).toHaveBeenCalledWith({ x: 0, y: 0, width: 750, height: 700 })
+    // The next restore reads the scale chosen meanwhile.
+    scale = 1
+    window.move({ x: 0, y: 0, width: 700, height: 700 })
+    window.emit(event)
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(window.setMinimumSize).toHaveBeenLastCalledWith(600, 520)
+    expect(window.setBounds).toHaveBeenCalledOnce()
+  }
 })
 
 it('takes bounds a pixel or two from the work area, as Windows rounds them, as filling it', () => {

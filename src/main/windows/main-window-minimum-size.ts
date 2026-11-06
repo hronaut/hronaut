@@ -18,6 +18,9 @@ const waiting = new WeakSet<BrowserWindow>()
 /** The minimum last given to each window: the shell's width and the frame measured with it. */
 const applied = new WeakMap<BrowserWindow, { shellWidth: number; frame: number }>()
 
+/** Windows just restored, whose next resize may grow them too: the system can give the size back after saying so. */
+const restoring = new WeakSet<BrowserWindow>()
+
 /** How far, in pixels, bounds may be from a work area or screen and still fill it, as Windows rounds them. */
 const FILL_TOLERANCE = 2
 
@@ -78,13 +81,17 @@ export function applyMainWindowMinimumSize(window: BrowserWindow, scale: number)
 /**
  * Keeps the window at its minimum once it has its own size again, after it is restored or as it is resized: a minimum
  * that waited is applied. Once restored, a window the system left narrower than its minimum also grows, as a macOS
- * window does that ends its unzoom at its old width after resizing through larger ones; a resize alone leaves that to
- * the system, so a tiling window manager that keeps the window smaller is not answered with another resize each time.
- * While the window still fills its screen's work area or its whole screen, it waits on: a window manager can say it
- * left maximized before giving it its size back.
+ * window does that ends its unzoom at its old width after resizing through larger ones, and so does the first resize
+ * after, as a window manager can say the window left maximized before giving it its size back. Other resizes leave
+ * that to the system, so a tiling window manager that keeps the window smaller is not answered with another resize
+ * each time. While the window still fills its screen's work area or its whole screen, it waits on.
  */
 export function keepMainWindowMinimumSize(window: BrowserWindow, scale: number, options: { restored: boolean }): void {
-  if (window.isDestroyed() || !hasNormalSize(window)) return
+  if (window.isDestroyed()) return
+  let grows = options.restored
+  if (grows) restoring.add(window)
+  else grows = restoring.delete(window)
+  if (!hasNormalSize(window)) return
   const bounds = window.getBounds()
   const display = screen.getDisplayMatching(bounds)
   const near = (value: number, filled: number): boolean => Math.abs(value - filled) <= FILL_TOLERANCE
@@ -92,6 +99,19 @@ export function keepMainWindowMinimumSize(window: BrowserWindow, scale: number, 
     && near(bounds.width, area.width) && near(bounds.height, area.height)
   if (fills(display.workArea) || fills(display.bounds)) return
   const last = applied.get(window)
-  const belowMinimum = options.restored && (!last || bounds.width < last.shellWidth + last.frame || bounds.height < MIN_WINDOW_HEIGHT)
+  const belowMinimum = grows && (!last || bounds.width < last.shellWidth + last.frame || bounds.height < MIN_WINDOW_HEIGHT)
   if (waiting.has(window) || belowMinimum) applyMainWindowMinimumSize(window, scale)
+}
+
+/**
+ * Keeps the main window at its minimum from now on: as it is resized, and once it is restored from maximized, full
+ * screen or minimized, on the next turn, after the system's last size for it.
+ */
+export function holdMainWindowMinimumSize(window: BrowserWindow, scale: () => number): void {
+  const keep = (restored: boolean): void => { keepMainWindowMinimumSize(window, scale(), { restored }) }
+  const afterRestore = (): void => { setImmediate(() => keep(true)) }
+  window.on('unmaximize', afterRestore)
+  window.on('leave-full-screen', afterRestore)
+  window.on('restore', afterRestore)
+  window.on('resize', () => keep(false))
 }
