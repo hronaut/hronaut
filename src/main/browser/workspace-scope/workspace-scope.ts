@@ -1,3 +1,4 @@
+import type { BrowserSplitViewState } from '../../../shared/split-view.js'
 import type { BrowserState, BrowserTabState } from '../../../shared/types.js'
 import type { Browser } from '../browser.js'
 import { findTab } from '../browser-core.js'
@@ -41,12 +42,11 @@ export function getMcpGroupState(browser: Browser, groupId: string): BrowserStat
   const state = buildBrowserState(browser, groupId)
   const tabs = state.tabs.filter((tab) => tab.mcpGroupId === groupId)
   const group = browser.mcpTabGroups.get(groupId)!
-  const { splitView, agentFollow, ...scopedState } = state
-  const visibleSplitView = splitView
-    && tabs.some((tab) => tab.id === splitView.firstTabId)
-    && tabs.some((tab) => tab.id === splitView.secondTabId)
-    ? splitView
-    : undefined
+  const { splitView, restingSplitViews, agentFollow, ...scopedState } = state
+  const ownSplit = (split: BrowserSplitViewState): boolean => tabs.some((tab) => tab.id === split.firstTabId)
+    && tabs.some((tab) => tab.id === split.secondTabId)
+  const visibleSplitView = splitView && ownSplit(splitView) ? splitView : undefined
+  const visibleRestingSplitViews = restingSplitViews?.filter(ownSplit) ?? []
   // Following another workspace's tab would name that tab and the agent working there.
   const visibleAgentFollow = agentFollow && tabs.some((tab) => tab.id === agentFollow.tabId) ? agentFollow : undefined
   return {
@@ -55,6 +55,7 @@ export function getMcpGroupState(browser: Browser, groupId: string): BrowserStat
     closedTabs: state.closedTabs.filter((tab) => tab.mcpGroupId === groupId),
     activeTabId: tabs.some((tab) => tab.id === group.activeTabId) ? group.activeTabId : tabs[0]?.id ?? null,
     ...(visibleSplitView ? { splitView: visibleSplitView } : {}),
+    ...(visibleRestingSplitViews.length ? { restingSplitViews: visibleRestingSplitViews } : {}),
     ...(visibleAgentFollow ? { agentFollow: visibleAgentFollow } : {}),
     mcpTabGroups: [requireMcpTabGroup(browser, groupId)],
     savedTabGroups: []

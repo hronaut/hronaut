@@ -47,7 +47,7 @@ function fixture(spec: Array<{ id: string; from?: string; workspace?: string }>,
       webContents: { id: index + 1, isDestroyed: () => false }
     }])),
     activeTabId: null,
-    splitView: null,
+    splitView: null, restingSplitViews: [],
     cssStatePreview: forgets(), virtualPasskeys: forgets(), domMutationSource: forgets(), logpoints: forgets(), workerEvaluations: forgets(),
     invalidateTabOverviewPreview: vi.fn(), tabOverviewSleepPreviews: new Map(), tabOverviewPreviewCaptures: { cancelPending: vi.fn() },
     runWalletLifecycleAction: vi.fn(), options: {}, snapshotBaselines: new Map(), snapshotBaselineIdsByTab: new Map(),

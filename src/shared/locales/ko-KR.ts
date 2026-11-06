@@ -1708,6 +1708,8 @@ export const koKR: MessageSchema = {
       freezeUnknown: '페이지 유지 결과 알 수 없음',
       stackedVisible: '위아래 분할 보기에 표시됨',
       sideVisible: '좌우 분할 보기에 표시됨',
+      stackedPaired: '위아래 분할 보기로 묶임',
+      sidePaired: '좌우 분할 보기로 묶임',
       inputLocked: '페이지 입력 잠김',
       switchWorkspace: '작업 공간 전환',
       switchWorkspaceTitle: '작업 공간 전환(Ctrl/Cmd+K)',

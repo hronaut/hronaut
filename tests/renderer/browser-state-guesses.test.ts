@@ -58,7 +58,7 @@ describe('guesses of tab actions', () => {
     expect(guessTabSelected('waking')(before)).toBe(before)
   })
 
-  it('makes the tab its workspace\'s active tab, and closes a split view only when the tab is not in it', () => {
+  it('makes the tab its workspace\'s active tab, and puts a split view aside only when the tab is not in it', () => {
     const before: BrowserState = {
       ...state([tab('a', { active: true }), tab('b'), tab('c', { mcpGroupId: 'w' }), tab('d', { mcpGroupId: 'w' })]),
       splitView: { firstTabId: 'a', secondTabId: 'b', orientation: 'vertical', ratio: 0.5 },
@@ -69,8 +69,40 @@ describe('guesses of tab actions', () => {
     expect(inSplit.mcpTabGroups[0]).toBe(before.mcpTabGroups[0])
     const outside = guessTabSelected('d')(before)
     expect(outside.splitView).toBeUndefined()
+    expect(outside.restingSplitViews).toEqual([before.splitView])
     expect(outside.mcpTabGroups[0].activeTabId).toBe('d')
     expect(before.mcpTabGroups[0].activeTabId).toBe('c')
+  })
+
+  it('shows a split view put aside again when either of its tabs is selected, as main does', () => {
+    const shown = { firstTabId: 'a', secondTabId: 'b', orientation: 'vertical' as const, ratio: 0.5 }
+    const aside = { firstTabId: 'c', secondTabId: 'd', orientation: 'horizontal' as const, ratio: 0.3 }
+    const before: BrowserState = {
+      ...state([tab('a', { active: true }), tab('b'), tab('c'), tab('d'), tab('e')]),
+      splitView: shown,
+      restingSplitViews: [aside]
+    }
+    const paired = guessTabSelected('d')(before)
+    expect(paired.activeTabId).toBe('d')
+    expect(paired.splitView).toBe(aside)
+    expect(paired.restingSplitViews).toEqual([shown])
+
+    const alone = guessTabSelected('e')(before)
+    expect(alone.splitView).toBeUndefined()
+    expect(alone.restingSplitViews).toEqual([aside, shown])
+
+    // A pair whose other tab or the selected tab shows Home, or whose other tab is gone, ends, so the tab shows alone.
+    const showingHome = (id: string): BrowserState => ({
+      ...before, tabs: before.tabs.map((candidate) => candidate.id === id ? { ...candidate, url: 'hronaut://home/' } : candidate)
+    })
+    for (const home of [showingHome('c'), showingHome('d')]) {
+      const ended = guessTabSelected('d')(home)
+      expect(ended.splitView).toBeUndefined()
+      expect(ended.restingSplitViews).toEqual([shown])
+    }
+    const gone = guessTabSelected('d')({ ...before, tabs: before.tabs.filter((candidate) => candidate.id !== 'c') })
+    expect(gone.splitView).toBeUndefined()
+    expect(gone.restingSplitViews).toEqual([shown])
   })
 
   it('mutes a tab or turns its sound back on, and leaves a tab already so or gone alone', () => {

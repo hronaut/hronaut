@@ -1708,6 +1708,8 @@ export const ptBR: MessageSchema = {
       freezeUnknown: 'Resultado da retenção da página desconhecido',
       stackedVisible: 'Visível na visualização dividida empilhada',
       sideVisible: 'Visível na visualização dividida lado a lado',
+      stackedPaired: 'Pareada na visualização dividida empilhada',
+      sidePaired: 'Pareada na visualização dividida lado a lado',
       inputLocked: 'Entrada na página bloqueada',
       switchWorkspace: 'Trocar de espaço de trabalho',
       switchWorkspaceTitle: 'Trocar de espaço de trabalho (Ctrl/Cmd+K)',

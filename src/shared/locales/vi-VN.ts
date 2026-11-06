@@ -1708,6 +1708,8 @@ export const viVN: MessageSchema = {
       freezeUnknown: 'Không rõ kết quả giữ trang',
       stackedVisible: 'Hiển thị trong chế độ xem chia đôi xếp chồng',
       sideVisible: 'Hiển thị trong chế độ xem chia đôi cạnh nhau',
+      stackedPaired: 'Được ghép cặp trong chế độ xem chia đôi xếp chồng',
+      sidePaired: 'Được ghép cặp trong chế độ xem chia đôi cạnh nhau',
       inputLocked: 'Đã khóa thao tác nhập trên trang',
       switchWorkspace: 'Chuyển không gian làm việc',
       switchWorkspaceTitle: 'Chuyển không gian làm việc (Ctrl/Cmd+K)',

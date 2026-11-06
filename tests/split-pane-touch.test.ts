@@ -102,7 +102,7 @@ function browser() {
       contentView: { children: [], addChildView: vi.fn(), removeChildView: vi.fn() }
     },
     tabs: new Map(), closedTabs: [], detachedClosedTabs: new Set(), workspaceOperations: new Map(),
-    webContentsToTab: new Map(), openedTabObservations: new Map(), activeTabId: null, splitView: null, splitViewGeneration: 0,
+    webContentsToTab: new Map(), openedTabObservations: new Map(), activeTabId: null, splitView: null, restingSplitViews: [], splitViewGeneration: 0,
     tabSelectionGeneration: 0, toolbarHeight: 60, contentInsets: { top: 0, right: 10, bottom: 10, left: 280 }, allTabsMuted: false,
     allHumanInteractionLocked: false, globallyUnlockedTabIds: new Set(), agentInputWebContents: new Map(), agentWheel: new Map(),
     authorizedAgentMouseInput: new Map(),

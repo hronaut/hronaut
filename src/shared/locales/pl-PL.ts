@@ -1708,6 +1708,8 @@ export const plPL: MessageSchema = {
       freezeUnknown: 'Wynik zatrzymania strony nieznany',
       stackedVisible: 'Widoczna w pionowym widoku dzielonym',
       sideVisible: 'Widoczna w widoku dzielonym obok siebie',
+      stackedPaired: 'Sparowana w pionowym widoku dzielonym',
+      sidePaired: 'Sparowana w widoku dzielonym obok siebie',
       inputLocked: 'Wprowadzanie danych na stronie zablokowane',
       switchWorkspace: 'Przełącz obszar',
       switchWorkspaceTitle: 'Przełącz obszar (Ctrl/Cmd+K)',

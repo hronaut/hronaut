@@ -6,6 +6,8 @@ import { focusTabOrTrustedChrome, returnTabFieldFocus, shellHasKeyboard, shellTa
 import { findTab, getTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { browserState, publishChange } from '../browser-state/browser-state.js'
+import { keepKeyboardFromLoadingPane } from '../split-view/loading-pane-keyboard.js'
+import { restingPartner, restSplitView, showRestingPair, takeRestingPair } from '../split-view/resting-split-views.js'
 import { markTabActiveInGroup, writeActiveTabId } from './active-tab.js'
 
 /** How a tab is selected. */
@@ -25,6 +27,9 @@ export async function selectTabAndWait(browser: Browser, tabId: string, options:
   }
   browser.tabSelectionGeneration += 1
   const selectionGeneration = browser.tabSelectionGeneration
+  // The tab paired with it in a split view put aside shows beside it, so it starts waking too.
+  const partner = restingPartner(browser, next)
+  if (partner?.sleeping) void browser.wakeTab(partner.id).catch((error) => console.error('[browser] Could not wake split tab:', error))
   if (next.sleeping || next.wakePromise) {
     notePickedField(browser)
     try {
@@ -91,7 +96,9 @@ function activeTabIdInWorkspace(browser: Browser, tab: BrowserTab): string | nul
  * Shows a tab in the window, waking it if it sleeps. A pane of the open split
  * view becomes the active pane, and the other pane in full screen, which hides
  * it, is asked to leave full screen; any other tab replaces the split view or
- * the current tab, which count as active until they leave the window.
+ * the current tab, which count as active until they leave the window. As in
+ * Chrome, a split view replaced so is put aside, and a tab of one put aside
+ * shows with its pair again, as the active pane.
  */
 export function selectTab(browser: Browser, tabId: string, options: BrowserTabSelectionOptions = {}): BrowserState {
   const next = getTab(browser, tabId)
@@ -115,6 +122,7 @@ export function selectTab(browser: Browser, tabId: string, options: BrowserTabSe
     return browserState(browser)
   }
   const current = browser.activeTabId ? findTab(browser, browser.activeTabId) : undefined
+  const pair = takeRestingPair(browser, next)
   // The tab left keeps its field that has the keyboard, for when it is shown again, or the field that had it as the
   // person picked a tab that woke first, while the shell still has the keyboard.
   if (current && current.id !== next.id) {
@@ -130,12 +138,14 @@ export function selectTab(browser: Browser, tabId: string, options: BrowserTabSe
         browser.window.contentView.removeChildView(visibleTab.view)
       }
     }
+    restSplitView(browser)
     browser.splitView = null
-  } else if (current && current.id !== next.id) {
+  } else if (current && current.id !== next.id && current !== pair?.partner) {
     current.lastActiveAt = performance.now()
     browser.window.contentView.removeChildView(current.view)
   }
   if (current?.id !== next.id) browser.window.contentView.addChildView(next.view)
+  if (pair) showRestingPair(browser, pair, current)
   writeActiveTabId(browser, next.id)
   markTabActiveInGroup(browser, next)
   browser.layout()
@@ -143,6 +153,8 @@ export function selectTab(browser: Browser, tabId: string, options: BrowserTabSe
   const fieldReturned = options.focus !== false && current?.id !== next.id && returnTabFieldFocus(browser, next)
   if (options.focus !== false && !fieldReturned) focusTabOrTrustedChrome(browser, next)
   next.fieldFocusOnReturn = undefined
+  // The tab paired with it gives the keyboard back to where it went now, should its first document take it.
+  if (pair) keepKeyboardFromLoadingPane(browser, next, pair.partner, options.focus === false || fieldReturned ? 'shell' : 'page')
   publishChange(browser)
   return browserState(browser)
 }

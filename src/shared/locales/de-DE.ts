@@ -1708,6 +1708,8 @@ export const deDE: MessageSchema = {
       freezeUnknown: 'Ergebnis des Seitenhalts unbekannt',
       stackedVisible: 'In gestapelter geteilter Ansicht sichtbar',
       sideVisible: 'In nebeneinander geteilter Ansicht sichtbar',
+      stackedPaired: 'In gestapelter geteilter Ansicht gekoppelt',
+      sidePaired: 'In nebeneinander geteilter Ansicht gekoppelt',
       inputLocked: 'Seiteneingabe gesperrt',
       switchWorkspace: 'Arbeitsbereich wechseln',
       switchWorkspaceTitle: 'Arbeitsbereich wechseln (Ctrl/Cmd+K)',

@@ -1708,6 +1708,8 @@ export const frFR: MessageSchema = {
       freezeUnknown: 'Résultat du gel inconnu',
       stackedVisible: 'Visible dans la vue fractionnée empilée',
       sideVisible: 'Visible dans la vue fractionnée côte à côte',
+      stackedPaired: 'Associé dans la vue fractionnée empilée',
+      sidePaired: 'Associé dans la vue fractionnée côte à côte',
       inputLocked: 'Saisie sur la page verrouillée',
       switchWorkspace: 'Changer d’espace',
       switchWorkspaceTitle: 'Changer d’espace (Ctrl/Cmd+K)',

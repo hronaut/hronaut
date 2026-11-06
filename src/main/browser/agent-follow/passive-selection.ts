@@ -1,6 +1,7 @@
 import { webContents as electronWebContents } from 'electron'
 import type { Browser } from '../browser.js'
 import { getTab } from '../browser-core.js'
+import { restingPartner } from '../split-view/resting-split-views.js'
 
 /**
  * Shows the tab an agent works in without activating the window or giving
@@ -16,13 +17,20 @@ export function selectTabPassively(browser: Browser, tabId: string): boolean {
   if (browser.activeTabId === tabId || browser.splitViewContains(tabId)) return false
   const windowWasFocused = browser.window.isFocused()
   const target = getTab(browser, tabId)
+  // A tab of a split view put aside shows with the tab paired with it, whose page attaching can focus as well.
+  const partner = restingPartner(browser, target)
+  const shownPages = partner ? [target.webContents, partner.webContents] : [target.webContents]
+  const pageFocused = (): boolean => {
+    const focusedId = electronWebContents.getFocusedWebContents()?.id
+    return shownPages.some((contents) => !contents.isDestroyed() && contents.id === focusedId)
+  }
   let focusGuardActive = windowWasFocused
   let focusGuardTimer: NodeJS.Timeout | undefined
   const releaseFocusGuard = (): void => {
     if (!focusGuardActive) return
     focusGuardActive = false
     if (focusGuardTimer) clearTimeout(focusGuardTimer)
-    target.webContents.removeListener('focus', redirectWebsiteFocus)
+    for (const contents of shownPages) contents.removeListener('focus', redirectWebsiteFocus)
   }
   const redirectWebsiteFocus = (): void => {
     releaseFocusGuard()
@@ -30,17 +38,12 @@ export function selectTabPassively(browser: Browser, tabId: string): boolean {
     // focus callback on some Linux compositors. Restore trusted chrome on
     // the next main-process turn, after the native attachment settles.
     setImmediate(() => {
-      if (
-        browser.window.isDestroyed()
-        || !browser.window.isFocused()
-        || target.webContents.isDestroyed()
-        || electronWebContents.getFocusedWebContents()?.id !== target.webContents.id
-      ) return
+      if (browser.window.isDestroyed() || !browser.window.isFocused() || !pageFocused()) return
       browser.window.webContents.focus()
     })
   }
   if (focusGuardActive) {
-    target.webContents.on('focus', redirectWebsiteFocus)
+    for (const contents of shownPages) contents.on('focus', redirectWebsiteFocus)
     focusGuardTimer = setTimeout(releaseFocusGuard, 1_000)
     focusGuardTimer.unref()
   }
@@ -66,6 +69,6 @@ export function selectTabPassively(browser: Browser, tabId: string): boolean {
   }
   if (!browser.window.isFocused()) return true
 
-  if (electronWebContents.getFocusedWebContents()?.id === target.webContents.id) redirectWebsiteFocus()
+  if (pageFocused()) redirectWebsiteFocus()
   return true
 }

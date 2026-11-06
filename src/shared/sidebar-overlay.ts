@@ -80,11 +80,20 @@ export interface SidebarOverlayAgent {
   state: AgentPresenceState
 }
 
+/** Which two tabs a split view holds and how it shows them. */
+export interface SidebarOverlaySplitView {
+  firstTabId: string
+  secondTabId: string
+  orientation: 'vertical' | 'horizontal'
+}
+
 export interface SidebarOverlayRail {
   tabs: SidebarOverlayTab[]
   workspaces: SidebarOverlayWorkspace[]
   activeTabId: string | null
-  splitView?: { firstTabId: string; secondTabId: string; orientation: 'vertical' | 'horizontal' }
+  splitView?: SidebarOverlaySplitView
+  /** The split views put aside, whose tabs stay paired. */
+  restingSplitViews?: SidebarOverlaySplitView[]
   allHumanInteractionLocked: boolean
   allTabsMuted: boolean
   agentFollow?: { tabId: string; agentName: string }
@@ -367,17 +376,22 @@ function parseAgent(value: unknown): SidebarOverlayAgent {
   }
 }
 
+function parseSplitView(value: unknown): SidebarOverlaySplitView {
+  const split = record(value) ?? invalid('split view')
+  if (split.orientation !== 'vertical' && split.orientation !== 'horizontal') invalid('split view')
+  return { firstTabId: identifier(split.firstTabId, 'split view'), secondTabId: identifier(split.secondTabId, 'split view'), orientation: split.orientation }
+}
+
 function parseRail(value: unknown): SidebarOverlayRail {
   const rail = record(value) ?? invalid('rail')
   const tabs = list(rail.tabs, 'tabs', SIDEBAR_OVERLAY_MAX_TABS).map(parseTab)
   const workspaces = list(rail.workspaces, 'workspaces', SIDEBAR_OVERLAY_MAX_WORKSPACES).map(parseWorkspace)
   const activeTabId = rail.activeTabId === null ? null : identifier(rail.activeTabId, 'active tab')
-  let splitView: SidebarOverlayRail['splitView']
-  if (rail.splitView !== undefined) {
-    const split = record(rail.splitView) ?? invalid('split view')
-    if (split.orientation !== 'vertical' && split.orientation !== 'horizontal') invalid('split view')
-    splitView = { firstTabId: identifier(split.firstTabId, 'split view'), secondTabId: identifier(split.secondTabId, 'split view'), orientation: split.orientation }
-  }
+  const splitView = rail.splitView !== undefined ? parseSplitView(rail.splitView) : undefined
+  // Each tab is in one split view at most.
+  const restingSplitViews = rail.restingSplitViews !== undefined
+    ? list(rail.restingSplitViews, 'split views', Math.floor(SIDEBAR_OVERLAY_MAX_TABS / 2)).map(parseSplitView)
+    : undefined
   let agentFollow: SidebarOverlayRail['agentFollow']
   if (rail.agentFollow !== undefined) {
     const follow = record(rail.agentFollow) ?? invalid('follow')
@@ -407,6 +421,7 @@ function parseRail(value: unknown): SidebarOverlayRail {
     workspaces,
     activeTabId,
     ...(splitView ? { splitView } : {}),
+    ...(restingSplitViews?.length ? { restingSplitViews } : {}),
     allHumanInteractionLocked: flag(rail.allHumanInteractionLocked, 'rail'),
     allTabsMuted: flag(rail.allTabsMuted, 'rail'),
     ...(agentFollow ? { agentFollow } : {}),

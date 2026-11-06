@@ -1708,6 +1708,8 @@ export const trTR: MessageSchema = {
       freezeUnknown: 'Sayfa tutma sonucu bilinmiyor',
       stackedVisible: 'Üst üste bölünmüş görünümde görünür',
       sideVisible: 'Yan yana bölünmüş görünümde görünür',
+      stackedPaired: 'Üst üste bölünmüş görünümde eşlenmiş',
+      sidePaired: 'Yan yana bölünmüş görünümde eşlenmiş',
       inputLocked: 'Sayfa girişi kilitli',
       switchWorkspace: 'Çalışma alanı değiştir',
       switchWorkspaceTitle: 'Çalışma alanı değiştir (Ctrl/Cmd+K)',

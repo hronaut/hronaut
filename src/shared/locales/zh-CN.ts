@@ -1708,6 +1708,8 @@ export const zhCN: MessageSchema = {
       freezeUnknown: '页面保持操作的结果未知',
       stackedVisible: '在上下拆分视图中可见',
       sideVisible: '在左右拆分视图中可见',
+      stackedPaired: '在上下拆分视图中配对',
+      sidePaired: '在左右拆分视图中配对',
       inputLocked: '页面输入已锁定',
       switchWorkspace: '切换工作区',
       switchWorkspaceTitle: '切换工作区 (Ctrl/Cmd+K)',

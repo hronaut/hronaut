@@ -45,9 +45,12 @@ function scopeBrowserStateResult(result: CallToolResult, state: BrowserState, om
       try {
         const value = JSON.parse(item.text) as Record<string, unknown>
         if (!Array.isArray(value.tabs) || typeof value.profilePath !== 'string') return item
-        // The workspace's own state leaves out another workspace's split view and Follow, so the global copies must
+        // The workspace's own state leaves out another workspace's split views and Follow, so the global copies must
         // not survive underneath it.
-        const { tabs: _tabs, closedTabs: _closedTabs, mcpTabGroups: _groups, savedTabGroups: _savedGroups, splitView: _splitView, agentFollow: _agentFollow, ...valueRest } = value
+        const {
+          tabs: _tabs, closedTabs: _closedTabs, mcpTabGroups: _groups, savedTabGroups: _savedGroups, splitView: _splitView,
+          restingSplitViews: _restingSplitViews, agentFollow: _agentFollow, ...valueRest
+        } = value
         return { ...item, text: JSON.stringify({ ...valueRest, ...mcpWorkspaceState(state, omitUrlDetail) }, null, 2) }
       } catch {
         return item

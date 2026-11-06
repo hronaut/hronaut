@@ -94,6 +94,9 @@ describe('sidebar overlay contracts', () => {
     expect(parseSidebarOverlayRequest(request)).toEqual(request)
     expect(parseSidebarOverlayRequest({ id: 4, model: model({ tint: '#1A2B3C' }) }).model.tint).toBe('#1A2B3C')
     const rail = model().rail
+    // The split views put aside, whose tabs the rail marks as paired.
+    const paired = { ...model(), rail: { ...rail, restingSplitViews: [{ firstTabId: 'alpha', secondTabId: 'beta', orientation: 'horizontal' }] } }
+    expect(parseSidebarOverlayRequest({ id: 5, model: paired })).toEqual({ id: 5, model: paired })
     const bad: unknown[] = [
       null,
       { id: 0, model: model() },
@@ -112,6 +115,8 @@ describe('sidebar overlay contracts', () => {
       { id: 1, model: { ...model(), rail: { ...rail, tabs: Array.from({ length: 1_001 }, (_, index) => tab(`tab-${index}`)) } } },
       { id: 1, model: { ...model(), rail: { ...rail, workspaces: [{ id: 'research', name: 'Research', description: '', color: 'teal' }] } } },
       { id: 1, model: { ...model(), rail: { ...rail, scrollTop: Number.NaN } } },
+      { id: 1, model: { ...model(), rail: { ...rail, restingSplitViews: [{ firstTabId: 'alpha', secondTabId: 'beta', orientation: 'diagonal' }] } } },
+      { id: 1, model: { ...model(), rail: { ...rail, restingSplitViews: Array.from({ length: 501 }, () => ({ firstTabId: 'alpha', secondTabId: 'beta', orientation: 'vertical' })) } } },
       { id: 1, model: { ...model(), footer: { ...model().footer, downloadCount: 100 } } },
       { id: 1, model: { ...model(), footer: { ...model().footer, mcp: { ...model().footer.mcp, state: { status: 'lost', paused: false } } } } }
     ]

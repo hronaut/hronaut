@@ -137,7 +137,7 @@ function fixture(options: { pageFullscreen?: boolean; followAgentActivitySuspend
     agentInputWebContents: new Map(),
     mcpActivitiesByTab: new Map(),
     activeTabId: video.id,
-    splitView: null,
+    splitView: null, restingSplitViews: [],
     tabSelectionGeneration: 0,
     toolbarHeight: 60,
     contentInsets: { top: 0, right: 10, bottom: 10, left: 280 },

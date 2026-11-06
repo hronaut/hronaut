@@ -1708,6 +1708,8 @@ export const ruRU: MessageSchema = {
       freezeUnknown: 'Результат остановки страницы неизвестен',
       stackedVisible: 'Видна в вертикально разделённом представлении',
       sideVisible: 'Видна в разделённом представлении рядом',
+      stackedPaired: 'В паре в вертикально разделённом представлении',
+      sidePaired: 'В паре в разделённом представлении рядом',
       inputLocked: 'Ввод на странице заблокирован',
       switchWorkspace: 'Сменить пространство',
       switchWorkspaceTitle: 'Сменить пространство (Ctrl/Cmd+K)',

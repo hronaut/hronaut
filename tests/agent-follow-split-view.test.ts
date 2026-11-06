@@ -26,6 +26,10 @@ vi.mock('electron', () => {
         on: (name: string, listener: (...args: unknown[]) => void) => events.on(name, listener),
         once: (name: string, listener: (...args: unknown[]) => void) => events.once(name, listener),
         removeListener: (name: string, listener: (...args: unknown[]) => void) => events.removeListener(name, listener),
+        off: (name: string, listener: (...args: unknown[]) => void) => events.off(name, listener),
+        emit: (name: string) => events.emit(name),
+        isFocused: () => electronFocus.id === id,
+        isLoadingMainFrame: () => false,
         focus: () => { focused.push(String(id)); electronFocus.id = id },
         isLoading: () => false,
         getURL: () => '',
@@ -81,13 +85,14 @@ const { pageFullscreenShown } = await import('../src/main/browser/page-fullscree
 const PERSON = '01912345-6789-7abc-8def-0123456789ab'
 const AGENT = '01912345-6789-7abc-8def-0123456789ac'
 
-interface Tab { id: string; webContents: { id: number; isDestroyed(): boolean }; sleeping: boolean }
+interface Tab { id: string; webContents: { id: number; isDestroyed(): boolean; emit(name: string): void; getURL(): string }; sleeping: boolean }
 /** The manager's private state these cases set up and read. */
 interface Manager {
   tabs: Map<string, Tab>
   activeTabId: string | null
   splitView: unknown
   tabSelectionGeneration: number
+  window: { contentView: { addChildView: (view: { webContents: unknown }) => void } }
   followAgentActivity: boolean
   browserContentOccluded: boolean
   followAgentActivitySuspended: boolean
@@ -115,7 +120,8 @@ function browser(): Manager {
       contentView: { children: [], addChildView: vi.fn(), removeChildView: vi.fn() }
     },
     tabs: new Map(), closedTabs: [], detachedClosedTabs: new Set(), workspaceOperations: new Map(),
-    webContentsToTab: new Map(), openedTabObservations: new Map(), activeTabId: null, splitView: null, splitViewGeneration: 0,
+    webContentsToTab: new Map(), openedTabObservations: new Map(), activeTabId: null, splitView: null, restingSplitViews: [], splitViewGeneration: 0,
+    splitDivider: { persistedRatio: (ratio: number) => ratio },
     tabSelectionGeneration: 0, toolbarHeight: 60, contentInsets: { top: 0, right: 10, bottom: 10, left: 280 }, allTabsMuted: false,
     allHumanInteractionLocked: false, globallyUnlockedTabIds: new Set(), agentInputWebContents: new Map(),
     browserContentOccluded: false, followAgentActivity: true, followAgentActivitySuspended: false, mcpActivitiesByTab: new Map(),
@@ -178,5 +184,34 @@ describe('Follow agents with the person\'s split view', () => {
 
     expect({ activeTabId: manager.activeTabId, focused, keyboardFocusIn: electronFocus.id })
       .toEqual({ activeTabId: agentTab.id, focused: ['shell'], keyboardFocusIn: 1 })
+  })
+
+  it('keeps keyboard focus out of the page paired with an agent\'s tab, which shows beside it again', async () => {
+    const manager = browser()
+    const notes = await manager.createTab({ url: 'https://notes.example/draft', mcpGroupId: PERSON, active: false })
+    const agentTab = await manager.createTab({ url: 'https://agent.example/run', mcpGroupId: AGENT, active: false })
+    const result = await manager.createTab({ url: 'https://agent.example/result', mcpGroupId: AGENT, active: false })
+    // The agent's two tabs were in a split view, which the person put aside to go back to their notes.
+    manager.selectTab(agentTab.id)
+    openSplitView(manager as never, result.id)
+    manager.selectTab(notes.id)
+    focused.length = 0
+    // Its page shows its document, and attaching its view gives it the keyboard a moment later, as Electron does on some
+    // Linux compositors once the attachment settles.
+    result.webContents.getURL = () => 'https://agent.example/result'
+    manager.window.contentView.addChildView = (view) => {
+      if (view.webContents !== result.webContents) return
+      setImmediate(() => {
+        electronFocus.id = result.webContents.id
+        result.webContents.emit('focus')
+      })
+    }
+
+    agentCall(manager, agentTab.id)
+    await new Promise((resolve) => setImmediate(resolve))
+    await new Promise((resolve) => setImmediate(resolve))
+
+    expect({ splitView: manager.splitView, activeTabId: manager.activeTabId, keyboardFocusIn: electronFocus.id })
+      .toEqual({ splitView: expect.objectContaining({ firstTabId: agentTab.id, secondTabId: result.id }), activeTabId: agentTab.id, keyboardFocusIn: 1 })
   })
 })

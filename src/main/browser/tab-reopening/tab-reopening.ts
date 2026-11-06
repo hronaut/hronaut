@@ -82,7 +82,7 @@ export async function reopenClosedTabEntry(browser: Browser, closedTabId: string
   if (!closed) return undefined
   browser.detachedClosedTabs.add(held)
   const history = closedTabHistories.get(closed)
-  // Read before the tab opens, as showing it ends a split view it is not in.
+  // Read before the tab opens, as showing it puts aside a split view it is not in.
   const split = closedTabSplits.get(closed)
   const beside = active && split && !browser.splitView && browser.activeTabId === split.partnerTabId ? split : undefined
   let tab: BrowserTab

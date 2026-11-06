@@ -68,12 +68,13 @@ describe('workspace-scoped browser state', () => {
     ['tab-other', { id: 'tab-other', mcpGroupId: 'ws-other', discoveryTitle: { value: '' } }]
   ])
   const tabState = (id: string, mcpGroupId: string) => ({ id, mcpGroupId, url: `https://${id}.example/`, title: id }) as unknown as BrowserState['tabs'][number]
-  const browser = (agentFollow: BrowserState['agentFollow']): Browser => {
+  const browser = (agentFollow: BrowserState['agentFollow'], more: Partial<BrowserState> = {}): Browser => {
     published.state = {
       tabs: [tabState('tab-mine', 'ws-mine'), tabState('tab-other', 'ws-other')],
       closedTabs: [], activeTabId: 'tab-other', allHumanInteractionLocked: false,
       mcpUrl: 'http://127.0.0.1:47812/mcp', profilePath: '/profile', mcpTabGroups: [], savedTabGroups: [],
-      ...(agentFollow ? { agentFollow } : {})
+      ...(agentFollow ? { agentFollow } : {}),
+      ...more
     }
     return {
       tabs,
@@ -99,6 +100,16 @@ describe('workspace-scoped browser state', () => {
     const state = getMcpGroupState(browser({ tabId: 'tab-mine', agentName: 'Claude Code' }), 'ws-mine')
     expect(state.agentFollow).toEqual({ tabId: 'tab-mine', agentName: 'Claude Code' })
   })
+
+  it('keeps only the split views put aside whose two tabs are the workspace\'s own', () => {
+    const own = { firstTabId: 'tab-mine', secondTabId: 'tab-mine-beside', orientation: 'vertical' as const, ratio: 0.5 }
+    const state = getMcpGroupState(browser(undefined, {
+      tabs: [tabState('tab-mine', 'ws-mine'), tabState('tab-mine-beside', 'ws-mine'), tabState('tab-mine-paired', 'ws-mine'), tabState('tab-other', 'ws-other')],
+      restingSplitViews: [own, { firstTabId: 'tab-mine-paired', secondTabId: 'tab-other', orientation: 'vertical', ratio: 0.5 }]
+    }), 'ws-mine')
+    expect(state.restingSplitViews).toEqual([own])
+    expect(JSON.stringify(mcpWorkspaceState(state))).not.toContain('tab-other')
+  })
 })
 
 // Tools such as browser_navigate return the manager's global state, which the call path rescopes to the workspace.
@@ -109,6 +120,7 @@ describe('browser state returned by a workspace tool', () => {
   const tabId = '01912345-6790-7abc-8def-0123456789d1'
   const otherTab = '01912345-6790-7abc-8def-0123456789d2'
   const otherSplitTab = '01912345-6790-7abc-8def-0123456789d3'
+  const otherPairedTabs = ['01912345-6790-7abc-8def-0123456789d4', '01912345-6790-7abc-8def-0123456789d5'] as const
   let client: Client | undefined
   let server: McpHttpServer | undefined
 
@@ -120,15 +132,19 @@ describe('browser state returned by a workspace tool', () => {
     vi.mocked(getMcpGroupState).mockReset()
   })
 
-  it('leaves out another workspace\'s Follow and split view from a navigation result', async () => {
+  it('leaves out another workspace\'s Follow and split views from a navigation result', async () => {
     const workspace = { id: workspaceId, name: 'Mine', agentAccess: true, contextClass: 'standard' as const, navigationPolicy: { mode: 'unrestricted', rules: [] } }
     const tab = (id: string, mcpGroupId: string) => ({ id, mcpGroupId, url: 'https://shop.example/', title: id, loading: false, sleeping: false })
-    const tabs = [tab(tabId, workspaceId), tab(otherTab, 'other-workspace'), tab(otherSplitTab, 'other-workspace')]
+    const tabs = [
+      tab(tabId, workspaceId), tab(otherTab, 'other-workspace'), tab(otherSplitTab, 'other-workspace'),
+      ...otherPairedTabs.map((id) => tab(id, 'other-workspace'))
+    ]
     const global = () => ({
       tabs, closedTabs: [], activeTabId: otherTab, allHumanInteractionLocked: false, mcpUrl: '', profilePath: '/profile',
       mcpTabGroups: [workspace], savedTabGroups: [],
       agentFollow: { tabId: otherTab, agentName: 'Other Agent' },
-      splitView: { firstTabId: otherTab, secondTabId: otherSplitTab, ratio: 0.5 }
+      splitView: { firstTabId: otherTab, secondTabId: otherSplitTab, ratio: 0.5 },
+      restingSplitViews: [{ firstTabId: otherPairedTabs[0], secondTabId: otherPairedTabs[1], ratio: 0.5 }]
     })
     const manager = {
       suspendWorkspaceContinuity: vi.fn(() => false), requireWorkspaceContinuityDispatch: vi.fn(),
@@ -145,7 +161,7 @@ describe('browser state returned by a workspace tool', () => {
     }
     // The workspace's own state, as getMcpGroupState builds it: only its tab, no foreign Follow or split view.
     vi.mocked(getMcpGroupState).mockImplementation(() => {
-      const { agentFollow: _agentFollow, splitView: _splitView, ...rest } = global()
+      const { agentFollow: _agentFollow, splitView: _splitView, restingSplitViews: _restingSplitViews, ...rest } = global()
       return { ...rest, tabs: [tabs[0]!], activeTabId: tabId } as never
     })
     server = new McpHttpServer(manager as never, {
@@ -165,6 +181,7 @@ describe('browser state returned by a workspace tool', () => {
     expect(text).toContain(tabId)
     expect(text).not.toContain(otherTab)
     expect(text).not.toContain(otherSplitTab)
+    for (const id of otherPairedTabs) expect(text).not.toContain(id)
     expect(text).not.toContain('Other Agent')
   })
 })

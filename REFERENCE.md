@@ -15,7 +15,7 @@ Project home: https://github.com/hronaut/hronaut
 - Cookies, local storage, IndexedDB, service workers, cache, and login sessions use Electron's persistent `persist:hronaut` partition.
 - Open tabs and the active tab are restored from `tabs.json` in Electron's user-data directory.
 - Each workspace tab's **Back** and **Forward** pages, with their scroll and form state, are restored from `tab-history.json` in the same directory.
-- A two-tab split view, its side-by-side or stacked layout, pane order, and proportion are restored from the same file.
+- A two-tab split view, its side-by-side or stacked layout, pane order, and proportion are restored from `tabs.json` too, and so are the pairs of split tabs not in view.
 - Per-tab and all-tab human-interaction locks are restored from `tabs.json` as well.
 - Appearance, search-engine, and other application settings are restored from `settings.json` in the same profile.
 - Allowed and blocked website permissions are restored from `site-permissions.json` in the same profile.
@@ -412,7 +412,7 @@ Use the split-view button beside the address bar to choose another open website,
 
 Drag the divider between the pages to resize them directly. Focus the divider and use the arrows along its axis for 1% steps, or hold Shift for 5% steps. Home and End select the 25% and 75% limits; Enter or double-click restores equal panes. Escape cancels an active drag. A canceled drag does not replace the saved proportion. A drag or a double-click on the divider leaves the keyboard with the page in view, as in Chrome, unless the divider had it before.
 
-The split control can switch between side-by-side and stacked layouts, allocate 25–75% of the available space to the first pane, swap pane positions, or return to one page. Docked Page tools and Bookmarks resize both panes inside the remaining website area. The pair, layout, order, and proportion survive application restarts. Selecting a third tab exits the pair instead of silently replacing one side, and closing either pane returns the remaining tab to the full website area.
+The split control can switch between side-by-side and stacked layouts, allocate 25–75% of the available space to the first pane, swap pane positions, or return to one page. Docked Page tools and Bookmarks resize both panes inside the remaining website area. The pair, layout, order, and proportion survive application restarts. As in Chrome, the two tabs stay paired when you select another tab, open Home or switch workspace: the strip still marks both, and selecting either of them shows both again, in the same layout, with the one you selected as the active pane. The pair ends when you return it to one page, open either tab in another split view, or close either tab; closing either pane returns the remaining tab to the full website area.
 
 ## Find local pages from the address bar
 

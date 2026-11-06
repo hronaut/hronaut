@@ -3,8 +3,11 @@ import type { ShellTabField } from '../../../../shared/tab-field.js'
 import type { HronautShellApi } from '../../../../shared/types.js'
 
 export interface TabFieldFocusReturnOptions {
-  /** Main, which keeps the field of the tab left and says when the tab is shown again; none in a panel window. */
-  shell: Pick<HronautShellApi, 'setTabFieldFocused' | 'onTabFieldFocusReturned'> | undefined
+  /**
+   * Main, which keeps the field of the tab left and says when the tab is shown again, and when it gives the shell back
+   * the keyboard a page took; none in a panel window.
+   */
+  shell: Pick<HronautShellApi, 'setTabFieldFocused' | 'onTabFieldFocusReturned' | 'onKeyboardGivenBack'> | undefined
   /** The browser state the shell shows, a new one for each that main sends. */
   browserState: () => { activeTabId: string | null }
   /** The shown tab's field that has the keyboard now. */
@@ -62,6 +65,9 @@ export function useTabFieldFocusReturn(options: TabFieldFocusReturnOptions): () 
   window.addEventListener('contextmenu', releaseField, true)
   window.addEventListener('blur', releaseField)
   let pending: { tabId: string; field: ShellTabField } | undefined
+  // Main gave the shell the keyboard back, which the window has not taken yet, or took in the task that has not ended.
+  let keyboardComingBack = false
+  let keyboardBackTimer: ReturnType<typeof setTimeout> | undefined
   // As in a trusted dialog, a key held since before the field takes the keyboard back does not repeat into it, such as
   // Enter on Switch to this tab, which would open the address shown again, or Delete closing a tab, which would delete
   // its text. With Ctrl, Alt or Cmd the key is a shortcut and goes on repeating, such as Ctrl+Tab going through tabs.
@@ -80,10 +86,33 @@ export function useTabFieldFocusReturn(options: TabFieldFocusReturnOptions): () 
   window.addEventListener('pointerdown', giveUp, true)
 
   function giveUp(): void {
-    if (!pending) return
+    if (!pending && !keyboardComingBack) return
     pending = undefined
+    keyboardComingBack = false
     options.address.cancelFocusReturn()
   }
+
+  // Main gives the shell back the keyboard a page took, such as a pane beside the page that loads its first document,
+  // and the field that had it takes it back without opening its suggestions. The window takes the keyboard in the
+  // same task as the field, so the field's next focus is the person's once that task is over.
+  const keyboardBack = (): void => {
+    if (!keyboardComingBack) return
+    keyboardComingBack = false
+    // A field still waiting for its tab goes on expecting the keyboard.
+    if (!pending) options.address.cancelFocusReturn()
+  }
+  const windowTookKeyboard = (): void => {
+    if (!keyboardComingBack) return
+    clearTimeout(keyboardBackTimer)
+    keyboardBackTimer = setTimeout(keyboardBack, 0)
+  }
+  window.addEventListener('focus', windowTookKeyboard)
+  const stopKeyboardListening = shell.onKeyboardGivenBack(() => {
+    // The end of the keyboard given back before is not this one's, which the page may have taken again meanwhile.
+    clearTimeout(keyboardBackTimer)
+    keyboardComingBack = true
+    options.address.expectFocusReturn()
+  })
 
   async function give(request: { tabId: string; field: ShellTabField }): Promise<void> {
     // The tab's address and its Find come back with the tab first.
@@ -123,7 +152,11 @@ export function useTabFieldFocusReturn(options: TabFieldFocusReturnOptions): () 
     stopWatching()
     window.removeEventListener('keydown', dropHeldRepeat, true)
     window.removeEventListener('pointerdown', giveUp, true)
+    stopKeyboardListening()
+    window.removeEventListener('focus', windowTookKeyboard)
+    clearTimeout(keyboardBackTimer)
     pending = undefined
+    keyboardComingBack = false
     options.address.cancelFocusReturn()
   }
 }

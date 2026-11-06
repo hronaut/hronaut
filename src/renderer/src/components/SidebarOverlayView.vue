@@ -88,6 +88,7 @@ const browserState = computed((): BrowserState => {
     closedTabs: [],
     activeTabId: rail?.activeTabId ?? null,
     ...(rail?.splitView ? { splitView: { ...rail.splitView, ratio: 0.5 } } : {}),
+    ...(rail?.restingSplitViews ? { restingSplitViews: rail.restingSplitViews.map((split) => ({ ...split, ratio: 0.5 })) } : {}),
     allTabsMuted: rail?.allTabsMuted ?? false,
     allHumanInteractionLocked: rail?.allHumanInteractionLocked ?? false,
     mcpUrl: '',

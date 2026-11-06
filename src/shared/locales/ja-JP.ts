@@ -1708,6 +1708,8 @@ export const jaJP: MessageSchema = {
       freezeUnknown: 'ページの保持の結果は不明',
       stackedVisible: '上下の分割ビューで表示中',
       sideVisible: '左右の分割ビューで表示中',
+      stackedPaired: '上下の分割ビューのペア',
+      sidePaired: '左右の分割ビューのペア',
       inputLocked: 'ページ入力をロック中',
       switchWorkspace: 'ワークスペースを切り替え',
       switchWorkspaceTitle: 'ワークスペースを切り替え（Ctrl/Cmd+K）',

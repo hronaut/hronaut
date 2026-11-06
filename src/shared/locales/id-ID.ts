@@ -1708,6 +1708,8 @@ export const idID: MessageSchema = {
       freezeUnknown: 'Hasil penahanan halaman tidak diketahui',
       stackedVisible: 'Terlihat dalam tampilan terpisah bertumpuk',
       sideVisible: 'Terlihat dalam tampilan terpisah berdampingan',
+      stackedPaired: 'Dipasangkan dalam tampilan terpisah bertumpuk',
+      sidePaired: 'Dipasangkan dalam tampilan terpisah berdampingan',
       inputLocked: 'Input halaman terkunci',
       switchWorkspace: 'Beralih ruang kerja',
       switchWorkspaceTitle: 'Beralih ruang kerja (Ctrl/Cmd+K)',

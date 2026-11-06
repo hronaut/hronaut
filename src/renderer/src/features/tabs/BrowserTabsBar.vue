@@ -176,12 +176,6 @@ function tabGroupColor(tab: StripTab): string | undefined {
   return BROWSER_TAB_GROUP_COLOR_HEX[color]
 }
 
-function tabSplitOrientation(tab: StripTab): 'horizontal' | 'vertical' | undefined {
-  const split = strip.splitView.value
-  if (!split || (split.firstTabId !== tab.id && split.secondTabId !== tab.id)) return undefined
-  return split.orientation === 'horizontal' ? 'horizontal' : 'vertical'
-}
-
 function tabGroupColorStyle(color: BrowserTabGroupColor): Record<string, string> {
   return { '--tab-group-color': BROWSER_TAB_GROUP_COLOR_HEX[color] }
 }
@@ -709,7 +703,8 @@ defineExpose({
           :drop-placement="tabDropMarker(tab)"
           :all-human-interaction-locked="allHumanInteractionLocked"
           :all-tabs-muted="allTabsMuted"
-          :split-orientation="tabSplitOrientation(tab)"
+          :split-orientation="strip.tabSplit(tab.id)?.orientation"
+          :split-paired="strip.tabSplit(tab.id)?.paired === true"
           :attention="userAttention?.tabId === tab.id ? attentionLine : undefined"
           :keyboard-index="tabKeyboardIndex(tab)"
           :group-color="tabGroupColor(tab)"

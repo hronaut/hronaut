@@ -98,6 +98,7 @@ function page(id: string, mcpGroupId: string, sleeping = false) {
     walletNavigationGeneration: 0, view: { id: `view-${id}` },
     webContents: {
       id: Number.parseInt(id.slice(-2), 16), isDestroyed: () => false, close: vi.fn(),
+      getURL: () => `https://example.test/${id.slice(-2)}`, isLoadingMainFrame: () => false,
       navigationHistory: { length: () => 1, getActiveIndex: () => 0, getEntryAtIndex: () => null, removeEntryAtIndex: () => false }
     }
   }
@@ -142,7 +143,7 @@ async function browser() {
     deletedWorkspaceStorageIds: new Set(), workspacesBeingDeleted: new Map(), workspaceStorageCleanupBlocked: false,
     workspaceContinuity: { guardedWorkspaceIds: () => [] },
     allTabsMuted: false, allHumanInteractionLocked: false,
-    activeTabId: SHOWN, splitView: null, tabSelectionGeneration: 0, options: {},
+    activeTabId: SHOWN, splitView: null, restingSplitViews: [], tabSelectionGeneration: 0, options: {},
     reactInspectionController: { invalidateWorkspace: vi.fn() },
     networkWaitController: { reject: vi.fn() }, reproRecorder: { clearReproRecording: vi.fn() }, videoRecorder: { clear: vi.fn() },
     wakeTab: vi.fn(async (tabId: string) => {
@@ -384,6 +385,43 @@ describe('closing a whole workspace', () => {
     // The workspace stays, with the tabs that are open, and nothing saved names a tab that is not.
     const saved = persistedState(internals as never).tabs.map((tab) => tab.id)
     expect(saved.toSorted()).toEqual([...internals.tabs.keys()].toSorted())
+  })
+
+  it('ends the split views put aside of its tabs, and the tab that follows shows with its own pair', async () => {
+    const { manager, release } = await browser()
+    release()
+    const theirs = { firstTabId: SHOWN, secondTabId: ASLEEP, orientation: 'vertical' as const, ratio: 0.5 }
+    const kept = { firstTabId: OTHER_ASLEEP, secondTabId: OTHER_AWAKE, orientation: 'horizontal' as const, ratio: 0.3 }
+    manager.restingSplitViews = [theirs, kept]
+
+    await closeMcpTabGroup(manager, CLOSING, true)
+    expect(manager.activeTabId).toBe(OTHER_ASLEEP)
+    expect(manager.splitView).toEqual(kept)
+    expect(manager.restingSplitViews).toEqual([])
+  })
+
+  it('ends a pair of one of its tabs and a tab of another workspace, whose tab then shows alone', async () => {
+    const { manager, release } = await browser()
+    release()
+    manager.restingSplitViews = [{ firstTabId: ASLEEP, secondTabId: OTHER_AWAKE, orientation: 'vertical', ratio: 0.5 }]
+
+    await closeMcpTabGroup(manager, CLOSING, true)
+    expect(manager.restingSplitViews).toEqual([])
+    manager.selectTab(OTHER_AWAKE)
+    expect(manager.splitView).toBeNull()
+    expect(manager.activeTabId).toBe(OTHER_AWAKE)
+  })
+
+  it('saves the split views put aside whose two tabs it saves, which come back paired', async () => {
+    const { manager, internals, store, directory } = await browser()
+    const kept = { firstTabId: OTHER_ASLEEP, secondTabId: OTHER_AWAKE, orientation: 'horizontal' as const, ratio: 0.3 }
+    // A pair holding a tab that is no longer open is not saved.
+    manager.restingSplitViews = [kept, { firstTabId: SHOWN, secondTabId: CLOSING, orientation: 'vertical', ratio: 0.5 }]
+
+    const saved = persistedState(internals as never)
+    expect(saved.restingSplitViews).toEqual([kept])
+    await store.save(saved)
+    await expect(new TabStateStore(join(directory, 'tabs.json')).load()).resolves.toMatchObject({ restingSplitViews: [kept] })
   })
 })
 

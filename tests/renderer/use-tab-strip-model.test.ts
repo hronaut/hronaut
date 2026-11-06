@@ -123,4 +123,27 @@ describe('useTabStripModel', () => {
     expect(model.readTab('second')).toBeUndefined()
     stop()
   })
+
+  // As in Chrome, the tabs of a split view put aside stay paired in the strip, marked apart from the pair in view.
+  it('marks the tabs of the split view in view and of those put aside', () => {
+    const { current, model, stop } = setup(state({
+      tabs: [tab('first'), tab('second'), tab('third'), tab('fourth'), tab('fifth')],
+      splitView: { firstTabId: 'first', secondTabId: 'second', orientation: 'vertical', ratio: 0.5 },
+      restingSplitViews: [{ firstTabId: 'third', secondTabId: 'fourth', orientation: 'horizontal', ratio: 0.3 }]
+    }))
+    expect(model.tabSplit('first')).toEqual({ orientation: 'vertical', paired: false })
+    expect(model.tabSplit('fourth')).toEqual({ orientation: 'horizontal', paired: true })
+    expect(model.tabSplit('fifth')).toBeUndefined()
+
+    // A pair put aside that did not change keeps its value, as its divider moving does not concern the strip.
+    const resting = model.restingSplitViews.value
+    current.value = state({
+      tabs: [tab('first'), tab('second'), tab('third'), tab('fourth'), tab('fifth')],
+      splitView: undefined,
+      restingSplitViews: [{ firstTabId: 'third', secondTabId: 'fourth', orientation: 'horizontal', ratio: 0.6 }]
+    })
+    expect(model.restingSplitViews.value).toBe(resting)
+    expect(model.tabSplit('first')).toBeUndefined()
+    stop()
+  })
 })

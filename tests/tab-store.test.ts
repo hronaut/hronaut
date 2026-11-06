@@ -640,6 +640,41 @@ describe('TabStateStore', () => {
     })
   })
 
+  // The split views put aside come back paired, as in Chrome; one whose tabs are not both saved, or that shares a tab
+  // with another split view, comes back unpaired rather than losing the tabs.
+  it('restores the split views put aside, leaving out any that is not a pair of its own', async () => {
+    const { path, store } = await createStore()
+    const state = currentState()
+    const [third, fourth] = ['01912345-678e-7abc-8def-0123456789ab', '01912345-678f-7abc-8def-0123456789ab']
+    state.tabs.push(
+      { id: third, title: 'Cart', url: 'https://shop.example/cart', mcpGroupId: ACTIVE_WORKSPACE_ID },
+      { id: fourth, title: 'Orders', url: 'https://shop.example/orders', mcpGroupId: ACTIVE_WORKSPACE_ID }
+    )
+    state.splitView = { firstTabId: HOME_TAB_ID, secondTabId: ACTIVE_TAB_ID, orientation: 'vertical', ratio: 0.5 }
+    const pair = { firstTabId: third, secondTabId: fourth, orientation: 'horizontal', ratio: 0.1 }
+    const written = {
+      ...state,
+      restingSplitViews: [
+        { firstTabId: ACTIVE_TAB_ID, secondTabId: third, orientation: 'vertical', ratio: 0.5 },
+        { firstTabId: third, secondTabId: '01912345-6790-7abc-8def-0123456789ab', orientation: 'vertical', ratio: 0.5 },
+        { firstTabId: third, secondTabId: third, orientation: 'vertical', ratio: 0.5 },
+        { firstTabId: third, secondTabId: fourth, orientation: 'diagonal', ratio: 0.5 },
+        pair,
+        { firstTabId: fourth, secondTabId: third, orientation: 'vertical', ratio: 0.5 },
+        'pair'
+      ]
+    }
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, JSON.stringify(written), 'utf8')
+
+    const loaded = await store.load()
+    expect(loaded?.splitView).toEqual(state.splitView)
+    expect(loaded?.restingSplitViews).toEqual([{ ...pair, ratio: 0.25 }])
+    // The entries left out leave the file too.
+    const repaired = JSON.parse(await readFile(path, 'utf8')) as PersistedBrowserState
+    expect(repaired.restingSplitViews).toEqual([{ ...pair, ratio: 0.25 }])
+  })
+
   it('rejects current state when active and archived workspaces share a profile partition', async () => {
     const { path, store } = await createStore()
     const state = currentState()

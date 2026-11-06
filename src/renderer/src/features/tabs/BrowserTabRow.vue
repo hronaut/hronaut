@@ -45,8 +45,10 @@ const props = defineProps<{
   /** The browser-wide lock and mute show as pressed buttons, so a row does not repeat them. */
   allHumanInteractionLocked: boolean
   allTabsMuted: boolean
-  /** How the split view shows this tab beside another, while it does. */
+  /** How the split view shows this tab beside another, while it does or while it is put aside with it. */
   splitOrientation?: 'horizontal' | 'vertical'
+  /** The split view holding this tab is put aside, so selecting the tab shows both again. */
+  splitPaired?: boolean
   /** Why an agent needs you, while it asks on this tab. */
   attention?: string
   keyboardIndex: 0 | -1
@@ -107,7 +109,7 @@ function press(event: PointerEvent): void {
       'drop-after': dropPlacement === 'after',
       'drop-onto': dropPlacement === 'onto',
       locked: tab.humanInteractionInputLocked ?? (allHumanInteractionLocked || tab.humanInteractionLocked),
-      'split-visible': splitOrientation !== undefined,
+      'split-visible': splitOrientation !== undefined && !splitPaired,
       'mcp-active': agentCommand !== undefined,
       'needs-attention': attention !== undefined
     }"
@@ -150,8 +152,18 @@ function press(event: PointerEvent): void {
     <IconBedtime v-if="tab.sleeping" class="tab-sleep-mark" :aria-label="t('shell.tabs.sleeping')" />
     <IconPauseCircle v-else-if="tab.pageLifecycleState === 'frozen'" class="tab-freeze-mark" :aria-label="t('shell.tabs.frozen')" />
     <IconHelp v-else-if="tab.pageLifecycleState === 'unknown'" class="tab-freeze-mark unknown" :aria-label="t('shell.tabs.freezeUnknown')" />
-    <IconHorizontalSplit v-if="splitOrientation === 'horizontal'" class="tab-split-mark" :aria-label="t('shell.tabs.stackedVisible')" />
-    <IconVerticalSplit v-else-if="splitOrientation === 'vertical'" class="tab-split-mark" :aria-label="t('shell.tabs.sideVisible')" />
+    <IconHorizontalSplit
+      v-if="splitOrientation === 'horizontal'"
+      class="tab-split-mark"
+      :class="{ paired: splitPaired }"
+      :aria-label="t(splitPaired ? 'shell.tabs.stackedPaired' : 'shell.tabs.stackedVisible')"
+    />
+    <IconVerticalSplit
+      v-else-if="splitOrientation === 'vertical'"
+      class="tab-split-mark"
+      :class="{ paired: splitPaired }"
+      :aria-label="t(splitPaired ? 'shell.tabs.sidePaired' : 'shell.tabs.sideVisible')"
+    />
     <IconSpeed v-if="tab.emulation" class="tab-emulation-mark" :aria-label="t('runtime.emulation.reset', { description: emulationDescription ?? '' })" />
     <IconRoute v-if="tab.networkRouteCount || networkUnconfirmed" class="tab-network-route-mark" :aria-label="networkUnconfirmed ? t('network.conditions.unconfirmed') : t('runtime.tabs.routes', { count: formatNumber(tab.networkRouteCount ?? 0) }, tab.networkRouteCount ?? 0)" />
     <!-- The browser-wide lock and mute already show as pressed buttons, so a tab draws its own lock, and a muted tab

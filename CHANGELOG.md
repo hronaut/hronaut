@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Changed
 
 - Browsing history and Bookmarks now show each page with the icon a tab showed for it, as Chrome does, rather than a globe beside every page; a page no tab has shown since shows its website's icon. The icons are kept only while the history or the bookmarks hold the page, so clearing the history takes them too.
+- The two tabs of a split view now stay paired when you select another tab, open Home or switch workspace, as in Chrome: selecting either of them shows both again, in the same layout, and the tab strip still marks both. The split view used to end for good, and had to be opened again.
 
 ### Fixed
 

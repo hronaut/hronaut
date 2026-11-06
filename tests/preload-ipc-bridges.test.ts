@@ -477,6 +477,7 @@ const listeners: Array<[api: string, method: string, channel: string, received: 
   ['hronautShell', 'onOcclusionSnapshot', 'browser:occlusion-snapshot', [null]],
   ['hronautShell', 'onOcclusionPagesHidden', 'browser:occlusion-pages-hidden', [2]],
   ['hronautShell', 'onHelpRequested', 'help:open', ['about']],
+  ['hronautShell', 'onKeyboardGivenBack', 'shell:keyboard-given-back', []],
   ['hronautShell', 'onClipboardFailed', 'clipboard:failed', ['Copying failed']],
   ['hronautShell', 'onActionFailed', 'browser:action-failed', [{ action: 'reload', message: 'Failed' }]],
   ['hronautPanelWindow', 'onActivePanelChanged', 'panel-window:active-panel', ['network']],

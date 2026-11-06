@@ -1,4 +1,5 @@
 import { isHronautHomeUrl } from '../../../shared/home-url.js'
+import type { BrowserSplitViewState } from '../../../shared/split-view.js'
 import type { BrowserState, BrowserTabState } from '../../../shared/types.js'
 
 /**
@@ -11,8 +12,8 @@ export type BrowserStateGuess = (state: BrowserState) => BrowserState
 
 /**
  * Selecting a tab shows it: it becomes the active tab and its workspace's, the tab shown before it no longer is, and a
- * split view it is not part of closes. Main shows a sleeping or loading tab only once it has woken, which can take
- * seconds, so no guess shows one before main does.
+ * split view it is not part of is put aside, while one put aside that holds it shows again. Main shows a sleeping or
+ * loading tab only once it has woken, which can take seconds, so no guess shows one before main does.
  */
 export function guessTabSelected(tabId: string): BrowserStateGuess {
   return (state) => {
@@ -23,9 +24,22 @@ export function guessTabSelected(tabId: string): BrowserStateGuess {
       ? { ...group, activeTabId: tabId }
       : group)
     const next: BrowserState = { ...state, activeTabId: tabId, tabs, mcpTabGroups }
-    if (state.splitView && state.splitView.firstTabId !== tabId && state.splitView.secondTabId !== tabId) delete next.splitView
+    if (state.splitView && holdsTab(state.splitView, tabId)) return next
+    // A pair whose other tab can no longer show beside the tab ends, as main ends it.
+    const pair = state.restingSplitViews?.find((split) => holdsTab(split, tabId))
+    const partnerId = pair && (pair.firstTabId === tabId ? pair.secondTabId : pair.firstTabId)
+    const partner = state.tabs.find((tab) => tab.id === partnerId)
+    const resting = [...(state.restingSplitViews ?? []).filter((split) => split !== pair), ...(state.splitView ? [state.splitView] : [])]
+    delete next.splitView
+    delete next.restingSplitViews
+    if (pair && partner && !isHronautHomeUrl(partner.url) && !isHronautHomeUrl(target.url)) next.splitView = pair
+    if (resting.length) next.restingSplitViews = resting
     return next
   }
+}
+
+function holdsTab(split: BrowserSplitViewState, tabId: string): boolean {
+  return split.firstTabId === tabId || split.secondTabId === tabId
 }
 
 /** Muting a tab, or turning its sound back on. */
