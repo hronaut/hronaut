@@ -56,34 +56,38 @@ afterEach(() => {
 describe('the icon a tab shows', () => {
   // The tab showed whichever of the page's icons arrived first, so a small one listed beside a large one, often the
   // quickest, was scaled up to the tab's 32 pixels and blurred.
-  it('is the first in the page\'s order that is at least 32 pixels, not the one that arrives first', async () => {
+  it('is replaced by a larger one that arrives later, until one is at least 32 pixels, and the rest stop loading', async () => {
     vi.useFakeTimers()
-    const icons = page({ small: { size: 16, after: 0 }, large: { size: 192, after: 30 }, medium: { size: 64, after: 10 } })
+    const icons = page({ small: { size: 16, after: 0 }, larger: { size: 24, after: 5 }, large: { size: 64, after: 10 }, largest: { size: 192, after: 30 } })
 
     const loading = icons.load()
-    await vi.advanceTimersByTimeAsync(30)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(icons.shown()).toBe('icon 16')
+    await vi.advanceTimersByTimeAsync(5)
+    expect(icons.shown()).toBe('icon 24')
+    await vi.advanceTimersByTimeAsync(5)
     await loading
 
-    expect(icons.shown()).toBe('icon 192')
+    expect(icons.shown()).toBe('icon 64')
+    expect(icons.fetches.map(({ signal }) => signal.aborted)).toEqual([true, true, true, true])
   })
 
-  it('does not wait for the icons after the one it shows, which stop loading', async () => {
+  it('does not wait for an icon listed before the one it shows', async () => {
     vi.useFakeTimers()
-    const icons = page({ first: { size: 48, after: 5 }, slow: { size: 96, after: 60_000 } })
+    const icons = page({ slow: { size: 96, after: 60_000 }, quick: { size: 48, after: 5 } })
 
     const loading = icons.load()
     await vi.advanceTimersByTimeAsync(5)
     await loading
 
     expect(icons.shown()).toBe('icon 48')
-    expect(icons.fetches.map(({ signal }) => signal.aborted)).toEqual([true, true])
   })
 
-  it('is the largest when none is that large, and stays as it was when none can be decoded', async () => {
+  it('ends with the largest when none is that large, and stays as it was when none can be decoded', async () => {
     vi.useFakeTimers()
-    const small = page({ tiny: { size: 16, after: 0 }, broken: { size: 0, after: 0 }, larger: { size: 24, after: 5 } })
+    const small = page({ tiny: { size: 16, after: 0 }, broken: { size: 0, after: 0 }, larger: { size: 24, after: 5 }, smaller: { size: 20, after: 8 } })
     const loading = small.load()
-    await vi.advanceTimersByTimeAsync(5)
+    await vi.advanceTimersByTimeAsync(8)
     await loading
     expect(small.shown()).toBe('icon 24')
 
@@ -93,5 +97,18 @@ describe('the icon a tab shows', () => {
     await vi.advanceTimersByTimeAsync(1)
     await failing
     expect(broken.shown()).toBe('icon before')
+  })
+
+  it('shows nothing of an icon list a newer one superseded', async () => {
+    vi.useFakeTimers()
+    const icons = page({ old: { size: 48, after: 10 }, current: { size: 64, after: 20 } })
+
+    const superseded = loadFavicon({ destroyed: false } as Browser, icons.tab, [icons.urls[0]!])
+    const current = loadFavicon({ destroyed: false } as Browser, icons.tab, [icons.urls[1]!])
+    await vi.advanceTimersByTimeAsync(20)
+    await Promise.all([superseded, current])
+
+    expect(icons.shown()).toBe('icon 64')
+    expect(icons.fetches[0]!.signal.aborted).toBe(true)
   })
 })

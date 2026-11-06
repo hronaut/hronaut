@@ -1,35 +1,49 @@
-import { nativeImage, type NativeImage } from 'electron'
+import { nativeImage } from 'electron'
 import type { Browser } from '../browser.js'
 import { publishChange } from '../browser-state/browser-state.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { decodeWebsiteFavicon } from '../favicon.js'
 
 const MAX_FAVICON_BYTES = 512 * 1024
-/** The size, in pixels, of the icon the tab shows. */
+/** The size, in pixels, of the icon a tab shows. */
 const FAVICON_SIZE = 32
 
+/** A page's icon, decoded. */
+interface LoadedFavicon {
+  /** Its own size, in pixels, on its shorter side. */
+  size: number
+  /** It as a 32 pixel PNG data URL. */
+  dataUrl: string
+}
+
 /**
- * Loads the page's first eight icon candidates at once and shows the best of them as a 32 pixel PNG data URL: the first
- * in the page's order that is at least that size, or else the largest that decodes. It keeps the tab's current icon
- * when none does or a newer icon list superseded this one.
+ * Loads the page's first eight icon candidates at once and shows each that is larger than the one shown before it, as a
+ * 32 pixel PNG data URL, until one is at least that size; the others then stop loading. A page that lists a small icon
+ * beside a large one, as many do, so ends up with the large one, sharp, even when the small one arrives first. It keeps
+ * the tab's current icon when none decodes, and shows nothing more once a newer icon list superseded this one.
  */
 export async function loadFavicon(browser: Browser, tab: BrowserTab, favicons: string[]): Promise<void> {
   tab.faviconAbortController?.abort()
   const controller = new AbortController()
   tab.faviconAbortController = controller
   const requestId = ++tab.faviconRequestId
-  try {
-    const dataUrl = await bestFavicon(favicons.slice(0, 8).map(faviconUrl => (
-      loadFaviconCandidate(browser, tab, faviconUrl, controller.signal).catch(() => undefined)
-    )))
+  let shownSize = 0
+  const show = (icon: LoadedFavicon): void => {
+    if (icon.size <= shownSize || controller.signal.aborted) return
     if (browser.destroyed || tab.webContents.isDestroyed() || tab.faviconRequestId !== requestId) return
-    tab.faviconDataUrl = dataUrl
+    shownSize = icon.size
+    tab.faviconDataUrl = icon.dataUrl
     // A favicon can finish well after navigation's debounced state save.
     // Persist this update explicitly so a later crash or forced restart
     // does not replace the restored tab icon with the generic globe.
     publishChange(browser)
-  } catch {
-    // Keep the existing icon when every candidate is invalid or unavailable.
+    if (icon.size >= FAVICON_SIZE) controller.abort()
+  }
+  try {
+    // An icon that is invalid or unavailable is left out.
+    await Promise.all(favicons.slice(0, 8).map(faviconUrl => (
+      loadFaviconCandidate(browser, tab, faviconUrl, controller.signal).then(show).catch(() => undefined)
+    )))
   } finally {
     controller.abort()
     if (tab.faviconAbortController === controller) tab.faviconAbortController = undefined
@@ -37,36 +51,10 @@ export async function loadFavicon(browser: Browser, tab: BrowserTab, favicons: s
 }
 
 /**
- * The icon to show, as a 32 pixel PNG data URL, of candidates loading at once, in the page's order: the first that is at
- * least that size, without waiting for those after it, or else the largest. The tab showed whichever arrived first, so a
- * page listing a small icon beside a large one could get the small one scaled up, blurred. It rejects when none decoded.
- */
-async function bestFavicon(candidates: Promise<NativeImage | undefined>[]): Promise<string> {
-  let largest: NativeImage | undefined
-  for (const candidate of candidates) {
-    const image = await candidate
-    if (!image) continue
-    if (longerSide(image) >= FAVICON_SIZE) return pngDataUrl(image)
-    if (!largest || longerSide(image) > longerSide(largest)) largest = image
-  }
-  if (!largest) throw new Error('No favicon candidate could be decoded')
-  return pngDataUrl(largest)
-}
-
-function longerSide(image: NativeImage): number {
-  const { width, height } = image.getSize()
-  return Math.max(width, height)
-}
-
-function pngDataUrl(image: NativeImage): string {
-  return `data:image/png;base64,${image.resize({ width: FAVICON_SIZE, height: FAVICON_SIZE, quality: 'best' }).toPNG().toString('base64')}`
-}
-
-/**
  * Fetches one icon, a data URL directly or a web URL through the page's
  * session, within the size limit, and decodes it.
  */
-async function loadFaviconCandidate(browser: Browser, tab: BrowserTab, faviconUrl: string, cancellation: AbortSignal): Promise<NativeImage> {
+async function loadFaviconCandidate(browser: Browser, tab: BrowserTab, faviconUrl: string, cancellation: AbortSignal): Promise<LoadedFavicon> {
   // eslint-disable-next-line no-useless-assignment -- kept as it was in the tab manager, where this rule is off
   let image = nativeImage.createEmpty()
   if (faviconUrl.startsWith('data:')) {
@@ -107,5 +95,7 @@ async function loadFaviconCandidate(browser: Browser, tab: BrowserTab, faviconUr
     image = await decodeWebsiteFavicon(Buffer.concat(chunks), response.headers.get('content-type') ?? '', browser.faviconDecoder, cancellation)
   }
   if (image.isEmpty()) throw new Error('Favicon could not be decoded')
-  return image
+  const { width, height } = image.getSize()
+  const png = image.resize({ width: FAVICON_SIZE, height: FAVICON_SIZE, quality: 'best' }).toPNG()
+  return { size: Math.min(width, height), dataUrl: `data:image/png;base64,${png.toString('base64')}` }
 }

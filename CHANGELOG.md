@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- A website tab's icon is now sharp when the website offers a large icon beside a small one: as in Chrome, the tab prefers an icon it does not have to scale up, rather than whichever arrived first, often the small one, scaled up and blurred. A small icon that arrives first shows until the larger one does.
+
 ## [3.14.19] - 2026-11-06
 
 ### Changed

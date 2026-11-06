@@ -2,7 +2,10 @@ import { nativeImage, WebContentsView, type NativeImage, type WebContents } from
 import { pageScript } from '../../shared/page-script.js'
 import { decodeFaviconInPage } from './favicon.page.js'
 
-/** Decodes an image as a 32 pixel PNG data URL, or answers null, also once the signal aborted before its turn. */
+/**
+ * Decodes an image as a PNG data URL of 32 pixels, or of its own size when smaller and not an SVG, or answers null, also
+ * once the signal aborted before its turn.
+ */
 export interface FaviconImageDecoder {
   decodeImage(source: string, signal?: AbortSignal): Promise<unknown>
 }
