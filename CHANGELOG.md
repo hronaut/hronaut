@@ -11,6 +11,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - A tab's speaker in the tab strip, and its Playing audio note on Home, no longer flicker off and on through the short pauses in a video, a game or a call: as in Chrome, they stay until 2 seconds after the sound stops, and the tab is not put to sleep in those pauses.
+- A tab you close after its page crashed or could not load is now listed in Recently closed by its page's title, or by its address, rather than as Page unavailable or Site unavailable, and it reopens with that title, as in Chrome.
 
 ## [3.14.18] - 2026-11-06
 
