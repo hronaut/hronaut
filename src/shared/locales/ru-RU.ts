@@ -4140,7 +4140,7 @@ export const ruRU: MessageSchema = {
       minimize: 'Свернуть',
       zoom: 'Изменить масштаб',
       bringAllToFront: 'Все окна — на передний план',
-      toggleFullScreen: 'Полноэкранный режим'
+      toggleFullScreen: 'Включить/выключить полноэкранный режим'
     },
     tray: {
       show: 'Показать Hronaut',

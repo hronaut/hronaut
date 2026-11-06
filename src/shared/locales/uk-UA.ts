@@ -4140,7 +4140,7 @@ export const ukUA: MessageSchema = {
       minimize: 'Згорнути',
       zoom: 'Масштабувати',
       bringAllToFront: 'Усі вікна на передній план',
-      toggleFullScreen: 'Повноекранний режим'
+      toggleFullScreen: 'Увімкнути/вимкнути повноекранний режим'
     },
     tray: {
       show: 'Показати Hronaut',
