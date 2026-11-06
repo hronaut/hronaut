@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import IconError from '~icons/material-symbols/error-outline-rounded'
 import IconRefresh from '~icons/material-symbols/refresh-rounded'
 import type { BrowserTabState } from '../../../shared/types.js'
+import { PAGE_DESTROYED_REASON } from '../../../shared/types/page-problems.js'
 import type { ShownPagePane } from '../composables/useActiveTabPresentationController.js'
 
 const props = defineProps<{
@@ -24,6 +25,8 @@ const PANE_KEYS: Record<ShownPagePane, string> = {
   bottom: 'pageProblem.bottomPage'
 }
 const paneName = computed(() => props.pane ? t(PANE_KEYS[props.pane]) : '')
+// A page gone for good loads nowhere again: the bar says to close the tab and reopen it, with nothing to try again.
+const canRetry = computed(() => props.tab.pageProblem?.reason !== PAGE_DESTROYED_REASON)
 </script>
 
 <template>
@@ -39,7 +42,7 @@ const paneName = computed(() => props.pane ? t(PANE_KEYS[props.pane]) : '')
     <UiButton v-if="tab.pageProblem.certificate?.canProceed" appearance="application" type="button" data-testid="page-problem-proceed" @click="emit('proceed')">
       {{ t('pageProblem.proceed', { host: tab.pageProblem.certificate.host }) }}
     </UiButton>
-    <UiButton appearance="application" type="button" @click="emit('retry')">
+    <UiButton v-if="canRetry" appearance="application" type="button" @click="emit('retry')">
       <IconRefresh aria-hidden="true" />
       {{ tab.pageProblem.kind === 'unresponsive' ? t('pageProblem.reload') : t('pageProblem.tryAgain') }}
     </UiButton>

@@ -80,7 +80,7 @@ describe('opening an address whose page never finishes loading', () => {
 
 describe('retrying a failed page whose load never ends', () => {
   it('tells the caller once the wait has passed, leaving the page loading', async () => {
-    const webContents = { loadURL: vi.fn(() => new Promise<void>(() => {})) }
+    const webContents = { isDestroyed: () => false, loadURL: vi.fn(() => new Promise<void>(() => {})) }
     const tab = { id: 'tab', sleeping: false, pageProblem: { kind: 'load-error', url: ADDRESS }, webContents }
     const browser = {
       tabs: new Map([[tab.id, tab]]),

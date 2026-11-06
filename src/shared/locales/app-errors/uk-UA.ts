@@ -110,7 +110,8 @@ export const ukUAAppErrors: AppErrorMessages = {
     recoveryRunning: 'Вкладка вже відновлюється.',
     recoveryPageChanged: 'Сторінка змінилася під час відновлення вкладки.',
     recoveryTabClosed: 'Вкладку закрито під час відновлення.',
-    recoveryTimedOut: 'Не вдалося вчасно відновити вкладку.'
+    recoveryTimedOut: 'Не вдалося вчасно відновити вкладку.',
+    pageDestroyed: 'Сторінка більше недоступна. Закрийте цю вкладку й відкрийте її знову з розділу нещодавно закритих.'
   },
   workspace: {
     unavailable: 'Робочий простір більше недоступний.',

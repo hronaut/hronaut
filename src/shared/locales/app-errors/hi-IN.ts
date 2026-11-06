@@ -110,7 +110,8 @@ export const hiINAppErrors: AppErrorMessages = {
     recoveryRunning: 'टैब का रेंडरर पहले से रिकवर किया जा रहा है।',
     recoveryPageChanged: 'रेंडरर रिकवर करते समय पेज बदल गया।',
     recoveryTabClosed: 'रेंडरर रिकवर करते समय टैब बंद हो गया।',
-    recoveryTimedOut: 'टैब का रेंडरर रिकवर करते-करते समय खत्म हो गया।'
+    recoveryTimedOut: 'टैब का रेंडरर रिकवर करते-करते समय खत्म हो गया।',
+    pageDestroyed: 'यह पेज अब उपलब्ध नहीं है। इस टैब को बंद करें और “हाल ही में बंद किए गए” से इसे फिर से खोलें।'
   },
   workspace: {
     unavailable: 'यह वर्कस्पेस अब उपलब्ध नहीं है।',

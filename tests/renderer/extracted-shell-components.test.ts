@@ -476,6 +476,23 @@ describe('extracted shell components', () => {
     expect(view.emitted().retry).toHaveLength(1)
   })
 
+  it('offers no Try again for a page gone for good, which it says to close and reopen, and one for a crashed page', async () => {
+    // Try again on a page Electron destroyed while its tab stayed open could only fail.
+    const gone = (reason: string) => tab({
+      kind: 'renderer-gone',
+      title: 'This page is no longer available',
+      message: 'Close this tab and reopen it from Recently closed.',
+      url: 'https://example.test/app',
+      reason
+    })
+    const view = render(PageProblemBar, { global, props: { tab: gone('renderer-destroyed'), details: () => '' } })
+    expect(screen.getByRole('alert')).toHaveTextContent('Close this tab and reopen it from Recently closed.')
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull()
+    await view.rerender({ tab: gone('crashed') })
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Try again' }))
+    expect(view.emitted().retry).toHaveLength(1)
+  })
+
   it('names the split view\'s pane its page is shown in', async () => {
     const problem = tab({ kind: 'load-error', title: 'Site unavailable', message: 'Hronaut could not load this page.', url: 'https://example.test/app' })
     const view = render(PageProblemBar, { global, props: { tab: problem, details: () => '' } })

@@ -110,7 +110,8 @@ export const koKRAppErrors: AppErrorMessages = {
     recoveryRunning: '탭 렌더러를 이미 복구하는 중입니다.',
     recoveryPageChanged: '렌더러를 복구하는 동안 페이지가 변경되었습니다.',
     recoveryTabClosed: '렌더러를 복구하는 동안 탭이 닫혔습니다.',
-    recoveryTimedOut: '탭 렌더러 복구 시간이 초과되었습니다.'
+    recoveryTimedOut: '탭 렌더러 복구 시간이 초과되었습니다.',
+    pageDestroyed: '이 페이지를 더 이상 사용할 수 없습니다. 이 탭을 닫은 후 최근에 닫은 탭에서 다시 여세요.'
   },
   workspace: {
     unavailable: '작업 공간을 더 이상 사용할 수 없습니다.',

@@ -110,7 +110,8 @@ export const esESAppErrors: AppErrorMessages = {
     recoveryRunning: 'La pestaña ya se está recuperando.',
     recoveryPageChanged: 'La página cambió mientras se recuperaba la pestaña.',
     recoveryTabClosed: 'La pestaña se cerró mientras se recuperaba.',
-    recoveryTimedOut: 'No se pudo recuperar la pestaña a tiempo.'
+    recoveryTimedOut: 'No se pudo recuperar la pestaña a tiempo.',
+    pageDestroyed: 'Esta página ya no está disponible. Cierra esta pestaña y vuelve a abrirla desde Cerradas recientemente.'
   },
   workspace: {
     unavailable: 'El espacio de trabajo ya no está disponible.',

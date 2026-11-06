@@ -110,7 +110,8 @@ export const viVNAppErrors: AppErrorMessages = {
     recoveryRunning: 'Trình kết xuất của thẻ đang được khôi phục.',
     recoveryPageChanged: 'Trang đã thay đổi trong khi khôi phục trình kết xuất.',
     recoveryTabClosed: 'Thẻ đã đóng trong khi khôi phục trình kết xuất.',
-    recoveryTimedOut: 'Đã hết thời gian chờ khôi phục trình kết xuất của thẻ.'
+    recoveryTimedOut: 'Đã hết thời gian chờ khôi phục trình kết xuất của thẻ.',
+    pageDestroyed: 'Trang này không còn khả dụng. Hãy đóng thẻ này và mở lại từ mục Đã đóng gần đây.'
   },
   workspace: {
     unavailable: 'Không gian làm việc không còn khả dụng.',

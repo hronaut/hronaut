@@ -114,7 +114,8 @@ export const enUSAppErrors = {
     recoveryRunning: 'The tab renderer is already being recovered.',
     recoveryPageChanged: 'The page changed while recovering its renderer.',
     recoveryTabClosed: 'The tab closed while recovering its renderer.',
-    recoveryTimedOut: 'Timed out recovering the tab renderer.'
+    recoveryTimedOut: 'Timed out recovering the tab renderer.',
+    pageDestroyed: 'This page is no longer available. Close this tab and reopen it from Recently closed.'
   },
   workspace: {
     unavailable: 'The workspace is no longer available.',

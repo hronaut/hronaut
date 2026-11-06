@@ -110,7 +110,8 @@ export const frFRAppErrors: AppErrorMessages = {
     recoveryRunning: 'L’onglet est déjà en cours de récupération.',
     recoveryPageChanged: 'La page a changé pendant la récupération de l’onglet.',
     recoveryTabClosed: 'L’onglet s’est fermé pendant sa récupération.',
-    recoveryTimedOut: 'L’onglet n’a pas pu être récupéré à temps.'
+    recoveryTimedOut: 'L’onglet n’a pas pu être récupéré à temps.',
+    pageDestroyed: 'Cette page n’est plus disponible. Fermez cet onglet et rouvrez-le depuis Fermés récemment.'
   },
   workspace: {
     unavailable: 'L’espace de travail n’est plus disponible.',

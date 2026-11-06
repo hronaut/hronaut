@@ -110,7 +110,8 @@ export const zhTWAppErrors: AppErrorMessages = {
     recoveryRunning: '分頁轉譯器已在復原中。',
     recoveryPageChanged: '復原轉譯器時網頁已變更。',
     recoveryTabClosed: '復原轉譯器時分頁已關閉。',
-    recoveryTimedOut: '復原分頁轉譯器時逾時。'
+    recoveryTimedOut: '復原分頁轉譯器時逾時。',
+    pageDestroyed: '這個網頁已無法使用。請關閉這個分頁，然後從「最近關閉」重新開啟。'
   },
   workspace: {
     unavailable: '這個工作區已無法使用。',
