@@ -10,6 +10,13 @@ import { cancelNativeSelectionSessions } from '../native-selections/native-selec
 import { markNetworkConditionsUnknown } from '../network-conditions/network-conditions.js'
 import { invalidateTabOverviewPreview } from '../tab-overview-previews/tab-overview-previews.js'
 import { publishChange } from '../browser-state/browser-state.js'
+import { pageScript } from '../../../shared/page-script.js'
+import { ISOLATED_WORLDS } from '../isolated-worlds.js'
+import { answerHangCheckInPage } from './hang-check.page.js'
+import { printDialogHolds } from '../print-dialog-guard.js'
+
+/** How long input may go unanswered before the page shows it is not responding, as long as Chrome's hang monitor waits. */
+export const HANG_DELAY_MS = 15_000
 
 /** The message explaining each reason Electron gives for a renderer exit. */
 const RENDERER_FAILURE_MESSAGES: Record<string, MessageKey> = {
@@ -41,6 +48,13 @@ function rendererFailureProblem(locale: SupportedLocale, url: string, reason: st
  * ends network waits and selection sessions, marks a held lifecycle unknown,
  * shows the problem and logs it. A hang shows a problem that responding
  * clears.
+ *
+ * Chromium reports no hang while a debugger is attached to the page, and Hronaut keeps one attached to every tab, so
+ * Electron's `unresponsive` never came for a page stuck in a loop. As Chrome's hang monitor does, input the page has
+ * not answered within HANG_DELAY_MS shows the problem: each input that finds no check under way asks the page to
+ * answer in a world of its own, which a stuck main thread cannot do. A page loading its document, holding an alert or
+ * the print dialog, which keep its main thread waiting, or paused in the person's DevTools, is not checked, and a
+ * check that a navigation overtook shows nothing.
  */
 export function attachRendererHealthEvents(browser: Browser, tab: BrowserTab, webContents: WebContents): void {
   webContents.on('render-process-gone', (_event, details) => {
@@ -75,7 +89,7 @@ export function attachRendererHealthEvents(browser: Browser, tab: BrowserTab, we
     }, 'lifecycle')
     publishChange(browser)
   })
-  webContents.on('unresponsive', () => {
+  const showUnresponsive = (): void => {
     tab.pageProblem = {
       kind: 'unresponsive',
       title: browser.text('native.dialog.unresponsiveTitle'),
@@ -83,10 +97,36 @@ export function attachRendererHealthEvents(browser: Browser, tab: BrowserTab, we
       url: tab.url
     }
     publishChange(browser, false)
-  })
-  webContents.on('responsive', () => {
+  }
+  const clearUnresponsive = (): void => {
     if (tab.pageProblem?.kind !== 'unresponsive') return
     tab.pageProblem = undefined
     publishChange(browser, false)
+  }
+  webContents.on('unresponsive', showUnresponsive)
+  webContents.on('responsive', clearUnresponsive)
+
+  // When the latest check started; a check whose answer never comes, as when the page goes away, gives way to a new
+  // one after HANG_DELAY_MS.
+  let checkStartedAt: number | undefined
+  const waitsOnPurpose = (): boolean => webContents.isDestroyed() || webContents.isCrashed() || webContents.isLoadingMainFrame()
+    || webContents.isDevToolsOpened() || tab.dialog !== undefined || printDialogHolds(webContents)
+  webContents.on('input-event', () => {
+    if (checkStartedAt !== undefined && performance.now() - checkStartedAt < HANG_DELAY_MS) return
+    if (waitsOnPurpose()) return
+    const startedAt = performance.now()
+    const navigation = tab.navigationGeneration
+    checkStartedAt = startedAt
+    const timer = setTimeout(() => {
+      if (!waitsOnPurpose() && !tab.pageProblem && tab.navigationGeneration === navigation) showUnresponsive()
+    }, HANG_DELAY_MS)
+    void webContents.executeJavaScriptInIsolatedWorld(ISOLATED_WORLDS.hangCheck, [{ code: pageScript(answerHangCheckInPage) }])
+      .then(() => {
+        if (!webContents.isDestroyed()) clearUnresponsive()
+      }, () => undefined)
+      .finally(() => {
+        clearTimeout(timer)
+        if (checkStartedAt === startedAt) checkStartedAt = undefined
+      })
   })
 }

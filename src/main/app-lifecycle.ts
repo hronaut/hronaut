@@ -55,8 +55,8 @@ interface AppLifecycleHost {
 /**
  * The application's lifecycle events: one instance per profile, where a second launch shows the window or quits the
  * first one; staying alive with no window so MCP clients can reconnect; recording window bounds before quitting;
- * starting once Electron is ready; logging a helper process that ended unexpectedly; and an orderly shutdown that exits after at most ten seconds, so an update relaunch
- * can continue.
+ * starting once Electron is ready; logging a helper process that ended unexpectedly; and an orderly shutdown that
+ * exits after at most ten seconds, so an update relaunch can continue.
  */
 export function registerAppLifecycle(app: Pick<App, 'on' | 'whenReady' | 'quit' | 'exit'>, host: AppLifecycleHost): void {
   let shutdownExitScheduled = false
