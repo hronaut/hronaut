@@ -62,6 +62,7 @@ vi.mock('../src/main/browser/session-hooks/session-hooks.js', async (importOrigi
 }))
 // Every tab closes with a page that closes itself; these fake pages emit no events.
 vi.mock('../src/main/browser/tab-events/page-close-events.js', () => ({ attachPageCloseEvents: () => undefined }))
+vi.mock('../src/main/browser/tab-events/leave-site-question.js', () => ({ attachLeaveSiteQuestion: () => undefined }))
 vi.mock('../src/main/browser/tab-events/attach-tab-events.js', () => ({
   attachTabEvents: (browser: { attachTabEvents: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.attachTabEvents(...args)
 }))
