@@ -151,14 +151,14 @@ export function createMainWindow(host: MainWindowHost): {
       }
     })
     attachShellKeyHandoff(window.webContents)
-    // Once the window has its own size again, as it is restored, on the next turn, or as it is resized, it keeps its
-    // minimum: one a scale chosen meanwhile set, and one the system did not hold it to.
-    const keepMinimum = (): void => { keepMainWindowMinimumSize(window, host.settings().interfaceScale) }
-    const afterRestore = (): void => { setImmediate(keepMinimum) }
+    // Once the window has its own size again, as it is resized, or restored, on the next turn, it keeps its minimum:
+    // one a scale chosen meanwhile set, and once restored, one the system did not hold it to.
+    const keepMinimum = (restored: boolean): void => { keepMainWindowMinimumSize(window, host.settings().interfaceScale, { restored }) }
+    const afterRestore = (): void => { setImmediate(() => keepMinimum(true)) }
     window.on('unmaximize', afterRestore)
     window.on('leave-full-screen', afterRestore)
     window.on('restore', afterRestore)
-    window.on('resize', keepMinimum)
+    window.on('resize', () => keepMinimum(false))
     return window
   }
 
