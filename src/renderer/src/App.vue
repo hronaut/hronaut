@@ -669,11 +669,11 @@ const {
   closeAddressSuggestions
 })
 // What opens from the tabs and the toolbar keeps them in view while it is open, and so does a bar shown
-// under the toolbar (Find, Zoom, a page that failed or the license card), so it does not move under the pointer.
+// under the toolbar (Find, Zoom, a shown page that failed, in either pane, or the license card), so it does not move.
 fullPageView.holdWhile(() => [
   mcpStatusController.summaryOpen, updateNoticeOpen, addressSuggestionsOpen,
   downloadsOpen, historyOpen, splitMenuOpen, siteControlsOpen, findOpen, zoomOpen
-].some((open) => open.value === true) || Boolean(activeTab.value?.pageProblem)
+].some((open) => open.value === true) || shownPageProblems.value.length > 0
   || appSettingsFeatureController.licenseAskController.cardReason.value !== null)
 const appActiveTabFeatureController = useAppActiveTabFeatureController({
   presentation: {

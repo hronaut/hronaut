@@ -51,12 +51,29 @@ test('a page that cannot open in the other pane of a split view says so, with it
     }), failedUrl)
     await listen(port)
     await problems.getByRole('button', { name: 'Try again' }).click()
-    await expect.poll(async () => (await state()).tabs.find(tab => tab.id === failedId)).toMatchObject({ title: 'Recovered website', url: failedUrl })
+    // Well before Hronaut's next try of its own.
+    await expect.poll(async () => (await state()).tabs.find(tab => tab.id === failedId), { timeout: 3_000 })
+      .toMatchObject({ title: 'Recovered website', url: failedUrl })
     await expect.poll(async () => (await state()).tabs.find(tab => tab.id === failedId)?.pageProblem ?? null).toBeNull()
     await expect(problems).toHaveCount(0)
     const after = await state()
     expect(after.activeTabId).toBe(alpha.activeTabId)
     expect(after.splitView).toMatchObject({ firstTabId: alpha.activeTabId, secondTabId: failedId })
+
+    // A page that stops working there says so too, and only its Try again brings it back: Hronaut does not reload a
+    // crashed page by itself.
+    await electronApp.evaluate(({ webContents }, url) => {
+      const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)
+      if (!page) throw new Error('The right pane\'s page was not found')
+      page.forcefullyCrashRenderer()
+    }, failedUrl)
+    await expect.poll(async () => (await state()).tabs.find(tab => tab.id === failedId)?.pageProblem?.kind).toBe('renderer-gone')
+    await expect(problems).toHaveCount(1)
+    await expect(problems).toContainText('Right page')
+    await problems.getByRole('button', { name: 'Try again' }).click()
+    await expect.poll(async () => (await state()).tabs.find(tab => tab.id === failedId)?.pageProblem ?? null).toBeNull()
+    await expect(problems).toHaveCount(0)
+    expect((await state()).activeTabId).toBe(alpha.activeTabId)
   } finally {
     await closeFixtureServer(server)
   }
