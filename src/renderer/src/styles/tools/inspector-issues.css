@@ -9,7 +9,9 @@
 .inspector-issues-summary .error strong { @apply text-danger-copy; }
 .inspector-issues-summary .warning strong { @apply [color:color-mix(in_srgb,_var(--text)_80%,_var(--warning))]; }
 .inspector-issues-empty { @apply [min-height:260px]; }
-.inspector-issues-list { @apply min-h-0 overflow-y-auto [padding:12px]; }
+/* One scroller, as the Debug report's: the report scrolls with its counts, so no part of it shrinks out of sight. */
+.inspector-issues-panel > .panel-scroll-body > * { @apply flex-none; }
+.inspector-issues-list { @apply [padding:12px]; }
 .inspector-issue { @apply grid [gap:9px] [padding:11px_12px] [border:1px_solid_var(--border-soft)] [border-left:3px_solid_var(--accent)] [border-radius:var(--corner-2)] bg-surface; }
 .inspector-issue + .inspector-issue { @apply [margin-top:7px]; }
 .inspector-issue.error { @apply [border-left-color:#d9534f]; }

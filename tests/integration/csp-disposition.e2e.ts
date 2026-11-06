@@ -64,6 +64,26 @@ for (const mode of ['enforce', 'report-only', 'mixed'] as const) {
       await openPageTool(/Open browser issues:/)
       const panel = appWindow.getByRole('dialog', { name: 'Issues' })
       for (const disposition of modes) await expect(panel.getByText(disposition === 'enforce' ? 'CSP: enforced' : 'CSP: report-only', { exact: true })).toHaveCount(3)
+      // In the narrowest, shortest window the report scrolls above its footer, and no issue is out of reach.
+      await electronApp.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0]!.setSize(600, 520) })
+      await expect.poll(() => appWindow.evaluate(() => innerWidth)).toBe(600)
+      const lastIssue = panel.locator('.inspector-issue').last()
+      await lastIssue.scrollIntoViewIfNeeded()
+      // Clipped by every scroller it is in, it shows all of itself or at least 80 pixels.
+      const shown = await lastIssue.evaluate(element => {
+        const rect = element.getBoundingClientRect()
+        let [top, bottom] = [rect.top, rect.bottom]
+        for (let parent = element.parentElement; parent && parent.getAttribute('role') !== 'dialog'; parent = parent.parentElement) {
+          if (getComputedStyle(parent).overflowY === 'visible') continue
+          const clip = parent.getBoundingClientRect()
+          top = Math.max(top, clip.top)
+          bottom = Math.min(bottom, clip.bottom)
+        }
+        return { shown: bottom - top, height: rect.height }
+      })
+      expect(shown.shown).toBeGreaterThanOrEqual(Math.min(shown.height, 80) - 1)
+      await expect(panel.getByRole('button', { name: 'Copy issues' })).toBeInViewport({ ratio: 1 })
+      await electronApp.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0]!.setSize(1320, 860) })
       await panel.getByRole('button', { name: 'Copy issues' }).click()
       await expect(panel.getByRole('button', { name: 'Copied', exact: true })).toBeVisible()
       const copied = JSON.parse(await electronApp.evaluate(({ clipboard }) => clipboard.readText())) as BrowserInspectorIssuesReport
