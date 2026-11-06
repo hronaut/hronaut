@@ -65,4 +65,21 @@ test('the page in view has the keyboard again after a drag or a double-click on 
   await physical('--shortcut=End', middle)
   await expect.poll(pageKeys).toBe('ArrowRight End ')
   expect(await ratio()).toBe(0.5)
+
+  // The divider given the keyboard, as with Tab, takes the arrow keys; once the person clicks into the page, it lets the
+  // keyboard go, so a later drag leaves the keyboard with the page again.
+  await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.webContents.focus())
+  await divider.focus()
+  await physical('--shortcut=Right', middle)
+  await expect.poll(ratio).toBe(0.51)
+  await electronApp.evaluate(({ webContents }, title) => webContents.getAllWebContents().find(candidate => candidate.getTitle() === title)!.focus(), title)
+  await expect.poll(focusedTitle).toBe(title)
+  const last = await point()
+  await physical(`--drag-to=${last.x - 120},${last.y}`, last)
+  await expect.poll(ratio).not.toBe(0.51)
+  const draggedBack = await ratio()
+  await expect.poll(focusedTitle).toBe(title)
+  await physical('--shortcut=Home', last)
+  await expect.poll(pageKeys).toBe('ArrowRight End Home ')
+  expect(await ratio()).toBe(draggedBack)
 })

@@ -5,7 +5,7 @@ import { useSplitViewResizeController } from './useSplitViewResizeController'
 import { vTooltip } from '../../ui/tooltip.js'
 
 const { t } = useI18n({ useScope: 'global' })
-const { geometry, resizing, startResize, resizeWithKeyboard, resetSize } = useSplitViewResizeController(window.hronautSplitDivider, () => {
+const { geometry, resizing, startResize, resizeWithKeyboard, resetSize, releaseKeyboard } = useSplitViewResizeController(window.hronautSplitDivider, () => {
   void window.hronaut.focusActivePage().catch(() => undefined)
 })
 const style = computed(() => geometry.value ? {
@@ -20,7 +20,7 @@ const style = computed(() => geometry.value ? {
     :aria-label="t('runtime.tabs.splitResize')" v-tooltip="t('runtime.tabs.splitResizeHint')"
     :aria-valuetext="t('runtime.tabs.splitResizeValue', { percent: Math.round(geometry.ratio * 100) })"
     :aria-valuemin="25" :aria-valuemax="75" :aria-valuenow="Math.round(geometry.ratio * 100)"
-    @pointerdown="startResize" @keydown="resizeWithKeyboard" @dblclick="resetSize" />
+    @pointerdown="startResize" @keydown="resizeWithKeyboard" @dblclick="resetSize" @blur="releaseKeyboard" />
 </template>
 
 <style scoped>
