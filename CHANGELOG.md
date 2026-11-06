@@ -10,7 +10,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
-- A tab's speaker and mute button in the tab strip, and its Playing audio note on Home, no longer flicker off and on through the short pauses in a video, a game or a call: as in Chrome, they stay until 2 seconds after the sound stops.
+- A tab's speaker in the tab strip, and its Playing audio note on Home, no longer flicker off and on through the short pauses in a video, a game or a call: as in Chrome, they stay until 2 seconds after the sound stops, and the tab is not put to sleep in those pauses.
 
 ## [3.14.18] - 2026-11-06
 

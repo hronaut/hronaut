@@ -235,7 +235,14 @@ export function attachNavigationEvents(browser: Browser, tab: BrowserTab, webCon
     }
     publishChange(browser, false)
   })
-  webContents.once('destroyed', () => clearTimeout(quietTimer))
+  // A page that is gone plays nothing, also when its tab stays open to show that it is gone.
+  webContents.once('destroyed', () => {
+    clearTimeout(quietTimer)
+    quietTimer = undefined
+    if (!tab.audible) return
+    tab.audible = false
+    publishChange(browser, false)
+  })
   webContents.on('did-stop-loading', () => {
     // An aborted provisional load still stops loading without a commit.
     if (!webContents.isLoadingMainFrame()) {
