@@ -54,6 +54,26 @@ describe('the title a closed tab is remembered by', () => {
     )).toBe('https://app.example/dashboard')
   })
 
+  it('is the tab\'s own title when it names no crash or failed load', () => {
+    const history = [{ url: 'https://status.example/incidents?id=7', title: 'status.example' }]
+    // A page that hangs, or whose contents are gone, keeps its title; a refused certificate keeps Chrome's Privacy error.
+    const hung: BrowserPageProblem = { kind: 'unresponsive', title: 'Page not responding', message: 'Wait or close it.', url: '' }
+    expect(closedTitle({ url: 'https://status.example/incidents?id=7', title: 'status.example', pageProblem: hung }, history))
+      .toBe('status.example')
+    const gone: BrowserPageProblem = { ...CRASHED, reason: 'renderer-destroyed' }
+    expect(closedTitle({ title: 'Quarterly report', pageProblem: gone }, [])).toBe('Quarterly report')
+    const refused: BrowserPageProblem = { ...FAILED, certificate: { host: 'mail.example', canProceed: true } }
+    expect(closedTitle({ title: 'Privacy error', pageProblem: refused }, [{ url: 'https://mail.example/inbox', title: 'Privacy error' }]))
+      .toBe('Privacy error')
+  })
+
+  it('is cut to the length of any tab title', () => {
+    const url = `http://sso.example/saml?SAMLRequest=${'a'.repeat(4_000)}`
+    const title = closedTitle({ url, title: 'Site unavailable', pageProblem: FAILED }, [{ url, title: url.slice('http://'.length) }])
+    expect(title).toHaveLength(512)
+    expect(title!.startsWith('sso.example/saml?SAMLRequest=aaa')).toBe(true)
+  })
+
   it('is the tab\'s own title while its page is fine', () => {
     expect(closedTitle({}, [{ url: 'https://mail.example/inbox', title: 'Inbox (3)' }])).toBe('Inbox')
     expect(closedTitle({ title: '' }, [{ url: 'https://mail.example/inbox', title: '' }])).toBe('https://mail.example/inbox')

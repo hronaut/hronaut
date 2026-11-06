@@ -1,4 +1,4 @@
-import { MAX_BROWSER_TABS, type BrowserClosedTabState, type BrowserState } from '../../../shared/types.js'
+import { MAX_BROWSER_TABS, type BrowserClosedTabState, type BrowserPageProblem, type BrowserState } from '../../../shared/types.js'
 import { LocalizedError } from '../../localized-error.js'
 import { uuidV7 } from '../../uuid-v7.js'
 import { isHronautHomeUrl } from '../url.js'
@@ -11,6 +11,7 @@ import { browserState } from '../browser-state/browser-state.js'
 import { reorderTab } from '../tab-arrangement/tab-arrangement.js'
 import { withTabLabelLifecycle } from '../tab-labels/tab-labels.js'
 import { isAddressTitle, untitledPageTitle } from '../tab-events/untitled-page-title.js'
+import { normalizeTabTitle } from '../tab-metadata.js'
 
 const MAX_TABS = MAX_BROWSER_TABS
 const MAX_CLOSED_TABS = MAX_TABS
@@ -224,9 +225,20 @@ export function rememberClosedTab(
  * an untitled or failed page by its address as Chromium shows it.
  */
 function closedTabTitle(tab: BrowserTab, history: NavigationHistorySnapshot): string {
-  if (!tab.pageProblem) return tab.title || tab.url
-  const title = history.entries[history.index]?.url === tab.url ? history.entries[history.index]!.title.trim() : ''
-  return title && !isAddressTitle(title, tab.url) ? title : untitledPageTitle(tab.url)
+  if (!tab.pageProblem || !titledByProblem(tab.pageProblem)) return tab.title || tab.url
+  const entry = history.entries[history.index]
+  const title = entry?.url === tab.url ? entry.title.trim() : ''
+  return normalizeTabTitle(title && !isAddressTitle(title, tab.url) ? title : untitledPageTitle(tab.url), tab.url)
+}
+
+/**
+ * Whether the tab's title names its problem rather than its page: its page crashed or could not load. A refused
+ * certificate keeps its Privacy error, as Chrome's interstitial is titled; a page that hangs, or whose contents are gone,
+ * keeps its own title.
+ */
+function titledByProblem(problem: BrowserPageProblem): boolean {
+  if (problem.kind === 'load-error') return !problem.certificate
+  return problem.kind === 'renderer-gone' && problem.reason !== 'renderer-destroyed'
 }
 
 /**
