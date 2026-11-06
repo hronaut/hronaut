@@ -2830,6 +2830,14 @@ test('keeps shell state usable when Electron destroys a tab WebContents independ
   await expect(appWindow.getByRole('alert', { name: 'Open tab failed' })).toContainText(
     'tab renderer is no longer available'
   )
+  // Its reload, as Try again or an agent asks, says the page is gone and how to get it back, and the tab keeps saying so.
+  await expect(appWindow.evaluate(`window.hronaut.reload(${JSON.stringify(tabId)})`))
+    .rejects.toThrow('This page is no longer available. Close this tab and reopen it from Recently closed.')
+  await expect(appWindow.evaluate(`window.hronaut.navigate({ url: 'https://example.test/next', tabId: ${JSON.stringify(tabId)} })`))
+    .rejects.toThrow('This page is no longer available. Close this tab and reopen it from Recently closed.')
+  expect(await appWindow.evaluate(`window.hronaut.getState().then((state) => (
+    state.tabs.find((tab) => tab.id === ${JSON.stringify(tabId)})?.pageProblem?.title
+  ))`)).toBe('This page is no longer available')
   await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(tabId)})`)
   await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => (
     state.tabs.some((tab) => tab.id === ${JSON.stringify(tabId)})

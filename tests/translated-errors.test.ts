@@ -24,7 +24,7 @@ const { getTab } = await import('../src/main/browser/browser-core.js')
 const { RendererExitedError } = await import('../src/main/browser/renderer-exit-guard.js')
 const { WorkspaceMetadataError } = await import('../src/main/browser/tab-store.js')
 const { waitForPage } = await import('../src/main/browser/page-waits/page-waits.js')
-const { navigate } = await import('../src/main/browser/page-navigation/page-navigation.js')
+const { navigate, reload } = await import('../src/main/browser/page-navigation/page-navigation.js')
 const { assertWorkspaceNavigationAllowed } = await import('../src/main/browser/workspace-navigation/workspace-navigation.js')
 const { reorderTab } = await import('../src/main/browser/tab-arrangement/tab-arrangement.js')
 const { setZoom } = await import('../src/main/browser/page-zoom/page-zoom.js')
@@ -124,9 +124,12 @@ describe('main-process failures people see in tabs, navigation and new tabs', ()
       'There is no active tab',
       'Немає активної вкладки.'],
     // Address bar navigation
-    ['Home typed into a website tab', () => navigate({ tabs: new Map([['tab', { id: 'tab', mcpGroupId: 'workspace' }]]), activeTabId: 'tab', options: {} } as never, 'hronaut://home/'),
+    ['Home typed into a website tab', () => navigate({ tabs: new Map([['tab', { id: 'tab', mcpGroupId: 'workspace', webContents: { isDestroyed: () => false } }]]), activeTabId: 'tab', options: {} } as never, 'hronaut://home/'),
       'Hronaut Home is a human application page and cannot be opened inside an agent workspace.',
       'Домівка Hronaut — сторінка застосунку для людини, її не можна відкрити в робочому просторі агента.'],
+    ['Try again on a page gone for good', () => reload({ tabs: new Map([['tab', { id: 'tab', webContents: destroyed }]]), activeTabId: 'tab', options: {} } as never),
+      'This page is no longer available. Close this tab and reopen it from Recently closed.',
+      'Сторінка більше недоступна. Закрийте цю вкладку й відкрийте її знову з розділу нещодавно закритих.'],
     ['a site the workspace does not allow', () => assertWorkspaceNavigationAllowed(restrictedWorkspace as never, 'workspace', 'https://blocked.example/private?q=1', 'direct'),
       'Workspace navigation to https://blocked.example is blocked. Allow this origin in the trusted workspace Site access settings.',
       'Перехід до https://blocked.example у цьому робочому просторі заблоковано. Дозвольте це джерело в налаштуваннях «Доступ до сайтів» довіреного робочого простору.'],

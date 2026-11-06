@@ -1,4 +1,5 @@
 import type { BrowserPageProblem } from '../../../shared/types.js'
+import { PAGE_DESTROYED_REASON } from '../../../shared/types/page-problems.js'
 import type { NavigationHistorySnapshot } from '../navigation-history.js'
 import { normalizeTabTitle } from '../tab-metadata.js'
 import { isAddressTitle, untitledPageTitle } from './untitled-page-title.js'
@@ -30,5 +31,5 @@ export function pageOwnTitle(tab: TabTitleSource, history: () => NavigationHisto
  */
 function titledByProblem(problem: BrowserPageProblem): boolean {
   if (problem.kind === 'load-error') return !problem.certificate
-  return problem.kind === 'renderer-gone' && problem.reason !== 'renderer-destroyed'
+  return problem.kind === 'renderer-gone' && problem.reason !== PAGE_DESTROYED_REASON
 }

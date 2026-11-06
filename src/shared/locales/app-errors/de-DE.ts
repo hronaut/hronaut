@@ -110,7 +110,8 @@ export const deDEAppErrors: AppErrorMessages = {
     recoveryRunning: 'Der Tab wird bereits wiederhergestellt.',
     recoveryPageChanged: 'Die Seite hat sich während der Wiederherstellung des Tabs geändert.',
     recoveryTabClosed: 'Der Tab wurde während der Wiederherstellung geschlossen.',
-    recoveryTimedOut: 'Der Tab konnte nicht rechtzeitig wiederhergestellt werden.'
+    recoveryTimedOut: 'Der Tab konnte nicht rechtzeitig wiederhergestellt werden.',
+    pageDestroyed: 'Diese Seite ist nicht mehr verfügbar. Schließen Sie diesen Tab und öffnen Sie ihn über „Kürzlich geschlossen“ erneut.'
   },
   workspace: {
     unavailable: 'Der Arbeitsbereich ist nicht mehr verfügbar.',

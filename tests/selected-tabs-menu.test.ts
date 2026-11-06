@@ -207,6 +207,24 @@ describe('the tab menu of several selected tabs', () => {
     expect(fake.calls).toEqual(['close a,b'])
   })
 
+  it('greys out Reload for a tab whose page Electron destroyed, and reloads only the selected tabs whose page is still there', async () => {
+    const gone = { webContents: { isDestroyed: () => true } }
+    const fake = menuBrowser([tab('a', 'work', gone), tab('b'), tab('c', 'work', gone)])
+    showTabContextMenu(fake.browser, 'a')
+    expect(item('reload-tab').enabled).toBe(false)
+    expect(item('reload-tab-ignoring-cache').enabled).toBe(false)
+    showTabContextMenu(fake.browser, 'b')
+    expect(item('reload-tab').enabled).toBe(true)
+    expect(item('reload-tab-ignoring-cache').enabled).toBe(true)
+
+    showTabContextMenu(fake.browser, 'a', undefined, ['a', 'b', 'c'])
+    expect(item('reload-tabs').enabled).toBe(true)
+    await click('reload-tabs')
+    expect(fake.calls).toEqual(['reload b by person'])
+    showTabContextMenu(fake.browser, 'a', undefined, ['a', 'c'])
+    expect(item('reload-tabs').enabled).toBe(false)
+  })
+
   it('pins and unpins the tabs in the order they had, as Chrome does', async () => {
     const manager = Object.assign(Object.create(Browser.prototype), {
       mcpTabGroups: new Map([['work', { id: 'work', name: 'Work' }]]),

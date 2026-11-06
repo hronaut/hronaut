@@ -110,7 +110,8 @@ export const ruRUAppErrors: AppErrorMessages = {
     recoveryRunning: 'Вкладка уже восстанавливается.',
     recoveryPageChanged: 'Страница изменилась во время восстановления вкладки.',
     recoveryTabClosed: 'Вкладка закрыта во время восстановления.',
-    recoveryTimedOut: 'Не удалось вовремя восстановить вкладку.'
+    recoveryTimedOut: 'Не удалось вовремя восстановить вкладку.',
+    pageDestroyed: 'Страница больше недоступна. Закройте эту вкладку и откройте её снова из недавно закрытых.'
   },
   workspace: {
     unavailable: 'Рабочее пространство больше недоступно.',

@@ -110,7 +110,8 @@ export const zhCNAppErrors: AppErrorMessages = {
     recoveryRunning: '标签页的渲染程序已在恢复中。',
     recoveryPageChanged: '在恢复渲染程序期间，页面已更改。',
     recoveryTabClosed: '在恢复渲染程序期间，标签页已关闭。',
-    recoveryTimedOut: '恢复标签页的渲染程序时超时。'
+    recoveryTimedOut: '恢复标签页的渲染程序时超时。',
+    pageDestroyed: '此页面已不可用。请关闭此标签页，然后从“最近关闭”中重新打开它。'
   },
   workspace: {
     unavailable: '该工作区已不可用。',

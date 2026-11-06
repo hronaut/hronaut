@@ -149,14 +149,17 @@ export function showTabContextMenu(browser: Browser, tabId: string, onClosed?: (
       // active. The window opens it as its + button does, so the cursor goes to the address field.
       click: () => runAction('open a new tab', () => sendTo(browser.window.webContents, SHELL_IPC.newTabRequested, tab.mcpGroupId))
     },
+    // A page Electron destroyed while its tab stayed open cannot load again in it; its tab says to reopen it instead.
     {
       id: 'reload-tab',
       label: browser.text('native.context.reloadTab'),
+      enabled: !tab.webContents.isDestroyed(),
       click: () => runAction('reload the tab', () => reload(browser, tab.id, { byPerson: true }))
     },
     {
       id: 'reload-tab-ignoring-cache',
       label: browser.text('native.context.reloadNoCache'),
+      enabled: !tab.webContents.isDestroyed(),
       click: () => runAction('reload the tab without cache', () => reloadIgnoringCache(browser, tab.id, { byPerson: true }))
     },
     {

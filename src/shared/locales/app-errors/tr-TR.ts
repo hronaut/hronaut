@@ -110,7 +110,8 @@ export const trTRAppErrors: AppErrorMessages = {
     recoveryRunning: 'Sekmenin oluşturucusu zaten kurtarılıyor.',
     recoveryPageChanged: 'Oluşturucu kurtarılırken sayfa değişti.',
     recoveryTabClosed: 'Oluşturucu kurtarılırken sekme kapandı.',
-    recoveryTimedOut: 'Sekmenin oluşturucusu kurtarılırken zaman aşımı oluştu.'
+    recoveryTimedOut: 'Sekmenin oluşturucusu kurtarılırken zaman aşımı oluştu.',
+    pageDestroyed: 'Bu sayfa artık kullanılamıyor. Bu sekmeyi kapatın ve Son kapatılanlar’dan yeniden açın.'
   },
   workspace: {
     unavailable: 'Çalışma alanı artık kullanılamıyor.',

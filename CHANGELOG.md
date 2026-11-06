@@ -17,6 +17,7 @@ All notable changes to Hronaut are documented in this file.
 - An agent's `browser_press` with `Shift+Insert` or the `Paste` key, or with `Control+V` or `Control+Shift+V` on Windows and Linux, pasted what the person had copied, such as a password, into the agent's page, where the page and the agent could read it; these paste keys are now refused, and agents enter text with `browser_insert_text`.
 - The application menu's Undo, Redo, Cut, Copy, Paste, Select All and Toggle Full Screen now follow Hronaut's language, as its other items do, rather than staying in English; on macOS the Edit menu also has Paste and Match Style and Delete, as Chrome's does.
 - A website text field's menu offered Paste and Match Style with an image on the clipboard, which has no text to paste, and used that macOS name on Windows and Linux too; as in Chrome, on Windows and Linux it is now named Paste as Plain Text and greyed out until the clipboard holds text, and a misspelled word's menu, which leads with its suggestions, leaves it out.
+- A tab whose page was destroyed while the tab stayed open failed with Electron's English "Object has been destroyed" when its tab menu reloaded it, a link was dropped on it, or an agent reloaded, navigated, went Back or Forward in it or stopped it, and a reload first removed the row that said the page was gone; its tab menu's Reload items are now greyed out, Reload Tabs skips it, and each of the others keeps the row and says the page is no longer available and to reopen it from Recently closed.
 
 ## [3.14.19] - 2026-11-06
 

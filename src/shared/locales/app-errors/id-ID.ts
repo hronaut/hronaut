@@ -110,7 +110,8 @@ export const idIDAppErrors: AppErrorMessages = {
     recoveryRunning: 'Renderer tab sedang dipulihkan.',
     recoveryPageChanged: 'Halaman berubah saat renderernya dipulihkan.',
     recoveryTabClosed: 'Tab ditutup saat renderernya dipulihkan.',
-    recoveryTimedOut: 'Waktu habis saat memulihkan renderer tab.'
+    recoveryTimedOut: 'Waktu habis saat memulihkan renderer tab.',
+    pageDestroyed: 'Halaman ini sudah tidak tersedia. Tutup tab ini dan buka kembali dari Baru saja ditutup.'
   },
   workspace: {
     unavailable: 'Ruang kerja sudah tidak tersedia.',

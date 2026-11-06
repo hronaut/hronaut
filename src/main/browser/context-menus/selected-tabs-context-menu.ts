@@ -72,10 +72,14 @@ export function showSelectedTabsContextMenu(browser: Browser, tab: BrowserTab, s
       label: browser.text('native.context.newTab'),
       click: () => runAction('open a new tab', () => sendTo(browser.window.webContents, SHELL_IPC.newTabRequested, tab.mcpGroupId))
     },
+    // Only the tabs whose page is still there: one Electron destroyed while its tab stayed open cannot load again.
     {
       id: 'reload-tabs',
       label: browser.text('native.context.reloadTabs'),
-      click: () => runAction('reload the tabs', () => Promise.all(open().map((candidate) => reload(browser, candidate.id, { byPerson: true }))))
+      enabled: selected.some((candidate) => !candidate.webContents.isDestroyed()),
+      click: () => runAction('reload the tabs', () => Promise.all(open()
+        .filter((candidate) => !candidate.webContents.isDestroyed())
+        .map((candidate) => reload(browser, candidate.id, { byPerson: true }))))
     },
     {
       id: 'duplicate-tabs',

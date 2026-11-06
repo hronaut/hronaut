@@ -110,7 +110,8 @@ export const jaJPAppErrors: AppErrorMessages = {
     recoveryRunning: 'タブのレンダラはすでに復旧中です。',
     recoveryPageChanged: 'レンダラの復旧中にページが変更されました。',
     recoveryTabClosed: 'レンダラの復旧中にタブが閉じられました。',
-    recoveryTimedOut: 'タブのレンダラの復旧中にタイムアウトしました。'
+    recoveryTimedOut: 'タブのレンダラの復旧中にタイムアウトしました。',
+    pageDestroyed: 'このページは利用できなくなりました。このタブを閉じて、[最近閉じたタブ] から開き直してください。'
   },
   workspace: {
     unavailable: 'ワークスペースは利用できなくなりました。',

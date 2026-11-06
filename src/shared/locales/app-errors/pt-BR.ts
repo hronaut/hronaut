@@ -110,7 +110,8 @@ export const ptBRAppErrors: AppErrorMessages = {
     recoveryRunning: 'O renderizador da guia já está sendo recuperado.',
     recoveryPageChanged: 'A página mudou durante a recuperação do renderizador.',
     recoveryTabClosed: 'A guia foi fechada durante a recuperação do renderizador.',
-    recoveryTimedOut: 'Tempo esgotado ao recuperar o renderizador da guia.'
+    recoveryTimedOut: 'Tempo esgotado ao recuperar o renderizador da guia.',
+    pageDestroyed: 'Esta página não está mais disponível. Feche esta guia e reabra-a em Fechadas recentemente.'
   },
   workspace: {
     unavailable: 'O espaço de trabalho não está mais disponível.',

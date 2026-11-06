@@ -110,7 +110,8 @@ export const itITAppErrors: AppErrorMessages = {
     recoveryRunning: 'Il renderer della scheda è già in fase di recupero.',
     recoveryPageChanged: 'La pagina è cambiata durante il recupero del renderer.',
     recoveryTabClosed: 'La scheda si è chiusa durante il recupero del renderer.',
-    recoveryTimedOut: 'Tempo scaduto durante il recupero del renderer della scheda.'
+    recoveryTimedOut: 'Tempo scaduto durante il recupero del renderer della scheda.',
+    pageDestroyed: 'Questa pagina non è più disponibile. Chiudi questa scheda e riaprila da Chiuse di recente.'
   },
   workspace: {
     unavailable: 'L’area di lavoro non è più disponibile.',

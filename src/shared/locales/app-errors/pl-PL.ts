@@ -110,7 +110,8 @@ export const plPLAppErrors: AppErrorMessages = {
     recoveryRunning: 'Karta jest już przywracana.',
     recoveryPageChanged: 'Strona zmieniła się podczas przywracania karty.',
     recoveryTabClosed: 'Karta została zamknięta podczas przywracania.',
-    recoveryTimedOut: 'Nie udało się przywrócić karty na czas.'
+    recoveryTimedOut: 'Nie udało się przywrócić karty na czas.',
+    pageDestroyed: 'Ta strona nie jest już dostępna. Zamknij tę kartę i otwórz ją ponownie z listy Ostatnio zamknięte.'
   },
   workspace: {
     unavailable: 'Obszar roboczy nie jest już dostępny.',
