@@ -50,6 +50,7 @@ const expandTabGroup = vi.fn()
 const expandTabGroupForTab = vi.fn()
 const selectedTabs = vi.fn(() => ['first', 'second'])
 const collapsedTabGroupIds = new Set(['workspace-2'])
+const passedOverWorkspaceIds = new Set(['workspace-2'])
 const BrowserTabsBarStub = defineComponent({
   name: 'BrowserTabsBar',
   props: {
@@ -82,7 +83,7 @@ const BrowserTabsBarStub = defineComponent({
     'switchWorkspace'
   ],
   setup(_props, { expose }) {
-    expose({ expandTabGroup, expandTabGroupForTab, selectedTabs, collapsedTabGroupIds })
+    expose({ expandTabGroup, expandTabGroupForTab, selectedTabs, collapsedTabGroupIds, passedOverWorkspaceIds })
     return () => h('div', { 'data-testid': 'tabs' })
   }
 })
@@ -976,7 +977,7 @@ describe('AppBrowserChromeLayer', () => {
     expect(expandTabGroupForTab).toHaveBeenCalledWith(harness.state.tabs[0])
     // The tabs selected in the strip, which the close-tab key closes together.
     expect(surface.selectedTabs()).toEqual(['first', 'second'])
-    // The workspaces folded in the strip, whose tabs the tab keys pass over.
+    // The workspaces folded in the strip or not listed in the rail, whose tabs the tab keys pass over.
     expect(surface.foldedWorkspaceIds()).toEqual(new Set(['workspace-2']))
     // Main hears of them too, so a tab closing or going to sleep hands the view past their tabs.
     expect(harness.browser.setFoldedWorkspaces).toHaveBeenCalledWith(['workspace-2'])

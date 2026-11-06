@@ -269,6 +269,9 @@ const railFold = computed(() => {
   return foldRailWorkspaces(sidebarWorkspaces.value, keep)
 })
 const railWorkspaces = computed(() => railFold.value.listed)
+// The workspaces the tab keys and a closed tab's successor pass over: those folded shut, and those the rail does not list.
+const passedOverWorkspaceIds = computed(() => new Set([...collapsedTabGroupIds.value, ...workspaces.value
+  .filter((group) => !railWorkspaces.value.some((listed) => listed.id === group.id)).map((group) => group.id)]))
 // A workspace hidden from the rail can still need you; the row then appears with an amber dot.
 const unlistedWorkspaceNeedsYou = computed(() => vertical.value && workspaces.value.some((group) => (
   !railWorkspaces.value.includes(group) && workspaceNeedsYou(group.id)
@@ -544,6 +547,7 @@ defineExpose({
   expandTabGroupForTab,
   toggleTabGroup,
   collapsedTabGroupIds,
+  passedOverWorkspaceIds,
   tabListScrollTop,
   scrollTabListTo,
   stopWorkerCapture,
