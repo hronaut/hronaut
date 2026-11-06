@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ContextMenuParams, MenuItemConstructorOptions, WebContents } from 'electron'
 
 const built = vi.hoisted(() => ({
@@ -125,6 +125,8 @@ describe('Paste in a text field\'s page menu', () => {
 })
 
 describe('a text field\'s menu as it opens', () => {
+  // Windows and Linux ask the clipboard; the last case says why macOS does not.
+  beforeEach(() => { onPlatform('linux') })
   const open = (webContents: EventEmitter, params: Partial<ContextMenuParams> = {}) => {
     webContents.emit('context-menu', { preventDefault: () => undefined }, { ...fieldParams, ...params })
   }
@@ -148,13 +150,23 @@ describe('a text field\'s menu as it opens', () => {
     expect(built.asked).toEqual(['text/plain', 'text/plain', 'text/plain'])
   })
 
-  it('reads nothing for a menu with no paste, which opens at once', () => {
+  it('reads nothing for a menu with no paste or no Paste as plain text, which opens at once', () => {
     const { browser, tab, webContents } = page()
     attachPageContextMenuEvents(browser, tab, webContents as unknown as WebContents)
     open(webContents, { editFlags: { ...editable, canPaste: false } })
     open(webContents, { isEditable: false, editFlags: { ...editable, canPaste: false, canCut: false } })
-    expect(built.templates).toHaveLength(2)
+    open(webContents, { misspelledWord: 'helo', dictionarySuggestions: ['hello'] })
+    expect(built.templates).toHaveLength(3)
     expect(built.asked).toEqual([])
+  })
+
+  it('asks nothing on macOS, where Electron\'s answer also reads the pasteboard, and leaves Paste and Match Style to the field', () => {
+    onPlatform('darwin')
+    const { browser, tab, webContents } = page()
+    attachPageContextMenuEvents(browser, tab, webContents as unknown as WebContents)
+    open(webContents)
+    expect(built.asked).toEqual([])
+    expect(pasteItems()).toEqual([[true, true]])
   })
 
   it('opens without knowing once the clipboard is slow to say, and only once', async () => {
@@ -193,7 +205,7 @@ describe('a text field\'s menu as it opens', () => {
     expect(built.templates).toHaveLength(1)
   })
 
-  it('opens none once another tab took its place in view, the tab closed or its frame loaded another page meanwhile', async () => {
+  it('opens none once another tab took its place in view, or the tab closed, meanwhile', async () => {
     const { browser, tab, webContents } = page()
     type Shell = { activeTabId: string, tabSelectionGeneration: number, tabs: Map<string, unknown>, splitViewContains: (id: string) => boolean }
     const shell = browser as unknown as Shell
@@ -218,17 +230,59 @@ describe('a text field\'s menu as it opens', () => {
     shell.tabSelectionGeneration++
     await settle()
     expect(built.templates).toHaveLength(2)
-    shell.splitViewContains = () => false
-    shell.activeTabId = 'tab'
 
-    open(webContents, { frame: { isDestroyed: () => false, detached: true } } as unknown as Partial<ContextMenuParams>)
-    open(webContents, { frame: { isDestroyed: () => true, detached: false } } as unknown as Partial<ContextMenuParams>)
+    // The partner's page filled the window, which hides this pane.
+    const partner = { id: 'partner', pageFullscreen: true, sleeping: false }
+    Object.assign(shell, { splitView: { firstTabId: 'tab', secondTabId: 'partner' } })
+    shell.tabs.set('partner', partner)
+    open(webContents)
     await settle()
     expect(built.templates).toHaveLength(2)
+    // This pane's own page fills it.
+    Object.assign(partner, { pageFullscreen: false })
+    Object.assign(tab, { pageFullscreen: true })
+    open(webContents)
+    await settle()
+    expect(built.templates).toHaveLength(3)
+    Object.assign(tab, { pageFullscreen: false })
+    Object.assign(shell, { splitView: null })
+    shell.splitViewContains = () => false
+    shell.activeTabId = 'tab'
 
     open(webContents)
     shell.tabs.delete('tab')
     await settle()
-    expect(built.templates).toHaveLength(2)
+    expect(built.templates).toHaveLength(3)
+  })
+
+  it('opens none once its frame was replaced or removed meanwhile, and one for a frame that stayed', async () => {
+    const { browser, tab, webContents } = page()
+    attachPageContextMenuEvents(browser, tab, webContents as unknown as WebContents)
+    // Electron finds the frame again on each read, and none once it is gone.
+    const openIn = (frame: { isDestroyed: () => boolean, detached: boolean }, later: () => unknown) => {
+      let read = 0
+      const params = Object.defineProperty({ ...fieldParams }, 'frame', { get: () => read++ === 0 ? frame : later(), enumerable: true })
+      webContents.emit('context-menu', { preventDefault: () => undefined }, params)
+    }
+    const live = () => ({ isDestroyed: () => false, detached: false })
+
+    const stayed = live()
+    openIn(stayed, () => stayed)
+    await settle()
+    expect(built.templates).toHaveLength(1)
+
+    // Another site's page replaced it, or the iframe was removed.
+    openIn(live(), () => null)
+    await settle()
+    // Its page is unloading, or it is gone.
+    const unloading = live()
+    openIn(unloading, () => unloading)
+    unloading.detached = true
+    await settle()
+    const gone = live()
+    openIn(gone, () => gone)
+    gone.isDestroyed = () => true
+    await settle()
+    expect(built.templates).toHaveLength(1)
   })
 })

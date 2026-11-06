@@ -2,14 +2,16 @@ import { clipboard, type ContextMenuParams, type Rectangle, type WebContents } f
 import type { Browser } from '../browser.js'
 import { findTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
+import { shownPageFullscreenTab } from '../window-layout/content-area.js'
 import { showContextMenu } from './page-context-menu.js'
 
 /** How long a text field's menu waits to learn whether the clipboard holds text before it opens without knowing. */
 const CLIPBOARD_WAIT_MS = 500
 
 /**
- * Whether the clipboard holds text, by the types it offers, as Chrome reads it for a field's Paste as plain text; it
- * reads no contents. A clipboard that cannot say leaves it to the field.
+ * Whether the clipboard holds text, by the types it offers, as Chrome reads it for a field's Paste as plain text. To
+ * list them, Electron also looks for a bookmark on Windows; nothing it reads reaches Hronaut's code. A clipboard that
+ * cannot say leaves it to the field.
  */
 async function clipboardHoldsText(): Promise<boolean | undefined> {
   try {
@@ -35,7 +37,9 @@ export function pageMenuPoint(view: Rectangle, params: Pick<ContextMenuParams, '
  * person's input to the tab is locked, no menu opens. Following an agent waits while the menu is open, so the page
  * its items act on stays in view. As in Chrome, a field that takes a paste first learns whether the clipboard holds
  * text, for its Paste as plain text, briefly; a newer right-click takes over from one still waiting, and none opens
- * once its tab was locked, closed or left view, or its frame's page was replaced, meanwhile.
+ * once its tab was locked, closed or left view, or its frame was replaced or removed, meanwhile. On macOS it does not
+ * ask: Electron's answer there also reads the pasteboard's link and the find pasteboard, which macOS can ask the person
+ * to allow, so Paste and Match Style follows the field, and a misspelled word's menu, which has none, does not ask.
  */
 export function attachPageContextMenuEvents(browser: Browser, tab: BrowserTab, webContents: WebContents): void {
   let latestRequest = 0
@@ -43,15 +47,20 @@ export function attachPageContextMenuEvents(browser: Browser, tab: BrowserTab, w
     event.preventDefault()
     const request = ++latestRequest
     if (browser.isHumanInteractionLocked(tab)) return
+    // Electron reads the frame again on each read, and gives none once it is gone, as after a navigation to another
+    // site or an iframe's removal; a navigation that keeps it keeps the menu, as in Chrome.
+    const frame = params.frame
     const show = (holdsText?: boolean): void => {
       if (request !== latestRequest || webContents.isDestroyed() || findTab(browser, tab.id) !== tab || browser.isHumanInteractionLocked(tab)) return
-      // An agent's tool or a tray click can bring another tab into view, or the frame can load another page, meanwhile.
-      const inView = browser.activeTabId === tab.id || browser.splitViewContains(tab.id)
-      if (!inView || (params.frame && (params.frame.isDestroyed() || params.frame.detached))) return
+      // An agent's tool or a tray click can bring another tab into view, or the other pane's page fill the window,
+      // meanwhile.
+      const fullscreenTab = shownPageFullscreenTab(browser)
+      const inView = fullscreenTab ? fullscreenTab === tab : browser.activeTabId === tab.id || browser.splitViewContains(tab.id)
+      if (!inView || (frame && (frame.isDestroyed() || frame.detached || params.frame !== frame))) return
       const at = pageMenuPoint(tab.view.getBounds(), params)
       showContextMenu(browser, tab, params, { at, whileOpen: () => browser.mcpActivityFollower.pageMenuOpened() }, holdsText)
     }
-    if (!params.isEditable || !params.editFlags.canPaste) {
+    if (!params.isEditable || !params.editFlags.canPaste || params.misspelledWord || process.platform === 'darwin') {
       show()
       return
     }
