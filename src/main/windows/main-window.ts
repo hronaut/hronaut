@@ -16,7 +16,7 @@ import { windowMaterialFor, windowMaterialOptions, type WindowMaterial } from '.
 import type { ResolvedThemeName } from '../../shared/theme.js'
 import type { AppSettings, ThemeName } from '../../shared/types.js'
 import { attachShellKeyHandoff } from './shell-key-handoff.js'
-import { applyMainWindowMinimumSize, mainWindowMinimumSize } from './main-window-minimum-size.js'
+import { applyMainWindowMinimumSizeOnRestore, mainWindowMinimumSize } from './main-window-minimum-size.js'
 
 /**
  * The main window and what it was opened with, created once by index.ts. The window opens after startup and closes
@@ -151,9 +151,11 @@ export function createMainWindow(host: MainWindowHost): {
       }
     })
     attachShellKeyHandoff(window.webContents)
-    // A scale chosen while the window filled its screen left its restored size narrower than the new minimum.
-    window.on('unmaximize', () => { applyMainWindowMinimumSize(window, host.settings().interfaceScale) })
-    window.on('leave-full-screen', () => { applyMainWindowMinimumSize(window, host.settings().interfaceScale) })
+    // A scale chosen while the window filled its screen, or was minimized, left its restored size below the new minimum.
+    const restoreMinimumSize = (): void => { applyMainWindowMinimumSizeOnRestore(window, () => host.settings().interfaceScale) }
+    window.on('unmaximize', restoreMinimumSize)
+    window.on('leave-full-screen', restoreMinimumSize)
+    window.on('restore', restoreMinimumSize)
     return window
   }
 
