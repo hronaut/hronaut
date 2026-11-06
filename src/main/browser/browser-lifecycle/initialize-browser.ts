@@ -7,6 +7,7 @@ import { watchPresentedViewVisibility } from '../presented-view-visibility.js'
 import { restoredClosedTabs } from '../saved-closed-tabs/saved-closed-tabs.js'
 import { savedTabHistory } from '../saved-tab-history/saved-tab-history.js'
 import { rememberSavedClosedTabs } from '../tab-reopening/tab-reopening.js'
+import { restoreRestingSplitViews } from '../split-view/resting-split-views.js'
 import { sweepMemorySaver } from '../tab-sleep/memory-saver.js'
 import { focusTabOrTrustedChrome } from '../trusted-chrome-focus/trusted-chrome-focus.js'
 import { isHronautHomeUrl } from '../url.js'
@@ -119,6 +120,8 @@ export async function initializeBrowser(browser: Browser): Promise<void> {
     const fallbackId = browser.tabs.keys().next().value as string | undefined
     if (fallbackId) {
       const restoredActiveTabId = saved?.activeTabId && browser.tabs.has(saved.activeTabId) ? saved.activeTabId : fallbackId
+      // The split views put aside come back paired, so selecting either tab shows both again, the tab shown first too.
+      restoreRestingSplitViews(browser, saved?.restingSplitViews ?? [], saved?.splitView)
       browser.selectTab(restoredActiveTabId)
       const savedSplit = saved?.splitView
       if (
@@ -133,13 +136,6 @@ export async function initializeBrowser(browser: Browser): Promise<void> {
         const otherTabId = restoredActiveTabId === savedSplit.firstTabId ? savedSplit.secondTabId : savedSplit.firstTabId
         browser.window.contentView.addChildView(browser.tabs.get(otherTabId)!.view)
       }
-      // The split views put aside come back paired, so selecting either tab shows both again.
-      browser.restingSplitViews = (saved?.restingSplitViews ?? []).filter((split) => {
-        const first = browser.tabs.get(split.firstTabId)
-        const second = browser.tabs.get(split.secondTabId)
-        return first && second && !isHronautHomeUrl(first.url) && !isHronautHomeUrl(second.url)
-          && !browser.splitViewContains(first.id) && !browser.splitViewContains(second.id)
-      })
     }
   } else {
     await browser.createTab({ url: HRONAUT_HOME_URL, active: true })

@@ -144,7 +144,7 @@ export function selectTab(browser: Browser, tabId: string, options: BrowserTabSe
     browser.window.contentView.removeChildView(current.view)
   }
   if (current?.id !== next.id) browser.window.contentView.addChildView(next.view)
-  if (pair) showRestingPair(browser, pair, current)
+  if (pair) showRestingPair(browser, pair, { tab: next, attached: current, focus: options.focus !== false })
   writeActiveTabId(browser, next.id)
   markTabActiveInGroup(browser, next)
   browser.layout()

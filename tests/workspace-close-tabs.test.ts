@@ -98,6 +98,7 @@ function page(id: string, mcpGroupId: string, sleeping = false) {
     walletNavigationGeneration: 0, view: { id: `view-${id}` },
     webContents: {
       id: Number.parseInt(id.slice(-2), 16), isDestroyed: () => false, close: vi.fn(),
+      getURL: () => `https://example.test/${id.slice(-2)}`, isLoadingMainFrame: () => false,
       navigationHistory: { length: () => 1, getActiveIndex: () => 0, getEntryAtIndex: () => null, removeEntryAtIndex: () => false }
     }
   }
@@ -397,6 +398,18 @@ describe('closing a whole workspace', () => {
     expect(manager.activeTabId).toBe(OTHER_ASLEEP)
     expect(manager.splitView).toEqual(kept)
     expect(manager.restingSplitViews).toEqual([])
+  })
+
+  it('ends a pair of one of its tabs and a tab of another workspace, whose tab then shows alone', async () => {
+    const { manager, release } = await browser()
+    release()
+    manager.restingSplitViews = [{ firstTabId: ASLEEP, secondTabId: OTHER_AWAKE, orientation: 'vertical', ratio: 0.5 }]
+
+    await closeMcpTabGroup(manager, CLOSING, true)
+    expect(manager.restingSplitViews).toEqual([])
+    manager.selectTab(OTHER_AWAKE)
+    expect(manager.splitView).toBeNull()
+    expect(manager.activeTabId).toBe(OTHER_AWAKE)
   })
 
   it('saves the split views put aside whose two tabs it saves, which come back paired', async () => {

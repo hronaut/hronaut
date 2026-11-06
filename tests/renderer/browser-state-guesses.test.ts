@@ -91,11 +91,15 @@ describe('guesses of tab actions', () => {
     expect(alone.splitView).toBeUndefined()
     expect(alone.restingSplitViews).toEqual([aside, shown])
 
-    // A pair whose other tab shows Home, or is gone, ends, so the tab shows alone.
-    const home: BrowserState = { ...before, tabs: before.tabs.map((candidate) => candidate.id === 'c' ? { ...candidate, url: 'hronaut://home/' } : candidate) }
-    const ended = guessTabSelected('d')(home)
-    expect(ended.splitView).toBeUndefined()
-    expect(ended.restingSplitViews).toEqual([shown])
+    // A pair whose other tab or the selected tab shows Home, or whose other tab is gone, ends, so the tab shows alone.
+    const showingHome = (id: string): BrowserState => ({
+      ...before, tabs: before.tabs.map((candidate) => candidate.id === id ? { ...candidate, url: 'hronaut://home/' } : candidate)
+    })
+    for (const home of [showingHome('c'), showingHome('d')]) {
+      const ended = guessTabSelected('d')(home)
+      expect(ended.splitView).toBeUndefined()
+      expect(ended.restingSplitViews).toEqual([shown])
+    }
     const gone = guessTabSelected('d')({ ...before, tabs: before.tabs.filter((candidate) => candidate.id !== 'c') })
     expect(gone.splitView).toBeUndefined()
     expect(gone.restingSplitViews).toEqual([shown])

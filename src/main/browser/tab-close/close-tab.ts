@@ -295,7 +295,7 @@ async function performCloseTab(
         browser.window.contentView.addChildView(replacement.view)
         // As selecting it does, a tab of a split view put aside shows with its pair again.
         const pair = takeRestingPair(browser, replacement)
-        if (pair) showRestingPair(browser, pair)
+        if (pair) showRestingPair(browser, pair, { tab: replacement })
         browser.tabSelectionGeneration += 1
         replacement.lastActiveAt = performance.now()
         browser.activeTabId = replacement.id

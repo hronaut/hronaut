@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, powerMonitor: { on: () => undefined } }))
 // The prototype-built browser below stubs changed, getState and focusTabOrTrustedChrome, which selecting a tab and the
@@ -40,6 +41,7 @@ vi.mock('../src/main/browser/background-action.js', async (importOriginal) => ({
   runWalletLifecycleAction: vi.fn()
 }))
 import { Browser } from '../src/main/browser/browser.js'
+import { restoreRestingSplitViews } from '../src/main/browser/split-view/resting-split-views.js'
 import { closeSplitView, openSplitView, updateSplitView } from '../src/main/browser/split-view/split-view.js'
 import { closeTab } from '../src/main/browser/tab-close/close-tab.js'
 import { removeTabRecord } from '../src/main/browser/tab-close/remove-tab-record.js'
@@ -59,11 +61,22 @@ interface Tab {
   lastActiveAt: number
   navigationGeneration: number
   view: { id: string }
-  webContents: { id: number; destroyed: boolean; isDestroyed: () => boolean; close: () => void }
+  webContents: EventEmitter & {
+    id: number
+    destroyed: boolean
+    /** The page's address, empty until its first document loads, as for a tab restored asleep. */
+    url: string
+    focused: boolean
+    isDestroyed: () => boolean
+    close: () => void
+  }
 }
 
 function page(id: string, number: number): Tab {
-  const webContents = { id: number, destroyed: false, isDestroyed: () => webContents.destroyed, close: vi.fn() }
+  const webContents = Object.assign(new EventEmitter(), {
+    id: number, destroyed: false, url: `https://example.test/${id}`, focused: false, isDestroyed: () => webContents.destroyed,
+    close: vi.fn(), getURL: () => webContents.url, isLoadingMainFrame: () => false, isFocused: () => webContents.focused
+  })
   return {
     id, url: `https://example.test/${id}`, title: id, pinned: false, mcpGroupId: 'workspace', sleeping: false, lastActiveAt: 0,
     navigationGeneration: 0, view: { id }, webContents
@@ -71,6 +84,8 @@ function page(id: string, number: number): Tab {
 }
 
 const forgets = () => ({ forget: vi.fn() })
+/** The browser's stub that gives a tab, or Hronaut's own controls, the keyboard. */
+const focusTab = (manager: Browser) => (manager as unknown as { focusTabOrTrustedChrome: ReturnType<typeof vi.fn> }).focusTabOrTrustedChrome
 
 /** Four website tabs of one workspace, the first in view, and which of their pages the window shows. */
 function browser() {
@@ -83,6 +98,8 @@ function browser() {
     tabSelectionGeneration: 0, splitViewGeneration: 0,
     window: {
       isDestroyed: () => false,
+      isFocused: () => true,
+      webContents: { focus: vi.fn() },
       contentView: {
         addChildView: (view: { id: string }) => { shown.add(view.id) },
         removeChildView: (view: { id: string }) => { shown.delete(view.id) }
@@ -305,5 +322,69 @@ describe('a split view put aside', () => {
     expect(manager.splitView).toMatchObject({ firstTabId: 'beta', secondTabId: 'gamma' })
     expect(manager.restingSplitViews).toEqual([])
     expect(inView()).toEqual(['beta', 'gamma'])
+  })
+
+  it('keeps the keyboard from the tab paired with the tab selected while that tab loads its first document', async () => {
+    const { manager, tabs } = browser()
+    openSplitView(manager, 'beta')
+    manager.selectTab('gamma')
+    // Restored asleep after a restart, the tab paired with beta has no page yet.
+    const alpha = tabs.get('alpha')!
+    alpha.sleeping = true
+    alpha.webContents.url = ''
+    manager.selectTab('beta')
+    focusTab(manager).mockClear()
+
+    // Its page takes the keyboard as its view first shows, and the tab the person selected gets it back.
+    alpha.webContents.focused = true
+    alpha.webContents.emit('focus')
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(focusTab(manager)).toHaveBeenCalledWith(tabs.get('beta'))
+
+    // Once its document arrives, the page may have the keyboard.
+    alpha.webContents.emit('did-navigate')
+    focusTab(manager).mockClear()
+    alpha.webContents.emit('focus')
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(focusTab(manager)).not.toHaveBeenCalled()
+  })
+
+  it('leaves the keyboard in Hronaut\'s controls when a pair shows for a tab selected without it', async () => {
+    const { manager, tabs } = browser()
+    openSplitView(manager, 'beta')
+    manager.selectTab('gamma')
+    const alpha = tabs.get('alpha')!
+    alpha.webContents.url = ''
+    // Follow agents shows a tab without giving it the keyboard.
+    manager.selectTab('beta', { focus: false })
+    focusTab(manager).mockClear()
+
+    alpha.webContents.focused = true
+    alpha.webContents.emit('focus')
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(manager.window.webContents.focus).toHaveBeenCalled()
+    expect(focusTab(manager)).not.toHaveBeenCalled()
+  })
+
+  it('comes back after a restart, so the tab shown first shows with its pair', () => {
+    const { manager, tabs, inView } = browser()
+    tabs.set('epsilon', page('epsilon', 5))
+    tabs.set('zeta', page('zeta', 6))
+    tabs.get('beta')!.url = 'hronaut://home/'
+    const kept = { firstTabId: 'gamma', secondTabId: 'delta', orientation: 'horizontal' as const, ratio: 0.3 }
+    const shown = { firstTabId: 'alpha', secondTabId: 'theta', orientation: 'vertical' as const, ratio: 0.5 }
+    // A pair with a tab that did not come back, with Home, or with a tab of the split view saved in view is left out.
+    restoreRestingSplitViews(manager, [
+      kept,
+      { firstTabId: 'epsilon', secondTabId: 'missing', orientation: 'vertical', ratio: 0.5 },
+      { firstTabId: 'beta', secondTabId: 'epsilon', orientation: 'vertical', ratio: 0.5 },
+      { firstTabId: 'zeta', secondTabId: 'alpha', orientation: 'vertical', ratio: 0.5 }
+    ], shown)
+    expect(manager.restingSplitViews).toEqual([kept])
+    expect(manager.restingSplitViews[0]).not.toBe(kept)
+
+    manager.selectTab('delta')
+    expect(manager.splitView).toEqual(kept)
+    expect(inView()).toEqual(['delta', 'gamma'])
   })
 })
