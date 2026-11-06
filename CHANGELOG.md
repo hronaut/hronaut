@@ -10,6 +10,7 @@ All notable changes to Hronaut are documented in this file.
 - A tab's menu now offers **New Tab to the Right** (**New Tab Below** with tabs on the left), which opens the new tab right after that tab, as Chrome does, rather than **New Tab** at the end of the workspace.
 - Closing tabs with the mouse in the tab strip above the page keeps the other tabs as wide as they were until the pointer leaves the strip, as Chrome does, so you can close tab after tab without the close button sliding away.
 - Site controls can clear a website's data: **Clear data for this website** asks first, then deletes its cookies, including sign-in cookies, its storage and its cache in the tab's workspace, and offers to reload its pages, as in Chrome.
+- On Windows, a keyboard's Refresh, Stop, Home and Search keys now reload the page, stop it, open Home and go to the address bar, as in Chrome; they did nothing before.
 
 ### Fixed
 
