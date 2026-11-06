@@ -19,11 +19,19 @@ test('narrows to 600 CSS pixels of shell at each interface size, and grows when 
     await expect.poll(async () => (await size())[0]).toBe(750)
     await expect.poll(() => appWindow.evaluate(() => innerWidth)).toBe(600)
 
-    // A window restored to a size narrower than the scale needs, as one maximized while it changed, grows to it.
+    // A larger size chosen while the window was maximized waits until it is restored, then grows it. The window is
+    // only said to be maximized, as Xvfb has no window manager to maximize it.
+    await setScale(1)
+    await electronApp.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0]!.setSize(620, 600) })
+    await expect.poll(size).toEqual([620, 600])
+    await electronApp.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0]!.isMaximized = () => true })
+    await setScale(1.25)
+    await expect.poll(() => appWindow.evaluate(() => innerWidth)).toBe(496)
+    expect(await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.getMinimumSize())).toEqual([600, 520])
+    expect(await size()).toEqual([620, 600])
     await electronApp.evaluate(({ BrowserWindow }) => {
       const window = BrowserWindow.getAllWindows()[0]!
-      window.setMinimumSize(400, 400)
-      window.setSize(620, 600)
+      Reflect.deleteProperty(window, 'isMaximized')
       window.emit('unmaximize')
     })
     await expect.poll(size).toEqual([750, 600])

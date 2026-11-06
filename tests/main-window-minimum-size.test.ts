@@ -1,21 +1,22 @@
 import { expect, it, vi } from 'vitest'
 
-const workArea = { x: 0, y: 0, width: 1280, height: 800 }
+const workArea = { x: 0, y: 0, width: 1280, height: 776 }
+const displayBounds = { x: 0, y: 0, width: 1280, height: 800 }
 vi.mock('electron', async () => {
   const { EventEmitter } = await import('node:events')
   return {
     nativeTheme: Object.assign(new EventEmitter(), { themeSource: 'system', shouldUseDarkColors: false }),
-    screen: { getDisplayMatching: () => ({ workArea }) }
+    screen: { getDisplayMatching: () => ({ workArea, bounds: displayBounds }) }
   }
 })
-const { applyMainWindowMinimumSize, applyMainWindowMinimumSizeOnRestore, mainWindowMinimumSize } = await import('../src/main/windows/main-window-minimum-size.js')
+const { applyMainWindowMinimumSize, applyWaitingMainWindowMinimumSize, mainWindowMinimumSize } = await import('../src/main/windows/main-window-minimum-size.js')
 const { createWindowAppearance } = await import('../src/main/windows/appearance.js')
 
 // The main window could not be narrower than 760 pixels, so it did not fit half of a 1280, 1366 or 1440-pixel screen
 // beside another app, as Chrome's does; its shell lays out from 600 CSS pixels, so the minimum follows the interface scale.
 
 type Bounds = { x: number; y: number; width: number; height: number }
-type WindowState = { maximized?: boolean; fullScreen?: boolean; minimized?: boolean; frameWidth?: number; normal?: Bounds }
+type WindowState = { maximized?: boolean; fullScreen?: boolean; minimized?: boolean; frameWidth?: number }
 
 function fakeWindow(bounds: Bounds, state: WindowState = {}) {
   let current = bounds
@@ -28,7 +29,6 @@ function fakeWindow(bounds: Bounds, state: WindowState = {}) {
     isFullScreen: () => state.fullScreen ?? false,
     isMinimized: () => state.minimized ?? false,
     getBounds: () => current,
-    getNormalBounds: () => state.normal ?? current,
     getSize: () => [current.width, current.height],
     // A maximized or full screen window's frame shrinks or goes, so the frame is only there at its normal size.
     getContentSize: () => [current.width - (filling() ? 0 : state.frameWidth ?? 0), current.height],
@@ -37,8 +37,6 @@ function fakeWindow(bounds: Bounds, state: WindowState = {}) {
     webContents: { isDestroyed: () => false, setZoomFactor: vi.fn() }
   }
 }
-
-const settled = async () => { await new Promise((resolve) => setImmediate(resolve)) }
 
 it('keeps the shell at 600 CSS pixels wide at every interface scale', () => {
   expect(mainWindowMinimumSize(1)).toEqual({ width: 600, height: 520 })
@@ -76,42 +74,57 @@ it('leaves room for a system title bar\'s frame, so the shell keeps its width', 
   expect(framed.setBounds).toHaveBeenCalledWith({ x: 0, y: 0, width: 616, height: 700 })
 })
 
-it('keeps a frame measured at the window\'s normal size once it fills its screen', () => {
-  const window = fakeWindow({ x: 0, y: 0, width: 800, height: 700 }, { frameWidth: 16 })
+it('waits for a maximized, full screen or minimized window to have its own size, and measures its frame then', () => {
+  for (const state of [{ maximized: true }, { fullScreen: true }, { minimized: true }]) {
+    const normal = { x: 40, y: 0, width: 620, height: 700 }
+    const window = fakeWindow(state.minimized ? normal : { ...workArea }, { ...state, frameWidth: 16 })
+    applyMainWindowMinimumSize(window as never, 1.25)
+    expect(window.setMinimumSize).not.toHaveBeenCalled()
+    expect(window.setBounds).not.toHaveBeenCalled()
+    // Still filling its screen, or minimized, it waits on.
+    applyWaitingMainWindowMinimumSize(window as never, 1.25)
+    expect(window.setMinimumSize).not.toHaveBeenCalled()
+
+    Object.assign(window.state, { maximized: false, fullScreen: false, minimized: false })
+    window.move(normal)
+    applyWaitingMainWindowMinimumSize(window as never, 1.25)
+    expect(window.setMinimumSize).toHaveBeenCalledWith(766, 520)
+    expect(window.setBounds).toHaveBeenCalledWith({ x: 40, y: 0, width: 766, height: 700 })
+    // Applied once: a later resize leaves it to the minimum.
+    applyWaitingMainWindowMinimumSize(window as never, 1.25)
+    expect(window.setMinimumSize).toHaveBeenCalledOnce()
+  }
+})
+
+it('waits on while a window that left maximized or full screen still fills its screen, as a window manager can say first', () => {
+  for (const area of [workArea, displayBounds]) {
+    const window = fakeWindow({ ...area }, { maximized: true })
+    applyMainWindowMinimumSize(window as never, 1.25)
+    window.state.maximized = false
+    applyWaitingMainWindowMinimumSize(window as never, 1.25)
+    expect(window.setMinimumSize).not.toHaveBeenCalled()
+    // The resize that gives it its size back applies it, keeping it on its screen.
+    window.move({ x: 600, y: 0, width: 660, height: 700 })
+    applyWaitingMainWindowMinimumSize(window as never, 1.25)
+    expect(window.setBounds).toHaveBeenCalledWith({ x: 530, y: 0, width: 750, height: 700 })
+  }
+})
+
+it('takes the scale chosen last, so one lowered again while the window was maximized moves nothing', () => {
+  const window = fakeWindow({ ...workArea }, { maximized: true })
+  applyMainWindowMinimumSize(window as never, 1.25)
   applyMainWindowMinimumSize(window as never, 1)
-  expect(window.setMinimumSize).toHaveBeenLastCalledWith(616, 520)
-  window.state.fullScreen = true
-  window.move({ x: 0, y: 0, width: 1280, height: 800 })
-  applyMainWindowMinimumSize(window as never, 1.25)
-  expect(window.setMinimumSize).toHaveBeenLastCalledWith(766, 520)
-})
-
-it('grows a window restored narrower than a scale chosen while it filled its screen, once the system restored it', async () => {
-  const normal = { x: 40, y: 0, width: 620, height: 700 }
-  const window = fakeWindow({ x: 0, y: 0, width: 1280, height: 800 }, { maximized: true, normal })
-  applyMainWindowMinimumSize(window as never, 1.25)
+  window.state.maximized = false
+  window.move({ x: 760, y: 0, width: 620, height: 700 })
+  applyWaitingMainWindowMinimumSize(window as never, 1)
+  expect(window.setMinimumSize).toHaveBeenCalledWith(600, 520)
   expect(window.setBounds).not.toHaveBeenCalled()
-  // Windows says the window left full screen, or was restored, before it has its size back.
-  applyMainWindowMinimumSizeOnRestore(window as never, () => 1.25)
-  window.state.maximized = false
-  window.move(normal)
-  await settled()
-  expect(window.setBounds).toHaveBeenCalledWith({ x: 40, y: 0, width: 750, height: 700 })
 })
 
-it('keeps on its screen a window the system itself grew to the new minimum as it was restored', async () => {
-  const window = fakeWindow({ x: 0, y: 0, width: 1280, height: 800 }, { maximized: true, normal: { x: 600, y: 0, width: 660, height: 700 } })
-  applyMainWindowMinimumSize(window as never, 1.25)
-  applyMainWindowMinimumSizeOnRestore(window as never, () => 1.25)
-  window.state.maximized = false
-  window.move({ x: 600, y: 0, width: 750, height: 700 })
-  await settled()
-  expect(window.setBounds).toHaveBeenCalledWith({ x: 530, y: 0, width: 750, height: 700 })
-
-  // A window the person left past its screen's edge, with no new minimum, stays where they left it.
-  const placed = fakeWindow({ x: 900, y: 0, width: 750, height: 700 })
-  applyMainWindowMinimumSizeOnRestore(placed as never, () => 1.25)
-  await settled()
+it('leaves a window with nothing waiting alone, wherever the person placed it', () => {
+  const placed = fakeWindow({ x: 900, y: 0, width: 620, height: 700 })
+  applyWaitingMainWindowMinimumSize(placed as never, 1.25)
+  expect(placed.setMinimumSize).not.toHaveBeenCalled()
   expect(placed.setBounds).not.toHaveBeenCalled()
 })
 
@@ -119,15 +132,6 @@ it('moves a grown window only as far as growing pushed it, and only along the si
   const low = fakeWindow({ x: -100, y: 400, width: 620, height: 700 })
   applyMainWindowMinimumSize(low as never, 1.25)
   expect(low.setBounds).toHaveBeenCalledWith({ x: -100, y: 400, width: 750, height: 700 })
-})
-
-it('does not resize a maximized, full screen or minimized window', () => {
-  for (const state of [{ maximized: true }, { fullScreen: true }, { minimized: true }]) {
-    const window = fakeWindow({ x: 0, y: 0, width: 620, height: 700 }, state)
-    applyMainWindowMinimumSize(window as never, 1.25)
-    expect(window.setMinimumSize).toHaveBeenCalledWith(750, 520)
-    expect(window.setBounds).not.toHaveBeenCalled()
-  }
 })
 
 it('gives the main window the minimum size of a new interface scale', () => {
