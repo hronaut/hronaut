@@ -1952,7 +1952,9 @@ export const viVN: MessageSchema = {
       reset: 'Đặt lại về mặc định',
       empty: 'Không có quyết định tùy chỉnh nào cho trang web này. Hronaut sẽ hỏi khi cần quyền.',
       allSettings: 'Tất cả cài đặt trang web',
-      clearData: 'Xóa dữ liệu của trang web này'
+      clearData: 'Xóa dữ liệu của trang web này',
+      reloadToApply: 'Để áp dụng các tùy chọn cài đặt đã cập nhật cho trang web này, hãy tải lại trang này',
+      reload: 'Tải lại'
     },
     suggestions: 'Đề xuất địa chỉ cục bộ',
     split: {

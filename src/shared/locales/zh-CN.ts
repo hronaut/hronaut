@@ -1952,7 +1952,9 @@ export const zhCN: MessageSchema = {
       reset: '恢复默认设置',
       empty: '此网站没有自定义决定。需要权限时，Hronaut 会询问您。',
       allSettings: '所有网站设置',
-      clearData: '清除此网站的数据'
+      clearData: '清除此网站的数据',
+      reloadToApply: '要将更新后的设置应用于此网站，请重新加载此页面',
+      reload: '重新加载'
     },
     suggestions: '本地地址建议',
     split: {

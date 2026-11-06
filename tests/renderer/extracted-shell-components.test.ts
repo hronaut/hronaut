@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/vue'
+import { render, screen, within } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
@@ -56,6 +56,7 @@ describe('extracted shell components', () => {
     const submit = vi.fn()
     const openRoutes = vi.fn()
     const resetPermission = vi.fn(async () => true)
+    const reloadTab = vi.fn()
     const addressController = {
       address: ref('https://example.test/app'),
       input: ref<HTMLInputElement | null>(null),
@@ -128,7 +129,8 @@ describe('extracted shell components', () => {
           setSitePermission: vi.fn(async () => true),
           resetSitePermission: resetPermission,
           openSitePermissionSettings: vi.fn(),
-          openSitePrivacySettings: vi.fn()
+          openSitePrivacySettings: vi.fn(),
+          reloadTab
         }
       }
     })
@@ -146,6 +148,16 @@ describe('extracted shell components', () => {
     expect(resetPermission).toHaveBeenCalledWith(permission)
     expect(screen.getByRole('button', { name: 'Site controls for example.test' })).toHaveFocus()
     expect(view.emitted()['update:siteControlsOpen']).toBeUndefined()
+
+    // The page goes on with what it was allowed until it loads again, which the panel offers while the tab says so.
+    const offer = 'To apply your updated settings to this site, reload this page'
+    expect(screen.queryByText(offer)).toBeNull()
+    await view.rerender({ activeTab: { ...tab(), permissionReloadOffered: true } })
+    expect(screen.getByText(offer)).toBeVisible()
+    await user.click(within(screen.getByRole('dialog', { name: 'example.test' })).getByRole('button', { name: 'Reload' }))
+    expect(reloadTab).toHaveBeenCalledExactlyOnceWith('tab-1')
+    await view.rerender({ activeTab: tab() })
+    expect(screen.queryByText(offer)).toBeNull()
   })
 
   it('does not reopen site controls or steal focus after a permission reset becomes stale', async () => {
@@ -224,7 +236,8 @@ describe('extracted shell components', () => {
           setSitePermission: vi.fn(async () => true),
           resetSitePermission: resetPermission,
           openSitePermissionSettings: vi.fn(),
-          openSitePrivacySettings: vi.fn()
+          openSitePrivacySettings: vi.fn(),
+          reloadTab: vi.fn()
         }
       }
     })
@@ -323,7 +336,8 @@ describe('extracted shell components', () => {
           setSitePermission: sitePermissionsController.setDecision,
           resetSitePermission: sitePermissionsController.remove,
           openSitePermissionSettings: vi.fn(),
-          openSitePrivacySettings: vi.fn()
+          openSitePrivacySettings: vi.fn(),
+          reloadTab: vi.fn()
         }
       }
     })
@@ -404,7 +418,8 @@ describe('extracted shell components', () => {
         setSitePermission: vi.fn(async () => true),
         resetSitePermission: vi.fn(async () => true),
         openSitePermissionSettings: vi.fn(),
-        openSitePrivacySettings: vi.fn()
+        openSitePrivacySettings: vi.fn(),
+        reloadTab: vi.fn()
       }
     }
     const view = render(BrowserAddressBar, { global, props })

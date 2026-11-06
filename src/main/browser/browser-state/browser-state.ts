@@ -97,6 +97,7 @@ function toState(browser: Browser, tab: BrowserTab): BrowserTabState {
     audible: tab.audible,
     tabMuted: tab.tabMuted,
     muted: tab.muted,
+    ...(tab.permissionReloadOffered === tab.documentGeneration && !tab.sleeping ? { permissionReloadOffered: true } : {}),
     devToolsOpen: !webContentsDestroyed && tab.webContents.isDevToolsOpened(),
     ...browser.emulationProjection(tab),
     ...(tab.networkRoutes.length ? { networkRouteCount: tab.networkRoutes.length } : {}),

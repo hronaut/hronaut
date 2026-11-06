@@ -260,7 +260,8 @@ const addressBarActions = {
   setSitePermission: setSitePermissionDecision,
   resetSitePermission: removeSitePermission,
   openSitePermissionSettings,
-  openSitePrivacySettings
+  openSitePrivacySettings,
+  reloadTab: (tabId: string) => props.syncState(props.browser.reload(tabId))
 }
 
 function expandTabGroup(groupId: string): void {

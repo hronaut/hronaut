@@ -42,6 +42,7 @@ export interface BrowserAddressBarActions {
   resetSitePermission: (entry: SitePermissionEntry) => boolean | Promise<boolean>
   openSitePermissionSettings: () => void
   openSitePrivacySettings: () => void | Promise<void>
+  reloadTab: (tabId: string) => unknown
 }
 
 const props = defineProps<{
@@ -167,6 +168,12 @@ function run(action: () => unknown): void {
 
 function setSitePermission(entry: SitePermissionEntry, decision: SitePermissionDecision): boolean | Promise<boolean> {
   return props.actions.setSitePermission(entry, decision)
+}
+
+/** Reloads the page shown, so the permissions of its website changed since it loaded apply to it. */
+function reloadForPermissions(): void {
+  const tab = props.activeTab
+  if (tab?.permissionReloadOffered) run(() => props.actions.reloadTab(tab.id))
 }
 
 async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean> {
@@ -334,6 +341,8 @@ async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean>
       :permission-pending="isSitePermissionPending"
       :set-permission="setSitePermission"
       :reset-permission="resetSitePermission"
+      :reload-offered="Boolean(activeTab?.permissionReloadOffered)"
+      :reload-page="reloadForPermissions"
       :open-permission-settings="actions.openSitePermissionSettings"
       :open-privacy-settings="actions.openSitePrivacySettings"
       :refresh="siteDataController.refresh"

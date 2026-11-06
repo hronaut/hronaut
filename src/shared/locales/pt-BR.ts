@@ -1952,7 +1952,9 @@ export const ptBR: MessageSchema = {
       reset: 'Redefinir para o padrão',
       empty: 'Nenhuma decisão personalizada para este site. O Hronaut perguntará quando uma permissão for necessária.',
       allSettings: 'Todas as configurações do site',
-      clearData: 'Limpar dados deste site'
+      clearData: 'Limpar dados deste site',
+      reloadToApply: 'Para aplicar as configurações atualizadas a este site, recarregue esta página',
+      reload: 'Recarregar'
     },
     suggestions: 'Sugestões de endereço locais',
     split: {

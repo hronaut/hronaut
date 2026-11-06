@@ -50,6 +50,8 @@ export interface BrowserTabState {
   audible: boolean
   tabMuted?: boolean
   muted: boolean
+  /** A permission of the page's website changed since it loaded, which applies once it loads again. */
+  permissionReloadOffered?: true
   devToolsOpen: boolean
   emulation?: BrowserEmulationState
   emulationState?: BrowserUnconfirmedEmulation

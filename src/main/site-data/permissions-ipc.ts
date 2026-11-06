@@ -6,13 +6,14 @@ import {
   normalizeSitePermissionScope,
   type SitePermissionStore
 } from './site-permission-store.js'
-import type { SitePermissionScope } from '../../shared/types.js'
+import type { SitePermissionEntry, SitePermissionScope } from '../../shared/types.js'
 import { PERMISSIONS_IPC } from '../../shared/ipc/permissions.js'
 
 interface PermissionsIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
   sitePermissionStore(): Pick<SitePermissionStore, 'list' | 'set' | 'remove' | 'clear'> | null
-  publishSitePermissions(): void
+  /** Tells the shell windows the decisions, and applies those the person changed or forgot to the open tabs. */
+  publishSitePermissions(changed: readonly Omit<SitePermissionEntry, 'decision'>[]): void
 }
 
 /**
@@ -45,7 +46,7 @@ export function registerPermissionsIpc(ipcMain: Pick<TypedIpcMain, 'handle'>, ho
       if (!isSitePermissionDecision(decision)) throw new TypeError('Invalid site permission')
       const requested = requestedDecision(origin, permission, scope)
       const entry = await host.sitePermissionStore()!.set(requested.origin, requested.permission, decision, requested.scope)
-      host.publishSitePermissions()
+      host.publishSitePermissions([entry])
       return entry
     }
   )
@@ -53,12 +54,13 @@ export function registerPermissionsIpc(ipcMain: Pick<TypedIpcMain, 'handle'>, ho
     host.assertTrustedSender(event)
     const requested = requestedDecision(origin, permission, scope)
     const removed = await host.sitePermissionStore()!.remove(requested.origin, requested.permission, requested.scope)
-    host.publishSitePermissions()
+    host.publishSitePermissions(removed ? [{ origin: requested.origin, permission: requested.permission, ...requested.scope }] : [])
     return removed
   })
   ipcMain.handle(PERMISSIONS_IPC.clear, async (event) => {
     host.assertTrustedSender(event)
+    const forgotten = host.sitePermissionStore()!.list()
     await host.sitePermissionStore()!.clear()
-    host.publishSitePermissions()
+    host.publishSitePermissions(forgotten)
   })
 }

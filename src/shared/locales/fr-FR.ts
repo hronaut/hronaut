@@ -1952,7 +1952,9 @@ export const frFR: MessageSchema = {
       reset: 'Rétablir la valeur par défaut',
       empty: 'Aucune décision personnalisée pour ce site web. Hronaut demandera lorsqu’une autorisation sera nécessaire.',
       allSettings: 'Tous les paramètres du site',
-      clearData: 'Effacer les données de ce site web'
+      clearData: 'Effacer les données de ce site web',
+      reloadToApply: 'Pour appliquer les paramètres mis à jour à ce site, rechargez cette page',
+      reload: 'Recharger'
     },
     suggestions: 'Suggestions d’adresses locales',
     split: {

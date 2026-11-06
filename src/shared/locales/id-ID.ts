@@ -1952,7 +1952,9 @@ export const idID: MessageSchema = {
       reset: 'Setel ulang ke default',
       empty: 'Tidak ada keputusan kustom untuk situs ini. Hronaut akan bertanya saat izin diperlukan.',
       allSettings: 'Semua setelan situs',
-      clearData: 'Hapus data untuk situs ini'
+      clearData: 'Hapus data untuk situs ini',
+      reloadToApply: 'Untuk menerapkan setelan yang diperbarui ke situs ini, muat ulang halaman ini',
+      reload: 'Muat ulang'
     },
     suggestions: 'Saran alamat lokal',
     split: {

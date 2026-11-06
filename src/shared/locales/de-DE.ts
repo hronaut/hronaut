@@ -1952,7 +1952,9 @@ export const deDE: MessageSchema = {
       reset: 'Auf Standard zurücksetzen',
       empty: 'Keine benutzerdefinierten Entscheidungen für diese Website. Hronaut fragt, wenn eine Berechtigung benötigt wird.',
       allSettings: 'Alle Website-Einstellungen',
-      clearData: 'Daten dieser Website löschen'
+      clearData: 'Daten dieser Website löschen',
+      reloadToApply: 'Laden Sie diese Seite neu, um die aktualisierten Einstellungen auf diese Website anzuwenden',
+      reload: 'Neu laden'
     },
     suggestions: 'Lokale Adressvorschläge',
     split: {

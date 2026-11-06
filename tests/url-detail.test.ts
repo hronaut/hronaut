@@ -111,6 +111,12 @@ describe('URL detail omission', () => {
     expect(mcpWorkspaceTab({ ...tab, handedBack: { at: 5, note: 'The page stayed at the same address.' } }, true).handedBack).toEqual({ at: 5, note: 'The page stayed at the same address.' })
   })
 
+  it('keeps out whether the person changed a permission of the tab\'s website since it loaded', () => {
+    const tab = { id: 't', title: 'Call', url: 'https://meet.example.test/room', permissionReloadOffered: true as const }
+    expect(mcpWorkspaceTab(tab)).toEqual({ id: 't', title: 'Call', url: 'https://meet.example.test/room' })
+    expect(mcpWorkspaceTab(tab, true)).not.toHaveProperty('permissionReloadOffered')
+  })
+
   it('shows saved workspaces and their tabs without detail, in workspace state too', () => {
     const saved = { id: 's', name: 'Checkout', tabs: [{ title: SECRET_URL, url: SECRET_URL, pinned: false }, { title: 'Inbox', url: 'https://mail.example.test/?folder=query-canary', pinned: true }] }
     expect(savedWorkspaceWithoutUrlDetail(saved)).toMatchObject({

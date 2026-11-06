@@ -26,11 +26,13 @@ function renderPanel(options: {
   refresh?: () => unknown
   keepsSeparatePanelOpen?: () => boolean
   security?: AddressSecurity | null
+  reloadOffered?: boolean
 } = {}) {
   const setPermission = options.setPermission ?? vi.fn(() => true)
   const resetPermission = vi.fn(() => true)
   const openPermissionSettings = vi.fn()
   const openPrivacySettings = vi.fn()
+  const reloadPage = vi.fn()
   const view = render(SiteControlsPanel, {
     global: { plugins: [createHronautI18n(options.locale ?? 'en-US')] },
     props: {
@@ -49,13 +51,15 @@ function renderPanel(options: {
       permissionPending: options.permissionPending ?? (() => false),
       setPermission,
       resetPermission,
+      reloadOffered: options.reloadOffered ?? false,
+      reloadPage,
       openPermissionSettings,
       openPrivacySettings,
       refresh: options.refresh ?? vi.fn(),
       keepsSeparatePanelOpen: options.keepsSeparatePanelOpen ?? (() => false)
     }
   })
-  return { view, setPermission, resetPermission, openPermissionSettings, openPrivacySettings }
+  return { view, setPermission, resetPermission, openPermissionSettings, openPrivacySettings, reloadPage }
 }
 
 describe('SiteControlsPanel', () => {
@@ -99,6 +103,24 @@ describe('SiteControlsPanel', () => {
     expect(resetPermission).toHaveBeenCalledWith(cameraPermission)
     expect(openPermissionSettings).toHaveBeenCalledOnce()
     expect(openPrivacySettings).toHaveBeenCalledOnce()
+  })
+
+  // A page already using a permission, such as its camera, goes on with it until it loads again, as Chrome's site
+  // information says once a permission changed.
+  it('offers to reload the page once a permission changed, and says so as it appears', async () => {
+    const { view, reloadPage } = renderPanel()
+    const status = screen.getByRole('status')
+    expect(status).toBeEmptyDOMElement()
+
+    await view.rerender({ reloadOffered: true })
+    expect(status).toHaveTextContent('To apply your updated settings to this site, reload this page')
+    await userEvent.setup().click(within(status).getByRole('button', { name: 'Reload' }))
+    expect(reloadPage).toHaveBeenCalledOnce()
+
+    // Also once the page has no custom decision left, as after Reset to default.
+    await view.rerender({ permissions: [] })
+    expect(screen.getByText('No custom decisions for this website. Hronaut will ask when a permission is needed.')).toBeVisible()
+    expect(within(screen.getByRole('status')).getByRole('button', { name: 'Reload' })).toBeVisible()
   })
 
   it('emits dock and close model changes', async () => {

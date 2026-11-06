@@ -1952,7 +1952,9 @@ export const koKR: MessageSchema = {
       reset: '기본값으로 재설정',
       empty: '이 웹사이트에 대한 맞춤 결정이 없습니다. 권한이 필요하면 Hronaut에서 묻습니다.',
       allSettings: '모든 사이트 설정',
-      clearData: '이 웹사이트의 데이터 삭제'
+      clearData: '이 웹사이트의 데이터 삭제',
+      reloadToApply: '이 사이트에 업데이트된 설정을 적용하려면 이 페이지를 새로고침하세요',
+      reload: '새로고침'
     },
     suggestions: '로컬 주소 추천',
     split: {

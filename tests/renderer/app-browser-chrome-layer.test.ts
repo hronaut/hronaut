@@ -1122,6 +1122,12 @@ describe('AppBrowserChromeLayer', () => {
       openSitePermissionSettings: harness.siteActions.openSitePermissionSettings,
       openSitePrivacySettings: harness.siteActions.openSitePrivacySettings
     })
+    // Reload in Site controls reloads the tab it is offered for, not whichever shows.
+    harness.browser.reload.mockClear()
+    harness.syncState.mockClear()
+    await (addressActions.reloadTab as (tabId: string) => unknown)('tab-2')
+    expect(harness.browser.reload).toHaveBeenCalledExactlyOnceWith('tab-2')
+    expect(harness.syncState).toHaveBeenCalledOnce()
     expect(page.props('closeOtherMenus')).toBe(harness.actions.prepareSplitViewMenu)
 
     const closeSettings = (harness.props.settingsController as unknown as { settingsDialogController: { close: ReturnType<typeof vi.fn> } })

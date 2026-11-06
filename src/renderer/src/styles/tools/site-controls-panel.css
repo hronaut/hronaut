@@ -31,6 +31,9 @@
 .site-permission-control button { @apply grid [width:28px] [height:28px] p-0 place-items-center border-0 [border-radius:var(--corner-1)] text-muted bg-transparent cursor-pointer; }
 .site-permission-control button:hover { @apply text-copy bg-hover; }
 .site-permission-control button svg { @apply [width:17px] [height:17px]; }
+.site-permission-reload:not(:empty) { @apply flex items-center justify-between [gap:12px] [margin-top:9px] [padding:8px_8px_8px_11px] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-2)] [font-size:var(--type-small-size)] [line-height:1.45]; }
+.site-permission-reload button { @apply shrink-0 [min-height:30px] [padding:5px_11px] [border-radius:var(--corner-1)] [font:inherit] [font-weight:var(--weight-strong)] cursor-pointer; }
+.site-permission-reload button:hover { @apply bg-hover; }
 .site-controls-panel > footer { @apply flex [min-height:57px] items-center justify-end [gap:8px] [padding:10px_14px] [border-top:1px_solid_var(--border-soft)] bg-surface; }
 .site-controls-panel > footer button { @apply [min-height:35px] [padding:7px_11px] [border-radius:var(--corner-2)] [font:inherit] [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)] cursor-pointer; }
 .site-controls-secondary { @apply [border:1px_solid_var(--border-soft)] text-copy bg-transparent; }
