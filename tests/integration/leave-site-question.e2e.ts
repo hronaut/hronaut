@@ -53,6 +53,8 @@ test('a person leaving a page that asks before it is left by a link is asked, an
   // An agent's click keeps the page without asking the person about work they did not start.
   const agentClick = await call('browser_click', { selector: '#away' })
   expect(agentClick.isError, text(agentClick)).not.toBe(true)
+  // The agent learns why nothing happened.
+  expect(JSON.parse(text(agentClick)).pageAskedToStay).toContain('so the navigation this click started was cancelled')
   await settle()
   expect(await asked()).toBe(0)
   expect(await address()).toBe(start)

@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 const showMessageBoxSync = vi.fn<(window: unknown, options: Record<string, unknown>) => number>()
 vi.mock('electron', () => ({ dialog: { showMessageBoxSync: (...args: [unknown, Record<string, unknown>]) => showMessageBoxSync(...args) } }))
 
-const { attachLeaveSiteQuestion } = await import('../src/main/browser/tab-events/leave-site-question.js')
+const { attachLeaveSiteQuestion, agentLeaveRefusals } = await import('../src/main/browser/tab-events/leave-site-question.js')
 
 afterEach(() => {
   showMessageBoxSync.mockReset()
@@ -63,10 +63,17 @@ describe('Leave site question', () => {
   })
 
   it('keeps the page without asking while an agent input runs on it', () => {
-    const { browser, askToLeave } = setUp()
+    const { browser, webContents, askToLeave } = setUp()
+    expect(agentLeaveRefusals(webContents as never)).toBe(0)
     browser.agentInputWebContents.set(7, 1)
     expect(askToLeave()).toEqual({ left: false })
     expect(showMessageBoxSync).not.toHaveBeenCalled()
+    // The agent's click reads the count to say the page stayed.
+    expect(agentLeaveRefusals(webContents as never)).toBe(1)
+    browser.agentInputWebContents.delete(7)
+    showMessageBoxSync.mockReturnValue(0)
+    askToLeave()
+    expect(agentLeaveRefusals(webContents as never)).toBe(1)
   })
 
   it('does not ask for a tab that is closed or a browser that is going away', () => {
