@@ -128,7 +128,12 @@ async function closeMcpTabGroupAfterLabelSave(browser: Browser, groupId: string,
   }
   // Deleting the storage can take long. Until it commits, the saved session keeps the workspace as it was, so a crash
   // meanwhile brings it back with its tabs instead of empty.
-  if (!preserveStorage) browser.workspacesBeingDeleted.set(groupId, { activeTabId: previousGroupActiveTabId, tabs: tabs.map(persistedTab) })
+  if (!preserveStorage) {
+    browser.workspacesBeingDeleted.set(groupId, {
+      activeTabId: previousGroupActiveTabId,
+      tabs: tabs.map((tab) => persistedTab(tab, () => browser.navigationHistorySnapshot(tab)))
+    })
+  }
   try {
     await closeTabs(browser, tabSnapshots.map((tab) => tab.id), false)
     // A tab left open would name a workspace the saved session no longer has, which the next start refuses to load.
