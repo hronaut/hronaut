@@ -63,7 +63,7 @@ interface ClosedForPerson {
 }
 
 /**
- * Reopens tabs closed together, the last closed first, so each goes back where it was. A tab closed alone is shown
+ * Reopens tabs closed together, the last closed first, so each goes back where it was. The one tab it reopens is shown
  * again, and of several the one that was shown, so the person is back where they were; the others reopen behind it.
  * False when none of them could be reopened, such as after Reopen closed tab took them.
  */
