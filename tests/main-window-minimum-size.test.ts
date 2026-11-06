@@ -9,7 +9,7 @@ vi.mock('electron', async () => {
     screen: { getDisplayMatching: () => ({ workArea, bounds: displayBounds }) }
   }
 })
-const { applyMainWindowMinimumSize, applyWaitingMainWindowMinimumSize, mainWindowMinimumSize } = await import('../src/main/windows/main-window-minimum-size.js')
+const { applyMainWindowMinimumSize, keepMainWindowMinimumSize, mainWindowMinimumSize } = await import('../src/main/windows/main-window-minimum-size.js')
 const { createWindowAppearance } = await import('../src/main/windows/appearance.js')
 
 // The main window could not be narrower than 760 pixels, so it did not fit half of a 1280, 1366 or 1440-pixel screen
@@ -82,16 +82,16 @@ it('waits for a maximized, full screen or minimized window to have its own size,
     expect(window.setMinimumSize).not.toHaveBeenCalled()
     expect(window.setBounds).not.toHaveBeenCalled()
     // Still filling its screen, or minimized, it waits on.
-    applyWaitingMainWindowMinimumSize(window as never, 1.25)
+    keepMainWindowMinimumSize(window as never, 1.25)
     expect(window.setMinimumSize).not.toHaveBeenCalled()
 
     Object.assign(window.state, { maximized: false, fullScreen: false, minimized: false })
     window.move(normal)
-    applyWaitingMainWindowMinimumSize(window as never, 1.25)
+    keepMainWindowMinimumSize(window as never, 1.25)
     expect(window.setMinimumSize).toHaveBeenCalledWith(766, 520)
     expect(window.setBounds).toHaveBeenCalledWith({ x: 40, y: 0, width: 766, height: 700 })
     // Applied once: a later resize leaves it to the minimum.
-    applyWaitingMainWindowMinimumSize(window as never, 1.25)
+    keepMainWindowMinimumSize(window as never, 1.25)
     expect(window.setMinimumSize).toHaveBeenCalledOnce()
   }
 })
@@ -101,13 +101,58 @@ it('waits on while a window that left maximized or full screen still fills its s
     const window = fakeWindow({ ...area }, { maximized: true })
     applyMainWindowMinimumSize(window as never, 1.25)
     window.state.maximized = false
-    applyWaitingMainWindowMinimumSize(window as never, 1.25)
+    keepMainWindowMinimumSize(window as never, 1.25)
     expect(window.setMinimumSize).not.toHaveBeenCalled()
     // The resize that gives it its size back applies it, keeping it on its screen.
     window.move({ x: 600, y: 0, width: 660, height: 700 })
-    applyWaitingMainWindowMinimumSize(window as never, 1.25)
+    keepMainWindowMinimumSize(window as never, 1.25)
     expect(window.setBounds).toHaveBeenCalledWith({ x: 530, y: 0, width: 750, height: 700 })
   }
+})
+
+it('takes a smaller minimum at once while the window fills its screen, with the frame measured last', () => {
+  // Snapping a maximized window beside another app was held to the larger minimum of the size chosen before.
+  const window = fakeWindow({ x: 0, y: 0, width: 800, height: 700 }, { frameWidth: 16 })
+  applyMainWindowMinimumSize(window as never, 1.25)
+  expect(window.setMinimumSize).toHaveBeenLastCalledWith(766, 520)
+  window.state.maximized = true
+  window.move({ ...workArea })
+  applyMainWindowMinimumSize(window as never, 1)
+  expect(window.setMinimumSize).toHaveBeenLastCalledWith(616, 520)
+  // A larger one waits.
+  applyMainWindowMinimumSize(window as never, 1.1)
+  expect(window.setMinimumSize).toHaveBeenCalledTimes(2)
+  // Once restored, the frame is measured again at the window's own size.
+  window.state.maximized = false
+  window.move({ x: 0, y: 0, width: 800, height: 700 })
+  keepMainWindowMinimumSize(window as never, 1.1)
+  expect(window.setMinimumSize).toHaveBeenLastCalledWith(676, 520)
+})
+
+it('grows a window the system left narrower than its minimum, as a macOS window ending its unzoom at its old width', () => {
+  const window = fakeWindow({ ...workArea }, { maximized: true })
+  applyMainWindowMinimumSize(window as never, 1.25)
+  // The unzoom resizes through larger sizes first, where the minimum is applied with nothing to grow.
+  window.state.maximized = false
+  window.move({ x: 100, y: 0, width: 900, height: 700 })
+  keepMainWindowMinimumSize(window as never, 1.25)
+  expect(window.setMinimumSize).toHaveBeenCalledWith(750, 520)
+  expect(window.setBounds).not.toHaveBeenCalled()
+  window.move({ x: 100, y: 0, width: 640, height: 700 })
+  keepMainWindowMinimumSize(window as never, 1.25)
+  expect(window.setBounds).toHaveBeenCalledWith({ x: 100, y: 0, width: 750, height: 700 })
+})
+
+it('takes bounds a pixel or two from the work area, as Windows rounds them, as filling it', () => {
+  const window = fakeWindow({ ...workArea }, { maximized: true })
+  applyMainWindowMinimumSize(window as never, 1.25)
+  window.state.maximized = false
+  window.move({ x: 1, y: 0, width: 1279, height: 775 })
+  keepMainWindowMinimumSize(window as never, 1.25)
+  expect(window.setMinimumSize).not.toHaveBeenCalled()
+  window.move({ x: 4, y: 0, width: 1270, height: 770 })
+  keepMainWindowMinimumSize(window as never, 1.25)
+  expect(window.setMinimumSize).toHaveBeenCalledWith(750, 520)
 })
 
 it('takes the scale chosen last, so one lowered again while the window was maximized moves nothing', () => {
@@ -116,15 +161,17 @@ it('takes the scale chosen last, so one lowered again while the window was maxim
   applyMainWindowMinimumSize(window as never, 1)
   window.state.maximized = false
   window.move({ x: 760, y: 0, width: 620, height: 700 })
-  applyWaitingMainWindowMinimumSize(window as never, 1)
+  keepMainWindowMinimumSize(window as never, 1)
   expect(window.setMinimumSize).toHaveBeenCalledWith(600, 520)
   expect(window.setBounds).not.toHaveBeenCalled()
 })
 
-it('leaves a window with nothing waiting alone, wherever the person placed it', () => {
+it('leaves a window at its minimum with nothing waiting alone, wherever the person placed it', () => {
   const placed = fakeWindow({ x: 900, y: 0, width: 620, height: 700 })
-  applyWaitingMainWindowMinimumSize(placed as never, 1.25)
-  expect(placed.setMinimumSize).not.toHaveBeenCalled()
+  applyMainWindowMinimumSize(placed as never, 1)
+  placed.move({ x: 1000, y: 0, width: 620, height: 700 })
+  keepMainWindowMinimumSize(placed as never, 1)
+  expect(placed.setMinimumSize).toHaveBeenCalledOnce()
   expect(placed.setBounds).not.toHaveBeenCalled()
 })
 

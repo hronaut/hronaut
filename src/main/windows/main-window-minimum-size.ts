@@ -1,4 +1,4 @@
-import { screen, type BrowserWindow } from 'electron'
+import { screen, type BrowserWindow, type Rectangle } from 'electron'
 import { scaleShellMetric } from '../../shared/interface-scale.js'
 
 /**
@@ -13,8 +13,13 @@ export function mainWindowMinimumSize(scale: number): { width: number; height: n
   return { width: scaleShellMetric(MIN_SHELL_WIDTH, scale), height: MIN_WINDOW_HEIGHT }
 }
 
-/** Windows whose minimum waits until they have their own size again, as one chosen while they were maximized. */
+/** Windows whose minimum waits until they have their own size again, as a larger one chosen while they were maximized. */
 const waiting = new WeakSet<BrowserWindow>()
+/** The minimum last given to each window: the shell's width and the frame measured with it. */
+const applied = new WeakMap<BrowserWindow, { shellWidth: number; frame: number }>()
+
+/** How far, in pixels, bounds may be from a work area or screen and still fill it, as Windows rounds them. */
+const FILL_TOLERANCE = 2
 
 /** Whether the window has its own size, rather than its screen's or none. */
 function hasNormalSize(window: BrowserWindow): boolean {
@@ -38,17 +43,26 @@ function shiftedBack(start: number, size: number, grownSize: number, areaStart: 
 /**
  * Gives the main window the minimum size of an interface scale, with room for a system title bar's frame. A window
  * narrower than a larger interface needs grows to it, as a minimum set later does not resize it on every system, and
- * stays on its screen. A maximized, full screen or minimized window gets it once it has its own size again, so its
- * frame is measured at that size and the system never grows it past its screen as it gives the size back.
+ * stays on its screen. A maximized, full screen or minimized window takes a smaller minimum at once, with the frame
+ * measured last, so snapping it beside another app is not held to the larger one; a larger minimum waits until the
+ * window has its own size again, so its frame is measured at that size and the system never grows the window past its
+ * screen as it gives the size back.
  */
 export function applyMainWindowMinimumSize(window: BrowserWindow, scale: number): void {
+  const minimum = mainWindowMinimumSize(scale)
   if (!hasNormalSize(window)) {
     waiting.add(window)
+    const last = applied.get(window)
+    if (last && minimum.width <= last.shellWidth) {
+      applied.set(window, { shellWidth: minimum.width, frame: last.frame })
+      window.setMinimumSize(minimum.width + last.frame, minimum.height)
+    }
     return
   }
   waiting.delete(window)
-  const minimum = mainWindowMinimumSize(scale)
-  const width = minimum.width + frameWidth(window)
+  const frame = frameWidth(window)
+  applied.set(window, { shellWidth: minimum.width, frame })
+  const width = minimum.width + frame
   window.setMinimumSize(width, minimum.height)
   const bounds = window.getBounds()
   if (bounds.width >= width && bounds.height >= minimum.height) return
@@ -62,16 +76,20 @@ export function applyMainWindowMinimumSize(window: BrowserWindow, scale: number)
 }
 
 /**
- * Applies a minimum that waited, once the window has its own size again. Until the window stops filling its screen's
- * work area or its whole screen, it waits on: a window manager can say a window left maximized before giving it its
- * size back, and the resize that follows applies it then, as it does for a macOS window dragged out of its zoom.
+ * Keeps the window at its minimum once it has its own size again, after it is restored or as it is resized: a minimum
+ * that waited is applied, and a window the system left narrower than its minimum grows, as a macOS window does that
+ * ends its unzoom at its old width after resizing through larger ones. While the window still fills its screen's work
+ * area or its whole screen, it waits on: a window manager can say it left maximized before giving it its size back.
  */
-export function applyWaitingMainWindowMinimumSize(window: BrowserWindow, scale: number): void {
-  if (window.isDestroyed() || !waiting.has(window) || !hasNormalSize(window)) return
+export function keepMainWindowMinimumSize(window: BrowserWindow, scale: number): void {
+  if (window.isDestroyed() || !hasNormalSize(window)) return
   const bounds = window.getBounds()
   const display = screen.getDisplayMatching(bounds)
-  const fills = (area: { x: number; y: number; width: number; height: number }): boolean => bounds.x === area.x && bounds.y === area.y
-    && bounds.width === area.width && bounds.height === area.height
+  const near = (value: number, filled: number): boolean => Math.abs(value - filled) <= FILL_TOLERANCE
+  const fills = (area: Rectangle): boolean => near(bounds.x, area.x) && near(bounds.y, area.y)
+    && near(bounds.width, area.width) && near(bounds.height, area.height)
   if (fills(display.workArea) || fills(display.bounds)) return
-  applyMainWindowMinimumSize(window, scale)
+  const last = applied.get(window)
+  const belowMinimum = !last || bounds.width < last.shellWidth + last.frame || bounds.height < MIN_WINDOW_HEIGHT
+  if (waiting.has(window) || belowMinimum) applyMainWindowMinimumSize(window, scale)
 }

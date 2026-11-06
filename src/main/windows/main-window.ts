@@ -16,7 +16,7 @@ import { windowMaterialFor, windowMaterialOptions, type WindowMaterial } from '.
 import type { ResolvedThemeName } from '../../shared/theme.js'
 import type { AppSettings, ThemeName } from '../../shared/types.js'
 import { attachShellKeyHandoff } from './shell-key-handoff.js'
-import { applyWaitingMainWindowMinimumSize, mainWindowMinimumSize } from './main-window-minimum-size.js'
+import { keepMainWindowMinimumSize, mainWindowMinimumSize } from './main-window-minimum-size.js'
 
 /**
  * The main window and what it was opened with, created once by index.ts. The window opens after startup and closes
@@ -151,14 +151,14 @@ export function createMainWindow(host: MainWindowHost): {
       }
     })
     attachShellKeyHandoff(window.webContents)
-    // A scale chosen while the window filled its screen, or was minimized, sets its minimum once it has its own size:
-    // as it is restored, on the next turn, or as it is next resized.
-    const applyWaitingMinimum = (): void => { applyWaitingMainWindowMinimumSize(window, host.settings().interfaceScale) }
-    const afterRestore = (): void => { setImmediate(applyWaitingMinimum) }
+    // Once the window has its own size again, as it is restored, on the next turn, or as it is resized, it keeps its
+    // minimum: one a scale chosen meanwhile set, and one the system did not hold it to.
+    const keepMinimum = (): void => { keepMainWindowMinimumSize(window, host.settings().interfaceScale) }
+    const afterRestore = (): void => { setImmediate(keepMinimum) }
     window.on('unmaximize', afterRestore)
     window.on('leave-full-screen', afterRestore)
     window.on('restore', afterRestore)
-    window.on('resize', applyWaitingMinimum)
+    window.on('resize', keepMinimum)
     return window
   }
 
