@@ -55,7 +55,7 @@ interface AppLifecycleHost {
 /**
  * The application's lifecycle events: one instance per profile, where a second launch shows the window or quits the
  * first one; staying alive with no window so MCP clients can reconnect; recording window bounds before quitting;
- * starting once Electron is ready; and an orderly shutdown that exits after at most ten seconds, so an update relaunch
+ * starting once Electron is ready; logging a helper process that ended unexpectedly; and an orderly shutdown that exits after at most ten seconds, so an update relaunch
  * can continue.
  */
 export function registerAppLifecycle(app: Pick<App, 'on' | 'whenReady' | 'quit' | 'exit'>, host: AppLifecycleHost): void {
@@ -81,6 +81,14 @@ export function registerAppLifecycle(app: Pick<App, 'on' | 'whenReady' | 'quit' 
     // A page that closes with a request still held lets Chromium send it to its real destination.
     const browser = host.tabs()
     if (browser) failHeldNetworkResponses(browser)
+  })
+
+  // A GPU, network service or other helper process that ends unexpectedly is restarted by Chromium; without a line here,
+  // a window that flickered blank or requests that failed meanwhile left no trace.
+  app.on('child-process-gone', (_event, details) => {
+    if (details.reason === 'clean-exit' || host.quit.quitting) return
+    const name = details.name ? ` (${details.name})` : ''
+    console.error(`[process] ${details.type}${name} process ended: ${details.reason} (exit code ${details.exitCode})`)
   })
 
   app.whenReady().then(async () => {
