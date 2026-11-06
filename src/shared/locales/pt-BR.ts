@@ -4336,7 +4336,6 @@ export const ptBR: MessageSchema = {
       preventMoreDialogs: 'Impedir que esta página mostre outras caixas de diálogo',
       pageDestroyedTitle: 'Esta página não está mais disponível',
       pageDestroyedMessage: 'Feche esta guia e reabra-a em Fechadas recentemente.',
-      pageUnavailable: 'Página indisponível',
       unresponsiveTitle: 'Esta página não está respondendo',
       unresponsiveMessage: 'Você pode aguardar a recuperação ou recarregá-la agora.',
       saveDownload: 'Salvar download',

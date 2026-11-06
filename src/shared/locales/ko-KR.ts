@@ -4336,7 +4336,6 @@ export const koKR: MessageSchema = {
       preventMoreDialogs: '이 페이지에서 대화상자를 더 이상 표시하지 않음',
       pageDestroyedTitle: '이 페이지를 더 이상 사용할 수 없습니다',
       pageDestroyedMessage: '이 탭을 닫은 후 최근에 닫은 탭에서 다시 여세요.',
-      pageUnavailable: '페이지를 사용할 수 없음',
       unresponsiveTitle: '페이지가 응답하지 않음',
       unresponsiveMessage: '페이지가 복구될 때까지 기다리거나 지금 새로고침할 수 있습니다.',
       saveDownload: '다운로드 저장',

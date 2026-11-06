@@ -4336,7 +4336,6 @@ export const esES: MessageSchema = {
       preventMoreDialogs: 'Impedir que esta página cree más cuadros de diálogo',
       pageDestroyedTitle: 'Esta página ya no está disponible',
       pageDestroyedMessage: 'Cierra esta pestaña y vuelve a abrirla desde Cerradas recientemente.',
-      pageUnavailable: 'Página no disponible',
       unresponsiveTitle: 'Esta página no responde',
       unresponsiveMessage: 'Puedes esperar a que se recupere o recargarla ahora.',
       saveDownload: 'Guardar descarga',

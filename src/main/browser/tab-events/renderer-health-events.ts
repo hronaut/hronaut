@@ -63,7 +63,7 @@ export function attachRendererHealthEvents(browser: Browser, tab: BrowserTab, we
       tab.pageLifecycleUnknownRequest ??= 'frozen'
     }
     tab.loading = false
-    tab.title = browser.text('native.dialog.pageUnavailable')
+    // The tab keeps its page's title, as Chrome's crashed tab does: its icon and the problem row say what happened.
     tab.pageProblem = rendererFailureProblem(browser.options.getLocale(), tab.url, reason, details.exitCode)
     appendConsoleMessage(tab, {
       timestamp: new Date().toISOString(),

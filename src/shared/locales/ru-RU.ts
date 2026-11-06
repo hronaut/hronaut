@@ -4336,7 +4336,6 @@ export const ruRU: MessageSchema = {
       preventMoreDialogs: 'Запретить этой странице показывать дополнительные диалоговые окна',
       pageDestroyedTitle: 'Страница больше недоступна',
       pageDestroyedMessage: 'Закройте эту вкладку и откройте её снова из недавно закрытых.',
-      pageUnavailable: 'Страница недоступна',
       unresponsiveTitle: 'Страница не отвечает',
       unresponsiveMessage: 'Можно подождать восстановления или перезагрузить её сейчас.',
       saveDownload: 'Сохранить загрузку',

@@ -4334,7 +4334,6 @@ export const enUS = {
       preventMoreDialogs: 'Prevent this page from creating additional dialogs',
       pageDestroyedTitle: 'This page is no longer available',
       pageDestroyedMessage: 'Close this tab and reopen it from Recently closed.',
-      pageUnavailable: 'Page unavailable',
       unresponsiveTitle: "This page isn't responding",
       unresponsiveMessage: 'You can wait for it to recover or reload it now.',
       saveDownload: 'Save download',

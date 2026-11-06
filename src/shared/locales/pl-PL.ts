@@ -4336,7 +4336,6 @@ export const plPL: MessageSchema = {
       preventMoreDialogs: 'Nie pozwalaj tej stronie wyświetlać kolejnych okien dialogowych',
       pageDestroyedTitle: 'Ta strona nie jest już dostępna',
       pageDestroyedMessage: 'Zamknij tę kartę i otwórz ją ponownie z listy Ostatnio zamknięte.',
-      pageUnavailable: 'Strona niedostępna',
       unresponsiveTitle: 'Ta strona nie odpowiada',
       unresponsiveMessage: 'Możesz poczekać na przywrócenie działania lub odświeżyć ją teraz.',
       saveDownload: 'Zapisz pobrany plik',

@@ -5,8 +5,8 @@ import { closeFixtureServer, closeHronaut, expect, launchHronaut, test } from '.
 
 type TestWindow = { hronaut: HronautApi }
 
-// A tab whose page crashed is titled Page unavailable. The saved session and an archived workspace kept it so, and it
-// came back so, asleep, until its page loaded again; Chrome brings it back by its page's title.
+// A tab whose page crashed was retitled Page unavailable. The saved session and an archived workspace kept it so, and
+// it came back so, asleep, until its page loaded again; Chrome's crashed tab keeps its page's title and comes back by it.
 
 async function reportServer() {
   const server = createServer((_request, response) => {
@@ -19,6 +19,9 @@ async function reportServer() {
 
 const titleOf = (window: Page, url: string) => window.evaluate(async (address) => (
   (await (window as unknown as TestWindow).hronaut.getState()).tabs.find(tab => tab.url === address)?.title
+), url)
+const problemOf = (window: Page, url: string) => window.evaluate(async (address) => (
+  (await (window as unknown as TestWindow).hronaut.getState()).tabs.find(tab => tab.url === address)?.pageProblem?.kind
 ), url)
 
 /** Opens the page in a tab, crashes its page and shows another tab, which leaves the crashed tab behind. */
@@ -33,7 +36,8 @@ async function crashBehind(app: ElectronApplication, window: Page, url: string, 
     page.once('render-process-gone', () => resolve())
     page.forcefullyCrashRenderer()
   }), url)
-  await expect.poll(() => titleOf(window, url)).toBe('Page unavailable')
+  await expect.poll(() => problemOf(window, url)).toBe('renderer-gone')
+  expect(await titleOf(window, url)).toBe('Quarterly report')
   await window.evaluate(mcpGroupId => (
     (window as unknown as TestWindow).hronaut.newTab({ url: 'data:text/html,<title>Other</title>', active: true, ...(mcpGroupId ? { mcpGroupId } : {}) })
   ), mcpGroupId)

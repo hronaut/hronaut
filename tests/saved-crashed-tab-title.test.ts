@@ -2,11 +2,9 @@ import { describe, expect, it, vi } from 'vitest'
 import { persistedTab, type PersistedStateTab } from '../src/main/browser/browser-state/persisted-state.js'
 import type { BrowserPageProblem } from '../src/shared/types.js'
 
-// A tab whose page crashed or could not load is titled for that, such as Page unavailable. The saved session kept that
-// title, so after a restart the tab came back asleep under it, and closing it then listed Page unavailable in Recently
-// closed. Chrome brings it back by its page's title.
-
-const CRASHED: BrowserPageProblem = { kind: 'renderer-gone', title: 'Page unavailable', message: 'The page stopped.', url: '', reason: 'crashed' }
+// A tab whose page could not load is titled Site unavailable. The saved session kept that title, so after a restart the
+// tab came back asleep under it, and closing it then listed Site unavailable in Recently closed. Chrome brings it back
+// by its page. A tab whose page crashed keeps its page's title, as Chrome's does, and is saved by it.
 
 function tab(changes: Partial<PersistedStateTab>): PersistedStateTab {
   return {
@@ -16,10 +14,7 @@ function tab(changes: Partial<PersistedStateTab>): PersistedStateTab {
 }
 
 describe('the title the saved session keeps a tab by', () => {
-  it('is its page\'s title in its history when the page crashed', () => {
-    const history = () => ({ entries: [{ url: 'https://mail.example/inbox', title: 'Inbox (3)' }], index: 0 })
-    expect(persistedTab(tab({ title: 'Page unavailable', pageProblem: CRASHED }), history).title).toBe('Inbox (3)')
-    // Its address as Chromium shows it, when its page could not load or had no title of its own.
+  it('is its address as Chromium shows it when its page could not load', () => {
     const failed: BrowserPageProblem = { kind: 'load-error', title: 'Site unavailable', message: 'Unreachable.', url: '' }
     const untitled = () => ({ entries: [{ url: 'https://mail.example/inbox', title: 'mail.example/inbox' }], index: 0 })
     expect(persistedTab(tab({ title: 'Site unavailable', pageProblem: failed }), untitled).title).toBe('https://mail.example/inbox')
@@ -30,6 +25,8 @@ describe('the title the saved session keeps a tab by', () => {
     expect(persistedTab(tab({}), history).title).toBe('Inbox (3)')
     const hung: BrowserPageProblem = { kind: 'unresponsive', title: 'Page not responding', message: 'Wait or close it.', url: '' }
     expect(persistedTab(tab({ pageProblem: hung }), history).title).toBe('Inbox (3)')
+    const crashed: BrowserPageProblem = { kind: 'renderer-gone', title: 'This page stopped working', message: 'The page stopped.', url: '', reason: 'crashed' }
+    expect(persistedTab(tab({ pageProblem: crashed }), history).title).toBe('Inbox (3)')
     expect(history).not.toHaveBeenCalled()
   })
 })

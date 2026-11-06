@@ -4336,7 +4336,6 @@ export const frFR: MessageSchema = {
       preventMoreDialogs: 'Empêcher cette page d’afficher d’autres boîtes de dialogue',
       pageDestroyedTitle: 'Cette page n’est plus disponible',
       pageDestroyedMessage: 'Fermez cet onglet et rouvrez-le depuis Fermés récemment.',
-      pageUnavailable: 'Page indisponible',
       unresponsiveTitle: 'Cette page ne répond pas',
       unresponsiveMessage: 'Vous pouvez attendre qu’elle récupère ou la recharger maintenant.',
       saveDownload: 'Enregistrer le téléchargement',
