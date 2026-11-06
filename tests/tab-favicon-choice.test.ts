@@ -24,6 +24,7 @@ vi.mock('../src/main/browser/browser-state/browser-state.js', () => ({ publishCh
 function page(icons: Record<string, { size: number | string; after: number }>) {
   const fetches: { url: string; signal: AbortSignal }[] = []
   const tab = {
+    url: 'https://site.example/page',
     faviconRequestId: 0,
     webContents: {
       isDestroyed: () => false,
@@ -44,7 +45,9 @@ function page(icons: Record<string, { size: number | string; after: number }>) {
   } as unknown as BrowserTab
   const urls = Object.keys(icons).map((name) => `https://site.example/${name}`)
   const shown = () => tab.faviconDataUrl ? Buffer.from(tab.faviconDataUrl.split(',')[1]!, 'base64').toString() : undefined
-  return { tab, urls, fetches, shown, load: () => loadFavicon({ destroyed: false } as Browser, tab, urls) }
+  const onSiteIcon = vi.fn<(page: { url: string; icon: string }) => void>()
+  const browser = { destroyed: false, options: { onSiteIcon } } as unknown as Browser
+  return { tab, urls, fetches, shown, onSiteIcon, browser, load: () => loadFavicon(browser, tab, urls) }
 }
 
 afterEach(() => {
@@ -68,6 +71,9 @@ describe('the icon a tab shows', () => {
 
     expect(icons.shown()).toBe('icon 64')
     expect(icons.fetches.map(({ signal }) => signal.aborted)).toEqual([true, true, true, true])
+    // History and Bookmarks hear of each icon the tab showed, for its page.
+    expect(icons.onSiteIcon.mock.calls.map(([{ icon }]) => Buffer.from(icon.split(',')[1]!, 'base64').toString())).toEqual(['icon 16', 'icon 24', 'icon 64'])
+    expect(icons.onSiteIcon).toHaveBeenCalledWith(expect.objectContaining({ url: icons.tab.url }))
   })
 
   it('does not wait for an icon listed before the one it shows', async () => {
@@ -105,8 +111,8 @@ describe('the icon a tab shows', () => {
     vi.useFakeTimers()
     const icons = page({ old: { size: 48, after: 10 }, current: { size: 64, after: 20 } })
 
-    const superseded = loadFavicon({ destroyed: false } as Browser, icons.tab, [icons.urls[0]!])
-    const current = loadFavicon({ destroyed: false } as Browser, icons.tab, [icons.urls[1]!])
+    const superseded = loadFavicon(icons.browser, icons.tab, [icons.urls[0]!])
+    const current = loadFavicon(icons.browser, icons.tab, [icons.urls[1]!])
     await vi.advanceTimersByTimeAsync(20)
     await Promise.all([superseded, current])
 

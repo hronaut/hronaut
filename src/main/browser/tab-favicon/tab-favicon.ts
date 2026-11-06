@@ -37,6 +37,8 @@ export async function loadFavicon(browser: Browser, tab: BrowserTab, favicons: s
     // Persist this update explicitly so a later crash or forced restart
     // does not replace the restored tab icon with the generic globe.
     publishChange(browser)
+    // History and Bookmarks show the page's website by it.
+    browser.options.onSiteIcon?.({ url: tab.url, icon: icon.dataUrl })
     if (icon.size >= FAVICON_SIZE) controller.abort()
   }
   try {

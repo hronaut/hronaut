@@ -8,5 +8,7 @@ export const historyApi: HronautHistoryApi = {
   remove: (id: string) => invoke(HISTORY_IPC.remove, id),
   clear: () => invoke(HISTORY_IPC.clear),
   onChanged: (listener) => subscribe(HISTORY_IPC.changed, (entries) => listener(entries)),
-  onUpdated: (listener) => subscribe(HISTORY_IPC.updated, (changes) => listener(changes))
+  onUpdated: (listener) => subscribe(HISTORY_IPC.updated, (changes) => listener(changes)),
+  siteIcons: () => invoke(HISTORY_IPC.siteIcons),
+  onSiteIconsChanged: (listener) => subscribe(HISTORY_IPC.siteIconsChanged, (icons) => listener(icons))
 }

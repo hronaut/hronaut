@@ -19,6 +19,7 @@ import { asMiddleClick, openClickTab } from '../../open-click.js'
 import { vTooltip } from '../../ui/tooltip.js'
 import { confirmAction } from '../../confirm-action.js'
 import { splitConfirmation } from '../../../../shared/confirmation.js'
+import SiteIcon from '../../components/SiteIcon.vue'
 
 const props = defineProps<{
   formatDateTime: (value: Date | number | string) => string
@@ -33,6 +34,8 @@ const props = defineProps<{
   copyHistoryAddress: (entry: BrowserHistoryEntry) => Promise<void>
   /** Gives the keyboard to the page in view. */
   returnKeyboard?: () => void
+  /** The websites' icons by origin. */
+  siteIcons?: Record<string, string>
 }>()
 
 const open = defineModel<boolean>('open', { required: true })
@@ -333,7 +336,7 @@ async function clearOrigin(event: Event): Promise<void> {
           @keydown="ignoreHeldEnter"
           @click="keepFocusThrough($event, () => openVisit($event, entry))"
           @auxclick="asMiddleClick($event, (click) => keepFocusThrough(click, () => openVisit(click, entry)))">
-          <span class="history-site-icon" aria-hidden="true"><IconLanguage /></span>
+          <span class="history-site-icon" aria-hidden="true"><SiteIcon :url="entry.url" :icons="siteIcons" /></span>
           <span class="history-copy">
             <strong>{{ entry.title }}</strong>
             <span>{{ entry.url }}</span>

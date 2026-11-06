@@ -2,8 +2,9 @@ import { app } from 'electron'
 import { join } from 'node:path'
 import { BookmarkStore, type RemovedBookmark, type RemovedCollection } from './bookmark-store.js'
 import { HistoryStore, normalizeHistoryUrl } from './history-store.js'
+import { SiteIconStore } from './site-icon-store.js'
 import { LocalizedError } from '../localized-error.js'
-import type { Browser } from '../browser/browser.js'
+import type { Browser, BrowserOptions } from '../browser/browser.js'
 import type { BookmarkOperations, HistoryOperations, McpHttpServer } from '../mcp/server.js'
 import type { UndoableAction } from '../undo-offers.js'
 import type { BrowserBookmark, BrowserHistoryEntry } from '../../shared/types.js'
@@ -12,6 +13,7 @@ import { forgetTrustedCertificates } from '../browser/certificate-errors/certifi
 import type { EventSender } from '../../shared/ipc/channel.js'
 import { BOOKMARKS_IPC, BOOKMARK_COLLECTIONS_IPC } from '../../shared/ipc/bookmarks.js'
 import { HISTORY_IPC } from '../../shared/ipc/history.js'
+import { siteIconOrigin } from '../../shared/site-icons.js'
 
 /** How long visits and new titles gather before the windows hear of them together. */
 const VISIT_CHANGES_DELAY_MS = 200
@@ -26,6 +28,8 @@ export interface BookmarksAndHistoryState {
   bookmarks: BookmarkStore | null
   /** The visit history, once open. */
   history: HistoryStore | null
+  /** The icons of the websites in the history and bookmarks, open with the history. */
+  siteIcons?: SiteIconStore | null
 }
 
 interface BookmarksAndHistoryHost {
@@ -53,6 +57,9 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
   openVisitHistory(): Promise<BrowserHistoryEntry[]>
   recordPageVisit(visit: { url: string; title: string; samePage: boolean }): void
   updatePageTitle(page: { url: string; title: string }): void
+  rememberSiteIcon(page: { url: string; icon: string }): void
+  /** What the tabs tell the history: the pages they visit, their titles and their websites' icons. */
+  pageHistoryCallbacks: Required<Pick<BrowserOptions, 'onPageVisited' | 'onPageTitleUpdated' | 'onSiteIcon'>>
   /** Offer Undo for what the person removed. */
   undoHooks: { bookmarkRemoved(removed: RemovedBookmark): void; collectionRemoved(removed: RemovedCollection): void }
   historyCleared(): void
@@ -61,6 +68,7 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
   agentHistory: HistoryOperations
 } {
   function publishBookmarks(): BrowserBookmark[] {
+    forgetUnlistedSiteIcons()
     const bookmarks = host.state.bookmarks?.list() ?? []
     host.sendToShellWindows(BOOKMARKS_IPC.changed, bookmarks)
     host.sendToShellWindows(BOOKMARK_COLLECTIONS_IPC.changed, host.state.bookmarks?.collectionSnapshot() ?? { revision: 0, collections: [] })
@@ -68,6 +76,7 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
   }
 
   function publishVisitHistory(): BrowserHistoryEntry[] {
+    forgetUnlistedSiteIcons()
     const entries = host.state.history?.list() ?? []
     host.sendToShellWindows(HISTORY_IPC.changed, entries)
     return entries
@@ -93,10 +102,48 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
     return host.state.bookmarks.load()
   }
 
-  /** Opens the visit history file; the returned promise is its load, which the window's startup waits for. */
-  function openVisitHistory(): Promise<BrowserHistoryEntry[]> {
-    host.state.history = new HistoryStore(join(app.getPath('userData'), 'history.json'), Date.now, publishVisitHistory)
-    return host.state.history.load()
+  /**
+   * Opens the visit history file and its websites' icons; the returned promise is the history's load, which the window's
+   * startup waits for.
+   */
+  async function openVisitHistory(): Promise<BrowserHistoryEntry[]> {
+    const history = new HistoryStore(join(app.getPath('userData'), 'history.json'), Date.now, publishVisitHistory)
+    const siteIcons = new SiteIconStore(join(app.getPath('userData'), 'site-icons.json'))
+    host.state.history = history
+    host.state.siteIcons = siteIcons
+    const [entries] = await Promise.all([history.load(), siteIcons.load()])
+    return entries
+  }
+
+  const siteIconChanges = new Map<string, string | null>()
+  let siteIconChangesTimer: NodeJS.Timeout | undefined
+  /** Sends the windows the websites' icons that changed, or null for those let go, together a few times a second. */
+  function publishSiteIconChanges(changes: Iterable<[origin: string, icon: string | null]>): void {
+    for (const [origin, icon] of changes) siteIconChanges.set(origin, icon)
+    if (siteIconChangesTimer || !siteIconChanges.size) return
+    siteIconChangesTimer = setTimeout(() => {
+      siteIconChangesTimer = undefined
+      host.sendToShellWindows(HISTORY_IPC.siteIconsChanged, Object.fromEntries(siteIconChanges))
+      siteIconChanges.clear()
+    }, VISIT_CHANGES_DELAY_MS)
+  }
+
+  /** Keeps the icon a tab showed as its page's website's, and sends the windows a change. */
+  function rememberSiteIcon({ url, icon }: { url: string; icon: string }): void {
+    const origin = host.state.siteIcons?.remember(url, icon)
+    if (origin) publishSiteIconChanges([[origin, icon]])
+  }
+
+  /**
+   * Lets go of the icons of websites no page of which is left in the history or the bookmarks, as Chrome forgets a
+   * website's icon with its pages, so clearing the history leaves no trace of a website in its icon.
+   */
+  function forgetUnlistedSiteIcons(): void {
+    const { history, bookmarks, siteIcons } = host.state
+    // Both lists are needed to tell which websites are left.
+    if (!history || !bookmarks || !siteIcons) return
+    const origins = new Set([...history.list(), ...bookmarks.list()].map((page) => siteIconOrigin(page.url)).filter((origin) => origin !== null))
+    publishSiteIconChanges(siteIcons.keepOnly(origins).map((origin) => [origin, null]))
   }
 
   /** Records a page a tab visited, or opened again, and sends the windows the change. */
@@ -209,6 +256,8 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
     openVisitHistory,
     recordPageVisit,
     updatePageTitle,
+    rememberSiteIcon,
+    pageHistoryCallbacks: { onPageVisited: recordPageVisit, onPageTitleUpdated: updatePageTitle, onSiteIcon: rememberSiteIcon },
     undoHooks: { bookmarkRemoved: offerBookmarkRestore, collectionRemoved: offerCollectionRestore },
     historyCleared,
     historyEntryRemoved,

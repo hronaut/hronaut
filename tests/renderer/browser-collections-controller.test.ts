@@ -57,10 +57,13 @@ function createHarness() {
   let bookmarksListener: (bookmarks: BrowserBookmark[]) => void = () => undefined
   let historyListener: (history: BrowserHistoryEntry[]) => void = () => undefined
   let historyChangesListener: (changes: BrowserHistoryChanges) => void = () => undefined
+  let siteIconsListener: (icons: Record<string, string | null>) => void = () => undefined
   const unsubscribeDownloads = vi.fn()
   const unsubscribeBookmarks = vi.fn()
   const unsubscribeHistory = vi.fn()
   const unsubscribeHistoryChanges = vi.fn()
+  const unsubscribeSiteIcons = vi.fn()
+  const listSiteIcons = vi.fn(async (): Promise<Record<string, string>> => ({}))
   const listDownloads = vi.fn(async (): Promise<BrowserDownloadState[]> => [])
   const cancelDownload = vi.fn(async (): Promise<BrowserDownloadState[]> => [])
   const clearFinishedDownloads = vi.fn(async (): Promise<BrowserDownloadState[]> => [])
@@ -115,6 +118,11 @@ function createHarness() {
     onUpdated: vi.fn((listener: (changes: BrowserHistoryChanges) => void): (() => void) => {
       historyChangesListener = listener
       return unsubscribeHistoryChanges
+    }),
+    siteIcons: listSiteIcons,
+    onSiteIconsChanged: vi.fn((listener: (icons: Record<string, string | null>) => void): (() => void) => {
+      siteIconsListener = listener
+      return unsubscribeSiteIcons
     })
   }
   const shouldAutoOpenDownloads = vi.fn(() => true)
@@ -145,6 +153,9 @@ function createHarness() {
     emitBookmarks: (next: BrowserBookmark[]) => bookmarksListener(next),
     emitHistory: (next: BrowserHistoryEntry[]) => historyListener(next),
     emitHistoryChanges: (changes: BrowserHistoryChanges) => historyChangesListener(changes),
+    emitSiteIcons: (icons: Record<string, string | null>) => siteIconsListener(icons),
+    listSiteIcons,
+    unsubscribeSiteIcons,
     unsubscribeDownloads,
     unsubscribeBookmarks,
     unsubscribeHistory,
@@ -340,6 +351,7 @@ describe('useBrowserCollectionsController', () => {
     expect(harness.unsubscribeBookmarks).toHaveBeenCalledOnce()
     expect(harness.unsubscribeHistory).toHaveBeenCalledOnce()
     expect(harness.unsubscribeHistoryChanges).toHaveBeenCalledOnce()
+    expect(harness.unsubscribeSiteIcons).toHaveBeenCalledOnce()
   })
 
   it('puts in the pages visited or retitled lately in their place, without the whole history', async () => {
@@ -367,6 +379,35 @@ describe('useBrowserCollectionsController', () => {
     await initializing
 
     expect(harness.controller.history.value.map((item) => item.id)).toEqual(['visited', 'earlier'])
+    harness.controller.dispose()
+  })
+
+  it('lists the websites\' icons once History or Bookmarks opens, and keeps them up to date after', async () => {
+    const harness = createHarness()
+    await harness.controller.initialize()
+    // Startup lists none: they wait for a panel that shows them.
+    harness.emitSiteIcons({ 'https://early.example': 'data:image/png;base64,AAAA' })
+    expect(harness.listSiteIcons).not.toHaveBeenCalled()
+    expect(harness.controller.siteIcons.value).toEqual({})
+
+    const listed = deferred<Record<string, string>>()
+    harness.listSiteIcons.mockReturnValueOnce(listed.promise)
+    void harness.controller.refreshHistory()
+    void harness.controller.refreshBookmarks()
+    listed.resolve({ 'https://early.example': 'data:image/png;base64,AAAA', 'https://docs.example': 'data:image/png;base64,BBBB' })
+    await vi.waitFor(() => expect(harness.controller.siteIcons.value).toEqual({
+      'https://early.example': 'data:image/png;base64,AAAA',
+      'https://docs.example': 'data:image/png;base64,BBBB'
+    }))
+    expect(harness.listSiteIcons).toHaveBeenCalledOnce()
+
+    harness.emitSiteIcons({ 'https://early.example': null, 'https://new.example': 'data:image/png;base64,CCCC' })
+    expect(harness.controller.siteIcons.value).toEqual({
+      'https://docs.example': 'data:image/png;base64,BBBB',
+      'https://new.example': 'data:image/png;base64,CCCC'
+    })
+    await harness.controller.refreshHistory()
+    expect(harness.listSiteIcons).toHaveBeenCalledOnce()
     harness.controller.dispose()
   })
 })

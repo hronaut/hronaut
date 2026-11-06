@@ -24,6 +24,8 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
   const downloads = ref<BrowserDownloadState[]>([])
   const bookmarks = ref<BrowserBookmark[]>([])
   const history = ref<BrowserHistoryEntry[]>([])
+  /** The icons of the websites in the history and bookmarks, by origin, once History or Bookmarks first opens. */
+  const siteIcons = ref<Record<string, string>>({})
   const knownDownloadIds = new Set<string>()
   let downloadsRevision = 0
   let bookmarksRevision = 0
@@ -32,6 +34,8 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
   let bookmarksRequestSequence = 0
   let historyRequestSequence = 0
   let historyListed = false
+  let siteIconsListed = false
+  let siteIconsListing: Promise<void> | undefined
   let initialized = false
   let initializePromise: Promise<void> | undefined
   let subscriptionsAttached = false
@@ -72,6 +76,31 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
     acceptHistory(withHistoryChanges(history.value, changes))
   }
 
+  /** Puts in the websites' icons that changed. One that changes before the first list is already in that list. */
+  function acceptSiteIconChanges(changes: Record<string, string | null>): void {
+    if (disposed || !siteIconsListed) return
+    const next = { ...siteIcons.value }
+    for (const [origin, icon] of Object.entries(changes)) {
+      if (icon === null) Reflect.deleteProperty(next, origin)
+      else next[origin] = icon
+    }
+    siteIcons.value = next
+  }
+
+  /** Lists the websites' icons once, when History or Bookmarks first opens; the changes keep them up to date after. */
+  function listSiteIcons(): void {
+    if (disposed || siteIconsListed || siteIconsListing) return
+    siteIconsListing = options.historyApi.siteIcons().then((icons) => {
+      if (disposed) return
+      siteIcons.value = icons
+      siteIconsListed = true
+    }).catch((error: unknown) => {
+      console.error('[history] Could not list site icons:', error)
+    }).finally(() => {
+      siteIconsListing = undefined
+    })
+  }
+
   async function resolveDownloads(operation: () => Promise<BrowserDownloadState[]>): Promise<BrowserDownloadState[]> {
     const revision = downloadsRevision
     const sequence = ++downloadsRequestSequence
@@ -102,7 +131,8 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
       () => options.downloadsApi.onChanged((next) => acceptDownloads(next, true)),
       () => options.bookmarksApi.onChanged(acceptBookmarks),
       () => options.historyApi.onChanged(acceptHistory),
-      () => options.historyApi.onUpdated(acceptHistoryChanges)
+      () => options.historyApi.onUpdated(acceptHistoryChanges),
+      () => options.historyApi.onSiteIconsChanged(acceptSiteIconChanges)
     ])
     subscriptionsAttached = true
   }
@@ -161,6 +191,7 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
   }
 
   function refreshBookmarks(): Promise<BrowserBookmark[]> {
+    listSiteIcons()
     return resolveBookmarks(() => options.bookmarksApi.list())
   }
 
@@ -194,6 +225,7 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
   }
 
   function refreshHistory(): Promise<BrowserHistoryEntry[]> {
+    listSiteIcons()
     return resolveHistory(() => options.historyApi.list())
   }
 
@@ -228,6 +260,7 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
     downloads,
     bookmarks,
     history,
+    siteIcons,
     initialize,
     refreshDownloads,
     pauseDownload,

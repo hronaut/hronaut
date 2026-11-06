@@ -149,6 +149,7 @@ describe('recently closed tabs and the history', () => {
       assertTrustedSender: () => undefined,
       bookmarks: () => { throw new Error('Not used') },
       history: () => history,
+      siteIcons: () => ({}),
       downloads: () => { throw new Error('Not used') },
       tabs: () => { throw new Error('Not used') },
       publishBookmarks: () => [],

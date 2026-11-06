@@ -20,6 +20,8 @@ interface CollectionIpcHost {
   /** The person removed a collection; Undo can put it back. */
   collectionRemoved?(removed: RemovedCollection): void
   history(): Pick<HistoryStore, 'list' | 'remove' | 'clear'>
+  /** The icons of the websites in the history and bookmarks, by origin. */
+  siteIcons(): Record<string, string>
   /** The person cleared their history, so anything else that names visited pages goes too. */
   historyCleared?(): void
   /** The person removed one page from their history, so anything else that names it goes too. */
@@ -132,6 +134,7 @@ export function registerCollectionIpc(ipcMain: Pick<TypedIpcMain, 'handle'>, hos
     return { snapshot: store.collectionSnapshot(), result }
   })
   ipcMain.handle(HISTORY_IPC.list, (event) => host.runRead(event, () => host.history().list()))
+  ipcMain.handle(HISTORY_IPC.siteIcons, (event) => host.runRead(event, () => host.siteIcons()))
   ipcMain.handle(HISTORY_IPC.remove, async (event, id: unknown) => {
     host.assertTrustedSender(event)
     if (typeof id !== 'string') throw new TypeError('Invalid history entry ID')

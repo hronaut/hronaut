@@ -73,6 +73,7 @@ export function createRuntimeShutdown(host: RuntimeShutdownHost): { releaseRunti
           host.bookmarksAndHistory.bookmarks?.flush(),
           host.credentialRuntime.store?.flush(),
           host.bookmarksAndHistory.history?.flush(),
+          host.bookmarksAndHistory.siteIcons?.flush(),
           host.browserSessionState.sitePermissionStore?.flush(),
           host.commercialLicenseRuntime.store?.flush(),
           host.settingsState.mutationQueue,

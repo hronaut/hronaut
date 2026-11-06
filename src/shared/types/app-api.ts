@@ -137,6 +137,10 @@ export interface HronautHistoryApi {
   onChanged(listener: (entries: BrowserHistoryEntry[]) => void): () => void
   /** Pages visited or retitled, sent together a few times a second while pages load rather than the whole history. */
   onUpdated(listener: (changes: BrowserHistoryChanges) => void): () => void
+  /** The icons of the websites in the history and bookmarks, by origin, as tabs last showed them. */
+  siteIcons(): Promise<Record<string, string>>
+  /** Websites' icons that changed, by origin, or null for those let go with the history and bookmarks. */
+  onSiteIconsChanged(listener: (icons: Record<string, string | null>) => void): () => void
 }
 
 export interface HronautBrowsingDataApi {
