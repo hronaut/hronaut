@@ -5,6 +5,7 @@ import { handOverTabsOpenedFrom, tabAfterClosingLinkTab } from '../link-tab-plac
 import { deleteSnapshotBaselineForTab } from '../page-snapshots/page-snapshots.js'
 import { invalidateTabOverviewPreview } from '../tab-overview-previews/tab-overview-previews.js'
 import { runWalletLifecycleAction } from '../background-action.js'
+import { forgetRestingSplitViews } from '../split-view/resting-split-views.js'
 
 /**
  * Forgets a closed tab: what each feature keeps for it, its record, and its browser session's cookie hook once no open
@@ -28,6 +29,8 @@ export function removeTabRecord(browser: Browser, tab: BrowserTab): void {
   const group = tab.mcpGroupId ? browser.mcpTabGroups.get(tab.mcpGroupId) : undefined
   const rememberedInstead = group?.activeTabId === tab.id ? workspaceTabAfterClose(browser, tab) : undefined
   browser.tabs.delete(tab.id)
+  // Its split view put aside ends, as in Chrome.
+  forgetRestingSplitViews(browser, tab.id)
   handOverTabsOpenedFrom(browser.tabs.values(), tab)
   browser.globallyUnlockedTabIds.delete(tab.id)
   browser.globallyResumedAgentTabIds.delete(tab.id)

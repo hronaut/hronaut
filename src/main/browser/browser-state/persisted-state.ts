@@ -104,6 +104,7 @@ export function persistedState(browser: Browser): PersistedBrowserState {
     continuityWorkspaceIds: browser.workspaceContinuity.guardedWorkspaceIds(),
     activeTabId: browser.activeTabId,
     ...(browser.splitView ? { splitView: { ...browser.splitView, ratio: browser.splitDivider.persistedRatio(browser.splitView.ratio) } } : {}),
+    ...restingSplitViewsSaved(browser, savedTabIds),
     allTabsMuted: browser.allTabsMuted,
     allHumanInteractionLocked: browser.allHumanInteractionLocked,
     mcpTabGroups: [...browser.mcpTabGroups.values()].map((group) => {
@@ -135,4 +136,12 @@ export function persistedState(browser: Browser): PersistedBrowserState {
     })),
     tabs
   }
+}
+
+/** The split views put aside whose tabs are both saved, so each comes back paired. */
+function restingSplitViewsSaved(browser: Browser, savedTabIds: ReadonlySet<string>): Pick<PersistedBrowserState, 'restingSplitViews'> {
+  const restingSplitViews = browser.restingSplitViews
+    .filter((split) => savedTabIds.has(split.firstTabId) && savedTabIds.has(split.secondTabId))
+    .map((split) => ({ ...split }))
+  return restingSplitViews.length ? { restingSplitViews } : {}
 }

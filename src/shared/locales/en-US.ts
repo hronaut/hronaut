@@ -1706,6 +1706,8 @@ export const enUS = {
       freezeUnknown: 'Page hold outcome unknown',
       stackedVisible: 'Visible in stacked split view',
       sideVisible: 'Visible in side-by-side split view',
+      stackedPaired: 'Paired in stacked split view',
+      sidePaired: 'Paired in side-by-side split view',
       inputLocked: 'Page input locked',
       switchWorkspace: 'Switch workspace',
       switchWorkspaceTitle: 'Switch workspace (Ctrl/Cmd+K)',

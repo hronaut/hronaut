@@ -334,6 +334,8 @@ export class Browser {
   previousPageTabId: string | null = null
   tabSelectionGeneration = 0
   splitView: BrowserSplitViewState | null = null
+  /** Split views put aside as another tab was selected, each tab in one at most; see resting-split-views.ts. */
+  restingSplitViews: BrowserSplitViewState[] = []
   splitViewGeneration = 0
   lastSplitDividerGeometry = ''
   lastEmulationFrames = '[]'

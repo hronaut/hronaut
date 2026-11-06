@@ -45,6 +45,7 @@ function browser() {
     tabs,
     activeTabId: 'guide' as string | null,
     splitView: null as BrowserSplitViewState | null,
+    restingSplitViews: [] as BrowserSplitViewState[],
     splitViewGeneration: 0,
     tabSelectionGeneration: 0,
     wakeTab: async () => ({}) as BrowserState,

@@ -60,7 +60,7 @@ function browser() {
   const putTabToSleep = vi.fn(async (_tab: Tab) => false)
   const manager = Object.assign(Object.create(Browser.prototype), {
     destroyed: false, tabs, mcpTabGroups: new Map(),
-    activeTabId: null, splitView: null, tabSelectionGeneration: 0, splitViewGeneration: 0,
+    activeTabId: null, splitView: null, restingSplitViews: [], tabSelectionGeneration: 0, splitViewGeneration: 0,
     memorySaverEnabled: true, memorySaverTimeoutMinutes: 60, memorySaverSettingsGeneration: 0,
     memorySaverSweeps: { run: (sweep: () => Promise<void>) => sweep() },
     window: { contentView: { addChildView: vi.fn(), removeChildView: vi.fn() } },

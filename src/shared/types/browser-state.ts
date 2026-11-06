@@ -291,6 +291,8 @@ export interface BrowserState {
   closedTabs: BrowserClosedTabState[]
   activeTabId: string | null
   splitView?: import('../split-view.js').BrowserSplitViewState
+  /** Split views not in view, whose tabs stay paired: selecting either tab shows both again, as in Chrome. */
+  restingSplitViews?: import('../split-view.js').BrowserSplitViewState[]
   agentControlLocked?: boolean
   allTabsMuted?: boolean
   allHumanInteractionLocked: boolean

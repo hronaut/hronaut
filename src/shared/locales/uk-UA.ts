@@ -1708,6 +1708,8 @@ export const ukUA: MessageSchema = {
       freezeUnknown: 'Результат зупинки сторінки невідомий',
       stackedVisible: 'Відображається у вертикально складеному розділеному перегляді',
       sideVisible: 'Відображається у розділеному перегляді поруч',
+      stackedPaired: 'У парі у вертикально складеному розділеному перегляді',
+      sidePaired: 'У парі в розділеному перегляді поруч',
       inputLocked: 'Введення на сторінці заблоковано',
       switchWorkspace: 'Змінити простір',
       switchWorkspaceTitle: 'Змінити простір (Ctrl/Cmd+K)',

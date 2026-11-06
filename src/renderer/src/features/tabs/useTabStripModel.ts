@@ -63,6 +63,14 @@ export function useTabStripModel(readState: () => BrowserState) {
     return previous && sameFields(previous, next) ? previous : next
   })
 
+  /** The split views put aside, whose tabs stay paired, as in Chrome. */
+  const restingSplitViews = computed<readonly StripSplitView[]>((previous) => {
+    const next = (readState().restingSplitViews ?? []).map((split): StripSplitView => ({
+      firstTabId: split.firstTabId, secondTabId: split.secondTabId, orientation: split.orientation
+    }))
+    return previous && sameItems(previous, next) ? previous : next
+  })
+
   const allHumanInteractionLocked = computed(() => readState().allHumanInteractionLocked)
   const allTabsMuted = computed(() => readState().allTabsMuted === true)
   const activeTabId = computed(() => readState().activeTabId)
@@ -78,7 +86,16 @@ export function useTabStripModel(readState: () => BrowserState) {
   /** A tab of the latest state by its id; a row reads its tab with it, so the row alone draws again when the tab changes. */
   const readTab = (tabId: string): BrowserTabState | undefined => tabsById.value.get(tabId)
 
-  return { tabs, home, workspaces, splitView, allHumanInteractionLocked, allTabsMuted, activeTabId, readTab }
+  /** How the split view in view shows the tab, or the one put aside pairs it; undefined when it is in none. */
+  const tabSplit = (tabId: string): { orientation: 'horizontal' | 'vertical'; paired: boolean } | undefined => {
+    const holds = (split: StripSplitView): boolean => split.firstTabId === tabId || split.secondTabId === tabId
+    const shown = splitView.value
+    const split = shown && holds(shown) ? shown : restingSplitViews.value.find(holds)
+    if (!split) return undefined
+    return { orientation: split.orientation === 'horizontal' ? 'horizontal' : 'vertical', paired: split !== shown }
+  }
+
+  return { tabs, home, workspaces, splitView, restingSplitViews, tabSplit, allHumanInteractionLocked, allTabsMuted, activeTabId, readTab }
 }
 
 function sameItems<T extends object>(previous: readonly T[], next: readonly T[]): boolean {

@@ -8,6 +8,7 @@ import { findTab, getTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { browserState, publishChange } from '../browser-state/browser-state.js'
 import { LocalizedError } from '../../localized-error.js'
+import { forgetRestingSplitViews } from './resting-split-views.js'
 
 /**
  * Wakes the active tab and the chosen one, then opens them side by side,
@@ -63,7 +64,8 @@ export interface OpenSplitViewOptions {
 
 /**
  * Shows the chosen tab beside the active one, replacing any other split, and
- * wakes either tab that sleeps without waiting for it.
+ * wakes either tab that sleeps without waiting for it. Either tab leaves a
+ * split view put aside, which ends.
  */
 export function openSplitView(browser: Browser, tabId: string, options: OpenSplitViewOptions = {}): BrowserState {
   const current = getTab(browser)
@@ -96,6 +98,7 @@ export function openSplitView(browser: Browser, tabId: string, options: OpenSpli
       }
     }
   }
+  forgetRestingSplitViews(browser, current.id, target.id)
   const layout = options.layout
   browser.splitView = {
     firstTabId: layout?.chosenFirst ? target.id : current.id,

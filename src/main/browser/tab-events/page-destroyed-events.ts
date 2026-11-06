@@ -10,6 +10,7 @@ import { publishChange } from '../browser-state/browser-state.js'
 import { markTabActiveInGroup, writeActiveTabId } from '../tab-selection/active-tab.js'
 import { runWalletLifecycleAction } from '../background-action.js'
 import { closeWebsiteDialogBoxOfDestroyedPage } from '../website-dialogs/website-dialogs.js'
+import { forgetRestingSplitViews } from '../split-view/resting-split-views.js'
 
 /** Hronaut Home, which a destroyed page's recovery opens when no live tab is left; the browser's Home address. */
 const HRONAUT_HOME_URL = 'hronaut://home/'
@@ -59,6 +60,8 @@ export function recoverFromDestroyedPage(browser: Browser, tab: BrowserTab): voi
     url: tab.url,
     reason: 'renderer-destroyed'
   }
+  // A split view put aside with it ends: its page can no longer show beside the other.
+  forgetRestingSplitViews(browser, tab.id)
   if (browser.splitViewContains(tab.id)) {
     const split = browser.splitView!
     const partnerId = split.firstTabId === tab.id ? split.secondTabId : split.firstTabId

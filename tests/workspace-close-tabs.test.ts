@@ -142,7 +142,7 @@ async function browser() {
     deletedWorkspaceStorageIds: new Set(), workspacesBeingDeleted: new Map(), workspaceStorageCleanupBlocked: false,
     workspaceContinuity: { guardedWorkspaceIds: () => [] },
     allTabsMuted: false, allHumanInteractionLocked: false,
-    activeTabId: SHOWN, splitView: null, tabSelectionGeneration: 0, options: {},
+    activeTabId: SHOWN, splitView: null, restingSplitViews: [], tabSelectionGeneration: 0, options: {},
     reactInspectionController: { invalidateWorkspace: vi.fn() },
     networkWaitController: { reject: vi.fn() }, reproRecorder: { clearReproRecording: vi.fn() }, videoRecorder: { clear: vi.fn() },
     wakeTab: vi.fn(async (tabId: string) => {

@@ -1708,6 +1708,8 @@ export const itIT: MessageSchema = {
       freezeUnknown: 'Esito della sospensione della pagina sconosciuto',
       stackedVisible: 'Visibile in visualizzazione divisa sovrapposta',
       sideVisible: 'Visibile in visualizzazione divisa affiancata',
+      stackedPaired: 'Abbinata in visualizzazione divisa sovrapposta',
+      sidePaired: 'Abbinata in visualizzazione divisa affiancata',
       inputLocked: 'Input della pagina bloccato',
       switchWorkspace: 'Cambia area di lavoro',
       switchWorkspaceTitle: 'Cambia area di lavoro (Ctrl/Cmd+K)',

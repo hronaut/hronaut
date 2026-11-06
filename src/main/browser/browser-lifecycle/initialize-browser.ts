@@ -133,6 +133,13 @@ export async function initializeBrowser(browser: Browser): Promise<void> {
         const otherTabId = restoredActiveTabId === savedSplit.firstTabId ? savedSplit.secondTabId : savedSplit.firstTabId
         browser.window.contentView.addChildView(browser.tabs.get(otherTabId)!.view)
       }
+      // The split views put aside come back paired, so selecting either tab shows both again.
+      browser.restingSplitViews = (saved?.restingSplitViews ?? []).filter((split) => {
+        const first = browser.tabs.get(split.firstTabId)
+        const second = browser.tabs.get(split.secondTabId)
+        return first && second && first.mcpGroupId === second.mcpGroupId && !isHronautHomeUrl(first.url) && !isHronautHomeUrl(second.url)
+          && !browser.splitViewContains(first.id) && !browser.splitViewContains(second.id)
+      })
     }
   } else {
     await browser.createTab({ url: HRONAUT_HOME_URL, active: true })

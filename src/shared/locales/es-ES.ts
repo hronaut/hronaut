@@ -1708,6 +1708,8 @@ export const esES: MessageSchema = {
       freezeUnknown: 'Resultado de la pausa desconocido',
       stackedVisible: 'Visible en vista dividida apilada',
       sideVisible: 'Visible en vista dividida lado a lado',
+      stackedPaired: 'Emparejada en vista dividida apilada',
+      sidePaired: 'Emparejada en vista dividida lado a lado',
       inputLocked: 'Entrada de la página bloqueada',
       switchWorkspace: 'Cambiar de espacio',
       switchWorkspaceTitle: 'Cambiar de espacio (Ctrl/Cmd+K)',

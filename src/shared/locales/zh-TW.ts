@@ -1708,6 +1708,8 @@ export const zhTW: MessageSchema = {
       freezeUnknown: '網頁保留的結果不明',
       stackedVisible: '顯示於上下分割檢視中',
       sideVisible: '顯示於左右分割檢視中',
+      stackedPaired: '於上下分割檢視中配對',
+      sidePaired: '於左右分割檢視中配對',
       inputLocked: '網頁輸入已鎖定',
       switchWorkspace: '切換工作區',
       switchWorkspaceTitle: '切換工作區（Ctrl/Cmd+K）',

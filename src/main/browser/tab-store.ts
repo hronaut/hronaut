@@ -86,6 +86,8 @@ export interface PersistedBrowserState {
   workspaceStorageCleanupBlocked?: boolean
   activeTabId: string | null
   splitView?: BrowserSplitViewState
+  /** Split views put aside, whose tabs stay paired; see resting-split-views.ts. */
+  restingSplitViews?: BrowserSplitViewState[]
   allTabsMuted?: boolean
   allHumanInteractionLocked?: boolean
   tabs: PersistedTab[]
@@ -160,6 +162,31 @@ function persistedWorkspacePinnedAt(value: unknown): string | undefined {
 /** Which of an archived workspace's tabs was shown, or undefined when the value is not one of its tabs. */
 function persistedShownTabIndex(value: unknown, tabCount: number): number | undefined {
   return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value < tabCount ? value : undefined
+}
+
+/**
+ * The split views put aside, each with two saved tabs that no other split view holds; one that is not is left out, its
+ * tabs coming back unpaired.
+ */
+function savedRestingSplitViews(value: unknown, usedTabIds: ReadonlySet<string>, shown: BrowserSplitViewState | undefined): BrowserSplitViewState[] {
+  if (!Array.isArray(value)) return []
+  const pairedTabIds = new Set(shown ? [shown.firstTabId, shown.secondTabId] : [])
+  const restingSplitViews: BrowserSplitViewState[] = []
+  for (const split of value as unknown[]) {
+    if (!isRecord(split) || typeof split.firstTabId !== 'string' || typeof split.secondTabId !== 'string'
+      || split.firstTabId === split.secondTabId || !usedTabIds.has(split.firstTabId) || !usedTabIds.has(split.secondTabId)
+      || pairedTabIds.has(split.firstTabId) || pairedTabIds.has(split.secondTabId)
+      || !isBrowserSplitOrientation(split.orientation) || typeof split.ratio !== 'number') continue
+    pairedTabIds.add(split.firstTabId)
+    pairedTabIds.add(split.secondTabId)
+    restingSplitViews.push({
+      firstTabId: split.firstTabId,
+      secondTabId: split.secondTabId,
+      orientation: split.orientation,
+      ratio: normalizeSplitViewRatio(split.ratio)
+    })
+  }
+  return restingSplitViews
 }
 
 function repairedWorkspaceTimestamp(value: string, currentTime: number): string {
@@ -609,6 +636,7 @@ export class TabStateStore {
           }
         : undefined
       if (data.splitView !== undefined && !splitView) throw this.reject('invalid-schema')
+      const restingSplitViews = savedRestingSplitViews(data.restingSplitViews, usedTabIds, splitView)
 
       const workspaceIds = new Set([...mcpTabGroups, ...savedTabGroups].map(group => group.id))
       const continuityWorkspaceIds = data.continuityWorkspaceIds === undefined ? undefined
@@ -625,6 +653,7 @@ export class TabStateStore {
         ...(data.workspaceStorageCleanupBlocked === true || options.blockStorageCleanup === true ? { workspaceStorageCleanupBlocked: true } : {}),
         activeTabId,
         ...(splitView ? { splitView } : {}),
+        ...(restingSplitViews.length ? { restingSplitViews } : {}),
         allTabsMuted: data.allTabsMuted === true,
         allHumanInteractionLocked: data.allHumanInteractionLocked === true,
         mcpTabGroups,

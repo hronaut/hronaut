@@ -102,6 +102,56 @@ test('shows two live tabs, changes their layout, and exits split view', async ({
   await expect.poll(async () => (await visibleViews()).map((view) => view.title)).toEqual(['Split Alpha'])
 })
 
+// Selecting a third tab ended a split view for good. As in Chrome, its two tabs now stay paired, also across a restart:
+// selecting either of them shows both again, in the same layout, and the strip marks both meanwhile.
+test('keeps a split view\'s tabs paired while another tab is shown, and after a restart', async ({ profileDirectory, mcpPort }) => {
+  const page = (title: string) => `data:text/html,<title>${title}</title><h1>${title}</h1>`
+  let instance: HronautInstance | undefined = await launchHronaut(profileDirectory, mcpPort)
+  try {
+    const open = async (title: string, active: boolean) => {
+      const state = await instance!.window.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(page(title))}, active: ${active} })`) as BrowserState
+      return state.tabs.find((tab) => tab.url === page(title))!.id
+    }
+    const alpha = await open('Pair Alpha', true)
+    const beta = await open('Pair Beta', false)
+    const gamma = await open('Pair Gamma', false)
+    const pageViews = () => instance!.app.evaluate(({ BrowserWindow, WebContentsView }) => (
+      (BrowserWindow.getAllWindows()[0]?.contentView.children ?? [])
+        .filter((view): view is Electron.WebContentsView => view instanceof WebContentsView && !/\/(toast-overlay|agent-card|tooltip-overlay|address-overlay)\.html$/.test(view.webContents.getURL()))
+        .map((view) => view.webContents.getTitle())
+        .sort()
+    ))
+    const split = () => instance!.window.evaluate(`window.hronaut.getState().then((state) => ({
+      activeTabId: state.activeTabId, splitView: state.splitView ?? null, restingSplitViews: state.restingSplitViews ?? []
+    }))`)
+    await instance.window.evaluate(`window.hronaut.openSplitView(${JSON.stringify(beta)})`)
+    await instance.window.evaluate(`window.hronaut.updateSplitView({ orientation: 'horizontal', ratio: 0.4 })`)
+    const layout = { firstTabId: alpha, secondTabId: beta, orientation: 'horizontal', ratio: 0.4 }
+
+    await instance.window.evaluate(`window.hronaut.selectTab(${JSON.stringify(gamma)})`)
+    await expect.poll(split).toEqual({ activeTabId: gamma, splitView: null, restingSplitViews: [layout] })
+    await expect.poll(pageViews).toEqual(['Pair Gamma'])
+    await expect(instance.window.getByRole('tab', { name: /^Pair Beta/ }).getByLabel('Paired in stacked split view')).toBeAttached()
+
+    await instance.window.evaluate(`window.hronaut.selectTab(${JSON.stringify(beta)})`)
+    await expect.poll(split).toEqual({ activeTabId: beta, splitView: layout, restingSplitViews: [] })
+    await expect.poll(pageViews).toEqual(['Pair Alpha', 'Pair Beta'])
+    await expect(instance.window.getByRole('tab', { name: /^Pair Alpha/ }).getByLabel('Visible in stacked split view')).toBeAttached()
+
+    await instance.window.evaluate(`window.hronaut.selectTab(${JSON.stringify(gamma)})`)
+    await expect.poll(split).toEqual({ activeTabId: gamma, splitView: null, restingSplitViews: [layout] })
+    await closeHronaut(instance.app)
+    instance = undefined
+    instance = await launchHronaut(profileDirectory, mcpPort)
+    await expect.poll(split).toEqual({ activeTabId: gamma, splitView: null, restingSplitViews: [layout] })
+    await instance.window.evaluate(`window.hronaut.selectTab(${JSON.stringify(alpha)})`)
+    await expect.poll(split).toEqual({ activeTabId: alpha, splitView: layout, restingSplitViews: [] })
+    await expect.poll(pageViews).toEqual(['Pair Alpha', 'Pair Beta'])
+  } finally {
+    if (instance) await closeHronaut(instance.app)
+  }
+})
+
 test('keeps the active pane attached when the inactive split pane closes', async ({
   appWindow,
   electronApp

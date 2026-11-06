@@ -1708,6 +1708,8 @@ export const hiIN: MessageSchema = {
       freezeUnknown: 'पेज होल्ड का नतीजा पता नहीं',
       stackedVisible: 'ऊपर-नीचे वाले स्प्लिट व्यू में दिख रहा है',
       sideVisible: 'अगल-बगल वाले स्प्लिट व्यू में दिख रहा है',
+      stackedPaired: 'ऊपर-नीचे वाले स्प्लिट व्यू में जोड़ा गया',
+      sidePaired: 'अगल-बगल वाले स्प्लिट व्यू में जोड़ा गया',
       inputLocked: 'पेज इनपुट लॉक है',
       switchWorkspace: 'वर्कस्पेस बदलें',
       switchWorkspaceTitle: 'वर्कस्पेस बदलें (Ctrl/Cmd+K)',

@@ -143,6 +143,9 @@ export function sidebarOverlayModel(inputs: SidebarOverlayModelInputs): SidebarO
       ...(state.splitView
         ? { splitView: { firstTabId: state.splitView.firstTabId, secondTabId: state.splitView.secondTabId, orientation: state.splitView.orientation } }
         : {}),
+      ...(state.restingSplitViews?.length
+        ? { restingSplitViews: state.restingSplitViews.map(({ firstTabId, secondTabId, orientation }) => ({ firstTabId, secondTabId, orientation })) }
+        : {}),
       allHumanInteractionLocked: state.allHumanInteractionLocked,
       allTabsMuted: state.allTabsMuted === true,
       ...(state.agentFollow ? { agentFollow: { tabId: state.agentFollow.tabId, agentName: clip(state.agentFollow.agentName, 200) } } : {}),

@@ -48,6 +48,7 @@ export function buildBrowserState(browser: Browser, workspaceId?: string): Brows
     closedTabs: [...browser.closedTabs].reverse().map((tab) => ({ ...tab })),
     activeTabId: browser.activeTabId,
     ...(browser.splitView ? { splitView: { ...browser.splitView } } : {}),
+    ...(browser.restingSplitViews.length ? { restingSplitViews: browser.restingSplitViews.map((split) => ({ ...split })) } : {}),
     allTabsMuted: browser.allTabsMuted,
     allHumanInteractionLocked: browser.allHumanInteractionLocked,
     agentControlLocked: browser.allAgentsPaused && !browser.agentPauseOverridesAllowed,

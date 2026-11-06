@@ -58,7 +58,7 @@ function fixture() {
     mcpTabGroups: new Map(),
     webContentsToTab: new Map([[2, 'first'], [3, 'second']]),
     activeTabId: 'first',
-    splitView: null,
+    splitView: null, restingSplitViews: [],
     tabSelectionGeneration: 0,
     window: {
       isDestroyed: () => false,

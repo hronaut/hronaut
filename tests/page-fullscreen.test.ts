@@ -69,6 +69,7 @@ function layoutFixture(split = false) {
     activeTabId: first.id,
     splitView: split ? { firstTabId: first.id, secondTabId: second.id, orientation: 'vertical', ratio: 0.5 } : null,
     splitViewGeneration: 0,
+    restingSplitViews: [],
     lastSplitDividerGeometry: '',
     tabSelectionGeneration: 0,
     offscreenCaptureTabIds: new Set(),
