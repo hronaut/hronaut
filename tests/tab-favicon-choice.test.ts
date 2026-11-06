@@ -116,19 +116,22 @@ describe('the icon a tab shows', () => {
   // gave meanwhile, such as an unread count, showed in the tab of the new page and became the new page's in History.
   it('shows nothing of an icon list the page gave before another replaced it', async () => {
     vi.useFakeTimers()
-    const icons = page({ leaving: { size: 48, after: 10 }, arriving: { size: 64, after: 10 } })
+    const icons = page({ leaving: { size: 16, after: 10 }, leavingLarger: { size: 48, after: 50 }, arriving: { size: 64, after: 10 } })
 
-    const leaving = loadFavicon(icons.browser, icons.tab, [icons.urls[0]!])
+    const leaving = loadFavicon(icons.browser, icons.tab, [icons.urls[0]!, icons.urls[1]!])
     // The new page commits.
     icons.tab.url = 'https://site.example/next'
     icons.tab.documentGeneration += 1
     await vi.advanceTimersByTimeAsync(10)
+    // The rest of the list stops loading.
+    expect(icons.fetches[1]!.signal.aborted).toBe(true)
+    await vi.advanceTimersByTimeAsync(40)
     await leaving
     expect(icons.shown()).toBeUndefined()
     expect(icons.onSiteIcon).not.toHaveBeenCalled()
 
     // A route the new page goes to while its icon still loads gets the icon too.
-    const arriving = loadFavicon(icons.browser, icons.tab, [icons.urls[1]!])
+    const arriving = loadFavicon(icons.browser, icons.tab, [icons.urls[2]!])
     icons.tab.url = 'https://site.example/next/inbox'
     giveRouteSiteIcon(icons.browser, icons.tab)
     await vi.advanceTimersByTimeAsync(10)

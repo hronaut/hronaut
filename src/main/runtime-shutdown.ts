@@ -38,6 +38,16 @@ interface RuntimeShutdownHost {
 }
 
 /**
+ * Saves the bookmarks and the history, and then the pages' icons, so a clear of the history or a bookmark removal that
+ * ends meanwhile takes its pages' icons too. Each save's failure is its own.
+ */
+function flushBookmarksAndHistory(state: BookmarksAndHistoryState): (Promise<void> | undefined)[] {
+  const bookmarksSaved = state.bookmarks?.flush()
+  const historySaved = state.history?.flush()
+  return [bookmarksSaved, historySaved, Promise.allSettled([bookmarksSaved, historySaved]).then(() => state.siteIcons?.flush())]
+}
+
+/**
  * The runtime's orderly shutdown: the MCP listener stops, agents' receipts stop, the Undo offers close, the tab
  * runtime's workspace operations drain and the wallet broker shuts down, one after another; then every store, both
  * windows' state and the browser profile are flushed together, and the tab runtime and wallets are destroyed. A failed
@@ -72,10 +82,8 @@ export function createRuntimeShutdown(host: RuntimeShutdownHost): { releaseRunti
         ...await Promise.allSettled([
           manager ? flushBrowserForQuit(manager) : undefined,
           manager ? flushWorkspaceProfiles(manager) : undefined,
-          host.bookmarksAndHistory.bookmarks?.flush(),
+          ...flushBookmarksAndHistory(host.bookmarksAndHistory),
           host.credentialRuntime.store?.flush(),
-          // A clear of the history that ends meanwhile takes its pages' icons too, after the history saved it.
-          host.bookmarksAndHistory.history?.flush().finally(() => host.bookmarksAndHistory.siteIcons?.flush()),
           host.browserSessionState.sitePermissionStore?.flush(),
           host.commercialLicenseRuntime.store?.flush(),
           host.settingsState.mutationQueue,
