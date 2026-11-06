@@ -7,13 +7,13 @@ import { watchPresentedViewVisibility } from '../presented-view-visibility.js'
 import { restoredClosedTabs } from '../saved-closed-tabs/saved-closed-tabs.js'
 import { savedTabHistory } from '../saved-tab-history/saved-tab-history.js'
 import { rememberSavedClosedTabs } from '../tab-reopening/tab-reopening.js'
-import { restoreRestingSplitViews } from '../split-view/resting-split-views.js'
 import { sweepMemorySaver } from '../tab-sleep/memory-saver.js'
 import { focusTabOrTrustedChrome } from '../trusted-chrome-focus/trusted-chrome-focus.js'
 import { isHronautHomeUrl } from '../url.js'
 import { normalizeWorkspaceNavigationPolicy } from '../workspace-navigation-policy.js'
 import { cleanExplicitlyDeletedWorkspaceStorage } from '../workspace-storage-deletion.js'
 import { saveForNextStart } from './save-for-next-start.js'
+import { showRestoredTab } from './show-restored-tab.js'
 
 const HRONAUT_HOME_URL = 'hronaut://home/'
 const MAX_TABS = MAX_BROWSER_TABS
@@ -120,22 +120,7 @@ export async function initializeBrowser(browser: Browser): Promise<void> {
     const fallbackId = browser.tabs.keys().next().value as string | undefined
     if (fallbackId) {
       const restoredActiveTabId = saved?.activeTabId && browser.tabs.has(saved.activeTabId) ? saved.activeTabId : fallbackId
-      // The split views put aside come back paired, so selecting either tab shows both again, the tab shown first too.
-      restoreRestingSplitViews(browser, saved?.restingSplitViews ?? [], saved?.splitView)
-      browser.selectTab(restoredActiveTabId)
-      const savedSplit = saved?.splitView
-      if (
-        savedSplit
-        && browser.tabs.has(savedSplit.firstTabId)
-        && browser.tabs.has(savedSplit.secondTabId)
-        && !isHronautHomeUrl(browser.tabs.get(savedSplit.firstTabId)!.url)
-        && !isHronautHomeUrl(browser.tabs.get(savedSplit.secondTabId)!.url)
-        && (restoredActiveTabId === savedSplit.firstTabId || restoredActiveTabId === savedSplit.secondTabId)
-      ) {
-        browser.splitView = savedSplit
-        const otherTabId = restoredActiveTabId === savedSplit.firstTabId ? savedSplit.secondTabId : savedSplit.firstTabId
-        browser.window.contentView.addChildView(browser.tabs.get(otherTabId)!.view)
-      }
+      showRestoredTab(browser, restoredActiveTabId, saved)
     }
   } else {
     await browser.createTab({ url: HRONAUT_HOME_URL, active: true })

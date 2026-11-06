@@ -12,7 +12,8 @@ import { focusTabOrTrustedChrome, focusPageAfterQuestion, keyboardPage, returnTa
 import { detachDialogMonitoring, ensureDialogMonitoring } from '../website-dialogs/website-dialogs.js'
 import { attemptBeforeUnloadClose } from './before-unload-close.js'
 import { stageBeforeUnloadClose } from './before-unload-staging.js'
-import { forgetRestingSplitViews, showRestingPair, takeRestingPair } from '../split-view/resting-split-views.js'
+import { keepKeyboardFromLoadingPane } from '../split-view/loading-pane-keyboard.js'
+import { forgetRestingSplitViews, showRestingPair, takeRestingPair, type RestingPair } from '../split-view/resting-split-views.js'
 import { closeTabTransition } from './close-transition.js'
 import { removeTabRecord } from './remove-tab-record.js'
 import { markTabActiveInGroup } from '../tab-selection/active-tab.js'
@@ -282,6 +283,7 @@ async function performCloseTab(
     }
     browser.splitView = null
   }
+  let replacementPair: RestingPair | undefined
   // Move a live replacement into the BrowserWindow before destroying the
   // current view. Electron can otherwise leave the parent view in an invalid
   // child transition after a neighboring WebContentsView was destroyed.
@@ -294,8 +296,8 @@ async function performCloseTab(
         // a different view before the asynchronous close probe.
         browser.window.contentView.addChildView(replacement.view)
         // As selecting it does, a tab of a split view put aside shows with its pair again.
-        const pair = takeRestingPair(browser, replacement)
-        if (pair) showRestingPair(browser, pair, { tab: replacement })
+        replacementPair = takeRestingPair(browser, replacement)
+        if (replacementPair) showRestingPair(browser, replacementPair)
         browser.tabSelectionGeneration += 1
         replacement.lastActiveAt = performance.now()
         browser.activeTabId = replacement.id
@@ -328,8 +330,10 @@ async function performCloseTab(
     if (stagedClose && wasActive && browser.activeTabId) {
       const replacement = browser.tabs.get(browser.activeTabId)
       // As selecting it does, the tab shown gives its field the keyboard back when it was left with it, its page otherwise.
-      if (replacement && !replacement.webContents.isDestroyed() && !returnTabFieldFocus(browser, replacement)) {
-        focusTabOrTrustedChrome(browser, replacement)
+      if (replacement && !replacement.webContents.isDestroyed()) {
+        const fieldReturned = returnTabFieldFocus(browser, replacement)
+        if (!fieldReturned) focusTabOrTrustedChrome(browser, replacement)
+        if (replacementPair) keepKeyboardFromLoadingPane(browser, replacement, replacementPair.partner, fieldReturned ? 'shell' : 'page')
       }
     }
     publishChange(browser)

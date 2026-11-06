@@ -3,7 +3,6 @@ import { findTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
 import type { Browser } from '../browser.js'
 import { isHronautHomeUrl } from '../url.js'
-import { keepKeyboardFromLoadingPane } from './loading-pane-keyboard.js'
 
 // As in Chrome, the two tabs of a split view stay paired while another tab is selected: selecting either of them shows
 // both again, in the same layout. A pair ends when the person returns it to one page, opens either tab in another split
@@ -41,28 +40,17 @@ export function takeRestingPair(browser: Browser, tab: BrowserTab): RestingPair 
   return partner ? { split, partner } : undefined
 }
 
-/** How a pair taken aside comes back into view. */
-export interface ShowRestingPairOptions {
-  /** The tab shown, which becomes the active pane. */
-  tab: BrowserTab
-  /** A tab already in the window, as the tab shown alone until now. */
-  attached?: BrowserTab
-  /** False when the tab is shown without the keyboard, such as for Follow agents. */
-  focus?: boolean
-}
-
 /**
  * Brings a pair taken aside back into view beside the tab now shown, waking its other tab without waiting for it, and
- * attaching it to the window unless it already is. Should that tab take the keyboard as its first document loads, the
- * keyboard goes back to the tab shown, or stays in Hronaut's own controls when the tab is shown without it.
+ * attaching it to the window unless it already is, as the tab shown alone until now. Once the tab shown has the
+ * keyboard, keepKeyboardFromLoadingPane keeps the other from taking it while its first document loads.
  */
-export function showRestingPair(browser: Browser, { split, partner }: RestingPair, { tab, attached, focus }: ShowRestingPairOptions): void {
+export function showRestingPair(browser: Browser, { split, partner }: RestingPair, attached?: BrowserTab): void {
   partner.lastActiveAt = performance.now()
   if (partner.sleeping) void browser.wakeTab(partner.id).catch((error) => console.error('[browser] Could not wake split tab:', error))
   if (partner !== attached) browser.window.contentView.addChildView(partner.view)
   browser.splitViewGeneration += 1
   browser.splitView = split
-  keepKeyboardFromLoadingPane(browser, tab, partner, focus === false ? () => keepKeyboardInShell(browser) : undefined)
 }
 
 /**
@@ -84,11 +72,6 @@ export function forgetRestingSplitViews(browser: Browser, ...tabIds: string[]): 
   browser.restingSplitViews = browser.restingSplitViews.filter((split) => (
     !tabIds.includes(split.firstTabId) && !tabIds.includes(split.secondTabId)
   ))
-}
-
-/** A tab shown without the keyboard leaves it where it was, in Hronaut's own controls, while the window has it. */
-function keepKeyboardInShell(browser: Browser): void {
-  if (!browser.window.isDestroyed() && browser.window.isFocused()) browser.window.webContents.focus()
 }
 
 function holdsTab(split: BrowserSplitViewState, tabId: string): boolean {

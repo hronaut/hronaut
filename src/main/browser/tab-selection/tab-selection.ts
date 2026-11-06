@@ -6,6 +6,7 @@ import { focusTabOrTrustedChrome, returnTabFieldFocus, shellHasKeyboard, shellTa
 import { findTab, getTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { browserState, publishChange } from '../browser-state/browser-state.js'
+import { keepKeyboardFromLoadingPane } from '../split-view/loading-pane-keyboard.js'
 import { restingPartner, restSplitView, showRestingPair, takeRestingPair } from '../split-view/resting-split-views.js'
 import { markTabActiveInGroup, writeActiveTabId } from './active-tab.js'
 
@@ -144,7 +145,7 @@ export function selectTab(browser: Browser, tabId: string, options: BrowserTabSe
     browser.window.contentView.removeChildView(current.view)
   }
   if (current?.id !== next.id) browser.window.contentView.addChildView(next.view)
-  if (pair) showRestingPair(browser, pair, { tab: next, attached: current, focus: options.focus !== false })
+  if (pair) showRestingPair(browser, pair, current)
   writeActiveTabId(browser, next.id)
   markTabActiveInGroup(browser, next)
   browser.layout()
@@ -152,6 +153,8 @@ export function selectTab(browser: Browser, tabId: string, options: BrowserTabSe
   const fieldReturned = options.focus !== false && current?.id !== next.id && returnTabFieldFocus(browser, next)
   if (options.focus !== false && !fieldReturned) focusTabOrTrustedChrome(browser, next)
   next.fieldFocusOnReturn = undefined
+  // The tab paired with it gives the keyboard back to where it went now, should its first document take it.
+  if (pair) keepKeyboardFromLoadingPane(browser, next, pair.partner, options.focus === false || fieldReturned ? 'shell' : 'page')
   publishChange(browser)
   return browserState(browser)
 }

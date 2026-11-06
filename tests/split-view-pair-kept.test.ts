@@ -12,7 +12,13 @@ vi.mock('../src/main/browser/trusted-chrome-focus/trusted-chrome-focus.js', asyn
   ...await importOriginal<typeof import('../src/main/browser/trusted-chrome-focus/trusted-chrome-focus.js')>(),
   focusTabOrTrustedChrome: (browser: { focusTabOrTrustedChrome: (tab: unknown) => void }, tab: unknown) => browser.focusTabOrTrustedChrome(tab),
   // No page has the keyboard as a tab closes.
-  keyboardPage: () => null
+  keyboardPage: () => null,
+  // A tab left with a field that had the keyboard gives it back as it shows again.
+  returnTabFieldFocus: (_browser: unknown, tab: { fieldFocusOnReturn?: unknown }) => {
+    const returned = tab.fieldFocusOnReturn !== undefined
+    tab.fieldFocusOnReturn = undefined
+    return returned
+  }
 }))
 // Closing a tab ends its selections and stops watching its dialogs, which the browser below stubs; its page lets it close
 // at once, out of view while it decides.
@@ -41,6 +47,7 @@ vi.mock('../src/main/browser/background-action.js', async (importOriginal) => ({
   runWalletLifecycleAction: vi.fn()
 }))
 import { Browser } from '../src/main/browser/browser.js'
+import { showRestoredTab } from '../src/main/browser/browser-lifecycle/show-restored-tab.js'
 import { restoreRestingSplitViews } from '../src/main/browser/split-view/resting-split-views.js'
 import { closeSplitView, openSplitView, updateSplitView } from '../src/main/browser/split-view/split-view.js'
 import { closeTab } from '../src/main/browser/tab-close/close-tab.js'
@@ -99,7 +106,7 @@ function browser() {
     window: {
       isDestroyed: () => false,
       isFocused: () => true,
-      webContents: { focus: vi.fn() },
+      webContents: Object.assign(new EventEmitter(), { focus: vi.fn(), isDestroyed: () => false }),
       contentView: {
         addChildView: (view: { id: string }) => { shown.add(view.id) },
         removeChildView: (view: { id: string }) => { shown.delete(view.id) }
@@ -311,17 +318,25 @@ describe('a split view put aside', () => {
   })
 
   it('shows the pair of the tab shown in place of a tab whose page let it close', async () => {
-    const { manager, inView } = browser()
+    const { manager, tabs, inView } = browser()
     manager.selectTab('beta')
     openSplitView(manager, 'gamma')
     manager.selectTab('alpha')
 
-    // The page is asked whether it may close, and the tab after it shows in its place.
+    // The page is asked whether it may close, and the tab after it shows in its place, its pair still loading.
+    tabs.get('gamma')!.webContents.url = ''
     await closeTab(manager, 'alpha', true, true)
     expect(manager.activeTabId).toBe('beta')
     expect(manager.splitView).toMatchObject({ firstTabId: 'beta', secondTabId: 'gamma' })
     expect(manager.restingSplitViews).toEqual([])
     expect(inView()).toEqual(['beta', 'gamma'])
+
+    // The keyboard the tab shown got stays with it.
+    focusTab(manager).mockClear()
+    tabs.get('gamma')!.webContents.focused = true
+    tabs.get('gamma')!.webContents.emit('focus')
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(focusTab(manager)).toHaveBeenCalledWith(tabs.get('beta'))
   })
 
   it('keeps the keyboard from the tab paired with the tab selected while that tab loads its first document', async () => {
@@ -346,6 +361,52 @@ describe('a split view put aside', () => {
     focusTab(manager).mockClear()
     alpha.webContents.emit('focus')
     await new Promise((resolve) => setImmediate(resolve))
+    expect(focusTab(manager)).not.toHaveBeenCalled()
+  })
+
+  it('gives the keyboard back to the field the tab selected was left with, should its loading partner take it', async () => {
+    const { manager, tabs } = browser()
+    openSplitView(manager, 'beta')
+    manager.selectTab('gamma')
+    tabs.get('alpha')!.webContents.url = ''
+    // The person left beta with its address field focused, which gets the keyboard back as beta shows again.
+    Object.assign(tabs.get('beta')!, { fieldFocusOnReturn: 'address' })
+    manager.selectTab('beta')
+    focusTab(manager).mockClear()
+
+    const alpha = tabs.get('alpha')!
+    alpha.webContents.focused = true
+    alpha.webContents.emit('focus')
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(manager.window.webContents.focus).toHaveBeenCalled()
+    expect(focusTab(manager)).not.toHaveBeenCalled()
+  })
+
+  it('gives the keyboard back where the person put it since the pair showed', async () => {
+    const { manager, tabs } = browser()
+    openSplitView(manager, 'beta')
+    manager.selectTab('gamma')
+    const alpha = tabs.get('alpha')!
+    alpha.webContents.url = ''
+    manager.selectTab('beta', { focus: false })
+    // The person then clicks into beta's page, as after answering its question to stay.
+    tabs.get('beta')!.webContents.emit('focus')
+    focusTab(manager).mockClear()
+
+    alpha.webContents.focused = true
+    alpha.webContents.emit('focus')
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(focusTab(manager)).toHaveBeenCalledWith(tabs.get('beta'))
+    expect(manager.window.webContents.focus).not.toHaveBeenCalled()
+
+    // And then into the address field, while the page still loads.
+    alpha.webContents.focused = false
+    ;(manager.window.webContents as unknown as EventEmitter).emit('focus')
+    focusTab(manager).mockClear()
+    alpha.webContents.focused = true
+    alpha.webContents.emit('focus')
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(manager.window.webContents.focus).toHaveBeenCalled()
     expect(focusTab(manager)).not.toHaveBeenCalled()
   })
 
@@ -386,5 +447,22 @@ describe('a split view put aside', () => {
     manager.selectTab('delta')
     expect(manager.splitView).toEqual(kept)
     expect(inView()).toEqual(['delta', 'gamma'])
+  })
+
+  it('shows the tab shown as Hronaut starts with its pair, or with the split view saved in view', () => {
+    const paired = browser()
+    const kept = { firstTabId: 'gamma', secondTabId: 'delta', orientation: 'horizontal' as const, ratio: 0.3 }
+    showRestoredTab(paired.manager, 'delta', { restingSplitViews: [kept] })
+    expect(paired.manager.activeTabId).toBe('delta')
+    expect(paired.manager.splitView).toEqual(kept)
+    expect(paired.manager.restingSplitViews).toEqual([])
+    expect(paired.inView()).toEqual(['delta', 'gamma'])
+
+    const shown = browser()
+    const split = { firstTabId: 'beta', secondTabId: 'gamma', orientation: 'vertical' as const, ratio: 0.6 }
+    showRestoredTab(shown.manager, 'gamma', { splitView: split, restingSplitViews: [kept] })
+    expect(shown.manager.splitView).toEqual(split)
+    expect(shown.manager.restingSplitViews).toEqual([])
+    expect(shown.inView()).toEqual(['beta', 'gamma'])
   })
 })

@@ -41,6 +41,8 @@ function browser() {
   const link = tab('link', true)
   const tabs = new Map([['guide', guide], ['link', link], ['other', tab('other')]])
   const focusTabOrTrustedChrome = vi.fn()
+  // Hronaut's own controls, which the person can give the keyboard while the link loads.
+  const shell = Object.assign(new EventEmitter(), { isDestroyed: () => false, focus: vi.fn() })
   const state = {
     tabs,
     activeTabId: 'guide' as string | null,
@@ -49,12 +51,12 @@ function browser() {
     splitViewGeneration: 0,
     tabSelectionGeneration: 0,
     wakeTab: async () => ({}) as BrowserState,
-    window: { contentView: { addChildView: vi.fn(), removeChildView: vi.fn() } },
+    window: { isDestroyed: () => false, isFocused: () => true, webContents: shell, contentView: { addChildView: vi.fn(), removeChildView: vi.fn() } },
     splitDivider: { cancel: vi.fn() },
     layout: vi.fn(), focusTabOrTrustedChrome, changed: vi.fn(),
     getState: () => ({ activeTabId: state.activeTabId, splitView: state.splitView }) as BrowserState
   }
-  return { manager: state as unknown as Browser, state, guide, link, focusTabOrTrustedChrome }
+  return { manager: state as unknown as Browser, state, guide, link, shell, focusTabOrTrustedChrome }
 }
 
 const beside = { openedBeside: true }
@@ -82,6 +84,22 @@ describe('the keyboard while a pane beside the page loads its first document', (
     await takesKeyboard(link.webContents)
     expect(focusTabOrTrustedChrome).toHaveBeenCalledTimes(2)
     expect(link.webContents.eventNames()).toEqual([])
+    // Nor does it keep following where the keyboard goes.
+    expect(guide.webContents.listenerCount('focus')).toBe(0)
+  })
+
+  it('goes back to Hronaut\'s own controls once the person gave them the keyboard while the link loads', async () => {
+    const { manager, link, shell, focusTabOrTrustedChrome } = browser()
+    openSplitView(manager, 'link', beside)
+    // The person clicks the address field.
+    shell.emit('focus')
+    focusTabOrTrustedChrome.mockClear()
+
+    await takesKeyboard(link.webContents)
+    expect(shell.focus).toHaveBeenCalledOnce()
+    expect(focusTabOrTrustedChrome).not.toHaveBeenCalled()
+    link.webContents.emit('did-stop-loading')
+    expect(shell.listenerCount('focus')).toBe(0)
   })
 
   it('stays with the loading pane once the person or an agent made it active, or the split changed', async () => {
