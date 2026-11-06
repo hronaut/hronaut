@@ -4232,6 +4232,7 @@ export const plPL: MessageSchema = {
       copy: 'Kopiuj',
       paste: 'Wklej',
       pasteMatchStyle: 'Wklej i dopasuj styl',
+      pasteAsPlainText: 'Wklej jako zwykły tekst',
       pasteAndGo: 'Wklej i otwórz',
       pasteAndGoTo: 'Wklej i przejdź do {text}',
       pasteAndSearchFor: 'Wklej i wyszukaj „{text}”',

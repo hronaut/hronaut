@@ -4232,6 +4232,7 @@ export const ruRU: MessageSchema = {
       copy: 'Копировать',
       paste: 'Вставить',
       pasteMatchStyle: 'Вставить в том же стиле',
+      pasteAsPlainText: 'Вставить как обычный текст',
       pasteAndGo: 'Вставить и перейти',
       pasteAndGoTo: 'Вставить и перейти на {text}',
       pasteAndSearchFor: 'Вставить и найти «{text}»',

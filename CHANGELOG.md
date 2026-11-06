@@ -16,6 +16,7 @@ All notable changes to Hronaut are documented in this file.
 - Changing a website's permission in Site controls or Settings now makes Site controls offer to reload its open pages, as Chrome does: a page already using a permission, such as its camera or location, can go on using it until it loads again, and nothing said that a reload applies the change.
 - An agent's `browser_press` with `Shift+Insert` or the `Paste` key, or with `Control+V` or `Control+Shift+V` on Windows and Linux, pasted what the person had copied, such as a password, into the agent's page, where the page and the agent could read it; these paste keys are now refused, and agents enter text with `browser_insert_text`.
 - The application menu's Undo, Redo, Cut, Copy, Paste, Select All and Toggle Full Screen now follow Hronaut's language, as its other items do, rather than staying in English; on macOS the Edit menu also has Paste and Match Style and Delete, as Chrome's does.
+- A text field's Paste and Paste and Match Style were offered in a website's menu with nothing on the clipboard, where they did nothing; as in Chrome, Paste is now greyed out until the clipboard holds something, and the second until it holds text, and on Windows and Linux the second is named Paste as Plain Text.
 
 ## [3.14.19] - 2026-11-06
 

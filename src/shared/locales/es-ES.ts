@@ -4232,6 +4232,7 @@ export const esES: MessageSchema = {
       copy: 'Copiar',
       paste: 'Pegar',
       pasteMatchStyle: 'Pegar con el mismo estilo',
+      pasteAsPlainText: 'Pegar como texto sin formato',
       pasteAndGo: 'Pegar e ir',
       pasteAndGoTo: 'Pegar e ir a {text}',
       pasteAndSearchFor: 'Pegar y buscar «{text}»',

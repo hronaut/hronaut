@@ -4232,6 +4232,7 @@ export const zhCN: MessageSchema = {
       copy: '复制',
       paste: '粘贴',
       pasteMatchStyle: '粘贴并匹配样式',
+      pasteAsPlainText: '粘贴为纯文本',
       pasteAndGo: '粘贴并转到',
       pasteAndGoTo: '粘贴并转到 {text}',
       pasteAndSearchFor: '粘贴并搜索“{text}”',

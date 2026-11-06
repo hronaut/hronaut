@@ -4232,6 +4232,7 @@ export const trTR: MessageSchema = {
       copy: 'Kopyala',
       paste: 'Yapıştır',
       pasteMatchStyle: 'Yapıştır ve stili eşleştir',
+      pasteAsPlainText: 'Düz metin olarak yapıştır',
       pasteAndGo: 'Yapıştır ve git',
       pasteAndGoTo: 'Yapıştır ve {text} adresine git',
       pasteAndSearchFor: 'Yapıştır ve “{text}” için ara',

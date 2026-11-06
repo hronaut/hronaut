@@ -39,6 +39,12 @@ function isSavableAddress(url: string): boolean {
   }
 }
 
+/** What the clipboard held as the menu opened, which its Paste items need, as in Chrome: anything, and text. */
+export interface PageMenuClipboard {
+  holdsAnything: boolean
+  holdsText: boolean
+}
+
 /** How the menu opens: its point in the window, and what runs while it is open. */
 export interface PageMenuPopup {
   at?: { x: number, y: number }
@@ -52,9 +58,11 @@ export interface PageMenuPopup {
  * selected text and a search for it or a visit to a selected address, then page navigation, copy address, save, print, view source, the
  * source and reload of a frame inside the page, and inspect. No item acts on its page once another tab took its place
  * in view, and those that act on the page check that its tab is still open. The menu opens at `popup.at` in the window,
- * or at the pointer without one, and `popup.whileOpen` runs while it is open.
+ * or at the pointer without one, and `popup.whileOpen` runs while it is open. A text field's Paste items follow what
+ * `held` says the clipboard held, and the field alone without it.
  */
-export function showContextMenu(browser: Browser, tab: BrowserTab, params: ContextMenuParams, popup: PageMenuPopup = {}): void {
+export function showContextMenu(browser: Browser, tab: BrowserTab, params: ContextMenuParams, popup: PageMenuPopup = {},
+  held?: PageMenuClipboard): void {
   const webContents = tab.webContents
   if (webContents.isDestroyed()) return
   const selection = browser.tabSelectionGeneration
@@ -377,14 +385,27 @@ export function showContextMenu(browser: Browser, tab: BrowserTab, params: Conte
       })
       groups.push(spellingItems)
     }
+    // As in Chrome, Paste needs something on the clipboard and Paste as plain text, Paste and Match Style on macOS, needs
+    // text there; a misspelled word's menu, which leads with its suggestions, leaves the second out.
+    const canPaste = params.editFlags.canPaste
     groups.push([
       { id: 'undo', label: browser.text('native.context.undo'), enabled: params.editFlags.canUndo, click: withLiveContents('undo', () => webContents.undo()) },
       { id: 'redo', label: browser.text('native.context.redo'), enabled: params.editFlags.canRedo, click: withLiveContents('redo', () => webContents.redo()) },
       { type: 'separator' },
       { id: 'cut', label: browser.text('native.context.cut'), enabled: params.editFlags.canCut, click: withLiveContents('cut', () => webContents.cut()) },
       { id: 'copy', label: browser.text('native.context.copy'), enabled: params.editFlags.canCopy, click: withLiveContents('copy', () => webContents.copy()) },
-      { id: 'paste', label: browser.text('native.context.paste'), enabled: params.editFlags.canPaste, click: withLiveContents('paste', () => webContents.paste()) },
-      { id: 'paste-and-match-style', label: browser.text('native.context.pasteMatchStyle'), enabled: params.editFlags.canPaste, click: withLiveContents('paste and match style', () => webContents.pasteAndMatchStyle()) },
+      {
+        id: 'paste',
+        label: browser.text('native.context.paste'),
+        enabled: canPaste && (held?.holdsAnything ?? true),
+        click: withLiveContents('paste', () => webContents.paste())
+      },
+      ...params.misspelledWord ? [] : [{
+        id: 'paste-and-match-style',
+        label: browser.text(process.platform === 'darwin' ? 'native.context.pasteMatchStyle' : 'native.context.pasteAsPlainText'),
+        enabled: canPaste && (held?.holdsText ?? true),
+        click: withLiveContents('paste and match style', () => webContents.pasteAndMatchStyle())
+      }],
       { id: 'delete', label: browser.text('native.context.delete'), enabled: params.editFlags.canDelete, click: withLiveContents('delete', () => webContents.delete()) },
       { type: 'separator' },
       { id: 'select-all', label: browser.text('native.context.selectAll'), enabled: params.editFlags.canSelectAll, click: withLiveContents('select all', () => webContents.selectAll()) }

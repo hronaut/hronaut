@@ -4230,6 +4230,7 @@ export const enUS = {
       copy: 'Copy',
       paste: 'Paste',
       pasteMatchStyle: 'Paste and Match Style',
+      pasteAsPlainText: 'Paste as Plain Text',
       pasteAndGo: 'Paste and Go',
       pasteAndGoTo: 'Paste and Go to {text}',
       pasteAndSearchFor: 'Paste and Search for “{text}”',

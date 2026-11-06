@@ -4232,6 +4232,7 @@ export const jaJP: MessageSchema = {
       copy: 'コピー',
       paste: '貼り付け',
       pasteMatchStyle: '書式なしで貼り付け',
+      pasteAsPlainText: 'プレーンテキストとして貼り付け',
       pasteAndGo: '貼り付けて移動',
       pasteAndGoTo: '貼り付けて {text} に移動',
       pasteAndSearchFor: '貼り付けて「{text}」を検索',

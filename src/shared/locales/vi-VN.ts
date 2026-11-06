@@ -4232,6 +4232,7 @@ export const viVN: MessageSchema = {
       copy: 'Sao chép',
       paste: 'Dán',
       pasteMatchStyle: 'Dán và khớp kiểu',
+      pasteAsPlainText: 'Dán dưới dạng văn bản thuần túy',
       pasteAndGo: 'Dán và truy cập',
       pasteAndGoTo: 'Dán và truy cập {text}',
       pasteAndSearchFor: 'Dán và tìm kiếm “{text}”',

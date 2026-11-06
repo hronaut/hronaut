@@ -4232,6 +4232,7 @@ export const hiIN: MessageSchema = {
       copy: 'कॉपी करें',
       paste: 'चिपकाएं',
       pasteMatchStyle: 'चिपकाएं और स्टाइल का मिलान करें',
+      pasteAsPlainText: 'सादे टेक्स्ट के रूप में चिपकाएं',
       pasteAndGo: 'चिपकाएं और जाएं',
       pasteAndGoTo: 'चिपकाएं और {text} पर जाएं',
       pasteAndSearchFor: 'चिपकाएं और “{text}” खोजें',

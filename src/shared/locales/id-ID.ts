@@ -4232,6 +4232,7 @@ export const idID: MessageSchema = {
       copy: 'Salin',
       paste: 'Tempel',
       pasteMatchStyle: 'Tempel dan cocokkan gaya',
+      pasteAsPlainText: 'Tempel sebagai teks biasa',
       pasteAndGo: 'Tempel dan buka',
       pasteAndGoTo: 'Tempel dan buka {text}',
       pasteAndSearchFor: 'Tempel dan telusuri “{text}”',

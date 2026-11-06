@@ -4232,6 +4232,7 @@ export const itIT: MessageSchema = {
       copy: 'Copia',
       paste: 'Incolla',
       pasteMatchStyle: 'Incolla e adatta stile',
+      pasteAsPlainText: 'Incolla come testo normale',
       pasteAndGo: 'Incolla e vai',
       pasteAndGoTo: 'Incolla e vai a {text}',
       pasteAndSearchFor: 'Incolla e cerca “{text}”',

@@ -4232,6 +4232,7 @@ export const zhTW: MessageSchema = {
       copy: '複製',
       paste: '貼上',
       pasteMatchStyle: '貼上並符合樣式',
+      pasteAsPlainText: '貼上為純文字',
       pasteAndGo: '貼上並前往',
       pasteAndGoTo: '貼上並前往 {text}',
       pasteAndSearchFor: '貼上並搜尋「{text}」',

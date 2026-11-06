@@ -4232,6 +4232,7 @@ export const deDE: MessageSchema = {
       copy: 'Kopieren',
       paste: 'Einfügen',
       pasteMatchStyle: 'Einfügen und Stil anpassen',
+      pasteAsPlainText: 'Als reinen Text einfügen',
       pasteAndGo: 'Einfügen und aufrufen',
       pasteAndGoTo: 'Einfügen und {text} aufrufen',
       pasteAndSearchFor: 'Einfügen und nach „{text}“ suchen',

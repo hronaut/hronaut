@@ -4232,6 +4232,7 @@ export const frFR: MessageSchema = {
       copy: 'Copier',
       paste: 'Coller',
       pasteMatchStyle: 'Coller en adaptant le style',
+      pasteAsPlainText: 'Coller en tant que texte brut',
       pasteAndGo: 'Coller et y aller',
       pasteAndGoTo: 'Coller et accéder à {text}',
       pasteAndSearchFor: 'Coller et rechercher « {text} »',
