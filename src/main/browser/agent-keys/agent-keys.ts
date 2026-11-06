@@ -124,26 +124,27 @@ function opensContextMenu(input: BrowserKeyPress): boolean {
 }
 
 /**
- * Chromium's copy, cut and paste keys on Windows and Linux, by key code and exactly these modifiers, as Chromium matches
- * them. They act on the system clipboard, which is the person's: an agent's paste gave its page what they had copied,
- * such as a password, and its copy or cut replaced it. On macOS these commands come from the app's menu, not the page.
+ * Chromium's paste keys, by key code and exactly these modifiers, as Chromium matches them. They paste the system
+ * clipboard, which is the person's: an agent's paste gave its page what they had copied, such as a password, for the page
+ * and the agent to read. Control+V and Control+Shift+V paste on Windows and Linux only; on macOS the app's menu pastes,
+ * which an agent's key never reaches. Copy and cut keys stay, as a web terminal's Control+C does: a page can write the
+ * clipboard on any click of the agent's anyway.
  */
-const CLIPBOARD_KEYS: readonly { virtualKeyCode: number; modifiers: string }[] = [
-  { virtualKeyCode: 67, modifiers: 'control' }, // Control+C
-  { virtualKeyCode: 88, modifiers: 'control' }, // Control+X
-  { virtualKeyCode: 86, modifiers: 'control' }, // Control+V
-  { virtualKeyCode: 86, modifiers: 'control+shift' }, // Control+Shift+V
-  { virtualKeyCode: 45, modifiers: 'control' }, // Control+Insert
+const PASTE_KEYS: readonly { virtualKeyCode: number; modifiers: string; platforms?: 'not-darwin' }[] = [
   { virtualKeyCode: 45, modifiers: 'shift' }, // Shift+Insert
-  { virtualKeyCode: 46, modifiers: 'shift' } // Shift+Delete
+  { virtualKeyCode: 86, modifiers: 'control', platforms: 'not-darwin' }, // Control+V
+  { virtualKeyCode: 86, modifiers: 'control+shift', platforms: 'not-darwin' } // Control+Shift+V
 ]
 
-/** Whether a key press would copy, cut or paste through the person's clipboard. */
-export function usesClipboard(input: BrowserKeyPress, platform: NodeJS.Platform = process.platform): boolean {
-  if (platform === 'darwin') return false
-  const virtualKeyCode = nativeKeyDescription(input).virtualKeyCode
+export const PASTE_KEY_REFUSAL = 'Paste keys would give the page the person\'s clipboard; use browser_insert_text to enter text'
+
+/** Whether a key press would paste the person's clipboard, by its key or by the Paste key Chromium also pastes with. */
+export function pastesClipboard(input: BrowserKeyPress, platform: NodeJS.Platform = process.platform): boolean {
+  const key = nativeKeyDescription(input)
+  if (key.key.toLowerCase() === 'paste') return true
   const modifiers = [...input.modifiers].sort().join('+')
-  return CLIPBOARD_KEYS.some((key) => key.virtualKeyCode === virtualKeyCode && key.modifiers === modifiers)
+  return PASTE_KEYS.some((paste) => paste.virtualKeyCode === key.virtualKeyCode && paste.modifiers === modifiers
+    && (paste.platforms !== 'not-darwin' || platform !== 'darwin'))
 }
 
 /** Presses a key or key combination on the tab's page as native input while the agent's input stays authorized. */
@@ -151,9 +152,7 @@ export async function press(browser: Browser, key: string, tabId?: string, valid
   const tab = getTab(browser, tabId)
   const webContents = tab.webContents
   const input = parseBrowserKeyPress(key)
-  if (usesClipboard(input)) {
-    throw new Error('Copy, cut and paste keys would use the person\'s clipboard; use browser_insert_text to enter text')
-  }
+  if (pastesClipboard(input)) throw new Error(PASTE_KEY_REFUSAL)
   // As for a right-click, the page's own menu opens only in a page the person locked for the agent, which opens none of
   // Hronaut's. They may unlock it while the press waits for the page, so the key goes down only while it is still locked.
   const menuKey = opensContextMenu(input)
