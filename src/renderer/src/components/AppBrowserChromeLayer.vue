@@ -107,6 +107,7 @@ interface BrowserTabsBarHandle {
   expandTabGroupForTab: (tab: BrowserTabState) => void
   toggleTabGroup?: (groupId: string) => void
   collapsedTabGroupIds?: ReadonlySet<string>
+  passedOverWorkspaceIds?: ReadonlySet<string>
   tabListScrollTop?: () => number
   scrollTabListTo?: (top: number) => void
   stopWorkerCapture?: (tabId: string) => Promise<void>
@@ -465,9 +466,12 @@ function selectedTabs(): string[] {
   return browserTabsBar.value?.selectedTabs?.() ?? []
 }
 
-/** The workspaces folded in the tab strip, which the tab keys pass over. */
+/**
+ * The workspaces folded in the tab strip or not listed in the rail, such as one hidden from the sidebar or folded into
+ * its "All N workspaces" row, which the tab keys pass over: Ctrl+Tab and Ctrl+1 to 9 follow the tabs on screen.
+ */
 function foldedWorkspaceIds(): ReadonlySet<string> | undefined {
-  return browserTabsBar.value?.collapsedTabGroupIds
+  return browserTabsBar.value?.passedOverWorkspaceIds
 }
 
 // Main hands the view past a folded workspace's tabs when a tab closes or sleeps, as the tab keys pass over them. Only
