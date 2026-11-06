@@ -19,6 +19,7 @@ import { installSessionHooks } from '../session-hooks/session-hooks.js'
 import { applySiteMuting } from '../site-muting/site-muting.js'
 import { TabDiscoveryTitle } from '../tab-discovery-title.js'
 import { attachTabEvents } from '../tab-events/attach-tab-events.js'
+import { attachLeaveSiteQuestion } from '../tab-events/leave-site-question.js'
 import { attachPageCloseEvents } from '../tab-events/page-close-events.js'
 import { normalizeTabTitle } from '../tab-metadata.js'
 import { BackgroundLoads } from '../tab-sleep/background-loads.js'
@@ -266,6 +267,7 @@ export async function createTab(browser: Browser, options: {
   // app's sign-in ends on, which asks to be closed. Electron lets a page close itself whatever its history, which Chrome
   // allows only to a page opened for a window or still on its first entry, so its tab never stays without its page.
   attachPageCloseEvents(browser, tab, view.webContents)
+  attachLeaveSiteQuestion(browser, tab, view.webContents)
   // Restore all tabs before selecting the saved global tab. Selecting the first
   // recreated tab here would overwrite its workspace's remembered selection.
   if ((options.active && options.selectVisible !== false) || (!browser.activeTabId && !browser.restoringLayout)) {
