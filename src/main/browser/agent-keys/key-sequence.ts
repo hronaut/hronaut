@@ -16,13 +16,35 @@ import { nativeInputAuthority } from '../native-input-authority/native-input-aut
 
 /**
  * Keys a sequence may hold: the keys browser_hold_key holds, without Insert, whose Shift chord pastes the person's
- * clipboard, plus Shift, the one modifier, which games use to run or dash. Control, Alt and Meta stay out, so a
- * sequence never presses a browser or system shortcut.
+ * clipboard, plus the left and right Shift, the one modifier, which games use to run or dash. Control, Alt and Meta stay
+ * out, so a sequence never presses a browser or system shortcut.
  */
 const namedSequenceKeys = new Set([
   'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space', 'Enter', 'Tab',
-  'Escape', 'Backspace', 'Delete', 'Home', 'End', 'PageUp', 'PageDown', 'Shift'
+  'Escape', 'Backspace', 'Delete', 'Home', 'End', 'PageUp', 'PageDown', 'ShiftLeft', 'ShiftRight'
 ])
+
+const SHIFT_KEYS: Record<string, { key: string; code: string; windowsVirtualKeyCode: number; location: number }> = {
+  ShiftLeft: { key: 'Shift', code: 'ShiftLeft', windowsVirtualKeyCode: 16, location: 1 },
+  ShiftRight: { key: 'Shift', code: 'ShiftRight', windowsVirtualKeyCode: 16, location: 2 }
+}
+
+/**
+ * The one name of a key, so a key named by its character and by its KeyboardEvent.code is the same key: Shift is the
+ * left Shift, KeyD is d and Digit1 is 1. Pages that read event.code, as most games do, then get the code they expect.
+ */
+export function sequenceKey(key: string): string {
+  if (key === 'Shift') return 'ShiftLeft'
+  const letter = /^Key([A-Z])$/.exec(key)
+  if (letter) return letter[1]!.toLowerCase()
+  const digit = /^Digit([0-9])$/.exec(key)
+  return digit ? digit[1]! : key
+}
+
+const isShiftKey = (key: string): boolean => sequenceKey(key) in SHIFT_KEYS
+
+/** An acknowledgement later than this behind its event moves the rest of the schedule, so the planned gaps stay. */
+export const KEY_SEQUENCE_SHIFT_AFTER_MS = 17
 
 export const MAX_KEY_SEQUENCE_EVENTS = 200
 export const MAX_KEY_SEQUENCE_MS = 10_000
@@ -30,22 +52,23 @@ export const MAX_KEY_SEQUENCE_MS = 10_000
 const keySequenceEvent = z.object({
   atMs: z.number().int().min(0).max(MAX_KEY_SEQUENCE_MS),
   type: z.enum(['down', 'up']),
-  key: z.string().max(16).refine(key => /^[a-z0-9]$/.test(key) || namedSequenceKeys.has(key),
-    'Use one lowercase letter, digit, Shift or supported named key')
+  key: z.string().max(16).refine(key => /^[a-z0-9]$/.test(sequenceKey(key)) || namedSequenceKeys.has(sequenceKey(key)),
+    'Use one lowercase letter or digit, its code (KeyA, Digit1), Shift, ShiftLeft, ShiftRight or a supported named key')
 }).strict()
 
 export const nativeKeySequenceFields = {
   events: z.array(keySequenceEvent).min(1).max(MAX_KEY_SEQUENCE_EVENTS).superRefine((events, context) => {
     const held = new Set<string>()
-    events.forEach((event, index) => {
+    events.forEach((given, index) => {
+      const event = { ...given, key: sequenceKey(given.key) }
       if (index > 0 && event.atMs < events[index - 1]!.atMs) {
         context.addIssue({ code: 'custom', path: [index, 'atMs'], message: 'Event times must not decrease' })
       }
       if (event.type === 'down' && held.has(event.key)) {
-        context.addIssue({ code: 'custom', path: [index], message: `${event.key} is already down; release it first` })
+        context.addIssue({ code: 'custom', path: [index], message: `${given.key} is already down; release it first` })
       }
       if (event.type === 'up' && !held.has(event.key)) {
-        context.addIssue({ code: 'custom', path: [index], message: `${event.key} is not down` })
+        context.addIssue({ code: 'custom', path: [index], message: `${given.key} is not down` })
       }
       if (event.type === 'down') held.add(event.key)
       else held.delete(event.key)
@@ -57,16 +80,21 @@ export const nativeKeySequenceInput = z.object({ tabId: z.string().min(1), ...na
 export type NativeKeySequenceInput = z.infer<typeof nativeKeySequenceInput>
 type KeySequenceEvent = NativeKeySequenceInput['events'][number]
 
-const SHIFT = { key: 'Shift', code: 'ShiftLeft', windowsVirtualKeyCode: 16, location: 1 }
-
 /**
- * The raw CDP command for one event. Shift sets the shift modifier on every key event while it is down, and on its own
- * down, as a keyboard does; the other keys go down raw, without text, as for browser_hold_key.
+ * The raw CDP command for one event, given the Shift keys already down. The shift modifier is set on every key event
+ * while either Shift is down, and on a Shift's own down, as a keyboard does; the other keys go down raw, without text,
+ * as for browser_hold_key.
  */
-export function keySequenceCommand(event: Pick<KeySequenceEvent, 'type' | 'key'>, shiftDown: boolean): Record<string, unknown> {
+export function keySequenceCommand(event: Pick<KeySequenceEvent, 'type' | 'key'>, shiftsDown: ReadonlySet<string>): Record<string, unknown> {
   const type = event.type === 'down' ? 'rawKeyDown' : 'keyUp'
-  if (event.key === 'Shift') return { type, ...SHIFT, modifiers: event.type === 'down' ? 8 : 0 }
-  const description = nativeKeyDescription(parseBrowserKeyPress(shiftDown ? `Shift+${event.key}` : event.key))
+  const key = sequenceKey(event.key)
+  const shift = SHIFT_KEYS[key]
+  if (shift) {
+    const otherShiftDown = [...shiftsDown].some(code => code !== key)
+    return { type, ...shift, modifiers: event.type === 'down' || otherShiftDown ? 8 : 0 }
+  }
+  const shiftDown = shiftsDown.size > 0
+  const description = nativeKeyDescription(parseBrowserKeyPress(shiftDown ? `Shift+${key}` : key))
   return { type, key: description.key, code: description.code, windowsVirtualKeyCode: description.virtualKeyCode, modifiers: shiftDown ? 8 : 0 }
 }
 
@@ -143,12 +171,17 @@ export async function playKeySequence(browser: Browser, input: NativeKeySequence
     emergencyReleaseStarted: () => { progress.releaseStarted = true; publish() }
   }
   const sentAtMs: number[] = []
-  let shiftDown = false
+  const plannedAtMs: number[] = []
+  let scheduleShiftMs = 0
+  const shiftsDown = new Set<string>()
   let startEpochMs = 0
   const send = async (event: Pick<KeySequenceEvent, 'type' | 'key'>, check: (() => void) | undefined): Promise<void> => {
     sendingKey = event.key
-    await sendAuthorizedAgentInputCommand(browser, webContents, 'Input.dispatchKeyEvent', keySequenceCommand(event, shiftDown), check, observer)
-    if (event.key === 'Shift') shiftDown = event.type === 'down'
+    await sendAuthorizedAgentInputCommand(browser, webContents, 'Input.dispatchKeyEvent', keySequenceCommand(event, shiftsDown), check, observer)
+    if (isShiftKey(event.key)) {
+      if (event.type === 'down') shiftsDown.add(sequenceKey(event.key))
+      else shiftsDown.delete(sequenceKey(event.key))
+    }
   }
   browser.activeNativeKeyHolds.add(webContents)
   tab.view.on('bounds-changed', changed)
@@ -164,15 +197,22 @@ export async function playKeySequence(browser: Browser, input: NativeKeySequence
         validate()
         const start = performance.now()
         startEpochMs = Date.now()
+        // A page that takes long to handle an event, such as a game starting its run on the first key, would otherwise
+        // get the events due meanwhile all at once. The rest of the schedule moves by that delay instead.
         for (const event of options.events) {
-          await waitForNativeKeyHold(start + event.atMs, validate, signal)
-          sentAtMs.push(Math.round(performance.now() - start))
+          const plannedAt = start + event.atMs + scheduleShiftMs
+          await waitForNativeKeyHold(plannedAt, validate, signal)
+          const sentAt = performance.now()
+          plannedAtMs.push(Math.round(plannedAt - start))
+          sentAtMs.push(Math.round(sentAt - start))
           await send(event, validate)
+          const ackLateMs = performance.now() - Math.max(plannedAt, sentAt)
+          if (ackLateMs > KEY_SEQUENCE_SHIFT_AFTER_MS) scheduleShiftMs += ackLateMs
         }
       } finally {
         // Release every key still down, Shift last, at most once each and never one whose up was already attempted.
         const pending = [...held.values()].filter(state => !state.upAttempted).map(state => state.key)
-          .sort((left, right) => Number(left === 'Shift') - Number(right === 'Shift'))
+          .sort((left, right) => Number(isShiftKey(left)) - Number(isShiftKey(right)))
         if (pending.length > 0) {
           progress.releaseStarted = true
           publish()
@@ -181,7 +221,8 @@ export async function playKeySequence(browser: Browser, input: NativeKeySequence
       }
     }))
     validate()
-    const lateMs = options.events.map((event, index) => sentAtMs[index]! - event.atMs)
+    // Lateness is against the moved schedule, which is what the page saw between events; scheduleShiftMs is how far it moved.
+    const lateMs = sentAtMs.map((sent, index) => sent - plannedAtMs[index]!)
     return {
       status: 'DISPATCH_ACKNOWLEDGED',
       events: options.events.length,
@@ -189,6 +230,7 @@ export async function playKeySequence(browser: Browser, input: NativeKeySequence
       durationMs: sentAtMs[sentAtMs.length - 1],
       sentAtMs,
       maxLateMs: Math.max(0, ...lateMs),
+      scheduleShiftMs: Math.round(scheduleShiftMs),
       release: 'ACKNOWLEDGED'
     }
   } catch (error) {

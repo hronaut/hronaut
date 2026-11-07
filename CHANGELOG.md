@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- `browser_key_sequence` accepts keys by their `KeyboardEvent.code` (`KeyD`, `Digit1`, `ShiftLeft`, `ShiftRight`), and when a page is slow to handle an event, such as a game starting its run on the first key, the rest of the sequence keeps its planned gaps instead of arriving at once; the result reports `scheduleShiftMs`.
+
 ## [3.14.23] - 2026-11-07
 
 ### Changed
