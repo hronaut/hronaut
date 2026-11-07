@@ -74,6 +74,7 @@ import { registerBrowserTouch } from './tools/browser-touch/index.js'
 import { registerBrowserScroll } from './tools/browser-scroll/index.js'
 import { registerBrowserHoldKey } from './tools/browser-hold-key/index.js'
 import { registerBrowserKeySequence } from './tools/browser-key-sequence/index.js'
+import { registerBrowserFrameStream } from './tools/browser-frame-stream/index.js'
 import { registerBrowserPress } from './tools/browser-press/index.js'
 import { registerBrowserInsertText } from './tools/browser-insert-text/index.js'
 import { registerBrowserFillFromFile } from './tools/browser-fill-from-file/index.js'
@@ -728,6 +729,7 @@ export function createBrowserMcpServer(
   registerBrowserScroll(toolContext)
   registerBrowserHoldKey(toolContext)
   registerBrowserKeySequence(toolContext)
+  registerBrowserFrameStream(toolContext)
   registerBrowserPress(toolContext)
   registerBrowserInsertText(toolContext)
   registerBrowserFillFromFile(toolContext)

@@ -138,6 +138,7 @@ export const BROWSER_TOOL_METADATA = {
   browser_zoom: nonDestructiveTool('Read or change page zoom'),
   browser_audio: nonDestructiveTool('Control tab audio', true),
   browser_screenshot: nonDestructiveTool('Capture a screenshot', true),
+  browser_frame_stream: nonDestructiveTool('Stream low-resolution page frames'),
   browser_pdf_save: nonDestructiveTool('Save the page as PDF'),
   browser_screenshot_save: nonDestructiveTool('Save a screenshot to downloads'),
   browser_accessibility_audit: readOnlyTool('Run an accessibility audit'),
@@ -334,6 +335,17 @@ const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'ti
   },
   { name: 'browser_audio', category: 'Interaction', description: 'Mute or unmute one browser tab without changing site-wide sound permissions.' },
   { name: 'browser_screenshot', category: 'Inspection', description: 'Return a viewport, full page, element, or selected rectangle as a chat-ready PNG or compact JPEG. Optionally label up to 50 selected current snapshot refs in a viewport image with a bounded geometry legend. For a plain viewport capture, trackChanges returns an observationId; ifChangedSince with that id returns UNCHANGED and no image when the returned pixels are identical at the same page, scroll, viewport, zoom, forced CSS state and options, else the image with CHANGED, NEW or NOT_TRACKED. JPEG and downscaling can hide small changes. Unchanged pixels do not prove unchanged page state.' },
+  {
+    name: 'browser_frame_stream',
+    category: 'Inspection',
+    description: 'Watch one page change live, for games and animations, without a screenshot per step. '
+      + 'action start begins a JPEG screencast of the page alone (maxWidth 64..1280, default 640; maxHeight 64..720, default 360; '
+      + 'quality 1..100, default 60; everyNthFrame 1..10; bufferFrames 1..30, default 10) and returns cursor 0. '
+      + 'action read returns up to maxFrames (1..4, default 1) frames newer than after, the newest ones, waiting up to waitMs (0..2000) for one; '
+      + 'each frame has a sequence and epochMs, on the same clock as browser_key_sequence startEpochMs; pass the returned cursor as after next time. '
+      + 'skipped counts newer frames not returned. action stop ends it. Frames arrive only while the page draws: none while it is hidden, '
+      + 'and a still page sends none. The stream stops after 60 s without a read, on tab close and on a restart. Never wakes or selects a tab.'
+  },
   { name: 'browser_pdf_save', category: 'Inspection', description: 'Save the rendered page as a collision-safe PDF in the download directory, optionally with heading bookmarks or the paper size from the page\'s CSS.' },
   { name: 'browser_screenshot_save', category: 'Inspection', description: 'Save the viewport as a collision-safe PNG in the download directory and return only its filename, path, MIME type, size in pixels, byte count and capture time (plus any forced CSS state note), never the image. Takes an optional portable filename and maxWidth/maxHeight 64..7680. Captures with more pixels than an 8K frame and PNGs over 64 MiB are refused, with at most two saves at once across workspaces. Rejects full-page, element, clip, annotation and JPEG options. The file can hold anything the page shows and stays on disk; omitting the image is not redaction.' },
   { name: 'browser_accessibility_audit', category: 'Inspection', description: 'Audit a page or element with local axe-core rules, save a volatile tab baseline, and compare stable rule-and-target fingerprints after a fix.' },
@@ -435,6 +447,7 @@ const QA_TOOL_NAMES = new Set([
   'browser_fill_from_file',
   'browser_hold_key',
   'browser_key_sequence',
+  'browser_frame_stream',
   'browser_wheel',
   'browser_touch',
   'browser_human_waiting',
