@@ -144,6 +144,7 @@ export async function playKeySequence(browser: Browser, input: NativeKeySequence
   }
   const sentAtMs: number[] = []
   let shiftDown = false
+  let startEpochMs = 0
   const send = async (event: Pick<KeySequenceEvent, 'type' | 'key'>, check: (() => void) | undefined): Promise<void> => {
     sendingKey = event.key
     await sendAuthorizedAgentInputCommand(browser, webContents, 'Input.dispatchKeyEvent', keySequenceCommand(event, shiftDown), check, observer)
@@ -162,6 +163,7 @@ export async function playKeySequence(browser: Browser, input: NativeKeySequence
       try {
         validate()
         const start = performance.now()
+        startEpochMs = Date.now()
         for (const event of options.events) {
           await waitForNativeKeyHold(start + event.atMs, validate, signal)
           sentAtMs.push(Math.round(performance.now() - start))
@@ -183,6 +185,7 @@ export async function playKeySequence(browser: Browser, input: NativeKeySequence
     return {
       status: 'DISPATCH_ACKNOWLEDGED',
       events: options.events.length,
+      startEpochMs,
       durationMs: sentAtMs[sentAtMs.length - 1],
       sentAtMs,
       maxLateMs: Math.max(0, ...lateMs),

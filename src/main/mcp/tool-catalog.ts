@@ -311,7 +311,7 @@ const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'ti
       + 'while Shift is down the other keys carry it, so Shift with ArrowRight is a chord. '
       + 'Each key goes down before it goes up and every key must be up by the last event. '
       + 'Sends raw key-downs and key-ups, without text or auto-repeat. '
-      + 'Returns DISPATCH_ACKNOWLEDGED with sentAtMs, when each event was sent from the first, and maxLateMs. '
+      + 'Returns DISPATCH_ACKNOWLEDGED with startEpochMs (wall clock of the first event), sentAtMs, when each event was sent from the first, and maxLateMs. '
       + 'Same environment, lock and authority rules as browser_hold_key: any change, a pause or the person\'s lock '
       + 'stops the sequence before its next event and releases every key still down once; after a key went down '
       + 'a failure is OUTCOME_UNKNOWN and must not be replayed, and an unconfirmed release blocks further holds '

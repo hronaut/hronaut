@@ -38,6 +38,7 @@ for (const locked of [false, true]) test(`key sequence plays a timed Shift chord
   const outcome = JSON.parse(text(result))
   expect(outcome).toMatchObject({ status: 'DISPATCH_ACKNOWLEDGED', events: 6, release: 'ACKNOWLEDGED' })
   expect(outcome.sentAtMs).toHaveLength(6)
+  expect(Math.abs(outcome.startEpochMs - Date.now())).toBeLessThan(10_000)
   outcome.sentAtMs.forEach((sent: number, index: number) => expect(sent).toBeGreaterThanOrEqual(DASH_JUMP[index]!.atMs))
   expect(observed.commands.map(c => [c.type, c.key, c.params.modifiers])).toEqual([
     ['rawKeyDown', 'ArrowRight', 0], ['rawKeyDown', 'Shift', 8], ['rawKeyDown', ' ', 8], ['keyUp', ' ', 8], ['keyUp', 'Shift', 0], ['keyUp', 'ArrowRight', 0]
