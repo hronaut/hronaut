@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [3.14.23] - 2026-11-07
+
 ### Changed
 
 - Agents can now play browser games and other pages that read held keys with `browser_key_sequence`: up to 200 timed key downs and ups over at most 10 seconds, with Shift chords such as a dash jump, sent as native input that reports when each key went. It keeps every rule of `browser_hold_key`, so a pause, your lock or any change on the page stops it and releases the keys it held.
