@@ -153,6 +153,8 @@ describe('MCP tool sets', () => {
     expect(qa).toContain('browser_hold_key')
     expect(qa).toContain('browser_key_sequence')
     expect(browse).not.toContain('browser_key_sequence')
+    expect(qa).toContain('browser_frame_stream')
+    expect(browse).not.toContain('browser_frame_stream')
     expect(qa).toContain('browser_touch')
     expect(qa).toContain('browser_file_drop')
     expect(browse).not.toContain('browser_file_drop')
@@ -184,7 +186,7 @@ describe('MCP tool sets', () => {
   })
 
   it('publishes complete, conservative display and safety metadata for every tool', () => {
-    expect(BROWSER_TOOL_CATALOG).toHaveLength(105)
+    expect(BROWSER_TOOL_CATALOG).toHaveLength(106)
     for (const tool of BROWSER_TOOL_CATALOG) {
       expect(tool.title, tool.name).toMatch(/\S/)
       expect(tool.annotations, tool.name).toEqual({

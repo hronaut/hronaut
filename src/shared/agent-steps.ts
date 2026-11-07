@@ -56,6 +56,7 @@ const STEP_BY_TOOL: Readonly<Record<string, AgentStepKind>> = {
   browser_find: 'read',
   browser_public_outcome: 'read',
   browser_screenshot: 'screenshot',
+  browser_frame_stream: 'screenshot',
   browser_pdf_save: 'screenshot',
   browser_screenshot_save: 'screenshot',
   browser_visual_compare: 'screenshot',

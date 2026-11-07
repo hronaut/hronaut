@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Changed
 
 - Agents can now play browser games and other pages that read held keys with `browser_key_sequence`: up to 200 timed key downs and ups over at most 10 seconds, with Shift chords such as a dash jump, sent as native input that reports when each key went. It keeps every rule of `browser_hold_key`, so a pause, your lock or any change on the page stops it and releases the keys it held.
+- Agents can now watch a page change live with `browser_frame_stream`: a low-resolution JPEG stream of that page alone, read a few frames at a time after a cursor, with when each frame was drawn, so an agent can see a game react to its keys. Frames stay in memory, stop while the page is hidden, and the stream ends after a minute without a read.
 
 ## [3.14.22] - 2026-11-06
 

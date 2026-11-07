@@ -74,6 +74,7 @@ import { registerBrowserTouch } from './tools/browser-touch/index.js'
 import { registerBrowserScroll } from './tools/browser-scroll/index.js'
 import { registerBrowserHoldKey } from './tools/browser-hold-key/index.js'
 import { registerBrowserKeySequence } from './tools/browser-key-sequence/index.js'
+import { registerBrowserFrameStream } from './tools/browser-frame-stream/index.js'
 import { registerBrowserPress } from './tools/browser-press/index.js'
 import { registerBrowserInsertText } from './tools/browser-insert-text/index.js'
 import { registerBrowserFillFromFile } from './tools/browser-fill-from-file/index.js'
@@ -147,14 +148,10 @@ import { runAgentCall } from '../browser/browser-state/agent-calls.js'
 function matchesWorkspaceResumeKey(expected: string, supplied: string): boolean {
   const expectedBytes = Buffer.from(expected, 'utf8')
   const suppliedBytes = Buffer.from(supplied, 'utf8')
-  return expectedBytes.length === suppliedBytes.length
-    && timingSafeEqual(expectedBytes, suppliedBytes)
+  return expectedBytes.length === suppliedBytes.length && timingSafeEqual(expectedBytes, suppliedBytes)
 }
 
-export function assertMcpToolRegistrationContract(
-  catalog: readonly Pick<BrowserToolDefinition, 'name'>[],
-  registeredNames: readonly string[]
-): void {
+export function assertMcpToolRegistrationContract(catalog: readonly Pick<BrowserToolDefinition, 'name'>[], registeredNames: readonly string[]): void {
   const duplicates = (names: readonly string[]) => [...new Set(names.filter((name, index) => names.indexOf(name) !== index))].sort()
   const catalogNames = catalog.map((tool) => tool.name)
   const catalogSet = new Set(catalogNames)
@@ -728,6 +725,7 @@ export function createBrowserMcpServer(
   registerBrowserScroll(toolContext)
   registerBrowserHoldKey(toolContext)
   registerBrowserKeySequence(toolContext)
+  registerBrowserFrameStream(toolContext)
   registerBrowserPress(toolContext)
   registerBrowserInsertText(toolContext)
   registerBrowserFillFromFile(toolContext)
