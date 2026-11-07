@@ -15,6 +15,10 @@ export interface PendingVideoInspection {
 }
 
 interface CapturedFrame { data: Uint8Array; width: number; height: number }
+/** The page's newest frame: null before there is one, 'unchanged' when the page drew nothing new since the last. */
+export type VideoCaptureResult = CapturedFrame | 'unchanged' | null
+/** Takes a frame; release stops whatever the capture keeps running while the recording does not. */
+export type VideoCapture = (() => Promise<VideoCaptureResult>) & { release?: () => void }
 interface Recording {
   state: BrowserVideoState
   frames: VideoFrame[]
@@ -25,11 +29,12 @@ interface Recording {
   runningSince: number
   lastFrameAt: number
   timer?: ReturnType<typeof setTimeout>
+  lastSampleAt?: number
   pending?: Promise<void>
   validate: () => void
   validateSource: () => void
   captureRevision: number
-  capture: () => Promise<CapturedFrame | null>
+  capture: VideoCapture
   preview?: Uint8Array
   abort: AbortController
   busy: boolean
@@ -124,7 +129,7 @@ export class BrowserVideoRecorder {
   async manage(
     tabId: string,
     input: BrowserVideoOptions,
-    capture: () => Promise<CapturedFrame | null>,
+    capture: VideoCapture,
     validate: () => void,
     validateSource: () => void = validate,
     signal?: AbortSignal,
@@ -262,10 +267,13 @@ export class BrowserVideoRecorder {
 
   private schedule(tabId: string, r: Recording): void {
     if (r.state.status !== 'recording' || this.recordings.get(tabId) !== r || r.timer || r.pending) return
+    // Samples keep a steady cadence from when the last one started, so the time a capture takes does not lower the rate.
+    const interval = 1000 / VIDEO_LIMITS.framesPerSecond
+    const delay = Math.max(0, (r.lastSampleAt ?? this.now()) + interval - this.now())
     r.timer = setTimeout(() => {
       r.timer = undefined
       r.pending = this.sample(tabId, r).finally(() => { r.pending = undefined; this.schedule(tabId, r) })
-    }, 1000 / VIDEO_LIMITS.framesPerSecond)
+    }, delay)
     r.timer.unref?.()
   }
 
@@ -273,6 +281,7 @@ export class BrowserVideoRecorder {
     let timeout: ReturnType<typeof setTimeout> | undefined
     const revision = r.captureRevision
     const startedAt = this.now()
+    r.lastSampleAt = startedAt
     const timeMs = this.duration(r, startedAt)
     try {
       r.validateSource()
@@ -285,6 +294,14 @@ export class BrowserVideoRecorder {
       r.validateSource()
       r.validate()
       if (!frame) return
+      if (frame === 'unchanged') {
+        // A still page repeats its last frame, sharing its bytes, so a sample costs no memory and the recording its time.
+        const last = r.frames.at(-1)
+        r.lastFrameAt = this.now()
+        if (last) r.frames.push(Object.freeze({ timeMs, data: last.data }))
+        r.state.frameCount = r.frames.length
+        return
+      }
       if (r.state.bytes + frame.data.byteLength > VIDEO_LIMITS.bytes) { this.halt(r, 'stopped', VIDEO_RECORDING_NOTICES.sizeLimit); return }
       if (!frame.data.byteLength || !frame.width || !frame.height) throw new Error('Empty frame')
       if (r.frames.length && (frame.width !== r.state.width || frame.height !== r.state.height)) throw new Error('Viewport changed')
@@ -325,6 +342,8 @@ export class BrowserVideoRecorder {
     if (notice) r.state.notice = notice
     if (r.timer) clearTimeout(r.timer)
     r.timer = undefined
+    r.lastSampleAt = undefined
+    r.capture.release?.()
     this.host.changed()
   }
 
@@ -333,6 +352,7 @@ export class BrowserVideoRecorder {
     if (!r) return
     this.recordings.delete(tabId)
     if (r.timer) clearTimeout(r.timer)
+    r.capture.release?.()
     r.abort.abort()
     r.frames.length = 0
     r.audioAssets.clear()

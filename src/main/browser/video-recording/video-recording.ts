@@ -1,12 +1,11 @@
 import type { BrowserVideoInspectionOptions } from '../../../shared/video-inspection.js'
-import { VIDEO_LIMITS, type BrowserVideoOptions, type BrowserVideoState } from '../../../shared/video.js'
-import { captureStableVideoImage } from '../video-capture.js'
+import type { BrowserVideoOptions, BrowserVideoState } from '../../../shared/video.js'
+import { videoCaptureSource } from './video-capture-source.js'
 import { LocalizedError } from '../../localized-error.js'
 import type { PendingVideoInspection, VideoSourceBinding } from '../video-recorder.js'
 import type { ExportFileWriter } from '../unique-download-file.js'
 import type { Browser } from '../browser.js'
 import { findTab, getTab } from '../browser-core.js'
-import { withRenderableTab } from '../renderable-tab/renderable-tab.js'
 
 /**
  * Runs the action on the tab's video recording, from starting and stopping
@@ -29,26 +28,7 @@ export async function videoRecording(
     validateAuthority()
     if (browser.destroyed || findTab(browser, tab.id) !== tab || tab.mcpGroupId !== workspaceId || tab.webContents.isDestroyed()) throw new LocalizedError('video.errors.tabUnavailable')
   }
-  let initialSize: { width: number; height: number } | undefined
-  const capture = async () => {
-    if (browser.destroyed || findTab(browser, tab.id) !== tab || tab.mcpGroupId !== workspaceId || tab.webContents.isDestroyed()) throw new LocalizedError('video.errors.tabUnavailable')
-    if (!/^https?:/.test(tab.url) || new URL(tab.url).origin !== origin || tab.sleeping || tab.pageLifecycleState !== 'active' || !browser.window.isVisible() || browser.window.isMinimized() || browser.browserContentOccluded) throw new Error('Keep Hronaut visible and the recording tab awake at its original origin')
-    const image = await captureStableVideoImage(
-      () => withRenderableTab(browser, tab, () => tab.webContents.capturePage(undefined, { stayHidden: true, stayAwake: true })),
-      () => tab.navigationGeneration,
-      () => tab.webContents.isLoadingMainFrame()
-    )
-    if (browser.destroyed || findTab(browser, tab.id) !== tab || tab.mcpGroupId !== workspaceId || tab.webContents.isDestroyed()) throw new LocalizedError('video.errors.tabUnavailable')
-    if (new URL(tab.url).origin !== origin || tab.sleeping || tab.pageLifecycleState !== 'active' || !browser.window.isVisible() || browser.window.isMinimized() || browser.browserContentOccluded) throw new Error('The tab changed during capture')
-    if (!image) return null
-    const size = image.getSize()
-    if (initialSize && (size.width !== initialSize.width || size.height !== initialSize.height)) throw new Error('Restore the original viewport size before resuming')
-    initialSize = size
-    const scale = Math.min(1, VIDEO_LIMITS.width / size.width, VIDEO_LIMITS.height / size.height)
-    const width = Math.max(2, Math.floor(size.width * scale / 2) * 2)
-    const height = Math.max(2, Math.floor(size.height * scale / 2) * 2)
-    return { data: image.resize({ width, height }).toJPEG(85), width, height }
-  }
+  const capture = videoCaptureSource(browser, tab, origin, workspaceId, valid)
   const validateSource = (): void => {
     if (findTab(browser, tab.id) !== tab || tab.mcpGroupId !== workspaceId || new URL(tab.url).origin !== origin) throw new LocalizedError('video.errors.returnToOrigin')
   }

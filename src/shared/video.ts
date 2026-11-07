@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { videoInspectionFields } from './video-inspection.js'
 
-export const VIDEO_LIMITS = { durationMs: 120_000, framesPerSecond: 12, width: 1280, height: 720, bytes: 64 * 1024 * 1024, recordings: 3, annotations: 100, clips: 30 } as const
+export const VIDEO_LIMITS = { durationMs: 120_000, framesPerSecond: 30, width: 1280, height: 720, bytes: 256 * 1024 * 1024, recordings: 3, annotations: 100, clips: 30 } as const
 /** Why capture paused or stopped by itself; browser_video keeps this English, the recorder panel names it in the interface language. */
 export const VIDEO_RECORDING_NOTICES = {
   gap: 'Capture paused after a gap without frames; resume explicitly',
