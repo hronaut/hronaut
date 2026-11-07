@@ -1366,7 +1366,9 @@ paints and recording costs the main process no capture or encoding; a sample wit
 repeats the last frame and shares its bytes. A tab in the background, which Chromium draws for no
 screencast, is copied instead, at most 12 times a second, and its other samples repeat the last copy.
 Each recording is limited to two minutes and 256 MiB of distinct JPEG frames; at most three recordings
-are retained and may capture concurrently. Exports encode VP9 at 6 Mbit/s and 30 frames a second. Each recording keeps its original tab and workspace. Video control calls do not
+are retained and may capture concurrently. Exports encode VP9 at 6 Mbit/s and 30 frames a second. Each recording keeps its original tab and workspace. A stopped recording stays
+open to edit, render, inspect and export after its tab moves to another site; a
+paused one resumes only at its origin. Video control calls do not
 trigger Follow agent; other tools retain their normal follow behavior without
 retargeting the recording. Separate authorized agents can record separate
 workspaces while the human uses another tab. Raw frames and rendered previews stay in memory and disappear
@@ -1418,9 +1420,9 @@ recorder or encoder bridge.
   The sheet uses original source pixels, without clips, annotations, camera effects
   or audio; existing recording, preview and exports are unchanged. It is transient,
   not a new saved pixel store. Every call requires current capability/control and
-  access to the recording's stored tab, workspace and origin, checked again after
-  final MCP settlement. Capture permission does not grant permanent read access.
-  Clear/new/edit/close, origin/workspace changes, cancellation and authority loss
+  access to the recording's stored tab and workspace and a capability that covers
+  the recording's origin, checked again after final MCP settlement. Capture permission does not grant permanent read access.
+  Clear/new/edit/close, workspace changes, cancellation and authority loss
   invalidate an in-flight result.
 
   Operational limits: at most 12 selected JPEGs, 4 MiB per JPEG and **8 MiB aggregate

@@ -80,7 +80,26 @@ test('inspects actual retained source pixels with metadata and leaves compositio
   expect(empty.content.some(item=>item.type==='image')).toBe(false);expect(JSON.parse(text(empty)).status).toBe('empty')
 })
 
-for(const boundary of ['clear','clear-new','edit','close','origin','workspace','pause'] as const){
+test('keeps a stopped recording open after its tab leaves the origin, and resumes a paused one only there',async({capabilities,appWindow})=>{
+  const {client,tabId}=capabilities;await stopped(client,tabId)
+  await appWindow.evaluate(async tabId=>(window as unknown as TestWindow).hronaut.navigate({tabId,url:'about:blank'}),tabId)
+  await expect.poll(async()=>appWindow.evaluate(async tabId=>(await (window as unknown as TestWindow).hronaut.getState()).tabs.find(tab=>tab.id===tabId)?.url,tabId)).toBe('about:blank')
+  const got=await video(client,tabId,'get');expect(got.isError,text(got)).not.toBe(true)
+  const edited=await video(client,tabId,'edit',{annotations:[]});expect(edited.isError,text(edited)).not.toBe(true)
+  const inspected=await video(client,tabId,'inspect',request(JSON.parse(text(edited)) as BrowserVideoState));expect(inspected.isError,text(inspected)).not.toBe(true)
+  expect(inspected.content.some(item=>item.type==='image')).toBe(true)
+  const exported=await video(client,tabId,'export');expect(exported.isError,text(exported)).not.toBe(true)
+  expect((JSON.parse(text(exported)) as BrowserVideoState).exported?.path).toBeTruthy()
+  const cleared=await video(client,tabId,'clear');expect(cleared.isError,text(cleared)).not.toBe(true)
+  await appWindow.evaluate(async ({tabId,url})=>(window as unknown as TestWindow).hronaut.navigate({tabId,url}),{tabId,url:capabilities.fixtureUrl})
+  await expect.poll(async()=>appWindow.evaluate(async tabId=>(await (window as unknown as TestWindow).hronaut.getState()).tabs.find(tab=>tab.id===tabId)?.url,tabId)).toBe(capabilities.fixtureUrl)
+  const start=await video(client,tabId,'start');expect(start.isError,text(start)).not.toBe(true)
+  const pause=await video(client,tabId,'pause');expect(pause.isError,text(pause)).not.toBe(true)
+  await appWindow.evaluate(async tabId=>(window as unknown as TestWindow).hronaut.navigate({tabId,url:'about:blank'}),tabId)
+  await expect.poll(async()=>appWindow.evaluate(async tabId=>(await (window as unknown as TestWindow).hronaut.getState()).tabs.find(tab=>tab.id===tabId)?.url,tabId)).toBe('about:blank')
+  const resumed=await video(client,tabId,'resume');expect(resumed.isError).toBe(true);expect(text(resumed)).toContain('Return to the recording origin')
+})
+for(const boundary of ['clear','clear-new','edit','close','workspace','pause'] as const){
   test(`discards actual inspect pixels after ${boundary}`,async({capabilities,appWindow,electronApp})=>{
     const {client,tabId}=capabilities;const state=await stopped(client,tabId)
     await holdFrame(electronApp)
@@ -93,7 +112,6 @@ for(const boundary of ['clear','clear-new','edit','close','origin','workspace','
         if(boundary==='clear-new'){await api.manageVideo({tabId,action:'start'});await api.manageVideo({tabId,action:'stop'})}
         if(boundary==='edit')await api.manageVideo({tabId,action:'edit',annotations:[]})
         if(boundary==='close')await api.closeTab(tabId)
-        if(boundary==='origin')await api.navigate({tabId,url:'about:blank'})
         if(boundary==='workspace'){const state=await api.getState();await api.closeWorkspace(state.tabs.find(tab=>tab.id===tabId)!.mcpGroupId!)}
         if(boundary==='pause')await (window as unknown as TestWindow).hronautMcp.setPaused(true)
       },{tabId,boundary})

@@ -110,7 +110,7 @@
     "src/main/browser/video-inspection-frames.ts": 2,
     "src/main/browser/video-inspection.ts": 6,
     "src/main/browser/video-recorder.ts": 16,
-    "src/main/browser/video-recording/video-recording.ts": 3,
+    "src/main/browser/video-recording/video-recording.ts": 2,
     "src/main/browser/virtual-passkey/browser-virtual-passkeys.ts": 1,
     "src/main/browser/virtual-passkey/virtual-passkey.ts": 6,
     "src/main/browser/visual-compare/visual-capture.ts": 4,

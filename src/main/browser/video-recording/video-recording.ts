@@ -11,8 +11,8 @@ import { findTab, getTab } from '../browser-core.js'
  * Runs the action on the tab's video recording, from starting and stopping
  * it to editing and exporting it. Frames are captured only while Hronaut is
  * visible and the tab stays awake, active and at the origin it started on, in
- * its workspace, at its first viewport size; the recording is reachable only
- * from that origin. An export is saved through saveFile when the caller chose one, else in the download folder.
+ * its workspace, at its first viewport size; until it stops, the recording is
+ * reachable only from that origin. An export is saved through saveFile when the caller chose one, else in the download folder.
  */
 export async function videoRecording(
   browser: Browser,
@@ -29,8 +29,10 @@ export async function videoRecording(
     if (browser.destroyed || findTab(browser, tab.id) !== tab || tab.mcpGroupId !== workspaceId || tab.webContents.isDestroyed()) throw new LocalizedError('video.errors.tabUnavailable')
   }
   const capture = videoCaptureSource(browser, tab, origin, workspaceId, valid)
+  // A stopped recording takes no more frames, so it stays open to edit, render, inspect and export after its tab leaves the origin.
   const validateSource = (): void => {
-    if (findTab(browser, tab.id) !== tab || tab.mcpGroupId !== workspaceId || new URL(tab.url).origin !== origin) throw new LocalizedError('video.errors.returnToOrigin')
+    if (findTab(browser, tab.id) !== tab || tab.mcpGroupId !== workspaceId) throw new LocalizedError('video.errors.returnToOrigin')
+    if (browser.videoRecorder.capturing(tab.id) && new URL(tab.url).origin !== origin) throw new LocalizedError('video.errors.returnToOrigin')
   }
   return browser.videoRecorder.manage(tab.id, options, capture, valid, validateSource, signal, { tabId: tab.id, workspaceId, origin }, saveFile)
 }
