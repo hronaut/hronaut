@@ -40,6 +40,7 @@ const STEP_BY_TOOL: Readonly<Record<string, AgentStepKind>> = {
   browser_select: 'choose',
   browser_press: 'pressKey',
   browser_hold_key: 'pressKey',
+  browser_key_sequence: 'pressKey',
   browser_hover: 'hover',
   browser_scroll: 'scroll',
   browser_wheel: 'scroll',
