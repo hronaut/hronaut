@@ -57,6 +57,42 @@ for (const locked of [false, true]) test(`key sequence plays a timed Shift chord
   expect((await client.callTool({ name: 'browser_key_sequence', arguments: { tabId, events: [{ atMs: 0, type: 'down', key: 'e' }, { atMs: 10, type: 'up', key: 'e' }] } }) as CallToolResult).isError).not.toBe(true)
 })
 
+test('key sequence takes key codes and keeps its gaps after a slow first key, as a game starting its run', async ({ capabilities, electronApp }, testInfo) => {
+  const { client, tabId, fixtureUrl } = capabilities
+  await setupHoldPage(electronApp, fixtureUrl)
+  // The first keydown handler runs for 400 ms, so that key's acknowledgement is late and the events due meanwhile wait.
+  await electronApp.evaluate(async ({ webContents }, url) => webContents.getAllWebContents().find(p => p.getURL() === url)!.executeJavaScript(
+    'window.codesSeen=[];for(const type of ["keydown","keyup"])document.addEventListener(type,e=>{window.codesSeen.push([type,e.code,e.location,e.shiftKey,performance.now()]);'
+    + 'if(!window.slowStart){window.slowStart=true;const t=performance.now();while(performance.now()-t<400);}});void 0'), fixtureUrl)
+  await observeHold(electronApp, fixtureUrl)
+  const events = [
+    { atMs: 0, type: 'down', key: 'KeyD' }, { atMs: 200, type: 'up', key: 'KeyD' },
+    { atMs: 300, type: 'down', key: 'ShiftRight' }, { atMs: 300, type: 'down', key: 'Digit1' },
+    { atMs: 400, type: 'up', key: 'Digit1' }, { atMs: 500, type: 'up', key: 'ShiftRight' }
+  ]
+  const result = await client.callTool({ name: 'browser_key_sequence', arguments: { tabId, events } }) as CallToolResult
+  await expect.poll(async () => (await holdObservation(electronApp)).effects?.events.length).toBe(6)
+  const observed = await holdObservation(electronApp)
+  const seen = await electronApp.evaluate(async ({ webContents }, url) => webContents.getAllWebContents().find(p => p.getURL() === url)!
+    .executeJavaScript('window.codesSeen'), fixtureUrl) as Array<[string, string, number, boolean, number]>
+  await testInfo.attach('native-key-sequence-codes', { body: JSON.stringify({ result, observed, seen }), contentType: 'application/json' })
+  expect(result.isError, text(result)).not.toBe(true)
+  const outcome = JSON.parse(text(result))
+  expect(outcome).toMatchObject({ status: 'DISPATCH_ACKNOWLEDGED', events: 6, release: 'ACKNOWLEDGED' })
+  expect(outcome.scheduleShiftMs).toBeGreaterThanOrEqual(350)
+  expect(seen.map(([type, code, location, shift]) => [type, code, location, shift])).toEqual([
+    ['keydown', 'KeyD', 0, false], ['keyup', 'KeyD', 0, false], ['keydown', 'ShiftRight', 2, true],
+    ['keydown', 'Digit1', 0, true], ['keyup', 'Digit1', 0, true], ['keyup', 'ShiftRight', 2, false]
+  ])
+  const at = seen.map(entry => entry[4])
+  // Without the moved schedule, the up due at 200 ms and the events after it arrive together when the slow key returns.
+  expect(at[1]! - at[0]!).toBeGreaterThanOrEqual(580)
+  expect(at[2]! - at[1]!).toBeGreaterThanOrEqual(90)
+  expect(at[4]! - at[3]!).toBeGreaterThanOrEqual(90)
+  expect(at[5]! - at[4]!).toBeGreaterThanOrEqual(90)
+  expect(observed.effects!.held).toBe(false)
+})
+
 for (const change of ['pause', 'tab-lock'] as const) test(`key sequence stops on ${change} and releases held keys once`, async ({ capabilities, electronApp, appWindow }, testInfo) => {
   const { client, tabId, fixtureUrl } = capabilities
   await setupHoldPage(electronApp, fixtureUrl)
