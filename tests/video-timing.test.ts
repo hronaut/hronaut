@@ -47,7 +47,7 @@ it('invalidates a duration observation when interruption recovery removes the un
   const before = await call('get'); recorder.pauseAll('Interrupted')
   const after = await call('get')
   expect(before.timing).toMatchObject({ sourceTimeMs: 1000, revision: 0 })
-  expect(after.timing).toMatchObject({ sourceTimeMs: 83, revision: 1, lastFrame: { sourceTimeMs: 0, revision: 0 } })
+  expect(after.timing).toMatchObject({ sourceTimeMs: 33, revision: 1, lastFrame: { sourceTimeMs: 0, revision: 0 } })
   recorder.destroy()
 })
 
@@ -55,11 +55,11 @@ it('does not invent retained-frame observations for dropped captures or accept l
   const { recorder, capture, call } = fixture()
   const start = await call('start')
   capture.mockResolvedValueOnce(null)
-  await vi.advanceTimersByTimeAsync(90)
+  await vi.advanceTimersByTimeAsync(40)
   expect((await call('get')).timing?.lastFrame).toEqual(start.timing?.lastFrame)
   let finish!: (value: typeof frame) => void
   capture.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
-  await vi.advanceTimersByTimeAsync(90)
+  await vi.advanceTimersByTimeAsync(40)
   await call('pause'); await call('resume'); finish(frame)
   await vi.advanceTimersByTimeAsync(1)
   const resumed = await call('get')

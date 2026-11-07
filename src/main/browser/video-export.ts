@@ -33,13 +33,17 @@ export async function renderBrowserVideo(plan: VideoRenderPlan, frames: readonly
     await call('begin', [plan, assets.map(asset => ({ id: asset.id, base64: Buffer.from(asset.data).toString('base64') }))])
     const { frameCount, frameDurationMs } = videoFrameTiming(plan.clips)
     let frameIndex = 0
+    let sent: Uint8Array | undefined
     for (let index = 0; index < frameCount; index += 1) {
       const outputMs = index * frameDurationMs
       const sourceMs = videoSourceTime(plan.clips, outputMs)
       while (frameIndex + 1 < frames.length && frames[frameIndex + 1]!.timeMs <= sourceMs) frameIndex += 1
       const frame = frames[frameIndex]
       if (!frame) throw new Error('Recorded frame is unavailable')
-      await call('frame', [`data:image/jpeg;base64,${Buffer.from(frame.data).toString('base64')}`, sourceMs, outputMs, frameDurationMs])
+      // A repeated frame shares its bytes with the one before, which the encoder still holds decoded.
+      const image = frame.data === sent ? null : `data:image/jpeg;base64,${Buffer.from(frame.data).toString('base64')}`
+      sent = frame.data
+      await call('frame', [image, sourceMs, outputMs, frameDurationMs])
     }
     const encoded = await call('finish')
     if (typeof encoded !== 'string' || !encoded.startsWith('data:video/webm;base64,')) throw new Error('Invalid video export')

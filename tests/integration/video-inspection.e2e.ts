@@ -142,8 +142,10 @@ test('revokes an actual capability while an inspection is pending',async({capabi
 })
 
 for(const bound of ['dimensions','aggregate','png'] as const){
-  test(`rejects actual retained ${bound} bounds without returning pixels`,async({capabilities,electronApp})=>{
-    const {client,tabId,fixtureUrl}=capabilities
+  test(`rejects actual retained ${bound} bounds without returning pixels`,async({capabilities,electronApp,appWindow})=>{
+    const {client,tabId,fixtureUrl,fixtureOrigin}=capabilities
+    // A tab Hronaut draws is recorded from its screencast; a background tab is copied, whose copies this test replaces.
+    await appWindow.evaluate(async url=>(window as unknown as {hronaut:HronautApi}).hronaut.newTab({url,active:true}),`${fixtureOrigin}/?human`)
     // Replace only recorder capture responses with generated pixels; thumbnail/page data stays untouched.
     await electronApp.evaluate(({webContents,nativeImage},{url,bound})=>{
       const page=webContents.getAllWebContents().find(contents=>contents.getURL()===url)!
@@ -169,7 +171,7 @@ for(const bound of ['dimensions','aggregate','png'] as const){
     },{url:fixtureUrl,bound})
     try{
       expect((await video(client,tabId,'start')).isError).not.toBe(true)
-      await expect.poll(async()=>JSON.parse(text(await video(client,tabId,'get'))).frameCount).toBeGreaterThanOrEqual(bound==='dimensions'?1:12)
+      await expect.poll(async()=>JSON.parse(text(await video(client,tabId,'get'))).frameCount).toBeGreaterThanOrEqual(bound==='dimensions'?1:36)
       const state=JSON.parse(text(await video(client,tabId,'stop'))) as BrowserVideoState
       const result=await video(client,tabId,'inspect',request(state))
       expect(result.isError).toBe(true);expect(result.content.some(item=>item.type==='image')).toBe(false)

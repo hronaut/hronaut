@@ -3,7 +3,7 @@ import { z } from 'zod'
 import type { Browser } from '../browser.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { getTab } from '../browser-core.js'
-import { withDebugger } from '../debugger-lease/debugger-lease.js'
+import { subscribePageScreencast } from '../page-screencast/page-screencast.js'
 
 export const FRAME_STREAM_LIMITS = { maxWidth: 1280, maxHeight: 720, bufferFrames: 30, readFrames: 4, waitMs: 2000, idleMs: 60_000 } as const
 const DEFAULTS = { maxWidth: 640, maxHeight: 360, quality: 60, everyNthFrame: 1, bufferFrames: 10 } as const
@@ -38,7 +38,7 @@ interface FrameStream {
   dispose: () => void
 }
 
-// One stream per page: Chromium runs one screencast per debugger session.
+// One stream per page; it shares the page's one screencast with a video recording of it.
 const streams = new WeakMap<WebContents, FrameStream>()
 
 export interface FrameStreamImage { data: string; mimeType: 'image/jpeg' }
@@ -55,9 +55,6 @@ function stopStream(webContents: WebContents, stream: FrameStream, reason: strin
   stream.dispose()
   for (const wake of stream.waiters) wake()
   stream.waiters.clear()
-  if (!webContents.isDestroyed() && webContents.debugger.isAttached()) {
-    webContents.debugger.sendCommand('Page.stopScreencast').catch(() => undefined)
-  }
 }
 
 function keepAlive(webContents: WebContents, stream: FrameStream): void {
@@ -80,37 +77,27 @@ async function startStream(browser: Browser, tab: BrowserTab, input: FrameStream
     frames: [], capacity: input.bufferFrames ?? DEFAULTS.bufferFrames, sequence: 0, startEpochMs: Date.now(),
     idleTimer: setTimeout(() => undefined, 0), waiters: new Set(), dispose: () => undefined
   }
-  const message = (_event: unknown, method: string, params: Record<string, unknown>): void => {
-    if (method !== 'Page.screencastFrame' || stream.stopped) return
-    // Chromium sends the next frame only after this one is acknowledged, so the acknowledgement paces the stream.
-    webContents.debugger.sendCommand('Page.screencastFrameAck', { sessionId: params.sessionId }).catch(() => undefined)
-    const metadata = params.metadata as { timestamp?: number } | undefined
-    stream.sequence += 1
-    stream.frames.push({ sequence: stream.sequence, epochMs: Math.round((metadata?.timestamp ?? Date.now() / 1000) * 1000), data: String(params.data) })
-    if (stream.frames.length > stream.capacity) stream.frames.shift()
-    for (const wake of stream.waiters) wake()
-    stream.waiters.clear()
-  }
-  const detached = (): void => stopStream(webContents, stream, 'debugger-detached')
-  const destroyed = (): void => stopStream(webContents, stream, 'tab-closed')
+  let unsubscribe: (() => void) | undefined
   stream.dispose = () => {
     clearTimeout(stream.idleTimer)
     if (streams.get(webContents) === stream) streams.delete(webContents)
-    if (webContents.isDestroyed()) return
-    webContents.debugger.removeListener('message', message)
-    webContents.debugger.removeListener('detach', detached)
-    webContents.removeListener('destroyed', destroyed)
+    unsubscribe?.()
   }
   streams.set(webContents, stream)
   keepAlive(webContents, stream)
-  webContents.once('destroyed', destroyed)
   try {
-    await withDebugger(browser, webContents, async () => {
-      validate()
-      webContents.debugger.on('message', message)
-      webContents.debugger.on('detach', detached)
-      await webContents.debugger.sendCommand('Page.startScreencast', { format: 'jpeg', ...options })
-    })
+    unsubscribe = await subscribePageScreencast(browser, webContents, options, {
+      frame: frame => {
+        if (stream.stopped) return
+        stream.sequence += 1
+        stream.frames.push({ sequence: stream.sequence, epochMs: frame.epochMs, data: frame.data })
+        if (stream.frames.length > stream.capacity) stream.frames.shift()
+        for (const wake of stream.waiters) wake()
+        stream.waiters.clear()
+      },
+      stopped: reason => stopStream(webContents, stream, reason)
+    }, validate)
+    if (stream.stopped) unsubscribe()
     validate()
   } catch (error) {
     stopStream(webContents, stream, 'start-failed')

@@ -1,5 +1,6 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { BrowserVideoState } from '../../src/shared/video.js'
+import type { HronautApi } from '../../src/shared/types.js'
 import { expect, test, text } from './capability-fixtures.js'
 import { waitForSettledPageBounds } from './settled-page-bounds.js'
 
@@ -9,8 +10,10 @@ test.beforeEach(async ({ appWindow, capabilities, electronApp }) => {
   await waitForSettledPageBounds(electronApp, capabilities.fixtureUrl)
 })
 
-test('observes delayed capture and transport without claiming pixel timing, and invalidates old recording segments', async ({ capabilities, electronApp }) => {
-  const { client, tabId, fixtureUrl } = capabilities
+test('observes delayed capture and transport without claiming pixel timing, and invalidates old recording segments', async ({ capabilities, electronApp, appWindow }) => {
+  const { client, tabId, fixtureUrl, fixtureOrigin } = capabilities
+  // A tab Hronaut draws is recorded from its screencast; a background tab is copied, which this test delays.
+  await appWindow.evaluate(async url => (window as unknown as { hronaut: HronautApi }).hronaut.newTab({ url, active: true }), `${fixtureOrigin}/?human`)
   const video = async (action: string): Promise<BrowserVideoState> => {
     const result = await client.callTool({ name: 'browser_video', arguments: { tabId, action } }) as CallToolResult
     expect(result.isError, text(result)).not.toBe(true)
