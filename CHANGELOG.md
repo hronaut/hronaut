@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - `browser_video` records 30 frames a second from Chromium's own screencast of the page while Hronaut shows the tab, instead of copying the page about 9 times a second, so games and animations play smoothly in the video and the app no longer copies and encodes each frame itself; a still page repeats its last frame without using memory, exports use 6 Mbit/s, and a recording may hold 256 MiB.
+- A stopped `browser_video` recording can still be edited, rendered, inspected and exported after its tab moves to another site; only recording and resuming need the tab back at the site it started on.
 
 ## [3.14.24] - 2026-11-07
 

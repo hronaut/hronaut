@@ -61,6 +61,12 @@ export class BrowserVideoRecorder {
     return this.recordings.get(tabId)?.state.status ?? 'idle'
   }
 
+  /** Whether the tab's recording can still take frames: it is recording, or paused and able to resume. */
+  capturing(tabId: string): boolean {
+    const status = this.recordings.get(tabId)?.state.status
+    return status === 'recording' || status === 'paused'
+  }
+
   state(tabId: string): BrowserVideoState {
     const r = this.recordings.get(tabId)
     const state = r?.state ?? { tabId, status: 'idle', durationMs: 0, width: 0, height: 0, frameCount: 0, bytes: 0, annotations: [], clips: [], audio: [], cameras: [], audioAssets: [...VIDEO_AUDIO_BUILTINS], previewReady: false }
