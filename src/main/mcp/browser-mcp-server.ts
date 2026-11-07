@@ -148,14 +148,10 @@ import { runAgentCall } from '../browser/browser-state/agent-calls.js'
 function matchesWorkspaceResumeKey(expected: string, supplied: string): boolean {
   const expectedBytes = Buffer.from(expected, 'utf8')
   const suppliedBytes = Buffer.from(supplied, 'utf8')
-  return expectedBytes.length === suppliedBytes.length
-    && timingSafeEqual(expectedBytes, suppliedBytes)
+  return expectedBytes.length === suppliedBytes.length && timingSafeEqual(expectedBytes, suppliedBytes)
 }
 
-export function assertMcpToolRegistrationContract(
-  catalog: readonly Pick<BrowserToolDefinition, 'name'>[],
-  registeredNames: readonly string[]
-): void {
+export function assertMcpToolRegistrationContract(catalog: readonly Pick<BrowserToolDefinition, 'name'>[], registeredNames: readonly string[]): void {
   const duplicates = (names: readonly string[]) => [...new Set(names.filter((name, index) => names.indexOf(name) !== index))].sort()
   const catalogNames = catalog.map((tool) => tool.name)
   const catalogSet = new Set(catalogNames)

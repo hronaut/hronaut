@@ -18,6 +18,7 @@ export const READ_ONLY_MULTI_ACTIONS: Readonly<Record<string, ReadonlySet<string
   browser_storage_changes: new Set(['get']),
   browser_repro: new Set(['get']),
   browser_video: new Set(['get', 'inspect']),
+  browser_frame_stream: new Set(['read']),
   browser_dom_changes: new Set(['get']),
   browser_dom_mutation_source: new Set(['get']),
   browser_live_region: new Set(['get']),

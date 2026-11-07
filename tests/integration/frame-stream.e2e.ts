@@ -76,3 +76,31 @@ test('frame stream sends no frames while its page is hidden and resumes when sho
     if (other) await appWindow.evaluate(`${api}.closeTab(${JSON.stringify(other)})`).catch(() => undefined)
   }
 })
+
+test('frame stream keeps delivering frames while a key sequence holds keys', async ({ capabilities, electronApp }, testInfo) => {
+  const { client, tabId, fixtureUrl } = capabilities
+  await waitForSettledPageBounds(electronApp, fixtureUrl)
+  await animate(electronApp, fixtureUrl, true)
+  const call = async (args: Record<string, unknown>) => client.callTool({ name: 'browser_frame_stream', arguments: { tabId, ...args } }) as Promise<CallToolResult>
+  try {
+    expect((await call({ action: 'start', maxWidth: 320, maxHeight: 180 })).isError).not.toBe(true)
+    const before = report(await call({ action: 'read', after: 0, waitMs: 2000 }))
+    const playing = client.callTool({ name: 'browser_key_sequence', arguments: { tabId, events: [
+      { atMs: 0, type: 'down', key: 'ArrowRight' }, { atMs: 1200, type: 'up', key: 'ArrowRight' }
+    ] } }) as Promise<CallToolResult>
+    await electronApp.evaluate(() => new Promise(resolve => setTimeout(resolve, 300)))
+    // Read while the sequence still holds ArrowRight and the page's debugger queue.
+    const during = report(await call({ action: 'read', after: before.cursor, maxFrames: 4, waitMs: 2000 }))
+    const played = await playing
+    const sequence = JSON.parse(text(played)) as { startEpochMs: number; sentAtMs: number[] }
+    await testInfo.attach('frames-during-sequence', { body: JSON.stringify({ before, during, sequence }), contentType: 'application/json' })
+    expect(played.isError, text(played)).not.toBe(true)
+    expect(during.status).toBe('FRAMES')
+    const lastFrame = during.frames.at(-1)!.epochMs
+    expect(lastFrame).toBeGreaterThanOrEqual(sequence.startEpochMs - 50)
+    expect(lastFrame).toBeLessThan(sequence.startEpochMs + sequence.sentAtMs.at(-1)! + 50)
+  } finally {
+    await call({ action: 'stop' }).catch(() => undefined)
+    await animate(electronApp, fixtureUrl, false)
+  }
+})
