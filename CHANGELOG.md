@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [3.14.25] - 2026-11-08
+
 ### Fixed
 
 - `browser_video` resumes after you take control and hand it back, keeps recording when its tab goes to the background or its Developer Tools open, and pauses instead of freezing on the last frame when the page crashes or a load takes over three seconds. Starting a recording while an agent plays keys, or beside a smaller frame stream, no longer pauses it for a changed size.

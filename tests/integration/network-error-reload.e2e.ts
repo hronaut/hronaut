@@ -62,6 +62,10 @@ test('leaves a page a form sent that could not reach its website as it is, as Ch
   try {
     await appWindow.evaluate(url => (window as unknown as { hronaut: HronautApi }).hronaut.newTab({ url, active: true }), `http://127.0.0.1:${port}/form`)
     await expect.poll(() => requests).toEqual(['GET /form'])
+    // The website answers before the page takes its address and reads the form, so wait for the page to have loaded.
+    await expect.poll(() => electronApp.evaluate(({ webContents }, url) => (
+      webContents.getAllWebContents().some((contents) => contents.getURL() === url && !contents.isLoadingMainFrame())
+    ), `http://127.0.0.1:${port}/form`)).toBe(true)
     await closeFixtureServer(server)
     // The form is sent while the website cannot be reached.
     await electronApp.evaluate(({ webContents }, url) => {

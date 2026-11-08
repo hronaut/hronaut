@@ -10,7 +10,9 @@ import { waitForSettledPageBounds } from './settled-page-bounds.js'
 async function animate(electronApp: Parameters<typeof waitForSettledPageBounds>[0], url: string, running: boolean): Promise<void> {
   await electronApp.evaluate(async ({ webContents }, { url, running }) => webContents.getAllWebContents().find(p => p.getURL() === url)!.executeJavaScript(running
     ? "document.body.innerHTML='<canvas id=c width=320 height=180></canvas>';window.spin=true;(function f(t){if(!window.spin)return;const x=document.getElementById('c').getContext('2d');"
-      + "x.fillStyle='#'+(Math.floor(t)%4096).toString(16).padStart(3,'0');x.fillRect(0,0,320,180);requestAnimationFrame(f)})(0);void 0"
+      + "x.fillStyle='#'+(Math.floor(t)%4096).toString(16).padStart(3,'0');x.fillRect(0,0,320,180);requestAnimationFrame(f)})(0);"
+      // Answers once the page drew the canvas, so no frame of the page it replaced is recorded.
+      + 'new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve(0))))'
     : 'window.spin=false;void 0'), { url, running })
 }
 
@@ -31,9 +33,9 @@ test('a video of an animating page keeps 30 samples a second from page paints, b
   const stream = async (args: Record<string, unknown>) => JSON.parse(text(await streamCall(args))) as { status: string; cursor: number }
   try {
     await stream({ action: 'start', maxWidth: 320, maxHeight: 180, quality: 50 })
-    await video('start')
-    await expect.poll(async () => (await video('get')).frameCount).toBeGreaterThanOrEqual(1)
-    const first = await video('get')
+    // A start answers with the recording's first frame alone, a copy the size of one of the page's own new frames.
+    const first = await video('start')
+    expect(first.frameCount).toBe(1)
     await expect.poll(async () => (await video('get')).durationMs, { timeout: 10_000 }).toBeGreaterThanOrEqual(2000)
     // While the recording runs, the page's screencast is at its 1280 x 720; the stream still returns its own size.
     const during = await streamCall({ action: 'read', maxFrames: 2, waitMs: 2000 })
