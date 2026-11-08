@@ -52,7 +52,7 @@ export const koKRVideoRecorder = {
   title: '동영상 녹화기',
   description: '소리, 자막, 카메라 이동으로 클립을 구성합니다',
   privacy: '시작하면 개인 정보를 포함한 대상 탭의 페이지 콘텐츠가 녹화됩니다. 데모 계정을 사용하고 공유하기 전에 검토하세요.',
-  limits: 'WebM / VP9 + 선택적 Opus 오디오 · 최대 2분 · 1280 × 720 · 최대 12fps. 탭은 최대 3개까지 각각 녹화할 수 있습니다. Hronaut을 화면에 표시하고 각 소스의 크기를 변경하지 마세요. 숨겨진 창, 신뢰할 수 있는 오버레이, 절전 상태에서는 캡처가 일시중지됩니다. 원본 녹화는 탭을 닫으면 사라집니다.',
+  limits: 'WebM / VP9 + 선택적 Opus 오디오 · 최대 2분 · 1280 × 720 · 최대 30fps. 탭은 최대 3개까지 각각 녹화할 수 있습니다. Hronaut을 화면에 표시하고 각 소스의 크기를 변경하지 마세요. 숨겨진 창, 신뢰할 수 있는 오버레이, 절전 상태에서는 캡처가 일시중지됩니다. 원본 녹화는 탭을 닫으면 사라집니다.',
   status: {
     idle: '녹화 준비됨',
     recording: '동영상 녹화 중',
@@ -65,7 +65,7 @@ export const koKRVideoRecorder = {
     conditions: '캡처가 일시중지되었습니다. Hronaut을 화면에 표시하고, 소스 탭이 절전 상태가 되지 않도록 하며, 웹사이트 출처와 시작할 때의 크기를 유지하고, 녹화 액세스를 사용할 수 있게 하세요.',
     sleep: '컴퓨터가 절전 모드인 동안 캡처가 일시중지되었습니다. 계속하려면 동영상을 재개하세요.',
     durationLimit: '녹화가 2분 한도에 도달했습니다.',
-    sizeLimit: '녹화가 64 MiB 한도에 도달했습니다.'
+    sizeLimit: '녹화가 256 MiB 한도에 도달했습니다.'
   },
   errors: {
     busy: '현재 동영상 작업이 끝날 때까지 기다리세요',
@@ -95,6 +95,7 @@ export const koKRVideoRecorder = {
     tabUnavailable: '녹화 탭을 사용할 수 없습니다',
     audioUnreadable: '오디오 파일을 읽을 수 없습니다. 10 MiB 이하의 비어 있지 않은 일반 파일을 선택하세요.',
     exportTimeout: '동영상 내보내기가 취소되었거나 시간이 초과되었습니다',
+    exportStopped: '동영상 내보내기가 예기치 않게 중지되었습니다. 다시 내보내세요',
     annotationEnd: '주석 끝은 시작보다 뒤에 있어야 합니다',
     annotationText: '텍스트 및 설명선 주석에는 텍스트가 필요합니다',
     annotationPoint: '이 주석에는 x/y 좌표가 필요합니다',

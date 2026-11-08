@@ -6,6 +6,7 @@ import { textResult, toolDescription } from '../../tool-results.js'
 import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
 import { inspectVideo, videoRecording } from '../../../browser/video-recording/video-recording.js'
 import { tabBelongsToMcpGroup } from '../../../browser/workspace-scope/workspace-scope.js'
+import { agentVideoState } from './agent-video-state.js'
 
 // An inspected frame and its pixels are published only if the call still has its authority when it settles.
 function videoInspectionSettlement() {
@@ -52,7 +53,7 @@ export function registerBrowserVideo(context: McpToolContext): void {
         call.settlement.retain(pending)
         return textResult(pending.report)
       }
-      return textResult(await videoRecording(manager, options, validateRecording, call.signal))
+      return textResult(agentVideoState(await videoRecording(manager, options, validateRecording, call.signal), manager.options.downloadDirectory))
     }, 'never'),
     {
       settlement: videoInspectionSettlement,

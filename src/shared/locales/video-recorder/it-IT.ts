@@ -52,7 +52,7 @@ export const itITVideoRecorder = {
   title: 'Registratore video',
   description: 'Componi clip con suoni, didascalie e movimenti dell’inquadratura',
   privacy: 'Avviando la registrazione verrà registrato il contenuto della pagina nella scheda di destinazione, inclusi i dati personali. Usa un account demo e controlla il risultato prima di condividerlo.',
-  limits: 'WebM / VP9 + audio Opus facoltativo · fino a 2 minuti · 1280 × 720 · fino a 12 fps. Fino a tre schede possono registrare in modo indipendente. Mantieni Hronaut visibile e non cambiare le dimensioni di ciascuna sorgente. Finestre nascoste, overlay affidabili e sospensione del computer mettono in pausa l’acquisizione. Le registrazioni non elaborate scompaiono quando la scheda viene chiusa.',
+  limits: 'WebM / VP9 + audio Opus facoltativo · fino a 2 minuti · 1280 × 720 · fino a 30 fps. Fino a tre schede possono registrare in modo indipendente. Mantieni Hronaut visibile e non cambiare le dimensioni di ciascuna sorgente. Finestre nascoste, overlay affidabili e sospensione del computer mettono in pausa l’acquisizione. Le registrazioni non elaborate scompaiono quando la scheda viene chiusa.',
   status: {
     idle: 'Pronto per registrare',
     recording: 'Registrazione video in corso',
@@ -65,7 +65,7 @@ export const itITVideoRecorder = {
     conditions: 'Acquisizione in pausa. Mantieni Hronaut visibile e la scheda di origine attiva, sull’origine del sito web e con le dimensioni iniziali, con l’accesso alla registrazione disponibile.',
     sleep: 'Acquisizione in pausa durante la sospensione del computer. Riprendi il video per continuare.',
     durationLimit: 'La registrazione ha raggiunto il limite di due minuti.',
-    sizeLimit: 'La registrazione ha raggiunto il limite di 64 MiB.'
+    sizeLimit: 'La registrazione ha raggiunto il limite di 256 MiB.'
   },
   errors: {
     busy: 'Attendi il termine dell’operazione video in corso',
@@ -95,6 +95,7 @@ export const itITVideoRecorder = {
     tabUnavailable: 'La scheda della registrazione non è disponibile',
     audioUnreadable: 'Impossibile leggere il file audio. Seleziona un file normale non vuoto di dimensioni non superiori a 10 MiB.',
     exportTimeout: 'Esportazione del video annullata o scaduta',
+    exportStopped: 'L’esportazione del video si è interrotta in modo imprevisto; esporta di nuovo',
     annotationEnd: 'La fine dell’annotazione deve seguirne l’inizio',
     annotationText: 'Le annotazioni di testo e i richiami richiedono un testo',
     annotationPoint: 'Questa annotazione richiede le coordinate x/y',

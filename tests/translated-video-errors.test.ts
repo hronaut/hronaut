@@ -40,6 +40,7 @@ const ENGLISH = {
   tabUnavailable: 'Recording tab is unavailable',
   audioUnreadable: 'Audio file could not be read. Select a non-empty regular file no larger than 10 MiB.',
   exportTimeout: 'Video export cancelled or timed out',
+  exportStopped: 'Video export stopped unexpectedly; export again',
   annotationEnd: 'Annotation end must follow its start',
   annotationText: 'Text and callout annotations require text',
   annotationPoint: 'This annotation requires x/y coordinates',

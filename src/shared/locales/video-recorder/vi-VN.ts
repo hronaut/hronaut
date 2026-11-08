@@ -52,7 +52,7 @@ export const viVNVideoRecorder = {
   title: 'Trình quay video',
   description: 'Dựng đoạn video với âm thanh, phụ đề và chuyển động máy quay',
   privacy: 'Khi bắt đầu, nội dung trang của thẻ mục tiêu sẽ được ghi lại, bao gồm cả dữ liệu cá nhân. Hãy dùng tài khoản minh họa và xem lại trước khi chia sẻ.',
-  limits: 'WebM / VP9 + âm thanh Opus tùy chọn · tối đa 2 phút · 1280 × 720 · tối đa 12 fps. Tối đa ba thẻ có thể quay độc lập. Hãy giữ Hronaut hiển thị và giữ nguyên kích thước của từng nguồn. Cửa sổ bị ẩn, lớp phủ đáng tin cậy và chế độ ngủ sẽ tạm dừng việc ghi. Bản ghi thô sẽ biến mất khi thẻ đóng.',
+  limits: 'WebM / VP9 + âm thanh Opus tùy chọn · tối đa 2 phút · 1280 × 720 · tối đa 30 fps. Tối đa ba thẻ có thể quay độc lập. Hãy giữ Hronaut hiển thị và giữ nguyên kích thước của từng nguồn. Cửa sổ bị ẩn, lớp phủ đáng tin cậy và chế độ ngủ sẽ tạm dừng việc ghi. Bản ghi thô sẽ biến mất khi thẻ đóng.',
   status: {
     idle: 'Sẵn sàng quay',
     recording: 'Đang quay video',
@@ -65,7 +65,7 @@ export const viVNVideoRecorder = {
     conditions: 'Đã tạm dừng ghi. Hãy giữ Hronaut hiển thị và thẻ nguồn luôn thức, ở nguồn gốc trang web và kích thước như lúc bắt đầu, với quyền ghi hình khả dụng.',
     sleep: 'Đã tạm dừng ghi trong khi máy tính ngủ. Hãy tiếp tục video để quay tiếp.',
     durationLimit: 'Bản ghi đã đạt giới hạn hai phút.',
-    sizeLimit: 'Bản ghi đã đạt giới hạn 64 MiB.'
+    sizeLimit: 'Bản ghi đã đạt giới hạn 256 MiB.'
   },
   errors: {
     busy: 'Hãy đợi thao tác video hiện tại hoàn tất',
@@ -95,6 +95,7 @@ export const viVNVideoRecorder = {
     tabUnavailable: 'Thẻ đang quay không khả dụng',
     audioUnreadable: 'Không thể đọc tệp âm thanh. Hãy chọn một tệp thông thường có nội dung, không lớn hơn 10 MiB.',
     exportTimeout: 'Đã hủy hoặc hết thời gian xuất video',
+    exportStopped: 'Quá trình xuất video dừng đột ngột; hãy xuất lại',
     annotationEnd: 'Điểm kết thúc của chú thích phải sau điểm bắt đầu',
     annotationText: 'Chú thích dạng văn bản và chú thích chỉ dẫn cần có văn bản',
     annotationPoint: 'Chú thích này cần có tọa độ x/y',

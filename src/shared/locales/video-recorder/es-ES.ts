@@ -52,7 +52,7 @@ export const esESVideoRecorder = {
   title: 'Grabador de vídeo',
   description: 'Compón clips con sonido, rótulos y movimientos de cámara',
   privacy: 'Al iniciar se graba el contenido de la página de la pestaña de destino, incluidos los datos personales. Usa una cuenta de demostración y revisa antes de compartir.',
-  limits: 'WebM / VP9 + audio Opus opcional · hasta 2 minutos · 1280 × 720 · hasta 12 fps. Hasta tres pestañas pueden grabar de forma independiente. Mantén Hronaut visible y no cambies el tamaño de cada fuente. Las ventanas ocultas, las superposiciones de confianza y la suspensión pausan la captura. Las grabaciones sin procesar desaparecen al cerrar la pestaña.',
+  limits: 'WebM / VP9 + audio Opus opcional · hasta 2 minutos · 1280 × 720 · hasta 30 fps. Hasta tres pestañas pueden grabar de forma independiente. Mantén Hronaut visible y no cambies el tamaño de cada fuente. Las ventanas ocultas, las superposiciones de confianza y la suspensión pausan la captura. Las grabaciones sin procesar desaparecen al cerrar la pestaña.',
   status: {
     idle: 'Listo para grabar',
     recording: 'Grabando vídeo',
@@ -65,7 +65,7 @@ export const esESVideoRecorder = {
     conditions: 'Grabación en pausa. Mantén Hronaut visible y la pestaña fuente despierta, en el origen del sitio y con el tamaño con los que empezó, con el acceso de grabación disponible.',
     sleep: 'Grabación en pausa mientras el equipo estaba suspendido. Reanuda el vídeo para continuar.',
     durationLimit: 'La grabación alcanzó su límite de dos minutos.',
-    sizeLimit: 'La grabación alcanzó su límite de 64 MiB.'
+    sizeLimit: 'La grabación alcanzó su límite de 256 MiB.'
   },
   errors: {
     busy: 'Espera a que termine la operación de vídeo en curso',
@@ -95,6 +95,7 @@ export const esESVideoRecorder = {
     tabUnavailable: 'La pestaña de la grabación no está disponible',
     audioUnreadable: 'No se pudo leer el archivo de audio. Selecciona un archivo normal, no vacío y de 10 MiB como máximo.',
     exportTimeout: 'La exportación de vídeo se canceló o superó el tiempo de espera',
+    exportStopped: 'La exportación de vídeo se detuvo de forma inesperada; vuelve a exportar',
     annotationEnd: 'El final de la anotación debe ir después de su inicio',
     annotationText: 'Las anotaciones de texto y las llamadas de paso necesitan texto',
     annotationPoint: 'Esta anotación necesita coordenadas x/y',

@@ -52,7 +52,7 @@ export const idIDVideoRecorder = {
   title: 'Perekam video',
   description: 'Susun klip dengan suara, teks keterangan, dan gerakan kamera',
   privacy: 'Memulai perekaman akan merekam konten halaman tab target, termasuk data pribadi. Gunakan akun demo dan tinjau sebelum membagikan.',
-  limits: 'WebM / VP9 + audio Opus opsional · maksimal 2 menit · 1280 × 720 · maksimal 12 fps. Hingga tiga tab dapat merekam secara terpisah. Biarkan Hronaut tetap terlihat dan ukuran setiap sumber tidak berubah. Jendela tersembunyi, overlay tepercaya, dan mode tidur akan menjeda pengambilan. Rekaman mentah hilang saat tab ditutup.',
+  limits: 'WebM / VP9 + audio Opus opsional · maksimal 2 menit · 1280 × 720 · maksimal 30 fps. Hingga tiga tab dapat merekam secara terpisah. Biarkan Hronaut tetap terlihat dan ukuran setiap sumber tidak berubah. Jendela tersembunyi, overlay tepercaya, dan mode tidur akan menjeda pengambilan. Rekaman mentah hilang saat tab ditutup.',
   status: {
     idle: 'Siap merekam',
     recording: 'Merekam video',
@@ -65,7 +65,7 @@ export const idIDVideoRecorder = {
     conditions: 'Pengambilan dijeda. Biarkan Hronaut tetap terlihat dan tab sumber tetap aktif, di origin situs dan pada ukuran saat dimulai, dengan akses perekaman yang tersedia.',
     sleep: 'Pengambilan dijeda saat komputer dalam mode tidur. Lanjutkan video untuk meneruskan.',
     durationLimit: 'Perekaman mencapai batas dua menit.',
-    sizeLimit: 'Perekaman mencapai batas 64 MiB.'
+    sizeLimit: 'Perekaman mencapai batas 256 MiB.'
   },
   errors: {
     busy: 'Tunggu hingga operasi video saat ini selesai',
@@ -95,6 +95,7 @@ export const idIDVideoRecorder = {
     tabUnavailable: 'Tab perekaman tidak tersedia',
     audioUnreadable: 'File audio tidak dapat dibaca. Pilih file biasa yang tidak kosong dan tidak lebih dari 10 MiB.',
     exportTimeout: 'Ekspor video dibatalkan atau waktunya habis',
+    exportStopped: 'Ekspor video berhenti secara tak terduga; ekspor lagi',
     annotationEnd: 'Akhir anotasi harus setelah awalnya',
     annotationText: 'Anotasi teks dan callout memerlukan teks',
     annotationPoint: 'Anotasi ini memerlukan koordinat x/y',

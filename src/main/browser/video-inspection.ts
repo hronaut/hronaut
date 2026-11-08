@@ -7,7 +7,10 @@ import type { SelectedVideoFrame } from './video-inspection-frames.js'
 // A quarantined job deliberately retains its pins and admission until application exit.
 let activeJob: { frames: readonly SelectedVideoFrame[]; quarantined: boolean } | undefined
 
-/** One transient sandboxed compositor; no queue, page access, file exports or persistent image cache. */
+/**
+ * One transient sandboxed compositor; no queue, page access, file exports or persistent image cache. Every inspection
+ * shares one in-memory session, since Electron keeps each session it creates until Hronaut quits.
+ */
 export async function inspectVideoFrames(frames: readonly SelectedVideoFrame[], signal: AbortSignal, validate: () => void): Promise<Uint8Array> {
   if (activeJob) throw new Error(activeJob.quarantined ? 'Video inspection cleanup is uncertain; restart Hronaut before inspecting again' : 'A video inspection is already running; wait for it to finish')
   if (!frames.length || frames.length > LIMITS.frames || frames.reduce((sum, frame) => sum + frame.data.byteLength, 0) > LIMITS.selectedBytes) throw new Error('Video inspection exceeds its frame or byte limit')
@@ -17,7 +20,8 @@ export async function inspectVideoFrames(frames: readonly SelectedVideoFrame[], 
   activeJob = job
   let window: BrowserWindow | undefined
   let pid = 0
-  let loading = false
+  // Whether a frame's pixels went to the renderer; one that never got any holds nothing to wait for.
+  let delivered = false
   let failure: Error | undefined
   let reject!: (error: Error) => void
   const interrupted = new Promise<never>((_resolve, rejectPromise) => { reject = rejectPromise })
@@ -45,7 +49,8 @@ export async function inspectVideoFrames(frames: readonly SelectedVideoFrame[], 
       if (window && !window.isDestroyed()) { pid ||= window.webContents.getOSProcessId(); window.destroy() }
       const start = performance.now()
       while (pid && app.getAppMetrics().some(metric => metric.pid === pid) && performance.now() - start < LIMITS.exitWaitMs) await delay(10)
-      if ((loading && !pid) || (pid && app.getAppMetrics().some(metric => metric.pid === pid))) throw new Error('Renderer exit unconfirmed')
+      // A renderer that took no frame, as when the job ended while its page loaded, is let go without proof of exit.
+      if ((delivered && !pid) || (pid && app.getAppMetrics().some(metric => metric.pid === pid))) throw new Error('Renderer exit unconfirmed')
       activeJob = undefined
     } catch {
       job.quarantined = true
@@ -53,7 +58,7 @@ export async function inspectVideoFrames(frames: readonly SelectedVideoFrame[], 
     }
   }
   try {
-    window = new BrowserWindow({ show: false, webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, partition: `video-inspection-${crypto.randomUUID()}` } })
+    window = new BrowserWindow({ show: false, webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, partition: 'video-inspection' } })
     const contents = window.webContents
     contents.setWindowOpenHandler(() => ({ action: 'deny' }))
     contents.on('will-navigate', event => event.preventDefault())
@@ -66,7 +71,6 @@ export async function inspectVideoFrames(frames: readonly SelectedVideoFrame[], 
       return result
     }
     assertCurrent()
-    loading = true
     await Promise.race([process.env.ELECTRON_RENDERER_URL
       ? window.loadURL(`${process.env.ELECTRON_RENDERER_URL}/video-inspection.html`)
       : window.loadFile(join(__dirname, '../renderer/video-inspection.html')), interrupted])
@@ -74,6 +78,7 @@ export async function inspectVideoFrames(frames: readonly SelectedVideoFrame[], 
     await call('begin', [frames.length])
     // Only one JPEG string/transport and one decoded bitmap at a time.
     for (const [index, frame] of frames.entries()) {
+      delivered = true
       await call('frame', [Buffer.from(frame.data.buffer, frame.data.byteOffset, frame.data.byteLength).toString('base64'), index, frame.sequence, frame.sourceTimeMs, frame.width, frame.height])
     }
     const encoded = await call('finish')

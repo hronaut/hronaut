@@ -8,7 +8,7 @@ export const VIDEO_RECORDING_NOTICES = {
   conditions: 'Capture paused: keep Hronaut visible and the source tab awake, at its original origin and size, with recording access available',
   sleep: 'Capture paused for system sleep; resume explicitly',
   durationLimit: 'Recording reached its two-minute limit',
-  sizeLimit: 'Recording reached its 64 MiB limit'
+  sizeLimit: 'Recording reached its 256 MiB limit'
 } as const
 /** Why an annotation, clip, audio event or camera move is refused; browser_video keeps this English, the recorder panel names it. */
 export const VIDEO_SCHEMA_ERRORS = {

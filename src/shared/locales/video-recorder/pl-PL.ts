@@ -52,7 +52,7 @@ export const plPLVideoRecorder = {
   title: 'Rejestrator wideo',
   description: 'Twórz klipy z dźwiękiem, napisami i ruchami kamery',
   privacy: 'Po rozpoczęciu nagrywana jest zawartość strony w docelowej karcie, w tym dane osobowe. Użyj konta demonstracyjnego i sprawdź nagranie przed udostępnieniem.',
-  limits: 'WebM / VP9 + opcjonalny dźwięk Opus · do 2 minut · 1280 × 720 · do 12 fps. Niezależnie mogą nagrywać maksymalnie trzy karty. Pozostaw Hronaut widoczny i nie zmieniaj rozmiaru żadnego źródła. Ukryte okna, zaufane nakładki i uśpienie wstrzymują przechwytywanie. Surowe nagrania znikają po zamknięciu karty.',
+  limits: 'WebM / VP9 + opcjonalny dźwięk Opus · do 2 minut · 1280 × 720 · do 30 fps. Niezależnie mogą nagrywać maksymalnie trzy karty. Pozostaw Hronaut widoczny i nie zmieniaj rozmiaru żadnego źródła. Ukryte okna, zaufane nakładki i uśpienie wstrzymują przechwytywanie. Surowe nagrania znikają po zamknięciu karty.',
   status: {
     idle: 'Gotowe do nagrywania',
     recording: 'Nagrywanie wideo',
@@ -65,7 +65,7 @@ export const plPLVideoRecorder = {
     conditions: 'Nagrywanie wstrzymane. Pozostaw Hronaut widoczny, a kartę źródłową aktywną, w pochodzeniu witryny i rozmiarze, z którymi zaczęła, z dostępem do nagrywania.',
     sleep: 'Nagrywanie wstrzymane podczas uśpienia komputera. Wznów nagrywanie, aby kontynuować.',
     durationLimit: 'Nagranie osiągnęło limit dwóch minut.',
-    sizeLimit: 'Nagranie osiągnęło limit 64 MiB.'
+    sizeLimit: 'Nagranie osiągnęło limit 256 MiB.'
   },
   errors: {
     busy: 'Poczekaj na zakończenie bieżącej operacji wideo',
@@ -95,6 +95,7 @@ export const plPLVideoRecorder = {
     tabUnavailable: 'Karta nagrania jest niedostępna',
     audioUnreadable: 'Nie udało się odczytać pliku dźwiękowego. Wybierz niepusty, zwykły plik o rozmiarze do 10 MiB.',
     exportTimeout: 'Eksport wideo został anulowany lub przekroczył limit czasu',
+    exportStopped: 'Eksport wideo nieoczekiwanie się zatrzymał; wyeksportuj ponownie',
     annotationEnd: 'Koniec adnotacji musi następować po jej początku',
     annotationText: 'Adnotacje tekstowe i objaśnienia kroku wymagają tekstu',
     annotationPoint: 'Ta adnotacja wymaga współrzędnych x/y',

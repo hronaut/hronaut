@@ -3,20 +3,43 @@ import { join } from 'node:path'
 import { LocalizedError } from '../localized-error.js'
 import { VIDEO_LIMITS, videoSourceTime, videoFrameTiming, type VideoFrame, type VideoRenderPlan } from '../../shared/video.js'
 
-/** An isolated trusted renderer encodes pixels. No Node, preload bridge, page scripts or network. */
+/** An export may take this long, or longer for a long video: see exportDeadlineMs. */
+const EXPORT_MIN_DEADLINE_MS = 5 * 60_000
+/** Several times what decoding, drawing and encoding a 1280 × 720 frame takes on a slow machine. */
+const EXPORT_MS_PER_FRAME = 150
+
+/** How long an export of this many frames may take before it is given up as stuck. */
+export function exportDeadlineMs(frameCount: number): number {
+  return Math.max(EXPORT_MIN_DEADLINE_MS, frameCount * EXPORT_MS_PER_FRAME)
+}
+
+/**
+ * An isolated trusted renderer encodes pixels. No Node, preload bridge, page scripts or network. Every export shares one
+ * in-memory session, since Electron keeps each session it creates until Hronaut quits.
+ */
 export async function renderBrowserVideo(plan: VideoRenderPlan, frames: readonly VideoFrame[], signal: AbortSignal, validate: () => void, assets: readonly { id: string; data: Uint8Array }[] = []): Promise<Uint8Array> {
-  const window = new BrowserWindow({ show: false, webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, partition: `video-export-${crypto.randomUUID()}` } })
+  const window = new BrowserWindow({ show: false, webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, partition: 'video-export' } })
   const stop = (): void => { if (!window.isDestroyed()) window.destroy() }
+  const { frameCount, frameDurationMs } = videoFrameTiming(plan.clips)
   // Electron may leave load/executeJavaScript promises pending when their window
   // is destroyed. Cancellation must settle our caller independently of Electron.
-  let interrupt!: () => void
-  const interrupted = new Promise<never>((_resolve, reject) => {
-    interrupt = () => { reject(new LocalizedError('video.errors.exportTimeout')); stop() }
-  })
+  let failure: Error | undefined
+  let reject!: (error: Error) => void
+  const interrupted = new Promise<never>((_resolve, rejectPromise) => { reject = rejectPromise })
+  const interrupt = (error: Error = new LocalizedError('video.errors.exportTimeout')): void => {
+    failure ??= error
+    reject(failure)
+    stop()
+  }
   void interrupted.catch(() => undefined)
-  signal.addEventListener('abort', interrupt, { once: true })
-  const timer = setTimeout(interrupt, 5 * 60_000)
-  const assertCurrent = (): void => { if (signal.aborted || window.isDestroyed()) throw new LocalizedError('video.errors.exportTimeout'); validate() }
+  const abort = (): void => interrupt()
+  signal.addEventListener('abort', abort, { once: true })
+  const timer = setTimeout(abort, exportDeadlineMs(frameCount))
+  const assertCurrent = (): void => {
+    if (failure) throw failure
+    if (signal.aborted || window.isDestroyed()) throw new LocalizedError('video.errors.exportTimeout')
+    validate()
+  }
   const call = async (method: 'begin' | 'frame' | 'finish', args: unknown[] = []): Promise<unknown> => {
     assertCurrent()
     const result: unknown = await Promise.race([window.webContents.executeJavaScript(`window.hronautVideoExport.${method}(...${JSON.stringify(args)})`), interrupted])
@@ -26,12 +49,13 @@ export async function renderBrowserVideo(plan: VideoRenderPlan, frames: readonly
   try {
     window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
     window.webContents.on('will-navigate', event => event.preventDefault())
+    // A renderer that crashed or was killed answers nothing more, so the export ends at once rather than at its deadline.
+    window.webContents.on('render-process-gone', () => interrupt(new LocalizedError('video.errors.exportStopped')))
     assertCurrent()
     if (process.env.ELECTRON_RENDERER_URL) {
       await Promise.race([window.loadURL(`${process.env.ELECTRON_RENDERER_URL}/video-export.html`), interrupted])
     } else await Promise.race([window.loadFile(join(__dirname, '../renderer/video-export.html')), interrupted])
     await call('begin', [plan, assets.map(asset => ({ id: asset.id, base64: Buffer.from(asset.data).toString('base64') }))])
-    const { frameCount, frameDurationMs } = videoFrameTiming(plan.clips)
     let frameIndex = 0
     let sent: Uint8Array | undefined
     for (let index = 0; index < frameCount; index += 1) {
@@ -52,7 +76,7 @@ export async function renderBrowserVideo(plan: VideoRenderPlan, frames: readonly
     return data
   } finally {
     clearTimeout(timer)
-    signal.removeEventListener('abort', interrupt)
+    signal.removeEventListener('abort', abort)
     stop()
   }
 }

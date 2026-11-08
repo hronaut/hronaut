@@ -52,7 +52,7 @@ export const zhCNVideoRecorder = {
   title: '视频录制器',
   description: '制作带有声音、字幕和镜头移动的片段',
   privacy: '开始录制后会记录目标标签页的页面内容，包括个人数据。请使用演示账号，并在分享前进行检查。',
-  limits: 'WebM / VP9 + 可选的 Opus 音频 · 最长 2 分钟 · 1280 × 720 · 最高 12 fps。最多可有三个标签页独立录制。请保持 Hronaut 可见，且每个来源的尺寸不变。窗口隐藏、显示受信任的叠加层和计算机休眠都会暂停捕获。标签页关闭时，原始录制内容会消失。',
+  limits: 'WebM / VP9 + 可选的 Opus 音频 · 最长 2 分钟 · 1280 × 720 · 最高 30 fps。最多可有三个标签页独立录制。请保持 Hronaut 可见，且每个来源的尺寸不变。窗口隐藏、显示受信任的叠加层和计算机休眠都会暂停捕获。标签页关闭时，原始录制内容会消失。',
   status: {
     idle: '可以开始录制',
     recording: '正在录制视频',
@@ -65,7 +65,7 @@ export const zhCNVideoRecorder = {
     conditions: '捕获已暂停。请保持 Hronaut 可见，并让来源标签页保持唤醒状态、停留在网站来源上、保持开始时的尺寸，且录制权限可用。',
     sleep: '计算机休眠期间捕获已暂停。请继续录制视频。',
     durationLimit: '录制已达到两分钟的上限。',
-    sizeLimit: '录制已达到 64 MiB 的上限。'
+    sizeLimit: '录制已达到 256 MiB 的上限。'
   },
   errors: {
     busy: '请等待当前的视频操作完成',
@@ -95,6 +95,7 @@ export const zhCNVideoRecorder = {
     tabUnavailable: '录制所在的标签页不可用',
     audioUnreadable: '无法读取音频文件。请选择一个不超过 10 MiB 的非空常规文件。',
     exportTimeout: '视频导出已取消或超时',
+    exportStopped: '视频导出意外停止，请重新导出',
     annotationEnd: '注释的结束时间必须晚于开始时间',
     annotationText: '文本和标注类注释需要文字',
     annotationPoint: '此注释需要 x/y 坐标',
