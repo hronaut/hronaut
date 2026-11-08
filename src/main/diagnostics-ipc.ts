@@ -166,8 +166,11 @@ export function registerDiagnosticsIpc(ipcMain: Pick<TypedIpcMain, 'handle'>, ho
     const options = videoOptionsSchema.parse(value)
     // The shell adds audio only through importVideoAudio, from a file the person picks; it never names a file itself.
     if (options.action === 'import-audio' || options.audioPath !== undefined) throw new TypeError('Audio is imported only from a file the person picks')
+    // An action that waited for the recording's own work checks the shell again before it applies. Start and resume
+    // keep their check in the recording's capture, which outlives this message, so they check nothing more.
+    const stillShell = options.action === 'start' || options.action === 'resume' ? undefined : () => host.assertTrustedSender(event)
     // A recording the person exports asks where to save it when the download folder cannot be written to.
-    return videoRecording(host.tabs(), options, undefined, undefined, personExportFile(host.tabs(), event.sender))
+    return videoRecording(host.tabs(), options, stillShell, undefined, personExportFile(host.tabs(), event.sender))
   })
   ipcMain.handle(DIAGNOSTICS_IPC.videoPreview, (event, tabId: unknown) => {
     host.assertTrustedSender(event)

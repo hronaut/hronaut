@@ -97,9 +97,10 @@ export async function controlPageLifecycle(
 
 /**
  * Sends one lifecycle command through the tab's debugger queue. A freeze holds
- * the page's animations first and a resume restores them. A command that timed
- * out or failed after dispatch, or whose document changed, leaves the state
- * unknown.
+ * the page's animations first and a resume restores them. The command waits
+ * its turn behind the page's earlier debugger work however long that takes,
+ * and its deadline starts with that turn. A command that timed out or failed
+ * after dispatch, or whose document changed, leaves the state unknown.
  */
 async function controlPageLifecycleInternal(
   browser: Browser,
@@ -110,6 +111,8 @@ async function controlPageLifecycleInternal(
   const webContents = tab.webContents
   const wasFrozen = tab.pageLifecycleState === 'frozen'
   let dispatched = false
+  let startTurn!: () => void
+  const turnStarted = new Promise<void>(resolve => { startTurn = resolve })
   const assertCurrentDocument = (): void => {
     if (browser.destroyed || findTab(browser, tab.id) !== tab || tab.webContents !== webContents || webContents.isDestroyed()) {
       throw new LocalizedError('appErrors.lifecycle.closedBeforeDispatch')
@@ -119,6 +122,7 @@ async function controlPageLifecycleInternal(
     }
   }
   const command = browser.debuggerQueue.run(webContents.id, async () => {
+    startTurn()
     assertCurrentDocument()
     await browser.dialogMonitorAttachPromises.get(webContents.id)
     if (browser.devToolsOpening.has(webContents.id) || webContents.isDevToolsOpened()) {
@@ -164,15 +168,19 @@ async function controlPageLifecycleInternal(
   })
   const deadline = Symbol('page-lifecycle-command-timeout')
   let timer: NodeJS.Timeout | undefined
-  const timeout = new Promise<typeof deadline>((resolve) => {
+  let finished = false
+  // Counted from the command's turn, not from its request: the wait behind an agent's long command is no failure.
+  const timeout = turnStarted.then(() => new Promise<typeof deadline>((resolve) => {
+    if (finished) return
     timer = setTimeout(() => resolve(deadline), PAGE_LIFECYCLE_COMMAND_TIMEOUT_MS)
     timer.unref()
-  })
+  }))
   const settled = command.then(
     () => ({ kind: 'completed' as const }),
     (error: unknown) => ({ kind: 'failed' as const, error })
   )
   const outcome = await Promise.race([settled, timeout])
+  finished = true
   if (timer) clearTimeout(timer)
   if (outcome === deadline || (outcome.kind === 'failed' && dispatched)) {
     if (findTab(browser, tab.id) === tab) {

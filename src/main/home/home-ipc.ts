@@ -140,7 +140,7 @@ export function registerHomeIpc(host: HomeIpcHost): void {
     return runHomeWorkspaceAction(host.tabs()!, input, (request) => {
       const mainWindow = host.mainWindow()
       if (mainWindow) sendTo(mainWindow.webContents, SHELL_IPC.homeWorkspaceEditorRequested, request)
-    })
+    }, () => assertHomePageSender(event))
   })
   host.handleBrowserIpc(HOME_IPC.tabs, (event) => {
     assertHomePageSender(event)

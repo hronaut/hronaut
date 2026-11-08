@@ -53,7 +53,11 @@ interface Recording {
   capture: VideoCapture
   preview?: Uint8Array
   abort: AbortController
+  /** Whether the recording's own work runs: its first frame, an audio import, a render or an export. */
   busy: boolean
+  /** Settles once that work ends; later actions on the recording wait for it. */
+  idle?: Promise<void>
+  endBusy?: () => void
   audioAssets: Map<string, Uint8Array>
 }
 export interface VideoRecorderHost {
@@ -164,17 +168,28 @@ export class BrowserVideoRecorder {
     if (options.action === 'get') { this.recordings.get(tabId)?.validateSource(); return this.state(tabId) }
     if (options.action === 'clear') { this.clear(tabId); return this.state(tabId) }
     let r = this.recordings.get(tabId)
-    if (r?.busy) throw new LocalizedError('video.errors.busy')
+    // An action asked for while the recording's own work runs, such as a pause during its first frame or an edit during
+    // an export, waits for that work and then applies to the recording as it is by then, rather than being refused.
+    const asked = r
+    while (r?.busy) {
+      await this.whenIdle(r, signal)
+      if (signal?.aborted) throw new LocalizedError('video.errors.cancelled')
+      r = this.recordings.get(tabId)
+    }
+    // One cleared meanwhile, or replaced by another recording of the tab, is not the recording the action was asked for.
+    if (asked && r !== asked && options.action !== 'start') throw new LocalizedError('video.errors.cancelled')
     if (options.action === 'start') {
       if (r) throw new LocalizedError('video.errors.previousRecording')
       if (this.recordings.size >= VIDEO_LIMITS.recordings) throw new LocalizedError('video.errors.recordingCount')
       validate()
       const now = this.now()
-      r = { state: { ...this.state(tabId), recordingId: randomUUID(), status: 'recording' }, frames: [], source: source ? Object.freeze({ ...source }) : undefined, audioAssets: new Map(), elapsedMs: 0, clockOrigin: now, runningSince: now, lastFrameAt: now, capture, validate, validateSource, captureRevision: 0, abort: new AbortController(), busy: true }
+      r = { state: { ...this.state(tabId), recordingId: randomUUID(), status: 'recording' }, frames: [], source: source ? Object.freeze({ ...source }) : undefined, audioAssets: new Map(), elapsedMs: 0, clockOrigin: now, runningSince: now, lastFrameAt: now, capture, validate, validateSource, captureRevision: 0, abort: new AbortController(), busy: false }
       this.recordings.set(tabId, r)
+      this.holdBusy(r)
       this.host.changed()
-      await this.sample(tabId, r)
-      r.busy = false
+      try {
+        await this.sample(tabId, r)
+      } finally { this.releaseBusy(r) }
       this.schedule(tabId, r)
       return this.state(tabId)
     }
@@ -214,7 +229,7 @@ export class BrowserVideoRecorder {
       if (!options.audioPath || !options.audioProvenance) throw new Error('Audio import requires an absolute path and source/usage rights')
       if (!this.host.loadAudio) throw new Error('Audio import is unavailable')
       if (r.audioAssets.size >= VIDEO_AUDIO_LIMITS.assets) throw new LocalizedError('video.errors.audioAssetCount')
-      r.busy = true
+      this.holdBusy(r)
       try {
         const bytes = await this.host.loadAudio(options.audioPath, current)
         current()
@@ -224,7 +239,7 @@ export class BrowserVideoRecorder {
         const id = randomUUID()
         r.audioAssets.set(id, asset.data)
         r.state.audioAssets = [...(r.state.audioAssets ?? []), { id, name: options.audioName ?? `Imported audio ${r.audioAssets.size}`, durationMs: asset.durationMs, provenance: options.audioProvenance, builtin: false }]
-      } finally { r.busy = false; this.host.changed() }
+      } finally { this.releaseBusy(r); this.host.changed() }
     } else if (options.action === 'remove-audio') {
       current()
       if (r.state.status !== 'stopped') throw new LocalizedError('video.errors.stopBeforeRemovingAudio')
@@ -264,7 +279,7 @@ export class BrowserVideoRecorder {
       r.state.exported = undefined
     } else if (options.action === 'render' || options.action === 'export') {
       if (r.state.status !== 'stopped' || !r.frames.length || !r.elapsedMs) throw new LocalizedError('video.errors.exportEmpty')
-      r.busy = true
+      this.holdBusy(r)
       try {
         r.state.status = 'rendering'
         this.host.changed()
@@ -283,7 +298,7 @@ export class BrowserVideoRecorder {
           if (saved) r.state.exported = { ...saved, bytes: r.preview.byteLength, mimeType: 'video/webm', codec: 'vp9', ...(r.state.audio?.length ? { audioCodec: 'opus' as const } : {}), durationMs: clips.reduce((sum, clip) => sum + clip.endMs - clip.startMs, 0) }
         }
       } finally {
-        r.busy = false
+        this.releaseBusy(r)
         r.state.status = 'stopped'
         this.host.changed()
       }
@@ -306,6 +321,32 @@ export class BrowserVideoRecorder {
       r.pending = this.sample(tabId, r).finally(() => { r.pending = undefined; this.schedule(tabId, r) })
     }, delay)
     r.timer.unref?.()
+  }
+
+  /** Marks the recording's own work as running, so actions asked for meanwhile wait for it. */
+  private holdBusy(r: Recording): void {
+    r.busy = true
+    r.idle = new Promise<void>(resolve => { r.endBusy = resolve })
+  }
+
+  /** Waits for the recording's own work to end, or for the caller to cancel. */
+  private async whenIdle(r: Recording, signal?: AbortSignal): Promise<void> {
+    if (!signal) return r.idle
+    if (signal.aborted) return
+    let stop!: () => void
+    const cancelled = new Promise<void>(resolve => { stop = resolve })
+    signal.addEventListener('abort', stop, { once: true })
+    try {
+      await Promise.race([r.idle, cancelled])
+    } finally { signal.removeEventListener('abort', stop) }
+  }
+
+  /** Ends that work and lets the actions waiting for it go on. */
+  private releaseBusy(r: Recording): void {
+    r.busy = false
+    const end = r.endBusy
+    r.idle = r.endBusy = undefined
+    end?.()
   }
 
   private async sample(tabId: string, r: Recording): Promise<void> {
@@ -393,6 +434,8 @@ export class BrowserVideoRecorder {
     const r = this.recordings.get(tabId)
     if (!r) return
     this.recordings.delete(tabId)
+    // Actions waiting for its work stop waiting at once, while the work it cancels ends by itself.
+    this.releaseBusy(r)
     if (r.timer) clearTimeout(r.timer)
     r.capture.release?.()
     r.abort.abort()

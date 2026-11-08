@@ -68,7 +68,6 @@ export const jaJPVideoRecorder = {
     sizeLimit: '録画が上限の 256 MiB に達しました。'
   },
   errors: {
-    busy: '現在の動画の操作が完了するまでお待ちください',
     previousRecording: '別の録画を開始する前に、以前の録画をクリアしてください',
     recordingCount: '先に保持されている録画をクリアしてください（最大 3 つ）',
     startFirst: '先に録画を開始してください',

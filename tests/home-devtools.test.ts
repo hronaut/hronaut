@@ -71,7 +71,7 @@ function devToolsBrowser(tab: ReturnType<typeof devToolsTab>, dialogMonitorAttac
   } as unknown as Parameters<typeof openDevTools>[0]
 }
 
-function menuFor(url: string, onOpenDevTools: (tab: PageTab) => void = () => undefined): { ids: Array<string | undefined>, tab: PageTab, openDevToolsCalls: PageTab[] } {
+function menuFor(url: string, onOpenDevTools: (tab: PageTab) => void = () => undefined, locked: () => boolean = () => false): { ids: Array<string | undefined>, tab: PageTab, openDevToolsCalls: PageTab[] } {
   const tab: PageTab = { id: 'tab', url, webContents: pageWebContents() }
   const openDevToolsCalls: PageTab[] = []
   const browser = {
@@ -79,7 +79,7 @@ function menuFor(url: string, onOpenDevTools: (tab: PageTab) => void = () => und
     window: {},
     options: { copyText: async () => undefined, copyImageAt: async () => undefined },
     text: (key: string) => key,
-    isHumanInteractionLocked: () => false,
+    isHumanInteractionLocked: locked,
     openDevTools: async (target: PageTab) => {
       openDevToolsCalls.push(target)
       onOpenDevTools(target)
@@ -136,6 +136,16 @@ describe('Developer Tools on Hronaut Home', () => {
     await Promise.resolve()
     expect(chosen.openDevToolsCalls).toEqual([])
     expect(chosen.tab.webContents.inspectElement).not.toHaveBeenCalled()
+    expect(opened.tab.webContents.inspectElement).not.toHaveBeenCalled()
+  })
+
+  it('does not inspect a tab locked while Developer Tools were opening', async () => {
+    let locked = false
+    // The tab is locked while opening waits for the page's request conditions.
+    const opened = menuFor('https://shop.example/', () => { locked = true }, () => locked)
+    ;(built.templates.at(-1)!.find(item => item.id === 'inspect-element')!.click as () => void)()
+    await vi.waitFor(() => expect(opened.openDevToolsCalls).toEqual([opened.tab]))
+    await Promise.resolve()
     expect(opened.tab.webContents.inspectElement).not.toHaveBeenCalled()
   })
 })

@@ -35,6 +35,7 @@ import { showWorkspaceContextMenu } from './browser/context-menus/workspace-cont
 import { closeWorkspace } from './browser/mcp-tab-groups/close-mcp-tab-group.js'
 import { setFoldedWorkspaces } from './browser/folded-workspaces/folded-workspaces.js'
 import { WORKSPACES_IPC } from '../shared/ipc/workspaces.js'
+import { whenWorkspaceIdle } from './browser/workspace-operations/workspace-operations.js'
 
 /** More workspaces than anyone folds; a longer list is refused rather than kept. */
 const MAX_FOLDED_WORKSPACES = 10_000
@@ -65,13 +66,17 @@ interface WorkspacesIpcHost {
 
 /** Dependencies stay lazy because handlers are registered before the window loads. */
 export function registerWorkspacesIpc(host: WorkspacesIpcHost): void {
-  host.handleBrowserIpc(WORKSPACES_IPC.rename, (event, groupId: unknown, name: unknown) => {
+  // A person's change of a workspace that another operation holds busy, such as copying its data, waits for it and then
+  // applies, rather than being refused; one that closed it meanwhile is refused as for any closed workspace.
+  host.handleBrowserIpc(WORKSPACES_IPC.rename, async (event, groupId: unknown, name: unknown) => {
     host.assertTrustedSender(event)
     if (typeof groupId !== 'string' || typeof name !== 'string') throw new TypeError('Invalid workspace rename request')
+    await whenWorkspaceIdle(host.tabs()!, groupId)
+    host.assertTrustedSender(event)
     renameMcpTabGroup(host.tabs()!, groupId, name)
     return browserState(host.tabs()!)
   })
-  host.handleBrowserIpc(WORKSPACES_IPC.update, (event, groupId: unknown, updates: unknown) => {
+  host.handleBrowserIpc(WORKSPACES_IPC.update, async (event, groupId: unknown, updates: unknown) => {
     host.assertTrustedSender(event)
     if (typeof groupId !== 'string' || !updates || typeof updates !== 'object' || Array.isArray(updates)) {
       throw new TypeError('Invalid workspace update request')
@@ -83,6 +88,8 @@ export function registerWorkspacesIpc(host: WorkspacesIpcHost): void {
     if (candidate.name !== undefined && typeof candidate.name !== 'string') throw new TypeError('Invalid workspace name')
     if (candidate.description !== undefined && typeof candidate.description !== 'string') throw new TypeError('Invalid workspace description')
     if (candidate.color !== undefined && !isBrowserTabGroupColor(candidate.color)) throw new TypeError('Invalid workspace color')
+    await whenWorkspaceIdle(host.tabs()!, groupId)
+    host.assertTrustedSender(event)
     updateMcpTabGroup(host.tabs()!, groupId, {
       ...(typeof candidate.hiddenFromSidebar === 'boolean' ? { hiddenFromSidebar: candidate.hiddenFromSidebar } : {}),
       ...(typeof candidate.deletionProtected === 'boolean' ? { deletionProtected: candidate.deletionProtected } : {}),
@@ -160,10 +167,12 @@ export function registerWorkspacesIpc(host: WorkspacesIpcHost): void {
     await reconcileWorkspaceContinuity(host.tabs()!, workspaceId, reviewId, acknowledge)
     return inspectWorkspaceContinuity(host.tabs()!, workspaceId)
   })
-  host.handleBrowserIpc(WORKSPACES_IPC.updateNavigationPolicy, (event, groupId: unknown, policy: unknown) => {
+  host.handleBrowserIpc(WORKSPACES_IPC.updateNavigationPolicy, async (event, groupId: unknown, policy: unknown) => {
     host.assertTrustedSender(event)
     if (typeof groupId !== 'string') throw new TypeError('Invalid workspace ID')
     const normalized = normalizeWorkspaceNavigationPolicy(policy)
+    await whenWorkspaceIdle(host.tabs()!, groupId)
+    host.assertTrustedSender(event)
     return updateWorkspaceNavigationPolicy(host.tabs()!, groupId, normalized)
   })
   host.handleBrowserIpc(WORKSPACES_IPC.listNavigationAudit, (event, groupId: unknown) => {

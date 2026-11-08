@@ -45,6 +45,9 @@ Review their state after resume when they matter to a test.
   reports `unknown` and does not retry, roll back, or claim success. Explicitly
   request the opposite state, or navigate/reload to establish a fresh active
   document.
+- A change asked for while the page runs another debugger command, such as an
+  agent's long evaluation, waits its turn; its five-second deadline starts with
+  that turn, so the wait alone never reports `unknown`.
 - Frozen and unknown tabs are ineligible for Memory Saver so a live review
   boundary cannot be silently replaced by a reload.
 

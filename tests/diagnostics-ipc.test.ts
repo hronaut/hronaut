@@ -212,7 +212,21 @@ it('refuses an audio import the shell names a file for, since only the person pi
     .rejects.toThrow('Audio is imported only from a file the person picks')
   expect(tabs.videoRecording).not.toHaveBeenCalled()
   await invoke('video', { tabId: 'tab', action: 'remove-audio' })
-  expect(tabs.videoRecording).toHaveBeenCalledWith({ tabId: 'tab', action: 'remove-audio' }, undefined, undefined, expect.any(Function))
+  expect(tabs.videoRecording).toHaveBeenCalledWith({ tabId: 'tab', action: 'remove-audio' }, expect.any(Function), undefined, expect.any(Function))
+})
+
+it("checks the shell again for a video action that waited, and leaves start and resume to the recording's own check", async () => {
+  const { tabs, host, event, invoke } = fixture()
+  tabs.videoRecording.mockResolvedValue({ recordingId: 'recording', status: 'stopped' })
+  await invoke('video', { tabId: 'tab', action: 'stop' })
+  const stillShell = tabs.videoRecording.mock.calls[0]![1] as () => void
+  host.assertTrustedSender.mockClear()
+  stillShell()
+  expect(host.assertTrustedSender).toHaveBeenCalledExactlyOnceWith(event)
+  for (const action of ['start', 'resume']) {
+    await invoke('video', { tabId: 'tab', action })
+    expect(tabs.videoRecording).toHaveBeenLastCalledWith({ tabId: 'tab', action }, undefined, undefined, expect.any(Function))
+  }
 })
 
 it('keeps native audio selection bound to its stopped recording and trusted sender', async () => {

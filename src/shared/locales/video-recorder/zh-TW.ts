@@ -68,7 +68,6 @@ export const zhTWVideoRecorder = {
     sizeLimit: '錄影已達 256 MiB 上限。'
   },
   errors: {
-    busy: '請等待目前的影片作業完成',
     previousRecording: '開始新的錄影前，請先清除先前的錄影',
     recordingCount: '請先清除一段保留的錄影（最多三段）',
     startFirst: '請先開始錄影',

@@ -68,7 +68,6 @@ export const frFRVideoRecorder = {
     sizeLimit: 'L’enregistrement a atteint sa limite de 256 Mio.'
   },
   errors: {
-    busy: 'Attendez la fin de l’opération vidéo en cours',
     previousRecording: 'Abandonnez l’enregistrement précédent avant d’en démarrer un autre',
     recordingCount: 'Abandonnez d’abord un enregistrement conservé (trois au maximum)',
     startFirst: 'Démarrez d’abord un enregistrement',

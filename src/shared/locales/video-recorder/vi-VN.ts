@@ -68,7 +68,6 @@ export const viVNVideoRecorder = {
     sizeLimit: 'Bản ghi đã đạt giới hạn 256 MiB.'
   },
   errors: {
-    busy: 'Hãy đợi thao tác video hiện tại hoàn tất',
     previousRecording: 'Hãy xóa bản ghi trước đó trước khi bắt đầu bản ghi khác',
     recordingCount: 'Hãy xóa một bản ghi đang giữ trước (tối đa ba bản ghi)',
     startFirst: 'Hãy bắt đầu quay trước',

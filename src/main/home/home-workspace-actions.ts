@@ -6,6 +6,7 @@ import { buildBrowserState } from '../browser/browser-state/browser-state.js'
 import { openHome } from '../browser/home-tabs/home-tabs.js'
 import { closeWorkspace } from '../browser/mcp-tab-groups/close-mcp-tab-group.js'
 import { newTab } from '../browser/new-tabs/open-new-tab.js'
+import { whenArchivedWorkspaceIdle, whenWorkspaceIdle } from '../browser/workspace-operations/workspace-operations.js'
 
 /**
  * What Home shows of the workspaces and tabs. It goes to Home, never to the shell as an action's reply, so a change
@@ -34,10 +35,12 @@ export function homeWorkspaceState(manager: Browser): HomeWorkspaceState {
   }
 }
 
+/** Runs a workspace action Home asked for; `stillHome` checks the sender again after any wait for a busy workspace. */
 export async function runHomeWorkspaceAction(
   manager: Browser,
   input: unknown,
-  edit: (request: HomeWorkspaceEditorRequest) => void
+  edit: (request: HomeWorkspaceEditorRequest) => void,
+  stillHome: () => void = () => undefined
 ): Promise<HomeWorkspaceState> {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('Invalid workspace action')
   const request = input as HomeWorkspaceAction
@@ -91,7 +94,11 @@ export async function runHomeWorkspaceAction(
         }
       }
       if (!Object.keys(updates).length) throw new TypeError('Choose a workspace preference')
-      if (active) updateMcpTabGroup(manager, active.id, updates)
+      // A switch flipped while another operation holds the workspace busy waits for it and then applies, to the
+      // workspace open or archived by then.
+      await (active ? whenWorkspaceIdle(manager, active.id) : whenArchivedWorkspaceIdle(manager, request.workspaceId))
+      stillHome()
+      if (manager.mcpTabGroups.has(request.workspaceId)) updateMcpTabGroup(manager, request.workspaceId, updates)
       else updateArchivedWorkspacePreferences(manager, request.workspaceId, updates)
       break
     }

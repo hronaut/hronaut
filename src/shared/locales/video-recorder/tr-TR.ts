@@ -68,7 +68,6 @@ export const trTRVideoRecorder = {
     sizeLimit: 'Kayıt 256 MiB sınırına ulaştı.'
   },
   errors: {
-    busy: 'Geçerli video işleminin bitmesini bekleyin',
     previousRecording: 'Yeni bir kayıt başlatmadan önce önceki kaydı temizleyin',
     recordingCount: 'Önce saklanan bir kaydı temizleyin (en fazla üç)',
     startFirst: 'Önce bir kayıt başlatın',

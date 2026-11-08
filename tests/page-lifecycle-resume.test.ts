@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { WebContents } from 'electron'
 import type { BrowserTab } from '../src/main/browser/browser-tab.js'
 
@@ -94,5 +94,50 @@ describe('resuming a frozen page', () => {
     expect(showResumedPresentedView).not.toHaveBeenCalled()
     expect(page.reconcileTabPresentation).not.toHaveBeenCalled()
     expect(page.browser.changed).toHaveBeenCalledExactlyOnceWith(false)
+  })
+})
+
+describe('a lifecycle change while the page is busy', () => {
+  afterEach(() => {
+    vi.clearAllTimers()
+    vi.useRealTimers()
+  })
+
+  /** The tab's page with an earlier debugger command under way until `free` is called. */
+  function busyPage() {
+    const page = frozenTab()
+    let free!: () => void
+    const earlier = new Promise<void>(resolve => { free = resolve })
+    page.browser.debuggerQueue = { run: (_id: number, operation: () => Promise<unknown>) => earlier.then(operation) }
+    return { ...page, free }
+  }
+
+  it('waits for the page however long it is busy, then applies, instead of ending unknown after five seconds', async () => {
+    vi.useFakeTimers()
+    const page = busyPage()
+    let settled = false
+    const resumed = controlPageLifecycle(page.browser as never, 'tab', 'active').finally(() => { settled = true })
+    await vi.advanceTimersByTimeAsync(12_000)
+    expect(settled).toBe(false)
+    expect(page.tab.pageLifecycleState).toBe('frozen')
+    expect(page.commands).toEqual([])
+    page.free()
+    await vi.advanceTimersByTimeAsync(100)
+    await expect(resumed).resolves.toMatchObject({ state: 'active', status: 'changed', retrySafe: true })
+    expect(page.commands).toEqual(['Page.setWebLifecycleState active', 'show active at once'])
+  })
+
+  it('still leaves the state unknown when Chromium does not answer within five seconds of its turn', async () => {
+    vi.useFakeTimers()
+    const page = busyPage()
+    vi.mocked(page.tab.webContents.debugger.sendCommand).mockImplementation(() => new Promise(() => undefined))
+    const frozen = controlPageLifecycle(page.browser as never, 'tab', 'active')
+    await vi.advanceTimersByTimeAsync(12_000)
+    page.free()
+    await vi.advanceTimersByTimeAsync(4_900)
+    expect(page.tab.pageLifecycleState).toBe('frozen')
+    await vi.advanceTimersByTimeAsync(200)
+    await expect(frozen).resolves.toMatchObject({ state: 'unknown', status: 'outcome-unknown', retrySafe: false })
+    expect(page.tab.pageLifecycleState).toBe('unknown')
   })
 })
