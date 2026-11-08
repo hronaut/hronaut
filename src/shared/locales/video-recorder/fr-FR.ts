@@ -52,7 +52,7 @@ export const frFRVideoRecorder = {
   title: 'Enregistreur vidéo',
   description: 'Composez des clips avec son, légendes et mouvements de caméra',
   privacy: 'Le démarrage enregistre le contenu de la page de l’onglet cible, y compris les données personnelles. Utilisez un compte de démonstration et vérifiez avant de partager.',
-  limits: 'WebM / VP9 + audio Opus facultatif · jusqu’à 2 minutes · 1280 × 720 · jusqu’à 12 fps. Jusqu’à trois onglets peuvent enregistrer indépendamment. Gardez Hronaut visible et ne modifiez pas la taille de chaque source. Les fenêtres masquées, les superpositions de confiance et la mise en veille suspendent la capture. Les enregistrements bruts disparaissent à la fermeture de l’onglet.',
+  limits: 'WebM / VP9 + audio Opus facultatif · jusqu’à 2 minutes · 1280 × 720 · jusqu’à 30 fps. Jusqu’à trois onglets peuvent enregistrer indépendamment. Gardez Hronaut visible et ne modifiez pas la taille de chaque source. Les fenêtres masquées, les superpositions de confiance et la mise en veille suspendent la capture. Les enregistrements bruts disparaissent à la fermeture de l’onglet.',
   status: {
     idle: 'Prêt à enregistrer',
     recording: 'Enregistrement vidéo en cours',
@@ -65,7 +65,7 @@ export const frFRVideoRecorder = {
     conditions: 'Enregistrement en pause. Gardez Hronaut visible et l’onglet source éveillé, sur l’origine et à la taille de départ, avec l’accès à l’enregistrement disponible.',
     sleep: 'Enregistrement en pause pendant la mise en veille de l’ordinateur. Reprenez la vidéo pour continuer.',
     durationLimit: 'L’enregistrement a atteint sa limite de deux minutes.',
-    sizeLimit: 'L’enregistrement a atteint sa limite de 64 Mio.'
+    sizeLimit: 'L’enregistrement a atteint sa limite de 256 Mio.'
   },
   errors: {
     busy: 'Attendez la fin de l’opération vidéo en cours',
@@ -95,6 +95,7 @@ export const frFRVideoRecorder = {
     tabUnavailable: 'L’onglet de l’enregistrement n’est pas disponible',
     audioUnreadable: 'Impossible de lire le fichier audio. Sélectionnez un fichier normal, non vide, de 10 Mio au maximum.',
     exportTimeout: 'L’export vidéo a été annulé ou a expiré',
+    exportStopped: 'L’export vidéo s’est arrêté de façon inattendue ; relancez l’export',
     annotationEnd: 'La fin de l’annotation doit suivre son début',
     annotationText: 'Les annotations de texte et les bulles d’étape doivent contenir du texte',
     annotationPoint: 'Cette annotation nécessite des coordonnées x/y',

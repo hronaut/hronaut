@@ -52,7 +52,7 @@ export const zhTWVideoRecorder = {
   title: '影片錄製工具',
   description: '製作含有聲音、字幕和鏡頭移動的片段',
   privacy: '開始後會錄下目標分頁的網頁內容，包括個人資料。請使用示範帳戶，並在分享前仔細檢查。',
-  limits: 'WebM / VP9 + 選用的 Opus 音訊 · 最長 2 分鐘 · 1280 × 720 · 最高 12 fps。最多可有三個分頁各自錄影。請讓 Hronaut 保持可見，且不要變更每個來源的大小。視窗隱藏、受信任的覆疊畫面和休眠都會暫停擷取。分頁關閉時，原始錄影就會消失。',
+  limits: 'WebM / VP9 + 選用的 Opus 音訊 · 最長 2 分鐘 · 1280 × 720 · 最高 30 fps。最多可有三個分頁各自錄影。請讓 Hronaut 保持可見，且不要變更每個來源的大小。視窗隱藏、受信任的覆疊畫面和休眠都會暫停擷取。分頁關閉時，原始錄影就會消失。',
   status: {
     idle: '可以開始錄影',
     recording: '正在錄影',
@@ -65,7 +65,7 @@ export const zhTWVideoRecorder = {
     conditions: '擷取已暫停。請讓 Hronaut 保持可見，並讓來源分頁維持喚醒狀態、停留在原網站來源且維持開始時的大小，同時確保仍有錄影存取權。',
     sleep: '電腦休眠期間已暫停擷取。請繼續錄影以接續進行。',
     durationLimit: '錄影已達兩分鐘上限。',
-    sizeLimit: '錄影已達 64 MiB 上限。'
+    sizeLimit: '錄影已達 256 MiB 上限。'
   },
   errors: {
     busy: '請等待目前的影片作業完成',
@@ -95,6 +95,7 @@ export const zhTWVideoRecorder = {
     tabUnavailable: '無法使用錄影分頁',
     audioUnreadable: '無法讀取音訊檔案。請選取一個不超過 10 MiB 且非空白的一般檔案。',
     exportTimeout: '影片匯出已取消或逾時',
+    exportStopped: '影片匯出意外停止，請重新匯出',
     annotationEnd: '註解的結束時間必須晚於開始時間',
     annotationText: '文字和說明框註解必須包含文字',
     annotationPoint: '這個註解需要 x/y 座標',

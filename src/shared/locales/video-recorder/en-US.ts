@@ -52,7 +52,7 @@ export const enUSVideoRecorder = {
   title: 'Video recorder',
   description: 'Compose clips with sound, captions and camera moves',
   privacy: 'Starting records the target tab’s page content, including personal data. Use a demo account and review before sharing.',
-  limits: 'WebM / VP9 + optional Opus audio · up to 2 minutes · 1280 × 720 · up to 12 fps. Up to three tabs can record independently. Keep Hronaut visible and each source size unchanged. Hidden windows, trusted overlays and sleep pause capture. Raw recordings disappear when the tab closes.',
+  limits: 'WebM / VP9 + optional Opus audio · up to 2 minutes · 1280 × 720 · up to 30 fps. Up to three tabs can record independently. Keep Hronaut visible and each source size unchanged. Hidden windows, trusted overlays and sleep pause capture. Raw recordings disappear when the tab closes.',
   status: {
     idle: 'Ready to record',
     recording: 'Recording video',
@@ -65,7 +65,7 @@ export const enUSVideoRecorder = {
     conditions: 'Capture paused. Keep Hronaut visible and the source tab awake, on the website origin and at the size it started with, with recording access available.',
     sleep: 'Capture paused while the computer slept. Resume the video to continue.',
     durationLimit: 'Recording reached its two-minute limit.',
-    sizeLimit: 'Recording reached its 64 MiB limit.'
+    sizeLimit: 'Recording reached its 256 MiB limit.'
   },
   errors: {
     busy: 'Wait for the current video operation to finish',
@@ -95,6 +95,7 @@ export const enUSVideoRecorder = {
     tabUnavailable: 'Recording tab is unavailable',
     audioUnreadable: 'Audio file could not be read. Select a non-empty regular file no larger than 10 MiB.',
     exportTimeout: 'Video export cancelled or timed out',
+    exportStopped: 'Video export stopped unexpectedly; export again',
     annotationEnd: 'Annotation end must follow its start',
     annotationText: 'Text and callout annotations require text',
     annotationPoint: 'This annotation requires x/y coordinates',

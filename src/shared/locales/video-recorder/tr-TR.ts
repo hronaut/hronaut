@@ -52,7 +52,7 @@ export const trTRVideoRecorder = {
   title: 'Video kaydedici',
   description: 'Ses, altyazı ve kamera hareketleriyle klipler oluşturun',
   privacy: 'Kayıt başladığında hedef sekmenin, kişisel veriler dahil sayfa içeriği kaydedilir. Demo hesabı kullanın ve paylaşmadan önce gözden geçirin.',
-  limits: 'WebM / VP9 + isteğe bağlı Opus ses · en fazla 2 dakika · 1280 × 720 · en fazla 12 fps. En fazla üç sekme bağımsız olarak kayıt yapabilir. Hronaut’u görünür tutun ve her kaynağın boyutunu değiştirmeyin. Gizli pencereler, güvenilir katmanlar ve uyku modu yakalamayı duraklatır. Ham kayıtlar sekme kapandığında silinir.',
+  limits: 'WebM / VP9 + isteğe bağlı Opus ses · en fazla 2 dakika · 1280 × 720 · en fazla 30 fps. En fazla üç sekme bağımsız olarak kayıt yapabilir. Hronaut’u görünür tutun ve her kaynağın boyutunu değiştirmeyin. Gizli pencereler, güvenilir katmanlar ve uyku modu yakalamayı duraklatır. Ham kayıtlar sekme kapandığında silinir.',
   status: {
     idle: 'Kayda hazır',
     recording: 'Video kaydediliyor',
@@ -65,7 +65,7 @@ export const trTRVideoRecorder = {
     conditions: 'Yakalama duraklatıldı. Hronaut’u görünür, kaynak sekmeyi uyanık tutun; sekme web sitesi kaynağında ve başladığı boyutta kalmalı, kayıt erişimi de kullanılabilir olmalıdır.',
     sleep: 'Bilgisayar uykudayken yakalama duraklatıldı. Devam etmek için videoyu sürdürün.',
     durationLimit: 'Kayıt iki dakikalık sınırına ulaştı.',
-    sizeLimit: 'Kayıt 64 MiB sınırına ulaştı.'
+    sizeLimit: 'Kayıt 256 MiB sınırına ulaştı.'
   },
   errors: {
     busy: 'Geçerli video işleminin bitmesini bekleyin',
@@ -95,6 +95,7 @@ export const trTRVideoRecorder = {
     tabUnavailable: 'Kayıt sekmesi kullanılamıyor',
     audioUnreadable: 'Ses dosyası okunamadı. 10 MiB’tan büyük olmayan, boş olmayan normal bir dosya seçin.',
     exportTimeout: 'Video dışa aktarma iptal edildi veya zaman aşımına uğradı',
+    exportStopped: 'Video dışa aktarma beklenmedik şekilde durdu; yeniden dışa aktarın',
     annotationEnd: 'Ek açıklamanın bitişi başlangıcından sonra olmalıdır',
     annotationText: 'Metin ve belirtme çizgisi ek açıklamaları metin gerektirir',
     annotationPoint: 'Bu ek açıklama x/y koordinatları gerektirir',

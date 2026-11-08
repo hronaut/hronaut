@@ -52,7 +52,7 @@ export const deDEVideoRecorder = {
   title: 'Videorekorder',
   description: 'Clips mit Ton, Beschriftungen und Kamerafahrten gestalten',
   privacy: 'Beim Start wird der Seiteninhalt des Ziel-Tabs aufgenommen, einschließlich personenbezogener Daten. Verwenden Sie ein Demokonto und prüfen Sie die Aufnahme vor dem Teilen.',
-  limits: 'WebM / VP9 + optionales Opus-Audio · bis zu 2 Minuten · 1280 × 720 · bis zu 12 fps. Bis zu drei Tabs können unabhängig voneinander aufnehmen. Lassen Sie Hronaut sichtbar und die Größe jeder Quelle unverändert. Ausgeblendete Fenster, vertrauenswürdige Overlays und der Ruhezustand pausieren die Aufnahme. Rohaufnahmen verschwinden, wenn der Tab geschlossen wird.',
+  limits: 'WebM / VP9 + optionales Opus-Audio · bis zu 2 Minuten · 1280 × 720 · bis zu 30 fps. Bis zu drei Tabs können unabhängig voneinander aufnehmen. Lassen Sie Hronaut sichtbar und die Größe jeder Quelle unverändert. Ausgeblendete Fenster, vertrauenswürdige Overlays und der Ruhezustand pausieren die Aufnahme. Rohaufnahmen verschwinden, wenn der Tab geschlossen wird.',
   status: {
     idle: 'Bereit zur Aufnahme',
     recording: 'Video wird aufgenommen',
@@ -65,7 +65,7 @@ export const deDEVideoRecorder = {
     conditions: 'Aufnahme pausiert. Lassen Sie Hronaut sichtbar und den Quell-Tab aktiv, auf dem Website-Ursprung und in der Größe, mit denen er begonnen hat, mit verfügbarem Aufnahmezugriff.',
     sleep: 'Aufnahme pausiert, während der Computer im Ruhezustand war. Setzen Sie das Video fort, um weiterzumachen.',
     durationLimit: 'Die Aufnahme hat ihr Limit von zwei Minuten erreicht.',
-    sizeLimit: 'Die Aufnahme hat ihr Limit von 64 MiB erreicht.'
+    sizeLimit: 'Die Aufnahme hat ihr Limit von 256 MiB erreicht.'
   },
   errors: {
     busy: 'Warten Sie, bis der aktuelle Videovorgang abgeschlossen ist',
@@ -95,6 +95,7 @@ export const deDEVideoRecorder = {
     tabUnavailable: 'Der Tab der Aufnahme ist nicht verfügbar',
     audioUnreadable: 'Die Audiodatei konnte nicht gelesen werden. Wählen Sie eine nicht leere, reguläre Datei mit höchstens 10 MiB.',
     exportTimeout: 'Der Videoexport wurde abgebrochen oder hat zu lange gedauert',
+    exportStopped: 'Der Videoexport wurde unerwartet beendet; exportieren Sie erneut',
     annotationEnd: 'Das Ende der Anmerkung muss nach ihrem Anfang liegen',
     annotationText: 'Text- und Schritthinweis-Anmerkungen brauchen einen Text',
     annotationPoint: 'Diese Anmerkung braucht x/y-Koordinaten',

@@ -1385,7 +1385,9 @@ retargeting the recording. Separate authorized agents can record separate
 workspaces while the human uses another tab. Raw frames and rendered previews stay in memory and disappear
 on discard, tab closure, workspace closure/archive, or application exit. Explicit
 exports are saved in the configured download directory with collision-safe filenames; one exported from
-Hronaut's own controls into a download directory Hronaut cannot write to asks where to save it instead.
+Hronaut's own controls into a download directory Hronaut cannot write to asks where to save it instead,
+and `browser_video` then reports its filename without the folder the person chose. An export may take
+five minutes, or 150 ms a frame for a longer video, and ends at once if its encoder's renderer stops.
 
 Keep Hronaut visible and each recording viewport at a fixed size. The source tab
 need not be selected. Background frames reuse the existing per-tab rendering
@@ -1442,13 +1444,14 @@ recorder or encoder bridge.
   decoded sequentially and their decoded dimensions checked before drawing. One
   inspection runs at a time with no queue. A five-second deadline initiates rejection
   and teardown; the slot and selected-frame references remain held until renderer
-  exit is confirmed. Uncertain cleanup quarantines inspection until Hronaut restarts.
+  exit is confirmed, unless the job ended before its renderer took any frame.
+  Uncertain cleanup quarantines inspection until Hronaut restarts.
   These are operational bounds, **not a hard RSS/64 MiB memory limit, an encoder
   allocation cap, or a guarantee of exact native interruption latency**. Oversized
   selections/images fail explicitly; request fewer frames or a narrower interval.
 - `render`: prepare a local preview without writing a file.
-- `export`: render if necessary and save a `.webm` file with optional composed Opus audio. Returns its path,
-  filename, bytes, codec, MIME type and edited duration. This action requires the
+- `export`: render if necessary and save a `.webm` file with optional composed Opus audio. Returns its path
+  (left out for a file the person saved outside the download directory), filename, bytes, codec, MIME type and edited duration. This action requires the
   capability's `external-request` operation class as well as workspace write access.
 
 ### Video timing observations

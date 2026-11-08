@@ -4,7 +4,7 @@ import type { VideoRenderPlan } from '../src/shared/video.js'
 
 const electron = vi.hoisted(() => ({ BrowserWindow: vi.fn() }))
 vi.mock('electron', () => electron)
-import { renderBrowserVideo } from '../src/main/browser/video-export.js'
+import { exportDeadlineMs, renderBrowserVideo } from '../src/main/browser/video-export.js'
 
 const plan: VideoRenderPlan = {
   width: 320,
@@ -93,4 +93,54 @@ it('settles the export timeout even when Electron never settles the page load', 
   await rejected
   expect(window.destroy).toHaveBeenCalledOnce()
   expect(getEventListeners(controller.signal, 'abort')).toEqual([])
+})
+
+it('ends at once with its own error when the export renderer goes away', async () => {
+  let destroyed = false
+  const listeners = new Map<string, () => void>()
+  let entered!: () => void
+  const started = new Promise<void>(resolve => { entered = resolve })
+  const window = {
+    isDestroyed: () => destroyed,
+    destroy: vi.fn(() => { destroyed = true }),
+    webContents: {
+      setWindowOpenHandler: vi.fn(),
+      on: vi.fn((event: string, listener: () => void) => { listeners.set(event, listener) }),
+      executeJavaScript: vi.fn(() => { entered(); return new Promise<never>(() => undefined) })
+    },
+    loadURL: vi.fn(async () => undefined)
+  }
+  electron.BrowserWindow.mockImplementation(function () { return window })
+  const controller = new AbortController()
+  const exportPromise = renderBrowserVideo(plan, [], controller.signal, () => undefined)
+  await started
+  const rejected = expect(exportPromise).rejects.toThrow('Video export stopped unexpectedly')
+  listeners.get('render-process-gone')!()
+  await rejected
+  expect(window.destroy).toHaveBeenCalledOnce()
+  expect(vi.getTimerCount()).toBe(0)
+  expect(getEventListeners(controller.signal, 'abort')).toEqual([])
+})
+
+it('gives a long video more time than five minutes, and every export one shared session', async () => {
+  expect(exportDeadlineMs(30)).toBe(5 * 60_000)
+  let destroyed = false
+  const window = {
+    isDestroyed: () => destroyed,
+    destroy: vi.fn(() => { destroyed = true }),
+    webContents: { setWindowOpenHandler: vi.fn(), on: vi.fn() },
+    loadURL: vi.fn(() => new Promise<never>(() => undefined))
+  }
+  electron.BrowserWindow.mockImplementation(function () { return window })
+  const twoMinutes: VideoRenderPlan = { ...plan, durationMs: 120_000, clips: [{ startMs: 0, endMs: 120_000 }] }
+  let settled = false
+  const exportPromise = renderBrowserVideo(twoMinutes, [], new AbortController().signal, () => undefined)
+  const rejected = expect(exportPromise.finally(() => { settled = true })).rejects.toThrow('timed out')
+  await vi.advanceTimersByTimeAsync(5 * 60_000)
+  expect(settled).toBe(false)
+  await vi.advanceTimersByTimeAsync(exportDeadlineMs(3600) - 5 * 60_000)
+  await rejected
+  expect(electron.BrowserWindow).toHaveBeenCalledWith(expect.objectContaining({
+    webPreferences: expect.objectContaining({ partition: 'video-export' })
+  }))
 })

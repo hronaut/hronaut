@@ -52,7 +52,7 @@ export const ptBRVideoRecorder = {
   title: 'Gravador de vídeo',
   description: 'Componha clipes com som, legendas e movimentos de câmera',
   privacy: 'Ao iniciar, o conteúdo da página da guia de destino é gravado, incluindo dados pessoais. Use uma conta de demonstração e revise antes de compartilhar.',
-  limits: 'WebM / VP9 + áudio Opus opcional · até 2 minutos · 1280 × 720 · até 12 fps. Até três guias podem gravar de forma independente. Mantenha o Hronaut visível e o tamanho de cada origem inalterado. Janelas ocultas, sobreposições confiáveis e suspensão pausam a captura. As gravações brutas desaparecem quando a guia é fechada.',
+  limits: 'WebM / VP9 + áudio Opus opcional · até 2 minutos · 1280 × 720 · até 30 fps. Até três guias podem gravar de forma independente. Mantenha o Hronaut visível e o tamanho de cada origem inalterado. Janelas ocultas, sobreposições confiáveis e suspensão pausam a captura. As gravações brutas desaparecem quando a guia é fechada.',
   status: {
     idle: 'Pronto para gravar',
     recording: 'Gravando vídeo',
@@ -65,7 +65,7 @@ export const ptBRVideoRecorder = {
     conditions: 'A captura foi pausada. Mantenha o Hronaut visível e a guia de origem ativa, na origem do site e no tamanho inicial, com o acesso de gravação disponível.',
     sleep: 'A captura foi pausada enquanto o computador estava suspenso. Retome o vídeo para continuar.',
     durationLimit: 'A gravação atingiu o limite de dois minutos.',
-    sizeLimit: 'A gravação atingiu o limite de 64 MiB.'
+    sizeLimit: 'A gravação atingiu o limite de 256 MiB.'
   },
   errors: {
     busy: 'Aguarde a operação de vídeo atual terminar',
@@ -95,6 +95,7 @@ export const ptBRVideoRecorder = {
     tabUnavailable: 'A guia da gravação está indisponível',
     audioUnreadable: 'Não foi possível ler o arquivo de áudio. Selecione um arquivo comum, não vazio e com no máximo 10 MiB.',
     exportTimeout: 'A exportação do vídeo foi cancelada ou expirou',
+    exportStopped: 'A exportação do vídeo parou inesperadamente; exporte novamente',
     annotationEnd: 'O fim da anotação deve vir depois do início',
     annotationText: 'Anotações de texto e de destaque explicativo exigem texto',
     annotationPoint: 'Esta anotação exige coordenadas x/y',
