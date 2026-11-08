@@ -234,7 +234,6 @@ export const plPLAppErrors: AppErrorMessages = {
     devTools: 'Zamknij narzędzia deweloperskie tej karty, zanim zmienisz stan jej strony.'
   },
   inputLock: {
-    pageBusy: 'Strona jest zajęta. Blokady wprowadzania nie zostały zmienione. Poczekaj, aż jej operacja się zakończy, i spróbuj ponownie.',
     observer: 'Wprowadzanie na stronie pozostaje zablokowane w obszarze roboczym publicznego obserwatora tylko do odczytu.',
     tabClosed: 'Karta została zamknięta, zanim zmieniono jej blokadę wprowadzania.',
     tabNotRestored: 'Nie udało się zmienić ani przywrócić blokady wprowadzania tej karty.',

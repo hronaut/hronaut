@@ -129,7 +129,7 @@ function browser() {
     liveRegionRecorder: { release: vi.fn() }, cssStatePreview: { clear: () => Promise.resolve() },
     virtualPasskeys: { stop: vi.fn() }, logpoints: { stop: vi.fn() },
     allHumanInteractionLocked: false, globallyUnlockedTabIds: new Set(), interactionLockTail: Promise.resolve(),
-    nativeInputLockMutations: 0, debuggerQueue: { pending: () => undefined }, dialogMonitorAttachPromises: new Map(),
+    globalInputLockChanges: 0, debuggerQueue: { pending: () => undefined }, dialogMonitorAttachPromises: new Map(),
     screenshotAreaSessions: new Map(), elementPickerSessions: new Map(), withDebugger: () => Promise.resolve(),
     assertWorkspaceNavigationAllowed: vi.fn(), workspaceNavigationAllowed: () => true, workspaceObservationGeneration: () => 0,
     roundPageCorners: vi.fn(), installSessionHooks: vi.fn(), attachTabEvents: vi.fn(), layout: vi.fn(), changed: vi.fn(),

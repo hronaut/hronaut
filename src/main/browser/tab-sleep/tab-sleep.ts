@@ -16,6 +16,7 @@ import { SLEEPING_PAGE_URL } from './sleeping-page.js'
 import { formStateChangedInPage, pictureInPictureShownInPage } from './tab-sleep.page.js'
 import type { Browser } from '../browser.js'
 import { ensureDialogMonitoring } from '../website-dialogs/website-dialogs.js'
+import { recordNativeInputBarrier } from '../interaction-lock/input-lock-state.js'
 import { findTab, getTab, orderedTabs } from '../browser-core.js'
 import { isInFoldedWorkspace } from '../folded-workspaces/folded-workspaces.js'
 import type { BrowserTab } from '../browser-tab.js'
@@ -35,7 +36,8 @@ function startFirstLoad(browser: Browser, tab: BrowserTab): void {
   // The browser process applies the input lock without the page's renderer, so it holds from the first document
   // rather than once the page's monitoring is in place.
   if (browser.isHumanInteractionLocked(tab) && tab.webContents.debugger.isAttached()) {
-    void tab.webContents.debugger.sendCommand('Input.setIgnoreInputEvents', { ignore: true }).catch(() => undefined)
+    void tab.webContents.debugger.sendCommand('Input.setIgnoreInputEvents', { ignore: true })
+      .then(() => { recordNativeInputBarrier(tab, true) }, () => undefined)
   }
 }
 

@@ -1,6 +1,5 @@
 import type { BrowserState } from '../../src/shared/types.js'
 import { test, expect } from './capability-fixtures.js'
-import { visibleToastText } from './toast-view.js'
 
 test('global unlock preserves successful frozen-page behavior without thawing it', async ({ appWindow, electronApp }) => {
   const url = 'data:text/html,' + encodeURIComponent('<title>Frozen unlock fixture</title><button>Action</button>')
@@ -30,7 +29,7 @@ test('global unlock preserves successful frozen-page behavior without thawing it
 })
 
 
-test('global unlock rejects a blocked debugger queue without applying a late unlock', async ({ capabilities, appWindow, electronApp }) => {
+test('global unlock waits for a blocked debugger queue and applies once the page frees', async ({ capabilities, appWindow, electronApp }) => {
   const { client, tabId, fixtureUrl } = capabilities
   await appWindow.evaluate('window.hronaut.setAllHumanInteractionLocked(true)')
   await electronApp.evaluate(({ webContents }, url) => {
@@ -48,17 +47,23 @@ test('global unlock rejects a blocked debugger queue without applying a late unl
   }, fixtureUrl)
   const operation = client.callTool({ name: 'browser_emulate', arguments: { tabId, colorScheme: 'dark' } })
   void operation.catch(() => undefined)
+  const unlocks = () => electronApp.evaluate(() => (globalThis as typeof globalThis & { unlockQueueProbe?: { unlocks: number } }).unlockQueueProbe?.unlocks)
   try {
     await expect.poll(() => electronApp.evaluate(() => (globalThis as typeof globalThis & { unlockQueueProbe?: { held: boolean } }).unlockQueueProbe?.held)).toBe(true)
     await appWindow.getByRole('button', { name: /Allow human page input/ }).click()
-    await expect.poll(() => visibleToastText(electronApp, appWindow), { timeout: 5000 }).toContain('A page is busy. Input locks were not changed.')
-    await expect(appWindow.getByRole('button', { name: /Allow human page input/ })).toBeEnabled()
-    expect(await appWindow.evaluate('window.hronaut.getState().then(state=>state.allHumanInteractionLocked)')).toBe(true)
+    // The controls show the unlock at once and wait, with the page's barrier still on, for its turn behind the
+    // held command: well past the two seconds after which the unlock used to fail.
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then(state=>state.allHumanInteractionLocked)')).toBe(false)
+    await expect(appWindow.getByRole('button', { name: /Waiting.*Block human page input/ })).toBeDisabled()
+    await electronApp.evaluate(() => new Promise(resolve => setTimeout(resolve, 2500)))
+    await expect(appWindow.getByRole('button', { name: /Waiting.*Block human page input/ })).toBeDisabled()
+    expect(await unlocks()).toBe(0)
     await electronApp.evaluate(() => (globalThis as typeof globalThis & { unlockQueueProbe?: { release: () => void } }).unlockQueueProbe?.release())
     await operation
-    expect(await electronApp.evaluate(() => (globalThis as typeof globalThis & { unlockQueueProbe?: { unlocks: number } }).unlockQueueProbe?.unlocks)).toBe(0)
-    await appWindow.getByRole('button', { name: /Allow human page input/ }).click()
-    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then(state=>state.allHumanInteractionLocked)')).toBe(false)
+    await expect(appWindow.getByRole('button', { name: /Waiting/ })).toHaveCount(0)
+    await expect(appWindow.getByRole('button', { name: /Block human page input/ })).toBeEnabled()
+    expect(await unlocks()).toBe(1)
+    expect(await appWindow.evaluate('window.hronaut.getState().then(state=>state.allHumanInteractionLocked)')).toBe(false)
   } finally {
     await electronApp.evaluate(() => {
       const holder = globalThis as typeof globalThis & { unlockQueueProbe?: { release: () => void; restore: () => void } }

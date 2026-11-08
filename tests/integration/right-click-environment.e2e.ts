@@ -83,12 +83,14 @@ for (const change of ['unchanged', 'zoom-aba', 'selection-aba', 'bounds-aba', 'p
       }, { url: fixtureUrl, change })
       if (change === 'close') await appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.closeTab(id), tabId)
       if (change === 'global-lock-requests') {
-        const rejected = await appWindow.evaluate(async () => {
-          const api = (window as unknown as { hronaut: HronautApi }).hronaut
-          const results = await Promise.allSettled([api.setAllHumanInteractionLocked(true), api.setAllHumanInteractionLocked(false)])
-          return results.map(result => result.status)
+        // Both changes wait for the held click instead of failing: the first shows at once, the second waits its turn.
+        await appWindow.evaluate(() => {
+          const scope = window as unknown as { hronaut: HronautApi; globalLockResults?: Promise<string[]> }
+          scope.globalLockResults = Promise.allSettled([scope.hronaut.setAllHumanInteractionLocked(true), scope.hronaut.setAllHumanInteractionLocked(false)])
+            .then(results => results.map(result => result.status))
         })
-        expect(rejected).toEqual(['rejected', 'rejected'])
+        await expect.poll(() => appWindow.evaluate(async () => (await (window as unknown as { hronaut: HronautApi }).hronaut.getState()).allHumanInteractionLocked))
+          .toBe(true)
       }
       if (change === 'cancel') {
         if (requestId === undefined) throw new Error('Missing rightClick request ID')
@@ -97,6 +99,10 @@ for (const change of ['unchanged', 'zoom-aba', 'selection-aba', 'bounds-aba', 'p
       }
       await electronApp.evaluate(() => (globalThis as RightScope).rightClickGate!.release())
       const result = await pending
+      if (change === 'global-lock-requests') {
+        expect(await appWindow.evaluate(() => (window as unknown as { globalLockResults?: Promise<string[]> }).globalLockResults)).toEqual(['fulfilled', 'fulfilled'])
+        expect((await appWindow.evaluate(() => (window as unknown as { hronaut: HronautApi }).hronaut.getState())).allHumanInteractionLocked).toBe(false)
+      }
       // Cancellation can settle the transport before the server. Observe the
       // terminal activity from the trusted Home endpoint before checking input.
       await expect.poll(async () => {

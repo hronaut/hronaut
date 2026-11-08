@@ -234,7 +234,6 @@ export const trTRAppErrors: AppErrorMessages = {
     devTools: 'Sayfa yaşam döngüsünü değiştirmeden önce bu sekmenin Geliştirici araçlarını kapatın.'
   },
   inputLock: {
-    pageBusy: 'Bir sayfa meşgul. Giriş kilitleri değiştirilmedi. İşleminin bitmesini bekleyin, ardından tekrar deneyin.',
     observer: 'Salt okunur, herkese açık bir gözlemci çalışma alanında sayfa girişi kilitli kalır.',
     tabClosed: 'Giriş kilidi değişmeden önce sekme kapandı.',
     tabNotRestored: 'Sekmenin giriş kilidi güncellenemedi veya geri yüklenemedi.',

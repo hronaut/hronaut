@@ -7,6 +7,7 @@ import { RendererExitedError } from '../renderer-exit-guard.js'
 import { PrintDialogOpenError, whenPrintDialogCloses } from '../print-dialog-guard.js'
 import { WebsiteDialogOpenError, whenWebsiteDialogCloses } from '../website-dialog-guard.js'
 import { humanInteractionWheelGuardInPage } from './human-input-guard.page.js'
+import { recordNativeInputBarrier } from './input-lock-state.js'
 
 // The same check the screenshot area and the element picker make. A page
 // whose renderer exited has no frames to guard; its next load syncs again.
@@ -44,6 +45,7 @@ export async function syncHumanInteractionInputGuard(browser: Browser, tab: Brow
       // native-input barrier; the isolated-world wheel listener below remains
       // a fallback for programmatic paths that bypass compositor input.
       await tab.webContents.debugger.sendCommand('Input.setIgnoreInputEvents', { ignore: locked })
+      recordNativeInputBarrier(tab, locked)
       const result = await tab.webContents.debugger.sendCommand('Page.getFrameTree') as {
         frameTree: CdpFrameTreeNode
       }

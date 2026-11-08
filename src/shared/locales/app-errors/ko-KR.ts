@@ -234,7 +234,6 @@ export const koKRAppErrors: AppErrorMessages = {
     devTools: '페이지 수명 주기를 변경하기 전에 이 탭의 개발자 도구를 닫으세요.'
   },
   inputLock: {
-    pageBusy: '페이지에서 작업을 처리하는 중입니다. 입력 잠금은 변경되지 않았습니다. 작업이 끝날 때까지 기다린 후 다시 시도하세요.',
     observer: '읽기 전용 공개 관찰자 작업 공간에서는 페이지 입력이 잠긴 상태로 유지됩니다.',
     tabClosed: '입력 잠금이 변경되기 전에 탭이 닫혔습니다.',
     tabNotRestored: '탭의 입력 잠금을 업데이트하거나 복원할 수 없습니다.',

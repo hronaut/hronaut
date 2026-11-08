@@ -286,7 +286,8 @@ export interface BrowserOptions {
 }
 
 export class Browser {
-  nativeInputLockMutations = 0
+  /** Input lock changes for every tab that wait to apply or are applying; a tab's own are on the tab. */
+  globalInputLockChanges = 0
   readonly activeNativeKeyHolds = new WeakSet<BrowserTab['webContents']>()
   readonly unconfirmedNativeKeyHolds = new WeakSet<BrowserTab['webContents']>()
   /** Pages where an agent's touch contact may still be down: neither its end nor a cancel was acknowledged. */

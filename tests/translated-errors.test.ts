@@ -150,8 +150,7 @@ describe('main-process failures people see in tabs, navigation and new tabs', ()
       tabs: new Map([['site', { ...websiteTab, mcpGroupId: 'observer' }]]),
       mcpTabGroups: new Map([['observer', { contextClass: 'public-observer' }]]),
       destroyed: false,
-      interactionLockTail: Promise.resolve(),
-      nativeInputLockMutations: 0
+      interactionLockTail: Promise.resolve()
     } as never, 'site', false),
     'Page input remains locked in a read-only public observer workspace.',
     'У робочому просторі публічного спостерігача, доступному лише для читання, введення на сторінці залишається заблокованим.'],

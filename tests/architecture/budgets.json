@@ -14,7 +14,7 @@
     "src/main/browser/agent-page-actions/click.ts": 4,
     "src/main/browser/agent-page-actions/form-input-and-scroll.ts": 2,
     "src/main/browser/agent-touch/touch-input.ts": 1,
-    "src/main/browser/agent-wheel/agent-wheel.ts": 2,
+    "src/main/browser/agent-wheel/agent-wheel.ts": 1,
     "src/main/browser/browser-lifecycle/initialize-browser.ts": 1,
     "src/main/browser/browser.ts": 1,
     "src/main/browser/certificate-errors/browser-certificate-errors.ts": 1,

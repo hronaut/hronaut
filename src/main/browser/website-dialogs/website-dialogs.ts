@@ -6,6 +6,7 @@ import { WebsiteDialogOpenError, whenWebsiteDialogCloses } from '../website-dial
 import type { Browser } from '../browser.js'
 import { findTab, getTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
+import { recordNativeInputBarrier } from '../interaction-lock/input-lock-state.js'
 import { publishChange } from '../browser-state/browser-state.js'
 import { withDebugger } from '../debugger-lease/debugger-lease.js'
 
@@ -269,9 +270,11 @@ export function ensureDialogMonitoring(browser: Browser, tab: BrowserTab): Promi
       // Reattachment never restores request conditions. A detached epoch
       // requires explicit recovery; dialog monitoring is independent.
       tab.networkDebuggerEnabled = true
-      await webContents.debugger.sendCommand('Input.setIgnoreInputEvents', {
-        ignore: browser.isHumanInteractionLocked(tab) && !browser.agentInputWebContents.has(webContents.id)
-      })
+      const agentInput = browser.agentInputWebContents.has(webContents.id)
+      const ignore = browser.isHumanInteractionLocked(tab) && !agentInput
+      await webContents.debugger.sendCommand('Input.setIgnoreInputEvents', { ignore })
+      // An agent's input under way keeps the barrier lifted for itself; left unknown, its inputs lift and restore it by the lock.
+      recordNativeInputBarrier(tab, agentInput ? undefined : ignore)
       // Emulation uncertainty also requires explicit recovery; never reapply it here.
     } catch (error) {
       tab.networkDebuggerEnabled = false

@@ -18,6 +18,7 @@ import type {
 } from '../../shared/types.js'
 import type { BrowserConsoleMessageRecord, ConsoleCapture } from './console-messages/console-messages.js'
 import type { BrowserDomRecordingState } from './dom-recorder/dom-recorder.js'
+import type { TabInputLockState } from './interaction-lock/input-lock-state.js'
 import type { BrowserLiveRegionRecordingState } from './live-region-recorder/live-region-recorder.js'
 import type { BrowserNetworkRouteRecord } from './network-conditions/network-conditions.js'
 import type { BrowserNetworkRecordingState } from './network-recording.js'
@@ -121,6 +122,8 @@ export interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordi
   /** Where the tab's history stood when it was last saved for the next start, to read it again only once it moved. */
   savedHistoryPosition?: string
   humanInteractionLocked: boolean
+  /** Runtime only: the lock changes waiting for the page, and the native input barrier last applied to it. */
+  inputLock?: TabInputLockState
   tabAgentPaused: boolean
   /** Runtime only: the tab as it was when the person took it over from its agent. */
   takeOver?: TakeOverMark

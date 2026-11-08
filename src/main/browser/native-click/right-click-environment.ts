@@ -2,6 +2,7 @@ import { screen } from 'electron'
 import { hasEmulationOverrides } from '../emulation-state.js'
 import type { Browser } from '../browser.js'
 import type { BrowserTab } from '../browser-tab.js'
+import { inputLockChanging } from '../interaction-lock/input-lock-state.js'
 
 /** Preserve presentation and observe even temporary native-environment changes.
  * This owns admission only; the matching release never repeats these checks. */
@@ -30,7 +31,7 @@ export function rightClickEnvironment(browser: Browser, tab: BrowserTab): { vali
     validate: () => {
       if (changed || generation !== tab.nativeInputEnvironmentGeneration
         || selection !== browser.tabSelectionGeneration || split !== browser.splitViewGeneration
-        || JSON.stringify(tab.view.getBounds()) !== bounds || browser.nativeInputLockMutations > 0) {
+        || JSON.stringify(tab.view.getBounds()) !== bounds || inputLockChanging(browser, tab)) {
         throw new Error('Right-click environment changed; inspect fresh state without replay')
       }
       if (browser.activeTabId !== tab.id || browser.splitView || browser.browserContentOccluded

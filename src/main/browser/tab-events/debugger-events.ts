@@ -16,6 +16,7 @@ import type { BrowserTab } from '../browser-tab.js'
 import { appendConsoleMessage, retainRuntimeConsoleMessage } from '../console-messages/console-messages.js'
 import { setEmulationViewSize } from '../emulation/emulation-view-size.js'
 import { addInspectorIssue } from '../inspector-issues/inspector-issues.js'
+import { recordNativeInputBarrier } from '../interaction-lock/input-lock-state.js'
 import { queueNetworkRouteRequest } from '../network-conditions/network-conditions.js'
 import { closeWebsiteDialogBox, dismissWebsiteDialogForTrustedChrome, ensureDialogMonitoring } from '../website-dialogs/website-dialogs.js'
 import { publishChange } from '../browser-state/browser-state.js'
@@ -26,11 +27,10 @@ import { publishChange } from '../browser-state/browser-state.js'
  * main frame, console messages and revoked exceptions, the main world
  * execution contexts, website dialogs (dismissed while trusted chrome covers
  * the page), inspector issues, and style sheets and debugger pauses for
- * profiling. Detachment
- * marks emulation and request conditions unknown, forgets the dialog, main
- * frame and contexts, marks a frozen lifecycle unknown, and monitors dialogs
- * again on the next turn unless the tab closed or Developer Tools took the
- * debugger.
+ * profiling. Detachment marks emulation, request conditions and the native
+ * input barrier unknown, forgets the dialog, main frame and contexts, marks a
+ * frozen lifecycle unknown, and monitors dialogs again on the next turn unless
+ * the tab closed or Developer Tools took the debugger.
  */
 export function attachDebuggerEvents(browser: Browser, tab: BrowserTab, webContents: WebContents): void {
   webContents.debugger.on('message', (_event, method, params) => {
@@ -122,6 +122,8 @@ export function attachDebuggerEvents(browser: Browser, tab: BrowserTab, webConte
     tab.emulationContextGeneration++
     tab.emulationApplication = 'unknown'
     tab.nativeInputEnvironmentGeneration++
+    // Chromium lifts the input barrier with the debugger session that set it; dialog monitoring applies it again.
+    recordNativeInputBarrier(tab, undefined)
     tab.networkConditionApplication = 'unknown'
     retireNetworkPriorityObservations(tab)
     tab.dialog = undefined

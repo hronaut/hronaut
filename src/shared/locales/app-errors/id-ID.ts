@@ -234,7 +234,6 @@ export const idIDAppErrors: AppErrorMessages = {
     devTools: 'Tutup Alat Developer untuk tab ini sebelum mengubah siklus proses halamannya.'
   },
   inputLock: {
-    pageBusy: 'Sebuah halaman sedang sibuk. Kunci input tidak diubah. Tunggu hingga operasinya selesai, lalu coba lagi.',
     observer: 'Input halaman tetap terkunci di ruang kerja pengamat publik yang hanya baca.',
     tabClosed: 'Tab ditutup sebelum kunci inputnya berubah.',
     tabNotRestored: 'Kunci input tab tidak dapat diperbarui atau dipulihkan.',

@@ -13,6 +13,7 @@ import { getTab } from '../browser-core.js'
 import { withDebugger } from '../debugger-lease/debugger-lease.js'
 import { withAgentInput } from '../agent-input-scope/agent-input-scope.js'
 import { nativeInputAuthority } from '../native-input-authority/native-input-authority.js'
+import { inputLockChanging } from '../interaction-lock/input-lock-state.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { printDialogHolds, whenPrintDialogCloses } from '../print-dialog-guard.js'
 import { websiteDialogHolds, whenWebsiteDialogCloses } from '../website-dialog-guard.js'
@@ -243,7 +244,7 @@ export async function playKeySequence(browser: Browser, input: NativeKeySequence
     if (signal?.aborted) throw new Error('Key sequence cancelled')
     if (environmentChanged || generation !== tab.nativeInputEnvironmentGeneration
       || selectionGeneration !== browser.tabSelectionGeneration || splitGeneration !== browser.splitViewGeneration
-      || browser.nativeInputLockMutations > 0) throw new Error('Key sequence environment changed; inspect fresh state')
+      || inputLockChanging(browser, tab)) throw new Error('Key sequence environment changed; inspect fresh state')
     if (browser.activeTabId !== tab.id || browser.splitView || browser.browserContentOccluded
       || !browser.window.isVisible() || browser.window.isMinimized() || !tab.view.getVisible()
       || !browser.window.contentView.children.includes(tab.view) || tab.sleeping || tab.pageLifecycleState !== 'active') {
