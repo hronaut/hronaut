@@ -19,8 +19,21 @@ interface CapturedFrame { data: Uint8Array; width: number; height: number }
 const VIDEO_SIZE_ROUNDING_PX = 4
 /** The page's newest frame: null before there is one, 'unchanged' when the page drew nothing new since the last. */
 export type VideoCaptureResult = CapturedFrame | 'unchanged' | null
-/** Takes a frame; release stops whatever the capture keeps running while the recording does not. */
-export type VideoCapture = (() => Promise<VideoCaptureResult>) & { release?: () => void }
+/** The page sizes a capture checks each frame against, fixed by the recording's first frames. */
+export interface VideoCaptureSizes {
+  viewport?: { width: number; height: number }
+  copy?: { width: number; height: number }
+  frame?: { width: number; height: number }
+}
+/**
+ * Takes a frame; release stops whatever the capture keeps running while the recording does not, and continueFrom gives
+ * a resume's capture the sizes of the one before.
+ */
+export type VideoCapture = (() => Promise<VideoCaptureResult>) & {
+  release?: () => void
+  sizes?: VideoCaptureSizes
+  continueFrom?: (previous: VideoCapture) => void
+}
 interface Recording {
   state: BrowserVideoState
   frames: VideoFrame[]
@@ -187,6 +200,7 @@ export class BrowserVideoRecorder {
       r.validateSource()
       // The capture of this call, which checks this call's authority while it starts the page's frames again.
       r.validate = validate
+      capture.continueFrom?.(r.capture)
       r.capture = capture
       r.captureRevision += 1
       r.runningSince = this.now()

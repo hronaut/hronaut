@@ -72,7 +72,13 @@ function keepAlive(stream: FrameStream): void {
  */
 function streamImage(data: string, settings: ScreencastSettings): string {
   const bytes = Buffer.from(data, 'base64')
-  const size = videoJpegDimensions(bytes)
+  let size: { width: number; height: number }
+  try {
+    size = videoJpegDimensions(bytes)
+  } catch {
+    // A frame whose header the bounded preflight does not read is passed on as Chromium drew it.
+    return data
+  }
   const scale = Math.min(settings.maxWidth / size.width, settings.maxHeight / size.height)
   if (scale >= 1) return data
   const image = nativeImage.createFromBuffer(bytes)

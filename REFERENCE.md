@@ -1371,9 +1371,11 @@ so is a shown tab until its screencast runs and while it cannot, as with the pag
 open, when it is tried again each second. Samples keep a fixed 30-a-second cadence; one more than a
 sample late starts the cadence again instead of catching up in a burst. The two ways of capturing may
 round the scaled size a pixel or two apart, and the export scales every frame to the first frame's size;
-a larger change is a changed viewport. A frame drawn while the page loads or for a document it replaced,
-and a sample while the page loads, add none, so a load that takes over three seconds pauses capture as a
-gap, and a renderer that crashed pauses it at once.
+a larger change is a changed viewport, also on resume, which checks the page against the sizes the
+recording started with. A frame drawn while the page loads or for a document it replaced, and a sample
+while the page loads, add none, and the last frame never repeats for another document: a new document
+that drew nothing since it loaded is copied. So a load that takes over three seconds pauses capture as
+a gap, and a renderer that crashed pauses it at once.
 Each recording is limited to two minutes and 256 MiB of distinct JPEG frames; at most three recordings
 are retained and may capture concurrently. Exports encode VP9 at 6 Mbit/s and 30 frames a second. Each recording keeps its original tab and workspace. A stopped recording stays
 open to edit, render, inspect and export after its tab moves to another site; a

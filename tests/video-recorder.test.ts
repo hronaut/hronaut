@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { BrowserVideoRecorder, type VideoCaptureResult, type VideoRecorderHost } from '../src/main/browser/video-recorder.js'
+import { BrowserVideoRecorder, type VideoCapture, type VideoCaptureResult, type VideoRecorderHost } from '../src/main/browser/video-recorder.js'
 import { VIDEO_LIMITS, VIDEO_RECORDING_NOTICES, videoAnnotationSchema, videoOptionsSchema, validateVideoEdit, videoSourceTime } from '../src/shared/video.js'
 
 beforeEach(() => vi.useFakeTimers())
@@ -319,16 +319,19 @@ it('releases the capture source on pause, stop and clear, and starts it again by
   recorder.destroy()
 })
 
-it('resumes with the capture of the call that resumes, which checks that call\'s authority, not the one that started', async () => {
+it('resumes with the capture of the call that resumes, given the sizes of the one that started', async () => {
   const { recorder, capture, validate, source } = fixture()
   await recorder.manage('tab', { action: 'start' }, capture, validate, source)
   await recorder.manage('tab', { action: 'pause' }, capture, validate, source)
-  const resumed = vi.fn(async (): Promise<VideoCaptureResult> => ({ data: new Uint8Array([7]), width: 640, height: 360 }))
+  const resumed: VideoCapture = Object.assign(vi.fn(async (): Promise<VideoCaptureResult> => ({ data: new Uint8Array([7]), width: 640, height: 360 })), {
+    continueFrom: vi.fn()
+  })
   const before = capture.mock.calls.length
   await recorder.manage('tab', { action: 'resume' }, resumed, validate, source)
   await vi.advanceTimersByTimeAsync(200)
   expect(capture.mock.calls.length).toBe(before)
   expect(resumed).toHaveBeenCalled()
+  expect(resumed.continueFrom).toHaveBeenCalledWith(capture)
   expect(recorder.state('tab')).toMatchObject({ status: 'recording' })
   recorder.destroy()
 })

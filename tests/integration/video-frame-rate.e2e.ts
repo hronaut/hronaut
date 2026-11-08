@@ -104,10 +104,19 @@ test('a video keeps recording, by copying the page, while its tab is in the back
     const background = await grows('background', drawn)
     await appWindow.evaluate(id => (window as unknown as ApiWindow).hronaut.selectTab(id), tabId)
     const back = await grows('shown again', background)
-    await electronApp.evaluate(({ webContents }, url) => webContents.getAllWebContents().find(page => page.getURL() === url)!.openDevTools({ mode: 'detach', activate: false }), fixtureUrl)
+    // The app's own way: it hands the page from its debugger to Developer Tools, so the screencast ends and copies go on.
+    const pageDebugger = () => electronApp.evaluate(({ webContents }, url) => {
+      const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)!
+      return { devTools: page.isDevToolsOpened(), attached: page.debugger.isAttached() }
+    }, fixtureUrl)
+    expect(await appWindow.evaluate(id => (window as unknown as ApiWindow).hronaut.toggleDevTools(id), tabId)).toBe(true)
+    await expect.poll(async () => (await pageDebugger()).devTools).toBe(true)
     const devTools = await grows('Developer Tools open', back)
+    expect(await pageDebugger()).toEqual({ devTools: true, attached: false })
     await electronApp.evaluate(({ webContents }, url) => webContents.getAllWebContents().find(page => page.getURL() === url)!.closeDevTools(), fixtureUrl)
     await grows('Developer Tools closed', devTools)
+    // The screencast runs again once Developer Tools close.
+    await expect.poll(async () => (await pageDebugger()).attached).toBe(true)
     const stopped = await video('stop')
     await testInfo.attach('video-background', { body: JSON.stringify(stopped), contentType: 'application/json' })
     expect(stopped.notice).toBeUndefined()

@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WebContents } from 'electron'
 import type { Browser } from '../src/main/browser/browser.js'
 import {
@@ -67,7 +67,12 @@ const reader = () => {
 const settle = () => new Promise(resolve => setImmediate(resolve))
 
 describe('shared page screencast', () => {
-  afterEach(() => { vi.useRealTimers() })
+  // Acknowledgements are paced with timers; each test ends with none left pending.
+  beforeEach(() => { vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] }) })
+  afterEach(() => {
+    vi.clearAllTimers()
+    vi.useRealTimers()
+  })
 
   it('runs at the largest size and quality, often enough for every reader', () => {
     expect(combinedScreencastSettings([{ ...SMALL, everyNthFrame: 3 }, LARGE])).toEqual(LARGE)
@@ -173,8 +178,22 @@ describe('shared page screencast', () => {
     expect(small.stopped).toEqual(['screencast-failed'])
   })
 
+  it('keeps the remaining reader when another leaves while the page\'s Developer Tools open and its settings stay', async () => {
+    const page = fakePage()
+    const staying = reader()
+    await subscribePageScreencast(page.browser, page.webContents, SMALL, staying.listener)
+    const removeLeaving = await subscribePageScreencast(page.browser, page.webContents, SMALL, reader().listener)
+    const sent = page.commands.length
+    ;(page.browser.devToolsOpening as Set<number>).add(7)
+    removeLeaving()
+    await settle()
+    expect(staying.stopped).toEqual([])
+    expect(page.commands.slice(sent).map(command => command.method)).toEqual([])
+    page.frame('still')
+    expect(staying.frames).toEqual(['still'])
+  })
+
   it('acknowledges every frame once, no sooner than the interval after the last', async () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
     const page = fakePage()
     const remove = await subscribePageScreencast(page.browser, page.webContents, SMALL, reader().listener)
     page.frame()

@@ -133,19 +133,25 @@ function createHub(webContents: WebContents): Hub {
 
 /** Starts the screencast with what its readers now ask for, in its turn; a hub that ended or has no reader by then is left. */
 function applySettings(browser: Browser, webContents: WebContents, hub: Hub, validate?: () => void): Promise<void> {
+  const wanted = (): ScreencastSettings => combinedScreencastSettings([...hub.subscribers].map(subscriber => subscriber.settings))
   return change(webContents, async () => {
     if (hubs.get(webContents) !== hub || !hub.subscribers.size) return
+    // Settings that stay the same need no debugger, so a page whose Developer Tools are opening keeps its readers.
+    if (sameSettings(hub.running, wanted())) {
+      validate?.()
+      return
+    }
     await onDebugger(browser, webContents, async () => {
       validate?.()
       if (hubs.get(webContents) !== hub || !hub.subscribers.size) return
-      const wanted = combinedScreencastSettings([...hub.subscribers].map(subscriber => subscriber.settings))
-      if (sameSettings(hub.running, wanted)) return
+      const settings = wanted()
+      if (sameSettings(hub.running, settings)) return
       // Chromium refuses a second start, also of a screencast a renderer that went away left running, so stop it first.
       // Frames until the stop answers are the old screencast's; none is handed on until the new one answers.
       await webContents.debugger.sendCommand('Page.stopScreencast')
       hub.running = undefined
-      await webContents.debugger.sendCommand('Page.startScreencast', { format: 'jpeg', ...wanted })
-      if (hubs.get(webContents) === hub) hub.running = wanted
+      await webContents.debugger.sendCommand('Page.startScreencast', { format: 'jpeg', ...settings })
+      if (hubs.get(webContents) === hub) hub.running = settings
       else await webContents.debugger.sendCommand('Page.stopScreencast').catch(() => undefined)
     })
   })
