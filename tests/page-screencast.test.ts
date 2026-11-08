@@ -66,6 +66,16 @@ const reader = () => {
 
 const settle = () => new Promise(resolve => setImmediate(resolve))
 
+/** The smallest baseline JPEG header whose size the screencast reads: a frame header and a scan. */
+function jpeg(width: number, height: number, mark = 0): string {
+  return Buffer.from([
+    0xff, 0xd8,
+    0xff, 0xc0, 0x00, 0x11, 0x08, height >> 8, height & 255, width >> 8, width & 255, 0x03, 0x01, 0x22, 0x00, 0x02, 0x11, 0x01, 0x03, 0x11, 0x01,
+    0xff, 0xda, 0x00, 0x0c, 0x03, 0x01, 0x00, 0x02, 0x11, 0x03, 0x11, 0x00, 0x3f, mark,
+    0xff, 0xd9
+  ]).toString('base64')
+}
+
 describe('shared page screencast', () => {
   // Acknowledgements are paced with timers; each test ends with none left pending.
   beforeEach(() => { vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] }) })
@@ -126,6 +136,50 @@ describe('shared page screencast', () => {
     page.release('Page.stopScreencast')
     const removeLarge = await subscribing
     removeLarge()
+    removeSmall()
+  })
+
+  it('gives a frame Chromium still encoded at the smaller size before a restart only to the readers that size was enough for', async () => {
+    const page = fakePage()
+    const small = reader()
+    const large = reader()
+    const removeSmall = await subscribePageScreencast(page.browser, page.webContents, SMALL, small.listener)
+    const removeLarge = await subscribePageScreencast(page.browser, page.webContents, LARGE, large.listener)
+    expect(page.commands.at(-1)?.params).toMatchObject({ maxWidth: 1280, maxHeight: 720 })
+    // Chromium sends the frame it was encoding for the old screencast after the new one answered, at the old size.
+    const old = jpeg(640, 360, 1)
+    page.frame(old)
+    expect(small.frames).toEqual([old])
+    expect(large.frames).toEqual([])
+    // A larger frame shows the new settings run; from then on every frame goes to both, also one that is small again.
+    const fresh = jpeg(1280, 720, 2)
+    const shrunk = jpeg(600, 340, 3)
+    page.frame(fresh)
+    page.frame(shrunk)
+    expect(small.frames).toEqual([old, fresh, shrunk])
+    expect(large.frames).toEqual([fresh, shrunk])
+    expect(page.acks()).toEqual([1])
+    removeLarge()
+    removeSmall()
+  })
+
+  it('holds back no more than Chromium\'s frames in flight of a page small enough for both sizes', async () => {
+    const page = fakePage()
+    const small = reader()
+    const large = reader()
+    const removeSmall = await subscribePageScreencast(page.browser, page.webContents, SMALL, small.listener)
+    const removeLarge = await subscribePageScreencast(page.browser, page.webContents, LARGE, large.listener)
+    const frames = [1, 2, 3, 4, 5].map(mark => jpeg(400, 300, mark))
+    for (const data of frames) page.frame(data)
+    expect(small.frames).toEqual(frames)
+    expect(large.frames).toEqual(frames.slice(3))
+    removeLarge()
+    // After the larger reader leaves, a larger frame Chromium still encoded for it suits the smaller reader too.
+    await settle()
+    expect(page.commands.at(-1)?.params).toMatchObject({ maxWidth: 640, maxHeight: 360 })
+    const larger = jpeg(1280, 720, 6)
+    page.frame(larger)
+    expect(small.frames.at(-1)).toBe(larger)
     removeSmall()
   })
 

@@ -1,6 +1,7 @@
 import type { WebContents } from 'electron'
 import type { Browser } from '../browser.js'
 import { withDebugger } from '../debugger-lease/debugger-lease.js'
+import { videoJpegDimensions } from '../video-inspection-frames.js'
 
 export interface ScreencastSettings { maxWidth: number; maxHeight: number; quality: number; everyNthFrame: number }
 
@@ -18,6 +19,8 @@ interface Hub {
   subscribers: Set<Subscriber>
   /** The settings Chromium runs the screencast with, once it confirmed them; unset while it starts again. */
   running?: ScreencastSettings
+  /** The smaller settings the screencast ran with before it started again, while frames encoded for them may still come. */
+  before?: { settings: ScreencastSettings; frames: number }
   /** When the next frame may be acknowledged; every frame is, once, or Chromium stops sending them. */
   nextAckAt: number
   dispose: () => void
@@ -34,6 +37,9 @@ const changes = new WeakMap<WebContents, Promise<void>>()
  * 60 to 144, each of them encoded and passed through the main process.
  */
 export const SCREENCAST_ACK_INTERVAL_MS = 25
+
+/** Chromium encodes at most this many screencast frames at a time, its default `maxFramesInFlight`. */
+const CHROMIUM_FRAMES_IN_FLIGHT = 3
 
 const gcd = (left: number, right: number): number => right ? gcd(right, left % right) : left
 
@@ -56,6 +62,24 @@ export function screencastCovers(running: ScreencastSettings, wanted: Screencast
 const sameSettings = (left: ScreencastSettings | undefined, right: ScreencastSettings): boolean =>
   !!left && left.maxWidth === right.maxWidth && left.maxHeight === right.maxHeight
   && left.quality === right.quality && left.everyNthFrame === right.everyNthFrame
+
+/**
+ * The settings before, when a frame that came after the screencast started again larger may be one Chromium was still
+ * encoding for them: it sends those after the new start, under the new session, at the old size. Up to its frames in
+ * flight that fit the old size may be; the first larger frame shows the new settings run, and the check ends.
+ */
+function encodedBefore(hub: Hub, data: string): ScreencastSettings | undefined {
+  const before = hub.before
+  if (!before) return undefined
+  let size: { width: number; height: number } | undefined
+  try { size = videoJpegDimensions(Buffer.from(data, 'base64')) } catch { size = undefined }
+  if (size && size.width <= before.settings.maxWidth && size.height <= before.settings.maxHeight && before.frames < CHROMIUM_FRAMES_IN_FLIGHT) {
+    before.frames += 1
+    return before.settings
+  }
+  hub.before = undefined
+  return undefined
+}
 
 /** Queues a start or stop of the page's screencast after the ones before it; one that fails does not stop the next. */
 function change<T>(webContents: WebContents, operation: () => Promise<T>): Promise<T> {
@@ -97,18 +121,21 @@ function createHub(webContents: WebContents): Hub {
     const running = hub.running
     // Frames of a screencast that is starting again, or still at another reader's smaller settings, are not handed on.
     if (!running) return
+    const data = String(params.data)
+    // A frame encoded for the smaller settings before goes only to the readers those settings were enough for.
+    const settings = encodedBefore(hub, data) ?? running
     const metadata = params.metadata as { timestamp?: number; deviceWidth?: number; deviceHeight?: number } | undefined
     const frame: ScreencastFrame = {
-      data: String(params.data),
+      data,
       epochMs: Math.round((metadata?.timestamp ?? Date.now() / 1000) * 1000),
       viewportWidth: Math.round(metadata?.deviceWidth ?? 0),
       viewportHeight: Math.round(metadata?.deviceHeight ?? 0)
     }
     for (const subscriber of [...hub.subscribers]) {
-      if (!screencastCovers(running, subscriber.settings)) continue
+      if (!screencastCovers(settings, subscriber.settings)) continue
       subscriber.frames += 1
       // Chromium sends every nth frame for the most frequent reader; a reader that asked for fewer gets every nth of those.
-      if ((subscriber.frames - 1) % (subscriber.settings.everyNthFrame / running.everyNthFrame) === 0) subscriber.listener.frame(frame)
+      if ((subscriber.frames - 1) % (subscriber.settings.everyNthFrame / settings.everyNthFrame) === 0) subscriber.listener.frame(frame)
     }
   }
   const detached = (): void => endHub(webContents, hub, 'debugger-detached')
@@ -147,12 +174,18 @@ function applySettings(browser: Browser, webContents: WebContents, hub: Hub, val
       const settings = wanted()
       if (sameSettings(hub.running, settings)) return
       // Chromium refuses a second start, also of a screencast a renderer that went away left running, so stop it first.
-      // Frames until the stop answers are the old screencast's; none is handed on until the new one answers.
+      // No frame is handed on until the new one answers; those Chromium was still encoding for the old one come after.
+      const before = hub.running
       await webContents.debugger.sendCommand('Page.stopScreencast')
       hub.running = undefined
       await webContents.debugger.sendCommand('Page.startScreencast', { format: 'jpeg', ...settings })
-      if (hubs.get(webContents) === hub) hub.running = settings
-      else await webContents.debugger.sendCommand('Page.stopScreencast').catch(() => undefined)
+      if (hubs.get(webContents) !== hub) {
+        await webContents.debugger.sendCommand('Page.stopScreencast').catch(() => undefined)
+        return
+      }
+      hub.running = settings
+      // Such frames of a smaller screencast go only to the readers it was enough for; larger ones suit every reader.
+      hub.before = before && (settings.maxWidth > before.maxWidth || settings.maxHeight > before.maxHeight) ? { settings: before, frames: 0 } : undefined
     })
   })
 }
