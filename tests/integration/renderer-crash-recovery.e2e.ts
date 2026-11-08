@@ -25,6 +25,10 @@ test('recovers a crashed website renderer in a fresh process', async ({ appWindo
     const from = `http://127.0.0.1:${address.port}/from`
     await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(from)}, active: true })`)
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.url)')).toBe(from)
+    // A new tab is listed at its address before its load starts, so wait for the page itself to have loaded it.
+    await expect.poll(() => electronApp.evaluate(({ webContents }, from) => (
+      webContents.getAllWebContents().some((contents) => contents.getURL() === from && !contents.isLoadingMainFrame())
+    ), from)).toBe(true)
     await electronApp.evaluate(({ webContents }, { from, url }) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === from)
       if (!page) throw new Error('Crash recovery referrer page was not found')
