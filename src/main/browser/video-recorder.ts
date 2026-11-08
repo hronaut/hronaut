@@ -15,6 +15,8 @@ export interface PendingVideoInspection {
 }
 
 interface CapturedFrame { data: Uint8Array; width: number; height: number }
+/** How far a frame's size may differ from the recording's before it counts as a changed viewport. */
+const VIDEO_SIZE_ROUNDING_PX = 4
 /** The page's newest frame: null before there is one, 'unchanged' when the page drew nothing new since the last. */
 export type VideoCaptureResult = CapturedFrame | 'unchanged' | null
 /** Takes a frame; release stops whatever the capture keeps running while the recording does not. */
@@ -29,7 +31,8 @@ interface Recording {
   runningSince: number
   lastFrameAt: number
   timer?: ReturnType<typeof setTimeout>
-  lastSampleAt?: number
+  /** When the latest sample was due; samples follow a fixed cadence from it. */
+  sampleDueAt?: number
   pending?: Promise<void>
   validate: () => void
   validateSource: () => void
@@ -174,13 +177,17 @@ export class BrowserVideoRecorder {
       if (options.action === 'pause' && r.state.status === 'stopped') throw new LocalizedError('video.errors.stoppedCannotResume')
       // A person's own pause or stop replaces why capture paused by itself; a limit that stopped it stays named.
       if (r.state.status !== 'stopped') r.state.notice = undefined
-      this.halt(r, options.action === 'pause' ? 'paused' : 'stopped')
+      const status = options.action === 'pause' ? 'paused' : 'stopped'
+      // Asking again for the status it has changes nothing, so the revision, the preview and any inspection stay.
+      if (r.state.status !== status) this.halt(r, status)
     } else if (options.action === 'resume') {
       if (r.state.status !== 'paused') throw new LocalizedError('video.errors.onlyPausedResume')
       if (r.elapsedMs >= VIDEO_LIMITS.durationMs || r.state.bytes >= VIDEO_LIMITS.bytes) throw new LocalizedError('video.errors.recordingLimit')
       validate()
       r.validateSource()
+      // The capture of this call, which checks this call's authority while it starts the page's frames again.
       r.validate = validate
+      r.capture = capture
       r.captureRevision += 1
       r.runningSince = this.now()
       r.lastFrameAt = this.now()
@@ -244,9 +251,9 @@ export class BrowserVideoRecorder {
     } else if (options.action === 'render' || options.action === 'export') {
       if (r.state.status !== 'stopped' || !r.frames.length || !r.elapsedMs) throw new LocalizedError('video.errors.exportEmpty')
       r.busy = true
-      r.state.status = 'rendering'
-      this.host.changed()
       try {
+        r.state.status = 'rendering'
+        this.host.changed()
         current()
         const clips = r.state.clips.length ? r.state.clips : [{ startMs: 0, endMs: r.elapsedMs }]
         if (!r.preview) {
@@ -273,9 +280,13 @@ export class BrowserVideoRecorder {
 
   private schedule(tabId: string, r: Recording): void {
     if (r.state.status !== 'recording' || this.recordings.get(tabId) !== r || r.timer || r.pending) return
-    // Samples keep a steady cadence from when the last one started, so the time a capture takes does not lower the rate.
+    // Samples keep a fixed cadence, so neither the time a capture takes nor a late timer lowers the rate; a sample due
+    // more than one interval ago, as after a long capture, starts the cadence again from now instead of a burst.
     const interval = 1000 / VIDEO_LIMITS.framesPerSecond
-    const delay = Math.max(0, (r.lastSampleAt ?? this.now()) + interval - this.now())
+    const now = this.now()
+    const due = (r.sampleDueAt ?? now) + interval
+    r.sampleDueAt = due < now - interval ? now : due
+    const delay = Math.max(0, r.sampleDueAt - now)
     r.timer = setTimeout(() => {
       r.timer = undefined
       r.pending = this.sample(tabId, r).finally(() => { r.pending = undefined; this.schedule(tabId, r) })
@@ -287,7 +298,7 @@ export class BrowserVideoRecorder {
     let timeout: ReturnType<typeof setTimeout> | undefined
     const revision = r.captureRevision
     const startedAt = this.now()
-    r.lastSampleAt = startedAt
+    r.sampleDueAt ??= startedAt
     const timeMs = this.duration(r, startedAt)
     try {
       r.validateSource()
@@ -303,28 +314,39 @@ export class BrowserVideoRecorder {
       if (frame === 'unchanged') {
         // A still page repeats its last frame, sharing its bytes, so a sample costs no memory and the recording its time.
         const last = r.frames.at(-1)
+        if (!last) return
         r.lastFrameAt = this.now()
-        if (last) r.frames.push(Object.freeze({ timeMs, data: last.data }))
+        r.frames.push(Object.freeze({ timeMs, data: last.data }))
+        r.lastFrameTiming = this.frameTiming(r, startedAt, completedAt, revision)
         r.state.frameCount = r.frames.length
         return
       }
       if (r.state.bytes + frame.data.byteLength > VIDEO_LIMITS.bytes) { this.halt(r, 'stopped', VIDEO_RECORDING_NOTICES.sizeLimit); return }
       if (!frame.data.byteLength || !frame.width || !frame.height) throw new Error('Empty frame')
-      if (r.frames.length && (frame.width !== r.state.width || frame.height !== r.state.height)) throw new Error('Viewport changed')
+      // The screencast and a copy of the page round its scaled size apart by a pixel or two; the export scales each frame
+      // to the recording's size, the first frame's. A larger difference is a viewport that changed.
+      const resized = Math.abs(frame.width - r.state.width) > VIDEO_SIZE_ROUNDING_PX || Math.abs(frame.height - r.state.height) > VIDEO_SIZE_ROUNDING_PX
+      if (r.frames.length && resized) throw new Error('Viewport changed')
       r.lastFrameAt = this.now()
+      if (!r.frames.length) Object.assign(r.state, { width: frame.width, height: frame.height })
       r.frames.push(Object.freeze({ timeMs: r.frames.length ? timeMs : 0, data: Uint8Array.from(frame.data) }))
-      r.lastFrameTiming = {
-        sequence: r.frames.length,
-        sourceTimeMs: r.frames.at(-1)!.timeMs,
-        captureStartedAtMs: Math.round(startedAt - r.clockOrigin),
-        captureCompletedAtMs: Math.round(completedAt - r.clockOrigin),
-        revision
-      }
-      Object.assign(r.state, { width: frame.width, height: frame.height, frameCount: r.frames.length, bytes: r.state.bytes + frame.data.byteLength })
+      r.lastFrameTiming = this.frameTiming(r, startedAt, completedAt, revision)
+      Object.assign(r.state, { frameCount: r.frames.length, bytes: r.state.bytes + frame.data.byteLength })
       if (r.frames.length % VIDEO_LIMITS.framesPerSecond === 0) this.host.changed()
     } catch {
       if (this.recordings.get(tabId) === r && r.state.status === 'recording' && revision === r.captureRevision) this.pauseAtLastFrame(r, VIDEO_RECORDING_NOTICES.conditions)
     } finally { if (timeout) clearTimeout(timeout) }
+  }
+
+  /** When the newest retained frame was taken, a new one or a repeat, against the recording's clock. */
+  private frameTiming(r: Recording, startedAt: number, completedAt: number, revision: number): NonNullable<VideoTimingObservation['lastFrame']> {
+    return {
+      sequence: r.frames.length,
+      sourceTimeMs: r.frames.at(-1)!.timeMs,
+      captureStartedAtMs: Math.round(startedAt - r.clockOrigin),
+      captureCompletedAtMs: Math.round(completedAt - r.clockOrigin),
+      revision
+    }
   }
 
   private pauseAtLastFrame(r: Recording, notice: string): void {
@@ -348,7 +370,7 @@ export class BrowserVideoRecorder {
     if (notice) r.state.notice = notice
     if (r.timer) clearTimeout(r.timer)
     r.timer = undefined
-    r.lastSampleAt = undefined
+    r.sampleDueAt = undefined
     r.capture.release?.()
     this.host.changed()
   }

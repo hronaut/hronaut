@@ -45,7 +45,11 @@ test('frame stream returns new page frames after a cursor and stops', async ({ c
     expect((await call({ action: 'read', after: nextReport.cursor + 10_000 })).isError).toBe(true)
     const stopped = await call({ action: 'stop' })
     expect(report(stopped)).toMatchObject({ status: 'STOPPED', stopped: 'stopped' })
-    expect((await call({ action: 'read' })).isError).toBe(true)
+    // Until the next start, a read says that the stream stopped and why, and returns no frames.
+    const afterStop = await call({ action: 'read' })
+    expect(afterStop.isError, text(afterStop)).not.toBe(true)
+    expect(report(afterStop)).toMatchObject({ status: 'STOPPED', stopped: 'stopped' })
+    expect(images(afterStop)).toHaveLength(0)
   } finally { await animate(electronApp, fixtureUrl, false) }
 })
 

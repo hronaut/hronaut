@@ -1,9 +1,10 @@
-import type { WebContents } from 'electron'
+import { nativeImage, type WebContents } from 'electron'
 import { z } from 'zod'
 import type { Browser } from '../browser.js'
 import type { BrowserTab } from '../browser-tab.js'
 import { getTab } from '../browser-core.js'
-import { subscribePageScreencast } from '../page-screencast/page-screencast.js'
+import { subscribePageScreencast, type ScreencastSettings } from '../page-screencast/page-screencast.js'
+import { videoJpegDimensions } from '../video-inspection-frames.js'
 
 export const FRAME_STREAM_LIMITS = { maxWidth: 1280, maxHeight: 720, bufferFrames: 30, readFrames: 4, waitMs: 2000, idleMs: 60_000 } as const
 const DEFAULTS = { maxWidth: 640, maxHeight: 360, quality: 60, everyNthFrame: 1, bufferFrames: 10 } as const
@@ -28,6 +29,7 @@ const READ_OPTIONS = ['after', 'maxFrames', 'waitMs'] as const
 interface StreamFrame { sequence: number; epochMs: number; data: string }
 
 interface FrameStream {
+  settings: ScreencastSettings
   frames: StreamFrame[]
   capacity: number
   sequence: number
@@ -38,7 +40,8 @@ interface FrameStream {
   dispose: () => void
 }
 
-// One stream per page; it shares the page's one screencast with a video recording of it.
+// One stream per page; it shares the page's one screencast with a video recording of it. A stopped stream stays until
+// the next start, so a read says why it stopped.
 const streams = new WeakMap<WebContents, FrameStream>()
 
 export interface FrameStreamImage { data: string; mimeType: 'image/jpeg' }
@@ -49,24 +52,40 @@ function pageVisible(browser: Browser, tab: BrowserTab): boolean {
     && tab.view.getVisible() && !tab.sleeping
 }
 
-function stopStream(webContents: WebContents, stream: FrameStream, reason: string): void {
+function stopStream(stream: FrameStream, reason: string): void {
   if (stream.stopped) return
   stream.stopped = reason
+  stream.frames = []
   stream.dispose()
   for (const wake of stream.waiters) wake()
   stream.waiters.clear()
 }
 
-function keepAlive(webContents: WebContents, stream: FrameStream): void {
+function keepAlive(stream: FrameStream): void {
   clearTimeout(stream.idleTimer)
-  stream.idleTimer = setTimeout(() => stopStream(webContents, stream, 'idle'), FRAME_STREAM_LIMITS.idleMs)
+  stream.idleTimer = setTimeout(() => stopStream(stream, 'idle'), FRAME_STREAM_LIMITS.idleMs)
+}
+
+/**
+ * The frame at the size and quality the stream asked for. The page's one screencast runs at the largest size any of
+ * its readers asked for, such as a recording's, so a larger frame is scaled down here, for the few frames a read returns.
+ */
+function streamImage(data: string, settings: ScreencastSettings): string {
+  const bytes = Buffer.from(data, 'base64')
+  const size = videoJpegDimensions(bytes)
+  const scale = Math.min(settings.maxWidth / size.width, settings.maxHeight / size.height)
+  if (scale >= 1) return data
+  const image = nativeImage.createFromBuffer(bytes)
+  const width = Math.max(1, Math.round(size.width * scale))
+  const height = Math.max(1, Math.round(size.height * scale))
+  return image.resize({ width, height, quality: 'good' }).toJPEG(settings.quality).toString('base64')
 }
 
 async function startStream(browser: Browser, tab: BrowserTab, input: FrameStreamInput, validate: () => void): Promise<unknown> {
   const webContents = tab.webContents
   if (tab.sleeping || tab.pageLifecycleState !== 'active') throw new Error('Frame streams need an awake page; this call never wakes a tab')
   const previous = streams.get(webContents)
-  if (previous) stopStream(webContents, previous, 'restarted')
+  if (previous) stopStream(previous, 'restarted')
   const options = {
     maxWidth: input.maxWidth ?? DEFAULTS.maxWidth,
     maxHeight: input.maxHeight ?? DEFAULTS.maxHeight,
@@ -74,17 +93,16 @@ async function startStream(browser: Browser, tab: BrowserTab, input: FrameStream
     everyNthFrame: input.everyNthFrame ?? DEFAULTS.everyNthFrame
   }
   const stream: FrameStream = {
-    frames: [], capacity: input.bufferFrames ?? DEFAULTS.bufferFrames, sequence: 0, startEpochMs: Date.now(),
+    settings: options, frames: [], capacity: input.bufferFrames ?? DEFAULTS.bufferFrames, sequence: 0, startEpochMs: Date.now(),
     idleTimer: setTimeout(() => undefined, 0), waiters: new Set(), dispose: () => undefined
   }
   let unsubscribe: (() => void) | undefined
   stream.dispose = () => {
     clearTimeout(stream.idleTimer)
-    if (streams.get(webContents) === stream) streams.delete(webContents)
     unsubscribe?.()
   }
   streams.set(webContents, stream)
-  keepAlive(webContents, stream)
+  keepAlive(stream)
   try {
     unsubscribe = await subscribePageScreencast(browser, webContents, options, {
       frame: frame => {
@@ -95,14 +113,15 @@ async function startStream(browser: Browser, tab: BrowserTab, input: FrameStream
         for (const wake of stream.waiters) wake()
         stream.waiters.clear()
       },
-      stopped: reason => stopStream(webContents, stream, reason)
+      stopped: reason => stopStream(stream, reason)
     }, validate)
     if (stream.stopped) unsubscribe()
     validate()
   } catch (error) {
-    stopStream(webContents, stream, 'start-failed')
+    stopStream(stream, 'start-failed')
     throw error
   }
+  if (stream.stopped) return { status: 'STOPPED', stopped: stream.stopped, pageVisible: pageVisible(browser, tab) }
   return { status: 'STREAMING', cursor: 0, startEpochMs: stream.startEpochMs, ...options, bufferFrames: stream.capacity, pageVisible: pageVisible(browser, tab),
     note: 'Read frames with action read and after set to the last cursor. Frames arrive only when the page draws, and none while it is hidden. '
       + `The stream stops after ${FRAME_STREAM_LIMITS.idleMs / 1000} s without a read.` }
@@ -140,7 +159,7 @@ async function readStream(browser: Browser, tab: BrowserTab, input: FrameStreamI
   const webContents = tab.webContents
   const stream = streams.get(webContents)
   if (!stream) throw new Error('No frame stream runs for this tab; start one with action start')
-  keepAlive(webContents, stream)
+  if (!stream.stopped) keepAlive(stream)
   const maxFrames = input.maxFrames ?? 1
   // Without a cursor, the newest frames are the ones wanted.
   const after = input.after ?? Math.max(0, stream.sequence - maxFrames)
@@ -162,7 +181,7 @@ async function readStream(browser: Browser, tab: BrowserTab, input: FrameStreamI
     note: 'epochMs is when Chromium drew the frame, on the same clock as browser_key_sequence startEpochMs. '
       + 'skipped counts newer frames not returned (dropped from the buffer or past maxFrames); a missing frame is not proof that nothing changed.'
   }
-  return { report, images: returned.map(frame => ({ data: frame.data, mimeType: 'image/jpeg' })) }
+  return { report, images: returned.map(frame => ({ data: streamImage(frame.data, stream.settings), mimeType: 'image/jpeg' })) }
 }
 
 /**
@@ -181,7 +200,6 @@ export async function frameStream(browser: Browser, input: FrameStreamInput, val
   if (options.action === 'read') return readStream(browser, tab, options, validate, signal)
   const stream = streams.get(tab.webContents)
   if (!stream) return { report: { status: 'STOPPED', stopped: 'not-running' }, images: [] }
-  const frames = stream.sequence
-  stopStream(tab.webContents, stream, 'stopped')
-  return { report: { status: 'STOPPED', stopped: 'stopped', frames }, images: [] }
+  stopStream(stream, 'stopped')
+  return { report: { status: 'STOPPED', stopped: stream.stopped, frames: stream.sequence }, images: [] }
 }

@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- `browser_video` resumes after you take control and hand it back, keeps recording when its tab goes to the background or its Developer Tools open, and pauses instead of freezing on the last frame when the page crashes or a load takes over three seconds. Starting a recording while an agent plays keys, or beside a smaller frame stream, no longer pauses it for a changed size.
+- `browser_frame_stream` reads beside a recording return frames at the stream's own size and quality, `everyNthFrame` above 1 returns every nth frame instead of far fewer, and a read after the stream stopped says why it stopped.
 - `browser_video` records 30 frames a second from Chromium's own screencast of the page while Hronaut shows the tab, instead of copying the page about 9 times a second, so games and animations play smoothly in the video and the app no longer copies and encodes each frame itself; a still page repeats its last frame without using memory, exports use 6 Mbit/s, and a recording may hold 256 MiB.
 - A stopped `browser_video` recording can still be edited, rendered, inspected and exported after its tab moves to another site; only recording and resuming need the tab back at the site it started on.
 - `browser_key_sequence` stops when the page shows an alert, a confirm or its print dialog, which drop the keys sent while they show, and releases the keys it left down once the dialog closes; before, it played on and reported keys as released that the page never got. A key that goes down after earlier keys were released now leaves the release unconfirmed when it fails, as for the first key.
