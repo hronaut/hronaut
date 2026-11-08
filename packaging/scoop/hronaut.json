@@ -1,18 +1,18 @@
 {
-  "version": "3.14.24",
+  "version": "3.14.25",
   "description": "A visible desktop browser for coding agents, with a separate workspace for each project.",
   "homepage": "https://hronaut.dev",
   "license": "SEE LICENSE IN LICENSE",
   "notes": "Hronaut's current Windows binaries are not code-signed. Verify the release hash and review any Windows security warning before running it.",
   "architecture": {
     "64bit": {
-      "url": "https://github.com/hronaut/hronaut/releases/download/v3.14.24/hronaut-3.14.24-x64-windows-portable.exe",
-      "hash": "e66c6d6528619f69fe4ed46770f7854680d57655e14921c7a654d54daf80d13b"
+      "url": "https://github.com/hronaut/hronaut/releases/download/v3.14.25/hronaut-3.14.25-x64-windows-portable.exe",
+      "hash": "93d0507473184bc0c75596d51ad3064285e98c342ba3e50f98c574b0f70b3f24"
     }
   },
   "shortcuts": [
     [
-      "hronaut-3.14.24-x64-windows-portable.exe",
+      "hronaut-3.14.25-x64-windows-portable.exe",
       "Hronaut"
     ]
   ],
