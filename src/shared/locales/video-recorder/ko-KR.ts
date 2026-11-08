@@ -68,7 +68,6 @@ export const koKRVideoRecorder = {
     sizeLimit: '녹화가 256 MiB 한도에 도달했습니다.'
   },
   errors: {
-    busy: '현재 동영상 작업이 끝날 때까지 기다리세요',
     previousRecording: '새로 녹화하기 전에 이전 녹화를 삭제하세요',
     recordingCount: '먼저 보관된 녹화를 삭제하세요(최대 3개)',
     startFirst: '먼저 녹화를 시작하세요',

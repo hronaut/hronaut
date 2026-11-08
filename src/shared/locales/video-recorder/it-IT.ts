@@ -68,7 +68,6 @@ export const itITVideoRecorder = {
     sizeLimit: 'La registrazione ha raggiunto il limite di 256 MiB.'
   },
   errors: {
-    busy: 'Attendi il termine dell’operazione video in corso',
     previousRecording: 'Elimina la registrazione precedente prima di avviarne un’altra',
     recordingCount: 'Elimina prima una registrazione conservata (massimo tre)',
     startFirst: 'Avvia prima una registrazione',

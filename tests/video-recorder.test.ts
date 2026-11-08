@@ -91,18 +91,75 @@ it('cleans up timers and late captures when a tab closes', async () => {
   expect(capture).toHaveBeenCalledTimes(1)
 })
 
-it('rejects concurrent operations and cancels a render on clear before a file can be saved', async () => {
+it('queues an action behind an export and cancels a render on clear before a file can be saved', async () => {
   const { recorder, manage, host } = fixture()
   await manage('start'); await vi.advanceTimersByTimeAsync(100); await manage('stop')
   let release!: (value: Uint8Array) => void
   host.render.mockImplementationOnce(() => new Promise(resolve => { release = resolve }))
   const exporting = manage('export')
-  await expect(manage('start')).rejects.toThrow('current video operation')
+  // A start asked for meanwhile waits for the export instead of being refused, and applies to what is left by then.
+  const starting = manage('start')
   await manage('clear')
   release(new Uint8Array([1]))
   await expect(exporting).rejects.toThrow('cancelled')
   expect(host.save).not.toHaveBeenCalled()
-  expect(recorder.state('tab').status).toBe('idle')
+  await expect(starting).resolves.toMatchObject({ status: 'recording' })
+  expect(recorder.state('tab').status).toBe('recording')
+  recorder.destroy()
+})
+
+it('applies a pause asked for during the first frame once that frame is taken', async () => {
+  const { recorder, manage, capture } = fixture()
+  let frame!: (result: VideoCaptureResult) => void
+  capture.mockImplementationOnce(() => new Promise(resolve => { frame = resolve }))
+  const starting = manage('start')
+  let paused = false
+  const pausing = manage('pause').then(() => { paused = true })
+  await vi.advanceTimersByTimeAsync(100)
+  expect(paused).toBe(false)
+  expect(recorder.state('tab').status).toBe('recording')
+  frame({ data: new Uint8Array([4, 5, 6]), width: 640, height: 360 })
+  await starting
+  await pausing
+  expect(recorder.state('tab')).toMatchObject({ status: 'paused', frameCount: 1 })
+  recorder.destroy()
+})
+
+it('cancels an action that waited for a recording cleared and started again, instead of applying it to the new one', async () => {
+  const { recorder, manage, host } = fixture()
+  await manage('start'); await vi.advanceTimersByTimeAsync(100); await manage('stop')
+  // The export stays busy for as long as its save waits, such as on the Save dialog.
+  let saved!: () => void
+  host.save.mockImplementationOnce(() => new Promise(resolve => { saved = () => resolve(undefined) }))
+  const exporting = manage('export')
+  await vi.advanceTimersByTimeAsync(1)
+  let settled = false
+  const pausing = manage('pause').finally(() => { settled = true })
+  // A clear lets the waiting action go at once, while the export's own save goes on.
+  await manage('clear')
+  await manage('start')
+  await expect(pausing).rejects.toThrow('cancelled')
+  expect(settled).toBe(true)
+  expect(recorder.state('tab').status).toBe('recording')
+  saved()
+  await exporting.catch(() => undefined)
+  expect(recorder.state('tab').status).toBe('recording')
+  recorder.destroy()
+})
+
+it('lets a caller that cancels stop waiting for an export', async () => {
+  const { recorder, manage, capture, validate, host } = fixture()
+  await manage('start'); await vi.advanceTimersByTimeAsync(100); await manage('stop')
+  let release!: (value: Uint8Array) => void
+  host.render.mockImplementationOnce(() => new Promise(resolve => { release = resolve }))
+  const exporting = manage('export')
+  const controller = new AbortController()
+  const editing = recorder.manage('tab', { action: 'edit', annotations: [] }, capture, validate, validate, controller.signal)
+  controller.abort()
+  await expect(editing).rejects.toThrow('cancelled')
+  release(new Uint8Array([1]))
+  await exporting
+  recorder.destroy()
 })
 
 it('bounds memory, duration and number of retained recordings', async () => {
@@ -183,8 +240,10 @@ it('discards an import when its recording is cleared or authority is revoked dur
   let finish!: (bytes: Uint8Array) => void
   Object.assign(host, { loadAudio: vi.fn(() => new Promise<Uint8Array>(resolve => { finish = resolve })) })
   const pending = recorder.manage('tab', { action: 'import-audio', audioPath: '/original.wav', audioProvenance: 'Original' }, capture, validate)
-  await expect(manage('export')).rejects.toThrow('current video operation')
+  // The export waits for the import, and is cancelled with it once the recording it was asked for is cleared.
+  const exporting = manage('export')
   await manage('clear')
+  await expect(exporting).rejects.toThrow('cancelled')
   finish(new Uint8Array(44))
   await expect(pending).rejects.toThrow('cancelled')
   expect(recorder.state('tab')).toMatchObject({ status: 'idle', audio: [] })

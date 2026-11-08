@@ -68,7 +68,6 @@ export const enUSVideoRecorder = {
     sizeLimit: 'Recording reached its 256 MiB limit.'
   },
   errors: {
-    busy: 'Wait for the current video operation to finish',
     previousRecording: 'Clear the previous recording before starting another',
     recordingCount: 'Clear a retained recording first (maximum three)',
     startFirst: 'Start a recording first',

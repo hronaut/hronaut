@@ -29,7 +29,7 @@ export interface BrowserWorkspaceOperation<Action extends WorkspaceOperationActi
   action: Action
   blocksNewTabs: boolean
   token: symbol
-  /** Settles when an archived workspace's operation ends. */
+  /** Settles when the operation ends. */
   settled?: Promise<void>
 }
 
@@ -88,6 +88,26 @@ export function assertWorkspaceIdle(browser: Browser, workspaceId: string): void
   throw workspaceBusyError(browser, workspaceId, operation.action)
 }
 
+/**
+ * Waits until no operation holds the open workspace busy, also one that starts while an earlier one ends; resolves at
+ * once when none does. A person's change of the workspace waits this way rather than being refused.
+ */
+export async function whenWorkspaceIdle(browser: Browser, workspaceId: string): Promise<void> {
+  for (let operation = browser.workspaceOperations.get(workspaceId); operation; operation = browser.workspaceOperations.get(workspaceId)) {
+    if (!operation.settled) throw workspaceBusyError(browser, workspaceId, operation.action)
+    await operation.settled
+  }
+}
+
+/** Waits until no operation holds the archived workspace busy; resolves at once when none does. */
+export async function whenArchivedWorkspaceIdle(browser: Browser, savedWorkspaceId: string): Promise<void> {
+  for (let operation = browser.savedWorkspaceOperations.get(savedWorkspaceId); operation; operation = browser.savedWorkspaceOperations.get(savedWorkspaceId)) {
+    const name = browser.savedTabGroups.get(savedWorkspaceId)?.name ?? savedWorkspaceId
+    if (!operation.settled) throw archivedWorkspaceBusyError(name, operation.action)
+    await operation.settled
+  }
+}
+
 /** Throws while an operation that keeps new tabs out holds the open workspace busy. */
 export function assertWorkspaceCanOpenTab(browser: Browser, workspaceId: string): void {
   const operation = browser.workspaceOperations.get(workspaceId)
@@ -112,7 +132,9 @@ export async function withWorkspaceOperation<T>(
   const current: BrowserWorkspaceOperation<OpenWorkspaceOperationAction> = { action, blocksNewTabs, token: Symbol(action) }
   browser.workspaceOperations.set(workspaceId, current)
   try {
-    return await trackWorkspaceOperation(browser, operation)
+    const running = trackWorkspaceOperation(browser, operation)
+    current.settled = running.then(() => undefined, () => undefined)
+    return await running
   } finally {
     if (browser.workspaceOperations.get(workspaceId)?.token === current.token) {
       browser.workspaceOperations.delete(workspaceId)

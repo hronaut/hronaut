@@ -68,7 +68,6 @@ export const esESVideoRecorder = {
     sizeLimit: 'La grabación alcanzó su límite de 256 MiB.'
   },
   errors: {
-    busy: 'Espera a que termine la operación de vídeo en curso',
     previousRecording: 'Descarta la grabación anterior antes de iniciar otra',
     recordingCount: 'Descarta primero una grabación conservada (tres como máximo)',
     startFirst: 'Inicia primero una grabación',

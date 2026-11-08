@@ -17,6 +17,10 @@ All notable changes to Hronaut are documented in this file.
 - A stopped `browser_video` recording can still be edited, rendered, inspected and exported after its tab moves to another site; only recording and resuming need the tab back at the site it started on.
 - `browser_key_sequence` stops when the page shows an alert, a confirm or its print dialog, which drop the keys sent while they show, and releases the keys it left down once the dialog closes; before, it played on and reported keys as released that the page never got. A key that goes down after earlier keys were released now leaves the release unconfirmed when it fails, as for the first key.
 - `browser_key_sequence` sends its first event at once, as documented, also when its `atMs` is above 0, and reports `startEpochMs` and `sentAtMs` from that first event; a late timer in Hronaut now moves the rest of the schedule as a slow page does, instead of sending the next events with no gap; and a page that delays a sequence by more than 10 seconds in all stops it, instead of keeping the tab busy for minutes.
+- Switching a page between Live and Frozen while an agent's long command runs on it now waits for that command, instead of reporting the page's state as unknown after five seconds.
+- Opening Developer Tools while an agent's request conditions are still being applied to the page now waits for them and opens, instead of refusing with "Request-condition application is pending".
+- Renaming a workspace or changing its color, preferences, agent access or site restrictions while it is busy, such as copying browser data or clearing website data, now waits for that and applies, instead of failing with "Workspace is busy".
+- `browser_video` pause, stop, edits and exports asked for while a recording takes its first frame, imports audio, renders or exports now wait for it, instead of failing with "Wait for the current video operation to finish".
 
 ## [3.14.24] - 2026-11-07
 

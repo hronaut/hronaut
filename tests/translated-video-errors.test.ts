@@ -13,7 +13,6 @@ import { VIDEO_EDIT_ERRORS, VIDEO_SCHEMA_ERRORS, validateVideoEdit, videoAnnotat
 
 // The English that browser_video has always reported; MCP results and code comparing messages keep reading it.
 const ENGLISH = {
-  busy: 'Wait for the current video operation to finish',
   previousRecording: 'Clear the previous recording before starting another',
   recordingCount: 'Clear a retained recording first (maximum three)',
   startFirst: 'Start a recording first',

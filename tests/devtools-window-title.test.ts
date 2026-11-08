@@ -28,6 +28,7 @@ async function devToolsTitle(locale: SupportedLocale, title: string, url: string
     devToolsOpening: opening,
     dialogMonitorAttachPromises: new Map(),
     debuggerQueue: { pending: () => undefined },
+    isHumanInteractionLocked: () => false,
     text: (key: MessageKey, parameters?: MessageParameters) => translate(locale, key, parameters)
   }
   await openDevTools(browser as never, tab as never)

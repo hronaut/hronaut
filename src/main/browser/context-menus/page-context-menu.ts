@@ -652,8 +652,9 @@ async function inspectElement(browser: Browser, tab: BrowserTab, x: number, y: n
   if (browser.isHumanInteractionLocked(tab) || isHronautHomeUrl(tab.url)) return
   await openDevTools(browser, tab)
   const webContents = tab.webContents
-  // Inspecting opens Developer Tools by itself, so check again for a tab that shows Home by now.
-  if (!webContents.isDestroyed() && !isHronautHomeUrl(tab.url)) webContents.inspectElement(Math.round(x), Math.round(y))
+  // Inspecting opens Developer Tools by itself, so check again for a tab that shows Home, or was locked, by now.
+  if (webContents.isDestroyed() || isHronautHomeUrl(tab.url) || browser.isHumanInteractionLocked(tab)) return
+  webContents.inspectElement(Math.round(x), Math.round(y))
 }
 
 /**

@@ -68,7 +68,6 @@ export const ptBRVideoRecorder = {
     sizeLimit: 'A gravação atingiu o limite de 256 MiB.'
   },
   errors: {
-    busy: 'Aguarde a operação de vídeo atual terminar',
     previousRecording: 'Limpe a gravação anterior antes de iniciar outra',
     recordingCount: 'Limpe primeiro uma gravação retida (máximo de três)',
     startFirst: 'Inicie uma gravação primeiro',

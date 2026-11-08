@@ -68,7 +68,6 @@ export const deDEVideoRecorder = {
     sizeLimit: 'Die Aufnahme hat ihr Limit von 256 MiB erreicht.'
   },
   errors: {
-    busy: 'Warten Sie, bis der aktuelle Videovorgang abgeschlossen ist',
     previousRecording: 'Verwerfen Sie die vorherige Aufnahme, bevor Sie eine neue starten',
     recordingCount: 'Verwerfen Sie zuerst eine behaltene Aufnahme (höchstens drei)',
     startFirst: 'Starten Sie zuerst eine Aufnahme',

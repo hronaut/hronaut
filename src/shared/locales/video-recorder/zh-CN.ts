@@ -68,7 +68,6 @@ export const zhCNVideoRecorder = {
     sizeLimit: '录制已达到 256 MiB 的上限。'
   },
   errors: {
-    busy: '请等待当前的视频操作完成',
     previousRecording: '开始新的录制之前，请先清除之前的录制内容',
     recordingCount: '请先清除一个保留的录制内容（最多三个）',
     startFirst: '请先开始录制',

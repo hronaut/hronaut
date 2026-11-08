@@ -68,7 +68,6 @@ export const idIDVideoRecorder = {
     sizeLimit: 'Perekaman mencapai batas 256 MiB.'
   },
   errors: {
-    busy: 'Tunggu hingga operasi video saat ini selesai',
     previousRecording: 'Hapus rekaman sebelumnya sebelum memulai yang lain',
     recordingCount: 'Hapus dulu salah satu rekaman yang disimpan (maksimal tiga)',
     startFirst: 'Mulai rekaman terlebih dahulu',

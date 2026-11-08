@@ -46,7 +46,12 @@ function harness() {
   const manager = {
     getState: () => state, openHome: vi.fn(), selectTab: vi.fn(), newTab: vi.fn(),
     archiveWorkspaceForPerson: vi.fn(), closeWorkspace: vi.fn(), closeWorkspaceForPerson: vi.fn(), restoreSavedTabGroup: vi.fn(), deleteSavedTabGroup: vi.fn(),
-    updateMcpTabGroup: vi.fn(), updateArchivedWorkspacePreferences: vi.fn()
+    updateMcpTabGroup: vi.fn(), updateArchivedWorkspacePreferences: vi.fn(),
+    // The open and archived workspaces, and the operations that hold either busy.
+    mcpTabGroups: new Map([['active', { id: 'active', name: 'Project' }]]),
+    savedTabGroups: new Map([['archived', { id: 'archived', name: 'Archive' }]]),
+    workspaceOperations: new Map<string, { action: string; settled?: Promise<void> }>(),
+    savedWorkspaceOperations: new Map<string, { action: string; settled?: Promise<void> }>()
   }
   const edit = vi.fn()
   return { state, manager, edit, run: (input: unknown) => runHomeWorkspaceAction(manager as never, input, edit) }
@@ -81,6 +86,52 @@ describe('trusted Home workspace actions', () => {
     expect(h.manager.updateMcpTabGroup).toHaveBeenCalledWith('active', { deletionProtected: true })
     await h.run({ view: 'preferences', workspaceId: 'archived', hiddenFromSidebar: false })
     expect(h.manager.updateArchivedWorkspacePreferences).toHaveBeenCalledWith('archived', { hiddenFromSidebar: false })
+  })
+  it('applies a preference switched while another operation holds the workspace busy once it ends, to where it is then', async () => {
+    const h = harness()
+    let end!: () => void
+    const settled = new Promise<void>(resolve => { end = resolve })
+    h.manager.workspaceOperations.set('active', { action: 'archiving the workspace', settled })
+    const switched = h.run({ view: 'preferences', workspaceId: 'active', hiddenFromSidebar: true })
+    await new Promise(resolve => setTimeout(resolve, 10))
+    expect(h.manager.updateMcpTabGroup).not.toHaveBeenCalled()
+    // The operation archived it, so the switch applies to the archive.
+    h.manager.workspaceOperations.delete('active')
+    h.manager.mcpTabGroups.delete('active')
+    h.manager.savedTabGroups.set('active', { id: 'active', name: 'Project' })
+    end()
+    await switched
+    expect(h.manager.updateMcpTabGroup).not.toHaveBeenCalled()
+    expect(h.manager.updateArchivedWorkspacePreferences).toHaveBeenCalledExactlyOnceWith('active', { hiddenFromSidebar: true })
+  })
+  it('applies a preference of an archive another operation holds busy once it ends', async () => {
+    const h = harness()
+    let end!: () => void
+    const settled = new Promise<void>(resolve => { end = resolve })
+    h.manager.savedWorkspaceOperations.set('archived', { action: 'restoring the archived workspace', settled })
+    const switched = h.run({ view: 'preferences', workspaceId: 'archived', deletionProtected: true })
+    await new Promise(resolve => setTimeout(resolve, 10))
+    expect(h.manager.updateArchivedWorkspacePreferences).not.toHaveBeenCalled()
+    h.manager.savedWorkspaceOperations.delete('archived')
+    end()
+    await switched
+    expect(h.manager.updateArchivedWorkspacePreferences).toHaveBeenCalledExactlyOnceWith('archived', { deletionProtected: true })
+  })
+  it('checks Home again after the wait, and changes nothing for a sender that is no longer Home', async () => {
+    const h = harness()
+    let end!: () => void
+    const settled = new Promise<void>(resolve => { end = resolve })
+    h.manager.workspaceOperations.set('active', { action: 'copying workspace data', settled })
+    let home = true
+    const stillHome = vi.fn(() => { if (!home) throw new Error('Rejected IPC from a page that is not Home') })
+    const switched = runHomeWorkspaceAction(h.manager as never, { view: 'preferences', workspaceId: 'active', hiddenFromSidebar: true }, h.edit, stillHome)
+    await new Promise(resolve => setTimeout(resolve, 10))
+    home = false
+    h.manager.workspaceOperations.delete('active')
+    end()
+    await expect(switched).rejects.toThrow('not Home')
+    expect(stillHome).toHaveBeenCalledOnce()
+    expect(h.manager.updateMcpTabGroup).not.toHaveBeenCalled()
   })
   it('respects global interaction lock for destructive lifecycle operations', async () => {
     const h = harness()

@@ -68,7 +68,6 @@ export const plPLVideoRecorder = {
     sizeLimit: 'Nagranie osiągnęło limit 256 MiB.'
   },
   errors: {
-    busy: 'Poczekaj na zakończenie bieżącej operacji wideo',
     previousRecording: 'Odrzuć poprzednie nagranie, zanim zaczniesz kolejne',
     recordingCount: 'Najpierw odrzuć jedno z zachowanych nagrań (maksymalnie trzy)',
     startFirst: 'Najpierw rozpocznij nagrywanie',
