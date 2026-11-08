@@ -103,14 +103,17 @@ export async function holdKey(browser: Browser, input: NativeKeyHoldInput, valid
       browser.unconfirmedNativeKeyHolds.add(webContents)
       webContents.once('destroyed', () => { browser.unconfirmedNativeKeyHolds.delete(webContents) })
     }
-    browser.activeNativeKeyHolds.delete(webContents)
-    authority.dispose()
-    tab.view.removeListener('bounds-changed', changed)
-    webContents.removeListener('frame-created', changed)
-    webContents.removeListener('devtools-opened', changed)
-    webContents.debugger.removeListener('detach', changed)
+    // The window and view first: a page destroyed meanwhile throws on reading its debugger.
     browser.window.removeListener('hide', changed)
     browser.window.removeListener('minimize', changed)
+    tab.view.removeListener('bounds-changed', changed)
+    browser.activeNativeKeyHolds.delete(webContents)
+    authority.dispose()
+    if (!webContents.isDestroyed()) {
+      webContents.removeListener('frame-created', changed)
+      webContents.removeListener('devtools-opened', changed)
+      webContents.debugger.removeListener('detach', changed)
+    }
   }
 }
 

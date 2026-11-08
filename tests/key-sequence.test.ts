@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { keySequenceCommand, nativeKeySequenceInput, sequenceKey } from '../src/main/browser/agent-keys/key-sequence.js'
+import {
+  keySequenceCommand, keySequenceKeys, keySequenceOffsetsMs, movedScheduleShiftMs, nativeKeySequenceInput, sequenceKey
+} from '../src/main/browser/agent-keys/key-sequence.js'
 
 const parse = (events: unknown[]) => nativeKeySequenceInput.safeParse({ tabId: 'tab', events })
 
@@ -81,5 +83,51 @@ describe('timed native key sequence', () => {
       .toEqual({ type: 'keyUp', key: 'Shift', code: 'ShiftRight', windowsVirtualKeyCode: 16, location: 2, modifiers: 8 })
     expect(keySequenceCommand({ type: 'down', key: 'Digit1' }, new Set(['ShiftRight'])))
       .toMatchObject({ type: 'rawKeyDown', code: 'Digit1', modifiers: 8 })
+  })
+
+  // A first event at 500 ms waited 500 ms before any key, so startEpochMs and sentAtMs were not from the first event.
+  it('counts every offset from the first event, which goes out at once', () => {
+    expect(keySequenceOffsetsMs([{ atMs: 500 }, { atMs: 530 }, { atMs: 530 }, { atMs: 900 }])).toEqual([0, 30, 30, 400])
+    expect(keySequenceOffsetsMs([{ atMs: 0 }, { atMs: 60 }])).toEqual([0, 60])
+  })
+
+  // Lateness was measured from the send, so a timer that woke 30 ms late moved nothing and the next events went out at once.
+  it('moves the schedule by an event\'s whole lateness from when it was due, a late timer wake included', () => {
+    expect(movedScheduleShiftMs(0, 100, 131)).toBe(31)
+    expect(movedScheduleShiftMs(31, 161, 590)).toBe(460)
+    expect(movedScheduleShiftMs(20, 100, 117)).toBe(20)
+  })
+
+  // A page that stalled in every keydown made a 10 s sequence run for minutes while it held the tab's debugger.
+  it('stops a sequence the page has delayed by over 10 s in all', () => {
+    expect(movedScheduleShiftMs(9_000, 100, 1_100)).toBe(10_000)
+    expect(() => movedScheduleShiftMs(9_000, 100, 1_101)).toThrow('The page delayed the key sequence by over 10 s; inspect fresh state')
+  })
+
+  // A down attempted after an earlier key was released left the release acknowledged, so when that down failed the page
+  // was reported released and holds and sequences went on there.
+  it('makes the downs and the release unacknowledged again as a later key goes down', () => {
+    const keys = keySequenceKeys()
+    keys.attempted({ type: 'rawKeyDown', code: 'KeyA' }, 'a')
+    keys.acknowledged({ type: 'rawKeyDown', code: 'KeyA' })
+    keys.attempted({ type: 'keyUp', code: 'KeyA' }, 'a')
+    keys.acknowledged({ type: 'keyUp', code: 'KeyA' })
+    expect(keys.progress).toMatchObject({ downAcknowledged: true, releaseAcknowledged: true })
+    keys.attempted({ type: 'rawKeyDown', code: 'KeyB' }, 'KeyB')
+    expect(keys.progress).toMatchObject({ downAttempted: true, downAcknowledged: false, releaseAcknowledged: false })
+    expect([...keys.held.values()]).toEqual([{ key: 'KeyB', upAttempted: false }])
+    keys.acknowledged({ type: 'rawKeyDown', code: 'KeyB' })
+    expect(keys.progress).toMatchObject({ downAcknowledged: true, releaseAcknowledged: false })
+  })
+
+  it('keeps a key down whose acknowledged key-up a dialog dropped', () => {
+    const keys = keySequenceKeys()
+    keys.attempted({ type: 'rawKeyDown', code: 'Space' }, 'Space')
+    keys.acknowledged({ type: 'rawKeyDown', code: 'Space' })
+    keys.attempted({ type: 'keyUp', code: 'Space' }, 'Space')
+    keys.acknowledged({ type: 'keyUp', code: 'Space' })
+    keys.notReleased('Space', 'Space')
+    expect(keys.progress.releaseAcknowledged).toBe(false)
+    expect([...keys.held.values()]).toEqual([{ key: 'Space', upAttempted: true }])
   })
 })

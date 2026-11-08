@@ -136,3 +136,35 @@ test('strict sequence wire schema rejects invalid input before any key', async (
   }
   expect((await holdObservation(electronApp)).commands).toEqual([])
 })
+
+test('key sequence stops at the alert its key opens and releases that key once the alert is answered', async ({ capabilities, electronApp }, testInfo) => {
+  const { client, tabId, fixtureUrl } = capabilities
+  // Playwright would answer the page's dialogs itself; the agent answers this one.
+  for (const page of electronApp.context().pages()) page.on('dialog', () => undefined)
+  electronApp.context().on('page', page => page.on('dialog', () => undefined))
+  await setupHoldPage(electronApp, fixtureUrl)
+  await electronApp.evaluate(async ({ webContents }, url) => webContents.getAllWebContents().find(p => p.getURL() === url)!.executeJavaScript(
+    "window.keysSeen=[];document.addEventListener('keydown',e=>{window.keysSeen.push(['keydown',e.key]);if(e.key==='a')alert('Jumped')});"
+    + "document.addEventListener('keyup',e=>window.keysSeen.push(['keyup',e.key]));void 0"), fixtureUrl)
+  await observeHold(electronApp, fixtureUrl)
+  const result = await client.callTool({ name: 'browser_key_sequence', arguments: { tabId, events: [
+    { atMs: 0, type: 'down', key: 'a' }, { atMs: 200, type: 'up', key: 'a' }
+  ] } }) as CallToolResult
+  // The page cannot run the observation's script while the alert holds it, so only the sent commands are read.
+  const sentKeys = () => electronApp.evaluate(() => (globalThis as HoldScope).holdProbe!.commands.map(c => [c.type, c.key]))
+  const whileShown = await sentKeys()
+  await testInfo.attach('native-key-sequence-dialog', { body: JSON.stringify({ result, whileShown }), contentType: 'application/json' })
+  expect(result.isError).toBe(true)
+  expect(JSON.parse(text(result))).toMatchObject({ status: 'OUTCOME_UNKNOWN', retrySafe: false, release: 'UNCONFIRMED' })
+  // Chromium drops a key-up while the alert shows, so none is sent then.
+  expect(whileShown).toEqual([['rawKeyDown', 'a']])
+  const answered = await client.callTool({ name: 'browser_dialog', arguments: { tabId, action: 'accept' } }) as CallToolResult
+  expect(answered.isError, text(answered)).not.toBe(true)
+  await expect.poll(sentKeys).toEqual([['rawKeyDown', 'a'], ['keyUp', 'a']])
+  const seen = await electronApp.evaluate(async ({ webContents }, url) => webContents.getAllWebContents().find(p => p.getURL() === url)!
+    .executeJavaScript('window.keysSeen'), fixtureUrl)
+  expect(seen).toEqual([['keydown', 'a'], ['keyup', 'a']])
+  // The release is confirmed, so the page takes holds and sequences again.
+  await expect.poll(async () => (await client.callTool({ name: 'browser_hold_key', arguments: { tabId, key: 'e', durationMs: 1 } }) as CallToolResult).isError)
+    .not.toBe(true)
+})

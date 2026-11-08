@@ -307,20 +307,22 @@ const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'ti
     name: 'browser_key_sequence',
     category: 'Interaction',
     description: 'Play 1 to 200 timed key events in an explicit workspace/tab, for games and other pages that read held keys. '
-      + 'Each event is { atMs, type: down or up, key }, with atMs an integer offset 0..10000 from the first event '
-      + 'that never decreases. Keys are those of browser_hold_key except Insert, plus Shift, the only modifier: '
+      + 'Each event is { atMs, type: down or up, key }, with atMs an integer offset 0..10000 that never decreases; '
+      + 'the first event goes out at once and the others at their offset from it. '
+      + 'Keys are those of browser_hold_key except Insert, plus Shift, the only modifier: '
       + 'while Shift is down the other keys carry it, so Shift with ArrowRight is a chord. '
       + 'A key may also be named by its KeyboardEvent.code (KeyD, Digit1, ShiftLeft, ShiftRight); Shift is ShiftLeft. '
       + 'Each key goes down before it goes up and every key must be up by the last event. '
       + 'Sends raw key-downs and key-ups, without text or auto-repeat. '
-      + 'When the page takes longer than 17 ms to acknowledge an event, the rest of the schedule moves by that delay, '
-      + 'so the gaps between events stay as planned. '
+      + 'When an event is acknowledged more than 17 ms after it was due, the rest of the schedule moves by that delay, '
+      + 'so the gaps between events stay as planned; a page that delays it by over 10 s in all stops it. '
       + 'Returns DISPATCH_ACKNOWLEDGED with startEpochMs (wall clock of the first event), sentAtMs, when each event was sent from the first, '
       + 'maxLateMs against the moved schedule and scheduleShiftMs, how far it moved. '
       + 'Same environment, lock and authority rules as browser_hold_key: any change, a pause or the person\'s lock '
       + 'stops the sequence before its next event and releases every key still down once; after a key went down '
       + 'a failure is OUTCOME_UNKNOWN and must not be replayed, and an unconfirmed release blocks further holds '
-      + 'and sequences on that page until it is closed.'
+      + 'and sequences on that page until it is closed. A website or print dialog stops it too, and the keys it left '
+      + 'down are released once the dialog closes.'
   },
   { name: 'browser_fill_from_file', category: 'Interaction', description: 'Replace the value of one plain text input or textarea with the whole text of a local UTF-8 file of at most 64 KiB, so long or exact text (fixtures, generated identifiers, multi-line JSON) reaches the field without being repeated in the call. Give an absolute path, the expectedOrigin the text is meant for (the page must be there), optionally the file sha256, and a ref or a selector matching only the field: input type=text or a textarea in the top-level page, not a password or other input, an editable region, a frame or shadow root; enabled, writable and visible. Refused before anything is written: a missing, empty, non-regular, larger, changing, non-UTF-8 or sha256-mismatched file, carriage returns (convert to LF), line breaks for a text input, text longer than maxlength, and any other origin. The text is never trimmed, normalized or shortened; a leading byte order mark is dropped. A page still loading is refused. Sets the value and fires input and change as browser_type does, then compares the field with the text right after the handlers and a quarter second later: MATCHED, MISMATCH (the page rewrote, rejected or shortened it; with fieldCharacters) or UNCONFIRMED (read the field before retrying), with the field kind, the text length and a note; never the text, the field value or the path. Later changes by the page are not seen, and input handlers may send the text at once. Never submits or retries. Requires the external-request capability.' },
   { name: 'browser_file_upload', category: 'Interaction', description: 'Attach local files to a file input.' },
