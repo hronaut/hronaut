@@ -8,6 +8,8 @@ All notable changes to Hronaut are documented in this file.
 
 - `browser_video` records 30 frames a second from Chromium's own screencast of the page while Hronaut shows the tab, instead of copying the page about 9 times a second, so games and animations play smoothly in the video and the app no longer copies and encodes each frame itself; a still page repeats its last frame without using memory, exports use 6 Mbit/s, and a recording may hold 256 MiB.
 - A stopped `browser_video` recording can still be edited, rendered, inspected and exported after its tab moves to another site; only recording and resuming need the tab back at the site it started on.
+- `browser_key_sequence` stops when the page shows an alert, a confirm or its print dialog, which drop the keys sent while they show, and releases the keys it left down once the dialog closes; before, it played on and reported keys as released that the page never got. A key that goes down after earlier keys were released now leaves the release unconfirmed when it fails, as for the first key.
+- `browser_key_sequence` sends its first event at once, as documented, also when its `atMs` is above 0, and reports `startEpochMs` and `sentAtMs` from that first event; a late timer in Hronaut now moves the rest of the schedule as a slow page does, instead of sending the next events with no gap; and a page that delays a sequence by more than 10 seconds in all stops it, instead of keeping the tab busy for minutes.
 
 ## [3.14.24] - 2026-11-07
 
