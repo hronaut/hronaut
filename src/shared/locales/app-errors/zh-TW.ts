@@ -234,7 +234,6 @@ export const zhTWAppErrors: AppErrorMessages = {
     devTools: '變更網頁生命週期前，請先關閉這個分頁的開發人員工具。'
   },
   inputLock: {
-    pageBusy: '網頁正在忙碌中，輸入鎖定未變更。請等待其作業完成，然後再試一次。',
     observer: '在唯讀的公開觀察者工作區中，網頁輸入會保持鎖定。',
     tabClosed: '分頁在輸入鎖定變更前已關閉。',
     tabNotRestored: '無法更新或還原分頁的輸入鎖定。',

@@ -17,13 +17,16 @@ type MenuTab = Parameters<typeof attachPageContextMenuEvents>[1]
 // The page's view sits below the toolbar and beside the rail, so a point in the page is not one in the window.
 const VIEW = { x: 56, y: 88, width: 900, height: 600 }
 
-function pageWithMenu(locked = false) {
+function pageWithMenu(locked = false, lockChange?: 'tab' | 'all') {
   const webContents = Object.assign(new EventEmitter(), {
     id: 7,
     isDestroyed: () => false,
     navigationHistory: { canGoBack: () => false, canGoForward: () => false }
   })
-  const tab = { id: 'tab', url: 'https://docs.example/guide', mcpGroupId: 'client', webContents, view: { getBounds: () => VIEW } }
+  const tab = {
+    id: 'tab', url: 'https://docs.example/guide', mcpGroupId: 'client', webContents, view: { getBounds: () => VIEW },
+    inputLock: { pendingChanges: lockChange === 'tab' ? 1 : 0 }
+  }
   const closed = vi.fn()
   const pageMenuOpened = vi.fn(() => closed)
   const browser = {
@@ -35,6 +38,7 @@ function pageWithMenu(locked = false) {
     options: { copyText: async () => undefined, copyImageAt: async () => undefined },
     text: (key: string) => key,
     isHumanInteractionLocked: () => locked,
+    globalInputLockChanges: lockChange === 'all' ? 1 : 0,
     mcpActivityFollower: { pageMenuOpened }
   }
   attachPageContextMenuEvents(browser as unknown as MenuBrowser, tab as unknown as MenuTab, webContents as unknown as WebContents)
@@ -84,6 +88,15 @@ describe('where the page menu opens', () => {
   it('opens no menu while the person\'s input to the page is locked', () => {
     const page = pageWithMenu(true)
     expect(page.open({ x: 120, y: 40, menuSourceType: 'keyboard' })).toHaveBeenCalledOnce()
+    expect(built.popups).toEqual([])
+    expect(page.pageMenuOpened).not.toHaveBeenCalled()
+  })
+
+  // An unlock reads as done as soon as it is asked for, while it waits for the page behind an agent's right-click or
+  // Shift+F10, which needs the page locked; the page's menu that input opens must not become Hronaut's, with its Paste.
+  it.each([['this tab', 'tab'], ['every tab', 'all']] as const)('opens no menu while an unlock for %s waits for the page', (_name, lockChange) => {
+    const page = pageWithMenu(false, lockChange)
+    expect(page.open({ x: 120, y: 40, menuSourceType: 'mouse' })).toHaveBeenCalledOnce()
     expect(built.popups).toEqual([])
     expect(page.pageMenuOpened).not.toHaveBeenCalled()
   })

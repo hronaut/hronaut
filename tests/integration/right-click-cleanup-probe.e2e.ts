@@ -68,6 +68,9 @@ for (const fault of faults) {
     }
     const abort = new AbortController()
     let replacement: Client | undefined
+    let unlocking: Promise<unknown> | undefined
+    const tabLocked = async () => appWindow.evaluate(async id => (
+      await (window as unknown as { hronaut: HronautApi }).hronaut.getState()).tabs.find(tab => tab.id === id)!.humanInteractionLocked, tabId)
     const pending = client.callTool({ name: 'browser_click', arguments: { tabId, selector: '#target', native: true, button: 'right' } }, undefined, { signal: abort.signal }).catch(() => undefined)
     try {
       let ownership: unknown
@@ -85,8 +88,17 @@ for (const fault of faults) {
         const overlap = await replacement.callTool({ name: 'browser_evaluate', arguments: { tabId, script: 'window.__cleanupOverlap = true' } }) as CallToolResult
         expect(overlap.isError).toBe(true)
         expect(await electronApp.evaluate(async ({ webContents }, url) => webContents.getAllWebContents().find(page => page.getURL() === url)!.executeJavaScript('window.__cleanupOverlap === true'), fixtureUrl)).toBe(false)
-        await expect(appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.setTabHumanInteractionLocked(id, false), tabId)).rejects.toThrow('A page is busy')
+        // The person's unlock shows at once and waits for the held cleanup to free the page, instead of failing as busy.
+        let unlockSettled = false
+        unlocking = appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.setTabHumanInteractionLocked(id, false), tabId)
+          .finally(() => { unlockSettled = true })
+        void unlocking.catch(() => undefined)
+        await expect.poll(tabLocked).toBe(false)
+        expect(unlockSettled).toBe(false)
+        // Its barrier waits too: only the cleanup's own lift for the release has reached the page.
+        expect(await electronApp.evaluate(() => (globalThis as Scope).__cleanupProbe!.releasePreparations)).toBe(1)
         await electronApp.evaluate(() => (globalThis as Scope).__cleanupProbe!.release())
+        await unlocking
         await expect.poll(async () => (await replacement!.callTool({ name: 'browser_workspaces', arguments: { action: 'claim-ownership', workspaceId: workspace.workspaceId } }) as CallToolResult).isError === true).toBe(false)
         await expect.poll(async () => {
           const status = await homeStatus<{ recentActivity: Array<{ toolName: string; tabId: string; result?: { outcome?: string } }> }>(electronApp)
@@ -102,12 +114,14 @@ for (const fault of faults) {
       console.log(JSON.stringify({ fault, observation, ownership, terminalActivity, result }))
       await info.attach('owned-cleanup', { body: JSON.stringify({ fault, observation, ownership, terminalActivity, result }), contentType: 'application/json' })
       expect(observation.commands.filter(value => value === 'mousePressed:right')).toHaveLength(1)
-      expect(observation.releasePreparations).toBe(1)
+      // A held cleanup's unlock, applied once the page freed, lifts the barrier once more.
+      const unlocked = fault.startsWith('hold-')
+      expect(observation.releasePreparations).toBe(unlocked ? 2 : 1)
       const noRawUp = fault === 'up-preparation' || fault === 'emergency-up-preparation'
       expect(observation.commands.filter(value => value === 'mouseReleased:right')).toHaveLength(noRawUp ? 0 : 1)
       expect(observation.events.filter((event: { type: string }) => event.type === 'mouseup')).toHaveLength(noRawUp ? 0 : 1)
       expect(observation.popups).toBe(0)
-      expect(await appWindow.evaluate(async id => (await (window as unknown as { hronaut: HronautApi }).hronaut.getState()).tabs.find(tab => tab.id === id)!.humanInteractionLocked, tabId)).toBe(true)
+      expect(await tabLocked()).toBe(!unlocked)
       if (result) {
         expect(result.isError).toBe(true)
         const lostDown = fault === 'lost-down' || fault === 'lost-down-and-relock'
@@ -116,6 +130,7 @@ for (const fault of faults) {
     } finally {
       transport.send = send
       await electronApp.evaluate(() => { const scope = globalThis as Scope; scope.__cleanupProbe?.release(); scope.__cleanupProbe?.restore(); delete scope.__cleanupProbe }).catch(() => undefined)
+      await unlocking?.catch(() => undefined)
       await replacement?.close().catch(() => undefined)
     }
   })

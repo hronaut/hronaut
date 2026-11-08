@@ -2,33 +2,9 @@ import type { BrowserState } from '../../../shared/types.js'
 import { LocalizedError } from '../../localized-error.js'
 import type { Browser } from '../browser.js'
 import { findTab, getTab } from '../browser-core.js'
-import type { BrowserTab } from '../browser-tab.js'
 import { browserState, publishChange } from '../browser-state/browser-state.js'
 import { syncHumanInteractionInputGuard } from './human-input-guard.js'
-
-/**
- * Waits briefly for the tabs' pending debugger commands and dialog monitor
- * attachments, and rejects without changing anything when a page stays busy.
- */
-async function prepareInteractionLock(browser: Browser, tabs: readonly BrowserTab[]): Promise<void> {
-  // Do not mutate lock state or enqueue guard writes behind an indefinitely
-  // pending native command. A late queue completion cannot apply this request.
-  const pending = tabs.flatMap(tab => [
-    browser.debuggerQueue.pending(tab.webContents.id),
-    browser.dialogMonitorAttachPromises.get(tab.webContents.id)
-  ].filter((value): value is Promise<void> => value !== undefined))
-  if (pending.length) {
-    let timer: NodeJS.Timeout | undefined
-    try {
-      await Promise.race([
-        Promise.allSettled(pending),
-        new Promise<never>((_, reject) => {
-          timer = setTimeout(() => reject(new LocalizedError('appErrors.inputLock.pageBusy')), 2000)
-        })
-      ])
-    } finally { if (timer) clearTimeout(timer) }
-  }
-}
+import { tabInputLock } from './input-lock-state.js'
 
 /** Runs the lock change after every earlier one, and its rollback, has settled. */
 function enqueueInteractionLockMutation(browser: Browser, operation: () => Promise<BrowserState>): Promise<BrowserState> {
@@ -44,27 +20,30 @@ function enqueueInteractionLockMutation(browser: Browser, operation: () => Promi
 /**
  * Locks or unlocks the person's input in a tab, as an exception to a global
  * lock when there is one. Changes run one at a time, and a failed native guard
- * update rolls the tab back.
+ * update rolls the tab back. Key holds and sequences on the page stop at once,
+ * and native input tools on the page refuse until the change settles.
  */
 export function setTabHumanInteractionLocked(browser: Browser, tabId: string, locked: boolean): Promise<BrowserState> {
   const tab = findTab(browser, tabId)
+  const lockState = tab ? tabInputLock(tab) : undefined
   if (tab) tab.nativeInputEnvironmentGeneration += 1
-  browser.nativeInputLockMutations += 1
+  if (lockState) lockState.pendingChanges += 1
   return enqueueInteractionLockMutation(browser, () => applyTabHumanInteractionLocked(browser, tabId, locked))
-    .finally(() => { browser.nativeInputLockMutations -= 1 })
+    .finally(() => { if (lockState) lockState.pendingChanges -= 1 })
 }
 
 /**
- * Applies a tab's lock change once its page is idle. A public observer
- * workspace's pages stay locked, and locking closes Developer Tools.
+ * Applies a tab's lock change: the tab shows the lock asked for at once, and
+ * its page's native guard follows in the page's turn, after the debugger work
+ * already queued there. A public observer workspace's pages stay locked, and
+ * locking closes Developer Tools.
  */
 async function applyTabHumanInteractionLocked(browser: Browser, tabId: string, locked: boolean): Promise<BrowserState> {
   const tab = getTab(browser, tabId)
   if (!locked && tab.mcpGroupId && browser.mcpTabGroups.get(tab.mcpGroupId)?.contextClass === 'public-observer') {
     throw new LocalizedError('appErrors.inputLock.observer')
   }
-  await prepareInteractionLock(browser, [tab])
-  if (findTab(browser, tabId) !== tab || tab.webContents.isDestroyed()) throw new LocalizedError('appErrors.inputLock.tabClosed')
+  if (tab.webContents.isDestroyed()) throw new LocalizedError('appErrors.inputLock.tabClosed')
   const previousLocked = tab.humanInteractionLocked
   const wasGloballyUnlocked = browser.globallyUnlockedTabIds.has(tabId)
   if (browser.allHumanInteractionLocked) {
@@ -76,7 +55,9 @@ async function applyTabHumanInteractionLocked(browser: Browser, tabId: string, l
   if (browser.isHumanInteractionLocked(tab)) {
     if (tab.webContents.isDevToolsOpened()) tab.webContents.closeDevTools()
   }
+  publishChange(browser)
   try {
+    // Waits its turn behind the page's queued debugger work, however long that takes, rather than failing.
     await syncHumanInteractionInputGuard(browser, tab)
   } catch (error) {
     tab.humanInteractionLocked = previousLocked
@@ -95,26 +76,27 @@ async function applyTabHumanInteractionLocked(browser: Browser, tabId: string, l
     publishChange(browser)
     throw error
   }
-  publishChange(browser)
   return browserState(browser)
 }
 
 /**
  * Locks or unlocks the person's input in every tab, clearing the tabs
  * unlocked as exceptions. Changes run one at a time, and a failed native guard
- * update rolls every tab back.
+ * update rolls every tab back. Key holds and sequences stop at once, and
+ * native input tools refuse on every page until the change settles.
  */
 export function setAllHumanInteractionLocked(browser: Browser, locked: boolean): Promise<BrowserState> {
   for (const tab of browser.tabs.values()) tab.nativeInputEnvironmentGeneration += 1
-  browser.nativeInputLockMutations += 1
+  browser.globalInputLockChanges += 1
   return enqueueInteractionLockMutation(browser, () => applyAllHumanInteractionLocked(browser, locked))
-    .finally(() => { browser.nativeInputLockMutations -= 1 })
+    .finally(() => { browser.globalInputLockChanges -= 1 })
 }
 
-/** Applies the global lock change once every page is idle; locking closes Developer Tools. */
+/**
+ * Applies the global lock change: every tab shows it at once, and each page's
+ * native guard follows in that page's turn. Locking closes Developer Tools.
+ */
 async function applyAllHumanInteractionLocked(browser: Browser, locked: boolean): Promise<BrowserState> {
-  await prepareInteractionLock(browser, [...browser.tabs.values()])
-  if (browser.destroyed) throw new Error('Browser tabs manager has been destroyed')
   const previousLocked = browser.allHumanInteractionLocked
   const previousGloballyUnlockedTabIds = new Set(browser.globallyUnlockedTabIds)
   browser.allHumanInteractionLocked = locked
@@ -125,6 +107,8 @@ async function applyAllHumanInteractionLocked(browser: Browser, locked: boolean)
       if (tab.webContents.isDevToolsOpened()) tab.webContents.closeDevTools()
     }
   }
+  publishChange(browser)
+  // Each page's guard waits its turn behind that page's queued debugger work, however long that takes.
   const results = await Promise.allSettled(
     [...browser.tabs.values()].map((tab) => syncHumanInteractionInputGuard(browser, tab))
   )
@@ -148,6 +132,5 @@ async function applyAllHumanInteractionLocked(browser: Browser, locked: boolean)
     if (errors.length === 1) throw errors[0]
     throw new LocalizedError('appErrors.inputLock.allNotUpdated', undefined, { cause: new AggregateError(errors) })
   }
-  publishChange(browser)
   return browserState(browser)
 }

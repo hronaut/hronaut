@@ -234,7 +234,6 @@ export const viVNAppErrors: AppErrorMessages = {
     devTools: 'Hãy đóng Công cụ cho nhà phát triển của thẻ này trước khi thay đổi vòng đời trang.'
   },
   inputLock: {
-    pageBusy: 'Một trang đang bận. Khóa nhập liệu chưa được thay đổi. Hãy đợi thao tác của trang hoàn tất, rồi thử lại.',
     observer: 'Thao tác nhập trên trang vẫn bị khóa trong không gian làm việc chỉ đọc của người quan sát công khai.',
     tabClosed: 'Thẻ đã đóng trước khi khóa nhập liệu thay đổi.',
     tabNotRestored: 'Không thể cập nhật hoặc khôi phục khóa nhập liệu của thẻ.',

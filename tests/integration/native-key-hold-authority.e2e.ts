@@ -64,7 +64,7 @@ for (const phase of ['before-down', 'held'] as const) for (const change of ['pau
       }
       if (phase === 'before-down') await electronApp.evaluate(() => (globalThis as HoldScope).holdProbe!.release())
       const result = await pending
-      await locking // A lock request must succeed within its existing preparation budget.
+      await locking // A lock request waits for the hold to free the page, then applies.
       const activity = async () => {
         const state = await homeStatus<{ recentActivity: Array<{ toolName: string; tabId: string; result: { outcome: string; effects: string; dispatch: string } }> }>(electronApp)
         return state.recentActivity.filter(a => a.toolName === 'browser_hold_key' && a.tabId === tabId)

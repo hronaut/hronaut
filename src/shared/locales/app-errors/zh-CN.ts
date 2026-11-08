@@ -234,7 +234,6 @@ export const zhCNAppErrors: AppErrorMessages = {
     devTools: '更改页面生命周期之前，请先关闭此标签页的开发者工具。'
   },
   inputLock: {
-    pageBusy: '有页面正忙。输入锁定未更改。请等待其操作完成后重试。',
     observer: '在只读的公开观察者工作区中，页面输入会保持锁定。',
     tabClosed: '在输入锁定更改之前，标签页已关闭。',
     tabNotRestored: '无法更新或恢复该标签页的输入锁定。',

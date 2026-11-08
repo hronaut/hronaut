@@ -4,6 +4,7 @@ import type { Browser } from '../browser.js'
 import { getTab } from '../browser-core.js'
 import { withDebugger } from '../debugger-lease/debugger-lease.js'
 import { nativeInputAuthority } from '../native-input-authority/native-input-authority.js'
+import { inputLockChanging } from '../interaction-lock/input-lock-state.js'
 import { hasEmulationOverrides } from '../emulation-state.js'
 import { pinchedPageError, visualViewportPinched } from '../input-targets/target-checks.js'
 
@@ -65,7 +66,9 @@ export async function wheel(browser: Browser, input: NativeWheelInput, validateI
       throw new Error('Wheel requires the active visible page outside split view; select it in the trusted UI first')
     }
     if (tab.sleeping || tab.pageLifecycleState !== 'active') throw new Error('Wheel requires an already awake, active page')
-    if (browser.nativeInputLockMutations > 0 || browser.isHumanInteractionLocked(tab)) throw new Error('Wheel requires an explicitly unlocked page; unlock it in the trusted UI first')
+    if (inputLockChanging(browser, tab) || browser.isHumanInteractionLocked(tab)) {
+      throw new Error('Wheel requires an explicitly unlocked page; unlock it in the trusted UI first')
+    }
     if (browser.screenshotAreaSessions.has(webContents.id) || browser.elementPickerSessions.has(webContents.id)
       || browser.devToolsOpening.has(webContents.id) || webContents.isDevToolsOpened()) {
       throw new Error('Wheel is unavailable during native selection or Developer Tools')

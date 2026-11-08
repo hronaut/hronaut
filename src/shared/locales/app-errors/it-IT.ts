@@ -234,7 +234,6 @@ export const itITAppErrors: AppErrorMessages = {
     devTools: 'Chiudi gli Strumenti per sviluppatori di questa scheda prima di modificare il ciclo di vita della pagina.'
   },
   inputLock: {
-    pageBusy: 'Una pagina è occupata. I blocchi dell’input non sono stati modificati. Attendi il completamento della sua operazione, poi riprova.',
     observer: 'L’input della pagina resta bloccato in un’area di lavoro di osservazione pubblica in sola lettura.',
     tabClosed: 'La scheda si è chiusa prima della modifica del blocco dell’input.',
     tabNotRestored: 'Impossibile aggiornare o ripristinare il blocco dell’input della scheda.',

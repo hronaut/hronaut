@@ -6,6 +6,7 @@ import type { PointerDebugger } from '../native-pointer.js'
 import type { Browser } from '../browser.js'
 import { findTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
+import { nativeInputBarrierOn } from '../interaction-lock/input-lock-state.js'
 import { unlessWebsiteDialogOpens } from '../website-dialogs/website-dialogs.js'
 
 /**
@@ -67,9 +68,9 @@ export function agentInputDebugger(
 }
 
 /**
- * Sends one native input command for an agent. While the person's input to
- * the tab is locked it lifts the compositor barrier for this event only and
- * records the expected event so the input guard admits just that one; the
+ * Sends one native input command for an agent. While the page's compositor
+ * barrier is on it lifts it for this event only, and it records the expected
+ * event so the input guard admits just that one; the
  * context is checked again right before dispatch. When restoring the barrier
  * fails after dispatch, it sends one matching release and reports the cleanup
  * failure.
@@ -92,7 +93,9 @@ export async function sendAuthorizedAgentInputCommand(
     : null
   const tabId = browser.webContentsToTab.get(webContents.id)
   const tab = tabId ? findTab(browser, tabId) : undefined
-  const temporarilyPermitNativeInput = Boolean((mouse || keyboard) && tab && browser.isHumanInteractionLocked(tab))
+  // By the barrier as last applied, not by the lock: a lock change waiting for the page has set the lock but not yet
+  // the barrier, and Chromium drops input the barrier still holds. The lift and re-lock leave that record as it is.
+  const temporarilyPermitNativeInput = Boolean((mouse || keyboard) && tab && nativeInputBarrierOn(browser, tab))
   if (temporarilyPermitNativeInput) {
     await webContents.debugger.sendCommand('Input.setIgnoreInputEvents', { ignore: false })
   }

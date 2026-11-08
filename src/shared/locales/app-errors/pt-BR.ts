@@ -234,7 +234,6 @@ export const ptBRAppErrors: AppErrorMessages = {
     devTools: 'Feche as Ferramentas do desenvolvedor desta guia antes de alterar o ciclo de vida da página.'
   },
   inputLock: {
-    pageBusy: 'Uma página está ocupada. Os bloqueios de entrada não foram alterados. Aguarde a operação terminar e tente novamente.',
     observer: 'A entrada na página continua bloqueada em um espaço de trabalho de observador público somente leitura.',
     tabClosed: 'A guia foi fechada antes que o bloqueio de entrada dela fosse alterado.',
     tabNotRestored: 'Não foi possível atualizar nem restaurar o bloqueio de entrada da guia.',

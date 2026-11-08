@@ -85,7 +85,7 @@ function touchPage(options: {
     window,
     activeTabId: tab.id,
     browserContentOccluded: false,
-    get nativeInputLockMutations() { return lockChanges },
+    get globalInputLockChanges() { return lockChanges },
     isHumanInteractionLocked: () => locked,
     screenshotAreaSessions: new Map(),
     elementPickerSessions: new Map(),
@@ -263,7 +263,7 @@ describe('touch gestures', () => {
     expect(page.held()).toBe(false)
   })
 
-  it('cancels the contact when a lock changes on any tab mid-swipe', async () => {
+  it('cancels the contact when a lock for every tab changes mid-swipe', async () => {
     const page = touchPage({ onTouch: onMove(1, current => { current.beginLockChange() }) })
     await expect(touch(page.browser, swipe(50), check => check(), () => undefined)).rejects.toThrow(NativeTouchOutcomeUnknownError)
     expect(types(page.commands)).toEqual(['touchStart', 'touchMove', 'touchCancel'])

@@ -3,6 +3,7 @@ import { getTab } from '../browser-core.js'
 import { withDebugger } from '../debugger-lease/debugger-lease.js'
 import { withAgentInput } from '../agent-input-scope/agent-input-scope.js'
 import { nativeInputAuthority } from '../native-input-authority/native-input-authority.js'
+import { inputLockChanging } from '../interaction-lock/input-lock-state.js'
 import { pinchedPageError, refusesPinchedPage, visualViewportPinched } from '../input-targets/target-checks.js'
 import { nativeTouchInput, notStartedTouchProgress, type NativeTouchInput, type NativeTouchProgress } from './touch-input.js'
 
@@ -83,8 +84,8 @@ export async function touch(browser: Browser, input: NativeTouchInput, validateI
       throw new Error('Touch requires the active visible page outside split view; select it first')
     }
     if (tab.sleeping || tab.pageLifecycleState !== 'active') throw new Error('Touch requires an already awake, active page')
-    // Like the other native input paths, any pending lock change, on any tab, holds the gesture back.
-    if (browser.nativeInputLockMutations > 0) throw new Error('Touch is unavailable while a page input lock is changing; try again once it settles')
+    // Like the other native input paths, a pending lock change for this tab, or for every tab, holds the gesture back.
+    if (inputLockChanging(browser, tab)) throw new Error('Touch is unavailable while a page input lock is changing; try again once it settles')
     if (browser.isHumanInteractionLocked(tab)) throw new Error('Touch requires an unlocked page; the person locked its input')
     if (browser.screenshotAreaSessions.has(webContents.id) || browser.elementPickerSessions.has(webContents.id)
       || browser.devToolsOpening.has(webContents.id) || webContents.isDevToolsOpened()) {

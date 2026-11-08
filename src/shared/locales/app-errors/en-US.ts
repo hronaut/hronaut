@@ -238,7 +238,6 @@ export const enUSAppErrors = {
     devTools: 'Close Developer Tools for this tab before changing its page lifecycle.'
   },
   inputLock: {
-    pageBusy: 'A page is busy. Input locks were not changed. Wait for its operation to finish, then try again.',
     observer: 'Page input remains locked in a read-only public observer workspace.',
     tabClosed: 'The tab closed before its input lock changed.',
     tabNotRestored: 'The tab’s input lock could not be updated or restored.',

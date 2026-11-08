@@ -234,7 +234,6 @@ export const frFRAppErrors: AppErrorMessages = {
     devTools: 'Fermez les outils de développement de cet onglet avant de modifier l’état de sa page.'
   },
   inputLock: {
-    pageBusy: 'Une page est occupée. Les verrous de saisie n’ont pas été modifiés. Attendez la fin de son opération, puis réessayez.',
     observer: 'La saisie reste verrouillée dans un espace de travail d’observateur public en lecture seule.',
     tabClosed: 'L’onglet s’est fermé avant la modification de son verrou de saisie.',
     tabNotRestored: 'Le verrou de saisie de cet onglet n’a pu être ni modifié ni rétabli.',

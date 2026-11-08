@@ -74,7 +74,7 @@ function shownTab() {
   const browser = {
     tabs: new Map([[tab.id, tab]]), activeTabId: tab.id, destroyed: false, window,
     activeNativeKeyHolds: new Set<object>(), unconfirmedNativeKeyHolds: new WeakSet<object>(),
-    tabSelectionGeneration: 0, splitViewGeneration: 0, nativeInputLockMutations: 0, splitView: false, browserContentOccluded: false,
+    tabSelectionGeneration: 0, splitViewGeneration: 0, globalInputLockChanges: 0, splitView: false, browserContentOccluded: false,
     requireEmulationConfirmed: () => undefined,
     screenshotAreaSessions: new Set<number>(), elementPickerSessions: new Set<number>(), devToolsOpening: new Set<number>()
   }

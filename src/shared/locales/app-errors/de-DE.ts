@@ -234,7 +234,6 @@ export const deDEAppErrors: AppErrorMessages = {
     devTools: 'Schließen Sie die Entwicklertools für diesen Tab, bevor Sie den Zustand seiner Seite ändern.'
   },
   inputLock: {
-    pageBusy: 'Eine Seite ist beschäftigt. Die Eingabesperren wurden nicht geändert. Warten Sie, bis ihr Vorgang abgeschlossen ist, und versuchen Sie es dann erneut.',
     observer: 'Im schreibgeschützten Arbeitsbereich eines öffentlichen Beobachters bleibt die Eingabe auf der Seite gesperrt.',
     tabClosed: 'Der Tab wurde geschlossen, bevor seine Eingabesperre geändert wurde.',
     tabNotRestored: 'Die Eingabesperre dieses Tabs konnte weder geändert noch wiederhergestellt werden.',

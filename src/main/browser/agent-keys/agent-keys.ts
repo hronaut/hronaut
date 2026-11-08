@@ -15,6 +15,7 @@ import { getTab } from '../browser-core.js'
 import { withDebugger } from '../debugger-lease/debugger-lease.js'
 import { withAgentInput } from '../agent-input-scope/agent-input-scope.js'
 import { nativeInputAuthority } from '../native-input-authority/native-input-authority.js'
+import { inputLockChanging } from '../interaction-lock/input-lock-state.js'
 
 /**
  * Holds one key down on the active, visible, awake page outside split view
@@ -46,7 +47,7 @@ export async function holdKey(browser: Browser, input: NativeKeyHoldInput, valid
     if (signal?.aborted) throw new Error('Key hold cancelled')
     if (environmentChanged || generation !== tab.nativeInputEnvironmentGeneration
       || selectionGeneration !== browser.tabSelectionGeneration || splitGeneration !== browser.splitViewGeneration
-      || browser.nativeInputLockMutations > 0) throw new Error('Key hold environment changed; inspect fresh state')
+      || inputLockChanging(browser, tab)) throw new Error('Key hold environment changed; inspect fresh state')
     if (browser.activeTabId !== tab.id || browser.splitView || browser.browserContentOccluded
       || !browser.window.isVisible() || browser.window.isMinimized() || !tab.view.getVisible()
       || !browser.window.contentView.children.includes(tab.view) || tab.sleeping || tab.pageLifecycleState !== 'active') {
@@ -162,7 +163,7 @@ export async function press(browser: Browser, key: string, tabId?: string, valid
   const menuKey = opensContextMenu(input)
   const requireLocked = (): void => {
     if (!menuKey) return
-    if (browser.nativeInputLockMutations > 0 || !browser.isHumanInteractionLocked(tab)) {
+    if (inputLockChanging(browser, tab) || !browser.isHumanInteractionLocked(tab)) {
       throw new Error('Shift+F10 opens the context menu, which requires a page locked in the trusted UI')
     }
   }

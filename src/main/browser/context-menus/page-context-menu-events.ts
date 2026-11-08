@@ -2,6 +2,7 @@ import { clipboard, type ContextMenuParams, type Rectangle, type WebContents } f
 import type { Browser } from '../browser.js'
 import { findTab } from '../browser-core.js'
 import type { BrowserTab } from '../browser-tab.js'
+import { inputLockChanging } from '../interaction-lock/input-lock-state.js'
 import { shownPageFullscreenTab } from '../window-layout/content-area.js'
 import { showContextMenu } from './page-context-menu.js'
 
@@ -34,7 +35,8 @@ export function pageMenuPoint(view: Rectangle, params: Pick<ContextMenuParams, '
 
 /**
  * Replaces the page's own context menu with Hronaut's on every right-click, Menu key or Shift+F10; while the
- * person's input to the tab is locked, or trusted chrome covers the page, no menu opens. Following an agent waits
+ * person's input to the tab is locked or a change of that lock waits for the page, or trusted chrome covers the page,
+ * no menu opens. Following an agent waits
  * while the menu is open, so the page its items act on stays in view. As in Chrome, a field that takes a paste first
  * learns whether the clipboard holds text, for its Paste as plain text, briefly; a newer right-click takes over from
  * one still waiting, and none opens once its tab was locked, closed or left view, or its frame was replaced or
@@ -44,15 +46,18 @@ export function pageMenuPoint(view: Rectangle, params: Pick<ContextMenuParams, '
  */
 export function attachPageContextMenuEvents(browser: Browser, tab: BrowserTab, webContents: WebContents): void {
   let latestRequest = 0
+  // The lock reads unlocked as soon as an unlock is asked for, while an agent's right-click or Shift+F10 on the page,
+  // which needs it locked, may still be under way and opens the page's own menu; Hronaut's opens once it applies.
+  const locked = (): boolean => browser.isHumanInteractionLocked(tab) || inputLockChanging(browser, tab)
   webContents.on('context-menu', (event, params) => {
     event.preventDefault()
     const request = ++latestRequest
-    if (browser.isHumanInteractionLocked(tab)) return
+    if (locked()) return
     // Electron reads the frame again on each read, and gives none once it is gone, as after a navigation to another
     // site or an iframe's removal; a navigation that keeps it keeps the menu, as in Chrome.
     const frame = params.frame
     const show = (holdsText?: boolean): void => {
-      if (request !== latestRequest || webContents.isDestroyed() || findTab(browser, tab.id) !== tab || browser.isHumanInteractionLocked(tab)) return
+      if (request !== latestRequest || webContents.isDestroyed() || findTab(browser, tab.id) !== tab || locked()) return
       // An agent's tool or a tray click can bring another tab into view, or the other pane's page fill the window, and
       // trusted chrome, such as an agent's approval, can cover the page, meanwhile; no menu opens over trusted chrome.
       const fullscreenTab = shownPageFullscreenTab(browser)

@@ -234,7 +234,6 @@ export const esESAppErrors: AppErrorMessages = {
     devTools: 'Cierra las herramientas de desarrollo de esta pestaña antes de cambiar el estado de su página.'
   },
   inputLock: {
-    pageBusy: 'Una página está ocupada. Los bloqueos de entrada no cambiaron. Espera a que termine su operación y vuelve a intentarlo.',
     observer: 'La entrada de la página sigue bloqueada en un espacio de trabajo de observador público de solo lectura.',
     tabClosed: 'La pestaña se cerró antes de que cambiara su bloqueo de entrada.',
     tabNotRestored: 'No se pudo cambiar ni restaurar el bloqueo de entrada de esta pestaña.',

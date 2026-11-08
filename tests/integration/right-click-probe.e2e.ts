@@ -106,12 +106,20 @@ for (const phase of ['move', 'press'] as const) for (const change of ['cancel', 
     }
     const abort = new AbortController()
     let replacement: Client | undefined
+    let unlocking: Promise<unknown> | undefined
     const pending = client.callTool({ name: 'browser_click', arguments: { tabId, selector: '#target', native: true, button: 'right' } }, undefined, { signal: abort.signal }).catch(() => undefined)
     try {
       await expect.poll(() => electronApp.evaluate(() => (globalThis as Scope).__rightGate!.held)).toBe(true)
+      const tabLocked = async () => appWindow.evaluate(async id => (
+        await (window as unknown as { hronaut: HronautApi }).hronaut.getState()).tabs.find(tab => tab.id === id)!.humanInteractionLocked, tabId)
       if (change === 'unlock') {
-        await expect(appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.setTabHumanInteractionLocked(id, false), tabId)).rejects.toThrow('A page is busy')
-        expect(await appWindow.evaluate(async id => (await (window as unknown as { hronaut: HronautApi }).hronaut.getState()).tabs.find(tab => tab.id === id)!.humanInteractionLocked, tabId)).toBe(true)
+        // The unlock shows at once and waits for the held click to free the page, instead of failing as busy.
+        let unlockSettled = false
+        unlocking = appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.setTabHumanInteractionLocked(id, false), tabId)
+          .finally(() => { unlockSettled = true })
+        void unlocking.catch(() => undefined)
+        await expect.poll(tabLocked).toBe(false)
+        expect(unlockSettled).toBe(false)
       }
       if (change === 'pause') await appWindow.evaluate('window.hronautMcp.setPaused(true)')
       let ownership: unknown
@@ -137,6 +145,10 @@ for (const phase of ['move', 'press'] as const) for (const change of ['cancel', 
       console.log(JSON.stringify({ probe: 'held', phase, change, held, ownership }))
       await electronApp.evaluate(() => (globalThis as Scope).__rightGate!.release())
       const result = await pending
+      if (unlocking) {
+        await unlocking
+        expect(await tabLocked()).toBe(false)
+      }
       await expect.poll(() => electronApp.evaluate(() => (globalThis as Scope).__rightGate!.commands.filter(value => value.startsWith('mouseReleased')).length)).toBe(phase === 'press' ? 1 : 0)
       await expect.poll(() => electronApp.evaluate(async ({ webContents }, url) => webContents.getAllWebContents().find(page => page.getURL() === url)!.executeJavaScript('window.authorityEvents.filter(event=>event.type==="mouseup").length'), fixtureUrl)).toBe(phase === 'press' ? 1 : 0)
       if (replacement) await expect.poll(async () => (await replacement!.callTool({ name: 'browser_workspaces', arguments: { action: 'claim-ownership', workspaceId: capabilities.workspace.workspaceId } }) as CallToolResult).isError === true).toBe(false)
@@ -159,6 +171,7 @@ for (const phase of ['move', 'press'] as const) for (const change of ['cancel', 
       await replacement?.close().catch(() => undefined)
       transport.send = send
       await electronApp.evaluate(() => { const scope = globalThis as Scope; scope.__rightGate?.release(); scope.__rightGate?.restore(); delete scope.__rightGate }).catch(() => undefined)
+      await unlocking?.catch(() => undefined)
       if (change === 'pause') await appWindow.evaluate('window.hronautMcp.setPaused(false)').catch(() => undefined)
     }
   })
