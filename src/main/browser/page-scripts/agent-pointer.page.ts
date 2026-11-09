@@ -135,7 +135,7 @@ export function agentPointerInPage(
     cursor.append(pointer, tag)
     root.append(cursor)
     const start = effect === 'drag-end' && origin ? origin : point
-    cursor.style.transform = 'translate3d(' + start.x + 'px,' + start.y + 'px,0)'
+    cursor.style.transform = 'translate3d(' + start.x + 'px, ' + start.y + 'px, 0px)'
     document.documentElement.append(host)
     state = { host, root, cursor, pointer, tag, x: start.x, y: start.y, arriveAt: 0, pressed: false, timers: [] }
     world.__hronautAgentCursor = state
@@ -200,13 +200,13 @@ export function agentPointerInPage(
     const duration = reduced || distance < 1 ? 0 : Math.round(Math.min(900, Math.max(600, 600 + distance * 0.25)))
     if (fresh && duration) cursor.getBoundingClientRect()
     cursor.style.transition = duration ? 'transform ' + duration + 'ms cubic-bezier(.16,1,.3,1)' : 'none'
-    cursor.style.transform = 'translate3d(' + point.x + 'px,' + point.y + 'px,0)'
+    cursor.style.transform = 'translate3d(' + point.x + 'px, ' + point.y + 'px, 0px)'
     cursorState.x = point.x
     cursorState.y = point.y
     cursorState.arriveAt = now() + duration
     const pressed = effect === 'drag-start' || effect === 'drag-end'
     cursorState.pressed = effect === 'drag-start'
-    pointer.style.transform = pressed ? 'scale(.84)' : 'scale(1)'
+    pointer.style.transform = pressed ? 'scale(0.84)' : 'scale(1)'
     // A drag lets go once it reaches its end.
     if (effect === 'drag-end') later(() => { pointer.style.transform = 'scale(1)' }, duration)
     later(() => { pin(host, { opacity: '0' }) }, duration + idleMs)
@@ -218,7 +218,7 @@ export function agentPointerInPage(
   // The end of a drag starts from the drag's start, so it waits for the cursor to get there.
   const wait = effect === 'drag-end' && cursorState.pressed ? Math.max(0, Math.ceil(cursorState.arriveAt - now())) : 0
   if (wait) {
-    pointer.style.transform = 'scale(.84)'
+    pointer.style.transform = 'scale(0.84)'
     later(glide, wait)
   } else {
     glide()
