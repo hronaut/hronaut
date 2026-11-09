@@ -24,13 +24,13 @@ updates:
           - "7.x"
 
   # Without an allow list, an entry that joins a multi-ecosystem group opens a pull request of its own for every other
-  # dependency it finds.
+  # dependency it finds. Dependabot names an image without its registry: mcr.microsoft.com/playwright is "playwright".
   - package-ecosystem: "docker"
     directory: "/"
     allow:
-      - dependency-name: "mcr.microsoft.com/playwright"
+      - dependency-name: "playwright"
     patterns:
-      - "mcr.microsoft.com/playwright"
+      - "playwright"
     multi-ecosystem-group: "dependencies"
 
   - package-ecosystem: "github-actions"
