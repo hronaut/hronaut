@@ -145,7 +145,7 @@
     "react-fixture": "npm:react@19.2.4",
     "scheduler-fixture": "npm:scheduler@0.27.0",
     "storybook": "^10.6.5",
-    "stylelint": "^17.16.0",
+    "stylelint": "^18.0.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.72.1",
