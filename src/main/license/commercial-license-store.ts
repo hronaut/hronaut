@@ -30,6 +30,12 @@ function validDate(value: unknown): value is string {
 
 export const TRIAL_DURATION_MS = 10 * 24 * 60 * 60 * 1000
 export const LICENSE_OFFLINE_GRACE_MS = 7 * 24 * 60 * 60 * 1000
+/**
+ * How far ahead of the clock a successful check may be stamped and still count. A computer whose hardware clock keeps
+ * local time starts up to 14 hours ahead, and the check that runs at sign-in can finish before the network sets the
+ * clock back.
+ */
+const LICENSE_CLOCK_CORRECTION_MS = 24 * 60 * 60 * 1000
 
 function licenseGrantIsActive(status: string | undefined, expiresAt: string | null | undefined, now: number): boolean {
   if (status !== 'active') return false
@@ -166,7 +172,7 @@ export class CommercialLicenseStore {
     const now = Math.max(Date.now(), Date.parse(this.value.lastSeenAt ?? '') || 0)
     const validatedAt = Date.parse(this.value.lastValidatedAt ?? '')
     const active = hasActivation && licenseGrantIsActive(this.value.status, this.value.expiresAt, now)
-      && Number.isFinite(validatedAt) && now >= validatedAt && now - validatedAt < LICENSE_OFFLINE_GRACE_MS
+      && Number.isFinite(validatedAt) && validatedAt - now < LICENSE_CLOCK_CORRECTION_MS && now - validatedAt < LICENSE_OFFLINE_GRACE_MS
     const startedAt = Date.parse(this.value.trialStartedAt ?? '')
     const trialExpiresAt = Number.isFinite(startedAt) ? new Date(startedAt + TRIAL_DURATION_MS).toISOString() : undefined
     const trialActive = !this.value.trialInvalid && Number.isFinite(startedAt)
