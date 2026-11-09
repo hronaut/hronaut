@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- In the Repro recorder, a click on Clear or another button just after Stop is no longer lost: the panel no longer disables its buttons while it refreshes the recording shown.
+
 ## [3.14.26] - 2026-11-09
 
 ### Fixed
