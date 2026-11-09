@@ -105,7 +105,7 @@
     "electron-updater": "^6.8.11",
     "express": "^5.2.1",
     "express-rate-limit": "^8.7.2",
-    "mediabunny": "1.65.0",
+    "mediabunny": "1.65.2",
     "micro-key-producer": "^0.10.2",
     "pinia": "^4.0.3",
     "tronweb": "^6.5.1",
