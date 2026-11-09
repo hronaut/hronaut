@@ -1,61 +1,37 @@
 version: 2
 
-# Weekly updates arrive in as few pull requests as possible: one for npm minor and patch updates, one for npm major
-# updates, one for Playwright with its Docker image, and one for GitHub Actions. Each group lists everything it may
-# touch, since an entry that joins a multi-ecosystem group otherwise opens a pull request for every other package.
+# One weekly pull request carries every npm update together with the Playwright Docker image, which must stay on the
+# locked Playwright version (tests/docker-playwright-version.test.ts); GitHub Actions updates get one of their own.
 multi-ecosystem-groups:
-  playwright:
+  dependencies:
     open-pull-requests-limit: 10
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "06:15"
-      timezone: "Europe/Kyiv"
-
-updates:
-  - package-ecosystem: "npm"
-    directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
       time: "06:00"
       timezone: "Europe/Kyiv"
-    open-pull-requests-limit: 10
+
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    patterns:
+      - "*"
+    multi-ecosystem-group: "dependencies"
     ignore:
-      - dependency-name: "@playwright/test"
       # typescript-eslint 8 supports TypeScript below 6.1. Remove when it supports TypeScript 7.
       - dependency-name: "typescript"
         versions:
           - "7.x"
-    groups:
-      npm-minor-patch:
-        patterns:
-          - "*"
-        update-types:
-          - "minor"
-          - "patch"
-      npm-major:
-        patterns:
-          - "*"
-        update-types:
-          - "major"
 
-  # The tests' Docker image must match the locked Playwright version (tests/docker-playwright-version.test.ts).
-  - package-ecosystem: "npm"
-    directory: "/"
-    allow:
-      - dependency-name: "@playwright/test"
-    patterns:
-      - "@playwright/test"
-    multi-ecosystem-group: "playwright"
-
+  # Without an allow list, an entry that joins a multi-ecosystem group opens a pull request of its own for every other
+  # dependency it finds.
   - package-ecosystem: "docker"
     directory: "/"
     allow:
       - dependency-name: "mcr.microsoft.com/playwright"
     patterns:
       - "mcr.microsoft.com/playwright"
-    multi-ecosystem-group: "playwright"
+    multi-ecosystem-group: "dependencies"
 
   - package-ecosystem: "github-actions"
     directory: "/"
