@@ -280,6 +280,38 @@ describe('paid automation access', () => {
     await expect(store.authorizeAutomation()).rejects.toThrow()
   })
 
+  it('keeps a license checked while the clock ran ahead at sign-in once the network sets the clock back', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    const signIn = Date.parse('2026-11-09T07:00:00Z')
+    const grant = { valid: true, status: 'active', productId: 'prod_hronaut', instanceId: 'inst_paid' }
+    vi.setSystemTime(signIn - 24 * 60 * 60 * 1000)
+    const { path, store } = await createStore()
+    await store.saveActivation('ABCD-EFGH-IJKL-MNOP', grant)
+    // A hardware clock kept in local time starts the computer an hour ahead; the background check runs before the
+    // network corrects it.
+    vi.setSystemTime(signIn + 60 * 60 * 1000)
+    await store.saveValidation(grant)
+    vi.setSystemTime(signIn + 40_000)
+    expect(store.summary(true)).toMatchObject({ status: 'active', active: true, accessAllowed: true, maskedKey: '••••-MNOP' })
+    await expect(store.authorizeAutomation()).resolves.toBeUndefined()
+    const restarted = new CommercialLicenseStore(path, encryption)
+    await restarted.load()
+    expect(restarted.summary(true)).toMatchObject({ status: 'active', active: true, accessAllowed: true })
+  })
+
+  it('does not count a check stamped more than a day ahead of the clock', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    const start = Date.parse('2026-09-09T12:00:00Z')
+    vi.setSystemTime(start)
+    const { store } = await createStore()
+    await store.saveActivation('ABCD-EFGH-IJKL-MNOP', { valid: true, status: 'active', productId: 'prod_hronaut', instanceId: 'inst_paid' })
+    vi.setSystemTime(start - 24 * 60 * 60 * 1000 + 1)
+    expect(store.summary(true).active).toBe(true)
+    vi.setSystemTime(start - 24 * 60 * 60 * 1000)
+    expect(store.summary(true)).toMatchObject({ status: 'expired', active: false, accessAllowed: false })
+    await expect(store.authorizeAutomation()).rejects.toThrow('active subscription')
+  })
+
 })
 
 
