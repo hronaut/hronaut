@@ -1353,7 +1353,7 @@ The release workflow creates one draft release, builds Linux, macOS, and Windows
 
 Current releases are unsigned community builds: the binaries are not platform code-signed and macOS packages are not Apple-notarized. macOS Gatekeeper and Windows SmartScreen may therefore warn before first launch. Build jobs never receive release-write credentials; the final job publishes the completed set and generates GitHub artifact attestations. Verify a downloaded asset with `gh attestation verify <asset> -R hronaut/hronaut`, then compare it with `hashes.txt`.
 
-Dependabot checks npm packages, the Playwright Docker image and GitHub Actions weekly, in one pull request each for npm minor and patch updates, npm major updates, Playwright with its Docker image, and GitHub Actions. The Cloudflare Pages storefront deploys independently from the desktop release workflow in `hronaut-page`.
+Dependabot checks npm packages, the Playwright Docker image and GitHub Actions weekly: every npm update and the Playwright Docker image arrive in one pull request, and GitHub Actions updates in another. The Cloudflare Pages storefront deploys independently from the desktop release workflow in `hronaut-page`.
 
 
 ## Record product walkthroughs

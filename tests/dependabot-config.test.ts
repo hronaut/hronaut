@@ -44,8 +44,8 @@ describe('Dependabot configuration', () => {
 
   it('checks every dependency ecosystem weekly with a ten-PR queue', () => {
     expect(config.version).toBe(2)
+    // One entry per ecosystem, so the Dependabot tab lists package.json once.
     expect(config.updates.map((update) => update['package-ecosystem'])).toEqual([
-      'npm',
       'npm',
       'docker',
       'github-actions'
@@ -68,54 +68,40 @@ describe('Dependabot configuration', () => {
       })
     }
 
-    expect(config['multi-ecosystem-groups'].playwright).toEqual({
-      'open-pull-requests-limit': 10,
-      schedule: {
-        interval: 'weekly',
-        day: 'monday',
-        time: '06:15',
-        timezone: 'Europe/Kyiv'
+    expect(config['multi-ecosystem-groups']).toEqual({
+      dependencies: {
+        'open-pull-requests-limit': 10,
+        schedule: {
+          interval: 'weekly',
+          day: 'monday',
+          time: '06:00',
+          timezone: 'Europe/Kyiv'
+        }
       }
     })
   })
 
-  it('groups updates into one pull request per kind and keeps coupled Playwright versions together', () => {
-    const npm = config.updates[0]
-    // One group for every minor and patch update, so two pull requests never fight over package-lock.json.
-    expect(npm?.groups).toEqual({
-      'npm-minor-patch': {
-        patterns: ['*'],
-        'update-types': ['minor', 'patch']
-      },
-      'npm-major': {
-        patterns: ['*'],
-        'update-types': ['major']
-      }
-    })
-    expect(npm?.ignore).toEqual([
-      { 'dependency-name': '@playwright/test' },
-      { 'dependency-name': 'typescript', versions: ['7.x'] }
-    ])
-
-    // Without an allow list, an entry that joins the group opens a pull request of its own for every other package.
-    expect(config.updates.slice(1, 3)).toEqual([
+  it('updates every npm package with the Playwright Docker image in one pull request', () => {
+    // Playwright and its Docker image move together, since tests/docker-playwright-version.test.ts keeps them equal.
+    // Without an allow list, the Docker entry would open a pull request of its own for every other image it finds.
+    expect(config.updates.slice(0, 2)).toEqual([
       {
         'package-ecosystem': 'npm',
         directory: '/',
-        allow: [{ 'dependency-name': '@playwright/test' }],
-        patterns: ['@playwright/test'],
-        'multi-ecosystem-group': 'playwright'
+        patterns: ['*'],
+        'multi-ecosystem-group': 'dependencies',
+        ignore: [{ 'dependency-name': 'typescript', versions: ['7.x'] }]
       },
       {
         'package-ecosystem': 'docker',
         directory: '/',
         allow: [{ 'dependency-name': 'mcr.microsoft.com/playwright' }],
         patterns: ['mcr.microsoft.com/playwright'],
-        'multi-ecosystem-group': 'playwright'
+        'multi-ecosystem-group': 'dependencies'
       }
     ])
 
-    expect(config.updates[3]?.groups).toEqual({
+    expect(config.updates[2]?.groups).toEqual({
       actions: {
         patterns: ['*']
       }
