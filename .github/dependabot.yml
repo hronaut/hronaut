@@ -1,5 +1,8 @@
 version: 2
 
+# Weekly updates arrive in as few pull requests as possible: one for npm minor and patch updates, one for npm major
+# updates, one for Playwright with its Docker image, and one for GitHub Actions. Each group lists everything it may
+# touch, since an entry that joins a multi-ecosystem group otherwise opens a pull request for every other package.
 multi-ecosystem-groups:
   playwright:
     open-pull-requests-limit: 10
@@ -25,29 +28,31 @@ updates:
         versions:
           - "7.x"
     groups:
-      production-minor-patch:
-        dependency-type: "production"
+      npm-minor-patch:
         patterns:
           - "*"
         update-types:
           - "minor"
           - "patch"
-      development-minor-patch:
-        dependency-type: "development"
+      npm-major:
         patterns:
           - "*"
         update-types:
-          - "minor"
-          - "patch"
+          - "major"
 
+  # The tests' Docker image must match the locked Playwright version (tests/docker-playwright-version.test.ts).
   - package-ecosystem: "npm"
     directory: "/"
+    allow:
+      - dependency-name: "@playwright/test"
     patterns:
       - "@playwright/test"
     multi-ecosystem-group: "playwright"
 
   - package-ecosystem: "docker"
     directory: "/"
+    allow:
+      - dependency-name: "mcr.microsoft.com/playwright"
     patterns:
       - "mcr.microsoft.com/playwright"
     multi-ecosystem-group: "playwright"
@@ -61,9 +66,6 @@ updates:
       timezone: "Europe/Kyiv"
     open-pull-requests-limit: 10
     groups:
-      actions-minor-patch:
+      actions:
         patterns:
           - "*"
-        update-types:
-          - "minor"
-          - "patch"
