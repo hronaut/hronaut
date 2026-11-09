@@ -95,8 +95,8 @@ describe('Dependabot configuration', () => {
       {
         'package-ecosystem': 'docker',
         directory: '/',
-        allow: [{ 'dependency-name': 'mcr.microsoft.com/playwright' }],
-        patterns: ['mcr.microsoft.com/playwright'],
+        allow: [{ 'dependency-name': 'playwright' }],
+        patterns: ['playwright'],
         'multi-ecosystem-group': 'dependencies'
       }
     ])
@@ -106,5 +106,28 @@ describe('Dependabot configuration', () => {
         patterns: ['*']
       }
     })
+  })
+
+  it('names each Dockerfile.test image the way Dependabot reads it', () => {
+    // Dependabot names an image without its registry, so FROM mcr.microsoft.com/playwright:v1.65.0-noble is "playwright".
+    // An allow list or pattern that keeps the registry matches nothing, and the image is never updated.
+    const dockerfile = fs.readFileSync(path.join(process.cwd(), 'Dockerfile.test'), 'utf8')
+    const images = new Set(
+      [...dockerfile.matchAll(/^FROM\s+(\S+)/gm)]
+        .map((match) => match[1] ?? '')
+        .filter((reference) => reference.includes(':'))
+        .map((reference) => {
+          const repository = reference.slice(0, reference.lastIndexOf(':'))
+          const [registry = '', ...image] = repository.split('/')
+          return image.length > 0 && registry.includes('.') ? image.join('/') : repository
+        })
+    )
+    expect([...images]).toEqual(['playwright'])
+
+    const docker = config.updates.find((update) => update['package-ecosystem'] === 'docker')
+    for (const image of images) {
+      expect(docker?.allow).toContainEqual({ 'dependency-name': image })
+      expect(docker?.patterns).toContain(image)
+    }
   })
 })
