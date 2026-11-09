@@ -135,7 +135,7 @@ export function agentPointerInPage(
     cursor.append(pointer, tag)
     root.append(cursor)
     const start = effect === 'drag-end' && origin ? origin : point
-    cursor.style.transform = 'translate3d(' + start.x + 'px,' + start.y + 'px,0)'
+    cursor.style.transform = 'translate3d(' + start.x + 'px, ' + start.y + 'px, 0px)'
     document.documentElement.append(host)
     state = { host, root, cursor, pointer, tag, x: start.x, y: start.y, arriveAt: 0, pressed: false, timers: [] }
     world.__hronautAgentCursor = state
@@ -200,7 +200,7 @@ export function agentPointerInPage(
     const duration = reduced || distance < 1 ? 0 : Math.round(Math.min(900, Math.max(600, 600 + distance * 0.25)))
     if (fresh && duration) cursor.getBoundingClientRect()
     cursor.style.transition = duration ? 'transform ' + duration + 'ms cubic-bezier(.16,1,.3,1)' : 'none'
-    cursor.style.transform = 'translate3d(' + point.x + 'px,' + point.y + 'px,0)'
+    cursor.style.transform = 'translate3d(' + point.x + 'px, ' + point.y + 'px, 0px)'
     cursorState.x = point.x
     cursorState.y = point.y
     cursorState.arriveAt = now() + duration
