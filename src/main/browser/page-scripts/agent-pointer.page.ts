@@ -206,7 +206,7 @@ export function agentPointerInPage(
     cursorState.arriveAt = now() + duration
     const pressed = effect === 'drag-start' || effect === 'drag-end'
     cursorState.pressed = effect === 'drag-start'
-    pointer.style.transform = pressed ? 'scale(.84)' : 'scale(1)'
+    pointer.style.transform = pressed ? 'scale(0.84)' : 'scale(1)'
     // A drag lets go once it reaches its end.
     if (effect === 'drag-end') later(() => { pointer.style.transform = 'scale(1)' }, duration)
     later(() => { pin(host, { opacity: '0' }) }, duration + idleMs)
@@ -218,7 +218,7 @@ export function agentPointerInPage(
   // The end of a drag starts from the drag's start, so it waits for the cursor to get there.
   const wait = effect === 'drag-end' && cursorState.pressed ? Math.max(0, Math.ceil(cursorState.arriveAt - now())) : 0
   if (wait) {
-    pointer.style.transform = 'scale(.84)'
+    pointer.style.transform = 'scale(0.84)'
     later(glide, wait)
   } else {
     glide()
