@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [3.14.26] - 2026-11-09
+
 ### Fixed
 
 - An activated license no longer looks lost after Hronaut starts at sign-in on a computer whose clock starts ahead, such as one that keeps local time in its hardware clock. The license check that ran before the network set the clock back made Settings ask for the key again and stopped agents until the next hourly check.
