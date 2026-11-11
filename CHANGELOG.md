@@ -4,9 +4,15 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [3.14.27] - 2026-11-11
+
 ### Security
 
 - Hronaut now runs on Electron 45.3.0 with Chromium 156.0.8078.96, which fixes CVE-2026-125350, a use-after-free in XML that Google says is exploited in the wild, along with the other 10 security fixes Chrome 156.0.8078.96 shipped on November 9, such as CVE-2026-125345 (WebGL) and CVE-2026-125347 (FileSystem).
+
+### Changed
+
+- Updated the shipped libraries Vue 3.5.45, vue-i18n 11.4.18, viem 2.57.17, Mediabunny 1.65.2 and express-rate-limit 8.7.3.
 
 ### Fixed
 
