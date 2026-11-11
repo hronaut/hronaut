@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Security
+
+- Hronaut now runs on Electron 45.3.0 with Chromium 156.0.8078.96, which fixes CVE-2026-125350, a use-after-free in XML that Google says is exploited in the wild, along with the other 10 security fixes Chrome 156.0.8078.96 shipped on November 9, such as CVE-2026-125345 (WebGL) and CVE-2026-125347 (FileSystem).
+
 ### Fixed
 
 - In the Repro recorder, a click on Clear or another button just after Stop is no longer lost: the panel no longer disables its buttons while it refreshes the recording shown.
