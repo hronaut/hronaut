@@ -59,6 +59,11 @@ export interface AppSettings {
    * picked in their Save dialog. Off by default: Electron cannot tell such a file from one a rename would replace.
    */
   allowWebsiteFileSaving: boolean
+  /**
+   * The permissions the person blocked, or muted for Sound, for every website in Settings → Site permissions, in the
+   * order Settings lists them. A decision saved for a website still wins; the others keep their built-in default.
+   */
+  sitePermissionsBlockedByDefault: string[]
   /** How website addresses are looked up: secure DNS when the DNS service offers it, through one provider only, or plain. */
   secureDnsMode: SecureDnsMode
   /** The chosen provider's DNS over HTTPS address, kept while another mode is on; empty until one is chosen. */

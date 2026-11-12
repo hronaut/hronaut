@@ -28,6 +28,8 @@ import {
 } from '../../shared/types.js'
 import { setFollowAgentActivity } from '../browser/agent-follow/agent-follow.js'
 import { setMemorySaverSettings } from '../browser/tab-sleep/memory-saver.js'
+import { applySiteMutingToTabs } from '../browser/site-muting/site-muting.js'
+import { isSitePermissionsBlockedByDefault, readSitePermissionsBlockedByDefault } from '../../shared/site-permission-defaults.js'
 import { SETTINGS_IPC } from '../../shared/ipc/settings.js'
 
 type SettingsIpcCapabilityProfiles = Pick<McpCapabilityProfileStore, 'list' | 'create' | 'derive' | 'update' | 'rotate' | 'revoke'>
@@ -364,6 +366,16 @@ export function registerSettingsIpc(ipcMain: Pick<TypedIpcMain, 'handle'>, host:
     host.assertTrustedSender(event)
     if (typeof enabled !== 'boolean') throw new TypeError('Website file saving must be a boolean')
     await host.updateSettings({ allowWebsiteFileSaving: enabled })
+    host.publishSettings()
+    return { ...host.settings() }
+  })
+  // Requests and checks read the defaults when they come; open tabs follow a change of the Sound default at once.
+  ipcMain.handle(SETTINGS_IPC.setSitePermissionsBlockedByDefault, async (event, permissions: unknown) => {
+    host.assertTrustedSender(event)
+    if (!isSitePermissionsBlockedByDefault(permissions)) throw new TypeError('Invalid default site permissions')
+    await host.updateSettings({ sitePermissionsBlockedByDefault: readSitePermissionsBlockedByDefault(permissions) })
+    const browser = host.tabs()
+    if (browser) applySiteMutingToTabs(browser)
     host.publishSettings()
     return { ...host.settings() }
   })

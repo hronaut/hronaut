@@ -279,6 +279,7 @@ describe('extracted shell components', () => {
       translate: (key, parameters) => i18n.global.t(key, parameters ?? {}),
       workspaces: () => [{ id: WORKSPACE, name: 'Client A', archived: false }],
       fileSaving: { enabled: () => false, set: async () => undefined },
+      defaults: { blocked: () => [], set: async () => undefined },
       onError: vi.fn()
     })
     sitePermissionsController.replace([saved])

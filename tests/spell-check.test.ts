@@ -142,7 +142,7 @@ describe('spell check', () => {
       state: { persistentSession: null, sitePermissionStore: null },
       sendToShellWindows: () => undefined,
       partition: 'persist:test',
-      websitesMaySaveFiles: () => false,
+      settings: () => ({ allowWebsiteFileSaving: false, sitePermissionsBlockedByDefault: [] }),
       trackSpellCheck: (session) => runtime.spellCheck.track(session)
     })
     const fakeSession = (name: string) => ({

@@ -3,6 +3,7 @@ import { sitePermissionKey, sitePermissionScopeOf } from '../../shared/site-perm
 import type { SitePermissionDecision, SitePermissionEntry, SitePermissionScope } from '../../shared/types.js'
 import { writeTextFileAtomically } from '../atomic-file.js'
 import { isUuidV7 } from '../uuid-v7.js'
+import { SITE_PERMISSIONS_ALLOWED_WITHOUT_ASKING, sitePermissionsWithDefault } from '../../shared/site-permission-defaults.js'
 
 /**
  * The saved decisions, each with the workspace it was made in and, for a website embedded in a page of another website,
@@ -32,11 +33,9 @@ export const TOP_LEVEL_ONLY_PERMISSIONS: ReadonlySet<string> = new Set(['notific
 /**
  * What Chrome gives every website without asking, and Hronaut too: writing text or images to the clipboard, protected
  * content (DRM), keeping the screen on, persistent storage, an embedded website's own cookies, and motion sensors. A
- * Block the person saved for one of them still holds.
+ * Block the person saved for one of them, or for every website, still holds.
  */
-export const ALLOWED_WITHOUT_ASKING_PERMISSIONS: ReadonlySet<string> = new Set([
-  'clipboard-sanitized-write', 'mediaKeySystem', 'screen-wake-lock', 'persistent-storage', 'storage-access', 'sensors'
-])
+export const ALLOWED_WITHOUT_ASKING_PERMISSIONS: ReadonlySet<string> = new Set(SITE_PERMISSIONS_ALLOWED_WITHOUT_ASKING)
 
 /**
  * The permission a camera or microphone request is remembered under: each device has its own decision, as in Chrome,
@@ -135,7 +134,11 @@ export class SitePermissionStore {
   private mutationQueue: Promise<void> = Promise.resolve()
   private saveQueue: Promise<void> = Promise.resolve()
 
-  constructor(private readonly path: string) {}
+  /**
+   * `blockedByDefault` gives the permissions the person blocked for every website in Settings, read whenever a
+   * decision is looked up, so a change applies to the next request.
+   */
+  constructor(private readonly path: string, private readonly blockedByDefault: () => readonly string[] = () => []) {}
 
   async load(): Promise<SitePermissionEntry[]> {
     this.entries.clear()
@@ -186,6 +189,20 @@ export class SitePermissionStore {
   decisionFor(origin: string, permission: string, workspaceId: string, embeddedIn?: string): SitePermissionDecision | undefined {
     if (!isUuidV7(workspaceId)) return undefined
     return this.get(origin, permission, embeddedIn === undefined ? { workspaceId } : { workspaceId, embeddedIn })
+  }
+
+  /** Whether the person blocked `permission`, or muted Sound, for every website that has no decision of its own. */
+  isBlockedByDefault(permission: string): boolean {
+    const blocked = this.blockedByDefault()
+    return sitePermissionsWithDefault(permission).some((listed) => blocked.includes(listed))
+  }
+
+  /**
+   * As in Chrome, the decision a website's request gets: its own, as `decisionFor` finds it, or else Block when the
+   * person blocked the permission for every website, or else none, so the built-in default applies.
+   */
+  effectiveDecisionFor(origin: string, permission: string, workspaceId: string, embeddedIn?: string): SitePermissionDecision | undefined {
+    return this.decisionFor(origin, permission, workspaceId, embeddedIn) ?? (this.isBlockedByDefault(permission) ? 'deny' : undefined)
   }
 
   /** Saves a decision for a permission Hronaut remembers. */

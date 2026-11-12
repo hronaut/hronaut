@@ -193,6 +193,36 @@ describe('SitePermissionStore', () => {
     expect(store.list()).toEqual([])
   })
 
+  it('falls back to a Block the person chose for every website, after the website\'s own decision', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'hronaut-permissions-test-'))
+    temporaryDirectories.push(directory)
+    let blocked: string[] = ['geolocation', 'local-network']
+    const store = new SitePermissionStore(join(directory, 'site-permissions.json'), () => blocked)
+    await store.load()
+    expect(store.effectiveDecisionFor(widget, 'geolocation', WORK)).toBe('deny')
+    expect(store.effectiveDecisionFor(widget, 'geolocation', WORK, firstSite)).toBe('deny')
+    expect(store.effectiveDecisionFor(widget, 'notifications', WORK)).toBeUndefined()
+    // Chromium's older local network request covered local network devices and apps on this device.
+    expect(store.isBlockedByDefault('local-network-access')).toBe(true)
+    expect(store.isBlockedByDefault('geolocation-approximate')).toBe(true)
+    expect(store.isBlockedByDefault('deprecated-sync-clipboard-read')).toBe(false)
+    blocked = ['loopback-network', 'clipboard-read']
+    expect(store.isBlockedByDefault('local-network-access')).toBe(true)
+    expect(store.isBlockedByDefault('local-network')).toBe(false)
+    expect(store.isBlockedByDefault('deprecated-sync-clipboard-read')).toBe(true)
+    expect(store.isBlockedByDefault('geolocation-approximate')).toBe(false)
+    expect(store.isBlockedByDefault('constructor')).toBe(false)
+    blocked = ['geolocation', 'local-network']
+    await store.set(widget, 'geolocation', 'allow', { workspaceId: WORK })
+    expect(store.effectiveDecisionFor(widget, 'geolocation', WORK)).toBe('allow')
+    expect(store.effectiveDecisionFor(widget, 'geolocation', CLIENT)).toBe('deny')
+    // The default is read on every lookup and never saved as a decision.
+    blocked = []
+    expect(store.effectiveDecisionFor(widget, 'geolocation', CLIENT)).toBeUndefined()
+    expect(store.list()).toEqual([{ origin: widget, permission: 'geolocation', decision: 'allow', workspaceId: WORK }])
+    expect(new SitePermissionStore(join(directory, 'other.json')).isBlockedByDefault('geolocation')).toBe(false)
+  })
+
   it('keeps the camera and the microphone apart', async () => {
     // Camera and microphone asked on every call and were never saved; as in Chrome, each now has its own decision.
     const { store } = await createStore()

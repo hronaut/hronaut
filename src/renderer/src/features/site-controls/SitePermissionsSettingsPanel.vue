@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import UiIconButton from "../../ui/UiIconButton.vue"
-import { UiCheckbox } from '../../ui/index.js'
+import { UiButton, UiCheckbox, UiTabs } from '../../ui/index.js'
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ignoreHeldEnter } from '../../held-enter.js'
@@ -11,6 +11,7 @@ import IconSearch from '~icons/material-symbols/search-rounded'
 import IconWarning from '~icons/material-symbols/warning-rounded'
 import { formatNumber } from '../../../../shared/format'
 import { SITE_SOUND_PERMISSION } from '../../../../shared/site-permission-names'
+import { SITE_PERMISSIONS_ALLOWED_WITHOUT_ASKING, SITE_PERMISSIONS_ASKED_FIRST } from '../../../../shared/site-permission-defaults'
 import type { SitePermissionDecision, SitePermissionEntry, SupportedLocale } from '../../../../shared/types'
 import type { SitePermissionsController } from './useSitePermissionsController'
 
@@ -31,10 +32,35 @@ const {
   remove,
   fileSavingEnabled,
   fileSavingPending,
-  setFileSaving
+  setFileSaving,
+  blockedByDefault,
+  defaultsPending,
+  isBlockedByDefault,
+  setBlockedByDefault,
+  resetDefaults
 } = props.controller
 
 const panelRoot = ref<HTMLElement | null>(null)
+// The saved decisions come first, as Settings opens here from a website's Site controls; the defaults have their own tab.
+const activeTab = ref<'websites' | 'defaults'>('websites')
+const settingsTabs = computed(() => [
+  { id: 'websites', label: t('settings.permissions.websitesTab') },
+  { id: 'defaults', label: t('settings.permissions.defaultsTab') }
+])
+/**
+ * What every website gets for each permission, in two groups as Chrome's Site settings shows them: the permissions
+ * websites ask for first, which the person can block, and those allowed without asking, which the person can block, or
+ * for Sound mute.
+ */
+const defaultGroups = computed(() => [
+  { id: 'asked', heading: t('settings.permissions.askedFirst'), permissions: SITE_PERMISSIONS_ASKED_FIRST, builtIn: t('settings.permissions.ask') },
+  {
+    id: 'allowed',
+    heading: t('settings.permissions.allowedWithoutAsking'),
+    permissions: [...SITE_PERMISSIONS_ALLOWED_WITHOUT_ASKING, SITE_SOUND_PERMISSION],
+    builtIn: t('settings.permissions.allow')
+  }
+])
 const search = ref('')
 const filteredGroups = computed(() => {
   const terms = search.value.toLocaleLowerCase(locale.value).trim().split(/\s+/).filter(Boolean)
@@ -102,6 +128,29 @@ async function changeFileSaving(event: Event): Promise<void> {
   if (!(await setFileSaving(input.checked))) input.checked = fileSavingEnabled.value
 }
 
+/**
+ * Saves a permission's default for every website. The selects are disabled while it saves, so Chromium moves the focus
+ * to the document body; it goes back to the select once that is enabled again, unless the human moved on.
+ */
+async function changeDefault(permission: string, event: Event): Promise<void> {
+  const input = event.target as HTMLSelectElement
+  const focused = document.activeElement === input
+  if (!(await setBlockedByDefault(permission, input.value === 'deny'))) input.value = defaultValue(permission)
+  await nextTick()
+  if (!focused || !input.isConnected || input.matches(':disabled') || !document.hasFocus()) return
+  if (document.activeElement !== document.body && document.activeElement !== input) return
+  input.focus()
+}
+
+function defaultValue(permission: string): 'built-in' | 'deny' {
+  return isBlockedByDefault(permission) ? 'deny' : 'built-in'
+}
+
+function resetAllDefaults(): void {
+  if (!blockedByDefault.value.length || defaultsPending.value || clearing.value) return
+  void resetDefaults()
+}
+
 async function changePermission(entry: SitePermissionEntry, event: Event): Promise<void> {
   const input = event.target as HTMLSelectElement
   const panel = panelRoot.value
@@ -120,77 +169,114 @@ async function changePermission(entry: SitePermissionEntry, event: Event): Promi
 
 <template>
   <div ref="panelRoot" class="settings-content permissions-settings">
-    <div class="setting-copy">
-      <h3 tabindex="-1">{{ t('settings.permissions.heading') }}</h3>
-      <p>{{ t('settings.permissions.description') }}</p>
-    </div>
-    <div class="settings-rows">
-      <label class="settings-row" for="setting-website-file-saving">
-        <span>
-          <strong>{{ t('settings.permissions.fileSaving') }}</strong>
-          <small>{{ t('settings.permissions.fileSavingDescription') }}</small>
-        </span>
-        <UiCheckbox bare appearance="switch" id="setting-website-file-saving" :checked="fileSavingEnabled"
-          :disabled="fileSavingPending" aria-describedby="website-file-saving-warning" @change="changeFileSaving" />
-      </label>
-      <div class="settings-info" :class="{ 'security-warning': fileSavingEnabled }">
-        <span class="info-dot" aria-hidden="true">
-          <IconWarning v-if="fileSavingEnabled" />
-          <IconInfo v-else />
-        </span>
-        <p id="website-file-saving-warning">{{ t('settings.permissions.fileSavingWarning') }}</p>
-      </div>
-    </div>
-    <label class="settings-search permission-search">
-      <IconSearch aria-hidden="true" />
-      <input v-model="search" type="search" :aria-label="t('settings.permissions.search')" :placeholder="t('settings.permissions.search')" maxlength="256" autocomplete="off" spellcheck="false" />
-    </label>
-    <p class="permission-search-summary" role="status">{{ t('settings.permissions.searchSummary', { visible: localNumber(visibleCount), total: localNumber(totalCount) }) }}</p>
-    <div v-if="!groups.length" class="site-permissions-empty">
-      <span class="empty-permission-icon" aria-hidden="true"><IconPrivacy /></span>
-      <strong>{{ t('settings.permissions.emptyHeading') }}</strong>
-      <p>{{ t('settings.permissions.emptyDescription') }}</p>
-    </div>
-    <p v-else-if="!filteredGroups.length" class="settings-search-empty">{{ t('settings.permissions.noMatches') }}</p>
-    <div v-else class="permission-sites" :aria-busy="clearing">
-      <section v-for="group in filteredGroups" :key="group.origin" class="permission-site">
-        <h4>{{ group.origin }}</h4>
-        <div
-          v-for="permission in group.permissions"
-          :key="permissionKey(permission)"
-          class="permission-row"
-        >
-          <span class="permission-name">
-            <strong>{{ permissionLabel(permission.permission) }}</strong>
-            <small>{{ permission.permission }} · {{ scopeLabel(permission) }}</small>
-          </span>
-          <select
-            :value="permission.decision"
-            :disabled="clearing || isPending(permission)"
-            :aria-label="controlLabel(permission, 'select')"
-            @change="changePermission(permission, $event)"
-          >
-            <option value="allow">{{ t('settings.permissions.allow') }}</option>
-            <option value="deny">{{ permission.permission === SITE_SOUND_PERMISSION ? t('runtime.permissions.mute') : t('settings.permissions.block') }}</option>
-          </select>
-          <UiIconButton variant="danger"
-            class="permission-remove"
-            type="button"
-            :label="controlLabel(permission, 'forget')"
-            :tooltip="t('settings.permissions.forget')"
-            :aria-disabled="clearing || isPending(permission)"
-            @keydown="ignoreHeldEnter"
-            @click="remove(permission)"
-          >
-            <IconDelete aria-hidden="true" />
-          </UiIconButton>
+    <UiTabs v-model="activeTab" :items="settingsTabs" :label="t('settings.permissions.tabs')" class="permission-settings-tabs">
+      <template #header>
+        <div class="setting-copy">
+          <h3 tabindex="-1">{{ t('settings.permissions.heading') }}</h3>
+          <p>{{ t('settings.permissions.description') }}</p>
         </div>
-      </section>
-    </div>
-    <output v-if="errorMessage" class="site-controls-error" role="alert">{{ errorMessage }}</output>
-    <div class="settings-info">
-      <span class="info-dot" aria-hidden="true"><IconInfo /></span>
-      <p>{{ t('settings.permissions.help') }}</p>
-    </div>
+      </template>
+      <output v-if="errorMessage" class="site-controls-error" role="alert">{{ errorMessage }}</output>
+      <template v-if="activeTab === 'defaults'">
+        <p class="permission-defaults-description">{{ t('settings.permissions.defaultsDescription') }}</p>
+        <section
+          v-for="group in defaultGroups"
+          :key="group.id"
+          class="permission-site permission-defaults"
+          :aria-labelledby="`permission-defaults-${group.id}`"
+        >
+          <h4 :id="`permission-defaults-${group.id}`">{{ group.heading }}</h4>
+          <div v-for="permission in group.permissions" :key="permission" class="permission-default-row">
+            <span class="permission-name"><strong>{{ permissionLabel(permission) }}</strong></span>
+            <select
+              :value="defaultValue(permission)"
+              :disabled="clearing || defaultsPending"
+              :aria-label="t('settings.permissions.defaultAria', { permission: permissionLabel(permission) })"
+              @change="changeDefault(permission, $event)"
+            >
+              <option value="built-in">{{ group.builtIn }}</option>
+              <option value="deny">{{ permission === SITE_SOUND_PERMISSION ? t('runtime.permissions.mute') : t('settings.permissions.block') }}</option>
+            </select>
+          </div>
+        </section>
+        <UiButton
+          variant="ghost"
+          class="permission-defaults-reset"
+          type="button"
+          :aria-disabled="!blockedByDefault.length || clearing || defaultsPending"
+          @keydown="ignoreHeldEnter"
+          @click="resetAllDefaults"
+        >{{ t('settings.permissions.resetDefaults') }}</UiButton>
+        <div class="settings-rows">
+          <label class="settings-row" for="setting-website-file-saving">
+            <span>
+              <strong>{{ t('settings.permissions.fileSaving') }}</strong>
+              <small>{{ t('settings.permissions.fileSavingDescription') }}</small>
+            </span>
+            <UiCheckbox bare appearance="switch" id="setting-website-file-saving" :checked="fileSavingEnabled"
+              :disabled="fileSavingPending" aria-describedby="website-file-saving-warning" @change="changeFileSaving" />
+          </label>
+          <div class="settings-info" :class="{ 'security-warning': fileSavingEnabled }">
+            <span class="info-dot" aria-hidden="true">
+              <IconWarning v-if="fileSavingEnabled" />
+              <IconInfo v-else />
+            </span>
+            <p id="website-file-saving-warning">{{ t('settings.permissions.fileSavingWarning') }}</p>
+          </div>
+        </div>
+      </template>
+      <template v-else>
+        <label class="settings-search permission-search">
+          <IconSearch aria-hidden="true" />
+          <input v-model="search" type="search" :aria-label="t('settings.permissions.search')" :placeholder="t('settings.permissions.search')" maxlength="256" autocomplete="off" spellcheck="false" />
+        </label>
+        <p class="permission-search-summary" role="status">{{ t('settings.permissions.searchSummary', { visible: localNumber(visibleCount), total: localNumber(totalCount) }) }}</p>
+        <div v-if="!groups.length" class="site-permissions-empty">
+          <span class="empty-permission-icon" aria-hidden="true"><IconPrivacy /></span>
+          <strong>{{ t('settings.permissions.emptyHeading') }}</strong>
+          <p>{{ t('settings.permissions.emptyDescription') }}</p>
+        </div>
+        <p v-else-if="!filteredGroups.length" class="settings-search-empty">{{ t('settings.permissions.noMatches') }}</p>
+        <div v-else class="permission-sites" :aria-busy="clearing">
+          <section v-for="group in filteredGroups" :key="group.origin" class="permission-site">
+            <h4>{{ group.origin }}</h4>
+            <div
+              v-for="permission in group.permissions"
+              :key="permissionKey(permission)"
+              class="permission-row"
+            >
+              <span class="permission-name">
+                <strong>{{ permissionLabel(permission.permission) }}</strong>
+                <small>{{ permission.permission }} · {{ scopeLabel(permission) }}</small>
+              </span>
+              <select
+                :value="permission.decision"
+                :disabled="clearing || isPending(permission)"
+                :aria-label="controlLabel(permission, 'select')"
+                @change="changePermission(permission, $event)"
+              >
+                <option value="allow">{{ t('settings.permissions.allow') }}</option>
+                <option value="deny">{{ permission.permission === SITE_SOUND_PERMISSION ? t('runtime.permissions.mute') : t('settings.permissions.block') }}</option>
+              </select>
+              <UiIconButton variant="danger"
+                class="permission-remove"
+                type="button"
+                :label="controlLabel(permission, 'forget')"
+                :tooltip="t('settings.permissions.forget')"
+                :aria-disabled="clearing || isPending(permission)"
+                @keydown="ignoreHeldEnter"
+                @click="remove(permission)"
+              >
+                <IconDelete aria-hidden="true" />
+              </UiIconButton>
+            </div>
+          </section>
+        </div>
+        <div class="settings-info">
+          <span class="info-dot" aria-hidden="true"><IconInfo /></span>
+          <p>{{ t('settings.permissions.help') }}</p>
+        </div>
+      </template>
+    </UiTabs>
   </div>
 </template>

@@ -65,6 +65,9 @@ function createHarness(updateState: Promise<AppUpdateState> = Promise.resolve({
       setChallengeDetectionEnabled: vi.fn(async (challengeDetectionEnabled: boolean) => applySettings({ ...settings.value, challengeDetectionEnabled })),
       setOmitAgentUrlDetail: vi.fn(async (omitAgentUrlDetail: boolean) => applySettings({ ...settings.value, omitAgentUrlDetail })),
       setAllowWebsiteFileSaving: vi.fn(async (allowWebsiteFileSaving: boolean) => applySettings({ ...settings.value, allowWebsiteFileSaving })),
+      setSitePermissionsBlockedByDefault: vi.fn(async (sitePermissionsBlockedByDefault: string[]) => (
+        applySettings({ ...settings.value, sitePermissionsBlockedByDefault })
+      )),
       setMcpToolSet: vi.fn(async (mcpToolSet: AppSettings['mcpToolSet']) => applySettings({ ...settings.value, mcpToolSet })),
       resetMcp: vi.fn(async () => applySettings({
         ...settings.value,

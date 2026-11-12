@@ -332,6 +332,7 @@ const invokes: Array<[api: string, method: string, args: unknown[], channel: str
   ['hronautSettings', 'setChallengeDetectionEnabled', [true], 'settings:set-challenge-detection', [true]],
   ['hronautSettings', 'setOmitAgentUrlDetail', [true], 'settings:set-omit-agent-url-detail', [true]],
   ['hronautSettings', 'setAllowWebsiteFileSaving', [true], 'settings:set-allow-website-file-saving', [true]],
+  ['hronautSettings', 'setSitePermissionsBlockedByDefault', [['camera']], 'settings:set-site-permissions-blocked-by-default', [['camera']]],
   ['hronautSettings', 'setMcpRemoteAccess', [true], 'settings:set-mcp-remote-access', [true]],
   ['hronautSettings', 'setMcpAuthentication', [true], 'settings:set-mcp-authentication', [true]],
   ['hronautSettings', 'setMcpPort', [9334], 'settings:set-mcp-port', [9334]],

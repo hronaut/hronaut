@@ -47,10 +47,10 @@ afterEach(async () => {
 })
 
 /** Tabs and a real site permission store in a folder of its own, seen as the tab manager shows them. */
-async function browser(tabs: Tab[], options: { allTabsMuted?: boolean; store?: boolean } = {}) {
+async function browser(tabs: Tab[], options: { allTabsMuted?: boolean; store?: boolean; blocked?: () => readonly string[] } = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'hronaut-site-muting-'))
   directories.push(directory)
-  const store = new SitePermissionStore(join(directory, 'site-permissions.json'))
+  const store = new SitePermissionStore(join(directory, 'site-permissions.json'), options.blocked)
   await store.load()
   const sitePermissionsChanged = vi.fn()
   const changed = vi.fn()
@@ -210,5 +210,28 @@ describe('Mute Site', () => {
     await store.set('https://video.test', 'sound', 'deny', { workspaceId: WORK })
     expect(applySiteMuting(manager, page)).toBe(false)
     expect(page.muted).toBe(false)
+  })
+})
+
+describe('Sound muted for every website in Settings', () => {
+  it('mutes every website without a decision of its own, and Unmute Site saves an allow decision for one', async () => {
+    let blocked: string[] = ['sound']
+    const video = tab('video', 'https://video.test/watch')
+    const music = tab('music', 'https://music.test/')
+    const { manager, store } = await browser([video, music], { blocked: () => blocked })
+    expect([applySiteMuting(manager, video), applySiteMuting(manager, music)]).toEqual([true, true])
+    expect([video.muted, music.muted]).toEqual([true, true])
+
+    await setSiteMuted(manager, 'music', false)
+    expect(store.list()).toEqual([{ origin: 'https://music.test', permission: 'sound', decision: 'allow', workspaceId: WORK }])
+    expect([video.muted, music.muted, music.webContents.audioMuted]).toEqual([true, false, false])
+    expect(isSiteMuted(manager, music)).toBe(false)
+
+    // Mute Site saves its deny decision as before, and giving Sound back its default leaves only the decisions.
+    await setSiteMuted(manager, 'music', true)
+    expect(isSiteMuted(manager, music)).toBe(true)
+    blocked = []
+    applySiteMutingToTabs(manager)
+    expect([video.muted, music.muted]).toEqual([false, true])
   })
 })

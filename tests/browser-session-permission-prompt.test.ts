@@ -50,7 +50,7 @@ async function request(
     state: { persistentSession: null, sitePermissionStore: null },
     sendToShellWindows: () => undefined,
     partition: 'persist:test',
-    websitesMaySaveFiles: () => false,
+    settings: () => ({ allowWebsiteFileSaving: false, sitePermissionsBlockedByDefault: [] }),
     trackSpellCheck: () => undefined
   })
   browserSession.configureBrowserSession({

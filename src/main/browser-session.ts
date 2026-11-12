@@ -10,7 +10,7 @@ import {
 import { createPermissionDismissals } from './site-data/permission-dismissals.js'
 import type { MessageKey, MessageParameters } from '../shared/i18n.js'
 import { sitePermissionName } from '../shared/site-permission-names.js'
-import type { SitePermissionDecision } from '../shared/types.js'
+import type { AppSettings, SitePermissionDecision } from '../shared/types.js'
 import type { SitePermissionDialogVariant } from '../shared/trusted-dialogs.js'
 import type { TrustedDialogOptions } from './trusted-dialogs/trusted-dialogs.js'
 import type { EventSender } from '../shared/ipc/channel.js'
@@ -47,8 +47,8 @@ interface BrowserSessionHost {
   sendToShellWindows: EventSender
   /** The partition of the profile's persistent browser session. */
   partition: string
-  /** Whether the person turned on letting websites save to any single file they hold; read on every check. */
-  websitesMaySaveFiles(): boolean
+  /** Whether websites may save to any single file they hold, and what the person blocked for every website; read on every use. */
+  settings(): Pick<AppSettings, 'allowWebsiteFileSaving' | 'sitePermissionsBlockedByDefault'>
   /** Has the session check spelling as the spell check setting says, now and after every change. */
   trackSpellCheck(browserSession: Session): void
 }
@@ -189,10 +189,11 @@ function permissionHold(page: PagePermissionRequests, origin: string, permission
  * person allowed for the site, and a permission prompt that asks one request at a time, shows identical requests one
  * prompt and refuses a request whose frame loaded another document meanwhile. A decision belongs to the workspace whose
  * session the page runs in and, for a website embedded in a page of another website, to that page's website, as
- * `SitePermissionStore.decisionFor` looks it up; a session no workspace claimed gets no permission. As in Chrome, full
- * screen is every page's, what Chrome gives every website is allowed without asking unless a Block was saved for it, and
- * the camera and the microphone each have their own decision. File system access and every link to another app always ask again,
- * unless the person denied the same request for the same page document, and a check finds them allowed only as
+ * `SitePermissionStore.effectiveDecisionFor` looks it up, falling back to a Block the person chose for every website; a
+ * session no workspace claimed gets no permission. As in Chrome, full screen is every page's, what Chrome gives every
+ * website is allowed without asking unless blocked, and the camera and the microphone each have their own decision.
+ * File system access and every link to another app always ask again, unless the person denied the same request for
+ * the same page document, and a check finds them allowed only as
  * `freshConsentAllows` says. Screen sharing, storage access for a whole page, and notifications for a website embedded in
  * another's page, are refused without asking. Home never gets a permission.
  * `configurePersistentSession` opens the remembered site permissions and the profile's own session,
@@ -325,7 +326,7 @@ export function createBrowserSession(host: BrowserSessionHost): {
     // its first save replaces the file only when it is done. Any other file can be written only while it is empty, as
     // one that another program saves in place is for a moment, before it holds the person's text again.
     if (!singleFile) return false
-    if (host.websitesMaySaveFiles()) return true
+    if (host.settings().allowWebsiteFileSaving) return true
     const use = uses.get(fileUse)
     if (use === 'saved') return true
     const emptiedAt = emptiedBySaveDialogAt(filePath, Date.now())
@@ -366,7 +367,7 @@ export function createBrowserSession(host: BrowserSessionHost): {
       // Screen capture and storage access for a whole page are never asked for, so they are never allowed.
       if (embeddedIn === null || permission === 'display-capture' || permission === 'top-level-storage-access') return false
       if (FRESH_CONSENT_PERMISSIONS.has(permission)) return freshConsentAllows(browserSession, origin, permission, details)
-      const decisionFor = (name: string) => host.state.sitePermissionStore?.decisionFor(origin, name, workspaceId, embeddedIn)
+      const decisionFor = (name: string) => host.state.sitePermissionStore?.effectiveDecisionFor(origin, name, workspaceId, embeddedIn)
       if (ALLOWED_WITHOUT_ASKING_PERMISSIONS.has(permission)) return decisionFor(permission) !== 'deny'
       // Chromium checks the camera and the microphone one at a time, each against its own decision.
       if (permission === 'media') {
@@ -450,7 +451,7 @@ export function createBrowserSession(host: BrowserSessionHost): {
         return
       }
       if (ALLOWED_WITHOUT_ASKING_PERMISSIONS.has(permission)) {
-        respond(host.state.sitePermissionStore?.decisionFor(origin, permission, workspaceId, embeddedIn) !== 'deny')
+        respond(host.state.sitePermissionStore?.effectiveDecisionFor(origin, permission, workspaceId, embeddedIn) !== 'deny')
         return
       }
       const requiresFreshConsent = FRESH_CONSENT_PERMISSIONS.has(permission)
@@ -463,7 +464,7 @@ export function createBrowserSession(host: BrowserSessionHost): {
       const toAsk = (): boolean | string[] => {
         if (requiresFreshConsent) return [permission]
         const remembers = permission === 'media' ? devices : [permission]
-        const decisions = remembers.map((name) => host.state.sitePermissionStore?.decisionFor(origin, name, workspaceId, embeddedIn))
+        const decisions = remembers.map((name) => host.state.sitePermissionStore?.effectiveDecisionFor(origin, name, workspaceId, embeddedIn))
         if (decisions.includes('deny')) return false
         const open = remembers.filter((_name, index) => decisions[index] === undefined)
         if (open.length === 0) return true
@@ -736,7 +737,8 @@ export function createBrowserSession(host: BrowserSessionHost): {
   }
 
   async function configurePersistentSession(): Promise<void> {
-    host.state.sitePermissionStore = new SitePermissionStore(join(app.getPath('userData'), 'site-permissions.json'))
+    const blockedByDefault = () => host.settings().sitePermissionsBlockedByDefault
+    host.state.sitePermissionStore = new SitePermissionStore(join(app.getPath('userData'), 'site-permissions.json'), blockedByDefault)
     await host.state.sitePermissionStore!.load()
     host.state.persistentSession = session.fromPartition(host.partition, { cache: true })
     configureBrowserSession(host.state.persistentSession!)

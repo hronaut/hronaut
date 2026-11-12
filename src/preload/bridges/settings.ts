@@ -44,6 +44,7 @@ export const settingsApi: HronautSettingsApi = {
   setChallengeDetectionEnabled: (enabled) => invoke(SETTINGS_IPC.setChallengeDetectionEnabled, enabled),
   setOmitAgentUrlDetail: (enabled: boolean) => invoke(SETTINGS_IPC.setOmitAgentUrlDetail, enabled),
   setAllowWebsiteFileSaving: (enabled: boolean) => invoke(SETTINGS_IPC.setAllowWebsiteFileSaving, enabled),
+  setSitePermissionsBlockedByDefault: (permissions: string[]) => invoke(SETTINGS_IPC.setSitePermissionsBlockedByDefault, permissions),
   setMcpRemoteAccess: (enabled: boolean) => invoke(SETTINGS_IPC.setMcpRemoteAccess, enabled),
   setMcpAuthentication: (enabled: boolean) => invoke(SETTINGS_IPC.setMcpAuthentication, enabled),
   setMcpPort: (port: number) => invoke(SETTINGS_IPC.setMcpPort, port),
