@@ -11,13 +11,9 @@ import IconRouterOutlineRounded from '~icons/material-symbols/router-outline-rou
 import IconComputerOutlineRounded from '~icons/material-symbols/computer-outline-rounded'
 import IconFolderOpenOutlineRounded from '~icons/material-symbols/folder-open-outline-rounded'
 import IconOpenInNewRounded from '~icons/material-symbols/open-in-new-rounded'
-import IconFullscreenRounded from '~icons/material-symbols/fullscreen-rounded'
 import IconDirectionsWalkRounded from '~icons/material-symbols/directions-walk-rounded'
 import IconKeyboardOutlineRounded from '~icons/material-symbols/keyboard-outline-rounded'
 import IconMouseOutlineRounded from '~icons/material-symbols/mouse-outline-rounded'
-import IconDatabaseOutline from '~icons/material-symbols/database-outline'
-import IconLightModeOutlineRounded from '~icons/material-symbols/light-mode-outline-rounded'
-import IconCookieOutlineRounded from '~icons/material-symbols/cookie-outline-rounded'
 import IconSelectWindowRounded from '~icons/material-symbols/select-window-rounded'
 import IconScreenShareOutlineRounded from '~icons/material-symbols/screen-share-outline-rounded'
 import IconShieldQuestionOutlineRounded from '~icons/material-symbols/shield-question-outline-rounded'
@@ -86,7 +82,6 @@ const SITE_PERMISSION_ASKS: Readonly<Record<string, { key: MessageKey, icon: Com
   geolocation: { key: 'trustedDialogs.sitePermission.wants.geolocation', icon: IconLocationOnOutlineRounded },
   notifications: { key: 'trustedDialogs.sitePermission.wants.notifications', icon: IconNotificationsOutlineRounded },
   'clipboard-read': { key: 'trustedDialogs.sitePermission.wants.clipboardRead', icon: IconContentPasteRounded },
-  'clipboard-sanitized-write': { key: 'trustedDialogs.sitePermission.wants.clipboardWrite', icon: IconContentPasteRounded },
   midi: { key: 'trustedDialogs.sitePermission.wants.midi', icon: IconPianoOutlineRounded },
   midiSysex: { key: 'trustedDialogs.sitePermission.wants.midiSysex', icon: IconPianoOutlineRounded },
   'local-fonts': { key: 'trustedDialogs.sitePermission.wants.localFonts', icon: IconFontDownloadOutlineRounded },
@@ -95,14 +90,9 @@ const SITE_PERMISSION_ASKS: Readonly<Record<string, { key: MessageKey, icon: Com
   'loopback-network': { key: 'trustedDialogs.sitePermission.wants.loopbackNetwork', icon: IconComputerOutlineRounded },
   fileSystem: { key: 'trustedDialogs.sitePermission.wants.fileSystem', icon: IconFolderOpenOutlineRounded },
   openExternal: { key: 'trustedDialogs.sitePermission.wants.openExternal', icon: IconOpenInNewRounded },
-  fullscreen: { key: 'trustedDialogs.sitePermission.wants.fullscreen', icon: IconFullscreenRounded },
   'idle-detection': { key: 'trustedDialogs.sitePermission.wants.idleDetection', icon: IconDirectionsWalkRounded },
   keyboardLock: { key: 'trustedDialogs.sitePermission.wants.keyboardLock', icon: IconKeyboardOutlineRounded },
   pointerLock: { key: 'trustedDialogs.sitePermission.wants.pointerLock', icon: IconMouseOutlineRounded },
-  'persistent-storage': { key: 'trustedDialogs.sitePermission.wants.persistentStorage', icon: IconDatabaseOutline },
-  'screen-wake-lock': { key: 'trustedDialogs.sitePermission.wants.screenWakeLock', icon: IconLightModeOutlineRounded },
-  'storage-access': { key: 'trustedDialogs.sitePermission.wants.storageAccess', icon: IconCookieOutlineRounded },
-  'top-level-storage-access': { key: 'trustedDialogs.sitePermission.wants.topLevelStorageAccess', icon: IconCookieOutlineRounded },
   'window-management': { key: 'trustedDialogs.sitePermission.wants.windowManagement', icon: IconSelectWindowRounded },
   'display-capture': { key: 'trustedDialogs.sitePermission.wants.displayCapture', icon: IconScreenShareOutlineRounded }
 }

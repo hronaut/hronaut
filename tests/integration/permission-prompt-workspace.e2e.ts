@@ -29,10 +29,10 @@ test('a site permission prompt names the workspace the choice is remembered in',
     await electronApp.evaluate(async ({ webContents }) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getTitle() === 'Workspace prompt')
       if (!page) throw new Error('Permission fixture web contents was not found')
-      await page.executeJavaScript('navigator.storage.persist().catch(() => undefined); true', true)
+      await page.executeJavaScript('navigator.requestMIDIAccess({ sysex: true }).catch(() => undefined); true', true)
     })
     await expect(trustedDialog(appWindow)).toBeVisible()
-    expect(await trustedDialogHeadline(appWindow)).toBe(`${origin} wants to store data permanently on this device`)
+    expect(await trustedDialogHeadline(appWindow)).toBe(`${origin} wants to control and reprogram your MIDI devices`)
     await expect(trustedDialog(appWindow)).toContainText('Hronaut remembers this choice for this website in the “Client A” workspace.')
     await expect(trustedDialog(appWindow)).toContainText('You can change it later in Settings → Site permissions.')
     await answerTrustedDialog(appWindow, 'Deny')

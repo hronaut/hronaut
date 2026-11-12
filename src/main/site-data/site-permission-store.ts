@@ -18,10 +18,10 @@ const ENTRY_FIELDS: ReadonlySet<string> = new Set(['origin', 'permission', 'deci
 const SCOPE_FIELDS: ReadonlySet<string> = new Set(['workspaceId', 'embeddedIn'])
 
 /**
- * Permissions Hronaut never remembers: camera and microphone, file access and opening a link in another app ask every
- * time. The store neither saves nor loads a decision for one of them.
+ * Permissions Hronaut never remembers: file access and opening a link in another app ask every time. The store neither
+ * saves nor loads a decision for one of them.
  */
-export const FRESH_CONSENT_PERMISSIONS: ReadonlySet<string> = new Set(['media', 'fileSystem', 'openExternal'])
+export const FRESH_CONSENT_PERMISSIONS: ReadonlySet<string> = new Set(['fileSystem', 'openExternal'])
 
 /**
  * Permissions only a page's own website may ask for, as in Chrome: a website embedded in another's page, such as an
@@ -29,8 +29,31 @@ export const FRESH_CONSENT_PERMISSIONS: ReadonlySet<string> = new Set(['media', 
  */
 export const TOP_LEVEL_ONLY_PERMISSIONS: ReadonlySet<string> = new Set(['notifications'])
 
+/**
+ * What Chrome gives every website without asking, and Hronaut too: writing text or images to the clipboard, protected
+ * content (DRM), keeping the screen on, persistent storage, an embedded website's own cookies, and motion sensors. A
+ * Block the person saved for one of them still holds.
+ */
+export const ALLOWED_WITHOUT_ASKING_PERMISSIONS: ReadonlySet<string> = new Set([
+  'clipboard-sanitized-write', 'mediaKeySystem', 'screen-wake-lock', 'persistent-storage', 'storage-access', 'sensors'
+])
+
+/**
+ * The permission a camera or microphone request is remembered under: each device has its own decision, as in Chrome,
+ * so a website the person let use the camera still asks before it uses the microphone.
+ */
+export function mediaDevicePermission(mediaType: string | undefined): 'camera' | 'microphone' | null {
+  return mediaType === 'video' ? 'camera' : mediaType === 'audio' ? 'microphone' : null
+}
+
+/**
+ * Decisions Hronaut never uses, besides those it never remembers: full screen is every page's, Chromium's own request
+ * for a camera and microphone together is remembered for each device, and storage access for a whole page is refused.
+ */
+const NEVER_USED_PERMISSIONS: ReadonlySet<string> = new Set(['fullscreen', 'media', 'top-level-storage-access'])
+
 function rememberablePermission(permission: string): boolean {
-  return PERMISSION_NAME.test(permission) && !FRESH_CONSENT_PERMISSIONS.has(permission)
+  return PERMISSION_NAME.test(permission) && !FRESH_CONSENT_PERMISSIONS.has(permission) && !NEVER_USED_PERMISSIONS.has(permission)
 }
 
 /** Whether a decision for `permission` may be kept in a scope: one embedded in a page only for a permission it asks. */

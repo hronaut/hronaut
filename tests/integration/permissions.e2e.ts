@@ -475,9 +475,7 @@ test('names the permissions games, music and media pages ask for instead of show
     const requests = [
       ['document.getElementById("target").requestPointerLock()', 'lock and hide your mouse pointer'],
       ['navigator.keyboard.lock()', 'capture your keyboard shortcuts'],
-      ['navigator.requestMIDIAccess({ sysex: true })', 'control and reprogram your MIDI devices'],
-      ['navigator.storage.persist()', 'store data permanently on this device'],
-      ['navigator.wakeLock.request("screen")', 'keep your screen on']
+      ['navigator.requestMIDIAccess({ sysex: true })', 'control and reprogram your MIDI devices']
     ] as const
     for (const [script, wants] of requests) {
       await electronApp.evaluate(async ({ webContents }, request) => {
@@ -489,6 +487,22 @@ test('names the permissions games, music and media pages ask for instead of show
       await answerTrustedDialog(appWindow, 'Deny')
       await expect(trustedDialog(appWindow)).toHaveCount(0)
     }
+
+    // As in Chrome, storing data permanently, keeping the screen on and writing to the clipboard ask nothing.
+    const given = await electronApp.evaluate(async ({ webContents }) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getTitle() === 'Permission names')
+      if (!page) throw new Error('Permission fixture web contents was not found')
+      // Chromium writes the clipboard only for a focused page.
+      page.focus()
+      return page.executeJavaScript(`Promise.all([
+        navigator.storage.persist(),
+        navigator.wakeLock.request('screen').then((lock) => lock.type, (error) => error.name),
+        navigator.clipboard.writeText('Given without asking').then(() => 'written', (error) => error.name)
+      ])`, true) as Promise<unknown[]>
+    })
+    expect(given).toEqual([true, 'screen', 'written'])
+    await expect(trustedDialog(appWindow)).toHaveCount(0)
+    expect(await electronApp.evaluate(({ clipboard }) => clipboard.readText())).toBe('Given without asking')
   } finally {
     await closeFixtureServer(server)
   }

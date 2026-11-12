@@ -4,7 +4,7 @@ import type { SitePermissionEntry } from '../../src/shared/types.js'
 import { expect, test } from './fixtures.js'
 
 test('finds saved permissions by site and permission name without modifying hidden decisions', async ({ appWindow, profileDirectory }) => {
-  // Camera, microphone and file access are never remembered, so Settings lists none of them; these are all remembered.
+  // File access is never remembered, so Settings lists none of it; these are all remembered.
   const entries: Array<Omit<SitePermissionEntry, 'workspaceId'>> = [
     { origin: 'https://staging.example.test', permission: 'geolocation', decision: 'allow' },
     { origin: 'https://staging.example.test', permission: 'clipboard-read', decision: 'allow' },

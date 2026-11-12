@@ -17,11 +17,11 @@ export interface SitePermissionDialogVariant {
   embeddedIn?: string
   /** Chromium's name for the permission, such as "geolocation" or "media". */
   permission: string
-  /** For "media": the devices asked for. */
+  /** For "media": the devices asked for, without one the person already allowed. */
   mediaTypes?: Array<'audio' | 'video'>
   /** The workspace the choice belongs to, as the prompt names it, when Hronaut knows it. */
   workspaceName?: string
-  /** True for a permission Hronaut never remembers, such as the camera: it asks every time. */
+  /** True for a permission Hronaut never remembers, such as file access: it asks every time. */
   freshConsent: boolean
   /** For "fileSystem": the file or folder and the access asked for. */
   file?: { path: string, access: 'readable' | 'writable' | 'unspecified' }
