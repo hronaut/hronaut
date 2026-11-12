@@ -131,17 +131,25 @@ describe('camera and microphone a website was allowed', () => {
   })
 
   it('read as refused when the person blocked the device for every website, unless the website was allowed', async () => {
-    let blocked = ['camera']
+    let blocked = ['camera', 'sensors']
     const store = await createStore(() => blocked)
     const { handlers, workspaceSession } = createHarness([], () => false, store)
     const page = createPage(workspaceSession)
+    const sensors = () => handlers.check!(page.contents as never, 'sensors' as never, site.origin, fromSite as never)
     expect(device(handlers, page, 'video')).toBe(false)
+    // Motion sensors are given without asking, so only the Block for every website refuses them.
+    expect(sensors()).toBe(false)
     await store.set(site.origin, 'camera', 'allow', { workspaceId: WORKSPACE })
+    await store.set(site.origin, 'sensors', 'allow', { workspaceId: WORKSPACE })
     expect(device(handlers, page, 'video')).toBe(true)
+    expect(sensors()).toBe(true)
     await store.remove(site.origin, 'camera', { workspaceId: WORKSPACE })
+    await store.remove(site.origin, 'sensors', { workspaceId: WORKSPACE })
     expect(device(handlers, page, 'video')).toBe(false)
+    expect(sensors()).toBe(false)
     blocked = []
     expect(device(handlers, page, 'video')).toBe(false)
+    expect(sensors()).toBe(true)
   })
 
   it('read as allowed for a website embedded in the page, and not for the page around it', async () => {

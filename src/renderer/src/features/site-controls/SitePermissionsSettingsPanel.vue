@@ -176,6 +176,7 @@ async function changePermission(entry: SitePermissionEntry, event: Event): Promi
           <p>{{ t('settings.permissions.description') }}</p>
         </div>
       </template>
+      <output v-if="errorMessage" class="site-controls-error" role="alert">{{ errorMessage }}</output>
       <template v-if="activeTab === 'defaults'">
         <p class="permission-defaults-description">{{ t('settings.permissions.defaultsDescription') }}</p>
         <section
@@ -271,7 +272,6 @@ async function changePermission(entry: SitePermissionEntry, event: Event): Promi
             </div>
           </section>
         </div>
-        <output v-if="errorMessage" class="site-controls-error" role="alert">{{ errorMessage }}</output>
         <div class="settings-info">
           <span class="info-dot" aria-hidden="true"><IconInfo /></span>
           <p>{{ t('settings.permissions.help') }}</p>

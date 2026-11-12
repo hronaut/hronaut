@@ -411,7 +411,8 @@ describe('what Chrome gives every website without asking', () => {
 
   it('is refused, in a request and a check, once the person blocks it for every website, unless the website is allowed', async () => {
     const harness = await createHarness()
-    harness.defaults.blocked = [...silent]
+    // Full screen is not among the defaults the person can change, so not even a Block in the list reaches it.
+    harness.defaults.blocked = [...silent, 'fullscreen']
     const page = createPage(player)
     for (const permission of silent) {
       expect(await ask(harness, page, permission, fromPlayer), permission).toBe(false)
@@ -420,8 +421,8 @@ describe('what Chrome gives every website without asking', () => {
     await harness.store.set(player.origin, 'mediaKeySystem', 'allow', { workspaceId: WORK })
     expect(await ask(harness, page, 'mediaKeySystem', fromPlayer)).toBe(true)
     expect(check(harness, page, 'mediaKeySystem')).toBe(true)
-    // Full screen is not among the defaults the person can change.
     expect(await ask(harness, page, 'fullscreen', fromPlayer)).toBe(true)
+    expect(check(harness, page, 'fullscreen')).toBe(true)
     harness.defaults.blocked = []
     expect(await ask(harness, page, 'screen-wake-lock', fromPlayer)).toBe(true)
     expect(harness.shown).toEqual([])
@@ -1157,13 +1158,18 @@ describe('what the person blocked for every website', () => {
     expect(harness.shown).toHaveLength(1)
   })
 
-  it('follows a change at once, and blocks Chromium\'s older local network request with local network devices', async () => {
+  it('follows a change at once, and blocks the requests Chromium names apart with the permission they belong to', async () => {
     const harness = await createHarness()
     harness.decide = () => 'deny'
     const page = createPage(maps)
     harness.defaults.blocked = ['local-network']
     expect(await ask(harness, page, 'local-network-access', fromMaps)).toBe(false)
     expect(await ask(harness, page, 'local-network', fromMaps)).toBe(false)
+    // The older local network request also reached apps on this device; the paste command reads the clipboard.
+    harness.defaults.blocked = ['loopback-network', 'clipboard-read', 'geolocation']
+    expect(await ask(harness, page, 'local-network-access', fromMaps)).toBe(false)
+    expect(await ask(harness, page, 'deprecated-sync-clipboard-read', fromMaps)).toBe(false)
+    expect(await ask(harness, page, 'geolocation-approximate', fromMaps)).toBe(false)
     expect(harness.shown).toEqual([])
     harness.defaults.blocked = []
     expect(await ask(harness, page, 'local-network', fromMaps)).toBe(false)

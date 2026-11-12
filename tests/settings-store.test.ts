@@ -66,12 +66,12 @@ describe('SettingsStore', () => {
     expect((await store.load()).allowWebsiteFileSaving).toBe(true)
   })
 
-  // Only permissions Settings lists are kept, each once and in its order; anything else blocks nothing.
+  // Only permissions Settings lists are kept, each once and in its order; a name it does not list leaves the others.
   it.each([
     [undefined, []],
     ['camera', []],
-    [['camera', 'camera'], []],
-    [['camera', 'fullscreen'], []],
+    [['camera', 'camera'], ['camera']],
+    [['camera', 'fullscreen', 42], ['camera']],
     [['sound', 'notifications', 'geolocation'], ['geolocation', 'notifications', 'sound']]
   ])('loads the permissions blocked for every website from %j', async (value, expected) => {
     const { path, store } = await createStore()

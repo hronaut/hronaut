@@ -202,8 +202,17 @@ describe('SitePermissionStore', () => {
     expect(store.effectiveDecisionFor(widget, 'geolocation', WORK)).toBe('deny')
     expect(store.effectiveDecisionFor(widget, 'geolocation', WORK, firstSite)).toBe('deny')
     expect(store.effectiveDecisionFor(widget, 'notifications', WORK)).toBeUndefined()
-    // Chromium's older local network request follows the Local network devices default.
+    // Chromium's older local network request covered local network devices and apps on this device.
     expect(store.isBlockedByDefault('local-network-access')).toBe(true)
+    expect(store.isBlockedByDefault('geolocation-approximate')).toBe(true)
+    expect(store.isBlockedByDefault('deprecated-sync-clipboard-read')).toBe(false)
+    blocked = ['loopback-network', 'clipboard-read']
+    expect(store.isBlockedByDefault('local-network-access')).toBe(true)
+    expect(store.isBlockedByDefault('local-network')).toBe(false)
+    expect(store.isBlockedByDefault('deprecated-sync-clipboard-read')).toBe(true)
+    expect(store.isBlockedByDefault('geolocation-approximate')).toBe(false)
+    expect(store.isBlockedByDefault('constructor')).toBe(false)
+    blocked = ['geolocation', 'local-network']
     await store.set(widget, 'geolocation', 'allow', { workspaceId: WORK })
     expect(store.effectiveDecisionFor(widget, 'geolocation', WORK)).toBe('allow')
     expect(store.effectiveDecisionFor(widget, 'geolocation', CLIENT)).toBe('deny')

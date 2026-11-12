@@ -161,6 +161,18 @@ describe('what every website gets', () => {
     controller.dispose()
   })
 
+  it('says on the Defaults tab, too, that resetting the section did not finish', async () => {
+    const { api, controller, blockedByDefault } = renderPanel([locationPermission], 'en-US', () => workspaces, ['geolocation'])
+    await showDefaults()
+    api.clear.mockRejectedValueOnce(new Error('cannot clear permissions'))
+    await controller.clear()
+    expect(await screen.findByRole('alert')).toHaveTextContent('cannot clear permissions')
+    // The defaults were reset before the decisions failed to clear.
+    expect(blockedByDefault.value).toEqual([])
+    expect(screen.getByRole('combobox', { name: 'Default for Location' })).toHaveValue('built-in')
+    controller.dispose()
+  })
+
   it('names the defaults in the person\'s language', async () => {
     const { controller } = renderPanel([locationPermission], 'ru-RU')
     await userEvent.click(screen.getByRole('tab', { name: 'По умолчанию' }))

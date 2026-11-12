@@ -3,7 +3,7 @@ import { sitePermissionKey, sitePermissionScopeOf } from '../../shared/site-perm
 import type { SitePermissionDecision, SitePermissionEntry, SitePermissionScope } from '../../shared/types.js'
 import { writeTextFileAtomically } from '../atomic-file.js'
 import { isUuidV7 } from '../uuid-v7.js'
-import { SITE_PERMISSIONS_ALLOWED_WITHOUT_ASKING, sitePermissionWithDefault } from '../../shared/site-permission-defaults.js'
+import { SITE_PERMISSIONS_ALLOWED_WITHOUT_ASKING, sitePermissionsWithDefault } from '../../shared/site-permission-defaults.js'
 
 /**
  * The saved decisions, each with the workspace it was made in and, for a website embedded in a page of another website,
@@ -193,7 +193,8 @@ export class SitePermissionStore {
 
   /** Whether the person blocked `permission`, or muted Sound, for every website that has no decision of its own. */
   isBlockedByDefault(permission: string): boolean {
-    return this.blockedByDefault().includes(sitePermissionWithDefault(permission))
+    const blocked = this.blockedByDefault()
+    return sitePermissionsWithDefault(permission).some((listed) => blocked.includes(listed))
   }
 
   /**

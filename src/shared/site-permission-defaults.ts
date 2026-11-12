@@ -44,11 +44,19 @@ export const SITE_PERMISSIONS_WITH_DEFAULTS: readonly string[] = [
 ]
 
 /**
- * The permission whose default behaviour applies to a request: Chromium's older name for local network access, which
- * covered both local network devices and apps on this device, follows the Local network devices default.
+ * Requests Chromium names apart from the permission Settings lists, as Chrome's site settings group them: its older name
+ * for local network access covered both local network devices and apps on this device, the older paste command reads
+ * the clipboard, and approximate location is location.
  */
-export function sitePermissionWithDefault(permission: string): string {
-  return permission === 'local-network-access' ? 'local-network' : permission
+const SITE_PERMISSIONS_FOLLOWING_DEFAULTS: ReadonlyMap<string, readonly string[]> = new Map([
+  ['local-network-access', ['local-network', 'loopback-network']],
+  ['deprecated-sync-clipboard-read', ['clipboard-read']],
+  ['geolocation-approximate', ['geolocation']]
+])
+
+/** The permissions whose default behaviour applies to a request: a Block for any of them refuses it. */
+export function sitePermissionsWithDefault(permission: string): readonly string[] {
+  return SITE_PERMISSIONS_FOLLOWING_DEFAULTS.get(permission) ?? [permission]
 }
 
 /** Whether `value` names permissions the person blocked for every website: listed ones, each once. */
@@ -58,8 +66,11 @@ export function isSitePermissionsBlockedByDefault(value: unknown): value is stri
     && value.every((permission) => typeof permission === 'string' && SITE_PERMISSIONS_WITH_DEFAULTS.includes(permission))
 }
 
-/** The permissions blocked for every website in the order Settings lists them, or none when `value` is not such a list. */
+/**
+ * The permissions blocked for every website in the order Settings lists them, each once: the listed names in `value`, so a
+ * name this version does not list leaves the other Blocks in place, or none when `value` is not a list.
+ */
 export function readSitePermissionsBlockedByDefault(value: unknown): string[] {
-  if (!isSitePermissionsBlockedByDefault(value)) return []
+  if (!Array.isArray(value)) return []
   return SITE_PERMISSIONS_WITH_DEFAULTS.filter((permission) => value.includes(permission))
 }
