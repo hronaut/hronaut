@@ -1,7 +1,6 @@
 import { createServer } from 'node:http'
 import type { ElectronApplication, Page } from '@playwright/test'
 import { closeFixtureServer, expect, test } from './fixtures.js'
-import { answerEveryTrustedDialog } from './trusted-dialog-fixture.js'
 
 const TITLE = 'Fullscreen video'
 
@@ -25,8 +24,7 @@ async function openVideoPage(
   await expect.poll(() => electronApp.evaluate(({ webContents }, title) => (
     webContents.getAllWebContents().some((contents) => contents.getTitle() === title && !contents.isLoading())
   ), TITLE)).toBe(true)
-  // The person allows the site's full screen request.
-  await answerEveryTrustedDialog(appWindow, 'Allow')
+  // As in Chrome, a page's full screen needs no permission, so no prompt is answered here.
   return { server, origin }
 }
 

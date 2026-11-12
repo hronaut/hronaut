@@ -309,8 +309,8 @@ describe('links that open another app', () => {
 
 describe('saved decisions Hronaut never uses', () => {
   it('keeps them out of Settings, Site controls and the browsing data counts', async () => {
-    // A camera, file or external app decision in the file has no effect, so the store drops it when it loads and
-    // Settings → Site permissions never lists it as, say, "External apps · Allow".
+    // A file, external app, full screen or combined camera and microphone decision in the file has no effect, so the
+    // store drops it when it loads and Settings → Site permissions never lists it as, say, "External apps · Allow".
     const harness = await createHarness()
     const geolocation = { origin: meet.origin, permission: 'geolocation', decision: 'allow', workspaceId: WORK }
     await writeFile(harness.path, JSON.stringify({
@@ -319,7 +319,8 @@ describe('saved decisions Hronaut never uses', () => {
         { origin: meet.origin, permission: 'fileSystem', decision: 'allow', workspaceId: WORK },
         geolocation,
         { origin: meet.origin, permission: 'media', decision: 'deny', workspaceId: WORK },
-        { origin: meet.origin, permission: 'openExternal', decision: 'allow', workspaceId: WORK }
+        { origin: meet.origin, permission: 'openExternal', decision: 'allow', workspaceId: WORK },
+        { origin: meet.origin, permission: 'fullscreen', decision: 'deny', workspaceId: WORK }
       ]
     }), 'utf8')
     await harness.store.load()
@@ -358,13 +359,73 @@ describe('saved decisions Hronaut never uses', () => {
   })
 })
 
+describe('what Chrome gives every website without asking', () => {
+  const player = { url: 'https://video.example/watch', origin: 'https://video.example' }
+  const fromPlayer = { requestingUrl: player.url, isMainFrame: true }
+  const silent = ['clipboard-sanitized-write', 'mediaKeySystem', 'screen-wake-lock', 'persistent-storage', 'storage-access', 'sensors']
+  const check = (harness: { check?: CheckHandler }, page: { contents: unknown }, permission: string) =>
+    harness.check!(page.contents as never, permission as never, player.origin, fromPlayer as never)
+
+  it('is allowed, in a request and a check, without a prompt and without saving anything', async () => {
+    // A video player's full screen button, a copy button and a protected stream each asked first, unlike Chrome.
+    const harness = await createHarness()
+    harness.decide = () => 'deny'
+    const ads = { url: 'https://ads.example/slot', origin: 'https://ads.example' }
+    const page = createPage(player, [ads])
+    for (const permission of ['fullscreen', ...silent]) {
+      expect(await ask(harness, page, permission, fromPlayer), permission).toBe(true)
+      expect(check(harness, page, permission), permission).toBe(true)
+    }
+    // An embedded website reads its own cookies, as with third-party cookies on in Chrome.
+    expect(await ask(harness, page, 'storage-access', { requestingUrl: ads.url, isMainFrame: false })).toBe(true)
+    expect(harness.shown).toEqual([])
+    expect(harness.store.list()).toEqual([])
+  })
+
+  it('keeps a Block saved for one, but not for full screen, which every page gets', async () => {
+    const harness = await createHarness()
+    const page = createPage(player)
+    for (const permission of silent) await harness.store.set(player.origin, permission, 'deny', { workspaceId: WORK })
+    for (const permission of silent) {
+      expect(await ask(harness, page, permission, fromPlayer), permission).toBe(false)
+      expect(check(harness, page, permission), permission).toBe(false)
+    }
+    // Chromium tells the page it is in full screen before it asks, so a refusal left every later request of the page
+    // waiting; no decision is kept for it.
+    await expect(harness.store.set(player.origin, 'fullscreen', 'deny', { workspaceId: WORK })).rejects.toThrow('permission name')
+    expect(await ask(harness, page, 'fullscreen', fromPlayer)).toBe(true)
+    expect(harness.shown).toEqual([])
+  })
+
+  it('refuses storage access for a whole page without asking, as Chrome does outside related websites', async () => {
+    const harness = await createHarness()
+    harness.decide = () => 'allow'
+    const page = createPage(player)
+    expect(await ask(harness, page, 'top-level-storage-access', fromPlayer)).toBe(false)
+    expect(check(harness, page, 'top-level-storage-access')).toBe(false)
+    expect(harness.shown).toEqual([])
+  })
+
+  it('gives nothing to Home or to a session no single workspace claims', async () => {
+    const harness = await createHarness()
+    const unclaimed = harness.workspaceSession()
+    const page = createPage(player)
+    for (const permission of ['fullscreen', ...silent]) {
+      expect(await ask(unclaimed, page, permission, fromPlayer), permission).toBe(false)
+      expect(check(unclaimed, page, permission), permission).toBe(false)
+    }
+    const home = createPage({ url: 'hronaut://home/', origin: 'hronaut://home' })
+    expect(await ask(harness, home, 'persistent-storage', { requestingUrl: 'hronaut://home/', isMainFrame: true })).toBe(false)
+  })
+})
+
 describe('camera and microphone prompts', () => {
   const site = { url: 'https://call.example/room', origin: 'https://call.example' }
   const camera = { requestingUrl: site.url, isMainFrame: true, mediaTypes: ['video'] }
 
-  it('shows one prompt for identical requests and refuses repeats after Deny until the page loads again', async () => {
-    // A page that called getUserMedia 25 times at once got 25 window-modal prompts in a row, and one that asked again
-    // after each refusal got a new prompt every time.
+  it('shows one prompt for identical requests and remembers a Deny for the website, as Chrome does', async () => {
+    // A page that called getUserMedia 25 times at once got 25 window-modal prompts in a row, and a call website asked
+    // again on every reload and every call.
     const harness = await createHarness()
     const page = createPage(site)
     const answers = await Promise.all(Array.from({ length: 25 }, () => ask(harness, page, 'media', camera)))
@@ -373,15 +434,42 @@ describe('camera and microphone prompts', () => {
 
     expect(await ask(harness, page, 'media', camera)).toBe(false)
     expect(harness.shown).toHaveLength(1)
-    // A request for other devices is a different question.
+    // The microphone is a different question.
     await ask(harness, page, 'media', { ...camera, mediaTypes: ['audio'] })
     expect(harness.shown).toHaveLength(2)
 
     page.navigate(page.frames[0]!, site.url)
     harness.decide = () => 'allow'
-    expect(await ask(harness, page, 'media', camera)).toBe(true)
-    expect(harness.shown).toHaveLength(3)
+    expect(await ask(harness, page, 'media', camera)).toBe(false)
+    expect(await ask(harness, createPage(site), 'media', camera)).toBe(false)
+    expect(harness.shown).toHaveLength(2)
+    expect(harness.store.list()).toEqual([
+      expect.objectContaining({ origin: site.origin, permission: 'camera', decision: 'deny' }),
+      expect.objectContaining({ origin: site.origin, permission: 'microphone', decision: 'deny' })
+    ])
     expect([page.contents.listenerCount('did-frame-navigate'), page.contents.listenerCount('destroyed')]).toEqual([1, 1])
+  })
+
+  it('asks only for the device the website has no decision for, and names just that device', async () => {
+    // A call website that had the microphone asked about both devices again when it turned the camera on.
+    const harness = await createHarness()
+    harness.decide = () => 'allow'
+    const page = createPage(site)
+    expect(await ask(harness, page, 'media', { ...camera, mediaTypes: ['audio'] })).toBe(true)
+    expect(await ask(harness, page, 'media', { ...camera, mediaTypes: ['audio', 'video'] })).toBe(true)
+    expect(harness.shown).toHaveLength(2)
+    expect(harness.shown[1]!.message).toBe('https://call.example requests “Camera” permission.')
+    expect((harness.shown[1] as { variant?: unknown }).variant).toMatchObject({ permission: 'media', mediaTypes: ['video'], freshConsent: false })
+    expect(await ask(harness, createPage(site), 'media', { ...camera, mediaTypes: ['video', 'audio'] })).toBe(true)
+    expect(harness.shown).toHaveLength(2)
+    // Settings lists each device on its own.
+    expect(harness.store.list().map((entry) => [entry.permission, entry.decision])).toEqual([['camera', 'allow'], ['microphone', 'allow']])
+    // A request for both, from a website with no decision, asks once and saves both.
+    const other = { url: 'https://meet.example/room', origin: 'https://meet.example' }
+    expect(await ask(harness, createPage(other), 'media', { ...camera, requestingUrl: other.url, mediaTypes: ['audio', 'video'] })).toBe(true)
+    expect(harness.shown).toHaveLength(3)
+    expect(harness.shown[2]!.message).toBe('https://meet.example requests “Camera and microphone” permission.')
+    expect(harness.store.list()).toHaveLength(4)
   })
 
   it('refuses the site’s frames that ask at once after one Deny without asking each', async () => {
@@ -397,9 +485,7 @@ describe('camera and microphone prompts', () => {
     expect(harness.shown).toHaveLength(1)
   })
 
-  it('asks again after Allow, and holds a Deny for the page’s frames of that site until the main frame loads again', async () => {
-    // The Deny held only for one frame's document, so a frame that loaded again, or a new frame, asked after every
-    // refusal.
+  it('remembers an Allow for the website and its frames, and asks a website embedded in the page on its own', async () => {
     const harness = await createHarness()
     const widget = { url: 'https://call.example/widget', origin: site.origin }
     const ads = { url: 'https://ads.example/slot', origin: 'https://ads.example' }
@@ -409,30 +495,18 @@ describe('camera and microphone prompts', () => {
     expect(await Promise.all([ask(harness, page, 'media', camera), ask(harness, page, 'media', camera)])).toEqual([true, true])
     expect(harness.shown).toHaveLength(1)
     expect(await ask(harness, page, 'media', camera)).toBe(true)
-    expect(harness.shown).toHaveLength(2)
-
-    harness.decide = () => 'deny'
-    // Another website's Deny is not this site's.
-    expect(await ask(harness, page, 'media', { ...fromWidget, requestingUrl: ads.url })).toBe(false)
-    expect(harness.shown).toHaveLength(3)
-    expect(await ask(harness, page, 'media', fromWidget)).toBe(false)
-    expect(harness.shown).toHaveLength(4)
-    page.navigate(page.frames[1]!, 'https://call.example/widget?retry')
-    expect(await ask(harness, page, 'media', { ...fromWidget, requestingUrl: 'https://call.example/widget?retry' })).toBe(false)
-    const fresh = page.addFrame({ url: 'https://call.example/fresh', origin: site.origin })
-    expect(await ask(harness, page, 'media', { ...fromWidget, requestingUrl: fresh.url })).toBe(false)
-    expect(await ask(harness, page, 'media', camera)).toBe(false)
-    expect(harness.shown).toHaveLength(4)
-
-    // Electron also reports the main frame of a page that is not the one shown; it does not lift the Deny.
-    page.contents.emit('did-frame-navigate', {}, 'https://call.example/next', 200, 'OK', true, 99, 999)
-    expect(await ask(harness, page, 'media', camera)).toBe(false)
-    expect(harness.shown).toHaveLength(4)
-
+    expect(await ask(harness, page, 'media', fromWidget)).toBe(true)
     page.navigate(page.frames[0]!, site.url)
-    harness.decide = () => 'allow'
     expect(await ask(harness, page, 'media', camera)).toBe(true)
-    expect(harness.shown).toHaveLength(5)
+    expect(harness.shown).toHaveLength(1)
+
+    // Another website's decision is not this site's.
+    harness.decide = () => 'deny'
+    expect(await ask(harness, page, 'media', { ...fromWidget, requestingUrl: ads.url })).toBe(false)
+    expect(harness.shown).toHaveLength(2)
+    expect(harness.shown[1]!.message).toBe('https://ads.example on https://call.example requests “Camera” permission.')
+    expect(await ask(harness, page, 'media', camera)).toBe(true)
+    expect(harness.shown).toHaveLength(2)
   })
 
   it('does not share a prompt with the next document its frame loads', async () => {
@@ -673,20 +747,25 @@ describe('prompts closed with Escape or their close button', () => {
     expect(harness.shown).toHaveLength(7)
   })
 
-  it('refuse a camera request for the page’s document as Deny does, and never stop asking', async () => {
+  it('count a closed camera or microphone prompt for that device alone', async () => {
+    // As in Chrome, the camera and the microphone each have their own count, as their decisions do.
     const harness = await createHarness()
     harness.decide = () => 'dismissed'
     const call = { url: 'https://call.example/room', origin: 'https://call.example' }
     const camera = { requestingUrl: call.url, isMainFrame: true, mediaTypes: ['video'] }
     const page = createPage(call)
-    expect(await ask(harness, page, 'media', camera)).toBe(false)
-    expect(await ask(harness, page, 'media', camera)).toBe(false)
-    expect(harness.shown).toHaveLength(1)
-    for (let load = 2; load <= 4; load += 1) {
-      page.navigate(page.frames[0]!, call.url)
+    for (let closed = 1; closed <= 3; closed += 1) {
       expect(await ask(harness, page, 'media', camera)).toBe(false)
-      expect(harness.shown).toHaveLength(load)
+      expect(harness.shown).toHaveLength(closed)
     }
+    expect(await ask(harness, page, 'media', camera)).toBe(false)
+    expect(harness.shown).toHaveLength(3)
+    expect(await ask(harness, page, 'media', { ...camera, mediaTypes: ['audio'] })).toBe(false)
+    expect(harness.shown).toHaveLength(4)
+    // A request that includes the camera is refused without asking while it is.
+    expect(await ask(harness, page, 'media', { ...camera, mediaTypes: ['audio', 'video'] })).toBe(false)
+    expect(harness.shown).toHaveLength(4)
+    expect(harness.store.list()).toEqual([])
   })
 })
 

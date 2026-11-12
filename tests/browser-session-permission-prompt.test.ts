@@ -79,7 +79,8 @@ describe('site permission prompt', () => {
     expect((await prompt('uk-UA', 'geolocation')).message).toBe('Сайт https://files.example запитує дозвіл «Розташування».')
     expect((await prompt('de-DE', 'clipboard-read')).message).toBe('https://files.example fordert die Berechtigung „Zwischenablage lesen“ an.')
     expect((await prompt('uk-UA', 'pointerLock')).message).toBe('Сайт https://files.example запитує дозвіл «Блокування вказівника миші».')
-    expect((await prompt('fr-FR', 'screen-wake-lock')).message).toBe('https://files.example demande l’autorisation « Garder l’écran allumé ».')
+    expect((await prompt('fr-FR', 'speaker-selection')).message).toBe('https://files.example demande l’autorisation « Haut-parleurs ».')
+    expect((await prompt('en-US', 'speaker-selection')).message).toBe('https://files.example requests “Speakers” permission.')
   })
 
   it('hands Hronaut’s dialog the request as data, with Deny focused and Allow as the main action', async () => {
@@ -90,7 +91,7 @@ describe('site permission prompt', () => {
       kind: 'site-permission', origin: 'https://files.example', permission: 'geolocation', workspaceName: 'Client A', freshConsent: false
     })
     expect((await prompt('en-US', 'media', { mediaTypes: ['video'] })).variant)
-      .toEqual({ kind: 'site-permission', origin: 'https://files.example', permission: 'media', mediaTypes: ['video'], freshConsent: true })
+      .toEqual({ kind: 'site-permission', origin: 'https://files.example', permission: 'media', mediaTypes: ['video'], freshConsent: false })
     expect((await prompt('en-US', 'fileSystem', { fileAccessType: 'writable', filePath: '/home/notes.txt' })).variant).toMatchObject({
       permission: 'fileSystem', freshConsent: true, file: { path: '/home/notes.txt', access: 'writable' }
     })
@@ -106,9 +107,8 @@ describe('site permission prompt', () => {
     expect((await prompt('de-DE', 'media', { mediaTypes: ['video'] })).message).toBe('https://files.example fordert die Berechtigung „Kamera“ an.')
     const both = await prompt('en-US', 'media', { mediaTypes: ['audio', 'video'] })
     expect(both.message).toBe('https://files.example requests “Camera and microphone” permission.')
-    expect(both.detail).toBe(
-      "Requested devices: microphone and camera. Hronaut doesn't remember this choice. If you choose Deny, this page can't ask for this again until it reloads."
-    )
+    // As in Chrome, the choice is remembered for the website.
+    expect(both.detail).toBe('Hronaut remembers this choice for this website in this workspace. You can change it later in Settings → Site permissions.')
   })
 
   it('refuses a screen sharing request without asking about the camera and microphone', async () => {
@@ -161,8 +161,7 @@ describe('site permission prompt', () => {
     expect((await prompt('uk-UA', 'geolocation', {}, 'Клієнт А')).detail)
       .toContain('Hronaut запам’ятає цей вибір для цього сайту в робочому просторі «Клієнт А».')
     expect((await prompt('en-US', 'media', { mediaTypes: ['video'] }, 'Client A')).detail)
-      .toBe('Requested devices: camera. Asked in the “Client A” workspace. '
-        + "Hronaut doesn't remember this choice. If you choose Deny, this page can't ask for this again until it reloads.")
+      .toBe('Hronaut remembers this choice for this website in the “Client A” workspace. You can change it later in Settings → Site permissions.')
     expect((await prompt('en-US', 'openExternal', { externalURL: 'zoommtg://zoom.us/join?confno=1' }, 'Client A')).detail)
       .toBe('Allow opens this zoommtg: link outside Hronaut, in the app your system uses for it. Asked in the “Client A” workspace. '
         + "Hronaut doesn't remember this choice. If you choose Deny, this page can't ask for this again until it reloads.")

@@ -36,13 +36,13 @@ test('hides the page under a permission dialog and answers it from the keyboard 
     ])
     await expect.poll(pageVisible).toBe(true)
 
-    await ask('navigator.storage.persist()')
+    await ask('navigator.requestMIDIAccess({ sysex: true })')
     await expect(dialog).toHaveAttribute('data-armed', 'true')
     await appWindow.keyboard.press('Escape')
     await expect(dialog).toHaveCount(0)
     // Escape closes it as in Chrome: the request is refused and no Deny is kept that the person never chose, so the
     // website may ask again.
-    await ask('navigator.storage.persist()')
+    await ask('navigator.requestMIDIAccess({ sysex: true })')
     await expect(dialog).toHaveAttribute('data-armed', 'true')
     expect(await trustedDialogHeadline(appWindow)).toContain(origin)
     await appWindow.keyboard.press('Escape')

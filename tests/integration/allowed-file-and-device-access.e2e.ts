@@ -60,7 +60,7 @@ test('reads a dropped file, and never writes it, since Electron cannot ask first
   expect(await prompts(appWindow)).toEqual([])
 })
 
-test('reports a camera and microphone the person allowed as allowed, with their names, until the page reloads', async ({ profileDirectory, mcpPort }) => {
+test('reports a camera and microphone the person allowed as allowed, with their names, and keeps them for the website', async ({ profileDirectory, mcpPort }) => {
   const server = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
     response.end('<!doctype html><title>Call</title><main>Call</main>')
@@ -93,12 +93,14 @@ test('reports a camera and microphone the person allowed as allowed, with their 
 
     expect(await onPage(`navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => stream.getTracks().map((track) => track.kind), (error) => error.name)`)).toEqual(['audio'])
     expect(await onPage(devices)).toEqual({ camera: 'granted', microphone: 'granted', named: ['audioinput', 'audiooutput', 'videoinput'] })
-    // Every request still asks.
     expect(await prompts(window)).toHaveLength(2)
 
+    // As in Chrome, the website keeps both after a reload and asks nothing more.
     await app.evaluate(({ webContents }) => webContents.getAllWebContents().find((contents) => contents.getTitle() === 'Call')!.reload())
     await expect.poll(() => onPage<string>(`document.readyState`).catch(() => 'loading')).toBe('complete')
-    expect(await onPage(devices)).toEqual({ camera: 'denied', microphone: 'denied', named: [] })
+    expect(await onPage(devices)).toEqual({ camera: 'granted', microphone: 'granted', named: ['audioinput', 'audiooutput', 'videoinput'] })
+    expect(await onPage(`navigator.mediaDevices.getUserMedia({ audio: true, video: true }).then((stream) => stream.getTracks().map((track) => track.kind).sort(), (error) => error.name)`)).toEqual(['audio', 'video'])
+    expect(await prompts(window)).toHaveLength(2)
   } finally {
     await closeHronaut(app)
     await closeFixtureServer(server)

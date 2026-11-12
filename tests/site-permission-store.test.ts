@@ -183,18 +183,30 @@ describe('SitePermissionStore', () => {
     expect(store.get(widget, 'geolocation', {} as never)).toBeUndefined()
   })
 
-  it('never saves a decision for a permission that asks every time', async () => {
+  it('never saves a decision for a permission that asks every time, or one Hronaut never uses', async () => {
     const { store } = await createStore()
-    for (const permission of ['media', 'fileSystem', 'openExternal']) {
+    // Full screen is every page's, a camera and microphone request is remembered for each device, and storage access for
+    // a whole page is refused without asking.
+    for (const permission of ['fileSystem', 'openExternal', 'fullscreen', 'media', 'top-level-storage-access']) {
       await expect(store.set(widget, permission, 'allow', { workspaceId: WORK })).rejects.toThrow('permission name')
     }
     expect(store.list()).toEqual([])
   })
 
-  it('drops a decision without a workspace, with a malformed scope, or for a permission that asks every time', async () => {
+  it('keeps the camera and the microphone apart', async () => {
+    // Camera and microphone asked on every call and were never saved; as in Chrome, each now has its own decision.
+    const { store } = await createStore()
+    await store.set(widget, 'camera', 'allow', { workspaceId: WORK })
+    await store.set(widget, 'microphone', 'deny', { workspaceId: WORK })
+    expect([store.decisionFor(widget, 'camera', WORK), store.decisionFor(widget, 'microphone', WORK)]).toEqual(['allow', 'deny'])
+    expect(store.list().map((entry) => entry.permission).sort()).toEqual(['camera', 'microphone'])
+  })
+
+  it('drops a decision without a workspace, with a malformed scope, or for a permission it never saves', async () => {
     const { path, store } = await createStore()
     await mkdir(dirname(path), { recursive: true })
     const valid = [
+      { origin: widget, permission: 'camera', decision: 'allow', workspaceId: WORK },
       { origin: widget, permission: 'geolocation', decision: 'allow', workspaceId: WORK },
       { origin: widget, permission: 'geolocation', decision: 'deny', workspaceId: WORK, embeddedIn: firstSite }
     ]
@@ -214,7 +226,9 @@ describe('SitePermissionStore', () => {
         { origin: widget, permission: 'notifications', decision: 'allow', workspaceId: WORK, embeddedIn: firstSite },
         { origin: widget, permission: 'media', decision: 'allow', workspaceId: WORK },
         { origin: widget, permission: 'fileSystem', decision: 'allow', workspaceId: WORK },
-        { origin: widget, permission: 'openExternal', decision: 'allow', workspaceId: WORK }
+        { origin: widget, permission: 'openExternal', decision: 'allow', workspaceId: WORK },
+        { origin: widget, permission: 'fullscreen', decision: 'deny', workspaceId: WORK },
+        { origin: widget, permission: 'top-level-storage-access', decision: 'allow', workspaceId: WORK }
       ]
     }), 'utf8')
     expect(await store.load()).toEqual(valid)
