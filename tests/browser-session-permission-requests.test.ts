@@ -50,12 +50,15 @@ async function createHarness(locale: SupportedLocale = 'en-US') {
   const directory = await mkdtemp(join(tmpdir(), 'hronaut-permission-requests-test-'))
   temporaryDirectories.push(directory)
   const path = join(directory, 'site-permissions.json')
-  const store = new SitePermissionStore(path)
+  // The store reads what the person blocked for every website from `defaults.blocked`, as it reads the settings.
+  const defaults = { blocked: [] as string[] }
+  const store = new SitePermissionStore(path, () => defaults.blocked)
   await store.load()
   const shown: MessageBoxOptions[] = []
   const sent: unknown[][] = []
   const harness = {
     store,
+    defaults,
     path,
     shown,
     sent,
@@ -81,7 +84,7 @@ async function createHarness(locale: SupportedLocale = 'en-US') {
     state: { persistentSession: null, sitePermissionStore: store },
     sendToShellWindows: (...args) => { sent.push(args) },
     partition: 'persist:test',
-    websitesMaySaveFiles: () => false,
+    settings: () => ({ allowWebsiteFileSaving: false, sitePermissionsBlockedByDefault: [] }),
     trackSpellCheck: () => undefined
   })
   const workspaceSession = (workspaceId?: string) => {
@@ -403,6 +406,24 @@ describe('what Chrome gives every website without asking', () => {
     const page = createPage(player)
     expect(await ask(harness, page, 'top-level-storage-access', fromPlayer)).toBe(false)
     expect(check(harness, page, 'top-level-storage-access')).toBe(false)
+    expect(harness.shown).toEqual([])
+  })
+
+  it('is refused, in a request and a check, once the person blocks it for every website, unless the website is allowed', async () => {
+    const harness = await createHarness()
+    harness.defaults.blocked = [...silent]
+    const page = createPage(player)
+    for (const permission of silent) {
+      expect(await ask(harness, page, permission, fromPlayer), permission).toBe(false)
+      expect(check(harness, page, permission), permission).toBe(false)
+    }
+    await harness.store.set(player.origin, 'mediaKeySystem', 'allow', { workspaceId: WORK })
+    expect(await ask(harness, page, 'mediaKeySystem', fromPlayer)).toBe(true)
+    expect(check(harness, page, 'mediaKeySystem')).toBe(true)
+    // Full screen is not among the defaults the person can change.
+    expect(await ask(harness, page, 'fullscreen', fromPlayer)).toBe(true)
+    harness.defaults.blocked = []
+    expect(await ask(harness, page, 'screen-wake-lock', fromPlayer)).toBe(true)
     expect(harness.shown).toEqual([])
   })
 
@@ -1107,5 +1128,45 @@ describe('a prompt nobody answered', () => {
     expect(await ask(harness, page, 'geolocation', fromMeet)).toBe(true)
     expect(await ask(harness, page, 'media', camera)).toBe(true)
     expect(harness.shown).toHaveLength(4)
+  })
+})
+
+describe('what the person blocked for every website', () => {
+  const maps = { url: 'https://maps.example/route', origin: 'https://maps.example' }
+  const fromMaps = { requestingUrl: maps.url, isMainFrame: true }
+
+  it('is refused without a prompt or a saved decision, while a decision for the website still wins', async () => {
+    const harness = await createHarness()
+    harness.decide = () => 'allow'
+    harness.defaults.blocked = ['geolocation', 'camera', 'notifications']
+    const page = createPage(maps)
+    expect(await ask(harness, page, 'geolocation', fromMaps)).toBe(false)
+    expect(await ask(harness, page, 'notifications', fromMaps)).toBe(false)
+    expect(await ask(harness, page, 'media', { ...fromMaps, mediaTypes: ['video'] })).toBe(false)
+    // A call that needs the blocked camera is refused as a whole, as one the person blocked for the website is.
+    expect(await ask(harness, page, 'media', { ...fromMaps, mediaTypes: ['audio', 'video'] })).toBe(false)
+    expect(harness.shown).toEqual([])
+    expect(harness.store.list()).toEqual([])
+    expect(harness.check!(page.contents as never, 'geolocation' as never, maps.origin, fromMaps as never)).toBe(false)
+
+    await harness.store.set(maps.origin, 'geolocation', 'allow', { workspaceId: WORK })
+    expect(await ask(harness, page, 'geolocation', fromMaps)).toBe(true)
+    expect(harness.check!(page.contents as never, 'geolocation' as never, maps.origin, fromMaps as never)).toBe(true)
+    // What is not blocked still asks: the microphone alone.
+    expect(await ask(harness, page, 'media', { ...fromMaps, mediaTypes: ['audio'] })).toBe(true)
+    expect(harness.shown).toHaveLength(1)
+  })
+
+  it('follows a change at once, and blocks Chromium\'s older local network request with local network devices', async () => {
+    const harness = await createHarness()
+    harness.decide = () => 'deny'
+    const page = createPage(maps)
+    harness.defaults.blocked = ['local-network']
+    expect(await ask(harness, page, 'local-network-access', fromMaps)).toBe(false)
+    expect(await ask(harness, page, 'local-network', fromMaps)).toBe(false)
+    expect(harness.shown).toEqual([])
+    harness.defaults.blocked = []
+    expect(await ask(harness, page, 'local-network', fromMaps)).toBe(false)
+    expect(harness.shown).toHaveLength(1)
   })
 })

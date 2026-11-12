@@ -23,6 +23,7 @@ function snapshot(locale: 'en-US' | 'uk-UA'): RendererSettingsState {
       challengeDetectionEnabled: false,
       omitAgentUrlDetail: false,
       allowWebsiteFileSaving: false,
+      sitePermissionsBlockedByDefault: [],
       secureDnsMode: 'automatic',
       secureDnsTemplate: '',
       followAgentActivity: false,

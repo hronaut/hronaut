@@ -183,6 +183,7 @@ export interface HronautSettingsApi {
   setChallengeDetectionEnabled(enabled: boolean): Promise<AppSettings>
   setOmitAgentUrlDetail(enabled: boolean): Promise<AppSettings>
   setAllowWebsiteFileSaving(enabled: boolean): Promise<AppSettings>
+  setSitePermissionsBlockedByDefault(permissions: string[]): Promise<AppSettings>
   setMcpRemoteAccess(enabled: boolean): Promise<AppSettings>
   setMcpAuthentication(enabled: boolean): Promise<AppSettings>
   setMcpPort(port: number): Promise<AppSettings>

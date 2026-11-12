@@ -388,7 +388,7 @@ const {
   state: browserSessionState,
   sendToShellWindows,
   partition: PARTITION,
-  websitesMaySaveFiles: () => settingsState.current.allowWebsiteFileSaving,
+  settings: () => settingsState.current,
   trackSpellCheck: (browserSession) => spellCheck.track(browserSession)
 })
 const credentialRuntime: CredentialRuntimeState = {

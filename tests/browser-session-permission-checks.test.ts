@@ -27,10 +27,10 @@ afterEach(async () => {
 })
 
 /** A site permission store in a folder of its own, removed after the test. */
-async function createStore() {
+async function createStore(blockedByDefault: () => readonly string[] = () => []) {
   const folder = await mkdtemp(join(tmpdir(), 'hronaut-permission-checks-'))
   storeFolders.push(folder)
-  const store = new SitePermissionStore(join(folder, 'site-permissions.json'))
+  const store = new SitePermissionStore(join(folder, 'site-permissions.json'), blockedByDefault)
   await store.load()
   stores.push(store)
   return store
@@ -44,7 +44,7 @@ const fromSite = { requestingUrl: site.url, isMainFrame: true }
 function createHarness(
   answers: Array<'allow' | 'deny'> = [],
   saveFiles: () => boolean = () => false,
-  store: Pick<InstanceType<typeof SitePermissionStore>, 'decisionFor'> | null = null
+  store: Pick<InstanceType<typeof SitePermissionStore>, 'effectiveDecisionFor'> | null = null
 ) {
   const shown: MessageBoxOptions[] = []
   const handlers = { request: undefined as RequestHandler | undefined, check: undefined as CheckHandler | undefined }
@@ -59,7 +59,7 @@ function createHarness(
     state: { persistentSession: null, sitePermissionStore: store as never },
     sendToShellWindows: () => undefined,
     partition: 'persist:test',
-    websitesMaySaveFiles: saveFiles,
+    settings: () => ({ allowWebsiteFileSaving: saveFiles(), sitePermissionsBlockedByDefault: [] }),
     trackSpellCheck: () => undefined
   })
   const workspaceSession = {
@@ -127,6 +127,20 @@ describe('camera and microphone a website was allowed', () => {
     expect(shown).toHaveLength(1)
     // A Block saved in Site controls or Settings ends it.
     await store.set(site.origin, 'camera', 'deny', { workspaceId: WORKSPACE })
+    expect(device(handlers, page, 'video')).toBe(false)
+  })
+
+  it('read as refused when the person blocked the device for every website, unless the website was allowed', async () => {
+    let blocked = ['camera']
+    const store = await createStore(() => blocked)
+    const { handlers, workspaceSession } = createHarness([], () => false, store)
+    const page = createPage(workspaceSession)
+    expect(device(handlers, page, 'video')).toBe(false)
+    await store.set(site.origin, 'camera', 'allow', { workspaceId: WORKSPACE })
+    expect(device(handlers, page, 'video')).toBe(true)
+    await store.remove(site.origin, 'camera', { workspaceId: WORKSPACE })
+    expect(device(handlers, page, 'video')).toBe(false)
+    blocked = []
     expect(device(handlers, page, 'video')).toBe(false)
   })
 
@@ -344,7 +358,7 @@ describe('a single file a website holds', () => {
 })
 
 it('never admits screen capture or storage access for a whole page from a check, even with an allowing decision saved', () => {
-  const { handlers, workspaceSession } = createHarness([], () => false, { decisionFor: () => 'allow' })
+  const { handlers, workspaceSession } = createHarness([], () => false, { effectiveDecisionFor: () => 'allow' })
   const page = createPage(workspaceSession)
   expect(handlers.check!(page.contents as never, 'geolocation' as never, site.origin, fromSite as never)).toBe(true)
   expect(handlers.check!(page.contents as never, 'display-capture' as never, site.origin, fromSite as never)).toBe(false)

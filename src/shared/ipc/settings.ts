@@ -80,6 +80,8 @@ export const SETTINGS_IPC = {
   setOmitAgentUrlDetail: 'settings:set-omit-agent-url-detail' as InvokeChannel<[enabled: boolean], AppSettings>,
   /** Shell → main: turns letting websites save to every single file they hold, not only one picked to save, on or off. */
   setAllowWebsiteFileSaving: 'settings:set-allow-website-file-saving' as InvokeChannel<[enabled: boolean], AppSettings>,
+  /** Shell → main: sets the permissions blocked, or Sound muted, for every website unless a website has its own decision. */
+  setSitePermissionsBlockedByDefault: 'settings:set-site-permissions-blocked-by-default' as InvokeChannel<[permissions: string[]], AppSettings>,
   /** Shell → main: turns MCP access from other devices on or off, from the next start. */
   setMcpRemoteAccess: 'settings:set-mcp-remote-access' as InvokeChannel<[enabled: boolean], AppSettings>,
   /** Shell → main: turns MCP token authentication on or off. */

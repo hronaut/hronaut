@@ -28,6 +28,11 @@ export interface SitePermissionsControllerOptions {
   workspaces: () => readonly SitePermissionWorkspace[] | null
   /** Whether websites may save to every single file they hold, read from the settings, and how to change it. */
   fileSaving: { enabled: () => boolean, set: (enabled: boolean) => Promise<unknown> }
+  /**
+   * The permissions blocked, or Sound muted, for every website without a decision of its own, read from the settings,
+   * and how to save a new list of them.
+   */
+  defaults: { blocked: () => readonly string[], set: (permissions: string[]) => Promise<unknown> }
   onError: (error: unknown) => void
 }
 
@@ -54,6 +59,8 @@ export function useSitePermissionsController(options: SitePermissionsControllerO
   const errorMessage = ref('')
   const fileSavingPending = ref(false)
   const fileSavingEnabled = computed(() => options.fileSaving.enabled())
+  const defaultsPending = ref(false)
+  const blockedByDefault = computed(() => options.defaults.blocked())
   let generation = 0
   let revision = 0
   let initializationGeneration = 0
@@ -67,7 +74,7 @@ export function useSitePermissionsController(options: SitePermissionsControllerO
     }
     return [...grouped].map(([origin, permissions]) => ({ origin, permissions }))
   })
-  const busy = computed(() => clearing.value || fileSavingPending.value || pendingKeys.value.size > 0)
+  const busy = computed(() => clearing.value || fileSavingPending.value || defaultsPending.value || pendingKeys.value.size > 0)
 
   function permissionLabel(permission: string): string {
     return sitePermissionName(permission, options.translate)
@@ -190,9 +197,10 @@ export function useSitePermissionsController(options: SitePermissionsControllerO
   }
 
   /**
-   * Resets the section: forgets every saved decision, and turns saving to every single file a website holds back off,
-   * as it is by default. The switch goes first, so a reset never forgets the decisions and leaves the switch on. It is
-   * turned off even when it reads off here, since this copy of the settings may not have heard of a change yet.
+   * Resets the section: forgets every saved decision, turns saving to every single file a website holds back off, and
+   * gives every permission its built-in default again. The switch and the defaults go first, so a reset never forgets
+   * the decisions and leaves them changed. Both are reset even when they read as reset here, since this copy of the
+   * settings may not have heard of a change yet.
    */
   async function clear(): Promise<boolean> {
     if (busy.value) return false
@@ -206,6 +214,13 @@ export function useSitePermissionsController(options: SitePermissionsControllerO
         await options.fileSaving.set(false)
       } finally {
         if (operation.generation === generation) fileSavingPending.value = false
+      }
+      if (operation.generation !== generation) return false
+      defaultsPending.value = true
+      try {
+        await options.defaults.set([])
+      } finally {
+        if (operation.generation === generation) defaultsPending.value = false
       }
       if (operation.generation !== generation) return false
       await options.api.clear()
@@ -235,11 +250,45 @@ export function useSitePermissionsController(options: SitePermissionsControllerO
     }
   }
 
+  function isBlockedByDefault(permission: string): boolean {
+    return blockedByDefault.value.includes(permission)
+  }
+
+  /**
+   * Blocks a permission, or mutes Sound, for every website without a decision of its own, or gives it its built-in
+   * default again; false when it did not change, or the panel went away.
+   */
+  function setBlockedByDefault(permission: string, blocked: boolean): Promise<boolean> {
+    const others = blockedByDefault.value.filter((name) => name !== permission)
+    return saveDefaults(blocked ? [...others, permission] : others)
+  }
+
+  /** Gives every permission its built-in default again. */
+  function resetDefaults(): Promise<boolean> {
+    return saveDefaults([])
+  }
+
+  async function saveDefaults(permissions: string[]): Promise<boolean> {
+    if (defaultsPending.value || clearing.value) return false
+    const operationGeneration = generation
+    defaultsPending.value = true
+    try {
+      await options.defaults.set(permissions)
+      return operationGeneration === generation
+    } catch (error) {
+      if (operationGeneration === generation) options.onError(error)
+      return false
+    } finally {
+      if (operationGeneration === generation) defaultsPending.value = false
+    }
+  }
+
   function dispose(): void {
     generation += 1
     pendingKeys.value = new Set()
     clearing.value = false
     fileSavingPending.value = false
+    defaultsPending.value = false
   }
 
   return {
@@ -260,6 +309,11 @@ export function useSitePermissionsController(options: SitePermissionsControllerO
     fileSavingEnabled,
     fileSavingPending,
     setFileSaving,
+    blockedByDefault,
+    defaultsPending,
+    isBlockedByDefault,
+    setBlockedByDefault,
+    resetDefaults,
     dispose
   }
 }

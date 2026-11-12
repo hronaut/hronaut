@@ -32,7 +32,8 @@ function deferred<Value>() {
 function renderPanel(
   entries = [locationPermission],
   locale: SupportedLocale = 'en-US',
-  knownWorkspaces: () => readonly SitePermissionWorkspace[] | null = () => workspaces
+  knownWorkspaces: () => readonly SitePermissionWorkspace[] | null = () => workspaces,
+  initiallyBlocked: string[] = []
 ) {
   const i18n = createHronautI18n(locale)
   const api = {
@@ -47,25 +48,33 @@ function renderPanel(
   }
   const fileSavingEnabled = ref(false)
   const setFileSaving = vi.fn(async (enabled: boolean) => { fileSavingEnabled.value = enabled })
+  const blockedByDefault = ref<string[]>(initiallyBlocked)
+  const setDefaults = vi.fn(async (permissions: string[]) => { blockedByDefault.value = permissions })
   const onError = vi.fn()
   const controller = useSitePermissionsController({
     api,
     onError,
     translate: (key, parameters) => i18n.global.t(key, parameters ?? {}),
     workspaces: knownWorkspaces,
-    fileSaving: { enabled: () => fileSavingEnabled.value, set: setFileSaving }
+    fileSaving: { enabled: () => fileSavingEnabled.value, set: setFileSaving },
+    defaults: { blocked: () => blockedByDefault.value, set: setDefaults }
   })
   controller.replace(entries)
   const view = render(SitePermissionsSettingsPanel, {
     global: { plugins: [i18n] },
     props: { controller }
   })
-  return { api, controller, view, i18n, fileSavingEnabled, setFileSaving, onError }
+  return { api, controller, view, i18n, fileSavingEnabled, setFileSaving, setDefaults, blockedByDefault, onError }
+}
+
+function showDefaults(): Promise<void> {
+  return userEvent.click(screen.getByRole('tab', { name: 'Defaults' }))
 }
 
 describe('saving to files websites hold', () => {
   it('is off until the person turns it on, and warns more loudly while it is on', async () => {
     const { setFileSaving, view } = renderPanel()
+    await showDefaults()
     const toggle = screen.getByRole('checkbox', { name: /Let websites save to files you open or drop/ })
     expect(toggle).not.toBeChecked()
     expect(toggle).toHaveAccessibleDescription(expect.stringContaining('could also overwrite other files in the folder'))
@@ -82,10 +91,82 @@ describe('saving to files websites hold', () => {
   it('stays as it was when the change is not saved', async () => {
     const { setFileSaving, onError } = renderPanel()
     setFileSaving.mockRejectedValueOnce(new Error('Settings could not be written'))
+    await showDefaults()
     const toggle = screen.getByRole('checkbox', { name: /Let websites save to files you open or drop/ })
     await userEvent.click(toggle)
     expect(onError).toHaveBeenCalledOnce()
     expect(toggle).not.toBeChecked()
+  })
+})
+
+describe('what every website gets', () => {
+  it('opens on the saved decisions, and lists each permission\'s default on its own tab', async () => {
+    const { controller } = renderPanel()
+    expect(screen.getByRole('tab', { name: 'Websites' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('heading', { name: 'https://example.test' })).toBeVisible()
+    expect(screen.queryByRole('combobox', { name: 'Default for Camera' })).toBeNull()
+
+    await showDefaults()
+    expect(screen.queryByRole('heading', { name: 'https://example.test' })).toBeNull()
+    const asked = within(screen.getByRole('region', { name: 'Websites ask first' }))
+    const allowed = within(screen.getByRole('region', { name: 'Allowed without asking' }))
+    expect(asked.getAllByRole('combobox')).toHaveLength(15)
+    expect(allowed.getAllByRole('combobox')).toHaveLength(7)
+    const camera = asked.getByRole('combobox', { name: 'Default for Camera' })
+    expect(camera).toHaveValue('built-in')
+    expect(within(camera).getAllByRole('option').map((option) => option.textContent)).toEqual(['Ask first', 'Block'])
+    const wakeLock = allowed.getByRole('combobox', { name: 'Default for Keep screen on' })
+    expect(within(wakeLock).getAllByRole('option').map((option) => option.textContent)).toEqual(['Allow', 'Block'])
+    const sound = allowed.getByRole('combobox', { name: 'Default for Sound' })
+    expect(within(sound).getAllByRole('option').map((option) => option.textContent)).toEqual(['Allow', 'Mute'])
+    expect(screen.getByRole('checkbox', { name: /Let websites save to files you open or drop/ })).toBeVisible()
+    controller.dispose()
+  })
+
+  it('blocks a permission for every website, gives it back its default, and resets every default', async () => {
+    const { controller, setDefaults } = renderPanel()
+    const user = userEvent.setup()
+    await showDefaults()
+    const reset = screen.getByRole('button', { name: 'Reset defaults' })
+    expect(reset).toHaveAttribute('aria-disabled', 'true')
+    await user.click(reset)
+    expect(setDefaults).not.toHaveBeenCalled()
+
+    const camera = screen.getByRole('combobox', { name: 'Default for Camera' })
+    await user.selectOptions(camera, 'deny')
+    expect(setDefaults).toHaveBeenLastCalledWith(['camera'])
+    await vi.waitFor(() => expect(camera).toHaveFocus())
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Default for Sound' }), 'deny')
+    expect(setDefaults).toHaveBeenLastCalledWith(['camera', 'sound'])
+    await user.selectOptions(camera, 'built-in')
+    expect(setDefaults).toHaveBeenLastCalledWith(['sound'])
+    expect(camera).toHaveValue('built-in')
+
+    expect(reset).toHaveAttribute('aria-disabled', 'false')
+    await user.click(reset)
+    expect(setDefaults).toHaveBeenLastCalledWith([])
+    expect(screen.getByRole('combobox', { name: 'Default for Sound' })).toHaveValue('built-in')
+    controller.dispose()
+  })
+
+  it('shows a default saved before, and keeps the select as it was when a change is not saved', async () => {
+    const { controller, setDefaults, onError } = renderPanel([locationPermission], 'en-US', () => workspaces, ['geolocation'])
+    await showDefaults()
+    const location = screen.getByRole('combobox', { name: 'Default for Location' })
+    expect(location).toHaveValue('deny')
+    setDefaults.mockRejectedValueOnce(new Error('Settings could not be written'))
+    await userEvent.selectOptions(location, 'built-in')
+    expect(onError).toHaveBeenCalledOnce()
+    expect(location).toHaveValue('deny')
+    controller.dispose()
+  })
+
+  it('names the defaults in the person\'s language', async () => {
+    const { controller } = renderPanel([locationPermission], 'ru-RU')
+    await userEvent.click(screen.getByRole('tab', { name: 'По умолчанию' }))
+    expect(screen.getByRole('region', { name: 'Сайты сначала спрашивают' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Вернуть значения по умолчанию' })).toBeVisible()
+    controller.dispose()
   })
 })
 

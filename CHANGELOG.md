@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Settings → Site permissions has two tabs, as Wallets does. The new Defaults tab sets what every website gets, as in Chrome: block a permission websites ask for, such as location or the camera, block one they get without asking, or mute Sound for every website. A decision you saved for a website still comes first. The saved decisions are on the Websites tab.
+
 ## [3.14.28] - 2026-11-12
 
 ### Changed

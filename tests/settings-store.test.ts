@@ -66,6 +66,21 @@ describe('SettingsStore', () => {
     expect((await store.load()).allowWebsiteFileSaving).toBe(true)
   })
 
+  // Only permissions Settings lists are kept, each once and in its order; anything else blocks nothing.
+  it.each([
+    [undefined, []],
+    ['camera', []],
+    [['camera', 'camera'], []],
+    [['camera', 'fullscreen'], []],
+    [['sound', 'notifications', 'geolocation'], ['geolocation', 'notifications', 'sound']]
+  ])('loads the permissions blocked for every website from %j', async (value, expected) => {
+    const { path, store } = await createStore()
+    await store.save({ ...DEFAULT_SETTINGS })
+    await writeFile(path, JSON.stringify({ sitePermissionsBlockedByDefault: value }))
+    expect(DEFAULT_SETTINGS.sitePermissionsBlockedByDefault).toEqual([])
+    expect((await store.load()).sitePermissionsBlockedByDefault).toEqual(expected)
+  })
+
   it('preserves optional authentication when restoring a remote-access profile', async () => {
     const { path, store } = await createStore()
     await mkdir(join(path, '..'), { recursive: true })
@@ -90,6 +105,7 @@ describe('SettingsStore', () => {
       challengeDetectionEnabled: false,
       omitAgentUrlDetail: false,
       allowWebsiteFileSaving: false,
+      sitePermissionsBlockedByDefault: ['camera', 'sound'],
       secureDnsMode: 'secure',
       secureDnsTemplate: 'https://dns.quad9.net/dns-query',
       followAgentActivity: true,
@@ -125,6 +141,7 @@ describe('SettingsStore', () => {
       challengeDetectionEnabled: false,
       omitAgentUrlDetail: false,
       allowWebsiteFileSaving: false,
+      sitePermissionsBlockedByDefault: ['camera', 'sound'],
       secureDnsMode: 'secure',
       secureDnsTemplate: 'https://dns.quad9.net/dns-query',
       followAgentActivity: true,
@@ -160,6 +177,7 @@ describe('SettingsStore', () => {
       challengeDetectionEnabled: false,
       omitAgentUrlDetail: false,
       allowWebsiteFileSaving: false,
+      sitePermissionsBlockedByDefault: ['camera', 'sound'],
       secureDnsMode: 'secure',
       secureDnsTemplate: 'https://dns.quad9.net/dns-query',
       followAgentActivity: true,
@@ -235,6 +253,7 @@ describe('SettingsStore', () => {
       challengeDetectionEnabled: false,
       omitAgentUrlDetail: false,
       allowWebsiteFileSaving: false,
+      sitePermissionsBlockedByDefault: [],
       secureDnsMode: 'automatic',
       secureDnsTemplate: '',
       followAgentActivity: false,

@@ -5,6 +5,7 @@ import { isThemeName } from '../../shared/theme.js'
 import { DEFAULT_MCP_PORT, isValidMcpPort } from '../../shared/mcp-port.js'
 import { DEFAULT_SEARCH_ENGINE, isSearchEngineName } from '../../shared/search-engine.js'
 import { readSiteSearches } from '../../shared/site-search.js'
+import { readSitePermissionsBlockedByDefault } from '../../shared/site-permission-defaults.js'
 import { DEFAULT_SECURE_DNS_MODE, readSecureDns } from '../../shared/secure-dns.js'
 import { DEFAULT_INTERFACE_SCALE, isInterfaceScale } from '../../shared/interface-scale.js'
 import {
@@ -35,6 +36,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   challengeDetectionEnabled: false,
   omitAgentUrlDetail: false,
   allowWebsiteFileSaving: false,
+  sitePermissionsBlockedByDefault: [],
   secureDnsMode: DEFAULT_SECURE_DNS_MODE,
   secureDnsTemplate: '',
   followAgentActivity: false,
@@ -119,6 +121,7 @@ export class SettingsStore {
         challengeDetectionEnabled: value.challengeDetectionEnabled === true,
         omitAgentUrlDetail: value.omitAgentUrlDetail === true,
         allowWebsiteFileSaving: value.allowWebsiteFileSaving === true,
+        sitePermissionsBlockedByDefault: readSitePermissionsBlockedByDefault(value.sitePermissionsBlockedByDefault),
         ...readSecureDns(value.secureDnsMode, value.secureDnsTemplate),
         mcpRemoteAccess: value.mcpRemoteAccess === true,
         mcpAuthentication:

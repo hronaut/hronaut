@@ -7,10 +7,11 @@ import type { BrowserTab } from '../browser-tab.js'
 import { browserState, publishChange } from '../browser-state/browser-state.js'
 
 /** The part of the site permission store that keeps the websites muted in each workspace. */
-export type SiteSoundStore = Pick<SitePermissionStore, 'decisionFor' | 'set' | 'remove'>
+export type SiteSoundStore = Pick<SitePermissionStore, 'effectiveDecisionFor' | 'isBlockedByDefault' | 'set' | 'remove'>
 
 // Chrome's Sound site setting is a decision of the site permission store: deny mutes the website in every tab of its
-// workspace, and Settings → Site permissions lists, changes and forgets it with the other decisions.
+// workspace, and Settings → Site permissions lists, changes and forgets it with the other decisions. A website without
+// one plays sound unless the person muted Sound for every website there; then only an allow decision gives it sound.
 
 /** The website and workspace a tab's sound setting belongs to, or undefined for a page that is no website's. */
 function siteOf(tab: BrowserTab): { origin: string; workspaceId: string } | undefined {
@@ -28,10 +29,11 @@ export function canMuteSite(browser: Browser, tab: BrowserTab): boolean {
   return siteOf(tab) !== undefined && soundStore(browser) !== null
 }
 
-/** Whether the website the tab shows is muted in the tab's workspace. */
+/** Whether the website the tab shows is muted in the tab's workspace, on its own or with every website. */
 export function isSiteMuted(browser: Browser, tab: BrowserTab): boolean {
   const site = siteOf(tab)
-  return site !== undefined && soundStore(browser)?.decisionFor(site.origin, SITE_SOUND_PERMISSION, site.workspaceId) === 'deny'
+  return site !== undefined
+    && soundStore(browser)?.effectiveDecisionFor(site.origin, SITE_SOUND_PERMISSION, site.workspaceId) === 'deny'
 }
 
 /**
@@ -71,7 +73,8 @@ export function applySiteMutingToTabs(browser: Browser): void {
 
 /**
  * Chrome's Mute Site and Unmute Site in a tab's menu: mutes the tab's website in every tab of its workspace, now and
- * on its later pages, or forgets that, so its tabs play sound again unless muted otherwise.
+ * on its later pages, or forgets that, so its tabs play sound again unless muted otherwise. While Sound is muted for
+ * every website, Unmute Site saves an allow decision instead, as Chrome adds an exception.
  */
 export async function setSiteMuted(
   browser: Browser,
@@ -84,6 +87,7 @@ export async function setSiteMuted(
   if (!site || !store) throw new Error('Only a website in a workspace can be muted')
   const scope = { workspaceId: site.workspaceId }
   if (muted) await store.set(site.origin, SITE_SOUND_PERMISSION, 'deny', scope)
+  else if (store.isBlockedByDefault(SITE_SOUND_PERMISSION)) await store.set(site.origin, SITE_SOUND_PERMISSION, 'allow', scope)
   else await store.remove(site.origin, SITE_SOUND_PERMISSION, scope)
   browser.options.onSitePermissionsChanged?.()
   applySiteMutingToTabs(browser)

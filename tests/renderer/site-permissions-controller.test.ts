@@ -20,11 +20,16 @@ function deferred<Value>() {
   return { promise, resolve, reject }
 }
 
-function createController(fileSavingOn = false) {
+function createController(fileSavingOn = false, initiallyBlocked: string[] = []) {
   const fileSavingEnabled = ref(fileSavingOn)
   const fileSaving = {
     enabled: () => fileSavingEnabled.value,
     set: vi.fn(async (enabled: boolean) => { fileSavingEnabled.value = enabled })
+  }
+  const blocked = ref<string[]>(initiallyBlocked)
+  const defaults = {
+    blocked: () => blocked.value,
+    set: vi.fn(async (permissions: string[]) => { blocked.value = permissions })
   }
   const api = {
     set: vi.fn(async (_origin: string, _name: string, decision: 'allow' | 'deny') => permission(decision)),
@@ -37,10 +42,11 @@ function createController(fileSavingOn = false) {
     onError,
     translate: (key) => key,
     workspaces: () => [],
-    fileSaving
+    fileSaving,
+    defaults
   })
   controller.replace([permission('allow')])
-  return { api, controller, onError, fileSaving }
+  return { api, controller, onError, fileSaving, defaults }
 }
 
 describe('site permissions controller', () => {
@@ -137,6 +143,68 @@ describe('site permissions controller', () => {
     expect(controller.fileSavingPending.value).toBe(false)
     expect(api.clear).toHaveBeenCalledOnce()
     expect(controller.entries.value).toEqual([])
+    controller.dispose()
+  })
+
+  it('gives every permission its built-in default again when the section resets, before it forgets the decisions', async () => {
+    const { api, controller, defaults } = createController(false, ['camera', 'sound'])
+    const saving = deferred<void>()
+    const settle = defaults.set.getMockImplementation()!
+    defaults.set.mockImplementationOnce(async (permissions) => {
+      await saving.promise
+      await settle(permissions)
+    })
+
+    const reset = controller.clear()
+    await vi.waitFor(() => expect(defaults.set).toHaveBeenCalledOnce())
+    expect(controller.defaultsPending.value).toBe(true)
+    expect(api.clear).not.toHaveBeenCalled()
+    saving.resolve()
+
+    await expect(reset).resolves.toBe(true)
+    expect(defaults.set.mock.calls).toEqual([[[]]])
+    expect(controller.blockedByDefault.value).toEqual([])
+    expect(api.clear).toHaveBeenCalledOnce()
+    controller.dispose()
+
+    // The decisions stay when the defaults can't be reset.
+    const failing = createController(false, ['camera'])
+    failing.defaults.set.mockRejectedValueOnce(new Error('settings write failed'))
+    await expect(failing.controller.clear()).resolves.toBe(false)
+    expect(failing.api.clear).not.toHaveBeenCalled()
+    expect(failing.controller.entries.value).toEqual([permission('allow')])
+    failing.controller.dispose()
+  })
+
+  it('blocks a permission for every website, gives it its default again, and resets every default', async () => {
+    const { controller, defaults } = createController()
+    await expect(controller.setBlockedByDefault('camera', true)).resolves.toBe(true)
+    await expect(controller.setBlockedByDefault('sound', true)).resolves.toBe(true)
+    await expect(controller.setBlockedByDefault('camera', true)).resolves.toBe(true)
+    expect(controller.isBlockedByDefault('camera')).toBe(true)
+    await expect(controller.setBlockedByDefault('camera', false)).resolves.toBe(true)
+    expect(controller.isBlockedByDefault('camera')).toBe(false)
+    await expect(controller.resetDefaults()).resolves.toBe(true)
+    expect(defaults.set.mock.calls).toEqual([[['camera']], [['camera', 'sound']], [['sound', 'camera']], [['sound']], [[]]])
+    controller.dispose()
+  })
+
+  it('refuses another default while one saves, and says why a default was not saved', async () => {
+    const saving = deferred<void>()
+    const { controller, defaults, onError } = createController()
+    defaults.set.mockImplementationOnce(() => saving.promise)
+    const first = controller.setBlockedByDefault('camera', true)
+    expect(controller.busy.value).toBe(true)
+    await expect(controller.setBlockedByDefault('geolocation', true)).resolves.toBe(false)
+    await expect(controller.clear()).resolves.toBe(false)
+    saving.resolve()
+    await expect(first).resolves.toBe(true)
+    expect(defaults.set).toHaveBeenCalledOnce()
+
+    defaults.set.mockRejectedValueOnce(new Error('settings write failed'))
+    await expect(controller.setBlockedByDefault('geolocation', true)).resolves.toBe(false)
+    expect(onError).toHaveBeenCalledOnce()
+    expect(controller.defaultsPending.value).toBe(false)
     controller.dispose()
   })
 
