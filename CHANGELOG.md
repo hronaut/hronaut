@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [3.14.28] - 2026-11-12
+
 ### Changed
 
 - Websites ask for fewer permissions, as in Chrome. Full screen, writing to the clipboard, protected content (DRM), keeping the screen on, persistent storage, an embedded website's own cookies and motion sensors are given without asking; a Block you saved for one of them still holds, except for full screen. The camera and the microphone are now remembered for the website, each on its own, instead of asking on every call, and a website you allowed one asks only for the other.
