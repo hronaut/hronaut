@@ -160,6 +160,8 @@ Get-FileHash .\PACKAGE_FILENAME -Algorithm SHA256
 
 Compare the result with the matching filename in `hashes.txt`. Attestations and hashes establish release-workflow provenance and file integrity; they do not make these packages platform code-signed or Apple-notarized. The [release trust guide](https://hronaut.dev/security#verify-release) explains the boundary and additional checks.
 
+Each release also carries `hronaut-sbom.cdx.json`, a CycloneDX software bill of materials listing the npm packages the app ships and the bundled Electron runtime, so a vulnerability scanner can check them. It is in `hashes.txt` and attested like the packages.
+
 ## Run from source
 
 Requirements: Node.js 22 or newer and a graphical Linux, macOS, or Windows session.
