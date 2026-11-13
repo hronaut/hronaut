@@ -1834,6 +1834,7 @@ export const jaJP: MessageSchema = {
       answers: {
         handedBack: 'あなたが作業を戻しました',
         sentBack: 'あなたが修正のために差し戻しました',
+        skipped: 'あなたがスキップしました',
         dismissed: 'あなたがリクエストを閉じました',
         approved: 'あなたが操作を承認しました',
         rejected: 'あなたが拒否しました',
@@ -1849,6 +1850,7 @@ export const jaJP: MessageSchema = {
       resume: 'このタブで再開',
       takeOver: '操作を引き継ぐ',
       handBack: '完了、作業を戻す',
+      skip: 'スキップ、私なしで続行',
       dismiss: '閉じる',
       reviewDecision: '判断を確認',
       openDecision: 'ワークスペースで開く',

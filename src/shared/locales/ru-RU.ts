@@ -1834,6 +1834,7 @@ export const ruRU: MessageSchema = {
       answers: {
         handedBack: 'Вы вернули агенту',
         sentBack: 'Вы вернули на доработку',
+        skipped: 'Вы пропустили',
         dismissed: 'Вы закрыли запрос',
         approved: 'Вы одобрили действие',
         rejected: 'Вы отклонили',
@@ -1849,6 +1850,7 @@ export const ruRU: MessageSchema = {
       resume: 'Возобновить на этой вкладке',
       takeOver: 'Взять управление',
       handBack: 'Готово, передать агенту',
+      skip: 'Пропустить, продолжай без меня',
       dismiss: 'Отклонить запрос',
       reviewDecision: 'Просмотреть решение',
       openDecision: 'Открыть в рабочем пространстве',

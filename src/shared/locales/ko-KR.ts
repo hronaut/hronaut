@@ -1834,6 +1834,7 @@ export const koKR: MessageSchema = {
       answers: {
         handedBack: '에이전트에게 다시 넘겼습니다',
         sentBack: '수정하도록 다시 보냈습니다',
+        skipped: '건너뛰었습니다',
         dismissed: '요청을 닫았습니다',
         approved: '작업을 승인했습니다',
         rejected: '거부했습니다',
@@ -1849,6 +1850,7 @@ export const koKR: MessageSchema = {
       resume: '이 탭에서 재개',
       takeOver: '직접 제어',
       handBack: '완료, 다시 넘기기',
+      skip: '건너뛰기, 저 없이 계속',
       dismiss: '닫기',
       reviewDecision: '결정 검토',
       openDecision: '작업 공간에서 열기',

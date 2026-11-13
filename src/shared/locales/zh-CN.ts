@@ -1834,6 +1834,7 @@ export const zhCN: MessageSchema = {
       answers: {
         handedBack: '您已交还给它',
         sentBack: '您已将其退回修正',
+        skipped: '您已跳过',
         dismissed: '您已忽略它的请求',
         approved: '您已批准该操作',
         rejected: '您已拒绝',
@@ -1849,6 +1850,7 @@ export const zhCN: MessageSchema = {
       resume: '在此标签页上恢复',
       takeOver: '接管',
       handBack: '完成，交还',
+      skip: '跳过，不用等我',
       dismiss: '忽略',
       reviewDecision: '审核此决策',
       openDecision: '在工作区中打开',

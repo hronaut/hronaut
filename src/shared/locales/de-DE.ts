@@ -1834,6 +1834,7 @@ export const deDE: MessageSchema = {
       answers: {
         handedBack: 'Sie haben es zurückgegeben',
         sentBack: 'Sie haben es zur Korrektur zurückgeschickt',
+        skipped: 'Sie haben es übersprungen',
         dismissed: 'Sie haben den Hinweis geschlossen',
         approved: 'Sie haben die Aktion genehmigt',
         rejected: 'Sie haben es abgelehnt',
@@ -1849,6 +1850,7 @@ export const deDE: MessageSchema = {
       resume: 'Auf diesem Tab fortsetzen',
       takeOver: 'Übernehmen',
       handBack: 'Erledigt, zurückgeben',
+      skip: 'Überspringen, ohne mich weiter',
       dismiss: 'Hinweis schließen',
       reviewDecision: 'Entscheidung prüfen',
       openDecision: 'Im Arbeitsbereich öffnen',

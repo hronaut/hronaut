@@ -1834,6 +1834,7 @@ export const idID: MessageSchema = {
       answers: {
         handedBack: 'Anda telah mengembalikannya ke agen',
         sentBack: 'Anda mengembalikannya untuk diperbaiki',
+        skipped: 'Anda melewatinya',
         dismissed: 'Anda menutup permintaannya',
         approved: 'Anda menyetujui tindakan tersebut',
         rejected: 'Anda menolaknya',
@@ -1849,6 +1850,7 @@ export const idID: MessageSchema = {
       resume: 'Lanjutkan di tab ini',
       takeOver: 'Ambil alih',
       handBack: 'Selesai, kembalikan',
+      skip: 'Lewati, lanjut tanpa saya',
       dismiss: 'Tutup',
       reviewDecision: 'Tinjau keputusan',
       openDecision: 'Buka di ruang kerja',

@@ -1834,6 +1834,7 @@ export const ukUA: MessageSchema = {
       answers: {
         handedBack: 'Ви повернули агенту',
         sentBack: 'Ви повернули на доопрацювання',
+        skipped: 'Ви пропустили',
         dismissed: 'Ви закрили запит',
         approved: 'Ви схвалили дію',
         rejected: 'Ви відхилили',
@@ -1849,6 +1850,7 @@ export const ukUA: MessageSchema = {
       resume: 'Відновити на цій вкладці',
       takeOver: 'Перейняти керування',
       handBack: 'Готово, передати агенту',
+      skip: 'Пропустити, продовжуй без мене',
       dismiss: 'Відхилити запит',
       reviewDecision: 'Переглянути рішення',
       openDecision: 'Відкрити в робочому просторі',

@@ -313,7 +313,12 @@ export function createTrayAttention(host: TrayAttentionHost): {
     }
     if (Notification.isSupported()) {
       try {
-        const notification = new Notification({ title: 'Hronaut', body: request.notificationMessage || openAttentionReasonText() })
+        // The shell plays the attention sound the person picked; the notification's own sound would double it.
+        const notification = new Notification({
+          title: 'Hronaut',
+          body: request.notificationMessage || openAttentionReasonText(),
+          silent: host.settings().attentionSound
+        })
         attentionNotification = notification
         notification.on('click', () => {
           if (host.state.request?.id !== request.id) return

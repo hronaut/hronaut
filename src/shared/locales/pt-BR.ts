@@ -1834,6 +1834,7 @@ export const ptBR: MessageSchema = {
       answers: {
         handedBack: 'Você devolveu o controle',
         sentBack: 'Você devolveu para correção',
+        skipped: 'Você pulou',
         dismissed: 'Você dispensou a solicitação',
         approved: 'Você aprovou a ação',
         rejected: 'Você rejeitou',
@@ -1849,6 +1850,7 @@ export const ptBR: MessageSchema = {
       resume: 'Retomar nesta guia',
       takeOver: 'Assumir',
       handBack: 'Pronto, devolver',
+      skip: 'Pular, seguir sem mim',
       dismiss: 'Dispensar',
       reviewDecision: 'Revisar a decisão',
       openDecision: 'Abrir no espaço de trabalho',

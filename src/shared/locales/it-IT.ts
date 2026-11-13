@@ -1834,6 +1834,7 @@ export const itIT: MessageSchema = {
       answers: {
         handedBack: 'Gli hai restituito il controllo',
         sentBack: 'Gliel’hai rimandato da correggere',
+        skipped: 'L’hai saltato',
         dismissed: 'Hai ignorato la sua richiesta',
         approved: 'Hai approvato l’azione',
         rejected: 'L’hai rifiutata',
@@ -1849,6 +1850,7 @@ export const itIT: MessageSchema = {
       resume: 'Riprendi in questa scheda',
       takeOver: 'Prendi il controllo',
       handBack: 'Fatto, restituisci il controllo',
+      skip: 'Salta, continua senza di me',
       dismiss: 'Ignora',
       reviewDecision: 'Esamina la decisione',
       openDecision: 'Apri nell’area di lavoro',

@@ -1834,6 +1834,7 @@ export const frFR: MessageSchema = {
       answers: {
         handedBack: 'Vous avez rendu la main',
         sentBack: 'Vous l’avez renvoyé pour correction',
+        skipped: 'Vous l’avez passé',
         dismissed: 'Vous avez ignoré la demande',
         approved: 'Vous avez approuvé l’action',
         rejected: 'Vous l’avez refusé',
@@ -1849,6 +1850,7 @@ export const frFR: MessageSchema = {
       resume: 'Reprendre sur cet onglet',
       takeOver: 'Prendre la main',
       handBack: 'Terminé, rendre la main',
+      skip: 'Passer, continuer sans moi',
       dismiss: 'Ignorer la demande',
       reviewDecision: 'Examiner la décision',
       openDecision: 'Ouvrir dans l’espace de travail',

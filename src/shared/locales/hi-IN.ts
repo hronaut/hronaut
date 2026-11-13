@@ -1834,6 +1834,7 @@ export const hiIN: MessageSchema = {
       answers: {
         handedBack: 'आपने इसे वापस सौंप दिया',
         sentBack: 'आपने इसे ठीक करने के लिए वापस भेजा',
+        skipped: 'आपने इसे छोड़ दिया',
         dismissed: 'आपने इसका अनुरोध खारिज किया',
         approved: 'आपने कार्रवाई को मंज़ूरी दी',
         rejected: 'आपने इसे अस्वीकार किया',
@@ -1849,6 +1850,7 @@ export const hiIN: MessageSchema = {
       resume: 'इस टैब पर फिर से शुरू करें',
       takeOver: 'खुद संभालें',
       handBack: 'हो गया, वापस सौंपें',
+      skip: 'छोड़ें, मेरे बिना आगे बढ़ें',
       dismiss: 'खारिज करें',
       reviewDecision: 'फ़ैसले की समीक्षा करें',
       openDecision: 'वर्कस्पेस में खोलें',

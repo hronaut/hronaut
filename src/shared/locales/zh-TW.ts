@@ -1834,6 +1834,7 @@ export const zhTW: MessageSchema = {
       answers: {
         handedBack: '你已交還控制權',
         sentBack: '你已退回要求修正',
+        skipped: '你已略過',
         dismissed: '你已略過其要求',
         approved: '你已核准這個動作',
         rejected: '你已拒絕',
@@ -1849,6 +1850,7 @@ export const zhTW: MessageSchema = {
       resume: '在這個分頁上恢復',
       takeOver: '接手',
       handBack: '完成，交還控制權',
+      skip: '略過，不用等我',
       dismiss: '略過',
       reviewDecision: '檢查決定',
       openDecision: '在工作區中開啟',

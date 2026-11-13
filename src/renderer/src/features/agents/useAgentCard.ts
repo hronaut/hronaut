@@ -135,6 +135,7 @@ function reasonAnswers(requestId: string, context: AgentCardContext, t: Translat
     return {
       answers: [
         { action: 'hand-back', label: t('shell.agentCard.handBack'), key: requestId },
+        { action: 'skip', label: t('shell.agentCard.skip'), key: requestId },
         { action: 'dismiss', label: t('shell.agentCard.dismiss'), key: requestId }
       ]
     }

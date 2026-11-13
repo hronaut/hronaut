@@ -1832,6 +1832,7 @@ export const enUS = {
       answers: {
         handedBack: 'You handed it back',
         sentBack: 'You sent it back to fix',
+        skipped: 'You skipped it',
         dismissed: 'You dismissed its request',
         approved: 'You approved the action',
         rejected: 'You rejected it',
@@ -1847,6 +1848,7 @@ export const enUS = {
       resume: 'Resume on this tab',
       takeOver: 'Take over',
       handBack: 'Done, hand back',
+      skip: 'Skip, go on without me',
       dismiss: 'Dismiss',
       reviewDecision: 'Review the decision',
       openDecision: 'Open in workspace',

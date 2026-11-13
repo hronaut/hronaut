@@ -1834,6 +1834,7 @@ export const viVN: MessageSchema = {
       answers: {
         handedBack: 'Bạn đã trả lại quyền điều khiển',
         sentBack: 'Bạn đã gửi lại để sửa',
+        skipped: 'Bạn đã bỏ qua',
         dismissed: 'Bạn đã bỏ qua yêu cầu',
         approved: 'Bạn đã phê duyệt thao tác',
         rejected: 'Bạn đã từ chối',
@@ -1849,6 +1850,7 @@ export const viVN: MessageSchema = {
       resume: 'Tiếp tục trên thẻ này',
       takeOver: 'Tiếp quản',
       handBack: 'Xong, trả lại',
+      skip: 'Bỏ qua, tiếp tục không cần tôi',
       dismiss: 'Bỏ qua',
       reviewDecision: 'Xem xét quyết định',
       openDecision: 'Mở trong không gian làm việc',

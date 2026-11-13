@@ -1834,6 +1834,7 @@ export const esES: MessageSchema = {
       answers: {
         handedBack: 'Lo devolviste al agente',
         sentBack: 'Lo devolviste para corregir',
+        skipped: 'Lo omitiste',
         dismissed: 'Descartaste el aviso',
         approved: 'Aprobaste la acción',
         rejected: 'Lo rechazaste',
@@ -1849,6 +1850,7 @@ export const esES: MessageSchema = {
       resume: 'Reanudar en esta pestaña',
       takeOver: 'Tomar el control',
       handBack: 'Listo, devolver al agente',
+      skip: 'Omitir, seguir sin mí',
       dismiss: 'Descartar aviso',
       reviewDecision: 'Revisar la decisión',
       openDecision: 'Abrir en el espacio de trabajo',

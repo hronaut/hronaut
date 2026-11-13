@@ -1834,6 +1834,7 @@ export const plPL: MessageSchema = {
       answers: {
         handedBack: 'Oddane agentowi przez Ciebie',
         sentBack: 'Odesłane do poprawy przez Ciebie',
+        skipped: 'Pominięte przez Ciebie',
         dismissed: 'Prośba zamknięta przez Ciebie',
         approved: 'Działanie zatwierdzone przez Ciebie',
         rejected: 'Odrzucone przez Ciebie',
@@ -1849,6 +1850,7 @@ export const plPL: MessageSchema = {
       resume: 'Wznów na tej karcie',
       takeOver: 'Przejmij',
       handBack: 'Gotowe, oddaj agentowi',
+      skip: 'Pomiń, działaj beze mnie',
       dismiss: 'Odrzuć prośbę',
       reviewDecision: 'Przejrzyj decyzję',
       openDecision: 'Otwórz w obszarze roboczym',

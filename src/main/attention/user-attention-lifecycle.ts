@@ -1,6 +1,6 @@
 import type { UserAttentionRequest } from '../../shared/types.js'
 
-export type UserAttentionState = 'pending' | 'acknowledged' | 'dismissed' | 'resolved'
+export type UserAttentionState = 'pending' | 'acknowledged' | 'dismissed' | 'resolved' | 'skipped'
   | 'superseded' | 'expired' | 'target-closed' | 'workspace-removed'
 export interface UserAttentionStatus extends UserAttentionRequest { state: UserAttentionState }
 const pending = (state: UserAttentionState): boolean => ['pending', 'acknowledged', 'dismissed'].includes(state)
@@ -34,8 +34,11 @@ export class UserAttentionLifecycle {
     const record = this.records.get(id)
     if (record && pending(record.status.state)) { record.status.state = state; this.changed() }
   }
-  /** The user answered this request from its agent's card. Dismissed stays pending for a waiting agent, as from the tray. */
-  answer(id: string, state: 'resolved' | 'dismissed'): boolean {
+  /**
+   * The user answered this request from its agent's card. Dismissed stays pending for a waiting agent, as from the tray;
+   * skipped ends it and tells the agent to go on without the person.
+   */
+  answer(id: string, state: 'resolved' | 'skipped' | 'dismissed'): boolean {
     this.expire()
     const record = this.records.get(id)
     if (!record || !pending(record.status.state)) return false

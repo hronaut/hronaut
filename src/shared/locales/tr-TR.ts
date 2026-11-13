@@ -1834,6 +1834,7 @@ export const trTR: MessageSchema = {
       answers: {
         handedBack: 'Geri devrettiniz',
         sentBack: 'Düzeltmesi için geri gönderdiniz',
+        skipped: 'Atladınız',
         dismissed: 'İsteğini kapattınız',
         approved: 'Eylemi onayladınız',
         rejected: 'Reddettiniz',
@@ -1849,6 +1850,7 @@ export const trTR: MessageSchema = {
       resume: 'Bu sekmede devam ettir',
       takeOver: 'Devral',
       handBack: 'Bitti, geri devret',
+      skip: 'Atla, bensiz devam et',
       dismiss: 'Kapat',
       reviewDecision: 'Kararı incele',
       openDecision: 'Çalışma alanında aç',
