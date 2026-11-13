@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [3.14.30] - 2026-11-13
+
 ### Added
 
 - An agent's card has **Skip, go on without me** when the agent asks for you. The agent learns that you skipped the step and carries on without you, instead of waiting.
