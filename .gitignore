@@ -232,6 +232,7 @@ docs/*
 !docs/VIDEO_COMPOSITION.md
 !docs/VIDEO_AUDIO_PROVENANCE.md
 !docs/WALLETS.md
+!docs/i18n/
 !docs/WATCH_ONLY_WALLET_QA.md
 !docs/WORKSPACE_SITE_ACCESS.md
 !docs/RELEASE_HISTORY.md
