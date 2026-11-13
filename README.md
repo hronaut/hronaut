@@ -1,5 +1,7 @@
 # Hronaut
 
+**English** · [Deutsch](docs/i18n/README.de-DE.md) · [Español](docs/i18n/README.es-ES.md) · [Français](docs/i18n/README.fr-FR.md) · [हिन्दी](docs/i18n/README.hi-IN.md) · [Bahasa Indonesia](docs/i18n/README.id-ID.md) · [Italiano](docs/i18n/README.it-IT.md) · [日本語](docs/i18n/README.ja-JP.md) · [한국어](docs/i18n/README.ko-KR.md) · [Polski](docs/i18n/README.pl-PL.md) · [Português (Brasil)](docs/i18n/README.pt-BR.md) · [Русский](docs/i18n/README.ru-RU.md) · [Türkçe](docs/i18n/README.tr-TR.md) · [Українська](docs/i18n/README.uk-UA.md) · [Tiếng Việt](docs/i18n/README.vi-VN.md) · [简体中文](docs/i18n/README.zh-CN.md) · [繁體中文](docs/i18n/README.zh-TW.md)
+
 **Give your coding agent its own browser. Keep yours.**
 
 Hronaut is a visible desktop browser for coding agents, with a separate workspace for each project. Your everyday Chrome stays out of it, and you can pause and take over at any time. It is for developers and agencies who let Codex, Claude Code, Cursor or another coding agent check signed-in web apps.
