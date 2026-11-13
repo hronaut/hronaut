@@ -4,6 +4,14 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- An agent's card has **Skip, go on without me** when the agent asks for you. The agent learns that you skipped the step and carries on without you, instead of waiting.
+
+### Changed
+
+- While the attention sound is on, the system notification for an agent's request is silent, so the two no longer play together.
+
 ## [3.14.29] - 2026-11-12
 
 ### Changed
