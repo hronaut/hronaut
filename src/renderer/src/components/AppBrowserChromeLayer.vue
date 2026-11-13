@@ -323,7 +323,7 @@ function setPinAgentLiveStatus(pin: boolean): void {
 }
 
 // Main answers only the request still open with this id; an answer from an older card changes nothing.
-function answerAttention(id: string, answer: 'resolved' | 'dismissed'): void {
+function answerAttention(id: string, answer: 'resolved' | 'skipped' | 'dismissed'): void {
   void props.runAction(() => props.browser.answerUserAttention(id, answer))
 }
 

@@ -61,6 +61,7 @@
     "test:watch": "vitest",
     "validate": "node scripts/run-static-gates.ts",
     "validate:focused": "node scripts/run-focused-static-gates.ts",
+    "locales:mark-translated": "HRONAUT_MARK_TRANSLATED=1 vitest run tests/locale-english-sources.test.ts",
     "lint": "eslint . --cache --cache-location node_modules/.cache/eslint --cache-strategy content --max-warnings 0 && npm run lint:styles",
     "lint:code": "eslint . --cache --cache-location node_modules/.cache/eslint --cache-strategy content --max-warnings 0",
     "lint:focused": "eslint --cache --cache-location node_modules/.cache/eslint --cache-strategy content --no-warn-ignored --max-warnings 0",

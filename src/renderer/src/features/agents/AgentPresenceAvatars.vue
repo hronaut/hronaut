@@ -66,7 +66,7 @@ const emit = defineEmits<{
   /** Pin the live status strip below the toolbar, or unpin it. */
   setPinLiveStatus: [pin: boolean]
   /** Answer the open request for you: done and handed back, or dismissed. */
-  answerAttention: [id: string, answer: 'resolved' | 'dismissed']
+  answerAttention: [id: string, answer: 'resolved' | 'skipped' | 'dismissed']
   /** Open the workspace where its waiting decisions are reviewed. */
   reviewDecision: [workspaceId: string]
   /** Show all of this agent's steps in this workspace. */
@@ -275,7 +275,7 @@ function run(clientKey: string, action: AgentCardAction, key?: string, note?: st
     if (agent && !gone(agent) && props.allSteps && props.workspaceId) emit('showSteps', clientKey, props.workspaceId)
     return
   }
-  if (action === 'hand-back' || action === 'dismiss' || action === 'review-decision') {
+  if (action === 'hand-back' || action === 'skip' || action === 'dismiss' || action === 'review-decision') {
     // An answer applies only to the request the card showed, while this agent still asks it.
     if (!key || key !== props.attentionId || agent?.state !== 'needs-you' || gone(agent)) return
     if (action === 'review-decision') {
@@ -284,7 +284,7 @@ function run(clientKey: string, action: AgentCardAction, key?: string, note?: st
       return
     }
     if (props.attentionDecision) return
-    emit('answerAttention', key, action === 'hand-back' ? 'resolved' : 'dismissed')
+    emit('answerAttention', key, action === 'hand-back' ? 'resolved' : action === 'skip' ? 'skipped' : 'dismissed')
     return
   }
   if (!tab) return

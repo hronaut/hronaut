@@ -30,14 +30,14 @@ export function registerAttentionIpc(ipcMain: Pick<TypedIpcMain, 'handle'>, host
   })
   ipcMain.handle(ATTENTION_IPC.answer, (event, id: unknown, answer: unknown) => {
     host.assertMainShellSender(event)
-    if (typeof id !== 'string' || id.length > 128 || (answer !== 'resolved' && answer !== 'dismissed')) {
+    if (typeof id !== 'string' || id.length > 128 || (answer !== 'resolved' && answer !== 'skipped' && answer !== 'dismissed')) {
       throw new TypeError('Invalid attention answer')
     }
     // A card that was open for an earlier request answers nothing. A decision is answered as a decision.
     if (host.userAttention()?.id !== id || host.attentionDecisionId()) return false
     const tabId = host.userAttention()!.tabId
     host.userAttentionLifecycle().answer(id, answer)
-    host.mcpServer()?.recordAgentAnswer(id, answer === 'dismissed' ? 'dismissed' : 'handedBack')
+    host.mcpServer()?.recordAgentAnswer(id, answer === 'resolved' ? 'handedBack' : answer)
     host.endUserAttention({ disposition: answer === 'dismissed' ? 'dismissed' : 'acknowledged', keepPending: true })
     // Done, hand back on a tab the person took over also hands the tab back to its agents.
     if (answer === 'resolved') host.takeOvers().resolvedOn(tabId)

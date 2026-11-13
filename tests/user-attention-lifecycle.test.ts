@@ -35,6 +35,15 @@ describe('explicit human attention resolution', () => {
     owner.request({ ...request, id: 'request-3' })
     expect(owner.answer('request-2', 'resolved')).toBe(false)
   })
+  it('ends a skipped request, so that a waiting agent goes on without the person', async () => {
+    const owner = new UserAttentionLifecycle()
+    owner.request(request)
+    const waiting = owner.wait(request.id, 'workspace-1', 1000, authorize)
+    expect(owner.answer(request.id, 'skipped')).toBe(true)
+    expect((await waiting).outcome).toBe('skipped')
+    expect(owner.forTab('tab-1', 'workspace-1')).toBeUndefined()
+    expect(owner.answer(request.id, 'resolved')).toBe(false)
+  })
   it('does not let a stale menu resolve a newer request or another workspace', async () => {
     const owner = new UserAttentionLifecycle()
     owner.request(request)

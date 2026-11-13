@@ -243,7 +243,7 @@ test('opens an agent card under its avatar to pause, take over and follow, and r
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then(state => state.activeTabId)')).toBe(secondTabId)
     const asking = group.getByRole('button', { name: 'Windsurf, needs you', exact: true })
     await asking.click()
-    await expect.poll(async () => (await cardView(electronApp))?.answers).toEqual(['hand-back', 'dismiss'])
+    await expect.poll(async () => (await cardView(electronApp))?.answers).toEqual(['hand-back', 'skip', 'dismiss'])
     expect((await cardView(electronApp))!.text).toContain('Why it needs youCheck the total.')
     await expect(asking).toBeVisible()
 
@@ -261,6 +261,31 @@ test('opens an agent card under its avatar to pause, take over and follow, and r
     await expect(group.getByRole('button', { name: /^Windsurf/ })).toHaveCount(0)
   } finally {
     await Promise.allSettled([claude.client.close(), windsurf.client.close()])
+  }
+})
+
+test('Skip on the card ends the request, and a waiting agent learns to go on without the person', async ({ appWindow, electronApp, mcpPort, mcpToken }) => {
+  await expect.poll(async () => {
+    try { return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`, { headers: { authorization: `Bearer ${mcpToken}` } })).ok } catch { return false }
+  }).toBe(true)
+  const client = new Client({ name: 'Claude Code', version: '1.0.0' })
+  await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), { requestInit: { headers: { authorization: `Bearer ${mcpToken}` } } }))
+  try {
+    const workspace = await connectMcpWorkspace(client, 'Optional step', false)
+    const opened = parsed(await client.callTool({ name: 'browser_new_tab', arguments: { url: 'data:text/html,<title>Optional</title>', active: true } }) as CallToolResult)
+    const tabId = (opened.tabs as Array<{ id: string }>)[0]!.id
+    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
+    const request = parsed(await client.callTool({ name: 'browser_request_user_attention', arguments: { tabId, reason: 'Accept the cookie banner if you want.' } }) as CallToolResult)
+    const waiting = client.callTool({ name: 'browser_user_attention', arguments: { workspaceId: workspace.workspaceId, requestId: request.id, action: 'wait', timeoutMs: 30_000 } })
+    const group = appWindow.getByRole('group', { name: 'Agents in this workspace', exact: true })
+    await group.getByRole('button', { name: 'Claude Code, needs you', exact: true }).click()
+    await expect.poll(async () => (await cardView(electronApp))?.answers).toEqual(['hand-back', 'skip', 'dismiss'])
+    await clickInCard(electronApp, '[data-action="skip"]')
+    expect(parsed(await waiting as CallToolResult).outcome).toBe('skipped')
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getUserAttention()')).toBeNull()
+    await expect(group.getByRole('button', { name: /^Claude Code, (working|idle)$/ })).toBeVisible()
+  } finally {
+    await client.close()
   }
 })
 

@@ -182,7 +182,7 @@ export interface HronautUndoApi {
 export interface HronautAttentionApi {
   getUserAttention(): Promise<UserAttentionRequest | null>
   /** Answers the open plain request from its agent's card. False when that request is no longer open. */
-  answerUserAttention(id: string, answer: 'resolved' | 'dismissed'): Promise<boolean>
+  answerUserAttention(id: string, answer: 'resolved' | 'skipped' | 'dismissed'): Promise<boolean>
   onUserAttentionChanged(listener: (request: UserAttentionRequest | null) => void): () => void
   onUserAttentionRequested(listener: () => void): () => void
 }

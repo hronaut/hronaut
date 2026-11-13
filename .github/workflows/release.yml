@@ -520,6 +520,11 @@ jobs:
           VERSION: ${{ needs.prepare-release.outputs.version }}
         run: node scripts/release-history.ts "$VERSION" release-notes.md release-assets/release-history.json "$RELEASE_GENERATED_AT"
 
+      - name: Generate the software bill of materials
+        env:
+          VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: node scripts/release-sbom.ts release-assets/hronaut-sbom.cdx.json "$VERSION" "$RELEASE_GENERATED_AT"
+
       - name: Generate SHA-256 manifest
         run: |
           set -euo pipefail

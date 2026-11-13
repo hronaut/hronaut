@@ -125,6 +125,7 @@ export const BROWSER_TOOL_METADATA = {
   browser_touch: destructiveTool('Tap or swipe with one finger on a touch-emulated page'),
   browser_scroll: destructiveTool('Scroll the page'),
   browser_press: destructiveTool('Press a keyboard key'),
+  browser_steps: destructiveTool('Run several page steps'),
   browser_insert_text: destructiveTool('Insert text at the caret'),
   browser_fill_from_file: destructiveTool('Fill a field from a text file'),
   browser_hold_key: destructiveTool('Hold one keyboard key briefly'),
@@ -232,7 +233,7 @@ const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'ti
     category: 'Session',
     description: 'Alert a person to a manual browser step with a tray pulse, system notification, and a visible marker on the requested tab. Supply a short, secret-free notificationMessage for the system notification.'
   },
-  { name: 'browser_user_attention', category: 'Session', description: 'Inspect or wait up to 60000 ms for an exact attention request in your authorized workspace. Only the human resolves it, with Done, hand back on your agent card or Mark as resolved in the tab menu; acknowledgement or dismissal does not. Reports timeout, supersession, expiry or target closure separately. Runtime history retains at most 100 requests; unresolved requests expire after 24 hours and restart clears history; unavailable history grants no permission. Resolution never approves another action or consequential review.' },
+  { name: 'browser_user_attention', category: 'Session', description: 'Inspect or wait up to 60000 ms for an exact attention request in your authorized workspace. Only the human resolves it, with Done, hand back on your agent card or Mark as resolved in the tab menu; acknowledgement or dismissal does not. Skipped means the person chose Skip: go on without them, and do not ask again for the same step. Reports timeout, supersession, expiry or target closure separately. Runtime history retains at most 100 requests; unresolved requests expire after 24 hours and restart clears history; unavailable history grants no permission. Resolution never approves another action or consequential review.' },
   { name: 'browser_tabs', category: 'Session', description: 'List tabs and navigation state in the selected agent workspace. Optional search returns bounded compact title/address matches for live HTTP(S) tabs; omitted search preserves full state.' },
   { name: 'browser_new_tab', category: 'Session', description: 'Open a tab inside the selected agent workspace without taking the view: Follow agents may show it once you work in it, unless the person is busy; browser_show with its tabId makes it visible. It answers as soon as the tab exists, while the page at its url may still be loading, so several tabs can open at once; call browser_wait with the tabId before clicking, pressing keys or reading the page, since a load that commits during an action rejects it. Optional zoomIsolated gives the tab its own page zoom instead of sharing it with same-origin tabs. Optional defaultFontSize (9–72 CSS px, browser default 16) sets the tab\'s browser default standard font size for accessibility QA: text sized by the browser default and em/rem media queries follow it, unlike page zoom or OS text scale; monospace, minimum and authored pixel sizes do not change. Both are set only at creation.' },
   { name: 'browser_select_tab', category: 'Session', description: 'Select the active tab in the agent workspace without taking the view: Follow agents may show it once you work in it, unless the person is busy; browser_show makes it visible.' },
@@ -291,6 +292,18 @@ const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'ti
   { name: 'browser_type', category: 'Interaction', description: 'Type into a field and optionally submit its form.' },
   { name: 'browser_select', category: 'Interaction', description: 'Select one option by value or label, or semantically replace a native multiple-select option set with exact values. An empty values array clears selection; this does not emulate gestures.' },
   { name: 'browser_fill_form', category: 'Interaction', description: 'Fill several form fields in one tool call.' },
+  {
+    name: 'browser_steps',
+    category: 'Interaction',
+    description: 'Run 1 to 20 page steps in order on one tab in one call, when you already know the sequence: '
+      + '{ action: "click", ref or selector, doubleClick? }, { action: "type", ref or selector, text, submit? }, '
+      + '{ action: "select", ref or selector, value }, { action: "press", key } and { action: "wait", ms 1..5000 }. '
+      + 'Each step works as browser_click (default exact-element click), browser_type, browser_select (one value) and browser_press do. '
+      + 'Stops at the first failing step and returns status STOPPED with failedStep, detail and the results of the steps before it; '
+      + 'steps already done are not undone, so read the page before continuing and never replay the whole call. '
+      + 'Refs come from the snapshot taken before the call; a step that changes the page can make later refs stale. '
+      + 'Returns completed and each step\'s result. Read the page afterwards with browser_snapshot.'
+  },
   { name: 'browser_hover', category: 'Interaction', description: 'Hover an element or viewport coordinates to reveal menus, tooltips, canvas details, or hover states.' },
   { name: 'browser_drag', category: 'Interaction', description: 'Drag an element onto another element, or drag between viewport coordinates for canvas and other visual-only surfaces. Optional modifiers (Shift, Alt or ControlOrMeta) are set on every mouse event of the drag, such as Shift to constrain movement or Alt for alternate snapping; no key events are sent.' },
   { name: 'browser_wheel', category: 'Interaction', description: 'Send exactly one native wheel event at explicit viewport CSS x/y to the active visible, explicitly unlocked, child-frame-free page outside split view. Both deltaX and deltaY are required, each within -1000..1000 CSS pixels and at least one nonzero; x/y are nonnegative and at most 16384. Requires default zoom, no emulation overrides and display scale 1. Rejects extra fields, modifiers, refs and selectors. Never unlocks, moves the pointer, focuses, retries or falls back. Returns dispatch acknowledgement only, not proof of scrolling or human input. Use browser_scroll for ordinary CSSOM scrolling.' },
@@ -426,6 +439,7 @@ const ESSENTIALS_TOOL_NAMES = new Set([
   'browser_type',
   'browser_select',
   'browser_fill_form',
+  'browser_steps',
   'browser_hover',
   'browser_drag',
   'browser_scroll',

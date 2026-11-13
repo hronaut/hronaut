@@ -4,6 +4,16 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- An agent's card has **Skip, go on without me** when the agent asks for you. The agent learns that you skipped the step and carries on without you, instead of waiting.
+- `browser_steps` runs up to 20 clicks, typing, choices, key presses and short waits on one tab in one call, so an agent that knows the sequence spends one round trip on it. It stops at the first step that fails and says which one, and what the steps before it did.
+- Each release carries `hronaut-sbom.cdx.json`, a CycloneDX software bill of materials with the packages the app ships and its Electron runtime, checksummed and attested like the packages.
+
+### Changed
+
+- While the attention sound is on, the system notification for an agent's request is silent, so the two no longer play together.
+
 ## [3.14.29] - 2026-11-12
 
 ### Changed

@@ -38,6 +38,10 @@ tab access.
 - UI strings go in every language under `src/shared/locales/`. Run
   `npm run format:locales` after editing them: it keeps one key per line, in
   the order en-US has them, and the tests fail on a file it would change.
+  When you add or change an English string, translate it in every language,
+  then run `npm run locales:mark-translated`: `english-sources.json` records
+  the English text each key was translated from, and the tests fail when
+  English changed without it.
 - Prefer a self-contained module per feature. A reader should understand one
   feature, or one MCP tool, from its own folder without hopping across shared
   files. Duplicating a few lines is fine; a shared helper that couples

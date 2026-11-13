@@ -34,7 +34,7 @@ Humans can disable direct agent access at any time, which blocks further origina
 
 ## Interact with the page
 
-- Prefer `browser_snapshot`, then semantic refs with `browser_click`, `browser_type`, `browser_fill_form`, `browser_element_inspect`, or `browser_generate_locator`.
+- Prefer `browser_snapshot`, then semantic refs with `browser_click`, `browser_type`, `browser_fill_form`, `browser_element_inspect`, or `browser_generate_locator`. When you already know several steps in a row (click, type, select, press, short wait), send them in one `browser_steps` call; it stops at the first failing step and never undoes earlier ones.
 - Before reasoning from a page or treating it as task evidence, use `browser_snapshot` with `action: "assess-quality"`, an `expectedOrigin`, and an expected text or selector when one is known. Continue only for `candidate`; stop or request review for empty content, login walls, challenges, soft 404s, wrong origins, missing evidence, and ambiguous or structurally noisy content. The assessment does not grant authority or verify an external write.
 - Take a fresh snapshot after navigation or substantial DOM changes. Use coordinate input only for visual-only surfaces that expose no useful semantic target.
 - Use `browser_wait` or `browser_network_wait` for an observable condition instead of repeated polling or fixed sleeps.

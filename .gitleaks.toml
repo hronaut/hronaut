@@ -1,0 +1,16 @@
+# Secret scan for every pull request and push (see .github/workflows/ci.yml).
+# Tests and examples use made-up keys, tokens and passwords on purpose; real secrets never belong in this repository.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Fixtures with made-up values"
+paths = [
+  '''(^|/)tests/''',
+  '''(^|/)examples/''',
+]
+# A global property name, a fixture license key and a contract address that the generic key rule mistakes for secrets.
+regexes = [
+  '''__hronautLiveRegionV1''',
+  '''inst_abcdefgh1234''',
+]
