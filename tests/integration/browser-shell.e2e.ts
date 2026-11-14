@@ -4435,6 +4435,7 @@ test('pins tabs from the native menu and the Tabs view while preserving closed-t
     { id: 'import-browser-cookies', label: 'Import from browser…' },
     { id: 'edit-workspace', label: 'Edit Workspace…' },
     { id: 'pin-workspace', label: 'Pin Workspace to Top' },
+    { id: 'copy-workspace-agent-key', label: 'Copy Key for an Agent' },
     { id: 'sleep-workspace-tabs', label: 'Sleep Eligible Tabs' },
     { id: 'archive-workspace', label: 'Archive Workspace' }
   ])
@@ -6087,7 +6088,7 @@ test('creates, renames, and permanently closes an isolated human workspace', asy
   await expect.poll(() => electronApp.evaluate(() => {
     const menu = (globalThis as typeof globalThis & { __hronautTabMenu?: Electron.Menu }).__hronautTabMenu
     return menu?.items.filter((item) => item.type !== 'separator').map(({ id }) => id) ?? []
-  })).toEqual(['new-tab-in-workspace', 'import-browser-cookies', 'edit-workspace', 'pin-workspace', 'sleep-workspace-tabs', 'archive-workspace'])
+  })).toEqual(['new-tab-in-workspace', 'import-browser-cookies', 'edit-workspace', 'pin-workspace', 'copy-workspace-agent-key', 'sleep-workspace-tabs', 'archive-workspace'])
   await electronApp.evaluate(() => {
     const menu = (globalThis as typeof globalThis & { __hronautTabMenu?: Electron.Menu }).__hronautTabMenu
     const item = menu?.getMenuItemById('edit-workspace')
@@ -6107,7 +6108,7 @@ test('creates, renames, and permanently closes an isolated human workspace', asy
   await expect.poll(() => electronApp.evaluate(() => {
     const menu = (globalThis as typeof globalThis & { __hronautTabMenu?: Electron.Menu }).__hronautTabMenu
     return menu?.items.filter((item) => item.type !== 'separator').map(({ id }) => id) ?? []
-  })).toEqual(['new-tab-in-workspace', 'import-browser-cookies', 'edit-workspace', 'pin-workspace', 'sleep-workspace-tabs', 'archive-workspace'])
+  })).toEqual(['new-tab-in-workspace', 'import-browser-cookies', 'edit-workspace', 'pin-workspace', 'copy-workspace-agent-key', 'sleep-workspace-tabs', 'archive-workspace'])
   await electronApp.evaluate(() => {
     const menu = (globalThis as typeof globalThis & { __hronautTabMenu?: Electron.Menu }).__hronautTabMenu
     const item = menu?.getMenuItemById('new-tab-in-workspace')
