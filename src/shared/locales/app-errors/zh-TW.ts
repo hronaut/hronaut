@@ -116,6 +116,7 @@ export const zhTWAppErrors: AppErrorMessages = {
   workspace: {
     unavailable: '這個工作區已無法使用。',
     archivedUnavailable: '這個封存的工作區已無法使用。',
+    agentAccessOff: '此工作區已關閉代理程式存取權。若要交給代理程式，請在工作區設定中開啟。',
     busyArchiving: '工作區「{name}」正在封存工作區，請在該作業完成後再試一次。',
     busyClosing: '工作區「{name}」正在關閉工作區，請在該作業完成後再試一次。',
     busyForking: '工作區「{name}」正在為工作區資料建立分支，請在該作業完成後再試一次。',

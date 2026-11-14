@@ -116,6 +116,7 @@ export const viVNAppErrors: AppErrorMessages = {
   workspace: {
     unavailable: 'Không gian làm việc không còn khả dụng.',
     archivedUnavailable: 'Không gian làm việc đã lưu trữ không còn khả dụng.',
+    agentAccessOff: 'Quyền truy cập của tác nhân đang tắt cho không gian làm việc này. Hãy bật trong cài đặt không gian làm việc để giao nó cho tác nhân.',
     busyArchiving: 'Không gian làm việc “{name}” đang bận lưu trữ không gian làm việc. Hãy thử lại sau khi thao tác đó hoàn tất.',
     busyClosing: 'Không gian làm việc “{name}” đang bận đóng không gian làm việc. Hãy thử lại sau khi thao tác đó hoàn tất.',
     busyForking: 'Không gian làm việc “{name}” đang bận phân nhánh dữ liệu không gian làm việc. Hãy thử lại sau khi thao tác đó hoàn tất.',

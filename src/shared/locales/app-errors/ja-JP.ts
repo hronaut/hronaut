@@ -116,6 +116,7 @@ export const jaJPAppErrors: AppErrorMessages = {
   workspace: {
     unavailable: 'ワークスペースは利用できなくなりました。',
     archivedUnavailable: 'アーカイブしたワークスペースは利用できなくなりました。',
+    agentAccessOff: 'このワークスペースではエージェントのアクセスがオフになっています。エージェントに引き継ぐには、ワークスペースの設定でオンにしてください。',
     busyArchiving: 'ワークスペース「{name}」はアーカイブ処理中です。その操作が完了してから、もう一度お試しください。',
     busyClosing: 'ワークスペース「{name}」は閉じる処理中です。その操作が完了してから、もう一度お試しください。',
     busyForking: 'ワークスペース「{name}」はワークスペースのデータをフォーク中です。その操作が完了してから、もう一度お試しください。',

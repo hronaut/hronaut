@@ -116,6 +116,7 @@ export const deDEAppErrors: AppErrorMessages = {
   workspace: {
     unavailable: 'Der Arbeitsbereich ist nicht mehr verfügbar.',
     archivedUnavailable: 'Der archivierte Arbeitsbereich ist nicht mehr verfügbar.',
+    agentAccessOff: 'Der Agentenzugriff ist für diesen Arbeitsbereich aus. Schalte ihn in den Einstellungen des Arbeitsbereichs ein, um ihn einem Agenten zu übergeben.',
     busyArchiving: 'Der Arbeitsbereich „{name}“ wird gerade archiviert. Versuchen Sie es erneut, sobald der Vorgang abgeschlossen ist.',
     busyClosing: 'Der Arbeitsbereich „{name}“ wird gerade geschlossen. Versuchen Sie es erneut, sobald der Vorgang abgeschlossen ist.',
     busyForking: 'Vom Arbeitsbereich „{name}“ wird gerade eine Kopie erstellt. Versuchen Sie es erneut, sobald der Vorgang abgeschlossen ist.',

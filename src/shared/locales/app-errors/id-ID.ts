@@ -116,6 +116,7 @@ export const idIDAppErrors: AppErrorMessages = {
   workspace: {
     unavailable: 'Ruang kerja sudah tidak tersedia.',
     archivedUnavailable: 'Ruang kerja yang diarsipkan sudah tidak tersedia.',
+    agentAccessOff: 'Akses agen nonaktif untuk ruang kerja ini. Aktifkan di pengaturan ruang kerja untuk menyerahkannya ke agen.',
     busyArchiving: 'Ruang kerja "{name}" sedang sibuk mengarsipkan ruang kerja. Coba lagi setelah operasi tersebut selesai.',
     busyClosing: 'Ruang kerja "{name}" sedang sibuk menutup ruang kerja. Coba lagi setelah operasi tersebut selesai.',
     busyForking: 'Ruang kerja "{name}" sedang sibuk membuat fork data ruang kerja. Coba lagi setelah operasi tersebut selesai.',

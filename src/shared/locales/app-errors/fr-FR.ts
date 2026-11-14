@@ -116,6 +116,7 @@ export const frFRAppErrors: AppErrorMessages = {
   workspace: {
     unavailable: 'L’espace de travail n’est plus disponible.',
     archivedUnavailable: 'L’espace de travail archivé n’est plus disponible.',
+    agentAccessOff: 'L’accès des agents est désactivé pour cet espace de travail. Activez-le dans les paramètres de l’espace de travail pour le confier à un agent.',
     busyArchiving: 'L’espace de travail « {name} » est en cours d’archivage. Réessayez une fois l’opération terminée.',
     busyClosing: 'L’espace de travail « {name} » est en cours de fermeture. Réessayez une fois l’opération terminée.',
     busyForking: 'Une copie de l’espace de travail « {name} » est en cours de création. Réessayez une fois l’opération terminée.',

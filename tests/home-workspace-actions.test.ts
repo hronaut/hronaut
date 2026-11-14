@@ -36,6 +36,8 @@ vi.mock('../src/main/browser/home-tabs/home-tabs.js', async (importOriginal) => 
   openHome: (browser: { openHome: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.openHome(...args)
 }))
 
+const AGENT_KEY = `hrw1_${'a'.repeat(43)}`
+
 function harness() {
   const state = {
     activeTabId: 'home', allHumanInteractionLocked: false,
@@ -51,13 +53,26 @@ function harness() {
     mcpTabGroups: new Map([['active', { id: 'active', name: 'Project' }]]),
     savedTabGroups: new Map([['archived', { id: 'archived', name: 'Archive' }]]),
     workspaceOperations: new Map<string, { action: string; settled?: Promise<void> }>(),
-    savedWorkspaceOperations: new Map<string, { action: string; settled?: Promise<void> }>()
+    savedWorkspaceOperations: new Map<string, { action: string; settled?: Promise<void> }>(),
+    // Copying a workspace key for an agent reads its key and writes the clipboard in main.
+    isWorkspaceAgentAccessible: vi.fn(() => true),
+    mcpWorkspaceResumeKey: vi.fn(() => AGENT_KEY),
+    options: { copyText: vi.fn(async (_text: string) => undefined) }
   }
   const edit = vi.fn()
   return { state, manager, edit, run: (input: unknown) => runHomeWorkspaceAction(manager as never, input, edit) }
 }
 
 describe('trusted Home workspace actions', () => {
+  it('copies an open workspace key for an agent in main, never sends it to Home, and refuses an archive', async () => {
+    const h = harness()
+    const result = await h.run({ view: 'copy-agent-key', workspaceId: 'active' })
+    expect(h.manager.options.copyText).toHaveBeenCalledOnce()
+    expect(h.manager.options.copyText.mock.calls[0]![0]).toContain(`"workspaceId":"active","resumeKey":"${AGENT_KEY}"`)
+    expect(JSON.stringify(result)).not.toContain('hrw1_')
+    await expect(h.run({ view: 'copy-agent-key', workspaceId: 'archived' })).rejects.toThrow('Restore this workspace')
+    expect(h.manager.options.copyText).toHaveBeenCalledOnce()
+  })
   it('opens an empty workspace in its own scope and returns only Home fields', async () => {
     const h = harness()
     const result = await h.run({ view: 'open', workspaceId: 'active' })

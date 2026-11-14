@@ -116,6 +116,7 @@ export const ptBRAppErrors: AppErrorMessages = {
   workspace: {
     unavailable: 'O espaço de trabalho não está mais disponível.',
     archivedUnavailable: 'O espaço de trabalho arquivado não está mais disponível.',
+    agentAccessOff: 'O acesso de agentes está desativado neste espaço de trabalho. Ative-o nas configurações do espaço de trabalho para entregá-lo a um agente.',
     busyArchiving: 'O espaço de trabalho “{name}” está ocupado arquivando o espaço de trabalho. Tente novamente quando essa operação terminar.',
     busyClosing: 'O espaço de trabalho “{name}” está ocupado fechando o espaço de trabalho. Tente novamente quando essa operação terminar.',
     busyForking: 'O espaço de trabalho “{name}” está ocupado bifurcando os dados do espaço de trabalho. Tente novamente quando essa operação terminar.',

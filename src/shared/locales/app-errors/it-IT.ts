@@ -116,6 +116,7 @@ export const itITAppErrors: AppErrorMessages = {
   workspace: {
     unavailable: 'L’area di lavoro non è più disponibile.',
     archivedUnavailable: 'L’area di lavoro archiviata non è più disponibile.',
+    agentAccessOff: 'L’accesso degli agenti è disattivato per quest’area di lavoro. Attivalo nelle impostazioni dell’area di lavoro per affidarla a un agente.',
     busyArchiving: 'L’area di lavoro “{name}” è impegnata nell’archiviazione. Riprova al termine dell’operazione.',
     busyClosing: 'L’area di lavoro “{name}” è impegnata nella chiusura. Riprova al termine dell’operazione.',
     busyForking: 'L’area di lavoro “{name}” è impegnata nella duplicazione dei dati. Riprova al termine dell’operazione.',

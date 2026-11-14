@@ -120,6 +120,7 @@ export const enUSAppErrors = {
   workspace: {
     unavailable: 'The workspace is no longer available.',
     archivedUnavailable: 'The archived workspace is no longer available.',
+    agentAccessOff: 'Agent access is off for this workspace. Turn it on in the workspace settings to hand it to an agent.',
     busyArchiving: 'Workspace "{name}" is busy archiving the workspace. Try again after that operation finishes.',
     busyClosing: 'Workspace "{name}" is busy closing the workspace. Try again after that operation finishes.',
     busyForking: 'Workspace "{name}" is busy forking workspace data. Try again after that operation finishes.',

@@ -272,6 +272,32 @@ describe('Workspace card menu (#872)', () => {
     expect(document.activeElement).toBe(summary)
     expect(workspaceAction).toHaveBeenCalledWith({ view: 'edit', workspaceId: 'shop' })
   })
+
+  it('copies the key for an agent through main and says where to paste it, only while agents may use the workspace', async () => {
+    const personal = { ...docs, agentAccess: false }
+    const workspaces = inventory({ mcpTabGroups: [shop, personal], savedTabGroups: [archivedWorkspace(openWorkspace('old', { name: 'Old' }))] })
+    const workspaceAction = vi.fn().mockResolvedValue(workspaces)
+    mountTestHome({ workspaces, api: { workspaceAction } })
+    await flush()
+    const copy = query<HTMLButtonElement>('[data-workspace-action="copy-agent-key"]', card('Acme Store'))
+    expect(copy.getAttribute('aria-label')).toBe('Copy key for an agent')
+    expect(words(byId(copy.getAttribute('aria-describedby')!))).toBe('Paste it into an agent’s chat to continue in this workspace.')
+    // The sites count keeps its own note, which the card updates as the agent browses.
+    expect(words(query('.card-menu-note', card('Acme Store')))).toBe('0 known websites')
+    expect(card('Docs').querySelector('[data-workspace-action="copy-agent-key"]')).toBeNull()
+    query<HTMLButtonElement>('#workspaces-archived').click()
+    await flush()
+    expect(card('Old').querySelector('[data-workspace-action="copy-agent-key"]')).toBeNull()
+    query<HTMLButtonElement>('#workspaces-open').click()
+    await flush()
+
+    query<HTMLDetailsElement>('.card-menu', card('Acme Store')).open = true
+    query<HTMLButtonElement>('[data-workspace-action="copy-agent-key"]', card('Acme Store')).click()
+    await flush()
+    expect(workspaceAction).toHaveBeenCalledExactlyOnceWith({ view: 'copy-agent-key', workspaceId: 'shop' })
+    expect(words(byId('workspace-notice'))).toBe('Key for “Acme Store” copied. Paste it into your agent’s chat.')
+    expect(byId('workspace-undo').hidden).toBe(true)
+  })
 })
 
 describe('Workspace card tab tiles (#872)', () => {
