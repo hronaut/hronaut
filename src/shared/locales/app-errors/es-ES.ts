@@ -116,6 +116,7 @@ export const esESAppErrors: AppErrorMessages = {
   workspace: {
     unavailable: 'El espacio de trabajo ya no está disponible.',
     archivedUnavailable: 'El espacio de trabajo archivado ya no está disponible.',
+    agentAccessOff: 'El acceso de agentes está desactivado en este espacio de trabajo. Actívalo en la configuración del espacio de trabajo para pasárselo a un agente.',
     busyArchiving: 'El espacio de trabajo «{name}» se está archivando. Vuelve a intentarlo cuando termine la operación.',
     busyClosing: 'El espacio de trabajo «{name}» se está cerrando. Vuelve a intentarlo cuando termine la operación.',
     busyForking: 'Se está creando una copia del espacio de trabajo «{name}». Vuelve a intentarlo cuando termine la operación.',

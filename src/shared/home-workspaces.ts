@@ -9,6 +9,8 @@ export type HomeWorkspaceState = Pick<BrowserState, 'mcpTabGroups' | 'savedTabGr
 export type HomeWorkspaceEditorRequest = { view: 'import'; workspaceId: string } | { view: 'create' } | { view: 'templates' } | { view: 'edit'; workspaceId: string } | { view: 'transfer'; workspaceId: string }
 export type HomeWorkspaceAction = Exclude<HomeWorkspaceEditorRequest, { view: 'import' }>
   | { view: 'open' | 'archive' | 'restore' | 'delete'; workspaceId: string }
+  /** Copies the open workspace's key for an agent; main writes it to the clipboard, and Home never sees it. */
+  | { view: 'copy-agent-key'; workspaceId: string }
   /** Undoable unless the archive is full, when Home asks first and it is deleted at once. */
   | { view: 'clear'; workspaceId: string; undoable?: boolean }
   | { view: 'preferences'; workspaceId: string; hiddenFromSidebar?: boolean; deletionProtected?: boolean }

@@ -116,6 +116,7 @@ export const koKRAppErrors: AppErrorMessages = {
   workspace: {
     unavailable: '작업 공간을 더 이상 사용할 수 없습니다.',
     archivedUnavailable: '보관처리된 작업 공간을 더 이상 사용할 수 없습니다.',
+    agentAccessOff: '이 작업 공간은 에이전트 액세스가 꺼져 있습니다. 에이전트에게 넘기려면 작업 공간 설정에서 켜세요.',
     busyArchiving: '작업 공간 ‘{name}’에서 작업 공간을 보관처리하는 중입니다. 해당 작업이 끝난 후 다시 시도하세요.',
     busyClosing: '작업 공간 ‘{name}’에서 작업 공간을 닫는 중입니다. 해당 작업이 끝난 후 다시 시도하세요.',
     busyForking: '작업 공간 ‘{name}’에서 작업 공간 데이터를 포크하는 중입니다. 해당 작업이 끝난 후 다시 시도하세요.',

@@ -290,8 +290,9 @@ pre { min-height: 88px; margin: 0; padding: 16px 74px 16px 16px; overflow: auto;
 .home-workspace-card .card-menu-list .danger { color: var(--danger); }
 .card-menu-list input { accent-color: var(--accent); }
 /* Copy or move data says under its name how many websites' data the workspace keeps. */
-.home-workspace-card .card-menu-list button[data-workspace-action="transfer"] { flex-wrap: wrap; row-gap: 0; }
-.card-menu-note { flex-basis: 100%; color: var(--muted); font-size: var(--type-micro-size); font-weight: 400; }
+/* Copy key for an agent says under its name what the key is for. */
+.home-workspace-card .card-menu-list button[data-workspace-action="transfer"], .home-workspace-card .card-menu-list button[data-workspace-action="copy-agent-key"] { flex-wrap: wrap; row-gap: 0; }
+.card-menu-note, .card-menu-help { flex-basis: 100%; color: var(--muted); font-size: var(--type-micro-size); font-weight: 400; }
 .card-menu-fact { display: flex; align-items: center; gap: 8px; padding: 6px 10px; color: var(--muted); font-size: var(--type-micro-size); }
 .card-menu-fact .home-icon { --icon-size: 14px; }
 .card-menu-list hr { width: 100%; margin: 4px 0; border: 0; border-top: 1px solid var(--border); }

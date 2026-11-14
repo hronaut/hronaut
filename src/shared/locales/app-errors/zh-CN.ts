@@ -116,6 +116,7 @@ export const zhCNAppErrors: AppErrorMessages = {
   workspace: {
     unavailable: '该工作区已不可用。',
     archivedUnavailable: '该已归档的工作区已不可用。',
+    agentAccessOff: '此工作区已关闭智能体访问。要交给智能体，请在工作区设置中开启。',
     busyArchiving: '工作区“{name}”正忙于归档工作区。请在该操作完成后重试。',
     busyClosing: '工作区“{name}”正忙于关闭工作区。请在该操作完成后重试。',
     busyForking: '工作区“{name}”正忙于分叉工作区数据。请在该操作完成后重试。',

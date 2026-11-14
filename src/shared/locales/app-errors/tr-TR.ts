@@ -116,6 +116,7 @@ export const trTRAppErrors: AppErrorMessages = {
   workspace: {
     unavailable: 'Çalışma alanı artık kullanılamıyor.',
     archivedUnavailable: 'Arşivlenen çalışma alanı artık kullanılamıyor.',
+    agentAccessOff: 'Bu çalışma alanında ajan erişimi kapalı. Bir ajana devretmek için çalışma alanı ayarlarından açın.',
     busyArchiving: '"{name}" çalışma alanı şu anda arşivleniyor. Bu işlem bittikten sonra tekrar deneyin.',
     busyClosing: '"{name}" çalışma alanı şu anda kapatılıyor. Bu işlem bittikten sonra tekrar deneyin.',
     busyForking: '"{name}" çalışma alanının verileri şu anda çatallanıyor. Bu işlem bittikten sonra tekrar deneyin.',

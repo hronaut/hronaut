@@ -7,6 +7,7 @@ import { openHome } from '../browser/home-tabs/home-tabs.js'
 import { closeWorkspace } from '../browser/mcp-tab-groups/close-mcp-tab-group.js'
 import { newTab } from '../browser/new-tabs/open-new-tab.js'
 import { whenArchivedWorkspaceIdle, whenWorkspaceIdle } from '../browser/workspace-operations/workspace-operations.js'
+import { copyWorkspaceAgentKey } from '../browser/workspace-agent-key/workspace-agent-key.js'
 
 /**
  * What Home shows of the workspaces and tabs. It goes to Home, never to the shell as an action's reply, so a change
@@ -59,6 +60,10 @@ export async function runHomeWorkspaceAction(
       edit({ view: 'edit', workspaceId: request.workspaceId })
       break
     case 'transfer': edit({ view: 'transfer', workspaceId: request.workspaceId }); break
+    case 'copy-agent-key':
+      if (!active) throw new Error('Restore this workspace to copy its key for an agent.')
+      await copyWorkspaceAgentKey(manager, request.workspaceId)
+      break
     case 'open':
     case 'restore':
       if (archived) await restoreSavedTabGroup(manager, archived.id)

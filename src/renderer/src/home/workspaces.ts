@@ -12,6 +12,9 @@ import {
 } from './workspace-card.js'
 
 type LiveAgents = Pick<HomeDashboard, 'agents' | 'workspaceActivity' | 'feed'>
+/** The card buttons that act on one workspace. */
+const WORKSPACE_ACTIONS = ['open', 'edit', 'transfer', 'copy-agent-key', 'delete', 'archive', 'clear'] as const
+type WorkspaceActionView = typeof WORKSPACE_ACTIONS[number]
 
 export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal: AbortSignal, onStateChange?: (state: HomeWorkspaceState) => void) {
   let state = data.workspaces
@@ -222,6 +225,10 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
       if (generation !== revision || signal.aborted) return
       state = next
       onStateChange?.(state)
+      if (request.view === 'copy-agent-key') {
+        undoId = null
+        notice.textContent = interpolate(messages.agentKeyNotice, { name: group?.name ?? '' })
+      }
       if (request.view === 'archive' || request.view === 'clear' || request.view === 'restore' || request.view === 'delete') {
         // Home's own Undo restores the archive, so it can be reached from the keyboard here too.
         undoId = request.view === 'archive' || (request.view === 'clear' && request.undoable) ? request.workspaceId : null
@@ -258,8 +265,8 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
     if (menu) { menu.open = false; menu.querySelector('summary')?.focus({ preventScroll: true }) }
     const actionView = control.dataset.workspaceAction
     if (actionView === 'create' || actionView === 'templates') void action({ view: actionView })
-    else if (['open', 'edit', 'transfer', 'delete', 'archive', 'clear'].includes(actionView ?? '') && control.dataset.workspaceId) {
-      void action({ view: actionView as 'open' | 'edit' | 'transfer' | 'delete' | 'archive' | 'clear', workspaceId: control.dataset.workspaceId })
+    else if (WORKSPACE_ACTIONS.includes(actionView as WorkspaceActionView) && control.dataset.workspaceId) {
+      void action({ view: actionView as WorkspaceActionView, workspaceId: control.dataset.workspaceId })
     }
   }, { signal })
   root.addEventListener('change', event => {

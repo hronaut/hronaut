@@ -152,6 +152,17 @@ export function renderWorkspaceCard(card: HTMLElement, group: WorkspaceCard, con
   transfer.setAttribute('aria-describedby', sites.id)
   transfer.append(text('span', labels.transferData), sites)
   list.append(transfer)
+  // The person hands an open workspace to an agent by pasting its key into the agent's chat. Main copies the key, so
+  // Home never holds it; with direct agent access off, the key would not work.
+  if (!group.archived && group.agentAccess !== false) {
+    const agentKey = button('copy-agent-key', '')
+    const help = text('small', messages.copyAgentKeyHelp, 'card-menu-help')
+    help.id = `workspace-agent-key-${group.id}`
+    agentKey.setAttribute('aria-label', messages.copyAgentKey)
+    agentKey.setAttribute('aria-describedby', help.id)
+    agentKey.append(text('span', messages.copyAgentKey), help)
+    list.append(agentKey)
+  }
   for (const preference of ['hiddenFromSidebar', 'deletionProtected'] as const) {
     const label = document.createElement('label')
     const input = document.createElement('input')

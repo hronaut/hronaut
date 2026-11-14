@@ -5,12 +5,14 @@ import type { Browser } from '../browser.js'
 import { sleepBlockReason, sleepWorkspaceTabs } from '../tab-sleep/tab-sleep.js'
 import { archiveWorkspaceForPerson } from '../workspace-archive/workspace-archive.js'
 import { setWorkspacePinned } from '../mcp-tab-groups/workspace-pinning.js'
+import { copyWorkspaceAgentKey } from '../workspace-agent-key/workspace-agent-key.js'
 import { SHELL_IPC } from '../../../shared/ipc/shell.js'
 import { sendTo } from '../../typed-ipc.js'
 
 /**
  * The workspace's context menu items: a new tab in it, importing browser
- * cookies, editing, pinning, sleeping its tabs and archiving it. New tab asks
+ * cookies, editing, pinning, copying its key for an agent while agents may
+ * use it, sleeping its tabs and archiving it. New tab asks
  * the window to open the tab, and the window reports its own failures; any
  * other failed action is logged and reported to the manager's onActionFailed
  * option.
@@ -54,6 +56,12 @@ export function workspaceContextMenuItems(browser: Browser, group: ActiveWorkspa
       label: browser.text(pin ? 'native.context.pinWorkspace' : 'native.context.unpinWorkspace'),
       click: () => runAction('pin the workspace', () => setWorkspacePinned(browser, group.id, pin))
     },
+    // The person hands the workspace to an agent by pasting its key into the agent's chat.
+    ...(browser.isWorkspaceAgentAccessible(group.id) ? [{
+      id: 'copy-workspace-agent-key',
+      label: browser.text('native.context.copyWorkspaceAgentKey'),
+      click: () => runAction('copy the workspace key for an agent', () => copyWorkspaceAgentKey(browser, group.id))
+    }] : []),
     { type: 'separator' },
     {
       id: 'sleep-workspace-tabs',

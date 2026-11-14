@@ -585,8 +585,9 @@ describe('Home workspace hub', () => {
     await settle()
 
     const actions = [...document.querySelectorAll<HTMLButtonElement>('.home-workspace-card .card-menu-list button')]
-    // Copy or move data also counts the websites with kept data after its label.
-    expect(actions.map(item => item.firstChild?.textContent)).toEqual(['Manage', 'Copy or move data', 'Archive', 'Clear…'])
+    // Copy or move data also counts the websites with kept data after its label, and Copy key for an agent says what
+    // the key is for after its own.
+    expect(actions.map(item => item.firstChild?.textContent)).toEqual(['Manage', 'Copy or move data', 'Copy key for an agent', 'Archive', 'Clear…'])
     expect(button('[data-workspace-action="clear"]').disabled).toBe(false)
     button('[data-workspace-action="clear"]').click()
     await settle()

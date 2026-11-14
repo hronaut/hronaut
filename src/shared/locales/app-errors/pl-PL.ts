@@ -116,6 +116,7 @@ export const plPLAppErrors: AppErrorMessages = {
   workspace: {
     unavailable: 'Obszar roboczy nie jest już dostępny.',
     archivedUnavailable: 'Zarchiwizowany obszar roboczy nie jest już dostępny.',
+    agentAccessOff: 'Dostęp agentów do tego obszaru roboczego jest wyłączony. Włącz go w ustawieniach obszaru roboczego, aby przekazać go agentowi.',
     busyArchiving: 'Obszar roboczy „{name}” jest właśnie archiwizowany. Spróbuj ponownie po zakończeniu tej operacji.',
     busyClosing: 'Obszar roboczy „{name}” jest właśnie zamykany. Spróbuj ponownie po zakończeniu tej operacji.',
     busyForking: 'Trwa tworzenie kopii obszaru roboczego „{name}”. Spróbuj ponownie po zakończeniu tej operacji.',

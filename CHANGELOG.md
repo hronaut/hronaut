@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Copy key for an agent** in a workspace's menu, in the sidebar and on Home, copies what an agent needs to continue in that workspace: its ID and private resume key, with the call that resumes it. Paste it into an agent's chat, and the agent picks up there instead of starting a new workspace. It is offered while the workspace allows agent access.
+
 ## [3.14.30] - 2026-11-13
 
 ### Added
