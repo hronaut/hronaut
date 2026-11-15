@@ -21,7 +21,7 @@ describe('Electron Fuses in packaged builds', () => {
       enableNodeCliInspectArguments: false,
       enableEmbeddedAsarIntegrityValidation: true,
       onlyLoadAppFromAsar: true,
-      // Unsigned builds: the Apple Silicon binary needs a fresh ad-hoc signature after its bytes change.
+      // Unsigned local and preflight builds: the Apple Silicon binary needs a fresh ad-hoc signature after its bytes change.
       resetAdHocDarwinSignature: true
     })
   })
